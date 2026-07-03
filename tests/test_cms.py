@@ -1,7 +1,7 @@
 """
 Tests for the CMS manager heartbeat/registration subsystem.
 
-nginx-xrootd can be configured with ``xrootd_cms_manager host:port`` so that
+nginx-xrootd can be configured with ``brix_cms_manager host:port`` so that
 the server periodically sends registration and heartbeat frames to a CMS
 manager.  The protocol uses a simple binary frame format:
 
@@ -28,7 +28,7 @@ This test suite exercises:
 
 The CMS manager is a real nginx instance (nginx_cluster_redir.conf at
 CMS_TEST_CMS_PORT) started by ``manage_test_servers.sh start-all``.  The
-cms-test nginx (CMS_TEST_NGINX_PORT) connects to it with xrootd_cms_interval 2
+cms-test nginx (CMS_TEST_NGINX_PORT) connects to it with brix_cms_interval 2
 and retries automatically on disconnect.
 
 Run:
@@ -79,7 +79,7 @@ def _recv_exact(sock, n):
     return buf
 
 
-def _read_xrootd_response(sock):
+def _read_brix_response(sock):
     hdr = _recv_exact(sock, 8)
     assert hdr is not None, "no XRootD response header received"
     status = struct.unpack(">H", hdr[2:4])[0]
@@ -88,15 +88,15 @@ def _read_xrootd_response(sock):
     return status, body
 
 
-def _send_xrootd_req(sock, streamid, reqid, body=b"", payload=b""):
+def _send_brix_req(sock, streamid, reqid, body=b"", payload=b""):
     hdr = struct.pack(">2sH", streamid, reqid)
     hdr += body.ljust(16, b"\x00")
     hdr += struct.pack(">I", len(payload))
     sock.sendall(hdr + payload)
-    return _read_xrootd_response(sock)
+    return _read_brix_response(sock)
 
 
-def _assert_xrootd_ping(port):
+def _assert_brix_ping(port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(10)
     try:
@@ -104,10 +104,10 @@ def _assert_xrootd_ping(port):
         sock.sendall(struct.pack(">IIIII", 0, 0, 0, 4, 2012))
         assert _recv_exact(sock, 16) is not None
 
-        status, _ = _send_xrootd_req(sock, b"\x00\x01", kXR_protocol)
+        status, _ = _send_brix_req(sock, b"\x00\x01", kXR_protocol)
         assert status == kXR_ok
 
-        status, _ = _send_xrootd_req(
+        status, _ = _send_brix_req(
             sock,
             b"\x00\x01",
             kXR_login,
@@ -115,7 +115,7 @@ def _assert_xrootd_ping(port):
         )
         assert status == kXR_ok
 
-        status, _ = _send_xrootd_req(sock, b"\x00\x01", kXR_ping)
+        status, _ = _send_brix_req(sock, b"\x00\x01", kXR_ping)
         assert status == kXR_ok
     finally:
         sock.close()
@@ -140,7 +140,7 @@ def cms_nginx():
 
     The cms-test-mgr nginx at CMS_TEST_CMS_PORT acts as the real CMS server.
     The cms-test nginx (CMS_TEST_NGINX_PORT) connects to it with
-    xrootd_cms_interval 2.  Both are started by manage_test_servers.sh
+    brix_cms_interval 2.  Both are started by manage_test_servers.sh
     start-all, so the connection should be established by test time.
     """
     deadline = time.time() + 30
@@ -177,11 +177,11 @@ class TestCmsLogin:
             "the cms-test nginx may not have registered with the CMS manager"
         )
 
-    def test_cms_server_responds_to_xrootd_ping(self, cms_nginx):
+    def test_cms_server_responds_to_brix_ping(self, cms_nginx):
         """After CMS registration the nginx cms-test server must serve
         XRootD requests normally.
         """
-        _assert_xrootd_ping(cms_nginx["nginx_port"])
+        _assert_brix_ping(cms_nginx["nginx_port"])
 
 
 # ---------------------------------------------------------------------------
@@ -192,10 +192,10 @@ class TestCmsPingPong:
 
     def test_server_stays_healthy_after_heartbeat_cycle(self, cms_nginx):
         """The cms-test nginx must remain responsive after 8 seconds of CMS
-        heartbeat traffic (covering ~4 xrootd_cms_interval=2 cycles).
+        heartbeat traffic (covering ~4 brix_cms_interval=2 cycles).
         """
         time.sleep(8.0)
-        _assert_xrootd_ping(cms_nginx["nginx_port"])
+        _assert_brix_ping(cms_nginx["nginx_port"])
 
 
 # ---------------------------------------------------------------------------
@@ -225,7 +225,7 @@ class TestCmsReconnect:
     def test_cms_connection_maintained(self, cms_nginx):
         count = _count_established_to(cms_nginx["cms_port"])
         assert count >= 1, "no CMS connection found"
-        _assert_xrootd_ping(cms_nginx["nginx_port"])
+        _assert_brix_ping(cms_nginx["nginx_port"])
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
-#ifndef XROOTD_CACHE_ORIGIN_TRANSPORT_H
-#define XROOTD_CACHE_ORIGIN_TRANSPORT_H
+#ifndef BRIX_CACHE_ORIGIN_TRANSPORT_H
+#define BRIX_CACHE_ORIGIN_TRANSPORT_H
 
 /*
  * transport.h — origin-transport seam for the read-through cache.
@@ -18,13 +18,13 @@
  *       content digest.  This mirrors the storage-driver seam in
  *       src/fs/backend/sd.h.
  *
- * HOW:  xrootd_cache_origin_url_parse() classifies the configured origin /
+ * HOW:  brix_cache_origin_url_parse() classifies the configured origin /
  *       request URL into a scheme and selects the matching driver.  The fill
  *       worker calls connect → open (learn size) → read_range* → checksum →
  *       close.  All driver calls run in an nginx thread-pool worker (blocking
  *       I/O); none touch the event loop.  A driver advertises what it can do via
  *       `caps` so the engine can skip unsupported steps (e.g. an origin that
- *       cannot report a checksum yields XROOTD_CACHE_DIGEST_NONE and the
+ *       cannot report a checksum yields BRIX_CACHE_DIGEST_NONE and the
  *       best-effort verify policy commits the fill unverified).
  */
 
@@ -35,29 +35,29 @@
 
 /* Origin URL scheme — selects the transport driver. */
 typedef enum {
-    XROOTD_CACHE_SCHEME_XROOT = 0,   /* root://  / roots://  (default)         */
-    XROOTD_CACHE_SCHEME_HTTP,        /* http://                                 */
-    XROOTD_CACHE_SCHEME_HTTPS,       /* https://  / davs://                     */
-    XROOTD_CACHE_SCHEME_PELICAN,     /* pelican://  (federation discovery)      */
-    XROOTD_CACHE_SCHEME_S3           /* s3://bucket  (SigV4 via the sd_remote driver) */
-} xrootd_cache_scheme_e;
+    BRIX_CACHE_SCHEME_XROOT = 0,   /* root://  / roots://  (default)         */
+    BRIX_CACHE_SCHEME_HTTP,        /* http://                                 */
+    BRIX_CACHE_SCHEME_HTTPS,       /* https://  / davs://                     */
+    BRIX_CACHE_SCHEME_PELICAN,     /* pelican://  (federation discovery)      */
+    BRIX_CACHE_SCHEME_S3           /* s3://bucket  (SigV4 via the sd_remote driver) */
+} brix_cache_scheme_e;
 
 /* Transport capability bits (advertised by a driver in caps). */
-#define XROOTD_CACHE_CAP_RANGE      (1u << 0)  /* read_range() honours offset/len */
-#define XROOTD_CACHE_CAP_CHECKSUM   (1u << 1)  /* checksum() can report a digest  */
-#define XROOTD_CACHE_CAP_REDIRECT   (1u << 2)  /* follows redirects (HTTP/Pelican)*/
+#define BRIX_CACHE_CAP_RANGE      (1u << 0)  /* read_range() honours offset/len */
+#define BRIX_CACHE_CAP_CHECKSUM   (1u << 1)  /* checksum() can report a digest  */
+#define BRIX_CACHE_CAP_REDIRECT   (1u << 2)  /* follows redirects (HTTP/Pelican)*/
 
 /*
  * Parsed origin URL.  Borrowed string views point into the caller's storage
  * (the srv_conf directive or a request buffer); the parser copies nothing.
  */
 typedef struct {
-    xrootd_cache_scheme_e  scheme;
+    brix_cache_scheme_e  scheme;
     int                    tls;          /* 1 when the scheme implies TLS        */
     ngx_str_t              host;
     uint16_t               port;         /* 0 ⇒ scheme default                   */
     ngx_str_t              path;         /* path component (with leading '/')     */
-} xrootd_cache_origin_url_t;
+} brix_cache_origin_url_t;
 
 /*
  * Origin-advertised content digest for one file.  alg[]/hex[] are NUL-terminated
@@ -66,39 +66,39 @@ typedef struct {
 typedef struct {
     char  alg[16];     /* algorithm name, e.g. "adler32", "crc32c"  */
     char  hex[129];    /* digest, lowercase hex                      */
-} xrootd_cache_digest_t;
+} brix_cache_digest_t;
 
 /*
- * xrootd_cache_transport_t — the driver vtable.
+ * brix_cache_transport_t — the driver vtable.
  *
  * Every function runs in a fill thread-pool worker and reports failures through
- * the xrootd_cache_fill_t error fields (xrootd_cache_set_error/_syserror), so the
+ * the brix_cache_fill_t error fields (brix_cache_set_error/_syserror), so the
  * fill engine only checks the int return.  `state` is an opaque per-fill driver
  * handle the driver allocates in connect() and frees in close().
  */
 typedef struct {
     const char  *name;       /* "xroot" / "http" / "pelican" (for logs)        */
-    uint32_t     caps;       /* XROOTD_CACHE_CAP_* bitmask                      */
+    uint32_t     caps;       /* BRIX_CACHE_CAP_* bitmask                      */
 
     /* Establish a session to the origin for t (resolved url in *u). Returns 0 /
      * -1 (t error set). On success *state is the driver handle. */
-    int  (*connect)(xrootd_cache_fill_t *t, const xrootd_cache_origin_url_t *u,
+    int  (*connect)(brix_cache_fill_t *t, const brix_cache_origin_url_t *u,
                     void **state);
     /* Open the source object for reading and learn its size into *out_size.
      * Returns 0 / -1 (t error set). */
-    int  (*open)(xrootd_cache_fill_t *t, void *state, uint64_t *out_size);
+    int  (*open)(brix_cache_fill_t *t, void *state, uint64_t *out_size);
     /* Stream [off, off+len) from the origin straight to dst_fd, writing *got
      * bytes (may be < len at EOF). Returns 0 / -1 (t error set). */
-    int  (*read_range)(xrootd_cache_fill_t *t, void *state, uint64_t off,
+    int  (*read_range)(brix_cache_fill_t *t, void *state, uint64_t off,
                        size_t len, int dst_fd, size_t *got);
     /* Report the origin's advertised content digest into *out. Sets out->alg[0]
      * = '\0' (and returns 0) when the origin offers none. Returns 0 / -1 (t
      * error set on a hard failure; a missing digest is not a failure). */
-    int  (*checksum)(xrootd_cache_fill_t *t, void *state,
-                     xrootd_cache_digest_t *out);
+    int  (*checksum)(brix_cache_fill_t *t, void *state,
+                     brix_cache_digest_t *out);
     /* Tear down the session and free *state (idempotent; tolerates NULL). */
-    void (*close)(xrootd_cache_fill_t *t, void *state);
-} xrootd_cache_transport_t;
+    void (*close)(brix_cache_fill_t *t, void *state);
+} brix_cache_transport_t;
 
 
 /*
@@ -106,16 +106,16 @@ typedef struct {
  * or a bare "host:port" treated as xroot) into *out. Returns NGX_OK, or
  * NGX_ERROR on a malformed URL (nothing written). Borrowed views into `raw`.
  */
-ngx_int_t xrootd_cache_origin_url_parse(const ngx_str_t *raw,
-    xrootd_cache_origin_url_t *out);
+ngx_int_t brix_cache_origin_url_parse(const ngx_str_t *raw,
+    brix_cache_origin_url_t *out);
 
 /*
  * Select the transport driver for a parsed scheme. Returns a pointer to a
  * static const vtable, or NULL when no driver is compiled in for that scheme
  * (e.g. HTTP/Pelican before their phases land).
  */
-const xrootd_cache_transport_t *xrootd_cache_transport_for(
-    xrootd_cache_scheme_e scheme);
+const brix_cache_transport_t *brix_cache_transport_for(
+    brix_cache_scheme_e scheme);
 
 
-#endif /* XROOTD_CACHE_ORIGIN_TRANSPORT_H */
+#endif /* BRIX_CACHE_ORIGIN_TRANSPORT_H */

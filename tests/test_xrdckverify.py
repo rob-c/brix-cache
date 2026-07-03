@@ -67,7 +67,7 @@ def _write_cks_sidecar(path, algo, hexval):
 
 
 def _write_meta(path, algo, hexval, size, mtime=0):
-    """src/fs/cache/meta.h xrootd_cache_meta_t (256 bytes); version>=1 + cks_*."""
+    """src/fs/cache/meta.h brix_cache_meta_t (256 bytes); version>=1 + cks_*."""
     rec = struct.pack(
         "<Q Q B 55s B 7x Q Q Q B 16s B 129s 5x",
         mtime, size, 0, b"", 1, 0, 0, 0,
@@ -79,7 +79,7 @@ def _write_meta(path, algo, hexval, size, mtime=0):
 
 
 def _write_cinfo(path, algo, hexval, size, block_size=1 << 20, mtime=0):
-    """src/fs/cache/cinfo.h xrootd_cache_cinfo_t header (272 bytes) + a bitmap."""
+    """src/fs/cache/cinfo.h brix_cache_cinfo_t header (272 bytes) + a bitmap."""
     nblocks = (size + block_size - 1) // block_size if size else 0
     hdr = struct.pack(
         "<I H H I I Q Q Q Q Q Q B 55s B 16s B 129s 5x",

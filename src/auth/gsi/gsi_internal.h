@@ -1,14 +1,14 @@
-#ifndef XROOTD_GSI_INTERNAL_H
-#define XROOTD_GSI_INTERNAL_H
+#ifndef BRIX_GSI_INTERNAL_H
+#define BRIX_GSI_INTERNAL_H
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
 /*---- GSI internal header — function declarations for credential authentication ----
  *
  * WHAT: Declares three authentication handlers dispatched from src/gsi/auth.c based on credtype field:
- *   - xrootd_gsi_send_cert() — GSI round 1 DH key generation response
- *   - xrootd_handle_token_auth() — WLCG/SciToken (ztn) JWT validation
- *   - xrootd_handle_sss_auth() — Simple Shared Secret (sss) Blowfish decryption */
+ *   - brix_gsi_send_cert() — GSI round 1 DH key generation response
+ *   - brix_handle_token_auth() — WLCG/SciToken (ztn) JWT validation
+ *   - brix_handle_sss_auth() — Simple Shared Secret (sss) Blowfish decryption */
 
 /*---- Credential type routing function declarations ----
  *
@@ -19,7 +19,7 @@
 
 /*---- GSI round 1 response function declaration ----
  *
- * WHAT: xrootd_gsi_send_cert() — respond to kXGC_certreq by generating ephemeral DH key pair (ffdhe2048),
+ * WHAT: brix_gsi_send_cert() — respond to kXGC_certreq by generating ephemeral DH key pair (ffdhe2048),
  *       encoding public key as hex blob, signing client rtag with RSA PKCS1, assembling kXGS_cert wire response. */
 
 /*---- GSI round 1 function postconditions ----
@@ -35,15 +35,15 @@
  *
  * WHAT: Called from src/gsi/auth.c as part of kXGC_certreq handling after credential type verification. Returns ngx_int_t result. */
 
-ngx_int_t xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c);
+ngx_int_t brix_gsi_send_cert(brix_ctx_t *ctx, ngx_connection_t *c);
 
 /*---- WLCG/SciToken JWT validation function declaration ----
  *
- * WHAT: xrootd_handle_token_auth() — handle kXR_auth with protocol "ztn" (WLCG/SciToken bearer token). */
+ * WHAT: brix_handle_token_auth() — handle kXR_auth with protocol "ztn" (WLCG/SciToken bearer token). */
 
 /*---- Token authentication mechanism ----
  *
- * WHY: Extracts bearer token from payload, validates via xrootd_token_validate() against configured JWKS and issuer.
+ * WHY: Extracts bearer token from payload, validates via brix_token_validate() against configured JWKS and issuer.
  *      Uses RSA/ECDSA signature verification to validate JWT claims — single-round authentication (no DH exchange needed). */
 
 /*---- Token authentication postconditions ----
@@ -54,12 +54,12 @@ ngx_int_t xrootd_gsi_send_cert(xrootd_ctx_t *ctx, ngx_connection_t *c);
  *
  * WHAT: Called from src/gsi/auth.c as part of kXR_auth handling after credential type "ztn" verification. Returns NGX_OK result. */
 
-ngx_int_t xrootd_handle_token_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf);
+ngx_int_t brix_handle_token_auth(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
 
 /*---- SSS shared secret authentication function declaration ----
  *
- * WHAT: xrootd_handle_sss_auth() — handle kXR_auth with protocol "sss" (Simple Shared Secret for trusted environments). */
+ * WHAT: brix_handle_sss_auth() — handle kXR_auth with protocol "sss" (Simple Shared Secret for trusted environments). */
 
 /*---- SSS authentication mechanism ----
  *
@@ -74,7 +74,7 @@ ngx_int_t xrootd_handle_token_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
  *
  * WHAT: Called from src/gsi/auth.c as part of kXR_auth handling after credential type "sss" verification. Returns NGX_OK result. */
 
-ngx_int_t xrootd_handle_sss_auth(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf);
+ngx_int_t brix_handle_sss_auth(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
 
-#endif /* XROOTD_GSI_INTERNAL_H */
+#endif /* BRIX_GSI_INTERNAL_H */

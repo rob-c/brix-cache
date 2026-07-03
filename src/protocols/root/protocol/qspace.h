@@ -5,8 +5,8 @@
  *         oss.cgroup=default&oss.space=<total>&oss.free=<free>&oss.maxf=<maxf>
  *         &oss.used=<used>&oss.quota=-1
  *       This header co-locates both halves of that grammar:
- *         - xrootd_qspace_format: bytes  -> the oss.* report (server emit)
- *         - xrootd_qspace_parse:  report -> total/free bytes (client decode)
+ *         - brix_qspace_format: bytes  -> the oss.* report (server emit)
+ *         - brix_qspace_parse:  report -> total/free bytes (client decode)
  * WHY:  the server formatted the report (src/query/space.c) and the native client
  *       picked the oss.space=/oss.free= tokens back out (client/lib/posix_map.c)
  *       with the token spellings AND their byte offsets hand-written on each side
@@ -19,8 +19,8 @@
  *
  * Clean-room: token grammar from the reference xrootd Qspace response (oss.* keys).
  */
-#ifndef XROOTD_PROTOCOL_QSPACE_H
-#define XROOTD_PROTOCOL_QSPACE_H
+#ifndef BRIX_PROTOCOL_QSPACE_H
+#define BRIX_PROTOCOL_QSPACE_H
 
 #include <stddef.h>
 #include <stdio.h>
@@ -29,8 +29,8 @@
 
 /* The two tokens both trees agree on (the server emits all keys; the client only
  * needs these two). Keep the trailing '=' so the parser's offset is sizeof()-1. */
-#define XROOTD_QSPACE_TOK_TOTAL  "oss.space="
-#define XROOTD_QSPACE_TOK_FREE   "oss.free="
+#define BRIX_QSPACE_TOK_TOTAL  "oss.space="
+#define BRIX_QSPACE_TOK_FREE   "oss.free="
 
 /*
  * Format the full oss.* capacity report (server). `maxf` is the max single-file
@@ -38,14 +38,14 @@
  * enforced); quota is fixed at -1 (unlimited). Returns snprintf's value.
  */
 static inline int
-xrootd_qspace_format(char *out, size_t outsz, unsigned long long total,
+brix_qspace_format(char *out, size_t outsz, unsigned long long total,
                      unsigned long long freeb, unsigned long long maxf,
                      unsigned long long used)
 {
     return snprintf(out, outsz,
                     "oss.cgroup=default"
-                    "&" XROOTD_QSPACE_TOK_TOTAL "%llu"
-                    "&" XROOTD_QSPACE_TOK_FREE  "%llu"
+                    "&" BRIX_QSPACE_TOK_TOTAL "%llu"
+                    "&" BRIX_QSPACE_TOK_FREE  "%llu"
                     "&oss.maxf=%llu"
                     "&oss.used=%llu"
                     "&oss.quota=-1",
@@ -58,7 +58,7 @@ xrootd_qspace_format(char *out, size_t outsz, unsigned long long total,
  * the token anywhere in the string (the keys are order-independent on the wire).
  */
 static inline void
-xrootd_qspace_parse(const char *text, unsigned long long *total,
+brix_qspace_parse(const char *text, unsigned long long *total,
                     unsigned long long *freeb)
 {
     const char *p;
@@ -69,14 +69,14 @@ xrootd_qspace_parse(const char *text, unsigned long long *total,
         return;
     }
 
-    p = strstr(text, XROOTD_QSPACE_TOK_TOTAL);
+    p = strstr(text, BRIX_QSPACE_TOK_TOTAL);
     if (p != NULL && total != NULL) {
-        *total = strtoull(p + (sizeof(XROOTD_QSPACE_TOK_TOTAL) - 1), NULL, 10);
+        *total = strtoull(p + (sizeof(BRIX_QSPACE_TOK_TOTAL) - 1), NULL, 10);
     }
-    p = strstr(text, XROOTD_QSPACE_TOK_FREE);
+    p = strstr(text, BRIX_QSPACE_TOK_FREE);
     if (p != NULL && freeb != NULL) {
-        *freeb = strtoull(p + (sizeof(XROOTD_QSPACE_TOK_FREE) - 1), NULL, 10);
+        *freeb = strtoull(p + (sizeof(BRIX_QSPACE_TOK_FREE) - 1), NULL, 10);
     }
 }
 
-#endif /* XROOTD_PROTOCOL_QSPACE_H */
+#endif /* BRIX_PROTOCOL_QSPACE_H */

@@ -22,7 +22,7 @@
 #include <string.h>
 
 /*
- * xrootd_http_find_header - search headers_in list by name (case-insensitive).
+ * brix_http_find_header - search headers_in list by name (case-insensitive).
  *
  * WHAT: Iterates r->headers_in.headers.part → next parts, comparing each header
  *       key against name using ngx_strncasecmp. Returns pointer to matching
@@ -37,7 +37,7 @@
  */
 
 ngx_table_elt_t *
-xrootd_http_find_header(ngx_http_request_t *r, const char *name,
+brix_http_find_header(ngx_http_request_t *r, const char *name,
     size_t name_len)
 {
     ngx_list_part_t *part;
@@ -73,9 +73,9 @@ xrootd_http_find_header(ngx_http_request_t *r, const char *name,
 }
 
 /*
- * xrootd_http_get_header - convenience wrapper: find header and return value as ngx_str_t.
+ * brix_http_get_header - convenience wrapper: find header and return value as ngx_str_t.
  *
- * WHAT: Calls xrootd_http_find_header() with the given name, returns h->value as
+ * WHAT: Calls brix_http_find_header() with the given name, returns h->value as
  *       ngx_str_t if found, or ngx_null_string (empty) if not found.
  *
  * WHY: Callers frequently need just the header value bytes without the full
@@ -87,11 +87,11 @@ xrootd_http_find_header(ngx_http_request_t *r, const char *name,
  */
 
 ngx_str_t
-xrootd_http_get_header(ngx_http_request_t *r, const char *name)
+brix_http_get_header(ngx_http_request_t *r, const char *name)
 {
     ngx_table_elt_t *h;
 
-    h = xrootd_http_find_header(r, name, ngx_strlen(name));
+    h = brix_http_find_header(r, name, ngx_strlen(name));
     if (h == NULL) {
         return (ngx_str_t) ngx_null_string;
     }
@@ -100,7 +100,7 @@ xrootd_http_get_header(ngx_http_request_t *r, const char *name)
 }
 
 /*
- * xrootd_http_extract_bearer - parse "Authorization: Bearer <token>".
+ * brix_http_extract_bearer - parse "Authorization: Bearer <token>".
  *
  * WHAT: Returns a no-copy token slice when the auth scheme is Bearer,
  *       matching the scheme case-insensitively and trimming optional
@@ -111,7 +111,7 @@ xrootd_http_get_header(ngx_http_request_t *r, const char *name)
  *      reappearing in individual protocol handlers.
  */
 ngx_int_t
-xrootd_http_extract_bearer(const ngx_str_t *auth_header, ngx_str_t *token_out)
+brix_http_extract_bearer(const ngx_str_t *auth_header, ngx_str_t *token_out)
 {
     static const u_char bearer[] = "Bearer";
     u_char             *p;
@@ -164,7 +164,7 @@ xrootd_http_extract_bearer(const ngx_str_t *auth_header, ngx_str_t *token_out)
 }
 
 /*
- * xrootd_http_str_has_ctl - check for HTTP control characters in string data.
+ * brix_http_str_has_ctl - check for HTTP control characters in string data.
  *
  * WHAT: Scans data[0..len] for bytes < 0x20 (space) or == 0x7F (DEL). Returns
  *       1 if any found, 0 if clean. NULL data returns 1 (unsafe).
@@ -178,7 +178,7 @@ xrootd_http_extract_bearer(const ngx_str_t *auth_header, ngx_str_t *token_out)
  */
 
 ngx_int_t
-xrootd_http_str_has_ctl(const u_char *data, size_t len)
+brix_http_str_has_ctl(const u_char *data, size_t len)
 {
     size_t i;
 
@@ -196,7 +196,7 @@ xrootd_http_str_has_ctl(const u_char *data, size_t len)
 }
 
 /*
- * xrootd_http_header_value_equals - case-insensitive literal comparison with whitespace trim.
+ * brix_http_header_value_equals - case-insensitive literal comparison with whitespace trim.
  *
  * WHAT: Strips leading/trailing space and tab from value->data, then compares
  *       the trimmed length and bytes against literal using ngx_strncasecmp.
@@ -211,7 +211,7 @@ xrootd_http_str_has_ctl(const u_char *data, size_t len)
  */
 
 ngx_int_t
-xrootd_http_header_value_equals(const ngx_str_t *value, const char *literal)
+brix_http_header_value_equals(const ngx_str_t *value, const char *literal)
 {
     u_char *start;
     u_char *end;
@@ -240,7 +240,7 @@ xrootd_http_header_value_equals(const ngx_str_t *value, const char *literal)
 }
 
 /*
- * xrootd_http_effective_status - convert an nginx handler rc to an HTTP status.
+ * brix_http_effective_status - convert an nginx handler rc to an HTTP status.
  *
  * WHAT: Applies the project-wide response-metric status policy: NGX_ERROR is
  *       recorded as 500, explicit NGX_HTTP_* returns win, headers_out.status is
@@ -251,7 +251,7 @@ xrootd_http_header_value_equals(const ngx_str_t *value, const char *literal)
  *      interpretation.  Keeping it here prevents 2xx/4xx/5xx bucket drift.
  */
 ngx_uint_t
-xrootd_http_effective_status(ngx_http_request_t *r, ngx_int_t rc)
+brix_http_effective_status(ngx_http_request_t *r, ngx_int_t rc)
 {
     if (rc == NGX_ERROR) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -269,7 +269,7 @@ xrootd_http_effective_status(ngx_http_request_t *r, ngx_int_t rc)
 }
 
 /*
- * xrootd_http_set_header_str - insert header into headers_out with optional value copy and pointer return.
+ * brix_http_set_header_str - insert header into headers_out with optional value copy and pointer return.
  *
  * WHAT: Pushes a new ngx_table_elt_t onto r->headers_out.headers list. Sets
  *       key from const char (hash=1), value either copied via ngx_pstrdup or
@@ -285,7 +285,7 @@ xrootd_http_effective_status(ngx_http_request_t *r, ngx_int_t rc)
  */
 
 ngx_int_t
-xrootd_http_set_header_str(ngx_http_request_t *r, const char *key,
+brix_http_set_header_str(ngx_http_request_t *r, const char *key,
     const ngx_str_t *value, ngx_flag_t copy_value, ngx_table_elt_t **out)
 {
     ngx_table_elt_t *h;
@@ -326,10 +326,10 @@ xrootd_http_set_header_str(ngx_http_request_t *r, const char *key,
 }
 
 /*
- * xrootd_http_set_header - convenience wrapper: set header from const char value with copy.
+ * brix_http_set_header - convenience wrapper: set header from const char value with copy.
  *
  * WHAT: Converts value to ngx_str_t (strlen + cast), then calls
- *       xrootd_http_set_header_str(r, key, &v, 1, out) — always copies value,
+ *       brix_http_set_header_str(r, key, &v, 1, out) — always copies value,
  *      optionally returns pointer via out.
  *
  * WHY: Most callers have a const char* ETag string or similar and want it set
@@ -340,7 +340,7 @@ xrootd_http_set_header_str(ngx_http_request_t *r, const char *key,
  */
 
 ngx_int_t
-xrootd_http_set_header(ngx_http_request_t *r, const char *key,
+brix_http_set_header(ngx_http_request_t *r, const char *key,
     const char *value, ngx_table_elt_t **out)
 {
     ngx_str_t v;
@@ -352,11 +352,11 @@ xrootd_http_set_header(ngx_http_request_t *r, const char *key,
     v.len = ngx_strlen(value);
     v.data = (u_char *) value;
 
-    return xrootd_http_set_header_str(r, key, &v, 1, out);
+    return brix_http_set_header_str(r, key, &v, 1, out);
 }
 
 ngx_int_t
-xrootd_http_set_header_num(ngx_http_request_t *r, const char *key, long value)
+brix_http_set_header_num(ngx_http_request_t *r, const char *key, long value)
 {
     char      buf[32];
     int       n;
@@ -370,22 +370,22 @@ xrootd_http_set_header_num(ngx_http_request_t *r, const char *key, long value)
     v.len = (size_t) n;
     v.data = (u_char *) buf;
 
-    return xrootd_http_set_header_str(r, key, &v, 1, NULL);
+    return brix_http_set_header_str(r, key, &v, 1, NULL);
 }
 
 void
-xrootd_http_source_offer(ngx_http_request_t *r)
+brix_http_source_offer(ngx_http_request_t *r)
 {
     /* AGPL-3.0 sec.13: prominently offer remote users the Corresponding Source.
      * Best-effort — a header allocation failure must never fail the request. */
     static const ngx_str_t  src =
-        ngx_string(XROOTD_SOURCE_URL " (nginx-xrootd, AGPL-3.0)");
+        ngx_string(BRIX_SOURCE_URL " (nginx-xrootd, AGPL-3.0)");
 
-    (void) xrootd_http_set_header_str(r, "X-Source", &src, 0, NULL);
+    (void) brix_http_set_header_str(r, "X-Source", &src, 0, NULL);
 }
 
 ngx_int_t
-xrootd_http_request_header_add(ngx_http_request_t *r, const char *key,
+brix_http_request_header_add(ngx_http_request_t *r, const char *key,
     const char *value, ngx_table_elt_t **out)
 {
     ngx_table_elt_t *h;
@@ -425,7 +425,7 @@ xrootd_http_request_header_add(ngx_http_request_t *r, const char *key,
 
 /* query-string token helpers (shared by §1 ?authz= and form decoding) */
 static int
-xrootd_hex_nibble(u_char c)
+brix_hex_nibble(u_char c)
 {
     if (c >= '0' && c <= '9') { return c - '0'; }
     if (c >= 'a' && c <= 'f') { return c - 'a' + 10; }
@@ -434,7 +434,7 @@ xrootd_hex_nibble(u_char c)
 }
 
 size_t
-xrootd_urldecode_inplace(char *str)
+brix_urldecode_inplace(char *str)
 {
     char *rp = str;
     char *wp = str;
@@ -442,8 +442,8 @@ xrootd_urldecode_inplace(char *str)
 
     while (*rp) {
         if (*rp == '%' && rp[1] && rp[2]
-            && (hi = xrootd_hex_nibble((u_char) rp[1])) >= 0
-            && (lo = xrootd_hex_nibble((u_char) rp[2])) >= 0)
+            && (hi = brix_hex_nibble((u_char) rp[1])) >= 0
+            && (lo = brix_hex_nibble((u_char) rp[2])) >= 0)
         {
             *wp++ = (char) ((hi << 4) | lo);
             rp   += 3;
@@ -459,7 +459,7 @@ xrootd_urldecode_inplace(char *str)
 }
 
 ngx_int_t
-xrootd_http_arg(ngx_http_request_t *r, const char *name, size_t name_len,
+brix_http_arg(ngx_http_request_t *r, const char *name, size_t name_len,
     ngx_str_t *out)
 {
     ngx_str_t v;
@@ -481,7 +481,7 @@ xrootd_http_arg(ngx_http_request_t *r, const char *name, size_t name_len,
 }
 
 void
-xrootd_http_redact_query_token(ngx_str_t *query)
+brix_http_redact_query_token(ngx_str_t *query)
 {
     static const char *const keys[] = { "authz=", "access_token=" };
     size_t                    k;

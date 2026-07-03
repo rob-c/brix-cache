@@ -105,7 +105,7 @@ def test_gsi_tls_handshake_burst_no_wedge():
 @pytest.mark.slow
 @pytest.mark.timeout(300)
 def test_gsi_pool_exhaustion_fallback():
-    """A burst larger than the warm pool (XROOTD_GSI_KEYPOOL_SIZE=64) drains it and
+    """A burst larger than the warm pool (BRIX_GSI_KEYPOOL_SIZE=64) drains it and
     forces the inline-keygen fallback — every handshake must still succeed.
 
     Marked slow: spawns >64 processes; run on a quiet host (the clean-box soak).
@@ -128,13 +128,13 @@ def test_keypool_wiring():
     assert "src/auth/gsi/keypool.c" in _rd("config")
     assert "src/auth/gsi/keypool.h" in _rd("config")
     proc = _rd("src/core/config/process.c")
-    assert "xrootd_gsi_keypool_init" in proc
+    assert "brix_gsi_keypool_init" in proc
     # tunables present.
-    assert "XROOTD_GSI_KEYPOOL_SIZE" in _rd("src/core/types/tunables.h")
+    assert "BRIX_GSI_KEYPOOL_SIZE" in _rd("src/core/types/tunables.h")
     # certreq pops from the pool with an inline fallback (keygen off the event thread).
     cert = _rd("src/auth/gsi/cert_response.c")
-    assert "xrootd_gsi_keypool_pop" in cert
-    assert "xrootd_gsi_dh_keygen" in cert     # inline fallback retained
+    assert "brix_gsi_keypool_pop" in cert
+    assert "brix_gsi_dh_keygen" in cert     # inline fallback retained
     # refill runs off-thread (event thread never blocks on keygen).
     kp = _rd("src/auth/gsi/keypool.c")
     assert "ngx_thread_task_post" in kp
@@ -154,6 +154,6 @@ def test_pfs_key_is_single_use():
     not observable through the pyxrootd client)."""
     kp = _rd("src/auth/gsi/keypool.c")
     # pop decrements the count and transfers the slot's key out (no copy/reuse).
-    assert "xrootd_kp_ring[--xrootd_kp_count]" in kp
+    assert "brix_kp_ring[--brix_kp_count]" in kp
     # round-2 derive still frees the per-connection key (existing lifecycle).
     assert "EVP_PKEY_free" in _rd("src/auth/gsi/auth.c")

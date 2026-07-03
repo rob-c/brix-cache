@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# tests/run_cvmfs_unified_origin.sh — xrootd_cvmfs_unified_origin (2026-07-03).
+# tests/run_cvmfs_unified_origin.sh — brix_cvmfs_unified_origin (2026-07-03).
 # In forward-proxy mode, unified_origin serves EVERY client-named Stratum-1 from
-# ONE ranked multi-endpoint origin backend (xrootd_cvmfs_storage_backend), so a
+# ONE ranked multi-endpoint origin backend (brix_cvmfs_storage_backend), so a
 # dead origin is hidden by internal failover and the client keeps getting 200
 # from the host it named — it never marks the proxy bad or wanders to a mirror.
 # Two mocks, SAME seed = the same object on both "Stratum-1s".
@@ -29,14 +29,14 @@ events { worker_connections 128; }
 http { access_log off; server {
     listen 127.0.0.1:$CPORT;
     location / {
-        xrootd_cvmfs_storage_backend "http://127.0.0.1:$M1|http://127.0.0.1:$M2";
-        xrootd_cvmfs_cache_store posix:$PFX/cache;
-        xrootd_cvmfs on;
-        xrootd_cvmfs_upstream_allow 127.0.0.1;
-        xrootd_cvmfs_unified_origin on;
-        xrootd_cvmfs_origin_connect_timeout 1;
-        xrootd_cvmfs_origin_attempt_timeout 2;
-        xrootd_cvmfs_client_hold 4;
+        brix_cvmfs_storage_backend "http://127.0.0.1:$M1|http://127.0.0.1:$M2";
+        brix_cvmfs_cache_store posix:$PFX/cache;
+        brix_cvmfs on;
+        brix_cvmfs_upstream_allow 127.0.0.1;
+        brix_cvmfs_unified_origin on;
+        brix_cvmfs_origin_connect_timeout 1;
+        brix_cvmfs_origin_attempt_timeout 2;
+        brix_cvmfs_client_hold 4;
     }
 } }
 EOF
@@ -82,9 +82,9 @@ fi
 cat > "$PFX/bad.conf" <<EOF
 daemon off; events { worker_connections 32; }
 http { server { listen 127.0.0.1:$CPORT; location / {
-    xrootd_cvmfs_cache_store posix:$PFX/cache;
-    xrootd_cvmfs on; xrootd_cvmfs_upstream_allow 127.0.0.1;
-    xrootd_cvmfs_unified_origin on;
+    brix_cvmfs_cache_store posix:$PFX/cache;
+    brix_cvmfs on; brix_cvmfs_upstream_allow 127.0.0.1;
+    brix_cvmfs_unified_origin on;
 } } }
 EOF
 "$NGINX" -t -c "$PFX/bad.conf" -p "$PFX" 2>/dev/null \

@@ -2,7 +2,7 @@
  * xfer_resume_sweep.c — TTL housekeeping for abandoned upload-resume partials.
  *
  * WHAT: A worker-0 periodic timer that removes stale resume partials
- *       (`*.xrdresume.part`, see xrootd_make_resume_path) from the configured
+ *       (`*.xrdresume.part`, see brix_make_resume_path) from the configured
  *       upload stage dir once they are older than a TTL.
  *
  * WHY:  A client that starts a resumable upload and never returns leaves its
@@ -19,7 +19,7 @@
  *       scattered across the namespace and intentionally not swept). Worker 0
  *       only (like the FRM reaper) so deletes are not N-way contended; unlinkat()
  *       on the dir fd avoids any path-traversal surface. TTL is
- *       $XROOTD_UPLOAD_RESUME_TTL seconds (default 1 day; 0 disables). No goto.
+ *       $BRIX_UPLOAD_RESUME_TTL seconds (default 1 day; 0 disables). No goto.
  */
 
 #include "xfer.h"
@@ -46,11 +46,11 @@ static char         xfer_sweep_dir[PATH_MAX];
 static time_t       xfer_sweep_ttl;            /* seconds; 0 = disabled          */
 static ngx_log_t   *xfer_sweep_log;
 
-/* Resolve the TTL once: $XROOTD_UPLOAD_RESUME_TTL (seconds), else the default. */
+/* Resolve the TTL once: $BRIX_UPLOAD_RESUME_TTL (seconds), else the default. */
 static time_t
 xfer_resume_ttl(void)
 {
-    const char *env = getenv("XROOTD_UPLOAD_RESUME_TTL");
+    const char *env = getenv("BRIX_UPLOAD_RESUME_TTL");
     char       *end;
     long        v;
 
@@ -124,7 +124,7 @@ xfer_resume_sweep_handler(ngx_event_t *ev)
 }
 
 void
-xrootd_xfer_resume_sweep_register(ngx_cycle_t *cycle, const char *stage_dir)
+brix_xfer_resume_sweep_register(ngx_cycle_t *cycle, const char *stage_dir)
 {
     if (stage_dir == NULL || stage_dir[0] == '\0') {
         return;                                /* no stage dir → adjacent naming */

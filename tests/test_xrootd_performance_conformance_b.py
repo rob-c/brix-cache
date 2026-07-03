@@ -1,4 +1,4 @@
-from _test_xrootd_performance_conformance_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
+from _test_brix_performance_conformance_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
 
 def test_empty_file_open_stat_read_latency_tracks_reference(perf_env):
     """Zero-length file open/stat/read latency stays near reference."""

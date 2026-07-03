@@ -68,8 +68,8 @@ cvmfs_neg_store(const ngx_str_t *uri, time_t now, time_t ttl)
 /* Called by the handler's finalization observer when a request on a cvmfs
  * location has produced its final status. Records 404s in the memo. */
 void
-xrootd_cvmfs_notify_status(ngx_http_request_t *r,
-    ngx_http_xrootd_cvmfs_loc_conf_t *lcf, ngx_uint_t status)
+brix_cvmfs_notify_status(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf, ngx_uint_t status)
 {
     if (status == NGX_HTTP_NOT_FOUND && lcf->cvmfs.negative_ttl > 0) {
         cvmfs_neg_store(&r->uri, ngx_time(), lcf->cvmfs.negative_ttl);
@@ -83,7 +83,7 @@ cvmfs_reject(ngx_http_request_t *r, ngx_uint_t status, const char *cause)
 {
     char safe_uri[512];
 
-    xrootd_sanitize_log_string((const char *) r->uri.data, safe_uri,
+    brix_sanitize_log_string((const char *) r->uri.data, safe_uri,
                                sizeof(safe_uri));
     ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
         "cvmfs-reject: method=%V uri=\"%s\" client=%V class=reject "
@@ -92,15 +92,15 @@ cvmfs_reject(ngx_http_request_t *r, ngx_uint_t status, const char *cause)
         ".cvmfsreflog,api/v1.0/geo/…} are served\"",
         &r->method_name, safe_uri, &r->connection->addr_text, cause);
 
-    XROOTD_CVMFS_METRIC_INC(requests_total[XROOTD_CVMFS_CLASS_REJECT]);
+    BRIX_CVMFS_METRIC_INC(requests_total[BRIX_CVMFS_CLASS_REJECT]);
     return (ngx_int_t) status;
 }
 
 ngx_int_t
-xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
+brix_cvmfs_gate(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
 {
-    ngx_http_xrootd_cvmfs_ctx_t *ctx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_cvmfs_module);
+    ngx_http_brix_cvmfs_ctx_t *ctx =
+        ngx_http_get_module_ctx(r, ngx_http_brix_cvmfs_module);
 
     /* Classify FIRST (a pure parse of the query-stripped path): every later
      * reject — wrong method, malformed proxy target, authority not
@@ -126,7 +126,7 @@ xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
         in_port_t   up_port;
         ngx_int_t   rc;
 
-        rc = xrootd_cvmfs_proxy_target(r, &lcf->cvmfs, &up_host, &up_port);
+        rc = brix_cvmfs_proxy_target(r, &lcf->cvmfs, &up_host, &up_port);
         if (rc == NGX_HTTP_FORBIDDEN) {
             return cvmfs_reject(r, NGX_HTTP_FORBIDDEN,
                                 "upstream authority not allowlisted");
@@ -138,7 +138,7 @@ xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
         if (rc == NGX_OK && !lcf->cvmfs.unified_origin) {
             ngx_uint_t status = NGX_HTTP_INTERNAL_SERVER_ERROR;
 
-            ctx->sd_override = xrootd_cvmfs_upstream_get(r, lcf, &up_host,
+            ctx->sd_override = brix_cvmfs_upstream_get(r, lcf, &up_host,
                                                          up_port,
                                                          &ctx->up_root,
                                                          &status);
@@ -149,7 +149,7 @@ xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
         /* rc == NGX_OK && unified_origin: the authority is allowlisted (checked
          * above) but we do NOT bind a per-host backend — leaving sd_override /
          * up_root NULL routes the request to the location's ONE configured
-         * multi-endpoint origin backend (xrootd_cvmfs_storage_backend, ranked
+         * multi-endpoint origin backend (brix_cvmfs_storage_backend, ranked
          * failover + shared cache). Every Stratum-1 the client names is served
          * from that same set, so a dead origin is hidden by internal failover:
          * the client keeps getting 200 from the host it chose and never marks
@@ -158,28 +158,28 @@ xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
     }
 
     /* per-repository accounting (bounded slot table — metrics.h) */
-    ctx->repo = xrootd_cvmfs_repo_slot(ctx->url.repo, ctx->url.repo_len);
+    ctx->repo = brix_cvmfs_repo_slot(ctx->url.repo, ctx->url.repo_len);
 
     switch (ctx->url.cls) {
     case CVMFS_URL_CAS:
-        XROOTD_CVMFS_METRIC_INC(requests_total[XROOTD_CVMFS_CLASS_CAS]);
+        BRIX_CVMFS_METRIC_INC(requests_total[BRIX_CVMFS_CLASS_CAS]);
         if (ctx->repo != NULL) {
-            XROOTD_ATOMIC_INC(&ctx->repo->requests_total[XROOTD_CVMFS_CLASS_CAS]);
+            BRIX_ATOMIC_INC(&ctx->repo->requests_total[BRIX_CVMFS_CLASS_CAS]);
         }
         if (lcf->cvmfs.negative_ttl > 0
             && cvmfs_neg_check(&r->uri, ngx_time()))
         {
             char neg_uri[512];
 
-            XROOTD_CVMFS_METRIC_INC(negative_hits_total);
+            BRIX_CVMFS_METRIC_INC(negative_hits_total);
             if (ctx->repo != NULL) {
-                XROOTD_ATOMIC_INC(&ctx->repo->negative_hits_total);
+                BRIX_ATOMIC_INC(&ctx->repo->negative_hits_total);
             }
-            ctx->cache_status = XROOTD_CVMFS_CACHE_NEG;
+            ctx->cache_status = BRIX_CVMFS_CACHE_NEG;
             /* One NOTICE per absorbed 404: a client hammering missing
              * objects shows as a stream of these (bounded by its own
              * request rate; the origin sees none of them). */
-            xrootd_sanitize_log_string((const char *) r->uri.data, neg_uri,
+            brix_sanitize_log_string((const char *) r->uri.data, neg_uri,
                                        sizeof(neg_uri));
             ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
                 "cvmfs-neg: event=absorbed-404 client=%V uri=\"%s\" "
@@ -190,27 +190,27 @@ xrootd_cvmfs_gate(ngx_http_request_t *r, ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
         }
         return NGX_DECLINED;              /* tier serve path (handler.c) */
     case CVMFS_URL_MANIFEST:
-        XROOTD_CVMFS_METRIC_INC(requests_total[XROOTD_CVMFS_CLASS_MANIFEST]);
+        BRIX_CVMFS_METRIC_INC(requests_total[BRIX_CVMFS_CLASS_MANIFEST]);
         if (ctx->repo != NULL) {
-            XROOTD_ATOMIC_INC(
-                &ctx->repo->requests_total[XROOTD_CVMFS_CLASS_MANIFEST]);
+            BRIX_ATOMIC_INC(
+                &ctx->repo->requests_total[BRIX_CVMFS_CLASS_MANIFEST]);
         }
         /* T12: signed metadata caches WITH a TTL — the fill stamps
-         * expires_at (= now + xrootd_cvmfs_manifest_ttl) in the cinfo, an
+         * expires_at (= now + brix_cvmfs_manifest_ttl) in the cinfo, an
          * expired entry refills, and a failed refill serves the stale copy
          * within the bounded 10x-TTL stale-if-error window. */
         return NGX_DECLINED;
     case CVMFS_URL_GEO:
-        XROOTD_CVMFS_METRIC_INC(requests_total[XROOTD_CVMFS_CLASS_GEO]);
+        BRIX_CVMFS_METRIC_INC(requests_total[BRIX_CVMFS_CLASS_GEO]);
         if (ctx->repo != NULL) {
-            XROOTD_ATOMIC_INC(&ctx->repo->requests_total[XROOTD_CVMFS_CLASS_GEO]);
+            BRIX_ATOMIC_INC(&ctx->repo->requests_total[BRIX_CVMFS_CLASS_GEO]);
         }
         /* Answer locally (RTT-ranked from this proxy's vantage) when enabled,
          * bypassing a mis-ordering upstream GeoAPI; else relay verbatim. */
-        if (lcf->cvmfs.geo_answer == XROOTD_CVMFS_GEO_RTT) {
-            return xrootd_cvmfs_geo_answer(r, lcf);
+        if (lcf->cvmfs.geo_answer == BRIX_CVMFS_GEO_RTT) {
+            return brix_cvmfs_geo_answer(r, lcf);
         }
-        return xrootd_cvmfs_geo_passthrough(r, lcf);
+        return brix_cvmfs_geo_passthrough(r, lcf);
     case CVMFS_URL_REJECT:
     default:
         return cvmfs_reject(r, NGX_HTTP_FORBIDDEN,

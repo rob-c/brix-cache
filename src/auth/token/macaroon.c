@@ -9,8 +9,8 @@
  * ensures each caveat modifies the signature deterministically — any tampered caveat produces a mismatched final signature.
  * Third-party caveats enable cross-service delegation where a discharge macaroon proves the third party authorized access.
  *
- * HOW: xrootd_token_is_macaroon() — check token has no dots (JWTs have 3 dot-separated parts, macaroons don't).
- * xrootd_macaroon_secret_parse() — hex string to binary via nibble pairing. xrootd_macaroon_validate_bundle() — space-tokenize bundle,
+ * HOW: brix_token_is_macaroon() — check token has no dots (JWTs have 3 dot-separated parts, macaroons don't).
+ * brix_macaroon_secret_parse() — hex string to binary via nibble pairing. brix_macaroon_validate_bundle() — space-tokenize bundle,
  * base64url-decode root, parse_core with tp_arr for third-party tracking, iterate discharges matching cid identifiers, decrypt vid via AES-256-CBC,
  * validate each discharge, intersect expiry/paths into root claims. Static helpers: parse_packet_len (hex→uint32), parse_iso8601 (before: caveat time),
  * macaroon_decrypt_vid (AES-256-CBC vid decryption), macaroon_rebuild_scope_raw (scope string reconstruction from parsed scopes),
@@ -34,13 +34,13 @@ static int
 parse_packet_len(const u_char *p)
 /* WHAT: Parse a 4-character hex-encoded packet length from macaroon binary data.
  * WHY: Macaroon packets are prefixed with a hex-encoded 32-bit length field (8 hex chars → uint32). This helper converts the first 4 hex characters into an integer for bounds checking before reading packet data.
- * HOW: Call xrootd_hex_from_char() on each of p[0..3], reject if any nibble invalid (<0); combine via bit shifts (v0<<12)|(v1<<8)|(v2<<4)|v3 to form uint32; return value or -1 on invalid nibble. */
+ * HOW: Call brix_hex_from_char() on each of p[0..3], reject if any nibble invalid (<0); combine via bit shifts (v0<<12)|(v1<<8)|(v2<<4)|v3 to form uint32; return value or -1 on invalid nibble. */
 {
     int v0, v1, v2, v3;
-    v0 = xrootd_hex_from_char(p[0]);
-    v1 = xrootd_hex_from_char(p[1]);
-    v2 = xrootd_hex_from_char(p[2]);
-    v3 = xrootd_hex_from_char(p[3]);
+    v0 = brix_hex_from_char(p[0]);
+    v1 = brix_hex_from_char(p[1]);
+    v2 = brix_hex_from_char(p[2]);
+    v3 = brix_hex_from_char(p[3]);
     if (v0 < 0 || v1 < 0 || v2 < 0 || v3 < 0) return -1;
     return (v0 << 12) | (v1 << 8) | (v2 << 4) | v3;
 }
@@ -75,7 +75,7 @@ parse_iso8601(const char *s, size_t len)
 }
 
 int
-xrootd_token_is_macaroon(const char *token, size_t token_len)
+brix_token_is_macaroon(const char *token, size_t token_len)
 /* WHAT: Quick heuristic to distinguish macaroon tokens from JWT tokens.
  * WHY: The token layer needs to route authentication logic — JWTs use signature/algorithm verification while
  * macaroons use HMAC chain reconstruction. This check avoids expensive parsing of non-macaroon tokens.
@@ -89,12 +89,12 @@ xrootd_token_is_macaroon(const char *token, size_t token_len)
 }
 
 ssize_t
-xrootd_macaroon_secret_parse(const char *hex, size_t hex_len,
+brix_macaroon_secret_parse(const char *hex, size_t hex_len,
     u_char *bin, size_t bin_max)
 /* WHAT: Convert a hex-encoded macaroon root secret string into binary bytes for HMAC computation.
  * WHY: Macaroon secrets are stored as hex strings (e.g., in config files or environment variables); the HMAC chain
  * requires raw binary key material. This helper performs safe hex-to-binary conversion with bounds checking.
- * HOW: Validate hex_len is even and hex_len/2 ≤ bin_max; iterate each nibble pair calling xrootd_hex_from_char() on positions i*2 and i*2+1,
+ * HOW: Validate hex_len is even and hex_len/2 ≤ bin_max; iterate each nibble pair calling brix_hex_from_char() on positions i*2 and i*2+1,
  * reject if any nibble invalid (<0); combine nibbles via (v1<<4)|v2 into bin[i]; return hex_len/2 or -1 on failure. */
 {
     size_t i;
@@ -103,8 +103,8 @@ xrootd_macaroon_secret_parse(const char *hex, size_t hex_len,
     if (hex_len % 2 != 0 || hex_len / 2 > bin_max) return -1;
 
     for (i = 0; i < hex_len / 2; i++) {
-        v1 = xrootd_hex_from_char((unsigned char) hex[i * 2]);
-        v2 = xrootd_hex_from_char((unsigned char) hex[i * 2 + 1]);
+        v1 = brix_hex_from_char((unsigned char) hex[i * 2]);
+        v2 = brix_hex_from_char((unsigned char) hex[i * 2 + 1]);
         if (v1 < 0 || v2 < 0) return -1;
         bin[i] = (u_char) ((v1 << 4) | v2);
     }
@@ -114,11 +114,11 @@ xrootd_macaroon_secret_parse(const char *hex, size_t hex_len,
 
 /* Discharge Macaroon support (Feature 8b) */
 /* Max number of discharge Macaroons accepted in a single bundle */
-#define XROOTD_MACAROON_MAX_DISCHARGES   8
+#define BRIX_MACAROON_MAX_DISCHARGES   8
 /* Max third-party caveats tracked in one Macaroon (cid+vid pairs) */
-#define XROOTD_MACAROON_MAX_TP_CAVEATS   8
-#define XROOTD_MACAROON_MAX_CID_LEN      512
-#define XROOTD_MACAROON_MAX_VID_LEN      256
+#define BRIX_MACAROON_MAX_TP_CAVEATS   8
+#define BRIX_MACAROON_MAX_CID_LEN      512
+#define BRIX_MACAROON_MAX_VID_LEN      256
 
 /*
  * A third-party caveat (cid + vid pair) captured during root Macaroon parsing.
@@ -129,12 +129,12 @@ xrootd_macaroon_secret_parse(const char *hex, size_t hex_len,
  * so sig_before is the AES decryption key needed to recover the discharge key.
  */
 typedef struct {
-    u_char  cid[XROOTD_MACAROON_MAX_CID_LEN];
+    u_char  cid[BRIX_MACAROON_MAX_CID_LEN];
     size_t  cid_len;
-    u_char  vid[XROOTD_MACAROON_MAX_VID_LEN];  /* raw binary — NOT base64 */
+    u_char  vid[BRIX_MACAROON_MAX_VID_LEN];  /* raw binary — NOT base64 */
     size_t  vid_len;
     u_char  sig_before[32]; /* HMAC sig before the cid update — AES-256 key */
-} xrootd_macaroon_tp_t;
+} brix_macaroon_tp_t;
 
 /* WHAT: Decrypt a third-party caveat vid blob to recover the discharge macaroon's 32-byte root key via AES-256-CBC.
  * WHY: At macaroon creation time, the discharge key was encrypted as vid = [16-byte IV] || AES-256-CBC(sig_before_cid, discharge_key).
@@ -211,13 +211,13 @@ macaroon_decrypt_vid(const u_char *vid, size_t vid_len,
 
 /* WHAT: Reconstruct scope_raw from individual scope entries and re-parse to refresh claims->scopes[].
  * WHY: After path narrowing (macaroon_apply_path_caveats) modifies individual scope paths, the raw scope string becomes stale — it still contains old paths. This function rebuilds the canonical scope_raw string from the updated scopes[] array so downstream access checks use the correct narrowed paths.
- * HOW: Iterate each scope entry's permission bits (read/write/create/modify); for each enabled bit append "perm_name:path" to scope_raw with space separator between entries; check bounds against sizeof(claims->scope_raw) — break if overflow; re-parse the rebuilt string via xrootd_token_parse_scopes() to refresh claims->scopes[]. */
+ * HOW: Iterate each scope entry's permission bits (read/write/create/modify); for each enabled bit append "perm_name:path" to scope_raw with space separator between entries; check bounds against sizeof(claims->scope_raw) — break if overflow; re-parse the rebuilt string via brix_token_parse_scopes() to refresh claims->scopes[]. */
 /* HOW: Clear scope_raw buffer. Iterate each scope entry's permission bits (read/write/create/modify).
  *       For each enabled bit, append "perm_name:path" to scope_raw with space separator between entries.
  *       Check bounds against sizeof(claims->scope_raw) — break if overflow.
- *       Re-parse the rebuilt string via xrootd_token_parse_scopes() to refresh claims->scopes[]. */
+ *       Re-parse the rebuilt string via brix_token_parse_scopes() to refresh claims->scopes[]. */
 static void
-macaroon_rebuild_scope_raw(xrootd_token_claims_t *claims)
+macaroon_rebuild_scope_raw(brix_token_claims_t *claims)
 {
     static const char *perm_names[] = {
         "storage.read", "storage.write",
@@ -228,7 +228,7 @@ macaroon_rebuild_scope_raw(xrootd_token_claims_t *claims)
 
     claims->scope_raw[0] = '\0';
     for (si = 0; si < claims->scope_count; si++) {
-        xrootd_token_scope_t *sc = &claims->scopes[si];
+        brix_token_scope_t *sc = &claims->scopes[si];
         unsigned int bits[4] = {
             sc->read, sc->write, sc->create, sc->modify
         };
@@ -255,14 +255,14 @@ macaroon_rebuild_scope_raw(xrootd_token_claims_t *claims)
         }
     }
 
-    claims->scope_count = xrootd_token_parse_scopes(
-        claims->scope_raw, claims->scopes, XROOTD_MAX_TOKEN_SCOPES);
+    claims->scope_count = brix_token_parse_scopes(
+        claims->scope_raw, claims->scopes, BRIX_MAX_TOKEN_SCOPES);
 }
 /*
  * HOW: Clear scope_raw buffer. Iterate each scope entry's permission bits (read/write/create/modify).
  *       For each enabled bit, append "perm_name:path" to scope_raw with space separator between entries.
  *       Check bounds against sizeof(claims->scope_raw) — break if overflow.
- *       Re-parse the rebuilt string via xrootd_token_parse_scopes() to refresh claims->scopes[].
+ *       Re-parse the rebuilt string via brix_token_parse_scopes() to refresh claims->scopes[].
  */
 
 /* WHAT: Apply path: caveats to restrict scope paths via intersection logic — each caveat narrows allowed paths further.
@@ -270,8 +270,8 @@ macaroon_rebuild_scope_raw(xrootd_token_claims_t *claims)
  * HOW: For each caveat path cp: strip trailing slash from scope paths for comparison; case 1 (cp equal/deeper than sc->path): narrow scope to cp if different; case 2 (sc->path deeper than cp): keep sc->path already more restrictive; case 3 (disjoint paths): revoke all permissions (read/write/create/modify=0) on this scope entry; track narrowed flag; after processing all caveats, call macaroon_rebuild_scope_raw() if any narrowing occurred. */
 static void
 macaroon_apply_path_caveats(ngx_log_t *log,
-    xrootd_token_claims_t *claims,
-    char path_caveats[][XROOTD_SCOPE_PATH_MAX], int n_path_caveats)
+    brix_token_claims_t *claims,
+    char path_caveats[][BRIX_SCOPE_PATH_MAX], int n_path_caveats)
 {
     int ci, si;
     int narrowed = 0;
@@ -281,7 +281,7 @@ macaroon_apply_path_caveats(ngx_log_t *log,
         size_t      cplen = strlen(cp);
 
         for (si = 0; si < claims->scope_count; si++) {
-            xrootd_token_scope_t *sc       = &claims->scopes[si];
+            brix_token_scope_t *sc       = &claims->scopes[si];
             size_t                slen     = strlen(sc->path);
             size_t                slen_cmp = slen;
 
@@ -296,7 +296,7 @@ macaroon_apply_path_caveats(ngx_log_t *log,
             {
                 if (strcmp(sc->path, cp) != 0) {
                     ngx_log_error(NGX_LOG_INFO, log, 0,
-                        "xrootd_macaroon: path: caveat \"%s\" narrows "
+                        "brix_macaroon: path: caveat \"%s\" narrows "
                         "scope path \"%s\" → \"%s\"", cp, sc->path, cp);
                     memcpy(sc->path, cp, cplen + 1);
                     narrowed = 1;
@@ -312,7 +312,7 @@ macaroon_apply_path_caveats(ngx_log_t *log,
             else {
                 if (sc->read || sc->write || sc->create || sc->modify) {
                     ngx_log_error(NGX_LOG_INFO, log, 0,
-                        "xrootd_macaroon: path: caveat \"%s\" revokes "
+                        "brix_macaroon: path: caveat \"%s\" revokes "
                         "scope path \"%s\" (disjoint)", cp, sc->path);
                     narrowed = 1;
                 }
@@ -328,13 +328,13 @@ macaroon_apply_path_caveats(ngx_log_t *log,
 
 /* WHAT: Parse one macaroon binary, reconstruct HMAC-SHA256 signature chain across all packets, verify final signature, and extract WLCG caveats into claims.
  * WHY: The macaroon security model requires each caveat to deterministically modify the HMAC chain — sig = HMAC(sig_prev, caveat_data). This ensures any tampered or reordered caveat produces a mismatched final signature. Extracting activity:/path:/before: caveats converts raw binary authorization into structured claims for access control decisions.
- * HOW: Initialize sig=HMAC(key, identifier), scope_buf="", path_caveats[], last_cid/sig_before_cid state; loop packets (p+4≤end): parse_packet_len(p)→plen; data=p+4,dlen=plen-4; strip trailing newline if present; process packet types: "identifier " → HMAC(EVP_sha256,key,identifier)→sig, copy to claims->sub; "location " → copy to claims->iss; "cid " → save sig_before_cid, HMAC(sig,cid)→next_sig→sig, track last_cid for vid pairing; parse first-party caveats within cid data (activity:→scope mapping, before:→parse_iso8601→claims->exp min, path:→path_caveats array); "vid " → HMAC(sig,vid_data)→sig, record (cid+vid+sig_before) triple into tp_arr if available; "signature " → compare provided 32-byte sig against computed sig, reject mismatch; after loop: check found_sig and found_id, validate expiry (now>claims->exp), finalize scopes from scope_buf via xrootd_token_parse_scopes(), apply path caveats via macaroon_apply_path_caveats(); return 0 success or -1 failure. */
+ * HOW: Initialize sig=HMAC(key, identifier), scope_buf="", path_caveats[], last_cid/sig_before_cid state; loop packets (p+4≤end): parse_packet_len(p)→plen; data=p+4,dlen=plen-4; strip trailing newline if present; process packet types: "identifier " → HMAC(EVP_sha256,key,identifier)→sig, copy to claims->sub; "location " → copy to claims->iss; "cid " → save sig_before_cid, HMAC(sig,cid)→next_sig→sig, track last_cid for vid pairing; parse first-party caveats within cid data (activity:→scope mapping, before:→parse_iso8601→claims->exp min, path:→path_caveats array); "vid " → HMAC(sig,vid_data)→sig, record (cid+vid+sig_before) triple into tp_arr if available; "signature " → compare provided 32-byte sig against computed sig, reject mismatch; after loop: check found_sig and found_id, validate expiry (now>claims->exp), finalize scopes from scope_buf via brix_token_parse_scopes(), apply path caveats via macaroon_apply_path_caveats(); return 0 success or -1 failure. */
 static int
 macaroon_parse_core(ngx_log_t *log,
     const u_char *bin, size_t bin_len,
     const u_char *key, size_t key_len,
-    xrootd_token_claims_t *claims,
-    xrootd_macaroon_tp_t *tp_arr, int *n_tp, int max_tp)
+    brix_token_claims_t *claims,
+    brix_macaroon_tp_t *tp_arr, int *n_tp, int max_tp)
 {
     u_char        sig[32];
     const u_char *p, *end;
@@ -343,10 +343,10 @@ macaroon_parse_core(ngx_log_t *log,
     int           found_id      = 0;
     char          scope_buf[1024];
     size_t        scope_off     = 0;
-    char          path_caveats[8][XROOTD_SCOPE_PATH_MAX];
+    char          path_caveats[8][BRIX_SCOPE_PATH_MAX];
     int           n_path_caveats = 0;
     /* State for cid+vid pairing within the packet loop */
-    u_char        last_cid[XROOTD_MACAROON_MAX_CID_LEN];
+    u_char        last_cid[BRIX_MACAROON_MAX_CID_LEN];
     size_t        last_cid_len  = 0;
     u_char        sig_before_cid[32];
     int           have_last_cid = 0;
@@ -363,7 +363,7 @@ macaroon_parse_core(ngx_log_t *log,
 
         if (plen < 4 || p + plen > end) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_macaroon: malformed packet length: %d", plen);
+                          "brix_macaroon: malformed packet length: %d", plen);
             return -1;
         }
 
@@ -399,7 +399,7 @@ macaroon_parse_core(ngx_log_t *log,
 
             if (!found_id) {
                 ngx_log_error(NGX_LOG_WARN, log, 0,
-                              "xrootd_macaroon: caveat before identifier");
+                              "brix_macaroon: caveat before identifier");
                 return -1;
             }
 
@@ -454,7 +454,7 @@ macaroon_parse_core(ngx_log_t *log,
                 const char *cp    = (const char *)(caveat + 5);
                 size_t      cplen = clen - 5;
                 if (n_path_caveats < 8 && cplen > 0
-                    && cplen < XROOTD_SCOPE_PATH_MAX)
+                    && cplen < BRIX_SCOPE_PATH_MAX)
                 {
                     memcpy(path_caveats[n_path_caveats], cp, cplen);
                     path_caveats[n_path_caveats][cplen] = '\0';
@@ -482,7 +482,7 @@ macaroon_parse_core(ngx_log_t *log,
             if (have_last_cid && tp_arr != NULL && n_tp != NULL
                 && *n_tp < max_tp)
             {
-                xrootd_macaroon_tp_t *tp = &tp_arr[(*n_tp)++];
+                brix_macaroon_tp_t *tp = &tp_arr[(*n_tp)++];
                 ngx_memcpy(tp->cid, last_cid, last_cid_len);
                 tp->cid_len = last_cid_len;
                 tp->vid_len = vid_len < sizeof(tp->vid)
@@ -500,7 +500,7 @@ macaroon_parse_core(ngx_log_t *log,
             if (dlen < 10 + 32
                 || CRYPTO_memcmp(sig, provided_sig, 32) != 0) {
                 ngx_log_error(NGX_LOG_WARN, log, 0,
-                              "xrootd_macaroon: signature mismatch");
+                              "brix_macaroon: signature mismatch");
                 return -1;
             }
             found_sig = 1;
@@ -511,7 +511,7 @@ macaroon_parse_core(ngx_log_t *log,
 
     if (!found_sig) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_macaroon: no valid signature found");
+                      "brix_macaroon: no valid signature found");
         return -1;
     }
 
@@ -532,13 +532,13 @@ macaroon_parse_core(ngx_log_t *log,
         time_t now = time(NULL);
         if (tp_arr != NULL && claims->exp <= 0) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_macaroon: rejected — no before: (expiry) caveat; "
+                          "brix_macaroon: rejected — no before: (expiry) caveat; "
                           "non-expiring macaroons are not accepted");
             return -1;
         }
         if (claims->exp > 0 && now > (time_t)claims->exp) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_macaroon: token expired at %L (now=%L)",
+                          "brix_macaroon: token expired at %L (now=%L)",
                           (long long)claims->exp, (long long)now);
             return -1;
         }
@@ -547,8 +547,8 @@ macaroon_parse_core(ngx_log_t *log,
     /* Finalize scopes from activity: caveats */
     ngx_memcpy(claims->scope_raw, scope_buf, scope_off);
     claims->scope_raw[scope_off] = '\0';
-    claims->scope_count = xrootd_token_parse_scopes(
-        claims->scope_raw, claims->scopes, XROOTD_MAX_TOKEN_SCOPES);
+    claims->scope_count = brix_token_parse_scopes(
+        claims->scope_raw, claims->scopes, BRIX_MAX_TOKEN_SCOPES);
 
     /* Apply path: caveat restrictions */
     if (n_path_caveats > 0) {
@@ -559,7 +559,7 @@ macaroon_parse_core(ngx_log_t *log,
 }
 
 /*
- * xrootd_macaroon_validate_bundle — validate a space-separated Macaroon bundle.
+ * brix_macaroon_validate_bundle — validate a space-separated Macaroon bundle.
  *
  * Accepts: "<root_macaroon_b64url> [<discharge_b64url> ...]"
  *
@@ -573,10 +573,10 @@ macaroon_parse_core(ngx_log_t *log,
  * Returns 0 on success, -1 on any validation failure.
  */
 int
-xrootd_macaroon_validate_bundle(ngx_log_t *log,
+brix_macaroon_validate_bundle(ngx_log_t *log,
     const char *token, size_t token_len,
     const u_char *root_key, size_t root_key_len,
-    xrootd_token_claims_t *claims)
+    brix_token_claims_t *claims)
 /* WHAT: Validate a space-separated macaroon bundle containing one root macaroon and zero or more discharge macaroons.
  * WHY: WLCG third-party caveats require the client to present corresponding discharge macaroons — each discharge proves
  * that the third party authorized access for this specific request. Bundle validation ensures all discharges are valid,
@@ -588,13 +588,13 @@ xrootd_macaroon_validate_bundle(ngx_log_t *log,
  * macaroon_parse_core(log,d_bin,d_key,32,&d_claims,NULL,NULL,0) to validate discharge (depth=1, no nested discharges); OPENSSL_cleanse d_key;
  * intersect discharge expiry (earliest wins) and scope paths as additional path: caveats via macaroon_apply_path_caveats; return 0 success or -1 failure. */
 {
-    const char          *tokens[XROOTD_MACAROON_MAX_DISCHARGES + 1];
-    size_t               tlens[XROOTD_MACAROON_MAX_DISCHARGES + 1];
+    const char          *tokens[BRIX_MACAROON_MAX_DISCHARGES + 1];
+    size_t               tlens[BRIX_MACAROON_MAX_DISCHARGES + 1];
     int                  n_tokens    = 0;
     const char          *p, *end, *tok_start;
     u_char               root_bin[MACAROON_MAX_BIN];
     ssize_t              root_bin_len;
-    xrootd_macaroon_tp_t tp_arr[XROOTD_MACAROON_MAX_TP_CAVEATS];
+    brix_macaroon_tp_t tp_arr[BRIX_MACAROON_MAX_TP_CAVEATS];
     int                  n_tp = 0;
     int                  ti;
 
@@ -608,7 +608,7 @@ xrootd_macaroon_validate_bundle(ngx_log_t *log,
     for (;;) {
         if (p >= end || *p == ' ') {
             if (p > tok_start
-                && n_tokens <= XROOTD_MACAROON_MAX_DISCHARGES)
+                && n_tokens <= BRIX_MACAROON_MAX_DISCHARGES)
             {
                 tokens[n_tokens] = tok_start;
                 tlens[n_tokens]  = (size_t)(p - tok_start);
@@ -624,7 +624,7 @@ xrootd_macaroon_validate_bundle(ngx_log_t *log,
 
     if (n_tokens == 0) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_macaroon: empty token bundle");
+                      "brix_macaroon: empty token bundle");
         return -1;
     }
 
@@ -633,7 +633,7 @@ xrootd_macaroon_validate_bundle(ngx_log_t *log,
                                  root_bin, sizeof(root_bin));
     if (root_bin_len < 0) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_macaroon: root token base64url decode failed");
+                      "brix_macaroon: root token base64url decode failed");
         return -1;
     }
 
@@ -641,7 +641,7 @@ xrootd_macaroon_validate_bundle(ngx_log_t *log,
                             root_bin, (size_t)root_bin_len,
                             root_key, root_key_len,
                             claims,
-                            tp_arr, &n_tp, XROOTD_MACAROON_MAX_TP_CAVEATS) != 0)
+                            tp_arr, &n_tp, BRIX_MACAROON_MAX_TP_CAVEATS) != 0)
     {
         return -1;
     }
@@ -650,14 +650,14 @@ xrootd_macaroon_validate_bundle(ngx_log_t *log,
     if (n_tp > 0) {
         if (n_tokens < 2) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                "xrootd_macaroon: root has %d third-party caveat(s) "
+                "brix_macaroon: root has %d third-party caveat(s) "
                 "but no discharge Macaroons were provided", n_tp);
             return -1;
         }
 
         for (ti = 0; ti < n_tp; ti++) {
-            xrootd_macaroon_tp_t  *tp        = &tp_arr[ti];
-            xrootd_token_claims_t  d_claims;
+            brix_macaroon_tp_t  *tp        = &tp_arr[ti];
+            brix_token_claims_t  d_claims;
             u_char                 d_bin[MACAROON_MAX_BIN];
             ssize_t                d_bin_len  = -1;
             u_char                 d_key[32];
@@ -713,7 +713,7 @@ xrootd_macaroon_validate_bundle(ngx_log_t *log,
 
             if (d_bin_len < 0) {
                 ngx_log_error(NGX_LOG_WARN, log, 0,
-                    "xrootd_macaroon: no discharge Macaroon provided for "
+                    "brix_macaroon: no discharge Macaroon provided for "
                     "third-party caveat #%d", ti);
                 return -1;
             }
@@ -723,7 +723,7 @@ xrootd_macaroon_validate_bundle(ngx_log_t *log,
                                      tp->sig_before, d_key) != 0)
             {
                 ngx_log_error(NGX_LOG_WARN, log, 0,
-                    "xrootd_macaroon: cannot decrypt vid for caveat #%d "
+                    "brix_macaroon: cannot decrypt vid for caveat #%d "
                     "(unsupported vid format?)", ti);
                 OPENSSL_cleanse(d_key, sizeof(d_key));
                 return -1;
@@ -741,13 +741,13 @@ xrootd_macaroon_validate_bundle(ngx_log_t *log,
             {
                 OPENSSL_cleanse(d_key, sizeof(d_key));
                 ngx_log_error(NGX_LOG_WARN, log, 0,
-                    "xrootd_macaroon: discharge Macaroon #%d is invalid", ti);
+                    "brix_macaroon: discharge Macaroon #%d is invalid", ti);
                 return -1;
             }
             OPENSSL_cleanse(d_key, sizeof(d_key));
 
             ngx_log_error(NGX_LOG_DEBUG, log, 0,
-                "xrootd_macaroon: discharge #%d valid sub=\"%s\" scope=\"%s\"",
+                "brix_macaroon: discharge #%d valid sub=\"%s\" scope=\"%s\"",
                 ti, d_claims.sub, d_claims.scope_raw);
 
             /* Intersect discharge expiry with root expiry (take earliest) */
@@ -761,13 +761,13 @@ xrootd_macaroon_validate_bundle(ngx_log_t *log,
             if (d_claims.scope_count > 0) {
                 /* Treat discharge scope paths as additional path: caveats */
                 int dsi;
-                char dp_caveats[XROOTD_MAX_TOKEN_SCOPES][XROOTD_SCOPE_PATH_MAX];
+                char dp_caveats[BRIX_MAX_TOKEN_SCOPES][BRIX_SCOPE_PATH_MAX];
                 int  n_dp = 0;
 
                 for (dsi = 0; dsi < d_claims.scope_count
-                             && n_dp < XROOTD_MAX_TOKEN_SCOPES; dsi++) {
+                             && n_dp < BRIX_MAX_TOKEN_SCOPES; dsi++) {
                     size_t plen = strlen(d_claims.scopes[dsi].path);
-                    if (plen > 0 && plen < XROOTD_SCOPE_PATH_MAX) {
+                    if (plen > 0 && plen < BRIX_SCOPE_PATH_MAX) {
                         memcpy(dp_caveats[n_dp], d_claims.scopes[dsi].path,
                                plen + 1);
                         n_dp++;
@@ -782,7 +782,7 @@ xrootd_macaroon_validate_bundle(ngx_log_t *log,
     }
 
     ngx_log_error(NGX_LOG_INFO, log, 0,
-                  "xrootd_macaroon: valid Macaroon bundle sub=\"%s\" "
+                  "brix_macaroon: valid Macaroon bundle sub=\"%s\" "
                   "iss=\"%s\" scope=\"%s\" exp=%L "
                   "(third-party: %d, discharges: %d)",
                   claims->sub, claims->iss, claims->scope_raw,
@@ -792,15 +792,15 @@ xrootd_macaroon_validate_bundle(ngx_log_t *log,
 }
 
 int
-xrootd_macaroon_validate(ngx_log_t *log,
+brix_macaroon_validate(ngx_log_t *log,
     const char *token, size_t token_len,
     const u_char *root_key, size_t root_key_len,
-    xrootd_token_claims_t *claims)
+    brix_token_claims_t *claims)
 /* WHAT: Thin wrapper — validate a single-root macaroon (no discharges required).
  * WHY: Provides the simple-entry-point for callers who only have a root macaroon without third-party caveats.
  * Internally delegates to validate_bundle which handles both single-root and multi-discharge cases uniformly.
- * HOW: Pass all arguments directly to xrootd_macaroon_validate_bundle() — identical behavior, no local logic. */
+ * HOW: Pass all arguments directly to brix_macaroon_validate_bundle() — identical behavior, no local logic. */
 {
-    return xrootd_macaroon_validate_bundle(log, token, token_len,
+    return brix_macaroon_validate_bundle(log, token, token_len,
                                            root_key, root_key_len, claims);
 }

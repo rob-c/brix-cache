@@ -35,7 +35,7 @@ typedef intptr_t  ngx_int_t;
 #define F_DIRTY    0x0008u
 #define F_EXPIRES  0x0010u
 
-/* Mirror of xrootd_cache_meta_t (only the fields from_meta reads). The trailing
+/* Mirror of brix_cache_meta_t (only the fields from_meta reads). The trailing
  * layout must match src/fs/cache/meta.h for the struct passed by value. */
 typedef struct {
     uint64_t mtime;
@@ -50,9 +50,9 @@ typedef struct {
     char     cks_alg[16];
     uint8_t  cks_len;
     char     cks_hex[129];
-} xrootd_cache_meta_t;
+} brix_cache_meta_t;
 
-/* Mirror of xrootd_cache_cinfo_t (layout must match src/fs/cache/cinfo.h). */
+/* Mirror of brix_cache_cinfo_t (layout must match src/fs/cache/cinfo.h). */
 typedef struct {
     uint32_t magic;
     uint16_t version;
@@ -79,7 +79,7 @@ typedef struct {
     char     cks_hex[129];
     uint64_t expires_at;
     uint64_t filled_at;
-} xrootd_cache_cinfo_t;
+} brix_cache_cinfo_t;
 
 /* Frozen v2 mirror (no write-back fields) for the upgrade test. */
 typedef struct {
@@ -100,35 +100,35 @@ typedef struct {
     char     cks_alg[16];
     uint8_t  cks_len;
     char     cks_hex[129];
-} xrootd_cache_cinfo_v2_t;
+} brix_cache_cinfo_v2_t;
 
 /* ---- prototypes (defined in cinfo.o) ---- */
-uint64_t xrootd_cache_cinfo_nblocks(uint64_t size, uint32_t block_size);
-size_t   xrootd_cache_cinfo_bitmap_len(uint64_t nblocks);
-void     xrootd_cache_cinfo_mark_block(uint8_t *bitmap, uint64_t blk);
-int      xrootd_cache_cinfo_block_present(const uint8_t *bitmap, uint64_t blk);
-uint64_t xrootd_cache_cinfo_present_count(const uint8_t *bitmap, uint64_t nblocks);
-void     xrootd_cache_cinfo_refresh_flags(xrootd_cache_cinfo_t *hdr,
+uint64_t brix_cache_cinfo_nblocks(uint64_t size, uint32_t block_size);
+size_t   brix_cache_cinfo_bitmap_len(uint64_t nblocks);
+void     brix_cache_cinfo_mark_block(uint8_t *bitmap, uint64_t blk);
+int      brix_cache_cinfo_block_present(const uint8_t *bitmap, uint64_t blk);
+uint64_t brix_cache_cinfo_present_count(const uint8_t *bitmap, uint64_t nblocks);
+void     brix_cache_cinfo_refresh_flags(brix_cache_cinfo_t *hdr,
              const uint8_t *bitmap);
-int      xrootd_cache_cinfo_path(char *dst, size_t dstsz, const char *cache_path);
-void xrootd_cache_cinfo_set_expires(xrootd_cache_cinfo_t *ci, time_t when);
-int  xrootd_cache_cinfo_expired(const xrootd_cache_cinfo_t *ci, time_t now);
-ngx_int_t xrootd_cache_cinfo_load(const char *cache_path,
-             xrootd_cache_cinfo_t *hdr, uint8_t **bitmap, size_t *bitmap_len);
-ngx_int_t xrootd_cache_cinfo_store(const char *cache_path,
-             const xrootd_cache_cinfo_t *hdr, const uint8_t *bitmap,
+int      brix_cache_cinfo_path(char *dst, size_t dstsz, const char *cache_path);
+void brix_cache_cinfo_set_expires(brix_cache_cinfo_t *ci, time_t when);
+int  brix_cache_cinfo_expired(const brix_cache_cinfo_t *ci, time_t now);
+ngx_int_t brix_cache_cinfo_load(const char *cache_path,
+             brix_cache_cinfo_t *hdr, uint8_t **bitmap, size_t *bitmap_len);
+ngx_int_t brix_cache_cinfo_store(const char *cache_path,
+             const brix_cache_cinfo_t *hdr, const uint8_t *bitmap,
              size_t bitmap_len);
-ngx_int_t xrootd_cache_cinfo_from_meta(const xrootd_cache_meta_t *m,
-             uint32_t block_size, xrootd_cache_cinfo_t *out);
-ngx_int_t xrootd_cache_cinfo_record_block(const char *cache_path, uint64_t size,
+ngx_int_t brix_cache_cinfo_from_meta(const brix_cache_meta_t *m,
+             uint32_t block_size, brix_cache_cinfo_t *out);
+ngx_int_t brix_cache_cinfo_record_block(const char *cache_path, uint64_t size,
              uint32_t block_size, uint64_t mtime, uint32_t mode, uint64_t blk,
              void *log);
-ngx_int_t xrootd_cache_cinfo_mark_dirty(const char *cache_path, uint64_t size,
+ngx_int_t brix_cache_cinfo_mark_dirty(const char *cache_path, uint64_t size,
              uint32_t block_size, uint64_t mtime, uint64_t off, uint64_t len,
              void *log);
-ngx_int_t xrootd_cache_cinfo_mark_clean(const char *cache_path, uint64_t bytes,
+ngx_int_t brix_cache_cinfo_mark_clean(const char *cache_path, uint64_t bytes,
              void *log);
-ngx_int_t xrootd_cache_cinfo_dirty_extent(const char *cache_path, uint64_t *lo,
+ngx_int_t brix_cache_cinfo_dirty_extent(const char *cache_path, uint64_t *lo,
              uint64_t *hi, uint64_t *dirty_since);
 
 /* ---- harness ---- */
@@ -155,16 +155,16 @@ static const uint32_t BS = 1024 * 1024;   /* 1 MiB block granule */
 static void
 test_math(void)
 {
-    CHECK(xrootd_cache_cinfo_nblocks(0, BS) == 0, "nblocks(0)=0");
-    CHECK(xrootd_cache_cinfo_nblocks(100, 0) == 0, "nblocks(bs=0)=0");
-    CHECK(xrootd_cache_cinfo_nblocks(BS, BS) == 1, "exact 1 block");
-    CHECK(xrootd_cache_cinfo_nblocks(BS + 1, BS) == 2, "+1 byte -> 2 blocks");
-    CHECK(xrootd_cache_cinfo_nblocks(16 * (uint64_t) BS, BS) == 16, "16 blocks");
-    CHECK(xrootd_cache_cinfo_bitmap_len(0) == 0, "bitmap_len(0)=0");
-    CHECK(xrootd_cache_cinfo_bitmap_len(1) == 1, "bitmap_len(1)=1");
-    CHECK(xrootd_cache_cinfo_bitmap_len(8) == 1, "bitmap_len(8)=1");
-    CHECK(xrootd_cache_cinfo_bitmap_len(9) == 2, "bitmap_len(9)=2");
-    CHECK(xrootd_cache_cinfo_bitmap_len(16) == 2, "bitmap_len(16)=2");
+    CHECK(brix_cache_cinfo_nblocks(0, BS) == 0, "nblocks(0)=0");
+    CHECK(brix_cache_cinfo_nblocks(100, 0) == 0, "nblocks(bs=0)=0");
+    CHECK(brix_cache_cinfo_nblocks(BS, BS) == 1, "exact 1 block");
+    CHECK(brix_cache_cinfo_nblocks(BS + 1, BS) == 2, "+1 byte -> 2 blocks");
+    CHECK(brix_cache_cinfo_nblocks(16 * (uint64_t) BS, BS) == 16, "16 blocks");
+    CHECK(brix_cache_cinfo_bitmap_len(0) == 0, "bitmap_len(0)=0");
+    CHECK(brix_cache_cinfo_bitmap_len(1) == 1, "bitmap_len(1)=1");
+    CHECK(brix_cache_cinfo_bitmap_len(8) == 1, "bitmap_len(8)=1");
+    CHECK(brix_cache_cinfo_bitmap_len(9) == 2, "bitmap_len(9)=2");
+    CHECK(brix_cache_cinfo_bitmap_len(16) == 2, "bitmap_len(16)=2");
 }
 
 static void
@@ -172,39 +172,39 @@ test_bitops(void)
 {
     uint8_t bm[4];
     memset(bm, 0, sizeof(bm));
-    xrootd_cache_cinfo_mark_block(bm, 0);
-    xrootd_cache_cinfo_mark_block(bm, 7);
-    xrootd_cache_cinfo_mark_block(bm, 12);
-    CHECK(xrootd_cache_cinfo_block_present(bm, 0), "bit 0 set");
-    CHECK(xrootd_cache_cinfo_block_present(bm, 7), "bit 7 set");
-    CHECK(xrootd_cache_cinfo_block_present(bm, 12), "bit 12 set");
-    CHECK(!xrootd_cache_cinfo_block_present(bm, 1), "bit 1 clear");
-    CHECK(!xrootd_cache_cinfo_block_present(bm, 8), "bit 8 clear");
-    CHECK(xrootd_cache_cinfo_present_count(bm, 32) == 3, "present_count=3");
+    brix_cache_cinfo_mark_block(bm, 0);
+    brix_cache_cinfo_mark_block(bm, 7);
+    brix_cache_cinfo_mark_block(bm, 12);
+    CHECK(brix_cache_cinfo_block_present(bm, 0), "bit 0 set");
+    CHECK(brix_cache_cinfo_block_present(bm, 7), "bit 7 set");
+    CHECK(brix_cache_cinfo_block_present(bm, 12), "bit 12 set");
+    CHECK(!brix_cache_cinfo_block_present(bm, 1), "bit 1 clear");
+    CHECK(!brix_cache_cinfo_block_present(bm, 8), "bit 8 clear");
+    CHECK(brix_cache_cinfo_present_count(bm, 32) == 3, "present_count=3");
 }
 
 static void
 test_refresh_flags(void)
 {
-    xrootd_cache_cinfo_t h;
+    brix_cache_cinfo_t h;
     uint8_t bm[2];
 
     memset(&h, 0, sizeof(h));
     h.nblocks = 16;
     memset(bm, 0, sizeof(bm));
-    xrootd_cache_cinfo_refresh_flags(&h, bm);
+    brix_cache_cinfo_refresh_flags(&h, bm);
     CHECK(!(h.flags & F_COMPLETE) && !(h.flags & F_PARTIAL), "empty -> no flags");
 
-    xrootd_cache_cinfo_mark_block(bm, 3);
-    xrootd_cache_cinfo_refresh_flags(&h, bm);
+    brix_cache_cinfo_mark_block(bm, 3);
+    brix_cache_cinfo_refresh_flags(&h, bm);
     CHECK((h.flags & F_PARTIAL) && !(h.flags & F_COMPLETE), "some -> PARTIAL");
 
     memset(bm, 0xff, sizeof(bm));
-    xrootd_cache_cinfo_refresh_flags(&h, bm);
+    brix_cache_cinfo_refresh_flags(&h, bm);
     CHECK((h.flags & F_COMPLETE) && !(h.flags & F_PARTIAL), "all -> COMPLETE");
 
     h.nblocks = 0;
-    xrootd_cache_cinfo_refresh_flags(&h, bm);
+    brix_cache_cinfo_refresh_flags(&h, bm);
     CHECK(h.flags & F_COMPLETE, "0 blocks -> COMPLETE");
 }
 
@@ -212,16 +212,16 @@ static void
 test_path(void)
 {
     char out[PATH_MAX];
-    CHECK(xrootd_cache_cinfo_path(out, sizeof(out), "/a/b.bin") == 0
+    CHECK(brix_cache_cinfo_path(out, sizeof(out), "/a/b.bin") == 0
           && strcmp(out, "/a/b.bin.cinfo") == 0, "path appends .cinfo");
-    CHECK(xrootd_cache_cinfo_path(out, 4, "/aaa/bbb.bin") == -1, "path overflow -> -1");
+    CHECK(brix_cache_cinfo_path(out, 4, "/aaa/bbb.bin") == -1, "path overflow -> -1");
 }
 
 /* ---- store/load roundtrip + corruption handling ---- */
 static void
 test_store_load(void)
 {
-    xrootd_cache_cinfo_t h, r;
+    brix_cache_cinfo_t h, r;
     uint8_t *rbm = NULL;
     size_t   rlen = 0, blen;
     uint8_t  bm[2];
@@ -233,21 +233,21 @@ test_store_load(void)
     h.nblocks = 16;
     h.access_count = 5;
     h.bytes_served = 999;
-    blen = xrootd_cache_cinfo_bitmap_len(h.nblocks);
+    blen = brix_cache_cinfo_bitmap_len(h.nblocks);
     memset(bm, 0, sizeof(bm));
-    xrootd_cache_cinfo_mark_block(bm, 2);
-    xrootd_cache_cinfo_mark_block(bm, 9);
-    xrootd_cache_cinfo_refresh_flags(&h, bm);
+    brix_cache_cinfo_mark_block(bm, 2);
+    brix_cache_cinfo_mark_block(bm, 9);
+    brix_cache_cinfo_refresh_flags(&h, bm);
 
-    CHECK(xrootd_cache_cinfo_store(g_cache, &h, bm, blen) == NGX_OK, "store ok");
-    CHECK(xrootd_cache_cinfo_load(g_cache, &r, &rbm, &rlen) == NGX_OK, "load ok");
+    CHECK(brix_cache_cinfo_store(g_cache, &h, bm, blen) == NGX_OK, "store ok");
+    CHECK(brix_cache_cinfo_load(g_cache, &r, &rbm, &rlen) == NGX_OK, "load ok");
     CHECK(r.magic == CINFO_MAGIC && r.version == CINFO_VERSION, "magic/version");
     CHECK(r.block_size == BS && r.size == h.size && r.nblocks == 16, "header validity");
     CHECK(r.mtime == 123456 && r.access_count == 5 && r.bytes_served == 999, "stats");
     CHECK(rlen == blen, "bitmap len matches");
-    CHECK(rbm && xrootd_cache_cinfo_block_present(rbm, 2)
-          && xrootd_cache_cinfo_block_present(rbm, 9)
-          && !xrootd_cache_cinfo_block_present(rbm, 0), "bitmap bits roundtrip");
+    CHECK(rbm && brix_cache_cinfo_block_present(rbm, 2)
+          && brix_cache_cinfo_block_present(rbm, 9)
+          && !brix_cache_cinfo_block_present(rbm, 0), "bitmap bits roundtrip");
     CHECK(r.flags & F_PARTIAL, "PARTIAL persisted");
     free(rbm);
 
@@ -258,7 +258,7 @@ test_store_load(void)
         char p[PATH_MAX];
         int  fd2;
         int32_t ver = 0;
-        xrootd_cache_cinfo_path(p, sizeof(p), g_cache);
+        brix_cache_cinfo_path(p, sizeof(p), g_cache);
         fd2 = open(p, O_RDONLY);
         CHECK(fd2 >= 0 && read(fd2, &ver, 4) == 4 && ver == 4,
               "sidecar is a stock-prefixed xmeta record");
@@ -269,12 +269,12 @@ test_store_load(void)
 static void
 test_load_missing(void)
 {
-    xrootd_cache_cinfo_t r;
+    brix_cache_cinfo_t r;
     uint8_t *rbm = NULL;
     size_t   rlen = 0;
     char     p[PATH_MAX];
     snprintf(p, sizeof(p), "%s/nope.bin", g_dir);
-    CHECK(xrootd_cache_cinfo_load(p, &r, &rbm, &rlen) == NGX_DECLINED,
+    CHECK(brix_cache_cinfo_load(p, &r, &rbm, &rlen) == NGX_DECLINED,
           "absent -> DECLINED");
     CHECK(rbm == NULL, "no bitmap allocated on miss");
 }
@@ -282,25 +282,25 @@ test_load_missing(void)
 static void
 test_load_garbage(void)
 {
-    xrootd_cache_cinfo_t r;
+    brix_cache_cinfo_t r;
     uint8_t *rbm = NULL;
     size_t   rlen = 0;
     char     p[PATH_MAX], cp[PATH_MAX];
     int      fd;
 
     snprintf(p, sizeof(p), "%s/garbage.bin", g_dir);
-    xrootd_cache_cinfo_path(cp, sizeof(cp), p);
+    brix_cache_cinfo_path(cp, sizeof(cp), p);
 
     /* truncated (a few bytes) */
     fd = open(cp, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     (void) !write(fd, "XX", 2);
     close(fd);
-    CHECK(xrootd_cache_cinfo_load(p, &r, &rbm, &rlen) == NGX_DECLINED,
+    CHECK(brix_cache_cinfo_load(p, &r, &rbm, &rlen) == NGX_DECLINED,
           "truncated -> DECLINED");
 
     /* full-size header but wrong magic */
     {
-        xrootd_cache_cinfo_t bad;
+        brix_cache_cinfo_t bad;
         memset(&bad, 0, sizeof(bad));
         bad.magic = 0xdeadbeef;
         bad.block_size = BS;
@@ -310,7 +310,7 @@ test_load_garbage(void)
         (void) !write(fd, &bad, sizeof(bad));
         (void) !write(fd, "\0", 1);
         close(fd);
-        CHECK(xrootd_cache_cinfo_load(p, &r, &rbm, &rlen) == NGX_DECLINED,
+        CHECK(brix_cache_cinfo_load(p, &r, &rbm, &rlen) == NGX_DECLINED,
               "bad magic -> DECLINED");
     }
 }
@@ -318,25 +318,25 @@ test_load_garbage(void)
 static void
 test_from_meta(void)
 {
-    xrootd_cache_meta_t m;
-    xrootd_cache_cinfo_t out;
+    brix_cache_meta_t m;
+    brix_cache_cinfo_t out;
     memset(&m, 0, sizeof(m));
     m.size = 10 * (uint64_t) BS;
     m.mtime = 777;
     m.access_count = 3;
     m.bytes_served = 42;
-    CHECK(xrootd_cache_cinfo_from_meta(&m, BS, &out) == NGX_OK, "from_meta ok");
+    CHECK(brix_cache_cinfo_from_meta(&m, BS, &out) == NGX_OK, "from_meta ok");
     CHECK(out.flags & F_COMPLETE, "migrated -> COMPLETE");
     CHECK(out.size == m.size && out.mtime == 777 && out.nblocks == 10, "validity carried");
     CHECK(out.access_count == 3 && out.bytes_served == 42, "stats carried");
-    CHECK(xrootd_cache_cinfo_from_meta(&m, 0, &out) == NGX_ERROR, "bs=0 -> ERROR");
+    CHECK(brix_cache_cinfo_from_meta(&m, 0, &out) == NGX_ERROR, "bs=0 -> ERROR");
 }
 
 /* ---- record_block: the record-keeping entry point ---- */
 static void
 test_record_block(void)
 {
-    xrootd_cache_cinfo_t r;
+    brix_cache_cinfo_t r;
     uint8_t *rbm = NULL;
     size_t   rlen = 0;
     uint64_t size = 16 * (uint64_t) BS;
@@ -344,34 +344,34 @@ test_record_block(void)
     snprintf(rc_cache, sizeof(rc_cache), "%s/rec.bin", g_dir);
 
     /* fresh record of one block -> PARTIAL, only that bit */
-    CHECK(xrootd_cache_cinfo_record_block(rc_cache, size, BS, 0, 0, 2, NULL) == NGX_OK,
+    CHECK(brix_cache_cinfo_record_block(rc_cache, size, BS, 0, 0, 2, NULL) == NGX_OK,
           "record block 2");
-    CHECK(xrootd_cache_cinfo_load(rc_cache, &r, &rbm, &rlen) == NGX_OK, "load after record");
-    CHECK((r.flags & F_PARTIAL) && xrootd_cache_cinfo_block_present(rbm, 2)
-          && xrootd_cache_cinfo_present_count(rbm, 16) == 1, "one block present");
+    CHECK(brix_cache_cinfo_load(rc_cache, &r, &rbm, &rlen) == NGX_OK, "load after record");
+    CHECK((r.flags & F_PARTIAL) && brix_cache_cinfo_block_present(rbm, 2)
+          && brix_cache_cinfo_present_count(rbm, 16) == 1, "one block present");
     free(rbm);
 
     /* a second, different block accumulates (read-modify-write merge) */
-    CHECK(xrootd_cache_cinfo_record_block(rc_cache, size, BS, 0, 0, 9, NULL) == NGX_OK,
+    CHECK(brix_cache_cinfo_record_block(rc_cache, size, BS, 0, 0, 9, NULL) == NGX_OK,
           "record block 9");
-    CHECK(xrootd_cache_cinfo_load(rc_cache, &r, &rbm, &rlen) == NGX_OK, "load 2");
-    CHECK(xrootd_cache_cinfo_block_present(rbm, 2)
-          && xrootd_cache_cinfo_block_present(rbm, 9)
-          && xrootd_cache_cinfo_present_count(rbm, 16) == 2, "both blocks present");
+    CHECK(brix_cache_cinfo_load(rc_cache, &r, &rbm, &rlen) == NGX_OK, "load 2");
+    CHECK(brix_cache_cinfo_block_present(rbm, 2)
+          && brix_cache_cinfo_block_present(rbm, 9)
+          && brix_cache_cinfo_present_count(rbm, 16) == 2, "both blocks present");
     free(rbm);
 
     /* out-of-range block -> ERANGE/ERROR, record unchanged */
-    CHECK(xrootd_cache_cinfo_record_block(rc_cache, size, BS, 0, 0, 99, NULL) == NGX_ERROR,
+    CHECK(brix_cache_cinfo_record_block(rc_cache, size, BS, 0, 0, 99, NULL) == NGX_ERROR,
           "out-of-range -> ERROR");
 
     /* recording all blocks -> COMPLETE */
     {
         uint64_t b;
         for (b = 0; b < 16; b++) {
-            xrootd_cache_cinfo_record_block(rc_cache, size, BS, 0, 0, b, NULL);
+            brix_cache_cinfo_record_block(rc_cache, size, BS, 0, 0, b, NULL);
         }
-        CHECK(xrootd_cache_cinfo_load(rc_cache, &r, &rbm, &rlen) == NGX_OK, "load full");
-        CHECK((r.flags & F_COMPLETE) && xrootd_cache_cinfo_present_count(rbm, 16) == 16,
+        CHECK(brix_cache_cinfo_load(rc_cache, &r, &rbm, &rlen) == NGX_OK, "load full");
+        CHECK((r.flags & F_COMPLETE) && brix_cache_cinfo_present_count(rbm, 16) == 16,
               "all blocks -> COMPLETE");
         free(rbm);
     }
@@ -380,9 +380,9 @@ test_record_block(void)
     {
         char m_cache[PATH_MAX];
         snprintf(m_cache, sizeof(m_cache), "%s/mode.bin", g_dir);
-        CHECK(xrootd_cache_cinfo_record_block(m_cache, size, BS, 0, 0644, 0, NULL)
+        CHECK(brix_cache_cinfo_record_block(m_cache, size, BS, 0, 0644, 0, NULL)
               == NGX_OK, "record block with mode 0644");
-        CHECK(xrootd_cache_cinfo_load(m_cache, &r, &rbm, &rlen) == NGX_OK, "load mode");
+        CHECK(brix_cache_cinfo_load(m_cache, &r, &rbm, &rlen) == NGX_OK, "load mode");
         CHECK(r.mode == 0644, "origin mode persisted in cinfo header");
         free(rbm);
     }
@@ -391,23 +391,23 @@ test_record_block(void)
 static void
 test_record_block_stale_reset(void)
 {
-    xrootd_cache_cinfo_t r;
+    brix_cache_cinfo_t r;
     uint8_t *rbm = NULL;
     size_t   rlen = 0;
     char     c[PATH_MAX];
     snprintf(c, sizeof(c), "%s/stale.bin", g_dir);
 
     /* record a block for a 16-block file */
-    xrootd_cache_cinfo_record_block(c, 16 * (uint64_t) BS, BS, 100, 0, 5, NULL);
+    brix_cache_cinfo_record_block(c, 16 * (uint64_t) BS, BS, 100, 0, 5, NULL);
     /* the origin file changed (new size + mtime): the old bitmap is stale and
      * must be reset, leaving only the freshly-recorded block. */
-    CHECK(xrootd_cache_cinfo_record_block(c, 8 * (uint64_t) BS, BS, 200, 0, 1, NULL) == NGX_OK,
+    CHECK(brix_cache_cinfo_record_block(c, 8 * (uint64_t) BS, BS, 200, 0, 1, NULL) == NGX_OK,
           "record after origin change");
-    CHECK(xrootd_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_OK, "load reset");
+    CHECK(brix_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_OK, "load reset");
     CHECK(r.size == 8 * (uint64_t) BS && r.mtime == 200 && r.nblocks == 8,
           "validity updated to new origin");
-    CHECK(xrootd_cache_cinfo_block_present(rbm, 1)
-          && xrootd_cache_cinfo_present_count(rbm, 8) == 1,
+    CHECK(brix_cache_cinfo_block_present(rbm, 1)
+          && brix_cache_cinfo_present_count(rbm, 8) == 1,
           "stale bitmap reset; only new block present");
     free(rbm);
 }
@@ -416,7 +416,7 @@ test_record_block_stale_reset(void)
 static void
 test_v3_dirty_fields_roundtrip(void)
 {
-    xrootd_cache_cinfo_t h, r;
+    brix_cache_cinfo_t h, r;
     uint8_t *rbm = NULL;
     size_t   rlen = 0;
     uint8_t  bm[1] = { 0x03 };
@@ -425,13 +425,13 @@ test_v3_dirty_fields_roundtrip(void)
 
     memset(&h, 0, sizeof(h));
     h.block_size = BS; h.size = 2 * (uint64_t) BS; h.mtime = 1000;
-    h.nblocks = xrootd_cache_cinfo_nblocks(h.size, h.block_size);
+    h.nblocks = brix_cache_cinfo_nblocks(h.size, h.block_size);
     h.flags |= F_DIRTY;
     h.dirty_lo = 100; h.dirty_hi = 500; h.dirty_since = 1700000000ULL;
     h.flush_gen = 7; h.last_flush = 1700000001ULL; h.bytes_flushed = BS;
 
-    CHECK(xrootd_cache_cinfo_store(c, &h, bm, 1) == NGX_OK, "store v3 record");
-    CHECK(xrootd_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_OK, "load v3 record");
+    CHECK(brix_cache_cinfo_store(c, &h, bm, 1) == NGX_OK, "store v3 record");
+    CHECK(brix_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_OK, "load v3 record");
     CHECK(r.version == CINFO_VERSION, "version is 3");
     CHECK((r.flags & F_DIRTY) && r.dirty_lo == 100 && r.dirty_hi == 500,
           "dirty flag + extent survive");
@@ -444,15 +444,15 @@ test_v3_dirty_fields_roundtrip(void)
 static void
 test_v2_loads_present_only(void)
 {
-    xrootd_cache_cinfo_t r;
+    brix_cache_cinfo_t r;
     uint8_t *rbm = NULL;
     size_t   rlen = 0;
-    xrootd_cache_cinfo_v2_t v2;
+    brix_cache_cinfo_v2_t v2;
     char     c[PATH_MAX], sc[PATH_MAX];
     int      fd;
     uint8_t  b = 0x03;
     snprintf(c, sizeof(c), "%s/old.bin", g_dir);
-    CHECK(xrootd_cache_cinfo_path(sc, sizeof(sc), c) == 0, "v2 sidecar path");
+    CHECK(brix_cache_cinfo_path(sc, sizeof(sc), c) == 0, "v2 sidecar path");
 
     memset(&v2, 0, sizeof(v2));
     v2.magic = CINFO_MAGIC; v2.version = 2;
@@ -466,7 +466,7 @@ test_v2_loads_present_only(void)
 
     /* xmeta carries no legacy readers (spec: no migration) — a v2/XCI1
      * sidecar reads as "nothing recorded" and the cache refills. */
-    CHECK(xrootd_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_DECLINED,
+    CHECK(brix_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_DECLINED,
           "legacy v2 record reads as no-record");
     CHECK(rbm == NULL && rlen == 0, "no bitmap from a legacy record");
     (void) free;
@@ -475,32 +475,32 @@ test_v2_loads_present_only(void)
 static void
 test_dirty_lifecycle(void)
 {
-    xrootd_cache_cinfo_t r;
+    brix_cache_cinfo_t r;
     uint8_t *rbm = NULL;
     size_t   rlen = 0;
     uint64_t lo, hi, ds, first_since;
     char     c[PATH_MAX];
     snprintf(c, sizeof(c), "%s/w.bin", g_dir);
 
-    CHECK(xrootd_cache_cinfo_dirty_extent(c, &lo, &hi, &ds) == NGX_DECLINED,
+    CHECK(brix_cache_cinfo_dirty_extent(c, &lo, &hi, &ds) == NGX_DECLINED,
           "no record -> DECLINED");
 
-    CHECK(xrootd_cache_cinfo_mark_dirty(c, 2 * (uint64_t) BS, BS, 1000, 100, 200, NULL) == NGX_OK,
+    CHECK(brix_cache_cinfo_mark_dirty(c, 2 * (uint64_t) BS, BS, 1000, 100, 200, NULL) == NGX_OK,
           "first dirty [100,300)");
-    CHECK(xrootd_cache_cinfo_dirty_extent(c, &lo, &hi, &ds) == NGX_OK
+    CHECK(brix_cache_cinfo_dirty_extent(c, &lo, &hi, &ds) == NGX_OK
           && lo == 100 && hi == 300 && ds != 0, "extent + dirty_since set");
     first_since = ds;
 
-    CHECK(xrootd_cache_cinfo_mark_dirty(c, 2 * (uint64_t) BS, BS, 1000, 500, 100, NULL) == NGX_OK,
+    CHECK(brix_cache_cinfo_mark_dirty(c, 2 * (uint64_t) BS, BS, 1000, 500, 100, NULL) == NGX_OK,
           "widen to [100,600)");
-    CHECK(xrootd_cache_cinfo_dirty_extent(c, &lo, &hi, &ds) == NGX_OK
+    CHECK(brix_cache_cinfo_dirty_extent(c, &lo, &hi, &ds) == NGX_OK
           && lo == 100 && hi == 600 && ds == first_since,
           "widened; dirty_since unchanged");
 
-    CHECK(xrootd_cache_cinfo_mark_clean(c, 500, NULL) == NGX_OK, "mark clean");
-    CHECK(xrootd_cache_cinfo_dirty_extent(c, &lo, &hi, &ds) == NGX_DECLINED,
+    CHECK(brix_cache_cinfo_mark_clean(c, 500, NULL) == NGX_OK, "mark clean");
+    CHECK(brix_cache_cinfo_dirty_extent(c, &lo, &hi, &ds) == NGX_DECLINED,
           "clean -> DECLINED");
-    CHECK(xrootd_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_OK, "load after clean");
+    CHECK(brix_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_OK, "load after clean");
     CHECK(r.flush_gen == 1 && r.bytes_flushed == 500 && r.last_flush != 0,
           "flush_gen/bytes/last_flush updated");
     free(rbm);
@@ -509,21 +509,21 @@ test_dirty_lifecycle(void)
 static void
 test_present_and_dirty_coexist(void)
 {
-    xrootd_cache_cinfo_t r;
+    brix_cache_cinfo_t r;
     uint8_t *rbm = NULL;
     size_t   rlen = 0;
     char     c[PATH_MAX];
     snprintf(c, sizeof(c), "%s/coex.bin", g_dir);
 
-    CHECK(xrootd_cache_cinfo_record_block(c, 2 * (uint64_t) BS, BS, 1000, 0, 0, NULL) == NGX_OK,
+    CHECK(brix_cache_cinfo_record_block(c, 2 * (uint64_t) BS, BS, 1000, 0, 0, NULL) == NGX_OK,
           "record present block 0");
-    CHECK(xrootd_cache_cinfo_mark_dirty(c, 2 * (uint64_t) BS, BS, 1000, 0, 100, NULL) == NGX_OK,
+    CHECK(brix_cache_cinfo_mark_dirty(c, 2 * (uint64_t) BS, BS, 1000, 0, 100, NULL) == NGX_OK,
           "mark dirty");
-    CHECK(xrootd_cache_cinfo_record_block(c, 2 * (uint64_t) BS, BS, 1000, 0, 1, NULL) == NGX_OK,
+    CHECK(brix_cache_cinfo_record_block(c, 2 * (uint64_t) BS, BS, 1000, 0, 1, NULL) == NGX_OK,
           "record present block 1");
-    CHECK(xrootd_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_OK, "load coexist");
-    CHECK(xrootd_cache_cinfo_block_present(rbm, 0)
-          && xrootd_cache_cinfo_block_present(rbm, 1), "both present bits survive");
+    CHECK(brix_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_OK, "load coexist");
+    CHECK(brix_cache_cinfo_block_present(rbm, 0)
+          && brix_cache_cinfo_block_present(rbm, 1), "both present bits survive");
     CHECK((r.flags & F_DIRTY) && r.dirty_lo == 0 && r.dirty_hi == 100,
           "dirty extent survived two block records");
     free(rbm);
@@ -536,7 +536,7 @@ test_present_and_dirty_coexist(void)
 static void
 test_p68_ttl_roundtrip(void)
 {
-    xrootd_cache_cinfo_t h, r;
+    brix_cache_cinfo_t h, r;
     uint8_t *rbm = NULL;
     size_t   rlen = 0;
     char     c[PATH_MAX];
@@ -548,24 +548,24 @@ test_p68_ttl_roundtrip(void)
     h.mtime = 111;
     h.nblocks = 1;
     h.filled_at = 1751400000;
-    xrootd_cache_cinfo_set_expires(&h, (time_t) 1751400900);
+    brix_cache_cinfo_set_expires(&h, (time_t) 1751400900);
     CHECK(h.flags & F_EXPIRES, "set_expires arms F_EXPIRES");
 
-    CHECK(xrootd_cache_cinfo_store(c, &h, NULL, 0) == NGX_OK, "ttl store");
-    CHECK(xrootd_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_OK, "ttl load");
+    CHECK(brix_cache_cinfo_store(c, &h, NULL, 0) == NGX_OK, "ttl store");
+    CHECK(brix_cache_cinfo_load(c, &r, &rbm, &rlen) == NGX_OK, "ttl load");
     free(rbm);
     CHECK(r.expires_at == 1751400900, "expires_at survives the record");
     CHECK(r.filled_at == 1751400000, "filled_at survives the record");
     CHECK(r.flags & F_EXPIRES, "F_EXPIRES survives the record");
-    CHECK(xrootd_cache_cinfo_expired(&r, (time_t) 1751400010) == 0,
+    CHECK(brix_cache_cinfo_expired(&r, (time_t) 1751400010) == 0,
           "fresh before the TTL");
-    CHECK(xrootd_cache_cinfo_expired(&r, (time_t) 1751401000) == 1,
+    CHECK(brix_cache_cinfo_expired(&r, (time_t) 1751401000) == 1,
           "expired after the TTL");
 
     /* no expiry recorded -> -1 (immutable entry) */
     memset(&h, 0, sizeof(h));
     h.block_size = BS; h.size = 1; h.nblocks = 1;
-    CHECK(xrootd_cache_cinfo_expired(&h, (time_t) 1751401000) == -1,
+    CHECK(brix_cache_cinfo_expired(&h, (time_t) 1751401000) == -1,
           "no TTL recorded reads as immutable");
 }
 

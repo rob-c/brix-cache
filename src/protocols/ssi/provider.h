@@ -1,5 +1,5 @@
-#ifndef XROOTD_SSI_PROVIDER_H
-#define XROOTD_SSI_PROVIDER_H
+#ifndef BRIX_SSI_PROVIDER_H
+#define BRIX_SSI_PROVIDER_H
 
 /*
  * provider.h — SSI service-name → implementation registry.
@@ -16,10 +16,10 @@
 
 typedef struct {
     const char            *name;
-    xrootd_ssi_process_fn  process;
-} xrootd_ssi_provider_t;
+    brix_ssi_process_fn  process;
+} brix_ssi_provider_t;
 
 /* Fill *out for a known service name; returns 1 if found, 0 otherwise. */
-int xrootd_ssi_provider_lookup(const char *name, xrootd_ssi_provider_t *out);
+int brix_ssi_provider_lookup(const char *name, brix_ssi_provider_t *out);
 
-#endif /* XROOTD_SSI_PROVIDER_H */
+#endif /* BRIX_SSI_PROVIDER_H */

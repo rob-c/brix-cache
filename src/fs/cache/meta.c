@@ -1,5 +1,5 @@
 #include "meta.h"
-#include "cinfo.h"                   /* XROOTD_CACHE_DIRTY_BLOCK granule */
+#include "cinfo.h"                   /* BRIX_CACHE_DIRTY_BLOCK granule */
 #include "fs/meta/xmeta_path.h"      /* the shared raw-path record carrier */
 
 #include <errno.h>
@@ -10,8 +10,8 @@
 #include <unistd.h>
 
 ngx_int_t
-xrootd_cache_meta_from_stat(const struct stat *st, const char *etag,
-    xrootd_cache_meta_t *meta)
+brix_cache_meta_from_stat(const struct stat *st, const char *etag,
+    brix_cache_meta_t *meta)
 {
     size_t etag_len;
 
@@ -26,8 +26,8 @@ xrootd_cache_meta_from_stat(const struct stat *st, const char *etag,
 
     if (etag != NULL && etag[0] != '\0') {
         etag_len = strlen(etag);
-        if (etag_len > XROOTD_CACHE_META_ETAG_MAX) {
-            etag_len = XROOTD_CACHE_META_ETAG_MAX;
+        if (etag_len > BRIX_CACHE_META_ETAG_MAX) {
+            etag_len = BRIX_CACHE_META_ETAG_MAX;
         }
         ngx_memcpy(meta->etag, etag, etag_len);
         meta->etag_len = (uint8_t) etag_len;
@@ -37,7 +37,7 @@ xrootd_cache_meta_from_stat(const struct stat *st, const char *etag,
 }
 
 /*
- * xrootd_cache_meta_read — load the sidecar meta for cache_path into *meta.
+ * brix_cache_meta_read — load the sidecar meta for cache_path into *meta.
  *
  * Derives the sidecar path, opens it O_RDONLY|O_NOFOLLOW, and reads the full
  * fixed-size record. Returns NGX_OK on success; NGX_DECLINED when no sidecar
@@ -45,10 +45,10 @@ xrootd_cache_meta_from_stat(const struct stat *st, const char *etag,
  * cache miss); NGX_ERROR on any other I/O error.
  */
 ngx_int_t
-xrootd_cache_meta_read(ngx_log_t *log, const char *cache_path,
-    xrootd_cache_meta_t *meta)
+brix_cache_meta_read(ngx_log_t *log, const char *cache_path,
+    brix_cache_meta_t *meta)
 {
-    xrootd_xmeta_t xm;
+    brix_xmeta_t xm;
     int            rc;
 
     (void) log;
@@ -57,15 +57,15 @@ xrootd_cache_meta_read(ngx_log_t *log, const char *cache_path,
         errno = EINVAL;
         return NGX_ERROR;
     }
-    rc = xrootd_xmeta_path_load(cache_path, &xm);
-    if (rc != XROOTD_XMETA_OK) {
-        return (rc == XROOTD_XMETA_FOREIGN) ? NGX_DECLINED : NGX_ERROR;
+    rc = brix_xmeta_path_load(cache_path, &xm);
+    if (rc != BRIX_XMETA_OK) {
+        return (rc == BRIX_XMETA_FOREIGN) ? NGX_DECLINED : NGX_ERROR;
     }
 
     ngx_memzero(meta, sizeof(*meta));
     meta->mtime        = xm.origin_mtime;
     meta->size         = (uint64_t) xm.file_size;
-    meta->version      = XROOTD_CACHE_META_VERSION;
+    meta->version      = BRIX_CACHE_META_VERSION;
     meta->access_count = xm.access_cnt;
     meta->last_access  = (uint64_t) xm.astat.detach_time;
     meta->bytes_served = (uint64_t) xm.astat.bytes_hit;
@@ -77,14 +77,14 @@ xrootd_cache_meta_read(ngx_log_t *log, const char *cache_path,
     meta->cks_len = (xm.cks_len < sizeof(meta->cks_hex)) ? xm.cks_len : 0;
     ngx_memcpy(meta->cks_hex, xm.cks_hex, meta->cks_len);
     meta->cks_hex[meta->cks_len] = 0;
-    xrootd_xmeta_free(&xm);
+    brix_xmeta_free(&xm);
     return NGX_OK;
 }
 
 /* Apply *meta's fields onto a loaded (or fresh) record, preserving whatever
  * the record already carries (bitmap, block CRCs, dirty state). */
 static void
-meta_onto_record(const xrootd_cache_meta_t *meta, xrootd_xmeta_t *xm)
+meta_onto_record(const brix_cache_meta_t *meta, brix_xmeta_t *xm)
 {
     xm->origin_mtime = meta->mtime;
     xm->access_cnt   = meta->access_count;
@@ -106,12 +106,12 @@ meta_onto_record(const xrootd_cache_meta_t *meta, xrootd_xmeta_t *xm)
 }
 
 /*
- * xrootd_cache_meta_touch — §9 record a cache hit (read-modify-write the stats).
+ * brix_cache_meta_touch — §9 record a cache hit (read-modify-write the stats).
  */
 ngx_int_t
-xrootd_cache_meta_touch(ngx_log_t *log, const char *cache_path, uint64_t nbytes)
+brix_cache_meta_touch(ngx_log_t *log, const char *cache_path, uint64_t nbytes)
 {
-    xrootd_xmeta_t xm;
+    brix_xmeta_t xm;
     int            lockfd, rc;
 
     (void) log;
@@ -120,14 +120,14 @@ xrootd_cache_meta_touch(ngx_log_t *log, const char *cache_path, uint64_t nbytes)
         errno = EINVAL;
         return NGX_ERROR;
     }
-    lockfd = xrootd_xmeta_path_lock(cache_path);
+    lockfd = brix_xmeta_path_lock(cache_path);
     if (lockfd < 0) {
         return NGX_ERROR;
     }
-    rc = xrootd_xmeta_path_load(cache_path, &xm);
-    if (rc != XROOTD_XMETA_OK) {
-        xrootd_xmeta_path_unlock(lockfd);
-        return (rc == XROOTD_XMETA_FOREIGN) ? NGX_DECLINED : NGX_ERROR;
+    rc = brix_xmeta_path_load(cache_path, &xm);
+    if (rc != BRIX_XMETA_OK) {
+        brix_xmeta_path_unlock(lockfd);
+        return (rc == BRIX_XMETA_FOREIGN) ? NGX_DECLINED : NGX_ERROR;
     }
 
     xm.access_cnt += 1;
@@ -138,22 +138,22 @@ xrootd_cache_meta_touch(ngx_log_t *log, const char *cache_path, uint64_t nbytes)
     xm.astat.detach_time = (int64_t) time(NULL);
     xm.astat.bytes_hit  += (int64_t) nbytes;
 
-    rc = (xrootd_xmeta_path_save(cache_path, &xm) == XROOTD_XMETA_OK)
+    rc = (brix_xmeta_path_save(cache_path, &xm) == BRIX_XMETA_OK)
          ? NGX_OK : NGX_ERROR;
-    xrootd_xmeta_free(&xm);
-    xrootd_xmeta_path_unlock(lockfd);
+    brix_xmeta_free(&xm);
+    brix_xmeta_path_unlock(lockfd);
     return rc;
 }
 
 /*
- * xrootd_cache_meta_write — persist *meta onto the unified record for
+ * brix_cache_meta_write — persist *meta onto the unified record for
  * cache_path (creating it when absent; preserving bitmap/CRC/dirty state).
  */
 ngx_int_t
-xrootd_cache_meta_write(ngx_log_t *log, const char *cache_path,
-    const xrootd_cache_meta_t *meta)
+brix_cache_meta_write(ngx_log_t *log, const char *cache_path,
+    const brix_cache_meta_t *meta)
 {
-    xrootd_xmeta_t xm;
+    brix_xmeta_t xm;
     int            lockfd, rc;
 
     (void) log;
@@ -162,21 +162,21 @@ xrootd_cache_meta_write(ngx_log_t *log, const char *cache_path,
         errno = EINVAL;
         return NGX_ERROR;
     }
-    lockfd = xrootd_xmeta_path_lock(cache_path);
+    lockfd = brix_xmeta_path_lock(cache_path);
     if (lockfd < 0) {
         return NGX_ERROR;
     }
-    rc = xrootd_xmeta_path_load(cache_path, &xm);
-    if (rc == XROOTD_XMETA_ERR
-        || (rc == XROOTD_XMETA_FOREIGN
-            && xrootd_xmeta_init(&xm, (int64_t) meta->size,
-                                 XROOTD_CACHE_DIRTY_BLOCK)
-               != XROOTD_XMETA_OK))
+    rc = brix_xmeta_path_load(cache_path, &xm);
+    if (rc == BRIX_XMETA_ERR
+        || (rc == BRIX_XMETA_FOREIGN
+            && brix_xmeta_init(&xm, (int64_t) meta->size,
+                                 BRIX_CACHE_DIRTY_BLOCK)
+               != BRIX_XMETA_OK))
     {
-        xrootd_xmeta_path_unlock(lockfd);
+        brix_xmeta_path_unlock(lockfd);
         return NGX_ERROR;
     }
-    if (rc == XROOTD_XMETA_FOREIGN) {
+    if (rc == BRIX_XMETA_FOREIGN) {
         /* fresh record for a whole cached file: fully present */
         if (xm.nblocks > 0) {
             ngx_memset(xm.bitmap, 0xFF, (size_t) ((xm.nblocks + 7) / 8));
@@ -185,9 +185,9 @@ xrootd_cache_meta_write(ngx_log_t *log, const char *cache_path,
     }
     meta_onto_record(meta, &xm);
 
-    rc = (xrootd_xmeta_path_save(cache_path, &xm) == XROOTD_XMETA_OK)
+    rc = (brix_xmeta_path_save(cache_path, &xm) == BRIX_XMETA_OK)
          ? NGX_OK : NGX_ERROR;
-    xrootd_xmeta_free(&xm);
-    xrootd_xmeta_path_unlock(lockfd);
+    brix_xmeta_free(&xm);
+    brix_xmeta_path_unlock(lockfd);
     return rc;
 }

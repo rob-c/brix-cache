@@ -112,12 +112,12 @@ stream {{
     server {{
         listen {BIND_HOST}:{STREAM_PORT};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_frm on;
-        xrootd_frm_queue_path {queue};
-        xrootd_frm_stagecmd /bin/true;
+        brix_storage_backend posix:{data};
+        brix_auth none;
+        brix_allow_write on;
+        brix_frm on;
+        brix_frm_queue_path {queue};
+        brix_frm_stagecmd /bin/true;
     }}
 }}
 http {{
@@ -127,15 +127,15 @@ http {{
     server {{
         listen {BIND_HOST}:{HTTP_PORT};
         location / {{
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:{data};
-            xrootd_webdav_auth required;
-            xrootd_webdav_cadir {d}/cadir;
-            xrootd_webdav_allow_write on;
-            xrootd_webdav_tape_rest on;
-            xrootd_webdav_token_jwks {jwks_path};
-            xrootd_webdav_token_issuer "{ISSUER}";
-            xrootd_webdav_token_audience "{AUDIENCE}";
+            brix_webdav on;
+            brix_webdav_storage_backend posix:{data};
+            brix_webdav_auth required;
+            brix_webdav_cadir {d}/cadir;
+            brix_webdav_allow_write on;
+            brix_webdav_tape_rest on;
+            brix_webdav_token_jwks {jwks_path};
+            brix_webdav_token_issuer "{ISSUER}";
+            brix_webdav_token_audience "{AUDIENCE}";
         }}
     }}
 }}

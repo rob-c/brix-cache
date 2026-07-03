@@ -190,10 +190,10 @@ def dest(tmp_path):
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
         f"    listen 127.0.0.1:{DST};\n    xrootd on;\n"
-        f"    xrootd_storage_backend posix:{ddata};\n    xrootd_auth none;\n"
-        "    xrootd_allow_write on;\n"
-        "    xrootd_tpc_allow_local on;\n    xrootd_tpc_allow_private on;\n"
-        f"    xrootd_access_log {tmp_path}/dst-acc.log;\n  }}\n}}\n")
+        f"    brix_storage_backend posix:{ddata};\n    brix_auth none;\n"
+        "    brix_allow_write on;\n"
+        "    brix_tpc_allow_local on;\n    brix_tpc_allow_private on;\n"
+        f"    brix_access_log {tmp_path}/dst-acc.log;\n  }}\n}}\n")
     subprocess.run(["bash", "-c", f"fuser -k {DST}/tcp 2>/dev/null"])
     proc = subprocess.Popen([NGINX, "-c", str(cfg), "-p", str(tmp_path)],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

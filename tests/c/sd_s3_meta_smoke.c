@@ -7,14 +7,14 @@
  * The wrapper pre-PUTs the object with x-amz-meta-foo: bar.
  */
 #include "fs/backend/s3/sd_s3.h"
-#include "core/compat/crypto.h"   /* xrootd_crypto_init — fetch the HMAC/SHA handles */
+#include "core/compat/crypto.h"   /* brix_crypto_init — fetch the HMAC/SHA handles */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 /* The client-side HTTP transport for the shared S3 driver (libxrdc.a). */
-extern const xrootd_s3_transport_t xrdc_s3_http_transport;
+extern const brix_s3_transport_t xrdc_s3_http_transport;
 
 static int fails = 0;
 static void check(int cond, const char *msg)
@@ -35,7 +35,7 @@ main(int argc, char **argv)
     ssize_t                n;
     int                    rc;
     sd_s3_meta_kv          kv;
-    xrootd_meta_advisory_t a, got;
+    brix_meta_advisory_t a, got;
 
     if (argc != 4) {
         fprintf(stderr, "usage: %s <host> <port> </bucket/key>\n", argv[0]);
@@ -43,7 +43,7 @@ main(int argc, char **argv)
     }
     /* Standalone consumer: fetch the OpenSSL HMAC/SHA handles SigV4 needs (the
      * module/client do this in their worker init). */
-    if (!xrootd_crypto_init()) {
+    if (!brix_crypto_init()) {
         fprintf(stderr, "crypto init failed\n");
         return 2;
     }

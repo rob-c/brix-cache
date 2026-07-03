@@ -191,7 +191,7 @@ def _spawn_nginx_gsi(gsi_server, port, signed_dh=None, tag="nginx_gsi"):
     base = gsi_server["base"]
     os.makedirs(os.path.join(base, "logs"), exist_ok=True)  # nginx default pid dir
     cfg = os.path.join(base, f"{tag}.conf")
-    sdh = f"    xrootd_gsi_signed_dh {signed_dh};\n" if signed_dh else ""
+    sdh = f"    brix_gsi_signed_dh {signed_dh};\n" if signed_dh else ""
     with open(cfg, "w") as f:
         f.write(
             # daemon off keeps the master in the foreground so `proc` IS the
@@ -205,12 +205,12 @@ def _spawn_nginx_gsi(gsi_server, port, signed_dh=None, tag="nginx_gsi"):
             "  server {\n"
             f"    listen {port};\n"
             "    xrootd on;\n"
-            f"    xrootd_storage_backend posix:{gsi_server['data']};\n"
-            "    xrootd_auth gsi;\n"
+            f"    brix_storage_backend posix:{gsi_server['data']};\n"
+            "    brix_auth gsi;\n"
             + sdh +
-            f"    xrootd_certificate     {gsi_server['hostcert']};\n"
-            f"    xrootd_certificate_key {gsi_server['hostkey']};\n"
-            f"    xrootd_trusted_ca      {gsi_server['ca']};\n"
+            f"    brix_certificate     {gsi_server['hostcert']};\n"
+            f"    brix_certificate_key {gsi_server['hostkey']};\n"
+            f"    brix_trusted_ca      {gsi_server['ca']};\n"
             "  }\n}\n")
     env = dict(os.environ)
     env["LD_LIBRARY_PATH"] = "/tmp/rt_libshim:/usr/lib64:" + env.get("LD_LIBRARY_PATH", "")
@@ -245,7 +245,7 @@ def nginx_gsi_server(gsi_server):
 
 @pytest.fixture(scope="module")
 def nginx_gsi_signed_server(gsi_server):
-    """OUR nginx GSI server with `xrootd_gsi_signed_dh require` — the modern
+    """OUR nginx GSI server with `brix_gsi_signed_dh require` — the modern
     RSA-signed-DH path (phase-48).  Every client is forced onto the signed
     variant, so a successful auth proves the server's signed path interoperates."""
     proc, url = _spawn_nginx_gsi(gsi_server, NGINX_SIGNED_PORT,
@@ -267,7 +267,7 @@ def test_stock_client_auths_to_our_server(gsi_server, nginx_gsi_server):
 
 
 # ---------------------------------------------------------------------------
-# Signed-DH (>=10400) server path: xrootd_gsi_signed_dh require forces every
+# Signed-DH (>=10400) server path: brix_gsi_signed_dh require forces every
 # client onto the RSA-signed-DH variant (phase-48).  These prove the server's
 # signed path interoperates with both the official client and our own.
 # ---------------------------------------------------------------------------

@@ -13,9 +13,9 @@
 
 #include <string.h>
 
-#define XROOTD_RESV_MAX_ZONES  16
+#define BRIX_RESV_MAX_ZONES  16
 
-struct xrootd_resv_zone_s {
+struct brix_resv_zone_s {
     char     name[64];
     uint64_t budget;        /* aggregate ceiling                  */
     uint64_t in_use;        /* granted bytes outstanding          */
@@ -24,22 +24,22 @@ struct xrootd_resv_zone_s {
     int      granted;       /* count of outstanding grants        */
 };
 
-static xrootd_resv_zone_t  resv_zones[XROOTD_RESV_MAX_ZONES];
+static brix_resv_zone_t  resv_zones[BRIX_RESV_MAX_ZONES];
 static int                 resv_zone_count;
 
-xrootd_resv_zone_t *
-xrootd_resv_zone_create(ngx_pool_t *pool, const char *name, uint64_t budget)
+brix_resv_zone_t *
+brix_resv_zone_create(ngx_pool_t *pool, const char *name, uint64_t budget)
 {
-    xrootd_resv_zone_t *z;
+    brix_resv_zone_t *z;
 
     (void) pool;                        /* per-worker static registry for now */
 
-    z = xrootd_resv_zone_get(name);
+    z = brix_resv_zone_get(name);
     if (z != NULL) {
         z->budget = budget;
         return z;
     }
-    if (resv_zone_count >= XROOTD_RESV_MAX_ZONES) {
+    if (resv_zone_count >= BRIX_RESV_MAX_ZONES) {
         return NULL;
     }
     z = &resv_zones[resv_zone_count++];
@@ -49,8 +49,8 @@ xrootd_resv_zone_create(ngx_pool_t *pool, const char *name, uint64_t budget)
     return z;
 }
 
-xrootd_resv_zone_t *
-xrootd_resv_zone_get(const char *name)
+brix_resv_zone_t *
+brix_resv_zone_get(const char *name)
 {
     int i;
 
@@ -63,7 +63,7 @@ xrootd_resv_zone_get(const char *name)
 }
 
 uint64_t
-xrootd_resv_schedule(xrootd_resv_zone_t *z, uint64_t bytes)
+brix_resv_schedule(brix_resv_zone_t *z, uint64_t bytes)
 {
     if (z == NULL || z->budget == 0) {
         return 1;                       /* unconfigured ⇒ always grant */
@@ -78,7 +78,7 @@ xrootd_resv_schedule(xrootd_resv_zone_t *z, uint64_t bytes)
 }
 
 void
-xrootd_resv_done(xrootd_resv_zone_t *z, uint64_t handle)
+brix_resv_done(brix_resv_zone_t *z, uint64_t handle)
 {
     (void) handle;                      /* per-zone aggregate accounting */
 
@@ -98,7 +98,7 @@ xrootd_resv_done(xrootd_resv_zone_t *z, uint64_t handle)
 }
 
 void
-xrootd_resv_status(xrootd_resv_zone_t *z, uint64_t *queued_bytes,
+brix_resv_status(brix_resv_zone_t *z, uint64_t *queued_bytes,
     uint64_t *in_use_bytes, int *granted)
 {
     if (z == NULL) {

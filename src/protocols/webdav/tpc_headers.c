@@ -51,7 +51,7 @@ webdav_tpc_collect_transfer_headers(ngx_http_request_t *r, ngx_array_t **out)
 
             if (headers->nelts >= WEBDAV_TPC_MAX_HEADERS) {
                 ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                              "xrootd_webdav: too many TransferHeader* "
+                              "brix_webdav: too many TransferHeader* "
                               "headers in HTTP-TPC request");
                 return NGX_HTTP_BAD_REQUEST;
             }

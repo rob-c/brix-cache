@@ -4,13 +4,13 @@ Native Kerberos 5 (krb5) auth — phase-37 §6 + §14.3.
 End-to-end gate for the clean-room client's krb5 support: an isolated MIT test
 realm (kdc_helpers.py) provisions a KDC, a service keytab for
 xrootd/localhost@NGINX.TEST, and a kinit'd client (alice); a self-contained nginx
-stream server is configured with `xrootd_auth krb5` against that keytab; and the
+stream server is configured with `brix_auth krb5` against that keytab; and the
 native xrdfs authenticates with `--auth krb5` — proving the client builds a valid
 AP-REQ ("krb5" + AP_REQ bytes) the server accepts via krb5_rd_req.
 
 Self-contained: spins up its own nginx (NGINX_BIN) on a free port; uses the
 session KDC. Skips cleanly when MIT KDC tooling is absent or krb5 dev libs were
-not compiled in (the client links sec_krb5 only under -DXROOTD_HAVE_KRB5).
+not compiled in (the client links sec_krb5 only under -DBRIX_HAVE_KRB5).
 
 Run (serial):
     PYTHONPATH=tests pytest tests/test_native_krb5.py -v -p no:xdist
@@ -52,7 +52,7 @@ def _free_port():
 
 
 def _client_has_krb5():
-    """The client links sec_krb5 only when built with -DXROOTD_HAVE_KRB5; detect
+    """The client links sec_krb5 only when built with -DBRIX_HAVE_KRB5; detect
     it by asking xrdfs to force krb5 with no ccache and seeing a krb5-specific
     message (vs. 'no usable auth protocol')."""
     if not os.path.exists(XRDFS):
@@ -98,11 +98,11 @@ stream {{
     server {{
         listen {url_host(BIND_HOST)}:{port};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth krb5;
-        xrootd_krb5_principal {KRB5_SERVICE_PRINCIPAL};
-        xrootd_krb5_keytab {KRB5_KEYTAB};
-        xrootd_allow_write on;
+        brix_storage_backend posix:{data};
+        brix_auth krb5;
+        brix_krb5_principal {KRB5_SERVICE_PRINCIPAL};
+        brix_krb5_keytab {KRB5_KEYTAB};
+        brix_allow_write on;
     }}
 }}
 """)
@@ -126,7 +126,7 @@ stream {{
         subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True,
                        env=srv_env)
         kdc_helpers.down()
-        pytest.skip("client built without -DXROOTD_HAVE_KRB5")
+        pytest.skip("client built without -DBRIX_HAVE_KRB5")
 
     yield {"port": port, "payload": payload, "conf": str(conf), "env": srv_env}
 
@@ -160,7 +160,7 @@ def _xrdfs(server, *args, ccache=KRB5_CCACHE, timeout=30):
 # --------------------------------------------------------------------------
 
 def test_krb5_compiled_and_clean():
-    """Always-runnable signal (no KDC): when built with -DXROOTD_HAVE_KRB5 the
+    """Always-runnable signal (no KDC): when built with -DBRIX_HAVE_KRB5 the
     client links libkrb5, still links NO libXrd*, and advertises --auth krb5."""
     if not os.path.exists(XRDFS):
         proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs"],
@@ -169,7 +169,7 @@ def test_krb5_compiled_and_clean():
             pytest.skip("native client build failed")
     ldd = subprocess.run(["ldd", XRDFS], capture_output=True, text=True).stdout
     if "libkrb5" not in ldd:
-        pytest.skip("client built without -DXROOTD_HAVE_KRB5 (no libkrb5 dev)")
+        pytest.skip("client built without -DBRIX_HAVE_KRB5 (no libkrb5 dev)")
     assert "libXrd" not in ldd, f"must not link libXrd*:\n{ldd}"
     help_txt = subprocess.run([XRDFS, "-h"], capture_output=True, text=True).stderr
     assert "krb5" in help_txt, help_txt

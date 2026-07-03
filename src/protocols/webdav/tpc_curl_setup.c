@@ -24,11 +24,11 @@
  * unresolvable — the transfer MUST abort.
  */
 int
-tpc_curl_secure(CURL *curl, ngx_http_xrootd_webdav_loc_conf_t *conf,
+tpc_curl_secure(CURL *curl, ngx_http_brix_webdav_loc_conf_t *conf,
     const char *url, ngx_log_t *log, struct curl_slist **resolve_out)
 {
-    xrootd_net_target_t        tgt;
-    xrootd_net_target_policy_t pol;
+    brix_net_target_t        tgt;
+    brix_net_target_policy_t pol;
     ngx_str_t                  url_str;
     char                       pin_ip[128];
     char                       err[256];
@@ -51,12 +51,12 @@ tpc_curl_secure(CURL *curl, ngx_http_xrootd_webdav_loc_conf_t *conf,
     pol.allow_private      = conf->tpc_allow_private;
     pol.default_https_port = 443;
 
-    if (xrootd_net_target_parse(NULL, &url_str, &tgt, err, sizeof(err)) != NGX_OK
-        || xrootd_net_target_check_dns_pin(&tgt, &pol, pin_ip, sizeof(pin_ip),
+    if (brix_net_target_parse(NULL, &url_str, &tgt, err, sizeof(err)) != NGX_OK
+        || brix_net_target_check_dns_pin(&tgt, &pol, pin_ip, sizeof(pin_ip),
                                            err, sizeof(err)) != NGX_OK)
     {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_webdav: TPC egress check blocked \"%s\": %s",
+                      "brix_webdav: TPC egress check blocked \"%s\": %s",
                       url, err);
         return -1;
     }
@@ -71,7 +71,7 @@ tpc_curl_secure(CURL *curl, ngx_http_xrootd_webdav_loc_conf_t *conf,
         size_t hl = ngx_min(tgt.host.len, sizeof(hostz) - 1);
         ngx_memcpy(hostz, tgt.host.data, hl);
         hostz[hl] = '\0';
-        xrootd_format_host(hostz, hostb, sizeof(hostb));
+        brix_format_host(hostz, hostb, sizeof(hostb));
         snprintf(entry, sizeof(entry), "%s:%u:%s",
                  hostb, (unsigned) port, pin_ip);
     }
@@ -103,10 +103,10 @@ tpc_curl_secure(CURL *curl, ngx_http_xrootd_webdav_loc_conf_t *conf,
  * off unless the operator sets both knobs.
  */
 void
-tpc_curl_apply_stall_bounds(CURL *curl, ngx_http_xrootd_webdav_loc_conf_t *conf)
+tpc_curl_apply_stall_bounds(CURL *curl, ngx_http_brix_webdav_loc_conf_t *conf)
 {
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT,
-                     XROOTD_TPC_CONNECT_TIMEOUT_SECS);
+                     BRIX_TPC_CONNECT_TIMEOUT_SECS);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
     if (conf->tpc_low_speed_bytes > 0 && conf->tpc_low_speed_secs > 0) {
         curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT,
@@ -119,7 +119,7 @@ tpc_curl_apply_stall_bounds(CURL *curl, ngx_http_xrootd_webdav_loc_conf_t *conf)
 
 int
 tpc_curl_apply_conf(CURL *curl,
-    ngx_http_xrootd_webdav_loc_conf_t *conf,
+    ngx_http_brix_webdav_loc_conf_t *conf,
     const char *url, ngx_array_t *transfer_headers, ngx_log_t *log,
     struct curl_slist **hdrs_out, struct curl_slist **resolve_out)
 {
@@ -188,7 +188,7 @@ tpc_curl_apply_conf(CURL *curl,
  */
 off_t
 tpc_curl_head_size(ngx_log_t *log,
-    ngx_http_xrootd_webdav_loc_conf_t *conf,
+    ngx_http_brix_webdav_loc_conf_t *conf,
     const char *url, ngx_array_t *transfer_headers)
 {
     CURL              *curl;
@@ -200,7 +200,7 @@ tpc_curl_head_size(ngx_log_t *log,
     curl = curl_easy_init();
     if (curl == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_webdav: curl_easy_init() failed for HEAD");
+                      "brix_webdav: curl_easy_init() failed for HEAD");
         return -1;
     }
 
@@ -225,7 +225,7 @@ tpc_curl_head_size(ngx_log_t *log,
 #endif
     } else {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_webdav: HEAD for multi-stream size failed: %s",
+                      "brix_webdav: HEAD for multi-stream size failed: %s",
                       curl_easy_strerror(res));
     }
 

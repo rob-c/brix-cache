@@ -2,10 +2,10 @@
  * dig.c — XrdDig remote diagnostics handler (§3). See dig.h.
  *
  * Security model (all enforced here, fail-closed):
- *   - default off (xrootd_webdav_dig off → handler declines → normal 404 path).
+ *   - default off (brix_webdav_dig off → handler declines → normal 404 path).
  *   - read-only: only GET/HEAD; any other method → 405.
  *   - confinement: the kernel openat2(RESOLVE_BENEATH) primitive
- *     (xrootd_open_beneath) anchored at the export's realpath — "../" and symlink
+ *     (brix_open_beneath) anchored at the export's realpath — "../" and symlink
  *     escapes are impossible regardless of the requested relative path.
  *   - authorization: a principal→export allow-file; an anonymous principal, an
  *     unset/unreadable allow-file, or no matching rule all DENY (403).
@@ -27,18 +27,18 @@
 /* The authenticated principal: token subject if present, else GSI DN; NULL when
  * the request is anonymous (no usable identity). */
 static const char *
-dig_principal(ngx_http_xrootd_webdav_req_ctx_t *ctx)
+dig_principal(ngx_http_brix_webdav_req_ctx_t *ctx)
 {
     const char *p;
 
     if (ctx == NULL || ctx->identity == NULL) {
         return NULL;
     }
-    p = xrootd_identity_subject_cstr(ctx->identity);
+    p = brix_identity_subject_cstr(ctx->identity);
     if (p != NULL && p[0] != '\0') {
         return p;
     }
-    p = xrootd_identity_dn_cstr(ctx->identity);
+    p = brix_identity_dn_cstr(ctx->identity);
     if (p != NULL && p[0] != '\0') {
         return p;
     }
@@ -121,11 +121,11 @@ dig_open_status(int err)
 }
 
 ngx_int_t
-xrootd_dig_handle(ngx_http_request_t *r)
+brix_dig_handle(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
-    ngx_http_xrootd_webdav_req_ctx_t  *ctx;
-    xrootd_dig_export_t               *exports, *match = NULL;
+    ngx_http_brix_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_req_ctx_t  *ctx;
+    brix_dig_export_t               *exports, *match = NULL;
     const u_char                      *rest, *end, *sl;
     char                               export[128];
     char                               rel[PATH_MAX];
@@ -135,9 +135,9 @@ xrootd_dig_handle(ngx_http_request_t *r)
     ngx_uint_t                         i;
     int                                fd;
     struct stat                        st;
-    xrootd_vfs_ctx_t                   vctx;
-    xrootd_vfs_file_t                 *fh;
-    xrootd_vfs_stat_t                  vst;
+    brix_vfs_ctx_t                   vctx;
+    brix_vfs_file_t                 *fh;
+    brix_vfs_stat_t                  vst;
     char                               full[PATH_MAX];
     int                                vfs_err = 0;
     int                                is_tls = 0;
@@ -148,13 +148,13 @@ xrootd_dig_handle(ngx_http_request_t *r)
     ngx_buf_t                         *b;
     ngx_chain_t                        out;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     if (!conf->dig_enable) {
         return NGX_DECLINED;
     }
-    if (r->uri.len <= XROOTD_DIG_PREFIX_LEN
-        || ngx_strncmp(r->uri.data, (u_char *) XROOTD_DIG_PREFIX,
-                       XROOTD_DIG_PREFIX_LEN) != 0)
+    if (r->uri.len <= BRIX_DIG_PREFIX_LEN
+        || ngx_strncmp(r->uri.data, (u_char *) BRIX_DIG_PREFIX,
+                       BRIX_DIG_PREFIX_LEN) != 0)
     {
         return NGX_DECLINED;
     }
@@ -163,7 +163,7 @@ xrootd_dig_handle(ngx_http_request_t *r)
     }
 
     /* Split "<export>/<rel>" (r->uri is decoded but NOT NUL-terminated). */
-    rest = r->uri.data + XROOTD_DIG_PREFIX_LEN;
+    rest = r->uri.data + BRIX_DIG_PREFIX_LEN;
     end  = r->uri.data + r->uri.len;
     sl   = memchr(rest, '/', (size_t) (end - rest));
     if (sl == NULL || sl == rest) {
@@ -199,7 +199,7 @@ xrootd_dig_handle(ngx_http_request_t *r)
     }
 
     /* Authorize (fail-closed). */
-    ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     principal = dig_principal(ctx);
     if (dig_authorize((const char *) conf->dig_auth_file.data, principal,
                       export) != NGX_OK)
@@ -211,7 +211,7 @@ xrootd_dig_handle(ngx_http_request_t *r)
     }
 
     /* Serve through the VFS seam, confined under the export realpath
-     * (xrootd_vfs_open uses the same kernel RESOLVE_BENEATH open underneath). */
+     * (brix_vfs_open uses the same kernel RESOLVE_BENEATH open underneath). */
     if (match->canon.len >= sizeof(canon)) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
@@ -226,15 +226,15 @@ xrootd_dig_handle(ngx_http_request_t *r)
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
-    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_WEBDAV,
+    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
         canon, NULL, 0 /* allow_write */, is_tls, NULL, full);
 
-    fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);
+    fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, &vfs_err);
     if (fh == NULL) {
         return dig_open_status(vfs_err);
     }
-    if (xrootd_vfs_file_stat(fh, &vst) != NGX_OK || !vst.is_regular) {
-        xrootd_vfs_close(fh, r->connection->log);
+    if (brix_vfs_file_stat(fh, &vst) != NGX_OK || !vst.is_regular) {
+        brix_vfs_close(fh, r->connection->log);
         return NGX_HTTP_NOT_FOUND;            /* directories/specials not served */
     }
     ngx_memzero(&st, sizeof(st));
@@ -244,9 +244,9 @@ xrootd_dig_handle(ngx_http_request_t *r)
 
     /* Zero-copy serve fd, gated on the backend's CAP_SENDFILE (the pool cleanup
      * below closes it; the VFS handle owns no other resource). */
-    fd = xrootd_vfs_file_sendfile_fd(fh);
+    fd = brix_vfs_file_sendfile_fd(fh);
     if (fd == NGX_INVALID_FILE) {
-        xrootd_vfs_close(fh, r->connection->log);
+        brix_vfs_close(fh, r->connection->log);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 

@@ -1,10 +1,10 @@
-#ifndef XROOTD_DASHBOARD_TRACKING_H
-#define XROOTD_DASHBOARD_TRACKING_H
+#ifndef BRIX_DASHBOARD_TRACKING_H
+#define BRIX_DASHBOARD_TRACKING_H
 
 /*
  * dashboard/dashboard_tracking.h — HTTP request → dashboard transfer-slot API.
  *
- * Declares the xrootd_dashboard_http_*() functions that WebDAV/S3/TPC handlers
+ * Declares the brix_dashboard_http_*() functions that WebDAV/S3/TPC handlers
  * call to bind an ngx_http_request_t to a live transfer slot for the duration of
  * a request: _start()/_start_identity() open and own a slot, _add()/_state()/
  * _error()/_tpc_remote() update it, and _finish() releases it.  Implemented by
@@ -24,11 +24,11 @@
 /*
  * Begin tracking r as an "anonymous" transfer (thin wrapper over
  * _start_identity with identity="anonymous", vo=""). See that function for the
- * full contract; proto/direction are XROOTD_XFER_PROTO_* / XROOTD_XFER_DIR_* constants,
+ * full contract; proto/direction are BRIX_XFER_PROTO_* / BRIX_XFER_DIR_* constants,
  * expected_bytes is the advertised transfer size in bytes (<0 if unknown).
  * Returns the slot index (>=0) or -1 if the dashboard is disabled/full.
  */
-int xrootd_dashboard_http_start(ngx_http_request_t *r, const char *path,
+int brix_dashboard_http_start(ngx_http_request_t *r, const char *path,
     uint8_t proto, uint8_t direction, const char *op,
     int64_t expected_bytes);
 
@@ -42,7 +42,7 @@ int xrootd_dashboard_http_start(ngx_http_request_t *r, const char *path,
  * called, so callers may ignore the return value. Stamps the slot start time
  * with ngx_current_msec and snapshots the (NUL-bounded) client address.
  */
-int xrootd_dashboard_http_start_identity(ngx_http_request_t *r,
+int brix_dashboard_http_start_identity(ngx_http_request_t *r,
     const char *path, const char *identity, const char *vo,
     uint8_t proto, uint8_t direction, const char *op,
     int64_t expected_bytes);
@@ -51,21 +51,21 @@ int xrootd_dashboard_http_start_identity(ngx_http_request_t *r,
  * Add bytes transferred (an incremental delta, not a cumulative total) to r's
  * slot and refresh its last-activity timestamp. No-op if r is untracked.
  */
-void xrootd_dashboard_http_add(ngx_http_request_t *r,
+void brix_dashboard_http_add(ngx_http_request_t *r,
     ngx_atomic_int_t bytes);
 
 /*
- * Set r's slot display state to one of XROOTD_XFER_STATE_* and stamp activity.
+ * Set r's slot display state to one of BRIX_XFER_STATE_* and stamp activity.
  * No-op if r is untracked.
  */
-void xrootd_dashboard_http_state(ngx_http_request_t *r, uint8_t state);
+void brix_dashboard_http_state(ngx_http_request_t *r, uint8_t state);
 
 /*
  * Record an error reason on r's slot (string is copied, not borrowed) and move
- * the slot to XROOTD_XFER_STATE_ERROR. No-op if r is untracked. Does not free
+ * the slot to BRIX_XFER_STATE_ERROR. No-op if r is untracked. Does not free
  * the slot; the caller still calls _finish() afterward.
  */
-void xrootd_dashboard_http_error(ngx_http_request_t *r, const char *reason);
+void brix_dashboard_http_error(ngx_http_request_t *r, const char *reason);
 
 /*
  * Record the redacted TPC remote endpoint on r's slot. remote_url is borrowed
@@ -74,15 +74,15 @@ void xrootd_dashboard_http_error(ngx_http_request_t *r, const char *reason);
  * dashboard. remote_status is the remote HTTP status, curl_exit the libcurl
  * result code. No-op if r is untracked.
  */
-void xrootd_dashboard_http_tpc_remote(ngx_http_request_t *r,
+void brix_dashboard_http_tpc_remote(ngx_http_request_t *r,
     const char *remote_url, int remote_status, int curl_exit);
 
 /*
- * Stop tracking r: move its slot to XROOTD_XFER_STATE_CLOSING then free it back
+ * Stop tracking r: move its slot to BRIX_XFER_STATE_CLOSING then free it back
  * to the SHM pool, marking the binding released (slot index set to -1).
  * Idempotent and safe to call on an untracked r. Subsequent _add()/_state()/etc
  * calls become no-ops; the pool-cleanup handler will not double-free.
  */
-void xrootd_dashboard_http_finish(ngx_http_request_t *r);
+void brix_dashboard_http_finish(ngx_http_request_t *r);
 
-#endif /* XROOTD_DASHBOARD_TRACKING_H */
+#endif /* BRIX_DASHBOARD_TRACKING_H */

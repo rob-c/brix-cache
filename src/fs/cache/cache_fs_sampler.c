@@ -1,7 +1,7 @@
 /*
 * cache_fs_sampler.c — TTL-cached statvfs sampler for the cache fullness signals.
  *
- * WHAT: xrootd_cache_fs_usage_sampled() wraps xrootd_cache_fs_usage() (a raw
+ * WHAT: brix_cache_fs_usage_sampled() wraps brix_cache_fs_usage() (a raw
  *       statvfs) with a tiny per-worker, per-root cache so hot callers do not
  *       statvfs on every request.
  *
@@ -12,28 +12,28 @@
  *       enough to track fill/drain within a tick.
  *
  * HOW:  A fixed slot table keyed by the root string. On a hit younger than ttl
- *       (xrootd_cache_sample_fresh) the cached snapshot is returned; otherwise a
+ *       (brix_cache_sample_fresh) the cached snapshot is returned; otherwise a
  *       fresh statvfs refreshes the slot. Per-worker (event loop + the fill
  *       worker that calls eviction are serialized w.r.t. their own roots in
  *       practice); the table is advisory, so a benign race only costs an extra
  *       statvfs. No allocation.
  */
 
-#include "evict_internal.h"   /* xrootd_cache_fs_usage + the _sampled declaration */
-#include "cache_fs_sampler.h"         /* xrootd_cache_sample_fresh (pure) */
+#include "evict_internal.h"   /* brix_cache_fs_usage + the _sampled declaration */
+#include "cache_fs_sampler.h"         /* brix_cache_sample_fresh (pure) */
 
 #include <limits.h>
 #include <string.h>
 
-#define XROOTD_FS_USAGE_SLOTS 8
+#define BRIX_FS_USAGE_SLOTS 8
 
 typedef struct {
     char                    root[PATH_MAX];
     uint64_t                last_ms;          /* 0 == empty/never sampled */
-    xrootd_cache_fs_usage_t usage;
+    brix_cache_fs_usage_t usage;
 } fs_usage_slot_t;
 
-static fs_usage_slot_t fs_usage_cache[XROOTD_FS_USAGE_SLOTS];
+static fs_usage_slot_t fs_usage_cache[BRIX_FS_USAGE_SLOTS];
 
 /* Find the slot for `root`, or the first empty slot to claim, or NULL when the
  * table is full and `root` is absent (caller reuses slot 0 as an LRU-ish victim). */
@@ -43,7 +43,7 @@ fs_usage_lookup(const char *root, fs_usage_slot_t **free_out)
     fs_usage_slot_t *empty = NULL;
     ngx_uint_t       i;
 
-    for (i = 0; i < XROOTD_FS_USAGE_SLOTS; i++) {
+    for (i = 0; i < BRIX_FS_USAGE_SLOTS; i++) {
         if (fs_usage_cache[i].last_ms != 0
             && strcmp(fs_usage_cache[i].root, root) == 0)
         {
@@ -58,13 +58,13 @@ fs_usage_lookup(const char *root, fs_usage_slot_t **free_out)
 }
 
 ngx_int_t
-xrootd_cache_fs_usage_sampled(const char *root, ngx_msec_t ttl_ms,
-    xrootd_cache_fs_usage_t *out)
+brix_cache_fs_usage_sampled(const char *root, ngx_msec_t ttl_ms,
+    brix_cache_fs_usage_t *out)
 {
     uint64_t                 now = (uint64_t) ngx_current_msec;
     fs_usage_slot_t         *slot;
     fs_usage_slot_t         *empty = NULL;
-    xrootd_cache_fs_usage_t  fresh;
+    brix_cache_fs_usage_t  fresh;
 
     if (root == NULL || out == NULL) {
         errno = EINVAL;
@@ -73,13 +73,13 @@ xrootd_cache_fs_usage_sampled(const char *root, ngx_msec_t ttl_ms,
 
     slot = fs_usage_lookup(root, &empty);
     if (slot != NULL
-        && xrootd_cache_sample_fresh(now, slot->last_ms, (uint64_t) ttl_ms))
+        && brix_cache_sample_fresh(now, slot->last_ms, (uint64_t) ttl_ms))
     {
         *out = slot->usage;
         return NGX_OK;
     }
 
-    if (xrootd_cache_fs_usage(root, &fresh) != NGX_OK) {
+    if (brix_cache_fs_usage(root, &fresh) != NGX_OK) {
         return NGX_ERROR;          /* leave any stale slot in place; caller decides */
     }
 

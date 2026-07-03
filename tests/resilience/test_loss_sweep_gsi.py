@@ -37,7 +37,7 @@ pytestmark = pytest.mark.timeout(240)
 def _why_skip():
     if not os.path.isfile(servers.NGINX_BIN):
         return f"nginx not built: {servers.NGINX_BIN}"
-    if servers.XROOTD_BIN is None:
+    if servers.BRIX_BIN is None:
         return "official `xrootd` not installed"
     if not os.path.isfile(servers.FAULT_PROXY):
         return f"fault_proxy not built: {servers.FAULT_PROXY}"

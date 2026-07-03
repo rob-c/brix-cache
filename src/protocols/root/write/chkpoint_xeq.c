@@ -15,10 +15,10 @@ static ngx_int_t
 ckp_xeq_vfs_write_full(ngx_fd_t fd, const u_char *data, size_t len,
     off_t offset, ssize_t *written, int *io_errno, ngx_flag_t *short_io)
 {
-    xrootd_vfs_job_t job;
+    brix_vfs_job_t job;
 
-    xrootd_vfs_job_write_init(&job, fd, offset, data, len);
-    xrootd_vfs_io_execute(&job);
+    brix_vfs_job_write_init(&job, fd, offset, data, len);
+    brix_vfs_io_execute(&job);
 
     if (written != NULL) {
         *written = job.nio;
@@ -60,7 +60,7 @@ ckp_xeq_vfs_write_full(ngx_fd_t fd, const u_char *data, size_t len,
  * HOW: 1) Validate fhandle[0] == idx. 2) Handle zero-length payload as no-op. 3) Run a VFS WRITE job. 4) Update counters + send_ok. */
 
 static ngx_int_t
-ckp_xeq_write(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
+ckp_xeq_write(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     const u_char *sub_hdr, const u_char *sub_payload, uint32_t sub_dlen)
 {
     xrdw_write_req_t    wreq;
@@ -76,13 +76,13 @@ ckp_xeq_write(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
      * was opened on (idx). Refusing a mismatch keeps a checkpointed op from
      * silently touching a different file than the one being protected. */
     if ((int)(unsigned char) wreq.fhandle[0] != idx) {
-        return xrootd_send_error(ctx, c, kXR_InvalidRequest,
+        return brix_send_error(ctx, c, kXR_InvalidRequest,
                                  "ckpXeq write: handle mismatch");
     }
 
     offset = wreq.offset;  /* host order from the shared codec */
     if (sub_dlen == 0) {
-        return xrootd_send_ok(ctx, c, NULL, 0);  /* zero-length write: no-op */
+        return brix_send_ok(ctx, c, NULL, 0);  /* zero-length write: no-op */
     }
 
     if (ckp_xeq_vfs_write_full(ctx->files[idx].fd, sub_payload,
@@ -95,7 +95,7 @@ ckp_xeq_write(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
 
         snprintf(detail, sizeof(detail), "xeq_write %lld+%u",
                  (long long) offset, (unsigned) sub_dlen);
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT",
                           ctx->files[idx].path, detail, kXR_IOError, msg);
     }
 
@@ -104,17 +104,17 @@ ckp_xeq_write(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
 
     ctx->files[idx].bytes_written += (size_t) nw;
     ctx->session_bytes_written    += (size_t) nw;
-    return xrootd_send_ok(ctx, c, NULL, 0);
+    return brix_send_ok(ctx, c, NULL, 0);
 }
 
 /* WHAT: Performs a page-write under checkpoint protection, decoding the pgwrite payload (per-page CRC32c framing) into flat data,
  *      then writing in XRD_PGWRITE_PAGESZ-sized chunks. Validates checksum integrity before committing writes.
  * WHY: kXR_pgwrite uses per-page CRC32c for data integrity verification — critical for large file transfers where partial corruption must be detected.
  *      Under ckpXeq, the pgwrite becomes tentative until commit; checksum mismatch rejection prevents corrupted data from entering the checkpoint.
- * HOW: 1) Validate handle + offset + payload size (> XRD_PGWRITE_CKSZ). 2) Decode payload via xrootd_pgwrite_decode_payload (CRC32c verification). 3) Write in PAGE-sized chunks through the VFS core. 4) Send pgwrite_status with final offset. */
+ * HOW: 1) Validate handle + offset + payload size (> XRD_PGWRITE_CKSZ). 2) Decode payload via brix_pgwrite_decode_payload (CRC32c verification). 3) Write in PAGE-sized chunks through the VFS core. 4) Send pgwrite_status with final offset. */
 
 static ngx_int_t
-ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
+ckp_xeq_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     const u_char *sub_hdr, const u_char *sub_payload, uint32_t sub_dlen)
 {
     xrdw_pgwrite_req_t    preq;
@@ -131,7 +131,7 @@ ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
 
     xrdw_pgwrite_req_unpack(((ClientRequestHdr *) sub_hdr)->body, &preq);
     if ((int)(unsigned char) preq.fhandle[0] != idx) {
-        return xrootd_send_error(ctx, c, kXR_InvalidRequest,
+        return brix_send_error(ctx, c, kXR_InvalidRequest,
                                  "ckpXeq pgwrite: handle mismatch");
     }
 
@@ -141,7 +141,7 @@ ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
     if (offset < 0 || sub_dlen <= XRD_PGWRITE_CKSZ) {
         snprintf(detail, sizeof(detail), "xeq_pgwrite %lld+%u",
                  (long long) offset, (unsigned) sub_dlen);
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT",
                           ctx->files[idx].path, detail,
                           kXR_ArgInvalid, "invalid pgwrite payload");
     }
@@ -159,7 +159,7 @@ ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
      * offset so the error/log line can pinpoint the bad page. flat_sz returns
      * the contiguous byte count actually decoded. */
     bad_offset = offset;
-    rc = xrootd_pgwrite_decode_payload(sub_payload, (size_t) sub_dlen, offset,
+    rc = brix_pgwrite_decode_payload(sub_payload, (size_t) sub_dlen, offset,
                                        flat, &flat_sz, &bad_offset);
     if (rc != NGX_OK) {
         /* NGX_DECLINED specifically means a CRC mismatch (-> kXR_ChkSumErr);
@@ -171,11 +171,11 @@ ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
 
         snprintf(detail, sizeof(detail), "xeq_pgwrite %lld+%u",
                  (long long) bad_offset, (unsigned) sub_dlen);
-        xrootd_log_access(ctx, c, "CHKPOINT", ctx->files[idx].path, detail,
+        brix_log_access(ctx, c, "CHKPOINT", ctx->files[idx].path, detail,
                           0, status, msg, 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
+        BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
         ngx_free(flat);
-        return xrootd_send_error(ctx, c, status, msg);
+        return brix_send_error(ctx, c, status, msg);
     }
 
     /* Drain the verified data to disk one page at a time, advancing the file
@@ -203,11 +203,11 @@ ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
 
             snprintf(detail, sizeof(detail), "xeq_pgwrite %lld+%zu",
                      (long long) offset, total_written);
-            xrootd_log_access(ctx, c, "CHKPOINT", ctx->files[idx].path, detail,
+            brix_log_access(ctx, c, "CHKPOINT", ctx->files[idx].path, detail,
                               0, kXR_IOError, msg, 0);
-            XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
+            BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
             ngx_free(flat);
-            return xrootd_send_error(ctx, c, kXR_IOError, msg);
+            return brix_send_error(ctx, c, kXR_IOError, msg);
         }
 
         total_written += (size_t) nw;
@@ -221,12 +221,12 @@ ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
 
     snprintf(detail, sizeof(detail), "xeq_pgwrite %lld+%zu",
              (long long) offset, total_written);
-    xrootd_log_access(ctx, c, "CHKPOINT", ctx->files[idx].path, detail,
+    brix_log_access(ctx, c, "CHKPOINT", ctx->files[idx].path, detail,
                       1, kXR_ok, NULL, total_written);
 
     ngx_free(flat);
 
-    return xrootd_send_pgwrite_status(ctx, c, write_offset);
+    return brix_send_pgwrite_status(ctx, c, write_offset);
 }
 
 /* WHAT: Truncates the checkpointed file to a specified length via the VFS I/O core. Always handle-based (path-based not supported in ckpXeq).
@@ -235,16 +235,16 @@ ckp_xeq_pgwrite(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
  * HOW: 1) Validate fhandle[0] == idx. 2) Decode offset as truncate length (be64toh). 3) Run a VFS TRUNCATE job. */
 
 static ngx_int_t
-ckp_xeq_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
+ckp_xeq_truncate(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     const u_char *sub_hdr)
 {
     xrdw_truncate_req_t    treq;
     int64_t                length;
-    xrootd_vfs_job_t       job;
+    brix_vfs_job_t       job;
 
     xrdw_truncate_req_unpack(((ClientRequestHdr *) sub_hdr)->body, &treq);
     if ((int)(unsigned char) treq.fhandle[0] != idx) {
-        return xrootd_send_error(ctx, c, kXR_InvalidRequest,
+        return brix_send_error(ctx, c, kXR_InvalidRequest,
                                  "ckpXeq truncate: handle mismatch");
     }
 
@@ -252,15 +252,15 @@ ckp_xeq_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
      * The wire reuses the request's offset field to carry the target length. */
     length = treq.offset;
 
-    xrootd_vfs_job_truncate_init(&job, ctx->files[idx].fd, (off_t) length);
-    xrootd_vfs_io_execute(&job);
+    brix_vfs_job_truncate_init(&job, ctx->files[idx].fd, (off_t) length);
+    brix_vfs_io_execute(&job);
     if (job.io_errno != 0) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT",
                           ctx->files[idx].path, "xeq_truncate",
                           kXR_IOError, strerror(job.io_errno));
     }
 
-    return xrootd_send_ok(ctx, c, NULL, 0);
+    return brix_send_ok(ctx, c, NULL, 0);
 }
 
 /* WHAT: Executes an embedded kXR_writev under checkpoint protection: validates
@@ -270,13 +270,13 @@ ckp_xeq_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
  *      target the checkpointed handle idx, then writes each segment through
  *      the VFS core.
  * WHY: kXR_ckpXeq tunnels the SAME wire layout as a standalone kXR_writev
- *      (see xrootd_handle_writev in writev.c): the embedded header's dlen
+ *      (see brix_handle_writev in writev.c): the embedded header's dlen
  *      counts descriptors only and the data rides behind — stock do_ChkPntXeq
  *      fetches the descriptor block, then hands off to do_WriteV, which
  *      streams the data.  Multi-file vectors are refused (stock: "multi-file
  *      chkpoint writev not supported") because the rollback anchor covers
  *      exactly one file.
- * HOW: 1) Validate sub_dlen non-zero, 16-aligned, <= XROOTD_WRITEV_MAXSEGS
+ * HOW: 1) Validate sub_dlen non-zero, 16-aligned, <= BRIX_WRITEV_MAXSEGS
  *      segments — violations reject + drop the link like stock (once the
  *      descriptor framing is in doubt the trailing byte count is unknowable).
  *      2) Sum wlen; require data-bearing segments to name idx and the sum to
@@ -284,7 +284,7 @@ ckp_xeq_truncate(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
  *      3) One VFS WRITE job per non-empty segment. */
 
 static ngx_int_t
-ckp_xeq_writev(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
+ckp_xeq_writev(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     const u_char *sub_payload, uint32_t sub_dlen, uint32_t data_len)
 {
     write_list       *wl;
@@ -295,19 +295,19 @@ ckp_xeq_writev(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
 
     /* Stock parity (do_WriteV, reached via do_ChkPntXeq): a sub_dlen that is
      * zero or not a whole number of descriptors is invalid — error + drop. */
-    if (sub_dlen == 0 || sub_dlen % XROOTD_WRITEV_SEGSIZE != 0) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-        (void) xrootd_send_error(ctx, c, kXR_ArgInvalid,
+    if (sub_dlen == 0 || sub_dlen % BRIX_WRITEV_SEGSIZE != 0) {
+        BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
+        (void) brix_send_error(ctx, c, kXR_ArgInvalid,
                                  "Write vector is invalid");
         return NGX_ERROR;
     }
 
     wl     = (write_list *) sub_payload;
-    n_segs = sub_dlen / XROOTD_WRITEV_SEGSIZE;
+    n_segs = sub_dlen / BRIX_WRITEV_SEGSIZE;
 
-    if (n_segs > XROOTD_WRITEV_MAXSEGS) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-        (void) xrootd_send_error(ctx, c, kXR_ArgTooLong,
+    if (n_segs > BRIX_WRITEV_MAXSEGS) {
+        BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
+        (void) brix_send_error(ctx, c, kXR_ArgTooLong,
                                  "Write vector is too long");
         return NGX_ERROR;
     }
@@ -321,8 +321,8 @@ ckp_xeq_writev(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
          * ignores zero-length segments when it collects the vector, then
          * refuses a multi-file result). */
         if (wlen > 0 && (int)(unsigned char) wl[i].fhandle[0] != idx) {
-            XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-            (void) xrootd_send_error(ctx, c, kXR_Unsupported,
+            BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
+            (void) brix_send_error(ctx, c, kXR_Unsupported,
                                  "multi-file chkpoint writev not supported");
             return NGX_ERROR;
         }
@@ -333,8 +333,8 @@ ckp_xeq_writev(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
      * mismatch means the extension never ran for this frame — the trailing
      * data was never read, so the link cannot be resynchronised. */
     if (total_wlen != (uint64_t) data_len) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-        (void) xrootd_send_error(ctx, c, kXR_ArgInvalid,
+        BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
+        (void) brix_send_error(ctx, c, kXR_ArgInvalid,
                                  "ckpXeq writev: payload size mismatch");
         return NGX_ERROR;
     }
@@ -361,7 +361,7 @@ ckp_xeq_writev(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
             const char *msg = short_io ? "short write (disk full?)"
                                        : strerror(err);
 
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT",
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT",
                               ctx->files[idx].path, "xeq_writev",
                               kXR_IOError, msg);
         }
@@ -371,30 +371,30 @@ ckp_xeq_writev(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
         data_ptr                      += wlen;
     }
 
-    xrootd_log_access(ctx, c, "CHKPOINT", ctx->files[idx].path,
+    brix_log_access(ctx, c, "CHKPOINT", ctx->files[idx].path,
                       "xeq_writev", 1, kXR_ok, NULL, bytes_written_total);
-    return xrootd_send_ok(ctx, c, NULL, 0);
+    return brix_send_ok(ctx, c, NULL, 0);
 }
 
-/* xrootd_ckpxeq_body_extra — trailing sub-body length for kXR_ckpXeq
+/* brix_ckpxeq_body_extra — trailing sub-body length for kXR_ckpXeq
  * WHAT: Computes how many more bytes the client will stream after the ckpXeq
  * frame, staged on `have` (body bytes received so far).  have == 24: the
  * embedded sub-header just landed — the sub-request's own dlen bytes follow
  * (write/pgwrite data, or the writev descriptor block).  have == 24 +
  * sub_dlen: an embedded writev's descriptors landed — sum(wlen) data bytes
- * follow, delegated to xrootd_writev_body_extra (the SAME contract as a
+ * follow, delegated to brix_writev_body_extra (the SAME contract as a
  * standalone kXR_writev).  *final = 0 tells the recv framing to call again
  * after the current extension completes.
  * WHY: Stock wire contract (do_ChkPntXeq + XrdCl MessageUtils): the outer
  * chkpoint dlen frames ONLY the embedded 24-byte header; everything else is
  * raw body streamed behind the frame.  Shared by the recv framing so the
  * whole sub-request lands contiguously in payload_buf before dispatch.
- * HOW: Bound every stage by XROOTD_MAX_WRITE_PAYLOAD (and the writev vector
+ * HOW: Bound every stage by BRIX_MAX_WRITE_PAYLOAD (and the writev vector
  * cap) and return NGX_DECLINED on any violation — the framing then does NOT
  * extend, the auth gates still run, and ckp_xeq detects the un-read trailing
  * bytes (count mismatch) and drops the link. */
 ngx_int_t
-xrootd_ckpxeq_body_extra(const u_char *body, uint32_t have,
+brix_ckpxeq_body_extra(const u_char *body, uint32_t have,
     uint32_t *extra, unsigned *final)
 {
     uint16_t  sub_reqid;
@@ -419,7 +419,7 @@ xrootd_ckpxeq_body_extra(const u_char *body, uint32_t have,
 
         case kXR_write:
         case kXR_pgwrite:
-            if (sub_dlen > XROOTD_MAX_WRITE_PAYLOAD) {
+            if (sub_dlen > BRIX_MAX_WRITE_PAYLOAD) {
                 return NGX_DECLINED;
             }
             *extra = sub_dlen;
@@ -428,8 +428,8 @@ xrootd_ckpxeq_body_extra(const u_char *body, uint32_t have,
         case kXR_writev:
             /* Descriptor block first; the segment data extends in stage 2
              * once the descriptors can be summed. */
-            if (sub_dlen % XROOTD_WRITEV_SEGSIZE != 0
-                || sub_dlen > XROOTD_WRITEV_MAXSEGS * XROOTD_WRITEV_SEGSIZE)
+            if (sub_dlen % BRIX_WRITEV_SEGSIZE != 0
+                || sub_dlen > BRIX_WRITEV_MAXSEGS * BRIX_WRITEV_SEGSIZE)
             {
                 return NGX_DECLINED;
             }
@@ -446,7 +446,7 @@ xrootd_ckpxeq_body_extra(const u_char *body, uint32_t have,
 
     /* Stage 2: the embedded writev descriptor block is in at body[24..). */
     if (sub_reqid == kXR_writev && have == 24 + sub_dlen) {
-        return xrootd_writev_body_extra(body + 24, sub_dlen, extra);
+        return brix_writev_body_extra(body + 24, sub_dlen, extra);
     }
 
     return NGX_DECLINED;
@@ -462,7 +462,7 @@ xrootd_ckpxeq_body_extra(const u_char *body, uint32_t have,
  *      EXACTLY 24 — the embedded ClientRequestHdr — and the sub-request body
  *      (sub_dlen bytes per the embedded header; for writev, descriptors then
  *      data, see ckp_xeq_writev) streams after the frame.  The recv framing
- *      (xrootd_ckpxeq_body_extra) has already appended those streamed bytes
+ *      (brix_ckpxeq_body_extra) has already appended those streamed bytes
  *      to ctx->payload (ctx->cur_body_extra of them), so the sub-request is
  *      contiguous here.
  * HOW: Stock-parity validation, then dispatch: 1) embedded streamid must
@@ -475,9 +475,9 @@ xrootd_ckpxeq_body_extra(const u_char *body, uint32_t have,
  *      checkpoint-active check (error, link kept: the sub-body is safely
  *      buffered by that point), and the switch to the sub-handler. */
 ngx_int_t
-ckp_xeq(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
+ckp_xeq(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
 {
-    xrootd_file_t *f = &ctx->files[idx];
+    brix_file_t *f = &ctx->files[idx];
     const u_char  *sub_hdr;
     const u_char  *sub_payload;
     uint32_t       sub_dlen;
@@ -488,8 +488,8 @@ ckp_xeq(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
         && (ctx->payload[0] != ctx->cur_streamid[0]
             || ctx->payload[1] != ctx->cur_streamid[1]))
     {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-        (void) xrootd_send_error(ctx, c, kXR_ArgInvalid,
+        BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
+        (void) brix_send_error(ctx, c, kXR_ArgInvalid,
                                  "Request streamid mismatch");
         return NGX_ERROR;
     }
@@ -499,8 +499,8 @@ ckp_xeq(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
      * private layout (header + body counted inside dlen) the way a stock
      * server does. */
     if (ctx->cur_dlen != 24 || ctx->payload == NULL) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-        (void) xrootd_send_error(ctx, c, kXR_ArgInvalid,
+        BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
+        (void) brix_send_error(ctx, c, kXR_ArgInvalid,
                                  "Request length invalid");
         return NGX_ERROR;
     }
@@ -519,8 +519,8 @@ ckp_xeq(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
     if (sub_reqid == kXR_chkpoint
         || (sub_reqid == kXR_truncate && sub_dlen != 0))
     {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-        (void) xrootd_send_error(ctx, c, kXR_ArgInvalid,
+        BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
+        (void) brix_send_error(ctx, c, kXR_ArgInvalid,
                                  "chkpoint request is invalid");
         return NGX_ERROR;
     }
@@ -535,8 +535,8 @@ ckp_xeq(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
          && ctx->cur_body_extra != sub_dlen)
         || (sub_reqid == kXR_writev && ctx->cur_body_extra < sub_dlen))
     {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-        (void) xrootd_send_error(ctx, c, kXR_ArgInvalid,
+        BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
+        (void) brix_send_error(ctx, c, kXR_ArgInvalid,
                                  "ckpXeq: sub-request length invalid");
         return NGX_ERROR;
     }
@@ -546,7 +546,7 @@ ckp_xeq(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
      * AFTER the wire-shape checks above so a framing violation always takes
      * the link-drop path even when no checkpoint is open. */
     if (f->ckp_path == NULL) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_CHKPOINT, "CHKPOINT", f->path, "xeq",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT", f->path, "xeq",
                           kXR_InvalidRequest, "no active checkpoint");
     }
 
@@ -571,8 +571,8 @@ ckp_xeq(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx)
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "xrootd: ckpXeq unsupported sub-reqid=%d",
                        (int) sub_reqid);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_CHKPOINT);
-        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+        BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
+        return brix_send_error(ctx, c, kXR_ArgInvalid,
                                  "chkpoint request is invalid");
     }
 }

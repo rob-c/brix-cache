@@ -30,7 +30,7 @@ failover ordering. Keep Squid installed but idle until the pilot completes.
 
 Store on XFS, dedicated filesystem (eviction watermarks assume the cache
 owns the volume). Watermarks: evict at 85 %, hard-stop admission at 95 %
-(`xrootd_cvmfs_cache_evict_at` grammar mirrors the other protocols' tier
+(`brix_cvmfs_cache_evict_at` grammar mirrors the other protocols' tier
 directives — see docs/03-configuration).
 
 ## Reference configuration (proxy mode)
@@ -62,50 +62,50 @@ http {
     server {
         listen 3128 so_keepalive=60s:10s:6 backlog=2048;
         location / {
-            xrootd_cvmfs_cache_store posix:/srv/cvmfs-cache;
-            xrootd_cache_verify cvmfs-cas;
-            xrootd_cvmfs on;
-            xrootd_cvmfs_manifest_ttl 61;
-            xrootd_cvmfs_negative_ttl 10;
-            xrootd_cvmfs_quarantine_dir /srv/cvmfs-quarantine;
+            brix_cvmfs_cache_store posix:/srv/cvmfs-cache;
+            brix_cache_verify cvmfs-cas;
+            brix_cvmfs on;
+            brix_cvmfs_manifest_ttl 61;
+            brix_cvmfs_negative_ttl 10;
+            brix_cvmfs_quarantine_dir /srv/cvmfs-quarantine;
 
             # --- never-drop semantics -----------------------------------
             # Hold a request up to 25s while retrying the Stratum-1s with
             # backoff; on expiry answer 504+Retry-After on the kept-alive
             # connection (the client's retry coalesces on the running fill).
             # MUST stay below the WN's CVMFS_TIMEOUT (see client tuning).
-            xrootd_cvmfs_client_hold   25;
-            xrootd_cvmfs_fill_max_life 300;
+            brix_cvmfs_client_hold   25;
+            brix_cvmfs_fill_max_life 300;
 
             # --- upstream selection: static | geo | rtt ------------------
             # rtt = probe connect latency every 60s, prefer the fastest;
             # geo = rank by great-circle distance from 'here';
             # static = the order of the origin list.
-            xrootd_cvmfs_origin_select rtt;
-            xrootd_cvmfs_rtt_interval  60;
+            brix_cvmfs_origin_select rtt;
+            brix_cvmfs_rtt_interval  60;
             # geo alternative:
-            #   xrootd_cvmfs_origin_select geo;
-            #   xrootd_cvmfs_here 55.95:-3.19;   # this cache (Edinburgh)
-            #   xrootd_cvmfs_origin_coords cvmfs-stratum-one.cern.ch 46.23:6.05;
-            #   xrootd_cvmfs_origin_coords cvmfs-s1fnal.opensciencegrid.org 41.85:-88.31;
+            #   brix_cvmfs_origin_select geo;
+            #   brix_cvmfs_here 55.95:-3.19;   # this cache (Edinburgh)
+            #   brix_cvmfs_origin_coords cvmfs-stratum-one.cern.ch 46.23:6.05;
+            #   brix_cvmfs_origin_coords cvmfs-s1fnal.opensciencegrid.org 41.85:-88.31;
 
             # every Stratum-1 host your experiments use — nothing else is proxied:
-            xrootd_cvmfs_upstream_allow cvmfs-stratum-one.cern.ch;
-            xrootd_cvmfs_upstream_allow cvmfs-s1fnal.opensciencegrid.org;
-            xrootd_cvmfs_upstream_allow cvmfs-stratum-one.ihep.ac.cn;
-            xrootd_cvmfs_upstream_max 8;
+            brix_cvmfs_upstream_allow cvmfs-stratum-one.cern.ch;
+            brix_cvmfs_upstream_allow cvmfs-s1fnal.opensciencegrid.org;
+            brix_cvmfs_upstream_allow cvmfs-stratum-one.ihep.ac.cn;
+            brix_cvmfs_upstream_max 8;
         }
     }
     server {   # metrics + health, firewalled to the monitoring host
         listen 9100;
-        location /metrics { xrootd_metrics on; }
-        location /healthz { xrootd_health on; }
+        location /metrics { brix_metrics on; }
+        location /healthz { brix_health on; }
     }
 }
 ```
 
 Reverse mode (optional second listener): same location shape plus
-`xrootd_cvmfs_storage_backend "http://s1a|http://s1b";` (pipe-separated,
+`brix_cvmfs_storage_backend "http://s1a|http://s1b";` (pipe-separated,
 `CVMFS_SERVER_URL` order; reads fail over by measured health, writes and
 the passthroughs use the first) and clients use
 `CVMFS_SERVER_URL=http://cache:8000/cvmfs/@fqrn@` with
@@ -119,7 +119,7 @@ the passthroughs use the first) and clients use
 CVMFS_HTTP_PROXY="http://cache1.site:3128|http://cache2.site:3128"
 
 # --- timeout alignment with the cache's never-drop hold -------------------
-# The cache holds a request up to xrootd_cvmfs_client_hold (25s) while it
+# The cache holds a request up to brix_cvmfs_client_hold (25s) while it
 # retries the Stratum-1s, then answers 504 on the kept-alive connection.
 # The client's proxied timeout MUST exceed that hold, or the client gives
 # up first and starts counting the cache as failed:
@@ -153,15 +153,15 @@ Scrape `:9100/metrics`. The series that matter:
 
 | Series | Alert on | Meaning |
 |---|---|---|
-| `xrootd_cvmfs_verify_failures_total` | any increase | the WAN corrupted a transfer; the cache refused it. **This is your evidence for the network team** — each increment has a quarantined file in `/srv/cvmfs-quarantine` to prove it. |
-| `xrootd_cvmfs_fill_failures_total` | rate spike | Stratum-1s unreachable/stalling |
-| `xrootd_cvmfs_origin_failovers_total` | rate spike | primary Stratum-1 degraded |
-| `xrootd_cvmfs_requests_total{class="reject"}` | sustained rate | something probing the cache (fail2ban jail `nginx-xrootd-cvmfs` bans it) |
-| `xrootd_cvmfs_requests_total{class="cas"}` | — | traffic volume baseline |
-| `xrootd_cvmfs_bytes_served_total{source="hit\|fill"}` | hit share dropping | LAN bytes to the farm, split by cache disposition — the hit-ratio source |
-| `xrootd_cvmfs_origin_bytes_total` | sustained ≈ bytes_served | WAN bytes pulled from Stratum-1s; if this tracks bytes_served the cache isn't caching |
+| `brix_cvmfs_verify_failures_total` | any increase | the WAN corrupted a transfer; the cache refused it. **This is your evidence for the network team** — each increment has a quarantined file in `/srv/cvmfs-quarantine` to prove it. |
+| `brix_cvmfs_fill_failures_total` | rate spike | Stratum-1s unreachable/stalling |
+| `brix_cvmfs_origin_failovers_total` | rate spike | primary Stratum-1 degraded |
+| `brix_cvmfs_requests_total{class="reject"}` | sustained rate | something probing the cache (fail2ban jail `nginx-xrootd-cvmfs` bans it) |
+| `brix_cvmfs_requests_total{class="cas"}` | — | traffic volume baseline |
+| `brix_cvmfs_bytes_served_total{source="hit\|fill"}` | hit share dropping | LAN bytes to the farm, split by cache disposition — the hit-ratio source |
+| `brix_cvmfs_origin_bytes_total` | sustained ≈ bytes_served | WAN bytes pulled from Stratum-1s; if this tracks bytes_served the cache isn't caching |
 | `{proto="cvmfs"}` on the module-wide families | — | cvmfs as a slice of everything this node does (io, cache hits, auth) |
-| `xrootd_cvmfs_repo_*_total{repo="<fqrn>"}` | per-experiment views | requests{class}, files_accessed, cache_hits/misses, fills(+failures), verify_failures, negative_hits, bytes_served{hit\|fill}, origin_bytes — one row per repository (bounded: 31 named + `_other` overflow) |
+| `brix_cvmfs_repo_*_total{repo="<fqrn>"}` | per-experiment views | requests{class}, files_accessed, cache_hits/misses, fills(+failures), verify_failures, negative_hits, bytes_served{hit\|fill}, origin_bytes — one row per repository (bounded: 31 named + `_other` overflow) |
 | `/healthz?verbose` `.cvmfs_origins[].fail_score` | > 0 sustained | per-origin health (sd_http EWMA; 0 = healthy) |
 
 Quarantine hygiene: files there are evidence, not cache — prune with
@@ -171,25 +171,25 @@ Quarantine hygiene: files there are evidence, not cache — prune with
 
 ```promql
 # cache hit ratio (5m)
-sum(rate(xrootd_cvmfs_bytes_served_total{source="hit"}[5m]))
-  / sum(rate(xrootd_cvmfs_bytes_served_total[5m]))
+sum(rate(brix_cvmfs_bytes_served_total{source="hit"}[5m]))
+  / sum(rate(brix_cvmfs_bytes_served_total[5m]))
 
 # WAN bytes actually pulled from Stratum-1s vs LAN bytes served to the farm
-sum(rate(xrootd_cvmfs_origin_bytes_total[5m]))          # WAN in
-sum(rate(xrootd_cvmfs_bytes_served_total[5m]))          # LAN out
+sum(rate(brix_cvmfs_origin_bytes_total[5m]))          # WAN in
+sum(rate(brix_cvmfs_bytes_served_total[5m]))          # LAN out
 # their ratio = how much the cache is saving your broken WAN
 
 # request mix by class
-sum by (class) (rate(xrootd_cvmfs_requests_total[5m]))
+sum by (class) (rate(brix_cvmfs_requests_total[5m]))
 
 # per-experiment WAN cost + hit ratio (the per-repo families)
-topk(5, sum by (repo) (rate(xrootd_cvmfs_repo_origin_bytes_total[5m])))
-sum by (repo) (rate(xrootd_cvmfs_repo_bytes_served_total{source="hit"}[5m]))
-  / sum by (repo) (rate(xrootd_cvmfs_repo_bytes_served_total[5m]))
+topk(5, sum by (repo) (rate(brix_cvmfs_repo_origin_bytes_total[5m])))
+sum by (repo) (rate(brix_cvmfs_repo_bytes_served_total{source="hit"}[5m]))
+  / sum by (repo) (rate(brix_cvmfs_repo_bytes_served_total[5m]))
 
 # cvmfs share of ALL cache lookups this node serves (proto identity, T16)
-sum(rate(xrootd_cache_hits_total{proto="cvmfs"}[5m]))
-  / sum(rate(xrootd_cache_hits_total[5m]))
+sum(rate(brix_cache_hits_total{proto="cvmfs"}[5m]))
+  / sum(rate(brix_cache_hits_total[5m]))
 ```
 
 (Adjust the per-proto family name in the last query to the module's actual
@@ -241,7 +241,7 @@ grep -oE 'event=retry key="[^"]+"' error.log | sort | uniq -c | sort -rn
 
 ### Live dashboard
 
-The built-in operator dashboard (`xrootd_dashboard on` location, see
+The built-in operator dashboard (`brix_dashboard on` location, see
 docs/08-metrics-monitoring) shows in-flight CVMFS transfers with a `cvmfs`
 protocol tag in the live transfer table. Firewall it — it exposes paths
 and client IPs.
@@ -265,22 +265,22 @@ and client IPs.
 |---|---|
 | `collapsed_forwarding on` | built-in (fill coalescing; exactly 1 origin fetch per object) |
 | `refresh_pattern /data/ …` | built-in (CAS objects cached forever) |
-| `refresh_pattern .cvmfspublished …` | `xrootd_cvmfs_manifest_ttl` |
-| `acl cvmfs_dst dstdomain …` + `http_access` | `xrootd_cvmfs_upstream_allow` |
-| `cache_dir ufs … ` | `xrootd_cvmfs_cache_store posix:…` + watermarks |
-| `negative_ttl` | `xrootd_cvmfs_negative_ttl` |
-| `cache_peer` parent ordering | `xrootd_cvmfs_origin_select static\|geo\|rtt` |
-| `connect_retries` / `retry_on_error` | `xrootd_cvmfs_client_hold` (hold + endpoint-walking backoff, then 504-keepalive) |
+| `refresh_pattern .cvmfspublished …` | `brix_cvmfs_manifest_ttl` |
+| `acl cvmfs_dst dstdomain …` + `http_access` | `brix_cvmfs_upstream_allow` |
+| `cache_dir ufs … ` | `brix_cvmfs_cache_store posix:…` + watermarks |
+| `negative_ttl` | `brix_cvmfs_negative_ttl` |
+| `cache_peer` parent ordering | `brix_cvmfs_origin_select static\|geo\|rtt` |
+| `connect_retries` / `retry_on_error` | `brix_cvmfs_client_hold` (hold + endpoint-walking backoff, then 504-keepalive) |
 | `client_persistent_connections on` | `so_keepalive=…` + `keepalive_timeout 3600s` (kernel-level, proven by `run_cvmfs_keepalive.sh`) |
-| (no equivalent) | `xrootd_cache_verify cvmfs-cas` + quarantine |
+| (no equivalent) | `brix_cache_verify cvmfs-cas` + quarantine |
 | (no equivalent) | detached fills — a client abort never cancels an in-flight origin fetch |
 
 ## Experimental: scvmfs://
 
-`xrootd_scvmfs on` (requires `xrootd_cvmfs on`) turns a TLS listener
+`brix_scvmfs on` (requires `brix_cvmfs on`) turns a TLS listener
 (`listen 8443 ssl` + certificates) into the secure variant: plain HTTP is
-refused, and `xrootd_scvmfs_authz bearer` +
-`xrootd_scvmfs_token_issuers <scitokens.cfg>` gates clients on a
+refused, and `brix_scvmfs_authz bearer` +
+`brix_scvmfs_token_issuers <scitokens.cfg>` gates clients on a
 WLCG/SciTokens read scope before the unchanged cvmfs core serves them.
 Client side needs `CVMFS_SERVER_URL=https://…` and an authz helper
 (`CVMFS_AUTHZ_HELPER`); WLCG proxy-mode traffic stays cleartext cvmfs://

@@ -16,7 +16,7 @@
 
 typedef struct cinfo_l1_entry_s {
     char                     *key;        /* strdup'd object key (lookup)        */
-    xrootd_cache_cinfo_t      hdr;        /* the cached header record            */
+    brix_cache_cinfo_t      hdr;        /* the cached header record            */
     struct cinfo_l1_entry_s  *hnext;      /* hash-bucket chain                   */
     struct cinfo_l1_entry_s  *lru_prev;   /* LRU list (head = MRU, tail = LRU)   */
     struct cinfo_l1_entry_s  *lru_next;
@@ -154,10 +154,10 @@ cinfo_l1_evict_tail(cinfo_l1_impl_t *t)
 
 /* ---- public API ----------------------------------------------------------- */
 
-xrootd_cinfo_l1_t *
-xrootd_cinfo_l1_create(size_t max_entries, ngx_log_t *log)
+brix_cinfo_l1_t *
+brix_cinfo_l1_create(size_t max_entries, ngx_log_t *log)
 {
-    xrootd_cinfo_l1_t *l1;
+    brix_cinfo_l1_t *l1;
     cinfo_l1_impl_t   *t;
 
     if (max_entries == 0) {
@@ -187,7 +187,7 @@ xrootd_cinfo_l1_create(size_t max_entries, ngx_log_t *log)
 }
 
 void
-xrootd_cinfo_l1_destroy(xrootd_cinfo_l1_t *l1)
+brix_cinfo_l1_destroy(brix_cinfo_l1_t *l1)
 {
     cinfo_l1_impl_t  *t;
     cinfo_l1_entry_t *e;
@@ -211,8 +211,8 @@ xrootd_cinfo_l1_destroy(xrootd_cinfo_l1_t *l1)
 }
 
 ngx_int_t
-xrootd_cinfo_l1_get(xrootd_cinfo_l1_t *l1, const char *key,
-    xrootd_cache_cinfo_t *out)
+brix_cinfo_l1_get(brix_cinfo_l1_t *l1, const char *key,
+    brix_cache_cinfo_t *out)
 {
     cinfo_l1_impl_t  *t;
     cinfo_l1_entry_t *e;
@@ -233,8 +233,8 @@ xrootd_cinfo_l1_get(xrootd_cinfo_l1_t *l1, const char *key,
 }
 
 void
-xrootd_cinfo_l1_put(xrootd_cinfo_l1_t *l1, const char *key,
-    const xrootd_cache_cinfo_t *hdr)
+brix_cinfo_l1_put(brix_cinfo_l1_t *l1, const char *key,
+    const brix_cache_cinfo_t *hdr)
 {
     cinfo_l1_impl_t  *t;
     cinfo_l1_entry_t *e;
@@ -274,7 +274,7 @@ xrootd_cinfo_l1_put(xrootd_cinfo_l1_t *l1, const char *key,
 }
 
 void
-xrootd_cinfo_l1_drop(xrootd_cinfo_l1_t *l1, const char *key)
+brix_cinfo_l1_drop(brix_cinfo_l1_t *l1, const char *key)
 {
     cinfo_l1_impl_t  *t;
     cinfo_l1_entry_t *e;

@@ -90,7 +90,7 @@ def _write_pattern(path: Path, size: int):
 
 
 def _access_log_path(test_env) -> Path:
-    return Path(test_env["log_dir"]) / "xrootd_access_anon.log"
+    return Path(test_env["log_dir"]) / "brix_access_anon.log"
 
 
 def _count_access_log(test_env, needle: str) -> int:

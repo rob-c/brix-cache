@@ -1,7 +1,7 @@
 """
 tests/test_ssi.py — §7 minimal unary XrdSsi over root:// (raw wire, real instance).
 
-Self-provisions a stream (root://) nginx with `xrootd_ssi on` and drives the unary
+Self-provisions a stream (root://) nginx with `brix_ssi on` and drives the unary
 request/response RPC directly on the wire:
   open(/.ssi/echo) -> write(request) -> read(response) -> close.
 
@@ -94,17 +94,17 @@ def _start(tmp_path_factory, ssi_on):
     data = os.path.join(base, "data")
     os.makedirs(data)
     port = free_port()
-    ssi = "  xrootd_ssi on;\n" if ssi_on else ""
+    ssi = "  brix_ssi on;\n" if ssi_on else ""
     body = (
         "daemon off;\nworker_processes 1;\n"
         f"pid {base}/ssi.pid;\nerror_log {base}/ssi-err.log info;\n"
         "thread_pool default threads=2 max_queue=4096;\n"
         "events { worker_connections 64; }\n"
         "stream { server {\n"
-        f"  listen {BIND_HOST}:{port};\n  xrootd on;\n  xrootd_storage_backend posix:{data};\n"
-        "  xrootd_auth none;\n  xrootd_allow_write on;\n"
+        f"  listen {BIND_HOST}:{port};\n  xrootd on;\n  brix_storage_backend posix:{data};\n"
+        "  brix_auth none;\n  brix_allow_write on;\n"
         f"{ssi}"
-        f"  xrootd_access_log {base}/ssi-access.log;\n}} }}\n"
+        f"  brix_access_log {base}/ssi-access.log;\n}} }}\n"
     )
     cfg = os.path.join(base, "ssi.conf")
     with open(cfg, "w") as f:

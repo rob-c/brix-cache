@@ -18,14 +18,14 @@
  *       fields embedded in their context. The helpers never touch dispatch,
  *       teardown, or timers — those stay per-mirror.
  */
-#ifndef XROOTD_MIRROR_STREAM_MIRROR_IO_H
-#define XROOTD_MIRROR_STREAM_MIRROR_IO_H
+#ifndef BRIX_MIRROR_STREAM_MIRROR_IO_H
+#define BRIX_MIRROR_STREAM_MIRROR_IO_H
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
 /* Upper bound on a shadow response body, so a hostile/buggy shadow cannot make
  * us allocate an arbitrary buffer. */
-#define XROOTD_MIRROR_MAX_RESP_BODY  65536
+#define BRIX_MIRROR_MAX_RESP_BODY  65536
 
 /*
  * Drain wbuf[*wbuf_pos .. wbuf_len) to the shadow socket without blocking.
@@ -33,7 +33,7 @@
  * (and the read event has been re-armed), NGX_AGAIN when the socket is full (and
  * the write event has been re-armed), or NGX_ERROR on send/event-arm failure.
  */
-ngx_int_t xrootd_mirror_io_flush(ngx_connection_t *c, const u_char *wbuf,
+ngx_int_t brix_mirror_io_flush(ngx_connection_t *c, const u_char *wbuf,
     size_t wbuf_len, size_t *wbuf_pos);
 
 /*
@@ -44,13 +44,13 @@ ngx_int_t xrootd_mirror_io_flush(ngx_connection_t *c, const u_char *wbuf,
  * first reaches the full header length) to latch *resp_status / *resp_dlen and
  * allocate *resp_body from c->pool. Returns NGX_AGAIN until the whole frame is
  * in hand, NGX_OK when complete, NGX_ERROR on EOF or an oversize body
- * (> XROOTD_MIRROR_MAX_RESP_BODY).
+ * (> BRIX_MIRROR_MAX_RESP_BODY).
  *
  * rhdr must point at a caller-owned buffer of at least XRD_RESPONSE_HDR_LEN
  * bytes; all cursors must be zeroed before the first frame.
  */
-ngx_int_t xrootd_mirror_io_recv_frame(ngx_connection_t *c, u_char *rhdr,
+ngx_int_t brix_mirror_io_recv_frame(ngx_connection_t *c, u_char *rhdr,
     size_t *rhdr_pos, uint16_t *resp_status, uint32_t *resp_dlen,
     u_char **resp_body, size_t *resp_body_pos);
 
-#endif /* XROOTD_MIRROR_STREAM_MIRROR_IO_H */
+#endif /* BRIX_MIRROR_STREAM_MIRROR_IO_H */

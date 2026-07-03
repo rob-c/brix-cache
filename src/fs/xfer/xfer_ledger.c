@@ -1,7 +1,7 @@
 /*
  * xfer_ledger.c — the unified durable-transfer audit ledger.
  *
- * WHAT: xrootd_xfer_ledger_record() appends ONE consistent audit line for every
+ * WHAT: brix_xfer_ledger_record() appends ONE consistent audit line for every
  *       terminal transfer (commit or abort), across all four kinds (stage, tape,
  *       write-through, TPC). One schema, one sink.
  *
@@ -15,7 +15,7 @@
  *
  * HOW:  A process-global append-only fd, lazy-opened on first record. O_APPEND
  *       makes concurrent writes from multiple workers atomic for the sub-PIPE_BUF
- *       lines we emit, so no lock is needed. The sink is $XROOTD_XFER_AUDIT_LOG,
+ *       lines we emit, so no lock is needed. The sink is $BRIX_XFER_AUDIT_LOG,
  *       else <prefix>/logs/xfer_audit.log. Wire-sourced fields (path, principal)
  *       are escaped with the shared sanitizer. Auditing is best-effort: a sink
  *       that cannot be opened is warned once and skipped — it never fails a
@@ -24,7 +24,7 @@
 
 #include "xfer.h"
 
-#include "fs/path/path.h"   /* xrootd_sanitize_log_string — shared, never reimpl */
+#include "fs/path/path.h"   /* brix_sanitize_log_string — shared, never reimpl */
 
 #include <fcntl.h>
 #include <limits.h>
@@ -35,28 +35,28 @@
 #include <unistd.h>
 
 const char *
-xrootd_xfer_kind_str(xrootd_xfer_kind_t kind)
+brix_xfer_kind_str(brix_xfer_kind_t kind)
 {
     switch (kind) {
-    case XROOTD_XFER_STAGE: return "stage";
-    case XROOTD_XFER_TAPE:  return "tape";
-    case XROOTD_XFER_WT:    return "wt";
-    case XROOTD_XFER_TPC:   return "tpc";
+    case BRIX_XFER_STAGE: return "stage";
+    case BRIX_XFER_TAPE:  return "tape";
+    case BRIX_XFER_WT:    return "wt";
+    case BRIX_XFER_TPC:   return "tpc";
     default:                return "?";
     }
 }
 
 const char *
-xrootd_xfer_result_str(xrootd_xfer_result_t result)
+brix_xfer_result_str(brix_xfer_result_t result)
 {
     switch (result) {
-    case XROOTD_XFER_OK:         return "ok";
-    case XROOTD_XFER_DEFERRED:   return "deferred";
-    case XROOTD_XFER_DENIED:     return "denied";
-    case XROOTD_XFER_SRC_ERR:    return "src_err";
-    case XROOTD_XFER_DST_ERR:    return "dst_err";
-    case XROOTD_XFER_COMMIT_ERR: return "commit_err";
-    case XROOTD_XFER_AGENT_FAIL: return "agent_fail";
+    case BRIX_XFER_OK:         return "ok";
+    case BRIX_XFER_DEFERRED:   return "deferred";
+    case BRIX_XFER_DENIED:     return "denied";
+    case BRIX_XFER_SRC_ERR:    return "src_err";
+    case BRIX_XFER_DST_ERR:    return "dst_err";
+    case BRIX_XFER_COMMIT_ERR: return "commit_err";
+    case BRIX_XFER_AGENT_FAIL: return "agent_fail";
     default:                     return "?";
     }
 }
@@ -66,11 +66,11 @@ xrootd_xfer_result_str(xrootd_xfer_result_t result)
 static int       xfer_audit_fd = -1;     /* per-worker append fd, lazy-opened   */
 static ngx_int_t xfer_audit_failed;      /* a prior open failed → stop trying   */
 
-/* Resolve the audit-log path: $XROOTD_XFER_AUDIT_LOG, else <prefix>/logs/. */
+/* Resolve the audit-log path: $BRIX_XFER_AUDIT_LOG, else <prefix>/logs/. */
 static void
 xfer_audit_resolve_path(char *out, size_t outsz)
 {
-    const char *env = getenv("XROOTD_XFER_AUDIT_LOG");
+    const char *env = getenv("BRIX_XFER_AUDIT_LOG");
 
     if (env != NULL && env[0] != '\0') {
         ngx_cpystrn((u_char *) out, (u_char *) env, outsz);
@@ -112,7 +112,7 @@ xfer_audit_fd_get(ngx_log_t *log)
 /* --------------------------- the record ---------------------------------- */
 
 void
-xrootd_xfer_ledger_record(const xrootd_xfer_audit_t *ev)
+brix_xfer_ledger_record(const brix_xfer_audit_t *ev)
 {
     char       line[2048];
     char       timebuf[64];
@@ -136,19 +136,19 @@ xrootd_xfer_ledger_record(const xrootd_xfer_audit_t *ev)
     ngx_libc_localtime(tp->sec, &tm);
     strftime(timebuf, sizeof(timebuf), "%d/%b/%Y:%H:%M:%S %z", &tm);
 
-    xrootd_sanitize_log_string(ev->path ? ev->path : "-", safe_path,
+    brix_sanitize_log_string(ev->path ? ev->path : "-", safe_path,
                                sizeof(safe_path));
-    xrootd_sanitize_log_string((ev->principal && ev->principal[0]) ? ev->principal
+    brix_sanitize_log_string((ev->principal && ev->principal[0]) ? ev->principal
                                                                     : "-",
                                safe_principal, sizeof(safe_principal));
 
     n = snprintf(line, sizeof(line),
                  "%s kind=%s dir=%s result=%s bytes=%zu errno=%d "
                  "principal=%s path=\"%s\"\n",
-                 timebuf, xrootd_xfer_kind_str(ev->kind),
+                 timebuf, brix_xfer_kind_str(ev->kind),
                  ev->direction ? ev->direction : "-",
-                 xrootd_xfer_result_str(ev->result), ev->bytes,
-                 (ev->result == XROOTD_XFER_OK) ? 0 : ev->sys_errno,
+                 brix_xfer_result_str(ev->result), ev->bytes,
+                 (ev->result == BRIX_XFER_OK) ? 0 : ev->sys_errno,
                  safe_principal, safe_path);
     if (n <= 0) {
         return;

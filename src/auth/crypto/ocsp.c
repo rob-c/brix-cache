@@ -2,8 +2,8 @@
  * OCSP client — certificate revocation checking and TLS stapling.
  *
  * WHAT: Provides two public functions:
- *   xrootd_ocsp_check_cert()   — query OCSP responder for a client certificate.
- *   xrootd_ocsp_staple_fetch() — fetch OCSP staple for the server certificate.
+ *   brix_ocsp_check_cert()   — query OCSP responder for a client certificate.
+ *   brix_ocsp_staple_fetch() — fetch OCSP staple for the server certificate.
  *
  * WHY: X.509 chain verification alone does not catch revoked certificates.
  * OCSP gives real-time revocation status without the overhead of fetching full
@@ -16,7 +16,7 @@
  */
 
 #include "ocsp.h"
-#include "observability/metrics/metrics.h"          /* ngx_xrootd_metrics_t */
+#include "observability/metrics/metrics.h"          /* ngx_brix_metrics_t */
 #include "observability/metrics/metrics_macros.h"   /* Phase 51 (E6): ocsp_timeouts_total */
 #include "protocols/root/connection/netconnect.h"    /* shared SO_RCVTIMEO/SO_SNDTIMEO helper */
 
@@ -49,7 +49,7 @@
  * connect()); the read/write phases with SO_RCVTIMEO/SO_SNDTIMEO.  On timeout the
  * fetch returns NULL and the caller applies its ocsp_soft_fail policy.
  */
-#define XROOTD_OCSP_TIMEOUT_SECS  5
+#define BRIX_OCSP_TIMEOUT_SECS  5
 
 /* Apply SO_RCVTIMEO/SO_SNDTIMEO to the BIO's socket fd (best-effort). */
 static void
@@ -60,7 +60,7 @@ ocsp_set_io_timeouts(BIO *cbio, int secs)
     if (BIO_get_fd(cbio, &fd) <= 0 || fd < 0) {
         return;
     }
-    xrootd_apply_socket_io_timeouts(fd, secs);
+    brix_apply_socket_io_timeouts(fd, secs);
 }
 
 /*
@@ -192,7 +192,7 @@ do_ocsp_request(ngx_log_t *log, const char *url,
                         path, sizeof(path), &port, &use_ssl) != 0)
     {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_ocsp: cannot parse URL \"%s\"", url);
+                      "brix_ocsp: cannot parse URL \"%s\"", url);
         return NULL;
     }
 
@@ -223,7 +223,7 @@ do_ocsp_request(ngx_log_t *log, const char *url,
         SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER, NULL);
         if (SSL_CTX_set_default_verify_paths(ssl_ctx) != 1) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_ocsp: cannot load default HTTPS trust paths");
+                          "brix_ocsp: cannot load default HTTPS trust paths");
             SSL_CTX_free(ssl_ctx);
             OCSP_REQUEST_free(req);
             return NULL;
@@ -236,7 +236,7 @@ do_ocsp_request(ngx_log_t *log, const char *url,
                 (void) SSL_set_tlsext_host_name(ssl, host);
                 if (SSL_set1_host(ssl, host) != 1) {
                     ngx_log_error(NGX_LOG_WARN, log, 0,
-                                  "xrootd_ocsp: cannot set HTTPS hostname "
+                                  "brix_ocsp: cannot set HTTPS hostname "
                                   "verification for \"%s\"", host);
                     BIO_free_all(cbio);
                     SSL_CTX_free(ssl_ctx);
@@ -262,15 +262,15 @@ do_ocsp_request(ngx_log_t *log, const char *url,
     /* E1: bound the connect with a deadline (a black-holed responder must not
      * freeze the worker for the kernel TCP timeout). */
     {
-        int crc = ocsp_connect_deadline(cbio, XROOTD_OCSP_TIMEOUT_SECS);
+        int crc = ocsp_connect_deadline(cbio, BRIX_OCSP_TIMEOUT_SECS);
         if (crc != OCSP_CONNECT_OK) {
             if (crc == OCSP_CONNECT_TIMEOUT) {
-                XROOTD_RESIL_METRIC_INC(ocsp_timeouts_total);
+                BRIX_RESIL_METRIC_INC(ocsp_timeouts_total);
             }
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_ocsp: connect to \"%s\" %s (%ds)", hostport,
+                          "brix_ocsp: connect to \"%s\" %s (%ds)", hostport,
                           crc == OCSP_CONNECT_TIMEOUT ? "timed out" : "failed",
-                          XROOTD_OCSP_TIMEOUT_SECS);
+                          BRIX_OCSP_TIMEOUT_SECS);
             BIO_free_all(cbio);
             if (ssl_ctx != NULL) {
                 SSL_CTX_free(ssl_ctx);
@@ -281,12 +281,12 @@ do_ocsp_request(ngx_log_t *log, const char *url,
     }
 
     /* E1: bound the TLS handshake + request/response read/write phases. */
-    ocsp_set_io_timeouts(cbio, XROOTD_OCSP_TIMEOUT_SECS);
+    ocsp_set_io_timeouts(cbio, BRIX_OCSP_TIMEOUT_SECS);
 
     if (use_ssl) {
         if (BIO_do_handshake(cbio) <= 0) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_ocsp: TLS handshake with \"%s\" failed",
+                          "brix_ocsp: TLS handshake with \"%s\" failed",
                           hostport);
             BIO_free_all(cbio);
             SSL_CTX_free(ssl_ctx);
@@ -296,7 +296,7 @@ do_ocsp_request(ngx_log_t *log, const char *url,
 
         if (ssl == NULL || SSL_get_verify_result(ssl) != X509_V_OK) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_ocsp: TLS verification for \"%s\" failed",
+                          "brix_ocsp: TLS verification for \"%s\" failed",
                           host);
             BIO_free_all(cbio);
             SSL_CTX_free(ssl_ctx);
@@ -315,7 +315,7 @@ do_ocsp_request(ngx_log_t *log, const char *url,
 
     if (resp == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_ocsp: no response from \"%s\"", url);
+                      "brix_ocsp: no response from \"%s\"", url);
     }
 
     return resp;
@@ -341,7 +341,7 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
 
     if (OCSP_response_status(resp) != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_ocsp: OCSP response status = %d (not successful)",
+                      "brix_ocsp: OCSP response status = %d (not successful)",
                       OCSP_response_status(resp));
         return -1;
     }
@@ -354,7 +354,7 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
     /* Verify the response signature against the trust store */
     if (store != NULL && OCSP_basic_verify(bresp, NULL, store, 0) <= 0) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_ocsp: OCSP response signature verification failed");
+                      "brix_ocsp: OCSP response signature verification failed");
         OCSP_BASICRESP_free(bresp);
         return -1;
     }
@@ -365,10 +365,10 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
         if (nonce_rc < 0) {
             /* nonce present in request but missing in response — warn, don't fail */
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_ocsp: nonce missing in OCSP response");
+                          "brix_ocsp: nonce missing in OCSP response");
         } else if (nonce_rc == 0) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_ocsp: OCSP response nonce mismatch");
+                          "brix_ocsp: OCSP response nonce mismatch");
             OCSP_BASICRESP_free(bresp);
             return -1;
         }
@@ -378,7 +378,7 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
                                &rev, &thisupd, &nextupd))
     {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_ocsp: certificate not found in OCSP response");
+                      "brix_ocsp: certificate not found in OCSP response");
         OCSP_BASICRESP_free(bresp);
         return -1;
     }
@@ -389,13 +389,13 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
         break;
     case V_OCSP_CERTSTATUS_REVOKED:
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_ocsp: certificate is REVOKED (reason=%d)", reason);
+                      "brix_ocsp: certificate is REVOKED (reason=%d)", reason);
         rc = -1;
         break;
     case V_OCSP_CERTSTATUS_UNKNOWN:
     default:
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_ocsp: certificate status is UNKNOWN");
+                      "brix_ocsp: certificate status is UNKNOWN");
         rc = 1;  /* caller decides based on soft_fail */
         break;
     }
@@ -406,7 +406,7 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
 
 
 /*
- * xrootd_ocsp_check_cert — query the OCSP responder for leaf's revocation.
+ * brix_ocsp_check_cert — query the OCSP responder for leaf's revocation.
  *
  * Extracts the OCSP URL from the leaf's AIA extension, builds and sends an
  * OCSP request, and interprets the response.
@@ -416,7 +416,7 @@ check_ocsp_response(ngx_log_t *log, OCSP_RESPONSE *resp,
  */
 /* HOW: Validates leaf and issuer are non-NULL (returns soft_fail result if either is missing). Extracts OCSP URLs from the certificate's AIA extension via X509_get1_ocsp(). Builds the OCSP certificate ID (SHA-1 hash of issuer fields) using OCSP_cert_to_id(). Iterates over all discovered responder URLs — sends a request via do_ocsp_request(), checks the response via check_ocsp_response(). GOOD results break the loop and return 0; REVOKED breaks immediately (never overridden); UNKNOWN applies soft_fail policy. Free ID and URL stack on exit. */
 int
-xrootd_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail)
+brix_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail)
 {
     STACK_OF(OPENSSL_STRING) *ocsp_urls = NULL;
     OCSP_CERTID              *id        = NULL;
@@ -430,7 +430,7 @@ xrootd_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail)
 
     if (issuer == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_ocsp: no issuer certificate for OCSP check; "
+                      "brix_ocsp: no issuer certificate for OCSP check; "
                       "treating as soft_fail=%d", soft_fail);
         return soft_fail ? 0 : -1;
     }
@@ -439,7 +439,7 @@ xrootd_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail)
     ocsp_urls = X509_get1_ocsp(leaf);
     if (ocsp_urls == NULL || sk_OPENSSL_STRING_num(ocsp_urls) == 0) {
         ngx_log_error(NGX_LOG_DEBUG, log, 0,
-                      "xrootd_ocsp: no OCSP URL in certificate AIA extension");
+                      "brix_ocsp: no OCSP URL in certificate AIA extension");
         if (ocsp_urls) {
             X509_email_free(ocsp_urls);
         }
@@ -450,7 +450,7 @@ xrootd_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail)
     id = OCSP_cert_to_id(NULL, leaf, issuer);
     if (id == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_ocsp: OCSP_cert_to_id() failed");
+                      "brix_ocsp: OCSP_cert_to_id() failed");
         X509_email_free(ocsp_urls);
         return soft_fail ? 0 : -1;
     }
@@ -461,7 +461,7 @@ xrootd_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail)
         int         status;
 
         ngx_log_error(NGX_LOG_DEBUG, log, 0,
-                      "xrootd_ocsp: querying responder \"%s\"", url);
+                      "brix_ocsp: querying responder \"%s\"", url);
 
         resp = do_ocsp_request(log, url, leaf, issuer, id);
         if (resp == NULL) {
@@ -473,19 +473,19 @@ xrootd_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail)
          * the default verification.  A production deployment should
          * pass xcf->gsi_store here.  For the auth path this is
          * acceptable because the chain is already verified before
-         * xrootd_ocsp_check_cert() is called. */
+         * brix_ocsp_check_cert() is called. */
         status = check_ocsp_response(log, resp, NULL, id, NULL);
         OCSP_RESPONSE_free(resp);
 
         if (status == 0) {
             result = 0;   /* GOOD */
             ngx_log_error(NGX_LOG_DEBUG, log, 0,
-                          "xrootd_ocsp: certificate is GOOD (\"%s\")", url);
+                          "brix_ocsp: certificate is GOOD (\"%s\")", url);
             break;
         } else if (status == -1) {
             result = -1;  /* REVOKED — never override */
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_ocsp: certificate is REVOKED (\"%s\")", url);
+                          "brix_ocsp: certificate is REVOKED (\"%s\")", url);
             break;
         } else {
             /* UNKNOWN — apply soft_fail policy */
@@ -499,7 +499,7 @@ xrootd_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail)
 }
 
 /*
- * xrootd_ocsp_staple_fetch — fetch and cache an OCSP staple.
+ * brix_ocsp_staple_fetch — fetch and cache an OCSP staple.
  *
  * Queries the OCSP responder for xcf->gsi_cert and stores the raw DER
  * response bytes in xcf->ocsp_staple_data / ocsp_staple_len.
@@ -508,7 +508,7 @@ xrootd_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail)
  */
 /* HOW: Validates server certificate is non-NULL. Extracts OCSP URLs from the AIA extension. Locates the issuer certificate by initializing a X509_STORE_CTX against gsi_store and calling get1_issuer(). Builds the OCSP certificate ID via OCSP_cert_to_id(). Iterates responder URLs — sends request, verifies response signature against the trust store, only caches responses with status GOOD. Encodes the valid response to DER via i2d_OCSP_RESPONSE(), allocates nginx-managed memory for the staple bytes, frees old staple if present (reload path), stores buf/der_len in xcf fields. Returns NGX_OK on success, NGX_ERROR on failure. */
 ngx_int_t
-xrootd_ocsp_staple_fetch(ngx_log_t *log, ngx_stream_xrootd_srv_conf_t *xcf)
+brix_ocsp_staple_fetch(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)
 {
     X509                     *leaf      = xcf->gsi_cert;
     STACK_OF(OPENSSL_STRING) *ocsp_urls = NULL;
@@ -522,14 +522,14 @@ xrootd_ocsp_staple_fetch(ngx_log_t *log, ngx_stream_xrootd_srv_conf_t *xcf)
 
     if (leaf == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_ocsp: no server certificate; cannot fetch staple");
+                      "brix_ocsp: no server certificate; cannot fetch staple");
         return NGX_ERROR;
     }
 
     ocsp_urls = X509_get1_ocsp(leaf);
     if (ocsp_urls == NULL || sk_OPENSSL_STRING_num(ocsp_urls) == 0) {
         ngx_log_error(NGX_LOG_DEBUG, log, 0,
-                      "xrootd_ocsp: no OCSP URL in server certificate AIA");
+                      "brix_ocsp: no OCSP URL in server certificate AIA");
         if (ocsp_urls) {
             X509_email_free(ocsp_urls);
         }
@@ -555,7 +555,7 @@ xrootd_ocsp_staple_fetch(ngx_log_t *log, ngx_stream_xrootd_srv_conf_t *xcf)
 
     if (issuer == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_ocsp: cannot locate issuer certificate for staple");
+                      "brix_ocsp: cannot locate issuer certificate for staple");
         X509_email_free(ocsp_urls);
         return NGX_ERROR;
     }
@@ -572,7 +572,7 @@ xrootd_ocsp_staple_fetch(ngx_log_t *log, ngx_stream_xrootd_srv_conf_t *xcf)
         const char *url = sk_OPENSSL_STRING_value(ocsp_urls, i);
 
         ngx_log_error(NGX_LOG_DEBUG, log, 0,
-                      "xrootd_ocsp: fetching staple from \"%s\"", url);
+                      "brix_ocsp: fetching staple from \"%s\"", url);
 
         resp = do_ocsp_request(log, url, leaf, issuer, id);
         if (resp == NULL) {
@@ -584,7 +584,7 @@ xrootd_ocsp_staple_fetch(ngx_log_t *log, ngx_stream_xrootd_srv_conf_t *xcf)
             int status = check_ocsp_response(log, resp, xcf->gsi_store, id, NULL);
             if (status != 0) {
                 ngx_log_error(NGX_LOG_WARN, log, 0,
-                    "xrootd_ocsp: staple response not GOOD (status=%d) "
+                    "brix_ocsp: staple response not GOOD (status=%d) "
                     "from \"%s\" — skipping", status, url);
                 OCSP_RESPONSE_free(resp);
                 resp = NULL;
@@ -598,7 +598,7 @@ xrootd_ocsp_staple_fetch(ngx_log_t *log, ngx_stream_xrootd_srv_conf_t *xcf)
 
         if (der_len <= 0 || der == NULL) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "xrootd_ocsp: DER encoding of staple failed");
+                          "brix_ocsp: DER encoding of staple failed");
             continue;
         }
 
@@ -620,7 +620,7 @@ xrootd_ocsp_staple_fetch(ngx_log_t *log, ngx_stream_xrootd_srv_conf_t *xcf)
         xcf->ocsp_staple_len  = (size_t)der_len;
 
         ngx_log_error(NGX_LOG_INFO, log, 0,
-                      "xrootd_ocsp: staple cached (%d bytes) from \"%s\"",
+                      "brix_ocsp: staple cached (%d bytes) from \"%s\"",
                       der_len, url);
         rc = NGX_OK;
         break;

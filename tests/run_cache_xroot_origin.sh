@@ -32,8 +32,8 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/n/export" "$PFX/n/cache" "$PFX/n/logs
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${ORIGIN_PORT}; xrootd on; xrootd_root $PFX/o/root;
-    xrootd_auth none; } }
+stream { server { listen 127.0.0.1:${ORIGIN_PORT}; xrootd on; brix_root $PFX/o/root;
+    brix_auth none; } }
 EOF
 
 cat > "$PFX/n/nginx.conf" <<EOF
@@ -41,10 +41,10 @@ daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${NODE_PORT}; xrootd on; xrootd_auth none;
-    xrootd_storage_backend root://127.0.0.1:${ORIGIN_PORT};  # the origin
-    xrootd_cache_store posix:$PFX/n/cache;   # physical FSAL: where cache bytes live
-    xrootd_cache_root /;                      # advertised: the logical/client-facing root
+    listen 127.0.0.1:${NODE_PORT}; xrootd on; brix_auth none;
+    brix_storage_backend root://127.0.0.1:${ORIGIN_PORT};  # the origin
+    brix_cache_store posix:$PFX/n/cache;   # physical FSAL: where cache bytes live
+    brix_cache_root /;                      # advertised: the logical/client-facing root
 } }
 EOF
 

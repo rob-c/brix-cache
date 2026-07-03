@@ -31,8 +31,8 @@
  *
  * Pure C; no RADOS, no nginx.
  */
-#ifndef XROOTD_CEPHFS_LAYOUT_H
-#define XROOTD_CEPHFS_LAYOUT_H
+#ifndef BRIX_CEPHFS_LAYOUT_H
+#define BRIX_CEPHFS_LAYOUT_H
 
 #include "cephfs_denc.h"
 
@@ -148,4 +148,4 @@ int cephfs_decode_xattrs(cephfs_denc_t *d, cephfs_xattr_t *out, uint32_t max,
  * malformed value or an encoding this decoder does not understand. */
 int cephfs_decode_dentry(const void *buf, size_t len, cephfs_dentry_t *out);
 
-#endif /* XROOTD_CEPHFS_LAYOUT_H */
+#endif /* BRIX_CEPHFS_LAYOUT_H */

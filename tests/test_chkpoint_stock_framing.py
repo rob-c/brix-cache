@@ -464,7 +464,7 @@ class TestSourceContracts:
         assert "chkpoint_xeq.c" in writev, \
             "writev.c lost its cross-reference to the checkpoint-embedded form"
         assert "ckp_xeq_writev" in writev
-        assert "xrootd_writev_body_extra" in ckpxeq, \
+        assert "brix_writev_body_extra" in ckpxeq, \
             "chkpoint_xeq.c no longer delegates/references the shared " \
             "writev descriptor contract"
 
@@ -474,7 +474,7 @@ class TestSourceContracts:
         data).  Without this hook a stock client's streamed sub-body would be
         parsed as the next request header."""
         recv = _src("src/protocols/root/connection/recv.c")
-        assert "xrootd_ckpxeq_body_extra" in recv
+        assert "brix_ckpxeq_body_extra" in recv
         assert "kXR_ckpXeq" in recv
 
     def test_tap_stream_consumes_the_ckpxeq_sub_body(self):

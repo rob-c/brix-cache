@@ -1,5 +1,5 @@
-#ifndef XROOTD_WRITETHROUGH_DECISION_H
-#define XROOTD_WRITETHROUGH_DECISION_H
+#ifndef BRIX_WRITETHROUGH_DECISION_H
+#define BRIX_WRITETHROUGH_DECISION_H
 
 /* ---- Write-through decision interface — policy evaluation at kXR_open ----
  *
@@ -11,8 +11,8 @@
  *
  * HOW: Decision flow mirrors XrdPfc::Cache::Decide():
  *   1. Client opens file with kXR_open options indicating write intent
- *   2. At open time, evaluate xrootd_wt_decision_fn(path, options, user_data) — default is xrootd_wt_default_decide()
- *   3. Cache result on handle (xrootd_file_t): wt_policy, wt_enabled, wt_dirty_offset = -1
+ *   2. At open time, evaluate brix_wt_decision_fn(path, options, user_data) — default is brix_wt_default_decide()
+ *   3. Cache result on handle (brix_file_t): wt_policy, wt_enabled, wt_dirty_offset = -1
  *   4. Close-time: a real write-back implementation can use the cached policy
  *      and dirty-range metadata to decide whether and how to flush.
  *
@@ -32,16 +32,16 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <regex.h>
-#include "core/types/file.h"          /* xrootd_file_t forward decl context */
+#include "core/types/file.h"          /* brix_file_t forward decl context */
 #include "protocols/root/protocol/flags.h"      /* kXR_open option constants */
 
 /* ---- Decision outcomes (mirrors XrdPfcDecision::Decide return) ---- */
 
 typedef enum {
-    XROOTD_WT_DECISION_DENY = 0,      /* never write-through; local-only writes */
-    XROOTD_WT_DECISION_ALLOW_SYNC,    /* write-back synchronously on close() */
-    XROOTD_WT_DECISION_ALLOW_ASYNC,   /* schedule async write-back flush */
-} xrootd_wt_decision_t;
+    BRIX_WT_DECISION_DENY = 0,      /* never write-through; local-only writes */
+    BRIX_WT_DECISION_ALLOW_SYNC,    /* write-back synchronously on close() */
+    BRIX_WT_DECISION_ALLOW_ASYNC,   /* schedule async write-back flush */
+} brix_wt_decision_t;
 
 /* ---- Decision callback signature (mirrors XrdPfcDecision::Decide) ----
  *
@@ -51,12 +51,12 @@ typedef enum {
  *                  kXR_open_apnd, kXR_new, etc.). Used to distinguish
  *                  update vs append opens.
  * @param user_data Opaque pointer to the decision configuration block
- *                  (xrootd_wt_decision_cfg_t) passed at parse time.
+ *                  (brix_wt_decision_cfg_t) passed at parse time.
  *
- * Returns one of XROOTD_WT_DECISION_* values.
+ * Returns one of BRIX_WT_DECISION_* values.
  */
 
-typedef xrootd_wt_decision_t (*xrootd_wt_decision_fn)(
+typedef brix_wt_decision_t (*brix_wt_decision_fn)(
     const char      *path,
     uint16_t         options,
     void            *user_data
@@ -67,7 +67,7 @@ typedef xrootd_wt_decision_t (*xrootd_wt_decision_fn)(
 
 typedef struct {
     ngx_str_t prefix;   /* NUL-terminated string comparison (not regex) */
-} xrootd_wt_prefix_entry_t;
+} brix_wt_prefix_entry_t;
 
 /* ---- Decision configuration — loaded from nginx.conf at parse time ----
  *
@@ -75,14 +75,14 @@ typedef struct {
  * The fn pointer is set by the policy engine implementation at config load. */
 
 typedef struct {
-    xrootd_wt_decision_fn   fn;           /* function pointer, set by policy engine */
+    brix_wt_decision_fn   fn;           /* function pointer, set by policy engine */
     void                   *user_data;    /* opaque config passed to callback */
 
     /* Per-prefix allow/deny lists (loaded at startup from directives).
      * Order matters: deny_prefixes checked first, then allow_prefixes.
      * A path matching a deny prefix is always DENY regardless of allow list. */
-    ngx_array_t            *deny_prefixes;   /* xrootd_wt_prefix_entry[] paths excluded from WT */
-    ngx_array_t            *allow_prefixes;  /* xrootd_wt_prefix_entry[] paths always write-through */
+    ngx_array_t            *deny_prefixes;   /* brix_wt_prefix_entry[] paths excluded from WT */
+    ngx_array_t            *allow_prefixes;  /* brix_wt_prefix_entry[] paths always write-through */
 
     /* Size-based admission filter — mirrors cache_max_file_size but for
      * write-back budget. Files larger than this limit are DENY unless they
@@ -91,23 +91,23 @@ typedef struct {
     regex_t                 include_regex;
     ngx_flag_t              include_regex_set;
 
-} xrootd_wt_decision_cfg_t;
+} brix_wt_decision_cfg_t;
 
 /* ---- Default policy engine functions (prefix-based) ----
  * These are implemented in writethrough_decision.c as the built-in
  * policy engine. External plugins could provide their own fn pointer. */
 
-xrootd_wt_decision_t xrootd_wt_default_decide(const char *path, uint16_t options,
+brix_wt_decision_t brix_wt_default_decide(const char *path, uint16_t options,
                                                void *user_data);
 
 /* ---- Decision configuration helpers ---- */
 
-ngx_int_t xrootd_wt_config_init_prefixes(ngx_conf_t *cf,
+ngx_int_t brix_wt_config_init_prefixes(ngx_conf_t *cf,
     ngx_array_t *prefix_list, ngx_array_t **out_array,
     const char *directive_name);
 
 /* ---- Default decision function pointer (used when no custom plugin loaded) ---- */
 
-#define XROOTD_WT_DEFAULT_DECISION_FN  xrootd_wt_default_decide
+#define BRIX_WT_DEFAULT_DECISION_FN  brix_wt_default_decide
 
-#endif /* XROOTD_WRITETHROUGH_DECISION_H */
+#endif /* BRIX_WRITETHROUGH_DECISION_H */

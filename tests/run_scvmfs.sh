@@ -3,7 +3,7 @@
 #   1 TLS parity: GET over https serves byte-exact (same core as cvmfs://)
 #   2 transport-neg: plain HTTP to the TLS listener → 400, never served
 #   3 authz-neg (bearer): missing token → 401; garbage token → 401
-#   4 layering: xrootd_scvmfs without xrootd_cvmfs → nginx -t error
+#   4 layering: brix_scvmfs without brix_cvmfs → nginx -t error
 set -u
 NGINX="${1:-/tmp/nginx-1.28.3/objs/nginx}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -55,11 +55,11 @@ http { access_log off; server {
     ssl_certificate     $PFX/crt.pem;
     ssl_certificate_key $PFX/key.pem;
     location /cvmfs/ {
-        xrootd_cvmfs_storage_backend http://127.0.0.1:$MPORT;
-        xrootd_cvmfs_cache_store posix:$PFX/cache;
-        xrootd_cvmfs on;
-        xrootd_scvmfs on;
-        xrootd_scvmfs_authz $1;
+        brix_cvmfs_storage_backend http://127.0.0.1:$MPORT;
+        brix_cvmfs_cache_store posix:$PFX/cache;
+        brix_cvmfs on;
+        brix_scvmfs on;
+        brix_scvmfs_authz $1;
 $2
     }
 } }
@@ -80,7 +80,7 @@ C="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$SPORT$OBJ")"
 
 # 3: bearer authz-negs
 kill "$(cat "$PFX/nginx.pid")"; sleep 0.2
-mkconf bearer "        xrootd_scvmfs_token_issuers $PFX/scitokens.cfg;"
+mkconf bearer "        brix_scvmfs_token_issuers $PFX/scitokens.cfg;"
 "$NGINX" -c "$PFX/nginx.conf" -p "$PFX"; sleep 0.3
 C1="$(curl -sk -o /dev/null -w '%{http_code}' "https://127.0.0.1:$SPORT$OBJ")"
 C2="$(curl -sk -o /dev/null -w '%{http_code}' \
@@ -96,7 +96,7 @@ cat > "$PFX/bad.conf" <<EOF
 events { worker_connections 32; }
 http { server { listen 127.0.0.1:$SPORT ssl;
     ssl_certificate $PFX/crt.pem; ssl_certificate_key $PFX/key.pem;
-    location / { xrootd_scvmfs on; } } }
+    location / { brix_scvmfs on; } } }
 EOF
 "$NGINX" -t -c "$PFX/bad.conf" -p "$PFX" 2>/dev/null \
     && bad "scvmfs without cvmfs accepted" || ok "scvmfs requires cvmfs (nginx -t)"

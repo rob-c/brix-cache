@@ -1,5 +1,5 @@
-#ifndef XROOTD_SSI_SESSION_H
-#define XROOTD_SSI_SESSION_H
+#ifndef BRIX_SSI_SESSION_H
+#define BRIX_SSI_SESSION_H
 
 /*
  * session.h — SSI session + RRTable.
@@ -18,34 +18,34 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "ssi_req.h"    /* xrootd_ssi_req_t + ngx_pool_t (nginx-free under SSI_UT_STANDALONE) */
-#include "provider.h"   /* xrootd_ssi_provider_t */
+#include "ssi_req.h"    /* brix_ssi_req_t + ngx_pool_t (nginx-free under SSI_UT_STANDALONE) */
+#include "provider.h"   /* brix_ssi_provider_t */
 
-#define XROOTD_SSI_MAX_INFLIGHT 8
+#define BRIX_SSI_MAX_INFLIGHT 8
 
 typedef struct {
     char                   service[64];
-    xrootd_ssi_provider_t  provider;
+    brix_ssi_provider_t  provider;
     ngx_pool_t            *pool;
     uint64_t               generation;  /* bumped each create; async-delivery guard key */
     uintptr_t              conn_id;     /* stable connection id for the registry */
     int                    max_inflight; /* runtime concurrency cap (0 = compile max) */
-    size_t                 request_max;  /* per-request cap (0 = XROOTD_SSI_REQ_MAX) */
-    size_t                 response_max; /* per-response cap (0 = XROOTD_SSI_RESP_MAX) */
-    xrootd_ssi_req_t       rr[XROOTD_SSI_MAX_INFLIGHT];
-} xrootd_ssi_session_t;
+    size_t                 request_max;  /* per-request cap (0 = BRIX_SSI_REQ_MAX) */
+    size_t                 response_max; /* per-response cap (0 = BRIX_SSI_RESP_MAX) */
+    brix_ssi_req_t       rr[BRIX_SSI_MAX_INFLIGHT];
+} brix_ssi_session_t;
 
 /* Allocate a session bound to a service + resolved provider. pool may be NULL in
  * standalone unit tests (libc malloc is used). */
-xrootd_ssi_session_t *xrootd_ssi_session_create(ngx_pool_t *pool,
-    const char *service, size_t service_len, const xrootd_ssi_provider_t *provider);
+brix_ssi_session_t *brix_ssi_session_create(ngx_pool_t *pool,
+    const char *service, size_t service_len, const brix_ssi_provider_t *provider);
 
 /* Find the slot for req_id. create=1 allocates a free slot if absent (NULL if the
  * table is full); create=0 returns NULL if absent. */
-xrootd_ssi_req_t *xrootd_ssi_session_req(xrootd_ssi_session_t *s,
+brix_ssi_req_t *brix_ssi_session_req(brix_ssi_session_t *s,
     uint32_t req_id, int create);
 
 /* Release the slot for req_id (idempotent). */
-void xrootd_ssi_session_drop(xrootd_ssi_session_t *s, uint32_t req_id);
+void brix_ssi_session_drop(brix_ssi_session_t *s, uint32_t req_id);
 
-#endif /* XROOTD_SSI_SESSION_H */
+#endif /* BRIX_SSI_SESSION_H */

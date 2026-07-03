@@ -9,7 +9,7 @@
 #
 # After this build, start the instrumented fleet and run the smoke lane:
 #   SANITIZE=1 tests/manage_test_servers.sh restart
-#   XROOTD_SANITIZER_LANE=1 pytest tests/test_sanitizer_smoke.py -v
+#   BRIX_SANITIZER_LANE=1 pytest tests/test_sanitizer_smoke.py -v
 #   SANITIZE=1 tests/manage_test_servers.sh stop   # LSan fires on exit
 #   ls "${SANITIZE_LOG_DIR:-/tmp/xrd-test/sanitize}/asan.*"
 #

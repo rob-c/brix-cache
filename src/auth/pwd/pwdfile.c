@@ -1,10 +1,10 @@
 /*
- * pwdfile.c — xrootd_pwd_file parsing + PBKDF2 password verification (WS-B).
+ * pwdfile.c — brix_pwd_file parsing + PBKDF2 password verification (WS-B).
  *
  * WHAT: Loads a user's salt + stored hash from the password database and verifies
  *       a presented plaintext password against it.
  * WHY:  The credential check must be done WITHOUT ever storing a cleartext
- *       password: xrootd_pwd_file holds only "user:salthex:hashhex" where
+ *       password: brix_pwd_file holds only "user:salthex:hashhex" where
  *       hash = PBKDF2-HMAC-SHA1(password, salt, 10000, 24B) — byte-identical to the
  *       KDF stock XrdSecpwd uses (XrdCryptosslAux.cc DoubleHash/KDFun).  An operator
  *       generates entries with the same KDF (see docs/refactor/phase-52-pwd-wire-spec.md).
@@ -81,12 +81,12 @@ pwd_parse_line(char *line, const char *user, uint8_t *salt, size_t *saltlen,
     }
     *colon2 = '\0';
 
-    n = pwd_from_hex(colon1 + 1, strlen(colon1 + 1), salt, XROOTD_PWD_MAX_SALT);
+    n = pwd_from_hex(colon1 + 1, strlen(colon1 + 1), salt, BRIX_PWD_MAX_SALT);
     if (n <= 0) {
         return 0;
     }
     *saltlen = (size_t) n;
-    n = pwd_from_hex(colon2 + 1, strlen(colon2 + 1), hash, XROOTD_PWD_HASH_LEN);
+    n = pwd_from_hex(colon2 + 1, strlen(colon2 + 1), hash, BRIX_PWD_HASH_LEN);
     if (n <= 0) {
         return 0;
     }
@@ -95,7 +95,7 @@ pwd_parse_line(char *line, const char *user, uint8_t *salt, size_t *saltlen,
 }
 
 ngx_int_t
-xrootd_pwd_file_lookup(const char *path, const char *user, uint8_t *salt,
+brix_pwd_file_lookup(const char *path, const char *user, uint8_t *salt,
     size_t *saltlen, uint8_t *hash, size_t *hashlen)
 {
     FILE  *f;
@@ -120,23 +120,23 @@ xrootd_pwd_file_lookup(const char *path, const char *user, uint8_t *salt,
 }
 
 int
-xrootd_pwd_verify(const uint8_t *password, size_t plen, const uint8_t *salt,
+brix_pwd_verify(const uint8_t *password, size_t plen, const uint8_t *salt,
     size_t saltlen, const uint8_t *hash, size_t hashlen)
 {
-    uint8_t derived[XROOTD_PWD_HASH_LEN];
+    uint8_t derived[BRIX_PWD_HASH_LEN];
 
-    if (hashlen != XROOTD_PWD_HASH_LEN || password == NULL || salt == NULL) {
+    if (hashlen != BRIX_PWD_HASH_LEN || password == NULL || salt == NULL) {
         return 0;
     }
     if (PKCS5_PBKDF2_HMAC_SHA1((const char *) password, (int) plen,
-                               salt, (int) saltlen, XROOTD_PWD_KDF_ITERS,
-                               XROOTD_PWD_HASH_LEN, derived) != 1)
+                               salt, (int) saltlen, BRIX_PWD_KDF_ITERS,
+                               BRIX_PWD_HASH_LEN, derived) != 1)
     {
         return 0;
     }
     /* Constant-time compare; CRYPTO_memcmp returns 0 on equal. */
     {
-        int eq = (CRYPTO_memcmp(derived, hash, XROOTD_PWD_HASH_LEN) == 0);
+        int eq = (CRYPTO_memcmp(derived, hash, BRIX_PWD_HASH_LEN) == 0);
         OPENSSL_cleanse(derived, sizeof(derived));
         return eq;
     }

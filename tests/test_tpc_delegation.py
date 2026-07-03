@@ -12,7 +12,7 @@ What this file establishes:
         drives: with XrdSecGSIDELEGPROXY=2 the client delegates and the source logs
         `Delegated proxy saved`.
   * test_dest_pulls_as_user_via_delegation (XFAIL until F6) — the F6 target:
-        a delegating client → OUR nginx dest (xrootd_tpc_delegate on) → stock
+        a delegating client → OUR nginx dest (brix_tpc_delegate on) → stock
         source; once F6 captures+forwards the user's proxy, the source must
         authorise the dest's PULL as the USER (gateway DN absent from the pull).
         Flip the xfail to a hard assertion when F6 lands.
@@ -170,21 +170,21 @@ def gate(tmp_path_factory):
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
         f"    listen {DST_PORT};\n    xrootd on;\n"
-        f"    xrootd_storage_backend posix:{base / 'dstdata'};\n    xrootd_auth gsi;\n"
-        "    xrootd_allow_write on;\n"
-        "    xrootd_tpc_allow_local on;\n    xrootd_tpc_allow_private on;\n"
-        "    xrootd_tpc_delegate on;\n"
+        f"    brix_storage_backend posix:{base / 'dstdata'};\n    brix_auth gsi;\n"
+        "    brix_allow_write on;\n"
+        "    brix_tpc_allow_local on;\n    brix_tpc_allow_private on;\n"
+        "    brix_tpc_delegate on;\n"
         # X.509 proxy delegation requires signed-DH: a stock client disables
         # delegation if the server's DH params aren't RSA-signed.
-        "    xrootd_gsi_signed_dh require;\n"
+        "    brix_gsi_signed_dh require;\n"
         # Server cert CN = fqdn so the client (connecting by fqdn) verifies it
         # without reverse-DNS — delegation is forbidden when the client "used DNS".
-        f"    xrootd_certificate {srv / 'hostcert.pem'};\n"
-        f"    xrootd_certificate_key {srv / 'hostkey.pem'};\n"
+        f"    brix_certificate {srv / 'hostcert.pem'};\n"
+        f"    brix_certificate_key {srv / 'hostkey.pem'};\n"
         # CA *file* (not the dir) so gsi_ca_hash computes — stock clients verify
         # the server cert via the advertised ca: hash (config.c fopen+PEM_read).
-        f"    xrootd_trusted_ca {ca / 'ca.pem'};\n"
-        f"    xrootd_access_log {base}/dst-acc.log;\n  }}\n}}\n")
+        f"    brix_trusted_ca {ca / 'ca.pem'};\n"
+        f"    brix_access_log {base}/dst-acc.log;\n  }}\n}}\n")
     (base / "dstdata").mkdir(exist_ok=True)
     _run(["bash", "-c", f"fuser -k {DST_PORT}/tcp 2>/dev/null"])
     dst = subprocess.Popen([NGINX, "-c", str(dst_cfg), "-p", str(base)],
@@ -237,7 +237,7 @@ def test_stock_source_captures_delegation(gate):
 
 def test_dest_captures_delegated_proxy(gate):
     """INBOUND F6 (GREEN): a stock DELEGATING client (`xrdcp --tpc delegate`)
-    authenticates to OUR nginx dest (xrootd_auth gsi + xrootd_tpc_delegate on +
+    authenticates to OUR nginx dest (brix_auth gsi + brix_tpc_delegate on +
     signed-DH); the dest runs the kXGS_pxyreq/kXGC_sigpxy round and CAPTURES the
     user's signed delegated proxy (logged at INFO with the user DN).
 
@@ -277,7 +277,7 @@ def test_dest_captures_delegated_proxy(gate):
 
 def test_dest_pulls_as_user_via_delegation(gate):
     """F6 TARGET (GREEN): a delegating client (`xrdcp --tpc delegate`) → our nginx
-    dest (xrootd_tpc_delegate on) → stock source. The dest captures the user's
+    dest (brix_tpc_delegate on) → stock source. The dest captures the user's
     proxy, then pulls the source file AS THE USER and the bytes land at the dest.
 
     Two properties are asserted:

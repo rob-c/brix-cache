@@ -31,13 +31,13 @@ stream {
     server {
         listen 127.0.0.1:${PORT};
         xrootd on;
-        xrootd_root $PFX/root;
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_upload_resume off;
-        xrootd_storage_backend  pblock;
-        xrootd_pblock_block_size 1m;
-        xrootd_access_log $PFX/logs/access.log;
+        brix_root $PFX/root;
+        brix_auth none;
+        brix_allow_write on;
+        brix_upload_resume off;
+        brix_storage_backend  pblock;
+        brix_pblock_block_size 1m;
+        brix_access_log $PFX/logs/access.log;
     }
 }
 EOF

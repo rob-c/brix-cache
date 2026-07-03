@@ -31,13 +31,13 @@ get_u64(const uint8_t *p)
 }
 
 size_t
-xrootd_cns_event_encode(uint8_t op, const char *path, uint64_t size,
+brix_cns_event_encode(uint8_t op, const char *path, uint64_t size,
                         uint64_t mtime, uint8_t *buf, size_t bufsz)
 {
     size_t plen = path ? strlen(path) : 0;
 
-    if (plen == 0 || plen > XROOTD_CNS_PATH_MAX
-        || bufsz < XROOTD_CNS_HDR_LEN + plen)
+    if (plen == 0 || plen > BRIX_CNS_PATH_MAX
+        || bufsz < BRIX_CNS_HDR_LEN + plen)
     {
         return 0;
     }
@@ -47,37 +47,37 @@ xrootd_cns_event_encode(uint8_t op, const char *path, uint64_t size,
     put_u64(buf + 12, mtime);
     buf[20] = (uint8_t) (plen >> 8);
     buf[21] = (uint8_t) plen;
-    memcpy(buf + XROOTD_CNS_HDR_LEN, path, plen);
-    return XROOTD_CNS_HDR_LEN + plen;
+    memcpy(buf + BRIX_CNS_HDR_LEN, path, plen);
+    return BRIX_CNS_HDR_LEN + plen;
 }
 
 ngx_int_t
-xrootd_cns_event_decode(const uint8_t *buf, size_t len, uint8_t *op,
+brix_cns_event_decode(const uint8_t *buf, size_t len, uint8_t *op,
                         uint64_t *size, uint64_t *mtime, char *path,
                         size_t pathsz)
 {
     size_t plen;
 
-    if (buf == NULL || len < XROOTD_CNS_HDR_LEN) {
+    if (buf == NULL || len < BRIX_CNS_HDR_LEN) {
         return NGX_ERROR;
     }
     plen = ((size_t) buf[20] << 8) | buf[21];
-    if (plen == 0 || plen > XROOTD_CNS_PATH_MAX
-        || len < XROOTD_CNS_HDR_LEN + plen || plen >= pathsz)
+    if (plen == 0 || plen > BRIX_CNS_PATH_MAX
+        || len < BRIX_CNS_HDR_LEN + plen || plen >= pathsz)
     {
         return NGX_ERROR;
     }
     *op    = buf[0];
     *size  = get_u64(buf + 4);
     *mtime = get_u64(buf + 12);
-    memcpy(path, buf + XROOTD_CNS_HDR_LEN, plen);
+    memcpy(path, buf + BRIX_CNS_HDR_LEN, plen);
     path[plen] = '\0';
     return NGX_OK;
 }
 
 /* inventory (per-worker, v1) */
 typedef struct {
-    char     path[XROOTD_CNS_PATH_MAX + 1];
+    char     path[BRIX_CNS_PATH_MAX + 1];
     uint64_t size;
     uint64_t mtime;
     uint32_t server_id;
@@ -118,7 +118,7 @@ cns_free_slot(void)
 }
 
 ngx_int_t
-xrootd_cns_apply(uint8_t op, const char *path, uint64_t size, uint64_t mtime,
+brix_cns_apply(uint8_t op, const char *path, uint64_t size, uint64_t mtime,
                  uint32_t server_id)
 {
     cns_entry_t *e;
@@ -128,11 +128,11 @@ xrootd_cns_apply(uint8_t op, const char *path, uint64_t size, uint64_t mtime,
         return NGX_ERROR;
     }
     plen = strlen(path);
-    if (plen == 0 || plen > XROOTD_CNS_PATH_MAX) {
+    if (plen == 0 || plen > BRIX_CNS_PATH_MAX) {
         return NGX_ERROR;
     }
 
-    if (op == XROOTD_CNS_DEL || op == XROOTD_CNS_RMDIR) {
+    if (op == BRIX_CNS_DEL || op == BRIX_CNS_RMDIR) {
         e = cns_find(path);
         if (e != NULL) {
             e->used = 0;
@@ -141,7 +141,7 @@ xrootd_cns_apply(uint8_t op, const char *path, uint64_t size, uint64_t mtime,
         return NGX_OK;
     }
 
-    if (op != XROOTD_CNS_ADD && op != XROOTD_CNS_MKDIR) {
+    if (op != BRIX_CNS_ADD && op != BRIX_CNS_MKDIR) {
         return NGX_ERROR;
     }
 
@@ -166,12 +166,12 @@ xrootd_cns_apply(uint8_t op, const char *path, uint64_t size, uint64_t mtime,
     e->size      = size;
     e->mtime     = mtime;
     e->server_id = server_id;
-    e->is_dir    = (op == XROOTD_CNS_MKDIR) ? 1 : 0;
+    e->is_dir    = (op == BRIX_CNS_MKDIR) ? 1 : 0;
     return NGX_OK;
 }
 
 ngx_int_t
-xrootd_cns_stat(const char *path, struct stat *out)
+brix_cns_stat(const char *path, struct stat *out)
 {
     cns_entry_t *e;
 
@@ -191,7 +191,7 @@ xrootd_cns_stat(const char *path, struct stat *out)
 }
 
 ngx_uint_t
-xrootd_cns_count(void)
+brix_cns_count(void)
 {
     return s_count;
 }
@@ -199,7 +199,7 @@ xrootd_cns_count(void)
 static ngx_flag_t s_collect;
 
 void
-xrootd_cns_set_collect(ngx_flag_t on)
+brix_cns_set_collect(ngx_flag_t on)
 {
     if (on) {
         s_collect = 1;
@@ -207,7 +207,7 @@ xrootd_cns_set_collect(ngx_flag_t on)
 }
 
 ngx_flag_t
-xrootd_cns_collecting(void)
+brix_cns_collecting(void)
 {
     return s_collect;
 }

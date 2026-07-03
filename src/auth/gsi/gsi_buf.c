@@ -5,7 +5,7 @@
 #include "gsi_core_internal.h"
 
 int
-xrootd_gsi_find_bucket(const uint8_t *buf, size_t len, uint32_t type,
+brix_gsi_find_bucket(const uint8_t *buf, size_t len, uint32_t type,
                        const uint8_t **out, size_t *outlen)
 {
     const uint8_t *cur = buf;
@@ -50,7 +50,7 @@ xrootd_gsi_find_bucket(const uint8_t *buf, size_t len, uint32_t type,
 
 
 void
-xrootd_gbuf_init(xrootd_gbuf *g)
+brix_gbuf_init(brix_gbuf *g)
 {
     g->p = NULL;
     g->len = 0;
@@ -60,7 +60,7 @@ xrootd_gbuf_init(xrootd_gbuf *g)
 
 
 void
-xrootd_gbuf_free(xrootd_gbuf *g)
+brix_gbuf_free(brix_gbuf *g)
 {
     free(g->p);
     g->p = NULL;
@@ -69,7 +69,7 @@ xrootd_gbuf_free(xrootd_gbuf *g)
 
 
 void
-xrootd_gbuf_raw(xrootd_gbuf *g, const void *data, size_t n)
+brix_gbuf_raw(brix_gbuf *g, const void *data, size_t n)
 {
     if (g->err) {
         return;
@@ -94,32 +94,32 @@ xrootd_gbuf_raw(xrootd_gbuf *g, const void *data, size_t n)
 
 
 void
-xrootd_gbuf_u32(xrootd_gbuf *g, uint32_t v)
+brix_gbuf_u32(brix_gbuf *g, uint32_t v)
 {
     uint32_t be = htonl(v);
-    xrootd_gbuf_raw(g, &be, 4);
+    brix_gbuf_raw(g, &be, 4);
 }
 
 
 void
-xrootd_gbuf_start(xrootd_gbuf *g, uint32_t step)
+brix_gbuf_start(brix_gbuf *g, uint32_t step)
 {
-    xrootd_gbuf_raw(g, "gsi\0", 4);
-    xrootd_gbuf_u32(g, step);
+    brix_gbuf_raw(g, "gsi\0", 4);
+    brix_gbuf_u32(g, step);
 }
 
 
 void
-xrootd_gbuf_bucket(xrootd_gbuf *g, uint32_t type, const void *d, size_t n)
+brix_gbuf_bucket(brix_gbuf *g, uint32_t type, const void *d, size_t n)
 {
-    xrootd_gbuf_u32(g, type);
-    xrootd_gbuf_u32(g, (uint32_t) n);
-    xrootd_gbuf_raw(g, d, n);
+    brix_gbuf_u32(g, type);
+    brix_gbuf_u32(g, (uint32_t) n);
+    brix_gbuf_raw(g, d, n);
 }
 
 
 void
-xrootd_gbuf_end(xrootd_gbuf *g)
+brix_gbuf_end(brix_gbuf *g)
 {
-    xrootd_gbuf_u32(g, (uint32_t) kXRS_none);
+    brix_gbuf_u32(g, (uint32_t) kXRS_none);
 }

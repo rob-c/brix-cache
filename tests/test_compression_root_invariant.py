@@ -3,7 +3,7 @@ tests/test_compression_root_invariant.py — Phase-42 W4 PLAINTEXT invariant for
 paged / vector reads on a compression-negotiated root:// handle.
 
 W4 adds inline read compression to root://: a handle opened with the opaque
-"?xrootd.compress=<codec>" (against a server with `xrootd_read_compress on`)
+"?xrootd.compress=<codec>" (against a server with `brix_read_compress on`)
 makes each kXR_read response a self-contained codec frame of the requested
 plaintext range.  The hard invariant we prove here is that this compression is
 confined to kXR_read ONLY:
@@ -58,7 +58,7 @@ kXR_status  = 4007    # pgread extended-status response framing
 kXR_open_read = 0x0010
 
 # Phase-42 W4 inline-compression open-reply signalling (src/core/compat/codec_core.h):
-# ServerResponseBody_Open.cpsize = XROOTD_INLINE_CMP_MAGIC ('Z' = 0x5A) and
+# ServerResponseBody_Open.cpsize = BRIX_INLINE_CMP_MAGIC ('Z' = 0x5A) and
 # cptype[0] = <codec id ordinal>.  Codec ordinals: GZIP=1 (always available;
 # zlib is mandatory).
 INLINE_CMP_MAGIC = 0x5A
@@ -84,7 +84,7 @@ DATA_SIZE = len(PAYLOAD)
 
 
 # ---------------------------------------------------------------------------
-# CRC32c (Castagnoli) — pure-Python, matches xrootd_crc32c_copy()
+# CRC32c (Castagnoli) — pure-Python, matches brix_crc32c_copy()
 # (mirrors tests/test_readv_security.py)
 # ---------------------------------------------------------------------------
 
@@ -314,7 +314,7 @@ def _open_compressed(sock, remote, codec="gzip"):
     cptype = body[8:12]
     assert cpsize == INLINE_CMP_MAGIC, (
         f"compression not negotiated: cpsize={cpsize:#x} "
-        f"(expected {INLINE_CMP_MAGIC:#x}); is xrootd_read_compress on?")
+        f"(expected {INLINE_CMP_MAGIC:#x}); is brix_read_compress on?")
     assert cptype[0] != 0, "cptype[0] is zero — no codec ordinal signalled"
     assert cptype[0] == CODEC_GZIP, (
         f"unexpected codec ordinal {cptype[0]} (expected gzip={CODEC_GZIP})")

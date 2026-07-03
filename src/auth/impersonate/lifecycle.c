@@ -4,7 +4,7 @@
  *
  * This is the ONLY impersonation file that knows about nginx config/lifecycle
  * types.  It owns one process-global settings block (there is at most one broker
- * per nginx instance), turns the `xrootd_impersonation*` directives into that
+ * per nginx instance), turns the `brix_impersonation*` directives into that
  * block, validates the chosen mode, spawns the privileged broker in the master
  * (FRM double-fork, reparented to init), connects the worker client, and sets the
  * broker's target principal per request.  Everything is inert unless the mode is
@@ -14,7 +14,7 @@
 #include "lifecycle.h"
 #include "impersonate.h"
 #include "impersonate_proto.h"
-#include "observability/metrics/metrics.h"   /* xrootd_config_version_publish() */
+#include "observability/metrics/metrics.h"   /* brix_config_version_publish() */
 #include "core/compat/log_diag.h"
 
 #include <errno.h>
@@ -39,7 +39,7 @@ extern ngx_uint_t ngx_test_config;       /* set during `nginx -t` */
 
 
 static struct {
-    int        mode;                      /* XROOTD_IMP_OFF/SINGLE/MAP */
+    int        mode;                      /* BRIX_IMP_OFF/SINGLE/MAP */
     int        configured;                /* any directive parsed */
     ngx_str_t  socket;                    /* map: broker AF_UNIX path */
     ngx_str_t  export_root;               /* map: broker confinement root */
@@ -52,7 +52,7 @@ static struct {
     ngx_int_t  min_uid;                   /* reserved-uid floor */
     ngx_int_t  cache_ttl;                 /* resolution cache TTL */
 } imp_settings = {
-    XROOTD_IMP_OFF, 0,
+    BRIX_IMP_OFF, 0,
     ngx_null_string, ngx_null_string, ngx_null_string,
     ngx_null_string, ngx_null_string, ngx_null_string,
     ngx_null_string, ngx_null_string,
@@ -60,7 +60,7 @@ static struct {
 };
 
 int
-xrootd_imp_mode(void)
+brix_imp_mode(void)
 {
     return imp_settings.mode;
 }
@@ -81,7 +81,7 @@ imp_dup(ngx_conf_t *cf, ngx_str_t *src, ngx_str_t *dst)
 }
 
 char *
-xrootd_imp_conf_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_imp_conf_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_str_t *v = cf->args->elts;
 
@@ -90,14 +90,14 @@ xrootd_imp_conf_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     imp_settings.configured = 1;
 
     if (ngx_strcmp(v[1].data, "off") == 0) {
-        imp_settings.mode = XROOTD_IMP_OFF;
+        imp_settings.mode = BRIX_IMP_OFF;
     } else if (ngx_strcmp(v[1].data, "single") == 0) {
-        imp_settings.mode = XROOTD_IMP_SINGLE;
+        imp_settings.mode = BRIX_IMP_SINGLE;
     } else if (ngx_strcmp(v[1].data, "map") == 0) {
-        imp_settings.mode = XROOTD_IMP_MAP;
+        imp_settings.mode = BRIX_IMP_MAP;
     } else {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "invalid xrootd_impersonation mode \"%V\" "
+                           "invalid brix_impersonation mode \"%V\" "
                            "(expected off|single|map)", &v[1]);
         return NGX_CONF_ERROR;
     }
@@ -105,7 +105,7 @@ xrootd_imp_conf_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 char *
-xrootd_imp_conf_str(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_imp_conf_str(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_str_t *v = cf->args->elts;
     ngx_str_t *dst;
@@ -114,14 +114,14 @@ xrootd_imp_conf_str(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     imp_settings.configured = 1;
 
     switch (cmd->offset) {
-    case XROOTD_IMP_F_SOCKET:           dst = &imp_settings.socket;           break;
-    case XROOTD_IMP_F_EXPORT_ROOT:      dst = &imp_settings.export_root;      break;
-    case XROOTD_IMP_F_GRIDMAP:          dst = &imp_settings.gridmap;          break;
-    case XROOTD_IMP_F_DEFAULT_USER:     dst = &imp_settings.default_user;     break;
-    case XROOTD_IMP_F_SINGLE_USER:      dst = &imp_settings.single_user;      break;
-    case XROOTD_IMP_F_BROKER_USER:      dst = &imp_settings.broker_user;      break;
-    case XROOTD_IMP_F_FORBIDDEN_USERS:  dst = &imp_settings.forbidden_users;  break;
-    case XROOTD_IMP_F_FORBIDDEN_GROUPS: dst = &imp_settings.forbidden_groups; break;
+    case BRIX_IMP_F_SOCKET:           dst = &imp_settings.socket;           break;
+    case BRIX_IMP_F_EXPORT_ROOT:      dst = &imp_settings.export_root;      break;
+    case BRIX_IMP_F_GRIDMAP:          dst = &imp_settings.gridmap;          break;
+    case BRIX_IMP_F_DEFAULT_USER:     dst = &imp_settings.default_user;     break;
+    case BRIX_IMP_F_SINGLE_USER:      dst = &imp_settings.single_user;      break;
+    case BRIX_IMP_F_BROKER_USER:      dst = &imp_settings.broker_user;      break;
+    case BRIX_IMP_F_FORBIDDEN_USERS:  dst = &imp_settings.forbidden_users;  break;
+    case BRIX_IMP_F_FORBIDDEN_GROUPS: dst = &imp_settings.forbidden_groups; break;
     default:
         return "has an unknown target field";
     }
@@ -129,7 +129,7 @@ xrootd_imp_conf_str(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 char *
-xrootd_imp_conf_num(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_imp_conf_num(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_str_t *v = cf->args->elts;
     ngx_int_t  n;
@@ -144,8 +144,8 @@ xrootd_imp_conf_num(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
     switch (cmd->offset) {
-    case XROOTD_IMP_F_MIN_UID:   imp_settings.min_uid   = n; break;
-    case XROOTD_IMP_F_CACHE_TTL: imp_settings.cache_ttl = n; break;
+    case BRIX_IMP_F_MIN_UID:   imp_settings.min_uid   = n; break;
+    case BRIX_IMP_F_CACHE_TTL: imp_settings.cache_ttl = n; break;
     default:
         return "has an unknown target field";
     }
@@ -153,10 +153,10 @@ xrootd_imp_conf_num(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 
-/* Populate an xrootd_idmap_conf_t from the settings (for xrootd_idmap_init).
+/* Populate an brix_idmap_conf_t from the settings (for brix_idmap_init).
  * `worker_uid` is the nginx worker uid to forbid as a target ((uid_t)-1 = none). */
 static void
-imp_fill_idmap_conf(xrootd_idmap_conf_t *c, uid_t worker_uid)
+imp_fill_idmap_conf(brix_idmap_conf_t *c, uid_t worker_uid)
 {
     ngx_memzero(c, sizeof(*c));
     c->gridmap_path     = imp_settings.gridmap;
@@ -172,24 +172,24 @@ imp_fill_idmap_conf(xrootd_idmap_conf_t *c, uid_t worker_uid)
 
 
 ngx_int_t
-xrootd_imp_validate(ngx_conf_t *cf, const char *derived_export_root)
+brix_imp_validate(ngx_conf_t *cf, const char *derived_export_root)
 {
-    if (!imp_settings.configured || imp_settings.mode == XROOTD_IMP_OFF) {
+    if (!imp_settings.configured || imp_settings.mode == BRIX_IMP_OFF) {
         imp_settings.mode = imp_settings.configured ? imp_settings.mode
-                                                     : XROOTD_IMP_OFF;
+                                                     : BRIX_IMP_OFF;
         return NGX_OK;
     }
 
-    if (imp_settings.mode == XROOTD_IMP_SINGLE) {
+    if (imp_settings.mode == BRIX_IMP_SINGLE) {
         if (imp_settings.single_user.len == 0) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_impersonation single requires "
-                "xrootd_impersonation_user <name>");
+                "brix_impersonation single requires "
+                "brix_impersonation_user <name>");
             return NGX_ERROR;
         }
         if (imp_settings.gridmap.len || imp_settings.default_user.len) {
             ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
-                "xrootd_impersonation single ignores gridmap/default_user "
+                "brix_impersonation single ignores gridmap/default_user "
                 "(all identities squash to \"%V\")", &imp_settings.single_user);
         }
         return NGX_OK;
@@ -198,7 +198,7 @@ xrootd_imp_validate(ngx_conf_t *cf, const char *derived_export_root)
     /* mode == map */
     if (geteuid() != 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_impersonation map requires the nginx master to run as root "
+            "brix_impersonation map requires the nginx master to run as root "
             "(needed to spawn the privileged identity broker)");
         return NGX_ERROR;
     }
@@ -211,8 +211,8 @@ xrootd_imp_validate(ngx_conf_t *cf, const char *derived_export_root)
     if (imp_settings.export_root.len == 0) {
         if (derived_export_root == NULL || derived_export_root[0] == '\0') {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_impersonation map needs an export root: set "
-                "xrootd_impersonation_export <path> (no data server with a "
+                "brix_impersonation map needs an export root: set "
+                "brix_impersonation_export <path> (no data server with a "
                 "local root was found to derive it from)");
             return NGX_ERROR;
         }
@@ -252,7 +252,7 @@ imp_make_listen(const char *path, uid_t wuid, ngx_log_t *log)
     if (bind(lfd, (struct sockaddr *) &addr, sizeof(addr)) != 0
         || listen(lfd, 64) != 0)
     {
-        XROOTD_DIAG_EMERG(log, ngx_errno,
+        BRIX_DIAG_EMERG(log, ngx_errno,
             "impersonate: cannot bind broker socket \"%s\"",
             "the directory is not writable by the master, or a stale socket "
             "is held by another process",
@@ -317,14 +317,14 @@ imp_broker_child(int lfd, int rootfd, ngx_log_t *log)
         fclose(fp);
     }
     /* broker_run drops caps to {SETUID,SETGID} then serves until killed. */
-    _exit(xrootd_imp_broker_run(lfd, rootfd, NULL, log) == 0 ? 0 : 1);
+    _exit(brix_imp_broker_run(lfd, rootfd, NULL, log) == 0 ? 0 : 1);
 }
 
 ngx_int_t
-xrootd_imp_init_module(ngx_cycle_t *cycle)
+brix_imp_init_module(ngx_cycle_t *cycle)
 {
     ngx_core_conf_t   *ccf;
-    xrootd_idmap_conf_t idc;
+    brix_idmap_conf_t idc;
     sigset_t           block, prev;
     char               sockbuf[256], rootbuf[1024];
     uid_t              wuid;
@@ -338,19 +338,19 @@ xrootd_imp_init_module(ngx_cycle_t *cycle)
      * only validates the config and must not bump the live generation counter.
      */
     if (!ngx_test_config) {
-        xrootd_config_version_publish(cycle);
+        brix_config_version_publish(cycle);
     }
 
-    if (imp_settings.mode != XROOTD_IMP_MAP || ngx_test_config) {
+    if (imp_settings.mode != BRIX_IMP_MAP || ngx_test_config) {
         return NGX_OK;
     }
     if (geteuid() != 0) {
-        XROOTD_DIAG_EMERG(cycle->log, 0,
+        BRIX_DIAG_EMERG(cycle->log, 0,
             "impersonate: map mode requires a root master process",
-            "xrootd_impersonation is set to 'map' but nginx was not started "
+            "brix_impersonation is set to 'map' but nginx was not started "
             "as root, so it cannot set up the privileged uid-mapping broker",
             "start nginx as root (workers still drop to the configured user), "
-            "or change xrootd_impersonation away from 'map'");
+            "or change brix_impersonation away from 'map'");
         return NGX_ERROR;
     }
 
@@ -369,17 +369,17 @@ xrootd_imp_init_module(ngx_cycle_t *cycle)
      * nothing runs as root after startup.  Must be a real, non-root, non-worker
      * account.  Set the broker globals BEFORE the fork so the broker inherits them.
      */
-    xrootd_imp_broker_user_uid = (uid_t) -1;
-    xrootd_imp_broker_user_gid = (gid_t) -1;
+    brix_imp_broker_user_uid = (uid_t) -1;
+    brix_imp_broker_user_gid = (gid_t) -1;
     if (imp_settings.broker_user.len > 0) {
         char           nm[256];
         struct passwd *pw;
         ngx_snprintf((u_char *) nm, sizeof(nm), "%V%Z", &imp_settings.broker_user);
         pw = getpwnam(nm);
         if (pw == NULL) {
-            XROOTD_DIAG_EMERG(cycle->log, 0,
+            BRIX_DIAG_EMERG(cycle->log, 0,
                 "impersonate: broker user \"%s\" does not exist",
-                "xrootd_impersonation_broker_user names a local account that "
+                "brix_impersonation_broker_user names a local account that "
                 "is not present in /etc/passwd (or NSS)",
                 "create the dedicated service account first, or correct the "
                 "name in the directive",
@@ -387,17 +387,17 @@ xrootd_imp_init_module(ngx_cycle_t *cycle)
             return NGX_ERROR;
         }
         if (pw->pw_uid == 0 || (wuid != (uid_t) -1 && pw->pw_uid == wuid)) {
-            XROOTD_DIAG_EMERG(cycle->log, 0,
+            BRIX_DIAG_EMERG(cycle->log, 0,
                 "impersonate: broker user \"%s\" is not a safe choice",
                 "the broker account must NOT be root and must differ from the "
                 "nginx worker user, so a compromise cannot escalate",
-                "point xrootd_impersonation_broker_user at a dedicated, "
+                "point brix_impersonation_broker_user at a dedicated, "
                 "unprivileged account used for nothing else",
                 nm);
             return NGX_ERROR;
         }
-        xrootd_imp_broker_user_uid = pw->pw_uid;
-        xrootd_imp_broker_user_gid = pw->pw_gid;
+        brix_imp_broker_user_uid = pw->pw_uid;
+        brix_imp_broker_user_gid = pw->pw_gid;
     }
 
     imp_kill_stale_broker(cycle->log);
@@ -405,11 +405,11 @@ xrootd_imp_init_module(ngx_cycle_t *cycle)
     /* Install mapping config in THIS (master) process; the broker forks from
      * here and inherits the parsed gridmap + policy. */
     imp_fill_idmap_conf(&idc, wuid);
-    if (xrootd_idmap_init(&idc, cycle->log) != NGX_OK) {
-        XROOTD_DIAG_EMERG(cycle->log, 0,
+    if (brix_idmap_init(&idc, cycle->log) != NGX_OK) {
+        BRIX_DIAG_EMERG(cycle->log, 0,
             "impersonate: identity map failed to load",
             "the grid-mapfile is missing, unreadable, or malformed",
-            "check xrootd_impersonation_gridmap points at a readable "
+            "check brix_impersonation_gridmap points at a readable "
             "grid-mapfile with valid \"<DN>\" <user> lines");
         return NGX_ERROR;
     }
@@ -420,7 +420,7 @@ xrootd_imp_init_module(ngx_cycle_t *cycle)
     }
     rootfd = open(rootbuf, O_PATH | O_DIRECTORY | O_CLOEXEC);
     if (rootfd < 0) {
-        XROOTD_DIAG_EMERG(cycle->log, ngx_errno,
+        BRIX_DIAG_EMERG(cycle->log, ngx_errno,
             "impersonate: cannot open export root \"%s\"",
             "the export root directory is missing or unreadable by the master",
             "create the directory and ensure the master can open it; the OS "
@@ -431,7 +431,7 @@ xrootd_imp_init_module(ngx_cycle_t *cycle)
     }
 
     /* Gate the broker to the worker uid (defence in depth atop confinement). */
-    xrootd_imp_broker_allow_uid = (wuid != (uid_t) -1) ? wuid : 0;
+    brix_imp_broker_allow_uid = (wuid != (uid_t) -1) ? wuid : 0;
 
     /* Double-fork so nginx never reaps the broker (SHM-safe; FRM pattern). */
     sigemptyset(&block);
@@ -506,11 +506,11 @@ imp_worker_drop_caps(ngx_log_t *log)
 }
 
 ngx_int_t
-xrootd_imp_init_worker(ngx_cycle_t *cycle)
+brix_imp_init_worker(ngx_cycle_t *cycle)
 {
     char sockbuf[256];
 
-    if (imp_settings.mode != XROOTD_IMP_MAP) {
+    if (imp_settings.mode != BRIX_IMP_MAP) {
         return NGX_OK;                    /* off/single: no client */
     }
 
@@ -520,7 +520,7 @@ xrootd_imp_init_worker(ngx_cycle_t *cycle)
     ngx_snprintf((u_char *) sockbuf, sizeof(sockbuf), "%V%Z",
                  &imp_settings.socket);
 
-    if (xrootd_imp_client_connect(sockbuf, cycle->log) != NGX_OK) {
+    if (brix_imp_client_connect(sockbuf, cycle->log) != NGX_OK) {
         /* Broker may still be starting; the client retries lazily per op. */
         ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
                       "impersonate: broker not reachable yet at \"%s\" "
@@ -532,36 +532,36 @@ xrootd_imp_init_worker(ngx_cycle_t *cycle)
 
 /* Best principal string for impersonation: DN first, then token subject. */
 static const char *
-imp_principal_of(const xrootd_identity_t *id)
+imp_principal_of(const brix_identity_t *id)
 {
-    const char *p = xrootd_identity_dn_cstr(id);
+    const char *p = brix_identity_dn_cstr(id);
 
     if (p != NULL && p[0] != '\0') {
         return p;
     }
-    p = xrootd_identity_subject_cstr(id);
+    p = brix_identity_subject_cstr(id);
     return (p != NULL && p[0] != '\0') ? p : NULL;
 }
 
 void
-xrootd_imp_request_begin(const xrootd_identity_t *id)
+brix_imp_request_begin(const brix_identity_t *id)
 {
-    if (imp_settings.mode != XROOTD_IMP_MAP) {
+    if (imp_settings.mode != BRIX_IMP_MAP) {
         return;
     }
     /* Mark the request active BEFORE setting the principal: even if the identity
      * yields no mappable principal (empty subject), confined ops must route to the
      * broker (which denies) rather than fall back to the worker. */
-    xrootd_imp_mark_in_request(1);
-    xrootd_imp_set_principal(id != NULL ? imp_principal_of(id) : NULL);
+    brix_imp_mark_in_request(1);
+    brix_imp_set_principal(id != NULL ? imp_principal_of(id) : NULL);
 }
 
 void
-xrootd_imp_request_end(void)
+brix_imp_request_end(void)
 {
-    if (imp_settings.mode != XROOTD_IMP_MAP) {
+    if (imp_settings.mode != BRIX_IMP_MAP) {
         return;
     }
-    xrootd_imp_clear_principal();
-    xrootd_imp_mark_in_request(0);
+    brix_imp_clear_principal();
+    brix_imp_mark_in_request(0);
 }

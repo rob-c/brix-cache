@@ -17,7 +17,7 @@ webdav_tpc_pmark_opensocket(void *clientp, curlsocktype purpose,
     }
     /* Only the actual data connection; skip any proxy/other socket types. */
     if (rec != NULL && rec->active && purpose == CURLSOCKTYPE_IPCXN) {
-        (void) xrootd_pmark_flowlabel_apply_addr((int) fd,
+        (void) brix_pmark_flowlabel_apply_addr((int) fd,
             (struct sockaddr *) &address->addr, (socklen_t) address->addrlen,
             rec->exp, rec->act, rec->log);
         rec->fd = (int) fd;
@@ -34,7 +34,7 @@ webdav_tpc_pmark_closesocket(void *clientp, curl_socket_t item)
     if (rec != NULL && rec->active && rec->fd == (int) item) {
         /* Socket is still connected here — emit the firefly (reads TCP_INFO)
          * before the close below. */
-        xrootd_pmark_firefly_oneshot(rec->pm, (int) item, rec->exp, rec->act,
+        brix_pmark_firefly_oneshot(rec->pm, (int) item, rec->exp, rec->act,
             rec->peer_is_src, rec->app, rec->log);
         rec->fd = -1;
     }
@@ -47,10 +47,10 @@ webdav_tpc_pmark_closesocket(void *clientp, curl_socket_t item)
  * transfer does not map to an (experiment, activity). */
 void
 webdav_tpc_pmark_attach(CURL *curl, webdav_tpc_pmark_rec_t *rec,
-    ngx_http_xrootd_webdav_loc_conf_t *conf, int is_push,
+    ngx_http_brix_webdav_loc_conf_t *conf, int is_push,
     const char *file_path, ngx_log_t *log)
 {
-    xrootd_pmark_conf_t *pm = &conf->common.pmark;
+    brix_pmark_conf_t *pm = &conf->common.pmark;
     ngx_uint_t           e, a;
     size_t               n;
 
@@ -58,8 +58,8 @@ webdav_tpc_pmark_attach(CURL *curl, webdav_tpc_pmark_rec_t *rec,
     rec->fd = -1;
 
     if (!pm->enable
-        || xrootd_pmark_runtime_ensure(pm, ngx_cycle->pool, log) != NGX_OK
-        || xrootd_pmark_map_codes(pm, "", "", file_path, NULL, &e, &a) != NGX_OK)
+        || brix_pmark_runtime_ensure(pm, ngx_cycle->pool, log) != NGX_OK
+        || brix_pmark_map_codes(pm, "", "", file_path, NULL, &e, &a) != NGX_OK)
     {
         return;
     }
@@ -92,11 +92,11 @@ ms_write_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
     size_t           total = size * nmemb;
     size_t           done  = 0;
 
-    xrootd_sd_obj_t obj;
+    brix_sd_obj_t obj;
 
-    xrootd_sd_posix_wrap(&obj, ctx->fd);   /* phase-55: SD seam */
+    brix_sd_posix_wrap(&obj, ctx->fd);   /* phase-55: SD seam */
     while (done < total) {
-        /* backend-agnostic vtable form (not the concrete xrootd_sd_posix_driver)
+        /* backend-agnostic vtable form (not the concrete brix_sd_posix_driver)
          * so a non-POSIX backend serves this path unchanged. */
         ssize_t n = obj.driver->pwrite(&obj, ptr + done, total - done,
                                        ctx->cur_offset + (off_t) done);
@@ -140,8 +140,8 @@ webdav_tpc_curl_progress(void *clientp, curl_off_t dltotal,
      * CURLE_ABORTED_BY_CALLBACK.
      */
     {
-        const xrootd_tpc_transfer_t *t =
-            xrootd_tpc_registry_find(progress->transfer_id);
+        const brix_tpc_transfer_t *t =
+            brix_tpc_registry_find(progress->transfer_id);
         if (t != NULL && t->cancelled) {
             return 1;
         }
@@ -152,8 +152,8 @@ webdav_tpc_curl_progress(void *clientp, curl_off_t dltotal,
 
     if (done != progress->last_done) {
         progress->last_done = done;
-        (void) xrootd_tpc_progress_emit(progress->transfer_id, done, total,
-                                        XROOTD_TPC_STATE_ACTIVE,
+        (void) brix_tpc_progress_emit(progress->transfer_id, done, total,
+                                        BRIX_TPC_STATE_ACTIVE,
                                         progress->log);
     }
 
@@ -188,9 +188,9 @@ webdav_tpc_curl_finish(ngx_int_t rc, CURL *curl, struct curl_slist *hdrs,
     }
 
     if (rc == NGX_OK) {
-        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_SUCCESS]);
+        BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_CURL_SUCCESS]);
     } else {
-        XROOTD_WEBDAV_METRIC_INC(tpc_total[XROOTD_WEBDAV_TPC_CURL_ERROR]);
+        BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_CURL_ERROR]);
     }
     return rc;
 }

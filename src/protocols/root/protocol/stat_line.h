@@ -7,8 +7,8 @@
  *       with an OPTIONAL extended tail some servers (EOS) append:
  *         " <ctime> <atime> <mode-octal> <owner> <group>"
  *       This header holds BOTH directions of that one grammar:
- *         - xrootd_statline_format: fields  -> line   (the server is the encoder)
- *         - xrootd_statline_parse:  line    -> fields (the client is the decoder)
+ *         - brix_statline_format: fields  -> line   (the server is the encoder)
+ *         - brix_statline_parse:  line    -> fields (the client is the decoder)
  * WHY:  the encoder lived in the module (src/path/stat_body.c, via snprintf) and
  *       the decoder lived in the native client (client/lib/ops_meta.c, via sscanf)
  *       with NOTHING but human discipline keeping the two in step. They are exact
@@ -22,13 +22,13 @@
  *       at the call sites; this header only owns the line's lexical shape.
  *
  * ROUND-TRIP CONTRACT: for any (id, size, flags, mtime),
- *   xrootd_statline_parse(buf-from-xrootd_statline_format(id,size,flags,mtime))
+ *   brix_statline_parse(buf-from-brix_statline_format(id,size,flags,mtime))
  *   recovers the same four mandatory fields (have_ext == 0).
  *
  * Clean-room: grammar from src/protocol wire docs (vs XProtocol stat reply).
  */
-#ifndef XROOTD_PROTOCOL_STAT_LINE_H
-#define XROOTD_PROTOCOL_STAT_LINE_H
+#ifndef BRIX_PROTOCOL_STAT_LINE_H
+#define BRIX_PROTOCOL_STAT_LINE_H
 
 #include <stdint.h>
 #include <stdio.h>
@@ -42,7 +42,7 @@ typedef struct {
     unsigned  mode;         /* decoded from the octal mode token on the wire */
     char      owner[64];
     char      group[64];
-} xrootd_statline_ext;
+} brix_statline_ext;
 
 /*
  * Encode the mandatory 4-field stat line. Returns snprintf's value (the number of
@@ -51,7 +51,7 @@ typedef struct {
  * id as %llu, size as %lld, flags as %d, mtime as %ld.
  */
 static inline int
-xrootd_statline_format(char *out, size_t outsz, unsigned long long id,
+brix_statline_format(char *out, size_t outsz, unsigned long long id,
                        long long size, int flags, long mtime)
 {
     return snprintf(out, outsz, "%llu %lld %d %ld", id, size, flags, mtime);
@@ -64,8 +64,8 @@ xrootd_statline_format(char *out, size_t outsz, unsigned long long id,
  * success, -1 if the line does not carry at least the four mandatory fields.
  */
 static inline int
-xrootd_statline_parse(const char *s, uint64_t *id, int64_t *size,
-                      int *flags, long *mtime, xrootd_statline_ext *ext)
+brix_statline_parse(const char *s, uint64_t *id, int64_t *size,
+                      int *flags, long *mtime, brix_statline_ext *ext)
 {
     unsigned long long pid    = 0;
     long long          psize  = 0;
@@ -109,4 +109,4 @@ xrootd_statline_parse(const char *s, uint64_t *id, int64_t *size,
     return 0;
 }
 
-#endif /* XROOTD_PROTOCOL_STAT_LINE_H */
+#endif /* BRIX_PROTOCOL_STAT_LINE_H */

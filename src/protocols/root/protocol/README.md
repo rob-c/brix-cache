@@ -37,7 +37,7 @@ These definitions are **wire facts, not policy**: they describe what bytes look
 like on the network, never how a request is authorized, confined, or executed.
 
 In the request lifecycle this subsystem sits *underneath* everything on the
-stream path. The umbrella module header `../ngx_xrootd_module.h` pulls in
+stream path. The umbrella module header `../ngx_brix_module.h` pulls in
 `protocol/protocol.h`, which transitively makes every constant and struct visible
 to the connection/handshake/dispatch layers, the per-opcode handlers
 (`../read/`, `../write/`, `../dirlist/`, `../query/`, `../fattr/`), the auth
@@ -54,7 +54,7 @@ structs.
 | `protocol.h` | Umbrella header — what consumers `#include`. Pulls in the five sub-headers below in dependency order (`types` → `opcodes` → `flags` → `wire` → `gsi`). |
 | `types.h` | Primitive aliases matching `XProtocol.hh`: `kXR_char`=u8, `kXR_unt16`/`unt32`/`unt64`, `kXR_int16`/`int32`/`int64`. Used by every struct so they read like the published spec. Depends only on `<stdint.h>`. |
 | `opcodes.h` | The numeric vocabulary: request IDs (`kXR_auth` 3000 … `kXR_clone` 3032), response status codes (`kXR_ok`/`kXR_oksofar`/`kXR_error`/`kXR_redirect`/`kXR_wait`/`kXR_status` 4007 …), `kXR_attn` action codes (`kXR_asyncms`/`kXR_asynresp`), XRootD error codes (`kXR_NotFound` … `kXR_TooManyErrs`, distinct from POSIX errno), `kXR_query` infotypes (`kXR_Qcksum`/`kXR_Qspace`/`kXR_Qconfig` …), `kXR_fattr` subcodes (`kXR_fattrGet`/`Set`/`Del`/`List`), version/port constants, server-type codes, and fixed wire sizes. |
-| `flags.h` | Every option/capability bitmask: open flags (`kXR_open_read`/`kXR_new`/`kXR_delete`/`kXR_retstat`/`kXR_posc` …), ASCII-stat flag bits (`kXR_isDir`/`kXR_readable`/`kXR_writable` + local extensions `kXR_statAttrCache`/`kXR_cachersp`), protocol request/response capability bits (`kXR_ableTLS`/`kXR_wantTLS` ↔ `kXR_haveTLS`/`kXR_gotoTLS`/`kXR_isServer`/`kXR_isManager`/`kXR_attrProxy`/`kXR_attrCache` …), login capver bits, per-op options (dirlist `kXR_dstat`/`kXR_dcksm`, stat `kXR_vfs`, prepare/mkdir/sigver/set/chkpoint/fattr), and readv/writev/pgread/pgwrite sizing (`XROOTD_*_MAXSEGS`=1024, `kXR_pgPageSZ`=4096, `kXR_pgUnitSZ`=4100). |
+| `flags.h` | Every option/capability bitmask: open flags (`kXR_open_read`/`kXR_new`/`kXR_delete`/`kXR_retstat`/`kXR_posc` …), ASCII-stat flag bits (`kXR_isDir`/`kXR_readable`/`kXR_writable` + local extensions `kXR_statAttrCache`/`kXR_cachersp`), protocol request/response capability bits (`kXR_ableTLS`/`kXR_wantTLS` ↔ `kXR_haveTLS`/`kXR_gotoTLS`/`kXR_isServer`/`kXR_isManager`/`kXR_attrProxy`/`kXR_attrCache` …), login capver bits, per-op options (dirlist `kXR_dstat`/`kXR_dcksm`, stat `kXR_vfs`, prepare/mkdir/sigver/set/chkpoint/fattr), and readv/writev/pgread/pgwrite sizing (`BRIX_*_MAXSEGS`=1024, `kXR_pgPageSZ`=4096, `kXR_pgUnitSZ`=4100). |
 | `wire.h` | Public framing header — a thin aggregator that `#include`s the two struct fragments below. **Include this, not the fragments directly.** |
 | `wire_core_requests.h` | Packed structs for handshake + common framing + core/read ops: `ClientInitHandShake`/`ServerInitHandShake`, the universal `ClientRequestHdr`/`ServerResponseHdr`, the `kXR_status` integrity bodies (`ServerResponseBody_Status`/`_pgRead`/`_pgWrite`, `ServerStatusResponse_pgRead`/`_pgWrite`), `ServerErrorBody`/`ServerRedirectBody`, and the protocol/login/auth/open/prepare/read/stat/close/ping/query/dirlist requests + response bodies. |
 | `wire_write_extended_requests.h` | Packed structs for write/extended ops: `ClientPgWriteRequest`, `ClientWriteRequest`, sync/truncate/mkdir/rm/rmdir/mv/chmod/bind/endsess/locate/sigver/statx/fattr/set/writev/pgread/clone/chkpoint, plus the payload-element structs `clone_item` (32 B), `readahead_list` (16 B), `write_list` (16 B), and `ServerResponseBody_ChkPoint`. |
@@ -88,7 +88,7 @@ structs.
   is NUL-padded and **not** NUL-terminated at exactly 8 chars.
 - **Vector-op payload elements** — `clone_item` (32 B), `readahead_list` (16 B,
   kXR_readv), `write_list` (16 B, kXR_writev): requests carry an inline array of
-  these, bounded by `XROOTD_READV_MAXSEGS` / `XROOTD_WRITEV_MAXSEGS` = 1024.
+  these, bounded by `BRIX_READV_MAXSEGS` / `BRIX_WRITEV_MAXSEGS` = 1024.
 - **Opcode/code numbering domains (`opcodes.h`)** — request IDs run 3000–3032
   (`kXR_auth` … `kXR_clone`); legacy ROOTD opcodes (<3000) are unsupported.
   Error codes and query infotypes **also** start near 3000 but are **separate
@@ -104,9 +104,9 @@ Nothing *executes* here — this subsystem is **included, not called**. The flow
 that *uses* it on the `root://` path:
 
 1. A connection is accepted in `../connection/handler.c`; `../connection/recv.c`
-   accumulates bytes into a `ClientRequestHdr` and calls `xrootd_dispatch()` in
+   accumulates bytes into a `ClientRequestHdr` and calls `brix_dispatch()` in
    `../handshake/dispatch.c`.
-2. `xrootd_dispatch()` reads `requestid` (compared against the `kXR_*` opcodes
+2. `brix_dispatch()` reads `requestid` (compared against the `kXR_*` opcodes
    here) and routes to the handshake/session, read, or write dispatch families
    (`../handshake/dispatch_session.c` / `dispatch_read.c` / `dispatch_write.c`),
    after honouring any `kXR_sigver` envelope (constants from `flags.h`,
@@ -194,8 +194,8 @@ the include graph.
   The `ClientPgReadRequest` section is labelled `kXR_pgread (3031)` but the real
   opcode is `kXR_pgread = 3030` (3031 is `kXR_writev`)
   (`wire_write_extended_requests.h:282` vs `opcodes.h:74-75`). Several comments
-  also reference a dispatcher named `xrootd_dispatch_opcode()`; the actual
-  function is **`xrootd_dispatch()`** in `../handshake/dispatch.c`.
+  also reference a dispatcher named `brix_dispatch_opcode()`; the actual
+  function is **`brix_dispatch()`** in `../handshake/dispatch.c`.
 
 ## Entry points / extending
 
@@ -224,7 +224,7 @@ list), because this subsystem ships **no `.c` files**.
 ## See also
 
 - `../README.md` — master subsystem index.
-- `../handshake/` — opcode dispatcher (`xrootd_dispatch()`) that reads these IDs.
+- `../handshake/` — opcode dispatcher (`brix_dispatch()`) that reads these IDs.
 - `../connection/` — byte accumulation into `ClientRequestHdr`.
 - `../response/` — frames `ServerResponseHdr` + bodies using these status codes.
 - `../read/`, `../write/`, `../dirlist/`, `../query/`, `../fattr/` — per-opcode

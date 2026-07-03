@@ -59,7 +59,7 @@ xrdhttp_filter_init(ngx_conf_t *cf)
     return NGX_OK;
 }
 
-static ngx_http_module_t  ngx_http_xrootd_xrdhttp_filter_module_ctx = {
+static ngx_http_module_t  ngx_http_brix_xrdhttp_filter_module_ctx = {
     NULL,                 /* preconfiguration  */
     xrdhttp_filter_init,  /* postconfiguration */
     NULL,                 /* create main configuration */
@@ -70,9 +70,9 @@ static ngx_http_module_t  ngx_http_xrootd_xrdhttp_filter_module_ctx = {
     NULL                  /* merge location configuration  */
 };
 
-ngx_module_t  ngx_http_xrootd_xrdhttp_filter_module = {
+ngx_module_t  ngx_http_brix_xrdhttp_filter_module = {
     NGX_MODULE_V1,
-    &ngx_http_xrootd_xrdhttp_filter_module_ctx,  /* module context */
+    &ngx_http_brix_xrdhttp_filter_module_ctx,  /* module context */
     NULL,                                        /* module directives */
     NGX_HTTP_MODULE,                             /* module type */
     NULL,                                        /* init master */

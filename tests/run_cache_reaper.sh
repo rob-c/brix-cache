@@ -2,8 +2,8 @@
 #
 # run_cache_reaper.sh — end-to-end proof of the unified cache-state engine's
 # stale-dirty reaper. Stands up its own stream-only nginx with a cache state root
-# and a 1-second xrootd_cache_dirty_max_age, plants an aged-dirty .cinfo record
-# (via the real xrootd_cache_cinfo_mark_dirty, linked against the built cinfo.o),
+# and a 1-second brix_cache_dirty_max_age, plants an aged-dirty .cinfo record
+# (via the real brix_cache_cinfo_mark_dirty, linked against the built cinfo.o),
 # waits for the per-worker reaper timer to fire, and asserts the data file + its
 # sidecar are removed. Also asserts a CLEAN file is left untouched.
 #
@@ -30,11 +30,11 @@ cat > "$PFX/mk_dirty.c" <<'EOF'
 #include <stdint.h>
 #include <stddef.h>
 typedef intptr_t ngx_int_t;
-ngx_int_t xrootd_cache_cinfo_mark_dirty(const char *cache_path, uint64_t size,
+ngx_int_t brix_cache_cinfo_mark_dirty(const char *cache_path, uint64_t size,
     uint32_t block_size, uint64_t mtime, uint64_t off, uint64_t len, void *log);
 int main(int argc, char **argv) {
     if (argc < 2) return 2;
-    return xrootd_cache_cinfo_mark_dirty(argv[1], 4096, 1048576, 1000, 0, 4096, NULL)
+    return brix_cache_cinfo_mark_dirty(argv[1], 4096, 1048576, 1000, 0, 4096, NULL)
            == 0 ? 0 : 1;
 }
 EOF
@@ -49,10 +49,10 @@ stream {
     server {
         listen 127.0.0.1:${PORT};
         xrootd on;
-        xrootd_root $PFX/root;
-        xrootd_auth none;
-        xrootd_cache_state_root  $PFX/state;
-        xrootd_cache_dirty_max_age 1;
+        brix_root $PFX/root;
+        brix_auth none;
+        brix_cache_state_root  $PFX/state;
+        brix_cache_dirty_max_age 1;
     }
 }
 EOF

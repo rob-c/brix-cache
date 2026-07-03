@@ -7,7 +7,7 @@
  * single-threaded per connection.
  */
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "pgw_fob.h"
 #include "protocols/root/protocol/flags.h"   /* kXR_pgPageBL, kXR_pgPageSZ */
 #include <string.h>
@@ -27,7 +27,7 @@ pgw_fob_key(int64_t off, uint32_t dlen)
 }
 
 void
-xrootd_pgw_fob_open(xrootd_file_t *f)
+brix_pgw_fob_open(brix_file_t *f)
 {
     if (f->pgw_fob_enabled) {
         return;
@@ -40,7 +40,7 @@ xrootd_pgw_fob_open(xrootd_file_t *f)
 }
 
 int
-xrootd_pgw_fob_add(xrootd_file_t *f, int64_t off, uint32_t dlen)
+brix_pgw_fob_add(brix_file_t *f, int64_t off, uint32_t dlen)
 {
     int64_t  key = pgw_fob_key(off, dlen);
     uint32_t i;
@@ -49,7 +49,7 @@ xrootd_pgw_fob_add(xrootd_file_t *f, int64_t off, uint32_t dlen)
     f->pgw_fob_errs++;
 
     /* Already registered → idempotent (a page re-failing keeps one entry). */
-    for (i = 0; i < XROOTD_PGW_FOB_SLOTS; i++) {
+    for (i = 0; i < BRIX_PGW_FOB_SLOTS; i++) {
         if (f->pgw_fob[i].used) {
             if (f->pgw_fob[i].key == key) {
                 return 1;
@@ -70,12 +70,12 @@ xrootd_pgw_fob_add(xrootd_file_t *f, int64_t off, uint32_t dlen)
 }
 
 int
-xrootd_pgw_fob_del(xrootd_file_t *f, int64_t off, uint32_t dlen)
+brix_pgw_fob_del(brix_file_t *f, int64_t off, uint32_t dlen)
 {
     int64_t  key = pgw_fob_key(off, dlen);
     uint32_t i;
 
-    for (i = 0; i < XROOTD_PGW_FOB_SLOTS; i++) {
+    for (i = 0; i < BRIX_PGW_FOB_SLOTS; i++) {
         if (f->pgw_fob[i].used && f->pgw_fob[i].key == key) {
             f->pgw_fob[i].used = 0;
             f->pgw_fob[i].key  = 0;
@@ -90,12 +90,12 @@ xrootd_pgw_fob_del(xrootd_file_t *f, int64_t off, uint32_t dlen)
 }
 
 int
-xrootd_pgw_fob_has(const xrootd_file_t *f, int64_t off, uint32_t dlen)
+brix_pgw_fob_has(const brix_file_t *f, int64_t off, uint32_t dlen)
 {
     int64_t  key = pgw_fob_key(off, dlen);
     uint32_t i;
 
-    for (i = 0; i < XROOTD_PGW_FOB_SLOTS; i++) {
+    for (i = 0; i < BRIX_PGW_FOB_SLOTS; i++) {
         if (f->pgw_fob[i].used && f->pgw_fob[i].key == key) {
             return 1;
         }
@@ -104,13 +104,13 @@ xrootd_pgw_fob_has(const xrootd_file_t *f, int64_t off, uint32_t dlen)
 }
 
 uint32_t
-xrootd_pgw_fob_count(const xrootd_file_t *f)
+brix_pgw_fob_count(const brix_file_t *f)
 {
     return f->pgw_fob_count;
 }
 
 void
-xrootd_pgw_fob_reset(xrootd_file_t *f)
+brix_pgw_fob_reset(brix_file_t *f)
 {
     f->pgw_fob_enabled = 0;
     f->pgw_fob_count   = 0;

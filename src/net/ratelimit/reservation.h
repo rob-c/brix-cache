@@ -1,5 +1,5 @@
-#ifndef XROOTD_RATELIMIT_RESERVATION_H
-#define XROOTD_RATELIMIT_RESERVATION_H
+#ifndef BRIX_RATELIMIT_RESERVATION_H
+#define BRIX_RATELIMIT_RESERVATION_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -15,21 +15,21 @@
  * per-worker; a cross-worker SHM upgrade is a follow-on.
  */
 
-typedef struct xrootd_resv_zone_s xrootd_resv_zone_t;
+typedef struct brix_resv_zone_s brix_resv_zone_t;
 
 /* Create/lookup a reservation zone with an aggregate bytes/sec budget. */
-xrootd_resv_zone_t *xrootd_resv_zone_create(ngx_pool_t *pool, const char *name,
+brix_resv_zone_t *brix_resv_zone_create(ngx_pool_t *pool, const char *name,
     uint64_t budget);
-xrootd_resv_zone_t *xrootd_resv_zone_get(const char *name);
+brix_resv_zone_t *brix_resv_zone_get(const char *name);
 
 /* Reserve `bytes`. Returns a non-zero handle if granted, 0 if queued/over. */
-uint64_t xrootd_resv_schedule(xrootd_resv_zone_t *z, uint64_t bytes);
+uint64_t brix_resv_schedule(brix_resv_zone_t *z, uint64_t bytes);
 
 /* Release a previously granted handle (idempotent). */
-void xrootd_resv_done(xrootd_resv_zone_t *z, uint64_t handle);
+void brix_resv_done(brix_resv_zone_t *z, uint64_t handle);
 
 /* Snapshot: queued / granted-in-use bytes / granted count. */
-void xrootd_resv_status(xrootd_resv_zone_t *z, uint64_t *queued_bytes,
+void brix_resv_status(brix_resv_zone_t *z, uint64_t *queued_bytes,
     uint64_t *in_use_bytes, int *granted);
 
-#endif /* XROOTD_RATELIMIT_RESERVATION_H */
+#endif /* BRIX_RATELIMIT_RESERVATION_H */

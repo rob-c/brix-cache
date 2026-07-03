@@ -2,9 +2,9 @@
 tests/test_ocsp.py — OCSP certificate revocation checking and stapling tests.
 
 Tests the Feature 8e implementation:
-  - xrootd_ocsp_enable:    check client certs against OCSP responder
-  - xrootd_ocsp_soft_fail: treat network errors as pass
-  - xrootd_ocsp_stapling:  serve cached OCSP response in TLS ServerHello
+  - brix_ocsp_enable:    check client certs against OCSP responder
+  - brix_ocsp_soft_fail: treat network errors as pass
+  - brix_ocsp_stapling:  serve cached OCSP response in TLS ServerHello
 
 Test strategy:
   - Unit-level: verify the Python OCSP response builder and mock server work

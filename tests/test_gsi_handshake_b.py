@@ -191,7 +191,7 @@ class TestVomsExtraction:
 
 
 # --------------------------------------------------------------------------- #
-# root:// — xrootd_auth both: the GSI client picks gsi from a ztn+gsi offer
+# root:// — brix_auth both: the GSI client picks gsi from a ztn+gsi offer
 # --------------------------------------------------------------------------- #
 class TestBothAuthMode:
     def test_gsi_client_authenticates(self, pki, nginx_root_both):

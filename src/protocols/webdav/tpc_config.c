@@ -6,8 +6,8 @@
 #include "webdav.h"
 
 void
-ngx_http_xrootd_webdav_tpc_create_loc_conf(
-    ngx_http_xrootd_webdav_loc_conf_t *conf)
+ngx_http_brix_webdav_tpc_create_loc_conf(
+    ngx_http_brix_webdav_loc_conf_t *conf)
 {
     conf->tpc              = NGX_CONF_UNSET;
     conf->tpc_timeout      = NGX_CONF_UNSET_UINT;
@@ -20,9 +20,9 @@ ngx_http_xrootd_webdav_tpc_create_loc_conf(
 }
 
 void
-ngx_http_xrootd_webdav_tpc_merge_loc_conf(
-    ngx_http_xrootd_webdav_loc_conf_t *conf,
-    ngx_http_xrootd_webdav_loc_conf_t *prev)
+ngx_http_brix_webdav_tpc_merge_loc_conf(
+    ngx_http_brix_webdav_loc_conf_t *conf,
+    ngx_http_brix_webdav_loc_conf_t *prev)
 {
     ngx_conf_merge_value(conf->tpc, prev->tpc, 0);
     /* SSRF policy: deny local, allow private by default (HEP federation nodes
@@ -40,7 +40,7 @@ ngx_http_xrootd_webdav_tpc_merge_loc_conf(
      * thread-pool worker indefinitely.  This measures lack of PROGRESS, not
      * duration, so a slow-but-advancing transfer is never clipped.  The absolute
      * total timeout stays opt-in (0 = unlimited) — operators who need a hard cap
-     * set xrootd_webdav_tpc_timeout.  0 on either low-speed knob disables it. */
+     * set brix_webdav_tpc_timeout.  0 on either low-speed knob disables it. */
     ngx_conf_merge_uint_value(conf->tpc_timeout, prev->tpc_timeout, 0);
     ngx_conf_merge_uint_value(conf->tpc_low_speed_bytes,
                               prev->tpc_low_speed_bytes, 1024);

@@ -6,7 +6,7 @@
  * targets described in README.md).  It interprets the fuzz input as two
  * size_t operands and asserts the safety contract of safe_size.h:
  *
- *   - xrootd_size_mul / xrootd_size_add report overflow instead of wrapping;
+ *   - brix_size_mul / brix_size_add report overflow instead of wrapping;
  *     when they report success the product/sum is the true mathematical value.
  *   - the *_array allocators return NULL on overflow rather than a truncated
  *     buffer (which a caller would then overrun).
@@ -36,7 +36,7 @@ static void *ngx_pcalloc(ngx_pool_t *p, size_t n) { (void) p; return calloc(1, n
 static void *ngx_alloc(size_t n, ngx_log_t *l) { (void) l; return malloc(n); }
 
 /* Pull in the unit under test, standalone (no real ngx headers). */
-#define XROOTD_SAFE_SIZE_STANDALONE 1
+#define BRIX_SAFE_SIZE_STANDALONE 1
 #include "safe_size.h"
 
 int
@@ -48,11 +48,11 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     if (size >= 2 * sizeof(size_t)) { __builtin_memcpy(&b, data + sizeof(a),
                                                        sizeof(b)); }
 
-    if (xrootd_size_mul(a, b, &out) == NGX_OK) {
+    if (brix_size_mul(a, b, &out) == NGX_OK) {
         /* On reported success the product must not have wrapped. */
         assert(b == 0 || out / b == a);
     }
-    if (xrootd_size_add(a, b, &out) == NGX_OK) {
+    if (brix_size_add(a, b, &out) == NGX_OK) {
         assert(out >= a && out >= b);
     }
 
@@ -65,12 +65,12 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
      */
     {
         size_t chk;
-        if (xrootd_size_mul(a, b, &chk) != NGX_OK) {
-            assert(xrootd_palloc_array(NULL, a, b) == NULL);   /* no wrap-alloc */
+        if (brix_size_mul(a, b, &chk) != NGX_OK) {
+            assert(brix_palloc_array(NULL, a, b) == NULL);   /* no wrap-alloc */
         } else {
             /* Non-overflow: only exercise a bounded allocation. */
             size_t aa = a % 4096, bb = b % 4096;
-            void *p = xrootd_palloc_array(NULL, aa, bb);
+            void *p = brix_palloc_array(NULL, aa, bb);
             if (aa != 0 && bb != 0) { assert(p != NULL); }
             free(p);
         }

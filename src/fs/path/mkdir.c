@@ -1,4 +1,4 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
 #include <errno.h>
 #include <string.h>
@@ -10,16 +10,16 @@
 
 /*
  *
- * WHAT: Creates directories recursively from root to target path using unconstrained mkdir syscall. Thin wrapper that delegates to xrootd_mkdir_recursive_policy() with NULL log and rules (no group policy enforcement).
+ * WHAT: Creates directories recursively from root to target path using unconstrained mkdir syscall. Thin wrapper that delegates to brix_mkdir_recursive_policy() with NULL log and rules (no group policy enforcement).
  *
  * WHY: Provides a simple API for callers who only need directory creation without policy checks — used by write/mv.c rename operations when creating intermediate directories during move.
  *
- * HOW: Copies path argument into tmp buffer, delegates to xrootd_mkdir_recursive_policy(path, mode, NULL, NULL). Returns 0 on success (all levels created or existed), -1 on failure. */
+ * HOW: Copies path argument into tmp buffer, delegates to brix_mkdir_recursive_policy(path, mode, NULL, NULL). Returns 0 on success (all levels created or existed), -1 on failure. */
 
 int
-xrootd_mkdir_recursive(const char *path, mode_t mode)
+brix_mkdir_recursive(const char *path, mode_t mode)
 {
-    return xrootd_mkdir_recursive_policy(path, mode, NULL, NULL);
+    return brix_mkdir_recursive_policy(path, mode, NULL, NULL);
 }
 
 /*
@@ -28,10 +28,10 @@ xrootd_mkdir_recursive(const char *path, mode_t mode)
  *
  * WHY: XRootD MKCOL requests may create multi-level directory trees in a single call. Creating each level individually ensures intermediate directories inherit the correct parent group policy from their newly-created parent, preventing misconfigured permissions on nested paths. The policy application happens only when mkdir succeeds (not when EEXIST is returned) — existing parents retain their original policy.
  *
- * HOW: 1) Copy path into tmp[PATH_MAX], strip trailing '/' if present; 2) Iterate forward through tmp advancing p at each '/', temporarily null-terminate at '/' to get the prefix path, call mkdir(prefix, mode); 3) On successful mkdir (not EEXIST), call xrootd_apply_parent_group_policy_path() with log and rules; 4) Restore '/' at p position and continue iterating until all levels created. Returns 0 on success, -1 on first failure. Thread safety: uses local stack buffers only — safe for concurrent use. */
+ * HOW: 1) Copy path into tmp[PATH_MAX], strip trailing '/' if present; 2) Iterate forward through tmp advancing p at each '/', temporarily null-terminate at '/' to get the prefix path, call mkdir(prefix, mode); 3) On successful mkdir (not EEXIST), call brix_apply_parent_group_policy_path() with log and rules; 4) Restore '/' at p position and continue iterating until all levels created. Returns 0 on success, -1 on first failure. Thread safety: uses local stack buffers only — safe for concurrent use. */
 
 int
-xrootd_mkdir_recursive_policy(const char *path, mode_t mode,
+brix_mkdir_recursive_policy(const char *path, mode_t mode,
                               ngx_log_t *log, ngx_array_t *rules)
 {
     char  tmp[PATH_MAX];
@@ -57,7 +57,7 @@ xrootd_mkdir_recursive_policy(const char *path, mode_t mode,
                     return -1;
                 }
             } else if (log != NULL && rules != NULL) {
-                if (xrootd_apply_parent_group_policy_path(log, tmp, rules)
+                if (brix_apply_parent_group_policy_path(log, tmp, rules)
                     == NGX_ERROR)
                 {
                     return -1;
@@ -73,7 +73,7 @@ xrootd_mkdir_recursive_policy(const char *path, mode_t mode,
             return -1;
         }
     } else if (log != NULL && rules != NULL) {
-        if (xrootd_apply_parent_group_policy_path(log, tmp, rules)
+        if (brix_apply_parent_group_policy_path(log, tmp, rules)
             == NGX_ERROR)
         {
             return -1;
@@ -87,12 +87,12 @@ xrootd_mkdir_recursive_policy(const char *path, mode_t mode,
  *
  * WHAT: Creates directories recursively from root to target path using confined mkdirat syscall under parent directory confinement. Takes pre-canonicalized root_canon and resolved path, validates that resolved is within root_canon before proceeding. Applies optional group policy at each newly-created intermediate level.
  *
- * WHY: The confined variant uses xrootd_mkdir_confined_canon() (mkdirat under confinement) instead of plain mkdir(), preventing directory creation outside the export root even if symlinks were introduced between path resolution and creation. This is the security-critical variant used by WebDAV MKCOL and native XRootD mkdir opcodes.
+ * WHY: The confined variant uses brix_mkdir_confined_canon() (mkdirat under confinement) instead of plain mkdir(), preventing directory creation outside the export root even if symlinks were introduced between path resolution and creation. This is the security-critical variant used by WebDAV MKCOL and native XRootD mkdir opcodes.
  *
- * HOW: 1) Copy resolved into tmp[PATH_MAX], strip trailing '/' if present; 2) Validate resolved starts with root_canon (EXDEV on mismatch, EEXIST if resolved equals root); 3) Compute p = pointer to relative portion after root_canon; 4) Iterate forward through tmp advancing p at each '/', null-terminate prefix, call xrootd_mkdir_confined_canon(log, root_canon, tmp, mode); 5) On success (not EEXIST), apply group policy if rules != NULL; 6) Restore '/' and continue. Returns 0 on success, -1 on first failure. Thread safety: uses local stack buffers only — safe for concurrent use. */
+ * HOW: 1) Copy resolved into tmp[PATH_MAX], strip trailing '/' if present; 2) Validate resolved starts with root_canon (EXDEV on mismatch, EEXIST if resolved equals root); 3) Compute p = pointer to relative portion after root_canon; 4) Iterate forward through tmp advancing p at each '/', null-terminate prefix, call brix_mkdir_confined_canon(log, root_canon, tmp, mode); 5) On success (not EEXIST), apply group policy if rules != NULL; 6) Restore '/' and continue. Returns 0 on success, -1 on first failure. Thread safety: uses local stack buffers only — safe for concurrent use. */
 
 int
-xrootd_mkdir_recursive_confined_canon(ngx_log_t *log, const char *root_canon,
+brix_mkdir_recursive_confined_canon(ngx_log_t *log, const char *root_canon,
                                       const char *resolved, mode_t mode,
                                       ngx_array_t *rules)
 {
@@ -132,34 +132,34 @@ xrootd_mkdir_recursive_confined_canon(ngx_log_t *log, const char *root_canon,
         if (*p == '/') {
             *p = '\0';
 
-            if (xrootd_mkdir_confined_canon(log, root_canon, tmp, mode) != 0
+            if (brix_mkdir_confined_canon(log, root_canon, tmp, mode) != 0
                 && errno != EEXIST)
             {
                 *p = '/';
                 return -1;
             }
             if (rules != NULL) {
-                (void) xrootd_apply_parent_group_policy_path(log, tmp, rules);
+                (void) brix_apply_parent_group_policy_path(log, tmp, rules);
             }
 
             *p = '/';
         }
     }
 
-    if (xrootd_mkdir_confined_canon(log, root_canon, tmp, mode) != 0
+    if (brix_mkdir_confined_canon(log, root_canon, tmp, mode) != 0
         && errno != EEXIST)
     {
         return -1;
     }
     if (rules != NULL) {
-        (void) xrootd_apply_parent_group_policy_path(log, tmp, rules);
+        (void) brix_apply_parent_group_policy_path(log, tmp, rules);
     }
 
     return 0;
 }
 
 int
-xrootd_mkdir_recursive_beneath(ngx_log_t *log, int rootfd,
+brix_mkdir_recursive_beneath(ngx_log_t *log, int rootfd,
                                 const char *root_canon, const char *resolved,
                                 mode_t mode, ngx_array_t *rules)
 {
@@ -198,32 +198,32 @@ xrootd_mkdir_recursive_beneath(ngx_log_t *log, int rootfd,
     for (; *p; p++) {
         if (*p == '/') {
             *p = '\0';
-            if (xrootd_mkdir_beneath(rootfd, tmp + root_len, mode) != 0
+            if (brix_mkdir_beneath(rootfd, tmp + root_len, mode) != 0
                 && errno != EEXIST)
             {
                 *p = '/';
                 return -1;
             }
             if (rules != NULL) {
-                (void) xrootd_apply_parent_group_policy_path(log, tmp, rules);
+                (void) brix_apply_parent_group_policy_path(log, tmp, rules);
             }
             *p = '/';
         }
     }
 
-    if (xrootd_mkdir_beneath(rootfd, tmp + root_len, mode) != 0
+    if (brix_mkdir_beneath(rootfd, tmp + root_len, mode) != 0
         && errno != EEXIST)
     {
         return -1;
     }
     if (rules != NULL) {
-        (void) xrootd_apply_parent_group_policy_path(log, tmp, rules);
+        (void) brix_apply_parent_group_policy_path(log, tmp, rules);
     }
 
     return 0;
 }
 
 /* Recursive directory creation with optional group policy enforcement
- * WHAT: Creates directories recursively from the root down to the target path, applying parent group policy at each newly-created intermediate level when log and rules are provided. Three variants: unconstrained recursive mkdir (xrootd_mkdir_recursive), policy-aware variant (xrootd_mkdir_recursive_policy), and confined canonical variant (xrootd_mkdir_recursive_confined_canon).
+ * WHAT: Creates directories recursively from the root down to the target path, applying parent group policy at each newly-created intermediate level when log and rules are provided. Three variants: unconstrained recursive mkdir (brix_mkdir_recursive), policy-aware variant (brix_mkdir_recursive_policy), and confined canonical variant (brix_mkdir_recursive_confined_canon).
  *
  * WHY: XRootD clients often create multi-level directory trees in a single MKCOL request. Creating each level individually with mkdir ensures intermediate directories inherit the correct group policy from their parent, preventing misconfigured permissions on nested paths. The confined variants use mkdirat under confinement to prevent creating directories outside the export root even if symlinks were introduced between path resolution and creation. Thread safety: uses local stack buffers only — safe for concurrent use. */

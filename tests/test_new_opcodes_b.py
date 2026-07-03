@@ -210,18 +210,18 @@ class TestChkpoint:
             / "src" / "core" / "config" / "process.c"
         ).read_text(encoding="utf-8")
 
-        assert "xrootd_chkpoint_recover_root" in src
+        assert "brix_chkpoint_recover_root" in src
         assert "flock(lock_fd, LOCK_EX)" in src
-        assert "xrootd_copy_range" in src
-        assert "xrootd_staged_open" in src
-        assert "xrootd_staged_commit" in src
+        assert "brix_copy_range" in src
+        assert "brix_staged_open" in src
+        assert "brix_staged_commit" in src
         # Phase 62: confined unlink routes through the VFS seam
-        # (xrootd_vfs_unlink_path) rather than calling the path helper directly.
-        assert "xrootd_vfs_unlink_path" in src
+        # (brix_vfs_unlink_path) rather than calling the path helper directly.
+        assert "brix_vfs_unlink_path" in src
         assert "O_DIRECTORY" in src
         assert "O_NOFOLLOW" in src
         assert "fstatat" in src
-        assert "xrootd_chkpoint_recover_root" in process
+        assert "brix_chkpoint_recover_root" in process
 
     def test_chkpoint_rollback_without_begin_rejected(self):
         """kXR_ckpRollback without an active checkpoint returns an error."""

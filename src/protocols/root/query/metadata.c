@@ -20,31 +20,31 @@
  */
 
 static ngx_int_t
-xrootd_query_arg_missing(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_query_arg_missing(brix_ctx_t *ctx, ngx_connection_t *c,
     const char *tag, ngx_uint_t op)
 {
-    XROOTD_RETURN_ERR(ctx, c, op, "QUERY", "-", tag,
+    BRIX_RETURN_ERR(ctx, c, op, "QUERY", "-", tag,
                       kXR_ArgMissing, "Required query argument not present");
 }
 
 static ngx_int_t
-xrootd_query_fsctl_unsupported(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_query_fsctl_unsupported(brix_ctx_t *ctx, ngx_connection_t *c,
     const char *path, const char *tag, ngx_uint_t op)
 {
-    XROOTD_RETURN_ERR(ctx, c, op, "QUERY", path ? path : "-", tag,
+    BRIX_RETURN_ERR(ctx, c, op, "QUERY", path ? path : "-", tag,
                       kXR_Unsupported, "FSctl operation not supported");
 }
 
 static ngx_int_t
-xrootd_query_fctl_unsupported(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_query_fctl_unsupported(brix_ctx_t *ctx, ngx_connection_t *c,
     const char *path, const char *tag, ngx_uint_t op)
 {
-    XROOTD_RETURN_ERR(ctx, c, op, "QUERY", path ? path : "-", tag,
+    BRIX_RETURN_ERR(ctx, c, op, "QUERY", path ? path : "-", tag,
                       kXR_Unsupported, "fctl operation not supported");
 }
 
 static ngx_flag_t
-xrootd_query_payload_equals(xrootd_ctx_t *ctx, const char *text)
+brix_query_payload_equals(brix_ctx_t *ctx, const char *text)
 {
     size_t len, text_len;
 
@@ -62,10 +62,10 @@ xrootd_query_payload_equals(xrootd_ctx_t *ctx, const char *text)
             && ngx_memcmp(ctx->payload, text, text_len) == 0);
 }
 
-/* xrootd_query_stats — kXR_QStats: XML server statistics (active/total
+/* brix_query_stats — kXR_QStats: XML server statistics (active/total
  * connections, bytes rx/tx, timestamp, listening port). */
 ngx_int_t
-xrootd_query_stats(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_query_stats(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     char   resp[1024];
     int    port = 0;
@@ -95,10 +95,10 @@ xrootd_query_stats(xrootd_ctx_t *ctx, ngx_connection_t *c)
     }
 
     n = snprintf(resp, sizeof(resp) - 1,
-        "<statistics id=\"xrootd\" ver=\"" XROOTD_SERVER_VERSION "\""
-        " tos=\"%ld\" pgm=\"" XROOTD_SERVER_NAME "\">"
+        "<statistics id=\"xrootd\" ver=\"" BRIX_SERVER_VERSION "\""
+        " tos=\"%ld\" pgm=\"" BRIX_SERVER_NAME "\">"
         "<stats id=\"info\"><host>localhost</host><port>%d</port>"
-        "<name>" XROOTD_SERVER_NAME "</name></stats>"
+        "<name>" BRIX_SERVER_NAME "</name></stats>"
         "<stats id=\"link\"><num>%ld</num><tot>%ld</tot>"
         "<in>%ld</in><out>%ld</out><ctime>0</ctime>"
         "<ltime>0</ltime><sfps>0</sfps></stats>"
@@ -107,60 +107,60 @@ xrootd_query_stats(xrootd_ctx_t *ctx, ngx_connection_t *c)
         conns_active, conns_total,
         bytes_in, bytes_out);
 
-    xrootd_log_access(ctx, c, "QUERY", "-", "stats", 1, 0, NULL, 0);
-    XROOTD_OP_OK(ctx, XROOTD_OP_QUERY_STATS);
-    return xrootd_send_ok(ctx, c, resp, (uint32_t) (n + 1));
+    brix_log_access(ctx, c, "QUERY", "-", "stats", 1, 0, NULL, 0);
+    BRIX_OP_OK(ctx, BRIX_OP_QUERY_STATS);
+    return brix_send_ok(ctx, c, resp, (uint32_t) (n + 1));
 }
 
-/* xrootd_query_xattr — kXR_Qxattr: list a path's extended attributes through the
+/* brix_query_xattr — kXR_Qxattr: list a path's extended attributes through the
  * full security chain (extract → resolve → authdb → VO ACL → stat), returning the
  * oss.* key-values plus any user.U.*-prefixed xattrs. */
 ngx_int_t
-xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_query_xattr(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
 {
-    char              pathbuf[XROOTD_MAX_PATH + 1];
+    char              pathbuf[BRIX_MAX_PATH + 1];
     char              full_path[PATH_MAX];
     char              resp[4096];
     int               pos = 0;
     char              raw_list[4096];
     ssize_t           list_sz;
-    xrootd_vfs_ctx_t  vctx;
-    xrootd_vfs_stat_t vst;
+    brix_vfs_ctx_t  vctx;
+    brix_vfs_stat_t vst;
     char              ftype;
     char              facc;
 
     if (ctx->cur_dlen == 0 || ctx->payload == NULL) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_XATTR);
-        return xrootd_send_error(ctx, c, kXR_ArgMissing,
+        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
+        return brix_send_error(ctx, c, kXR_ArgMissing,
                                  "xattr: path required");
     }
 
-    if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+    if (!brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
                              pathbuf, sizeof(pathbuf), 1)) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_XATTR);
-        return xrootd_send_error(ctx, c, kXR_ArgInvalid, "invalid path");
+        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
+        return brix_send_error(ctx, c, kXR_ArgInvalid, "invalid path");
     }
 
-    xrootd_beneath_full_path(conf->common.root_canon, pathbuf,
+    brix_beneath_full_path(conf->common.root_canon, pathbuf,
                               full_path, sizeof(full_path));
 
-    if (xrootd_auth_gate(ctx, c, XROOTD_OP_QUERY_XATTR, "QUERY",
+    if (brix_auth_gate(ctx, c, BRIX_OP_QUERY_XATTR, "QUERY",
                          pathbuf, full_path, conf,
-                         XROOTD_AUTH_READ, 0) != NGX_OK) {
+                         BRIX_AUTH_READ, 0) != NGX_OK) {
         return ctx->write_rc;
     }
 
     /* Stat + xattr list/get all flow through the VFS (one ctx, confined to the
      * export root). probe (follow) replaces the raw stat; the OP_STAT metric is
      * suppressed (probe) so only the enclosing QUERY op is accounted. */
-    xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_ROOT,
+    brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
         conf->common.root_canon, NULL, conf->common.allow_write,
         0 /* is_tls */, NULL, full_path);
 
-    if (xrootd_vfs_probe(&vctx, 0 /* follow */, &vst) != NGX_OK) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_XATTR);
-        return xrootd_send_error(ctx, c, xrootd_kxr_from_errno(errno),
+    if (brix_vfs_probe(&vctx, 0 /* follow */, &vst) != NGX_OK) {
+        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
+        return brix_send_error(ctx, c, brix_kxr_from_errno(errno),
                                  strerror(errno));
     }
 
@@ -182,7 +182,7 @@ xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
                    (long) vst.mtime, (long) vst.ctime, (long) vst.atime,
                    facc);
 
-    list_sz = xrootd_vfs_listxattr(&vctx, raw_list, sizeof(raw_list));
+    list_sz = brix_vfs_listxattr(&vctx, raw_list, sizeof(raw_list));
     if (list_sz > 0) {
         char *lp = raw_list;
         char *lend = raw_list + list_sz;
@@ -194,7 +194,7 @@ xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
                 char    val[1024];
                 ssize_t vlen;
 
-                vlen = xrootd_vfs_getxattr(&vctx, lp, val, sizeof(val) - 1);
+                vlen = brix_vfs_getxattr(&vctx, lp, val, sizeof(val) - 1);
                 if (vlen >= 0) {
                     val[vlen] = '\0';
                     pos += snprintf(resp + pos, sizeof(resp) - pos - 1,
@@ -206,110 +206,110 @@ xrootd_query_xattr(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    xrootd_log_access(ctx, c, "QUERY", pathbuf, "xattr", 1, 0, NULL, 0);
-    XROOTD_OP_OK(ctx, XROOTD_OP_QUERY_XATTR);
+    brix_log_access(ctx, c, "QUERY", pathbuf, "xattr", 1, 0, NULL, 0);
+    BRIX_OP_OK(ctx, BRIX_OP_QUERY_XATTR);
 
-    return xrootd_send_ok(ctx, c, resp, (uint32_t) (pos + 1));
+    return brix_send_ok(ctx, c, resp, (uint32_t) (pos + 1));
 }
 
-/* xrootd_query_finfo — kXR_QFinfo: returns "0" placeholder (matches reference
+/* brix_query_finfo — kXR_QFinfo: returns "0" placeholder (matches reference
  * XRootD, which serves this via the XrdOfs plugin layer nginx-xrootd lacks). */
 ngx_int_t
-xrootd_query_finfo(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_query_finfo(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    xrootd_log_access(ctx, c, "QUERY", "-", "finfo", 1, 0, NULL, 0);
-    XROOTD_OP_OK(ctx, XROOTD_OP_QUERY_FINFO);
-    return xrootd_send_ok(ctx, c, "0", 2);
+    brix_log_access(ctx, c, "QUERY", "-", "finfo", 1, 0, NULL, 0);
+    BRIX_OP_OK(ctx, BRIX_OP_QUERY_FINFO);
+    return brix_send_ok(ctx, c, "0", 2);
 }
 
-/* xrootd_query_visa — kXR_Qvisa: validate the fhandle, then return FSctl-
+/* brix_query_visa — kXR_Qvisa: validate the fhandle, then return FSctl-
  * unsupported (matches reference XRootD without the XrdOfs plugin layer). */
 ngx_int_t
-xrootd_query_visa(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_query_visa(brix_ctx_t *ctx, ngx_connection_t *c,
     const xrdw_query_req_t *req)
 {
     int       idx;
     ngx_int_t rc;
 
     idx = (int) (unsigned char) req->fhandle[0];
-    if (!xrootd_validate_file_handle(ctx, c, idx, "QUERY",
-                                     XROOTD_OP_QUERY_VISA, &rc)) {
+    if (!brix_validate_file_handle(ctx, c, idx, "QUERY",
+                                     BRIX_OP_QUERY_VISA, &rc)) {
         return rc;
     }
 
-    return xrootd_query_fctl_unsupported(ctx, c, ctx->files[idx].path,
-                                         "visa", XROOTD_OP_QUERY_VISA);
+    return brix_query_fctl_unsupported(ctx, c, ctx->files[idx].path,
+                                         "visa", BRIX_OP_QUERY_VISA);
 }
 
-/* xrootd_query_opaque — kXR_Qopaque: validate payload presence, then return
+/* brix_query_opaque — kXR_Qopaque: validate payload presence, then return
  * FSctl-unsupported (matches reference XRootD without the XrdOfs plugin layer). */
 ngx_int_t
-xrootd_query_opaque(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_query_opaque(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     if (ctx->payload == NULL || ctx->cur_dlen == 0) {
-        return xrootd_query_arg_missing(ctx, c, "opaque",
-                                        XROOTD_OP_QUERY_OPAQUE);
+        return brix_query_arg_missing(ctx, c, "opaque",
+                                        BRIX_OP_QUERY_OPAQUE);
     }
 
-    return xrootd_query_fsctl_unsupported(ctx, c, "-", "opaque",
-                                          XROOTD_OP_QUERY_OPAQUE);
+    return brix_query_fsctl_unsupported(ctx, c, "-", "opaque",
+                                          BRIX_OP_QUERY_OPAQUE);
 }
 
-/* xrootd_query_opaquf — kXR_Qopaquf: run the security chain (extract →
+/* brix_query_opaquf — kXR_Qopaquf: run the security chain (extract →
  * resolve_noexist → authdb → VO ACL), then return fctl-unsupported (reference parity). */
 ngx_int_t
-xrootd_query_opaquf(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_query_opaquf(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
 {
-    char pathbuf[XROOTD_MAX_PATH + 1];
+    char pathbuf[BRIX_MAX_PATH + 1];
     char full_path[PATH_MAX];
 
     if (ctx->payload == NULL || ctx->cur_dlen == 0) {
-        return xrootd_query_arg_missing(ctx, c, "opaquf",
-                                        XROOTD_OP_QUERY_OPAQUF);
+        return brix_query_arg_missing(ctx, c, "opaquf",
+                                        BRIX_OP_QUERY_OPAQUF);
     }
 
-    if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+    if (!brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
                              pathbuf, sizeof(pathbuf), 1)) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_OPAQUF, "QUERY", "-",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_QUERY_OPAQUF, "QUERY", "-",
                           "opaquf", kXR_ArgInvalid, "invalid path");
     }
 
-    xrootd_beneath_full_path(conf->common.root_canon, pathbuf,
+    brix_beneath_full_path(conf->common.root_canon, pathbuf,
                               full_path, sizeof(full_path));
 
-    if (xrootd_auth_gate(ctx, c, XROOTD_OP_QUERY_OPAQUF, "QUERY",
+    if (brix_auth_gate(ctx, c, BRIX_OP_QUERY_OPAQUF, "QUERY",
                          pathbuf, full_path, conf,
-                         XROOTD_AUTH_READ, 0) != NGX_OK) {
+                         BRIX_AUTH_READ, 0) != NGX_OK) {
         return ctx->write_rc;
     }
 
-    return xrootd_query_fsctl_unsupported(ctx, c, pathbuf, "opaquf",
-                                          XROOTD_OP_QUERY_OPAQUF);
+    return brix_query_fsctl_unsupported(ctx, c, pathbuf, "opaquf",
+                                          BRIX_OP_QUERY_OPAQUF);
 }
 
-/* xrootd_query_opaqug — kXR_Qopaqug: validate the fhandle and detect TPC
+/* brix_query_opaqug — kXR_Qopaqug: validate the fhandle and detect TPC
  * cancellation ("ofs.tpc cancel", else kXR_FSError), then return fctl-unsupported. */
 ngx_int_t
-xrootd_query_opaqug(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_query_opaqug(brix_ctx_t *ctx, ngx_connection_t *c,
     const xrdw_query_req_t *req)
 {
     int       idx;
     ngx_int_t rc;
 
     idx = (int) (unsigned char) req->fhandle[0];
-    if (!xrootd_validate_file_handle(ctx, c, idx, "QUERY",
-                                     XROOTD_OP_QUERY_OPAQUG, &rc)) {
+    if (!brix_validate_file_handle(ctx, c, idx, "QUERY",
+                                     BRIX_OP_QUERY_OPAQUG, &rc)) {
         return rc;
     }
 
-    if (xrootd_query_payload_equals(ctx, "ofs.tpc cancel")) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_OPAQUG, "QUERY",
+    if (brix_query_payload_equals(ctx, "ofs.tpc cancel")) {
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_QUERY_OPAQUG, "QUERY",
                           ctx->files[idx].path, "opaqug",
                           kXR_FSError, "tpc operation not found");
     }
 
-    return xrootd_query_fctl_unsupported(ctx, c, ctx->files[idx].path,
-                                         "opaqug", XROOTD_OP_QUERY_OPAQUG);
+    return brix_query_fctl_unsupported(ctx, c, ctx->files[idx].path,
+                                         "opaqug", BRIX_OP_QUERY_OPAQUG);
 
 }

@@ -12,32 +12,32 @@
  * cached.  Revocation cannot be detected once cached — the standard tradeoff
  * for stateless JWT validation, bounded here by the short TTL cap.
  */
-#ifndef XROOTD_TOKEN_TOKEN_CACHE_H
-#define XROOTD_TOKEN_TOKEN_CACHE_H
+#ifndef BRIX_TOKEN_TOKEN_CACHE_H
+#define BRIX_TOKEN_TOKEN_CACHE_H
 
 #include "core/shm/kv.h"
 #include "token.h"
 
 /*
- * xrootd_token_cache_lookup() — return 1 and populate *claims if the raw
+ * brix_token_cache_lookup() — return 1 and populate *claims if the raw
  * token's fingerprint is cached and not yet expired; 0 otherwise.
  */
-int xrootd_token_cache_lookup(xrootd_kv_t *kv, const char *token,
-    size_t token_len, xrootd_token_claims_t *claims);
+int brix_token_cache_lookup(brix_kv_t *kv, const char *token,
+    size_t token_len, brix_token_claims_t *claims);
 
 /*
- * xrootd_token_cache_store() — cache verified claims under the token
+ * brix_token_cache_store() — cache verified claims under the token
  * fingerprint with TTL = min(exp - now, 5 min).  No-op if already expired.
  */
-void xrootd_token_cache_store(xrootd_kv_t *kv, const char *token,
-    size_t token_len, const xrootd_token_claims_t *claims);
+void brix_token_cache_store(brix_kv_t *kv, const char *token,
+    size_t token_len, const brix_token_claims_t *claims);
 
 /*
- * xrootd_token_cache_directive() — setter for `xrootd_token_cache zone=<name>;`
+ * brix_token_cache_directive() — setter for `brix_token_cache zone=<name>;`
  * Resolves the named KV zone and stores it in the conf field at cmd->offset
- * (an xrootd_kv_t * slot).  Valid in stream server and http location blocks.
+ * (an brix_kv_t * slot).  Valid in stream server and http location blocks.
  */
-char *xrootd_token_cache_directive(ngx_conf_t *cf, ngx_command_t *cmd,
+char *brix_token_cache_directive(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 
-#endif /* XROOTD_TOKEN_TOKEN_CACHE_H */
+#endif /* BRIX_TOKEN_TOKEN_CACHE_H */

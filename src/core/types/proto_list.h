@@ -1,5 +1,5 @@
-#ifndef XROOTD_PROTO_LIST_H
-#define XROOTD_PROTO_LIST_H
+#ifndef BRIX_PROTO_LIST_H
+#define BRIX_PROTO_LIST_H
 
 /*
  * proto_list.h — THE single declaration of every protocol plane.
@@ -15,8 +15,8 @@
  *       cvmfs plane had to be threaded through each one separately. Adding
  *       a protocol must be ONE row here, not an archaeology exercise.
  * HOW:  X(ID, metric_label, dash_name, http_plane)
- *         ID           enum suffix: XROOTD_PROTO_<ID> (unified metrics,
- *                      value = row index) and XROOTD_XFER_PROTO_<ID>
+ *         ID           enum suffix: BRIX_PROTO_<ID> (unified metrics,
+ *                      value = row index) and BRIX_XFER_PROTO_<ID>
  *                      (dashboard slots, value = row index + 1; 0 stays
  *                      "untracked"). Both are SHM-persisted as small ints,
  *                      so rows are APPEND-ONLY — never reorder or remove.
@@ -39,26 +39,26 @@
  *      observability/dashboard/api_snapshot.c dashboard_collect_totals()
  *      (per-proto SHM families are heterogeneous by design — the glue
  *      that reads them cannot be generated)
- *   4. pass XROOTD_PROTO_<ID> to xrootd_vfs_ctx_init() and
- *      XROOTD_XFER_PROTO_<ID> in the serve opts at the handler
+ *   4. pass BRIX_PROTO_<ID> to brix_vfs_ctx_init() and
+ *      BRIX_XFER_PROTO_<ID> in the serve opts at the handler
  *   5. if it is HTTP-only, ensure the shared SHM zones from its
- *      postconfiguration (xrootd_metrics_ensure_zone +
- *      xrootd_configure_dashboard — cf. protocols/cvmfs/module.c)
+ *      postconfiguration (brix_metrics_ensure_zone +
+ *      brix_configure_dashboard — cf. protocols/cvmfs/module.c)
  *   6. docs: CLAUDE.md ROUTING + OP→FILE rows, docs/04-protocols/ page
  *   7. tests: metrics scrape + dashboard visibility asserts (cf.
  *      tests/run_cvmfs_reverse.sh T16 blocks)
  *
  * Related name surface (hand-wired, uses these dash_names): the
- * $xrootd_protocol variable in protocols/webdav/module_init.c reports
+ * $brix_protocol variable in protocols/webdav/module_init.c reports
  * which HTTP module claimed a request ("webdav"/"s3"/"cvmfs", "http"
  * fallback) — extend its claim chain when adding an HTTP protocol
  * (checklist step 4a).
  */
 
-#define XROOTD_PROTO_LIST(X)                                                  \
+#define BRIX_PROTO_LIST(X)                                                  \
     X(ROOT,   "stream", "root",   0)  /* native root:// stream plane        */ \
     X(WEBDAV, "webdav", "webdav", 1)  /* WebDAV/HTTP (davs://, http://)     */ \
     X(S3,     "s3",     "s3",     1)  /* S3-compatible REST                 */ \
     X(CVMFS,  "cvmfs",  "cvmfs",  1)  /* cvmfs:// site cache (phase-68)     */
 
-#endif /* XROOTD_PROTO_LIST_H */
+#endif /* BRIX_PROTO_LIST_H */

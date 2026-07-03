@@ -38,13 +38,13 @@
  *
  * WHY: AIO dispatch detaches the payload buffer from ctx->payload_buf so the main thread can safely begin reading the next request header while write happens in a worker thread. PFC write-through dirty state tracking accumulates wt_bytes_written and wt_dirty_offset for future close-time origin propagation — mirroring XrdPfcFile::m_bytesWritten, m_dirtyOffset semantics. Short-write detection catches disk-full conditions before silently truncating client data. */
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "protocols/ssi/ssi.h"
 #include "fs/cache/writethrough_metrics.h"
 #include "wrts_journal.h"
 
 /*
- * xrootd_handle_write — handle kXR_write: write the request payload to an
+ * brix_handle_write — handle kXR_write: write the request payload to an
  * open file at the specified offset.
  *
  * Wire format (from ClientWriteRequest):
@@ -63,7 +63,7 @@
  * Access-log detail: "<offset>+<requested-bytes>"
  */
 ngx_int_t
-xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_write(brix_ctx_t *ctx, ngx_connection_t *c)
 {
 	const u_char *hdrbody = ((ClientRequestHdr *) ctx->hdr_buf)->body;
 	xrdw_write_req_t req;
@@ -78,8 +78,8 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	ssize_t nwritten;
 	char    write_detail[64];
 
-	if (!xrootd_validate_write_handle(ctx, c, idx, "WRITE",
-									  XROOTD_OP_WRITE, &rc)) {
+	if (!brix_validate_write_handle(ctx, c, idx, "WRITE",
+									  BRIX_OP_WRITE, &rc)) {
 		return rc;
 	}
 
@@ -87,16 +87,16 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	 * write offset carries an XrdSsiRRInfo (raw big-endian bytes). Clean
 	 * early-return — the normal write path below is unchanged for file handles. */
 	if (ctx->files[idx].ssi != NULL) {
-		XROOTD_OP_OK(ctx, XROOTD_OP_WRITE);
+		BRIX_OP_OK(ctx, BRIX_OP_WRITE);
 		/* SSI reinterprets the offset field as a raw big-endian XrdSsiRRInfo;
 		 * pass the wire bytes (offset field = body byte 4), not the decoded int. */
-		return xrootd_ssi_write(ctx, c, idx, hdrbody + 4);
+		return brix_ssi_write(ctx, c, idx, hdrbody + 4);
 	}
 
 	if (wlen == 0) {
 		/* Zero-length writes are valid no-ops that still count as successful requests. */
-		XROOTD_OP_OK(ctx, XROOTD_OP_WRITE);
-		return xrootd_send_ok(ctx, c, NULL, 0);
+		BRIX_OP_OK(ctx, BRIX_OP_WRITE);
+		return brix_send_ok(ctx, c, NULL, 0);
 	}
 
 	/*
@@ -107,7 +107,7 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	 * never reach here, so their plaintext + per-page CRC32c invariant is kept.
 	 */
 	if (ctx->files[idx].write_codec != 0) {
-		return xrootd_write_compressed(ctx, c, idx, offset, wlen);
+		return brix_write_compressed(ctx, c, idx, offset, wlen);
 	}
 
 	/* kXR_recoverWrts replay detection
@@ -116,19 +116,19 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	 * on disk — skip pwrite() and return kXR_ok so the client can advance.
 	 */
 	if (ctx->files[idx].wrts_enabled &&
-	    xrootd_wrts_is_replay(&ctx->files[idx], offset, (uint32_t) wlen))
+	    brix_wrts_is_replay(&ctx->files[idx], offset, (uint32_t) wlen))
 	{
 		ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,
 		    "xrootd: write recovery replay skip offset=%L len=%uz",
 		    offset, wlen);
-		XROOTD_OP_OK(ctx, XROOTD_OP_WRITE);
-		return xrootd_send_ok(ctx, c, NULL, 0);
+		BRIX_OP_OK(ctx, BRIX_OP_WRITE);
+		return brix_send_ok(ctx, c, NULL, 0);
 	}
 
 	{
 	ngx_flag_t posted;
 
-	rc = xrootd_try_post_write_aio(ctx, c, idx, (off_t) offset,
+	rc = brix_try_post_write_aio(ctx, c, idx, (off_t) offset,
 								   ctx->payload ? ctx->payload : (u_char *) "",
 								   wlen, offset, 0, ctx->payload, NULL, 0,
 								   "xrootd: thread_task_post failed, falling back to sync write",
@@ -144,7 +144,7 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 		 * Write pipelining: account this pwrite as in-flight.  The recv loop
 		 * (which sees state == XRD_ST_AIO on return) keeps receiving the next
 		 * write while this one runs, bounded by out_count + wr_inflight <
-		 * ctx->pipeline_depth.  xrootd_write_aio_done decrements wr_inflight and
+		 * ctx->pipeline_depth.  brix_write_aio_done decrements wr_inflight and
 		 * queues the ack asynchronously (no recv suspend).
 		 */
 		ctx->wr_inflight++;
@@ -155,14 +155,14 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 
 	/* Synchronous fallback writes the request payload directly from the recv buffer. */
 	{
-		xrootd_vfs_job_t job;
+		brix_vfs_job_t job;
 
-		xrootd_vfs_job_write_init(&job, ctx->files[idx].fd, (off_t) offset,
+		brix_vfs_job_write_init(&job, ctx->files[idx].fd, (off_t) offset,
 								  ctx->payload ? ctx->payload : (u_char *) "",
 								  wlen);
 		job.csi = ctx->files[idx].csi;   /* phase-59 W2: update page tags */
-		xrootd_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
-		xrootd_vfs_io_execute(&job);
+		brix_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
+		brix_vfs_io_execute(&job);
 		nwritten = job.nio;
 		if (job.io_errno != 0) {
 			errno = job.io_errno;
@@ -174,29 +174,29 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 			 (long long) offset, wlen);
 
 	if (nwritten < 0) {
-		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_WRITE, "WRITE",
+		BRIX_RETURN_ERR(ctx, c, BRIX_OP_WRITE, "WRITE",
 						  ctx->files[idx].path, write_detail,
 						  kXR_IOError, strerror(errno));
 	}
 
 	if ((size_t) nwritten < wlen) {
-		XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_WRITE, "WRITE",
+		BRIX_RETURN_ERR(ctx, c, BRIX_OP_WRITE, "WRITE",
 						  ctx->files[idx].path, write_detail,
 						  kXR_IOError, "short write (disk full?)");
 	}
 
 	ctx->files[idx].bytes_written  += (size_t) nwritten;
 	ctx->session_bytes_written     += (size_t) nwritten;
-	xrootd_rl_charge_ctx(ctx, (size_t) nwritten);  /* Phase 25 bandwidth */
+	brix_rl_charge_ctx(ctx, (size_t) nwritten);  /* Phase 25 bandwidth */
 
 	if (ctx->files[idx].dashboard_slot >= 0 &&
-	    ngx_xrootd_dashboard_shm_zone != NULL)
+	    ngx_brix_dashboard_shm_zone != NULL)
 	{
-		xrootd_transfer_slot_update(ngx_xrootd_dashboard_shm_zone->data,
+		brix_transfer_slot_update(ngx_brix_dashboard_shm_zone->data,
 		                            ctx->files[idx].dashboard_slot,
 		                            (ngx_atomic_int_t) nwritten,
 		                            (int64_t) ngx_current_msec);
-		xrootd_transfer_slot_count_op(ngx_xrootd_dashboard_shm_zone->data,
+		brix_transfer_slot_count_op(ngx_brix_dashboard_shm_zone->data,
 		                              ctx->files[idx].dashboard_slot,
 		                              "write");
 	}
@@ -210,18 +210,18 @@ xrootd_handle_write(xrootd_ctx_t *ctx, ngx_connection_t *c)
 	 * These fields are retained for a future close-time write-back implementation.
 	 */
 	if (ctx->files[idx].wt_enabled) {
-		xrootd_wt_mark_dirty(ctx, idx,
+		brix_wt_mark_dirty(ctx, idx,
 		                      offset + (int64_t) nwritten - 1,
 		                      (size_t) nwritten);
 	}
 
 	/* Record the committed write in the recovery journal. */
 	if (ctx->files[idx].wrts_enabled) {
-		xrootd_wrts_record(&ctx->files[idx], offset, (uint32_t) nwritten);
+		brix_wrts_record(&ctx->files[idx], offset, (uint32_t) nwritten);
 	}
 
-	XROOTD_RETURN_OK(ctx, c, XROOTD_OP_WRITE, "WRITE",
+	BRIX_RETURN_OK(ctx, c, BRIX_OP_WRITE, "WRITE",
 					 ctx->files[idx].path, write_detail, (size_t) nwritten);
 }
 
-/* HOW: Extracts idx from req->fhandle[0], offset from be64toh(req->offset), wlen from ctx->cur_dlen. Validates write handle via xrootd_validate_write_handle() — returns early on failure. Zero-length writes return kXR_ok immediately as valid no-ops. NGX_THREADS block: calls xrootd_try_post_write_aio() with detached payload; if posted=1 sets ctx->payload=NULL and returns NGX_OK (completion callback sends response); if posted=0 falls through to sync write. Synchronous fallback: pwrite(fd, payload, wlen, offset) inline. Logs access detail "<offset>+<wlen>". On negative nwritten returns kXR_IOError; on short write (<wlen) returns kXR_IOError with "disk full?" message. Updates bytes_written counters (file+session). If wt_enabled updates wt_bytes_written and wt_dirty_offset for PFC write-through tracking. Returns XROOTD_RETURN_OK. */
+/* HOW: Extracts idx from req->fhandle[0], offset from be64toh(req->offset), wlen from ctx->cur_dlen. Validates write handle via brix_validate_write_handle() — returns early on failure. Zero-length writes return kXR_ok immediately as valid no-ops. NGX_THREADS block: calls brix_try_post_write_aio() with detached payload; if posted=1 sets ctx->payload=NULL and returns NGX_OK (completion callback sends response); if posted=0 falls through to sync write. Synchronous fallback: pwrite(fd, payload, wlen, offset) inline. Logs access detail "<offset>+<wlen>". On negative nwritten returns kXR_IOError; on short write (<wlen) returns kXR_IOError with "disk full?" message. Updates bytes_written counters (file+session). If wt_enabled updates wt_bytes_written and wt_dirty_offset for PFC write-through tracking. Returns BRIX_RETURN_OK. */

@@ -9,7 +9,7 @@ uncompressed hot path is untouched), and an unknown/disabled codec degrades to
 plaintext rather than failing.
 
 These tests drive the harness anonymous root:// server (port 11094), which has
-`xrootd_read_compress on`.  They:
+`brix_read_compress on`.  They:
   * upload a highly compressible payload with xrdcp,
   * download it WITHOUT --compress  -> byte-exact (regression / opt-in proof),
   * download it WITH --compress <c>  -> byte-exact for every codec,
@@ -33,7 +33,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
 BASE = f"root://localhost:{NGINX_ANON_PORT}"
-ANON_ACCESS_LOG = os.path.join(LOG_DIR, "xrootd_access_anon.log")
+ANON_ACCESS_LOG = os.path.join(LOG_DIR, "brix_access_anon.log")
 
 # Highly compressible: ~1.5 MiB of repeating text spans several read windows.
 PAYLOAD = (b"the quick brown fox jumps over the lazy dog 0123456789\n" * 30000)

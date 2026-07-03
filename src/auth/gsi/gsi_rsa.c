@@ -7,7 +7,7 @@
 
 
 int
-xrootd_gsi_rand(uint8_t *out, size_t n)
+brix_gsi_rand(uint8_t *out, size_t n)
 {
     return RAND_bytes(out, (int) n) == 1;
 }
@@ -23,10 +23,10 @@ xrootd_gsi_rand(uint8_t *out, size_t n)
  * smaller than the key modulus, so no chunking loop is needed.)
  */
 size_t
-xrootd_gsi_rsa_sign_raw(EVP_PKEY *key, const uint8_t *in, size_t inlen,
+brix_gsi_rsa_sign_raw(EVP_PKEY *key, const uint8_t *in, size_t inlen,
                         uint8_t *out)
 {
-    return xrootd_gsi_rsa_encrypt_private(key, in, inlen, out,
+    return brix_gsi_rsa_encrypt_private(key, in, inlen, out,
                                           (size_t) EVP_PKEY_size(key) + inlen);
 }
 
@@ -39,7 +39,7 @@ xrootd_gsi_rsa_sign_raw(EVP_PKEY *key, const uint8_t *in, size_t inlen,
  * Returns the total signature length, or 0.
  */
 size_t
-xrootd_gsi_rsa_encrypt_private(EVP_PKEY *key, const uint8_t *in, size_t inlen,
+brix_gsi_rsa_encrypt_private(EVP_PKEY *key, const uint8_t *in, size_t inlen,
                                uint8_t *out, size_t outmax)
 {
     EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(key, NULL);
@@ -75,7 +75,7 @@ xrootd_gsi_rsa_encrypt_private(EVP_PKEY *key, const uint8_t *in, size_t inlen,
  * Returns the recovered length, or 0.
  */
 size_t
-xrootd_gsi_rsa_decrypt_public(EVP_PKEY *key, const uint8_t *in, size_t inlen,
+brix_gsi_rsa_decrypt_public(EVP_PKEY *key, const uint8_t *in, size_t inlen,
                               uint8_t *out, size_t outmax)
 {
     EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(key, NULL);

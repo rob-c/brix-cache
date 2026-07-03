@@ -98,9 +98,9 @@ error_log {root}/error.log info;
 events {{ worker_connections 256; }}
 thread_pool default threads=4 max_queue=65536;
 stream {{
-    server {{ listen {BIND_HOST}:{rport}; xrootd on; xrootd_root {data};
-             xrootd_auth none; xrootd_allow_write on;
-             xrootd_upload_resume on; }}
+    server {{ listen {BIND_HOST}:{rport}; xrootd on; brix_root {data};
+             brix_auth none; brix_allow_write on;
+             brix_upload_resume on; }}
 }}
 http {{
     access_log off;
@@ -112,9 +112,9 @@ http {{
     scgi_temp_path {root}/scgi_tmp;
     server {{
         listen {BIND_HOST}:{hport};
-        location / {{ xrootd_webdav on; xrootd_webdav_root {data};
-                     xrootd_webdav_auth none; xrootd_webdav_allow_write on;
-                     xrootd_webdav_upload_resume on; }}
+        location / {{ brix_webdav on; brix_webdav_root {data};
+                     brix_webdav_auth none; brix_webdav_allow_write on;
+                     brix_webdav_upload_resume on; }}
     }}
 }}
 """)
@@ -241,7 +241,7 @@ def test_download_resumes_across_restart(srv, tmp_path, scheme):
 def test_upload_resumes_across_restart(srv, tmp_path):
     """A large root:// UPLOAD survives reload + hard worker-kill mid-transfer
     (including the commit-on-close) and the committed file is byte-exact —
-    requires xrootd_upload_resume on (deterministic preserved partial)."""
+    requires brix_upload_resume on (deterministic preserved partial)."""
     src = tmp_path / "upload-src.bin"
     payload = os.urandom(1 << 20) * 256          # 256 MiB, incompressible
     src.write_bytes(payload)
@@ -267,7 +267,7 @@ def test_webdav_upload_resumes_across_restart(srv, tmp_path):
     """A large http:// (WebDAV) UPLOAD survives reload + hard worker-kill mid-
     transfer and the committed file is byte-exact — the native client streams
     Content-Range PUT chunks and resumes from the server's durable offset
-    (xrootd_webdav_upload_resume on)."""
+    (brix_webdav_upload_resume on)."""
     src = tmp_path / "webup-src.bin"
     payload = os.urandom(1 << 20) * 128          # 128 MiB, incompressible
     src.write_bytes(payload)
@@ -284,7 +284,7 @@ def test_webdav_upload_resumes_across_restart(srv, tmp_path):
 
 
 def test_upload_resume_stage_dir(tmp_path_factory):
-    """Uploads stage on a CONFIGURABLE directory (xrootd_stage_dir) — typically a
+    """Uploads stage on a CONFIGURABLE directory (brix_stage_dir) — typically a
     fast caching device — then commit to the storage.  Prefers /dev/shm (tmpfs, a
     different device) to exercise the cross-device copy commit; the partial lives
     in the stage dir during transfer, survives worker-kills, lands byte-exact on
@@ -314,9 +314,9 @@ error_log {root}/error.log info;
 events {{ worker_connections 256; }}
 thread_pool default threads=4 max_queue=65536;
 stream {{
-    server {{ listen {BIND_HOST}:{rport}; xrootd on; xrootd_root {data};
-             xrootd_auth none; xrootd_allow_write on;
-             xrootd_stage_dir {stage}; }}
+    server {{ listen {BIND_HOST}:{rport}; xrootd on; brix_root {data};
+             brix_auth none; brix_allow_write on;
+             brix_stage_dir {stage}; }}
 }}
 """)
     if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
@@ -384,8 +384,8 @@ pid {root}/nginx.pid;
 error_log {root}/error.log info;
 events {{ worker_connections 64; }}
 stream {{
-    server {{ listen {BIND_HOST}:{rport}; xrootd on; xrootd_root {data};
-             xrootd_auth none; xrootd_allow_write on; xrootd_stage_dir {stage}; }}
+    server {{ listen {BIND_HOST}:{rport}; xrootd on; brix_root {data};
+             brix_auth none; brix_allow_write on; brix_stage_dir {stage}; }}
 }}
 """)
     if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],

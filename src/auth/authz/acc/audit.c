@@ -1,13 +1,13 @@
 /*
  * audit.c — authorization grant/deny audit log (XrdAccAudit).
  *
- * WHAT: xrootd_acc_audit() emits one structured line per authorization decision
+ * WHAT: brix_acc_audit() emits one structured line per authorization decision
  *   when auditing is enabled — deny-only, grant-only, or both — mirroring
  *   XRootD's `acc.audit`.  Untrusted fields (id, host, path come off the wire)
  *   are sanitised so a crafted path cannot inject log lines.
  *
  * WHY: operators need an auth trail; the `native` engine only logs denials ad
- *   hoc.  This is the XrdAcc-parity audit sink, gated by xrootd_authdb_audit.
+ *   hoc.  This is the XrdAcc-parity audit sink, gated by brix_authdb_audit.
  *
  * HOW: a level bitmask (1=deny, 2=grant) decides whether to log; the line is
  *   "<id>@<host> grant|deny <op> <path>" with control/quote bytes escaped.
@@ -15,8 +15,8 @@
 
 #include "acc.h"
 
-#define XROOTD_ACC_AUDIT_DENY   0x1
-#define XROOTD_ACC_AUDIT_GRANT  0x2
+#define BRIX_ACC_AUDIT_DENY   0x1
+#define BRIX_ACC_AUDIT_GRANT  0x2
 
 /* Copy src into dst (capacity cap) escaping control bytes, quotes and
  * backslashes to keep the audit line single-valued and injection-safe. */
@@ -41,7 +41,7 @@ acc_audit_sanitize(u_char *dst, size_t cap, const char *src)
 }
 
 void
-xrootd_acc_audit(ngx_log_t *log, ngx_uint_t level, int granted,
+brix_acc_audit(ngx_log_t *log, ngx_uint_t level, int granted,
                  const char *op, const char *id, const char *host,
                  const char *path)
 {
@@ -50,10 +50,10 @@ xrootd_acc_audit(ngx_log_t *log, ngx_uint_t level, int granted,
     if (level == 0) {
         return;
     }
-    if (granted && !(level & XROOTD_ACC_AUDIT_GRANT)) {
+    if (granted && !(level & BRIX_ACC_AUDIT_GRANT)) {
         return;
     }
-    if (!granted && !(level & XROOTD_ACC_AUDIT_DENY)) {
+    if (!granted && !(level & BRIX_ACC_AUDIT_DENY)) {
         return;
     }
 

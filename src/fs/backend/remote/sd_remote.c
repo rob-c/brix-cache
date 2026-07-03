@@ -30,7 +30,7 @@ typedef struct {
 /* Compose the sd_s3 object path "/bucket/key" from the instance bucket and the
  * export-relative key (which already carries a leading '/'). */
 static void
-sd_remote_s3_key(const xrootd_sd_remote_cfg_t *cfg, const char *key,
+sd_remote_s3_key(const brix_sd_remote_cfg_t *cfg, const char *key,
     char *dst, size_t dstcap)
 {
     snprintf(dst, dstcap, "/%s%s", cfg->bucket, (key != NULL) ? key : "/");
@@ -38,7 +38,7 @@ sd_remote_s3_key(const xrootd_sd_remote_cfg_t *cfg, const char *key,
 
 /* Fill sd_s3_open_params from the instance config + a composed object path. */
 static void
-sd_remote_s3_params(const xrootd_sd_remote_cfg_t *cfg, const char *objpath,
+sd_remote_s3_params(const brix_sd_remote_cfg_t *cfg, const char *objpath,
     sd_s3_open_params *p)
 {
     memset(p, 0, sizeof(*p));
@@ -54,24 +54,24 @@ sd_remote_s3_params(const xrootd_sd_remote_cfg_t *cfg, const char *objpath,
     p->timeout_ms = cfg->timeout_ms;
 }
 
-static xrootd_sd_obj_t *
-sd_remote_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
+static brix_sd_obj_t *
+sd_remote_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
     mode_t mode, int *err_out)
 {
-    const xrootd_sd_remote_cfg_t *cfg = inst->state;
+    const brix_sd_remote_cfg_t *cfg = inst->state;
     sd_s3_open_params             p;
     char                          objpath[768];
     char                          errbuf[256];
     sd_s3_file                   *s3;
     sd_remote_obj_state          *st;
-    xrootd_sd_obj_t              *obj;
+    brix_sd_obj_t              *obj;
     int64_t                       size = 0;
 
     (void) mode;
 
     /* Read-only origin: refuse any write/create/trunc intent up front. */
-    if (sd_flags & (XROOTD_SD_O_WRITE | XROOTD_SD_O_CREATE | XROOTD_SD_O_TRUNC
-                    | XROOTD_SD_O_APPEND)) {
+    if (sd_flags & (BRIX_SD_O_WRITE | BRIX_SD_O_CREATE | BRIX_SD_O_TRUNC
+                    | BRIX_SD_O_APPEND)) {
         if (err_out) { *err_out = EROFS; }
         return NULL;
     }
@@ -116,7 +116,7 @@ sd_remote_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
 }
 
 static ngx_int_t
-sd_remote_close(xrootd_sd_obj_t *obj)
+sd_remote_close(brix_sd_obj_t *obj)
 {
     sd_remote_obj_state *st;
 
@@ -131,7 +131,7 @@ sd_remote_close(xrootd_sd_obj_t *obj)
 }
 
 static ssize_t
-sd_remote_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
+sd_remote_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
 {
     sd_remote_obj_state *st = obj->state;
     char                 errbuf[256];
@@ -146,17 +146,17 @@ sd_remote_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
 }
 
 static ngx_int_t
-sd_remote_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
+sd_remote_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
 {
     *out = obj->snap;
     return NGX_OK;
 }
 
 static ngx_int_t
-sd_remote_stat(xrootd_sd_instance_t *inst, const char *path,
-    xrootd_sd_stat_t *out)
+sd_remote_stat(brix_sd_instance_t *inst, const char *path,
+    brix_sd_stat_t *out)
 {
-    const xrootd_sd_remote_cfg_t *cfg = inst->state;
+    const brix_sd_remote_cfg_t *cfg = inst->state;
     sd_s3_open_params             p;
     char                          objpath[768];
     char                          errbuf[256];
@@ -189,17 +189,17 @@ sd_remote_stat(xrootd_sd_instance_t *inst, const char *path,
  * A staged write delegates to sd_s3's single-PUT/multipart upload; the object only
  * becomes visible at commit, so a staged upload is atomic from the reader's view. */
 
-static xrootd_sd_staged_t *
-sd_remote_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
+static brix_sd_staged_t *
+sd_remote_staged_open(brix_sd_instance_t *inst, const char *final_path,
     mode_t mode, int *err_out)
 {
-    const xrootd_sd_remote_cfg_t *cfg = inst->state;
+    const brix_sd_remote_cfg_t *cfg = inst->state;
     sd_s3_open_params             p;
     char                          objpath[768];
     char                          errbuf[256];
     sd_s3_file                   *s3;
     sd_remote_staged_state       *ss;
-    xrootd_sd_staged_t           *h;
+    brix_sd_staged_t           *h;
 
     (void) mode;
     sd_remote_s3_key(cfg, final_path, objpath, sizeof(objpath));
@@ -228,7 +228,7 @@ sd_remote_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
 }
 
 static ssize_t
-sd_remote_staged_write(xrootd_sd_staged_t *h, const void *buf, size_t len,
+sd_remote_staged_write(brix_sd_staged_t *h, const void *buf, size_t len,
     off_t off)
 {
     sd_remote_staged_state *ss = h->state;
@@ -242,7 +242,7 @@ sd_remote_staged_write(xrootd_sd_staged_t *h, const void *buf, size_t len,
 }
 
 static ngx_int_t
-sd_remote_staged_commit(xrootd_sd_staged_t *h, int noreplace)
+sd_remote_staged_commit(brix_sd_staged_t *h, int noreplace)
 {
     sd_remote_staged_state *ss = h->state;
     char                    errbuf[256];
@@ -261,7 +261,7 @@ sd_remote_staged_commit(xrootd_sd_staged_t *h, int noreplace)
 }
 
 static void
-sd_remote_staged_abort(xrootd_sd_staged_t *h)
+sd_remote_staged_abort(brix_sd_staged_t *h)
 {
     sd_remote_staged_state *ss = h->state;
 
@@ -272,9 +272,9 @@ sd_remote_staged_abort(xrootd_sd_staged_t *h)
 }
 
 static ngx_int_t
-sd_remote_unlink(xrootd_sd_instance_t *inst, const char *path, int is_dir)
+sd_remote_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
 {
-    const xrootd_sd_remote_cfg_t *cfg = inst->state;
+    const brix_sd_remote_cfg_t *cfg = inst->state;
     sd_s3_open_params             p;
     char                          objpath[768];
     char                          errbuf[256];
@@ -293,9 +293,9 @@ sd_remote_unlink(xrootd_sd_instance_t *inst, const char *path, int is_dir)
 /* Read + write: the S3 store serves as a read origin (Range GET) and a writable
  * cache_store / stage_store / backend (staged single-PUT / multipart upload, plus
  * DELETE for eviction and post-flush stage cleanup). */
-static const xrootd_sd_driver_t xrootd_sd_remote_driver = {
+static const brix_sd_driver_t brix_sd_remote_driver = {
     .name  = "remote",
-    .caps  = XROOTD_SD_CAP_RANGE_READ | XROOTD_SD_CAP_RANDOM_WRITE,
+    .caps  = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_RANDOM_WRITE,
     .open  = sd_remote_open,
     .close = sd_remote_close,
     .pread = sd_remote_pread,
@@ -308,13 +308,13 @@ static const xrootd_sd_driver_t xrootd_sd_remote_driver = {
     .staged_abort  = sd_remote_staged_abort,
 };
 
-xrootd_sd_instance_t *
-xrootd_sd_remote_create(const xrootd_sd_remote_cfg_t *cfg, ngx_log_t *log)
+brix_sd_instance_t *
+brix_sd_remote_create(const brix_sd_remote_cfg_t *cfg, ngx_log_t *log)
 {
-    xrootd_sd_instance_t   *inst;
-    xrootd_sd_remote_cfg_t *copy;
+    brix_sd_instance_t   *inst;
+    brix_sd_remote_cfg_t *copy;
 
-    if (cfg == NULL || cfg->scheme != XROOTD_SD_REMOTE_S3
+    if (cfg == NULL || cfg->scheme != BRIX_SD_REMOTE_S3
         || cfg->transport == NULL) {
         errno = EINVAL;
         return NULL;
@@ -330,7 +330,7 @@ xrootd_sd_remote_create(const xrootd_sd_remote_cfg_t *cfg, ngx_log_t *log)
     }
     *copy = *cfg;
 
-    inst->driver = &xrootd_sd_remote_driver;
+    inst->driver = &brix_sd_remote_driver;
     inst->log    = log;
     inst->pool   = NULL;          /* malloc-owned: safe off the event loop */
     inst->state  = copy;
@@ -338,7 +338,7 @@ xrootd_sd_remote_create(const xrootd_sd_remote_cfg_t *cfg, ngx_log_t *log)
 }
 
 void
-xrootd_sd_remote_destroy(xrootd_sd_instance_t *inst)
+brix_sd_remote_destroy(brix_sd_instance_t *inst)
 {
     if (inst == NULL) {
         return;

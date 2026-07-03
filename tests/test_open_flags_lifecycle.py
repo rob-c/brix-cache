@@ -16,14 +16,14 @@ src/protocols/root/read/open_resolved_file.c:
   * an invalid flag combination (kXR_open_apnd|kXR_delete) is handled cleanly
   * kXR_posc on a clean close persists the staged file to its final name
   * kXR_posc on an aborted (disconnect) close leaves NO final file
-  * opening more than XROOTD_MAX_FILES (16) handles -> clean kXR_ServerError
+  * opening more than BRIX_MAX_FILES (16) handles -> clean kXR_ServerError
   * closing an already-closed handle -> kXR_FileNotOpen
   * writing to a read-only handle -> kXR_NotAuthorized
 
 Read/flag-only cases run against the shared anon fleet (root://localhost:11094)
 and skip cleanly if it is unreachable.  Create/POSC/exhaustion cases need
 writable storage, so they provision their OWN dedicated nginx-xrootd stream
-server (xrootd_allow_write on) on a dedicated high port (>=12950) with its own
+server (brix_allow_write on) on a dedicated high port (>=12950) with its own
 data root, pid and error log, and tear it down with `nginx -s stop`.  Every
 hostile or edge request is followed by a sanity op (kXR_ping / kXR_open)
 proving the session survived.
@@ -92,8 +92,8 @@ kXR_open_apnd = 0x0200
 kXR_retstat   = 0x0400
 kXR_posc      = 0x1000
 
-# XROOTD_MAX_FILES (src/core/types/tunables.h) — handles are a single wire byte.
-XROOTD_MAX_FILES = 16
+# BRIX_MAX_FILES (src/core/types/tunables.h) — handles are a single wire byte.
+BRIX_MAX_FILES = 16
 
 # ServerOpenBody is fhandle[4] + cpsize[4] + cptype[4] = 12 bytes; with
 # kXR_retstat a null-terminated stat string is appended after it.
@@ -237,7 +237,7 @@ def anon():
 def wr_stack():
     """Connect to the dedicated WRITABLE nginx xrootd server pre-started by
     manage_test_servers.sh start-all (the "open-flags-lifecycle" instance,
-    xrootd_allow_write on, serving OPEN_FLAGS_LIFECYCLE_DATA_ROOT).  Used for
+    brix_allow_write on, serving OPEN_FLAGS_LIFECYCLE_DATA_ROOT).  Used for
     create/truncate/append/mkpath/POSC/exhaustion cases.  Skips cleanly if that
     dedicated instance is not running.  The server and this test share the local
     filesystem, so files seeded into data_dir are visible to the server and the
@@ -498,7 +498,7 @@ class TestPoscLifecycle:
         # That teardown is prompt (~tens of ms) but NOT synchronous with our
         # sock.close(), so poll for both invariants to settle rather than
         # checking once and racing the event loop.  POSC staging uses
-        # xrootd_make_tmp_path(), producing a "<base>.xrd-tmp.<pid>.<random>"
+        # brix_make_tmp_path(), producing a "<base>.xrd-tmp.<pid>.<random>"
         # sibling (src/core/compat/tmp_path.c), so the orphan marker is ".xrd-tmp.".
         def _orphan_temps():
             return {n for n in (set(os.listdir(data_dir)) - before)
@@ -529,7 +529,7 @@ class TestPoscLifecycle:
 class TestHandleLifecycle:
 
     def test_handle_exhaustion_clean_error(self, wr_stack):
-        """Opening more than XROOTD_MAX_FILES (16) handles on one session must
+        """Opening more than BRIX_MAX_FILES (16) handles on one session must
         return a clean kXR_ServerError ('too many open files'), not crash; and
         after closing one handle a subsequent open must succeed again."""
         rel = "/exhaust.bin"
@@ -538,7 +538,7 @@ class TestHandleLifecycle:
         handles = []
         try:
             # Fill every slot.
-            for i in range(XROOTD_MAX_FILES):
+            for i in range(BRIX_MAX_FILES):
                 sid = struct.pack("!H", 0x100 + i)
                 _, status, body = _open(sock, rel, kXR_open_read, streamid=sid)
                 assert status == kXR_ok, (

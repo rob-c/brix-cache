@@ -2,16 +2,16 @@
  * signing.c — kXR_sigver opcode handler (request-signature verification).
  */
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
 /*
- * xrootd_handle_sigver - XRootD request signing (kXR_sigver).
+ * brix_handle_sigver - XRootD request signing (kXR_sigver).
  *
  * Protocol flow:
  *   1. Client sends kXR_sigver with HMAC-SHA256(signing_key, seqno || next_hdr
  *      [|| next_payload]) as the body, and expectrid = opcode of the next request.
  *   2. We save the HMAC and seqno in pending state on ctx.
- *   3. xrootd_dispatch() verifies the HMAC before routing the following request.
+ *   3. brix_dispatch() verifies the HMAC before routing the following request.
  *
  * For GSI sessions signing_active is 1 and signing_key = SHA-256(DH secret).
  * For token/anonymous sessions we accept sigver without verification; legitimate
@@ -25,7 +25,7 @@
  * sequence number for verifying the NEXT signed request (the seqno blocks
  * replay). */
 ngx_int_t
-xrootd_handle_sigver(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_sigver(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     xrdw_sigver_req_t    req;
     uint16_t             expectrid;
@@ -42,7 +42,7 @@ xrootd_handle_sigver(xrootd_ctx_t *ctx, ngx_connection_t *c)
                           "xrootd: sigver replay (seqno=%llu <= last=%llu)",
                           (unsigned long long) seqno,
                           (unsigned long long) ctx->last_seqno);
-            return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+            return brix_send_error(ctx, c, kXR_NotAuthorized,
                                      "sigver replay detected");
         }
         ctx->last_seqno = seqno;
@@ -52,7 +52,7 @@ xrootd_handle_sigver(xrootd_ctx_t *ctx, ngx_connection_t *c)
         {
             /* Need exactly 32 bytes of HMAC in the body. */
             if (ctx->cur_dlen < 32 || ctx->payload == NULL) {
-                return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+                return brix_send_error(ctx, c, kXR_ArgInvalid,
                                          "sigver body too short");
             }
 
@@ -75,12 +75,12 @@ xrootd_handle_sigver(xrootd_ctx_t *ctx, ngx_connection_t *c)
                        "xrootd: sigver accepted without verification (no GSI key)");
     }
 
-    xrootd_log_access(ctx, c, "SIGVER", "-", "-", 1, 0, NULL, 0);
+    brix_log_access(ctx, c, "SIGVER", "-", "-", 1, 0, NULL, 0);
     /*
      * kXR_sigver is a request PREFIX, not a standalone request: per the XRootD
      * protocol (XrdXrootdProtocol::ProcSig) the server sends NO response on
      * success — the single response belongs to the signed request that follows,
-     * which xrootd_verify_pending_sigver() validates at the top of its dispatch.
+     * which brix_verify_pending_sigver() validates at the top of its dispatch.
      * Returning NGX_OK without queuing a frame lets the recv loop read that next
      * request. Emitting a kXR_ok here desynchronised every stock-protocol client
      * (go-hep, official XrdCl): they read the ack as the signed request's reply

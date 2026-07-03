@@ -63,9 +63,9 @@ s3_handle_list_parts(ngx_http_request_t *r,
 {
     char              upload_id[128];
     char              mpu_dir[PATH_MAX];
-    xrootd_vfs_ctx_t  vctx;
-    xrootd_vfs_stat_t vst;
-    xrootd_vfs_dir_t *dp;
+    brix_vfs_ctx_t  vctx;
+    brix_vfs_stat_t vst;
+    brix_vfs_dir_t *dp;
     mpu_part_entry_t *parts;
     int               nparts = 0;
     int               i;
@@ -105,7 +105,7 @@ s3_handle_list_parts(ngx_http_request_t *r,
      * impersonation; plain no-follow lstat off impersonation).
      */
     s3_build_vfs_ctx(r, mpu_dir, cf, &vctx);
-    if (xrootd_vfs_probe(&vctx, 1 /* no-follow */, &vst) != NGX_OK
+    if (brix_vfs_probe(&vctx, 1 /* no-follow */, &vst) != NGX_OK
         || !vst.is_directory)
     {
         return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
@@ -117,7 +117,7 @@ s3_handle_list_parts(ngx_http_request_t *r,
     parts = ngx_palloc(r->pool,
                        sizeof(mpu_part_entry_t) * (MPU_MAX_PART_NUMBER + 1));
     if (parts == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -125,9 +125,9 @@ s3_handle_list_parts(ngx_http_request_t *r,
      * dir is owned 0700 by the mapped user, so a raw worker opendir() fails EACCES
      * (ListParts 500).  Off impersonation this is a plain opendir(). Non-metered
      * (the ListParts op accounts for the scan). */
-    dp = xrootd_vfs_opendir_quiet(&vctx, NULL);
+    dp = brix_vfs_opendir_quiet(&vctx, NULL);
     if (dp == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -137,13 +137,13 @@ s3_handle_list_parts(ngx_http_request_t *r,
         char               part_path[PATH_MAX];
         char              *endptr;
         long               pn;
-        xrootd_vfs_ctx_t   pctx;
-        xrootd_vfs_stat_t  pst;
+        brix_vfs_ctx_t   pctx;
+        brix_vfs_stat_t  pst;
 
         if (nparts >= MPU_MAX_PART_NUMBER) {
             break;
         }
-        if (xrootd_vfs_readdir_kind(dp, &name, NULL) != NGX_OK) {
+        if (brix_vfs_readdir_kind(dp, &name, NULL) != NGX_OK) {
             break;   /* NGX_DONE (end) or error → stop */
         }
         dname = (const char *) name.data;
@@ -168,7 +168,7 @@ s3_handle_list_parts(ngx_http_request_t *r,
 
         /* Confined no-follow probe for size/mtime (non-metered). */
         s3_build_vfs_ctx(r, part_path, cf, &pctx);
-        if (xrootd_vfs_probe(&pctx, 1 /* no-follow */, &pst) != NGX_OK
+        if (brix_vfs_probe(&pctx, 1 /* no-follow */, &pst) != NGX_OK
             || !pst.is_regular) {
             continue;
         }
@@ -178,7 +178,7 @@ s3_handle_list_parts(ngx_http_request_t *r,
         parts[nparts].mtime    = pst.mtime;
         nparts++;
     }
-    xrootd_vfs_closedir(dp, r->connection->log);
+    brix_vfs_closedir(dp, r->connection->log);
 
     /* Sort by part number */
     if (nparts > 1) {
@@ -237,7 +237,7 @@ s3_handle_list_parts(ngx_http_request_t *r,
 
     xml = ngx_palloc(r->pool, xml_capacity);
     if (xml == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -264,7 +264,7 @@ s3_handle_list_parts(ngx_http_request_t *r,
     }
 
     for (i = start_idx; i < end_idx; i++) {
-        xrootd_format_iso8601(parts[i].mtime, iso_buf, sizeof(iso_buf));
+        brix_format_iso8601(parts[i].mtime, iso_buf, sizeof(iso_buf));
         snprintf(etag_buf, sizeof(etag_buf),
                  "\"%ld-%lld\"",
                  (long) parts[i].mtime,
@@ -281,13 +281,13 @@ s3_handle_list_parts(ngx_http_request_t *r,
 
     b = ngx_create_temp_buf(r->pool, xml_len);
     if (b == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     ngx_memcpy(b->pos, xml, xml_len);
     b->last     = b->pos + xml_len;
     b->last_buf = 1;
 
-    return xrootd_http_send_xml_buffer(r, NGX_HTTP_OK,
+    return brix_http_send_xml_buffer(r, NGX_HTTP_OK,
         (ngx_str_t) ngx_string("application/xml"), b);
 }

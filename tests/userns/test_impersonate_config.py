@@ -1,5 +1,5 @@
 """test_impersonate_config.py — config-time validation of the phase-40
-`xrootd_impersonation` directives via `nginx -t`.
+`brix_impersonation` directives via `nginx -t`.
 
 Unlike the end-to-end userns test, this needs NO root, NO user namespace, and NO
 running broker — only the built nginx binary.  It drives `nginx -t` with each
@@ -40,7 +40,7 @@ def _run_t(stream_body, port_suffix):
               server {{
                 listen 127.0.0.1:21{port_suffix};
                 xrootd on;
-                xrootd_storage_backend posix:{TMP}/export;
+                brix_storage_backend posix:{TMP}/export;
             {stream_body}
               }}
             }}
@@ -57,7 +57,7 @@ def _need_nginx():
 
 
 def test_off_is_accepted():
-    rc, out = _run_t("    xrootd_impersonation off;", "01")
+    rc, out = _run_t("    brix_impersonation off;", "01")
     assert rc == 0, out
     assert "successful" in out
 
@@ -68,15 +68,15 @@ def test_no_directive_is_accepted():
 
 
 def test_single_without_user_is_rejected():
-    rc, out = _run_t("    xrootd_impersonation single;", "03")
+    rc, out = _run_t("    brix_impersonation single;", "03")
     assert rc != 0
-    assert "xrootd_impersonation_user" in out
+    assert "brix_impersonation_user" in out
 
 
 def test_single_with_user_is_accepted():
     rc, out = _run_t(
-        "    xrootd_impersonation single;\n"
-        "    xrootd_impersonation_user nobody;", "04")
+        "    brix_impersonation single;\n"
+        "    brix_impersonation_user nobody;", "04")
     assert rc == 0, out
     assert "successful" in out
 
@@ -85,13 +85,13 @@ def test_map_requires_root():
     if os.geteuid() == 0:
         pytest.skip("running as root: map would be accepted")
     rc, out = _run_t(
-        "    xrootd_impersonation map;\n"
-        "    xrootd_impersonation_socket /tmp/imp_conftest_pytest/b.sock;", "05")
+        "    brix_impersonation map;\n"
+        "    brix_impersonation_socket /tmp/imp_conftest_pytest/b.sock;", "05")
     assert rc != 0
     assert "root" in out.lower()
 
 
 def test_invalid_mode_is_rejected():
-    rc, out = _run_t("    xrootd_impersonation bogus;", "06")
+    rc, out = _run_t("    brix_impersonation bogus;", "06")
     assert rc != 0
     assert "off|single|map" in out

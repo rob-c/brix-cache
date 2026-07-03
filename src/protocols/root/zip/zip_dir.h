@@ -16,8 +16,8 @@
  *       The caller (zip_member.c) maps the int result to wire/HTTP errors and
  *       does all logging at the edge.
  */
-#ifndef XROOTD_ZIP_DIR_H
-#define XROOTD_ZIP_DIR_H
+#ifndef BRIX_ZIP_DIR_H
+#define BRIX_ZIP_DIR_H
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -27,8 +27,8 @@
 #define PATH_MAX 4096
 #endif
 
-#define XROOTD_ZIP_METHOD_STORE    0
-#define XROOTD_ZIP_METHOD_DEFLATE  8
+#define BRIX_ZIP_METHOD_STORE    0
+#define BRIX_ZIP_METHOD_DEFLATE  8
 
 /* Resolved metadata for one archive member. */
 typedef struct {
@@ -38,24 +38,24 @@ typedef struct {
     uint64_t  uncomp_size;      /* uncompressed size = logical file size          */
     uint64_t  data_off;         /* archive offset of the first data byte          */
     uint32_t  crc32;            /* expected IEEE CRC-32 of the uncompressed data  */
-} xrootd_zip_member_t;
+} brix_zip_member_t;
 
 /* Result codes (plain C — the nginx wrapper maps these to NGX_ / kXR_ / HTTP). */
-#define XROOTD_ZIP_OK        0   /* found; *out filled                            */
-#define XROOTD_ZIP_NOMEMBER  1   /* archive parsed, no such member                */
-#define XROOTD_ZIP_ECORRUPT (-1) /* not a zip / corrupt / oversize / unsupported  */
-#define XROOTD_ZIP_EIO      (-2) /* pread / allocation failure                    */
+#define BRIX_ZIP_OK        0   /* found; *out filled                            */
+#define BRIX_ZIP_NOMEMBER  1   /* archive parsed, no such member                */
+#define BRIX_ZIP_ECORRUPT (-1) /* not a zip / corrupt / oversize / unsupported  */
+#define BRIX_ZIP_EIO      (-2) /* pread / allocation failure                    */
 
 /*
  * Resolve `member` within the archive open on `fd` (size `archive_size`).
  * `cd_max` caps the central-directory read (bomb guard on a hostile directory).
- * Never reads outside [0, archive_size). Returns one of XROOTD_ZIP_*.
- * Rejects (XROOTD_ZIP_ECORRUPT): encrypted entries, methods other than 0/8,
+ * Never reads outside [0, archive_size). Returns one of BRIX_ZIP_*.
+ * Rejects (BRIX_ZIP_ECORRUPT): encrypted entries, methods other than 0/8,
  * data-descriptor entries (size not known at open), and any out-of-bounds field.
  * On duplicate names the LAST central-directory entry wins (XrdZip semantics).
  */
-int xrootd_zip_find_member(int fd, off_t archive_size, const char *member,
-                           size_t cd_max, xrootd_zip_member_t *out);
+int brix_zip_find_member(int fd, off_t archive_size, const char *member,
+                           size_t cd_max, brix_zip_member_t *out);
 
 /*
  * Extract the member's FULL uncompressed content into out[outcap] (outcap must be
@@ -65,7 +65,7 @@ int xrootd_zip_find_member(int fd, off_t archive_size, const char *member,
  * pread/inflate/allocation error.  Intended for one-shot serving (HTTP/S3 GET);
  * the streaming reader in zip_member.c is used for the root:// handle path.
  */
-ssize_t xrootd_zip_extract_full(int fd, const xrootd_zip_member_t *m,
+ssize_t brix_zip_extract_full(int fd, const brix_zip_member_t *m,
                                 unsigned char *out, size_t outcap);
 
-#endif /* XROOTD_ZIP_DIR_H */
+#endif /* BRIX_ZIP_DIR_H */

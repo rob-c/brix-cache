@@ -14,14 +14,14 @@
  *
  * HOW:
  *   webdav_urldecode():
- *     Wraps `xrootd_http_urldecode()` from src/compat/uri.h with a WebDAV-specific
+ *     Wraps `brix_http_urldecode()` from src/compat/uri.h with a WebDAV-specific
  *     error mapping. The compat function performs the actual percent-decoding; this
  *     wrapper converts its return codes into nginx status codes:
- *       XROOTD_URLDECODE_OK         → NGX_OK
- *       XROOTD_URLDECODE_OVERFLOW   → NGX_HTTP_REQUEST_URI_TOO_LARGE (414)
- *       XROOTD_URLDECODE_NUL_BYTE   → NGX_HTTP_BAD_REQUEST (400)
+ *       BRIX_URLDECODE_OK         → NGX_OK
+ *       BRIX_URLDECODE_OVERFLOW   → NGX_HTTP_REQUEST_URI_TOO_LARGE (414)
+ *       BRIX_URLDECODE_NUL_BYTE   → NGX_HTTP_BAD_REQUEST (400)
  *       default                    → NGX_HTTP_INTERNAL_SERVER_ERROR (500)
- *     The compat function is called with `XROOTD_URLDECODE_REJECT_NUL` so embedded
+ *     The compat function is called with `BRIX_URLDECODE_REJECT_NUL` so embedded
  *     null bytes produce a 400 response rather than truncating the decoded string.
  *
  *   webdav_destination_extract_path():
@@ -33,7 +33,7 @@
  *     into the original dest_data buffer and *path_len_out gives the remaining length —
  *     no allocation required, zero-copy extraction.
  *
- * DEPENDENCIES: src/compat/uri.h (xrootd_http_urldecode), RFC 4918 §8.3 (Destination header)
+ * DEPENDENCIES: src/compat/uri.h (brix_http_urldecode), RFC 4918 §8.3 (Destination header)
  * SEE ALSO: webdav/copy.c, webdav/move.c (callers), compat/uri.c (urldecode implementation)
  */
 
@@ -43,12 +43,12 @@
 ngx_int_t
 webdav_urldecode(const u_char *src, size_t src_len, char *dst, size_t dst_sz)
 {
-    switch (xrootd_http_urldecode(src, src_len, dst, dst_sz,
-                                   XROOTD_URLDECODE_REJECT_NUL))
+    switch (brix_http_urldecode(src, src_len, dst, dst_sz,
+                                   BRIX_URLDECODE_REJECT_NUL))
     {
-    case XROOTD_URLDECODE_OK:       return NGX_OK;
-    case XROOTD_URLDECODE_OVERFLOW: return NGX_HTTP_REQUEST_URI_TOO_LARGE;
-    case XROOTD_URLDECODE_NUL_BYTE: return NGX_HTTP_BAD_REQUEST;
+    case BRIX_URLDECODE_OK:       return NGX_OK;
+    case BRIX_URLDECODE_OVERFLOW: return NGX_HTTP_REQUEST_URI_TOO_LARGE;
+    case BRIX_URLDECODE_NUL_BYTE: return NGX_HTTP_BAD_REQUEST;
     default:                        return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 }

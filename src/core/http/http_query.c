@@ -12,7 +12,7 @@
 #include "core/compat/uri.h"
 
 /*
- * xrootd_http_query_key_eq - case-sensitive or case-insensitive key comparison.
+ * brix_http_query_key_eq - case-sensitive or case-insensitive key comparison.
  *
  * WHAT: Compares query-key bytes a[0..len] against literal b using ngx_strncmp
  *       (case-sensitive) or ngx_strncasecmp (case-insensitive), depending on flags.
@@ -26,10 +26,10 @@
  */
 
 static int
-xrootd_http_query_key_eq(const u_char *a, const char *b, size_t len,
+brix_http_query_key_eq(const u_char *a, const char *b, size_t len,
     unsigned flags)
 {
-    if (flags & XROOTD_HTTP_QUERY_CASE_INSENSITIVE) {
+    if (flags & BRIX_HTTP_QUERY_CASE_INSENSITIVE) {
         return ngx_strncasecmp((u_char *) b, (u_char *) a, len) == 0;
     }
 
@@ -37,7 +37,7 @@ xrootd_http_query_key_eq(const u_char *a, const char *b, size_t len,
 }
 
 /*
- * xrootd_http_query_hex - decode single hex digit to byte value.
+ * brix_http_query_hex - decode single hex digit to byte value.
  *
  * WHAT: Converts ASCII hex character (0-9/a-f/A-F) to its numeric byte value
  *       via out pointer. Returns 1 on success, 0 on invalid input.
@@ -51,7 +51,7 @@ xrootd_http_query_key_eq(const u_char *a, const char *b, size_t len,
  */
 
 static int
-xrootd_http_query_hex(u_char c, u_char *out)
+brix_http_query_hex(u_char c, u_char *out)
 {
     if (c >= '0' && c <= '9') { *out = (u_char) (c - '0'); return 1; }
     if (c >= 'a' && c <= 'f') { *out = (u_char) (c - 'a' + 10); return 1; }
@@ -60,7 +60,7 @@ xrootd_http_query_hex(u_char c, u_char *out)
 }
 
 /*
- * xrootd_http_query_decode_trunc - percent-decode src into dst with truncation and NUL rejection.
+ * brix_http_query_decode_trunc - percent-decode src into dst with truncation and NUL rejection.
  *
  * WHAT: Scans src[0..src_len], decoding %XX sequences to bytes, converting '+' to
  *       space when flag set, rejecting decoded/raw NUL bytes when flag set,
@@ -76,7 +76,7 @@ xrootd_http_query_hex(u_char c, u_char *out)
  */
 
 static int
-xrootd_http_query_decode_trunc(const u_char *src, size_t src_len,
+brix_http_query_decode_trunc(const u_char *src, size_t src_len,
     char *dst, size_t dst_sz, unsigned flags)
 {
     size_t si, di;
@@ -94,11 +94,11 @@ xrootd_http_query_decode_trunc(const u_char *src, size_t src_len,
         if (src[si] == '%' && si + 2 < src_len) {
             u_char hi, lo;
 
-            if (xrootd_http_query_hex(src[si + 1], &hi)
-                && xrootd_http_query_hex(src[si + 2], &lo))
+            if (brix_http_query_hex(src[si + 1], &hi)
+                && brix_http_query_hex(src[si + 2], &lo))
             {
                 c = (u_char) ((hi << 4) | lo);
-                if (c == '\0' && (flags & XROOTD_HTTP_QUERY_REJECT_NUL)) {
+                if (c == '\0' && (flags & BRIX_HTTP_QUERY_REJECT_NUL)) {
                     return -1;
                 }
                 if (di + 1 < dst_sz) {
@@ -110,10 +110,10 @@ xrootd_http_query_decode_trunc(const u_char *src, size_t src_len,
         }
 
         c = src[si++];
-        if (c == '+' && (flags & XROOTD_HTTP_QUERY_PLUS_TO_SPACE)) {
+        if (c == '+' && (flags & BRIX_HTTP_QUERY_PLUS_TO_SPACE)) {
             c = ' ';
         }
-        if (c == '\0' && (flags & XROOTD_HTTP_QUERY_REJECT_NUL)) {
+        if (c == '\0' && (flags & BRIX_HTTP_QUERY_REJECT_NUL)) {
             return -1;
         }
         if (di + 1 < dst_sz) {
@@ -126,10 +126,10 @@ xrootd_http_query_decode_trunc(const u_char *src, size_t src_len,
 }
 
 /*
- * xrootd_http_query_copy_value - copy or decode query value into dst buffer.
+ * brix_http_query_copy_value - copy or decode query value into dst buffer.
  *
  * WHAT: If DECODE_VALUE flag set: percent-decode via truncate helper (bounded) or
- *       full urldecode (returns XROOTD_URLDECODE_OK→1, else -1). If not decoded:
+ *       full urldecode (returns BRIX_URLDECODE_OK→1, else -1). If not decoded:
  *      memcpy src_len bytes into dst with optional truncation to dst_sz-1.
  *      Returns 1 on success, -1 on overflow when truncate flag not set.
  *
@@ -137,12 +137,12 @@ xrootd_http_query_decode_trunc(const u_char *src, size_t src_len,
  *      (S3 prefix/delimiter keys). This function centralises both copy and decode
  *      paths so callers pass one flags parameter to get correct behaviour.
  *
- * HOW: DECODE_VALUE → truncate helper (bounded loop) or xrootd_http_urldecode;
+ * HOW: DECODE_VALUE → truncate helper (bounded loop) or brix_http_urldecode;
  *      else ngx_memcpy(src, dst, min(src_len,dst_sz-1)) + null-term. Return 1/-1.
  */
 
 static int
-xrootd_http_query_copy_value(const u_char *src, size_t src_len,
+brix_http_query_copy_value(const u_char *src, size_t src_len,
     char *dst, size_t dst_sz, unsigned flags)
 {
     size_t copy;
@@ -153,23 +153,23 @@ xrootd_http_query_copy_value(const u_char *src, size_t src_len,
         return -1;
     }
 
-    if (flags & XROOTD_HTTP_QUERY_DECODE_VALUE) {
-        uri_flags = ((flags & XROOTD_HTTP_QUERY_PLUS_TO_SPACE)
-                        ? XROOTD_URLDECODE_PLUS_TO_SPACE : 0)
-                  | ((flags & XROOTD_HTTP_QUERY_REJECT_NUL)
-                        ? XROOTD_URLDECODE_REJECT_NUL : 0);
+    if (flags & BRIX_HTTP_QUERY_DECODE_VALUE) {
+        uri_flags = ((flags & BRIX_HTTP_QUERY_PLUS_TO_SPACE)
+                        ? BRIX_URLDECODE_PLUS_TO_SPACE : 0)
+                  | ((flags & BRIX_HTTP_QUERY_REJECT_NUL)
+                        ? BRIX_URLDECODE_REJECT_NUL : 0);
 
-        if (flags & XROOTD_HTTP_QUERY_TRUNCATE) {
-            return xrootd_http_query_decode_trunc(src, src_len, dst, dst_sz,
+        if (flags & BRIX_HTTP_QUERY_TRUNCATE) {
+            return brix_http_query_decode_trunc(src, src_len, dst, dst_sz,
                                                   flags);
         }
 
-        rc = xrootd_http_urldecode(src, src_len, dst, dst_sz, uri_flags);
-        return (rc == XROOTD_URLDECODE_OK) ? 1 : -1;
+        rc = brix_http_urldecode(src, src_len, dst, dst_sz, uri_flags);
+        return (rc == BRIX_URLDECODE_OK) ? 1 : -1;
     }
 
     if (src_len >= dst_sz) {
-        if (!(flags & XROOTD_HTTP_QUERY_TRUNCATE)) {
+        if (!(flags & BRIX_HTTP_QUERY_TRUNCATE)) {
             return -1;
         }
         copy = dst_sz - 1;
@@ -183,7 +183,7 @@ xrootd_http_query_copy_value(const u_char *src, size_t src_len,
 }
 
 /*
- * xrootd_http_query_get - scan query string for key and return decoded value into out buffer.
+ * brix_http_query_get - scan query string for key and return decoded value into out buffer.
  *
  * WHAT: Iterates args[0..len] split by '&', finds segment where key matches
  *       (case-sensitive/insensitive per flags), extracts value after '=', then
@@ -199,7 +199,7 @@ xrootd_http_query_copy_value(const u_char *src, size_t src_len,
  */
 
 int
-xrootd_http_query_get(ngx_str_t args, const char *key, char *out,
+brix_http_query_get(ngx_str_t args, const char *key, char *out,
     size_t outsz, unsigned flags)
 {
     u_char *p, *end;
@@ -219,16 +219,16 @@ xrootd_http_query_get(ngx_str_t args, const char *key, char *out,
         u_char *eq = ngx_strlchr(p, seg_end, '=');
 
         if (eq != NULL && (size_t) (eq - p) == key_len
-            && xrootd_http_query_key_eq(p, key, key_len, flags))
+            && brix_http_query_key_eq(p, key, key_len, flags))
         {
             u_char *val = eq + 1;
             size_t  val_len = (size_t) (seg_end - val);
 
-            if (val_len == 0 && !(flags & XROOTD_HTTP_QUERY_ALLOW_EMPTY)) {
+            if (val_len == 0 && !(flags & BRIX_HTTP_QUERY_ALLOW_EMPTY)) {
                 return 0;
             }
 
-            return xrootd_http_query_copy_value(val, val_len, out, outsz,
+            return brix_http_query_copy_value(val, val_len, out, outsz,
                                                 flags);
         }
 
@@ -239,7 +239,7 @@ xrootd_http_query_get(ngx_str_t args, const char *key, char *out,
 }
 
 /*
- * xrootd_http_query_has - scan query string for key existence (with optional value check).
+ * brix_http_query_has - scan query string for key existence (with optional value check).
  *
  * WHAT: Iterates args[0..len] split by '&', finds segment where key matches
  *       (case-sensitive/insensitive per flags). Returns 1 if found. If HAS_VALUE_OK
@@ -254,7 +254,7 @@ xrootd_http_query_get(ngx_str_t args, const char *key, char *out,
  */
 
 int
-xrootd_http_query_has(ngx_str_t args, const char *key, unsigned flags)
+brix_http_query_has(ngx_str_t args, const char *key, unsigned flags)
 {
     u_char *p, *end;
     size_t  key_len;
@@ -274,9 +274,9 @@ xrootd_http_query_has(ngx_str_t args, const char *key, unsigned flags)
         u_char *key_end = eq ? eq : seg_end;
 
         if ((size_t) (key_end - p) == key_len
-            && xrootd_http_query_key_eq(p, key, key_len, flags))
+            && brix_http_query_key_eq(p, key, key_len, flags))
         {
-            if (eq == NULL || (flags & XROOTD_HTTP_QUERY_HAS_VALUE_OK)) {
+            if (eq == NULL || (flags & BRIX_HTTP_QUERY_HAS_VALUE_OK)) {
                 return 1;
             }
         }

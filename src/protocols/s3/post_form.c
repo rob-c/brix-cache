@@ -132,7 +132,7 @@ s3_post_boundary(ngx_http_request_t *r, char *boundary, size_t boundary_sz)
     u_char          *p, *end;
     size_t           len;
 
-    ct = xrootd_http_find_header(r, "Content-Type",
+    ct = brix_http_find_header(r, "Content-Type",
                                  sizeof("Content-Type") - 1);
     if (ct == NULL || ct->value.len == 0) {
         return NGX_DECLINED;
@@ -322,7 +322,7 @@ s3_post_expand_filename(ngx_http_request_t *r, s3_post_form_t *form)
         src = m + sizeof(needle) - 1;
     }
 
-    if (xrootd_http_str_has_ctl((u_char *) expanded, strlen(expanded))) {
+    if (brix_http_str_has_ctl((u_char *) expanded, strlen(expanded))) {
         return NGX_ERROR;
     }
 

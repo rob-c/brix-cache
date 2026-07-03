@@ -2,7 +2,7 @@ from _test_evil_actor_v3_helpers import *  # noqa: F401,F403  (Phase-38 split sh
 
 def test_a1_roots_tls_windowed_read(srv):
     if not _tls_available(srv):
-        pytest.skip("roots:// in-protocol TLS not drivable (binary lacks xrootd_tls?)")
+        pytest.skip("roots:// in-protocol TLS not drivable (binary lacks brix_tls?)")
     srv.mark()
     origin_small = open(os.path.join(srv.datadir, "shared.bin"), "rb").read()
     md5_small = hashlib.md5(origin_small).hexdigest()

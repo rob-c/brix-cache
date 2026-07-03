@@ -65,7 +65,7 @@ def cluster():
     _wait_port(SERVER_HOST, CLUSTER_DS_PORT,    timeout=20)
     os.makedirs(os.path.join(CLUSTER_DS_DATA_ROOT, "uploads"), exist_ok=True)
     # Allow time for the data server to register with the CMS manager.
-    # xrootd_cms_interval is 5s; 6s ensures at least one heartbeat.
+    # brix_cms_interval is 5s; 6s ensures at least one heartbeat.
     time.sleep(6)
     return {
         "redir_port": CLUSTER_REDIR_PORT,
@@ -320,7 +320,7 @@ def test_redirector_metrics_update_after_transfer(cluster, test_env):
     def _conn_val(text):
         for line in text.splitlines():
             if (f'port="{redir_port}"' in line
-                    and "xrootd_connections_total" in line):
+                    and "brix_connections_total" in line):
                 m = re.search(r"\}\s+(\d+)", line)
                 if m:
                     return int(m.group(1))

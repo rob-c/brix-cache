@@ -1,4 +1,4 @@
-from _test_xrootd_performance_conformance_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
+from _test_brix_performance_conformance_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
 import pytest
 
 # serial: latency/throughput-vs-reference assertions — invalid under pool load.

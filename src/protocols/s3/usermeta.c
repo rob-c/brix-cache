@@ -36,17 +36,17 @@
  */
 static void
 s3_user_meta_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
-    ngx_http_s3_loc_conf_t *cf, xrootd_vfs_ctx_t *vctx)
+    ngx_http_s3_loc_conf_t *cf, brix_vfs_ctx_t *vctx)
 {
     ngx_http_s3_req_ctx_t *s3ctx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+        ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
     int is_tls = 0;
 
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
 
-    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+    brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
         cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
         is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 }
@@ -57,11 +57,11 @@ static ssize_t
 s3_user_meta_load(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     const char *fs_path, char *out, size_t outsz)
 {
-    xrootd_vfs_ctx_t vctx;
+    brix_vfs_ctx_t vctx;
     ssize_t          n;
 
     s3_user_meta_vfs_ctx(r, fs_path, cf, &vctx);
-    n = xrootd_vfs_getxattr(&vctx, S3_USERMETA_XATTR, out, outsz - 1);
+    n = brix_vfs_getxattr(&vctx, S3_USERMETA_XATTR, out, outsz - 1);
     if (n < 0) {
         if (errno == ENODATA || errno == ENOTSUP || errno == EOPNOTSUPP) {
             return 0;   /* object readable, just carries no user metadata */
@@ -77,10 +77,10 @@ static ngx_int_t
 s3_user_meta_store(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     const char *fs_path, const char *blob, size_t blob_len)
 {
-    xrootd_vfs_ctx_t vctx;
+    brix_vfs_ctx_t vctx;
 
     s3_user_meta_vfs_ctx(r, fs_path, cf, &vctx);
-    return xrootd_vfs_setxattr(&vctx, S3_USERMETA_XATTR, blob, blob_len, 0)
+    return brix_vfs_setxattr(&vctx, S3_USERMETA_XATTR, blob, blob_len, 0)
                == NGX_OK ? NGX_OK : NGX_ERROR;
 }
 
@@ -141,7 +141,7 @@ s3_user_meta_blob_from_headers(ngx_http_request_t *r, char *out, size_t outsz,
             }
             out[pos++] = '&';
         }
-        if (xrootd_http_urlencode((u_char *) klow, knlen, enc, sizeof(enc), "")
+        if (brix_http_urlencode((u_char *) klow, knlen, enc, sizeof(enc), "")
                 < 0)
         {
             return NGX_ERROR;
@@ -153,7 +153,7 @@ s3_user_meta_blob_from_headers(ngx_http_request_t *r, char *out, size_t outsz,
         ngx_memcpy(out + pos, enc, n);
         pos += n;
         out[pos++] = '=';
-        if (xrootd_http_urlencode(h[i].value.data, h[i].value.len, enc,
+        if (brix_http_urlencode(h[i].value.data, h[i].value.len, enc,
                                   sizeof(enc), "") < 0)
         {
             return NGX_ERROR;
@@ -177,7 +177,7 @@ s3_apply_put_user_metadata(ngx_http_request_t *r, const char *fs_path,
     const char *root_canon)
 {
     ngx_http_s3_loc_conf_t *cf =
-        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
     char   blob[S3_USERMETA_BLOB_MAX];
     size_t blob_len = 0;
     int    any      = 0;
@@ -199,7 +199,7 @@ void
 s3_echo_user_metadata(ngx_http_request_t *r, const char *fs_path)
 {
     ngx_http_s3_loc_conf_t *cf =
-        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
     char    blob[S3_USERMETA_BLOB_MAX];
     ssize_t blen;
     char   *p, *amp;
@@ -221,12 +221,12 @@ s3_echo_user_metadata(ngx_http_request_t *r, const char *fs_path)
         eq = strchr(p, '=');
         if (eq != NULL) {
             *eq = '\0';
-            if (xrootd_http_urldecode((u_char *) p, ngx_strlen(p), kbuf,
-                    sizeof(kbuf), XROOTD_URLDECODE_PLUS_TO_SPACE)
-                        == XROOTD_URLDECODE_OK
-                && xrootd_http_urldecode((u_char *) (eq + 1),
+            if (brix_http_urldecode((u_char *) p, ngx_strlen(p), kbuf,
+                    sizeof(kbuf), BRIX_URLDECODE_PLUS_TO_SPACE)
+                        == BRIX_URLDECODE_OK
+                && brix_http_urldecode((u_char *) (eq + 1),
                     ngx_strlen(eq + 1), vbuf, sizeof(vbuf),
-                    XROOTD_URLDECODE_PLUS_TO_SPACE) == XROOTD_URLDECODE_OK
+                    BRIX_URLDECODE_PLUS_TO_SPACE) == BRIX_URLDECODE_OK
                 && kbuf[0] != '\0')
             {
                 /* The header NAME must outlive this stack frame: set_header
@@ -256,7 +256,7 @@ s3_user_meta_copy(ngx_http_request_t *r, const char *src_fs_path,
     const char *dst_fs_path)
 {
     ngx_http_s3_loc_conf_t *cf =
-        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
     char    blob[S3_USERMETA_BLOB_MAX];
     ssize_t blen;
 

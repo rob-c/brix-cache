@@ -9,17 +9,17 @@
  *         GET /xrootd/api/v1/vfs/download?export=&path=  stream one file
  *
  * WHY:  the older /files browser (files.c) walks a HOST directory tree
- *       (xrootd_dashboard_browse_root) with raw readdir/statx — right for
+ *       (brix_dashboard_browse_root) with raw readdir/statx — right for
  *       logs and spool dirs, wrong for storage: a pblock export's on-disk
  *       shape is catalog.db + packed blobs, and a ceph export has no host
- *       tree at all. Routing every namespace/data op through xrootd_vfs_*
+ *       tree at all. Routing every namespace/data op through brix_vfs_*
  *       shows the export exactly as a client sees it, for ANY backend the
  *       registry composed (phase-62: the VFS is the sole storage truth).
  *
  * SECURITY:
- *   - Always admin-auth (ngx_http_xrootd_dashboard_check_auth) — never the
+ *   - Always admin-auth (ngx_http_brix_dashboard_check_auth) — never the
  *     anonymous tier: this surface exposes stored user data.
- *   - Opt-in: disabled (404) unless `xrootd_dashboard_vfs_browse on`.
+ *   - Opt-in: disabled (404) unless `brix_dashboard_vfs_browse on`.
  *   - Read-only by construction: the vctx binds with allow_write=0, so even
  *     a coding slip below cannot reach a write path.
  *   - Input path must be absolute, NUL-free, and ".."-free; the VFS then
@@ -33,7 +33,7 @@
 #include "fs/vfs/vfs_backend_registry.h"
 #include "protocols/shared/file_serve.h"
 #include "core/http/etag.h"
-#include "core/http/http_headers.h"   /* xrootd_http_source_offer (AGPL sec.13) */
+#include "core/http/http_headers.h"   /* brix_http_source_offer (AGPL sec.13) */
 
 #include <errno.h>
 #include <jansson.h>
@@ -59,21 +59,21 @@ vfs_browse_status(int e)
  * Returns NGX_OK to proceed, else the response status. */
 static ngx_int_t
 vfs_browse_preamble(ngx_http_request_t *r,
-    ngx_http_xrootd_dashboard_loc_conf_t *conf)
+    ngx_http_brix_dashboard_loc_conf_t *conf)
 {
     ngx_int_t rc;
 
     if (!conf->vfs_browse) {
         return NGX_HTTP_NOT_FOUND;   /* feature disabled (opt-in) */
     }
-    rc = ngx_http_xrootd_dashboard_check_auth(r, conf, 0);
+    rc = ngx_http_brix_dashboard_check_auth(r, conf, 0);
     if (rc != NGX_OK) {
         return rc;
     }
     if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD) {
         return NGX_HTTP_NOT_ALLOWED;
     }
-    xrootd_http_source_offer(r);
+    brix_http_source_offer(r);
     return NGX_OK;
 }
 
@@ -91,7 +91,7 @@ vfs_browse_get_export(ngx_http_request_t *r, ngx_uint_t *idx_out)
         return NGX_ERROR;
     }
     v = ngx_atoi(raw.data, raw.len);
-    if (v == NGX_ERROR || (ngx_uint_t) v >= xrootd_vfs_backend_export_count()) {
+    if (v == NGX_ERROR || (ngx_uint_t) v >= brix_vfs_backend_export_count()) {
         return NGX_ERROR;
     }
     *idx_out = (ngx_uint_t) v;
@@ -161,29 +161,29 @@ vfs_browse_abs_path(const char *root_canon, const char *path,
 
 /* Bind a read-only vctx for `abs` on export `info`. */
 static void
-vfs_browse_ctx(ngx_http_request_t *r, const xrootd_vfs_backend_info_t *info,
-    const char *abs, xrootd_vfs_ctx_t *vctx)
+vfs_browse_ctx(ngx_http_request_t *r, const brix_vfs_backend_info_t *info,
+    const char *abs, brix_vfs_ctx_t *vctx)
 {
     int is_tls = 0;
 
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
-    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_ROOT,
+    brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_ROOT,
                         info->root_canon, "", /* allow_write */ 0, is_tls,
                         NULL, abs);
 }
 
 /* GET /xrootd/api/v1/vfs — the export census (index, root, backend, origin). */
 ngx_int_t
-ngx_http_xrootd_dashboard_vfs_exports_handler(ngx_http_request_t *r)
+ngx_http_brix_dashboard_vfs_exports_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *conf;
+    ngx_http_brix_dashboard_loc_conf_t *conf;
     json_t     *root, *arr;
     ngx_uint_t  i, n;
     ngx_int_t   rc;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_dashboard_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
     rc = vfs_browse_preamble(r, conf);
     if (rc != NGX_OK) {
         return rc;
@@ -197,12 +197,12 @@ ngx_http_xrootd_dashboard_vfs_exports_handler(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    n = xrootd_vfs_backend_export_count();
+    n = brix_vfs_backend_export_count();
     for (i = 0; i < n; i++) {
-        xrootd_vfs_backend_info_t  info;
+        brix_vfs_backend_info_t  info;
         json_t                    *e;
 
-        if (xrootd_vfs_backend_export_info(i, &info) != NGX_OK) {
+        if (brix_vfs_backend_export_info(i, &info) != NGX_OK) {
             continue;
         }
         e = json_object();
@@ -234,13 +234,13 @@ ngx_http_xrootd_dashboard_vfs_exports_handler(ngx_http_request_t *r)
  * followed). Returns NULL on alloc failure (caller skips the entry). */
 static json_t *
 vfs_browse_entry(ngx_http_request_t *r,
-    const xrootd_vfs_backend_info_t *info, const char *abs_dir,
-    const ngx_str_t *name, xrootd_vfs_dirent_kind_t kind)
+    const brix_vfs_backend_info_t *info, const char *abs_dir,
+    const ngx_str_t *name, brix_vfs_dirent_kind_t kind)
 {
     char               child[PATH_MAX];
     char               namez[NAME_MAX + 1];
-    xrootd_vfs_ctx_t   cctx;
-    xrootd_vfs_stat_t  st;
+    brix_vfs_ctx_t   cctx;
+    brix_vfs_stat_t  st;
     json_t            *o;
     const char        *type;
     int                n;
@@ -252,24 +252,24 @@ vfs_browse_entry(ngx_http_request_t *r,
     namez[name->len] = '\0';
 
     ngx_memzero(&st, sizeof(st));
-    if (kind != XROOTD_VFS_DT_OTHER) {
+    if (kind != BRIX_VFS_DT_OTHER) {
         n = snprintf(child, sizeof(child), "%s%s%s", abs_dir,
                      (abs_dir[strlen(abs_dir) - 1] == '/') ? "" : "/", namez);
         if (n <= 0 || (size_t) n >= sizeof(child)) {
             return NULL;
         }
         vfs_browse_ctx(r, info, child, &cctx);
-        if (xrootd_vfs_stat(&cctx, &st) != NGX_OK) {
+        if (brix_vfs_stat(&cctx, &st) != NGX_OK) {
             ngx_memzero(&st, sizeof(st));   /* vanished mid-scan: list bare */
         }
-        if (kind == XROOTD_VFS_DT_UNKNOWN) {
-            kind = st.is_directory ? XROOTD_VFS_DT_DIR
-                 : st.is_regular   ? XROOTD_VFS_DT_REG
-                                   : XROOTD_VFS_DT_OTHER;
+        if (kind == BRIX_VFS_DT_UNKNOWN) {
+            kind = st.is_directory ? BRIX_VFS_DT_DIR
+                 : st.is_regular   ? BRIX_VFS_DT_REG
+                                   : BRIX_VFS_DT_OTHER;
         }
     }
-    type = (kind == XROOTD_VFS_DT_DIR) ? "dir"
-         : (kind == XROOTD_VFS_DT_REG) ? "file" : "other";
+    type = (kind == BRIX_VFS_DT_DIR) ? "dir"
+         : (kind == BRIX_VFS_DT_REG) ? "file" : "other";
 
     o = json_object();
     if (o == NULL) {
@@ -284,12 +284,12 @@ vfs_browse_entry(ngx_http_request_t *r,
 
 /* GET /xrootd/api/v1/vfs/files?export=<i>&path=</...> */
 ngx_int_t
-ngx_http_xrootd_dashboard_vfs_files_handler(ngx_http_request_t *r)
+ngx_http_brix_dashboard_vfs_files_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *conf;
-    xrootd_vfs_backend_info_t  info;
-    xrootd_vfs_ctx_t           vctx;
-    xrootd_vfs_dir_t          *dh;
+    ngx_http_brix_dashboard_loc_conf_t *conf;
+    brix_vfs_backend_info_t  info;
+    brix_vfs_ctx_t           vctx;
+    brix_vfs_dir_t          *dh;
     char                       path[PATH_MAX];
     char                       abs[PATH_MAX];
     ngx_uint_t                 idx, count = 0;
@@ -297,13 +297,13 @@ ngx_http_xrootd_dashboard_vfs_files_handler(ngx_http_request_t *r)
     json_t                    *root, *arr;
     ngx_int_t                  rc;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_dashboard_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
     rc = vfs_browse_preamble(r, conf);
     if (rc != NGX_OK) {
         return rc;
     }
     if (vfs_browse_get_export(r, &idx) != NGX_OK
-        || xrootd_vfs_backend_export_info(idx, &info) != NGX_OK
+        || brix_vfs_backend_export_info(idx, &info) != NGX_OK
         || vfs_browse_get_path(r, path, sizeof(path)) != NGX_OK
         || vfs_browse_abs_path(info.root_canon, path, abs, sizeof(abs))
            != NGX_OK)
@@ -312,7 +312,7 @@ ngx_http_xrootd_dashboard_vfs_files_handler(ngx_http_request_t *r)
     }
 
     vfs_browse_ctx(r, &info, abs, &vctx);
-    dh = xrootd_vfs_opendir(&vctx, &err);
+    dh = brix_vfs_opendir(&vctx, &err);
     if (dh == NULL) {
         return vfs_browse_status(err);
     }
@@ -322,16 +322,16 @@ ngx_http_xrootd_dashboard_vfs_files_handler(ngx_http_request_t *r)
     if (root == NULL || arr == NULL) {
         if (root) { json_decref(root); }
         if (arr) { json_decref(arr); }
-        xrootd_vfs_closedir(dh, r->connection->log);
+        brix_vfs_closedir(dh, r->connection->log);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     for ( ;; ) {
         ngx_str_t                 name;
-        xrootd_vfs_dirent_kind_t  kind;
+        brix_vfs_dirent_kind_t  kind;
         json_t                   *e;
 
-        rc = xrootd_vfs_readdir_kind(dh, &name, &kind);
+        rc = brix_vfs_readdir_kind(dh, &name, &kind);
         if (rc == NGX_DONE) {
             break;
         }
@@ -348,7 +348,7 @@ ngx_http_xrootd_dashboard_vfs_files_handler(ngx_http_request_t *r)
         }
         count++;
     }
-    xrootd_vfs_closedir(dh, r->connection->log);
+    brix_vfs_closedir(dh, r->connection->log);
 
     dashboard_json_set_schema(root);
     json_object_set_new(root, "export", json_integer((json_int_t) idx));
@@ -366,28 +366,28 @@ ngx_http_xrootd_dashboard_vfs_files_handler(ngx_http_request_t *r)
  * rule, ranges) are handled once. Tagged as a WEBDAV transfer for tracking:
  * it IS an HTTP GET of export data, just admin-initiated. */
 ngx_int_t
-ngx_http_xrootd_dashboard_vfs_download_handler(ngx_http_request_t *r)
+ngx_http_brix_dashboard_vfs_download_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *conf;
-    xrootd_vfs_backend_info_t   info;
-    xrootd_vfs_ctx_t            vctx;
-    xrootd_vfs_file_t          *fh;
-    xrootd_vfs_stat_t           vst;
-    xrootd_http_serve_opts_t    opts;
-    xrootd_http_serve_result_t  result;
+    ngx_http_brix_dashboard_loc_conf_t *conf;
+    brix_vfs_backend_info_t   info;
+    brix_vfs_ctx_t            vctx;
+    brix_vfs_file_t          *fh;
+    brix_vfs_stat_t           vst;
+    brix_http_serve_opts_t    opts;
+    brix_http_serve_result_t  result;
     char                        path[PATH_MAX];
     char                        abs[PATH_MAX];
     ngx_uint_t                  idx;
     int                         err = 0;
     ngx_int_t                   rc;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_dashboard_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
     rc = vfs_browse_preamble(r, conf);
     if (rc != NGX_OK) {
         return rc;
     }
     if (vfs_browse_get_export(r, &idx) != NGX_OK
-        || xrootd_vfs_backend_export_info(idx, &info) != NGX_OK
+        || brix_vfs_backend_export_info(idx, &info) != NGX_OK
         || vfs_browse_get_path(r, path, sizeof(path)) != NGX_OK
         || (path[0] == '/' && path[1] == '\0')   /* the root is not a file */
         || vfs_browse_abs_path(info.root_canon, path, abs, sizeof(abs))
@@ -398,21 +398,21 @@ ngx_http_xrootd_dashboard_vfs_download_handler(ngx_http_request_t *r)
 
     vfs_browse_ctx(r, &info, abs, &vctx);
 
-    fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &err);
+    fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, &err);
     if (fh == NULL) {
         return vfs_browse_status(err);
     }
-    if (xrootd_vfs_file_stat(fh, &vst) != NGX_OK || !vst.is_regular) {
-        xrootd_vfs_close(fh, r->connection->log);
+    if (brix_vfs_file_stat(fh, &vst) != NGX_OK || !vst.is_regular) {
+        brix_vfs_close(fh, r->connection->log);
         return NGX_HTTP_NOT_FOUND;   /* only regular files are downloadable */
     }
 
     ngx_memzero(&opts, sizeof(opts));
-    opts.xfer_proto = XROOTD_XFER_PROTO_WEBDAV;
+    opts.xfer_proto = BRIX_XFER_PROTO_WEBDAV;
     opts.op_name    = "GET";
     opts.identity   = "dashboard-admin";
-    opts.etag_flags = XROOTD_ETAG_WEAK;
+    opts.etag_flags = BRIX_ETAG_WEAK;
 
     /* serve_file_ranged owns fh from here (closes it itself) */
-    return xrootd_http_serve_file_ranged(r, fh, &vst, abs, &opts, &result);
+    return brix_http_serve_file_ranged(r, fh, &vst, abs, &opts, &result);
 }

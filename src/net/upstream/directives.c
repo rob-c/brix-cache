@@ -12,9 +12,9 @@
  * WHY: Upstream address parsing must support both IPv4/hostname and IPv6 literal formats — nginx config directives commonly use [::1]:1094 for IPv6 loopback addresses which require bracket-based splitting rather than colon-only splitting. The strrchr approach for non-IPv6 addresses splits on the LAST colon to handle hostnames containing colons (though uncommon in practice). Port validation range 1-65535 ensures only valid TCP port numbers are accepted — zero and negative values rejected immediately, values above 65535 caught by strtol endp check. Emerg-level logging on configuration errors prevents server startup with invalid upstream address that would cause connection failures for all requests. Thread safety: config parsing runs once during nginx startup; no concurrent access after initialization. */
 
 char *
-xrootd_conf_set_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_conf_set_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_stream_xrootd_srv_conf_t *xcf = conf;
+    ngx_stream_brix_srv_conf_t *xcf = conf;
     ngx_str_t                    *value;
     char                         *addr_copy, *colon, *endp;
     long                          pnum;
@@ -22,7 +22,7 @@ xrootd_conf_set_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     value = cf->args->elts;
     (void) cmd;
 
-    XROOTD_PNALLOC_OR_RETURN(addr_copy, cf->pool, value[1].len + 1, NGX_CONF_ERROR);
+    BRIX_PNALLOC_OR_RETURN(addr_copy, cf->pool, value[1].len + 1, NGX_CONF_ERROR);
     ngx_memcpy(addr_copy, value[1].data, value[1].len);
     addr_copy[value[1].len] = '\0';
 
@@ -31,11 +31,11 @@ xrootd_conf_set_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         char *rb = strchr(addr_copy, ']');
         if (rb == NULL || *(rb + 1) != ':') {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_upstream: invalid address \"%V\"", &value[1]);
+                "brix_upstream: invalid address \"%V\"", &value[1]);
             return NGX_CONF_ERROR;
         }
         size_t hostlen = (size_t)(rb - addr_copy - 1);
-        if (xrootd_pstrdupz(cf->pool, &xcf->upstream_host,
+        if (brix_pstrdupz(cf->pool, &xcf->upstream_host,
                             (u_char *) addr_copy + 1, hostlen) != NGX_OK) {
             return NGX_CONF_ERROR;
         }
@@ -45,11 +45,11 @@ xrootd_conf_set_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         colon = strrchr(addr_copy, ':');
         if (colon == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_upstream: missing port in \"%V\"", &value[1]);
+                "brix_upstream: missing port in \"%V\"", &value[1]);
             return NGX_CONF_ERROR;
         }
         size_t hostlen = (size_t)(colon - addr_copy);
-        if (xrootd_pstrdupz(cf->pool, &xcf->upstream_host,
+        if (brix_pstrdupz(cf->pool, &xcf->upstream_host,
                             (u_char *) addr_copy, hostlen) != NGX_OK) {
             return NGX_CONF_ERROR;
         }
@@ -58,7 +58,7 @@ xrootd_conf_set_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     if (*endp != '\0' || pnum <= 0 || pnum > 65535) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_upstream: invalid port in \"%V\"", &value[1]);
+            "brix_upstream: invalid port in \"%V\"", &value[1]);
         return NGX_CONF_ERROR;
     }
     xcf->upstream_port = (uint16_t) pnum;

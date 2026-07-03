@@ -2,7 +2,7 @@
 """
 tests/test_webdav.py
 
-HTTPS WebDAV module tests for the ngx_http_xrootd_webdav_module.
+HTTPS WebDAV module tests for the ngx_http_brix_webdav_module.
 
 Covers the WebDAV methods that xrdcp (XrdClHttp plugin) and compatible
 clients depend on:

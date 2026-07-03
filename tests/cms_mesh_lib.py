@@ -34,7 +34,7 @@ from settings import NGINX_BIN, HOST, BIND_HOST
 # Binaries / constants
 # --------------------------------------------------------------------------- #
 
-XROOTD_BIN = shutil.which(os.environ.get("TEST_XROOTD_BIN", "xrootd"))
+BRIX_BIN = shutil.which(os.environ.get("TEST_BRIX_BIN", "xrootd"))
 CMSD_BIN = shutil.which(os.environ.get("TEST_CMSD_BIN", "cmsd"))
 XRDFS_BIN = shutil.which(os.environ.get("TEST_XRDFS_BIN", "xrdfs"))
 XRDCP_BIN = shutil.which(os.environ.get("TEST_XRDCP_BIN", "xrdcp"))
@@ -54,7 +54,7 @@ _XRD_ENV["XrdSecPROTOCOL"] = "unix"
 
 
 def have_binaries():
-    return all([XROOTD_BIN, CMSD_BIN, XRDFS_BIN, XRDCP_BIN,
+    return all([BRIX_BIN, CMSD_BIN, XRDFS_BIN, XRDCP_BIN,
                 NGINX_BIN and os.path.exists(NGINX_BIN)])
 
 
@@ -241,7 +241,7 @@ class Mesh:
             f.write(body)
         return full
 
-    def xrootd_node(self, label, role, data_port, cms_port, data_dir_,
+    def brix_node(self, label, role, data_port, cms_port, data_dir_,
                     export, manager, http_port=None, cert=None, key=None):
         run = os.path.join(self.root, "run", label)
         # Clear stale admin sockets / pid files — a leftover .olb/.xrd admin
@@ -283,7 +283,7 @@ class Mesh:
         # dir per node.  Pin it under the mesh's /tmp working tree instead.
         subprocess.run([CMSD_BIN, "-c", cfg, "-n", label, "-l", clog, "-b"],
                        check=False, start_new_session=True, cwd=self.root)
-        subprocess.run([XROOTD_BIN, "-c", cfg, "-n", label, "-l", xlog, "-b"],
+        subprocess.run([BRIX_BIN, "-c", cfg, "-n", label, "-l", xlog, "-b"],
                        check=False, start_new_session=True, cwd=self.root)
 
     def nginx(self, label, conf_text):
@@ -309,9 +309,9 @@ def cfg_manager(data_port, cms_port):
         "worker_processes 1;\nerror_log {ERR} info;\npid {PID};\n"
         "events { worker_connections 128; }\n"
         "stream {\n"
-        f"    server {{ listen {BIND_HOST}:{data_port}; xrootd on; xrootd_auth none;"
-        f" xrootd_manager_mode on; }}\n"
-        f"    server {{ listen {BIND_HOST}:{cms_port}; xrootd_cms_server on; }}\n"
+        f"    server {{ listen {BIND_HOST}:{data_port}; xrootd on; brix_auth none;"
+        f" brix_manager_mode on; }}\n"
+        f"    server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on; }}\n"
         "}\n"
     )
 
@@ -343,10 +343,10 @@ def cfg_manager_sss(data_port, cms_port, keytab):
         "worker_processes 1;\nerror_log {ERR} info;\npid {PID};\n"
         "events { worker_connections 128; }\n"
         "stream {\n"
-        f"    server {{ listen {BIND_HOST}:{data_port}; xrootd on; xrootd_auth none;"
-        f" xrootd_manager_mode on; }}\n"
-        f"    server {{ listen {BIND_HOST}:{cms_port}; xrootd_cms_server on;"
-        f" xrootd_cms_server_sss_keytab {keytab}; }}\n"
+        f"    server {{ listen {BIND_HOST}:{data_port}; xrootd on; brix_auth none;"
+        f" brix_manager_mode on; }}\n"
+        f"    server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on;"
+        f" brix_cms_server_sss_keytab {keytab}; }}\n"
         "}\n"
     )
 
@@ -358,10 +358,10 @@ def cfg_datanode(data_port, root, cms_mgr, paths):
         "stream {\n"
         f"    server {{\n"
         f"        listen {BIND_HOST}:{data_port};\n"
-        f"        xrootd on; xrootd_storage_backend posix:{root}; xrootd_auth none;\n"
-        f"        xrootd_allow_write on;\n"
-        f"        xrootd_cms_manager {cms_mgr}; xrootd_cms_paths {paths};\n"
-        f"        xrootd_cms_interval 2; xrootd_listen_port {data_port};\n"
+        f"        xrootd on; brix_storage_backend posix:{root}; brix_auth none;\n"
+        f"        brix_allow_write on;\n"
+        f"        brix_cms_manager {cms_mgr}; brix_cms_paths {paths};\n"
+        f"        brix_cms_interval 2; brix_listen_port {data_port};\n"
         f"    }}\n"
         "}\n"
     )
@@ -374,12 +374,12 @@ def cfg_submanager(data_port, cms_port, root, parent_cms):
         "stream {\n"
         f"    server {{\n"
         f"        listen {BIND_HOST}:{data_port};\n"
-        f"        xrootd on; xrootd_storage_backend posix:{root}; xrootd_auth none;\n"
-        f"        xrootd_manager_mode on;\n"
-        f"        xrootd_cms_manager {parent_cms}; xrootd_cms_paths /;\n"
-        f"        xrootd_cms_interval 2; xrootd_listen_port {data_port};\n"
+        f"        xrootd on; brix_storage_backend posix:{root}; brix_auth none;\n"
+        f"        brix_manager_mode on;\n"
+        f"        brix_cms_manager {parent_cms}; brix_cms_paths /;\n"
+        f"        brix_cms_interval 2; brix_listen_port {data_port};\n"
         f"    }}\n"
-        f"    server {{ listen {BIND_HOST}:{cms_port}; xrootd_cms_server on; }}\n"
+        f"    server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on; }}\n"
         "}\n"
     )
 
@@ -391,10 +391,10 @@ def cfg_dual(root_port, https_port, root, cms_mgr, paths, cert, key, tmpbase):
         "stream {\n"
         f"    server {{\n"
         f"        listen {BIND_HOST}:{root_port};\n"
-        f"        xrootd on; xrootd_storage_backend posix:{root}; xrootd_auth none;\n"
-        f"        xrootd_allow_write on;\n"
-        f"        xrootd_cms_manager {cms_mgr}; xrootd_cms_paths {paths};\n"
-        f"        xrootd_cms_interval 2; xrootd_listen_port {root_port};\n"
+        f"        xrootd on; brix_storage_backend posix:{root}; brix_auth none;\n"
+        f"        brix_allow_write on;\n"
+        f"        brix_cms_manager {cms_mgr}; brix_cms_paths {paths};\n"
+        f"        brix_cms_interval 2; brix_listen_port {root_port};\n"
         f"    }}\n"
         "}\n"
         "http {\n    access_log off;\n"
@@ -406,8 +406,8 @@ def cfg_dual(root_port, https_port, root, cms_mgr, paths, cert, key, tmpbase):
         f"    server {{\n"
         f"        listen {BIND_HOST}:{https_port} ssl;\n        server_name localhost;\n"
         f"        ssl_certificate {cert};\n        ssl_certificate_key {key};\n"
-        f"        location / {{ xrootd_webdav on; xrootd_webdav_storage_backend posix:{root};"
-        f" xrootd_webdav_auth none; xrootd_webdav_allow_write on; }}\n"
+        f"        location / {{ brix_webdav on; brix_webdav_storage_backend posix:{root};"
+        f" brix_webdav_auth none; brix_webdav_allow_write on; }}\n"
         f"    }}\n"
         "}\n"
     )
@@ -531,7 +531,7 @@ def build_all():
 
     # A: real manager + nginx data node
     m = Mesh("a")
-    m.xrootd_node("a-mgr", "manager", p["a_mgr"], p["a_mgr_cms"],
+    m.brix_node("a-mgr", "manager", p["a_mgr"], p["a_mgr_cms"],
                   m.datadir("a-mgr"), "/", f"{HOST}:{p['a_mgr_cms']}")
     d = m.datadir("a-nds"); m.seed(d, "/fileA.txt", content("a"))
     _b(m, "a-nds", p["a_nds"], d, f"{HOST}:{p['a_mgr_cms']}", "/")
@@ -540,7 +540,7 @@ def build_all():
     m = Mesh("b")
     m.nginx("b-mgr", cfg_manager(p["b_mgr"], p["b_mgr_cms"]))
     d = m.datadir("b-rds"); m.seed(d, "/fileB.txt", content("b"))
-    m.xrootd_node("b-rds", "server", p["b_rds"], p["b_rds_cms"], d, "/",
+    m.brix_node("b-rds", "server", p["b_rds"], p["b_rds_cms"], d, "/",
                   f"{HOST}:{p['b_mgr_cms']}")
 
     # C: nginx manager + nginx DS (/ngx) + real DS (/real)
@@ -549,12 +549,12 @@ def build_all():
     dn = m.datadir("c-nds"); m.seed(dn, "/ngx/n.txt", content("c-ngx"))
     _b(m, "c-nds", p["c_nds"], dn, f"{HOST}:{p['c_mgr_cms']}", "/ngx")
     dr = m.datadir("c-rds"); m.seed(dr, "/real/r.txt", content("c-real"))
-    m.xrootd_node("c-rds", "server", p["c_rds"], p["c_rds_cms"], dr, "/real",
+    m.brix_node("c-rds", "server", p["c_rds"], p["c_rds_cms"], dr, "/real",
                   f"{HOST}:{p['c_mgr_cms']}")
 
     # D: real meta -> nginx sub -> nginx leaf
     m = Mesh("d")
-    m.xrootd_node("d-meta", "manager", p["d_meta"], p["d_meta_cms"],
+    m.brix_node("d-meta", "manager", p["d_meta"], p["d_meta_cms"],
                   m.datadir("d-meta"), "/", f"{HOST}:{p['d_meta_cms']}")
     m.nginx("d-sub", cfg_submanager(p["d_sub"], p["d_sub_cms"],
             m.datadir("d-sub"), f"{HOST}:{p['d_meta_cms']}"))
@@ -563,7 +563,7 @@ def build_all():
 
     # pool: real manager + 2 nginx
     m = Mesh("prm")
-    m.xrootd_node("prm-mgr", "manager", p["prm_mgr"], p["prm_mgr_cms"],
+    m.brix_node("prm-mgr", "manager", p["prm_mgr"], p["prm_mgr_cms"],
                   m.datadir("prm-mgr"), "/", f"{HOST}:{p['prm_mgr_cms']}")
     d1 = m.datadir("prm-n1"); m.seed(d1, "/a/x.txt", content("prm-a"))
     _b(m, "prm-n1", p["prm_n1"], d1, f"{HOST}:{p['prm_mgr_cms']}", "/a")
@@ -574,15 +574,15 @@ def build_all():
     m = Mesh("pnm")
     m.nginx("pnm-mgr", cfg_manager(p["pnm_mgr"], p["pnm_mgr_cms"]))
     d1 = m.datadir("pnm-r1"); m.seed(d1, "/ra/x.txt", content("pnm-ra"))
-    m.xrootd_node("pnm-r1", "server", p["pnm_r1"], p["pnm_r1_cms"], d1, "/ra",
+    m.brix_node("pnm-r1", "server", p["pnm_r1"], p["pnm_r1_cms"], d1, "/ra",
                   f"{HOST}:{p['pnm_mgr_cms']}")
     d2 = m.datadir("pnm-r2"); m.seed(d2, "/rb/y.txt", content("pnm-rb"))
-    m.xrootd_node("pnm-r2", "server", p["pnm_r2"], p["pnm_r2_cms"], d2, "/rb",
+    m.brix_node("pnm-r2", "server", p["pnm_r2"], p["pnm_r2_cms"], d2, "/rb",
                   f"{HOST}:{p['pnm_mgr_cms']}")
 
     # write through real mgr -> nginx node (/.probe = readiness marker)
     m = Mesh("wrm")
-    m.xrootd_node("wrm-mgr", "manager", p["wrm_mgr"], p["wrm_mgr_cms"],
+    m.brix_node("wrm-mgr", "manager", p["wrm_mgr"], p["wrm_mgr_cms"],
                   m.datadir("wrm-mgr"), "/", f"{HOST}:{p['wrm_mgr_cms']}")
     dw = m.datadir("wrm-nds"); m.seed(dw, "/.probe", content("wrm-probe"))
     _b(m, "wrm-nds", p["wrm_nds"], dw, f"{HOST}:{p['wrm_mgr_cms']}", "/")
@@ -591,28 +591,28 @@ def build_all():
     m = Mesh("wnm")
     m.nginx("wnm-mgr", cfg_manager(p["wnm_mgr"], p["wnm_mgr_cms"]))
     dw = m.datadir("wnm-rds"); m.seed(dw, "/.probe", content("wnm-probe"))
-    m.xrootd_node("wnm-rds", "server", p["wnm_rds"], p["wnm_rds_cms"], dw, "/",
+    m.brix_node("wnm-rds", "server", p["wnm_rds"], p["wnm_rds_cms"], dw, "/",
                   f"{HOST}:{p['wnm_mgr_cms']}")
 
     # stat/ls: nginx mgr + real node (4096-byte file)
     m = Mesh("sl")
     m.nginx("sl-mgr", cfg_manager(p["sl_mgr"], p["sl_mgr_cms"]))
     d = m.datadir("sl-rds"); m.seed(d, "/d/f.txt", "x" * 4096)
-    m.xrootd_node("sl-rds", "server", p["sl_rds"], p["sl_rds_cms"], d, "/",
+    m.brix_node("sl-rds", "server", p["sl_rds"], p["sl_rds_cms"], d, "/",
                   f"{HOST}:{p['sl_mgr_cms']}")
 
     # negative: nginx mgr + real node exporting /real only
     m = Mesh("neg")
     m.nginx("neg-mgr", cfg_manager(p["neg_mgr"], p["neg_mgr_cms"]))
     d = m.datadir("neg-rds"); m.seed(d, "/real/here.txt", content("neg"))
-    m.xrootd_node("neg-rds", "server", p["neg_rds"], p["neg_rds_cms"], d,
+    m.brix_node("neg-rds", "server", p["neg_rds"], p["neg_rds_cms"], d,
                   "/real", f"{HOST}:{p['neg_mgr_cms']}")
 
     # failover: nginx mgr + real node (test kills the node by port)
     m = Mesh("fo")
     m.nginx("fo-mgr", cfg_manager(p["fo_mgr"], p["fo_mgr_cms"]))
     d = m.datadir("fo-rds"); m.seed(d, "/f.txt", content("fo"))
-    m.xrootd_node("fo-rds", "server", p["fo_rds"], p["fo_rds_cms"], d, "/",
+    m.brix_node("fo-rds", "server", p["fo_rds"], p["fo_rds_cms"], d, "/",
                   f"{HOST}:{p['fo_mgr_cms']}")
 
     # large-file integrity: nginx mgr + real node (16 MiB random file)
@@ -623,25 +623,25 @@ def build_all():
     if not os.path.exists(big):
         with open(big, "wb") as f:
             f.write(os.urandom(16 * 1024 * 1024))
-    m.xrootd_node("lg-rds", "server", p["lg_rds"], p["lg_rds_cms"], d, "/",
+    m.brix_node("lg-rds", "server", p["lg_rds"], p["lg_rds_cms"], d, "/",
                   f"{HOST}:{p['lg_mgr_cms']}")
 
     # baseline: real mgr + real node
     m = Mesh("bl")
-    m.xrootd_node("bl-mgr", "manager", p["bl_mgr"], p["bl_mgr_cms"],
+    m.brix_node("bl-mgr", "manager", p["bl_mgr"], p["bl_mgr_cms"],
                   m.datadir("bl-mgr"), "/", f"{HOST}:{p['bl_mgr_cms']}")
     d = m.datadir("bl-rds"); m.seed(d, "/base.txt", content("bl"))
-    m.xrootd_node("bl-rds", "server", p["bl_rds"], p["bl_rds_cms"], d, "/",
+    m.brix_node("bl-rds", "server", p["bl_rds"], p["bl_rds_cms"], d, "/",
                   f"{HOST}:{p['bl_mgr_cms']}")
 
     # multi-tier with a real leaf
     m = Mesh("mrl")
-    m.xrootd_node("mrl-meta", "manager", p["mrl_meta"], p["mrl_meta_cms"],
+    m.brix_node("mrl-meta", "manager", p["mrl_meta"], p["mrl_meta_cms"],
                   m.datadir("mrl-meta"), "/", f"{HOST}:{p['mrl_meta_cms']}")
     m.nginx("mrl-sub", cfg_submanager(p["mrl_sub"], p["mrl_sub_cms"],
             m.datadir("mrl-sub"), f"{HOST}:{p['mrl_meta_cms']}"))
     d = m.datadir("mrl-leaf"); m.seed(d, "/fileE.txt", content("mrl"))
-    m.xrootd_node("mrl-leaf", "server", p["mrl_leaf"], p["mrl_leaf_cms"], d,
+    m.brix_node("mrl-leaf", "server", p["mrl_leaf"], p["mrl_leaf_cms"], d,
                   "/", f"{HOST}:{p['mrl_sub_cms']}")
 
     # tri-protocol: nginx mgr + dual nginx (root + https) + real
@@ -653,7 +653,7 @@ def build_all():
     m.nginx("tri-dual", cfg_dual(p["tri_dual"], p["tri_dual_https"], dd,
             f"{HOST}:{p['tri_mgr_cms']}", "/dav", cert, key, tb))
     dr = m.datadir("tri-real"); m.seed(dr, "/real/r.txt", content("tri-real"))
-    m.xrootd_node("tri-real", "server", p["tri_real"], p["tri_real_cms"], dr,
+    m.brix_node("tri-real", "server", p["tri_real"], p["tri_real_cms"], dr,
                   "/real", f"{HOST}:{p['tri_mgr_cms']}")
 
     # wide pool: nginx mgr + 2 nginx + 2 real
@@ -667,7 +667,7 @@ def build_all():
             ("w-r1", p["w_r1"], p["w_r1_cms"], "ra", "w-ra"),
             ("w-r2", p["w_r2"], p["w_r2_cms"], "rb", "w-rb")):
         d = m.datadir(label); m.seed(d, f"/{path}/f.txt", content(tag))
-        m.xrootd_node(label, "server", port, cms, d, f"/{path}",
+        m.brix_node(label, "server", port, cms, d, f"/{path}",
                       f"{HOST}:{p['w_mgr_cms']}")
 
     # real xrootd http: root:// (CMS) + https:// (XrdHttp)
@@ -675,7 +675,7 @@ def build_all():
     cert, key = gen_cert(m.root)
     m.nginx("rh-mgr", cfg_manager(p["rh_mgr"], p["rh_mgr_cms"]))
     d = m.datadir("rh-real"); m.seed(d, "/h.txt", content("rh"))
-    m.xrootd_node("rh-real", "server", p["rh_real"], p["rh_real_cms"], d, "/",
+    m.brix_node("rh-real", "server", p["rh_real"], p["rh_real_cms"], d, "/",
                   f"{HOST}:{p['rh_mgr_cms']}", http_port=p["rh_real_http"],
                   cert=cert, key=key)
 
@@ -690,7 +690,7 @@ def build_all():
     if kt is not None:
         m.nginx("sss-mgr", cfg_manager_sss(p["sss_mgr"], p["sss_mgr_cms"], kt))
         d = m.datadir("sss-rds"); m.seed(d, "/fileS.txt", content("sss"))
-        m.xrootd_node("sss-rds", "server", p["sss_rds"], p["sss_rds_cms"], d,
+        m.brix_node("sss-rds", "server", p["sss_rds"], p["sss_rds_cms"], d,
                       "/", f"{HOST}:{p['sss_mgr_cms']}")
 
 

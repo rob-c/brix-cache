@@ -1,7 +1,7 @@
 /*
- * health.c — content handler for the `xrootd_health on;` location (phase-47 W2).
+ * health.c — content handler for the `brix_health on;` location (phase-47 W2).
  *
- * WHAT: ngx_http_xrootd_health_handler() serves GET/HEAD /healthz as a small
+ * WHAT: ngx_http_brix_health_handler() serves GET/HEAD /healthz as a small
  *   JSON document so an external load balancer or a Kubernetes liveness/
  *   readiness probe has a cheap endpoint to poll.  Liveness is implicit: if
  *   this worker can accept the connection and run the handler it returns 200.
@@ -54,17 +54,17 @@ health_build_json(ngx_http_request_t *r, ngx_uint_t verbose, size_t *len)
     u_char               *buf;
     u_char               *p;
     const char           *shm_state;
-    ngx_xrootd_metrics_t *m;
+    ngx_brix_metrics_t *m;
     ngx_uint_t            generation = 0;
     uint64_t             config_hash = 0;
 
-    XROOTD_PNALLOC_OR_RETURN(buf, r->pool, cap, NULL);
+    BRIX_PNALLOC_OR_RETURN(buf, r->pool, cap, NULL);
 
     /* The metrics SHM zone is created at config time (metrics/config.c) and is
      * the module's shared state — "mapped" once a stream server block exists.
      * When mapped it also carries the config/reload fingerprint published by the
-     * master in init_module (xrootd_config_version_publish). */
-    m = (ngx_xrootd_shm_zone != NULL) ? ngx_xrootd_shm_zone->data : NULL;
+     * master in init_module (brix_config_version_publish). */
+    m = (ngx_brix_shm_zone != NULL) ? ngx_brix_shm_zone->data : NULL;
     if (m != NULL) {
         generation  = (ngx_uint_t) m->config_generation;
         config_hash = m->config_hash;
@@ -75,8 +75,8 @@ health_build_json(ngx_http_request_t *r, ngx_uint_t verbose, size_t *len)
          * they ride on the default (non-verbose) document: a probe can confirm a
          * reload took effect without opting into the heavier readiness block. */
         p = ngx_snprintf(buf, cap,
-                         "{\"status\":\"ok\",\"service\":\"" XROOTD_SERVER_NAME "\","
-                         "\"version\":\"" XROOTD_SERVER_VERSION "\","
+                         "{\"status\":\"ok\",\"service\":\"" BRIX_SERVER_NAME "\","
+                         "\"version\":\"" BRIX_SERVER_VERSION "\","
                          "\"config_generation\":%ui,"
                          "\"config_version\":\"%016xL\"}\n",
                          generation, config_hash);
@@ -87,8 +87,8 @@ health_build_json(ngx_http_request_t *r, ngx_uint_t verbose, size_t *len)
     shm_state = (m != NULL) ? "mapped" : "unmapped";
 
     p = ngx_snprintf(buf, cap,
-                     "{\"status\":\"ok\",\"service\":\"" XROOTD_SERVER_NAME "\","
-                     "\"version\":\"" XROOTD_SERVER_VERSION "\","
+                     "{\"status\":\"ok\",\"service\":\"" BRIX_SERVER_NAME "\","
+                     "\"version\":\"" BRIX_SERVER_VERSION "\","
                      "\"config_generation\":%ui,"
                      "\"config_version\":\"%016xL\","
                      "\"checks\":{"
@@ -102,29 +102,29 @@ health_build_json(ngx_http_request_t *r, ngx_uint_t verbose, size_t *len)
     /* phase-68: per-origin health of every http-backed export (the CVMFS
      * Stratum-1 sets). fail_score is the sd_http EWMA (0 = healthy). */
     {
-        ngx_uint_t  i, n_exports = xrootd_vfs_backend_export_count();
+        ngx_uint_t  i, n_exports = brix_vfs_backend_export_count();
         int         first = 1;
 
         p = ngx_snprintf(p, (size_t) (buf + cap - p), ",\"cvmfs_origins\":[");
         for (i = 0; i < n_exports; i++) {
-            xrootd_vfs_backend_info_t  info;
-            xrootd_sd_instance_t      *inst;
+            brix_vfs_backend_info_t  info;
+            brix_sd_instance_t      *inst;
             char                       hosts[SD_HTTP_EP_MAX][256];
             int                        ports[SD_HTTP_EP_MAX];
             int                        scores[SD_HTTP_EP_MAX];
             int                        j, n;
 
-            if (xrootd_vfs_backend_export_info(i, &info) != NGX_OK
+            if (brix_vfs_backend_export_info(i, &info) != NGX_OK
                 || ngx_strcmp(info.backend, "http") != 0)
             {
                 continue;
             }
-            inst = xrootd_vfs_backend_resolve(info.root_canon,
+            inst = brix_vfs_backend_resolve(info.root_canon,
                                               r->connection->log);
             while (inst != NULL
                    && ngx_strcmp(inst->driver->name, "http") != 0)
             {
-                inst = xrootd_sd_cache_source_instance(inst);
+                inst = brix_sd_cache_source_instance(inst);
             }
             n = sd_http_health_snapshot(inst, hosts, ports, scores,
                                         SD_HTTP_EP_MAX);
@@ -143,22 +143,22 @@ health_build_json(ngx_http_request_t *r, ngx_uint_t verbose, size_t *len)
 
 
 ngx_int_t
-ngx_http_xrootd_health_handler(ngx_http_request_t *r)
+ngx_http_brix_health_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_metrics_loc_conf_t *lcf;
+    ngx_http_brix_metrics_loc_conf_t *lcf;
     ngx_int_t                           rc;
     u_char                             *buf;
     size_t                              len;
     ngx_buf_t                          *b;
     ngx_chain_t                         out;
 
-    lcf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_metrics_module);
+    lcf = ngx_http_get_module_loc_conf(r, ngx_http_brix_metrics_module);
     if (!lcf->health) {
         return NGX_DECLINED;
     }
 
     /* AGPL-3.0 sec.13: offer remote users the source (X-Source header). */
-    xrootd_http_source_offer(r);
+    brix_http_source_offer(r);
 
     if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD) {
         return NGX_HTTP_NOT_ALLOWED;
@@ -189,7 +189,7 @@ ngx_http_xrootd_health_handler(ngx_http_request_t *r)
         return rc;
     }
 
-    XROOTD_PCALLOC_OR_RETURN(b, r->pool, sizeof(*b), NGX_HTTP_INTERNAL_SERVER_ERROR);
+    BRIX_PCALLOC_OR_RETURN(b, r->pool, sizeof(*b), NGX_HTTP_INTERNAL_SERVER_ERROR);
     b->pos      = b->start = buf;
     b->last     = b->end   = buf + len;
     b->memory   = 1;

@@ -1,5 +1,5 @@
-#ifndef XROOTD_SD_CEPH_STRIPER_H
-#define XROOTD_SD_CEPH_STRIPER_H
+#ifndef BRIX_SD_CEPH_STRIPER_H
+#define BRIX_SD_CEPH_STRIPER_H
 
 /*
  * sd_ceph_striper.h — thin wrappers over the libradosstriper C API
@@ -8,9 +8,9 @@
  * striper name (post-N2N, post-pool-extract) — these wrappers are pool-agnostic;
  * `sd_ceph.c` binds the ioctx (one pool per export, or the RAL `<pool>:` split).
  *
- * Compiled ONLY under XROOTD_HAVE_RADOSSTRIPER (the ./configure probe for
+ * Compiled ONLY under BRIX_HAVE_RADOSSTRIPER (the ./configure probe for
  * <radosstriper/libradosstriper.h>); otherwise this file is empty, exactly as
- * `sd_ceph.c` is gated on XROOTD_HAVE_CEPH — a build without Ceph is unchanged.
+ * `sd_ceph.c` is gated on BRIX_HAVE_CEPH — a build without Ceph is unchanged.
  *
  * Error convention: 0 on success, or a NEGATIVE errno (the librados convention),
  * which `sd_ceph.c` maps to the SD/errno surface. Reads/stat return byte/size via
@@ -21,7 +21,7 @@
 #include <stdint.h>
 #include <time.h>
 
-#if defined(XROOTD_HAVE_RADOSSTRIPER)
+#if defined(BRIX_HAVE_RADOSSTRIPER)
 
 #include <rados/librados.h>
 #include <radosstriper/libradosstriper.h>
@@ -64,6 +64,6 @@ int     sd_ceph_striper_rmxattr (rados_striper_t, const char *soid,
 ssize_t sd_ceph_striper_listxattr(rados_striper_t, const char *soid,
                                   char *buf, size_t cap);
 
-#endif /* XROOTD_HAVE_RADOSSTRIPER */
+#endif /* BRIX_HAVE_RADOSSTRIPER */
 
-#endif /* XROOTD_SD_CEPH_STRIPER_H */
+#endif /* BRIX_SD_CEPH_STRIPER_H */

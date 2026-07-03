@@ -16,7 +16,7 @@
  *   for a global throttle, the whole server — is rejected FOREVER.
  *
  * THE FIX
- *   xrootd_rl_zone_reset_gauges() zeroes in_flight + open_files on every node,
+ *   brix_rl_zone_reset_gauges() zeroes in_flight + open_files on every node,
  *   called on reload adoption. This bounds any crash-leak to one generation.
  *   The time-windowed rate/bandwidth buckets (req_total, bytes_total,
  *   req_excess, ...) are preserved so a reload is not a rate-limit bypass.
@@ -39,7 +39,7 @@ static void check(int cond, const char *name)
 }
 
 /* Node with room for a short key (the flexible key_str[] member). */
-typedef struct { xrootd_rl_node_t n; char pad[16]; } node_box_t;
+typedef struct { brix_rl_node_t n; char pad[16]; } node_box_t;
 
 static void
 seed(node_box_t *b, ngx_uint_t inflight, ngx_uint_t openf, uint64_t reqtot)
@@ -55,7 +55,7 @@ seed(node_box_t *b, ngx_uint_t inflight, ngx_uint_t openf, uint64_t reqtot)
 int
 main(void)
 {
-    xrootd_rl_shctx_t sh;
+    brix_rl_shctx_t sh;
     node_box_t a, b, c;
 
     memset(&sh, 0, sizeof(sh));
@@ -68,7 +68,7 @@ main(void)
     ngx_queue_insert_head(&sh.queue, &b.n.queue);
     ngx_queue_insert_head(&sh.queue, &c.n.queue);
 
-    xrootd_rl_zone_reset_gauges(&sh);
+    brix_rl_zone_reset_gauges(&sh);
 
     check(a.n.in_flight == 0 && b.n.in_flight == 0 && c.n.in_flight == 0,
           "in_flight zeroed on every node");
@@ -80,10 +80,10 @@ main(void)
           "bytes_total + req_excess (rate/bw state) preserved");
 
     /* empty zone: must not crash */
-    xrootd_rl_shctx_t empty;
+    brix_rl_shctx_t empty;
     memset(&empty, 0, sizeof(empty));
     ngx_queue_init(&empty.queue);
-    xrootd_rl_zone_reset_gauges(&empty);
+    brix_rl_zone_reset_gauges(&empty);
     check(1, "empty zone handled without crashing");
 
     if (failures) { printf("\n%d check(s) FAILED\n", failures); return 1; }

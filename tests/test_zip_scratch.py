@@ -4,8 +4,8 @@ test_zip_scratch.py — ZIP CONSUME via materialize-to-scratch (Pillar F #3).
 ZIP serves a member by random-access pread (+ sendfile for stored members) over
 the archive fd — which a storage backend with no kernel fd cannot provide. The
 materialize-to-scratch seam copies the archive into a local POSIX scratch and
-reads THAT. Exercised on a POSIX export via XROOTD_ZIP_FORCE_SCRATCH=1 +
-XROOTD_ZIP_STAGE_DIR; the member must still serve byte-exact, and the server logs
+reads THAT. Exercised on a POSIX export via BRIX_ZIP_FORCE_SCRATCH=1 +
+BRIX_ZIP_STAGE_DIR; the member must still serve byte-exact, and the server logs
 that it staged the archive. Self-provisioned; reuses test_zip_member's raw-wire
 helpers.
 """
@@ -43,15 +43,15 @@ def _start(tmp_path, force_scratch):
     port = free_port()
     zip_dirs = ""
     if force_scratch:
-        zip_dirs = (f"xrootd_zip_stage_dir {stage}; "
-                    "xrootd_zip_force_scratch on; ")
+        zip_dirs = (f"brix_zip_stage_dir {stage}; "
+                    "brix_zip_force_scratch on; ")
     cfg = base / "nginx.conf"
     cfg.write_text(
         "daemon off;\nworker_processes 1;\n"
         f"error_log {logs}/err.log info;\npid {base}/nginx.pid;\n"
         "events { worker_connections 64; }\n"
         f"stream {{ server {{ listen 127.0.0.1:{port}; xrootd on; "
-        f"xrootd_storage_backend posix:{data}; xrootd_auth none; xrootd_zip_access on; "
+        f"brix_storage_backend posix:{data}; brix_auth none; brix_zip_access on; "
         f"{zip_dirs}}} }}\n")
     proc = subprocess.Popen([NGINX_BIN, "-c", str(cfg), "-p", str(base)],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

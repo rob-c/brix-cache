@@ -8,11 +8,11 @@
 /* Phase 25 — advanced rate-limit zone snapshot. */
 json_t *
 dashboard_build_v1_ratelimit(int64_t now_ms,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t redact)
+    const ngx_http_brix_dashboard_loc_conf_t *conf, ngx_uint_t redact)
 {
     json_t            *root = dashboard_new_v1_root(now_ms, conf);
     json_t            *zones_arr;
-    xrootd_rl_zone_t  *zones[16];
+    brix_rl_zone_t  *zones[16];
     ngx_uint_t         nz, zi;
 
     if (!root) { return NULL; }
@@ -20,12 +20,12 @@ dashboard_build_v1_ratelimit(int64_t now_ms,
     zones_arr = json_array();
     if (zones_arr == NULL) { json_decref(root); return NULL; }
 
-    nz = xrootd_rl_zones_all(zones, 16);
+    nz = brix_rl_zones_all(zones, 16);
     for (zi = 0; zi < nz; zi++) {
         /* `snap` is static to keep this large (per-principal) buffer off the
          * worker stack. Safe: nginx workers are single-threaded for request
          * processing, so there is no concurrent reuse within this loop. */
-        static xrootd_rl_snapshot_entry_t  snap[256];
+        static brix_rl_snapshot_entry_t  snap[256];
         ngx_uint_t                         count = 0, i;
         json_t                            *zo = json_object();
         json_t                            *parr = json_array();
@@ -36,7 +36,7 @@ dashboard_build_v1_ratelimit(int64_t now_ms,
             continue;
         }
 
-        xrootd_rl_snapshot(zones[zi], snap, 256, &count);
+        brix_rl_snapshot(zones[zi], snap, 256, &count);
 
         json_object_set_new(zo, "zone",
             json_stringn((const char *) zones[zi]->name.data,
@@ -75,7 +75,7 @@ dashboard_build_v1_ratelimit(int64_t now_ms,
 
 json_t *
 dashboard_build_v1_not_found(int64_t now_ms,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t redact)
+    const ngx_http_brix_dashboard_loc_conf_t *conf, ngx_uint_t redact)
 {
     json_t *root = dashboard_new_v1_root(now_ms, conf);
     if (!root) { return NULL; }
@@ -87,7 +87,7 @@ dashboard_build_v1_not_found(int64_t now_ms,
 
 json_t *
 dashboard_build_v1_truncated(int64_t now_ms,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf)
+    const ngx_http_brix_dashboard_loc_conf_t *conf)
 {
     json_t *root = dashboard_new_v1_root(now_ms, conf);
     if (!root) { return NULL; }

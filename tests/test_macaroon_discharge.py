@@ -1,7 +1,7 @@
 """
 tests/test_macaroon_discharge.py — Discharge Macaroon bundle validation tests.
 
-Tests the Feature 8b implementation: xrootd_macaroon_validate_bundle(), which
+Tests the Feature 8b implementation: brix_macaroon_validate_bundle(), which
 accepts space-separated bundles of "<root> [<discharge> ...]" Macaroon tokens.
 
 Discharge Macaroons allow third-party delegation:

@@ -7,7 +7,7 @@ registry census is config-time, the origin is never contacted).
 
 Asserts the five spec scenarios:
   1. capacity: storage.exports has backend "posix" with statvfs numbers, and
-     /metrics carries xrootd_storage_bytes_total{...backend="posix"} — proving
+     /metrics carries brix_storage_bytes_total{...backend="posix"} — proving
      the default-POSIX census registration too;
   2. byte accounting: PUT then GET N bytes moves the posix written/read
      counters by >= N on BOTH surfaces;
@@ -75,22 +75,22 @@ http {{
     server {{
         listen {BIND_HOST}:{http_port};
         location /xrootd/ {{
-            xrootd_dashboard on;
-            xrootd_dashboard_password "{DASH_PW}";
-            xrootd_dashboard_anonymous on;
+            brix_dashboard on;
+            brix_dashboard_password "{DASH_PW}";
+            brix_dashboard_anonymous on;
         }}
-        location /metrics {{ xrootd_metrics on; }}
+        location /metrics {{ brix_metrics on; }}
         location / {{
-            xrootd_webdav on;
-            xrootd_webdav_root {data};
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
+            brix_webdav on;
+            brix_webdav_root {data};
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
         }}
         location /remote/ {{
-            xrootd_webdav on;
-            xrootd_webdav_root {remote_ns};
-            xrootd_webdav_storage_backend root://127.0.0.1:1;
-            xrootd_webdav_auth none;
+            brix_webdav on;
+            brix_webdav_root {remote_ns};
+            brix_webdav_storage_backend root://127.0.0.1:1;
+            brix_webdav_auth none;
         }}
     }}
 }}
@@ -166,7 +166,7 @@ def _metric(text, name, **labels):
 
 def test_capacity_and_census(server):
     text = _metrics(server)
-    assert _metric(text, "xrootd_storage_bytes_total", backend="posix"), \
+    assert _metric(text, "brix_storage_bytes_total", backend="posix"), \
         "default-posix export missing from capacity gauges (census gap?)"
 
     snap = _snapshot(server)
@@ -178,8 +178,8 @@ def test_capacity_and_census(server):
 
 def test_byte_accounting_put_get_sendfile(server):
     before = _metrics(server)
-    w0 = _metric(before, "xrootd_storage_io_bytes_written", backend="posix") or 0
-    r0 = _metric(before, "xrootd_storage_io_bytes_read", backend="posix") or 0
+    w0 = _metric(before, "brix_storage_io_bytes_written", backend="posix") or 0
+    r0 = _metric(before, "brix_storage_io_bytes_read", backend="posix") or 0
 
     payload = os.urandom(N)
     status, _ = _http(server["base"] + "/acct.bin", data=payload, method="PUT")
@@ -188,8 +188,8 @@ def test_byte_accounting_put_get_sendfile(server):
     assert status == 200 and got == payload      # zero-copy sendfile serve
 
     after = _metrics(server)
-    w1 = _metric(after, "xrootd_storage_io_bytes_written", backend="posix")
-    r1 = _metric(after, "xrootd_storage_io_bytes_read", backend="posix")
+    w1 = _metric(after, "brix_storage_io_bytes_written", backend="posix")
+    r1 = _metric(after, "brix_storage_io_bytes_read", backend="posix")
     assert w1 - w0 >= N, f"written moved {w1 - w0}, want >= {N}"
     assert r1 - r0 >= N, f"read (sendfile seam) moved {r1 - r0}, want >= {N}"
 

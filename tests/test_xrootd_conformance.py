@@ -11,7 +11,7 @@ Each test cites the reference fact it pins (XProtocol.hh / XrdXrootdXeq.cc /
 XrdXrootdResponse.cc / XrdXrootdProtocol.cc / XrdXrootdXeqPgrw.cc). Self-
 provisioning — no shared fleet, no network.
 
-Run:  PYTHONPATH=tests pytest tests/test_xrootd_conformance.py -v
+Run:  PYTHONPATH=tests pytest tests/test_brix_conformance.py -v
 """
 
 import os
@@ -166,8 +166,8 @@ def server(tmp_path_factory):
         "thread_pool default threads=2 max_queue=4096;\n"
         "events { worker_connections 64; }\n"
         "stream { server {\n"
-        f"  listen {BIND}:{PORT};\n  xrootd on;\n  xrootd_storage_backend posix:{data};\n"
-        "  xrootd_auth none;\n  xrootd_allow_write on;\n} }\n")
+        f"  listen {BIND}:{PORT};\n  xrootd on;\n  brix_storage_backend posix:{data};\n"
+        "  brix_auth none;\n  brix_allow_write on;\n} }\n")
     # nginx sets SO_REUSEADDR on its listener, so a precheck bind (which would
     # trip on TIME_WAIT after a prior run) is counter-productive; just start and
     # wait for readiness.

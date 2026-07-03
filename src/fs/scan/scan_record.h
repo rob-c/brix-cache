@@ -10,8 +10,8 @@
  *       caller appends '\n' when framing) into a caller buffer and returns the
  *       length written, or -1 if the buffer was too small (never truncates).
  */
-#ifndef XROOTD_SCAN_RECORD_H
-#define XROOTD_SCAN_RECORD_H
+#ifndef BRIX_SCAN_RECORD_H
+#define BRIX_SCAN_RECORD_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -27,30 +27,30 @@ typedef struct {
     uint64_t filled;
     uint64_t already;
     double   elapsed_s;
-} xrootd_scan_summary_t;
+} brix_scan_summary_t;
 
 /* JSON-escape `in` (len bytes) into out[cap] as a NUL-terminated string WITHOUT
  * surrounding quotes. Escapes ", \\, and control bytes (< 0x20) as \uXXXX / the
  * short forms. Returns bytes written (excl. NUL) or -1 if it would overflow. */
-int xrootd_scan_json_escape(const char *in, size_t len, char *out, size_t cap);
+int brix_scan_json_escape(const char *in, size_t len, char *out, size_t cap);
 
 /* {"t":"file","path":..,"size":..,"mtime":..,"alg":..,"stored":..,"computed":..,"status":..}
  * stored == NULL ⇒ "stored":null. computed == NULL ⇒ the field is omitted
  * (dump/compare never recompute). */
-int xrootd_scan_record_file(char *buf, size_t cap,
+int brix_scan_record_file(char *buf, size_t cap,
                             const char *path, int64_t size, int64_t mtime,
                             const char *alg, const char *stored,
                             const char *computed, const char *status);
 
 /* {"t":"inspect","path":..,"backend":..,"size":..,"mtime":..,"stored_src":..,
  *  "namespace_consistent":true|false} — single-path backend introspection (A2). */
-int xrootd_scan_record_inspect(char *buf, size_t cap, const char *path,
+int brix_scan_record_inspect(char *buf, size_t cap, const char *path,
                                const char *backend, int64_t size, int64_t mtime,
                                const char *stored_src, int ns_consistent);
 
 /* {"t":"health","backend":..,"total_bytes":..,"free_bytes":..,"used_bytes":..}
  * — backend capacity/health (C1). */
-int xrootd_scan_record_health(char *buf, size_t cap, const char *backend,
+int brix_scan_record_health(char *buf, size_t cap, const char *backend,
                               uint64_t total_bytes, uint64_t free_bytes,
                               uint64_t used_bytes);
 
@@ -58,7 +58,7 @@ int xrootd_scan_record_health(char *buf, size_t cap, const char *backend,
  * — one backend-catalog object (E1 inventory). `key` is the backend object key
  * (required). `path` is the recovered logical path, or NULL ⇒ "path":null and an
  * orphan candidate (set `orphan` accordingly). */
-int xrootd_scan_record_object(char *buf, size_t cap, const char *key,
+int brix_scan_record_object(char *buf, size_t cap, const char *key,
                               const char *path, int64_t size, int64_t mtime,
                               int orphan);
 
@@ -67,14 +67,14 @@ int xrootd_scan_record_object(char *buf, size_t cap, const char *key,
  * "in_both" / "size_mismatch" / "orphan_object" / "namespace_only". `key` is NULL
  * for namespace_only (no backing object) and `path` is NULL for orphan_object
  * (no namespace entry); each NULL renders as JSON null. */
-int xrootd_scan_record_drift(char *buf, size_t cap, const char *key,
+int brix_scan_record_drift(char *buf, size_t cap, const char *key,
                              const char *path, const char *cls, int64_t size);
 
 /* {"t":"cursor","after":<path>} */
-int xrootd_scan_record_cursor(char *buf, size_t cap, const char *after);
+int brix_scan_record_cursor(char *buf, size_t cap, const char *after);
 
 /* {"t":"summary",...totals...} */
-int xrootd_scan_record_summary(char *buf, size_t cap,
-                               const xrootd_scan_summary_t *s);
+int brix_scan_record_summary(char *buf, size_t cap,
+                               const brix_scan_summary_t *s);
 
-#endif /* XROOTD_SCAN_RECORD_H */
+#endif /* BRIX_SCAN_RECORD_H */

@@ -49,7 +49,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (proto) (rate(xrootd_io_bytes_read{proto=~\"$proto\"}[5m]))",
+          "expr": "sum by (proto) (rate(brix_io_bytes_read{proto=~\"$proto\"}[5m]))",
           "legendFormat": "{{proto}}"
         }
       ]
@@ -64,7 +64,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (proto) (rate(xrootd_io_bytes_written{proto=~\"$proto\"}[5m]))",
+          "expr": "sum by (proto) (rate(brix_io_bytes_written{proto=~\"$proto\"}[5m]))",
           "legendFormat": "{{proto}}"
         }
       ]
@@ -79,12 +79,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (status_class) (rate(xrootd_webdav_responses_total[5m]))",
+          "expr": "sum by (status_class) (rate(brix_webdav_responses_total[5m]))",
           "legendFormat": "webdav {{status_class}}"
         },
         {
           "refId": "B",
-          "expr": "sum by (status_class) (rate(xrootd_s3_responses_total[5m]))",
+          "expr": "sum by (status_class) (rate(brix_s3_responses_total[5m]))",
           "legendFormat": "s3 {{status_class}}"
         }
       ]
@@ -99,12 +99,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(xrootd_webdav_responses_total{status_class=\"5xx\"}[5m])) / clamp_min(sum(rate(xrootd_webdav_responses_total[5m])), 1)",
+          "expr": "sum(rate(brix_webdav_responses_total{status_class=\"5xx\"}[5m])) / clamp_min(sum(rate(brix_webdav_responses_total[5m])), 1)",
           "legendFormat": "webdav 5xx"
         },
         {
           "refId": "B",
-          "expr": "sum(rate(xrootd_s3_responses_total{status_class=\"5xx\"}[5m])) / clamp_min(sum(rate(xrootd_s3_responses_total[5m])), 1)",
+          "expr": "sum(rate(brix_s3_responses_total{status_class=\"5xx\"}[5m])) / clamp_min(sum(rate(brix_s3_responses_total[5m])), 1)",
           "legendFormat": "s3 5xx"
         }
       ]
@@ -119,17 +119,17 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(xrootd_io_latency_usec_bucket[5m])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(brix_io_latency_usec_bucket[5m])))",
           "legendFormat": "p50"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(xrootd_io_latency_usec_bucket[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(brix_io_latency_usec_bucket[5m])))",
           "legendFormat": "p95"
         },
         {
           "refId": "C",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(xrootd_io_latency_usec_bucket[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(brix_io_latency_usec_bucket[5m])))",
           "legendFormat": "p99"
         }
       ]
@@ -144,12 +144,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (result) (rate(xrootd_webdav_auth_total[5m]))",
+          "expr": "sum by (result) (rate(brix_webdav_auth_total[5m]))",
           "legendFormat": "webdav {{result}}"
         },
         {
           "refId": "B",
-          "expr": "sum by (result) (rate(xrootd_s3_auth_total[5m]))",
+          "expr": "sum by (result) (rate(brix_s3_auth_total[5m]))",
           "legendFormat": "s3 {{result}}"
         }
       ]
@@ -164,7 +164,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(xrootd_cache_hits_total[5m])) / clamp_min(sum(rate(xrootd_cache_hits_total[5m])) + sum(rate(xrootd_cache_misses_total[5m])), 1)",
+          "expr": "sum(rate(brix_cache_hits_total[5m])) / clamp_min(sum(rate(brix_cache_hits_total[5m])) + sum(rate(brix_cache_misses_total[5m])), 1)",
           "legendFormat": "hit ratio"
         }
       ]
@@ -177,7 +177,7 @@
       "gridPos": { "h": 6, "w": 6, "x": 6, "y": 24 },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "sum(xrootd_connections_active)", "legendFormat": "active" }
+        { "refId": "A", "expr": "sum(brix_connections_active)", "legendFormat": "active" }
       ]
     },
     {
@@ -188,7 +188,7 @@
       "gridPos": { "h": 6, "w": 12, "x": 12, "y": 24 },
       "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "sum(rate(xrootd_rate_limit_throttled_total[5m]))", "legendFormat": "throttled" }
+        { "refId": "A", "expr": "sum(rate(brix_rate_limit_throttled_total[5m]))", "legendFormat": "throttled" }
       ]
     },
     {
@@ -199,7 +199,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
       "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "sum by (vo) (rate(xrootd_vo_bytes_tx_total[5m]))", "legendFormat": "{{vo}}" }
+        { "refId": "A", "expr": "sum by (vo) (rate(brix_vo_bytes_tx_total[5m]))", "legendFormat": "{{vo}}" }
       ]
     },
     {
@@ -210,7 +210,7 @@
       "gridPos": { "h": 8, "w": 6, "x": 12, "y": 30 },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "sum(xrootd_frm_in_flight)", "legendFormat": "in-flight" }
+        { "refId": "A", "expr": "sum(brix_frm_in_flight)", "legendFormat": "in-flight" }
       ]
     },
     {
@@ -221,8 +221,8 @@
       "gridPos": { "h": 8, "w": 6, "x": 18, "y": 30 },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
       "targets": [
-        { "refId": "A", "expr": "sum(xrootd_cluster_servers_registered)", "legendFormat": "registered" },
-        { "refId": "B", "expr": "sum(xrootd_cluster_server_blacklisted)", "legendFormat": "blacklisted" }
+        { "refId": "A", "expr": "sum(brix_cluster_servers_registered)", "legendFormat": "registered" },
+        { "refId": "B", "expr": "sum(brix_cluster_server_blacklisted)", "legendFormat": "blacklisted" }
       ]
     }
   ]

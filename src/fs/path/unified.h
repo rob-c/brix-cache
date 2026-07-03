@@ -1,5 +1,5 @@
-#ifndef XROOTD_PATH_UNIFIED_H
-#define XROOTD_PATH_UNIFIED_H
+#ifndef BRIX_PATH_UNIFIED_H
+#define BRIX_PATH_UNIFIED_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -20,31 +20,31 @@ typedef struct {
     unsigned is_write_operation:1;      /* write semantics for audit/logging */
     unsigned reject_symlinks:1;         /* reserved; confinement still rejects escapes */
     unsigned allow_root:1;              /* allow "/" to resolve to the export root */
-} xrootd_path_opts_t;
+} brix_path_opts_t;
 
-#define XROOTD_PATH_TYPE_NOT_FOUND  ((ngx_int_t) -2)
+#define BRIX_PATH_TYPE_NOT_FOUND  ((ngx_int_t) -2)
 
 typedef struct {
     ngx_str_t   resolved;
     ngx_int_t   type;
     ngx_uint_t  depth;
     unsigned    is_confined:1;
-} xrootd_path_result_t;
+} brix_path_result_t;
 
 typedef enum {
-    XROOTD_PATH_STATUS_OK = 0,
-    XROOTD_PATH_STATUS_INVALID,
-    XROOTD_PATH_STATUS_NOT_FOUND,
-    XROOTD_PATH_STATUS_TOO_LONG,
-    XROOTD_PATH_STATUS_ERROR
-} xrootd_path_status_t;
+    BRIX_PATH_STATUS_OK = 0,
+    BRIX_PATH_STATUS_INVALID,
+    BRIX_PATH_STATUS_NOT_FOUND,
+    BRIX_PATH_STATUS_TOO_LONG,
+    BRIX_PATH_STATUS_ERROR
+} brix_path_status_t;
 
 /*
  * Fixed-buffer resolver used by existing stream and HTTP adapters.
  * root_canon must already be a canonical absolute filesystem path.
  */
-xrootd_path_status_t xrootd_path_resolve_cstr(ngx_log_t *log,
-    const char *root_canon, const char *req_path, xrootd_path_opts_t opts,
-    char *resolved, size_t resolvsz, xrootd_path_result_t *result);
+brix_path_status_t brix_path_resolve_cstr(ngx_log_t *log,
+    const char *root_canon, const char *req_path, brix_path_opts_t opts,
+    char *resolved, size_t resolvsz, brix_path_result_t *result);
 
-#endif /* XROOTD_PATH_UNIFIED_H */
+#endif /* BRIX_PATH_UNIFIED_H */

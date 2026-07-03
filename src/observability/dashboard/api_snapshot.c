@@ -17,28 +17,28 @@
  *       leave totals zeroed.
  */
 void
-dashboard_collect_totals(xrootd_dashboard_totals_t *totals)
+dashboard_collect_totals(brix_dashboard_totals_t *totals)
 {
-    ngx_xrootd_metrics_t *met;
+    ngx_brix_metrics_t *met;
     ngx_uint_t            srv, i, j;
 
     ngx_memzero(totals, sizeof(*totals));
 
-    if (ngx_xrootd_shm_zone == NULL
-        || ngx_xrootd_shm_zone->data == NULL
-        || ngx_xrootd_shm_zone->data == (void *) 1)
+    if (ngx_brix_shm_zone == NULL
+        || ngx_brix_shm_zone->data == NULL
+        || ngx_brix_shm_zone->data == (void *) 1)
     {
         return;
     }
 
-    met = ngx_xrootd_shm_zone->data;
+    met = ngx_brix_shm_zone->data;
     /* Per-listener slots: connection + byte counters, and stream op errors. */
-    for (srv = 0; srv < XROOTD_METRICS_MAX_SERVERS; srv++) {
+    for (srv = 0; srv < BRIX_METRICS_MAX_SERVERS; srv++) {
         totals->conn_active += (uint64_t) met->servers[srv].connections_active;
         totals->conn_total  += (uint64_t) met->servers[srv].connections_total;
         totals->bytes_rx    += (uint64_t) met->servers[srv].bytes_rx_total;
         totals->bytes_tx    += (uint64_t) met->servers[srv].bytes_tx_total;
-        for (i = 0; i < XROOTD_NOPS; i++) {
+        for (i = 0; i < BRIX_NOPS; i++) {
             totals->stream_errors += (uint64_t) met->servers[srv].op_err[i];
         }
     }
@@ -46,37 +46,37 @@ dashboard_collect_totals(xrootd_dashboard_totals_t *totals)
     /* Per-protocol sources stay explicit: each plane's SHM family is
      * heterogeneous by design (proto_list.h checklist step 3). Indices
      * come from the central list; JSON keys generate from it. */
-    totals->proto_rx[XROOTD_XFER_PROTO_WEBDAV - 1] =
+    totals->proto_rx[BRIX_XFER_PROTO_WEBDAV - 1] =
         (uint64_t) met->webdav.bytes_rx_total;
-    totals->proto_tx[XROOTD_XFER_PROTO_WEBDAV - 1] =
+    totals->proto_tx[BRIX_XFER_PROTO_WEBDAV - 1] =
         (uint64_t) met->webdav.bytes_tx_total;
-    totals->proto_rx[XROOTD_XFER_PROTO_S3 - 1] =
+    totals->proto_rx[BRIX_XFER_PROTO_S3 - 1] =
         (uint64_t) met->s3.bytes_rx_total;
-    totals->proto_tx[XROOTD_XFER_PROTO_S3 - 1] =
+    totals->proto_tx[BRIX_XFER_PROTO_S3 - 1] =
         (uint64_t) met->s3.bytes_tx_total;
     /* cvmfs is a read-only site cache: clients never upload, so "in" is the
      * WAN-side origin pull (Stratum-1 fills) and "out" is the LAN-side bytes
      * served (cache hits + fresh fills). */
-    totals->proto_rx[XROOTD_XFER_PROTO_CVMFS - 1] =
+    totals->proto_rx[BRIX_XFER_PROTO_CVMFS - 1] =
         (uint64_t) met->cvmfs.origin_bytes_total;
-    totals->proto_tx[XROOTD_XFER_PROTO_CVMFS - 1] =
+    totals->proto_tx[BRIX_XFER_PROTO_CVMFS - 1] =
         (uint64_t) met->cvmfs.bytes_served_hit_total
         + (uint64_t) met->cvmfs.bytes_served_fill_total;
-    totals->proto_errors[XROOTD_XFER_PROTO_CVMFS - 1] =
+    totals->proto_errors[BRIX_XFER_PROTO_CVMFS - 1] =
         (uint64_t) met->cvmfs.fill_failures_total
         + (uint64_t) met->cvmfs.verify_failures_total;
 
     /* HTTP error totals = count of all 4xx and 5xx responses, summed over every
      * method. responses_total is indexed [method][status-class]. */
-    for (i = 0; i < XROOTD_WEBDAV_NMETHODS; i++) {
-        totals->proto_errors[XROOTD_XFER_PROTO_WEBDAV - 1] +=
-            (uint64_t) met->webdav.responses_total[i][XROOTD_HTTP_STATUS_4XX]
-            + (uint64_t) met->webdav.responses_total[i][XROOTD_HTTP_STATUS_5XX];
+    for (i = 0; i < BRIX_WEBDAV_NMETHODS; i++) {
+        totals->proto_errors[BRIX_XFER_PROTO_WEBDAV - 1] +=
+            (uint64_t) met->webdav.responses_total[i][BRIX_HTTP_STATUS_4XX]
+            + (uint64_t) met->webdav.responses_total[i][BRIX_HTTP_STATUS_5XX];
     }
 
-    for (i = 0; i < XROOTD_S3_NMETHODS; i++) {
-        for (j = XROOTD_HTTP_STATUS_4XX; j <= XROOTD_HTTP_STATUS_5XX; j++) {
-            totals->proto_errors[XROOTD_XFER_PROTO_S3 - 1] +=
+    for (i = 0; i < BRIX_S3_NMETHODS; i++) {
+        for (j = BRIX_HTTP_STATUS_4XX; j <= BRIX_HTTP_STATUS_5XX; j++) {
+            totals->proto_errors[BRIX_XFER_PROTO_S3 - 1] +=
                 (uint64_t) met->s3.responses_total[i][j];
         }
     }
@@ -92,39 +92,39 @@ dashboard_collect_totals(xrootd_dashboard_totals_t *totals)
  *       Write transfers count toward ingress, all others toward egress.
  */
 void
-dashboard_collect_protocols(xrootd_dashboard_protocols_t *out, int64_t now_ms)
+dashboard_collect_protocols(brix_dashboard_protocols_t *out, int64_t now_ms)
 {
-    xrootd_transfer_table_t *tbl;
+    brix_transfer_table_t *tbl;
     ngx_uint_t               i;
 
     ngx_memzero(out, sizeof(*out));
 
-    if (ngx_xrootd_dashboard_shm_zone == NULL
-        || ngx_xrootd_dashboard_shm_zone->data == NULL
-        || ngx_xrootd_dashboard_shm_zone->data == (void *) 1)
+    if (ngx_brix_dashboard_shm_zone == NULL
+        || ngx_brix_dashboard_shm_zone->data == NULL
+        || ngx_brix_dashboard_shm_zone->data == (void *) 1)
     {
         return;
     }
 
-    tbl = ngx_xrootd_dashboard_shm_zone->data;
-    for (i = 0; i < XROOTD_DASHBOARD_MAX_TRANSFERS; i++) {
-        xrootd_transfer_slot_t           *slot = &tbl->slots[i];
-        xrootd_dashboard_proto_summary_t *summary;
+    tbl = ngx_brix_dashboard_shm_zone->data;
+    for (i = 0; i < BRIX_DASHBOARD_MAX_TRANSFERS; i++) {
+        brix_transfer_slot_t           *slot = &tbl->slots[i];
+        brix_dashboard_proto_summary_t *summary;
         uint64_t                          avg_bps;
 
         if (slot->in_use == 0) { continue; }
 
-        if (slot->direction == XROOTD_XFER_DIR_TPC) {
+        if (slot->direction == BRIX_XFER_DIR_TPC) {
             summary = &out->tpc;
-        } else if (slot->proto >= 1 && slot->proto <= XROOTD_XFER_NPROTOS) {
+        } else if (slot->proto >= 1 && slot->proto <= BRIX_XFER_NPROTOS) {
             summary = &out->per[slot->proto - 1];
         } else {
-            summary = &out->per[XROOTD_XFER_PROTO_ROOT - 1];
+            summary = &out->per[BRIX_XFER_PROTO_ROOT - 1];
         }
 
         summary->active++;
         avg_bps = dashboard_avg_bps((int64_t) slot->bytes, slot->start_ms, now_ms);
-        if (slot->direction == XROOTD_XFER_DIR_WRITE) {
+        if (slot->direction == BRIX_XFER_DIR_WRITE) {
             summary->ingress_bps += avg_bps;
         } else {
             summary->egress_bps += avg_bps;
@@ -140,15 +140,15 @@ dashboard_collect_protocols(xrootd_dashboard_protocols_t *out, int64_t now_ms)
  * */
 
 json_t *
-dashboard_build_limits(const ngx_http_xrootd_dashboard_loc_conf_t *conf)
+dashboard_build_limits(const ngx_http_brix_dashboard_loc_conf_t *conf)
 {
     json_t *obj = json_object();
     if (!obj) { return NULL; }
-    json_object_set_new(obj, "max_active_transfers",       json_integer(XROOTD_DASHBOARD_MAX_TRANSFERS));
-    json_object_set_new(obj, "max_tpc_registry_transfers", json_integer(XROOTD_TPC_REGISTRY_SLOTS));
+    json_object_set_new(obj, "max_active_transfers",       json_integer(BRIX_DASHBOARD_MAX_TRANSFERS));
+    json_object_set_new(obj, "max_tpc_registry_transfers", json_integer(BRIX_TPC_REGISTRY_SLOTS));
     json_object_set_new(obj, "max_tpc_transfer_rows",      json_integer(TPC_REGISTRY_JSON_LIMIT));
-    json_object_set_new(obj, "max_recent_events",          json_integer(XROOTD_DASHBOARD_MAX_EVENTS));
-    json_object_set_new(obj, "history_bucket_seconds",     json_integer(XROOTD_DASHBOARD_HISTORY_INTERVAL_MS / 1000));
+    json_object_set_new(obj, "max_recent_events",          json_integer(BRIX_DASHBOARD_MAX_EVENTS));
+    json_object_set_new(obj, "history_bucket_seconds",     json_integer(BRIX_DASHBOARD_HISTORY_INTERVAL_MS / 1000));
     json_object_set_new(obj, "idle_threshold_ms",          json_integer((json_int_t) conf->idle_threshold_ms));
     json_object_set_new(obj, "stalled_threshold_ms",       json_integer((json_int_t) conf->stalled_threshold_ms));
     return obj;
@@ -156,7 +156,7 @@ dashboard_build_limits(const ngx_http_xrootd_dashboard_loc_conf_t *conf)
 
 
 json_t *
-dashboard_build_totals(const xrootd_dashboard_totals_t *totals)
+dashboard_build_totals(const brix_dashboard_totals_t *totals)
 {
     json_t *obj = json_object();
     if (!obj) { return NULL; }
@@ -169,20 +169,20 @@ dashboard_build_totals(const xrootd_dashboard_totals_t *totals)
      * historic hand-written keys. The stream plane keeps its historic
      * global keys (bytes_rx_total / stream_errors_total) above. */
     {
-        static const char *names[XROOTD_XFER_NPROTOS] = {
+        static const char *names[BRIX_XFER_NPROTOS] = {
 #define X(ID, metric_label, dash_name, http_plane) dash_name,
-            XROOTD_PROTO_LIST(X)
+            BRIX_PROTO_LIST(X)
 #undef X
         };
-        static const unsigned http_plane[XROOTD_XFER_NPROTOS] = {
+        static const unsigned http_plane[BRIX_XFER_NPROTOS] = {
 #define X(ID, metric_label, dash_name, http_plane) http_plane,
-            XROOTD_PROTO_LIST(X)
+            BRIX_PROTO_LIST(X)
 #undef X
         };
         char        key[64];
         ngx_uint_t  p;
 
-        for (p = 0; p < XROOTD_XFER_NPROTOS; p++) {
+        for (p = 0; p < BRIX_XFER_NPROTOS; p++) {
             if (!http_plane[p]) {
                 continue;
             }
@@ -197,7 +197,7 @@ dashboard_build_totals(const xrootd_dashboard_totals_t *totals)
         }
         json_object_set_new(obj, "stream_errors_total",
             json_integer((json_int_t) totals->stream_errors));
-        for (p = 0; p < XROOTD_XFER_NPROTOS; p++) {
+        for (p = 0; p < BRIX_XFER_NPROTOS; p++) {
             if (!http_plane[p]) {
                 continue;
             }
@@ -212,7 +212,7 @@ dashboard_build_totals(const xrootd_dashboard_totals_t *totals)
 
 
 json_t *
-dashboard_build_proto_summary(const xrootd_dashboard_proto_summary_t *s,
+dashboard_build_proto_summary(const brix_dashboard_proto_summary_t *s,
     uint64_t bytes_rx, uint64_t bytes_tx)
 {
     json_t *obj = json_object();
@@ -230,9 +230,9 @@ dashboard_build_proto_summary(const xrootd_dashboard_proto_summary_t *s,
 
 json_t *
 dashboard_build_protocols(int64_t now_ms,
-    const xrootd_dashboard_totals_t *totals)
+    const brix_dashboard_totals_t *totals)
 {
-    xrootd_dashboard_protocols_t ps;
+    brix_dashboard_protocols_t ps;
     json_t *obj, *tpc_obj;
 
     dashboard_collect_protocols(&ps, now_ms);
@@ -246,10 +246,10 @@ dashboard_build_protocols(int64_t now_ms,
     {
         ngx_uint_t p;
 
-        for (p = 0; p < XROOTD_XFER_NPROTOS; p++) {
-            uint64_t rx = (p == XROOTD_XFER_PROTO_ROOT - 1)
+        for (p = 0; p < BRIX_XFER_NPROTOS; p++) {
+            uint64_t rx = (p == BRIX_XFER_PROTO_ROOT - 1)
                         ? totals->bytes_rx : totals->proto_rx[p];
-            uint64_t tx = (p == XROOTD_XFER_PROTO_ROOT - 1)
+            uint64_t tx = (p == BRIX_XFER_PROTO_ROOT - 1)
                         ? totals->bytes_tx : totals->proto_tx[p];
 
             json_object_set_new(obj, dashboard_proto_name((uint8_t)(p + 1)),
@@ -272,17 +272,17 @@ dashboard_build_protocols(int64_t now_ms,
 json_t *
 dashboard_build_events(ngx_pool_t *pool, ngx_uint_t redact)
 {
-    xrootd_dashboard_event_t *events;
+    brix_dashboard_event_t *events;
     ngx_uint_t                n, i;
     json_t                   *arr;
 
     arr = json_array();
     if (!arr) { return NULL; }
 
-    events = ngx_pcalloc(pool, sizeof(*events) * XROOTD_DASHBOARD_MAX_EVENTS);
+    events = ngx_pcalloc(pool, sizeof(*events) * BRIX_DASHBOARD_MAX_EVENTS);
     if (events == NULL) { return arr; }
 
-    n = xrootd_dashboard_events_snapshot(events, XROOTD_DASHBOARD_MAX_EVENTS);
+    n = brix_dashboard_events_snapshot(events, BRIX_DASHBOARD_MAX_EVENTS);
     for (i = 0; i < n; i++) {
         json_t *ev = json_object();
         if (!ev) { continue; }
@@ -308,23 +308,23 @@ dashboard_build_events(ngx_pool_t *pool, ngx_uint_t redact)
 void
 dashboard_fill_history(json_t *target, ngx_pool_t *pool)
 {
-    xrootd_dashboard_history_bucket_t *buckets;
+    brix_dashboard_history_bucket_t *buckets;
     ngx_uint_t                         n, i;
     json_t                            *arr;
 
     json_object_set_new(target, "bucket_seconds",
-                        json_integer(XROOTD_DASHBOARD_HISTORY_INTERVAL_MS / 1000));
+                        json_integer(BRIX_DASHBOARD_HISTORY_INTERVAL_MS / 1000));
 
     arr = json_array();
     buckets = ngx_pcalloc(pool,
-                          sizeof(*buckets) * XROOTD_DASHBOARD_HISTORY_BUCKETS);
+                          sizeof(*buckets) * BRIX_DASHBOARD_HISTORY_BUCKETS);
     if (buckets == NULL || arr == NULL) {
         json_object_set_new(target, "buckets", arr ? arr : json_array());
         return;
     }
 
-    n = xrootd_dashboard_history_snapshot(buckets,
-                                          XROOTD_DASHBOARD_HISTORY_BUCKETS);
+    n = brix_dashboard_history_snapshot(buckets,
+                                          BRIX_DASHBOARD_HISTORY_BUCKETS);
     for (i = 0; i < n; i++) {
         json_t *b = json_object();
         if (!b) { continue; }
@@ -333,7 +333,7 @@ dashboard_fill_history(json_t *target, ngx_pool_t *pool)
             char        akey[48];
             ngx_uint_t  p;
 
-            for (p = 0; p < XROOTD_XFER_NPROTOS; p++) {
+            for (p = 0; p < BRIX_XFER_NPROTOS; p++) {
                 ngx_snprintf((u_char *) akey, sizeof(akey), "active_%s%Z",
                              dashboard_proto_name((uint8_t)(p + 1)));
                 json_object_set_new(b, akey,
@@ -361,16 +361,16 @@ dashboard_fill_history(json_t *target, ngx_pool_t *pool)
 void
 dashboard_fill_cache(json_t *target, ngx_uint_t redact)
 {
-    ngx_xrootd_metrics_t *met;
+    ngx_brix_metrics_t *met;
     ngx_uint_t            i;
     ngx_uint_t            enabled = 0;
     uint64_t              wt_dirty = 0, wt_pending = 0;
     uint64_t              wt_success = 0, wt_errors = 0, wt_bytes = 0;
     json_t               *listeners, *wt;
 
-    if (ngx_xrootd_shm_zone == NULL
-        || ngx_xrootd_shm_zone->data == NULL
-        || ngx_xrootd_shm_zone->data == (void *) 1)
+    if (ngx_brix_shm_zone == NULL
+        || ngx_brix_shm_zone->data == NULL
+        || ngx_brix_shm_zone->data == (void *) 1)
     {
         wt = json_object();
         if (wt) {
@@ -387,8 +387,8 @@ dashboard_fill_cache(json_t *target, ngx_uint_t redact)
         return;
     }
 
-    met = ngx_xrootd_shm_zone->data;
-    for (i = 0; i < XROOTD_METRICS_MAX_SERVERS; i++) {
+    met = ngx_brix_shm_zone->data;
+    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
         if (met->servers[i].in_use && met->servers[i].cache_enabled) { enabled = 1; }
         wt_dirty   += (uint64_t) met->servers[i].wt_dirty_handles;
         wt_pending += (uint64_t) met->servers[i].wt_flush_pending;
@@ -399,9 +399,9 @@ dashboard_fill_cache(json_t *target, ngx_uint_t redact)
 
     listeners = json_array();
     if (listeners) {
-        for (i = 0; i < XROOTD_METRICS_MAX_SERVERS; i++) {
-            ngx_xrootd_srv_metrics_t *srv = &met->servers[i];
-            xrootd_fs_usage_t         fsu;
+        for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
+            ngx_brix_srv_metrics_t *srv = &met->servers[i];
+            brix_fs_usage_t         fsu;
             json_t                   *entry;
 
             if (!srv->in_use || !srv->cache_enabled) { continue; }
@@ -423,7 +423,7 @@ dashboard_fill_cache(json_t *target, ngx_uint_t redact)
             json_object_set_new(entry, "eviction_errors_total",
                 json_integer((json_int_t) srv->cache_eviction_errors_total));
 
-            if (xrootd_fs_usage_stat(srv->cache_root, &fsu) == NGX_OK) {
+            if (brix_fs_usage_stat(srv->cache_root, &fsu) == NGX_OK) {
                 json_object_set_new(entry, "occupancy_ratio",
                     json_real((double) fsu.occupancy_ppm / 1000000.0));
                 json_object_set_new(entry, "bytes_total",
@@ -474,14 +474,14 @@ dashboard_fill_storage(json_t *target, ngx_uint_t redact)
 
     exports = json_array();
     if (exports != NULL) {
-        n = xrootd_vfs_backend_export_count();
+        n = brix_vfs_backend_export_count();
         for (i = 0; i < n; i++) {
-            xrootd_vfs_backend_info_t info;
-            xrootd_fs_usage_t         fsu;
+            brix_vfs_backend_info_t info;
+            brix_fs_usage_t         fsu;
             json_t                   *e;
             int                       local;
 
-            if (xrootd_vfs_backend_export_info(i, &info) != NGX_OK) {
+            if (brix_vfs_backend_export_info(i, &info) != NGX_OK) {
                 continue;
             }
             e = json_object();
@@ -504,7 +504,7 @@ dashboard_fill_storage(json_t *target, ngx_uint_t redact)
                 }
             }
             if (local
-                && xrootd_fs_usage_stat(info.root_canon, &fsu) == NGX_OK)
+                && brix_fs_usage_stat(info.root_canon, &fsu) == NGX_OK)
             {
                 json_object_set_new(e, "bytes_total",
                     json_integer((json_int_t) fsu.total_bytes));
@@ -522,14 +522,14 @@ dashboard_fill_storage(json_t *target, ngx_uint_t redact)
 
     io = json_object();
     if (io != NULL) {
-        if (ngx_xrootd_shm_zone != NULL
-            && ngx_xrootd_shm_zone->data != NULL
-            && ngx_xrootd_shm_zone->data != (void *) 1)
+        if (ngx_brix_shm_zone != NULL
+            && ngx_brix_shm_zone->data != NULL
+            && ngx_brix_shm_zone->data != (void *) 1)
         {
-            ngx_xrootd_metrics_t *met = ngx_xrootd_shm_zone->data;
+            ngx_brix_metrics_t *met = ngx_brix_shm_zone->data;
             int                   id;
 
-            for (id = 0; id < XROOTD_FS_ID_COUNT; id++) {
+            for (id = 0; id < BRIX_FS_ID_COUNT; id++) {
                 uint64_t rd = (uint64_t) met->unified.io_bytes_read_backend[id];
                 uint64_t wr = (uint64_t) met->unified.io_bytes_written_backend[id];
                 json_t  *b;
@@ -545,7 +545,7 @@ dashboard_fill_storage(json_t *target, ngx_uint_t redact)
                     json_integer((json_int_t) rd));
                 json_object_set_new(b, "bytes_written_total",
                     json_integer((json_int_t) wr));
-                json_object_set_new(io, xrootd_fs_id_name(id), b);
+                json_object_set_new(io, brix_fs_id_name(id), b);
             }
         }
         json_object_set_new(target, "io", io);
@@ -560,9 +560,9 @@ dashboard_fill_storage(json_t *target, ngx_uint_t redact)
  */
 void
 dashboard_fill_cluster(json_t *target, ngx_pool_t *pool, int64_t now_ms,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t redact)
+    const ngx_http_brix_dashboard_loc_conf_t *conf, ngx_uint_t redact)
 {
-    xrootd_srv_snapshot_entry_t *entries;
+    brix_srv_snapshot_entry_t *entries;
     ngx_uint_t                   n, i;
     json_t                      *servers;
 
@@ -570,13 +570,13 @@ dashboard_fill_cluster(json_t *target, ngx_pool_t *pool, int64_t now_ms,
                         json_integer((json_int_t) conf->cluster_stale_after_ms));
 
     servers = json_array();
-    entries = ngx_pcalloc(pool, sizeof(*entries) * XROOTD_SRV_REGISTRY_SLOTS);
+    entries = ngx_pcalloc(pool, sizeof(*entries) * BRIX_SRV_REGISTRY_SLOTS);
     if (entries == NULL || servers == NULL) {
         json_object_set_new(target, "servers", servers ? servers : json_array());
         return;
     }
 
-    n = xrootd_srv_snapshot(entries, XROOTD_SRV_REGISTRY_SLOTS,
+    n = brix_srv_snapshot(entries, BRIX_SRV_REGISTRY_SLOTS,
                             (ngx_msec_t) now_ms);
     for (i = 0; i < n; i++) {
         int64_t age = now_ms >= (int64_t) entries[i].last_seen
@@ -609,7 +609,7 @@ dashboard_fill_cluster(json_t *target, ngx_pool_t *pool, int64_t now_ms,
 
 json_t *
 dashboard_new_v1_root(int64_t now_ms,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf)
+    const ngx_http_brix_dashboard_loc_conf_t *conf)
 {
     json_t *root = json_object();
     if (!root) { return NULL; }
@@ -622,8 +622,8 @@ dashboard_new_v1_root(int64_t now_ms,
 
 json_t *
 dashboard_build_v1_snapshot(ngx_http_request_t *r,
-    int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf,
-    const xrootd_dashboard_totals_t *totals, ngx_uint_t redact)
+    int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf,
+    const brix_dashboard_totals_t *totals, ngx_uint_t redact)
 {
     json_t *root, *history, *cache, *storage, *cluster, *cvmfs;
 
@@ -676,7 +676,7 @@ dashboard_build_v1_snapshot(ngx_http_request_t *r,
 
 json_t *
 dashboard_build_v1_events(ngx_http_request_t *r,
-    int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf,
+    int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf,
     ngx_uint_t redact)
 {
     json_t *root = dashboard_new_v1_root(now_ms, conf);
@@ -689,7 +689,7 @@ dashboard_build_v1_events(ngx_http_request_t *r,
 
 json_t *
 dashboard_build_v1_history(ngx_http_request_t *r,
-    int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf,
+    int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf,
     ngx_uint_t redact)
 {
     json_t *root = dashboard_new_v1_root(now_ms, conf);
@@ -702,7 +702,7 @@ dashboard_build_v1_history(ngx_http_request_t *r,
 
 json_t *
 dashboard_build_v1_cluster(ngx_http_request_t *r,
-    int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf,
+    int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf,
     ngx_uint_t redact)
 {
     json_t *root = dashboard_new_v1_root(now_ms, conf);
@@ -715,7 +715,7 @@ dashboard_build_v1_cluster(ngx_http_request_t *r,
 
 json_t *
 dashboard_build_v1_cache(int64_t now_ms,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t redact)
+    const ngx_http_brix_dashboard_loc_conf_t *conf, ngx_uint_t redact)
 {
     json_t *root = dashboard_new_v1_root(now_ms, conf);
     if (!root) { return NULL; }

@@ -25,8 +25,8 @@
  * - partNumber is range-checked (1–10000) and validated to be a decimal
  *   integer before it appears in any path — no shell metachar risk.
  * - All filesystem access goes through the VFS seam (s3_mpu_reap_stale scans via
- *   xrootd_vfs_opendir_quiet/readdir_kind/probe; mpu_rmdir_recursive delegates to
- *   xrootd_fs_remove_tree_confined) to prevent path traversal.
+ *   brix_vfs_opendir_quiet/readdir_kind/probe; mpu_rmdir_recursive delegates to
+ *   brix_fs_remove_tree_confined) to prevent path traversal.
  */
 
 #include "s3.h"
@@ -55,7 +55,7 @@
 int
 s3_has_query_flag(ngx_http_request_t *r, const char *key)
 {
-    return xrootd_http_query_has(r->args, key, 0);
+    return brix_http_query_has(r->args, key, 0);
 }
 
 /*
@@ -66,8 +66,8 @@ int
 s3_get_query_param(ngx_http_request_t *r, const char *key,
                    char *out, size_t outsz)
 {
-    return xrootd_http_query_get(r->args, key, out, outsz,
-                                 XROOTD_HTTP_QUERY_TRUNCATE) > 0;
+    return brix_http_query_get(r->args, key, out, outsz,
+                                 BRIX_HTTP_QUERY_TRUNCATE) > 0;
 }
 
 /*
@@ -131,14 +131,14 @@ mpu_validate_upload_id(const char *upload_id)
 /*
  * mpu_rmdir_recursive — remove <path> and all its contents using
  * opendir/unlinkat.  Path confinement is enforced via
- * xrootd_unlink_confined_canon for every remove call.
+ * brix_unlink_confined_canon for every remove call.
  *
  * Returns 0 on success, -1 on error (errno set).
  */
 int
 mpu_rmdir_recursive(ngx_log_t *log, const char *root_canon, const char *path)
 {
-    return xrootd_fs_remove_tree_confined(log, root_canon, path) == NGX_OK
+    return brix_fs_remove_tree_confined(log, root_canon, path) == NGX_OK
            ? 0
            : -1;
 }
@@ -169,8 +169,8 @@ s3_mpu_reap_stale(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     const char       *root_canon = cf->common.root_canon;
     char              dir[PATH_MAX];
     const char       *slash;
-    xrootd_vfs_ctx_t  vctx;
-    xrootd_vfs_dir_t *d;
+    brix_vfs_ctx_t  vctx;
+    brix_vfs_dir_t *d;
     time_t            now;
     size_t            dlen;
     int               reaped = 0;
@@ -194,7 +194,7 @@ s3_mpu_reap_stale(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
      * that user) — a bare worker opendir would EACCES. Non-metered (this reaper
      * is opportunistic maintenance, not a user LIST). */
     s3_build_vfs_ctx(r, dir, cf, &vctx);
-    d = xrootd_vfs_opendir_quiet(&vctx, NULL);
+    d = brix_vfs_opendir_quiet(&vctx, NULL);
     if (d == NULL) {
         return 0;
     }
@@ -205,10 +205,10 @@ s3_mpu_reap_stale(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         ngx_str_t          name;
         const char        *dname;
         char               full[PATH_MAX];
-        xrootd_vfs_ctx_t   cctx;
-        xrootd_vfs_stat_t  cst;
+        brix_vfs_ctx_t   cctx;
+        brix_vfs_stat_t  cst;
 
-        if (xrootd_vfs_readdir_kind(d, &name, NULL) != NGX_OK) {
+        if (brix_vfs_readdir_kind(d, &name, NULL) != NGX_OK) {
             break;   /* end of stream or error */
         }
         dname = (const char *) name.data;
@@ -223,7 +223,7 @@ s3_mpu_reap_stale(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         }
         /* Confined no-follow probe for the dir check + mtime (non-metered). */
         s3_build_vfs_ctx(r, full, cf, &cctx);
-        if (xrootd_vfs_probe(&cctx, 1 /* no-follow */, &cst) != NGX_OK
+        if (brix_vfs_probe(&cctx, 1 /* no-follow */, &cst) != NGX_OK
             || !cst.is_directory)
         {
             continue;
@@ -236,7 +236,7 @@ s3_mpu_reap_stale(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         }
     }
 
-    xrootd_vfs_closedir(d, log);
+    brix_vfs_closedir(d, log);
 
     if (reaped > 0 && log != NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,

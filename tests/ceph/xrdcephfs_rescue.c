@@ -20,7 +20,7 @@
  *   (env CEPH_CONF overrides /etc/ceph/ceph.conf)
  *
  * BUILD (in the librados build container):
- *   gcc -DXRDPROTO_NO_NGX -DXROOTD_HAVE_CEPH -I src/fs/backend -I src/fs/backend/rados \
+ *   gcc -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH -I src/fs/backend -I src/fs/backend/rados \
  *     -include tests/ceph/ngx_shim.h tests/ceph/xrdcephfs_rescue.c \
  *     src/fs/backend/rados/sd_cephfs_ro.c src/fs/backend/rados/sd_ceph.c \
  *     src/fs/backend/rados/sd_ceph_compat.c src/fs/backend/rados/cephfs_layout.c \
@@ -39,12 +39,12 @@
 void *ngx_pcalloc(ngx_pool_t *pool, size_t size) { (void) pool; return calloc(1, size); }
 void *ngx_pnalloc(ngx_pool_t *pool, size_t size) { (void) pool; return malloc(size); }
 
-static const xrootd_sd_driver_t *DRV;
-static xrootd_sd_instance_t      INST;
+static const brix_sd_driver_t *DRV;
+static brix_sd_instance_t      INST;
 
 /* Stream an open object's bytes to a FILE* via the driver's pread. */
 static int
-copy_to_stream(xrootd_sd_obj_t *o, FILE *out)
+copy_to_stream(brix_sd_obj_t *o, FILE *out)
 {
     char    buf[1u << 20];
     off_t   off = 0;
@@ -60,11 +60,11 @@ copy_to_stream(xrootd_sd_obj_t *o, FILE *out)
 static int
 do_cat_or_get(const char *path, const char *local)
 {
-    xrootd_sd_obj_t *o;
+    brix_sd_obj_t *o;
     FILE            *out;
     int              err = 0, rc;
 
-    o = DRV->open(&INST, path, XROOTD_SD_O_READ, 0, &err);
+    o = DRV->open(&INST, path, BRIX_SD_O_READ, 0, &err);
     if (o == NULL) { fprintf(stderr, "open %s: %s\n", path, strerror(err)); return 1; }
 
     out = (local != NULL) ? fopen(local, "wb") : stdout;
@@ -81,8 +81,8 @@ do_cat_or_get(const char *path, const char *local)
 static int
 do_ls(const char *path)
 {
-    xrootd_sd_dir_t   *d;
-    xrootd_sd_dirent_t de;
+    brix_sd_dir_t   *d;
+    brix_sd_dirent_t de;
     int                err = 0;
 
     d = DRV->opendir(&INST, path, &err);
@@ -97,7 +97,7 @@ do_ls(const char *path)
 static int
 do_stat(const char *path)
 {
-    xrootd_sd_stat_t sb;
+    brix_sd_stat_t sb;
 
     if (DRV->stat(&INST, path, &sb) != NGX_OK) {
         fprintf(stderr, "stat %s: %s\n", path, strerror(errno));
@@ -118,9 +118,9 @@ do_stat(const char *path)
 static int
 copy_tree(const char *src, const char *dst)
 {
-    xrootd_sd_stat_t   sb;
-    xrootd_sd_dir_t   *d;
-    xrootd_sd_dirent_t de;
+    brix_sd_stat_t   sb;
+    brix_sd_dir_t   *d;
+    brix_sd_dirent_t de;
     int                err = 0, fails = 0;
 
     if (DRV->stat(&INST, src, &sb) != NGX_OK) {
@@ -156,7 +156,7 @@ copy_tree(const char *src, const char *dst)
 int
 main(int argc, char **argv)
 {
-    xrootd_sd_cephfs_ro_conf_t conf;
+    brix_sd_cephfs_ro_conf_t conf;
     const char                *cmd, *path;
     int                        rc;
 
@@ -167,7 +167,7 @@ main(int argc, char **argv)
         return 2;
     }
 
-    DRV = &xrootd_sd_cephfs_ro_driver;
+    DRV = &brix_sd_cephfs_ro_driver;
     memset(&INST, 0, sizeof(INST));
     INST.driver = DRV;
 

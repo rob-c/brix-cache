@@ -1,5 +1,5 @@
-#ifndef XROOTD_SSI_CTA_PB_H
-#define XROOTD_SSI_CTA_PB_H
+#ifndef BRIX_SSI_CTA_PB_H
+#define BRIX_SSI_CTA_PB_H
 
 /*
  * cta_pb.h — CTA SSI message codec (decode cta.xrd.Request, encode
@@ -62,4 +62,4 @@ int cta_pb_encode_response(cta_rsp_type_t type, const char *message_txt,
 int cta_pb_encode_stream_header(const unsigned char *response, size_t response_len,
                                 unsigned char *out, size_t cap, size_t *out_len);
 
-#endif /* XROOTD_SSI_CTA_PB_H */
+#endif /* BRIX_SSI_CTA_PB_H */

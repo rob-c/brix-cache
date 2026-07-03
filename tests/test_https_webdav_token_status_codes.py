@@ -6,7 +6,7 @@ endpoint (port 8443, optional JWT/WLCG bearer-token auth).
 
 Mirrors test_https_webdav_status_codes.py but authenticates via
 Authorization: Bearer <JWT> instead of an x509 proxy certificate.  Targets
-the HTTPS+Token server (port 8443, xrootd_webdav_auth optional) so that
+the HTTPS+Token server (port 8443, brix_webdav_auth optional) so that
 HTTPS+Token and HTTPS+GSI have equal WebDAV-operation coverage.
 
 Additional classes verify authentication behaviour:

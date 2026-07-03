@@ -1,13 +1,13 @@
 /*
  * sd_ceph.c — Ceph/RADOS Storage Driver (phase-60, basic librados backend).
  *
- * WHAT: xrootd_sd_ceph_driver — a backend that maps the VFS's logical paths onto
+ * WHAT: brix_sd_ceph_driver — a backend that maps the VFS's logical paths onto
  *       flat RADOS objects via raw librados (rados_read/write/trunc/stat/remove).
  *       Two layers live here:
  *         1. The pure LFN->object-key map (sd_ceph_normalize/_key/_ino) — libc
  *            only, always compiled, unit-tested standalone (sd_ceph_unittest.c).
  *         2. The driver vtable — only when the build found librados
- *            (XROOTD_HAVE_CEPH); otherwise this file is just the pure helpers and
+ *            (BRIX_HAVE_CEPH); otherwise this file is just the pure helpers and
  *            the build is byte-for-byte unchanged (the driver row in
  *            sd_registry.c is #if-guarded too).
  *
@@ -143,7 +143,7 @@ sd_ceph_ino(const char *oid)
 /* ===================================================================== *
  * librados driver (only when the build found librados)                   *
  * ===================================================================== */
-#if XROOTD_HAVE_CEPH
+#if BRIX_HAVE_CEPH
 
 #include <rados/librados.h>
 #include "sd_ceph_striper.h"   /* libradosstriper read path (stock XrdCeph layout) */
@@ -160,7 +160,7 @@ typedef struct {
     char          *keyring;
     char          *key_prefix;
     unsigned       connected:1;
-#if defined(XROOTD_HAVE_RADOSSTRIPER)
+#if defined(BRIX_HAVE_RADOSSTRIPER)
     rados_striper_t striper;        /* lazily created, shared across this export */
     unsigned        striper_ready:1;
 #endif
@@ -216,7 +216,7 @@ sd_ceph_set_errno(int rc)
 
 /* worker-safe raw byte I/O (no pool/log/metrics) */
 
-#if defined(XROOTD_HAVE_RADOSSTRIPER)
+#if defined(BRIX_HAVE_RADOSSTRIPER)
 /* Lazily create (once per export) the libradosstriper handle bound to this
  * instance's ioctx, so reads of stock-XrdCeph striped objects reassemble the file
  * byte-for-byte. NULL on failure (the caller falls back to a raw read). */
@@ -244,20 +244,20 @@ sd_ceph_is_striped(sd_ceph_state_t *st, const char *name)
     return (s != NULL && sd_ceph_striper_stat(s, name, &size, &mtime) == 0)
            ? 1 : 0;
 }
-#endif /* XROOTD_HAVE_RADOSSTRIPER */
+#endif /* BRIX_HAVE_RADOSSTRIPER */
 
 /* sd_ceph_pread — read at off from the object. A striper-format object (stock
  * XrdCeph) is read through libradosstriper so its bytes reassemble exactly;
  * everything else is a flat rados_read. Returns bytes read (>=0, 0 = at/after
  * EOF) or -1 with errno. The VFS owns the EINTR/short-read loop (vfs_core). */
 static ssize_t
-sd_ceph_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
+sd_ceph_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
 {
     sd_ceph_state_t     *st = obj->inst->state;
     sd_ceph_obj_state_t *os = obj->state;
     int                  rc;
 
-#if defined(XROOTD_HAVE_RADOSSTRIPER)
+#if defined(BRIX_HAVE_RADOSSTRIPER)
     if (os->striped) {
         rados_striper_t s = sd_ceph_striper(st);
         ssize_t         n;
@@ -286,7 +286,7 @@ sd_ceph_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
 /* sd_ceph_pwrite — one rados_write at off; returns len on success or -1. Bumps
  * the cached object size so a subsequent fstat reflects in-flight writes. */
 static ssize_t
-sd_ceph_pwrite(xrootd_sd_obj_t *obj, const void *buf, size_t len, off_t off)
+sd_ceph_pwrite(brix_sd_obj_t *obj, const void *buf, size_t len, off_t off)
 {
     sd_ceph_state_t     *st = obj->inst->state;
     sd_ceph_obj_state_t *os = obj->state;
@@ -305,7 +305,7 @@ sd_ceph_pwrite(xrootd_sd_obj_t *obj, const void *buf, size_t len, off_t off)
 /* sd_ceph_preadv — vectored read as a loop of sd_ceph_pread (RADOS has no native
  * preadv); stops at the first short/EOF segment. Bytes read or -1. */
 static ssize_t
-sd_ceph_preadv(xrootd_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
+sd_ceph_preadv(brix_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
     off_t off)
 {
     ssize_t total = 0;
@@ -328,7 +328,7 @@ sd_ceph_preadv(xrootd_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
 /* sd_ceph_preadv2 — RADOS has no per-read flags (e.g. RWF_NOWAIT); ignore them
  * and serve via the plain vectored read. */
 static ssize_t
-sd_ceph_preadv2(xrootd_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
+sd_ceph_preadv2(brix_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
     off_t off, int flags)
 {
     (void) flags;
@@ -338,7 +338,7 @@ sd_ceph_preadv2(xrootd_sd_obj_t *obj, const struct iovec *iov, int iovcnt,
 /* sd_ceph_read_sendfile_fd — RADOS exposes no kernel fd, so reads are always
  * served memory-backed; signal that to the VFS with NGX_INVALID_FILE. */
 static ngx_fd_t
-sd_ceph_read_sendfile_fd(xrootd_sd_obj_t *obj, off_t off, size_t len,
+sd_ceph_read_sendfile_fd(brix_sd_obj_t *obj, off_t off, size_t len,
     unsigned want_zerocopy)
 {
     (void) obj; (void) off; (void) len; (void) want_zerocopy;
@@ -347,7 +347,7 @@ sd_ceph_read_sendfile_fd(xrootd_sd_obj_t *obj, off_t off, size_t len,
 
 /* sd_ceph_ftruncate — rados_trunc to len; updates the cached size. */
 static ngx_int_t
-sd_ceph_ftruncate(xrootd_sd_obj_t *obj, off_t len)
+sd_ceph_ftruncate(brix_sd_obj_t *obj, off_t len)
 {
     sd_ceph_state_t     *st = obj->inst->state;
     sd_ceph_obj_state_t *os = obj->state;
@@ -362,7 +362,7 @@ sd_ceph_ftruncate(xrootd_sd_obj_t *obj, off_t len)
 /* sd_ceph_fsync — a synchronous rados_write is durably acked on return, so there
  * is nothing to flush; succeed. (aio flush belongs to the async follow-on.) */
 static ngx_int_t
-sd_ceph_fsync(xrootd_sd_obj_t *obj)
+sd_ceph_fsync(brix_sd_obj_t *obj)
 {
     (void) obj;
     return NGX_OK;
@@ -372,7 +372,7 @@ sd_ceph_fsync(xrootd_sd_obj_t *obj)
  * VFS consumes: a regular object, mode 0644, a stable synthesized inode. */
 static void
 sd_ceph_fill_stat(const char *oid, uint64_t size, time_t mtime,
-    xrootd_sd_stat_t *out)
+    brix_sd_stat_t *out)
 {
     ngx_memzero(out, sizeof(*out));
     out->size   = (off_t) size;
@@ -385,7 +385,7 @@ sd_ceph_fill_stat(const char *oid, uint64_t size, time_t mtime,
 
 /* sd_ceph_fstat — rados_stat on the open object's id. */
 static ngx_int_t
-sd_ceph_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
+sd_ceph_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
 {
     sd_ceph_state_t     *st = obj->inst->state;
     sd_ceph_obj_state_t *os = obj->state;
@@ -405,12 +405,12 @@ sd_ceph_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
  * against a stat probe, and return a handle carrying the id + cached size. There
  * is no fd: obj->fd stays NGX_INVALID_FILE (the VFS serves such handles memory-
  * backed). */
-static xrootd_sd_obj_t *
-sd_ceph_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
+static brix_sd_obj_t *
+sd_ceph_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
     mode_t mode, int *err_out)
 {
     sd_ceph_state_t     *st = inst->state;
-    xrootd_sd_obj_t     *obj;
+    brix_sd_obj_t     *obj;
     sd_ceph_obj_state_t *os;
     uint64_t             size = 0;
     time_t               mtime = 0;
@@ -431,10 +431,10 @@ sd_ceph_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
     }
 
     rc = -ENOENT;
-#if defined(XROOTD_HAVE_RADOSSTRIPER)
+#if defined(BRIX_HAVE_RADOSSTRIPER)
     /* On a read open, prefer the stock-XrdCeph striper view: if a striped object
      * exists for this name, mark it so pread reassembles via libradosstriper. */
-    if (!(sd_flags & XROOTD_SD_O_WRITE)) {
+    if (!(sd_flags & BRIX_SD_O_WRITE)) {
         rados_striper_t s = sd_ceph_striper(st);
         if (s != NULL && sd_ceph_striper_stat(s, os->oid, &size, &mtime) == 0) {
             os->striped = 1;
@@ -445,7 +445,7 @@ sd_ceph_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
     if (rc != 0) {
         rc = rados_stat(st->ioctx, os->oid, &size, &mtime);
     }
-    if (rc == -ENOENT && !(sd_flags & XROOTD_SD_O_CREATE)) {
+    if (rc == -ENOENT && !(sd_flags & BRIX_SD_O_CREATE)) {
         if (err_out != NULL) { *err_out = ENOENT; }
         return NULL;
     }
@@ -453,11 +453,11 @@ sd_ceph_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
         if (err_out != NULL) { *err_out = -rc; }
         return NULL;
     }
-    if (rc == 0 && (sd_flags & XROOTD_SD_O_EXCL)) {
+    if (rc == 0 && (sd_flags & BRIX_SD_O_EXCL)) {
         if (err_out != NULL) { *err_out = EEXIST; }
         return NULL;
     }
-    if (sd_flags & XROOTD_SD_O_TRUNC) {
+    if (sd_flags & BRIX_SD_O_TRUNC) {
         if (sd_ceph_set_errno(rados_trunc(st->ioctx, os->oid, 0))) {
             if (err_out != NULL) { *err_out = errno; }
             return NULL;
@@ -467,7 +467,7 @@ sd_ceph_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
     (void) mtime;
 
     os->size      = (rc == 0) ? size : 0;
-    os->for_write = (sd_flags & XROOTD_SD_O_WRITE) ? 1 : 0;
+    os->for_write = (sd_flags & BRIX_SD_O_WRITE) ? 1 : 0;
     obj->driver   = inst->driver;
     obj->inst     = inst;
     obj->fd       = NGX_INVALID_FILE;
@@ -488,7 +488,7 @@ sd_ceph_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
 /* sd_ceph_close — no per-object kernel resource to release (the cluster/ioctx are
  * instance-lived); the handle lives on the pool. */
 static ngx_int_t
-sd_ceph_close(xrootd_sd_obj_t *obj)
+sd_ceph_close(brix_sd_obj_t *obj)
 {
     (void) obj;
     return NGX_OK;
@@ -498,8 +498,8 @@ sd_ceph_close(xrootd_sd_obj_t *obj)
 
 /* sd_ceph_stat — rados_stat on the object id for a logical path. */
 static ngx_int_t
-sd_ceph_stat(xrootd_sd_instance_t *inst, const char *path,
-    xrootd_sd_stat_t *out)
+sd_ceph_stat(brix_sd_instance_t *inst, const char *path,
+    brix_sd_stat_t *out)
 {
     sd_ceph_state_t *st = inst->state;
     char             oid[1024];
@@ -519,7 +519,7 @@ sd_ceph_stat(xrootd_sd_instance_t *inst, const char *path,
 /* sd_ceph_unlink — remove the object for a logical path. There are no real
  * directories in this basic backend, so is_dir is advisory only. */
 static ngx_int_t
-sd_ceph_unlink(xrootd_sd_instance_t *inst, const char *path, int is_dir)
+sd_ceph_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
 {
     sd_ceph_state_t *st = inst->state;
     char             oid[1024];
@@ -545,7 +545,7 @@ sd_ceph_unlink(xrootd_sd_instance_t *inst, const char *path, int is_dir)
 #define SD_CEPH_XATTR_MAX (64u * 1024)
 
 static ssize_t
-sd_ceph_getxattr(xrootd_sd_instance_t *inst, const char *path,
+sd_ceph_getxattr(brix_sd_instance_t *inst, const char *path,
     const char *name, void *buf, size_t cap)
 {
     sd_ceph_state_t *st = inst->state;
@@ -573,7 +573,7 @@ sd_ceph_getxattr(xrootd_sd_instance_t *inst, const char *path,
 }
 
 static ssize_t
-sd_ceph_listxattr(xrootd_sd_instance_t *inst, const char *path,
+sd_ceph_listxattr(brix_sd_instance_t *inst, const char *path,
     void *buf, size_t cap)
 {
     sd_ceph_state_t    *st = inst->state;
@@ -617,7 +617,7 @@ sd_ceph_listxattr(xrootd_sd_instance_t *inst, const char *path,
 }
 
 static ngx_int_t
-sd_ceph_setxattr(xrootd_sd_instance_t *inst, const char *path,
+sd_ceph_setxattr(brix_sd_instance_t *inst, const char *path,
     const char *name, const void *val, size_t len, int flags)
 {
     sd_ceph_state_t *st = inst->state;
@@ -635,7 +635,7 @@ sd_ceph_setxattr(xrootd_sd_instance_t *inst, const char *path,
 }
 
 static ngx_int_t
-sd_ceph_removexattr(xrootd_sd_instance_t *inst, const char *path,
+sd_ceph_removexattr(brix_sd_instance_t *inst, const char *path,
     const char *name)
 {
     sd_ceph_state_t *st = inst->state;
@@ -657,12 +657,12 @@ sd_ceph_removexattr(xrootd_sd_instance_t *inst, const char *path,
  * to zero at open, write in place, commit is a no-op, abort removes it. A
  * temp-object + server-side copy-on-commit would add true atomicity at O(size)
  * cost; that is a follow-on, not needed for basic PUT parity with root://. */
-static xrootd_sd_staged_t *
-sd_ceph_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
+static brix_sd_staged_t *
+sd_ceph_staged_open(brix_sd_instance_t *inst, const char *final_path,
     mode_t mode, int *err_out)
 {
     sd_ceph_state_t    *st = inst->state;
-    xrootd_sd_staged_t *handle;
+    brix_sd_staged_t *handle;
     sd_ceph_staged_t   *ps;
 
     (void) mode;
@@ -687,7 +687,7 @@ sd_ceph_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
 }
 
 static ssize_t
-sd_ceph_staged_write(xrootd_sd_staged_t *sh, const void *buf, size_t len,
+sd_ceph_staged_write(brix_sd_staged_t *sh, const void *buf, size_t len,
     off_t off)
 {
     sd_ceph_state_t  *st = sh->inst->state;
@@ -702,7 +702,7 @@ sd_ceph_staged_write(xrootd_sd_staged_t *sh, const void *buf, size_t len,
 }
 
 static ngx_int_t
-sd_ceph_staged_commit(xrootd_sd_staged_t *sh, int noreplace)
+sd_ceph_staged_commit(brix_sd_staged_t *sh, int noreplace)
 {
     (void) sh;
     (void) noreplace;   /* the object is already written in place */
@@ -710,7 +710,7 @@ sd_ceph_staged_commit(xrootd_sd_staged_t *sh, int noreplace)
 }
 
 static void
-sd_ceph_staged_abort(xrootd_sd_staged_t *sh)
+sd_ceph_staged_abort(brix_sd_staged_t *sh)
 {
     sd_ceph_state_t  *st = sh->inst->state;
     sd_ceph_staged_t *ps = sh->state;
@@ -771,9 +771,9 @@ sd_ceph_cluster_connect(const char *conf_file, const char *user,
  * cluster handle, and open the pool ioctx. Any failure tears down what was built
  * and returns NGX_ERROR with errno set so the export fails closed at init. */
 static ngx_int_t
-sd_ceph_init(xrootd_sd_instance_t *inst, void *driver_conf)
+sd_ceph_init(brix_sd_instance_t *inst, void *driver_conf)
 {
-    xrootd_sd_ceph_conf_t *dc = driver_conf;
+    brix_sd_ceph_conf_t *dc = driver_conf;
     sd_ceph_state_t       *st;
 
     if (dc == NULL || dc->pool == NULL) {
@@ -807,12 +807,12 @@ sd_ceph_init(xrootd_sd_instance_t *inst, void *driver_conf)
 /* sd_ceph_cleanup — destroy the ioctx and shut the cluster handle down (a kernel/
  * network resource that must not leak across reconfig); the pool reclaims state. */
 static void
-sd_ceph_cleanup(xrootd_sd_instance_t *inst)
+sd_ceph_cleanup(brix_sd_instance_t *inst)
 {
     sd_ceph_state_t *st = inst->state;
 
     if (st != NULL && st->connected) {
-#if defined(XROOTD_HAVE_RADOSSTRIPER)
+#if defined(BRIX_HAVE_RADOSSTRIPER)
         if (st->striper_ready) {
             sd_ceph_striper_destroy(st->striper);
             st->striper_ready = 0;
@@ -834,7 +834,7 @@ struct sd_ceph_conn_s {
 };
 
 sd_ceph_conn_t *
-sd_ceph_conn_create(const xrootd_sd_ceph_conf_t *conf, ngx_pool_t *pool, int *err)
+sd_ceph_conn_create(const brix_sd_ceph_conf_t *conf, ngx_pool_t *pool, int *err)
 {
     sd_ceph_conn_t *c;
 
@@ -1012,8 +1012,8 @@ sd_ceph_oid_rmxattr(sd_ceph_conn_t *c, const char *oid, const char *name)
  * Returns NGX_OK (enumeration ran; the callback may have aborted early) or
  * NGX_ERROR (errno set) if the pool list could not be opened. */
 static ngx_int_t
-sd_ceph_enumerate(xrootd_sd_instance_t *inst, int want_stat,
-    xrootd_sd_catalog_cb cb, void *ctx)
+sd_ceph_enumerate(brix_sd_instance_t *inst, int want_stat,
+    brix_sd_catalog_cb cb, void *ctx)
 {
     sd_ceph_state_t  *st = inst->state;
     rados_list_ctx_t  lc;
@@ -1027,7 +1027,7 @@ sd_ceph_enumerate(xrootd_sd_instance_t *inst, int want_stat,
     while (rados_nobjects_list_next(lc, &oid, NULL, NULL) == 0) {
         char                    pfn[1024];
         const char             *key_name;
-        xrootd_sd_catalog_ent_t ent;
+        brix_sd_catalog_ent_t ent;
         uint64_t                size = 0;
         time_t                  mtime = 0;
 
@@ -1068,14 +1068,14 @@ sd_ceph_enumerate(xrootd_sd_instance_t *inst, int want_stat,
  * no CAP_FD/SENDFILE (no fd; VFS serves memory-backed), no CAP_DIRS (flat key
  * namespace), no CAP_HARD_RENAME (no atomic rename). Directory iteration, rename,
  * xattr and staged commit are deliberately absent from this basic backend. */
-const xrootd_sd_driver_t xrootd_sd_ceph_driver = {
+const brix_sd_driver_t brix_sd_ceph_driver = {
     .name = "ceph",
     /* XATTR: the get/set/removexattr slots store object xattrs via rados_*xattr,
      * so a ceph object can carry the cinfo/meta records (phase-64 SP3 cache-store
      * role, XATTR cinfo mode - the cache state lives on the RADOS object itself). */
-    .caps = XROOTD_SD_CAP_RANGE_READ | XROOTD_SD_CAP_RANDOM_WRITE
-          | XROOTD_SD_CAP_TRUNCATE | XROOTD_SD_CAP_XATTR
-          | XROOTD_SD_CAP_CATALOG,
+    .caps = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_RANDOM_WRITE
+          | BRIX_SD_CAP_TRUNCATE | BRIX_SD_CAP_XATTR
+          | BRIX_SD_CAP_CATALOG,
 
     .init    = sd_ceph_init,
     .cleanup = sd_ceph_cleanup,
@@ -1107,4 +1107,4 @@ const xrootd_sd_driver_t xrootd_sd_ceph_driver = {
     .enumerate     = sd_ceph_enumerate,
 };
 
-#endif /* XROOTD_HAVE_CEPH */
+#endif /* BRIX_HAVE_CEPH */

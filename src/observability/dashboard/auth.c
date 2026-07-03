@@ -127,18 +127,18 @@ find_cookie(ngx_http_request_t *r, const char *name, size_t name_len,
 }
 
 static ngx_uint_t
-dashboard_users_enabled(const ngx_http_xrootd_dashboard_loc_conf_t *conf)
+dashboard_users_enabled(const ngx_http_brix_dashboard_loc_conf_t *conf)
 {
     return conf->users != NULL && conf->users->nelts > 0;
 }
 
 /* Linear lookup of a configured user by exact username; NULL if absent or the
  * multi-user mode is not enabled. Used by both login and cookie verification. */
-static ngx_http_xrootd_dashboard_user_t *
-dashboard_find_user(const ngx_http_xrootd_dashboard_loc_conf_t *conf,
+static ngx_http_brix_dashboard_user_t *
+dashboard_find_user(const ngx_http_brix_dashboard_loc_conf_t *conf,
     const char *username, size_t username_len)
 {
-    ngx_http_xrootd_dashboard_user_t *users;
+    ngx_http_brix_dashboard_user_t *users;
     ngx_uint_t                        i;
 
     if (!dashboard_users_enabled(conf) || username == NULL) {
@@ -164,7 +164,7 @@ dashboard_copy_str0(ngx_pool_t *pool, ngx_str_t *src, char **out)
 {
     char *dst;
 
-    XROOTD_PNALLOC_OR_RETURN(dst, pool, src->len + 1, NGX_ERROR);
+    BRIX_PNALLOC_OR_RETURN(dst, pool, src->len + 1, NGX_ERROR);
 
     ngx_memcpy(dst, src->data, src->len);
     dst[src->len] = '\0';
@@ -183,7 +183,7 @@ dashboard_copy_str0(ngx_pool_t *pool, ngx_str_t *src, char **out)
  */
 static ngx_int_t
 dashboard_verify_user_password(ngx_pool_t *pool,
-    ngx_http_xrootd_dashboard_user_t *user,
+    ngx_http_brix_dashboard_user_t *user,
     const char *password, size_t password_len)
 {
     char *hash;
@@ -199,7 +199,7 @@ dashboard_verify_user_password(ngx_pool_t *pool,
     }
 
     /* crypt() needs a NUL-terminated plaintext copy (the wire password is not). */
-    XROOTD_PNALLOC_OR_RETURN(plain, pool, password_len + 1, NGX_ERROR);
+    BRIX_PNALLOC_OR_RETURN(plain, pool, password_len + 1, NGX_ERROR);
     ngx_memcpy(plain, password, password_len);
     plain[password_len] = '\0';
 
@@ -361,8 +361,8 @@ dashboard_cookie_hmac(const ngx_str_t *key, const char *ts, size_t ts_len,
 
 /* Public: check auth cookie */
 ngx_int_t
-ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf,
+ngx_http_brix_dashboard_check_auth(ngx_http_request_t *r,
+    const ngx_http_brix_dashboard_loc_conf_t *conf,
     ngx_uint_t suppress_missing_cookie)
 {
     u_char                             *cookie_val;
@@ -379,7 +379,7 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
     char                                expected_hex[HMAC_HEX_LEN + 1];
     char                                given_hex[HMAC_HEX_LEN + 1];
     ngx_str_t                           key;
-    ngx_http_xrootd_dashboard_user_t   *user;
+    ngx_http_brix_dashboard_user_t   *user;
 
     if (conf->password.len == 0 && !dashboard_users_enabled(conf)) {
         /* No password configured — dashboard accessible without auth. */
@@ -401,7 +401,7 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
          * Present-but-invalid cookies (malformed/expired/forged, below) are
          * always logged regardless. */
         if (!suppress_missing_cookie) {
-            xrootd_dashboard_event_add(XROOTD_DASH_EVENT_AUTH, 0,
+            brix_dashboard_event_add(BRIX_DASH_EVENT_AUTH, 0,
                                        NGX_HTTP_UNAUTHORIZED,
                                        "dashboard auth missing cookie", NULL);
         }
@@ -422,7 +422,7 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
     if (dot == NULL || dot == cookie_val ||
         (size_t)(dot - cookie_val) != HMAC_HEX_LEN)
     {
-        xrootd_dashboard_event_add(XROOTD_DASH_EVENT_AUTH, 0,
+        brix_dashboard_event_add(BRIX_DASH_EVENT_AUTH, 0,
                                    NGX_HTTP_UNAUTHORIZED,
                                    "dashboard auth malformed cookie", NULL);
         return NGX_HTTP_UNAUTHORIZED;
@@ -451,7 +451,7 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
         }
 
         if (dot2 == NULL) {
-            xrootd_dashboard_event_add(XROOTD_DASH_EVENT_AUTH, 0,
+            brix_dashboard_event_add(BRIX_DASH_EVENT_AUTH, 0,
                                        NGX_HTTP_UNAUTHORIZED,
                                        "dashboard auth missing username", NULL);
             return NGX_HTTP_UNAUTHORIZED;
@@ -467,7 +467,7 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
 
         user = dashboard_find_user(conf, username, username_len);
         if (user == NULL) {
-            xrootd_dashboard_event_add(XROOTD_DASH_EVENT_AUTH, 0,
+            brix_dashboard_event_add(BRIX_DASH_EVENT_AUTH, 0,
                                        NGX_HTTP_UNAUTHORIZED,
                                        "dashboard auth unknown user", NULL);
             return NGX_HTTP_UNAUTHORIZED;
@@ -482,7 +482,7 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
 
     /* Extract and null-terminate the timestamp. */
     if (ts_len == 0 || ts_len >= sizeof(ts_str)) {
-        xrootd_dashboard_event_add(XROOTD_DASH_EVENT_AUTH, 0,
+        brix_dashboard_event_add(BRIX_DASH_EVENT_AUTH, 0,
                                    NGX_HTTP_UNAUTHORIZED,
                                    "dashboard auth bad timestamp", NULL);
         return NGX_HTTP_UNAUTHORIZED;
@@ -493,7 +493,7 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
     endptr = NULL;
     ts = strtol(ts_str, &endptr, 10);
     if (ts <= 0 || endptr == NULL || *endptr != '\0') {
-        xrootd_dashboard_event_add(XROOTD_DASH_EVENT_AUTH, 0,
+        brix_dashboard_event_add(BRIX_DASH_EVENT_AUTH, 0,
                                    NGX_HTTP_UNAUTHORIZED,
                                    "dashboard auth bad timestamp", NULL);
         return NGX_HTTP_UNAUTHORIZED;
@@ -504,7 +504,7 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
      * forged future timestamp. */
     now = time(NULL);
     if ((long) now - ts > (long) conf->session_ttl || ts > (long) now + 60) {
-        xrootd_dashboard_event_add(XROOTD_DASH_EVENT_AUTH, 0,
+        brix_dashboard_event_add(BRIX_DASH_EVENT_AUTH, 0,
                                    NGX_HTTP_UNAUTHORIZED,
                                    "dashboard auth expired cookie", NULL);
         return NGX_HTTP_UNAUTHORIZED;
@@ -522,7 +522,7 @@ ngx_http_xrootd_dashboard_check_auth(ngx_http_request_t *r,
     /* Constant-time compare: never short-circuit on the first differing byte,
      * which would leak how much of the signature an attacker has guessed. */
     if (CRYPTO_memcmp(expected_hex, given_hex, HMAC_HEX_LEN) != 0) {
-        xrootd_dashboard_event_add(XROOTD_DASH_EVENT_AUTH, 0,
+        brix_dashboard_event_add(BRIX_DASH_EVENT_AUTH, 0,
                                    NGX_HTTP_UNAUTHORIZED,
                                    "dashboard auth bad signature", NULL);
         return NGX_HTTP_UNAUTHORIZED;
@@ -536,7 +536,7 @@ static const char login_form_html[] =
     "<!DOCTYPE html>\n"
     "<html lang=\"en\">\n"
     "<head><meta charset=\"utf-8\">"
-    "<title>" XROOTD_SERVER_NAME " Monitor — Login</title>\n"
+    "<title>" BRIX_SERVER_NAME " Monitor — Login</title>\n"
     "<style>\n"
     "body{background:#1a1a2e;color:#e0e0e0;font-family:monospace;"
     "display:flex;justify-content:center;align-items:center;height:100vh;margin:0}\n"
@@ -564,7 +564,7 @@ static const char login_form_html_error[] =
     "<!DOCTYPE html>\n"
     "<html lang=\"en\">\n"
     "<head><meta charset=\"utf-8\">"
-    "<title>" XROOTD_SERVER_NAME " Monitor — Login</title>\n"
+    "<title>" BRIX_SERVER_NAME " Monitor — Login</title>\n"
     "<style>\n"
     "body{background:#1a1a2e;color:#e0e0e0;font-family:monospace;"
     "display:flex;justify-content:center;align-items:center;height:100vh;margin:0}\n"
@@ -624,14 +624,14 @@ send_html(ngx_http_request_t *r, ngx_int_t status,
 /* Context for async POST body reading */
 typedef struct {
     ngx_http_request_t                        *r;
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf;
+    const ngx_http_brix_dashboard_loc_conf_t *conf;
 } ngx_http_dashboard_login_ctx_t;
 
 /*
  * WHAT: Body callback for a login POST — verifies credentials and, on success,
  *       issues the session cookie and redirects to the dashboard.
  * WHY:  This runs only after nginx has fully buffered the request body (set up
- *       by ngx_http_xrootd_dashboard_login_handler via
+ *       by ngx_http_brix_dashboard_login_handler via
  *       ngx_http_read_client_request_body). It owns finalizing the request:
  *       every exit path calls ngx_http_finalize_request().
  * HOW:  Reassemble the (possibly multi-buffer) body, extract username/password,
@@ -642,7 +642,7 @@ typedef struct {
 static void
 login_post_body_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *conf;
+    ngx_http_brix_dashboard_loc_conf_t *conf;
     ngx_chain_t                          *cl;
     u_char                               *body_buf;
     size_t                                body_len = 0;
@@ -657,10 +657,10 @@ login_post_body_handler(ngx_http_request_t *r)
     size_t                                username_len = 0;
     size_t                                pw_len = 0;
     ngx_str_t                             hmac_key;
-    ngx_http_xrootd_dashboard_user_t     *user = NULL;
+    ngx_http_brix_dashboard_user_t     *user = NULL;
     time_t                                now;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_dashboard_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
 
     /* Collect body length */
     for (cl = r->request_body->bufs; cl; cl = cl->next) {
@@ -693,7 +693,7 @@ login_post_body_handler(ngx_http_request_t *r)
                              sizeof(password), &pw_len) != NGX_OK
         || pw_len == 0)
     {
-        xrootd_dashboard_event_add(XROOTD_DASH_EVENT_AUTH, 0,
+        brix_dashboard_event_add(BRIX_DASH_EVENT_AUTH, 0,
                                    NGX_HTTP_UNAUTHORIZED,
                                    "dashboard login missing password", NULL);
         ngx_http_finalize_request(r,
@@ -715,7 +715,7 @@ login_post_body_handler(ngx_http_request_t *r)
         if (dashboard_verify_user_password(r->pool, user, password, pw_len)
             != NGX_OK)
         {
-            xrootd_dashboard_event_add(XROOTD_DASH_EVENT_AUTH, 0,
+            brix_dashboard_event_add(BRIX_DASH_EVENT_AUTH, 0,
                                        NGX_HTTP_UNAUTHORIZED,
                                        "dashboard login failed", NULL);
             ngx_http_finalize_request(r,
@@ -728,7 +728,7 @@ login_post_body_handler(ngx_http_request_t *r)
         if (pw_len != conf->password.len
             || CRYPTO_memcmp(password, conf->password.data, pw_len) != 0)
         {
-            xrootd_dashboard_event_add(XROOTD_DASH_EVENT_AUTH, 0,
+            brix_dashboard_event_add(BRIX_DASH_EVENT_AUTH, 0,
                                        NGX_HTTP_UNAUTHORIZED,
                                        "dashboard login failed", NULL);
             ngx_http_finalize_request(r,
@@ -757,7 +757,7 @@ login_post_body_handler(ngx_http_request_t *r)
         snprintf(cookie_val, sizeof(cookie_val), "%s.%s", cookie_hex, ts_str);
     }
 
-    xrootd_dashboard_event_add(XROOTD_DASH_EVENT_AUTH, 0, NGX_HTTP_OK,
+    brix_dashboard_event_add(BRIX_DASH_EVENT_AUTH, 0, NGX_HTTP_OK,
                                "dashboard login success",
                                dashboard_users_enabled(conf) ? username : NULL);
 
@@ -824,7 +824,7 @@ login_post_body_handler(ngx_http_request_t *r)
 
 /* Public: login handler (GET form + POST verify) */
 ngx_int_t
-ngx_http_xrootd_dashboard_login_handler(ngx_http_request_t *r)
+ngx_http_brix_dashboard_login_handler(ngx_http_request_t *r)
 {
     if (r->method == NGX_HTTP_GET || r->method == NGX_HTTP_HEAD) {
         return send_html(r, NGX_HTTP_OK,

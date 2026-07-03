@@ -31,8 +31,8 @@
 static int pread_full(int fd, void *buf, size_t n, off_t off)
 {
     unsigned char  *p = buf;
-    xrootd_sd_obj_t obj;
-    xrootd_sd_posix_wrap(&obj, fd);
+    brix_sd_obj_t obj;
+    brix_sd_posix_wrap(&obj, fd);
     while (n > 0) {
         ssize_t r = obj.driver->pread(&obj, p, n, off);
         if (r < 0) {
@@ -61,33 +61,33 @@ static ssize_t zip_fd_pread(void *ctx, uint64_t off, void *buf, size_t len)
     return (ssize_t) len;
 }
 
-/* Map a kernel result code onto this module's XROOTD_ZIP_* enum. */
+/* Map a kernel result code onto this module's BRIX_ZIP_* enum. */
 static int zip_map_kernel_rc(int krc)
 {
     switch (krc) {
-    case ZIP_K_OK:   return XROOTD_ZIP_OK;
-    case ZIP_K_EIO:  return XROOTD_ZIP_EIO;
-    default:         return XROOTD_ZIP_ECORRUPT;   /* ENOTZIP / ECORRUPT */
+    case ZIP_K_OK:   return BRIX_ZIP_OK;
+    case ZIP_K_EIO:  return BRIX_ZIP_EIO;
+    default:         return BRIX_ZIP_ECORRUPT;   /* ENOTZIP / ECORRUPT */
     }
 }
 
 int
-xrootd_zip_find_member(int fd, off_t archive_size, const char *member,
-                       size_t cd_max, xrootd_zip_member_t *out)
+brix_zip_find_member(int fd, off_t archive_size, const char *member,
+                       size_t cd_max, brix_zip_member_t *out)
 {
     uint64_t        cd_off, cd_size, nrec;
     unsigned char  *cd;
     size_t          mlen, p;
     int             rc;
-    int             found = XROOTD_ZIP_NOMEMBER;
-    xrootd_zip_member_t last;
+    int             found = BRIX_ZIP_NOMEMBER;
+    brix_zip_member_t last;
 
     if (fd < 0 || member == NULL || out == NULL) {
-        return XROOTD_ZIP_ECORRUPT;
+        return BRIX_ZIP_ECORRUPT;
     }
     mlen = strlen(member);
     if (mlen == 0 || mlen >= PATH_MAX) {
-        return XROOTD_ZIP_ECORRUPT;
+        return BRIX_ZIP_ECORRUPT;
     }
 
     rc = zip_locate_cd(zip_fd_pread, &fd, (uint64_t) archive_size,
@@ -96,22 +96,22 @@ xrootd_zip_find_member(int fd, off_t archive_size, const char *member,
         return zip_map_kernel_rc(rc);
     }
     if (cd_size == 0) {
-        return XROOTD_ZIP_ECORRUPT;   /* empty directory — no member to find */
+        return BRIX_ZIP_ECORRUPT;   /* empty directory — no member to find */
     }
 
     /* cd_size is read from the (untrusted) EOCD record; guard against a value
      * so close to SIZE_MAX that the +1 sentinel byte allocation would wrap. */
     size_t cd_alloc;
-    if (xrootd_size_add((size_t) cd_size, 1, &cd_alloc) != NGX_OK) {
-        return XROOTD_ZIP_ECORRUPT;
+    if (brix_size_add((size_t) cd_size, 1, &cd_alloc) != NGX_OK) {
+        return BRIX_ZIP_ECORRUPT;
     }
     cd = malloc(cd_alloc);
     if (cd == NULL) {
-        return XROOTD_ZIP_EIO;
+        return BRIX_ZIP_EIO;
     }
     if (pread_full(fd, cd, (size_t) cd_size, (off_t) cd_off) != 0) {
         free(cd);
-        return XROOTD_ZIP_EIO;
+        return BRIX_ZIP_EIO;
     }
 
     /* Walk CDFH records. On a duplicate name the LAST entry wins (XrdZip). */
@@ -122,7 +122,7 @@ xrootd_zip_find_member(int fd, off_t archive_size, const char *member,
 
         if (p + ZIP_CDFH_BASE > cd_size || zip_rd32le(cd + p) != ZIP_CDFH_SIG) {
             free(cd);
-            return XROOTD_ZIP_ECORRUPT;
+            return BRIX_ZIP_ECORRUPT;
         }
         bits     = zip_rd16le(cd + p + 8);
         method   = zip_rd16le(cd + p + 10);
@@ -135,19 +135,19 @@ xrootd_zip_find_member(int fd, off_t archive_size, const char *member,
 
         if (p + ZIP_CDFH_BASE + (uint64_t) fn + ex + cm > cd_size) {
             free(cd);
-            return XROOTD_ZIP_ECORRUPT;
+            return BRIX_ZIP_ECORRUPT;
         }
 
         if (fn == mlen && memcmp(cd + p + ZIP_CDFH_BASE, member, fn) == 0) {
             /* Unsupported entry kinds → reject (matches plan W2 edge matrix). */
             if ((bits & ZIP_GPF_ENCRYPTED) || (bits & ZIP_GPF_DATADESC)) {
                 free(cd);
-                return XROOTD_ZIP_ECORRUPT;
+                return BRIX_ZIP_ECORRUPT;
             }
-            if (method != XROOTD_ZIP_METHOD_STORE
-                && method != XROOTD_ZIP_METHOD_DEFLATE) {
+            if (method != BRIX_ZIP_METHOD_STORE
+                && method != BRIX_ZIP_METHOD_DEFLATE) {
                 free(cd);
-                return XROOTD_ZIP_ECORRUPT;
+                return BRIX_ZIP_ECORRUPT;
             }
 
             zip_apply_zip64_extra(cd + p + ZIP_CDFH_BASE + fn, ex,
@@ -167,28 +167,28 @@ xrootd_zip_find_member(int fd, off_t archive_size, const char *member,
                 free(cd);
                 return zip_map_kernel_rc(rc);
             }
-            found = XROOTD_ZIP_OK;   /* keep scanning: last match wins */
+            found = BRIX_ZIP_OK;   /* keep scanning: last match wins */
         }
 
         p += ZIP_CDFH_BASE + (uint64_t) fn + ex + cm;
     }
 
     free(cd);
-    if (found == XROOTD_ZIP_OK) {
+    if (found == BRIX_ZIP_OK) {
         *out = last;
     }
     return found;
 }
 
 ssize_t
-xrootd_zip_extract_full(int fd, const xrootd_zip_member_t *m,
+brix_zip_extract_full(int fd, const brix_zip_member_t *m,
                         unsigned char *out, size_t outcap)
 {
     if (m == NULL || out == NULL || outcap < m->uncomp_size) {
         return -1;
     }
 
-    if (m->method == XROOTD_ZIP_METHOD_STORE) {
+    if (m->method == BRIX_ZIP_METHOD_STORE) {
         if (pread_full(fd, out, (size_t) m->uncomp_size,
                        (off_t) m->data_off) != 0) {
             return -1;
@@ -196,7 +196,7 @@ xrootd_zip_extract_full(int fd, const xrootd_zip_member_t *m,
         return (ssize_t) m->uncomp_size;
     }
 
-    if (m->method == XROOTD_ZIP_METHOD_DEFLATE) {
+    if (m->method == BRIX_ZIP_METHOD_DEFLATE) {
         unsigned char *comp;
         z_stream       zs;
         int            zr;
@@ -207,7 +207,7 @@ xrootd_zip_extract_full(int fd, const xrootd_zip_member_t *m,
         /* comp_size comes from the (untrusted) central directory; reject a
          * value that would cause the +1 guard byte allocation to overflow. */
         size_t comp_alloc;
-        if (xrootd_size_add((size_t) m->comp_size, 1, &comp_alloc) != NGX_OK) {
+        if (brix_size_add((size_t) m->comp_size, 1, &comp_alloc) != NGX_OK) {
             return -1;
         }
         comp = malloc(comp_alloc);

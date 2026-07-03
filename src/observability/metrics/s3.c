@@ -14,7 +14,7 @@
  * A fixed enum keeps the labels low-cardinality (INVARIANT #8) — no bucket-name or
  * request-type explosion. */
 
-static const char *xrootd_s3_method_names[XROOTD_S3_NMETHODS] = {
+static const char *brix_s3_method_names[BRIX_S3_NMETHODS] = {
     "GET",
     "HEAD",
     "PUT",
@@ -28,7 +28,7 @@ static const char *xrootd_s3_method_names[XROOTD_S3_NMETHODS] = {
 /* S3 auth-result name labels for the auth_total counters; SigV4-specific results
  * (signature_mismatch, bad_access_key) are tracked separately per INVARIANT #6. */
 
-static const char *xrootd_s3_auth_names[XROOTD_S3_NAUTH_RESULTS] = {
+static const char *brix_s3_auth_names[BRIX_S3_NAUTH_RESULTS] = {
     "anonymous",
     "sigv4_ok",
     "missing",
@@ -42,7 +42,7 @@ static const char *xrootd_s3_auth_names[XROOTD_S3_NAUTH_RESULTS] = {
 /* S3 PUT body storage-mode labels for the put_bodies_total counters (in memory,
  * spooled to disk, or mixed, after a successful write). */
 
-static const char *xrootd_s3_put_names[XROOTD_S3_NPUT_MODES] = {
+static const char *brix_s3_put_names[BRIX_S3_NPUT_MODES] = {
     "empty",
     "memory",
     "spooled",
@@ -52,7 +52,7 @@ static const char *xrootd_s3_put_names[XROOTD_S3_NPUT_MODES] = {
 /* S3 diagnostic-event labels for the low-cardinality events_total counter
  * (URI validation failures, access denied, write disabled). */
 
-static const char *xrootd_s3_event_names[XROOTD_S3_NEVENTS] = {
+static const char *brix_s3_event_names[BRIX_S3_NEVENTS] = {
     "invalid_uri",
     "access_denied",
     "no_such_key",
@@ -63,110 +63,110 @@ static const char *xrootd_s3_event_names[XROOTD_S3_NEVENTS] = {
     "delete_missing",
 };
 
-/* xrootd_export_s3_metrics — write all S3-endpoint Prometheus metrics (HELP/TYPE +
+/* brix_export_s3_metrics — write all S3-endpoint Prometheus metrics (HELP/TYPE +
  * data, text format 0.0.4) into the writer buffer chain, reading shm->s3 counters
  * via ngx_atomic_fetch_add(...,0) for an eventually-consistent snapshot. Iterates
  * the counter families (requests/responses[method][class], auth, bytes, range, put
  * body, events, + the ListObjectsV2 stats) using the static name tables above. */
 
 void
-xrootd_export_s3_metrics(metrics_writer_t *mw, ngx_xrootd_metrics_t *shm)
+brix_export_s3_metrics(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
 {
     ngx_uint_t  method, status;
 
     mw_emit_labeled(mw,
-        "xrootd_s3_requests_total",
+        "brix_s3_requests_total",
         "S3-compatible endpoint requests received, by operation.",
         "method",
-        xrootd_s3_method_names, XROOTD_S3_NMETHODS,
+        brix_s3_method_names, BRIX_S3_NMETHODS,
         shm->s3.requests_total);
 
     mw_printf(mw,
-        "# HELP xrootd_s3_responses_total "
+        "# HELP brix_s3_responses_total "
             "S3-compatible endpoint responses by operation and HTTP status class.\n"
-        "# TYPE xrootd_s3_responses_total counter\n");
-    for (method = 0; method < XROOTD_S3_NMETHODS; method++) {
-        for (status = 0; status < XROOTD_HTTP_NSTATUS; status++) {
+        "# TYPE brix_s3_responses_total counter\n");
+    for (method = 0; method < BRIX_S3_NMETHODS; method++) {
+        for (status = 0; status < BRIX_HTTP_NSTATUS; status++) {
             mw_printf(mw,
-                "xrootd_s3_responses_total"
+                "brix_s3_responses_total"
                     "{method=\"%s\",status_class=\"%s\"} %lu\n",
-                xrootd_s3_method_names[method],
-                xrootd_http_status_names[status],
+                brix_s3_method_names[method],
+                brix_http_status_names[status],
                 (unsigned long) ngx_atomic_fetch_add(
                     &shm->s3.responses_total[method][status], 0));
         }
     }
 
     mw_emit_labeled(mw,
-        "xrootd_s3_auth_total",
+        "brix_s3_auth_total",
         "S3 SigV4 or anonymous authentication outcomes.",
         "result",
-        xrootd_s3_auth_names, XROOTD_S3_NAUTH_RESULTS,
+        brix_s3_auth_names, BRIX_S3_NAUTH_RESULTS,
         shm->s3.auth_total);
 
     mw_printf(mw,
-        "# DEPRECATED: use xrootd_io_bytes_written{proto=\"s3\"} "
+        "# DEPRECATED: use brix_io_bytes_written{proto=\"s3\"} "
             "for protocol-neutral write throughput.\n"
-        "# HELP xrootd_s3_bytes_rx_total "
+        "# HELP brix_s3_bytes_rx_total "
             "Bytes accepted into successful S3-compatible PUT writes.\n"
-        "# TYPE xrootd_s3_bytes_rx_total counter\n"
-        "xrootd_s3_bytes_rx_total %lu\n",
+        "# TYPE brix_s3_bytes_rx_total counter\n"
+        "brix_s3_bytes_rx_total %lu\n",
         (unsigned long) ngx_atomic_fetch_add(
             &shm->s3.bytes_rx_total, 0));
 
     mw_printf(mw,
-        "# DEPRECATED: use xrootd_io_bytes_read{proto=\"s3\"} "
+        "# DEPRECATED: use brix_io_bytes_read{proto=\"s3\"} "
             "for protocol-neutral read throughput.\n"
-        "# HELP xrootd_s3_bytes_tx_total "
+        "# HELP brix_s3_bytes_tx_total "
             "Bytes emitted by S3-compatible GET, LIST, and XML error responses.\n"
-        "# TYPE xrootd_s3_bytes_tx_total counter\n"
-        "xrootd_s3_bytes_tx_total %lu\n",
+        "# TYPE brix_s3_bytes_tx_total counter\n"
+        "brix_s3_bytes_tx_total %lu\n",
         (unsigned long) ngx_atomic_fetch_add(
             &shm->s3.bytes_tx_total, 0));
 
     mw_emit_scalar(mw,
-        "xrootd_s3_bytes_rx_ipv4_total",
+        "brix_s3_bytes_rx_ipv4_total",
         "Bytes received from IPv4 clients via S3-compatible PUT.",
         &shm->s3.bytes_rx_ipv4_total);
 
     mw_emit_scalar(mw,
-        "xrootd_s3_bytes_tx_ipv4_total",
+        "brix_s3_bytes_tx_ipv4_total",
         "Bytes sent to IPv4 clients via S3-compatible GET.",
         &shm->s3.bytes_tx_ipv4_total);
 
     mw_emit_labeled(mw,
-        "xrootd_s3_range_requests_total",
+        "brix_s3_range_requests_total",
         "S3-compatible GET range handling outcomes.",
         "result",
-        xrootd_http_range_result_names, XROOTD_S3_NRANGE_RESULTS,
+        brix_http_range_result_names, BRIX_S3_NRANGE_RESULTS,
         shm->s3.range_total);
 
     mw_emit_labeled(mw,
-        "xrootd_s3_put_bodies_total",
+        "brix_s3_put_bodies_total",
         "S3-compatible PUT body storage modes observed after successful writes.",
         "mode",
-        xrootd_s3_put_names, XROOTD_S3_NPUT_MODES,
+        brix_s3_put_names, BRIX_S3_NPUT_MODES,
         shm->s3.put_body_total);
 
     mw_emit_labeled(mw,
-        "xrootd_s3_events_total",
+        "brix_s3_events_total",
         "Low-cardinality S3-compatible endpoint diagnostic events.",
         "event",
-        xrootd_s3_event_names, XROOTD_S3_NEVENTS,
+        brix_s3_event_names, BRIX_S3_NEVENTS,
         shm->s3.events_total);
 
     mw_emit_scalar(mw,
-        "xrootd_s3_list_contents_total",
+        "brix_s3_list_contents_total",
         "S3 ListObjectsV2 Contents entries emitted.",
         &shm->s3.list_contents_total);
 
     mw_emit_scalar(mw,
-        "xrootd_s3_list_common_prefixes_total",
+        "brix_s3_list_common_prefixes_total",
         "S3 ListObjectsV2 CommonPrefixes entries emitted.",
         &shm->s3.list_common_prefixes_total);
 
     mw_emit_scalar(mw,
-        "xrootd_s3_list_truncated_total",
+        "brix_s3_list_truncated_total",
         "S3 ListObjectsV2 responses that returned a continuation token.",
         &shm->s3.list_truncated_total);
 }

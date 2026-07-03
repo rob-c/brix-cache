@@ -12,7 +12,7 @@
 /* Grow the backing block to hold at least `need` bytes (need <= cap_max).
  * Returns the (possibly new) data pointer, or NULL on allocation failure. */
 static unsigned char *
-respbuf_grow(xrootd_ssi_respbuf_t *b, size_t need, size_t cap_max)
+respbuf_grow(brix_ssi_respbuf_t *b, size_t need, size_t cap_max)
 {
     size_t         newcap = b->cap ? b->cap : 256;
     unsigned char *nd;
@@ -44,7 +44,7 @@ respbuf_grow(xrootd_ssi_respbuf_t *b, size_t need, size_t cap_max)
 }
 
 int
-xrootd_ssi_respbuf_append(xrootd_ssi_respbuf_t *b, const unsigned char *p,
+brix_ssi_respbuf_append(brix_ssi_respbuf_t *b, const unsigned char *p,
                           size_t n, size_t cap_max)
 {
     if (b->len + n > cap_max) {

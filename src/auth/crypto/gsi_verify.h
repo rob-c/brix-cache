@@ -7,8 +7,8 @@
  * declares the unified entry point so the logic lives in one file.
  */
 
-#ifndef XROOTD_CRYPTO_GSI_VERIFY_H
-#define XROOTD_CRYPTO_GSI_VERIFY_H
+#ifndef BRIX_CRYPTO_GSI_VERIFY_H
+#define BRIX_CRYPTO_GSI_VERIFY_H
 
 #include <ngx_core.h>
 
@@ -16,7 +16,7 @@
 #include <openssl/x509_vfy.h>
 
 /*
- * xrootd_gsi_verify_result_t — output populated by xrootd_gsi_verify_chain().
+ * brix_gsi_verify_result_t — output populated by brix_gsi_verify_chain().
  *
  * dn_buf holds the NUL-terminated subject Distinguished Name extracted
  * from the verified leaf certificate (via X509_NAME_oneline).  It is
@@ -25,10 +25,10 @@
  */
 typedef struct {
     char dn_buf[1024];
-} xrootd_gsi_verify_result_t;
+} brix_gsi_verify_result_t;
 
 /*
- * xrootd_gsi_verify_chain — verify an x.509 proxy certificate chain.
+ * brix_gsi_verify_chain — verify an x.509 proxy certificate chain.
  *
  * Parameters
  *   log          — nginx log; error messages are written here on failure
@@ -45,11 +45,11 @@ typedef struct {
  * Ownership: the function does NOT take ownership of leaf, untrusted,
  * or store.  All resources remain the caller's responsibility.
  */
-ngx_int_t xrootd_gsi_verify_chain(ngx_log_t         *log,
+ngx_int_t brix_gsi_verify_chain(ngx_log_t         *log,
                                    X509_STORE        *store,
                                    X509              *leaf,
                                    STACK_OF(X509)    *untrusted,
                                    ngx_uint_t         verify_depth,
-                                   xrootd_gsi_verify_result_t *res);
+                                   brix_gsi_verify_result_t *res);
 
-#endif /* XROOTD_CRYPTO_GSI_VERIFY_H */
+#endif /* BRIX_CRYPTO_GSI_VERIFY_H */

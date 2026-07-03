@@ -50,15 +50,15 @@ echo "build_in_container: wiring this cluster's ceph.conf/keyring into the conta
 docker cp "${CEPH_DIR}/ceph.conf" "$WORK:/etc/ceph/ceph.conf"
 docker cp "${CEPH_DIR}/ceph.client.admin.keyring" "$WORK:/etc/ceph/ceph.client.admin.keyring"
 
-echo "build_in_container: configure + make (XROOTD_HAVE_CEPH expected)"
+echo "build_in_container: configure + make (BRIX_HAVE_CEPH expected)"
 docker exec "$WORK" bash -lc '
     set -e
     cd /opt/nginx-src
     ./configure --with-stream --with-stream_ssl_module --with-http_ssl_module \
                 --with-http_dav_module --with-threads \
                 --add-module=/work/repo 2>&1 | tee /tmp/configure.log | tail -3
-    grep -q "XROOTD_HAVE_CEPH" objs/ngx_auto_config.h objs/Makefile 2>/dev/null \
-        && echo "==> XROOTD_HAVE_CEPH detected" \
+    grep -q "BRIX_HAVE_CEPH" objs/ngx_auto_config.h objs/Makefile 2>/dev/null \
+        && echo "==> BRIX_HAVE_CEPH detected" \
         || echo "==> WARNING: Ceph NOT detected (sd_ceph compiled out)"
     make -j"$(nproc)" 2>&1 | tail -5
     ls -l objs/nginx

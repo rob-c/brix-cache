@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # run_credential_wt_ztn.sh — authenticated write-back (phase-63 C-3-token + C-5 + §14).
 # A local POSIX export with write-through flushes dirty data to a TOKEN-AUTH root://
-# origin through the sd_xroot driver, authenticating via ztn with an xrootd_credential
-# named by xrootd_wt_credential. Completes the authenticated round-trip: the same
+# origin through the sd_xroot driver, authenticating via ztn with an brix_credential
+# named by brix_wt_credential. Completes the authenticated round-trip: the same
 # JWT that authenticates a read fill (run_credential_xroot_ztn) now authenticates the
 # write-back. Verifies the flush lands byte-exact on the token origin; a node without
 # the credential cannot flush (negative control).
@@ -25,10 +25,10 @@ cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${OPORT}; xrootd on; xrootd_root $PFX/o/root;
-    xrootd_auth token; xrootd_token_jwks $PFX/tok/jwks.json;
-    xrootd_token_issuer https://test.example.com; xrootd_token_audience nginx-xrootd;
-    xrootd_allow_write on; xrootd_upload_resume off;
+    listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root;
+    brix_auth token; brix_token_jwks $PFX/tok/jwks.json;
+    brix_token_issuer https://test.example.com; brix_token_audience nginx-xrootd;
+    brix_allow_write on; brix_upload_resume off;
 } }
 EOF
 cat > "$PFX/b/nginx.conf" <<EOF
@@ -36,13 +36,13 @@ daemon on; error_log $PFX/b/logs/e.log info; pid $PFX/b/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream {
-    xrootd_credential origin { token_file $PFX/token.jwt; }
+    brix_credential origin { token_file $PFX/token.jwt; }
     server {
-        listen 127.0.0.1:${BPORT}; xrootd on; xrootd_root $PFX/b/export; xrootd_auth none;
-        xrootd_allow_write on; xrootd_upload_resume off;
-        xrootd_write_through on; xrootd_wt_mode sync;
-        xrootd_wt_origin     root://127.0.0.1:${OPORT};
-        xrootd_wt_credential origin;
+        listen 127.0.0.1:${BPORT}; xrootd on; brix_root $PFX/b/export; brix_auth none;
+        brix_allow_write on; brix_upload_resume off;
+        brix_write_through on; brix_wt_mode sync;
+        brix_wt_origin     root://127.0.0.1:${OPORT};
+        brix_wt_credential origin;
     }
 }
 EOF
@@ -51,10 +51,10 @@ daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${NPORT}; xrootd on; xrootd_root $PFX/n/export; xrootd_auth none;
-    xrootd_allow_write on; xrootd_upload_resume off;
-    xrootd_write_through on; xrootd_wt_mode sync;
-    xrootd_wt_origin root://127.0.0.1:${OPORT};
+    listen 127.0.0.1:${NPORT}; xrootd on; brix_root $PFX/n/export; brix_auth none;
+    brix_allow_write on; brix_upload_resume off;
+    brix_write_through on; brix_wt_mode sync;
+    brix_wt_origin root://127.0.0.1:${OPORT};
 } }
 EOF
 

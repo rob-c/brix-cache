@@ -9,12 +9,12 @@
  * Request routing overview
  * ========================
  *
- * xrootd_dispatch() tries each of the four dispatch functions in order.
- * Each returns XROOTD_DISPATCH_CONTINUE if the opcode is not its own;
+ * brix_dispatch() tries each of the four dispatch functions in order.
+ * Each returns BRIX_DISPATCH_CONTINUE if the opcode is not its own;
  * otherwise it handles the request and returns an ngx_int_t result.
  *
  *   dispatch_session.c  — protocol, login, auth, bind, endsess, ping, set
- *   proxy/forward.c     — all post-login opcodes when xrootd_proxy is on
+ *   proxy/forward.c     — all post-login opcodes when brix_proxy is on
  *   dispatch_read.c     — open(read), stat, statx, read, readv, pgread,
  *                         close, dirlist, locate, query, prepare
  *   dispatch_write.c    — open(write), write, pgwrite, writev, sync,
@@ -28,8 +28,8 @@
  */
 
 ngx_int_t
-xrootd_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
 {
     ngx_int_t rc;
 
@@ -39,18 +39,18 @@ xrootd_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd: dispatch reqid=%d", (int) ctx->cur_reqid);
 
-    rc = xrootd_verify_pending_sigver(ctx, c);
-    if (rc != XROOTD_DISPATCH_CONTINUE) {
+    rc = brix_verify_pending_sigver(ctx, c);
+    if (rc != BRIX_DISPATCH_CONTINUE) {
         return rc;
     }
 
-    rc = xrootd_signing_enforce_level(ctx, c, conf);
-    if (rc != XROOTD_DISPATCH_CONTINUE) {
+    rc = brix_signing_enforce_level(ctx, c, conf);
+    if (rc != BRIX_DISPATCH_CONTINUE) {
         return rc;
     }
 
-    rc = xrootd_dispatch_session_opcode(ctx, c, conf);
-    if (rc != XROOTD_DISPATCH_CONTINUE) {
+    rc = brix_dispatch_session_opcode(ctx, c, conf);
+    if (rc != BRIX_DISPATCH_CONTINUE) {
         return rc;
     }
 
@@ -69,13 +69,13 @@ xrootd_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
      * gate enforced on the direct (non-proxy) read/write dispatchers.
      */
     if (conf->proxy_enable && ctx->auth_done) {
-        return xrootd_proxy_dispatch(ctx, c, conf);
+        return brix_proxy_dispatch(ctx, c, conf);
     }
 
     /* Phase 25: advanced rate limiting / traffic shaping.  Gates data-plane
      * read/write opcodes; a throttled request is answered with kXR_wait and the
      * gate returns the send result (NGX_DECLINED means "proceed normally"). */
-    rc = xrootd_rl_stream_gate(ctx, c, conf);
+    rc = brix_rl_stream_gate(ctx, c, conf);
     if (rc != NGX_DECLINED) {
         return rc;
     }
@@ -83,43 +83,43 @@ xrootd_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
     /*
      * Phase 40: bracket the confined-FS dispatchers with the impersonation
      * principal taken from the authenticated identity.  begin()/end() are no-ops
-     * unless xrootd_impersonation=map; when active they make the beneath helpers
+     * unless brix_impersonation=map; when active they make the beneath helpers
      * (open/stat/mkdir/...) route to the broker as the mapped UNIX user for the
      * duration of this synchronous dispatch, then restore the worker identity.
      * The data plane (kXR_read/write on the already-open fd) and the mirror/RL
      * paths run unbracketed — they need no impersonation.
      */
-    xrootd_imp_request_begin(ctx->identity);
-    rc = xrootd_dispatch_read_opcode(ctx, c, conf);
-    xrootd_imp_request_end();
-    if (rc != XROOTD_DISPATCH_CONTINUE) {
+    brix_imp_request_begin(ctx->identity);
+    rc = brix_dispatch_read_opcode(ctx, c, conf);
+    brix_imp_request_end();
+    if (rc != BRIX_DISPATCH_CONTINUE) {
         /* Phase 24: fire-and-forget replay of this read to the shadow server(s).
-         * No-op unless xrootd_stream_mirror_url is configured; the primary
+         * No-op unless brix_stream_mirror_url is configured; the primary
          * response has already been queued to the client above. */
-        xrootd_stream_mirror_maybe(ctx, c, conf, rc);
+        brix_stream_mirror_maybe(ctx, c, conf, rc);
         /* Phase 24 W3: kXR_close finalises a data-write mirror (open/write/close
          * is dispatched across the read+write tables). */
-        xrootd_stream_wmirror_observe(ctx, c, conf, rc);
+        brix_stream_wmirror_observe(ctx, c, conf, rc);
         return rc;
     }
 
-    xrootd_imp_request_begin(ctx->identity);
-    rc = xrootd_dispatch_write_opcode(ctx, c, conf);
-    xrootd_imp_request_end();
-    if (rc != XROOTD_DISPATCH_CONTINUE) {
+    brix_imp_request_begin(ctx->identity);
+    rc = brix_dispatch_write_opcode(ctx, c, conf);
+    brix_imp_request_end();
+    if (rc != BRIX_DISPATCH_CONTINUE) {
         /* Phase 24 write mirroring (W1): replay self-contained metadata mutations
          * (mkdir/rm/rmdir/mv/truncate/chmod) to the shadow.  No-op unless
-         * xrootd_mirror_writes is on and the op is listed in xrootd_mirror_opcodes;
+         * brix_mirror_writes is on and the op is listed in brix_mirror_opcodes;
          * the primary response was already queued to the client above. */
-        xrootd_stream_mirror_maybe(ctx, c, conf, rc);
+        brix_stream_mirror_maybe(ctx, c, conf, rc);
         /* Phase 24 W3: accumulate kXR_write / kXR_pgwrite payloads for the
          * data-write mirror (replayed to the shadow on kXR_close). */
-        xrootd_stream_wmirror_observe(ctx, c, conf, rc);
+        brix_stream_wmirror_observe(ctx, c, conf, rc);
         return rc;
     }
 
-    rc = xrootd_dispatch_signing_opcode(ctx, c);
-    if (rc != XROOTD_DISPATCH_CONTINUE) {
+    rc = brix_dispatch_signing_opcode(ctx, c);
+    if (rc != BRIX_DISPATCH_CONTINUE) {
         return rc;
     }
 
@@ -129,6 +129,6 @@ xrootd_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
     /* An unrecognized opcode is kXR_InvalidRequest ("Invalid request code"),
      * matching the reference (XrdXrootdProtocol.cc:608); kXR_Unsupported is
      * reserved for a recognized op the backend cannot perform (ENOTSUP). */
-    return xrootd_send_error(ctx, c, kXR_InvalidRequest,
+    return brix_send_error(ctx, c, kXR_InvalidRequest,
                              "Invalid request code");
 }

@@ -2,7 +2,7 @@
 """Sanitizer smoke lane: drive a minimal read round-trip through a SANITIZE=1
 fleet then assert no ASan/UBSan report files were emitted during the transfer.
 
-Skip unless XROOTD_SANITIZER_LANE=1 (set by the CI lane after the sanitizer
+Skip unless BRIX_SANITIZER_LANE=1 (set by the CI lane after the sanitizer
 build, not by the default test run).
 
 Lane workflow (run by CI, not inside this test):
@@ -16,7 +16,7 @@ Lane workflow (run by CI, not inside this test):
 
     # 3. Run this test — conftest.py attaches to the running fleet without
     #    restarting it (_external_fleet_attached() returns True)
-    XROOTD_SANITIZER_LANE=1 \\
+    BRIX_SANITIZER_LANE=1 \\
         SANITIZE_LOG_DIR=/tmp/xrd-test/sanitize \\
         pytest tests/test_sanitizer_smoke.py -v
 
@@ -41,8 +41,8 @@ import pytest
 from settings import DATA_ROOT, HOST, NGINX_ANON_PORT, XRDCP_BIN
 
 pytestmark = pytest.mark.skipif(
-    os.environ.get("XROOTD_SANITIZER_LANE") != "1",
-    reason="sanitizer lane only — set XROOTD_SANITIZER_LANE=1",
+    os.environ.get("BRIX_SANITIZER_LANE") != "1",
+    reason="sanitizer lane only — set BRIX_SANITIZER_LANE=1",
 )
 
 # Must match the log_path written by manage_test_servers.sh when SANITIZE=1.

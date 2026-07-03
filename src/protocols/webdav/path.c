@@ -9,7 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 
-/* Wrapper: maps xrootd_http_resolve_path() return codes to NGX_HTTP_*,
+/* Wrapper: maps brix_http_resolve_path() return codes to NGX_HTTP_*,
  * using 409 Conflict when the destination parent cannot be resolved
  * (RFC 4918 §9.8 — parent collection does not exist). */
 static ngx_int_t
@@ -45,7 +45,7 @@ webdav_resolve_destination_path(ngx_log_t *log, const char *op_label,
     memcpy(stripped, decoded_path, dlen);
     stripped[dlen] = '\0';
 
-    rc = xrootd_http_resolve_path(root_canon, stripped, out, outsz);
+    rc = brix_http_resolve_path(root_canon, stripped, out, outsz);
     if (rc == 0)
         return NGX_OK;
     /* 404 from shared resolver → parent doesn't exist → 409 Conflict */
@@ -55,7 +55,7 @@ webdav_resolve_destination_path(ngx_log_t *log, const char *op_label,
 }
 
 ngx_int_t
-ngx_http_xrootd_webdav_resolve_path(ngx_http_request_t *r,
+ngx_http_brix_webdav_resolve_path(ngx_http_request_t *r,
                                     const char *root_canon,
                                     char *out, size_t outsz)
 {
@@ -69,7 +69,7 @@ ngx_http_xrootd_webdav_resolve_path(ngx_http_request_t *r,
     if (decode_rc != NGX_OK) {
         if (decode_rc == NGX_HTTP_BAD_REQUEST) {
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                          "xrootd_webdav: rejecting URI with decoded NUL");
+                          "brix_webdav: rejecting URI with decoded NUL");
         }
         return decode_rc;
     }
@@ -78,7 +78,7 @@ ngx_http_xrootd_webdav_resolve_path(ngx_http_request_t *r,
     while (uri_dlen > 1 && uri_decoded[uri_dlen - 1] == '/')
         uri_decoded[--uri_dlen] = '\0';
 
-    rc = xrootd_http_resolve_path(root_canon, uri_decoded, out, outsz);
+    rc = brix_http_resolve_path(root_canon, uri_decoded, out, outsz);
     switch (rc) {
     case 0:   return NGX_OK;
     case 403: return NGX_HTTP_FORBIDDEN;

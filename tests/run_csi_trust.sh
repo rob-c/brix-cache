@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# run_csi_trust.sh — xrootd_csi_trust_fs end-to-end: on a self-checksumming
+# run_csi_trust.sh — brix_csi_trust_fs end-to-end: on a self-checksumming
 # filesystem the flag skips CSI read-verify (stale tags no longer fail reads)
 # while the write side keeps tagging and the pgwrite wire-CRC check stays on.
 # Stands up one stream-only nginx with four server blocks on a shared export:
@@ -17,7 +17,7 @@ P_TRU=11499   # csi on, trust_fs on
 P_RQT=11500   # csi + require + trust_fs (untagged read must pass)
 P_RQO=11501   # csi + require only       (untagged read must be refused)
 P_DEF=11502   # no csi directives: CSI must be ON by default
-P_OFF=11503   # xrootd_csi off: opt-out must not tag
+P_OFF=11503   # brix_csi off: opt-out must not tag
 PFX="$(mktemp -d /tmp/csi_trust.XXXXXX)"
 fail=0
 ok()  { printf '  ok   %s\n' "$1"; }
@@ -29,12 +29,12 @@ srv() { cat <<EOF
     server {
         listen 127.0.0.1:${1};
         xrootd on;
-        xrootd_root $PFX/root;
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_upload_resume off;
+        brix_root $PFX/root;
+        brix_auth none;
+        brix_allow_write on;
+        brix_upload_resume off;
         ${2}
-        xrootd_access_log $PFX/logs/access_${1}.log;
+        brix_access_log $PFX/logs/access_${1}.log;
     }
 EOF
 }
@@ -44,12 +44,12 @@ EOF
     echo "pid $PFX/nginx.pid;"
     echo "events { worker_connections 64; }"
     echo "stream {"
-    srv "$P_VER" "xrootd_csi on;"
-    srv "$P_TRU" "xrootd_csi on; xrootd_csi_trust_fs on;"
-    srv "$P_RQT" "xrootd_csi on; xrootd_csi_require on; xrootd_csi_trust_fs on;"
-    srv "$P_RQO" "xrootd_csi on; xrootd_csi_require on;"
+    srv "$P_VER" "brix_csi on;"
+    srv "$P_TRU" "brix_csi on; brix_csi_trust_fs on;"
+    srv "$P_RQT" "brix_csi on; brix_csi_require on; brix_csi_trust_fs on;"
+    srv "$P_RQO" "brix_csi on; brix_csi_require on;"
     srv "$P_DEF" ""
-    srv "$P_OFF" "xrootd_csi off;"
+    srv "$P_OFF" "brix_csi off;"
     echo "}"
 } > "$PFX/nginx.conf"
 
@@ -93,7 +93,7 @@ getfattr -n user.xrd.cinfo "$PFX/root/defon.bin" >/dev/null 2>&1 \
   && ok "CSI records by default" || bad "default server did not record"
 chk "PUT via csi-off server"        "$(cp_up "$P_OFF" /tmp/csitrust_src.bin defoff.bin)" 0
 getfattr -n user.xrd.cinfo "$PFX/root/defoff.bin" >/dev/null 2>&1 \
-  && bad "csi-off server recorded anyway" || ok "xrootd_csi off opts out"
+  && bad "csi-off server recorded anyway" || ok "brix_csi off opts out"
 
 echo "== security-neg: bad pgwrite wire-CRC still rejected under trust_fs =="
 PYTHONPATH="$HERE/tests" python3 - "$P_TRU" <<'EOF'

@@ -33,8 +33,8 @@ esac
 # Performance profile (Phase 33 D1: v2 is now the DEFAULT, not opt-in).
 # The Phase-33 audit found the hardening flags above cost nothing measurable on
 # the read hot path, so release builds default to the RHEL-9 baseline ISA.
-# Override by exporting XROOTD_OPTIMIZE before ./configure, e.g.
-#     XROOTD_OPTIMIZE=v3 ./configure ... --add-module=...
+# Override by exporting BRIX_OPTIMIZE before ./configure, e.g.
+#     BRIX_OPTIMIZE=v3 ./configure ... --add-module=...
 #   v2      -O3 -march=x86-64-v2   DEFAULT.  Safe RHEL 9 baseline (SSE4.2/POPCNT
 #                                  on every x86-64-v2 CPU) — lets the compiler emit
 #                                  SSE4.2 everywhere, not just in the target-
@@ -51,7 +51,7 @@ esac
 # link-time optimisation, additionally pass at the top level:
 #     --with-cc-opt="-flto=auto" --with-ld-opt="-flto=auto"
 # -O3 here appears after nginx's own -O, so the last -O wins (no conflict).
-case "${XROOTD_OPTIMIZE:-v2}" in
+case "${BRIX_OPTIMIZE:-v2}" in
     v2|yes|YES|1) CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt"
                   echo " + xrootd: performance profile = v2 (-O3 -march=x86-64-v2) [default]" ;;
     v3)           CFLAGS="$CFLAGS -O3 -march=x86-64-v3 -fno-plt"
@@ -59,7 +59,7 @@ case "${XROOTD_OPTIMIZE:-v2}" in
     native)       CFLAGS="$CFLAGS -O3 -march=native -fno-plt"
                   echo " + xrootd: performance profile = native (-O3 -march=native)" ;;
     none|off|no|NO|0) echo " + xrootd: performance profile = none (nginx -O untouched)" ;;
-    *)            echo "WARNING: unknown XROOTD_OPTIMIZE='$XROOTD_OPTIMIZE'" \
+    *)            echo "WARNING: unknown BRIX_OPTIMIZE='$BRIX_OPTIMIZE'" \
                        "(use v2|v3|native|none); defaulting to v2" >&2
                   CFLAGS="$CFLAGS -O3 -march=x86-64-v2 -fno-plt" ;;
 esac
@@ -72,7 +72,7 @@ fi
 
 # libxml2 is required for WebDAV PROPFIND XML parsing.
 #
-# The external-library flags below are captured into XROOTD_*_LIBS and added to
+# The external-library flags below are captured into BRIX_*_LIBS and added to
 # each module's ngx_module_libs (see the ". auto/module" blocks), NOT only to
 # CORE_LIBS.  CORE_LIBS links the nginx *binary*; for a DYNAMIC module build
 # (--with-stream=dynamic, as the RPM uses) the per-module .so is linked with
@@ -80,9 +80,9 @@ fi
 # .so and the module would fail to dlopen() with "undefined symbol: ..." on a
 # stock nginx that does not itself link xml2/jansson/curl/krb5.
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists libxml-2.0; then
-    CFLAGS="$CFLAGS $(pkg-config --cflags libxml-2.0) -DXROOTD_HAVE_LIBXML2=1"
-    XROOTD_XML2_LIBS="$(pkg-config --libs libxml-2.0)"
-    CORE_LIBS="$CORE_LIBS $XROOTD_XML2_LIBS"
+    CFLAGS="$CFLAGS $(pkg-config --cflags libxml-2.0) -DBRIX_HAVE_LIBXML2=1"
+    BRIX_XML2_LIBS="$(pkg-config --libs libxml-2.0)"
+    CORE_LIBS="$CORE_LIBS $BRIX_XML2_LIBS"
 else
     echo "ERROR: libxml2 is required for WebDAV PROPFIND XML parsing." \
          "Install libxml2-devel (RHEL/CentOS) or libxml2-dev (Debian/Ubuntu)." >&2
@@ -92,9 +92,9 @@ fi
 echo " + xrootd WebDAV: native MKCOL/DELETE handlers enabled"
 
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists jansson; then
-    CFLAGS="$CFLAGS $(pkg-config --cflags jansson) -DXROOTD_HAVE_JANSSON=1"
-    XROOTD_JANSSON_LIBS="$(pkg-config --libs jansson)"
-    CORE_LIBS="$CORE_LIBS $XROOTD_JANSSON_LIBS"
+    CFLAGS="$CFLAGS $(pkg-config --cflags jansson) -DBRIX_HAVE_JANSSON=1"
+    BRIX_JANSSON_LIBS="$(pkg-config --libs jansson)"
+    CORE_LIBS="$CORE_LIBS $BRIX_JANSSON_LIBS"
 else
     echo "ERROR: jansson library is required but was not found." \
          "Install jansson-devel (RHEL/CentOS) or libjansson-dev (Debian/Ubuntu)." >&2
@@ -104,15 +104,15 @@ fi
 # libcurl is required for WebDAV HTTP-TPC COPY operations
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists libcurl; then
     CFLAGS="$CFLAGS $(pkg-config --cflags libcurl)"
-    XROOTD_CURL_LIBS="$(pkg-config --libs libcurl)"
-    CORE_LIBS="$CORE_LIBS $XROOTD_CURL_LIBS"
+    BRIX_CURL_LIBS="$(pkg-config --libs libcurl)"
+    CORE_LIBS="$CORE_LIBS $BRIX_CURL_LIBS"
 else
     echo "ERROR: libcurl is required for WebDAV HTTP-TPC COPY operations." \
          "Install libcurl-devel (RHEL/CentOS) or libcurl4-openssl-dev (Debian/Ubuntu)." >&2
     exit 1
 fi
 
-# Kerberos 5 is optional at build time. If unavailable, xrootd_auth krb5
+# Kerberos 5 is optional at build time. If unavailable, brix_auth krb5
 # remains a config-time error via src/auth/krb5/config.c.
 #   Detection order: pkg-config (preferred) then krb5-config.  Some hosts ship
 #   the MIT krb5 'krb5-config' tool + headers but no 'krb5.pc' pkg-config file
@@ -121,83 +121,83 @@ fi
 #   silently disabling it.  Both emit the same flags: -lkrb5 -lk5crypto -lcom_err
 #   (raw MIT libkrb5; the module never links GSS-API).
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists krb5; then
-    CFLAGS="$CFLAGS $(pkg-config --cflags krb5) -DXROOTD_HAVE_KRB5=1"
-    XROOTD_KRB5_LIBS="$(pkg-config --libs krb5)"
-    CORE_LIBS="$CORE_LIBS $XROOTD_KRB5_LIBS"
+    CFLAGS="$CFLAGS $(pkg-config --cflags krb5) -DBRIX_HAVE_KRB5=1"
+    BRIX_KRB5_LIBS="$(pkg-config --libs krb5)"
+    CORE_LIBS="$CORE_LIBS $BRIX_KRB5_LIBS"
     echo " + xrootd auth: Kerberos 5 plugin enabled (pkg-config)"
 elif command -v krb5-config >/dev/null 2>&1; then
-    CFLAGS="$CFLAGS $(krb5-config --cflags) -DXROOTD_HAVE_KRB5=1"
-    XROOTD_KRB5_LIBS="$(krb5-config --libs)"
-    CORE_LIBS="$CORE_LIBS $XROOTD_KRB5_LIBS"
+    CFLAGS="$CFLAGS $(krb5-config --cflags) -DBRIX_HAVE_KRB5=1"
+    BRIX_KRB5_LIBS="$(krb5-config --libs)"
+    CORE_LIBS="$CORE_LIBS $BRIX_KRB5_LIBS"
     echo " + xrootd auth: Kerberos 5 plugin enabled (krb5-config)"
 else
     echo " + xrootd auth: Kerberos 5 plugin disabled" \
          "(neither 'krb5.pc' nor 'krb5-config' found; install krb5-devel" \
-         "[RHEL] or libkrb5-dev [Debian] to enable xrootd_auth krb5)"
+         "[RHEL] or libkrb5-dev [Debian] to enable brix_auth krb5)"
 fi
 
 # Optional io_uring disk-I/O backend (phase-44). Double-gated: operator opt-in
-# via XROOTD_ENABLE_IO_URING *and* liburing actually present. Default OFF — a
+# via BRIX_ENABLE_IO_URING *and* liburing actually present. Default OFF — a
 # bare ./configure never links -luring and the backend compiles to stubs (the
-# selector falls back to the thread pool). XROOTD_URING_LIBS is appended to the
+# selector falls back to the thread pool). BRIX_URING_LIBS is appended to the
 # stream module's ngx_module_libs below (NOT only CORE_LIBS) so the DYNAMIC .so
 # resolves io_uring_* at dlopen.
-XROOTD_URING_LIBS=""
-if [ -n "$XROOTD_ENABLE_IO_URING" ] \
+BRIX_URING_LIBS=""
+if [ -n "$BRIX_ENABLE_IO_URING" ] \
    && command -v pkg-config >/dev/null 2>&1 \
    && pkg-config --exists liburing; then
-    CFLAGS="$CFLAGS $(pkg-config --cflags liburing) -DXROOTD_HAVE_LIBURING=1"
-    XROOTD_URING_LIBS="$(pkg-config --libs liburing)"   # normally: -luring
+    CFLAGS="$CFLAGS $(pkg-config --cflags liburing) -DBRIX_HAVE_LIBURING=1"
+    BRIX_URING_LIBS="$(pkg-config --libs liburing)"   # normally: -luring
     echo " + xrootd: io_uring disk-I/O backend enabled (liburing $(pkg-config --modversion liburing))"
 fi
 
 # Compression codecs (phase-42). The shared codec abstraction (src/core/compat/codec_*.c)
 # is one ngx-free kernel used by the module here and by libxrdc (client). Each
 # codec is compile-time-gated like krb5/fuse3: when its dev lib is present we add
-# -DXROOTD_HAVE_<C> + its link flags; otherwise the backend compiles to an
+# -DBRIX_HAVE_<C> + its link flags; otherwise the backend compiles to an
 # "unavailable" descriptor and the codec degrades gracefully. zlib (gzip/deflate)
 # is effectively mandatory (nginx already links it); the rest are optional.
-# XROOTD_CODEC_LIBS accumulates the per-.so link flags (added to ngx_module_libs
+# BRIX_CODEC_LIBS accumulates the per-.so link flags (added to ngx_module_libs
 # below, NOT only CORE_LIBS — required for the DYNAMIC module build to resolve).
-XROOTD_CODEC_LIBS=""
+BRIX_CODEC_LIBS=""
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists zlib; then
-    CFLAGS="$CFLAGS $(pkg-config --cflags zlib) -DXROOTD_HAVE_ZLIB=1"
-    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS $(pkg-config --libs zlib)"
+    CFLAGS="$CFLAGS $(pkg-config --cflags zlib) -DBRIX_HAVE_ZLIB=1"
+    BRIX_CODEC_LIBS="$BRIX_CODEC_LIBS $(pkg-config --libs zlib)"
 else
-    CFLAGS="$CFLAGS -DXROOTD_HAVE_ZLIB=1"
-    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS -lz"
+    CFLAGS="$CFLAGS -DBRIX_HAVE_ZLIB=1"
+    BRIX_CODEC_LIBS="$BRIX_CODEC_LIBS -lz"
 fi
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists libzstd; then
-    CFLAGS="$CFLAGS $(pkg-config --cflags libzstd) -DXROOTD_HAVE_ZSTD=1"
-    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS $(pkg-config --libs libzstd)"
+    CFLAGS="$CFLAGS $(pkg-config --cflags libzstd) -DBRIX_HAVE_ZSTD=1"
+    BRIX_CODEC_LIBS="$BRIX_CODEC_LIBS $(pkg-config --libs libzstd)"
     echo " + xrootd compression: zstd enabled"
 else
     echo " + xrootd compression: zstd disabled (install libzstd-devel to enable)"
 fi
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists liblzma; then
-    CFLAGS="$CFLAGS $(pkg-config --cflags liblzma) -DXROOTD_HAVE_LZMA=1"
-    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS $(pkg-config --libs liblzma)"
+    CFLAGS="$CFLAGS $(pkg-config --cflags liblzma) -DBRIX_HAVE_LZMA=1"
+    BRIX_CODEC_LIBS="$BRIX_CODEC_LIBS $(pkg-config --libs liblzma)"
     echo " + xrootd compression: xz/lzma enabled"
 else
     echo " + xrootd compression: xz/lzma disabled (install xz-devel to enable)"
 fi
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists libbrotlienc libbrotlidec; then
-    CFLAGS="$CFLAGS $(pkg-config --cflags libbrotlienc) -DXROOTD_HAVE_BROTLI=1"
-    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS $(pkg-config --libs libbrotlienc libbrotlidec)"
+    CFLAGS="$CFLAGS $(pkg-config --cflags libbrotlienc) -DBRIX_HAVE_BROTLI=1"
+    BRIX_CODEC_LIBS="$BRIX_CODEC_LIBS $(pkg-config --libs libbrotlienc libbrotlidec)"
     echo " + xrootd compression: brotli enabled"
 else
     echo " + xrootd compression: brotli disabled (install libbrotli-devel to enable)"
 fi
 # bzip2 commonly ships no .pc file: probe the header/lib directly (krb5-config style).
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists bzip2; then
-    CFLAGS="$CFLAGS $(pkg-config --cflags bzip2) -DXROOTD_HAVE_BZIP2=1"
-    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS $(pkg-config --libs bzip2)"
+    CFLAGS="$CFLAGS $(pkg-config --cflags bzip2) -DBRIX_HAVE_BZIP2=1"
+    BRIX_CODEC_LIBS="$BRIX_CODEC_LIBS $(pkg-config --libs bzip2)"
     echo " + xrootd compression: bzip2 enabled (pkg-config)"
 elif printf '#include <bzlib.h>\nint main(void){return !BZ2_bzlibVersion;}\n' > "$NGX_AUTOTEST.c" 2>/dev/null \
      && $CC $CC_TEST_FLAGS -o "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" -lbz2 >/dev/null 2>&1; then
     rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c"
-    CFLAGS="$CFLAGS -DXROOTD_HAVE_BZIP2=1"
-    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS -lbz2"
+    CFLAGS="$CFLAGS -DBRIX_HAVE_BZIP2=1"
+    BRIX_CODEC_LIBS="$BRIX_CODEC_LIBS -lbz2"
     echo " + xrootd compression: bzip2 enabled (-lbz2)"
 else
     rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" 2>/dev/null
@@ -208,24 +208,24 @@ fi
 # (header/lib directly, like bzip2).  Honours PKG_CONFIG_PATH so a non-system
 # (e.g. conda) liblz4 is found; the runtime soname (liblz4.so.1) resolves from the
 # default loader path.
-if [ -n "${XROOTD_LZ4_CFLAGS:-}${XROOTD_LZ4_LIBS:-}" ]; then
+if [ -n "${BRIX_LZ4_CFLAGS:-}${BRIX_LZ4_LIBS:-}" ]; then
     # Explicit env hint (for a non-system liblz4, e.g. conda): supply the header
-    # -I via XROOTD_LZ4_CFLAGS and the link via XROOTD_LZ4_LIBS (default the bare
+    # -I via BRIX_LZ4_CFLAGS and the link via BRIX_LZ4_LIBS (default the bare
     # soname from the default loader path).  This avoids putting a non-system
     # prefix on PKG_CONFIG_PATH, which would flip OTHER codecs to that prefix's
     # sonames (not on the runtime path).
-    CFLAGS="$CFLAGS ${XROOTD_LZ4_CFLAGS:-} -DXROOTD_HAVE_LZ4=1"
-    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS ${XROOTD_LZ4_LIBS:--l:liblz4.so.1}"
+    CFLAGS="$CFLAGS ${BRIX_LZ4_CFLAGS:-} -DBRIX_HAVE_LZ4=1"
+    BRIX_CODEC_LIBS="$BRIX_CODEC_LIBS ${BRIX_LZ4_LIBS:--l:liblz4.so.1}"
     echo " + xrootd compression: lz4 enabled (env hint)"
 elif command -v pkg-config >/dev/null 2>&1 && pkg-config --exists liblz4; then
-    CFLAGS="$CFLAGS $(pkg-config --cflags liblz4) -DXROOTD_HAVE_LZ4=1"
-    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS $(pkg-config --libs liblz4)"
+    CFLAGS="$CFLAGS $(pkg-config --cflags liblz4) -DBRIX_HAVE_LZ4=1"
+    BRIX_CODEC_LIBS="$BRIX_CODEC_LIBS $(pkg-config --libs liblz4)"
     echo " + xrootd compression: lz4 enabled (pkg-config)"
 elif printf '#include <lz4frame.h>\nint main(void){return !LZ4F_isError(0);}\n' > "$NGX_AUTOTEST.c" 2>/dev/null \
      && $CC $CC_TEST_FLAGS -o "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" -llz4 >/dev/null 2>&1; then
     rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c"
-    CFLAGS="$CFLAGS -DXROOTD_HAVE_LZ4=1"
-    XROOTD_CODEC_LIBS="$XROOTD_CODEC_LIBS -llz4"
+    CFLAGS="$CFLAGS -DBRIX_HAVE_LZ4=1"
+    BRIX_CODEC_LIBS="$BRIX_CODEC_LIBS -llz4"
     echo " + xrootd compression: lz4 enabled (-llz4)"
 else
     rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" 2>/dev/null
@@ -234,32 +234,32 @@ fi
 
 # Ceph/RADOS storage backend (phase-60): optional, header-gated.  When the
 # librados dev headers + lib are present we compile src/fs/backend/rados/sd_ceph.c
-# against raw librados and define -DXROOTD_HAVE_CEPH=1; otherwise sd_ceph.c
+# against raw librados and define -DBRIX_HAVE_CEPH=1; otherwise sd_ceph.c
 # contributes only its pure (libc-only) LFN->object-key helpers and the driver
 # row in sd_registry.c is #if-compiled out, so a no-Ceph build is byte-for-byte
-# unchanged.  Set XROOTD_WITHOUT_CEPH=1 to force-disable even when librados is
-# present.  The link flag MUST go in ngx_module_libs (XROOTD_CEPH_LIBS, appended
+# unchanged.  Set BRIX_WITHOUT_CEPH=1 to force-disable even when librados is
+# present.  The link flag MUST go in ngx_module_libs (BRIX_CEPH_LIBS, appended
 # below), NOT only CORE_LIBS, or dlopen of the DYNAMIC module .so fails
 # (rpm_packaging_three_packages).
-XROOTD_CEPH_LIBS=""
-if [ "${XROOTD_WITHOUT_CEPH:-}" != "1" ] \
+BRIX_CEPH_LIBS=""
+if [ "${BRIX_WITHOUT_CEPH:-}" != "1" ] \
    && printf '#include <rados/librados.h>\nint main(void){rados_t c; return rados_create(&c, 0);}\n' > "$NGX_AUTOTEST.c" 2>/dev/null \
    && $CC $CC_TEST_FLAGS -o "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" -lrados >/dev/null 2>&1; then
     rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c"
-    CFLAGS="$CFLAGS -DXROOTD_HAVE_CEPH=1"
-    XROOTD_CEPH_LIBS="-lrados"
+    CFLAGS="$CFLAGS -DBRIX_HAVE_CEPH=1"
+    BRIX_CEPH_LIBS="-lrados"
     echo " + xrootd storage backend: ceph/rados enabled"
 
     # libradosstriper — the stock XrdCeph data-plane layer (RAL/Glasgow on-RADOS
     # format compatibility). When present, the rados driver's data plane
-    # (sd_ceph_striper.c) is compiled with -DXROOTD_HAVE_RADOSSTRIPER=1; otherwise
+    # (sd_ceph_striper.c) is compiled with -DBRIX_HAVE_RADOSSTRIPER=1; otherwise
     # only the pure compat helpers (stripe naming, N2N) build, exactly like the
-    # XROOTD_HAVE_CEPH gating of sd_ceph.c.
+    # BRIX_HAVE_CEPH gating of sd_ceph.c.
     if printf '#include <radosstriper/libradosstriper.h>\nint main(void){rados_striper_t s; (void)s; return 0;}\n' > "$NGX_AUTOTEST.c" 2>/dev/null \
        && $CC $CC_TEST_FLAGS -o "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" -lradosstriper -lrados >/dev/null 2>&1; then
         rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c"
-        CFLAGS="$CFLAGS -DXROOTD_HAVE_RADOSSTRIPER=1"
-        XROOTD_CEPH_LIBS="-lradosstriper -lrados"
+        CFLAGS="$CFLAGS -DBRIX_HAVE_RADOSSTRIPER=1"
+        BRIX_CEPH_LIBS="-lradosstriper -lrados"
         echo " + xrootd storage backend: ceph/rados libradosstriper (stock XrdCeph layout) enabled"
     else
         rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" 2>/dev/null
@@ -272,19 +272,19 @@ fi
 
 # pblock storage backend: optional, header-gated like Ceph.  When libsqlite3 dev
 # headers + lib are present we compile src/fs/backend/pblock/sd_pblock.c against
-# sqlite3 and define -DXROOTD_HAVE_SQLITE=1; otherwise sd_pblock.c is empty (the
-# whole file is #if XROOTD_HAVE_SQLITE) and the driver row in sd_registry.c is
+# sqlite3 and define -DBRIX_HAVE_SQLITE=1; otherwise sd_pblock.c is empty (the
+# whole file is #if BRIX_HAVE_SQLITE) and the driver row in sd_registry.c is
 # #if-compiled out, so a no-sqlite build is byte-for-byte unchanged.  Set
-# XROOTD_WITHOUT_SQLITE=1 to force-disable even when sqlite3 is present.  The link
-# flag MUST go in ngx_module_libs (XROOTD_SQLITE_LIBS, appended below), NOT only
+# BRIX_WITHOUT_SQLITE=1 to force-disable even when sqlite3 is present.  The link
+# flag MUST go in ngx_module_libs (BRIX_SQLITE_LIBS, appended below), NOT only
 # CORE_LIBS, or dlopen of the DYNAMIC module .so fails (rpm_packaging_three_packages).
-XROOTD_SQLITE_LIBS=""
-if [ "${XROOTD_WITHOUT_SQLITE:-}" != "1" ] \
+BRIX_SQLITE_LIBS=""
+if [ "${BRIX_WITHOUT_SQLITE:-}" != "1" ] \
    && printf '#include <sqlite3.h>\nint main(void){sqlite3 *d; return sqlite3_open(":memory:", &d) != 0;}\n' > "$NGX_AUTOTEST.c" 2>/dev/null \
    && $CC $CC_TEST_FLAGS -o "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" -lsqlite3 >/dev/null 2>&1; then
     rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c"
-    CFLAGS="$CFLAGS -DXROOTD_HAVE_SQLITE=1"
-    XROOTD_SQLITE_LIBS="-lsqlite3"
+    CFLAGS="$CFLAGS -DBRIX_HAVE_SQLITE=1"
+    BRIX_SQLITE_LIBS="-lsqlite3"
     echo " + xrootd storage backend: pblock (sqlite) enabled"
 else
     rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" 2>/dev/null
@@ -332,9 +332,9 @@ if [ -z "$_xrd_ssl_verified" ]; then
          "AGPL-incompatible." >&2
 fi
 
-ngx_addon_name=ngx_stream_xrootd_module
+ngx_addon_name=ngx_stream_brix_module
 
-ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
+ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/core/ident.h \
                         $ngx_addon_dir/src/auth/authz/acc/privs.h \
                         $ngx_addon_dir/src/auth/authz/acc/acc.h \
@@ -427,7 +427,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/protocols/root/connection/fd_table.h \
                         $ngx_addon_dir/src/protocols/root/connection/disconnect.h \
                         $ngx_addon_dir/src/protocols/root/connection/chain_helpers.h \
-                        $ngx_addon_dir/src/protocols/root/fattr/ngx_xrootd_fattr.h \
+                        $ngx_addon_dir/src/protocols/root/fattr/ngx_brix_fattr.h \
                         $ngx_addon_dir/src/net/upstream/upstream.h \
                         $ngx_addon_dir/src/net/upstream/upstream_internal.h \
                         $ngx_addon_dir/src/auth/token/token_internal.h \
@@ -500,7 +500,7 @@ ngx_xrootd_stream_deps="$ngx_addon_dir/src/core/ngx_xrootd_module.h \
                         $ngx_addon_dir/src/auth/authz/auth_gate_l1.h \
                         $ngx_addon_dir/src/auth/token/token_cache.h \
                         $ngx_addon_dir/src/auth/token/worker_cache.h"
-ngx_xrootd_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
+ngx_brix_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
                         $ngx_addon_dir/src/core/ident.h \
                         $ngx_addon_dir/src/protocols/dig/dig.h \
                         $ngx_addon_dir/src/protocols/webdav/tape_rest.h \
@@ -553,7 +553,7 @@ xrd_emit_module() {
 
 # Build both the stream module and the companion HTTP metrics module
 ngx_module_type=STREAM
-ngx_module_name=ngx_stream_xrootd_module
+ngx_module_name=ngx_stream_brix_module
 ngx_module_incs="$ngx_addon_dir/src"
 ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/stream/module.c \
@@ -1022,19 +1022,19 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/net/ratelimit/reservation.c \
 "
 
-ngx_module_deps="$ngx_xrootd_stream_deps \
+ngx_module_deps="$ngx_brix_stream_deps \
                  $ngx_addon_dir/src/core/aio/uring.h \
                  $ngx_addon_dir/src/observability/dashboard/dashboard.h"
 # Stream module .so links: OpenSSL + the external libs its own objects call —
 # jansson (token/JWT JSON), libxml2 (compat XML helpers), krb5 (krb5 auth).
 # Loaded first (RTLD_GLOBAL) per mod-xrootd.conf, so its symbols also back the
 # thin HTTP modules that share this code.
-ngx_module_libs="-lssl -lcrypto $XROOTD_JANSSON_LIBS $XROOTD_XML2_LIBS $XROOTD_KRB5_LIBS $XROOTD_CODEC_LIBS $XROOTD_URING_LIBS $XROOTD_CEPH_LIBS $XROOTD_SQLITE_LIBS"
+ngx_module_libs="-lssl -lcrypto $BRIX_JANSSON_LIBS $BRIX_XML2_LIBS $BRIX_KRB5_LIBS $BRIX_CODEC_LIBS $BRIX_URING_LIBS $BRIX_CEPH_LIBS $BRIX_SQLITE_LIBS"
 CORE_LIBS="$CORE_LIBS -lssl -lcrypto"
 xrd_emit_module
 
 ngx_module_type=HTTP
-ngx_module_name=ngx_http_xrootd_metrics_module
+ngx_module_name=ngx_http_brix_metrics_module
  ngx_module_srcs="$ngx_addon_dir/src/observability/metrics/module.c \
                   $ngx_addon_dir/src/observability/metrics/writer.c \
                   $ngx_addon_dir/src/observability/metrics/stream.c \
@@ -1061,10 +1061,10 @@ xrd_emit_module
 # WLCG Storage Resource Reporting (SRR) — HTTP/JSON storageservice endpoint.
 # Deliberately replaces the XRootD UDP f/g-stream monitoring stack with an
 # HTTP-pull document that CRIC / WLCG storage accounting harvests directly.
-# jansson comes from CORE_LIBS (added above); xrootd_fs_usage_stat() is linked
+# jansson comes from CORE_LIBS (added above); brix_fs_usage_stat() is linked
 # from the stream module's compat/fs_usage.c into the same binary.
 ngx_module_type=HTTP
-ngx_module_name=ngx_http_xrootd_srr_module
+ngx_module_name=ngx_http_brix_srr_module
 ngx_module_srcs="$ngx_addon_dir/src/protocols/srr/module.c \
                  $ngx_addon_dir/src/protocols/srr/builder.c \
                  $ngx_addon_dir/src/protocols/srr/handler.c"
@@ -1072,7 +1072,7 @@ ngx_module_deps="$ngx_addon_dir/src/protocols/srr/srr.h \
                  $ngx_addon_dir/src/core/ident.h \
                  $ngx_addon_dir/src/core/compat/fs_usage.h"
 # SRR builder.c serialises the storageservice document with jansson.
-ngx_module_libs="$XROOTD_JANSSON_LIBS"
+ngx_module_libs="$BRIX_JANSSON_LIBS"
 xrd_emit_module
 
 # Phase-65 bad-actor guard — ACCESS-phase bounce + LOG-phase fail2ban audit
@@ -1080,7 +1080,7 @@ xrd_emit_module
 # in the pure-C core src/net/guard/ (compiled with the stream module above and
 # linked from the same binary).
 ngx_module_type=HTTP
-ngx_module_name=ngx_http_xrootd_guard_module
+ngx_module_name=ngx_http_brix_guard_module
 ngx_module_srcs="$ngx_addon_dir/src/net/httpguard/module.c \
                  $ngx_addon_dir/src/net/httpguard/classify_handler.c \
                  $ngx_addon_dir/src/net/httpguard/audit_handler.c \
@@ -1091,7 +1091,7 @@ ngx_module_libs=
 xrd_emit_module
 
 ngx_module_type=HTTP
-ngx_module_name=ngx_http_xrootd_webdav_module
+ngx_module_name=ngx_http_brix_webdav_module
 ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
                  $ngx_addon_dir/src/protocols/webdav/module_directives.c \
                  $ngx_addon_dir/src/protocols/webdav/module_init.c \
@@ -1151,10 +1151,10 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
                   $ngx_addon_dir/src/protocols/webdav/xrdhttp_stats.c \
                   $ngx_addon_dir/src/protocols/webdav/macaroon_endpoint.c \
                   $ngx_addon_dir/src/protocols/webdav/tape_rest.c"
-ngx_module_deps="$ngx_xrootd_webdav_deps"
+ngx_module_deps="$ngx_brix_webdav_deps"
 # WebDAV module .so links: OpenSSL + libcurl (HTTP-TPC COPY), libxml2 (PROPFIND
 # parsing / XML builders), jansson (Tape REST + macaroon JSON).
-ngx_module_libs="-lssl -lcrypto $XROOTD_CURL_LIBS $XROOTD_XML2_LIBS $XROOTD_JANSSON_LIBS"
+ngx_module_libs="-lssl -lcrypto $BRIX_CURL_LIBS $BRIX_XML2_LIBS $BRIX_JANSSON_LIBS"
 xrd_emit_module
 
 # Phase 21 Step A/B — XrdHttp output filter.  Declared HTTP_AUX_FILTER so
@@ -1163,17 +1163,17 @@ xrd_emit_module
 # at the webdav module's position would be clobbered by the core filter's
 # direct assignment to ngx_http_top_header_filter).
 ngx_module_type=HTTP_AUX_FILTER
-ngx_module_name=ngx_http_xrootd_xrdhttp_filter_module
+ngx_module_name=ngx_http_brix_xrdhttp_filter_module
 ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/xrdhttp_filter.c"
-ngx_module_deps="$ngx_xrootd_webdav_deps"
+ngx_module_deps="$ngx_brix_webdav_deps"
 # Set explicitly (do not inherit the previous module's ngx_module_libs); the
-# filter only needs OpenSSL, with shared xrootd_* symbols resolved at load time
+# filter only needs OpenSSL, with shared brix_* symbols resolved at load time
 # against the stream module (RTLD_GLOBAL, loaded first).
 ngx_module_libs="-lssl -lcrypto"
 . auto/module
 
 ngx_module_type=HTTP
-ngx_module_name=ngx_http_xrootd_s3_module
+ngx_module_name=ngx_http_brix_s3_module
 ngx_module_srcs="$ngx_addon_dir/src/protocols/s3/module.c \
                  $ngx_addon_dir/src/protocols/s3/handler.c \
                  $ngx_addon_dir/src/protocols/s3/metrics.c \
@@ -1225,11 +1225,11 @@ ngx_module_deps="$ngx_addon_dir/src/protocols/s3/s3.h \
                  $ngx_addon_dir/src/observability/metrics/metrics_macros.h"
 # S3 module .so links: OpenSSL (SigV4 HMAC) + libxml2 (DeleteObjects request /
 # list-result XML) + jansson.
-ngx_module_libs="-lssl -lcrypto $XROOTD_XML2_LIBS $XROOTD_JANSSON_LIBS"
+ngx_module_libs="-lssl -lcrypto $BRIX_XML2_LIBS $BRIX_JANSSON_LIBS"
 xrd_emit_module
 
 ngx_module_type=HTTP
-ngx_module_name=ngx_http_xrootd_cvmfs_module
+ngx_module_name=ngx_http_brix_cvmfs_module
 ngx_module_srcs="$ngx_addon_dir/src/protocols/cvmfs/module.c \
                  $ngx_addon_dir/src/protocols/cvmfs/handler.c \
                  $ngx_addon_dir/src/protocols/cvmfs/gate.c \
@@ -1250,7 +1250,7 @@ ngx_module_libs=-lm
 xrd_emit_module
 
 ngx_module_type=HTTP
-ngx_module_name=ngx_http_xrootd_dashboard_module
+ngx_module_name=ngx_http_brix_dashboard_module
 ngx_module_srcs="$ngx_addon_dir/src/observability/dashboard/module.c \
                  $ngx_addon_dir/src/observability/dashboard/auth.c \
                  $ngx_addon_dir/src/observability/dashboard/dashboard_json.c \
@@ -1288,11 +1288,11 @@ ngx_module_deps="$ngx_addon_dir/src/observability/dashboard/dashboard.h \
                  $ngx_addon_dir/src/tpc/common/transfer.h"
 # Dashboard module .so links: OpenSSL + libcrypt (session-cookie HMAC/crypt) +
 # jansson (api.c JSON responses).
-ngx_module_libs="-lssl -lcrypto -lcrypt $XROOTD_JANSSON_LIBS"
+ngx_module_libs="-lssl -lcrypto -lcrypt $BRIX_JANSSON_LIBS"
 xrd_emit_module
 
 ngx_module_type=STREAM
-ngx_module_name=ngx_stream_xrootd_cms_srv_module
+ngx_module_name=ngx_stream_brix_cms_srv_module
 ngx_module_srcs="$ngx_addon_dir/src/net/cms/server_handler.c \
                  $ngx_addon_dir/src/net/cms/server_recv.c \
                  $ngx_addon_dir/src/net/cms/server_send.c \
@@ -1309,7 +1309,7 @@ xrd_emit_module
 # load, so the stream + http modules coexist in a single .so and register into
 # the correct module slot.  Deduplicate srcs (metrics/tracking.c is listed by
 # both the stream and metrics blocks) so nothing compiles/links twice.  The .so
-# is named after the first module (ngx_stream_xrootd_module.so) and must be the
+# is named after the first module (ngx_stream_brix_module.so) and must be the
 # first load_module line so its symbols back the HTTP modules via RTLD_GLOBAL.
 if [ "$ngx_module_link" = DYNAMIC ]; then
     xrd_comb_srcs=""
@@ -1320,14 +1320,14 @@ if [ "$ngx_module_link" = DYNAMIC ]; then
         esac
     done
     ngx_module_type=HTTP
-    ngx_module_name="ngx_stream_xrootd_module \
-                     ngx_http_xrootd_metrics_module \
-                     ngx_http_xrootd_srr_module \
-                     ngx_http_xrootd_webdav_module \
-                     ngx_http_xrootd_s3_module \
-                     ngx_http_xrootd_cvmfs_module \
-                     ngx_http_xrootd_dashboard_module \
-                     ngx_stream_xrootd_cms_srv_module"
+    ngx_module_name="ngx_stream_brix_module \
+                     ngx_http_brix_metrics_module \
+                     ngx_http_brix_srr_module \
+                     ngx_http_brix_webdav_module \
+                     ngx_http_brix_s3_module \
+                     ngx_http_brix_cvmfs_module \
+                     ngx_http_brix_dashboard_module \
+                     ngx_stream_brix_cms_srv_module"
     ngx_module_incs="$ngx_addon_dir/src"
     ngx_module_srcs="$xrd_comb_srcs"
     ngx_module_deps="$xrd_dyn_deps"

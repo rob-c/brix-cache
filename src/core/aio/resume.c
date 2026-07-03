@@ -1,4 +1,4 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "uring.h"
 
 
@@ -12,14 +12,14 @@
  */
 
 /*
- * xrootd_aio_restore_stream — restore the stream-id context field so the
+ * brix_aio_restore_stream — restore the stream-id context field so the
  * subsequent response builder uses the correct stream-id from the request that
  * triggered the AIO.
  *
  * Returns 1 if the connection is still alive, 0 if it has been destroyed.
  */
 ngx_flag_t
-xrootd_aio_restore_stream(xrootd_ctx_t *ctx, const u_char streamid[2])
+brix_aio_restore_stream(brix_ctx_t *ctx, const u_char streamid[2])
 {
     if (ctx->destroyed) {
         return 0;
@@ -32,17 +32,17 @@ xrootd_aio_restore_stream(xrootd_ctx_t *ctx, const u_char streamid[2])
 }
 
 /*
- * xrootd_aio_restore_request — like xrootd_aio_restore_stream, but also
+ * brix_aio_restore_request — like brix_aio_restore_stream, but also
  * resets the connection state back to XRD_ST_REQ_HEADER so the recv loop
  * can accept the next request.
  *
  * Call this from done callbacks that complete the request cycle (i.e. the
- * response has already been queued before calling xrootd_aio_resume).
+ * response has already been queued before calling brix_aio_resume).
  */
 ngx_flag_t
-xrootd_aio_restore_request(xrootd_ctx_t *ctx, const u_char streamid[2])
+brix_aio_restore_request(brix_ctx_t *ctx, const u_char streamid[2])
 {
-    if (!xrootd_aio_restore_stream(ctx, streamid)) {
+    if (!brix_aio_restore_stream(ctx, streamid)) {
         return 0;
     }
 
@@ -53,7 +53,7 @@ xrootd_aio_restore_request(xrootd_ctx_t *ctx, const u_char streamid[2])
 }
 
 /*
- * xrootd_aio_post_task — post a pre-built ngx_thread_task_t to the thread
+ * brix_aio_post_task — post a pre-built ngx_thread_task_t to the thread
  * pool and transition ctx->state to XRD_ST_AIO.
  *
  * If pool is NULL (thread pool not configured), returns NGX_OK without posting
@@ -66,7 +66,7 @@ xrootd_aio_restore_request(xrootd_ctx_t *ctx, const u_char streamid[2])
  * On success: *posted = 1, ctx->state = XRD_ST_AIO.
  */
 ngx_int_t
-xrootd_aio_post_task(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_aio_post_task(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_thread_pool_t *pool, ngx_thread_task_t *task,
     const char *fallback_log, ngx_flag_t *posted)
 {
@@ -79,18 +79,18 @@ xrootd_aio_post_task(xrootd_ctx_t *ctx, ngx_connection_t *c,
      * runtime, the op is mapped, and the ring is not full; any prep/submit
      * failure leaves *posted = 0 and falls through to the thread pool below.
      */
-#if (XROOTD_HAVE_LIBURING)
+#if (BRIX_HAVE_LIBURING)
     {
-        xrootd_uring_t   *u  = xrootd_uring_worker();
-        xrootd_uring_op_e op = xrootd_uring_op_for(task);
+        brix_uring_t   *u  = brix_uring_worker();
+        brix_uring_op_e op = brix_uring_op_for(task);
 
         if (u != NULL && u->enabled && op != XRD_URING_OP_NONE) {
-            if (!xrootd_uring_disabled(u) && u->inflight < u->queue_depth
-                && xrootd_uring_submit(ctx, c, task, op, posted) == NGX_OK
+            if (!brix_uring_disabled(u) && u->inflight < u->queue_depth
+                && brix_uring_submit(ctx, c, task, op, posted) == NGX_OK
                 && *posted)
             {
                 /* metrics: a mapped op that the ring accepted. */
-                XROOTD_SRV_METRIC_INC(ctx, io_uring_ops_total);
+                BRIX_SRV_METRIC_INC(ctx, io_uring_ops_total);
                 if (ctx->metrics != NULL && ctx->metrics->io_uring_active == 0) {
                     ctx->metrics->io_uring_active = 1;
                 }
@@ -99,7 +99,7 @@ xrootd_aio_post_task(xrootd_ctx_t *ctx, ngx_connection_t *c,
             }
             /* metrics: a mapped op the ring could not take (killed / full /
              * submit failed) — it falls through to the pool below. */
-            XROOTD_SRV_METRIC_INC(ctx, io_uring_fallback_total);
+            BRIX_SRV_METRIC_INC(ctx, io_uring_fallback_total);
         }
     }
 #endif
@@ -122,7 +122,7 @@ xrootd_aio_post_task(xrootd_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /*
- * xrootd_aio_resume — schedule the next event-loop step after an AIO task
+ * brix_aio_resume — schedule the next event-loop step after an AIO task
  * completes and its done callback has already queued the response.
  *
  * If the response put the connection into XRD_ST_SENDING (it could not be
@@ -133,10 +133,10 @@ xrootd_aio_post_task(xrootd_ctx_t *ctx, ngx_connection_t *c,
  * Guards against ctx->destroyed (client disconnected while AIO was in flight).
  */
 void
-xrootd_aio_resume(ngx_connection_t *c)
+brix_aio_resume(ngx_connection_t *c)
 {
     ngx_stream_session_t *s;
-    xrootd_ctx_t         *ctx;
+    brix_ctx_t         *ctx;
 
     /*
      * AIO completion runs outside the normal recv path. If the completion
@@ -146,7 +146,7 @@ xrootd_aio_resume(ngx_connection_t *c)
      */
 
     s = c->data;
-    ctx = ngx_stream_get_module_ctx(s, ngx_stream_xrootd_module);
+    ctx = ngx_stream_get_module_ctx(s, ngx_stream_brix_module);
     if (ctx == NULL || ctx->destroyed) {
         return;
     }
@@ -159,13 +159,13 @@ xrootd_aio_resume(ngx_connection_t *c)
                    (int) c->write->posted);
 
     if (ctx->state == XRD_ST_SENDING) {
-        if (xrootd_schedule_write_resume(c) != NGX_OK) {
+        if (brix_schedule_write_resume(c) != NGX_OK) {
             ngx_stream_finalize_session(c->data, NGX_STREAM_INTERNAL_SERVER_ERROR);
         }
         return;
     }
 
-    if (xrootd_schedule_read_resume(c) != NGX_OK) {
+    if (brix_schedule_read_resume(c) != NGX_OK) {
         ngx_stream_finalize_session(c->data, NGX_STREAM_INTERNAL_SERVER_ERROR);
     }
 }

@@ -22,7 +22,7 @@ webdav_proxy_reinit_request(ngx_http_request_t *r)
 {
     webdav_proxy_ctx_t *ctx;
 
-    ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (ctx == NULL) return NGX_ERROR;
 
     ngx_memzero(&ctx->status, sizeof(ngx_http_status_t));
@@ -47,7 +47,7 @@ webdav_proxy_process_status_line(ngx_http_request_t *r)
     webdav_proxy_ctx_t    *ctx;
     size_t                 len;
 
-    ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (ctx == NULL) return NGX_ERROR;
 
     u  = r->upstream;
@@ -57,7 +57,7 @@ webdav_proxy_process_status_line(ngx_http_request_t *r)
 
     if (rc == NGX_ERROR) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "xrootd_webdav_proxy: upstream sent no valid HTTP/1.x header");
+                      "brix_webdav_proxy: upstream sent no valid HTTP/1.x header");
         /* Treat as 502 */
         return NGX_HTTP_UPSTREAM_INVALID_HEADER;
     }
@@ -75,7 +75,7 @@ webdav_proxy_process_status_line(ngx_http_request_t *r)
     ngx_memcpy(u->headers_in.status_line.data, ctx->status.start, len);
 
     ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                   "xrootd_webdav_proxy: upstream status %ui \"%V\"",
+                   "brix_webdav_proxy: upstream status %ui \"%V\"",
                    u->headers_in.status_n, &u->headers_in.status_line);
 
     u->process_header = webdav_proxy_process_header;
@@ -128,21 +128,21 @@ webdav_proxy_process_header(ngx_http_request_t *r)
             }
 
             ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                           "xrootd_webdav_proxy upstream header: \"%V: %V\"",
+                           "brix_webdav_proxy upstream header: \"%V: %V\"",
                            &h->key, &h->value);
             continue;
         }
 
         if (rc == NGX_HTTP_PARSE_HEADER_DONE) {
             ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                           "xrootd_webdav_proxy: upstream headers done");
+                           "brix_webdav_proxy: upstream headers done");
             return NGX_OK;
         }
 
         if (rc == NGX_AGAIN) return NGX_AGAIN;
 
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "xrootd_webdav_proxy: upstream sent invalid header line");
+                      "brix_webdav_proxy: upstream sent invalid header line");
         return NGX_HTTP_UPSTREAM_INVALID_HEADER;
     }
 }
@@ -159,7 +159,7 @@ void
 webdav_proxy_abort_request(ngx_http_request_t *r)
 {
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                   "xrootd_webdav_proxy: abort request");
+                   "brix_webdav_proxy: abort request");
 }
 
 /*
@@ -174,14 +174,14 @@ void
 webdav_proxy_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
 {
     webdav_proxy_ctx_t      *ctx;
-    xrootd_webdav_backend_t *be;
+    brix_webdav_backend_t *be;
 
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                   "xrootd_webdav_proxy: finalize request rc=%i", rc);
+                   "brix_webdav_proxy: finalize request rc=%i", rc);
 
     /* Phase 21 Step D — passive health: count gateway-class failures against
      * the selected backend, reset the counter on a clean completion. */
-    ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (ctx == NULL || ctx->selected_backend == NULL) {
         return;
     }
@@ -189,7 +189,7 @@ webdav_proxy_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
     /* Phase 23 — release the dynamic-pool in_flight reservation taken in
      * proxy.c when this request selected a pool backend (id 0 = config pool). */
     if (ctx->proxy_be_id != 0) {
-        xrootd_proxy_pool_dec_in_flight(ctx->proxy_be_id);
+        brix_proxy_pool_dec_in_flight(ctx->proxy_be_id);
         ctx->proxy_be_id = 0;
     }
 

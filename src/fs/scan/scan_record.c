@@ -15,7 +15,7 @@
 #define SCAN_ESC_MAX 2048
 
 int
-xrootd_scan_json_escape(const char *in, size_t len, char *out, size_t cap)
+brix_scan_json_escape(const char *in, size_t len, char *out, size_t cap)
 {
     size_t      o = 0;
     size_t      i;
@@ -63,7 +63,7 @@ xrootd_scan_json_escape(const char *in, size_t len, char *out, size_t cap)
 }
 
 int
-xrootd_scan_record_file(char *buf, size_t cap, const char *path, int64_t size,
+brix_scan_record_file(char *buf, size_t cap, const char *path, int64_t size,
                         int64_t mtime, const char *alg, const char *stored,
                         const char *computed, const char *status)
 {
@@ -72,7 +72,7 @@ xrootd_scan_record_file(char *buf, size_t cap, const char *path, int64_t size,
     char computed_part[160];
     int  n;
 
-    if (xrootd_scan_json_escape(path, strlen(path), esc, sizeof(esc)) < 0) {
+    if (brix_scan_json_escape(path, strlen(path), esc, sizeof(esc)) < 0) {
         return -1;
     }
     if (stored != NULL) {
@@ -99,14 +99,14 @@ xrootd_scan_record_file(char *buf, size_t cap, const char *path, int64_t size,
 }
 
 int
-xrootd_scan_record_inspect(char *buf, size_t cap, const char *path,
+brix_scan_record_inspect(char *buf, size_t cap, const char *path,
                            const char *backend, int64_t size, int64_t mtime,
                            const char *stored_src, int ns_consistent)
 {
     char esc[SCAN_ESC_MAX];
     int  n;
 
-    if (xrootd_scan_json_escape(path, strlen(path), esc, sizeof(esc)) < 0) {
+    if (brix_scan_json_escape(path, strlen(path), esc, sizeof(esc)) < 0) {
         return -1;
     }
     n = snprintf(buf, cap,
@@ -121,7 +121,7 @@ xrootd_scan_record_inspect(char *buf, size_t cap, const char *path,
 }
 
 int
-xrootd_scan_record_health(char *buf, size_t cap, const char *backend,
+brix_scan_record_health(char *buf, size_t cap, const char *backend,
                           uint64_t total_bytes, uint64_t free_bytes,
                           uint64_t used_bytes)
 {
@@ -150,7 +150,7 @@ scan_str_or_null(const char *s, char *part, size_t cap)
         n = snprintf(part, cap, "null");
         return (n < 0 || (size_t) n >= cap) ? -1 : 0;
     }
-    if (xrootd_scan_json_escape(s, strlen(s), esc, sizeof(esc)) < 0) {
+    if (brix_scan_json_escape(s, strlen(s), esc, sizeof(esc)) < 0) {
         return -1;
     }
     n = snprintf(part, cap, "\"%s\"", esc);
@@ -158,7 +158,7 @@ scan_str_or_null(const char *s, char *part, size_t cap)
 }
 
 int
-xrootd_scan_record_object(char *buf, size_t cap, const char *key,
+brix_scan_record_object(char *buf, size_t cap, const char *key,
                           const char *path, int64_t size, int64_t mtime,
                           int orphan)
 {
@@ -169,7 +169,7 @@ xrootd_scan_record_object(char *buf, size_t cap, const char *key,
     if (key == NULL) {
         return -1;                 /* a catalog object always has a backend key */
     }
-    if (xrootd_scan_json_escape(key, strlen(key), keyesc, sizeof(keyesc)) < 0) {
+    if (brix_scan_json_escape(key, strlen(key), keyesc, sizeof(keyesc)) < 0) {
         return -1;
     }
     if (scan_str_or_null(path, path_part, sizeof(path_part)) < 0) {
@@ -187,7 +187,7 @@ xrootd_scan_record_object(char *buf, size_t cap, const char *key,
 }
 
 int
-xrootd_scan_record_drift(char *buf, size_t cap, const char *key,
+brix_scan_record_drift(char *buf, size_t cap, const char *key,
                          const char *path, const char *cls, int64_t size)
 {
     char key_part[SCAN_ESC_MAX + 4];
@@ -209,12 +209,12 @@ xrootd_scan_record_drift(char *buf, size_t cap, const char *key,
 }
 
 int
-xrootd_scan_record_cursor(char *buf, size_t cap, const char *after)
+brix_scan_record_cursor(char *buf, size_t cap, const char *after)
 {
     char esc[SCAN_ESC_MAX];
     int  n;
 
-    if (xrootd_scan_json_escape(after, strlen(after), esc, sizeof(esc)) < 0) {
+    if (brix_scan_json_escape(after, strlen(after), esc, sizeof(esc)) < 0) {
         return -1;
     }
     n = snprintf(buf, cap, "{\"t\":\"cursor\",\"after\":\"%s\"}", esc);
@@ -225,7 +225,7 @@ xrootd_scan_record_cursor(char *buf, size_t cap, const char *after)
 }
 
 int
-xrootd_scan_record_summary(char *buf, size_t cap, const xrootd_scan_summary_t *s)
+brix_scan_record_summary(char *buf, size_t cap, const brix_scan_summary_t *s)
 {
     int n = snprintf(buf, cap,
         "{\"t\":\"summary\",\"files\":%llu,\"bytes\":%llu,\"ok\":%llu,"

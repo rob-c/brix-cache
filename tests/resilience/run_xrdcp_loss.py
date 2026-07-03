@@ -139,7 +139,7 @@ def main():
         sys.exit(f"repo xrdcp not built: {REPO_XRDCP}")
     if not os.path.isfile(OFFICIAL_XRDCP):
         sys.exit(f"official xrdcp not found: {OFFICIAL_XRDCP}")
-    if not servers.XROOTD_BIN:
+    if not servers.BRIX_BIN:
         sys.exit("official xrootd daemon not on PATH")
     if not os.path.isfile(servers.NGINX_BIN):
         sys.exit(f"nginx not built: {servers.NGINX_BIN}")

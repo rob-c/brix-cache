@@ -69,8 +69,8 @@ test_mkdir(void)
     p = put_str(p, "alice.0:1@host");
     p = put_str(p, "755");
     p = put_str(p, "/atlas/new");
-    xrootd_cms_rrdata_t d;
-    int rc = xrootd_cms_rrdata_parse(K_MKDIR, buf, (size_t)(p - buf), &d);
+    brix_cms_rrdata_t d;
+    int rc = brix_cms_rrdata_parse(K_MKDIR, buf, (size_t)(p - buf), &d);
     CHECK(rc == 0);
     CHECK(span_eq(d.ident, d.ident_len, "alice.0:1@host"));
     CHECK(span_eq(d.mode,  d.mode_len,  "755"));
@@ -88,8 +88,8 @@ test_chmod_with_opaque(void)
     p = put_str(p, "640");
     p = put_str(p, "/data/f");
     p = put_str(p, "authz=tok");          /* post-fence opaque */
-    xrootd_cms_rrdata_t d;
-    int rc = xrootd_cms_rrdata_parse(K_CHMOD, buf, (size_t)(p - buf), &d);
+    brix_cms_rrdata_t d;
+    int rc = brix_cms_rrdata_parse(K_CHMOD, buf, (size_t)(p - buf), &d);
     CHECK(rc == 0);
     CHECK(span_eq(d.path,   d.path_len,   "/data/f"));
     CHECK(span_eq(d.opaque, d.opaque_len, "authz=tok"));
@@ -103,8 +103,8 @@ test_mv(void)
     p = put_str(p, "id");
     p = put_str(p, "/a/src");
     p = put_str(p, "/a/dst");
-    xrootd_cms_rrdata_t d;
-    int rc = xrootd_cms_rrdata_parse(K_MV, buf, (size_t)(p - buf), &d);
+    brix_cms_rrdata_t d;
+    int rc = brix_cms_rrdata_parse(K_MV, buf, (size_t)(p - buf), &d);
     CHECK(rc == 0);
     CHECK(span_eq(d.path,  d.path_len,  "/a/src"));
     CHECK(span_eq(d.path2, d.path2_len, "/a/dst"));
@@ -117,8 +117,8 @@ test_rm(void)
     unsigned char buf[256], *p = buf;
     p = put_str(p, "id");
     p = put_str(p, "/a/gone");
-    xrootd_cms_rrdata_t d;
-    int rc = xrootd_cms_rrdata_parse(K_RM, buf, (size_t)(p - buf), &d);
+    brix_cms_rrdata_t d;
+    int rc = brix_cms_rrdata_parse(K_RM, buf, (size_t)(p - buf), &d);
     CHECK(rc == 0);
     CHECK(span_eq(d.path, d.path_len, "/a/gone"));
 }
@@ -131,8 +131,8 @@ test_select_with_opts(void)
     p = put_str(p, "id");
     p = put_int(p, 0x00000010);
     p = put_str(p, "/sel/path");
-    xrootd_cms_rrdata_t d;
-    int rc = xrootd_cms_rrdata_parse(K_SELECT, buf, (size_t)(p - buf), &d);
+    brix_cms_rrdata_t d;
+    int rc = brix_cms_rrdata_parse(K_SELECT, buf, (size_t)(p - buf), &d);
     CHECK(rc == 0);
     CHECK(d.has_opts == 1);
     CHECK(d.opts == 0x10);
@@ -150,8 +150,8 @@ test_prepadd(void)
     p = put_str(p, "1");
     p = put_str(p, "0");
     p = put_str(p, "/stage/me");
-    xrootd_cms_rrdata_t d;
-    int rc = xrootd_cms_rrdata_parse(K_PREPADD, buf, (size_t)(p - buf), &d);
+    brix_cms_rrdata_t d;
+    int rc = brix_cms_rrdata_parse(K_PREPADD, buf, (size_t)(p - buf), &d);
     CHECK(rc == 0);
     CHECK(span_eq(d.reqid, d.reqid_len, "req-42"));
     CHECK(span_eq(d.path,  d.path_len,  "/stage/me"));
@@ -164,8 +164,8 @@ test_prepdel(void)
     unsigned char buf[64], *p = buf;
     p = put_str(p, "id");
     p = put_str(p, "req-42");
-    xrootd_cms_rrdata_t d;
-    int rc = xrootd_cms_rrdata_parse(K_PREPDEL, buf, (size_t)(p - buf), &d);
+    brix_cms_rrdata_t d;
+    int rc = brix_cms_rrdata_parse(K_PREPDEL, buf, (size_t)(p - buf), &d);
     CHECK(rc == 0);
     CHECK(span_eq(d.reqid, d.reqid_len, "req-42"));
 }
@@ -177,8 +177,8 @@ test_truncated_string_rejected(void)
     unsigned char buf[8];
     buf[0] = 0x00; buf[1] = 0x0a;          /* len = 10 */
     buf[2] = 'a';  buf[3] = 'b'; buf[4] = 'c';
-    xrootd_cms_rrdata_t d;
-    int rc = xrootd_cms_rrdata_parse(K_RM, buf, 5, &d);
+    brix_cms_rrdata_t d;
+    int rc = brix_cms_rrdata_parse(K_RM, buf, 5, &d);
     CHECK(rc == -1);
 }
 
@@ -186,8 +186,8 @@ static void
 test_unknown_opcode_rejected(void)
 {
     unsigned char buf[4] = {0,0,0,0};
-    xrootd_cms_rrdata_t d;
-    int rc = xrootd_cms_rrdata_parse(99, buf, 4, &d);
+    brix_cms_rrdata_t d;
+    int rc = brix_cms_rrdata_parse(99, buf, 4, &d);
     CHECK(rc == -1);
 }
 
@@ -195,11 +195,11 @@ static void
 test_encode_roundtrip_mkdir(void)
 {
     unsigned char buf[256];
-    int n = xrootd_cms_rrdata_encode(K_MKDIR, "ident.0", "/a/b", NULL,
+    int n = brix_cms_rrdata_encode(K_MKDIR, "ident.0", "/a/b", NULL,
                                      "750", NULL, buf, sizeof(buf));
     CHECK(n > 0);
-    xrootd_cms_rrdata_t d;
-    CHECK(xrootd_cms_rrdata_parse(K_MKDIR, buf, (size_t) n, &d) == 0);
+    brix_cms_rrdata_t d;
+    CHECK(brix_cms_rrdata_parse(K_MKDIR, buf, (size_t) n, &d) == 0);
     CHECK(span_eq(d.ident, d.ident_len, "ident.0"));
     CHECK(span_eq(d.mode,  d.mode_len,  "750"));
     CHECK(span_eq(d.path,  d.path_len,  "/a/b"));
@@ -209,11 +209,11 @@ static void
 test_encode_roundtrip_mv_with_opaque(void)
 {
     unsigned char buf[256];
-    int n = xrootd_cms_rrdata_encode(K_MV, "id", "/s", "/d",
+    int n = brix_cms_rrdata_encode(K_MV, "id", "/s", "/d",
                                      NULL, "authz=x", buf, sizeof(buf));
     CHECK(n > 0);
-    xrootd_cms_rrdata_t d;
-    CHECK(xrootd_cms_rrdata_parse(K_MV, buf, (size_t) n, &d) == 0);
+    brix_cms_rrdata_t d;
+    CHECK(brix_cms_rrdata_parse(K_MV, buf, (size_t) n, &d) == 0);
     CHECK(span_eq(d.path,   d.path_len,   "/s"));
     CHECK(span_eq(d.path2,  d.path2_len,  "/d"));
     CHECK(span_eq(d.opaque, d.opaque_len, "authz=x"));
@@ -223,11 +223,11 @@ static void
 test_encode_roundtrip_rm(void)
 {
     unsigned char buf[256];
-    int n = xrootd_cms_rrdata_encode(K_RM, "id", "/gone", NULL,
+    int n = brix_cms_rrdata_encode(K_RM, "id", "/gone", NULL,
                                      NULL, NULL, buf, sizeof(buf));
     CHECK(n > 0);
-    xrootd_cms_rrdata_t d;
-    CHECK(xrootd_cms_rrdata_parse(K_RM, buf, (size_t) n, &d) == 0);
+    brix_cms_rrdata_t d;
+    CHECK(brix_cms_rrdata_parse(K_RM, buf, (size_t) n, &d) == 0);
     CHECK(span_eq(d.path, d.path_len, "/gone"));
 }
 
@@ -235,7 +235,7 @@ static void
 test_encode_overflow_rejected(void)
 {
     unsigned char small[4];
-    int n = xrootd_cms_rrdata_encode(K_MKDIR, "ident", "/path", NULL,
+    int n = brix_cms_rrdata_encode(K_MKDIR, "ident", "/path", NULL,
                                      "755", NULL, small, sizeof(small));
     CHECK(n == -1);
 }
@@ -244,7 +244,7 @@ static void
 test_statfs_encode(void)
 {
     unsigned char buf[64];
-    int n = xrootd_cms_statfs_encode(2, 1000, 50, 2, 1000, 50, buf, sizeof(buf));
+    int n = brix_cms_statfs_encode(2, 1000, 50, 2, 1000, 50, buf, sizeof(buf));
     CHECK(n == 24);                                /* 4 + strlen("...")=19 + NUL */
     CHECK(buf[0] == 0 && buf[1] == 0 && buf[2] == 0 && buf[3] == 0);
     CHECK(strcmp((const char *) buf + 4, "2 1000 50 2 1000 50") == 0);
@@ -254,7 +254,7 @@ static void
 test_statfs_encode_overflow(void)
 {
     unsigned char small[6];
-    CHECK(xrootd_cms_statfs_encode(2, 1000, 50, 2, 1000, 50,
+    CHECK(brix_cms_statfs_encode(2, 1000, 50, 2, 1000, 50,
                                    small, sizeof(small)) == -1);
 }
 

@@ -80,12 +80,12 @@ mpu_upload_entry_cmp(const void *a, const void *b)
  *       subdirectories are recursed into as key-prefix components; a staging dir
  *       is recorded as a leaf and never descended.
  * WHY:  The original flat single-level opendir(root) only saw bucket-root-keyed
- *       uploads, and used a bare worker opendir.  Under `xrootd_impersonation
+ *       uploads, and used a bare worker opendir.  Under `brix_impersonation
  *       map` a path-keyed upload lives in the mapped user's 0700 subdir, which
  *       the flat bare scan can neither reach (wrong scope) nor — as the
  *       unprivileged worker — open (EACCES).  Mirrors s3_walk()'s confined
  *       recursive enumeration in list_walk.c.
- * HOW:  Each directory is opened via xrootd_vfs_opendir_quiet (non-metered;
+ * HOW:  Each directory is opened via brix_vfs_opendir_quiet (non-metered;
  *       broker-opened as the mapped user, a plain opendir off impersonation).  A directory
  *       the mapped user cannot traverse (e.g. another tenant's 0700) yields NULL
  *       and is simply skipped, so cross-tenant uploads are never enumerated.
@@ -96,8 +96,8 @@ mpu_collect(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
             const char *dir_path, const char *key_prefix,
             mpu_upload_entry_t *uploads, int max, int *n, int depth)
 {
-    xrootd_vfs_ctx_t  vctx;
-    xrootd_vfs_dir_t *dp;
+    brix_vfs_ctx_t  vctx;
+    brix_vfs_dir_t *dp;
 
     if (*n >= max || depth > MPU_LIST_MAX_DEPTH) {
         return;
@@ -106,7 +106,7 @@ mpu_collect(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     /* Non-metered confined opendir (the ListMultipartUploads op accounts for the
      * whole recursive walk; broker fdopendir under impersonation). */
     s3_build_vfs_ctx(r, dir_path, cf, &vctx);
-    dp = xrootd_vfs_opendir_quiet(&vctx, NULL);
+    dp = brix_vfs_opendir_quiet(&vctx, NULL);
     if (dp == NULL) {
         return;   /* unreadable as the mapped user (e.g. another tenant's 0700) */
     }
@@ -115,15 +115,15 @@ mpu_collect(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         ngx_str_t          name;
         const char        *dname;
         char               child_path[PATH_MAX];
-        xrootd_vfs_ctx_t   cctx;
-        xrootd_vfs_stat_t  csb;
+        brix_vfs_ctx_t   cctx;
+        brix_vfs_stat_t  csb;
         const char        *mpu_marker;
 
         if (*n >= max) {
             break;
         }
         /* "."/".." filtered by readdir_kind. */
-        if (xrootd_vfs_readdir_kind(dp, &name, NULL) != NGX_OK) {
+        if (brix_vfs_readdir_kind(dp, &name, NULL) != NGX_OK) {
             break;   /* NGX_DONE (end) or error → stop */
         }
         dname = (const char *) name.data;
@@ -136,7 +136,7 @@ mpu_collect(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         /* Confined no-follow probe (non-metered): need both the dir check and the
          * mtime for a staging dir. A symlink/file/special is skipped. */
         s3_build_vfs_ctx(r, child_path, cf, &cctx);
-        if (xrootd_vfs_probe(&cctx, 1 /* no-follow */, &csb) != NGX_OK
+        if (brix_vfs_probe(&cctx, 1 /* no-follow */, &csb) != NGX_OK
             || !csb.is_directory)
         {
             continue;   /* not a directory (probe also rejects symlinks) */
@@ -181,7 +181,7 @@ mpu_collect(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         }
     }
 
-    xrootd_vfs_closedir(dp, r->connection->log);
+    brix_vfs_closedir(dp, r->connection->log);
 }
 
 ngx_int_t
@@ -204,7 +204,7 @@ s3_handle_list_multipart_uploads(ngx_http_request_t *r,
     int                 truncated;
 
     if (cf->common.root.data == NULL || cf->common.root.len == 0) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -227,7 +227,7 @@ s3_handle_list_multipart_uploads(ngx_http_request_t *r,
     uploads = ngx_palloc(r->pool,
                          sizeof(mpu_upload_entry_t) * MPU_MAX_LISTED_UPLOADS);
     if (uploads == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -235,7 +235,7 @@ s3_handle_list_multipart_uploads(ngx_http_request_t *r,
      * Recursively enumerate staging dirs across the whole bucket tree, opened
      * impersonation-confined as the mapped user.  Replaces the original flat
      * single-level bare-opendir(root) scan, which (a) only saw bucket-root-keyed
-     * uploads and (b) under `xrootd_impersonation map` could not open the mapped
+     * uploads and (b) under `brix_impersonation map` could not open the mapped
      * user's own 0700 key subdirs as the unprivileged worker.  A dir the mapped
      * user cannot traverse is skipped, so no cross-tenant upload is enumerated.
      */
@@ -273,7 +273,7 @@ s3_handle_list_multipart_uploads(ngx_http_request_t *r,
 
     xml = ngx_palloc(r->pool, xml_capacity);
     if (xml == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -300,7 +300,7 @@ s3_handle_list_multipart_uploads(ngx_http_request_t *r,
     }
 
     for (i = start_idx; i < end_idx; i++) {
-        xrootd_format_iso8601(uploads[i].mtime, iso_buf, sizeof(iso_buf));
+        brix_format_iso8601(uploads[i].mtime, iso_buf, sizeof(iso_buf));
         XML_APPEND("  <Upload>\n");
         XML_APPEND("    ");
         XML_APPEND_ELEM("Key", uploads[i].key, strlen(uploads[i].key));
@@ -317,13 +317,13 @@ s3_handle_list_multipart_uploads(ngx_http_request_t *r,
 
     b = ngx_create_temp_buf(r->pool, xml_len);
     if (b == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     ngx_memcpy(b->pos, xml, xml_len);
     b->last     = b->pos + xml_len;
     b->last_buf = 1;
 
-    return xrootd_http_send_xml_buffer(r, NGX_HTTP_OK,
+    return brix_http_send_xml_buffer(r, NGX_HTTP_OK,
         (ngx_str_t) ngx_string("application/xml"), b);
 }

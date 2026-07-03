@@ -1,21 +1,21 @@
-#ifndef XROOTD_TOKEN_WORKER_CACHE_H
-#define XROOTD_TOKEN_WORKER_CACHE_H
+#ifndef BRIX_TOKEN_WORKER_CACHE_H
+#define BRIX_TOKEN_WORKER_CACHE_H
 
 /*
  * worker_cache.h — always-on, per-worker L1 bearer-token validation cache.
  *
  * WHAT: a tiny lockless direct-mapped cache that maps a token fingerprint to its
- *   already-validated xrootd_token_claims_t, so a token presented repeatedly is
+ *   already-validated brix_token_claims_t, so a token presented repeatedly is
  *   validated with crypto + JSON parsing at most once per MAX_TTL window per
  *   worker.  It sits as the L1 in front of the OPTIONAL cross-worker SHM cache
- *   (token_cache.c / xrootd_token_cache_*): L1 hit -> no crypto AND no SHM
+ *   (token_cache.c / brix_token_cache_*): L1 hit -> no crypto AND no SHM
  *   spinlock; L1 miss -> fall through to L2/full validation, then populate L1.
  *
  * WHY: token validation runs inline on the single-threaded nginx event loop
  *   (RSA/ECDSA verify + base64url decode + JSON parse).  Under load, doing that
  *   per request starves the loop of time to service other connections' reads,
  *   producing client-side "HTTP ReadTimeout"s.  The pre-existing SHM cache is
- *   (a) opt-in (needs an xrootd_kv_zone) so most deployments had NO caching, and
+ *   (a) opt-in (needs an brix_kv_zone) so most deployments had NO caching, and
  *   (b) takes a per-zone spinlock on every lookup/store, so it still contends
  *   under high concurrency.  This L1 is always on and lock-free, collapsing the
  *   overwhelmingly common "same client reuses its token for many requests" case
@@ -44,9 +44,9 @@
  * (~4.4 KB), so 1024 slots ≈ 4.5 MB per worker — generous for the number of
  * distinct active tokens a single worker sees, while bounding memory.
  */
-#define XROOTD_TOKEN_L1_SLOTS  1024
+#define BRIX_TOKEN_L1_SLOTS  1024
 
-typedef struct xrootd_token_l1_s xrootd_token_l1_t;
+typedef struct brix_token_l1_s brix_token_l1_t;
 
 /*
  * Create a per-worker L1 cache with `slots` direct-mapped buckets, allocated
@@ -54,21 +54,21 @@ typedef struct xrootd_token_l1_s xrootd_token_l1_t;
  * clamped to a sane minimum.  Returns NULL on allocation failure (the caller
  * then simply runs without L1 — correctness is unaffected).
  */
-xrootd_token_l1_t *xrootd_token_l1_create(ngx_pool_t *pool, ngx_uint_t slots);
+brix_token_l1_t *brix_token_l1_create(ngx_pool_t *pool, ngx_uint_t slots);
 
 /*
  * Look up `token` (token_len bytes).  On a fresh (non-expired) hit, copies the
  * stored claims into *claims and returns 1.  Returns 0 on miss/expiry/NULL cache
  * (caller falls through to L2 / full validation).
  */
-int xrootd_token_l1_lookup(xrootd_token_l1_t *cache, const char *token,
-    size_t token_len, xrootd_token_claims_t *claims);
+int brix_token_l1_lookup(brix_token_l1_t *cache, const char *token,
+    size_t token_len, brix_token_claims_t *claims);
 
 /*
  * Store freshly validated `claims` for `token`.  No-op for a NULL cache or an
  * already-expired token.  Overwrites (evicts) whatever shared the bucket.
  */
-void xrootd_token_l1_store(xrootd_token_l1_t *cache, const char *token,
-    size_t token_len, const xrootd_token_claims_t *claims);
+void brix_token_l1_store(brix_token_l1_t *cache, const char *token,
+    size_t token_len, const brix_token_claims_t *claims);
 
-#endif /* XROOTD_TOKEN_WORKER_CACHE_H */
+#endif /* BRIX_TOKEN_WORKER_CACHE_H */

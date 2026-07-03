@@ -39,9 +39,9 @@ s3_copy_find_header(ngx_http_request_t *r, const char *name, size_t nlen)
     ngx_table_elt_t *h;
     ngx_str_t        value;
 
-    h = xrootd_http_find_header(r, name, nlen);
+    h = brix_http_find_header(r, name, nlen);
     if (h == NULL
-        || xrootd_pstrdupz(r->pool, &value, h->value.data, h->value.len)
+        || brix_pstrdupz(r->pool, &value, h->value.data, h->value.len)
            != NGX_OK)
     {
         return NULL;
@@ -53,17 +53,17 @@ s3_copy_find_header(ngx_http_request_t *r, const char *name, size_t nlen)
  * canonical s3_vfs_ctx in object.c). */
 static void
 s3_copy_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
-    ngx_http_s3_loc_conf_t *cf, xrootd_vfs_ctx_t *vctx)
+    ngx_http_s3_loc_conf_t *cf, brix_vfs_ctx_t *vctx)
 {
     ngx_http_s3_req_ctx_t *s3ctx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+        ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
     int is_tls = 0;
 
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
 
-    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+    brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
         cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
         is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 }
@@ -77,8 +77,8 @@ s3_handle_copy_object(ngx_http_request_t *r,
     const char            *src_key;
     char                   src_fs_path[PATH_MAX];
     struct stat            dst_sb;
-    xrootd_vfs_ctx_t       vctx;
-    xrootd_vfs_copy_opts_t copy_opts;
+    brix_vfs_ctx_t       vctx;
+    brix_vfs_copy_opts_t copy_opts;
     char                  etag_buf[48];
     char                  iso_buf[32];
     char                  xml_buf[512];
@@ -116,7 +116,7 @@ s3_handle_copy_object(ngx_http_request_t *r,
     {
         return s3_fail(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
                        "Copy source path is not accessible.",
-                       XROOTD_S3_EVENT_ACCESS_DENIED);
+                       BRIX_S3_EVENT_ACCESS_DENIED);
     }
 
     /*
@@ -141,14 +141,14 @@ s3_handle_copy_object(ngx_http_request_t *r,
             copy_opts.overwrite     = 1;
             copy_opts.staged_commit = 1;
 
-            if (xrootd_vfs_copy(&vctx, dst_fs_path, &copy_opts) != NGX_OK) {
+            if (brix_vfs_copy(&vctx, dst_fs_path, &copy_opts) != NGX_OK) {
                 if (errno == ENOENT) {
                     return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
                                    "The copy source does not exist.",
-                                   XROOTD_S3_EVENT_NO_SUCH_KEY);
+                                   BRIX_S3_EVENT_NO_SUCH_KEY);
                 }
-                XROOTD_S3_METRIC_INC(
-                    events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+                BRIX_S3_METRIC_INC(
+                    events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
                 return NGX_HTTP_INTERNAL_SERVER_ERROR;
             }
         }
@@ -166,12 +166,12 @@ s3_handle_copy_object(ngx_http_request_t *r,
      * through the VFS seam (non-metered — the CopyObject op already accounts for
      * this via OP_COPY; a phantom OP_STAT would inflate the stat counter). */
     {
-        xrootd_vfs_ctx_t  dctx;
-        xrootd_vfs_stat_t dvst;
+        brix_vfs_ctx_t  dctx;
+        brix_vfs_stat_t dvst;
 
         s3_copy_vfs_ctx(r, dst_fs_path, cf, &dctx);
-        if (xrootd_vfs_probe(&dctx, 1 /* no-follow */, &dvst) != NGX_OK) {
-            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        if (brix_vfs_probe(&dctx, 1 /* no-follow */, &dvst) != NGX_OK) {
+            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
         ngx_memzero(&dst_sb, sizeof(dst_sb));
@@ -180,7 +180,7 @@ s3_handle_copy_object(ngx_http_request_t *r,
     }
 
     s3_etag(&dst_sb, etag_buf, sizeof(etag_buf));
-    xrootd_format_iso8601(dst_sb.st_mtime, iso_buf, sizeof(iso_buf));
+    brix_format_iso8601(dst_sb.st_mtime, iso_buf, sizeof(iso_buf));
 
     xml_len = (size_t) snprintf(xml_buf, sizeof(xml_buf),
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
@@ -193,13 +193,13 @@ s3_handle_copy_object(ngx_http_request_t *r,
 
     b = ngx_create_temp_buf(r->pool, xml_len);
     if (b == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     b->last     = ngx_cpymem(b->pos, xml_buf, xml_len);
     b->last_buf = 1;
 
-    return xrootd_http_send_xml_buffer(r, NGX_HTTP_OK,
+    return brix_http_send_xml_buffer(r, NGX_HTTP_OK,
         (ngx_str_t) ngx_string("application/xml"), b);
 }

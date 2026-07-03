@@ -29,7 +29,7 @@ from settings import (
     DATA_ROOT,
     HOST,
     NGINX_ANON_PORT,
-    REF_XROOTD_PORT,
+    REF_BRIX_PORT,
     SERVER_HOST,
 )
 
@@ -40,7 +40,7 @@ from settings import (
 CROSS_BACKEND = selected_backend_name()
 
 if CROSS_BACKEND == "xrootd":
-    ANON_URL = f"root://{HOST}:{REF_XROOTD_PORT}"
+    ANON_URL = f"root://{HOST}:{REF_BRIX_PORT}"
 else:
     ANON_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
 

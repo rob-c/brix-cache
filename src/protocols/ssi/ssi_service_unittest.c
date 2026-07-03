@@ -23,20 +23,20 @@ static int g_fail;
     int err_code; const char *err_text; int err_set;
 } rec_t;
 
-static void rec_md(xrootd_ssi_responder_t *r, const unsigned char *md, size_t n)
+static void rec_md(brix_ssi_responder_t *r, const unsigned char *md, size_t n)
 { rec_t *x = r->state; memcpy(x->md, md, n); x->md_len = n; x->md_set = 1; }
-static void rec_resp(xrootd_ssi_responder_t *r, const unsigned char *b, size_t n, int last)
+static void rec_resp(brix_ssi_responder_t *r, const unsigned char *b, size_t n, int last)
 { rec_t *x = r->state; memcpy(x->data + x->data_len, b, n); x->data_len += n;
   x->last = last; x->resp_set = 1; }
-static void rec_alert(xrootd_ssi_responder_t *r, const unsigned char *b, size_t n)
+static void rec_alert(brix_ssi_responder_t *r, const unsigned char *b, size_t n)
 { (void) r; (void) b; (void) n; }
-static void rec_err(xrootd_ssi_responder_t *r, int code, const char *t)
+static void rec_err(brix_ssi_responder_t *r, int code, const char *t)
 { rec_t *x = r->state; x->err_code = code; x->err_text = t; x->err_set = 1; }
 
-static xrootd_ssi_responder_t
+static brix_ssi_responder_t
 make_responder(rec_t *rec)
 {
-    xrootd_ssi_responder_t r;
+    brix_ssi_responder_t r;
     memset(rec, 0, sizeof(*rec));
     r.set_metadata = rec_md;
     r.set_response = rec_resp;
@@ -49,12 +49,12 @@ make_responder(rec_t *rec)
 static void
 test_echo_service(void)
 {
-    xrootd_ssi_process_fn fn = xrootd_ssi_service_lookup("echo");
+    brix_ssi_process_fn fn = brix_ssi_service_lookup("echo");
     CHECK(fn != NULL);
     if (!fn) return;
 
     rec_t rec;
-    xrootd_ssi_responder_t r = make_responder(&rec);
+    brix_ssi_responder_t r = make_responder(&rec);
     int rc = fn((const unsigned char *) "hello", 5, &r);
     CHECK(rc == 0);
     CHECK(rec.resp_set);
@@ -65,7 +65,7 @@ test_echo_service(void)
 static void
 test_unknown_service(void)
 {
-    CHECK(xrootd_ssi_service_lookup("nope") == NULL);
+    CHECK(brix_ssi_service_lookup("nope") == NULL);
 }
 
 int

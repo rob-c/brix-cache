@@ -26,7 +26,7 @@ ANON_URL        = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
 ANON_HOST       = SERVER_HOST
 ANON_PORT       = NGINX_ANON_PORT
 DATA_DIR        = DATA_ROOT
-ANON_ACCESS_LOG = os.path.join(LOG_DIR, "xrootd_access_anon.log")
+ANON_ACCESS_LOG = os.path.join(LOG_DIR, "brix_access_anon.log")
 ERROR_LOG       = os.path.join(LOG_DIR, "error.log")
 
 
@@ -144,7 +144,7 @@ def test_mkdir_with_mkpath_rejects_symlink_escape():
         try:
             status, _ = fs.mkdir(f"/{link_name}/nested", MkDirFlags.MAKEPATH)
             assert not status.ok, "mkpath should reject symlink escape outside root"
-            assert not os.path.exists(escaped), "server created a directory outside xrootd_root"
+            assert not os.path.exists(escaped), "server created a directory outside brix_root"
         finally:
             _unlink_if_exists(link_path)
 

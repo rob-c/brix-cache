@@ -1,5 +1,5 @@
 /*
- * s3_transport.c — server-side libcurl implementation of xrootd_s3_transport_t.
+ * s3_transport.c — server-side libcurl implementation of brix_s3_transport_t.
  * See the header. Runs only on the blocking cache-fill worker thread.
  */
 
@@ -7,7 +7,7 @@
 
 #include <ngx_config.h>
 #include <ngx_core.h>
-#include "fs/path/path.h"                  /* xrootd_sanitize_log_string */
+#include "fs/path/path.h"                  /* brix_sanitize_log_string */
 
 #include <curl/curl.h>
 #include <ctype.h>
@@ -23,13 +23,13 @@
  * status, bytes and wall-time. It is logged at NGX_LOG_DEBUG by default (so
  * `error_log … debug` shows it without a --with-debug rebuild) and promoted
  * to NGX_LOG_INFO when an operator turns tracing on for a cvmfs location
- * (xrootd_cvmfs_trace on → xrootd_origin_trace_set(1), inherited by workers).
+ * (brix_cvmfs_trace on → brix_origin_trace_set(1), inherited by workers).
  * Correlation with the client-op line is by PATH: under fill-coalescing one
  * upstream fetch backs many client requests, so path is truer than an id. */
 static int  g_origin_trace_info;   /* set pre-fork from the cvmfs merge */
 
 void
-xrootd_origin_trace_set(int info_on)
+brix_origin_trace_set(int info_on)
 {
     g_origin_trace_info = info_on ? 1 : 0;
 }
@@ -52,7 +52,7 @@ static long  g_origin_stall_bytes;     /* CURLOPT_LOW_SPEED_LIMIT (bytes/s) */
 static long  g_origin_attempt_ms;      /* CURLOPT_TIMEOUT_MS cap (ms)      */
 
 void
-xrootd_s3_origin_timeouts_set(long connect_ms, long stall_secs,
+brix_s3_origin_timeouts_set(long connect_ms, long stall_secs,
     long stall_bytes_per_s, long attempt_ms)
 {
     g_origin_connect_ms  = connect_ms  > 0 ? connect_ms  : 0;
@@ -71,7 +71,7 @@ xrootd_s3_origin_timeouts_set(long connect_ms, long stall_secs,
 static int  g_origin_no_reuse;      /* 0 = reuse (default), 1 = fresh per req */
 
 void
-xrootd_s3_origin_reuse_set(int reuse_on)
+brix_s3_origin_reuse_set(int reuse_on)
 {
     g_origin_no_reuse = reuse_on ? 0 : 1;
 }
@@ -180,7 +180,7 @@ s3o_build_slist(const char *headers)
 
 /* Emit one upstream-request trace line. `status` < 0 means a transport-level
  * failure (curl error in `err`); otherwise it is the HTTP status. Logged at
- * DEBUG normally, promoted to INFO under xrootd_cvmfs_trace. Path is
+ * DEBUG normally, promoted to INFO under brix_cvmfs_trace. Path is
  * wire-derived → sanitized. */
 static void
 s3o_trace(const char *method, const char *host, int port,
@@ -195,7 +195,7 @@ s3o_trace(const char *method, const char *host, int port,
     {
         return;                          /* below the configured level: cheap */
     }
-    xrootd_sanitize_log_string(path_and_query != NULL ? path_and_query : "",
+    brix_sanitize_log_string(path_and_query != NULL ? path_and_query : "",
                                safe, sizeof(safe));
     if (status < 0) {
         ngx_log_error(level, ngx_cycle->log, 0,
@@ -263,7 +263,7 @@ static int
 s3o_request(void *tctx, const char *host, int port, int tls,
             const char *method, const char *path_and_query,
             const char *headers, const void *body, size_t body_len,
-            int timeout_ms, xrootd_s3_resp_t *resp, char *errbuf, size_t errcap)
+            int timeout_ms, brix_s3_resp_t *resp, char *errbuf, size_t errcap)
 {
     CURL              *curl;
     CURLcode           res;
@@ -294,7 +294,7 @@ s3o_request(void *tctx, const char *host, int port, int tls,
 
     slist = s3o_build_slist(headers);
     /* Force the Host header to "host:port" — sd_s3 signs the SigV4 canonical host
-     * as host:port for EVERY port (xrootd_format_host_port always appends it), so
+     * as host:port for EVERY port (brix_format_host_port always appends it), so
      * libcurl's default of omitting the port on a default port (80/443) would
      * break the signature. Always sending the port keeps the Host header byte-for-
      * byte what was signed. */
@@ -403,7 +403,7 @@ s3o_request(void *tctx, const char *host, int port, int tls,
 }
 
 static int
-s3o_resp_header(const xrootd_s3_resp_t *resp, const char *name,
+s3o_resp_header(const brix_s3_resp_t *resp, const char *name,
                 char *out, size_t outcap)
 {
     const s3o_resp_t *r = resp->opaque;
@@ -437,7 +437,7 @@ s3o_resp_header(const xrootd_s3_resp_t *resp, const char *name,
 }
 
 static const void *
-s3o_resp_body(const xrootd_s3_resp_t *resp, size_t *len)
+s3o_resp_body(const brix_s3_resp_t *resp, size_t *len)
 {
     const s3o_resp_t *r = resp->opaque;
 
@@ -450,7 +450,7 @@ s3o_resp_body(const xrootd_s3_resp_t *resp, size_t *len)
 }
 
 static void
-s3o_resp_free(xrootd_s3_resp_t *resp)
+s3o_resp_free(brix_s3_resp_t *resp)
 {
     s3o_resp_t *r;
 
@@ -464,7 +464,7 @@ s3o_resp_free(xrootd_s3_resp_t *resp)
     resp->opaque = NULL;
 }
 
-const xrootd_s3_transport_t xrootd_s3_origin_curl_transport = {
+const brix_s3_transport_t brix_s3_origin_curl_transport = {
     .request     = s3o_request,
     .resp_header = s3o_resp_header,
     .resp_body   = s3o_resp_body,

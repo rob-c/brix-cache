@@ -1,5 +1,5 @@
-#ifndef XROOTD_SD_CEPH_COMPAT_H
-#define XROOTD_SD_CEPH_COMPAT_H
+#ifndef BRIX_SD_CEPH_COMPAT_H
+#define BRIX_SD_CEPH_COMPAT_H
 
 /*
  * sd_ceph_compat.h — pure libradosstriper on-RADOS layout helpers, matching stock
@@ -13,7 +13,7 @@
 #include <stddef.h>
 
 /* The first-stripe suffix (17 chars incl. the dot), as stock writes/filters it. */
-#define XROOTD_CEPH_FIRST_STRIPE_SUFFIX ".0000000000000000"
+#define BRIX_CEPH_FIRST_STRIPE_SUFFIX ".0000000000000000"
 
 /* oid of the first stripe for a striper object name: name + the suffix. 0 / -1. */
 int sd_ceph_first_stripe(const char *name, char *oid, size_t cap);
@@ -32,4 +32,4 @@ int sd_ceph_oid_to_pfn(const char *oid, char *pfn, size_t cap);
  * returns 0 (it IS its own catalog entry). */
 int sd_ceph_oid_is_stripe_data(const char *oid);
 
-#endif /* XROOTD_SD_CEPH_COMPAT_H */
+#endif /* BRIX_SD_CEPH_COMPAT_H */

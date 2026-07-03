@@ -34,11 +34,11 @@ http { access_log off;
     server {
     listen 127.0.0.1:$CPORT so_keepalive=60s:10s:6 backlog=2048;
     location /cvmfs/ {
-        xrootd_cvmfs_storage_backend http://$NIP:$MPORT;
-        xrootd_cvmfs_cache_store posix:$w/cache;
-        xrootd_cache_verify cvmfs-cas;
-        xrootd_cvmfs on;
-        xrootd_cvmfs_client_hold 25;
+        brix_cvmfs_storage_backend http://$NIP:$MPORT;
+        brix_cvmfs_cache_store posix:$w/cache;
+        brix_cache_verify cvmfs-cas;
+        brix_cvmfs on;
+        brix_cvmfs_client_hold 25;
     }
 } }
 EOF
@@ -58,11 +58,11 @@ http { access_log off;
     server {
     listen 127.0.0.1:$PPORT so_keepalive=60s:10s:6 backlog=2048;
     location / {
-        xrootd_cvmfs_cache_store posix:$w/cache;
-        xrootd_cache_verify cvmfs-cas;
-        xrootd_cvmfs on;
-        xrootd_cvmfs_client_hold 25;
-        xrootd_cvmfs_upstream_allow $NIP;
+        brix_cvmfs_cache_store posix:$w/cache;
+        brix_cache_verify cvmfs-cas;
+        brix_cvmfs on;
+        brix_cvmfs_client_hold 25;
+        brix_cvmfs_upstream_allow $NIP;
     }
 } }
 EOF

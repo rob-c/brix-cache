@@ -1,10 +1,10 @@
-#ifndef XROOTD_DIRLIST_H
-#define XROOTD_DIRLIST_H
+#ifndef BRIX_DIRLIST_H
+#define BRIX_DIRLIST_H
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
 /*
- * xrootd_handle_dirlist — directory listing with optional per-entry dStat.
+ * brix_handle_dirlist — directory listing with optional per-entry dStat.
  *
  * @ctx:    stream session context (file-handle table, protocol state)
  * @c:      nginx connection for sending kXR_oksofar/kXR_ok wire responses
@@ -18,7 +18,7 @@
  *
  * Returns NGX_OK on successful listing, NGX_ERROR if directory cannot be opened.
  */
-ngx_int_t xrootd_handle_dirlist(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf);
+ngx_int_t brix_handle_dirlist(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
 
-#endif /* XROOTD_DIRLIST_H */
+#endif /* BRIX_DIRLIST_H */

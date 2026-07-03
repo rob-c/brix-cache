@@ -1,10 +1,10 @@
 /*
  * builder.c — assemble the WLCG SRR "storageservice" JSON document.
  *
- * WHAT: ngx_http_xrootd_srr_build_json() constructs the Storage Resource
+ * WHAT: ngx_http_brix_srr_build_json() constructs the Storage Resource
  *   Reporting document (schema v4.x) with jansson and serialises it into a
  *   request-pool buffer.  Per-share total/used bytes come from statvfs(2) via
- *   the shared xrootd_fs_usage_stat() helper; identity, share, and endpoint
+ *   the shared brix_fs_usage_stat() helper; identity, share, and endpoint
  *   metadata come from the location config.
  *
  * WHY: WLCG storage accounting (CRIC harvester, DIRAC occupancy plugins) reads
@@ -102,10 +102,10 @@ srr_vos_array(const ngx_str_t *vos)
 
 /* JSON array of every configured share name (for endpoints' assignedshares). */
 static json_t *
-srr_share_names(ngx_http_xrootd_srr_loc_conf_t *lcf)
+srr_share_names(ngx_http_brix_srr_loc_conf_t *lcf)
 {
     json_t             *arr = json_array();
-    xrootd_srr_share_t *sh;
+    brix_srr_share_t *sh;
     ngx_uint_t          i;
 
     if (arr == NULL) {
@@ -124,10 +124,10 @@ srr_share_names(ngx_http_xrootd_srr_loc_conf_t *lcf)
 
 /* JSON array of every configured endpoint name (for shares' assignedendpoints). */
 static json_t *
-srr_endpoint_names(ngx_http_xrootd_srr_loc_conf_t *lcf)
+srr_endpoint_names(ngx_http_brix_srr_loc_conf_t *lcf)
 {
     json_t                *arr = json_array();
-    xrootd_srr_endpoint_t *ep;
+    brix_srr_endpoint_t *ep;
     ngx_uint_t             i;
 
     if (arr == NULL) {
@@ -145,8 +145,8 @@ srr_endpoint_names(ngx_http_xrootd_srr_loc_conf_t *lcf)
 
 
 ngx_int_t
-ngx_http_xrootd_srr_build_json(ngx_http_request_t *r,
-    ngx_http_xrootd_srr_loc_conf_t *lcf, u_char **out, size_t *len)
+ngx_http_brix_srr_build_json(ngx_http_request_t *r,
+    ngx_http_brix_srr_loc_conf_t *lcf, u_char **out, size_t *len)
 {
     json_t     *root, *svc, *shares, *eps, *cap, *online, *node;
     uint64_t    cap_total = 0, cap_used = 0;
@@ -177,10 +177,10 @@ ngx_http_xrootd_srr_build_json(ngx_http_request_t *r,
     }
     json_object_set_new(svc, "servicetype", json_string("disk"));
     json_object_set_new(svc, "implementation",
-        json_string(XROOTD_SERVER_NAME));
+        json_string(BRIX_SERVER_NAME));
     json_object_set_new(svc, "implementationversion",
         lcf->version.len ? SRR_JSTR(lcf->version)
-                         : json_string(XROOTD_SERVER_VERSION_BARE));
+                         : json_string(BRIX_SERVER_VERSION_BARE));
     json_object_set_new(svc, "qualitylevel",
         lcf->quality.len ? SRR_JSTR(lcf->quality) : json_string("production"));
     json_object_set_new(svc, "latestupdate", json_integer((json_int_t) now));
@@ -193,10 +193,10 @@ ngx_http_xrootd_srr_build_json(ngx_http_request_t *r,
     json_object_set_new(svc, "storageshares", shares);
 
     if (lcf->shares != NULL) {
-        xrootd_srr_share_t *sh = lcf->shares->elts;
+        brix_srr_share_t *sh = lcf->shares->elts;
 
         for (i = 0; i < lcf->shares->nelts; i++) {
-            xrootd_fs_usage_t  usage;
+            brix_fs_usage_t  usage;
             uint64_t           total = 0, used = 0;
             json_t            *share, *patharr;
             u_char            *pathz;
@@ -212,7 +212,7 @@ ngx_http_xrootd_srr_build_json(ngx_http_request_t *r,
             ngx_memcpy(pathz, sh[i].path.data, sh[i].path.len);
             pathz[sh[i].path.len] = '\0';
 
-            if (xrootd_fs_usage_stat((const char *) pathz, &usage) == NGX_OK) {
+            if (brix_fs_usage_stat((const char *) pathz, &usage) == NGX_OK) {
                 total = usage.total_bytes;
                 used  = usage.used_bytes;
             } else {
@@ -285,7 +285,7 @@ ngx_http_xrootd_srr_build_json(ngx_http_request_t *r,
     json_object_set_new(svc, "storageendpoints", eps);
 
     if (lcf->endpoints != NULL) {
-        xrootd_srr_endpoint_t *ep = lcf->endpoints->elts;
+        brix_srr_endpoint_t *ep = lcf->endpoints->elts;
 
         for (i = 0; i < lcf->endpoints->nelts; i++) {
             json_t *e = json_object();

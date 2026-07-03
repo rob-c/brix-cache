@@ -1,9 +1,9 @@
 """
 Phase-65 bad-actor guard — XrdHttp/WebDAV profile parity.
 
-Same matrix as tests/test_arc_guard.py but under `xrootd_guard_profile
+Same matrix as tests/test_arc_guard.py but under `brix_guard_profile
 xrdhttp;`: the export namespace is root-open by default (operator narrows via
-xrootd_guard_valid_prefix — exercised here with /store), signatures and the
+brix_guard_valid_prefix — exercised here with /store), signatures and the
 op grammar still apply, and audit lines carry proto=xrdhttp.
 
 Run:
@@ -54,10 +54,10 @@ http {{
     server {{
         listen {BIND_HOST}:{guard_port};
         location / {{
-            xrootd_guard on;
-            xrootd_guard_profile xrdhttp;
-            xrootd_guard_valid_prefix /store;
-            xrootd_guard_audit_log {audit_path};
+            brix_guard on;
+            brix_guard_profile xrdhttp;
+            brix_guard_valid_prefix /store;
+            brix_guard_audit_log {audit_path};
             proxy_pass http://{BIND_HOST}:{stub_backend.port};
         }}
     }}

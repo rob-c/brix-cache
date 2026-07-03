@@ -1,18 +1,18 @@
 /*
  * err_strings.h — canonical error message strings for common errnos.
  *
- * xrootd_kxr_err_string(err) returns the lowercase message string that
+ * brix_kxr_err_string(err) returns the lowercase message string that
  * conformance tests assert for each errno.  strerror(EACCES) returns
  * "Permission denied" (capital P) on Linux; centralising here prevents
  * any future case or format drift across handlers.
  */
-#ifndef XROOTD_COMPAT_ERR_STRINGS_H
-#define XROOTD_COMPAT_ERR_STRINGS_H
+#ifndef BRIX_COMPAT_ERR_STRINGS_H
+#define BRIX_COMPAT_ERR_STRINGS_H
 #include <errno.h>
 #include <string.h>
 
 static inline const char *
-xrootd_kxr_err_string(int err)
+brix_kxr_err_string(int err)
 {
     switch (err) {
     case EACCES: /* fall through */
@@ -27,4 +27,4 @@ xrootd_kxr_err_string(int err)
     }
 }
 
-#endif /* XROOTD_COMPAT_ERR_STRINGS_H */
+#endif /* BRIX_COMPAT_ERR_STRINGS_H */

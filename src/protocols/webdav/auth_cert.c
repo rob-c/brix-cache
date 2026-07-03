@@ -4,7 +4,7 @@
 
 #include "webdav.h"
 #include "auth/crypto/gsi_verify.h"
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
 #include <ngx_http_ssl_module.h>
 
@@ -31,12 +31,12 @@
  *   request on a long-lived connection.
  */
 typedef struct {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;    /* location config at auth time */
+    ngx_http_brix_webdav_loc_conf_t *conf;    /* location config at auth time */
     X509_STORE                        *store;    /* CA store used (borrowed from conf) */
     ngx_uint_t                         verify_depth; /* depth limit used */
     ngx_uint_t                         reuse_logged;  /* 1 after first "resumed" log */
     char                               dn[1024];      /* verified subject DN */
-} ngx_http_xrootd_webdav_tls_auth_cache_t;
+} ngx_http_brix_webdav_tls_auth_cache_t;
 
 static int webdav_ssl_auth_cache_index = -1;
 static int webdav_ssl_session_auth_cache_index = -1;
@@ -74,7 +74,7 @@ webdav_auth_init_ssl_indices(ngx_log_t *log)
                                                            NULL, NULL);
         if (webdav_ssl_auth_cache_index < 0) {
             ngx_log_error(NGX_LOG_EMERG, log, 0,
-                          "xrootd_webdav: SSL_get_ex_new_index() failed");
+                          "brix_webdav: SSL_get_ex_new_index() failed");
             return NGX_ERROR;
         }
     }
@@ -85,7 +85,7 @@ webdav_auth_init_ssl_indices(ngx_log_t *log)
                                          webdav_tls_auth_cache_free);
         if (webdav_ssl_session_auth_cache_index < 0) {
             ngx_log_error(NGX_LOG_EMERG, log, 0,
-                          "xrootd_webdav: SSL_SESSION_get_ex_new_index() failed");
+                          "brix_webdav: SSL_SESSION_get_ex_new_index() failed");
             return NGX_ERROR;
         }
     }
@@ -134,8 +134,8 @@ webdav_free_verify_resources(X509_STORE_CTX *vctx, X509 *leaf)
  *
  * WHY: The auth cache must be invalidated whenever configuration changes — if conf->ca_store or conf->verify_depth changed between requests, the cached verification result may no longer apply to the current certificate chain. This check prevents serving stale cache results after configuration reloads. */
 static ngx_int_t
-webdav_cache_matches(ngx_http_xrootd_webdav_tls_auth_cache_t *cache,
-                     ngx_http_xrootd_webdav_loc_conf_t *conf)
+webdav_cache_matches(ngx_http_brix_webdav_tls_auth_cache_t *cache,
+                     ngx_http_brix_webdav_loc_conf_t *conf)
 {
     return cache != NULL
            && cache->conf == conf
@@ -149,12 +149,12 @@ webdav_cache_matches(ngx_http_xrootd_webdav_tls_auth_cache_t *cache,
  * WHAT: Marks the request context as verified by copying the subject DN into ctx->dn, setting ctx->verified=1, and recording the authentication source ("nginx" for compatible mode or "manual" for explicit verification). This is called after successful certificate validation to signal that subsequent requests in this session can skip full re-verification.
  *
  * WHY: The request context is attached to the HTTP request via ngx_http_set_ctx() — marking it verified allows webdav_verify_proxy_cert() to return immediately on later requests without repeating the expensive chain traversal and CRL check. This is the core mechanism that enables TLS auth caching across a connection's lifetime. */
-static xrootd_identity_t *
+static brix_identity_t *
 webdav_ensure_identity(ngx_http_request_t *r,
-                       ngx_http_xrootd_webdav_req_ctx_t *ctx)
+                       ngx_http_brix_webdav_req_ctx_t *ctx)
 {
     if (ctx->identity == NULL) {
-        ctx->identity = xrootd_identity_alloc(r->pool);
+        ctx->identity = brix_identity_alloc(r->pool);
     }
 
     return ctx->identity;
@@ -162,10 +162,10 @@ webdav_ensure_identity(ngx_http_request_t *r,
 
 static ngx_int_t
 webdav_mark_req_verified(ngx_http_request_t *r,
-                         ngx_http_xrootd_webdav_req_ctx_t *ctx,
+                         ngx_http_brix_webdav_req_ctx_t *ctx,
                          const char *dn, const char *source)
 {
-    xrootd_identity_t *identity;
+    brix_identity_t *identity;
 
     if (dn != NULL) {
         ngx_cpystrn((u_char *) ctx->dn, (u_char *) dn, sizeof(ctx->dn));
@@ -179,8 +179,8 @@ webdav_mark_req_verified(ngx_http_request_t *r,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    return xrootd_identity_set_dn(identity, r->pool, ctx->dn,
-                                  XROOTD_AUTHN_GSI) == NGX_OK
+    return brix_identity_set_dn(identity, r->pool, ctx->dn,
+                                  BRIX_AUTHN_GSI) == NGX_OK
            ? NGX_OK : NGX_HTTP_INTERNAL_SERVER_ERROR;
 }
 
@@ -191,7 +191,7 @@ webdav_mark_req_verified(ngx_http_request_t *r,
  * WHY: Operators monitoring access logs need visibility into when auth caching kicks in (indicating reduced CPU load), but must not be flooded with messages on every subsequent request within a TLS session resumption. This single-log-per-request approach provides observability without log noise. */
 static void
 webdav_log_auth_cache_reuse(ngx_http_request_t *r,
-                            ngx_http_xrootd_webdav_tls_auth_cache_t *cache,
+                            ngx_http_brix_webdav_tls_auth_cache_t *cache,
                             const char *cache_name)
 {
     if (cache->reuse_logged) {
@@ -200,7 +200,7 @@ webdav_log_auth_cache_reuse(ngx_http_request_t *r,
 
     cache->reuse_logged = 1;
     ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-                  "xrootd_webdav: GSI auth reused from TLS %s cache",
+                  "brix_webdav: GSI auth reused from TLS %s cache",
                   cache_name);
 }
 
@@ -211,10 +211,10 @@ webdav_log_auth_cache_reuse(ngx_http_request_t *r,
  * WHY: Enables two-tier caching: (1) connection-level cache avoids re-verification during a single TCP session's requests; (2) session-level cache allows resumption across different TCP sessions (e.g., after network interruption or client reconnect). Both tiers share the same DN but have independent lifetimes — this maximizes caching benefit while respecting OpenSSL session semantics. */
 static ngx_int_t
 webdav_store_tls_auth_cache(ngx_http_request_t *r, SSL *ssl,
-                            ngx_http_xrootd_webdav_loc_conf_t *conf,
+                            ngx_http_brix_webdav_loc_conf_t *conf,
                             const char *dn)
 {
-    ngx_http_xrootd_webdav_tls_auth_cache_t *cache;
+    ngx_http_brix_webdav_tls_auth_cache_t *cache;
     SSL_SESSION                             *sess;
 
     if (webdav_ssl_auth_cache_index < 0 || dn == NULL || dn[0] == '\0') {
@@ -223,7 +223,7 @@ webdav_store_tls_auth_cache(ngx_http_request_t *r, SSL *ssl,
 
     cache = SSL_get_ex_data(ssl, webdav_ssl_auth_cache_index);
     if (!webdav_cache_matches(cache, conf)) {
-        XROOTD_PCALLOC_OR_RETURN(cache, r->connection->pool, sizeof(*cache), NGX_ERROR);
+        BRIX_PCALLOC_OR_RETURN(cache, r->connection->pool, sizeof(*cache), NGX_ERROR);
 
         cache->conf = conf;
         cache->store = conf->ca_store;
@@ -241,7 +241,7 @@ webdav_store_tls_auth_cache(ngx_http_request_t *r, SSL *ssl,
 
     sess = SSL_get0_session(ssl);
     if (sess != NULL) {
-        ngx_http_xrootd_webdav_tls_auth_cache_t *scache;
+        ngx_http_brix_webdav_tls_auth_cache_t *scache;
 
         scache = SSL_SESSION_get_ex_data(sess,
                                          webdav_ssl_session_auth_cache_index);
@@ -281,10 +281,10 @@ webdav_store_tls_auth_cache(ngx_http_request_t *r, SSL *ssl,
 
 static ngx_int_t
 webdav_try_cached_tls_auth(ngx_http_request_t *r, SSL *ssl,
-                           ngx_http_xrootd_webdav_loc_conf_t *conf,
-                           ngx_http_xrootd_webdav_req_ctx_t *ctx)
+                           ngx_http_brix_webdav_loc_conf_t *conf,
+                           ngx_http_brix_webdav_req_ctx_t *ctx)
 {
-    ngx_http_xrootd_webdav_tls_auth_cache_t *cache;
+    ngx_http_brix_webdav_tls_auth_cache_t *cache;
     SSL_SESSION                             *sess;
 
     if (webdav_ssl_auth_cache_index >= 0) {
@@ -327,7 +327,7 @@ webdav_try_cached_tls_auth(ngx_http_request_t *r, SSL *ssl,
 
 static ngx_int_t
 webdav_nginx_verify_compatible(ngx_http_request_t *r,
-                               ngx_http_xrootd_webdav_loc_conf_t *conf)
+                               ngx_http_brix_webdav_loc_conf_t *conf)
 {
     ngx_http_ssl_srv_conf_t *sslcf;
 
@@ -355,8 +355,8 @@ webdav_nginx_verify_compatible(ngx_http_request_t *r,
 
 static ngx_int_t
 webdav_finish_verified_cert(ngx_http_request_t *r,
-                            ngx_http_xrootd_webdav_loc_conf_t *conf,
-                            ngx_http_xrootd_webdav_req_ctx_t *ctx,
+                            ngx_http_brix_webdav_loc_conf_t *conf,
+                            ngx_http_brix_webdav_req_ctx_t *ctx,
                             SSL *ssl, X509 *leaf, const char *source)
 {
     char *dn;
@@ -378,34 +378,34 @@ webdav_finish_verified_cert(ngx_http_request_t *r,
     {
         char dn_log[1024];
 
-        xrootd_sanitize_log_string(ctx->dn, dn_log, sizeof(dn_log));
+        brix_sanitize_log_string(ctx->dn, dn_log, sizeof(dn_log));
         ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-                      "xrootd_webdav: GSI auth OK source=%s dn=\"%s\"",
+                      "brix_webdav: GSI auth OK source=%s dn=\"%s\"",
                       source, dn_log);
     }
 
     /* Optional VOMS VO extraction — non-fatal; NGX_DECLINED means no VOMS
      * attributes in the proxy cert, which is normal for plain grid proxies. */
     if (conf->vomsdir.len > 0 && conf->voms_cert_dir.len > 0
-        && xrootd_voms_available())
+        && brix_voms_available())
     {
         STACK_OF(X509) *chain = SSL_get_peer_cert_chain(ssl);
         char primary_vo[256] = "";
         char vo_list[1024]   = "";
 
-        (void) xrootd_extract_voms_info(r->connection->log, leaf, chain,
+        (void) brix_extract_voms_info(r->connection->log, leaf, chain,
                                         &conf->vomsdir, &conf->voms_cert_dir,
                                         primary_vo, sizeof(primary_vo),
                                         vo_list, sizeof(vo_list));
         if (ctx->identity != NULL && vo_list[0] != '\0'
-            && xrootd_identity_set_vos_csv(ctx->identity, r->pool, vo_list)
+            && brix_identity_set_vos_csv(ctx->identity, r->pool, vo_list)
                != NGX_OK)
         {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
         if (primary_vo[0] != '\0') {
             ngx_log_error(NGX_LOG_DEBUG, r->connection->log, 0,
-                          "xrootd_webdav: VOMS primary_vo=\"%s\"", primary_vo);
+                          "brix_webdav: VOMS primary_vo=\"%s\"", primary_vo);
         }
     }
 
@@ -414,27 +414,27 @@ webdav_finish_verified_cert(ngx_http_request_t *r,
 
 ngx_int_t
 webdav_verify_proxy_cert(ngx_http_request_t *r,
-                         ngx_http_xrootd_webdav_loc_conf_t *conf)
+                         ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    ngx_http_xrootd_webdav_req_ctx_t *ctx;
+    ngx_http_brix_webdav_req_ctx_t *ctx;
     SSL              *ssl;
     X509             *leaf = NULL;
     STACK_OF(X509)   *chain = NULL;
-    xrootd_gsi_verify_result_t  verify_res;
+    brix_gsi_verify_result_t  verify_res;
     long              verify_result;
     ngx_int_t         cache_rc;
 
-    ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (ctx != NULL) {
         return ctx->verified ? NGX_OK : NGX_HTTP_FORBIDDEN;
     }
 
-    XROOTD_PCALLOC_OR_RETURN(ctx, r->pool, sizeof(*ctx), NGX_HTTP_INTERNAL_SERVER_ERROR);
-    ngx_http_set_ctx(r, ctx, ngx_http_xrootd_webdav_module);
+    BRIX_PCALLOC_OR_RETURN(ctx, r->pool, sizeof(*ctx), NGX_HTTP_INTERNAL_SERVER_ERROR);
+    ngx_http_set_ctx(r, ctx, ngx_http_brix_webdav_module);
 
     if (r->connection->ssl == NULL) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                      "xrootd_webdav: non-TLS connection, cannot verify GSI");
+                      "brix_webdav: non-TLS connection, cannot verify GSI");
         return NGX_HTTP_FORBIDDEN;
     }
 
@@ -451,7 +451,7 @@ webdav_verify_proxy_cert(ngx_http_request_t *r,
     leaf = SSL_get_peer_certificate(ssl);
     if (leaf == NULL) {
         ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "xrootd_webdav: no client certificate presented");
+                       "brix_webdav: no client certificate presented");
         return NGX_HTTP_FORBIDDEN;
     }
 
@@ -471,15 +471,15 @@ webdav_verify_proxy_cert(ngx_http_request_t *r,
     if (conf->ca_store == NULL) {
         webdav_free_verify_resources(NULL, leaf);
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "xrootd_webdav: cached CA store is unavailable");
+                      "brix_webdav: cached CA store is unavailable");
         return NGX_HTTP_FORBIDDEN;
     }
 
-    if (xrootd_gsi_verify_chain(r->connection->log, conf->ca_store,
+    if (brix_gsi_verify_chain(r->connection->log, conf->ca_store,
                                  leaf, chain, conf->verify_depth,
                                  &verify_res) != NGX_OK)
     {
-        /* xrootd_gsi_verify_chain already logged the specific error */
+        /* brix_gsi_verify_chain already logged the specific error */
         webdav_free_verify_resources(NULL, leaf);
         return NGX_HTTP_FORBIDDEN;
     }

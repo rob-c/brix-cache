@@ -2,7 +2,7 @@
  *
  * WHAT: for absolute-form request lines ("GET http://s1:8000/cvmfs/..."),
  *       extract the authority nginx already parsed (r->host_start/end,
- *       r->port_start/end) and check it against xrootd_cvmfs_upstream_allow.
+ *       r->port_start/end) and check it against brix_cvmfs_upstream_allow.
  * WHY:  a CVMFS site proxy is a proxy for the site's Stratum-1s ONLY —
  *       without the allowlist it is an open HTTP proxy.
  * HOW:  no parsing of our own: nginx validates absolute-form targets during
@@ -12,7 +12,7 @@
 #include "cvmfs.h"
 
 ngx_int_t
-xrootd_cvmfs_proxy_target(ngx_http_request_t *r, const xrootd_cvmfs_conf_t *cc,
+brix_cvmfs_proxy_target(ngx_http_request_t *r, const brix_cvmfs_conf_t *cc,
     ngx_str_t *host, in_port_t *port)
 {
     ngx_str_t   *allow;
@@ -28,8 +28,8 @@ xrootd_cvmfs_proxy_target(ngx_http_request_t *r, const xrootd_cvmfs_conf_t *cc,
      * scvmfs:// (T22) lifts this on secure listeners: ctx->secure allows
      * https authorities (and TLS upstream connects). */
     {
-        ngx_http_xrootd_cvmfs_ctx_t *ctx =
-            ngx_http_get_module_ctx(r, ngx_http_xrootd_cvmfs_module);
+        ngx_http_brix_cvmfs_ctx_t *ctx =
+            ngx_http_get_module_ctx(r, ngx_http_brix_cvmfs_module);
         size_t sl = (size_t) (r->schema_end - r->schema_start);
         int is_http  = (sl == 4
             && ngx_strncasecmp(r->schema_start, (u_char *) "http", 4) == 0);

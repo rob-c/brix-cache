@@ -4,33 +4,33 @@
  * Pure C, no nginx headers.
  */
 
-#ifndef XROOTD_COMPAT_PATH_H
-#define XROOTD_COMPAT_PATH_H
+#ifndef BRIX_COMPAT_PATH_H
+#define BRIX_COMPAT_PATH_H
 
 #include <stddef.h>
 
 /*
- * XROOTD_PATH_MAX — maximum filesystem path length accepted from any client.
+ * BRIX_PATH_MAX — maximum filesystem path length accepted from any client.
  *
  * Both the XRootD stream protocol and the HTTP (WebDAV/S3) protocol layers
  * enforce this limit before expensive syscalls (realpath, open).  Setting it
  * equal to the Linux PATH_MAX (4096) ensures buffers declared as
- * char buf[XROOTD_PATH_MAX] can always hold a NUL-terminated kernel path.
+ * char buf[BRIX_PATH_MAX] can always hold a NUL-terminated kernel path.
  *
- * Protocol-specific aliases XROOTD_MAX_PATH (stream) and WEBDAV_MAX_PATH
+ * Protocol-specific aliases BRIX_MAX_PATH (stream) and WEBDAV_MAX_PATH
  * (HTTP) are defined in their respective headers as macros that expand to
  * this value so a single change here propagates everywhere.
  */
-#define XROOTD_PATH_MAX  4096
+#define BRIX_PATH_MAX  4096
 
 /*
- * XROOTD_PATH_MIN — minimum valid path length (inclusive).
+ * BRIX_PATH_MIN — minimum valid path length (inclusive).
  *
  * An absolute path must contain at least one character ("/").  The stream
  * path extractor and HTTP path resolver both reject zero-length paths;
  * this constant makes that threshold explicit and searchable.
  */
-#define XROOTD_PATH_MIN  1
+#define BRIX_PATH_MIN  1
 
 /*
  * WHAT: Resolve a pre-decoded URI path within root_canon into a confined filesystem path.
@@ -59,7 +59,7 @@
  * The caller must map 400/404 to the appropriate protocol-level status;
  * for WebDAV COPY/MOVE destinations, 404 should be returned as 409 Conflict.
  */
-int xrootd_http_resolve_path(const char *root_canon, const char *decoded_path,
+int brix_http_resolve_path(const char *root_canon, const char *decoded_path,
     char *out, size_t outsz);
 
-#endif /* XROOTD_COMPAT_PATH_H */
+#endif /* BRIX_COMPAT_PATH_H */

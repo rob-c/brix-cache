@@ -50,7 +50,7 @@ DESTRUCTIVE=(
     tests/test_evil_actor.py tests/test_evil_actor_v2.py
     tests/test_evil_actor_v3.py tests/test_evil_actor_v3_b.py
     tests/test_evil_paths.py tests/test_netfault_stream.py
-    tests/test_net_resilience.py tests/test_official_xrootd_resilience.py
+    tests/test_net_resilience.py tests/test_official_brix_resilience.py
     tests/test_phase51_resilience.py tests/test_xrootdfs_resilience.py
     tests/resilience
 )

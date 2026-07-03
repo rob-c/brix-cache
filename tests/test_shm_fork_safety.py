@@ -11,7 +11,7 @@ WHAT
     callback laid its own struct directly over ``shm.addr`` clobbers that slab
     header, so the master SIGSEGVs the instant any worker exits. This was a
     codebase-wide latent bug (FIXED 2026-06-14 via src/core/compat/shm_slots.c
-    ``xrootd_shm_table_alloc``, which slab-allocates the table and leaves the
+    ``brix_shm_table_alloc``, which slab-allocates the table and leaves the
     header intact).
 
 WHY THIS TEST
@@ -152,37 +152,37 @@ stream {
     access_log off;
 
     # gated zones declared at stream-main scope
-    xrootd_kv_zone tcache 1m key=64 val=512;
-    xrootd_rate_limit_zone zone=rlz:10m;
+    brix_kv_zone tcache 1m key=64 val=512;
+    brix_rate_limit_zone zone=rlz:10m;
 
     # plain local origin: registers the unconditional stream zones + frm_index
     server {
         listen __H__:__ROOT__;
         xrootd on;
-        xrootd_storage_backend posix:__DATA__;
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_session_slots 64;
-        xrootd_registry_slots 64;
-        xrootd_tpc_allow_local on;
-        xrootd_tpc_key_ttl 60s;
-        xrootd_prepare_command /bin/true;
-        xrootd_frm on;
-        xrootd_frm_queue_path __FRM__/queue;
-        xrootd_frm_max_inflight 8;
-        xrootd_frm_stagecmd /bin/true;
-        xrootd_rate_limit_rule zone=rlz key=ip rate=10000r/s burst=20000;
+        brix_storage_backend posix:__DATA__;
+        brix_auth none;
+        brix_allow_write on;
+        brix_session_slots 64;
+        brix_registry_slots 64;
+        brix_tpc_allow_local on;
+        brix_tpc_key_ttl 60s;
+        brix_prepare_command /bin/true;
+        brix_frm on;
+        brix_frm_queue_path __FRM__/queue;
+        brix_frm_max_inflight 8;
+        brix_frm_stagecmd /bin/true;
+        brix_rate_limit_rule zone=rlz key=ip rate=10000r/s burst=20000;
     }
 
     # manager/redirector role: registers the redir-collapse cache zone
     server {
         listen __H__:__MGR__;
         xrootd on;
-        xrootd_auth none;
-        xrootd_manager_mode on;
-        xrootd_collapse_redir on;
-        xrootd_collapse_redir_ttl 5s;
-        xrootd_redir_cache_slots 64;
+        brix_auth none;
+        brix_manager_mode on;
+        brix_collapse_redir on;
+        brix_collapse_redir_ttl 5s;
+        brix_redir_cache_slots 64;
     }
 }
 
@@ -197,27 +197,27 @@ http {
     server {
         listen __H__:__HTTP__;
 
-        location = /metrics { xrootd_metrics on; }
+        location = /metrics { brix_metrics on; }
 
         location /dav/ {
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:__DATA__;
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
+            brix_webdav on;
+            brix_webdav_storage_backend posix:__DATA__;
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
         }
 
         location /s3/ {
-            xrootd_s3 on;
-            xrootd_s3_storage_backend posix:__DATA__;
-            xrootd_s3_region us-east-1;
-            xrootd_s3_access_key testkey;
-            xrootd_s3_secret_key testsecret;
+            brix_s3 on;
+            brix_s3_storage_backend posix:__DATA__;
+            brix_s3_region us-east-1;
+            brix_s3_access_key testkey;
+            brix_s3_secret_key testsecret;
         }
 
         location /proxy/ {
-            xrootd_webdav_proxy on;
-            xrootd_webdav_proxy_dynamic on;
-            xrootd_admin_allow 127.0.0.1/32 ::1/128;
+            brix_webdav_proxy on;
+            brix_webdav_proxy_dynamic on;
+            brix_admin_allow 127.0.0.1/32 ::1/128;
         }
     }
 }
@@ -238,9 +238,9 @@ stream {
     server {
         listen __H__:__ROOT__;
         xrootd on;
-        xrootd_storage_backend posix:__DATA__;
-        xrootd_auth none;
-        xrootd_allow_write on;
+        brix_storage_backend posix:__DATA__;
+        brix_auth none;
+        brix_allow_write on;
     }
 }
 
@@ -248,7 +248,7 @@ http {
     access_log off;
     server {
         listen __H__:__HTTP__;
-        location = /metrics { xrootd_metrics on; }
+        location = /metrics { brix_metrics on; }
     }
 }
 """.replace("__H__", BIND_HOST).replace("__ROOT__", str(root_port)) \

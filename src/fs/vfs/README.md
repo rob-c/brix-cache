@@ -1,6 +1,6 @@
 # fs/vfs — the VFS facade (public API + per-op implementations)
 
-The `xrootd_vfs_*` surface every protocol handler calls: `vfs.h` (the only
+The `brix_vfs_*` surface every protocol handler calls: `vfs.h` (the only
 header handlers should include), the per-op implementation files
 (`vfs_open.c`, `vfs_read.c`, `vfs_write.c`, `vfs_stat.c`, `vfs_dir.c`,
 `vfs_unlink.c`, `vfs_rename.c`, `vfs_mkdir.c`, `vfs_sync.c`, `vfs_xattr.c`,

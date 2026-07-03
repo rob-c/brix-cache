@@ -17,10 +17,10 @@
 #include <string.h>
 
 /* Maps are tiny (subject→user lines); cap the read so a bad path can't OOM. */
-#define XROOTD_SUBJECT_MAP_MAX  (256 * 1024)
+#define BRIX_SUBJECT_MAP_MAX  (256 * 1024)
 
 int
-xrootd_subject_mapfile_lookup(const char *path, const char *subject,
+brix_subject_mapfile_lookup(const char *path, const char *subject,
     char *out, size_t outsz)
 {
     FILE   *f;
@@ -37,13 +37,13 @@ xrootd_subject_mapfile_lookup(const char *path, const char *subject,
         return -1;
     }
 
-    buf = malloc(XROOTD_SUBJECT_MAP_MAX);
+    buf = malloc(BRIX_SUBJECT_MAP_MAX);
     if (buf == NULL) {
         fclose(f);
         return -1;
     }
 
-    got = fread(buf, 1, XROOTD_SUBJECT_MAP_MAX - 1, f);
+    got = fread(buf, 1, BRIX_SUBJECT_MAP_MAX - 1, f);
     fclose(f);
     buf[got] = '\0';
 

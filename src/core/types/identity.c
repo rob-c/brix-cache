@@ -6,12 +6,12 @@
 /*
  * identity.c — builder/accessors for the protocol-agnostic principal.
  *
- * WHAT: Implements xrootd_identity_t lifecycle (alloc) and the setters that
+ * WHAT: Implements brix_identity_t lifecycle (alloc) and the setters that
  *       populate it from the various wire-auth flavours — GSI DN, JWT/token
  *       claims, SSS user, S3 access key — plus const accessors
- *       (xrootd_identity_dn_cstr / _subject_cstr / _vo_csv_cstr), a token
- *       scope check (xrootd_identity_check_token_scope), and a one-line audit
- *       summary (xrootd_identity_describe).
+ *       (brix_identity_dn_cstr / _subject_cstr / _vo_csv_cstr), a token
+ *       scope check (brix_identity_check_token_scope), and a one-line audit
+ *       summary (brix_identity_describe).
  *
  * WHY:  Each protocol verifies credentials its own way, but policy, ACL, and
  *       audit code must reason about a single canonical principal shape.  This
@@ -21,11 +21,11 @@
  *       views (vo_csv, scope_raw) that current hot paths still read.
  *
  * HOW:  Every string lands in the caller's ngx_pool_t via the internal
- *       xrootd_identity_set_cstr (NUL-terminated copy so the values can be
+ *       brix_identity_set_cstr (NUL-terminated copy so the values can be
  *       passed to C string APIs).  CSV group lists are tokenised by
- *       xrootd_identity_split_csv and space-separated OAuth scopes by
- *       xrootd_identity_split_spaces into ngx_str_t arrays.  Any setter that
- *       records a credential ORs the matching XROOTD_AUTHN_* bit into
+ *       brix_identity_split_csv and space-separated OAuth scopes by
+ *       brix_identity_split_spaces into ngx_str_t arrays.  Any setter that
+ *       records a credential ORs the matching BRIX_AUTHN_* bit into
  *       auth_method and marks is_authenticated; token claims additionally
  *       cache the parsed scope table and derive has_read_scope /
  *       has_write_scope for fast policy decisions.
@@ -37,7 +37,7 @@
  * can feed raw tokeniser output without pre-filtering.
  */
 static ngx_int_t
-xrootd_identity_push_str(ngx_pool_t *pool, ngx_array_t **array,
+brix_identity_push_str(ngx_pool_t *pool, ngx_array_t **array,
     const char *start, size_t len)
 {
     ngx_str_t *elt;
@@ -75,7 +75,7 @@ xrootd_identity_push_str(ngx_pool_t *pool, ngx_array_t **array,
  * elements, skipping empty fields and runs of commas.
  */
 static ngx_int_t
-xrootd_identity_split_csv(ngx_pool_t *pool, ngx_array_t **array,
+brix_identity_split_csv(ngx_pool_t *pool, ngx_array_t **array,
     const char *csv)
 {
     const char *p, *start;
@@ -94,7 +94,7 @@ xrootd_identity_split_csv(ngx_pool_t *pool, ngx_array_t **array,
             p++;
         }
         if ((size_t) (p - start) > 0
-            && xrootd_identity_push_str(pool, array, start,
+            && brix_identity_push_str(pool, array, start,
                                         (size_t) (p - start)) != NGX_OK)
         {
             return NGX_ERROR;
@@ -109,7 +109,7 @@ xrootd_identity_split_csv(ngx_pool_t *pool, ngx_array_t **array,
  * ngx_str_t scope tokens, skipping empty fields and runs of spaces.
  */
 static ngx_int_t
-xrootd_identity_split_spaces(ngx_pool_t *pool, ngx_array_t **array,
+brix_identity_split_spaces(ngx_pool_t *pool, ngx_array_t **array,
     const char *spaces)
 {
     const char *p, *start;
@@ -128,7 +128,7 @@ xrootd_identity_split_spaces(ngx_pool_t *pool, ngx_array_t **array,
             p++;
         }
         if ((size_t) (p - start) > 0
-            && xrootd_identity_push_str(pool, array, start,
+            && brix_identity_push_str(pool, array, start,
                                         (size_t) (p - start)) != NGX_OK)
         {
             return NGX_ERROR;
@@ -144,24 +144,24 @@ xrootd_identity_split_spaces(ngx_pool_t *pool, ngx_array_t **array,
  * principal authenticated by several mechanisms reports its strongest one.
  */
 static const char *
-xrootd_identity_method_name(ngx_uint_t method)
+brix_identity_method_name(ngx_uint_t method)
 {
-    if (method & XROOTD_AUTHN_GSI) {
+    if (method & BRIX_AUTHN_GSI) {
         return "GSI";
     }
-    if (method & XROOTD_AUTHN_TOKEN) {
+    if (method & BRIX_AUTHN_TOKEN) {
         return "TOKEN";
     }
-    if (method & XROOTD_AUTHN_SSS) {
+    if (method & BRIX_AUTHN_SSS) {
         return "SSS";
     }
-    if (method & XROOTD_AUTHN_S3KEY) {
+    if (method & BRIX_AUTHN_S3KEY) {
         return "S3KEY";
     }
-    if (method & XROOTD_AUTHN_KRB5) {
+    if (method & BRIX_AUTHN_KRB5) {
         return "KRB5";
     }
-    if (method & XROOTD_AUTHN_UNIX) {
+    if (method & BRIX_AUTHN_UNIX) {
         return "UNIX";
     }
     return "NONE";
@@ -169,12 +169,12 @@ xrootd_identity_method_name(ngx_uint_t method)
 
 /*
  * Allocate and zero-initialise a new identity on `pool`, seeding auth_method
- * to XROOTD_AUTHN_NONE (unauthenticated until a setter records a credential).
+ * to BRIX_AUTHN_NONE (unauthenticated until a setter records a credential).
  */
-xrootd_identity_t *
-xrootd_identity_alloc(ngx_pool_t *pool)
+brix_identity_t *
+brix_identity_alloc(ngx_pool_t *pool)
 {
-    xrootd_identity_t *id;
+    brix_identity_t *id;
 
     if (pool == NULL) {
         return NULL;
@@ -182,7 +182,7 @@ xrootd_identity_alloc(ngx_pool_t *pool)
 
     id = ngx_pcalloc(pool, sizeof(*id));
     if (id != NULL) {
-        id->auth_method = XROOTD_AUTHN_NONE;
+        id->auth_method = BRIX_AUTHN_NONE;
     }
 
     return id;
@@ -193,7 +193,7 @@ xrootd_identity_alloc(ngx_pool_t *pool)
  * A NULL or empty source clears `dst` to a null string and still succeeds.
  */
 ngx_int_t
-xrootd_identity_set_cstr(ngx_pool_t *pool, ngx_str_t *dst, const char *src)
+brix_identity_set_cstr(ngx_pool_t *pool, ngx_str_t *dst, const char *src)
 {
     size_t len;
 
@@ -221,17 +221,17 @@ xrootd_identity_set_cstr(ngx_pool_t *pool, ngx_str_t *dst, const char *src)
 
 /*
  * Record a distinguished name (GSI cert DN, SSS user, etc.), OR in the given
- * XROOTD_AUTHN_* method bit, and mark the principal authenticated.
+ * BRIX_AUTHN_* method bit, and mark the principal authenticated.
  */
 ngx_int_t
-xrootd_identity_set_dn(xrootd_identity_t *id, ngx_pool_t *pool,
+brix_identity_set_dn(brix_identity_t *id, ngx_pool_t *pool,
     const char *dn, ngx_uint_t auth_method)
 {
     if (id == NULL) {
         return NGX_ERROR;
     }
 
-    if (xrootd_identity_set_cstr(pool, &id->dn, dn) != NGX_OK) {
+    if (brix_identity_set_cstr(pool, &id->dn, dn) != NGX_OK) {
         return NGX_ERROR;
     }
 
@@ -242,17 +242,17 @@ xrootd_identity_set_dn(xrootd_identity_t *id, ngx_pool_t *pool,
 
 /*
  * Record a subject (JWT `sub` or S3 access key), OR in the given
- * XROOTD_AUTHN_* method bit, and mark the principal authenticated.
+ * BRIX_AUTHN_* method bit, and mark the principal authenticated.
  */
 ngx_int_t
-xrootd_identity_set_subject(xrootd_identity_t *id, ngx_pool_t *pool,
+brix_identity_set_subject(brix_identity_t *id, ngx_pool_t *pool,
     const char *subject, ngx_uint_t auth_method)
 {
     if (id == NULL) {
         return NGX_ERROR;
     }
 
-    if (xrootd_identity_set_cstr(pool, &id->subject, subject) != NGX_OK) {
+    if (brix_identity_set_cstr(pool, &id->subject, subject) != NGX_OK) {
         return NGX_ERROR;
     }
 
@@ -262,7 +262,7 @@ xrootd_identity_set_subject(xrootd_identity_t *id, ngx_pool_t *pool,
 }
 
 /*
- * xrootd_identity_derive_attrs — split each comma-separated VOMS FQAN / token
+ * brix_identity_derive_attrs — split each comma-separated VOMS FQAN / token
  * group into (vorg, role, group) and store them as three index-aligned CSVs for
  * the xrdacc engine.  An FQAN like "/cms/Role=production/Capability=NULL" yields
  * vorg="cms", role="production", group="/cms"; "Role=NULL" and a plain group
@@ -270,7 +270,7 @@ xrootd_identity_set_subject(xrootd_identity_t *id, ngx_pool_t *pool,
  * input, so an strlen(vo_csv)-sized buffer always suffices.
  */
 static ngx_int_t
-xrootd_identity_derive_attrs(xrootd_identity_t *id, ngx_pool_t *pool,
+brix_identity_derive_attrs(brix_identity_t *id, ngx_pool_t *pool,
     const char *vo_csv)
 {
     size_t   inlen = (vo_csv != NULL) ? ngx_strlen(vo_csv) : 0;
@@ -349,34 +349,34 @@ xrootd_identity_derive_attrs(xrootd_identity_t *id, ngx_pool_t *pool,
  * derive the xrdacc (vorg, role, group) attribute views.
  */
 ngx_int_t
-xrootd_identity_set_vos_csv(xrootd_identity_t *id, ngx_pool_t *pool,
+brix_identity_set_vos_csv(brix_identity_t *id, ngx_pool_t *pool,
     const char *vo_csv)
 {
     if (id == NULL) {
         return NGX_ERROR;
     }
 
-    if (xrootd_identity_set_cstr(pool, &id->vo_csv, vo_csv) != NGX_OK) {
+    if (brix_identity_set_cstr(pool, &id->vo_csv, vo_csv) != NGX_OK) {
         return NGX_ERROR;
     }
-    if (xrootd_identity_derive_attrs(id, pool, vo_csv) != NGX_OK) {
+    if (brix_identity_derive_attrs(id, pool, vo_csv) != NGX_OK) {
         return NGX_ERROR;
     }
 
-    return xrootd_identity_split_csv(pool, &id->vo_list, vo_csv);
+    return brix_identity_split_csv(pool, &id->vo_list, vo_csv);
 }
 
 /*
  * Populate the identity from a verified token's claims: sets subject (sub),
  * issuer (iss), raw scope string, and groups; mirrors `sub` into `dn` when
  * present; tokenises the raw scope into the scopes array; caches up to
- * XROOTD_MAX_TOKEN_SCOPES parsed scope entries; and derives has_read_scope /
+ * BRIX_MAX_TOKEN_SCOPES parsed scope entries; and derives has_read_scope /
  * has_write_scope from their read/write/create flags.  Marks the principal
  * token-authenticated.
  */
 ngx_int_t
-xrootd_identity_set_token_claims(xrootd_identity_t *id, ngx_pool_t *pool,
-    const xrootd_token_claims_t *claims)
+brix_identity_set_token_claims(brix_identity_t *id, ngx_pool_t *pool,
+    const brix_token_claims_t *claims)
 {
     int i;
 
@@ -384,31 +384,31 @@ xrootd_identity_set_token_claims(xrootd_identity_t *id, ngx_pool_t *pool,
         return NGX_ERROR;
     }
 
-    if (xrootd_identity_set_subject(id, pool, claims->sub,
-                                    XROOTD_AUTHN_TOKEN) != NGX_OK
-        || xrootd_identity_set_cstr(pool, &id->issuer, claims->iss) != NGX_OK
-        || xrootd_identity_set_cstr(pool, &id->scope_raw,
+    if (brix_identity_set_subject(id, pool, claims->sub,
+                                    BRIX_AUTHN_TOKEN) != NGX_OK
+        || brix_identity_set_cstr(pool, &id->issuer, claims->iss) != NGX_OK
+        || brix_identity_set_cstr(pool, &id->scope_raw,
                                     claims->scope_raw) != NGX_OK
-        || xrootd_identity_set_vos_csv(id, pool, claims->groups) != NGX_OK)
+        || brix_identity_set_vos_csv(id, pool, claims->groups) != NGX_OK)
     {
         return NGX_ERROR;
     }
 
     if (claims->sub[0] != '\0'
-        && xrootd_identity_set_cstr(pool, &id->dn, claims->sub) != NGX_OK)
+        && brix_identity_set_cstr(pool, &id->dn, claims->sub) != NGX_OK)
     {
         return NGX_ERROR;
     }
 
-    if (xrootd_identity_split_spaces(pool, &id->scopes,
+    if (brix_identity_split_spaces(pool, &id->scopes,
                                      claims->scope_raw) != NGX_OK)
     {
         return NGX_ERROR;
     }
 
     id->token_scope_count = claims->scope_count;
-    if (id->token_scope_count > XROOTD_MAX_TOKEN_SCOPES) {
-        id->token_scope_count = XROOTD_MAX_TOKEN_SCOPES;
+    if (id->token_scope_count > BRIX_MAX_TOKEN_SCOPES) {
+        id->token_scope_count = BRIX_MAX_TOKEN_SCOPES;
     }
 
     for (i = 0; i < id->token_scope_count; i++) {
@@ -421,7 +421,7 @@ xrootd_identity_set_token_claims(xrootd_identity_t *id, ngx_pool_t *pool,
         }
     }
 
-    id->auth_method |= XROOTD_AUTHN_TOKEN;
+    id->auth_method |= BRIX_AUTHN_TOKEN;
     id->is_authenticated = 1;
 
     return NGX_OK;
@@ -429,14 +429,14 @@ xrootd_identity_set_token_claims(xrootd_identity_t *id, ngx_pool_t *pool,
 
 /* Return the DN as a C string, or "" when the identity or field is unset. */
 const char *
-xrootd_identity_dn_cstr(const xrootd_identity_t *id)
+brix_identity_dn_cstr(const brix_identity_t *id)
 {
     return (id != NULL && id->dn.data != NULL) ? (const char *) id->dn.data : "";
 }
 
 /* Return the subject as a C string, or "" when the identity or field is unset. */
 const char *
-xrootd_identity_subject_cstr(const xrootd_identity_t *id)
+brix_identity_subject_cstr(const brix_identity_t *id)
 {
     return (id != NULL && id->subject.data != NULL)
            ? (const char *) id->subject.data : "";
@@ -444,7 +444,7 @@ xrootd_identity_subject_cstr(const xrootd_identity_t *id)
 
 /* Return the VO/group CSV as a C string, or "" when unset. */
 const char *
-xrootd_identity_vo_csv_cstr(const xrootd_identity_t *id)
+brix_identity_vo_csv_cstr(const brix_identity_t *id)
 {
     return (id != NULL && id->vo_csv.data != NULL)
            ? (const char *) id->vo_csv.data : "";
@@ -452,21 +452,21 @@ xrootd_identity_vo_csv_cstr(const xrootd_identity_t *id)
 
 /* XrdAcc attribute views derived from the FQANs; "" when unset (never NULL). */
 const char *
-xrootd_identity_acc_vorg_cstr(const xrootd_identity_t *id)
+brix_identity_acc_vorg_cstr(const brix_identity_t *id)
 {
     return (id != NULL && id->acc_vorg_csv.data != NULL)
            ? (const char *) id->acc_vorg_csv.data : "";
 }
 
 const char *
-xrootd_identity_acc_role_cstr(const xrootd_identity_t *id)
+brix_identity_acc_role_cstr(const brix_identity_t *id)
 {
     return (id != NULL && id->acc_role_csv.data != NULL)
            ? (const char *) id->acc_role_csv.data : "";
 }
 
 const char *
-xrootd_identity_acc_group_cstr(const xrootd_identity_t *id)
+brix_identity_acc_group_cstr(const brix_identity_t *id)
 {
     return (id != NULL && id->acc_group_csv.data != NULL)
            ? (const char *) id->acc_group_csv.data : "";
@@ -475,40 +475,40 @@ xrootd_identity_acc_group_cstr(const xrootd_identity_t *id)
 /*
  * Authorise `logical_path` against the cached token scopes.  Returns NGX_OK
  * (allow) immediately for non-token principals — scope checks apply only to
- * token auth; otherwise delegates to xrootd_token_check_write/read depending
+ * token auth; otherwise delegates to brix_token_check_write/read depending
  * on need_write and returns NGX_OK only when the scope grants access.
  */
 ngx_int_t
-xrootd_identity_check_token_scope(const xrootd_identity_t *id,
+brix_identity_check_token_scope(const brix_identity_t *id,
     const char *logical_path, int need_write)
 {
-    if (id == NULL || !(id->auth_method & XROOTD_AUTHN_TOKEN)) {
+    if (id == NULL || !(id->auth_method & BRIX_AUTHN_TOKEN)) {
         return NGX_OK;
     }
 
     /* phase-59 W1: when authed via a multi-issuer registry, enforce the
      * issuer's base_path/restricted_path gate + strategy ladder per path. */
     if (id->token_issuer != NULL) {
-        xrootd_token_op_e op = need_write ? XROOTD_TOKEN_OP_WRITE
-                                          : XROOTD_TOKEN_OP_READ;
-        xrootd_token_claims_t c;
+        brix_token_op_e op = need_write ? BRIX_TOKEN_OP_WRITE
+                                          : BRIX_TOKEN_OP_READ;
+        brix_token_claims_t c;
         ngx_memzero(&c, sizeof(c));
         c.scope_count = id->token_scope_count;
         ngx_memcpy(c.scopes, id->token_scopes,
-                   sizeof(xrootd_token_scope_t) * id->token_scope_count);
-        return xrootd_token_authz_strategy(
-                   (const xrootd_token_issuer_t *) id->token_issuer,
+                   sizeof(brix_token_scope_t) * id->token_scope_count);
+        return brix_token_authz_strategy(
+                   (const brix_token_issuer_t *) id->token_issuer,
                    &c, logical_path, op) ? NGX_OK : NGX_ERROR;
     }
 
     if (need_write) {
-        return xrootd_token_check_write(id->token_scopes,
+        return brix_token_check_write(id->token_scopes,
                                         id->token_scope_count,
                                         logical_path)
                ? NGX_OK : NGX_ERROR;
     }
 
-    return xrootd_token_check_read(id->token_scopes,
+    return brix_token_check_read(id->token_scopes,
                                    id->token_scope_count,
                                    logical_path)
            ? NGX_OK : NGX_ERROR;
@@ -519,7 +519,7 @@ xrootd_identity_check_token_scope(const xrootd_identity_t *id,
  * for access/audit logs.  Returns a null ngx_str_t on allocation failure.
  */
 ngx_str_t
-xrootd_identity_describe(const xrootd_identity_t *id, ngx_pool_t *pool)
+brix_identity_describe(const brix_identity_t *id, ngx_pool_t *pool)
 {
     ngx_str_t   out;
     const char *dn, *sub, *method;
@@ -531,10 +531,10 @@ xrootd_identity_describe(const xrootd_identity_t *id, ngx_pool_t *pool)
         return out;
     }
 
-    dn = xrootd_identity_dn_cstr(id);
-    sub = xrootd_identity_subject_cstr(id);
-    method = xrootd_identity_method_name(id != NULL ? id->auth_method
-                                                    : XROOTD_AUTHN_NONE);
+    dn = brix_identity_dn_cstr(id);
+    sub = brix_identity_subject_cstr(id);
+    method = brix_identity_method_name(id != NULL ? id->auth_method
+                                                    : BRIX_AUTHN_NONE);
 
     len = strlen("dn= sub= method=") + strlen(dn) + strlen(sub)
           + strlen(method);

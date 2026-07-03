@@ -38,22 +38,22 @@ http {
     server {
         listen 127.0.0.1:${S3_PORT};
         location / {
-            xrootd_s3            on;
-            xrootd_s3_root       $PFX/s3root;
-            xrootd_s3_bucket     testbucket;
-            xrootd_s3_access_key ${AKID};
-            xrootd_s3_secret_key ${SECRET};
-            xrootd_s3_region     us-east-1;
-            xrootd_s3_allow_write on;
+            brix_s3            on;
+            brix_s3_root       $PFX/s3root;
+            brix_s3_bucket     testbucket;
+            brix_s3_access_key ${AKID};
+            brix_s3_secret_key ${SECRET};
+            brix_s3_region     us-east-1;
+            brix_s3_allow_write on;
         }
     }
 }
 
 # The root:// cache node fronting the S3 origin (TIER grammar: the S3 bucket is the
-# storage_backend, its SigV4 keys carried by a named xrootd_credential, the local
+# storage_backend, its SigV4 keys carried by a named brix_credential, the local
 # read cache is a posix cache_store).
 stream {
-    xrootd_credential s3origin {
+    brix_credential s3origin {
         s3_access_key ${AKID};
         s3_secret_key ${SECRET};
         s3_region     us-east-1;
@@ -61,11 +61,11 @@ stream {
     server {
         listen 127.0.0.1:${NODE_PORT};
         xrootd on;
-        xrootd_root $PFX/export;
-        xrootd_auth none;
-        xrootd_storage_backend    s3://127.0.0.1:${S3_PORT}/testbucket;
-        xrootd_storage_credential s3origin;
-        xrootd_cache_store posix:$PFX/cache; xrootd_cache_root /;
+        brix_root $PFX/export;
+        brix_auth none;
+        brix_storage_backend    s3://127.0.0.1:${S3_PORT}/testbucket;
+        brix_storage_credential s3origin;
+        brix_cache_store posix:$PFX/cache; brix_cache_root /;
     }
 }
 EOF

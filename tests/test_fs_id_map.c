@@ -1,6 +1,6 @@
 /*
  * test_fs_id_map.c — standalone unit test for the fs_list.h backend-id surface
- * (xrootd_fs_id_from_name / xrootd_fs_id_name).
+ * (brix_fs_id_from_name / brix_fs_id_name).
  *
  * Build+run (no nginx tree needed — sd_fs_id.c is ngx-free):
  *   gcc -I src -o /tmp/test_fs_id_map tests/test_fs_id_map.c src/fs/backend/sd_fs_id.c && /tmp/test_fs_id_map
@@ -30,24 +30,24 @@ main(void)
     char label[64];
 
     /* Roundtrip every census row: name -> id -> name. */
-    for (id = 0; id < XROOTD_FS_ID_COUNT; id++) {
-        const char *name = xrootd_fs_id_name(id);
+    for (id = 0; id < BRIX_FS_ID_COUNT; id++) {
+        const char *name = brix_fs_id_name(id);
 
         snprintf(label, sizeof(label), "row %d roundtrip (%s)", id, name);
         check(name != NULL && name[0] != '\0'
-              && xrootd_fs_id_from_name(name) == id, label);
+              && brix_fs_id_from_name(name) == id, label);
     }
 
     /* Known anchors present in every build. */
-    check(xrootd_fs_id_from_name("posix") >= 0, "posix registered");
-    check(xrootd_fs_id_from_name("cache") >= 0, "cache decorator registered");
-    check(xrootd_fs_id_from_name("xroot") >= 0, "xroot origin registered");
+    check(brix_fs_id_from_name("posix") >= 0, "posix registered");
+    check(brix_fs_id_from_name("cache") >= 0, "cache decorator registered");
+    check(brix_fs_id_from_name("xroot") >= 0, "xroot origin registered");
 
     /* Negatives: unknown / NULL / out-of-range id. */
-    check(xrootd_fs_id_from_name("nosuchfs") == -1, "unknown name -> -1");
-    check(xrootd_fs_id_from_name(NULL) == -1, "NULL name -> -1");
-    check(strcmp(xrootd_fs_id_name(-1), "?") == 0, "id -1 -> \"?\"");
-    check(strcmp(xrootd_fs_id_name(XROOTD_FS_ID_COUNT), "?") == 0,
+    check(brix_fs_id_from_name("nosuchfs") == -1, "unknown name -> -1");
+    check(brix_fs_id_from_name(NULL) == -1, "NULL name -> -1");
+    check(strcmp(brix_fs_id_name(-1), "?") == 0, "id -1 -> \"?\"");
+    check(strcmp(brix_fs_id_name(BRIX_FS_ID_COUNT), "?") == 0,
           "id COUNT -> \"?\"");
 
     printf(failures == 0 ? "ALL PASS\n" : "%d FAILURES\n", failures);

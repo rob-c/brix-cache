@@ -30,7 +30,7 @@
  * (credtype = the 4-byte protocol id) + the credential payload, on the connector
  * stream. Shared by the ztn and gsi auth helpers. Returns 0, or -1 (errno set). */
 static int
-cache_origin_send_kxr_auth(xrootd_cache_origin_conn_t *oc, const char credtype[4],
+cache_origin_send_kxr_auth(brix_cache_origin_conn_t *oc, const char credtype[4],
     const u_char *payload, uint32_t plen)
 {
     ClientAuthRequest req;
@@ -41,22 +41,22 @@ cache_origin_send_kxr_auth(xrootd_cache_origin_conn_t *oc, const char credtype[4
     ngx_memcpy(req.credtype, credtype, 4);
     req.dlen        = htonl((kXR_int32) plen);
 
-    if (xrootd_cache_io_send(oc, &req, sizeof(req)) != 0
-        || (plen > 0 && xrootd_cache_io_send(oc, payload, plen) != 0))
+    if (brix_cache_io_send(oc, &req, sizeof(req)) != 0
+        || (plen > 0 && brix_cache_io_send(oc, payload, plen) != 0))
     {
         return -1;
     }
     return 0;
 }
 
-/* xrootd_cache_origin_auth_ztn — present a WLCG/SciToken bearer to the origin via
+/* brix_cache_origin_auth_ztn — present a WLCG/SciToken bearer to the origin via
  * the XrdSecztn protocol after a kXR_login returned kXR_authmore. The credential is
  * a single-round kXR_auth: credtype "ztn\0", payload "ztn\0" + <token> (the exact
  * wire format the native client's sec_token.c sends and this server's gsi/token.c
  * parses). Returns 0 on a kXR_ok auth, -1 otherwise (t error set). §14/C-3. */
 static int
-xrootd_cache_origin_auth_ztn(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const ngx_str_t *token)
+brix_cache_origin_auth_ztn(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const ngx_str_t *token)
 {
     u_char           *blob;
     size_t            blen;
@@ -67,7 +67,7 @@ xrootd_cache_origin_auth_ztn(xrootd_cache_fill_t *t,
     blen = 4 + token->len;                      /* "ztn\0" + token */
     blob = malloc(blen);
     if (blob == NULL) {
-        xrootd_cache_set_error(t, kXR_NoMemory, 0,
+        brix_cache_set_error(t, kXR_NoMemory, 0,
                                "cache origin ztn payload allocation failed");
         return -1;
     }
@@ -76,18 +76,18 @@ xrootd_cache_origin_auth_ztn(xrootd_cache_fill_t *t,
 
     if (cache_origin_send_kxr_auth(oc, "ztn", blob, (uint32_t) blen) != 0) {
         free(blob);
-        xrootd_cache_set_error(t, kXR_ServerError, errno,
+        brix_cache_set_error(t, kXR_ServerError, errno,
                                "cache origin ztn auth write failed");
         return -1;
     }
     free(blob);
 
     body = NULL;
-    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen, 4096) != 0) {
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen, 4096) != 0) {
         return -1;
     }
     if (status == kXR_error) {
-        xrootd_cache_set_origin_error(t, body, dlen,
+        brix_cache_set_origin_error(t, body, dlen,
                                       "cache origin token auth rejected");
         free(body);
         return -1;
@@ -96,7 +96,7 @@ xrootd_cache_origin_auth_ztn(xrootd_cache_fill_t *t,
 
     if (status != kXR_ok) {
         /* ztn is single-round; a second authmore (or anything else) is a failure. */
-        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
                                "cache origin token auth incomplete");
         return -1;
     }
@@ -176,7 +176,7 @@ cache_origin_load_proxy_key(const char *path)
 /* Extract the "gsi" protocol's parameter substring from a login advert that may
  * carry several "&P=<proto>,<parms>" entries (e.g. "&P=ztn,v:10000&P=gsi,v:10600,
  * c:ssl,ca:HASH"). Returns a pointer INTO `parms` just past "gsi," (the v:/c:/ca:
- * list xrootd_gsi_parse_parms wants), or NULL when gsi is not advertised. */
+ * list brix_gsi_parse_parms wants), or NULL when gsi is not advertised. */
 static const char *
 cache_origin_gsi_parms(const char *parms, size_t plen)
 {
@@ -194,7 +194,7 @@ cache_origin_gsi_parms(const char *parms, size_t plen)
     return NULL;
 }
 
-/* xrootd_cache_origin_auth_gsi — present an X.509 proxy to the origin via the
+/* brix_cache_origin_auth_gsi — present an X.509 proxy to the origin via the
  * in-process XrdSecgsi two-round handshake after a login advertised "&P=gsi". The
  * DH/cipher/proof-of-possession math is the SHARED gsi_core kernel (the exact
  * implementation client/lib/sec/sec_gsi.c and src/tpc/gsi/gsi_outbound_exchange.c use):
@@ -203,8 +203,8 @@ cache_origin_gsi_parms(const char *parms, size_t plen)
  * `gsi_parms` is the server's gsi v:/c:/ca: list; `proxy_path` the proxy PEM file.
  * Returns 0 on a kXR_ok auth, -1 otherwise (t error set). C-3. */
 static int
-xrootd_cache_origin_auth_gsi(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const char *gsi_parms, const char *proxy_path)
+brix_cache_origin_auth_gsi(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *gsi_parms, const char *proxy_path)
 {
     uint32_t   version = 0;
     char       crypto[16] = { 0 };
@@ -224,42 +224,42 @@ xrootd_cache_origin_auth_gsi(xrootd_cache_fill_t *t,
     int        rc;
 
     /* ---- round 1: kXGC_certreq ---- */
-    xrootd_gsi_parse_parms(gsi_parms, &version, crypto, sizeof(crypto),
+    brix_gsi_parse_parms(gsi_parms, &version, crypto, sizeof(crypto),
                            ca, sizeof(ca));
     if (crypto[0] == '\0') {
         ngx_memcpy(crypto, "ssl", 4);
     }
     version = 10600;                            /* signed-DH default, as sec_gsi.c */
-    if (!xrootd_gsi_rand(client_rtag, sizeof(client_rtag))) {
-        xrootd_cache_set_error(t, kXR_ServerError, 0, "cache origin gsi RNG failed");
+    if (!brix_gsi_rand(client_rtag, sizeof(client_rtag))) {
+        brix_cache_set_error(t, kXR_ServerError, 0, "cache origin gsi RNG failed");
         return -1;
     }
-    certreq = xrootd_gsi_build_certreq(crypto, version, ca, 0x80u, client_rtag,
+    certreq = brix_gsi_build_certreq(crypto, version, ca, 0x80u, client_rtag,
                                        sizeof(client_rtag), &certreq_len);
     if (certreq == NULL) {
-        xrootd_cache_set_error(t, kXR_ServerError, 0,
+        brix_cache_set_error(t, kXR_ServerError, 0,
                                "cache origin gsi certreq build failed");
         return -1;
     }
     rc = cache_origin_send_kxr_auth(oc, "gsi", certreq, (uint32_t) certreq_len);
     free(certreq);
     if (rc != 0) {
-        xrootd_cache_set_error(t, kXR_ServerError, errno,
+        brix_cache_set_error(t, kXR_ServerError, errno,
                                "cache origin gsi certreq write failed");
         return -1;
     }
 
-    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen, 1 << 16) != 0) {
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen, 1 << 16) != 0) {
         return -1;
     }
     if (status == kXR_error) {
-        xrootd_cache_set_origin_error(t, body, dlen, "cache origin gsi rejected");
+        brix_cache_set_origin_error(t, body, dlen, "cache origin gsi rejected");
         free(body);
         return -1;
     }
     if (status != kXR_authmore || body == NULL || dlen < 16) {
         free(body);
-        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
                                "cache origin gsi expected kXGS_cert");
         return -1;
     }
@@ -276,12 +276,12 @@ xrootd_cache_origin_auth_gsi(xrootd_cache_fill_t *t,
         X509_STORE_CTX *sctx;
         int             ok = 0;
 
-        if (xrootd_gsi_find_bucket(body, dlen, (uint32_t) kXRS_x509,
+        if (brix_gsi_find_bucket(body, dlen, (uint32_t) kXRS_x509,
                                    &srv_pem, &srv_pem_len) != 0
             || srv_pem_len == 0)
         {
             free(body);
-            xrootd_cache_set_error(t, kXR_NotAuthorized, 0,
+            brix_cache_set_error(t, kXR_NotAuthorized, 0,
                 "cache origin gsi: server presented no certificate to verify");
             return -1;
         }
@@ -302,7 +302,7 @@ xrootd_cache_origin_auth_gsi(xrootd_cache_fill_t *t,
         ERR_clear_error();
         if (!ok) {
             free(body);
-            xrootd_cache_set_error(t, kXR_NotAuthorized, 0,
+            brix_cache_set_error(t, kXR_NotAuthorized, 0,
                 "cache origin gsi: server certificate verification failed");
             return -1;
         }
@@ -315,13 +315,13 @@ xrootd_cache_origin_auth_gsi(xrootd_cache_fill_t *t,
         free(proxy_pem);
         EVP_PKEY_free(proxy_key);
         free(body);
-        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
                                "cache origin gsi cannot load proxy credential");
         return -1;
     }
 
     err[0] = '\0';
-    rc = xrootd_gsi_build_cert_response(body, dlen, proxy_pem, proxy_pem_len,
+    rc = brix_gsi_build_cert_response(body, dlen, proxy_pem, proxy_pem_len,
                                         proxy_key, &resp, &resp_len,
                                         err, sizeof(err));
     free(body);
@@ -329,7 +329,7 @@ xrootd_cache_origin_auth_gsi(xrootd_cache_fill_t *t,
     free(proxy_pem);
     EVP_PKEY_free(proxy_key);
     if (rc != 0) {
-        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
                                err[0] ? err : "cache origin gsi round-2 failed");
         return -1;
     }
@@ -337,24 +337,24 @@ xrootd_cache_origin_auth_gsi(xrootd_cache_fill_t *t,
     rc = cache_origin_send_kxr_auth(oc, "gsi", resp, resp_len);
     free(resp);
     if (rc != 0) {
-        xrootd_cache_set_error(t, kXR_ServerError, errno,
+        brix_cache_set_error(t, kXR_ServerError, errno,
                                "cache origin gsi round-2 write failed");
         return -1;
     }
 
     body = NULL;
-    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen, 4096) != 0) {
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen, 4096) != 0) {
         return -1;
     }
     if (status == kXR_error) {
-        xrootd_cache_set_origin_error(t, body, dlen,
+        brix_cache_set_origin_error(t, body, dlen,
                                       "cache origin gsi authentication failed");
         free(body);
         return -1;
     }
     free(body);
     if (status != kXR_ok) {
-        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
                                "cache origin gsi authentication incomplete");
         return -1;
     }
@@ -368,7 +368,7 @@ xrootd_cache_origin_auth_gsi(xrootd_cache_fill_t *t,
  * that works one side works the other. Returns 0 with *out filled, or -1 (unreadable /
  * malformed / no usable key). */
 static int
-cache_origin_load_sss_key(const char *path, xrootd_sss_key_t *out)
+cache_origin_load_sss_key(const char *path, brix_sss_key_t *out)
 {
     int   fd;
     FILE *fp;
@@ -413,16 +413,16 @@ cache_origin_load_sss_key(const char *path, xrootd_sss_key_t *out)
     return found ? 0 : -1;
 }
 
-/* xrootd_cache_origin_auth_sss — present an SSS (Simple Shared Secret) credential to
+/* brix_cache_origin_auth_sss — present an SSS (Simple Shared Secret) credential to
  * the origin via the XrdSecsss protocol after a login advertised "&P=sss". Mints the
- * SAME kXR_auth blob the proxy path sends (xrootd_sss_build_proxy_credential): a
+ * SAME kXR_auth blob the proxy path sends (brix_sss_build_proxy_credential): a
  * Blowfish-CFB block over a nonce + gen-time + the keytab user, keyed by the shared
  * secret. Single-round: expect kXR_ok. Returns 0, or -1 (t error set). §14. */
 static int
-xrootd_cache_origin_auth_sss(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const char *keytab_path)
+brix_cache_origin_auth_sss(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *keytab_path)
 {
-    xrootd_sss_key_t  key;
+    brix_sss_key_t  key;
     u_char            cred[2048];
     size_t            cred_len = 0;
     uint16_t          status;
@@ -430,41 +430,41 @@ xrootd_cache_origin_auth_sss(xrootd_cache_fill_t *t,
     u_char           *body = NULL;
 
     if (cache_origin_load_sss_key(keytab_path, &key) != 0) {
-        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
             "cache origin SSS keytab unreadable or has no usable key");
         return -1;
     }
-    if (xrootd_sss_build_proxy_credential(&key, key.user, cred, sizeof(cred),
+    if (brix_sss_build_proxy_credential(&key, key.user, cred, sizeof(cred),
                                           &cred_len) != NGX_OK)
     {
-        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
             "cache origin SSS credential build failed");
         return -1;
     }
     if (cache_origin_send_kxr_auth(oc, "sss", cred, (uint32_t) cred_len) != 0) {
-        xrootd_cache_set_error(t, kXR_ServerError, errno,
+        brix_cache_set_error(t, kXR_ServerError, errno,
             "cache origin SSS auth write failed");
         return -1;
     }
-    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen, 4096) != 0) {
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen, 4096) != 0) {
         return -1;
     }
     if (status == kXR_error) {
-        xrootd_cache_set_origin_error(t, body, dlen,
+        brix_cache_set_origin_error(t, body, dlen,
                                       "cache origin SSS auth rejected");
         free(body);
         return -1;
     }
     free(body);
     if (status != kXR_ok) {                      /* SSS is single-round */
-        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
                                "cache origin SSS auth incomplete");
         return -1;
     }
     return 0;
 }
 
-/* xrootd_cache_origin_bootstrap — three-phase XRootD connection bootstrap on a
+/* brix_cache_origin_bootstrap — three-phase XRootD connection bootstrap on a
  * raw TCP/TLS socket: ClientInitHandShake → kXR_protocol negotiation (a
  * kXR_gotoTLS flag triggers a TLS upgrade when configured) → anonymous kXR_login
  * (user 'xrd', capver kXR_ver005, streamid[1]=1). When the origin demands auth
@@ -472,8 +472,8 @@ xrootd_cache_origin_auth_sss(xrootd_cache_fill_t *t,
  * session. Every cache fill needs a valid session before reading. Returns 0 on
  * success, -1 on any phase failure. */
 int
-xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc)
+brix_cache_origin_bootstrap(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc)
 {
     ClientInitHandShake    hs;
     ClientProtocolRequest  pr;
@@ -485,41 +485,41 @@ xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
 
     xrd_pack_handshake(&hs);
 
-    if (xrootd_cache_io_send(oc, &hs, sizeof(hs)) != 0) {
-        xrootd_cache_set_error(t, kXR_ServerError, errno,
+    if (brix_cache_io_send(oc, &hs, sizeof(hs)) != 0) {
+        brix_cache_set_error(t, kXR_ServerError, errno,
                                "cache origin handshake write failed");
         return -1;
     }
 
     body = NULL;
-    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen, 64) != 0) {
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen, 64) != 0) {
         return -1;
     }
     free(body);
 
     if (status != kXR_ok) {
-        xrootd_cache_set_error(t, kXR_ServerError, 0,
+        brix_cache_set_error(t, kXR_ServerError, 0,
                                "cache origin handshake failed");
         return -1;
     }
 
     xrd_pack_protocol_request(&pr, sid, 0);
 
-    if (xrootd_cache_io_send(oc, &pr, sizeof(pr)) != 0) {
-        xrootd_cache_set_error(t, kXR_ServerError, errno,
+    if (brix_cache_io_send(oc, &pr, sizeof(pr)) != 0) {
+        brix_cache_set_error(t, kXR_ServerError, errno,
                                "cache origin protocol write failed");
         return -1;
     }
 
     body = NULL;
-    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen,
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen,
                                    sizeof(ServerProtocolBody)) != 0) {
         return -1;
     }
 
     if (status != kXR_ok) {
         free(body);
-        xrootd_cache_set_error(t, kXR_ServerError, 0,
+        brix_cache_set_error(t, kXR_ServerError, 0,
                                "cache origin protocol negotiation failed");
         return -1;
     }
@@ -533,8 +533,8 @@ xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
 
         if ((flags & kXR_gotoTLS) && !t->conf->cache_origin_tls) {
             free(body);
-            xrootd_cache_set_error(t, kXR_TLSRequired, 0,
-                "cache origin requires TLS; enable xrootd_cache_origin_tls");
+            brix_cache_set_error(t, kXR_TLSRequired, 0,
+                "cache origin requires TLS; enable brix_cache_origin_tls");
             return -1;
         }
     }
@@ -542,14 +542,14 @@ xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
 
     xrd_pack_login_request(&lr, sid, (int32_t) ngx_pid, "xrd", kXR_ver005);
 
-    if (xrootd_cache_io_send(oc, &lr, sizeof(lr)) != 0) {
-        xrootd_cache_set_error(t, kXR_ServerError, errno,
+    if (brix_cache_io_send(oc, &lr, sizeof(lr)) != 0) {
+        brix_cache_set_error(t, kXR_ServerError, errno,
                                "cache origin login write failed");
         return -1;
     }
 
     body = NULL;
-    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen, 4096) != 0) {
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen, 4096) != 0) {
         return -1;
     }
 
@@ -559,10 +559,10 @@ xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
      * authenticated — present the configured bearer via ztn (§14/C-3). kXR_authmore
      * is the mid-protocol variant; handle it the same way. */
     if ((status == kXR_ok || status == kXR_authmore)
-        && dlen > XROOTD_SESSION_ID_LEN)
+        && dlen > BRIX_SESSION_ID_LEN)
     {
-        const u_char *parms = body + XROOTD_SESSION_ID_LEN;
-        size_t        plen  = dlen - XROOTD_SESSION_ID_LEN;
+        const u_char *parms = body + BRIX_SESSION_ID_LEN;
+        size_t        plen  = dlen - BRIX_SESSION_ID_LEN;
         int           needs_auth = (ngx_strlchr((u_char *) parms,
                                         (u_char *) parms + plen, '=') != NULL);
         int           has_ztn = (ngx_strnstr((u_char *) parms, "ztn", plen) != NULL);
@@ -588,18 +588,18 @@ xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
         free(body);
         if (needs_auth) {
             if (has_ztn && t->conf->cache_origin_bearer.len > 0) {
-                return xrootd_cache_origin_auth_ztn(t, oc,
+                return brix_cache_origin_auth_ztn(t, oc,
                                                     &t->conf->cache_origin_bearer);
             }
             if (has_gsi && t->conf->cache_origin_x509_proxy.len > 0) {
-                return xrootd_cache_origin_auth_gsi(t, oc, gsi_parms,
+                return brix_cache_origin_auth_gsi(t, oc, gsi_parms,
                     (const char *) t->conf->cache_origin_x509_proxy.data);
             }
             if (has_sss && t->conf->cache_origin_sss_keytab.len > 0) {
-                return xrootd_cache_origin_auth_sss(t, oc,
+                return brix_cache_origin_auth_sss(t, oc,
                     (const char *) t->conf->cache_origin_sss_keytab.data);
             }
-            xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+            brix_cache_set_error(t, kXR_AuthFailed, 0,
                 (t->conf->cache_origin_bearer.len > 0
                  || t->conf->cache_origin_x509_proxy.len > 0
                  || t->conf->cache_origin_sss_keytab.len > 0)
@@ -613,14 +613,14 @@ xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
 
     if (status == kXR_authmore) {
         if (t->conf->cache_origin_bearer.len > 0) {
-            return xrootd_cache_origin_auth_ztn(t, oc, &t->conf->cache_origin_bearer);
+            return brix_cache_origin_auth_ztn(t, oc, &t->conf->cache_origin_bearer);
         }
-        xrootd_cache_set_error(t, kXR_AuthFailed, 0,
+        brix_cache_set_error(t, kXR_AuthFailed, 0,
                                "cache origin requires authentication");
         return -1;
     }
     if (status != kXR_ok) {
-        xrootd_cache_set_error(t, kXR_ServerError, 0,
+        brix_cache_set_error(t, kXR_ServerError, 0,
                                "cache origin anonymous login failed");
         return -1;
     }
@@ -628,13 +628,13 @@ xrootd_cache_origin_bootstrap(xrootd_cache_fill_t *t,
     return 0;
 }
 
-/* xrootd_cache_origin_open — kXR_open (read + kXR_retstat) of the source file:
+/* brix_cache_origin_open — kXR_open (read + kXR_retstat) of the source file:
  * parse ServerOpenBody for the fhandle and the appended stat string, so file_size
  * is known before a full download (the admission filter can reject oversized files
  * without fetching them). Returns 0 with fhandle set, -1 on error or redirect. */
 int
-xrootd_cache_origin_open(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, u_char fhandle[XRD_FHANDLE_LEN])
+brix_cache_origin_open(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, u_char fhandle[XRD_FHANDLE_LEN])
 {
     size_t             pathlen, total;
     u_char            *buf;
@@ -648,7 +648,7 @@ xrootd_cache_origin_open(xrootd_cache_fill_t *t,
 
     buf = malloc(total);
     if (buf == NULL) {
-        xrootd_cache_set_error(t, kXR_NoMemory, 0,
+        brix_cache_set_error(t, kXR_NoMemory, 0,
                                "cache origin open allocation failed");
         return -1;
     }
@@ -666,36 +666,36 @@ xrootd_cache_origin_open(xrootd_cache_fill_t *t,
     req->dlen = htonl((kXR_int32) pathlen);
     ngx_memcpy(buf + sizeof(*req), t->clean_path, pathlen);
 
-    if (xrootd_cache_io_send(oc, buf, total) != 0) {
+    if (brix_cache_io_send(oc, buf, total) != 0) {
         free(buf);
-        xrootd_cache_set_error(t, kXR_ServerError, errno,
+        brix_cache_set_error(t, kXR_ServerError, errno,
                                "cache origin open write failed");
         return -1;
     }
     free(buf);
 
     body = NULL;
-    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen,
-                                   XROOTD_MAX_PATH + 256) != 0) {
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen,
+                                   BRIX_MAX_PATH + 256) != 0) {
         return -1;
     }
 
     if (status == kXR_error) {
-        xrootd_cache_set_origin_error(t, body, dlen,
+        brix_cache_set_origin_error(t, body, dlen,
                                       "cache origin open failed");
         free(body);
         return -1;
     }
     if (status == kXR_redirect) {
         free(body);
-        xrootd_cache_set_error(t, kXR_Unsupported, 0,
+        brix_cache_set_error(t, kXR_Unsupported, 0,
                                "cache origin redirected open; direct data "
                                "server origin is required");
         return -1;
     }
     if (status != kXR_ok || dlen < sizeof(ServerOpenBody)) {
         free(body);
-        xrootd_cache_set_error(t, kXR_ServerError, 0,
+        brix_cache_set_error(t, kXR_ServerError, 0,
                                "cache origin open returned invalid response");
         return -1;
     }
@@ -705,7 +705,7 @@ xrootd_cache_origin_open(xrootd_cache_fill_t *t,
     /*
      * If kXR_retstat was honored the stat string follows ServerOpenBody.
      * Format: "<id> <size> <flags> <modtime>" — we only need the size (field 2).
-     * The body is always NUL-terminated by xrootd_cache_read_response, so
+     * The body is always NUL-terminated by brix_cache_read_response, so
      * strtoull is safe.
      */
     if (dlen > sizeof(ServerOpenBody)) {
@@ -729,7 +729,7 @@ xrootd_cache_origin_open(xrootd_cache_fill_t *t,
     return 0;
 }
 
-/* xrootd_cache_origin_query_checksum — ask the origin for its stored digest of
+/* brix_cache_origin_query_checksum — ask the origin for its stored digest of
  * t->clean_path (path-based kXR_query/kXR_Qcksum), returning "<algo> <hex>" split
  * into the caller buffers. Checksum-on-fill (verify.c) validates downloaded bytes
  * against this before publishing. BEST-EFFORT: an origin with no checksum or a
@@ -737,8 +737,8 @@ xrootd_cache_origin_open(xrootd_cache_fill_t *t,
  * on ANY failure it restores t's error state and returns 0 with alg_out emptied,
  * so the caller treats it as "no origin digest" and the verify policy decides. */
 int
-xrootd_cache_origin_query_checksum(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, char *alg_out, size_t alg_sz,
+brix_cache_origin_query_checksum(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, char *alg_out, size_t alg_sz,
     char *hex_out, size_t hex_sz)
 {
     size_t              pathlen, total;
@@ -781,14 +781,14 @@ xrootd_cache_origin_query_checksum(xrootd_cache_fill_t *t,
     req->dlen = htonl((kXR_int32) pathlen);
     ngx_memcpy(buf + sizeof(*req), t->clean_path, pathlen);
 
-    if (xrootd_cache_io_send(oc, buf, total) != 0) {
+    if (brix_cache_io_send(oc, buf, total) != 0) {
         free(buf);
         return 0;
     }
     free(buf);
 
     body = NULL;
-    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen, 512) != 0) {
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen, 512) != 0) {
         t->result    = saved_result;
         t->xrd_error = saved_xrd;
         return 0;
@@ -830,7 +830,7 @@ xrootd_cache_origin_query_checksum(xrootd_cache_fill_t *t,
  * The caller owns *rbody (free it). Returns 0 (response received — check *status)
  * or -1 on a transport failure. */
 static int
-origin_request(xrootd_cache_fill_t *t, xrootd_cache_origin_conn_t *oc,
+origin_request(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     uint16_t requestid, const uint8_t body[XRDW_BODY_LEN],
     const void *payload, size_t plen, uint16_t *status, u_char **rbody,
     uint32_t *rdlen, size_t rmax)
@@ -853,14 +853,14 @@ origin_request(xrootd_cache_fill_t *t, xrootd_cache_origin_conn_t *oc,
         ngx_memcpy(buf + sizeof(ClientRequestHdr), payload, plen);
     }
 
-    if (xrootd_cache_io_send(oc, buf, total) != 0) {
+    if (brix_cache_io_send(oc, buf, total) != 0) {
         free(buf);
         return -1;
     }
     free(buf);
 
     *rbody = NULL;
-    return xrootd_cache_read_response(t, oc, status, rbody, rdlen, rmax);
+    return brix_cache_read_response(t, oc, status, rbody, rdlen, rmax);
 }
 
 /* Map a non-ok origin response to errno. A failure is a kXR_error frame whose
@@ -884,11 +884,11 @@ origin_status_errno(uint16_t status, const u_char *body, uint32_t dlen)
     }
 }
 
-/* xrootd_cache_origin_rename — kXR_mv old→new on the origin. Wire payload is
+/* brix_cache_origin_rename — kXR_mv old→new on the origin. Wire payload is
  * "src ' ' dst" with arg1len=len(src). Returns 0, or -1 with errno set. */
 int
-xrootd_cache_origin_rename(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const char *src, const char *dst)
+brix_cache_origin_rename(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *src, const char *dst)
 {
     uint8_t   body[XRDW_BODY_LEN];
     size_t    sl = strlen(src), dl = strlen(dst), total = sl + 1 + dl;
@@ -931,12 +931,12 @@ xrootd_cache_origin_rename(xrootd_cache_fill_t *t,
     return 0;
 }
 
-/* xrootd_cache_origin_rm — kXR_rm <path> on the origin (delete a file). The rm
+/* brix_cache_origin_rm — kXR_rm <path> on the origin (delete a file). The rm
  * request carries no params (the 16-byte body is reserved/zero); the path is the
  * payload. Returns 0, or -1 with errno set (ENOENT when the origin reports the
  * path already gone, so a best-effort reclaim/evict is idempotent). */
 int
-xrootd_cache_origin_rm(xrootd_cache_fill_t *t, xrootd_cache_origin_conn_t *oc,
+brix_cache_origin_rm(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     const char *path)
 {
     uint8_t   body[XRDW_BODY_LEN];
@@ -993,11 +993,11 @@ origin_fattr_payload(const char *path, const char *name, const void *val,
     return buf;
 }
 
-/* xrootd_cache_origin_getfattr — kXR_fattr Get of ONE attribute on `path`. Copies
+/* brix_cache_origin_getfattr — kXR_fattr Get of ONE attribute on `path`. Copies
  * the value into buf[cap] and returns its length, 0 if absent, or -1 (errno). */
 ssize_t
-xrootd_cache_origin_getfattr(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const char *path, const char *name,
+brix_cache_origin_getfattr(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *path, const char *name,
     void *buf, size_t cap)
 {
     uint8_t   body[XRDW_BODY_LEN];
@@ -1048,11 +1048,11 @@ xrootd_cache_origin_getfattr(xrootd_cache_fill_t *t,
     return (ssize_t) vlen;
 }
 
-/* xrootd_cache_origin_listfattr — kXR_fattr List on `path`; copies the NUL-
+/* brix_cache_origin_listfattr — kXR_fattr List on `path`; copies the NUL-
  * separated name list into buf[cap]. Returns the byte count, or -1 (errno). */
 ssize_t
-xrootd_cache_origin_listfattr(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const char *path, void *buf, size_t cap)
+brix_cache_origin_listfattr(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *path, void *buf, size_t cap)
 {
     uint8_t   body[XRDW_BODY_LEN];
     size_t    pn = strlen(path);
@@ -1089,7 +1089,7 @@ xrootd_cache_origin_listfattr(xrootd_cache_fill_t *t,
 
 /* Shared Set/Del: build payload, send, parse the per-attribute rc. 0 / -1. */
 static int
-origin_fattr_set_or_del(xrootd_cache_fill_t *t, xrootd_cache_origin_conn_t *oc,
+origin_fattr_set_or_del(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     const char *path, const char *name, const void *val, size_t vlen,
     int with_value, uint8_t subcode)
 {
@@ -1134,8 +1134,8 @@ origin_fattr_set_or_del(xrootd_cache_fill_t *t, xrootd_cache_origin_conn_t *oc,
 }
 
 int
-xrootd_cache_origin_setfattr(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const char *path, const char *name,
+brix_cache_origin_setfattr(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *path, const char *name,
     const void *val, size_t vlen)
 {
     return origin_fattr_set_or_del(t, oc, path, name, val, vlen, 1,
@@ -1143,19 +1143,19 @@ xrootd_cache_origin_setfattr(xrootd_cache_fill_t *t,
 }
 
 int
-xrootd_cache_origin_delfattr(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const char *path, const char *name)
+brix_cache_origin_delfattr(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *path, const char *name)
 {
     return origin_fattr_set_or_del(t, oc, path, name, NULL, 0, 0, kXR_fattrDel);
 }
 
-/* xrootd_cache_origin_open_write — kXR_open (update + delete + mkpath) to mirror a
+/* brix_cache_origin_open_write — kXR_open (update + delete + mkpath) to mirror a
  * local file onto the origin: truncate the destination and create missing parent
  * dirs (where supported) for an atomic write-through replacement. Returns 0 with
  * fhandle set, -1 on error or redirect. */
 int
-xrootd_cache_origin_open_write(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const char *path, uint16_t mode_bits,
+brix_cache_origin_open_write(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *path, uint16_t mode_bits,
     u_char fhandle[XRD_FHANDLE_LEN])
 {
     size_t             pathlen, total;
@@ -1166,7 +1166,7 @@ xrootd_cache_origin_open_write(xrootd_cache_fill_t *t,
     u_char            *body;
 
     if (path == NULL || path[0] == '\0') {
-        xrootd_cache_set_error(t, kXR_ArgInvalid, 0,
+        brix_cache_set_error(t, kXR_ArgInvalid, 0,
                                "write-through origin path missing");
         return -1;
     }
@@ -1176,7 +1176,7 @@ xrootd_cache_origin_open_write(xrootd_cache_fill_t *t,
 
     buf = malloc(total);
     if (buf == NULL) {
-        xrootd_cache_set_error(t, kXR_NoMemory, 0,
+        brix_cache_set_error(t, kXR_NoMemory, 0,
                                "write-through origin open allocation failed");
         return -1;
     }
@@ -1200,29 +1200,29 @@ xrootd_cache_origin_open_write(xrootd_cache_fill_t *t,
     req->dlen = htonl((kXR_int32) pathlen);
     ngx_memcpy(buf + sizeof(*req), path, pathlen);
 
-    if (xrootd_cache_io_send(oc, buf, total) != 0) {
+    if (brix_cache_io_send(oc, buf, total) != 0) {
         free(buf);
-        xrootd_cache_set_error(t, kXR_ServerError, errno,
+        brix_cache_set_error(t, kXR_ServerError, errno,
                                "write-through origin open write failed");
         return -1;
     }
     free(buf);
 
     body = NULL;
-    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen,
-                                   XROOTD_MAX_PATH + 256) != 0) {
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen,
+                                   BRIX_MAX_PATH + 256) != 0) {
         return -1;
     }
 
     if (status == kXR_error) {
-        xrootd_cache_set_origin_error(t, body, dlen,
+        brix_cache_set_origin_error(t, body, dlen,
                                       "write-through origin open failed");
         free(body);
         return -1;
     }
     if (status == kXR_redirect) {
         free(body);
-        xrootd_cache_set_error(t, kXR_Unsupported, 0,
+        brix_cache_set_error(t, kXR_Unsupported, 0,
                                "write-through origin redirected open; direct "
                                "data server origin is required");
         return -1;
@@ -1235,7 +1235,7 @@ xrootd_cache_origin_open_write(xrootd_cache_fill_t *t,
      * left the origin file half-written). The cache never uses cpsize/cptype. */
     if (status != kXR_ok || dlen < XRD_FHANDLE_LEN) {
         free(body);
-        xrootd_cache_set_error(t, kXR_ServerError, 0,
+        brix_cache_set_error(t, kXR_ServerError, 0,
                                "write-through origin open invalid response");
         return -1;
     }
@@ -1245,18 +1245,18 @@ xrootd_cache_origin_open_write(xrootd_cache_fill_t *t,
     return 0;
 }
 
-/* xrootd_cache_origin_close_file — send kXR_close for the fhandle and discard the
+/* brix_cache_origin_close_file — send kXR_close for the fhandle and discard the
  * reply (close status only matters for errors, which don't invalidate data already
  * written to disk). Every opened file must be closed before reconnect/finish. */
 void
-xrootd_cache_origin_close_file(xrootd_cache_origin_conn_t *oc,
+brix_cache_origin_close_file(brix_cache_origin_conn_t *oc,
     const u_char fhandle[XRD_FHANDLE_LEN])
 {
     ClientCloseRequest req;
     uint16_t           rsp_status;
     uint32_t           dlen;
     u_char            *body;
-    xrootd_cache_fill_t dummy;
+    brix_cache_fill_t dummy;
 
     ngx_memzero(&req, sizeof(req));
     req.streamid[1] = 2;
@@ -1264,23 +1264,23 @@ xrootd_cache_origin_close_file(xrootd_cache_origin_conn_t *oc,
     ngx_memcpy(req.fhandle, fhandle, XRD_FHANDLE_LEN);
     req.dlen = 0;
 
-    (void) xrootd_cache_io_send(oc, &req, sizeof(req));
+    (void) brix_cache_io_send(oc, &req, sizeof(req));
 
     ngx_memzero(&dummy, sizeof(dummy));
     dummy.result = NGX_OK;
     body = NULL;
-    if (xrootd_cache_read_response(&dummy, oc, &rsp_status, &body, &dlen,
+    if (brix_cache_read_response(&dummy, oc, &rsp_status, &body, &dlen,
                                    4096) == 0) {
         free(body);
     }
 }
 
-/* xrootd_cache_origin_write_chunk — kXR_write a payload at a big-endian 64-bit
+/* brix_cache_origin_write_chunk — kXR_write a payload at a big-endian 64-bit
  * offset (htobe64, XRootD wire format); the reply must be kXR_ok with dlen=0.
  * Returns 0 on success, -1 on error. */
 int
-xrootd_cache_origin_write_chunk(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
+brix_cache_origin_write_chunk(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
     uint64_t offset, const u_char *data, size_t len)
 {
     ClientWriteRequest req;
@@ -1289,7 +1289,7 @@ xrootd_cache_origin_write_chunk(xrootd_cache_fill_t *t,
     u_char            *body;
 
     if (len > INT32_MAX) {
-        xrootd_cache_set_error(t, kXR_ArgTooLong, 0,
+        brix_cache_set_error(t, kXR_ArgTooLong, 0,
                                "write-through origin write too large");
         return -1;
     }
@@ -1301,22 +1301,22 @@ xrootd_cache_origin_write_chunk(xrootd_cache_fill_t *t,
     req.offset = (kXR_int64) htobe64(offset);
     req.dlen = htonl((kXR_int32) len);
 
-    if (xrootd_cache_io_send(oc, &req, sizeof(req)) != 0
-        || (len > 0 && xrootd_cache_io_send(oc, data, len) != 0))
+    if (brix_cache_io_send(oc, &req, sizeof(req)) != 0
+        || (len > 0 && brix_cache_io_send(oc, data, len) != 0))
     {
-        xrootd_cache_set_error(t, kXR_ServerError, errno,
+        brix_cache_set_error(t, kXR_ServerError, errno,
                                "write-through origin write failed");
         return -1;
     }
 
     body = NULL;
-    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen,
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen,
                                    4096) != 0) {
         return -1;
     }
 
     if (status == kXR_error) {
-        xrootd_cache_set_origin_error(t, body, dlen,
+        brix_cache_set_origin_error(t, body, dlen,
                                       "write-through origin write rejected");
         free(body);
         return -1;
@@ -1324,7 +1324,7 @@ xrootd_cache_origin_write_chunk(xrootd_cache_fill_t *t,
 
     free(body);
     if (status != kXR_ok || dlen != 0) {
-        xrootd_cache_set_error(t, kXR_ServerError, 0,
+        brix_cache_set_error(t, kXR_ServerError, 0,
                                "write-through origin write invalid response");
         return -1;
     }
@@ -1332,12 +1332,12 @@ xrootd_cache_origin_write_chunk(xrootd_cache_fill_t *t,
     return 0;
 }
 
-/* xrootd_cache_origin_truncate — kXR_truncate the origin file to a big-endian
+/* brix_cache_origin_truncate — kXR_truncate the origin file to a big-endian
  * 64-bit offset (used before write_chunk when the destination is larger than the
  * source); the reply must be kXR_ok. Returns 0 on success, -1 on error. */
 int
-xrootd_cache_origin_truncate(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
+brix_cache_origin_truncate(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
     uint64_t length)
 {
     ClientTruncateRequest req;
@@ -1352,20 +1352,20 @@ xrootd_cache_origin_truncate(xrootd_cache_fill_t *t,
     req.offset = (kXR_int64) htobe64(length);
     req.dlen = 0;
 
-    if (xrootd_cache_io_send(oc, &req, sizeof(req)) != 0) {
-        xrootd_cache_set_error(t, kXR_ServerError, errno,
+    if (brix_cache_io_send(oc, &req, sizeof(req)) != 0) {
+        brix_cache_set_error(t, kXR_ServerError, errno,
                                "write-through origin truncate send failed");
         return -1;
     }
 
     body = NULL;
-    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen,
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen,
                                    4096) != 0) {
         return -1;
     }
 
     if (status == kXR_error) {
-        xrootd_cache_set_origin_error(t, body, dlen,
+        brix_cache_set_origin_error(t, body, dlen,
                                       "write-through origin truncate failed");
         free(body);
         return -1;
@@ -1373,7 +1373,7 @@ xrootd_cache_origin_truncate(xrootd_cache_fill_t *t,
 
     free(body);
     if (status != kXR_ok) {
-        xrootd_cache_set_error(t, kXR_ServerError, 0,
+        brix_cache_set_error(t, kXR_ServerError, 0,
                                "write-through origin truncate invalid response");
         return -1;
     }
@@ -1381,12 +1381,12 @@ xrootd_cache_origin_truncate(xrootd_cache_fill_t *t,
     return 0;
 }
 
-/* xrootd_cache_origin_sync — kXR_sync the origin file (fsync equivalent) after
+/* brix_cache_origin_sync — kXR_sync the origin file (fsync equivalent) after
  * streaming all chunks, so the mirrored content survives an origin crash before
  * close; the reply must be kXR_ok. Returns 0 on success, -1 on error. */
 int
-xrootd_cache_origin_sync(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN])
+brix_cache_origin_sync(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN])
 {
     ClientSyncRequest req;
     uint16_t          status;
@@ -1399,20 +1399,20 @@ xrootd_cache_origin_sync(xrootd_cache_fill_t *t,
     ngx_memcpy(req.fhandle, fhandle, XRD_FHANDLE_LEN);
     req.dlen = 0;
 
-    if (xrootd_cache_io_send(oc, &req, sizeof(req)) != 0) {
-        xrootd_cache_set_error(t, kXR_ServerError, errno,
+    if (brix_cache_io_send(oc, &req, sizeof(req)) != 0) {
+        brix_cache_set_error(t, kXR_ServerError, errno,
                                "write-through origin sync send failed");
         return -1;
     }
 
     body = NULL;
-    if (xrootd_cache_read_response(t, oc, &status, &body, &dlen,
+    if (brix_cache_read_response(t, oc, &status, &body, &dlen,
                                    4096) != 0) {
         return -1;
     }
 
     if (status == kXR_error) {
-        xrootd_cache_set_origin_error(t, body, dlen,
+        brix_cache_set_origin_error(t, body, dlen,
                                       "write-through origin sync failed");
         free(body);
         return -1;
@@ -1420,7 +1420,7 @@ xrootd_cache_origin_sync(xrootd_cache_fill_t *t,
 
     free(body);
     if (status != kXR_ok) {
-        xrootd_cache_set_error(t, kXR_ServerError, 0,
+        brix_cache_set_error(t, kXR_ServerError, 0,
                                "write-through origin sync invalid response");
         return -1;
     }
@@ -1431,7 +1431,7 @@ xrootd_cache_origin_sync(xrootd_cache_fill_t *t,
 /* Positional write into a fill sink: a driver staged-write handle (driver-backed
  * cache) or a raw POSIX fd. Keeps the origin read loop backend-agnostic. */
 int
-xrootd_cache_sink_pwrite(xrootd_cache_sink_t *sink, const void *buf, size_t len,
+brix_cache_sink_pwrite(brix_cache_sink_t *sink, const void *buf, size_t len,
     off_t off)
 {
     if (sink->mem != NULL) {
@@ -1449,17 +1449,17 @@ xrootd_cache_sink_pwrite(xrootd_cache_sink_t *sink, const void *buf, size_t len,
                                                              len, off);
         return (n == (ssize_t) len) ? 0 : -1;
     }
-    return xrootd_cache_fd_write_all(sink->fd, buf, len, off);
+    return brix_cache_fd_write_all(sink->fd, buf, len, off);
 }
 
-/* xrootd_cache_origin_read_chunk — kXR_read at (offset, rlen), writing each reply
- * payload to the sink via xrootd_cache_sink_pwrite and looping over kXR_oksofar
+/* brix_cache_origin_read_chunk — kXR_read at (offset, rlen), writing each reply
+ * payload to the sink via brix_cache_sink_pwrite and looping over kXR_oksofar
  * until the final kXR_ok. dlen is bounded (<= want, accumulated *got within
  * request bounds) to prevent overflow. Sets *got; returns 0 / -1. */
 int
-xrootd_cache_origin_read_chunk(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
-    xrootd_cache_sink_t *sink, uint64_t read_off, uint64_t dst_off,
+brix_cache_origin_read_chunk(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
+    brix_cache_sink_t *sink, uint64_t read_off, uint64_t dst_off,
     size_t want, size_t *got)
 {
     ClientReadRequest req;
@@ -1477,21 +1477,21 @@ xrootd_cache_origin_read_chunk(xrootd_cache_fill_t *t,
     req.rlen = htonl((kXR_int32) want);
     req.dlen = 0;
 
-    if (xrootd_cache_io_send(oc, &req, sizeof(req)) != 0) {
-        xrootd_cache_set_error(t, kXR_ServerError, errno,
+    if (brix_cache_io_send(oc, &req, sizeof(req)) != 0) {
+        brix_cache_set_error(t, kXR_ServerError, errno,
                                "cache origin read write failed");
         return -1;
     }
 
     for (;;) {
         body = NULL;
-        if (xrootd_cache_read_response(t, oc, &status, &body, &dlen,
-                                       XROOTD_CACHE_FETCH_CHUNK) != 0) {
+        if (brix_cache_read_response(t, oc, &status, &body, &dlen,
+                                       BRIX_CACHE_FETCH_CHUNK) != 0) {
             return -1;
         }
 
         if (status == kXR_error) {
-            xrootd_cache_set_origin_error(t, body, dlen,
+            brix_cache_set_origin_error(t, body, dlen,
                                           "cache origin read failed");
             free(body);
             return -1;
@@ -1499,14 +1499,14 @@ xrootd_cache_origin_read_chunk(xrootd_cache_fill_t *t,
 
         if (status != kXR_ok && status != kXR_oksofar) {
             free(body);
-            xrootd_cache_set_error(t, kXR_ServerError, 0,
+            brix_cache_set_error(t, kXR_ServerError, 0,
                                    "cache origin read returned invalid status");
             return -1;
         }
 
         if ((size_t) dlen > want || *got > want - (size_t) dlen) {
             free(body);
-            xrootd_cache_set_error(t, kXR_ServerError, 0,
+            brix_cache_set_error(t, kXR_ServerError, 0,
                                    "cache origin read returned too much data");
             return -1;
         }
@@ -1517,11 +1517,11 @@ xrootd_cache_origin_read_chunk(xrootd_cache_fill_t *t,
              * the whole-file fetch passes dst_off==read_off (absolute), a slice
              * fill passes a 0-relative base. Using *got alone restarts at 0 each
              * 1 MiB chunk, so multi-chunk whole-file fetches overwrote at offset 0
-             * (corrupting any file > XROOTD_CACHE_FETCH_CHUNK → adler32 mismatch). */
-            if (xrootd_cache_sink_pwrite(sink, body, dlen,
+             * (corrupting any file > BRIX_CACHE_FETCH_CHUNK → adler32 mismatch). */
+            if (brix_cache_sink_pwrite(sink, body, dlen,
                                          (off_t) (dst_off + *got)) != 0) {
                 free(body);
-                xrootd_cache_set_syserror(t, kXR_IOError,
+                brix_cache_set_syserror(t, kXR_IOError,
                                           "cache file write failed");
                 return -1;
             }

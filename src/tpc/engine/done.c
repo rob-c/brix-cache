@@ -3,7 +3,7 @@
  *
  * WHY: Native TPC pull runs blocking socket I/O inside a detached thread-pool worker; the nginx event loop must resume when the thread finishes because it deferred the kXR_open response. This callback bridges the thread→event-loop boundary — restoring streamid context, updating file metadata (tpc_done flag, bytes_written, cached stat info), and sending the wire response that the client is waiting for. Sync vs async reply_kind determines whether to build a full ServerOpenBody with stat data or just send an ok status code.
  *
- * HOW: ev->data = ngx_thread_task_t → extract t (xrootd_tpc_pull_t) from task→ctx → restore request context via xrootd_aio_restore_request(streamid) → if connection closed, close dst_fd + unlink dst_path + free fhandle slot → reply_kind == XROOTD_TPC_REPLY_SYNC: build ServerOpenBody with fhandle[idx] + optional statbuf (inode/size/permissions/mtime + tpc.key) via snprintf, allocate response buffer with ngx_palloc, build wire header + body via xrootd_build_resp_hdr + ngx_memcpy, queue response via xrootd_queue_response → async reply_kind: send ok status code only → xrootd_aio_resume(c) in all paths. Returns void (callback).
+ * HOW: ev->data = ngx_thread_task_t → extract t (brix_tpc_pull_t) from task→ctx → restore request context via brix_aio_restore_request(streamid) → if connection closed, close dst_fd + unlink dst_path + free fhandle slot → reply_kind == BRIX_TPC_REPLY_SYNC: build ServerOpenBody with fhandle[idx] + optional statbuf (inode/size/permissions/mtime + tpc.key) via snprintf, allocate response buffer with ngx_palloc, build wire header + body via brix_build_resp_hdr + ngx_memcpy, queue response via brix_queue_response → async reply_kind: send ok status code only → brix_aio_resume(c) in all paths. Returns void (callback).
  * */
 
 #include "tpc_internal.h"
@@ -15,18 +15,18 @@
 
 /* WHAT: Main-thread completion callback — restore deferred request, dispatch SYNC vs async reply, build/send kXR_open response or error. */
 void
-xrootd_tpc_pull_done(ngx_event_t *ev)
+brix_tpc_pull_done(ngx_event_t *ev)
 {
     ngx_thread_task_t *task;
-    xrootd_tpc_pull_t *t;
-    xrootd_ctx_t      *ctx;
+    brix_tpc_pull_t *t;
+    brix_ctx_t      *ctx;
     ngx_connection_t  *c;
     int                idx;
 
     /*
      * Re-entry point from the thread pool: nginx delivers the completion as an
      * event whose ->data is the original ngx_thread_task_t. The pull state
-     * (xrootd_tpc_pull_t) lives in task->ctx; we recover ctx/connection/handle
+     * (brix_tpc_pull_t) lives in task->ctx; we recover ctx/connection/handle
      * from it. From here on we are back on the event thread — no blocking I/O.
      */
     task = ev->data;
@@ -40,28 +40,28 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
      * fails the client connection went away while the pull was running in the
      * worker thread: there is nobody to reply to, so just reclaim everything
      * (fd, partially-written file, fhandle slot, registry entry) and bail —
-     * no xrootd_aio_resume(), because there is no connection to resume.
+     * no brix_aio_resume(), because there is no connection to resume.
      */
-    if (!xrootd_aio_restore_request(ctx, t->streamid)) {
+    if (!brix_aio_restore_request(ctx, t->streamid)) {
         /* Connection closed while pull was in-flight — release resources. */
-        (void) xrootd_tpc_registry_update(t->transfer_id,
+        (void) brix_tpc_registry_update(t->transfer_id,
                                           (off_t) t->bytes_written,
-                                          XROOTD_TPC_STATE_ERROR,
+                                          BRIX_TPC_STATE_ERROR,
                                           c != NULL ? c->log : NULL);
-        xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_STREAM,
-                                   XROOTD_TPC_DIR_PULL,
-                                   XROOTD_TPC_METRIC_ERROR,
+        brix_tpc_metric_transfer(BRIX_TPC_PROTO_STREAM,
+                                   BRIX_TPC_DIR_PULL,
+                                   BRIX_TPC_METRIC_ERROR,
                                    t->bytes_written,
                                    c != NULL ? c->log : NULL);
-        (void) xrootd_tpc_registry_remove(t->transfer_id,
+        (void) brix_tpc_registry_remove(t->transfer_id,
                                           c != NULL ? c->log : NULL);
         close(t->dst_fd);
-        (void) xrootd_vfs_unlink_path(c != NULL ? c->log : NULL,
+        (void) brix_vfs_unlink_path(c != NULL ? c->log : NULL,
                                       t->conf->common.root_canon, t->dst_path);
-        if (idx >= 0 && idx < XROOTD_MAX_FILES) {
+        if (idx >= 0 && idx < BRIX_MAX_FILES) {
             ctx->files[idx].fd = -1;
             ctx->files[idx].tpc_transfer_id = 0;
-            xrootd_free_fhandle(ctx, idx);
+            brix_free_fhandle(ctx, idx);
         }
         return;
     }
@@ -72,11 +72,11 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
      * copy). The waiting request is the sync, so we reply with ok/error for
      * SYNC and keep the file handle open for the client to close itself.
      */
-    if (t->reply_kind == XROOTD_TPC_REPLY_SYNC) {
-        xrootd_file_t *file;
+    if (t->reply_kind == BRIX_TPC_REPLY_SYNC) {
+        brix_file_t *file;
 
         /* idx may be out of range if the handle was reaped; guard before use. */
-        file = (idx >= 0 && idx < XROOTD_MAX_FILES) ? &ctx->files[idx] : NULL;
+        file = (idx >= 0 && idx < BRIX_MAX_FILES) ? &ctx->files[idx] : NULL;
 
         if (t->result != NGX_OK) {
             int err = t->xrd_error ? t->xrd_error : kXR_ServerError;
@@ -88,31 +88,31 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
             if (file != NULL) {
                 file->fd = -1;
                 file->tpc_transfer_id = 0;
-                xrootd_free_fhandle(ctx, idx);
+                brix_free_fhandle(ctx, idx);
             } else {
                 close(t->dst_fd);
             }
-            (void) xrootd_vfs_unlink_path(c != NULL ? c->log : NULL,
+            (void) brix_vfs_unlink_path(c != NULL ? c->log : NULL,
                                       t->conf->common.root_canon, t->dst_path);
 
-            (void) xrootd_tpc_registry_update(t->transfer_id,
+            (void) brix_tpc_registry_update(t->transfer_id,
                                               (off_t) t->bytes_written,
-                                              XROOTD_TPC_STATE_ERROR,
+                                              BRIX_TPC_STATE_ERROR,
                                               c->log);
-            xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_STREAM,
-                                       XROOTD_TPC_DIR_PULL,
-                                       XROOTD_TPC_METRIC_ERROR,
+            brix_tpc_metric_transfer(BRIX_TPC_PROTO_STREAM,
+                                       BRIX_TPC_DIR_PULL,
+                                       BRIX_TPC_METRIC_ERROR,
                                        t->bytes_written, c->log);
-            (void) xrootd_tpc_registry_remove(t->transfer_id, c->log);
+            (void) brix_tpc_registry_remove(t->transfer_id, c->log);
 
-            xrootd_log_access(ctx, c, "TPC-PULL", t->dst_path, "error",
+            brix_log_access(ctx, c, "TPC-PULL", t->dst_path, "error",
                               0, (uint16_t) err,
                               t->err_msg[0] ? t->err_msg : "TPC pull failed",
                               0);
-            XROOTD_OP_ERR(ctx, XROOTD_OP_SYNC);
-            xrootd_send_error(ctx, c, (uint16_t) err,
+            BRIX_OP_ERR(ctx, BRIX_OP_SYNC);
+            brix_send_error(ctx, c, (uint16_t) err,
                               t->err_msg[0] ? t->err_msg : "TPC pull failed");
-            xrootd_aio_resume(c);
+            brix_aio_resume(c);
             return;
         }
 
@@ -135,19 +135,19 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
             }
         }
 
-        xrootd_log_access(ctx, c, "TPC-PULL", t->dst_path, "ok",
+        brix_log_access(ctx, c, "TPC-PULL", t->dst_path, "ok",
                           1, 0, NULL, t->bytes_written);
-        XROOTD_OP_OK(ctx, XROOTD_OP_SYNC);
-        (void) xrootd_tpc_registry_update(t->transfer_id,
+        BRIX_OP_OK(ctx, BRIX_OP_SYNC);
+        (void) brix_tpc_registry_update(t->transfer_id,
                                           (off_t) t->bytes_written,
-                                          XROOTD_TPC_STATE_DONE, c->log);
-        xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_STREAM,
-                                   XROOTD_TPC_DIR_PULL,
-                                   XROOTD_TPC_METRIC_SUCCESS,
+                                          BRIX_TPC_STATE_DONE, c->log);
+        brix_tpc_metric_transfer(BRIX_TPC_PROTO_STREAM,
+                                   BRIX_TPC_DIR_PULL,
+                                   BRIX_TPC_METRIC_SUCCESS,
                                    t->bytes_written, c->log);
-        (void) xrootd_tpc_registry_remove(t->transfer_id, c->log);
-        xrootd_send_ok(ctx, c, NULL, 0);
-        xrootd_aio_resume(c);
+        (void) brix_tpc_registry_remove(t->transfer_id, c->log);
+        brix_send_ok(ctx, c, NULL, 0);
+        brix_aio_resume(c);
         return;
     }
 
@@ -163,44 +163,44 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
         /* Failed copy: close+unlink the partial destination and release the
          * fhandle slot before replying with the error to the OPEN. */
         close(t->dst_fd);
-        (void) xrootd_vfs_unlink_path(c != NULL ? c->log : NULL,
+        (void) brix_vfs_unlink_path(c != NULL ? c->log : NULL,
                                       t->conf->common.root_canon, t->dst_path);
         ctx->files[idx].fd = -1;
         ctx->files[idx].tpc_transfer_id = 0;
-        xrootd_free_fhandle(ctx, idx);
+        brix_free_fhandle(ctx, idx);
 
-        (void) xrootd_tpc_registry_update(t->transfer_id,
+        (void) brix_tpc_registry_update(t->transfer_id,
                                           (off_t) t->bytes_written,
-                                          XROOTD_TPC_STATE_ERROR, c->log);
-        xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_STREAM,
-                                   XROOTD_TPC_DIR_PULL,
-                                   XROOTD_TPC_METRIC_ERROR,
+                                          BRIX_TPC_STATE_ERROR, c->log);
+        brix_tpc_metric_transfer(BRIX_TPC_PROTO_STREAM,
+                                   BRIX_TPC_DIR_PULL,
+                                   BRIX_TPC_METRIC_ERROR,
                                    t->bytes_written, c->log);
-        (void) xrootd_tpc_registry_remove(t->transfer_id, c->log);
+        (void) brix_tpc_registry_remove(t->transfer_id, c->log);
 
-        xrootd_log_access(ctx, c, "TPC-PULL", t->dst_path, "error",
+        brix_log_access(ctx, c, "TPC-PULL", t->dst_path, "error",
                           0, (uint16_t) err,
                           t->err_msg[0] ? t->err_msg : "TPC pull failed", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_WR);
-        xrootd_send_error(ctx, c, (uint16_t) err,
+        BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
+        brix_send_error(ctx, c, (uint16_t) err,
                           t->err_msg[0] ? t->err_msg : "TPC pull failed");
-        xrootd_aio_resume(c);
+        brix_aio_resume(c);
         return;
     }
 
-    xrootd_log_access(ctx, c, "TPC-PULL", t->dst_path, "ok", 1, 0, NULL, 0);
-    XROOTD_OP_OK(ctx, XROOTD_OP_OPEN_WR);
-    if (idx >= 0 && idx < XROOTD_MAX_FILES) {
+    brix_log_access(ctx, c, "TPC-PULL", t->dst_path, "ok", 1, 0, NULL, 0);
+    BRIX_OP_OK(ctx, BRIX_OP_OPEN_WR);
+    if (idx >= 0 && idx < BRIX_MAX_FILES) {
         ctx->files[idx].tpc_transfer_id = 0;
     }
-    (void) xrootd_tpc_registry_update(t->transfer_id,
+    (void) brix_tpc_registry_update(t->transfer_id,
                                       (off_t) t->bytes_written,
-                                      XROOTD_TPC_STATE_DONE, c->log);
-    xrootd_tpc_metric_transfer(XROOTD_TPC_PROTO_STREAM,
-                               XROOTD_TPC_DIR_PULL,
-                               XROOTD_TPC_METRIC_SUCCESS,
+                                      BRIX_TPC_STATE_DONE, c->log);
+    brix_tpc_metric_transfer(BRIX_TPC_PROTO_STREAM,
+                               BRIX_TPC_DIR_PULL,
+                               BRIX_TPC_METRIC_SUCCESS,
                                t->bytes_written, c->log);
-    (void) xrootd_tpc_registry_remove(t->transfer_id, c->log);
+    (void) brix_tpc_registry_remove(t->transfer_id, c->log);
 
     /*
      * Success, async path: build the deferred kXR_open ok response.
@@ -257,8 +257,8 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
         total = XRD_RESPONSE_HDR_LEN + bodylen;
         buf   = ngx_palloc(c->pool, total);
         if (buf == NULL) {
-            xrootd_send_error(ctx, c, kXR_NoMemory, "alloc failed");
-            xrootd_aio_resume(c);
+            brix_send_error(ctx, c, kXR_NoMemory, "alloc failed");
+            brix_aio_resume(c);
             return;
         }
 
@@ -266,7 +266,7 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
          * The header is written first with dlen=bodylen; the body follows at
          * the fixed header offset, and the optional trailer (with its NUL) is
          * appended immediately after the body. */
-        xrootd_build_resp_hdr(t->streamid, kXR_ok, (uint32_t) bodylen,
+        brix_build_resp_hdr(t->streamid, kXR_ok, (uint32_t) bodylen,
                               (ServerResponseHdr *) buf);
 
         ngx_memzero(&body_s, sizeof(body_s));
@@ -279,8 +279,8 @@ xrootd_tpc_pull_done(ngx_event_t *ev)
                        statbuf, slen);
         }
 
-        xrootd_queue_response(ctx, c, buf, total);
+        brix_queue_response(ctx, c, buf, total);
     }
 
-    xrootd_aio_resume(c);
+    brix_aio_resume(c);
 }

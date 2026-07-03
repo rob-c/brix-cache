@@ -13,7 +13,7 @@ Scenario 1: "WLCG Gateway"
 Scenario 2: "Storage Bridge"
     xrdcp ──► xrootd (proxy/PSS) ──► nginx (data)
     Compatibility test with ofs.forward and PSS mode.
-    Uses: PROXY_BRIDGE_XROOTD_PORT → PROXY_NGINX_PORT
+    Uses: PROXY_BRIDGE_BRIX_PORT → PROXY_NGINX_PORT
     (Skipped if the storage-bridge server is not pre-launched.)
 
 Scenario 3: "Pure Nginx"
@@ -40,7 +40,7 @@ import pytest
 
 from settings import (
     CA_DIR,
-    PROXY_BRIDGE_XROOTD_PORT,
+    PROXY_BRIDGE_BRIX_PORT,
     PROXY_DATA_ROOT,
     PROXY_NGINX_PORT,
     PROXY_PURE_NGINX_PROXY_PORT,
@@ -262,8 +262,8 @@ class TestStorageBridge:
     @pytest.fixture(scope="class", autouse=True)
     def _require_bridge(self):
         _skip_if_port_closed(
-            PROXY_BRIDGE_XROOTD_PORT,
-            "storage-bridge xrootd PSS server (PROXY_BRIDGE_XROOTD_PORT)"
+            PROXY_BRIDGE_BRIX_PORT,
+            "storage-bridge xrootd PSS server (PROXY_BRIDGE_BRIX_PORT)"
         )
 
     def test_read_via_pss_bridge(self, tmp_path):
@@ -274,7 +274,7 @@ class TestStorageBridge:
 
         dst = str(tmp_path / name)
         result = _xrdcp_get(
-            f"root://{SERVER_HOST}:{PROXY_BRIDGE_XROOTD_PORT}//{name}", dst
+            f"root://{SERVER_HOST}:{PROXY_BRIDGE_BRIX_PORT}//{name}", dst
         )
         assert result.returncode == 0, f"xrdcp bridge read failed: {result.stderr}"
         with open(dst, "rb") as fh:
@@ -290,7 +290,7 @@ class TestStorageBridge:
             fh.write(payload)
 
         result = _xrdcp_put(
-            src, f"root://{SERVER_HOST}:{PROXY_BRIDGE_XROOTD_PORT}//{name}"
+            src, f"root://{SERVER_HOST}:{PROXY_BRIDGE_BRIX_PORT}//{name}"
         )
         assert result.returncode == 0, f"xrdcp bridge write failed: {result.stderr}"
 

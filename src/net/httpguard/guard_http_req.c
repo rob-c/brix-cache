@@ -7,7 +7,7 @@
  *   HTTP request shape is interpreted, so ACCESS and LOG phases can never
  *   disagree about what was requested.
  * HOW:  NUL-terminate r->uri into stack scratch, sanitize it via the shared
- *   xrootd_sanitize_log_string helper; copy addr_text (not NUL-terminated by
+ *   brix_sanitize_log_string helper; copy addr_text (not NUL-terminated by
  *   nginx) likewise; detect credentials from the verified client cert or an
  *   Authorization header; timestamp + append via one ngx_write_fd.
  */
@@ -101,7 +101,7 @@ copy_str_z(const ngx_str_t *src, char *buf, size_t bufsz)
  *
  * WHY: single normalization point for both phase handlers, and the one place
  *   the wire-derived URI is sanitized (INVARIANT: every logged wire string
- *   goes through xrootd_sanitize_log_string).
+ *   goes through brix_sanitize_log_string).
  *
  * HOW: 1. NUL-terminate r->uri into local scratch (ngx_str_t is counted).
  *      2. Sanitize into pathbuf — control/quote/backslash/non-ASCII bytes
@@ -111,14 +111,14 @@ copy_str_z(const ngx_str_t *src, char *buf, size_t bufsz)
  *         (the audit line's proto= field must never be empty for fail2ban).
  */
 void
-ngx_http_xrootd_guard_build_request(ngx_http_request_t *r,
-    ngx_http_xrootd_guard_loc_conf_t *lcf, guard_request_t *out,
+ngx_http_brix_guard_build_request(ngx_http_request_t *r,
+    ngx_http_brix_guard_loc_conf_t *lcf, guard_request_t *out,
     char *pathbuf, size_t pathbuf_sz, char *ipbuf, size_t ipbuf_sz)
 {
-    char uri_z[XROOTD_GUARD_PATH_BUF];
+    char uri_z[BRIX_GUARD_PATH_BUF];
 
     copy_str_z(&r->uri, uri_z, sizeof(uri_z));
-    out->path_len = xrootd_sanitize_log_string(uri_z, pathbuf, pathbuf_sz);
+    out->path_len = brix_sanitize_log_string(uri_z, pathbuf, pathbuf_sz);
     out->path     = pathbuf;
 
     copy_str_z(&r->connection->addr_text, ipbuf, ipbuf_sz);
@@ -150,11 +150,11 @@ ngx_http_xrootd_guard_build_request(ngx_http_request_t *r,
  *         connection log (fail2ban silently losing lines would be worse).
  */
 void
-ngx_http_xrootd_guard_write_audit(ngx_http_request_t *r,
-    ngx_http_xrootd_guard_loc_conf_t *lcf, const guard_request_t *req,
+ngx_http_brix_guard_write_audit(ngx_http_request_t *r,
+    ngx_http_brix_guard_loc_conf_t *lcf, const guard_request_t *req,
     guard_reason_t reason)
 {
-    char    line[XROOTD_GUARD_PATH_BUF + 256];
+    char    line[BRIX_GUARD_PATH_BUF + 256];
     char    ts[sizeof("YYYY-MM-DDThh:mm:ss+00:00")];
     size_t  ts_len;
     size_t  line_len;
@@ -180,6 +180,6 @@ ngx_http_xrootd_guard_write_audit(ngx_http_request_t *r,
         != (ssize_t) line_len)
     {
         ngx_log_error(NGX_LOG_ALERT, r->connection->log, ngx_errno,
-                      "xrootd_guard: audit log write failed");
+                      "brix_guard: audit log write failed");
     }
 }

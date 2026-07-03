@@ -4,55 +4,55 @@
  * registry.c — shared-memory registry of in-flight third-party copies.
  *
  * WHAT: Implements the registry.h lifecycle: reserve the shared zone
- *       (xrootd_tpc_registry_configure), publish/update/remove/find transfers
+ *       (brix_tpc_registry_configure), publish/update/remove/find transfers
  *       by id, and bulk-copy a consistent view out via
- *       xrootd_tpc_registry_snapshot. Backed by a fixed slot array
- *       (XROOTD_TPC_REGISTRY_SLOTS) guarded by a single shared mutex.
+ *       brix_tpc_registry_snapshot. Backed by a fixed slot array
+ *       (BRIX_TPC_REGISTRY_SLOTS) guarded by a single shared mutex.
  *
  * WHY: TPC state must be visible across all nginx worker processes (a transfer
  *      started by one worker may be queried or reported by another, and by the
  *      dashboard/metrics readers). A shared-memory table with a shmtx gives a
  *      lock-protected, cross-process source of truth without per-worker state.
  *
- * HOW: xrootd_tpc_registry_shm_init() zeroes the table and creates the shmtx on
+ * HOW: brix_tpc_registry_shm_init() zeroes the table and creates the shmtx on
  *      first map (and re-attaches it on reload via the data carry-over path).
  *      Each slot inlines fixed-size src_url/dst_path storage; the registry copies
- *      caller strings into that storage (xrootd_tpc_registry_copy_str) so the
- *      published xrootd_tpc_transfer_t never points at caller-owned memory. IDs
+ *      caller strings into that storage (brix_tpc_registry_copy_str) so the
+ *      published brix_tpc_transfer_t never points at caller-owned memory. IDs
  *      are minted from time<<32 ^ pid<<16 ^ a process-local sequence
- *      (xrootd_tpc_registry_next_id) to stay unique across workers. All slot
- *      mutations take xrootd_tpc_registry_mutex; xrootd_tpc_registry_find()
+ *      (brix_tpc_registry_next_id) to stay unique across workers. All slot
+ *      mutations take brix_tpc_registry_mutex; brix_tpc_registry_find()
  *      reads without locking and returns a pointer into shared memory for
  *      best-effort lookups.
  */
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "core/compat/shm_slots.h"
 
 #include <string.h>
 
 typedef struct {
     ngx_uint_t              in_use;
-    xrootd_tpc_transfer_t   transfer;
-    u_char                  src_url_data[XROOTD_TPC_SRC_URL_MAX];
-    u_char                  dst_path_data[XROOTD_TPC_DST_PATH_MAX];
-} xrootd_tpc_registry_entry_t;
+    brix_tpc_transfer_t   transfer;
+    u_char                  src_url_data[BRIX_TPC_SRC_URL_MAX];
+    u_char                  dst_path_data[BRIX_TPC_DST_PATH_MAX];
+} brix_tpc_registry_entry_t;
 
 typedef struct {
     ngx_shmtx_sh_t              lock;
-    xrootd_tpc_registry_entry_t slots[XROOTD_TPC_REGISTRY_SLOTS];
-} xrootd_tpc_registry_table_t;
+    brix_tpc_registry_entry_t slots[BRIX_TPC_REGISTRY_SLOTS];
+} brix_tpc_registry_table_t;
 
-static ngx_shm_zone_t *xrootd_tpc_registry_shm_zone;
-static ngx_shmtx_t     xrootd_tpc_registry_mutex;
-static uint64_t        xrootd_tpc_registry_sequence;
+static ngx_shm_zone_t *brix_tpc_registry_shm_zone;
+static ngx_shmtx_t     brix_tpc_registry_mutex;
+static uint64_t        brix_tpc_registry_sequence;
 
 /*
  * Phase 39 (WS5): max age (seconds since updated_at) after which an in-flight
  * registry slot is considered abandoned and may be reclaimed.  0 = disabled (no
  * reaping; current behaviour).  Set once at config time from
- * xrootd_tpc_transfer_max_age (carried into workers by fork).  Healthy transfers
- * refresh updated_at via xrootd_tpc_registry_update() on every progress emit
+ * brix_tpc_transfer_max_age (carried into workers by fork).  Healthy transfers
+ * refresh updated_at via brix_tpc_registry_update() on every progress emit
  * (native source.c per 1 MiB chunk; curl per progress callback), so a slot older
  * than max_age has made no progress at all and is genuinely stuck.
  *
@@ -62,26 +62,26 @@ static uint64_t        xrootd_tpc_registry_sequence;
  * find its id and no-ops — there is no raw-pointer retention (registry_find is
  * read-only and unused).
  */
-static time_t          xrootd_tpc_registry_max_age;
+static time_t          brix_tpc_registry_max_age;
 
-static xrootd_tpc_registry_table_t *
-xrootd_tpc_registry_table(void)
+static brix_tpc_registry_table_t *
+brix_tpc_registry_table(void)
 {
-    if (xrootd_tpc_registry_shm_zone == NULL
-        || xrootd_tpc_registry_shm_zone->data == NULL
-        || xrootd_tpc_registry_shm_zone->data == (void *) 1)
+    if (brix_tpc_registry_shm_zone == NULL
+        || brix_tpc_registry_shm_zone->data == NULL
+        || brix_tpc_registry_shm_zone->data == (void *) 1)
     {
         return NULL;
     }
 
-    return (xrootd_tpc_registry_table_t *) xrootd_tpc_registry_shm_zone->data;
+    return (brix_tpc_registry_table_t *) brix_tpc_registry_shm_zone->data;
 }
 
 static ngx_int_t
-xrootd_tpc_registry_shm_init(ngx_shm_zone_t *shm_zone, void *data)
+brix_tpc_registry_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 {
     ngx_flag_t                   fresh;
-    xrootd_tpc_registry_table_t *tbl;
+    brix_tpc_registry_table_t *tbl;
 
     /*
      * Allocate the slot table FROM the slab pool (never over shm.addr) so the
@@ -90,9 +90,9 @@ xrootd_tpc_registry_shm_init(ngx_shm_zone_t *shm_zone, void *data)
      * were clobbered. The helper zeroes the table and creates the process-local
      * mutex from its first member (the ngx_shmtx_sh_t lock).
      */
-    tbl = xrootd_shm_table_alloc(shm_zone, data,
-                                 sizeof(xrootd_tpc_registry_table_t),
-                                 &xrootd_tpc_registry_mutex, &fresh);
+    tbl = brix_shm_table_alloc(shm_zone, data,
+                                 sizeof(brix_tpc_registry_table_t),
+                                 &brix_tpc_registry_mutex, &fresh);
     if (tbl == NULL) {
         return NGX_ERROR;
     }
@@ -100,7 +100,7 @@ xrootd_tpc_registry_shm_init(ngx_shm_zone_t *shm_zone, void *data)
     /*
      * No fresh-only field inits are required: every slot is reset by the
      * helper's memzero on first allocation, and the slot capacity is the
-     * compile-time constant XROOTD_TPC_REGISTRY_SLOTS. On reuse (fresh == 0) the
+     * compile-time constant BRIX_TPC_REGISTRY_SLOTS. On reuse (fresh == 0) the
      * live slot contents are deliberately preserved.
      */
     (void) fresh;
@@ -109,45 +109,45 @@ xrootd_tpc_registry_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 }
 
 /*
- * Reserve the "xrootd_tpc_transfers" shared-memory zone (sized for the slot
+ * Reserve the "brix_tpc_transfers" shared-memory zone (sized for the slot
  * table plus a page) and wire up its init callback. Called at config time.
  * Returns NGX_OK or NGX_ERROR if the zone could not be added.
  */
 ngx_int_t
-xrootd_tpc_registry_configure(ngx_conf_t *cf)
+brix_tpc_registry_configure(ngx_conf_t *cf)
 {
-    ngx_str_t zone_name = ngx_string("xrootd_tpc_transfers");
+    ngx_str_t zone_name = ngx_string("brix_tpc_transfers");
     size_t    zone_size;
 
-    zone_size = xrootd_shm_zone_size(sizeof(xrootd_tpc_registry_table_t));
-    xrootd_tpc_registry_shm_zone = ngx_shared_memory_add(
-        cf, &zone_name, zone_size, &ngx_stream_xrootd_module);
+    zone_size = brix_shm_zone_size(sizeof(brix_tpc_registry_table_t));
+    brix_tpc_registry_shm_zone = ngx_shared_memory_add(
+        cf, &zone_name, zone_size, &ngx_stream_brix_module);
 
-    if (xrootd_tpc_registry_shm_zone == NULL) {
+    if (brix_tpc_registry_shm_zone == NULL) {
         return NGX_ERROR;
     }
 
-    xrootd_tpc_registry_shm_zone->init = xrootd_tpc_registry_shm_init;
-    xrootd_tpc_registry_shm_zone->data = (void *) 1;
+    brix_tpc_registry_shm_zone->init = brix_tpc_registry_shm_init;
+    brix_tpc_registry_shm_zone->data = (void *) 1;
 
     return NGX_OK;
 }
 
 static uint64_t
-xrootd_tpc_registry_next_id(void)
+brix_tpc_registry_next_id(void)
 {
     uint64_t id;
 
-    xrootd_tpc_registry_sequence++;
+    brix_tpc_registry_sequence++;
     id = (((uint64_t) ngx_time()) << 32)
          ^ (((uint64_t) ngx_pid) << 16)
-         ^ xrootd_tpc_registry_sequence;
+         ^ brix_tpc_registry_sequence;
 
     return id == 0 ? 1 : id;
 }
 
 static void
-xrootd_tpc_registry_copy_str(ngx_str_t *dst, u_char *storage,
+brix_tpc_registry_copy_str(ngx_str_t *dst, u_char *storage,
     size_t storage_len, const ngx_str_t *src)
 {
     size_t copy_len;
@@ -176,13 +176,13 @@ xrootd_tpc_registry_copy_str(ngx_str_t *dst, u_char *storage,
 
 /*
  * Phase 39 (WS5): set the abandoned-slot max age (seconds).  Called once per
- * server block at config time (before fork) from xrootd_tpc_transfer_max_age;
+ * server block at config time (before fork) from brix_tpc_transfer_max_age;
  * 0 = disabled.  Last enabling block wins (callers guard on value > 0).
  */
 void
-xrootd_tpc_registry_set_max_age(time_t secs)
+brix_tpc_registry_set_max_age(time_t secs)
 {
-    xrootd_tpc_registry_max_age = secs;
+    brix_tpc_registry_max_age = secs;
 }
 
 /*
@@ -193,19 +193,19 @@ xrootd_tpc_registry_set_max_age(time_t secs)
  * all other access is by unique id under this same lock (see the max_age note).
  */
 static ngx_uint_t
-xrootd_tpc_registry_reap_locked(xrootd_tpc_registry_table_t *tbl, time_t now)
+brix_tpc_registry_reap_locked(brix_tpc_registry_table_t *tbl, time_t now)
 {
     ngx_uint_t i;
     ngx_uint_t reaped = 0;
 
-    if (xrootd_tpc_registry_max_age <= 0) {
+    if (brix_tpc_registry_max_age <= 0) {
         return 0;
     }
 
-    for (i = 0; i < XROOTD_TPC_REGISTRY_SLOTS; i++) {
+    for (i = 0; i < BRIX_TPC_REGISTRY_SLOTS; i++) {
         if (tbl->slots[i].in_use
             && (now - tbl->slots[i].transfer.updated_at)
-               > xrootd_tpc_registry_max_age)
+               > brix_tpc_registry_max_age)
         {
             ngx_memzero(&tbl->slots[i], sizeof(tbl->slots[i]));
             reaped++;
@@ -221,29 +221,29 @@ xrootd_tpc_registry_reap_locked(xrootd_tpc_registry_table_t *tbl, time_t now)
  * any worker; intended for a coarse timer but also driven inline on a full add.
  */
 ngx_uint_t
-xrootd_tpc_registry_reap_stale(ngx_log_t *log)
+brix_tpc_registry_reap_stale(ngx_log_t *log)
 {
-    xrootd_tpc_registry_table_t *tbl;
+    brix_tpc_registry_table_t *tbl;
     ngx_uint_t                   reaped;
 
-    if (xrootd_tpc_registry_max_age <= 0) {
+    if (brix_tpc_registry_max_age <= 0) {
         return 0;
     }
 
-    tbl = xrootd_tpc_registry_table();
+    tbl = brix_tpc_registry_table();
     if (tbl == NULL) {
         return 0;
     }
 
-    ngx_shmtx_lock(&xrootd_tpc_registry_mutex);
-    reaped = xrootd_tpc_registry_reap_locked(tbl, ngx_time());
-    ngx_shmtx_unlock(&xrootd_tpc_registry_mutex);
+    ngx_shmtx_lock(&brix_tpc_registry_mutex);
+    reaped = brix_tpc_registry_reap_locked(tbl, ngx_time());
+    ngx_shmtx_unlock(&brix_tpc_registry_mutex);
 
     if (reaped > 0 && log != NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_tpc: reaped %ui abandoned transfer slot(s) "
+                      "brix_tpc: reaped %ui abandoned transfer slot(s) "
                       "(no progress for >%T s)",
-                      reaped, xrootd_tpc_registry_max_age);
+                      reaped, brix_tpc_registry_max_age);
     }
 
     return reaped;
@@ -256,44 +256,44 @@ xrootd_tpc_registry_reap_stale(ngx_log_t *log)
  * is unavailable or full.
  */
 uint64_t
-xrootd_tpc_registry_add(const xrootd_tpc_transfer_t *transfer, ngx_log_t *log)
+brix_tpc_registry_add(const brix_tpc_transfer_t *transfer, ngx_log_t *log)
 {
-    xrootd_tpc_registry_table_t *tbl;
-    xrootd_tpc_registry_entry_t *entry;
+    brix_tpc_registry_table_t *tbl;
+    brix_tpc_registry_entry_t *entry;
     ngx_uint_t                   i;
     ngx_uint_t                   free_slot;
     time_t                       now;
     uint64_t                     id;
 
-    tbl = xrootd_tpc_registry_table();
+    tbl = brix_tpc_registry_table();
     if (tbl == NULL || transfer == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_tpc: transfer registry is unavailable");
+                      "brix_tpc: transfer registry is unavailable");
         return 0;
     }
 
     now = ngx_time();
-    id = xrootd_tpc_registry_next_id();
+    id = brix_tpc_registry_next_id();
 
-    ngx_shmtx_lock(&xrootd_tpc_registry_mutex);
+    ngx_shmtx_lock(&brix_tpc_registry_mutex);
 
-    free_slot = XROOTD_TPC_REGISTRY_SLOTS;
-    for (i = 0; i < XROOTD_TPC_REGISTRY_SLOTS; i++) {
+    free_slot = BRIX_TPC_REGISTRY_SLOTS;
+    for (i = 0; i < BRIX_TPC_REGISTRY_SLOTS; i++) {
         if (!tbl->slots[i].in_use) {
             free_slot = i;
             break;
         }
     }
 
-    if (free_slot == XROOTD_TPC_REGISTRY_SLOTS) {
+    if (free_slot == BRIX_TPC_REGISTRY_SLOTS) {
         /*
          * Phase 39 (WS5): registry full — reclaim abandoned slots (no progress
-         * for > xrootd_tpc_transfer_max_age) and retry once, so a flood of stalled
+         * for > brix_tpc_transfer_max_age) and retry once, so a flood of stalled
          * transfers self-heals instead of permanently 503-ing every new TPC.
          * No-op when reaping is disabled.  Runs under the lock already held.
          */
-        if (xrootd_tpc_registry_reap_locked(tbl, now) > 0) {
-            for (i = 0; i < XROOTD_TPC_REGISTRY_SLOTS; i++) {
+        if (brix_tpc_registry_reap_locked(tbl, now) > 0) {
+            for (i = 0; i < BRIX_TPC_REGISTRY_SLOTS; i++) {
                 if (!tbl->slots[i].in_use) {
                     free_slot = i;
                     break;
@@ -302,10 +302,10 @@ xrootd_tpc_registry_add(const xrootd_tpc_transfer_t *transfer, ngx_log_t *log)
         }
     }
 
-    if (free_slot == XROOTD_TPC_REGISTRY_SLOTS) {
-        ngx_shmtx_unlock(&xrootd_tpc_registry_mutex);
+    if (free_slot == BRIX_TPC_REGISTRY_SLOTS) {
+        ngx_shmtx_unlock(&brix_tpc_registry_mutex);
         ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "xrootd_tpc: transfer registry is full");
+                      "brix_tpc: transfer registry is full");
         return 0;
     }
 
@@ -318,19 +318,19 @@ xrootd_tpc_registry_add(const xrootd_tpc_transfer_t *transfer, ngx_log_t *log)
     entry->transfer.started_at = now;
     entry->transfer.updated_at = now;
     if (entry->transfer.state == 0) {
-        entry->transfer.state = XROOTD_TPC_STATE_PENDING;
+        entry->transfer.state = BRIX_TPC_STATE_PENDING;
     }
 
-    xrootd_tpc_registry_copy_str(&entry->transfer.src_url,
+    brix_tpc_registry_copy_str(&entry->transfer.src_url,
                                  entry->src_url_data,
                                  sizeof(entry->src_url_data),
                                  &transfer->src_url);
-    xrootd_tpc_registry_copy_str(&entry->transfer.dst_path,
+    brix_tpc_registry_copy_str(&entry->transfer.dst_path,
                                  entry->dst_path_data,
                                  sizeof(entry->dst_path_data),
                                  &transfer->dst_path);
 
-    ngx_shmtx_unlock(&xrootd_tpc_registry_mutex);
+    ngx_shmtx_unlock(&brix_tpc_registry_mutex);
 
     return id;
 }
@@ -341,25 +341,25 @@ xrootd_tpc_registry_add(const xrootd_tpc_transfer_t *transfer, ngx_log_t *log)
  * NGX_DECLINED if the registry is unavailable or the id is not found.
  */
 ngx_int_t
-xrootd_tpc_registry_update(uint64_t id, off_t bytes_done, ngx_uint_t state,
+brix_tpc_registry_update(uint64_t id, off_t bytes_done, ngx_uint_t state,
     ngx_log_t *log)
 {
-    xrootd_tpc_registry_table_t *tbl;
-    xrootd_tpc_registry_entry_t *entry;
+    brix_tpc_registry_table_t *tbl;
+    brix_tpc_registry_entry_t *entry;
     ngx_uint_t                   i;
 
     if (id == 0) {
         return NGX_OK;
     }
 
-    tbl = xrootd_tpc_registry_table();
+    tbl = brix_tpc_registry_table();
     if (tbl == NULL) {
         return NGX_DECLINED;
     }
 
-    ngx_shmtx_lock(&xrootd_tpc_registry_mutex);
+    ngx_shmtx_lock(&brix_tpc_registry_mutex);
 
-    for (i = 0; i < XROOTD_TPC_REGISTRY_SLOTS; i++) {
+    for (i = 0; i < BRIX_TPC_REGISTRY_SLOTS; i++) {
         entry = &tbl->slots[i];
         if (entry->in_use && entry->transfer.id == id) {
             entry->transfer.bytes_done = bytes_done;
@@ -367,15 +367,15 @@ xrootd_tpc_registry_update(uint64_t id, off_t bytes_done, ngx_uint_t state,
                 entry->transfer.state = state;
             }
             entry->transfer.updated_at = ngx_time();
-            ngx_shmtx_unlock(&xrootd_tpc_registry_mutex);
+            ngx_shmtx_unlock(&brix_tpc_registry_mutex);
             return NGX_OK;
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_tpc_registry_mutex);
+    ngx_shmtx_unlock(&brix_tpc_registry_mutex);
     if (log != NULL) {
         ngx_log_debug1(NGX_LOG_DEBUG_CORE, log, 0,
-                       "xrootd_tpc: transfer id %uL not found for update",
+                       "brix_tpc: transfer id %uL not found for update",
                        id);
     }
     return NGX_DECLINED;
@@ -387,28 +387,28 @@ xrootd_tpc_registry_update(uint64_t id, off_t bytes_done, ngx_uint_t state,
  * registry_find and aborts promptly.  id == 0 / not found is a no-op.
  */
 ngx_int_t
-xrootd_tpc_registry_request_cancel(uint64_t id)
+brix_tpc_registry_request_cancel(uint64_t id)
 {
-    xrootd_tpc_registry_table_t *tbl;
+    brix_tpc_registry_table_t *tbl;
     ngx_uint_t                   i;
 
     if (id == 0) {
         return NGX_DECLINED;
     }
-    tbl = xrootd_tpc_registry_table();
+    tbl = brix_tpc_registry_table();
     if (tbl == NULL) {
         return NGX_DECLINED;
     }
 
-    ngx_shmtx_lock(&xrootd_tpc_registry_mutex);
-    for (i = 0; i < XROOTD_TPC_REGISTRY_SLOTS; i++) {
+    ngx_shmtx_lock(&brix_tpc_registry_mutex);
+    for (i = 0; i < BRIX_TPC_REGISTRY_SLOTS; i++) {
         if (tbl->slots[i].in_use && tbl->slots[i].transfer.id == id) {
             tbl->slots[i].transfer.cancelled = 1;
-            ngx_shmtx_unlock(&xrootd_tpc_registry_mutex);
+            ngx_shmtx_unlock(&brix_tpc_registry_mutex);
             return NGX_OK;
         }
     }
-    ngx_shmtx_unlock(&xrootd_tpc_registry_mutex);
+    ngx_shmtx_unlock(&brix_tpc_registry_mutex);
     return NGX_DECLINED;
 }
 
@@ -418,9 +418,9 @@ xrootd_tpc_registry_request_cancel(uint64_t id)
  * unavailable or the id is not found.
  */
 ngx_int_t
-xrootd_tpc_registry_remove(uint64_t id, ngx_log_t *log)
+brix_tpc_registry_remove(uint64_t id, ngx_log_t *log)
 {
-    xrootd_tpc_registry_table_t *tbl;
+    brix_tpc_registry_table_t *tbl;
     ngx_uint_t                   i;
 
     (void) log;
@@ -429,22 +429,22 @@ xrootd_tpc_registry_remove(uint64_t id, ngx_log_t *log)
         return NGX_OK;
     }
 
-    tbl = xrootd_tpc_registry_table();
+    tbl = brix_tpc_registry_table();
     if (tbl == NULL) {
         return NGX_DECLINED;
     }
 
-    ngx_shmtx_lock(&xrootd_tpc_registry_mutex);
+    ngx_shmtx_lock(&brix_tpc_registry_mutex);
 
-    for (i = 0; i < XROOTD_TPC_REGISTRY_SLOTS; i++) {
+    for (i = 0; i < BRIX_TPC_REGISTRY_SLOTS; i++) {
         if (tbl->slots[i].in_use && tbl->slots[i].transfer.id == id) {
             ngx_memzero(&tbl->slots[i], sizeof(tbl->slots[i]));
-            ngx_shmtx_unlock(&xrootd_tpc_registry_mutex);
+            ngx_shmtx_unlock(&brix_tpc_registry_mutex);
             return NGX_OK;
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_tpc_registry_mutex);
+    ngx_shmtx_unlock(&brix_tpc_registry_mutex);
     return NGX_DECLINED;
 }
 
@@ -454,11 +454,11 @@ xrootd_tpc_registry_remove(uint64_t id, ngx_log_t *log)
  * for a consistent view. Returns the number of transfers written.
  */
 ngx_uint_t
-xrootd_tpc_registry_snapshot(xrootd_tpc_transfer_snapshot_t *out,
+brix_tpc_registry_snapshot(brix_tpc_transfer_snapshot_t *out,
     ngx_uint_t max_transfers)
 {
-    xrootd_tpc_registry_table_t *tbl;
-    xrootd_tpc_registry_entry_t *entry;
+    brix_tpc_registry_table_t *tbl;
+    brix_tpc_registry_entry_t *entry;
     ngx_uint_t                   i;
     ngx_uint_t                   n;
 
@@ -466,15 +466,15 @@ xrootd_tpc_registry_snapshot(xrootd_tpc_transfer_snapshot_t *out,
         return 0;
     }
 
-    tbl = xrootd_tpc_registry_table();
+    tbl = brix_tpc_registry_table();
     if (tbl == NULL) {
         return 0;
     }
 
     n = 0;
-    ngx_shmtx_lock(&xrootd_tpc_registry_mutex);
+    ngx_shmtx_lock(&brix_tpc_registry_mutex);
 
-    for (i = 0; i < XROOTD_TPC_REGISTRY_SLOTS && n < max_transfers; i++) {
+    for (i = 0; i < BRIX_TPC_REGISTRY_SLOTS && n < max_transfers; i++) {
         entry = &tbl->slots[i];
         if (!entry->in_use) {
             continue;
@@ -498,7 +498,7 @@ xrootd_tpc_registry_snapshot(xrootd_tpc_transfer_snapshot_t *out,
         n++;
     }
 
-    ngx_shmtx_unlock(&xrootd_tpc_registry_mutex);
+    ngx_shmtx_unlock(&brix_tpc_registry_mutex);
 
     return n;
 }
@@ -508,22 +508,22 @@ xrootd_tpc_registry_snapshot(xrootd_tpc_transfer_snapshot_t *out,
  * shared-memory slot (valid only while that slot stays in use) or NULL if not
  * found / registry unavailable. Intended for read-only inspection.
  */
-const xrootd_tpc_transfer_t *
-xrootd_tpc_registry_find(uint64_t id)
+const brix_tpc_transfer_t *
+brix_tpc_registry_find(uint64_t id)
 {
-    xrootd_tpc_registry_table_t *tbl;
+    brix_tpc_registry_table_t *tbl;
     ngx_uint_t                   i;
 
     if (id == 0) {
         return NULL;
     }
 
-    tbl = xrootd_tpc_registry_table();
+    tbl = brix_tpc_registry_table();
     if (tbl == NULL) {
         return NULL;
     }
 
-    for (i = 0; i < XROOTD_TPC_REGISTRY_SLOTS; i++) {
+    for (i = 0; i < BRIX_TPC_REGISTRY_SLOTS; i++) {
         if (tbl->slots[i].in_use && tbl->slots[i].transfer.id == id) {
             return &tbl->slots[i].transfer;
         }

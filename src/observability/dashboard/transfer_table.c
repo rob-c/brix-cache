@@ -12,10 +12,10 @@
  *       functions that stream workers call around file open/IO/close.
  *
  * CONCURRENCY MODEL:
- *   xrootd_transfer_slot_alloc_ex()           — acquires mutex (brief, O(512) scan)
- *   xrootd_transfer_slot_update_bytes()       — lock-free atomics only
- *   xrootd_transfer_slot_free()               — lock-free atomic CAS
- *   xrootd_transfer_slot_free_all_for_session() — acquires mutex (disconnect)
+ *   brix_transfer_slot_alloc_ex()           — acquires mutex (brief, O(512) scan)
+ *   brix_transfer_slot_update_bytes()       — lock-free atomics only
+ *   brix_transfer_slot_free()               — lock-free atomic CAS
+ *   brix_transfer_slot_free_all_for_session() — acquires mutex (disconnect)
  *   JSON exporter (api.c)                     — lock-free scan; tolerates tears
  *
  * STALE SLOT GC:
@@ -24,14 +24,14 @@
  *   cleanup path (e.g., due to a future bug or worker crash).
  */
 
-static ngx_shmtx_t xrootd_dashboard_mutex;
+static ngx_shmtx_t brix_dashboard_mutex;
 
 /* SHM init callback */
 ngx_int_t
-ngx_xrootd_dashboard_shm_init(ngx_shm_zone_t *shm_zone, void *data)
+ngx_brix_dashboard_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 {
     ngx_flag_t               fresh;
-    xrootd_transfer_table_t *tbl;
+    brix_transfer_table_t *tbl;
 
     /*
      * Allocate the table FROM the slab pool (never over shm.addr) so nginx's
@@ -40,9 +40,9 @@ ngx_xrootd_dashboard_shm_init(ngx_shm_zone_t *shm_zone, void *data)
      * mutex from the leading ngx_shmtx_sh_t lock on fresh, reload, and re-attach.
      * On reuse the live slots are preserved; transfers in flight survive reload.
      */
-    tbl = xrootd_shm_table_alloc(shm_zone, data,
-                                 sizeof(xrootd_transfer_table_t),
-                                 &xrootd_dashboard_mutex, &fresh);
+    tbl = brix_shm_table_alloc(shm_zone, data,
+                                 sizeof(brix_transfer_table_t),
+                                 &brix_dashboard_mutex, &fresh);
     if (tbl == NULL) {
         return NGX_ERROR;
     }
@@ -71,18 +71,18 @@ dashboard_copy_field(char *dst, size_t dstsz, const char *src)
 }
 
 int
-xrootd_transfer_slot_alloc_ex(xrootd_transfer_table_t *t,
+brix_transfer_slot_alloc_ex(brix_transfer_table_t *t,
     const u_char sessid[16], const char *client_ip,
     const char *identity, const char *vo, const char *path, const char *op,
     uint8_t direction, uint8_t proto, int64_t expected_bytes, int64_t now_ms)
 {
     int                     free_idx = -1;
-    xrootd_transfer_slot_t *slot;
+    brix_transfer_slot_t *slot;
     int                     i;
 
-    ngx_shmtx_lock(&xrootd_dashboard_mutex);
+    ngx_shmtx_lock(&brix_dashboard_mutex);
 
-    for (i = 0; i < XROOTD_DASHBOARD_MAX_TRANSFERS; i++) {
+    for (i = 0; i < BRIX_DASHBOARD_MAX_TRANSFERS; i++) {
         if (t->slots[i].in_use == 0) {
             free_idx = i;
             break;
@@ -90,8 +90,8 @@ xrootd_transfer_slot_alloc_ex(xrootd_transfer_table_t *t,
     }
 
     if (free_idx < 0) {
-        ngx_shmtx_unlock(&xrootd_dashboard_mutex);
-        xrootd_dashboard_event_add(XROOTD_DASH_EVENT_DASHBOARD, proto, 0,
+        ngx_shmtx_unlock(&brix_dashboard_mutex);
+        brix_dashboard_event_add(BRIX_DASH_EVENT_DASHBOARD, proto, 0,
                                    "active transfer table full", path);
         return -1;   /* table full — transfer proceeds untracked */
     }
@@ -113,7 +113,7 @@ xrootd_transfer_slot_alloc_ex(xrootd_transfer_table_t *t,
     slot->worker_pid     = ngx_pid;
     slot->direction      = direction;
     slot->proto          = proto;
-    slot->state          = XROOTD_XFER_STATE_ACTIVE;
+    slot->state          = BRIX_XFER_STATE_ACTIVE;
     slot->expected_bytes = expected_bytes;
     slot->start_ms       = now_ms;
     slot->last_ms        = (ngx_atomic_t) now_ms;
@@ -121,29 +121,29 @@ xrootd_transfer_slot_alloc_ex(xrootd_transfer_table_t *t,
     slot->serial         = ++t->next_serial;
     slot->in_use         = 1;   /* publish last — readers see a complete slot */
 
-    ngx_shmtx_unlock(&xrootd_dashboard_mutex);
+    ngx_shmtx_unlock(&brix_dashboard_mutex);
     return free_idx;
 }
 
 int
-xrootd_transfer_slot_alloc(xrootd_transfer_table_t *t,
+brix_transfer_slot_alloc(brix_transfer_table_t *t,
     const u_char sessid[16], const char *client_ip,
     const char *identity, const char *path,
     uint8_t direction, uint8_t proto, int64_t now_ms)
 {
-    return xrootd_transfer_slot_alloc_ex(t, sessid, client_ip, identity, "",
+    return brix_transfer_slot_alloc_ex(t, sessid, client_ip, identity, "",
                                          path, "open", direction, proto, -1,
                                          now_ms);
 }
 
 /* Byte / timestamp update (lock-free) */
 void
-xrootd_transfer_slot_update_bytes(xrootd_transfer_table_t *t,
+brix_transfer_slot_update_bytes(brix_transfer_table_t *t,
     int slot_idx, ngx_atomic_int_t nbytes, int64_t now_ms)
 {
-    xrootd_transfer_slot_t *slot;
+    brix_transfer_slot_t *slot;
 
-    if (slot_idx < 0 || slot_idx >= XROOTD_DASHBOARD_MAX_TRANSFERS) {
+    if (slot_idx < 0 || slot_idx >= BRIX_DASHBOARD_MAX_TRANSFERS) {
         return;
     }
 
@@ -156,14 +156,14 @@ xrootd_transfer_slot_update_bytes(xrootd_transfer_table_t *t,
     if (nbytes > 0) {
         ngx_atomic_fetch_add(&slot->bytes, nbytes);
     }
-    slot->state = XROOTD_XFER_STATE_ACTIVE;
+    slot->state = BRIX_XFER_STATE_ACTIVE;
     slot->last_ms = (ngx_atomic_t) now_ms;  /* 64-bit aligned write; atomic on x86_64 */
 
     /*
      * EWMA-smoothed instantaneous rate.  Only the owning worker writes these
      * three fields (the exporter is read-only), so a plain read-modify-write is
      * race-free under the existing concurrency model.  We fold a new sample at
-     * most once per XROOTD_XFER_SAMPLE_MS: rate over the elapsed window, blended
+     * most once per BRIX_XFER_SAMPLE_MS: rate over the elapsed window, blended
      * into the previous value with alpha = 1/4 (new = raw/4 + prev*3/4).  This
      * turns a bursty client (e.g. xrdcp --xrate: idle, then an 8 MiB burst) into
      * a steady published rate instead of a 0↔line-rate sawtooth.  Decay toward
@@ -179,7 +179,7 @@ xrootd_transfer_slot_update_bytes(xrootd_transfer_table_t *t,
         } else {
             int64_t dt = now_ms - sample_ms;
 
-            if (dt >= XROOTD_XFER_SAMPLE_MS) {
+            if (dt >= BRIX_XFER_SAMPLE_MS) {
                 int64_t  db   = (int64_t) slot->bytes
                                 - (int64_t) slot->bytes_last_sample;
                 uint64_t raw  = (db > 0) ? (uint64_t) (db * 1000 / dt) : 0;
@@ -194,19 +194,19 @@ xrootd_transfer_slot_update_bytes(xrootd_transfer_table_t *t,
 }
 
 void
-xrootd_transfer_slot_update(xrootd_transfer_table_t *t,
+brix_transfer_slot_update(brix_transfer_table_t *t,
     int slot_idx, ngx_atomic_int_t nbytes, int64_t now_ms)
 {
-    xrootd_transfer_slot_update_bytes(t, slot_idx, nbytes, now_ms);
+    brix_transfer_slot_update_bytes(t, slot_idx, nbytes, now_ms);
 }
 
 void
-xrootd_transfer_slot_set_state(xrootd_transfer_table_t *t,
+brix_transfer_slot_set_state(brix_transfer_table_t *t,
     int slot_idx, uint8_t state, int64_t now_ms)
 {
-    xrootd_transfer_slot_t *slot;
+    brix_transfer_slot_t *slot;
 
-    if (slot_idx < 0 || slot_idx >= XROOTD_DASHBOARD_MAX_TRANSFERS) {
+    if (slot_idx < 0 || slot_idx >= BRIX_DASHBOARD_MAX_TRANSFERS) {
         return;
     }
 
@@ -221,12 +221,12 @@ xrootd_transfer_slot_set_state(xrootd_transfer_table_t *t,
 }
 
 void
-xrootd_transfer_slot_set_error(xrootd_transfer_table_t *t,
+brix_transfer_slot_set_error(brix_transfer_table_t *t,
     int slot_idx, const char *reason, int64_t now_ms)
 {
-    xrootd_transfer_slot_t *slot;
+    brix_transfer_slot_t *slot;
 
-    if (slot_idx < 0 || slot_idx >= XROOTD_DASHBOARD_MAX_TRANSFERS) {
+    if (slot_idx < 0 || slot_idx >= BRIX_DASHBOARD_MAX_TRANSFERS) {
         return;
     }
 
@@ -237,21 +237,21 @@ xrootd_transfer_slot_set_error(xrootd_transfer_table_t *t,
 
     dashboard_copy_field(slot->last_error, sizeof(slot->last_error),
                          reason ? reason : "error");
-    slot->state = XROOTD_XFER_STATE_ERROR;
+    slot->state = BRIX_XFER_STATE_ERROR;
     slot->state_since_ms = (ngx_atomic_t) now_ms;
     slot->last_ms = (ngx_atomic_t) now_ms;
-    xrootd_dashboard_event_add(XROOTD_DASH_EVENT_IO, slot->proto, 0,
+    brix_dashboard_event_add(BRIX_DASH_EVENT_IO, slot->proto, 0,
                                slot->last_error, slot->path);
 }
 
 void
-xrootd_transfer_slot_set_tpc_remote(xrootd_transfer_table_t *t,
+brix_transfer_slot_set_tpc_remote(brix_transfer_table_t *t,
     int slot_idx, const char *remote_host, const char *path_hint,
     int remote_status, int curl_exit)
 {
-    xrootd_transfer_slot_t *slot;
+    brix_transfer_slot_t *slot;
 
-    if (slot_idx < 0 || slot_idx >= XROOTD_DASHBOARD_MAX_TRANSFERS) {
+    if (slot_idx < 0 || slot_idx >= BRIX_DASHBOARD_MAX_TRANSFERS) {
         return;
     }
 
@@ -269,12 +269,12 @@ xrootd_transfer_slot_set_tpc_remote(xrootd_transfer_table_t *t,
 }
 
 void
-xrootd_transfer_slot_count_op(xrootd_transfer_table_t *t, int slot_idx,
+brix_transfer_slot_count_op(brix_transfer_table_t *t, int slot_idx,
     const char *op)
 {
-    xrootd_transfer_slot_t *slot;
+    brix_transfer_slot_t *slot;
 
-    if (slot_idx < 0 || slot_idx >= XROOTD_DASHBOARD_MAX_TRANSFERS) {
+    if (slot_idx < 0 || slot_idx >= BRIX_DASHBOARD_MAX_TRANSFERS) {
         return;
     }
 
@@ -305,13 +305,13 @@ xrootd_transfer_slot_count_op(xrootd_transfer_table_t *t, int slot_idx,
 
 /* Single-slot free (lock-free CAS) */
 void
-xrootd_transfer_slot_free(xrootd_transfer_table_t *t, int slot_idx)
+brix_transfer_slot_free(brix_transfer_table_t *t, int slot_idx)
 {
-    if (slot_idx < 0 || slot_idx >= XROOTD_DASHBOARD_MAX_TRANSFERS) {
+    if (slot_idx < 0 || slot_idx >= BRIX_DASHBOARD_MAX_TRANSFERS) {
         return;
     }
 
-    t->slots[slot_idx].state = XROOTD_XFER_STATE_CLOSING;
+    t->slots[slot_idx].state = BRIX_XFER_STATE_CLOSING;
     t->slots[slot_idx].state_since_ms = (ngx_atomic_t) ngx_current_msec;
 
     /* CAS 1→0; idempotent if already freed by another path. */
@@ -320,14 +320,14 @@ xrootd_transfer_slot_free(xrootd_transfer_table_t *t, int slot_idx)
 
 /* Session-wide free (used at disconnect) */
 void
-xrootd_transfer_slot_free_all_for_session(xrootd_transfer_table_t *t,
+brix_transfer_slot_free_all_for_session(brix_transfer_table_t *t,
     const u_char sessid[16])
 {
     int i;
 
-    ngx_shmtx_lock(&xrootd_dashboard_mutex);
+    ngx_shmtx_lock(&brix_dashboard_mutex);
 
-    for (i = 0; i < XROOTD_DASHBOARD_MAX_TRANSFERS; i++) {
+    for (i = 0; i < BRIX_DASHBOARD_MAX_TRANSFERS; i++) {
         if (t->slots[i].in_use &&
             ngx_memcmp(t->slots[i].sessid, sessid, 16) == 0)
         {
@@ -335,5 +335,5 @@ xrootd_transfer_slot_free_all_for_session(xrootd_transfer_table_t *t,
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_dashboard_mutex);
+    ngx_shmtx_unlock(&brix_dashboard_mutex);
 }

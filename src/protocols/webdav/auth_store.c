@@ -11,12 +11,12 @@
  * webdav_build_ca_store — build an X509_STORE from WebDAV loc_conf paths.
  *
  * Converts the ngx_str_t config fields (cadir, cafile, crl) to NUL-terminated
- * C strings and delegates to xrootd_build_ca_store().  No ALLOW_PROXY_CERTS —
+ * C strings and delegates to brix_build_ca_store().  No ALLOW_PROXY_CERTS —
  * WebDAV x509 auth does not accept GSI proxy certificate chains.
  */
 X509_STORE *
 webdav_build_ca_store(ngx_log_t *log,
-                      ngx_http_xrootd_webdav_loc_conf_t *conf,
+                      ngx_http_brix_webdav_loc_conf_t *conf,
                       int *crl_count_out)
 {
     char        cadir_buf[PATH_MAX];
@@ -53,5 +53,5 @@ webdav_build_ca_store(ngx_log_t *log,
         crl = crl_buf;
     }
 
-    return xrootd_build_ca_store(log, cadir, cafile, crl, 0, crl_count_out);
+    return brix_build_ca_store(log, cadir, cafile, crl, 0, crl_count_out);
 }

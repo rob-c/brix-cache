@@ -168,11 +168,11 @@ stream {{
     server {{
         listen {BIND_HOST}:{PORT};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
-        xrootd_frm on;
-        xrootd_frm_queue_path {queue};
-        xrootd_frm_max_inflight 128;
+        brix_storage_backend posix:{data};
+        brix_auth none;
+        brix_frm on;
+        brix_frm_queue_path {queue};
+        brix_frm_max_inflight 128;
     }}
 }}
 daemon off;

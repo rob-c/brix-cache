@@ -10,7 +10,7 @@
  * /xrootd/transfers endpoint remains for compatibility with older callers.
  *
  * WHAT: a single static text/html asset (markup + inline CSS + inline JS),
- *       served verbatim by ngx_http_xrootd_dashboard_page_handler below.
+ *       served verbatim by ngx_http_brix_dashboard_page_handler below.
  * WHY:  embedding the whole UI in one .rodata string keeps the dashboard a
  *       zero-dependency, zero-filesystem feature - no asset files to ship,
  *       package, or path-resolve at runtime, and no static-file disclosure
@@ -22,11 +22,11 @@
  *       differs from the source text - count bytes via sizeof()-1, not by eye.
  */
 
-/* static asset: document head, inline stylesheet (theme/layout only) */static const char ngx_xrootd_dashboard_html[] =
+/* static asset: document head, inline stylesheet (theme/layout only) */static const char ngx_brix_dashboard_html[] =
 "<!DOCTYPE html>\n"
 "<html lang=\"en\">\n"
 "<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"
-"<title>" XROOTD_SERVER_NAME " Dashboard</title>\n"
+"<title>" BRIX_SERVER_NAME " Dashboard</title>\n"
 "<style>\n"
 "*{box-sizing:border-box}body{margin:0;background:#0f1419;color:#d8dee9;font:13px ui-monospace,SFMono-Regular,Consolas,monospace}\n"
 "header{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.8rem 1rem;background:#151b23;border-bottom:1px solid #303842;position:sticky;top:0;z-index:2}\n"
@@ -42,7 +42,7 @@
 "@media(prefers-reduced-motion:reduce){#detail-panel{transition:none}}\n"
 "</style></head>\n"
 /* static asset: page chrome (header, toolbar, cards, table, panels) */"<body>\n"
-"<header><h1>" XROOTD_SERVER_NAME " Dashboard</h1><div><button id=\"download-config\" type=\"button\" title=\"Download the running config (secrets redacted)\">Config</button> <button id=\"export-snapshot\" type=\"button\">Export</button> <span id=\"status\" class=\"status bad\" aria-live=\"polite\">connecting</span></div></header>\n"
+"<header><h1>" BRIX_SERVER_NAME " Dashboard</h1><div><button id=\"download-config\" type=\"button\" title=\"Download the running config (secrets redacted)\">Config</button> <button id=\"export-snapshot\" type=\"button\">Export</button> <span id=\"status\" class=\"status bad\" aria-live=\"polite\">connecting</span></div></header>\n"
 "<div id=\"anon-banner\" role=\"status\" hidden style=\"padding:.5rem 1rem;background:#3a2d10;color:#ffd479;border-bottom:1px solid #5a4a1a;font-size:.85rem\">Anonymous read-only view \xe2\x80\x94 client identities, paths and other sensitive data are hidden. <a href=\"/xrootd/login\" style=\"color:#8cc8ff\">Sign in</a> for full details.</div>\n"
 "<section class=\"toolbar\" aria-label=\"Transfer filters\">\n"
 "<label for=\"protocol-filter\">Protocol<select id=\"protocol-filter\"><option value=\"\">All</option><option>root</option><option>webdav</option><option>s3</option><option>cvmfs</option></select></label>\n"
@@ -63,7 +63,7 @@
 "<div class=\"panel\"><h2>CVMFS</h2><div id=\"cvmfs-panel\"></div></div>\n"
 "</section>\n"
 "<section class=\"panels\" style=\"grid-template-columns:1fr\"><div class=\"panel events\" id=\"events-panel\"><h2>Recent Events</h2><div id=\"events-list\"></div></div></section>\n"
-/* admin file browser (hidden unless xrootd_dashboard_browse_root set and
+/* admin file browser (hidden unless brix_dashboard_browse_root set and
  *      the viewer is authenticated; populated by filesBrowse() in the script) ---- */
 "<section class=\"panels\" style=\"grid-template-columns:1fr\" id=\"files-section\" hidden><div class=\"panel\"><h2>Files</h2><div class=\"sub\" style=\"margin-bottom:.35rem\"><label for=\"files-src\">Source:</label> <select id=\"files-src\"></select></div><div id=\"files-bc\" class=\"sub\" style=\"margin-bottom:.5rem\"></div><div class=\"table-wrap\"><table aria-label=\"Files\"><thead><tr><th>Name</th><th>Owner</th><th>Size</th><th>Created</th><th class=\"hide-sm\">Modified</th><th></th></tr></thead><tbody id=\"files-tbody\"></tbody></table><div id=\"files-empty\" class=\"empty\" hidden>Empty directory</div></div></div></section>\n"
 "<aside id=\"detail-panel\" aria-label=\"Transfer detail\" aria-hidden=\"true\"><div class=\"detail-head\"><h2>Transfer Detail</h2><button id=\"detail-close\" type=\"button\">Close</button></div><pre id=\"detail-body\"></pre></aside>\n"
@@ -161,25 +161,25 @@
  * Returns an NGX_HTTP_* status on error, or the output-filter result.
  */
 ngx_int_t
-ngx_http_xrootd_dashboard_page_handler(ngx_http_request_t *r)
+ngx_http_brix_dashboard_page_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *conf;
+    ngx_http_brix_dashboard_loc_conf_t *conf;
     ngx_buf_t                            *b;
     ngx_chain_t                           out;
     size_t                                html_len;
     ngx_int_t                             rc;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_dashboard_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
 
     /*
      * SECURITY: cookie/session gate. Any non-NGX_OK (no/expired/invalid cookie)
      * means "not logged in". We then either (a) serve the page shell anyway when
-     * xrootd_dashboard_anonymous is on - its JS will receive PII/secret-redacted
+     * brix_dashboard_anonymous is on - its JS will receive PII/secret-redacted
      * JSON and render the anonymous banner - or (b) redirect to login. The shell
      * itself contains no data, so serving it anonymously leaks nothing; all
      * redaction is enforced by the JSON API the JS fetches.
      */
-    rc = ngx_http_xrootd_dashboard_check_auth(r, conf, conf->anonymous);
+    rc = ngx_http_brix_dashboard_check_auth(r, conf, conf->anonymous);
     if (rc != NGX_OK && !conf->anonymous) {
         r->headers_out.location = ngx_list_push(&r->headers_out.headers);
         if (r->headers_out.location == NULL) {
@@ -219,8 +219,8 @@ ngx_http_xrootd_dashboard_page_handler(ngx_http_request_t *r)
     }
 
     /* -1 drops the literal's terminating NUL: send the HTML, not the NUL. */
-    html_len = sizeof(ngx_xrootd_dashboard_html) - 1;
-    XROOTD_PCALLOC_OR_RETURN(b, r->pool, sizeof(*b), NGX_HTTP_INTERNAL_SERVER_ERROR);
+    html_len = sizeof(ngx_brix_dashboard_html) - 1;
+    BRIX_PCALLOC_OR_RETURN(b, r->pool, sizeof(*b), NGX_HTTP_INTERNAL_SERVER_ERROR);
 
     /*
      * Point the buffer straight at the const .rodata literal - no copy. Safe
@@ -228,7 +228,7 @@ ngx_http_xrootd_dashboard_page_handler(ngx_http_request_t *r)
      * marks it read-only/in-memory (not file-backed, so no sendfile); b->last_buf
      * makes this the sole and final buf of the response.
      */
-    b->pos = (u_char *) ngx_xrootd_dashboard_html;
+    b->pos = (u_char *) ngx_brix_dashboard_html;
     b->last = b->pos + html_len;
     b->memory = 1;
     b->last_buf = 1;

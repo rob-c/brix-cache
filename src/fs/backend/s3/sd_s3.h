@@ -12,8 +12,8 @@
  *       handle; ops build signed requests and run them through the transport. The
  *       error model is a neutral (int rc, errbuf) pair — no xrdc_status / ngx.
  */
-#ifndef XROOTD_SD_S3_H
-#define XROOTD_SD_S3_H
+#ifndef BRIX_SD_S3_H
+#define BRIX_SD_S3_H
 
 #include "sd_s3_transport.h"
 #include "fs/backend/meta_advisory.h"
@@ -33,7 +33,7 @@ typedef struct {
     const char                  *ak;          /* access key id */
     const char                  *sk;          /* secret key */
     const char                  *region;      /* e.g. "us-east-1" */
-    const xrootd_s3_transport_t *transport;   /* injected HTTP transport */
+    const brix_s3_transport_t *transport;   /* injected HTTP transport */
     void                        *tctx;        /* transport context */
     int                          timeout_ms;
 } sd_s3_open_params;
@@ -84,7 +84,7 @@ int sd_s3_delete(const sd_s3_open_params *p, char *errbuf, size_t errcap);
  * S3 has no in-place metadata mutation: get is a HEAD that reads one user-meta
  * header; set is a copy-onto-self with x-amz-metadata-directive: REPLACE. The
  * advisory unix-attr blob (mode/uid/gid/mtime) rides in the reserved key
- * x-amz-meta-<XROOTD_META_ADVISORY_S3META>. Attribute names are lowercased to
+ * x-amz-meta-<BRIX_META_ADVISORY_S3META>. Attribute names are lowercased to
  * match the S3 user-metadata contract.                                      */
 
 /* Read user-metadata header x-amz-meta-<name> via a signed HEAD into buf[cap]
@@ -105,10 +105,10 @@ int sd_s3_set_meta(const sd_s3_open_params *p, const sd_s3_meta_kv *kv,
 /* Advisory POSIX attrs carried in x-amz-meta-<S3META>. get returns 1 (present +
  * decoded) / 0 (absent) / -1 (error); set replaces the user metadata with the
  * single advisory blob. */
-int sd_s3_get_unixattr(sd_s3_file *f, xrootd_meta_advisory_t *out,
+int sd_s3_get_unixattr(sd_s3_file *f, brix_meta_advisory_t *out,
                        char *errbuf, size_t errcap);
 int sd_s3_set_unixattr(const sd_s3_open_params *p,
-                       const xrootd_meta_advisory_t *a,
+                       const brix_meta_advisory_t *a,
                        char *errbuf, size_t errcap);
 
-#endif /* XROOTD_SD_S3_H */
+#endif /* BRIX_SD_S3_H */

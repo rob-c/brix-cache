@@ -67,10 +67,10 @@ s3_cksum_vfs_unlink(ngx_http_request_t *r, const char *fs_path,
     const char *root_canon)
 {
     ngx_http_s3_loc_conf_t *cf =
-        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
     ngx_http_s3_req_ctx_t  *s3ctx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
-    xrootd_vfs_ctx_t        vctx;
+        ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
+    brix_vfs_ctx_t        vctx;
     int                     is_tls = 0;
 
 #if (NGX_HTTP_SSL)
@@ -78,38 +78,38 @@ s3_cksum_vfs_unlink(ngx_http_request_t *r, const char *fs_path,
 #endif
 
     /* root_canon is passed by the caller; it equals cf->common.root_canon. */
-    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
         root_canon, cf->cache_root_canon, cf->common.allow_write, is_tls,
         (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 
-    (void) xrootd_vfs_unlink(&vctx);
+    (void) brix_vfs_unlink(&vctx);
 }
 
 /*
  * s3_cksum_vfs_open — confined read-open of fs_path through the VFS (same ctx
  * construction as s3_cksum_vfs_unlink). The returned handle's fd backs the
- * checksum kernel; the caller releases it with xrootd_vfs_close. NULL on error.
+ * checksum kernel; the caller releases it with brix_vfs_close. NULL on error.
  */
-static xrootd_vfs_file_t *
+static brix_vfs_file_t *
 s3_cksum_vfs_open(ngx_http_request_t *r, const char *fs_path,
     const char *root_canon)
 {
     ngx_http_s3_loc_conf_t *cf =
-        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
     ngx_http_s3_req_ctx_t  *s3ctx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
-    xrootd_vfs_ctx_t        vctx;
+        ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
+    brix_vfs_ctx_t        vctx;
     int                     is_tls = 0;
 
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
 
-    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
         root_canon, cf->cache_root_canon, cf->common.allow_write, is_tls,
         (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 
-    return xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, NULL);
+    return brix_vfs_open(&vctx, BRIX_VFS_O_READ, NULL);
 }
 
 static int
@@ -135,8 +135,8 @@ ngx_int_t
 s3_checksum_b64(ngx_http_request_t *r, int fd, const char *path,
     const char *alg_name, ngx_flag_t cache_only, char *out, size_t outsz)
 {
-    xrootd_integrity_info_t info;
-    xrootd_integrity_opts_t iopts;
+    brix_integrity_info_t info;
+    brix_integrity_opts_t iopts;
     unsigned char           bytes[64];
     size_t                  hexlen, nbytes, i;
     ngx_str_t               src, dst;
@@ -148,7 +148,7 @@ s3_checksum_b64(ngx_http_request_t *r, int fd, const char *path,
     iopts.require_regular_file = 1;
     iopts.no_compute           = cache_only ? 1 : 0;
 
-    rc = xrootd_integrity_get_fd(r->connection->log, fd, NULL, path, alg_name,
+    rc = brix_integrity_get_fd(r->connection->log, fd, NULL, path, alg_name,
                                  &iopts, &info);
     if (rc != NGX_OK) {
         return rc;
@@ -221,7 +221,7 @@ s3_put_select_algo(ngx_http_request_t *r, ngx_table_elt_t **want_value,
     *want_value = NULL;
 
     for (i = 0; i < S3_CKSUM_TABLE_N; i++) {
-        ngx_table_elt_t *h = xrootd_http_find_header(
+        ngx_table_elt_t *h = brix_http_find_header(
             r, s3_cksum_table[i].header,
             ngx_strlen(s3_cksum_table[i].header));
         if (h != NULL && h->value.len > 0) {
@@ -237,10 +237,10 @@ s3_put_select_algo(ngx_http_request_t *r, ngx_table_elt_t **want_value,
     }
 
     /* x-amz-sdk-checksum-algorithm (preferred) or x-amz-checksum-algorithm. */
-    decl = xrootd_http_find_header(r, "x-amz-sdk-checksum-algorithm",
+    decl = brix_http_find_header(r, "x-amz-sdk-checksum-algorithm",
                                    sizeof("x-amz-sdk-checksum-algorithm") - 1);
     if (decl == NULL) {
-        decl = xrootd_http_find_header(r, "x-amz-checksum-algorithm",
+        decl = brix_http_find_header(r, "x-amz-checksum-algorithm",
                                        sizeof("x-amz-checksum-algorithm") - 1);
     }
     if (decl != NULL && decl->value.len > 0) {
@@ -277,7 +277,7 @@ s3_put_checksum_apply(ngx_http_request_t *r, const char *fs_path,
     const s3_cksum_desc_t *desc;
     ngx_table_elt_t       *want_value;
     int                    conflict;
-    xrootd_vfs_file_t     *fh;
+    brix_vfs_file_t     *fh;
     char                   b64[S3_CHECKSUM_B64_MAX];
     ngx_int_t              rc;
 
@@ -296,9 +296,9 @@ s3_put_checksum_apply(ngx_http_request_t *r, const char *fs_path,
     if (fh == NULL) {
         return S3_CKSUM_ERROR;
     }
-    rc = s3_checksum_b64(r, xrootd_vfs_file_fd(fh), fs_path, desc->alg_name,
+    rc = s3_checksum_b64(r, brix_vfs_file_fd(fh), fs_path, desc->alg_name,
                          0 /* compute+cache */, b64, sizeof(b64));
-    xrootd_vfs_close(fh, r->connection->log);
+    brix_vfs_close(fh, r->connection->log);
     if (rc != NGX_OK) {
         return S3_CKSUM_ERROR;
     }
@@ -329,7 +329,7 @@ s3_put_trailer_checksum_apply(ngx_http_request_t *r, const char *fs_path,
     const char *root_canon, const char *algo_token, const char *value)
 {
     const s3_cksum_desc_t *desc;
-    xrootd_vfs_file_t     *fh;
+    brix_vfs_file_t     *fh;
     char                   b64[S3_CHECKSUM_B64_MAX];
     ngx_int_t              rc;
 
@@ -344,9 +344,9 @@ s3_put_trailer_checksum_apply(ngx_http_request_t *r, const char *fs_path,
     if (fh == NULL) {
         return S3_CKSUM_ERROR;
     }
-    rc = s3_checksum_b64(r, xrootd_vfs_file_fd(fh), fs_path, desc->alg_name, 0,
+    rc = s3_checksum_b64(r, brix_vfs_file_fd(fh), fs_path, desc->alg_name, 0,
                          b64, sizeof(b64));
-    xrootd_vfs_close(fh, r->connection->log);
+    brix_vfs_close(fh, r->connection->log);
     if (rc != NGX_OK) {
         return S3_CKSUM_ERROR;
     }
@@ -383,7 +383,7 @@ s3_echo_object_checksums(ngx_http_request_t *r, int fd, const char *path)
     ngx_uint_t       i;
     char             b64[S3_CHECKSUM_B64_MAX];
 
-    mode = xrootd_http_find_header(r, "x-amz-checksum-mode",
+    mode = brix_http_find_header(r, "x-amz-checksum-mode",
                                    sizeof("x-amz-checksum-mode") - 1);
     mode_enabled = (mode != NULL && mode->value.len == sizeof("ENABLED") - 1
                     && ngx_strncasecmp(mode->value.data,

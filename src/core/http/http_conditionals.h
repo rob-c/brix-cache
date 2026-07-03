@@ -1,5 +1,5 @@
-#ifndef XROOTD_COMPAT_HTTP_CONDITIONALS_H
-#define XROOTD_COMPAT_HTTP_CONDITIONALS_H
+#ifndef BRIX_COMPAT_HTTP_CONDITIONALS_H
+#define BRIX_COMPAT_HTTP_CONDITIONALS_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -8,17 +8,17 @@
 #include <sys/stat.h>
 
 /*
- * XROOTD_HTTP_COND_WEAK_EQUIV — flag enabling weak ETag equivalence (W/"etag" ≡ "etag").
+ * BRIX_HTTP_COND_WEAK_EQUIV — flag enabling weak ETag equivalence (W/"etag" ≡ "etag").
  *
- * WHAT: Bit mask value 0x0001 passed to xrootd_http_etag_list_contains() and
- *      xrootd_http_check_etag_preconditions(). WHY: RFC 7232 §2.3 defines weak equivalence;
+ * WHAT: Bit mask value 0x0001 passed to brix_http_etag_list_contains() and
+ *      brix_http_check_etag_preconditions(). WHY: RFC 7232 §2.3 defines weak equivalence;
  *      callers use this flag when comparing If-None-Match headers against resource ETags. */
 
-#define XROOTD_HTTP_COND_WEAK_EQUIV  0x0001
+#define BRIX_HTTP_COND_WEAK_EQUIV  0x0001
 
 /*
- * XROOTD_HTTP_COND_READ / XROOTD_HTTP_COND_TIME — mode flags for
- * xrootd_http_eval_preconditions().
+ * BRIX_HTTP_COND_READ / BRIX_HTTP_COND_TIME — mode flags for
+ * brix_http_eval_preconditions().
  *
  * WHAT: READ selects GET/HEAD semantics — a matching If-None-Match yields
  *       304 Not Modified instead of 412, and If-Modified-Since is evaluated.
@@ -29,14 +29,14 @@
  *      writes, and conditional-write callers (S3 PutObject) must not grow
  *      date-header behaviour their protocol does not define. */
 
-#define XROOTD_HTTP_COND_READ        0x0002
-#define XROOTD_HTTP_COND_TIME        0x0004
+#define BRIX_HTTP_COND_READ        0x0002
+#define BRIX_HTTP_COND_TIME        0x0004
 
 /*
- * xrootd_http_etag_list_contains - check whether an ETag header value matches a target ETag.
+ * brix_http_etag_list_contains - check whether an ETag header value matches a target ETag.
  *
  * WHAT: Scans the ETag header string for occurrences of the target etag value,
- *       respecting weak equivalence flags (XROOTD_HTTP_COND_WEAK_EQUIV).
+ *       respecting weak equivalence flags (BRIX_HTTP_COND_WEAK_EQUIV).
  *
  * WHY: HTTP conditional requests (If-None-Match / If-Match) carry ETag lists.
  *      The server must check whether any entry in the list matches the resource
@@ -45,11 +45,11 @@
  * HOW: Strips weak-prefix markers from header entries when flags include WEAK_EQUIV,
  *      then compares each entry against the target etag string.
  */
-ngx_int_t xrootd_http_etag_list_contains(const ngx_str_t *header,
+ngx_int_t brix_http_etag_list_contains(const ngx_str_t *header,
     const char *etag, unsigned flags);
 
 /*
- * xrootd_http_check_etag_preconditions - evaluate If-None-Match / If-Match against resource ETag.
+ * brix_http_check_etag_preconditions - evaluate If-None-Match / If-Match against resource ETag.
  *
  * WHAT: Checks HTTP conditional request preconditions based on the resource's
  *       mtime/size-derived ETag. Returns NGX_OK if conditions pass, NGX_HTTP_NOT_MODIFIED
@@ -60,15 +60,15 @@ ngx_int_t xrootd_http_etag_list_contains(const ngx_str_t *header,
  *      returning content. This function centralises the decision logic so WebDAV and S3
  *      agree on behaviour.
  *
- * HOW: Generates resource ETag from mtime/size via xrootd_http_etag_str(), then checks
- *      against the If-None-Match / If-Match header using xrootd_http_etag_list_contains().
+ * HOW: Generates resource ETag from mtime/size via brix_http_etag_str(), then checks
+ *      against the If-None-Match / If-Match header using brix_http_etag_list_contains().
  */
-ngx_int_t xrootd_http_check_etag_preconditions(ngx_http_request_t *r,
+ngx_int_t brix_http_check_etag_preconditions(ngx_http_request_t *r,
     ngx_flag_t resource_exists, const struct stat *st, unsigned etag_flags,
     unsigned condition_flags);
 
 /*
- * xrootd_http_eval_preconditions - full RFC 9110 §13.2.2 precondition evaluation.
+ * brix_http_eval_preconditions - full RFC 9110 §13.2.2 precondition evaluation.
  *
  * WHAT: Evaluates If-Match, If-Unmodified-Since, If-None-Match, and
  *       If-Modified-Since in the RFC-mandated precedence order against the
@@ -79,24 +79,24 @@ ngx_int_t xrootd_http_check_etag_preconditions(ngx_http_request_t *r,
  *
  * WHY: One evaluator owns the precedence rules and the read/write outcome
  *      split so S3 GET/HEAD, S3 conditional PUT, and future WebDAV callers
- *      cannot drift apart. (xrootd_http_check_etag_preconditions above is the
+ *      cannot drift apart. (brix_http_check_etag_preconditions above is the
  *      ETag-only WebDAV-write subset and predates this entry point.)
  *
  * HOW: Precedence per RFC 9110 §13.2.2 — If-Match, else If-Unmodified-Since
  *      (TIME mode); then If-None-Match, else If-Modified-Since (READ+TIME
  *      mode, `before` semantics: unmodified since the date ⇒ 304). Empty
  *      header values are treated as absent. `*` matches any existing
- *      representation; list matching uses xrootd_http_etag_list_contains()
+ *      representation; list matching uses brix_http_etag_list_contains()
  *      with `condition_flags` weak-equivalence passed through. The resource
- *      ETag is derived from mtime/size via xrootd_http_etag_str(etag_flags)
+ *      ETag is derived from mtime/size via brix_http_etag_str(etag_flags)
  *      only when resource_exists.
  */
-ngx_int_t xrootd_http_eval_preconditions(ngx_http_request_t *r,
+ngx_int_t brix_http_eval_preconditions(ngx_http_request_t *r,
     ngx_flag_t resource_exists, time_t mtime, off_t size,
     unsigned etag_flags, unsigned condition_flags);
 
 /*
- * xrootd_http_check_if_modified_since - evaluate If-Modified-Since / If-Unmodified-Since.
+ * brix_http_check_if_modified_since - evaluate If-Modified-Since / If-Unmodified-Since.
  *
  * WHAT: Compares the resource's mtime against the HTTP date in If-Modified-Since
  *       or If-Unmodified-Since header. Returns NGX_OK if conditions pass,
@@ -111,11 +111,11 @@ ngx_int_t xrootd_http_eval_preconditions(ngx_http_request_t *r,
  *      returns 304 when mtime <= header date; If-Unmodified-Since returns 412 when
  *      mtime > header date.
  */
-ngx_int_t xrootd_http_check_if_modified_since(ngx_http_request_t *r,
+ngx_int_t brix_http_check_if_modified_since(ngx_http_request_t *r,
     time_t mtime);
 
 /*
- * xrootd_http_overwrite_forbidden - check whether Over: false header forbids overwrite.
+ * brix_http_overwrite_forbidden - check whether Over: false header forbids overwrite.
  *
  * WHAT: Returns NGX_TRUE if the HTTP Over header is "false" and the target resource
  *       already exists, indicating the client does not want to overwrite existing data.
@@ -124,9 +124,9 @@ ngx_int_t xrootd_http_check_if_modified_since(ngx_http_request_t *r,
  *      PUT/MOVE/COPY. Servers must respect Over: false by returning 412 Precondition Failed
  *      when the target exists.
  *
- * HOW: Looks up the Over header via xrootd_http_find_header(), checks value equals "false"
+ * HOW: Looks up the Over header via brix_http_find_header(), checks value equals "false"
  *      (case-insensitive, trimmed), and verifies resource_exists flag.
  */
-ngx_flag_t xrootd_http_overwrite_forbidden(ngx_http_request_t *r);
+ngx_flag_t brix_http_overwrite_forbidden(ngx_http_request_t *r);
 
-#endif /* XROOTD_COMPAT_HTTP_CONDITIONALS_H */
+#endif /* BRIX_COMPAT_HTTP_CONDITIONALS_H */

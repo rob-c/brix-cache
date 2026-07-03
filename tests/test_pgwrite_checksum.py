@@ -205,7 +205,7 @@ _DATA_DIR  = DATA_ROOT
 
 class TestPgWriteChecksumVerification:
     """
-    Verify that xrootd_pgwrite_decode_payload enforces CRC32c integrity.
+    Verify that brix_pgwrite_decode_payload enforces CRC32c integrity.
 
     Each test opens a temporary file, sends one or more pgwrite requests,
     and checks the server's response code.

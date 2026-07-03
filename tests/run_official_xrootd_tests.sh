@@ -12,7 +12,7 @@
 # test functions, point HOST at our nginx listener, and call test_<name>().
 #
 # Usage:
-#   ./tests/run_official_xrootd_tests.sh [noauth|host|all]
+#   ./tests/run_official_brix_tests.sh [noauth|host|all]
 #
 # Prerequisites:
 #   - nginx+xrootd-module running (ports 11094 anon, 11095 GSI)
@@ -23,14 +23,14 @@ set -uo pipefail
 # Note: we intentionally do NOT use set -e because individual sub-tests
 # are expected to fail; pass/fail is tracked per sub-test.
 
-XROOTD_SRC="${XROOTD_SRC:-/tmp/xrootd-src}"
-TEST_DIR="${XROOTD_SRC}/tests/XRootD"
+BRIX_SRC="${BRIX_SRC:-/tmp/xrootd-src}"
+TEST_DIR="${BRIX_SRC}/tests/XRootD"
 NGINX_ANON_PORT="${NGINX_ANON_PORT:-11094}"
 NGINX_GSI_PORT="${NGINX_GSI_PORT:-11095}"
 # Local scratch for reference files
 LOCALDIR="${LOCALDIR:-/tmp/xrd-official-tests}"
-# The xrootd_root configured in nginx — remote paths are relative to this
-XROOTD_ROOT="${XROOTD_ROOT:-/tmp/xrd-test/data}"
+# The brix_root configured in nginx — remote paths are relative to this
+BRIX_ROOT="${BRIX_ROOT:-/tmp/xrd-test/data}"
 
 # Colours
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'; NC='\033[0m'
@@ -246,7 +246,7 @@ export SOURCE_DIR="${TEST_DIR}"
 
 echo "═══════════════════════════════════════════════════════════════"
 echo "  Official XRootD tests → nginx+xrootd module"
-echo "  XRootD source: ${XROOTD_SRC}"
+echo "  XRootD source: ${BRIX_SRC}"
 echo "  nginx anon:    localhost:${NGINX_ANON_PORT}"
 echo "  Client:        $(xrdcp --version 2>&1)"
 echo "═══════════════════════════════════════════════════════════════"

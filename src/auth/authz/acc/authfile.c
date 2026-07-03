@@ -1,15 +1,15 @@
 /*
  * authfile.c — XrdAcc authorization database parser (XrdAccAuthFile/ConfigDB).
  *
- * WHAT: xrootd_acc_authfile_parse() reads a stock XRootD `authdb` file and
- *   builds a complete xrootd_acc_tables_t generation: the per-category name
+ * WHAT: brix_acc_authfile_parse() reads a stock XRootD `authdb` file and
+ *   builds a complete brix_acc_tables_t generation: the per-category name
  *   lists (users/groups/hosts/netgroups/orgs/roles/templates), the default
  *   (`u *`) and fungible (`u =`) lists, the domain (`h .suffix`) list, and the
  *   compound-identity (`=`) definitions wired to their exclusive (`x`) or
  *   inclusive (`s`) rule capabilities.
  *
  * WHY: faithful port of XrdAccConfig::ConfigDBrec()/idDef() plus the
- *   XrdAccAuthFile tokenizer, so a site can point `xrootd_authdb_format xrdacc`
+ *   XrdAccAuthFile tokenizer, so a site can point `brix_authdb_format xrdacc`
  *   at an existing XRootD authdb and get identical structure.
  *
  * HOW: the whole file (<= 1 MiB) is tokenized into records — one logical line
@@ -24,7 +24,7 @@
 #include "core/compat/alloc_guard.h"
 #include "core/compat/log_diag.h"
 
-#define XROOTD_ACC_AUTHDB_MAX  (1024 * 1024)
+#define BRIX_ACC_AUTHDB_MAX  (1024 * 1024)
 
 
 typedef struct {
@@ -154,11 +154,11 @@ acc_uri_decode(ngx_pool_t *pool, const char *s)
 }
 
 
-static xrootd_acc_named_t *
-acc_named_prepend(ngx_pool_t *pool, xrootd_acc_named_t **head,
-                  const char *name, xrootd_acc_cap_t *caps)
+static brix_acc_named_t *
+acc_named_prepend(ngx_pool_t *pool, brix_acc_named_t **head,
+                  const char *name, brix_acc_cap_t *caps)
 {
-    xrootd_acc_named_t *n = ngx_pcalloc(pool, sizeof(*n));
+    brix_acc_named_t *n = ngx_pcalloc(pool, sizeof(*n));
     if (n == NULL) {
         return NULL;
     }
@@ -171,16 +171,16 @@ acc_named_prepend(ngx_pool_t *pool, xrootd_acc_named_t **head,
 }
 
 /* Build a capability node for a concrete path + privilege string. */
-static xrootd_acc_cap_t *
+static brix_acc_cap_t *
 acc_cap_path(ngx_pool_t *pool, const char *path, const char *privs,
              ngx_log_t *log)
 {
-    xrootd_acc_cap_t       *cap;
-    xrootd_acc_priv_caps_t  pc;
+    brix_acc_cap_t       *cap;
+    brix_acc_priv_caps_t  pc;
     int                     i;
 
-    if (xrootd_acc_parse_privs(privs, ngx_strlen(privs), &pc) != 0) {
-        XROOTD_DIAG_EMERG(log, 0,
+    if (brix_acc_parse_privs(privs, ngx_strlen(privs), &pc) != 0) {
+        BRIX_DIAG_EMERG(log, 0,
             "xrootd authdb: invalid privileges \"%s\"",
             "a privilege token contains an unknown letter",
             "valid privilege letters are a(ll) d(elete) i(nsert) k(lock) "
@@ -190,7 +190,7 @@ acc_cap_path(ngx_pool_t *pool, const char *path, const char *privs,
         return NULL;
     }
 
-    XROOTD_PCALLOC_OR_RETURN(cap, pool, sizeof(*cap), NULL);
+    BRIX_PCALLOC_OR_RETURN(cap, pool, sizeof(*cap), NULL);
     cap->path = (char *) path;
     cap->plen = (int) ngx_strlen(path);
     cap->caps = pc;
@@ -212,11 +212,11 @@ acc_cap_path(ngx_pool_t *pool, const char *path, const char *privs,
  * NGX_ERROR (logged).  Mirrors the getPP loop in ConfigDBrec.
  */
 static ngx_int_t
-acc_build_caps(ngx_pool_t *pool, xrootd_acc_tables_t *tabs,
+acc_build_caps(ngx_pool_t *pool, brix_acc_tables_t *tabs,
                char **words, ngx_uint_t start, ngx_uint_t n,
-               xrootd_acc_cap_t **out, ngx_log_t *log)
+               brix_acc_cap_t **out, ngx_log_t *log)
 {
-    xrootd_acc_cap_t  *head = NULL, *tail = NULL, *cap;
+    brix_acc_cap_t  *head = NULL, *tail = NULL, *cap;
     ngx_uint_t         i = start;
 
     while (i < n) {
@@ -237,13 +237,13 @@ acc_build_caps(ngx_pool_t *pool, xrootd_acc_tables_t *tabs,
 
         if (istmplt) {
             /* Template indirection: reference a previously-defined `t` list. */
-            xrootd_acc_cap_t *tcaps = xrootd_acc_named_find(tabs->t_list, path);
+            brix_acc_cap_t *tcaps = brix_acc_named_find(tabs->t_list, path);
             if (tcaps == NULL) {
                 ngx_log_error(NGX_LOG_EMERG, log, 0,
                               "xrootd authdb: missing template \"%s\"", path);
                 return NGX_ERROR;
             }
-            XROOTD_PCALLOC_OR_RETURN(cap, pool, sizeof(*cap), NGX_ERROR);
+            BRIX_PCALLOC_OR_RETURN(cap, pool, sizeof(*cap), NGX_ERROR);
             cap->tmpl = tcaps;
         } else {
             if (i >= n) {
@@ -308,10 +308,10 @@ acc_iddef_set(char **slot, char *val, char sel, const char *defname,
 
 /* `=` record: define a compound identity (selectors only, caps filled by x/s). */
 static ngx_int_t
-acc_record_iddef(xrootd_acc_tables_t *tabs, char **w, ngx_uint_t n,
-                 xrootd_acc_idrule_t **id_tail, ngx_log_t *log)
+acc_record_iddef(brix_acc_tables_t *tabs, char **w, ngx_uint_t n,
+                 brix_acc_idrule_t **id_tail, ngx_log_t *log)
 {
-    xrootd_acc_idrule_t *id;
+    brix_acc_idrule_t *id;
     ngx_uint_t           i;
 
     if ((n - 2) % 2 != 0 || n < 4) {
@@ -328,7 +328,7 @@ acc_record_iddef(xrootd_acc_tables_t *tabs, char **w, ngx_uint_t n,
         }
     }
 
-    XROOTD_PCALLOC_OR_RETURN(id, tabs->pool, sizeof(*id), NGX_ERROR);
+    BRIX_PCALLOC_OR_RETURN(id, tabs->pool, sizeof(*id), NGX_ERROR);
     id->name = w[1];
     id->rule = INT_MIN;   /* "no x/s rule attached yet" */
 
@@ -370,10 +370,10 @@ acc_record_iddef(xrootd_acc_tables_t *tabs, char **w, ngx_uint_t n,
 
 /* `x`/`s` record: attach capabilities (and exclusive/inclusive flag) to a def. */
 static ngx_int_t
-acc_record_rule(xrootd_acc_tables_t *tabs, char **w, ngx_uint_t n,
+acc_record_rule(brix_acc_tables_t *tabs, char **w, ngx_uint_t n,
                 int exclusive, int *excl_seq, ngx_log_t *log)
 {
-    xrootd_acc_idrule_t *id;
+    brix_acc_idrule_t *id;
 
     for (id = tabs->id_defs; id != NULL; id = id->next) {
         if (ngx_strcmp(id->name, w[1]) == 0) {
@@ -399,11 +399,11 @@ acc_record_rule(xrootd_acc_tables_t *tabs, char **w, ngx_uint_t n,
 
 /* g/h/n/o/r/t/u record: bind a name to a capability list. */
 static ngx_int_t
-acc_record_named(xrootd_acc_tables_t *tabs, char rtype, char **w, ngx_uint_t n,
+acc_record_named(brix_acc_tables_t *tabs, char rtype, char **w, ngx_uint_t n,
                  ngx_log_t *log)
 {
-    xrootd_acc_named_t **head = NULL;
-    xrootd_acc_cap_t    *caps;
+    brix_acc_named_t **head = NULL;
+    brix_acc_cap_t    *caps;
     char                *name = w[1];
     int                  alluser = 0, anyuser = 0, domain = 0;
 
@@ -438,7 +438,7 @@ acc_record_named(xrootd_acc_tables_t *tabs, char rtype, char **w, ngx_uint_t n,
     if ((alluser && tabs->z_list != NULL)
         || (anyuser && tabs->x_list != NULL)
         || (!alluser && !anyuser
-            && xrootd_acc_named_find(*head, name) != NULL))
+            && brix_acc_named_find(*head, name) != NULL))
     {
         ngx_log_error(NGX_LOG_EMERG, log, 0,
                       "xrootd authdb: duplicate rule for id \"%s\"", name);
@@ -463,10 +463,10 @@ acc_record_named(xrootd_acc_tables_t *tabs, char rtype, char **w, ngx_uint_t n,
 
 
 static void
-acc_finalize_rules(xrootd_acc_tables_t *tabs, ngx_log_t *log)
+acc_finalize_rules(brix_acc_tables_t *tabs, ngx_log_t *log)
 {
-    xrootd_acc_idrule_t *id, *next;
-    xrootd_acc_idrule_t *sx_tail = NULL, *sy_tail = NULL;
+    brix_acc_idrule_t *id, *next;
+    brix_acc_idrule_t *sx_tail = NULL, *sy_tail = NULL;
 
     for (id = tabs->id_defs; id != NULL; id = next) {
         next = id->next;
@@ -498,13 +498,13 @@ acc_finalize_rules(xrootd_acc_tables_t *tabs, ngx_log_t *log)
 
 
 static ngx_int_t
-acc_dispatch_record(xrootd_acc_tables_t *tabs, char **w, ngx_uint_t n,
-                    xrootd_acc_idrule_t **id_tail, int *excl_seq, ngx_log_t *log)
+acc_dispatch_record(brix_acc_tables_t *tabs, char **w, ngx_uint_t n,
+                    brix_acc_idrule_t **id_tail, int *excl_seq, ngx_log_t *log)
 {
     char rtype;
 
     if (w[0][0] == '\0' || w[0][1] != '\0') {
-        XROOTD_DIAG_EMERG(log, 0,
+        BRIX_DIAG_EMERG(log, 0,
             "xrootd authdb: invalid record type \"%s\"",
             "each record must begin with a single-letter type in column 1",
             "valid record types are = x s g h n o r t u; fix this line in "
@@ -536,12 +536,12 @@ acc_dispatch_record(xrootd_acc_tables_t *tabs, char **w, ngx_uint_t n,
     }
 }
 
-xrootd_acc_tables_t *
-xrootd_acc_authfile_parse(ngx_log_t *log, const char *file,
+brix_acc_tables_t *
+brix_acc_authfile_parse(ngx_log_t *log, const char *file,
                           char spacechar, ngx_int_t uri_decode)
 {
-    xrootd_acc_tables_t  *tabs;
-    xrootd_acc_idrule_t  *id_tail = NULL;
+    brix_acc_tables_t  *tabs;
+    brix_acc_idrule_t  *id_tail = NULL;
     ngx_pool_t           *pool;
     ngx_fd_t              fd;
     ngx_file_info_t       fi;
@@ -555,9 +555,9 @@ xrootd_acc_authfile_parse(ngx_log_t *log, const char *file,
 
     fd = ngx_open_file((u_char *) file, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
     if (fd == NGX_INVALID_FILE) {
-        XROOTD_DIAG_EMERG(log, ngx_errno,
+        BRIX_DIAG_EMERG(log, ngx_errno,
             "xrootd authdb: cannot open \"%s\"",
-            "the path in xrootd_acc_authdb is wrong or unreadable by the "
+            "the path in brix_acc_authdb is wrong or unreadable by the "
             "nginx user",
             "check the path exists and the nginx master/worker user can read "
             "it (the OS reason is appended below)",
@@ -569,12 +569,12 @@ xrootd_acc_authfile_parse(ngx_log_t *log, const char *file,
         return NULL;
     }
     fsize = (size_t) ngx_file_size(&fi);
-    if (fsize > XROOTD_ACC_AUTHDB_MAX) {
-        XROOTD_DIAG_EMERG(log, 0,
+    if (fsize > BRIX_ACC_AUTHDB_MAX) {
+        BRIX_DIAG_EMERG(log, 0,
             "xrootd authdb \"%s\" exceeds the 1 MiB limit",
             "the file is larger than the parser accepts — usually a wrong "
             "path (pointing at a data file) or a runaway generated authdb",
-            "confirm xrootd_acc_authdb points at the authorization file, not "
+            "confirm brix_acc_authdb points at the authorization file, not "
             "something else; split or trim it below 1 MiB",
             file);
         ngx_close_file(fd);
@@ -611,7 +611,7 @@ xrootd_acc_authfile_parse(ngx_log_t *log, const char *file,
     nread = ngx_read_fd(fd, buf, fsize);
     ngx_close_file(fd);
     if (nread < 0 || (size_t) nread != fsize) {
-        XROOTD_DIAG_EMERG(log, 0,
+        BRIX_DIAG_EMERG(log, 0,
             "xrootd authdb: short read of \"%s\"",
             "the file changed size or an I/O error occurred while reading it",
             "make sure the authdb is written atomically (write-then-rename), "

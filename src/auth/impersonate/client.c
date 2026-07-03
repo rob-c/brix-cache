@@ -90,7 +90,7 @@ imp_drop_conn(void)
 }
 
 ngx_int_t
-xrootd_imp_client_connect(const char *path, ngx_log_t *log)
+brix_imp_client_connect(const char *path, ngx_log_t *log)
 {
     size_t plen;
 
@@ -116,7 +116,7 @@ xrootd_imp_client_connect(const char *path, ngx_log_t *log)
 }
 
 int
-xrootd_imp_client_active(void)
+brix_imp_client_active(void)
 {
     /*
      * Route the confined FS op to the broker when map mode is active AND we are
@@ -133,19 +133,19 @@ xrootd_imp_client_active(void)
 }
 
 int
-xrootd_imp_enabled(void)
+brix_imp_enabled(void)
 {
     return imp_enabled;
 }
 
 void
-xrootd_imp_mark_in_request(int on)
+brix_imp_mark_in_request(int on)
 {
     imp_in_request = on ? 1 : 0;
 }
 
 void
-xrootd_imp_set_principal(const char *principal)
+brix_imp_set_principal(const char *principal)
 {
     size_t n;
 
@@ -162,7 +162,7 @@ xrootd_imp_set_principal(const char *principal)
 }
 
 void
-xrootd_imp_clear_principal(void)
+brix_imp_clear_principal(void)
 {
     imp_principal[0] = '\0';
 }
@@ -363,7 +363,7 @@ imp_call_status(uint32_t op, const char *path, const char *path2,
 
 
 int
-xrootd_imp_open(const char *reqpath, int flags, mode_t mode)
+brix_imp_open(const char *reqpath, int flags, mode_t mode)
 {
     imp_req_t req;
     imp_rep_t rep;
@@ -406,7 +406,7 @@ imp_unpack_stat(struct stat *st, const imp_stat_t *s)
 }
 
 int
-xrootd_imp_stat(const char *reqpath, struct stat *st, int nofollow)
+brix_imp_stat(const char *reqpath, struct stat *st, int nofollow)
 {
     imp_req_t req;
     imp_rep_t rep;
@@ -431,63 +431,63 @@ xrootd_imp_stat(const char *reqpath, struct stat *st, int nofollow)
 }
 
 int
-xrootd_imp_mkdir(const char *reqpath, mode_t mode)
+brix_imp_mkdir(const char *reqpath, mode_t mode)
 {
     return imp_call_status(IMP_OP_MKDIR, reqpath, NULL, (uint32_t) mode, 0);
 }
 
 int
-xrootd_imp_unlink(const char *reqpath, int is_dir)
+brix_imp_unlink(const char *reqpath, int is_dir)
 {
     return imp_call_status(is_dir ? IMP_OP_RMDIR : IMP_OP_UNLINK,
                            reqpath, NULL, 0, 0);
 }
 
 int
-xrootd_imp_rmdir(const char *reqpath)
+brix_imp_rmdir(const char *reqpath)
 {
     return imp_call_status(IMP_OP_RMDIR, reqpath, NULL, 0, 0);
 }
 
 int
-xrootd_imp_rename(const char *src, const char *dst)
+brix_imp_rename(const char *src, const char *dst)
 {
     return imp_call_status(IMP_OP_RENAME, src, dst, 0, 0);
 }
 
 int
-xrootd_imp_rename_noreplace(const char *src, const char *dst)
+brix_imp_rename_noreplace(const char *src, const char *dst)
 {
     return imp_call_status(IMP_OP_RENAME_NOREPLACE, src, dst, 0, 0);
 }
 
 int
-xrootd_imp_link(const char *src, const char *dst)
+brix_imp_link(const char *src, const char *dst)
 {
     return imp_call_status(IMP_OP_LINK, src, dst, 0, 0);
 }
 
 int
-xrootd_imp_truncate(const char *reqpath, off_t length)
+brix_imp_truncate(const char *reqpath, off_t length)
 {
     return imp_call_status(IMP_OP_TRUNCATE, reqpath, NULL, 0, (int64_t) length);
 }
 
 int
-xrootd_imp_chmod(const char *reqpath, mode_t mode)
+brix_imp_chmod(const char *reqpath, mode_t mode)
 {
     return imp_call_status(IMP_OP_CHMOD, reqpath, NULL, (uint32_t) mode, 0);
 }
 
 int
-xrootd_imp_chown_gid(const char *reqpath, gid_t gid)
+brix_imp_chown_gid(const char *reqpath, gid_t gid)
 {
     /* CHOWN carries the gid in the mode field (uid is fixed by ownership). */
     return imp_call_status(IMP_OP_CHOWN, reqpath, NULL, (uint32_t) gid, 0);
 }
 
 int
-xrootd_imp_setattr(const char *reqpath, int set_times,
+brix_imp_setattr(const char *reqpath, int set_times,
                    const struct timespec times[2],
                    int set_owner, uid_t uid, gid_t gid)
 {
@@ -519,14 +519,14 @@ xrootd_imp_setattr(const char *reqpath, int set_times,
 }
 
 int
-xrootd_imp_symlink(const char *target, const char *linkpath)
+brix_imp_symlink(const char *target, const char *linkpath)
 {
     /* path = link location (root-relative), path2 = verbatim target string. */
     return imp_call_status(IMP_OP_SYMLINK, linkpath, target, 0, 0);
 }
 
 ssize_t
-xrootd_imp_readlink(const char *reqpath, char *buf, size_t bufsz)
+brix_imp_readlink(const char *reqpath, char *buf, size_t bufsz)
 {
     imp_req_t req;
     imp_rep_t rep;
@@ -593,20 +593,20 @@ imp_get_or_list(uint32_t op, const char *reqpath, const char *name,
 }
 
 ssize_t
-xrootd_imp_getxattr(const char *reqpath, const char *name,
+brix_imp_getxattr(const char *reqpath, const char *name,
                     void *buf, size_t bufsz)
 {
     return imp_get_or_list(IMP_OP_GETXATTR, reqpath, name, buf, bufsz);
 }
 
 ssize_t
-xrootd_imp_listxattr(const char *reqpath, void *buf, size_t bufsz)
+brix_imp_listxattr(const char *reqpath, void *buf, size_t bufsz)
 {
     return imp_get_or_list(IMP_OP_LISTXATTR, reqpath, NULL, buf, bufsz);
 }
 
 int
-xrootd_imp_setxattr(const char *reqpath, const char *name,
+brix_imp_setxattr(const char *reqpath, const char *name,
                     const void *value, size_t len, int flags)
 {
     imp_req_t req;
@@ -632,7 +632,7 @@ xrootd_imp_setxattr(const char *reqpath, const char *name,
 }
 
 int
-xrootd_imp_removexattr(const char *reqpath, const char *name)
+brix_imp_removexattr(const char *reqpath, const char *name)
 {
     imp_req_t req;
     imp_rep_t rep;

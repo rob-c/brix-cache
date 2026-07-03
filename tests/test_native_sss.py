@@ -2,7 +2,7 @@
 Native SSS (Simple Shared Secret) auth — phase-37 §6 + §14.3.
 
 End-to-end gate for the clean-room client's SSS support: xrdsssadmin mints a
-keytab, an nginx stream server is configured with `xrootd_auth sss` against that
+keytab, an nginx stream server is configured with `brix_auth sss` against that
 same keytab, and the native xrdfs authenticates with `--auth sss` — proving the
 client builds a byte-exact SSS credential (16-byte header + BF32(40-byte data
 header + NAME TLV + IEEE-CRC32)) that the server decrypts and accepts.
@@ -88,10 +88,10 @@ stream {{
     server {{
         listen {BIND_HOST}:{port};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth sss;
-        xrootd_sss_keytab {kt_srv};
-        xrootd_allow_write on;
+        brix_storage_backend posix:{data};
+        brix_auth sss;
+        brix_sss_keytab {kt_srv};
+        brix_allow_write on;
     }}
 }}
 """)

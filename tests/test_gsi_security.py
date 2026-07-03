@@ -590,7 +590,7 @@ class TestGSIClientWrite:
 # ---------------------------------------------------------------------------
 
 class TestGSITLSPort:
-    """Functional tests on the GSI+TLS port (xrootd_tls on)."""
+    """Functional tests on the GSI+TLS port (brix_tls on)."""
 
     def test_stat_root_via_tls(self):
         fs = _gsi_tls_fs()

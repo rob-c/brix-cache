@@ -9,26 +9,26 @@
 #include "metrics_macros.h"
 
 void
-xrootd_export_ratelimit_metrics(metrics_writer_t *mw, ngx_xrootd_metrics_t *shm)
+brix_export_ratelimit_metrics(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
 {
     if (shm == NULL) {
         return;
     }
 
     mw_printf(mw,
-        "# HELP xrootd_rate_limit_throttled_total "
+        "# HELP brix_rate_limit_throttled_total "
             "Requests throttled by the advanced rate limiter.\n"
-        "# TYPE xrootd_rate_limit_throttled_total counter\n"
-        "xrootd_rate_limit_throttled_total{plane=\"http\"} %lu\n"
-        "xrootd_rate_limit_throttled_total{plane=\"stream\"} %lu\n"
-        "# HELP xrootd_rate_limit_eviction_total "
+        "# TYPE brix_rate_limit_throttled_total counter\n"
+        "brix_rate_limit_throttled_total{plane=\"http\"} %lu\n"
+        "brix_rate_limit_throttled_total{plane=\"stream\"} %lu\n"
+        "# HELP brix_rate_limit_eviction_total "
             "LRU node evictions from rate-limit shared-memory zones.\n"
-        "# TYPE xrootd_rate_limit_eviction_total counter\n"
-        "xrootd_rate_limit_eviction_total %lu\n"
-        "# HELP xrootd_rate_limit_zone_full_errors_total "
+        "# TYPE brix_rate_limit_eviction_total counter\n"
+        "brix_rate_limit_eviction_total %lu\n"
+        "# HELP brix_rate_limit_zone_full_errors_total "
             "Allocation failures in rate-limit shared-memory zones.\n"
-        "# TYPE xrootd_rate_limit_zone_full_errors_total counter\n"
-        "xrootd_rate_limit_zone_full_errors_total %lu\n",
+        "# TYPE brix_rate_limit_zone_full_errors_total counter\n"
+        "brix_rate_limit_zone_full_errors_total %lu\n",
         (unsigned long) ngx_atomic_fetch_add(&shm->rl_throttled_http_total, 0),
         (unsigned long) ngx_atomic_fetch_add(&shm->rl_throttled_stream_total, 0),
         (unsigned long) ngx_atomic_fetch_add(&shm->rl_eviction_total, 0),

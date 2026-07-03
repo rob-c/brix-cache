@@ -28,8 +28,8 @@ field_str(const unsigned char *p, size_t len)
 }
 
 int
-xrootd_cms_node_plan(unsigned char code, const xrootd_cms_rrdata_t *d,
-                     xrootd_cms_node_plan_t *plan)
+brix_cms_node_plan(unsigned char code, const brix_cms_rrdata_t *d,
+                     brix_cms_node_plan_t *plan)
 {
     const char *path  = field_str(d->path,  d->path_len);
     const char *path2 = field_str(d->path2, d->path2_len);

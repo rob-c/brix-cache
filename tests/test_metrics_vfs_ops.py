@@ -2,7 +2,7 @@
 test_metrics_vfs_ops.py — Prometheus coverage for the VFS sweep's new op labels.
 
 The Tier-2 VFS extension added two unified-metric operations —
-xrootd_io_ops_total{op="xattr"} and {op="copy"} — and routed S3/WebDAV xattr,
+brix_io_ops_total{op="xattr"} and {op="copy"} — and routed S3/WebDAV xattr,
 copy, and staged-write paths through the metered VFS surface. This suite drives
 each path over the live S3 endpoint and asserts the matching io_ops_total series
 exists and increments (the delta over /metrics is the only end-to-end proof the
@@ -26,7 +26,7 @@ from metrics_helpers import Snapshot, fetch         # noqa: E402
 
 S3 = f"http://{HOST}:{NGINX_S3_PORT}"
 BUCKET = "testbucket"
-OP_METRIC = "xrootd_io_ops_total"
+OP_METRIC = "brix_io_ops_total"
 
 
 def _obj(key):
@@ -39,7 +39,7 @@ def _op_ok(snap, op, after=None):
 
 
 def test_tagging_books_xattr_op():
-    """PUT ?tagging routes through xrootd_vfs_setxattr -> op="xattr"."""
+    """PUT ?tagging routes through brix_vfs_setxattr -> op="xattr"."""
     requests.put(_obj("vfsop_tag.bin"), data=b"d", timeout=10)
     snap = Snapshot()
     r = requests.put(_obj("vfsop_tag.bin") + "?tagging",
@@ -51,7 +51,7 @@ def test_tagging_books_xattr_op():
 
 
 def test_copyobject_books_copy_op():
-    """CopyObject routes through xrootd_vfs_copy -> op="copy"."""
+    """CopyObject routes through brix_vfs_copy -> op="copy"."""
     requests.put(_obj("vfsop_cp_src.bin"), data=b"copy-src" * 100, timeout=10)
     snap = Snapshot()
     r = requests.put(_obj("vfsop_cp_dst.bin"), timeout=10,
@@ -61,7 +61,7 @@ def test_copyobject_books_copy_op():
 
 
 def test_putobject_books_write_op_on_staged_commit():
-    """PutObject's staged commit routes through xrootd_vfs_staged_commit ->
+    """PutObject's staged commit routes through brix_vfs_staged_commit ->
     op="write"."""
     snap = Snapshot()
     r = requests.put(_obj("vfsop_put.bin"), data=b"staged-write" * 500,

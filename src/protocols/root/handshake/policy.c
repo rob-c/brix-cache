@@ -1,10 +1,10 @@
 #include "handshake.h"
 
 /*
- * xrootd_check_token_scope — enforce WLCG token scopes on a path operation.
+ * brix_check_token_scope — enforce WLCG token scopes on a path operation.
  *
  * Only active when ctx->token_auth == 1 (bearer-token session).  GSI and
- * anonymous sessions are not restricted by this function — the xrootd_allow_write
+ * anonymous sessions are not restricted by this function — the brix_allow_write
  * directive and VO ACL remain their access gate.
  *
  * logical_path: the client-facing XRootD path (e.g. "/cms/store/file.root"),
@@ -16,7 +16,7 @@
  * send the error response and log the access failure).
  */
 ngx_int_t
-xrootd_check_token_scope(xrootd_ctx_t *ctx, const char *logical_path,
+brix_check_token_scope(brix_ctx_t *ctx, const char *logical_path,
     int need_write)
 {
     if (!ctx->token_auth) {
@@ -24,63 +24,63 @@ xrootd_check_token_scope(xrootd_ctx_t *ctx, const char *logical_path,
     }
 
     if (ctx->identity != NULL) {
-        return xrootd_identity_check_token_scope(ctx->identity, logical_path,
+        return brix_identity_check_token_scope(ctx->identity, logical_path,
                                                  need_write);
     }
 
     if (need_write) {
-        return xrootd_token_check_write(ctx->token_scopes,
+        return brix_token_check_write(ctx->token_scopes,
                                         ctx->token_scope_count, logical_path)
                ? NGX_OK : NGX_ERROR;
     }
 
-    return xrootd_token_check_read(ctx->token_scopes,
+    return brix_token_check_read(ctx->token_scopes,
                                    ctx->token_scope_count, logical_path)
            ? NGX_OK : NGX_ERROR;
 }
 
 ngx_int_t
-xrootd_dispatch_require_login(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_dispatch_require_login(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     if (!ctx->logged_in) {
-        return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+        return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "login required");
     }
 
-    return XROOTD_DISPATCH_CONTINUE;
+    return BRIX_DISPATCH_CONTINUE;
 }
 
 ngx_int_t
-xrootd_dispatch_require_auth(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_dispatch_require_auth(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     if (!ctx->logged_in || !ctx->auth_done) {
-        return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+        return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "authentication required");
     }
 
-    return XROOTD_DISPATCH_CONTINUE;
+    return BRIX_DISPATCH_CONTINUE;
 }
 
 ngx_int_t
-xrootd_dispatch_require_write(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_dispatch_require_write(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
 {
     ngx_int_t rc;
 
-    rc = xrootd_dispatch_require_auth(ctx, c);
-    if (rc != XROOTD_DISPATCH_CONTINUE) {
+    rc = brix_dispatch_require_auth(ctx, c);
+    if (rc != BRIX_DISPATCH_CONTINUE) {
         return rc;
     }
 
     if (ctx->is_bound) {
-        return xrootd_send_error(ctx, c, kXR_NotAuthorized,
+        return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "bound streams may only read primary handles");
     }
 
     if (!conf->common.allow_write) {
-        return xrootd_send_error(ctx, c, kXR_fsReadOnly,
+        return brix_send_error(ctx, c, kXR_fsReadOnly,
                                  "this is a read-only server");
     }
 
-    return XROOTD_DISPATCH_CONTINUE;
+    return BRIX_DISPATCH_CONTINUE;
 }

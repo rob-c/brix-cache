@@ -84,7 +84,7 @@ kXR_open_new  = 0x0008
 # Handler limits (src/protocols/root/protocol/flags.h, src/core/types/tunables.h)
 READV_SEGSIZE = 16
 READV_MAXSEGS = 1024
-# Per-segment readv cap = the server's default xrootd_readv_segment_size, which
+# Per-segment readv cap = the server's default brix_readv_segment_size, which
 # matches stock XRootD's maxReadv_ior = maxBuffsz(2 MiB) - sizeof(readahead_list).
 READ_MAX      = 2 * 1024 * 1024 - READV_SEGSIZE
 MAX_READV_TOTAL = 256 * 1024 * 1024      # whole-request readv cap
@@ -101,7 +101,7 @@ PATTERN   = bytes((i * 31 + 7) & 0xFF for i in range(DATA_SIZE))
 
 
 # ---------------------------------------------------------------------------
-# CRC32c (Castagnoli) — pure-Python, matches xrootd_crc32c_copy()
+# CRC32c (Castagnoli) — pure-Python, matches brix_crc32c_copy()
 # ---------------------------------------------------------------------------
 
 _CRC32C_POLY = 0x82F63B78  # reflected 0x1EDC6F41
@@ -681,13 +681,13 @@ class TestCrossProtocolReadvOOB:
 # Class 5 — slice-cache handle vs vector/paged reads (executable spec)
 # ===========================================================================
 
-@pytest.mark.skip(reason="needs a live XRootD origin + xrootd_cache_slice env")
+@pytest.mark.skip(reason="needs a live XRootD origin + brix_cache_slice env")
 class TestSliceHandleVectorReads:
     """Phase 26 slice-mode handles park their fd on /dev/null; only kXR_read is
     wired into slice serving.  readv/pgread guard against such handles and must
     return kXR_Unsupported rather than reading /dev/null (empty/wrong data).
 
-    Requires a server configured with xrootd_cache_slice + xrootd_cache_origin,
+    Requires a server configured with brix_cache_slice + brix_cache_origin,
     so it stays skipped until that env is available.
     """
 

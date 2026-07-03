@@ -11,7 +11,7 @@
  *   DELETE /bucket/key         → DeleteObject
  *
  * Authentication is AWS Signature Version 4 (HMAC-SHA256), optional.
- * If xrootd_s3_access_key is not configured, anonymous access is allowed.
+ * If brix_s3_access_key is not configured, anonymous access is allowed.
  *
  * Directory sentinels: XrdClS3 marks directories by creating a zero-byte
  * object named ".xrdcls3.dirsentinel".  On a PUT of a sentinel the module
@@ -47,7 +47,7 @@
 
 #include "observability/metrics/metrics.h"
 #include "core/compat/protocol_caps.h"
-#include "fs/vfs/vfs.h"             /* xrootd_vfs_ctx_t for s3_build_vfs_ctx() */
+#include "fs/vfs/vfs.h"             /* brix_vfs_ctx_t for s3_build_vfs_ctx() */
 #include "core/config/shared_conf.h"
 #include "core/compat/namespace_ops.h"
 #include "auth/authz/acc/acc.h"
@@ -66,7 +66,7 @@
  * ---------------------------------------------------------------------- */
 
 typedef struct {
-    ngx_http_xrootd_shared_conf_t common; /* enable, root, root_canon, allow_write,
+    ngx_http_brix_shared_conf_t common; /* enable, root, root_canon, allow_write,
                                              thread_pool_name, thread_pool */
     ngx_str_t    cache_root;  /* optional read-through cache root path */
     char         cache_root_canon[PATH_MAX]; /* canonical cache root; "" = disabled */
@@ -83,14 +83,14 @@ typedef struct {
                                   * worker (default off) */
     ngx_msec_t   list_cache_ttl; /* W6c: staleness bound for a cached listing */
     ngx_int_t    max_keys;    /* max objects per list page (default 1000)*/
-    ngx_int_t    mpu_max_age; /* [xrootd_s3_mpu_max_age 0] Phase 39 (WS8): seconds
+    ngx_int_t    mpu_max_age; /* [brix_s3_mpu_max_age 0] Phase 39 (WS8): seconds
                                  a multipart staging dir may be idle before the
                                  incomplete-MPU reaper (run on InitiateMultipart)
                                  removes it.  0 = disabled.  Recommended 604800
                                  (7d, AWS-parity). */
 
     /* ---- ZIP member access (phase-57 W2) ----
-     * [xrootd_s3_zip_access on|off] — opt-in, off by default.  A GetObject whose
+     * [brix_s3_zip_access on|off] — opt-in, off by default.  A GetObject whose
      * query carries "?xrdcl.unzip=<member>" serves that member of the archive
      * object (stored + deflate).  zip_cd_max_bytes caps the central-directory
      * read (bomb guard; default 16 MiB). */
@@ -98,12 +98,12 @@ typedef struct {
     size_t       zip_cd_max_bytes;
 
     /* ---- XrdAcc authorization engine (off by default) ---- */
-    xrootd_acc_http_t  acc;    /* settings + per-worker state */
+    brix_acc_http_t  acc;    /* settings + per-worker state */
 } ngx_http_s3_loc_conf_t;
 
 typedef struct {
     char               fs_path[PATH_MAX];
-    xrootd_identity_t *identity;
+    brix_identity_t *identity;
     /* W6b: PutObject with `If-None-Match: *` — commit must be atomic
      * create-if-absent (renameat2 RENAME_NOREPLACE); EEXIST → 412. */
     unsigned           exclusive_create:1;
@@ -134,11 +134,11 @@ typedef struct {
 /*
  * S3 list query parse policy (shared by V1/V2 and list_common.c): URL-decode the
  * value, + → space, reject embedded NUL, allow an empty value (e.g. delimiter=).
- * Expands to XROOTD_HTTP_QUERY_* flags — callers must include compat/http_query.h.
+ * Expands to BRIX_HTTP_QUERY_* flags — callers must include compat/http_query.h.
  */
 #define S3_LIST_QUERY_FLAGS \
-    (XROOTD_HTTP_QUERY_DECODE_VALUE | XROOTD_HTTP_QUERY_PLUS_TO_SPACE \
-     | XROOTD_HTTP_QUERY_REJECT_NUL | XROOTD_HTTP_QUERY_ALLOW_EMPTY)
+    (BRIX_HTTP_QUERY_DECODE_VALUE | BRIX_HTTP_QUERY_PLUS_TO_SPACE \
+     | BRIX_HTTP_QUERY_REJECT_NUL | BRIX_HTTP_QUERY_ALLOW_EMPTY)
 
 /*
  * s3_entry_t — one object or CommonPrefix returned by ListObjects (V1/V2).
@@ -170,7 +170,7 @@ typedef struct {
     int _xml_n = snprintf((char *) xml + xml_len, xml_capacity - xml_len, \
                           fmt, ##__VA_ARGS__); \
     if (_xml_n < 0 || (size_t) _xml_n >= xml_capacity - xml_len) { \
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]); \
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]); \
         return NGX_HTTP_INTERNAL_SERVER_ERROR; \
     } \
     xml_len += (size_t) _xml_n; \
@@ -178,13 +178,13 @@ typedef struct {
 
 #define XML_APPEND_ELEM(name, value, value_len) do { \
     size_t _xml_written; \
-    if (xrootd_xml_write_text_element((name), \
+    if (brix_xml_write_text_element((name), \
             (const unsigned char *)(value), (value_len), \
-            XROOTD_XML_ESCAPE_APOS_ENTITY, \
+            BRIX_XML_ESCAPE_APOS_ENTITY, \
             xml + xml_len, xml_capacity - xml_len, \
             &_xml_written) != 0) \
     { \
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]); \
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]); \
         return NGX_HTTP_INTERNAL_SERVER_ERROR; \
     } \
     xml_len += _xml_written; \
@@ -194,11 +194,11 @@ typedef struct {
  * Module symbol (defined in module.c, referenced by handler/put)
  * ---------------------------------------------------------------------- */
 
-extern ngx_module_t ngx_http_xrootd_s3_module;
+extern ngx_module_t ngx_http_brix_s3_module;
 
 /* Operation Registry (operation_table.c) */
-extern const xrootd_http_operation_t xrootd_s3_operations[];
-extern const ngx_uint_t xrootd_s3_operations_count;
+extern const brix_http_operation_t brix_s3_operations[];
+extern const ngx_uint_t brix_s3_operations_count;
 
 /*
  * Confined filesystem operations (defined in path/resolve_confined_ops.c).
@@ -211,20 +211,20 @@ extern const ngx_uint_t xrootd_s3_operations_count;
 
 /* Open a file under confinement. Returns an fd (NOT pool-managed — caller
  * must close()) or -1 on error. flags/mode as for open(2). */
-int xrootd_open_confined_canon(ngx_log_t *log, const char *root_canon,
+int brix_open_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, int flags, mode_t mode);
 /* unlinkat() under confinement; is_dir != 0 → AT_REMOVEDIR. 0 ok, -1 error. */
-int xrootd_unlink_confined_canon(ngx_log_t *log, const char *root_canon,
+int brix_unlink_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, int is_dir);
 /* mkdirat() under confinement. Returns 0 on success, -1 on error. */
-int xrootd_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
+int brix_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, mode_t mode);
 /* renameat() with BOTH endpoints confined under the same root. 0 ok, -1 err. */
-int xrootd_rename_confined_canon(ngx_log_t *log, const char *root_canon,
+int brix_rename_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved);
 /* linkat() hard-link with BOTH endpoints confined under the same root.
  * Returns 0 on success, -1 on error. */
-int xrootd_link_confined_canon(ngx_log_t *log, const char *root_canon,
+int brix_link_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved);
 
 /* -------------------------------------------------------------------------
@@ -360,7 +360,7 @@ int s3_put_is_exclusive_create(ngx_http_request_t *r);
  * -expires query overrides into headers_out (control bytes rejected). */
 void s3_apply_response_overrides(ngx_http_request_t *r);
 
-/* Serve pre-header hook (xrootd_http_pre_header_fn) that applies the response-*
+/* Serve pre-header hook (brix_http_pre_header_fn) that applies the response-*
  * overrides just before the GET response headers are sent. */
 void s3_get_pre_header(ngx_http_request_t *r, ngx_fd_t fd, off_t file_size,
                           void *userdata);
@@ -390,7 +390,7 @@ void s3_post_object_body_handler(ngx_http_request_t *r);
  * ---------------------------------------------------------------------- */
 
 /* Resolve the request to its operation-table entry and return that op's
- * XROOTD_S3_METHOD_* slot, or XROOTD_S3_METHOD_OTHER if unmatched. */
+ * BRIX_S3_METHOD_* slot, or BRIX_S3_METHOD_OTHER if unmatched. */
 ngx_uint_t s3_metrics_method_slot(ngx_http_request_t *r);
 /* Increment requests_total[slot] (out-of-range slot clamped to OTHER). */
 void s3_metrics_request_method(ngx_uint_t method_slot);
@@ -421,7 +421,7 @@ void s3_metrics_finalize_request_method(ngx_http_request_t *r,
  */
 ngx_int_t s3_verify_sigv4(ngx_http_request_t *r,
                            ngx_http_s3_loc_conf_t *cf,
-                           xrootd_identity_t *identity);
+                           brix_identity_t *identity);
 
 /* -------------------------------------------------------------------------
  * XML helpers
@@ -435,7 +435,7 @@ ngx_int_t s3_send_xml_error(ngx_http_request_t *r,
 
 /* Increment the events_total[event] counter, then send the S3 XML error — the
  * common "bump a diagnostic metric and return an error" idiom in one call.
- * `event` is an XROOTD_S3_EVENT_* index. */
+ * `event` is an BRIX_S3_EVENT_* index. */
 ngx_int_t s3_fail(ngx_http_request_t *r,
                   ngx_uint_t status,
                   const char *code,
@@ -514,7 +514,7 @@ void s3_etag(const struct stat *st, char *buf, size_t bufsz);
  * already-resolved confined path fs_path, taking pool/log/TLS/identity from r
  * and roots/write-gate from cf.  Shared by the PUT and POST-object write paths. */
 void s3_build_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
-    ngx_http_s3_loc_conf_t *cf, xrootd_vfs_ctx_t *vctx);
+    ngx_http_s3_loc_conf_t *cf, brix_vfs_ctx_t *vctx);
 
 /* AWS S3 full-object checksum headers (this gateway supports CRC-64/NVME). */
 #define S3_HDR_CHECKSUM_CRC64NVME  "x-amz-checksum-crc64nvme"

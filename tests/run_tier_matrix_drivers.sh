@@ -9,14 +9,14 @@
 # so each cell is the same assertion against a different store URL.
 #
 # Host drivers (posix/pblock/xroot) run anywhere; the rados cell runs only when
-# XROOTD_TEST_RADOS_POOL is set (inside the ceph build container, where librados +
+# BRIX_TEST_RADOS_POOL is set (inside the ceph build container, where librados +
 # a reachable pool exist):
 #   tests/run_tier_matrix_drivers.sh                                  # posix/pblock/xroot
-#   XROOTD_TEST_RADOS_POOL=xrdtest \
+#   BRIX_TEST_RADOS_POOL=xrdtest \
 #     tests/run_tier_matrix_drivers.sh /opt/nginx-src/objs/nginx      # + rados (container)
 set -u
 NGINX="${1:-/tmp/nginx-1.28.3/objs/nginx}"
-RADOS_POOL="${XROOTD_TEST_RADOS_POOL:-}"
+RADOS_POOL="${BRIX_TEST_RADOS_POOL:-}"
 PFX="$(mktemp -d /tmp/tiermx.XXXXXX)"
 PORT=8520
 fail=0
@@ -48,8 +48,8 @@ test_stage_store() {
         cat > "$d/s.conf" <<EOF
 daemon on; $USERLINE error_log $d/slogs/e.log error; pid $d/s.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${ps}; xrootd on; xrootd_root $d/sroot;
-    xrootd_auth none; xrootd_allow_write on; } }
+stream { server { listen 127.0.0.1:${ps}; xrootd on; brix_root $d/sroot;
+    brix_auth none; brix_allow_write on; } }
 EOF
         "$NGINX" -p "$d" -c "$d/s.conf" 2>"$d/serr" \
             || { bad "$drv: remote store server failed to start"; RESULT[$drv]=FAIL; return; }
@@ -61,10 +61,10 @@ thread_pool default threads=2;
 events { worker_connections 64; }
 http { client_body_temp_path $d/tmp; server { listen 127.0.0.1:${pb};
   location / { dav_methods PUT DELETE;
-    xrootd_webdav on; xrootd_webdav_root $d/backend; xrootd_webdav_auth none;
-    xrootd_webdav_allow_write on;
-    xrootd_webdav_stage on; xrootd_webdav_stage_store $url;
-    xrootd_webdav_stage_flush sync; } } }
+    brix_webdav on; brix_webdav_root $d/backend; brix_webdav_auth none;
+    brix_webdav_allow_write on;
+    brix_webdav_stage on; brix_webdav_stage_store $url;
+    brix_webdav_stage_flush sync; } } }
 EOF
     "$NGINX" -p "$d" -c "$d/b.conf" 2>"$d/berr" \
         || { bad "$drv: node failed to start"; cat "$d/berr"; RESULT[$drv]=FAIL; return; }
@@ -100,7 +100,7 @@ if [ -n "$RADOS_POOL" ]; then
     test_stage_store rados "rados://$RADOS_POOL"    0
     rados -p "$RADOS_POOL" rm /m.bin >/dev/null 2>&1 || true
 else
-    echo "== stage_store: rados — SKIP (set XROOTD_TEST_RADOS_POOL in the ceph container) =="
+    echo "== stage_store: rados — SKIP (set BRIX_TEST_RADOS_POOL in the ceph container) =="
     RESULT[rados]=SKIP
 fi
 

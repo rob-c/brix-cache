@@ -11,7 +11,7 @@
  *      parsing here avoids duplication between WebDAV and S3 code.
  *
  * HOW: Defaults to full-file range. Checks header starts with "bytes=" prefix.
- *       Delegates to xrootd_http_parse_range_vector() for actual parsing (single-range mode).
+ *       Delegates to brix_http_parse_range_vector() for actual parsing (single-range mode).
  *       If vector parser returns NGX_OK → extract single range into out. If it fails →
  *       mark present=1, satisfiable=0 (unsatisfiable range). Returns no status code —
  *       caller checks out->present and out->satisfiable fields.
@@ -22,7 +22,7 @@
  *
  * HOW: Set defaults to full-file (start=0, end=file_size-1). Reject headers that are NULL,
  *       shorter than 7 bytes, or don't start with "bytes=". Zero opts struct — max_ranges=1,
- *       allow_suffix=1, allow_open_ended=1. Call xrootd_http_parse_range_vector() on the
+ *       allow_suffix=1, allow_open_ended=1. Call brix_http_parse_range_vector() on the
  *       suffix after "bytes=" to parse the range spec. If vector parser succeeds and nranges==1,
  *       copy range.start/range.end into out->start/out->end and set present=1. If vector parser
  *       fails or returns multiple ranges (not expected with max_ranges=1), set present=1,
@@ -37,11 +37,11 @@
 #include <string.h>
 
 void
-xrootd_http_parse_range(const unsigned char *hdr_val, size_t hdr_len,
-    off_t file_size, xrootd_http_range_t *out)
+brix_http_parse_range(const unsigned char *hdr_val, size_t hdr_len,
+    off_t file_size, brix_http_range_t *out)
 {
-    xrootd_byte_range_t       range;
-    xrootd_range_vector_opts_t opts;
+    brix_byte_range_t       range;
+    brix_range_vector_opts_t opts;
     ngx_uint_t                nranges;
 
     /* Defaults: full file, no range. */
@@ -60,7 +60,7 @@ xrootd_http_parse_range(const unsigned char *hdr_val, size_t hdr_len,
     opts.allow_open_ended   = 1;
     opts.drop_unsatisfiable = 0;
 
-    if (xrootd_http_parse_range_vector(hdr_val + 6, hdr_len - 6,
+    if (brix_http_parse_range_vector(hdr_val + 6, hdr_len - 6,
                                        file_size, &opts,
                                        &range, &nranges) != NGX_OK)
     {
@@ -99,8 +99,8 @@ cr_parse_u64(const unsigned char **p, const unsigned char *end, off_t *val)
 }
 
 void
-xrootd_http_parse_content_range(const unsigned char *hdr_val, size_t hdr_len,
-    xrootd_http_content_range_t *out)
+brix_http_parse_content_range(const unsigned char *hdr_val, size_t hdr_len,
+    brix_http_content_range_t *out)
 {
     const unsigned char *p, *end;
 

@@ -5,8 +5,8 @@ Phase 35 / Phase 4 — optional parity (F1-F6).
 
 Covers the parity directives + scaffolding that don't need a full recall to
 observe:
-  S  the Phase-4 directives (xrootd_frm_max_per_source [F4], xrootd_frm_purge_*
-     [F6], xrootd_frm_migrate_copycmd [F6], xrootd_frm_residency_cmd [F3]) are
+  S  the Phase-4 directives (brix_frm_max_per_source [F4], brix_frm_purge_*
+     [F6], brix_frm_migrate_copycmd [F6], brix_frm_residency_cmd [F3]) are
      accepted by the config parser and the server starts.
   S  the F6 Category-2 purge-watermark monitor arms (a NOTICE in the log) and is
      an explicit SCAFFOLD ("no files are purged").
@@ -47,23 +47,23 @@ stream {{
     server {{
         listen {BIND_HOST}:{PORT};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
-        xrootd_frm on;
-        xrootd_frm_queue_path {queue};
-        xrootd_frm_stagecmd /bin/true;
-        xrootd_frm_max_per_source 2;
-        xrootd_frm_residency_cmd /bin/true;
-        xrootd_frm_migrate_copycmd /bin/true;
-        xrootd_frm_purge_watermark 0.90 0.80;
-        xrootd_frm_purge_interval 1s;
+        brix_storage_backend posix:{data};
+        brix_auth none;
+        brix_frm on;
+        brix_frm_queue_path {queue};
+        brix_frm_stagecmd /bin/true;
+        brix_frm_max_per_source 2;
+        brix_frm_residency_cmd /bin/true;
+        brix_frm_migrate_copycmd /bin/true;
+        brix_frm_purge_watermark 0.90 0.80;
+        brix_frm_purge_interval 1s;
     }}
 }}
 http {{
     access_log off;
     server {{
         listen {BIND_HOST}:{METRICS_PORT};
-        location = /metrics {{ xrootd_metrics on; }}
+        location = /metrics {{ brix_metrics on; }}
     }}
 }}
 daemon off;
@@ -122,7 +122,7 @@ def test_phase4_metrics_exported(srv):
     with urllib.request.urlopen(
             "http://%s:%d/metrics" % (HOST, METRICS_PORT), timeout=5) as r:
         text = r.read().decode(errors="replace")
-    for fam in ("xrootd_frm_migrate_total",
-                "xrootd_frm_purge_total",
-                "xrootd_frm_cmsd_have_total"):
+    for fam in ("brix_frm_migrate_total",
+                "brix_frm_purge_total",
+                "brix_frm_cmsd_have_total"):
         assert fam in text, "missing Phase-4 metric %s" % fam

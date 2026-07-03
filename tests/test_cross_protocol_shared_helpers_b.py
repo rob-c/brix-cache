@@ -4,55 +4,55 @@ def test_phase2_policy_consumes_identity():
     _assert_markers(
         "src/auth/authz/authdb.c",
         [
-            "xrootd_find_authdb_rule_identity(",
-            "xrootd_check_authdb_identity(",
-            "xrootd_identity_dn_cstr(",
-            "xrootd_identity_vo_csv_cstr(",
+            "brix_find_authdb_rule_identity(",
+            "brix_check_authdb_identity(",
+            "brix_identity_dn_cstr(",
+            "brix_identity_vo_csv_cstr(",
         ],
     )
     _assert_markers(
         "src/auth/authz/acl.c",
-        ["xrootd_check_vo_acl_identity(", "xrootd_identity_vo_csv_cstr("],
+        ["brix_check_vo_acl_identity(", "brix_identity_vo_csv_cstr("],
     )
     _assert_markers(
         "src/protocols/root/handshake/policy.c",
-        ["xrootd_identity_check_token_scope("],
+        ["brix_identity_check_token_scope("],
     )
     # auth_gate.c is the canonical consumer of all three tiers; handlers that
-    # have been converted call xrootd_auth_gate() instead of the three functions
+    # have been converted call brix_auth_gate() instead of the three functions
     # directly.  Verify auth_gate.c implements the full triad.
     _assert_markers(
         "src/auth/authz/auth_gate.c",
-        ["xrootd_check_authdb(", "xrootd_check_vo_acl_identity(",
-         "xrootd_check_token_scope("],
+        ["brix_check_authdb(", "brix_check_vo_acl_identity(",
+         "brix_check_token_scope("],
     )
     # Files with unconverted call-sites still call the VO ACL helper directly.
     # (write/common.c was since converted — its write ops now authorise through
-    # the op-descriptor table / xrootd_auth_gate(), so it no longer calls the VO
+    # the op-descriptor table / brix_auth_gate(), so it no longer calls the VO
     # ACL helper directly and is no longer listed here.)
     for relpath in (
         "src/protocols/root/read/open_request.c",
         "src/protocols/root/query/prepare.c",
     ):
-        _assert_markers(relpath, ["xrootd_check_vo_acl_identity("])
+        _assert_markers(relpath, ["brix_check_vo_acl_identity("])
         _assert_absent(relpath, ["ctx->vo_list) != NGX_OK"])
     # dirlist was fully converted to auth_gate; confirm it no longer duplicates
     # the triad and instead delegates to the gate.
-    _assert_markers("src/protocols/root/dirlist/handler.c", ["xrootd_auth_gate("])
+    _assert_markers("src/protocols/root/dirlist/handler.c", ["brix_auth_gate("])
     _assert_absent("src/protocols/root/dirlist/handler.c",
-                   ["ctx->vo_list) != NGX_OK", "xrootd_check_vo_acl_identity("])
+                   ["ctx->vo_list) != NGX_OK", "brix_check_vo_acl_identity("])
 
 
 def test_phase2_voms_identity_rejects_injected_vo_tokens():
     _assert_markers(
         "src/auth/voms/collect.c",
         [
-            "xrootd_vo_token_safe(",
+            "brix_vo_token_safe(",
             "ch <= ' '",
             "ch >= 0x7f",
             "ch == ','",
             "ch == '/'",
-            "xrootd_fqan_to_vo(",
+            "brix_fqan_to_vo(",
         ],
     )
 
@@ -76,16 +76,16 @@ def test_phase3_vfs_layer_is_registered():
         ],
     )
     # The data-plane read/write entry points are no longer public API on vfs.h —
-    # byte I/O routes through xrootd_vfs_io_execute() (vfs_io_core.c); vfs.h
+    # byte I/O routes through brix_vfs_io_execute() (vfs_io_core.c); vfs.h
     # exposes open/stat plus the sendfile/readdir surface.
     _assert_markers(
         "src/fs/vfs/vfs.h",
         [
-            "XROOTD_VFS_O_READ",
-            "XROOTD_VFS_O_WRITE",
-            "xrootd_vfs_ctx_t",
-            "xrootd_vfs_open(",
-            "xrootd_vfs_stat(",
+            "BRIX_VFS_O_READ",
+            "BRIX_VFS_O_WRITE",
+            "brix_vfs_ctx_t",
+            "brix_vfs_open(",
+            "brix_vfs_stat(",
         ],
     )
 
@@ -100,12 +100,12 @@ def test_phase3_vfs_preserves_io_invariants():
     #  - the write byte primitive -> fs/vfs_write.c
     _assert_markers("src/core/http/http_file_response.c", ["b->in_file = 1"])
     _assert_markers("src/protocols/shared/file_serve.c",
-                    ["send_fd = dup(fd)", "xrootd_vfs_close(fh"])
-    _assert_markers("src/fs/vfs/vfs_io_core.c", ["xrootd_crc32c_value("])
-    _assert_markers("src/fs/vfs/vfs_write.c", ["xrootd_vfs_pwrite_full("])
-    _assert_markers("src/fs/vfs/vfs_unlink.c", ["xrootd_ns_delete("])
-    _assert_markers("src/fs/vfs/vfs_mkdir.c", ["xrootd_ns_mkdir("])
-    _assert_markers("src/fs/vfs/vfs_rename.c", ["xrootd_ns_rename("])
+                    ["send_fd = dup(fd)", "brix_vfs_close(fh"])
+    _assert_markers("src/fs/vfs/vfs_io_core.c", ["brix_crc32c_value("])
+    _assert_markers("src/fs/vfs/vfs_write.c", ["brix_vfs_pwrite_full("])
+    _assert_markers("src/fs/vfs/vfs_unlink.c", ["brix_ns_delete("])
+    _assert_markers("src/fs/vfs/vfs_mkdir.c", ["brix_ns_mkdir("])
+    _assert_markers("src/fs/vfs/vfs_rename.c", ["brix_ns_rename("])
 
 
 def test_phase3_http_read_metadata_uses_vfs():
@@ -113,14 +113,14 @@ def test_phase3_http_read_metadata_uses_vfs():
         "src/protocols/s3/object.c",
         [
             "fs/vfs.h",
-            "xrootd_vfs_open(",
-            "xrootd_vfs_file_stat(",
-            "xrootd_vfs_stat(",
+            "brix_vfs_open(",
+            "brix_vfs_file_stat(",
+            "brix_vfs_stat(",
         ],
     )
     _assert_markers(
         "src/protocols/webdav/resource.c",
-        ["fs/vfs.h", "xrootd_vfs_stat("],
+        ["fs/vfs.h", "brix_vfs_stat("],
     )
 
 
@@ -138,18 +138,18 @@ def test_phase4_cache_layer_is_registered():
     _assert_markers(
         "src/fs/cache/open.h",
         [
-            "xrootd_cache_open(",
-            "xrootd_cache_record_access(",
-            "xrootd_cache_path_for_resolved(",
+            "brix_cache_open(",
+            "brix_cache_record_access(",
+            "brix_cache_path_for_resolved(",
         ],
     )
     _assert_markers(
         "src/fs/cache/meta.h",
         [
-            "xrootd_cache_meta_t",
-            "XROOTD_CACHE_META_ETAG_MAX",
-            "xrootd_cache_meta_read(",
-            "xrootd_cache_meta_write(",
+            "brix_cache_meta_t",
+            "BRIX_CACHE_META_ETAG_MAX",
+            "brix_cache_meta_read(",
+            "brix_cache_meta_write(",
         ],
     )
 
@@ -161,15 +161,15 @@ def test_phase4_vfs_cache_hooks_are_present():
             "cache_root_canon",
             "cache_enabled",
             "cache_writethrough_cfg",
-            "xrootd_vfs_file_from_cache(",
+            "brix_vfs_file_from_cache(",
         ],
     )
     _assert_markers(
         "src/fs/vfs/vfs_open.c",
         [
             "fs/cache/open.h",
-            "xrootd_cache_open(ctx, flags, &fh)",
-            "xrootd_vfs_adopt_fd(",
+            "brix_cache_open(ctx, flags, &fh)",
+            "brix_vfs_adopt_fd(",
             "from_cache",
         ],
     )
@@ -177,17 +177,17 @@ def test_phase4_vfs_cache_hooks_are_present():
     # serve pipeline; the write-through decision moved into its own cache unit.
     _assert_markers(
         "src/protocols/shared/file_serve.c",
-        ["fs/cache/open.h", "xrootd_cache_record_access("],
+        ["fs/cache/open.h", "brix_cache_record_access("],
     )
     _assert_markers(
         "src/fs/cache/writethrough_decision.c",
-        ["writethrough.h", "xrootd_cache_should_writethrough("],
+        ["writethrough.h", "brix_cache_should_writethrough("],
     )
 
 
 def test_phase4_http_protocols_use_vfs_cache_path():
     # The per-request VFS-ctx setup (incl. cache_root_canon wiring) was factored
-    # into the shared xrootd_vfs_ctx_init() helper (fs/vfs_open.c); WebDAV and S3
+    # into the shared brix_vfs_ctx_init() helper (fs/vfs_open.c); WebDAV and S3
     # GET now pass cache_root_canon into that one helper rather than assigning the
     # field inline. Assert each GET handler routes through the helper + still opens
     # read-only through the VFS and records cache access.
@@ -196,10 +196,10 @@ def test_phase4_http_protocols_use_vfs_cache_path():
         [
             "fs/cache/open.h",
             "fs/vfs.h",
-            "xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ",
-            "xrootd_vfs_ctx_init(",
+            "brix_vfs_open(&vctx, BRIX_VFS_O_READ",
+            "brix_vfs_ctx_init(",
             "conf->cache_root_canon",
-            "xrootd_cache_record_access(",
+            "brix_cache_record_access(",
         ],
     )
     _assert_absent(
@@ -210,11 +210,11 @@ def test_phase4_http_protocols_use_vfs_cache_path():
         "src/protocols/s3/object.c",
         [
             "fs/cache/open.h",
-            "xrootd_vfs_ctx_init(",
+            "brix_vfs_ctx_init(",
             "cf->cache_root_canon",
         ],
     )
-    # The single wiring point: xrootd_vfs_ctx_init() sets cache_root_canon (and
+    # The single wiring point: brix_vfs_ctx_init() sets cache_root_canon (and
     # derives cache_enabled) for every HTTP caller.
     _assert_markers(
         "src/fs/vfs/vfs_open.c",
@@ -222,18 +222,18 @@ def test_phase4_http_protocols_use_vfs_cache_path():
     )
     # Phase 12: the cache-hit detection and access-record calls moved out of the
     # per-protocol GET handlers into the shared file-serve pipeline. Both WebDAV
-    # and S3 GET now record cache access via xrootd_http_serve_file_ranged().
+    # and S3 GET now record cache access via brix_http_serve_file_ranged().
     _assert_markers(
         "src/protocols/shared/file_serve.c",
         [
             "fs/cache/open.h",
-            "xrootd_vfs_file_from_cache(",
-            "xrootd_cache_record_access(",
+            "brix_vfs_file_from_cache(",
+            "brix_cache_record_access(",
         ],
     )
     _assert_markers(
         "src/protocols/s3/module.c",
-        ["xrootd_s3_cache_root", "cache_root_canon"],
+        ["brix_s3_cache_root", "cache_root_canon"],
     )
 
 
@@ -241,16 +241,16 @@ def test_phase4_cache_metadata_and_eviction_guardrails():
     _assert_markers(
         "src/fs/cache/fetch.c",
         [
-            "xrootd_cache_meta_from_stat(",
-            "xrootd_cache_meta_write(",
+            "brix_cache_meta_from_stat(",
+            "brix_cache_meta_write(",
         ],
     )
     _assert_markers(
         "src/fs/cache/open.c",
         [
-            "xrootd_cache_validate_meta(",
+            "brix_cache_validate_meta(",
             "O_NOFOLLOW",
-            "xrootd_vfs_adopt_fd(",
+            "brix_vfs_adopt_fd(",
         ],
     )
     _assert_markers(
@@ -259,20 +259,20 @@ def test_phase4_cache_metadata_and_eviction_guardrails():
     )
     _assert_markers(
         "src/fs/cache/evict_policy.c",
-        ["xrootd_cache_meta_path(", "unlink(meta_path)"],
+        ["brix_cache_meta_path(", "unlink(meta_path)"],
     )
 
 
 def test_security_level_enforcement_is_linked():
     _assert_markers(
         "src/protocols/root/handshake/dispatch.c",
-        ["xrootd_verify_pending_sigver(", "xrootd_signing_enforce_level("],
+        ["brix_verify_pending_sigver(", "brix_signing_enforce_level("],
     )
     _assert_markers(
         "src/protocols/root/handshake/sigver.c",
         [
-            "xrootd_signing_enforce_level(",
-            "xrootd_sigver_opcode_requires(",
+            "brix_signing_enforce_level(",
+            "brix_sigver_opcode_requires(",
             "kXR_InvalidRequest",
         ],
     )
@@ -313,27 +313,27 @@ def test_phase6_unified_metrics_observability_is_wired():
     )
     _assert_markers(
         "src/observability/metrics/metrics.h",
-        ["ngx_xrootd_unified_metrics_t", "ngx_xrootd_unified_metrics_t unified"],
+        ["ngx_brix_unified_metrics_t", "ngx_brix_unified_metrics_t unified"],
     )
     _assert_markers(
         "src/observability/metrics/stream.c",
-        ["xrootd_export_unified_metrics(mw, shm)", "DEPRECATED"],
+        ["brix_export_unified_metrics(mw, shm)", "DEPRECATED"],
     )
     _assert_markers(
         "src/observability/metrics/unified.c",
         [
-            "xrootd_metric_op_done(",
-            "xrootd_metric_cache_result(",
-            "xrootd_metric_auth(",
-            "xrootd_metric_tpc(",
-            "xrootd_io_ops_total",
-            "xrootd_auth_total",
-            "xrootd_tpc_transfers_total",
+            "brix_metric_op_done(",
+            "brix_metric_cache_result(",
+            "brix_metric_auth(",
+            "brix_metric_tpc(",
+            "brix_io_ops_total",
+            "brix_auth_total",
+            "brix_tpc_transfers_total",
         ],
     )
     _assert_markers(
         "src/fs/vfs/vfs_internal.h",
-        ["xrootd_metric_op_done(", "xrootd_access_log_emit("],
+        ["brix_metric_op_done(", "brix_access_log_emit("],
     )
     # The metadata ops carry the observe hook directly; data-plane read/write are
     # observed through the I/O core (vfs_io_core.c), not vfs_read.c/vfs_write.c.
@@ -344,22 +344,22 @@ def test_phase6_unified_metrics_observability_is_wired():
         "src/fs/vfs/vfs_rename.c",
         "src/fs/vfs/vfs_dir.c",
     ):
-        _assert_markers(relpath, ["xrootd_vfs_observe_"])
+        _assert_markers(relpath, ["brix_vfs_observe_"])
     _assert_markers(
         "src/fs/vfs/vfs_open.c",
-        ["xrootd_metric_cache_result("],
+        ["brix_metric_cache_result("],
     )
     _assert_markers(
         "src/protocols/webdav/metrics.c",
-        ["observability/metrics/unified.h", "xrootd_metric_op_done("],
+        ["observability/metrics/unified.h", "brix_metric_op_done("],
     )
     _assert_markers(
         "src/protocols/s3/metrics.c",
-        ["observability/metrics/unified.h", "xrootd_metric_op_done("],
+        ["observability/metrics/unified.h", "brix_metric_op_done("],
     )
     _assert_markers(
         "src/tpc/common/metrics.c",
-        ["observability/metrics/unified.h", "xrootd_metric_tpc("],
+        ["observability/metrics/unified.h", "brix_metric_tpc("],
     )
 
 
@@ -368,47 +368,47 @@ def test_implementation_plan_feature_gaps_are_closed():
         "src/protocols/root/handshake/dispatch_read.c",
         [
             "case kXR_stat:",
-            "xrootd_handle_stat",
+            "brix_handle_stat",
             "case kXR_statx:",
-            "xrootd_handle_statx",
+            "brix_handle_statx",
             "case kXR_locate:",
-            "xrootd_handle_locate",
+            "brix_handle_locate",
             "case kXR_clone:",
-            "xrootd_handle_clone",
+            "brix_handle_clone",
         ],
     )
     _assert_markers(
         "src/protocols/root/handshake/dispatch_write.c",
         [
             "case kXR_pgwrite:",
-            "xrootd_handle_pgwrite",
+            "brix_handle_pgwrite",
             "case kXR_chkpoint:",
-            "xrootd_handle_chkpoint",
+            "brix_handle_chkpoint",
         ],
     )
     _assert_markers(
         "src/protocols/root/read/pgread.c",
         [
-            "xrootd_pgread_encode_pages(",
+            "brix_pgread_encode_pages(",
             # pgread uses the in-place 3-way CRC (zero-copy) rather than the
             # copy-while-summing variant the write path uses.
-            "xrootd_crc32c_value(",
-            "xrootd_build_pgread_status(",
+            "brix_crc32c_value(",
+            "brix_build_pgread_status(",
         ],
     )
     _assert_markers(
         "src/protocols/root/write/pgwrite.c",
         [
-            "xrootd_pgwrite_decode_payload(",
-            "xrootd_crc32c_copy(",
-            "xrootd_send_pgwrite_status(",
+            "brix_pgwrite_decode_payload(",
+            "brix_crc32c_copy(",
+            "brix_send_pgwrite_status(",
         ],
     )
     _assert_markers(
         "src/protocols/root/write/chkpoint.c",
         [
-            "xrootd_handle_chkpoint(",
-            "xrootd_chkpoint_recover_root(",
+            "brix_handle_chkpoint(",
+            "brix_chkpoint_recover_root(",
         ],
     )
 
@@ -427,8 +427,8 @@ def test_implementation_plan_feature_gaps_are_closed():
         [
             "webdav_verify_bearer_token(",
             "webdav_check_token_write_scope(",
-            "xrootd_identity_check_token_scope(",
-            "xrootd_token_check_write(",
+            "brix_identity_check_token_scope(",
+            "brix_token_check_write(",
         ],
     )
     _assert_markers(
@@ -453,7 +453,7 @@ def test_implementation_plan_feature_gaps_are_closed():
             "s3_handle_upload_part_copy(r, fs_path, cf",
             "s3_handle_multipart_abort(r, fs_path, cf, upload_id)",
             "s3_handle_multipart_initiate(r, fs_path, cf",
-            "xrootd_http_read_body(r, s3_multipart_complete_body_handler)",
+            "brix_http_read_body(r, s3_multipart_complete_body_handler)",
         ],
     )
     _assert_markers(
@@ -461,7 +461,7 @@ def test_implementation_plan_feature_gaps_are_closed():
         [
             "s3_verify_sigv4(",
             "s3_record_auth_result(",
-            "XROOTD_AUTHN_S3KEY",
+            "BRIX_AUTHN_S3KEY",
         ],
     )
     # The multipart-complete sub-handlers are now separate compilation units
@@ -489,7 +489,7 @@ def test_stream_missing_auth_plugins_are_wired():
         "config",
         [
             "pkg-config --exists krb5",
-            "-DXROOTD_HAVE_KRB5=1",
+            "-DBRIX_HAVE_KRB5=1",
             "src/auth/unix/auth.c",
             "src/auth/krb5/config.c",
             "src/auth/krb5/auth.c",
@@ -501,18 +501,18 @@ def test_stream_missing_auth_plugins_are_wired():
         "src/protocols/root/stream/module_enums.c",
         [
             'ngx_string("unix")',
-            "XROOTD_AUTH_UNIX",
+            "BRIX_AUTH_UNIX",
             'ngx_string("krb5")',
-            "XROOTD_AUTH_KRB5",
+            "BRIX_AUTH_KRB5",
         ],
     )
     _assert_markers(
         "src/protocols/root/stream/module.c",
         [
-            "xrootd_krb5_principal",
-            "xrootd_krb5_keytab",
-            "xrootd_krb5_ip_check",
-            "xrootd_unix_trust_remote",
+            "brix_krb5_principal",
+            "brix_krb5_keytab",
+            "brix_krb5_ip_check",
+            "brix_unix_trust_remote",
         ],
     )
     _assert_markers(
@@ -535,17 +535,17 @@ def test_stream_missing_auth_plugins_are_wired():
     _assert_markers(
         "src/auth/gsi/auth.c",
         [
-            "xrootd_handle_unix_auth(ctx, c, conf)",
-            "xrootd_handle_krb5_auth(ctx, c, conf)",
+            "brix_handle_unix_auth(ctx, c, conf)",
+            "brix_handle_krb5_auth(ctx, c, conf)",
         ],
     )
     _assert_markers(
         "src/auth/unix/auth.c",
         [
-            "xrootd_unix_peer_is_loopback(",
+            "brix_unix_peer_is_loopback(",
             "unix_trust_remote",
-            "XROOTD_AUTHN_UNIX",
-            "xrootd_session_register(",
+            "BRIX_AUTHN_UNIX",
+            "brix_session_register(",
         ],
     )
     _assert_markers(
@@ -553,7 +553,7 @@ def test_stream_missing_auth_plugins_are_wired():
         [
             "krb5_parse_name(",
             "krb5_kt_start_seq_get(",
-            "xrootd_auth krb5 requested",
+            "brix_auth krb5 requested",
         ],
     )
     _assert_markers(
@@ -561,11 +561,11 @@ def test_stream_missing_auth_plugins_are_wired():
         [
             "krb5_rd_req(",
             "krb5_aname_to_localname(",
-            "XROOTD_AUTHN_KRB5",
-            "xrootd_session_register(",
+            "BRIX_AUTHN_KRB5",
+            "brix_session_register(",
         ],
     )
     _assert_markers(
         "src/observability/metrics/unified.c",
-        ['"unix"', '"krb5"', "XROOTD_METRIC_AUTH_UNIX", "XROOTD_METRIC_AUTH_KRB5"],
+        ['"unix"', '"krb5"', "BRIX_METRIC_AUTH_UNIX", "BRIX_METRIC_AUTH_KRB5"],
     )

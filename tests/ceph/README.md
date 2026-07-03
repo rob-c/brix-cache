@@ -73,7 +73,7 @@ mutating slot is absent); the fs MUST be quiesced (operator asserts via the URI)
 # stream (root://): two pools (metadata + data); a consistency assertion is REQUIRED.
 #   ?assume_quiesced=1  fs is frozen (MDS down/failed, journal flushed)
 #   ?live=1             fs still mounted — best-effort eventually-consistent
-xrootd_storage_backend cephfsro:cephfs_metadata+cephfs_data?assume_quiesced=1;
+brix_storage_backend cephfsro:cephfs_metadata+cephfs_data?assume_quiesced=1;
 ```
 
 **Consistency modes.** `cephfsro` re-resolves from the root on every request, so it
@@ -109,7 +109,7 @@ naturally picks up *flushed* changes. The mode picks the safety posture:
   ```
   Verifies root:// (stat/ls/`xrdcp` GET byte-exact, writes refused) and http://
   WebDAV (GET byte-exact, PUT refused 403) against the seeded CephFS. Needs the
-  in-container nginx built with `XROOTD_HAVE_CEPH` and `xrootd-client` installed.
+  in-container nginx built with `BRIX_HAVE_CEPH` and `xrootd-client` installed.
 
 ## Recovery & migration tools (operator utilities)
 
@@ -223,13 +223,13 @@ tests/ceph/run_py_migrate.sh
 # stream (root://) — storage_backend is stream-only; the WebDAV face shares the
 # binding via the global registry keyed on the same export root.
 stream { server { listen 1094;
-    xrootd on; xrootd_root /export; xrootd_auth none; xrootd_allow_write on;
-    xrootd_upload_resume off;
-    xrootd_storage_backend ceph:xrdtest;          # ceph:<pool>[@<conf>][?<key_prefix>]
+    xrootd on; brix_root /export; brix_auth none; brix_allow_write on;
+    brix_upload_resume off;
+    brix_storage_backend ceph:xrdtest;          # ceph:<pool>[@<conf>][?<key_prefix>]
 } }
 http { server { listen 8080;
-    location / { xrootd_webdav on; xrootd_webdav_root /export;
-                 xrootd_webdav_auth none; xrootd_webdav_allow_write on; } } }
+    location / { brix_webdav on; brix_webdav_root /export;
+                 brix_webdav_auth none; brix_webdav_allow_write on; } } }
 ```
 
 `conf` defaults to `/etc/ceph/ceph.conf`. The export root (`/export`) is just a

@@ -7,7 +7,7 @@ injective (no two logical paths alias one object) and prefix-confined (no ".."
 escapes the export's key prefix). The C suite exercises canonicalization
 (slash-collapse, "." drop, ".." pop), injectivity, escape rejection, key
 composition and the inode hash. It needs no librados and no running cluster, so
-it compiles with XROOTD_HAVE_CEPH OFF (only the pure helpers) and runs anywhere.
+it compiles with BRIX_HAVE_CEPH OFF (only the pure helpers) and runs anywhere.
 
 The live-cluster data-plane tests (root:///WebDAV/S3 round-trips through a real
 RADOS pool) are phase-60 W6 and gated separately on TEST_CEPH.

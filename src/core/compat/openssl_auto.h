@@ -32,8 +32,8 @@
  *      handler becomes a no-op. The malloc'd payload buffers that these functions
  *      return are the textbook example and stay manually managed.
  */
-#ifndef XROOTD_COMPAT_OPENSSL_AUTO_H
-#define XROOTD_COMPAT_OPENSSL_AUTO_H
+#ifndef BRIX_COMPAT_OPENSSL_AUTO_H
+#define BRIX_COMPAT_OPENSSL_AUTO_H
 
 #include <openssl/evp.h>
 #include <openssl/x509.h>
@@ -59,4 +59,4 @@ XRD_OSSL_AUTO_DEFINE(X509,           X509_free)
  */
 #define XRD_AUTO(type) __attribute__((cleanup(xrd_ossl_cleanup_##type))) type
 
-#endif /* XROOTD_COMPAT_OPENSSL_AUTO_H */
+#endif /* BRIX_COMPAT_OPENSSL_AUTO_H */

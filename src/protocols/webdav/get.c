@@ -16,26 +16,26 @@
 #include "protocols/root/zip/zip_http.h"   /* phase-57 W2: shared HTTP ZIP member serving */
 
 /* GET range/bytes metrics — shared by the inline serve and the off-loop serve
- * completion (xrootd_http_serve_offload), so both report identically. */
+ * completion (brix_http_serve_offload), so both report identically. */
 static void
 webdav_serve_metrics(ngx_http_request_t *r,
-    const xrootd_http_serve_result_t *result)
+    const brix_http_serve_result_t *result)
 {
-    if (result->range_result == XROOTD_SERVE_RANGE_UNSATISFIED) {
-        XROOTD_WEBDAV_METRIC_INC(range_total[XROOTD_WEBDAV_RANGE_UNSATISFIED]);
-    } else if (result->range_result == XROOTD_SERVE_RANGE_PARTIAL) {
-        XROOTD_WEBDAV_METRIC_INC(range_total[XROOTD_WEBDAV_RANGE_PARTIAL]);
+    if (result->range_result == BRIX_SERVE_RANGE_UNSATISFIED) {
+        BRIX_WEBDAV_METRIC_INC(range_total[BRIX_WEBDAV_RANGE_UNSATISFIED]);
+    } else if (result->range_result == BRIX_SERVE_RANGE_PARTIAL) {
+        BRIX_WEBDAV_METRIC_INC(range_total[BRIX_WEBDAV_RANGE_PARTIAL]);
     } else {
-        XROOTD_WEBDAV_METRIC_INC(range_total[XROOTD_WEBDAV_RANGE_FULL]);
+        BRIX_WEBDAV_METRIC_INC(range_total[BRIX_WEBDAV_RANGE_FULL]);
     }
     if (result->bytes_sent > 0) {
-        XROOTD_WEBDAV_METRIC_ADD(bytes_tx_total, (size_t) result->bytes_sent);
+        BRIX_WEBDAV_METRIC_ADD(bytes_tx_total, (size_t) result->bytes_sent);
         if (r->connection && r->connection->sockaddr) {
             if (r->connection->sockaddr->sa_family == AF_INET6) {
-                XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv6_total,
+                BRIX_WEBDAV_METRIC_ADD(bytes_tx_ipv6_total,
                                          (size_t) result->bytes_sent);
             } else {
-                XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv4_total,
+                BRIX_WEBDAV_METRIC_ADD(bytes_tx_ipv4_total,
                                          (size_t) result->bytes_sent);
             }
         }
@@ -127,24 +127,24 @@ webdav_get_add_xrdhttp_headers(ngx_http_request_t *r, ngx_fd_t fd,
 ngx_int_t
 webdav_handle_get(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_loc_conf_t *conf;
     char                path[WEBDAV_MAX_PATH];
     struct stat         sb;
     ngx_int_t           rc;
     ngx_fd_t            fd;
     ngx_fd_t            send_fd;
-    ngx_http_xrootd_webdav_req_ctx_t *wctx;
+    ngx_http_brix_webdav_req_ctx_t *wctx;
     const char         *identity;
-    xrootd_vfs_ctx_t    vctx;
-    xrootd_vfs_file_t  *fh;
-    xrootd_vfs_stat_t   vst;
+    brix_vfs_ctx_t    vctx;
+    brix_vfs_file_t  *fh;
+    brix_vfs_stat_t   vst;
     int                 vfs_err;
     ngx_uint_t          from_cache;
     const char         *cache_path;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
 
-    rc = ngx_http_xrootd_webdav_resolve_path(r, conf->common.root_canon, path,
+    rc = ngx_http_brix_webdav_resolve_path(r, conf->common.root_canon, path,
                                              sizeof(path));
     if (rc != NGX_OK) {
         return rc;
@@ -154,30 +154,30 @@ webdav_handle_get(ngx_http_request_t *r)
      * the access phase; serve the requested member instead of the whole file. */
     if (conf->zip_access) {
         char member[WEBDAV_MAX_PATH];
-        int  zr = xrootd_zip_http_member_arg(r, member, sizeof(member));
+        int  zr = brix_zip_http_member_arg(r, member, sizeof(member));
         if (zr < 0) {
             return NGX_HTTP_BAD_REQUEST;
         }
         if (zr > 0) {
-            return xrootd_zip_http_serve(r, conf->common.root_canon,
+            return brix_zip_http_serve(r, conf->common.root_canon,
                                          conf->zip_cd_max_bytes, path, member);
         }
     }
 
-    wctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    wctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
 
     {
         int is_tls = 0;
 #if (NGX_HTTP_SSL)
         is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
-        xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log,
-            XROOTD_PROTO_WEBDAV, conf->common.root_canon,
+        brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
+            BRIX_PROTO_WEBDAV, conf->common.root_canon,
             conf->cache_root_canon, conf->common.allow_write, is_tls,
             (wctx != NULL) ? wctx->identity : NULL, path);
     }
     /* Route through the export's selected storage backend (NULL ⇒ default POSIX). */
-    vctx.sd = xrootd_webdav_backend_instance(conf, r->connection->log);
+    vctx.sd = brix_webdav_backend_instance(conf, r->connection->log);
 
     /* phase-64 SP3: serving from a socket-wire backend (a root:// primary backend
      * or a cache_store/stage_store served from one) cannot open/read on the event
@@ -186,18 +186,18 @@ webdav_handle_get(ngx_http_request_t *r)
     {
         const char              *identity =
             (wctx != NULL && wctx->dn[0] != '\0') ? wctx->dn : "anonymous";
-        xrootd_http_serve_opts_t sopts;
+        brix_http_serve_opts_t sopts;
         ngx_int_t                sr;
 
         ngx_memzero(&sopts, sizeof(sopts));
-        sopts.xfer_proto = XROOTD_XFER_PROTO_WEBDAV;
+        sopts.xfer_proto = BRIX_XFER_PROTO_WEBDAV;
         sopts.op_name    = "GET";
         sopts.identity   = identity;
-        sopts.etag_flags = XROOTD_ETAG_WEAK;
+        sopts.etag_flags = BRIX_ETAG_WEAK;
         sopts.compress   = conf->common.compress;
 
-        sr = xrootd_http_serve_offload_remote(r, vctx.sd,
-            xrootd_vfs_export_relative(&vctx, path), path, &sopts,
+        sr = brix_http_serve_offload_remote(r, vctx.sd,
+            brix_vfs_export_relative(&vctx, path), path, &sopts,
             &conf->common, webdav_serve_metrics);
         if (sr == NGX_DONE) {
             return NGX_DONE;
@@ -208,12 +208,12 @@ webdav_handle_get(ngx_http_request_t *r)
     }
 
     /* phase-64 SP2: a cache MISS whose fill reads a remote source or writes a
-     * remote store would stall the worker inside xrootd_vfs_open's inline fill.
+     * remote store would stall the worker inside brix_vfs_open's inline fill.
      * Offload it to the thread pool and re-enter (a cache hit) on completion;
      * NGX_DECLINED ⇒ no offload needed (hit / local tier) — open inline below. */
     {
-        ngx_int_t fr = xrootd_http_cache_fill_if_needed(r, vctx.sd,
-            xrootd_vfs_export_relative(&vctx, path), &conf->common,
+        ngx_int_t fr = brix_http_cache_fill_if_needed(r, vctx.sd,
+            brix_vfs_export_relative(&vctx, path), &conf->common,
             webdav_get_reenter, NULL);
 
         if (fr == NGX_DONE) {
@@ -224,7 +224,7 @@ webdav_handle_get(ngx_http_request_t *r)
         }
     }
 
-    fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);
+    fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, &vfs_err);
     if (fh == NULL) {
         if (vfs_err == ENOENT || vfs_err == ENOTDIR
             || vfs_err == ENAMETOOLONG)
@@ -264,16 +264,16 @@ webdav_handle_get(ngx_http_request_t *r)
         ngx_log_error(NGX_LOG_ERR, r->connection->log, vfs_err,
                       ngx_open_file_n " \"%s\" failed", path);
 
-        return (ngx_int_t) xrootd_http_errno_to_status(vfs_err);
+        return (ngx_int_t) brix_http_errno_to_status(vfs_err);
     }
 
-    if (xrootd_vfs_file_stat(fh, &vst) != NGX_OK) {
-        xrootd_vfs_close(fh, r->connection->log);
+    if (brix_vfs_file_stat(fh, &vst) != NGX_OK) {
+        brix_vfs_close(fh, r->connection->log);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     if (vst.is_directory) {
-        xrootd_vfs_close(fh, r->connection->log);
+        brix_vfs_close(fh, r->connection->log);
         return NGX_HTTP_FORBIDDEN;
     }
 
@@ -287,9 +287,9 @@ webdav_handle_get(ngx_http_request_t *r)
     /* Zero-copy (sendfile) serve fd, gated on the backend's CAP_SENDFILE; a
      * non-sendfile backend returns NGX_INVALID_FILE and the dup below fails
      * closed instead of serving from a bogus descriptor. */
-    fd = xrootd_vfs_file_sendfile_fd(fh);
-    from_cache = xrootd_vfs_file_from_cache(fh);
-    cache_path = xrootd_vfs_file_path(fh);
+    fd = brix_vfs_file_sendfile_fd(fh);
+    from_cache = brix_vfs_file_from_cache(fh);
+    cache_path = brix_vfs_file_path(fh);
 
     /* XrdHttp: multi-range vector read (kXR_readv equivalent over HTTP).
      * A comma in the Range: value indicates multiple byte ranges — delegate
@@ -297,33 +297,33 @@ webdav_handle_get(ngx_http_request_t *r)
     if (xrdhttp_request_is_multirange(r)) {
         send_fd = dup(fd);
         if (send_fd == NGX_INVALID_FILE) {
-            xrootd_vfs_close(fh, r->connection->log);
+            brix_vfs_close(fh, r->connection->log);
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
         if (webdav_register_send_fd_cleanup(r, send_fd, path) != NGX_OK) {
             ngx_close_file(send_fd);
-            xrootd_vfs_close(fh, r->connection->log);
+            brix_vfs_close(fh, r->connection->log);
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
-        xrootd_vfs_close(fh, r->connection->log);
+        brix_vfs_close(fh, r->connection->log);
         rc = xrdhttp_handle_multipart_get(r, send_fd, &sb, 1);
         if (from_cache && rc == NGX_OK && !r->header_only) {
-            (void) xrootd_cache_record_access(cache_path, (size_t) sb.st_size,
+            (void) brix_cache_record_access(cache_path, (size_t) sb.st_size,
                                               r->connection->log);
         }
         return rc;
     }
 
-    rc = xrootd_http_check_if_modified_since(r, sb.st_mtime);
+    rc = brix_http_check_if_modified_since(r, sb.st_mtime);
     if (rc == NGX_HTTP_NOT_MODIFIED) {
-        xrootd_vfs_close(fh, r->connection->log);
+        brix_vfs_close(fh, r->connection->log);
         r->headers_out.status           = NGX_HTTP_NOT_MODIFIED;
         r->headers_out.content_length_n = 0;
         ngx_http_send_header(r);
         return ngx_http_send_special(r, NGX_HTTP_LAST);
     }
     if (rc != NGX_OK) {
-        xrootd_vfs_close(fh, r->connection->log);
+        brix_vfs_close(fh, r->connection->log);
         return rc;
     }
 
@@ -331,19 +331,19 @@ webdav_handle_get(ngx_http_request_t *r)
     r->allow_ranges = 1;
 
     {
-        xrootd_http_serve_opts_t   opts;
-        xrootd_http_serve_result_t result;
+        brix_http_serve_opts_t   opts;
+        brix_http_serve_result_t result;
 
         ngx_memzero(&opts, sizeof(opts));
-        opts.xfer_proto      = XROOTD_XFER_PROTO_WEBDAV;
+        opts.xfer_proto      = BRIX_XFER_PROTO_WEBDAV;
         opts.op_name         = "GET";
         opts.identity        = identity;
-        opts.etag_flags      = XROOTD_ETAG_WEAK;
+        opts.etag_flags      = BRIX_ETAG_WEAK;
         opts.compress        = conf->common.compress;
         opts.pre_header_send = webdav_get_add_xrdhttp_headers;
         opts.pre_header_ud   = &sb;
 
-        rc = xrootd_http_serve_file_ranged(r, fh, &vst, path, &opts, &result);
+        rc = brix_http_serve_file_ranged(r, fh, &vst, path, &opts, &result);
         webdav_serve_metrics(r, &result);
     }
 

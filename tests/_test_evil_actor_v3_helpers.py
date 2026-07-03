@@ -33,7 +33,7 @@ race_shim.c (LD_PRELOAD syscall-slower):
       streamid kXR_attn(asynresp) injection. Brand-new FRM/kXR_prepare plane.
   C2  FRM reqid forgery — a foreign session must not cancel another's stage
       request by its guessable monotonic reqid; the cancel/evict path enforces
-      requester ownership (xrootd_prepare_handle_cancel -> frm_request_owner_check).
+      requester ownership (brix_prepare_handle_cancel -> frm_request_owner_check).
   C3  FRM admission flood — durable queue + SHM index + waiter table + stage-agent
       fork bound must shed cleanly (no crash, no unbounded RSS, no fork storm).
   D   chaos capstone — sustained randomized interleave of every vector across all
@@ -458,7 +458,7 @@ class _Srv:
                                       "/src/fs/cache/", "/src/protocols/root/session/", "/src/protocols/root/connection/",
                                       "/src/frm/", "_aio_thread", "_aio_done",
                                       "read_scratch", "payload_to_free", "ctx->destroyed",
-                                      "xrootd_")):
+                                      "brix_")):
                 hits.append(fn)
         return ",".join(hits)
 
@@ -581,11 +581,11 @@ def srv(tmp_path_factory):
     frm_block = ""
     if have_xattr:
         frm_block = (
-            "        xrootd_frm on; xrootd_frm_queue_path %s;\n"
-            "        xrootd_frm_copycmd %s; xrootd_frm_copymax 4;\n"
-            "        xrootd_frm_async_recall on; xrootd_frm_stage_ttl 30s;\n"
-            "        xrootd_frm_xfrhold 50ms;\n"   # default 30s throttle -> fast drains for the test
-            "        xrootd_frm_max_inflight 64; xrootd_frm_max_per_source 16;\n"
+            "        brix_frm on; brix_frm_queue_path %s;\n"
+            "        brix_frm_copycmd %s; brix_frm_copymax 4;\n"
+            "        brix_frm_async_recall on; brix_frm_stage_ttl 30s;\n"
+            "        brix_frm_xfrhold 50ms;\n"   # default 30s throttle -> fast drains for the test
+            "        brix_frm_max_inflight 64; brix_frm_max_per_source 16;\n"
             % (queue, copycmd))
 
     root_port, root_tls_port, https_port, metrics_port = _free_ports(4)
@@ -606,14 +606,14 @@ events { worker_connections 1024; }
 stream {
     server {
         listen %s:%d reuseport;
-        xrootd on; xrootd_storage_backend posix:%s; xrootd_auth none; xrootd_allow_write on;
-        xrootd_thread_pool aiopool; xrootd_memory_budget 6m;
+        xrootd on; brix_storage_backend posix:%s; brix_auth none; brix_allow_write on;
+        brix_thread_pool aiopool; brix_memory_budget 6m;
 %s    }
     server {
         listen %s:%d reuseport;
-        xrootd on; xrootd_storage_backend posix:%s; xrootd_auth none; xrootd_allow_write on;
-        xrootd_thread_pool aiopool; xrootd_memory_budget 6m;
-        xrootd_tls on; xrootd_certificate %s; xrootd_certificate_key %s;
+        xrootd on; brix_storage_backend posix:%s; brix_auth none; brix_allow_write on;
+        brix_thread_pool aiopool; brix_memory_budget 6m;
+        brix_tls on; brix_certificate %s; brix_certificate_key %s;
     }
 }
 http {
@@ -623,15 +623,15 @@ http {
     server {
         listen %s:%d ssl;
         ssl_certificate %s; ssl_certificate_key %s;
-        location = /metrics { xrootd_metrics on; }
-        location /s3b/ { xrootd_s3 on; xrootd_s3_storage_backend posix:%s; xrootd_s3_bucket s3b;
-                         xrootd_s3_region us-east-1; }
-        location / { xrootd_webdav on; xrootd_webdav_storage_backend posix:%s; xrootd_webdav_auth none;
-                     xrootd_webdav_allow_write on; }
+        location = /metrics { brix_metrics on; }
+        location /s3b/ { brix_s3 on; brix_s3_storage_backend posix:%s; brix_s3_bucket s3b;
+                         brix_s3_region us-east-1; }
+        location / { brix_webdav on; brix_webdav_storage_backend posix:%s; brix_webdav_auth none;
+                     brix_webdav_allow_write on; }
     }
     server {
         listen %s:%d;
-        location = /metrics { xrootd_metrics on; }
+        location = /metrics { brix_metrics on; }
     }
 }
 """ % (WORKERS, prefix, prefix,
@@ -666,7 +666,7 @@ http {
     if SHIM_SAN == "thread":
         supp = os.path.join(prefix, "tsan.supp")
         open(supp, "w").write(
-            "race:ngx_atomic_\nrace:^xrootd_metrics_\nrace:ngx_thread_pool_cycle\n"
+            "race:ngx_atomic_\nrace:^brix_metrics_\nrace:ngx_thread_pool_cycle\n"
             "race:ngx_time_update\nrace:ngx_event_\ncalled_from_lib:libssl\n"
             "called_from_lib:libcrypto\ncalled_from_lib:libjansson\n")
         env["TSAN_OPTIONS"] = ("suppressions=%s:halt_on_error=0:exitcode=0:"
@@ -696,7 +696,7 @@ http {
     s.near_names = near_names
     s.audit = audit
     s.queue = queue
-    # Determine FRM availability ONCE via the metrics endpoint (the xrootd_frm_*
+    # Determine FRM availability ONCE via the metrics endpoint (the brix_frm_*
     # exporter is wired only when FRM is compiled + enabled) — NOT by opening a
     # nearline file, which would trigger a real recall whose slow drain leaves the
     # server sluggish for the first ~tens of seconds and flakes the early phases.
@@ -705,7 +705,7 @@ http {
         try:
             with __import__("urllib.request", fromlist=["request"]).urlopen(
                     "http://%s:%d/metrics" % (HOST, metrics_port), timeout=5) as resp:
-                s.frm_ok = b"xrootd_frm_" in resp.read()
+                s.frm_ok = b"brix_frm_" in resp.read()
         except Exception:
             s.frm_ok = False
     if not s.master or not _alive(s.master):

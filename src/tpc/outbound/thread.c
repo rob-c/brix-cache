@@ -13,9 +13,9 @@
  * HOW: Initializes result/error fields to failure defaults before attempting transfer. Connects via tpc_connect() — if connection fails, returns immediately with error status. Bootstraps session via tpc_bootstrap() — if bootstrap fails, closes fd and returns. On success delegates to tpc_pull_from_source() for actual data transfer then closes the file descriptor regardless of outcome. Always sets result=NGX_ERROR initially so callers can check failure even on partial completion. */
 
 void
-xrootd_tpc_pull_thread(void *data, ngx_log_t *log)
+brix_tpc_pull_thread(void *data, ngx_log_t *log)
 {
-    xrootd_tpc_pull_t *t = data;
+    brix_tpc_pull_t *t = data;
     int                fd;
 
     (void) log;
@@ -24,23 +24,23 @@ xrootd_tpc_pull_thread(void *data, ngx_log_t *log)
     t->xrd_error  = kXR_ServerError;
     t->err_msg[0] = '\0';
 
-    (void) xrootd_tpc_registry_update(t->transfer_id, 0,
-                                      XROOTD_TPC_STATE_ACTIVE,
+    (void) brix_tpc_registry_update(t->transfer_id, 0,
+                                      BRIX_TPC_STATE_ACTIVE,
                                       t->c != NULL ? t->c->log : log);
 
     fd = tpc_connect(t);
     if (fd < 0) {
-        (void) xrootd_tpc_registry_update(t->transfer_id,
+        (void) brix_tpc_registry_update(t->transfer_id,
                                           (off_t) t->bytes_written,
-                                          XROOTD_TPC_STATE_ERROR,
+                                          BRIX_TPC_STATE_ERROR,
                                           t->c != NULL ? t->c->log : log);
         return;
     }
 
     if (tpc_bootstrap(t, fd) != 0) {
-        (void) xrootd_tpc_registry_update(t->transfer_id,
+        (void) brix_tpc_registry_update(t->transfer_id,
                                           (off_t) t->bytes_written,
-                                          XROOTD_TPC_STATE_ERROR,
+                                          BRIX_TPC_STATE_ERROR,
                                           t->c != NULL ? t->c->log : log);
         tpc_tls_teardown(t);          /* free any TLS upgraded mid-bootstrap */
         if (t->deleg_cred_pem) { free(t->deleg_cred_pem); t->deleg_cred_pem = NULL; }
@@ -49,9 +49,9 @@ xrootd_tpc_pull_thread(void *data, ngx_log_t *log)
     }
 
     (void) tpc_pull_from_source(t, fd);
-    (void) xrootd_tpc_registry_update(
+    (void) brix_tpc_registry_update(
         t->transfer_id, (off_t) t->bytes_written,
-        t->result == NGX_OK ? XROOTD_TPC_STATE_DONE : XROOTD_TPC_STATE_ERROR,
+        t->result == NGX_OK ? BRIX_TPC_STATE_DONE : BRIX_TPC_STATE_ERROR,
         t->c != NULL ? t->c->log : log);
     tpc_tls_teardown(t);              /* SSL_shutdown/free before closing the fd */
     if (t->deleg_cred_pem) { free(t->deleg_cred_pem); t->deleg_cred_pem = NULL; }

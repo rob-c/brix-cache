@@ -36,14 +36,14 @@ events { worker_connections 128; }
 http { access_log off; server {
     listen 127.0.0.1:$CPORT;
     location /cvmfs/ {
-        xrootd_cvmfs_storage_backend "http://127.0.0.1:$RAL|http://127.0.0.1:$CERN";
-        xrootd_cvmfs_cache_store posix:$PFX/cache;
-        xrootd_cvmfs_origin_select geo;
-        xrootd_cvmfs_here 51.57:-1.31;
-        xrootd_cvmfs_origin_coords 127.0.0.1:$RAL  51.57:-1.31;
-        xrootd_cvmfs_origin_coords 127.0.0.1:$CERN 46.23:6.05;
-        xrootd_cvmfs on;
-        xrootd_cvmfs_client_hold 3;
+        brix_cvmfs_storage_backend "http://127.0.0.1:$RAL|http://127.0.0.1:$CERN";
+        brix_cvmfs_cache_store posix:$PFX/cache;
+        brix_cvmfs_origin_select geo;
+        brix_cvmfs_here 51.57:-1.31;
+        brix_cvmfs_origin_coords 127.0.0.1:$RAL  51.57:-1.31;
+        brix_cvmfs_origin_coords 127.0.0.1:$CERN 46.23:6.05;
+        brix_cvmfs on;
+        brix_cvmfs_client_hold 3;
     }
 } }
 EOF

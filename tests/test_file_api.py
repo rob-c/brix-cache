@@ -193,7 +193,7 @@ class TestFileWrite:
         f.close()
 
     def test_write_to_server_without_allow_write_fails(self):
-        """Anonymous write blocked when xrootd_allow_write is off — tested via
+        """Anonymous write blocked when brix_allow_write is off — tested via
         GSI port without credentials (rejects auth, not write flag)."""
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp.write(b"blocked")

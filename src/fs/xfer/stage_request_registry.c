@@ -87,7 +87,7 @@ typedef struct {
     uint32_t  attempts;
     int16_t   opaque_off;
     int16_t   lfn_url_off;
-    uint8_t   cs_type;        /* xrootd_stage_cstype_t (opaque here)             */
+    uint8_t   cs_type;        /* brix_stage_cstype_t (opaque here)             */
     uint8_t   status;         /* SRQ_ST_*                                        */
     int8_t    priority;
     uint8_t   queue;
@@ -109,7 +109,7 @@ typedef char srq_hdr_size_check[(sizeof(srq_hdr_t) == SRQ_REC_SIZE) ? 1 : -1];
 typedef char srq_rec_size_check[(sizeof(srq_rec_t) == SRQ_REC_SIZE) ? 1 : -1];
 
 
-struct xrootd_stage_registry_s {
+struct brix_stage_registry_s {
     char   path[NGX_MAX_PATH];
     char   host[256];
     int    fd;
@@ -118,7 +118,7 @@ struct xrootd_stage_registry_s {
 };
 
 /* Process-wide singleton (one durable store per server). */
-static xrootd_stage_registry_t  srq_singleton;
+static brix_stage_registry_t  srq_singleton;
 static int                      srq_singleton_used;
 
 /*
@@ -138,7 +138,7 @@ srq_rec_compute_crc(const srq_rec_t *rec)
 {
     srq_rec_t tmp = *rec;
     tmp.rec_crc32c = 0;
-    return xrootd_crc32c_value(&tmp, sizeof(tmp));
+    return brix_crc32c_value(&tmp, sizeof(tmp));
 }
 
 static uint32_t
@@ -146,7 +146,7 @@ srq_hdr_compute_crc(const srq_hdr_t *hdr)
 {
     srq_hdr_t tmp = *hdr;
     tmp.hdr_crc32c = 0;
-    return xrootd_crc32c_value(&tmp, sizeof(tmp));
+    return brix_crc32c_value(&tmp, sizeof(tmp));
 }
 
 static void
@@ -184,11 +184,11 @@ static ngx_int_t
 srq_pread_all(int fd, void *buf, size_t len, off_t off, ngx_log_t *log)
 {
     u_char         *p = buf;
-    xrootd_sd_obj_t obj;
+    brix_sd_obj_t obj;
 
     /* Route the journal byte read through the Storage Driver seam so the syscall
      * stays in the backend (src/fs/backend/), same as the former FRM reqfile. */
-    xrootd_sd_posix_wrap(&obj, fd);
+    brix_sd_posix_wrap(&obj, fd);
     while (len > 0) {
         ssize_t n = obj.driver->pread(&obj, p, len, off);
         if (n < 0) {
@@ -209,9 +209,9 @@ static ngx_int_t
 srq_pwrite_all(int fd, const void *buf, size_t len, off_t off, ngx_log_t *log)
 {
     const u_char   *p = buf;
-    xrootd_sd_obj_t obj;
+    brix_sd_obj_t obj;
 
-    xrootd_sd_posix_wrap(&obj, fd);
+    brix_sd_posix_wrap(&obj, fd);
     while (len > 0) {
         ssize_t n = obj.driver->pwrite(&obj, p, len, off);
         if (n < 0) {
@@ -228,7 +228,7 @@ srq_pwrite_all(int fd, const void *buf, size_t len, off_t off, ngx_log_t *log)
 /* header + record I/O */
 
 static ngx_int_t
-srq_hdr_read(xrootd_stage_registry_t *reg, srq_hdr_t *hdr, ngx_log_t *log)
+srq_hdr_read(brix_stage_registry_t *reg, srq_hdr_t *hdr, ngx_log_t *log)
 {
     if (srq_pread_all(reg->fd, hdr, sizeof(*hdr), 0, log) != NGX_OK) {
         return NGX_ERROR;
@@ -246,7 +246,7 @@ srq_hdr_read(xrootd_stage_registry_t *reg, srq_hdr_t *hdr, ngx_log_t *log)
 }
 
 static ngx_int_t
-srq_hdr_write(xrootd_stage_registry_t *reg, srq_hdr_t *hdr, ngx_log_t *log)
+srq_hdr_write(brix_stage_registry_t *reg, srq_hdr_t *hdr, ngx_log_t *log)
 {
     hdr->magic    = SRQ_MAGIC;
     hdr->version  = SRQ_VERSION;
@@ -263,7 +263,7 @@ srq_hdr_write(xrootd_stage_registry_t *reg, srq_hdr_t *hdr, ngx_log_t *log)
 }
 
 static ngx_int_t
-srq_rec_read(xrootd_stage_registry_t *reg, int64_t off, srq_rec_t *rec,
+srq_rec_read(brix_stage_registry_t *reg, int64_t off, srq_rec_t *rec,
              ngx_log_t *log)
 {
     if (off < (int64_t) SRQ_REC_SIZE) {
@@ -273,7 +273,7 @@ srq_rec_read(xrootd_stage_registry_t *reg, int64_t off, srq_rec_t *rec,
 }
 
 static ngx_int_t
-srq_rec_write(xrootd_stage_registry_t *reg, int64_t off, srq_rec_t *rec,
+srq_rec_write(brix_stage_registry_t *reg, int64_t off, srq_rec_t *rec,
               ngx_log_t *log)
 {
     if (off < (int64_t) SRQ_REC_SIZE) {
@@ -292,7 +292,7 @@ srq_rec_write(xrootd_stage_registry_t *reg, int64_t off, srq_rec_t *rec,
 }
 
 static int64_t
-srq_file_size(xrootd_stage_registry_t *reg)
+srq_file_size(brix_stage_registry_t *reg)
 {
     struct stat st;
     if (reg->fd < 0 || fstat(reg->fd, &st) != 0) {
@@ -305,7 +305,7 @@ srq_file_size(xrootd_stage_registry_t *reg)
 /* locking */
 
 static ngx_int_t
-srq_lock(xrootd_stage_registry_t *reg, srq_lock_t mode)
+srq_lock(brix_stage_registry_t *reg, srq_lock_t mode)
 {
     struct flock fl;
     int          rc;
@@ -330,7 +330,7 @@ srq_lock(xrootd_stage_registry_t *reg, srq_lock_t mode)
 }
 
 static void
-srq_unlock(xrootd_stage_registry_t *reg)
+srq_unlock(brix_stage_registry_t *reg)
 {
     struct flock fl;
 
@@ -364,41 +364,41 @@ srq_reqid_format(const char *host, uint64_t seq, char *buf, size_t buf_sz)
 }
 
 /* On-disk SRQ_ST_* -> public status. FREE has no public value (never surfaced). */
-static xrootd_stage_req_status_t
+static brix_stage_req_status_t
 srq_status_public(uint8_t on_disk)
 {
     switch (on_disk) {
-    case SRQ_ST_QUEUED:    return XROOTD_STAGE_REQ_QUEUED;
-    case SRQ_ST_STAGING:   return XROOTD_STAGE_REQ_ACTIVE;
-    case SRQ_ST_ONLINE:    return XROOTD_STAGE_REQ_DONE;
-    case SRQ_ST_FAILED:    return XROOTD_STAGE_REQ_FAILED;
-    case SRQ_ST_CANCELLED: return XROOTD_STAGE_REQ_CANCELLED;
-    default:               return XROOTD_STAGE_REQ_QUEUED;
+    case SRQ_ST_QUEUED:    return BRIX_STAGE_REQ_QUEUED;
+    case SRQ_ST_STAGING:   return BRIX_STAGE_REQ_ACTIVE;
+    case SRQ_ST_ONLINE:    return BRIX_STAGE_REQ_DONE;
+    case SRQ_ST_FAILED:    return BRIX_STAGE_REQ_FAILED;
+    case SRQ_ST_CANCELLED: return BRIX_STAGE_REQ_CANCELLED;
+    default:               return BRIX_STAGE_REQ_QUEUED;
     }
 }
 
 static uint8_t
-srq_status_on_disk(xrootd_stage_req_status_t pub)
+srq_status_on_disk(brix_stage_req_status_t pub)
 {
     switch (pub) {
-    case XROOTD_STAGE_REQ_QUEUED:    return SRQ_ST_QUEUED;
-    case XROOTD_STAGE_REQ_ACTIVE:    return SRQ_ST_STAGING;
-    case XROOTD_STAGE_REQ_DONE:      return SRQ_ST_ONLINE;
-    case XROOTD_STAGE_REQ_FAILED:    return SRQ_ST_FAILED;
-    case XROOTD_STAGE_REQ_CANCELLED: return SRQ_ST_CANCELLED;
+    case BRIX_STAGE_REQ_QUEUED:    return SRQ_ST_QUEUED;
+    case BRIX_STAGE_REQ_ACTIVE:    return SRQ_ST_STAGING;
+    case BRIX_STAGE_REQ_DONE:      return SRQ_ST_ONLINE;
+    case BRIX_STAGE_REQ_FAILED:    return SRQ_ST_FAILED;
+    case BRIX_STAGE_REQ_CANCELLED: return SRQ_ST_CANCELLED;
     default:                         return SRQ_ST_QUEUED;
     }
 }
 
 static void
-srq_rec_to_view(const srq_rec_t *rec, xrootd_stage_request_t *out)
+srq_rec_to_view(const srq_rec_t *rec, brix_stage_request_t *out)
 {
     ngx_memzero(out, sizeof(*out));
     ngx_cpystrn((u_char *) out->reqid, (u_char *) rec->reqid, sizeof(out->reqid));
     ngx_cpystrn((u_char *) out->lfn, (u_char *) rec->lfn, sizeof(out->lfn));
     ngx_cpystrn((u_char *) out->requester_dn, (u_char *) rec->requester_dn,
                 sizeof(out->requester_dn));
-    out->cs_type    = (xrootd_stage_cstype_t) rec->cs_type;
+    out->cs_type    = (brix_stage_cstype_t) rec->cs_type;
     out->status     = srq_status_public(rec->status);
     out->tod_added  = rec->tod_added;
     out->tod_expire = rec->tod_expire;
@@ -406,7 +406,7 @@ srq_rec_to_view(const srq_rec_t *rec, xrootd_stage_request_t *out)
 
 /* Resolve a reqid -> file offset by a linear slot scan. -1 on miss/error. */
 static int64_t
-srq_offset_by_reqid(xrootd_stage_registry_t *reg, const char *reqid,
+srq_offset_by_reqid(brix_stage_registry_t *reg, const char *reqid,
                     ngx_log_t *log)
 {
     srq_rec_t rec;
@@ -430,7 +430,7 @@ srq_offset_by_reqid(xrootd_stage_registry_t *reg, const char *reqid,
 
 /* First FREE/torn slot, else EOF (grow). Caller holds the excl lock. */
 static int64_t
-srq_alloc_slot(xrootd_stage_registry_t *reg, ngx_log_t *log)
+srq_alloc_slot(brix_stage_registry_t *reg, ngx_log_t *log)
 {
     srq_rec_t rec;
     int64_t   size = srq_file_size(reg);
@@ -456,16 +456,16 @@ srq_alloc_slot(xrootd_stage_registry_t *reg, ngx_log_t *log)
 
 /* lifecycle */
 
-xrootd_stage_registry_t *
-xrootd_stage_registry_singleton(void)
+brix_stage_registry_t *
+brix_stage_registry_singleton(void)
 {
     return srq_singleton_used ? &srq_singleton : NULL;
 }
 
 ngx_int_t
-xrootd_stage_registry_init(const char *journal_dir, ngx_log_t *log)
+brix_stage_registry_init(const char *journal_dir, ngx_log_t *log)
 {
-    xrootd_stage_registry_t *reg = &srq_singleton;
+    brix_stage_registry_t *reg = &srq_singleton;
     char                     lockpath[NGX_MAX_PATH];
     struct stat              st;
     size_t                   dlen;
@@ -528,7 +528,7 @@ xrootd_stage_registry_init(const char *journal_dir, ngx_log_t *log)
 /* reqid generation */
 
 ngx_int_t
-xrootd_stage_request_reqid_generate(xrootd_stage_registry_t *reg,
+brix_stage_request_reqid_generate(brix_stage_registry_t *reg,
     char *reqid_out, size_t reqid_out_sz, ngx_log_t *log)
 {
     srq_hdr_t hdr;
@@ -560,8 +560,8 @@ xrootd_stage_request_reqid_generate(xrootd_stage_registry_t *reg,
 /* mutating ops */
 
 ngx_int_t
-xrootd_stage_request_add(xrootd_stage_registry_t *reg,
-    const xrootd_stage_request_view_t *view, char *reqid_out,
+brix_stage_request_add(brix_stage_registry_t *reg,
+    const brix_stage_request_view_t *view, char *reqid_out,
     size_t reqid_out_sz, ngx_log_t *log)
 {
     srq_hdr_t hdr;
@@ -632,8 +632,8 @@ xrootd_stage_request_add(xrootd_stage_registry_t *reg,
 }
 
 ngx_int_t
-xrootd_stage_request_set_status(xrootd_stage_registry_t *reg,
-    const char *reqid, xrootd_stage_req_status_t status, ngx_log_t *log)
+brix_stage_request_set_status(brix_stage_registry_t *reg,
+    const char *reqid, brix_stage_req_status_t status, ngx_log_t *log)
 {
     srq_rec_t rec;
     int64_t   off;
@@ -662,7 +662,7 @@ xrootd_stage_request_set_status(xrootd_stage_registry_t *reg,
 }
 
 ngx_int_t
-xrootd_stage_request_delete(xrootd_stage_registry_t *reg, const char *reqid,
+brix_stage_request_delete(brix_stage_registry_t *reg, const char *reqid,
                             ngx_log_t *log)
 {
     srq_rec_t rec;
@@ -692,12 +692,12 @@ xrootd_stage_request_delete(xrootd_stage_registry_t *reg, const char *reqid,
 }
 
 ngx_int_t
-xrootd_stage_request_cancel(xrootd_stage_registry_t *reg, const char *reqid,
+brix_stage_request_cancel(brix_stage_registry_t *reg, const char *reqid,
                             ngx_log_t *log)
 {
     /* Mark CANCELLED (kept so a later status query reports it), not deleted. */
-    ngx_int_t rc = xrootd_stage_request_set_status(reg, reqid,
-                       XROOTD_STAGE_REQ_CANCELLED, log);
+    ngx_int_t rc = brix_stage_request_set_status(reg, reqid,
+                       BRIX_STAGE_REQ_CANCELLED, log);
     return (rc == NGX_DECLINED) ? NGX_OK : rc;   /* unknown reqid is idempotent */
 }
 
@@ -705,8 +705,8 @@ xrootd_stage_request_cancel(xrootd_stage_registry_t *reg, const char *reqid,
 /* read ops */
 
 ngx_int_t
-xrootd_stage_request_get(xrootd_stage_registry_t *reg, const char *reqid,
-                         xrootd_stage_request_t *out, ngx_log_t *log)
+brix_stage_request_get(brix_stage_registry_t *reg, const char *reqid,
+                         brix_stage_request_t *out, ngx_log_t *log)
 {
     srq_rec_t rec;
     int64_t   off;
@@ -730,7 +730,7 @@ xrootd_stage_request_get(xrootd_stage_registry_t *reg, const char *reqid,
 }
 
 ngx_int_t
-xrootd_stage_request_find_by_path(xrootd_stage_registry_t *reg, const char *lfn,
+brix_stage_request_find_by_path(brix_stage_registry_t *reg, const char *lfn,
     char *reqid_out, size_t reqid_out_sz, ngx_log_t *log)
 {
     srq_rec_t rec;
@@ -773,15 +773,15 @@ xrootd_stage_request_find_by_path(xrootd_stage_registry_t *reg, const char *lfn,
 }
 
 ngx_int_t
-xrootd_stage_request_owner_check(xrootd_stage_registry_t *reg, const char *reqid,
+brix_stage_request_owner_check(brix_stage_registry_t *reg, const char *reqid,
     const char *requester_dn, ngx_log_t *log)
 {
-    xrootd_stage_request_t rec;
+    brix_stage_request_t rec;
 
     if (requester_dn == NULL || requester_dn[0] == '\0') {
         return NGX_OK;                  /* anonymous caller: nothing to enforce */
     }
-    if (xrootd_stage_request_get(reg, reqid, &rec, log) != NGX_OK) {
+    if (brix_stage_request_get(reg, reqid, &rec, log) != NGX_OK) {
         return NGX_OK;                  /* absent/gone: idempotent, no oracle */
     }
     if (rec.requester_dn[0] == '\0'
@@ -796,8 +796,8 @@ xrootd_stage_request_owner_check(xrootd_stage_registry_t *reg, const char *reqid
 }
 
 ngx_int_t
-xrootd_stage_request_list_active(xrootd_stage_registry_t *reg,
-    ngx_uint_t *cursor, xrootd_stage_request_t *out, ngx_log_t *log)
+brix_stage_request_list_active(brix_stage_registry_t *reg,
+    ngx_uint_t *cursor, brix_stage_request_t *out, ngx_log_t *log)
 {
     srq_rec_t rec;
     int64_t   off, size;
@@ -830,8 +830,8 @@ xrootd_stage_request_list_active(xrootd_stage_registry_t *reg,
 }
 
 ngx_int_t
-xrootd_stage_request_list_files(xrootd_stage_registry_t *reg, const char *reqid,
-    ngx_uint_t *cursor, xrootd_stage_request_t *out, ngx_log_t *log)
+brix_stage_request_list_files(brix_stage_registry_t *reg, const char *reqid,
+    ngx_uint_t *cursor, brix_stage_request_t *out, ngx_log_t *log)
 {
     /* One request id maps to exactly one lfn (bulk grouping deferred): yield the
      * single record on cursor 0, then NGX_DONE. */
@@ -842,11 +842,11 @@ xrootd_stage_request_list_files(xrootd_stage_registry_t *reg, const char *reqid,
         return NGX_DONE;
     }
     (*cursor)++;
-    return xrootd_stage_request_get(reg, reqid, out, log);
+    return brix_stage_request_get(reg, reqid, out, log);
 }
 
 ngx_int_t
-xrootd_stage_request_pin_release(xrootd_stage_registry_t *reg,
+brix_stage_request_pin_release(brix_stage_registry_t *reg,
     const char *abs_path, ngx_log_t *log)
 {
     char      reqid[SRQ_REQID_LEN];
@@ -857,16 +857,16 @@ xrootd_stage_request_pin_release(xrootd_stage_registry_t *reg,
     }
     /* Record the release intent by cancelling any live request for the path; real
      * disk reclamation is delegated to the MSS/backend. */
-    rc = xrootd_stage_request_find_by_path(reg, abs_path, reqid, sizeof(reqid), log);
+    rc = brix_stage_request_find_by_path(reg, abs_path, reqid, sizeof(reqid), log);
     if (rc != NGX_OK) {
         return NGX_DECLINED;            /* not tracked / not pinned */
     }
     ngx_log_error(NGX_LOG_INFO, log, 0, "stage-req: pin released \"%s\"", abs_path);
-    return xrootd_stage_request_cancel(reg, reqid, log);
+    return brix_stage_request_cancel(reg, reqid, log);
 }
 
 ngx_uint_t
-xrootd_stage_request_reap_expired(xrootd_stage_registry_t *reg, time_t now,
+brix_stage_request_reap_expired(brix_stage_registry_t *reg, time_t now,
                                   ngx_log_t *log)
 {
     srq_rec_t  rec;

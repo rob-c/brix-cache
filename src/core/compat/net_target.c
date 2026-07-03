@@ -133,7 +133,7 @@ net_addr_check(const struct sockaddr *sa, ngx_flag_t allow_local,
 }
 
 /*
- * xrootd_net_target_check_addr — SSRF gate for an already-resolved address.
+ * brix_net_target_check_addr — SSRF gate for an already-resolved address.
  *
  * WHAT: returns NGX_OK if sa is permitted under policy, else NGX_ERROR with a
  *       human-readable reason written into err.
@@ -141,8 +141,8 @@ net_addr_check(const struct sockaddr *sa, ngx_flag_t allow_local,
  *       lower layers) validate it here without a DNS round-trip.
  */
 ngx_int_t
-xrootd_net_target_check_addr(const struct sockaddr *sa,
-    const xrootd_net_target_policy_t *policy,
+brix_net_target_check_addr(const struct sockaddr *sa,
+    const brix_net_target_policy_t *policy,
     char *err, size_t errsz)
 {
     if (net_addr_check(sa, policy->allow_local, policy->allow_private)) {
@@ -158,7 +158,7 @@ xrootd_net_target_check_addr(const struct sockaddr *sa,
 
 
 /*
- * xrootd_net_target_parse — split "scheme://host[:port][/path]" into fields.
+ * brix_net_target_parse — split "scheme://host[:port][/path]" into fields.
  *
  * WHAT: fills *out with scheme/host/port/path slices for the given URL;
  *       returns NGX_OK or NGX_ERROR with a reason in err.
@@ -171,8 +171,8 @@ xrootd_net_target_check_addr(const struct sockaddr *sa,
  *       otherwise mistake the address's colons for a port delimiter.
  */
 ngx_int_t
-xrootd_net_target_parse(ngx_pool_t *pool,
-    const ngx_str_t *url, xrootd_net_target_t *out,
+brix_net_target_parse(ngx_pool_t *pool,
+    const ngx_str_t *url, brix_net_target_t *out,
     char *err, size_t errsz)
 {
     const u_char *p, *end, *scheme_end, *host_start, *host_end, *colon;
@@ -320,7 +320,7 @@ xrootd_net_target_parse(ngx_pool_t *pool,
 
 
 /*
- * xrootd_net_target_check_dns — resolve target->host and reject if ANY
+ * brix_net_target_check_dns — resolve target->host and reject if ANY
  * resolved address falls in a prohibited range.
  *
  * WHAT: NGX_OK only when every A/AAAA result passes policy; NGX_ERROR (with
@@ -333,8 +333,8 @@ xrootd_net_target_parse(ngx_pool_t *pool,
  *       validated address must also be handed to the connect step.
  */
 ngx_int_t
-xrootd_net_target_check_dns(const xrootd_net_target_t *target,
-    const xrootd_net_target_policy_t *policy,
+brix_net_target_check_dns(const brix_net_target_t *target,
+    const brix_net_target_policy_t *policy,
     char *err, size_t errsz)
 {
     struct addrinfo  hints, *res, *rp;
@@ -403,7 +403,7 @@ xrootd_net_target_check_dns(const xrootd_net_target_t *target,
 }
 
 /*
- * xrootd_net_target_check_dns_pin — like check_dns, but also returns the
+ * brix_net_target_check_dns_pin — like check_dns, but also returns the
  * numeric IP of the first permitted address so the caller can connect to that
  * exact address (DNS-rebind defence).
  *
@@ -415,8 +415,8 @@ xrootd_net_target_check_dns(const xrootd_net_target_t *target,
  * HOW:  BLOCKING getaddrinfo + getnameinfo(NI_NUMERICHOST); thread-pool only.
  */
 ngx_int_t
-xrootd_net_target_check_dns_pin(const xrootd_net_target_t *target,
-    const xrootd_net_target_policy_t *policy,
+brix_net_target_check_dns_pin(const brix_net_target_t *target,
+    const brix_net_target_policy_t *policy,
     char *out_ip, size_t out_ipsz,
     char *err, size_t errsz)
 {
@@ -501,7 +501,7 @@ xrootd_net_target_check_dns_pin(const xrootd_net_target_t *target,
 }
 
 /*
- * xrootd_net_host_chars_valid — cheap pre-DNS allowlist on the host string.
+ * brix_net_host_chars_valid — cheap pre-DNS allowlist on the host string.
  *
  * WHAT: returns 1 only if every byte is [A-Za-z0-9.:-] (the chars legal in a
  *       hostname or IPv4/IPv6 literal); 0 otherwise or for empty input.
@@ -509,7 +509,7 @@ xrootd_net_target_check_dns_pin(const xrootd_net_target_t *target,
  *       before the host is ever passed to getaddrinfo or a child process.
  */
 int
-xrootd_net_host_chars_valid(const char *host, size_t len)
+brix_net_host_chars_valid(const char *host, size_t len)
 {
     size_t  i;
 

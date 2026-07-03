@@ -29,11 +29,11 @@ note() { printf '%s\n' "$*"; findings=$((findings + 1)); }
 echo "== [1] unchecked size-multiply allocations =="
 grep -rnE '(malloc|ngx_alloc|ngx_palloc|realloc)\([^;]*\*[^;]*sizeof' "$SRC" \
     --include='*.c' 2>/dev/null \
-  | grep -vE 'xrootd_(p?alloc|alloc)_array|xrootd_size_mul|safe_size' \
+  | grep -vE 'brix_(p?alloc|alloc)_array|brix_size_mul|safe_size' \
   | while IFS=: read -r file line rest; do
         # Skip if a checked-multiply helper is used within 3 lines above.
         ctx=$(sed -n "$((line>3?line-3:1)),${line}p" "$file" 2>/dev/null)
-        echo "$ctx" | grep -q 'xrootd_size_mul\|xrootd_.*_array' && continue
+        echo "$ctx" | grep -q 'brix_size_mul\|brix_.*_array' && continue
         printf '  %s:%s  %s\n' "${file#$ROOT/}" "$line" \
             "$(echo "$rest" | sed 's/^[[:space:]]*//')"
     done

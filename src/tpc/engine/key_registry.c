@@ -23,19 +23,19 @@
 static int
 tpc_key_eq(const char *stored, const char *presented)
 {
-    char     buf[XROOTD_TPC_KEY_LEN];
+    char     buf[BRIX_TPC_KEY_LEN];
     size_t   n = ngx_strlen(presented);
 
-    if (n >= XROOTD_TPC_KEY_LEN) {
+    if (n >= BRIX_TPC_KEY_LEN) {
         return 0;
     }
     ngx_memzero(buf, sizeof(buf));
     ngx_memcpy(buf, presented, n);
-    return CRYPTO_memcmp(stored, buf, XROOTD_TPC_KEY_LEN) == 0;
+    return CRYPTO_memcmp(stored, buf, BRIX_TPC_KEY_LEN) == 0;
 }
 
-static ngx_shm_zone_t  *xrootd_tpc_key_shm_zone;
-static ngx_shmtx_t      xrootd_tpc_key_mutex;
+static ngx_shm_zone_t  *brix_tpc_key_shm_zone;
+static ngx_shmtx_t      brix_tpc_key_mutex;
 static ngx_uint_t        tpc_key_seq;
 
 /*
@@ -48,16 +48,16 @@ static ngx_uint_t        tpc_key_seq;
  * WHY: Provides single point of failure handling — if the shm_zone hasn't been
  *       initialized yet (data == (void*)1 is a marker meaning "pending init"),
  *       all callers return NULL safely without dereferencing invalid pointers. */
-static xrootd_tpc_key_table_t *
+static brix_tpc_key_table_t *
 key_table(void)
 {
-    if (xrootd_tpc_key_shm_zone == NULL
-        || xrootd_tpc_key_shm_zone->data == NULL
-        || xrootd_tpc_key_shm_zone->data == (void *) 1)
+    if (brix_tpc_key_shm_zone == NULL
+        || brix_tpc_key_shm_zone->data == NULL
+        || brix_tpc_key_shm_zone->data == (void *) 1)
     {
         return NULL;
     }
-    return (xrootd_tpc_key_table_t *) xrootd_tpc_key_shm_zone->data;
+    return (brix_tpc_key_table_t *) brix_tpc_key_shm_zone->data;
 }
 
 /*
@@ -72,9 +72,9 @@ key_table(void)
  *       be validated by another worker (when a destination server connects to fetch
  *       the file). Shared memory + spinlock ensures atomic access without race conditions. */
 static ngx_int_t
-xrootd_tpc_key_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
+brix_tpc_key_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 {
-    xrootd_tpc_key_table_t *tbl;
+    brix_tpc_key_table_t *tbl;
     ngx_flag_t              fresh;
 
     /*
@@ -82,12 +82,12 @@ xrootd_tpc_key_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
      * shm.addr survives. nginx's ngx_unlock_mutexes() (run on every child
      * death) force-unlocks that header's mutex; laying our own struct over
      * shm.addr would clobber it and SIGSEGV the master when any child exits.
-     * The helper also creates xrootd_tpc_key_mutex from the table's first
+     * The helper also creates brix_tpc_key_mutex from the table's first
      * member (the ngx_shmtx_sh_t lock) and zeroes the table on fresh alloc.
      */
-    tbl = xrootd_shm_table_alloc(shm_zone, data,
-                                 sizeof(xrootd_tpc_key_table_t),
-                                 &xrootd_tpc_key_mutex, &fresh);
+    tbl = brix_shm_table_alloc(shm_zone, data,
+                                 sizeof(brix_tpc_key_table_t),
+                                 &brix_tpc_key_mutex, &fresh);
     if (tbl == NULL) {
         return NGX_ERROR;
     }
@@ -108,7 +108,7 @@ xrootd_tpc_key_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 /*
  *
  * WHAT: Configures the shared-memory zone that holds the TPC key registry during
- *       nginx configuration phase. Allocates a fixed-size memory region ("xrootd_tpc_keys")
+ *       nginx configuration phase. Allocates a fixed-size memory region ("brix_tpc_keys")
  *       large enough to hold the key table structure plus one page of padding, then
  *       registers the init callback and sets data=(void*)1 as a "pending initialization"
  *       marker so that no worker can access the registry before it's ready.
@@ -118,21 +118,21 @@ xrootd_tpc_key_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
  *       destination server connects, its worker must validate that same key. Shared memory
  *       is the only mechanism that allows cross-process atomic access without IPC overhead. */
 ngx_int_t
-xrootd_tpc_key_configure_registry(ngx_conf_t *cf)
+brix_tpc_key_configure_registry(ngx_conf_t *cf)
 {
-    ngx_str_t  zone_name = ngx_string("xrootd_tpc_keys");
+    ngx_str_t  zone_name = ngx_string("brix_tpc_keys");
     size_t     zone_size;
 
-    zone_size = xrootd_shm_zone_size(sizeof(xrootd_tpc_key_table_t));
-    xrootd_tpc_key_shm_zone = ngx_shared_memory_add(cf, &zone_name,
+    zone_size = brix_shm_zone_size(sizeof(brix_tpc_key_table_t));
+    brix_tpc_key_shm_zone = ngx_shared_memory_add(cf, &zone_name,
                                                       zone_size,
-                                                      &ngx_stream_xrootd_module);
-    if (xrootd_tpc_key_shm_zone == NULL) {
+                                                      &ngx_stream_brix_module);
+    if (brix_tpc_key_shm_zone == NULL) {
         return NGX_ERROR;
     }
 
-    xrootd_tpc_key_shm_zone->init = xrootd_tpc_key_shm_init_zone;
-    xrootd_tpc_key_shm_zone->data = (void *) 1;
+    brix_tpc_key_shm_zone->init = brix_tpc_key_shm_init_zone;
+    brix_tpc_key_shm_zone->data = (void *) 1;
 
     return NGX_OK;
 }
@@ -148,7 +148,7 @@ xrootd_tpc_key_configure_registry(ngx_conf_t *cf)
  *       atomics (every nginx function runs single-threaded in the event loop) while still
  *       guaranteeing uniqueness across all workers and all transfers. */
 void
-xrootd_tpc_generate_key(char *buf, size_t buf_sz)
+brix_tpc_generate_key(char *buf, size_t buf_sz)
 {
     /* Unique per process (pid) × per call (seq).  No atomics needed —
      * this is always called from the single-threaded event loop. */
@@ -169,10 +169,10 @@ xrootd_tpc_generate_key(char *buf, size_t buf_sz)
  *       completes (or fails). The TTL mechanism prevents stale keys from accumulating in the
  *       registry indefinitely while allowing concurrent transfers to coexist without collisions. */
 void
-xrootd_tpc_key_register(const char *key, ngx_msec_t ttl_ms)
+brix_tpc_key_register(const char *key, ngx_msec_t ttl_ms)
 {
-    xrootd_tpc_key_table_t *tbl;
-    xrootd_tpc_key_entry_t *e;
+    brix_tpc_key_table_t *tbl;
+    brix_tpc_key_entry_t *e;
     ngx_uint_t               i, free_slot;
     ngx_msec_t               now;
 
@@ -183,15 +183,15 @@ xrootd_tpc_key_register(const char *key, ngx_msec_t ttl_ms)
 
     now = ngx_current_msec;
 
-    ngx_shmtx_lock(&xrootd_tpc_key_mutex);
+    ngx_shmtx_lock(&brix_tpc_key_mutex);
 
-    free_slot = XROOTD_TPC_KEY_SLOTS;
-    for (i = 0; i < XROOTD_TPC_KEY_SLOTS; i++) {
+    free_slot = BRIX_TPC_KEY_SLOTS;
+    for (i = 0; i < BRIX_TPC_KEY_SLOTS; i++) {
         e = &tbl->slots[i];
-        if (!e->in_use || xrootd_shm_slot_expired(now, e->expiry)) {
-            xrootd_shm_remember_free_slot(&free_slot, XROOTD_TPC_KEY_SLOTS,
+        if (!e->in_use || brix_shm_slot_expired(now, e->expiry)) {
+            brix_shm_remember_free_slot(&free_slot, BRIX_TPC_KEY_SLOTS,
                                           i);
-            if (e->in_use && xrootd_shm_slot_expired(now, e->expiry)) {
+            if (e->in_use && brix_shm_slot_expired(now, e->expiry)) {
                 ngx_memzero(e, sizeof(*e));
             }
             continue;
@@ -199,12 +199,12 @@ xrootd_tpc_key_register(const char *key, ngx_msec_t ttl_ms)
         if (tpc_key_eq(e->key, key)) {
             /* refresh expiry */
             e->expiry = now + ttl_ms;
-            ngx_shmtx_unlock(&xrootd_tpc_key_mutex);
+            ngx_shmtx_unlock(&brix_tpc_key_mutex);
             return;
         }
     }
 
-    if (free_slot < XROOTD_TPC_KEY_SLOTS) {
+    if (free_slot < BRIX_TPC_KEY_SLOTS) {
         e = &tbl->slots[free_slot];
         ngx_memzero(e, sizeof(*e));
         ngx_cpystrn((u_char *) e->key, (u_char *) key, sizeof(e->key));
@@ -212,7 +212,7 @@ xrootd_tpc_key_register(const char *key, ngx_msec_t ttl_ms)
         e->in_use = 1;
     }
 
-    ngx_shmtx_unlock(&xrootd_tpc_key_mutex);
+    ngx_shmtx_unlock(&brix_tpc_key_mutex);
 }
 
 /*
@@ -225,10 +225,10 @@ xrootd_tpc_key_register(const char *key, ngx_msec_t ttl_ms)
  *       before attempting to connect to fetch the file. This prevents connections to stale transfers
  *       or transfers whose source worker has already finished and cleaned up. */
 int
-xrootd_tpc_key_validate(const char *key)
+brix_tpc_key_validate(const char *key)
 {
-    xrootd_tpc_key_table_t *tbl;
-    xrootd_tpc_key_entry_t *e;
+    brix_tpc_key_table_t *tbl;
+    brix_tpc_key_entry_t *e;
     ngx_uint_t               i;
     ngx_msec_t               now;
     int                      found = 0;
@@ -240,14 +240,14 @@ xrootd_tpc_key_validate(const char *key)
 
     now = ngx_current_msec;
 
-    ngx_shmtx_lock(&xrootd_tpc_key_mutex);
+    ngx_shmtx_lock(&brix_tpc_key_mutex);
 
-    for (i = 0; i < XROOTD_TPC_KEY_SLOTS; i++) {
+    for (i = 0; i < BRIX_TPC_KEY_SLOTS; i++) {
         e = &tbl->slots[i];
         if (!e->in_use) {
             continue;
         }
-        if (xrootd_shm_slot_expired(now, e->expiry)) {
+        if (brix_shm_slot_expired(now, e->expiry)) {
             ngx_memzero(e, sizeof(*e));
             continue;
         }
@@ -257,7 +257,7 @@ xrootd_tpc_key_validate(const char *key)
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_tpc_key_mutex);
+    ngx_shmtx_unlock(&brix_tpc_key_mutex);
     return found;
 }
 
@@ -272,10 +272,10 @@ xrootd_tpc_key_validate(const char *key)
  *       fetched data, the key must be consumed to prevent replay attacks or stale connections from
  *       reusing old rendezvous identifiers against new transfers. */
 int
-xrootd_tpc_key_consume(const char *key)
+brix_tpc_key_consume(const char *key)
 {
-    xrootd_tpc_key_table_t *tbl;
-    xrootd_tpc_key_entry_t *e;
+    brix_tpc_key_table_t *tbl;
+    brix_tpc_key_entry_t *e;
     ngx_uint_t               i;
     ngx_msec_t               now;
     int                      found = 0;
@@ -287,14 +287,14 @@ xrootd_tpc_key_consume(const char *key)
 
     now = ngx_current_msec;
 
-    ngx_shmtx_lock(&xrootd_tpc_key_mutex);
+    ngx_shmtx_lock(&brix_tpc_key_mutex);
 
-    for (i = 0; i < XROOTD_TPC_KEY_SLOTS; i++) {
+    for (i = 0; i < BRIX_TPC_KEY_SLOTS; i++) {
         e = &tbl->slots[i];
         if (!e->in_use) {
             continue;
         }
-        if (xrootd_shm_slot_expired(now, e->expiry)) {
+        if (brix_shm_slot_expired(now, e->expiry)) {
             ngx_memzero(e, sizeof(*e));
             continue;
         }
@@ -305,7 +305,7 @@ xrootd_tpc_key_consume(const char *key)
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_tpc_key_mutex);
+    ngx_shmtx_unlock(&brix_tpc_key_mutex);
     return found;
 }
 
@@ -319,10 +319,10 @@ xrootd_tpc_key_consume(const char *key)
  *       fails mid-flight and operators want to force-remove the rendezvous key rather than waiting for
  *       TTL expiration. Also helps during shutdown or configuration reload scenarios. */
 void
-xrootd_tpc_key_remove(const char *key)
+brix_tpc_key_remove(const char *key)
 {
-    xrootd_tpc_key_table_t *tbl;
-    xrootd_tpc_key_entry_t *e;
+    brix_tpc_key_table_t *tbl;
+    brix_tpc_key_entry_t *e;
     ngx_uint_t               i;
 
     tbl = key_table();
@@ -330,9 +330,9 @@ xrootd_tpc_key_remove(const char *key)
         return;
     }
 
-    ngx_shmtx_lock(&xrootd_tpc_key_mutex);
+    ngx_shmtx_lock(&brix_tpc_key_mutex);
 
-    for (i = 0; i < XROOTD_TPC_KEY_SLOTS; i++) {
+    for (i = 0; i < BRIX_TPC_KEY_SLOTS; i++) {
         e = &tbl->slots[i];
         if (e->in_use && tpc_key_eq(e->key, key)) {
             ngx_memzero(e, sizeof(*e));
@@ -340,5 +340,5 @@ xrootd_tpc_key_remove(const char *key)
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_tpc_key_mutex);
+    ngx_shmtx_unlock(&brix_tpc_key_mutex);
 }

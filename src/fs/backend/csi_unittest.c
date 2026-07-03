@@ -50,7 +50,7 @@ main(void)
     char dir[] = "/tmp/csi_ut.XXXXXX";
     char path[4400];
     unsigned char data[3 * G];   /* 3 full blocks */
-    xrootd_csi_t w, r;
+    brix_csi_t w, r;
     size_t i;
 
     if (mkdtemp(dir) == NULL) {
@@ -64,66 +64,66 @@ main(void)
     write_file(path, data, sizeof(data));
 
     /* ---- write handle: fold + flush creates the record ---- */
-    CHECK(xrootd_csi_open(&w, path, G, 1) == XROOTD_CSI_OK, "write open");
-    CHECK(xrootd_csi_write_update(&w, data, 0, sizeof(data)) == XROOTD_CSI_OK,
+    CHECK(brix_csi_open(&w, path, G, 1) == BRIX_CSI_OK, "write open");
+    CHECK(brix_csi_write_update(&w, data, 0, sizeof(data)) == BRIX_CSI_OK,
           "fold 3 aligned blocks");
-    CHECK(xrootd_csi_flush(&w) == XROOTD_CSI_OK, "flush writes the record");
-    xrootd_csi_close(&w);
+    CHECK(brix_csi_flush(&w) == BRIX_CSI_OK, "flush writes the record");
+    brix_csi_close(&w);
 
     /* the record is the file's own xmeta (xattr or sidecar) */
     {
-        xrootd_xmeta_t xm;
+        brix_xmeta_t xm;
 
-        CHECK(xrootd_xmeta_path_load(path, &xm) == XROOTD_XMETA_OK
+        CHECK(brix_xmeta_path_load(path, &xm) == BRIX_XMETA_OK
               && xm.have_blockcrc && xm.blockcrc != NULL
               && xm.buffer_size == (int64_t) G && xm.nblocks == 3
               && xm.blockcrc[0] != 0 && xm.blockcrc[1] != 0
               && xm.blockcrc[2] != 0,
               "record holds 3 computed block CRCs");
         CHECK(xm.no_cksum_time == 0, "fully tagged: no_cksum_time clear");
-        xrootd_xmeta_free(&xm);
+        brix_xmeta_free(&xm);
     }
 
     /* ---- read handle: verify clean / corrupt / restored ---- */
-    CHECK(xrootd_csi_open(&r, path, G, 0) == XROOTD_CSI_OK,
+    CHECK(brix_csi_open(&r, path, G, 0) == BRIX_CSI_OK,
           "read open sees a verifiable record");
-    CHECK(xrootd_csi_verify_read(&r, data, 0, sizeof(data)) == XROOTD_CSI_OK,
+    CHECK(brix_csi_verify_read(&r, data, 0, sizeof(data)) == BRIX_CSI_OK,
           "verify clean data passes");
 
     data[G + 10] ^= 0xFF;   /* corrupt block 1 */
-    CHECK(xrootd_csi_verify_read(&r, data, 0, sizeof(data))
-              == XROOTD_CSI_MISMATCH, "corrupt block detected");
-    CHECK(xrootd_csi_verify_read(&r, data, 0, G) == XROOTD_CSI_OK,
+    CHECK(brix_csi_verify_read(&r, data, 0, sizeof(data))
+              == BRIX_CSI_MISMATCH, "corrupt block detected");
+    CHECK(brix_csi_verify_read(&r, data, 0, G) == BRIX_CSI_OK,
           "read not spanning the bad block passes");
-    CHECK(xrootd_csi_verify_read(&r, data + G, G, G)
-              == XROOTD_CSI_MISMATCH, "exact bad-block read fails");
+    CHECK(brix_csi_verify_read(&r, data + G, G, G)
+              == BRIX_CSI_MISMATCH, "exact bad-block read fails");
     /* a read only PARTIALLY covering the bad block skips it (hot-path rule) */
-    CHECK(xrootd_csi_verify_read(&r, data + G, G, G / 2) == XROOTD_CSI_OK,
+    CHECK(brix_csi_verify_read(&r, data + G, G, G / 2) == BRIX_CSI_OK,
           "partial-edge block is not verified");
 
     /* trust_fs bypass */
     r.trust_fs = 1;
-    CHECK(xrootd_csi_verify_read(&r, data, 0, sizeof(data)) == XROOTD_CSI_OK,
+    CHECK(brix_csi_verify_read(&r, data, 0, sizeof(data)) == BRIX_CSI_OK,
           "trust_fs skips verify on corrupt block");
     r.trust_fs = 0;
 
     data[G + 10] ^= 0xFF;   /* restore */
-    CHECK(xrootd_csi_verify_read(&r, data, 0, sizeof(data)) == XROOTD_CSI_OK,
+    CHECK(brix_csi_verify_read(&r, data, 0, sizeof(data)) == BRIX_CSI_OK,
           "restored data verifies");
-    xrootd_csi_close(&r);
+    brix_csi_close(&r);
 
     /* ---- unaligned write: edge blocks recomputed at flush ---- */
     memset(data + 100, 0x5A, G);          /* mutate an unaligned window */
     write_file(path, data, sizeof(data));
-    CHECK(xrootd_csi_open(&w, path, G, 1) == XROOTD_CSI_OK, "reopen write");
-    CHECK(xrootd_csi_write_update(&w, data + 100, 100, G) == XROOTD_CSI_OK,
+    CHECK(brix_csi_open(&w, path, G, 1) == BRIX_CSI_OK, "reopen write");
+    CHECK(brix_csi_write_update(&w, data + 100, 100, G) == BRIX_CSI_OK,
           "fold unaligned write (no full block covered)");
-    CHECK(xrootd_csi_flush(&w) == XROOTD_CSI_OK, "flush recomputes edges");
-    xrootd_csi_close(&w);
-    CHECK(xrootd_csi_open(&r, path, G, 0) == XROOTD_CSI_OK, "read reopen");
-    CHECK(xrootd_csi_verify_read(&r, data, 0, sizeof(data)) == XROOTD_CSI_OK,
+    CHECK(brix_csi_flush(&w) == BRIX_CSI_OK, "flush recomputes edges");
+    brix_csi_close(&w);
+    CHECK(brix_csi_open(&r, path, G, 0) == BRIX_CSI_OK, "read reopen");
+    CHECK(brix_csi_verify_read(&r, data, 0, sizeof(data)) == BRIX_CSI_OK,
           "post-unaligned-write data verifies");
-    xrootd_csi_close(&r);
+    brix_csi_close(&r);
 
     /* ---- growth: flush re-geometries the record ---- */
     {
@@ -132,33 +132,33 @@ main(void)
         memcpy(big, data, sizeof(data));
         memset(big + 3 * G, 0xA5, 2 * G);
         write_file(path, big, 5 * G);
-        xrootd_csi_open(&w, path, G, 1);
-        xrootd_csi_write_update(&w, big + 3 * G, 3 * G, 2 * G);
-        CHECK(xrootd_csi_flush(&w) == XROOTD_CSI_OK, "flush after growth");
-        xrootd_csi_close(&w);
+        brix_csi_open(&w, path, G, 1);
+        brix_csi_write_update(&w, big + 3 * G, 3 * G, 2 * G);
+        CHECK(brix_csi_flush(&w) == BRIX_CSI_OK, "flush after growth");
+        brix_csi_close(&w);
         {
-            xrootd_xmeta_t xm;
+            brix_xmeta_t xm;
 
-            CHECK(xrootd_xmeta_path_load(path, &xm) == XROOTD_XMETA_OK
+            CHECK(brix_xmeta_path_load(path, &xm) == BRIX_XMETA_OK
                   && xm.nblocks == 5 && xm.file_size == 5 * G,
                   "record re-geometried to 5 blocks");
-            xrootd_xmeta_free(&xm);
+            brix_xmeta_free(&xm);
         }
-        CHECK(xrootd_csi_open(&r, path, G, 0) == XROOTD_CSI_OK, "read grown");
-        CHECK(xrootd_csi_verify_read(&r, big, 0, 5 * G) == XROOTD_CSI_OK,
+        CHECK(brix_csi_open(&r, path, G, 0) == BRIX_CSI_OK, "read grown");
+        CHECK(brix_csi_verify_read(&r, big, 0, 5 * G) == BRIX_CSI_OK,
               "grown file verifies end-to-end");
-        xrootd_csi_close(&r);
+        brix_csi_close(&r);
         free(big);
     }
 
     /* ---- no record: read open reports NOTAGS ---- */
     {
         char p2[4400];
-        xrootd_csi_t n;
+        brix_csi_t n;
 
         snprintf(p2, sizeof(p2), "%s/naked.bin", dir);
         write_file(p2, data, G);
-        CHECK(xrootd_csi_open(&n, p2, G, 0) == XROOTD_CSI_NOTAGS,
+        CHECK(brix_csi_open(&n, p2, G, 0) == BRIX_CSI_NOTAGS,
               "unrecorded file reads as NOTAGS (csi_require gate)");
     }
 

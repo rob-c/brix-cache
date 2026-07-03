@@ -4,20 +4,20 @@
  * create_srv_conf() allocates one srv_conf per server block with every field at
  * an NGX_CONF_UNSET sentinel (or NULL), so the merge step can tell an omitted
  * directive from one explicitly set. merge_srv_conf() applies nginx parent→child
- * inheritance (ngx_conf_merge_* for scalars, xrootd_merge_arrays() for the
+ * inheritance (ngx_conf_merge_* for scalars, brix_merge_arrays() for the
  * VO/group/manager-map rule sets), split into one helper per config area below.
  * enable() handles "xrootd on|off;", swapping in our session handler when on.
  */
 
 #include "config.h"
-#include "core/compat/af_policy.h"      /* XROOTD_AF_AUTO default for origin family */
-#include "fs/cache/verify.h"          /* xrootd_cache_verify_mode_e default */
+#include "core/compat/af_policy.h"      /* BRIX_AF_AUTO default for origin family */
+#include "fs/cache/verify.h"          /* brix_cache_verify_mode_e default */
 #include "net/ratelimit/ratelimit.h"   /* phase-59 W3a: throttle zone lookup */
 #include "net/cms/cns.h"               /* §6 CNS mode enum */
 #include "tpc/engine/key_registry.h"
 #include "tpc/common/registry.h"   /* Phase 39 (WS5): registry reaper max-age */
-#include "protocols/root/session/registry.h"   /* XROOTD_SESSION_REGISTRY_SLOTS default */
-#include "net/manager/health_check.h" /* XROOTD_HC_TYPE_PING default */
+#include "protocols/root/session/registry.h"   /* BRIX_SESSION_REGISTRY_SLOTS default */
+#include "net/manager/health_check.h" /* BRIX_HC_TYPE_PING default */
 #include "net/manager/registry.h"     /* Phase 39 (WS7): srv staleness setter */
 
 /*
@@ -27,9 +27,9 @@
  * explicitly configured values.
  */
 void *
-ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
+ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
 {
-    ngx_stream_xrootd_srv_conf_t *conf;
+    ngx_stream_brix_srv_conf_t *conf;
 
     /*
      * nginx allocates one per-server config object during parsing and then
@@ -37,7 +37,7 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
      * "unset" or NULL state so the merge step can tell whether a directive
      * was omitted or configured intentionally.
      */
-    conf = ngx_pcalloc(cf->pool, sizeof(ngx_stream_xrootd_srv_conf_t));
+    conf = ngx_pcalloc(cf->pool, sizeof(ngx_stream_brix_srv_conf_t));
     if (conf == NULL) {
         return NULL;
     }
@@ -79,10 +79,10 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->csi_trust_fs    = NGX_CONF_UNSET;
     conf->throttle_max_open_files  = NGX_CONF_UNSET_UINT;
     conf->throttle_max_active_conn = NGX_CONF_UNSET_UINT;
-    xrootd_pmark_conf_init(&conf->common.pmark);  /* SciTags packet marking */
+    brix_pmark_conf_init(&conf->common.pmark);  /* SciTags packet marking */
     conf->prepare_command.len  = 0;
     conf->prepare_command.data = NULL;
-    xrootd_frm_conf_init(&conf->frm);   /* Phase 35: FRM tape staging */
+    brix_frm_conf_init(&conf->frm);   /* Phase 35: FRM tape staging */
     conf->crl_reload   = NGX_CONF_UNSET;
     conf->gsi_cert     = NULL;
     conf->gsi_key      = NULL;
@@ -129,7 +129,7 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->cache_wt_stage_block_size = NGX_CONF_UNSET_SIZE;
     conf->cache_wt_stage_high_watermark = NGX_CONF_UNSET_UINT;
     conf->cache_wt_stage_low_watermark  = NGX_CONF_UNSET_UINT;
-    /* O_PATH rootfds: -1 until xrootd_cache_storage_init (pcalloc's 0 == stdin). */
+    /* O_PATH rootfds: -1 until brix_cache_storage_init (pcalloc's 0 == stdin). */
     conf->cache_rootfd             = -1;
     conf->cache_state_rootfd       = -1;
     conf->cache_wt_stage_rootfd    = -1;
@@ -140,7 +140,7 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->cache_advertise          = NGX_CONF_UNSET;
     conf->cache_advertise_interval = NGX_CONF_UNSET_MSEC;
     conf->wt_enable                = NGX_CONF_UNSET;
-    conf->wt_mode                  = XROOTD_WT_MODE_UNSET;
+    conf->wt_mode                  = BRIX_WT_MODE_UNSET;
     conf->wt_origin_port           = 0;
     conf->wt_deny_prefixes         = NULL;
     conf->wt_allow_prefixes        = NULL;
@@ -217,7 +217,7 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
     conf->sss_lifetime      = NGX_CONF_UNSET;
     conf->sss_keys          = NULL;
     conf->krb5_ip_check     = NGX_CONF_UNSET;
-#if (XROOTD_HAVE_KRB5)
+#if (BRIX_HAVE_KRB5)
     conf->krb5_context       = NULL;
     conf->krb5_keytab_obj    = NULL;
     conf->krb5_principal_obj = NULL;
@@ -302,8 +302,8 @@ ngx_stream_xrootd_create_srv_conf(ngx_conf_t *cf)
  * validation), SciTags/FRM, X.509 material + CRL, access log, tokens + L1/L2
  * caches, sss/krb5/unix/host, security level, and TLS toggles. */
 static char *
-xrootd_merge_srv_security(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
-    ngx_stream_xrootd_srv_conf_t *prev)
+brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
 {
     /*
      * Standard nginx inheritance rules: values set on the current server
@@ -312,14 +312,14 @@ xrootd_merge_srv_security(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
      */
     ngx_conf_merge_value(conf->common.enable,      prev->common.enable,      0);
     ngx_conf_merge_str_value(conf->common.root,    prev->common.root,        "/");
-    ngx_conf_merge_uint_value(conf->auth,   prev->auth,        XROOTD_AUTH_NONE);
+    ngx_conf_merge_uint_value(conf->auth,   prev->auth,        BRIX_AUTH_NONE);
     ngx_conf_merge_uint_value(conf->gsi_signed_dh, prev->gsi_signed_dh,
-                              XROOTD_GSI_SDH_OFF);
+                              BRIX_GSI_SDH_OFF);
     ngx_conf_merge_value(conf->gsi_max_inflight, prev->gsi_max_inflight, 256);
     ngx_conf_merge_uint_value(conf->gsi_keypool_size, prev->gsi_keypool_size,
-                              XROOTD_GSI_KEYPOOL_SIZE_DEFAULT);
+                              BRIX_GSI_KEYPOOL_SIZE_DEFAULT);
     ngx_conf_merge_uint_value(conf->gsi_keypool_seed, prev->gsi_keypool_seed,
-                              XROOTD_GSI_KEYPOOL_SEED_DEFAULT);
+                              BRIX_GSI_KEYPOOL_SEED_DEFAULT);
     ngx_conf_merge_str_value(conf->gsi_ciphers, prev->gsi_ciphers, "");
     ngx_conf_merge_str_value(conf->pwd_file, prev->pwd_file, "");
     ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
@@ -327,9 +327,9 @@ xrootd_merge_srv_security(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
 
     /* XrdAcc engine: default native, audit off, refresh off, 12h gid cache. */
     ngx_conf_merge_uint_value(conf->acc_format, prev->acc_format,
-                              XROOTD_AUTHDB_FORMAT_NATIVE);
+                              BRIX_AUTHDB_FORMAT_NATIVE);
     ngx_conf_merge_uint_value(conf->acc_audit, prev->acc_audit,
-                              XROOTD_AUTHDB_AUDIT_NONE);
+                              BRIX_AUTHDB_AUDIT_NONE);
     ngx_conf_merge_value(conf->acc_refresh, prev->acc_refresh, 0);
     ngx_conf_merge_value(conf->acc_gidlifetime, prev->acc_gidlifetime, 43200);
     ngx_conf_merge_value(conf->acc_pgo, prev->acc_pgo, 0);
@@ -345,23 +345,23 @@ xrootd_merge_srv_security(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
      * exempt.  Validated here, where both directives have settled.
      */
     if (conf->authdb.len > 0
-        && conf->acc_format == XROOTD_AUTHDB_FORMAT_NATIVE
-        && conf->auth != XROOTD_AUTH_GSI && conf->auth != XROOTD_AUTH_TOKEN
-        && conf->auth != (XROOTD_AUTH_GSI | XROOTD_AUTH_TOKEN))
+        && conf->acc_format == BRIX_AUTHDB_FORMAT_NATIVE
+        && conf->auth != BRIX_AUTH_GSI && conf->auth != BRIX_AUTH_TOKEN
+        && conf->auth != (BRIX_AUTH_GSI | BRIX_AUTH_TOKEN))
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_authdb (native format) requires xrootd_auth gsi, token "
-            "or both; use `xrootd_authdb_format xrdacc` for anonymous rules");
+            "brix_authdb (native format) requires brix_auth gsi, token "
+            "or both; use `brix_authdb_format xrdacc` for anonymous rules");
         return NGX_CONF_ERROR;
     }
 
-    if (xrootd_pmark_conf_merge(cf, &prev->common.pmark, &conf->common.pmark)
+    if (brix_pmark_conf_merge(cf, &prev->common.pmark, &conf->common.pmark)
         != NGX_CONF_OK)
     {
         return NGX_CONF_ERROR;
     }
     ngx_conf_merge_str_value(conf->prepare_command, prev->prepare_command, "");
-    if (xrootd_frm_conf_merge(cf, &conf->frm, &prev->frm, &conf->prepare_command)
+    if (brix_frm_conf_merge(cf, &conf->frm, &prev->frm, &conf->prepare_command)
         != NGX_CONF_OK)
     {
         return NGX_CONF_ERROR;
@@ -391,13 +391,13 @@ xrootd_merge_srv_security(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
                               prev->throttle_max_active_conn, 0);
 
     /* phase-59 W3a: resolve the named rate-limit zone the throttle keys its
-     * per-user counters into (declared via xrootd_rate_limit_zone). */
+     * per-user counters into (declared via brix_rate_limit_zone). */
     if (conf->throttle_zone == NULL && conf->throttle_zone_name.len > 0) {
-        conf->throttle_zone = xrootd_rl_zone_get(&conf->throttle_zone_name);
+        conf->throttle_zone = brix_rl_zone_get(&conf->throttle_zone_name);
         if (conf->throttle_zone == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_throttle_zone \"%V\" is not a declared "
-                "xrootd_rate_limit_zone", &conf->throttle_zone_name);
+                "brix_throttle_zone \"%V\" is not a declared "
+                "brix_rate_limit_zone", &conf->throttle_zone_name);
             return NGX_CONF_ERROR;
         }
     }
@@ -441,8 +441,8 @@ xrootd_merge_srv_security(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
  * sizing, eviction, slice validation, include-regex inheritance), the memory
  * budget, readv segment sizing, and the io_uring backend. */
 static char *
-xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
-    ngx_stream_xrootd_srv_conf_t *prev)
+brix_merge_srv_storage(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
 {
     /* Storage backend selection (default POSIX) + pblock stripe size. */
     ngx_conf_merge_str_value(conf->common.storage_backend,
@@ -481,13 +481,13 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
 
     /* §6.5: the tier slice size must be 0 (off) or a positive multiple of the
      * 1 MiB cinfo block granule (so a partial fill never records a mis-aligned
-     * block) — the same rule the legacy xrootd_cache_slice enforced. */
+     * block) — the same rule the legacy brix_cache_slice enforced. */
     if (conf->common.cache_slice_size != 0
         && (conf->common.cache_slice_size < (1024 * 1024)
             || (conf->common.cache_slice_size % (1024 * 1024)) != 0))
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_cache_slice_size must be a positive multiple of 1m");
+            "brix_cache_slice_size must be a positive multiple of 1m");
         return NGX_CONF_ERROR;
     }
 
@@ -531,7 +531,7 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_str_value(conf->cache_origin, prev->cache_origin,   "");
     ngx_conf_merge_value(conf->cache_origin_tls, prev->cache_origin_tls, 0);
     ngx_conf_merge_uint_value(conf->cache_origin_family,
-                              prev->cache_origin_family, XROOTD_AF_AUTO);
+                              prev->cache_origin_family, BRIX_AF_AUTO);
     ngx_conf_merge_value(conf->cache_lock_timeout,
                          prev->cache_lock_timeout, 300);
     ngx_conf_merge_uint_value(conf->cache_eviction_threshold,
@@ -558,16 +558,16 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     /* Default = stock XRootD maxReadv_ior = maxBuffsz(2 MiB) - sizeof(readahead_list). */
     ngx_conf_merge_size_value(conf->readv_segment_size,
                               prev->readv_segment_size,
-                              (size_t) (2 * 1024 * 1024) - XROOTD_READV_SEGSIZE);
+                              (size_t) (2 * 1024 * 1024) - BRIX_READV_SEGSIZE);
 
     /* Phase 44: optional io_uring backend.  Default mode AUTO (enable iff the
      * runtime probe passes, else silent thread-pool fallback); restrictions on;
      * admin endpoint off; panic-file unset. */
     ngx_conf_merge_uint_value(conf->io_uring,
-                              prev->io_uring, XROOTD_IO_URING_AUTO);
+                              prev->io_uring, BRIX_IO_URING_AUTO);
     ngx_conf_merge_value(conf->io_uring_queue_depth,
                          prev->io_uring_queue_depth,
-                         XROOTD_IO_URING_QUEUE_DEPTH);
+                         BRIX_IO_URING_QUEUE_DEPTH);
     ngx_conf_merge_str_value(conf->io_uring_panic_file,
                              prev->io_uring_panic_file, "");
     ngx_conf_merge_value(conf->io_uring_admin, prev->io_uring_admin, 0);
@@ -577,7 +577,7 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     /* Checksum-on-fill: default best-effort (verify when a digest is available,
      * fail-closed on mismatch). Operators opt down to off or up to require. */
     ngx_conf_merge_uint_value(conf->cache_verify, prev->cache_verify,
-                              XROOTD_CACHE_VERIFY_BESTEFFORT);
+                              BRIX_CACHE_VERIFY_BESTEFFORT);
     ngx_conf_merge_str_value(conf->cache_verify_digest,
                              prev->cache_verify_digest, "");
 
@@ -612,27 +612,27 @@ xrootd_merge_srv_storage(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
 /* Third-party copy (TPC): local/private allowances, key TTL, transfer caps and
  * the abandoned-slot reaper age, and the outbound OAuth2/bearer credentials. */
 static void
-xrootd_merge_srv_tpc(ngx_stream_xrootd_srv_conf_t *conf,
-    ngx_stream_xrootd_srv_conf_t *prev)
+brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
 {
     ngx_conf_merge_value(conf->tpc_allow_local,   prev->tpc_allow_local,   0);
     ngx_conf_merge_value(conf->tpc_allow_private, prev->tpc_allow_private, 1);
     ngx_conf_merge_value(conf->ssi_enable,        prev->ssi_enable,        0);
     ngx_conf_merge_value(conf->ssi_cta_enable,    prev->ssi_cta_enable,    0);
-    /* defaults mirror XROOTD_SSI_MAX_INFLIGHT (8) and the 1 MiB req/resp caps. */
+    /* defaults mirror BRIX_SSI_MAX_INFLIGHT (8) and the 1 MiB req/resp caps. */
     ngx_conf_merge_uint_value(conf->ssi_max_inflight, prev->ssi_max_inflight, 8);
     ngx_conf_merge_size_value(conf->ssi_request_max,  prev->ssi_request_max,  1u << 20);
     ngx_conf_merge_size_value(conf->ssi_response_max, prev->ssi_response_max, 1u << 20);
     ngx_conf_merge_str_value(conf->ssi_cta_journal,   prev->ssi_cta_journal,  "");
     ngx_conf_merge_uint_value(conf->ssi_cta_executor, prev->ssi_cta_executor, 0);
-    ngx_conf_merge_uint_value(conf->cns_mode,     prev->cns_mode,          XROOTD_CNS_OFF);
-    if (conf->cns_mode == XROOTD_CNS_COLLECT) {
-        xrootd_cns_set_collect(1);   /* §6: this node maintains the CNS inventory */
+    ngx_conf_merge_uint_value(conf->cns_mode,     prev->cns_mode,          BRIX_CNS_OFF);
+    if (conf->cns_mode == BRIX_CNS_COLLECT) {
+        brix_cns_set_collect(1);   /* §6: this node maintains the CNS inventory */
     }
     ngx_conf_merge_value(conf->tpc_outbound_tls,  prev->tpc_outbound_tls,  0);
     ngx_conf_merge_value(conf->tpc_delegate,      prev->tpc_delegate,      0);
     ngx_conf_merge_msec_value(conf->tpc_key_ttl_ms, prev->tpc_key_ttl_ms,
-                              XROOTD_TPC_KEY_TTL_MS);
+                              BRIX_TPC_KEY_TTL_MS);
     /* Phase 51 (B2): default native-TPC absolute wall-clock cap to a generous
      * 24h so a wedged transfer cannot pin a thread-pool worker forever; 0 still
      * means unlimited (back-compat).  Progress-based stall detection (the curl
@@ -646,7 +646,7 @@ xrootd_merge_srv_tpc(ngx_stream_xrootd_srv_conf_t *conf,
      * registry (config-time, before fork).  Guarded so a 0-default block does not
      * disable a sibling block that enabled it. */
     if (conf->tpc_transfer_max_age > 0) {
-        xrootd_tpc_registry_set_max_age((time_t) conf->tpc_transfer_max_age);
+        brix_tpc_registry_set_max_age((time_t) conf->tpc_transfer_max_age);
     }
     ngx_conf_merge_str_value(conf->tpc_outbound_bearer_file,
                              prev->tpc_outbound_bearer_file, "");
@@ -665,8 +665,8 @@ xrootd_merge_srv_tpc(ngx_stream_xrootd_srv_conf_t *conf,
  * the CMS client (+ resilience-timeout derivation), listen port, checksum-scan
  * limits, and the VO/group/manager-map rule arrays + redirector inheritance. */
 static char *
-xrootd_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
-    ngx_stream_xrootd_srv_conf_t *prev)
+brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
 {
     ngx_array_t *child_vo_rules;
     ngx_array_t *child_group_rules;
@@ -679,24 +679,24 @@ xrootd_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_msec_value(conf->collapse_redir_ttl, prev->collapse_redir_ttl, 30000);
     ngx_conf_merge_value(conf->recover_writes,       prev->recover_writes,       0);
     /* Uploads are staged + resumable by DEFAULT (atomic commit-on-close, resume
-     * across a restart).  Set xrootd_upload_resume off to opt out. */
+     * across a restart).  Set brix_upload_resume off to opt out. */
     ngx_conf_merge_value(conf->upload_resume,        prev->upload_resume,        1);
     ngx_conf_merge_str_value(conf->upload_stage_dir, prev->upload_stage_dir,     "");
     ngx_conf_merge_uint_value(conf->pipeline_depth,  prev->pipeline_depth,
-                              XROOTD_PIPELINE_DEPTH_DEFAULT);
+                              BRIX_PIPELINE_DEPTH_DEFAULT);
     /* Clamp the in-flight pipeline window to a sane range: >=1 (the recv loop and
      * ring arithmetic require a positive modulus) and <=MAX (bounds per-connection
      * out_ring/rd_pool memory). */
-    if (conf->pipeline_depth < XROOTD_PIPELINE_DEPTH_MIN) {
-        conf->pipeline_depth = XROOTD_PIPELINE_DEPTH_MIN;
-    } else if (conf->pipeline_depth > XROOTD_PIPELINE_DEPTH_MAX) {
-        conf->pipeline_depth = XROOTD_PIPELINE_DEPTH_MAX;
+    if (conf->pipeline_depth < BRIX_PIPELINE_DEPTH_MIN) {
+        conf->pipeline_depth = BRIX_PIPELINE_DEPTH_MIN;
+    } else if (conf->pipeline_depth > BRIX_PIPELINE_DEPTH_MAX) {
+        conf->pipeline_depth = BRIX_PIPELINE_DEPTH_MAX;
     }
     ngx_conf_merge_uint_value(conf->registry_slots,  prev->registry_slots,  128);
     ngx_conf_merge_uint_value(conf->session_slots,   prev->session_slots,
-                              XROOTD_SESSION_REGISTRY_SLOTS);
+                              BRIX_SESSION_REGISTRY_SLOTS);
     /* Left UNSET when unconfigured; postconfiguration treats UNSET as
-     * "use the compile-time default" (XROOTD_REDIR_CACHE_SLOTS). */
+     * "use the compile-time default" (BRIX_REDIR_CACHE_SLOTS). */
     ngx_conf_merge_uint_value(conf->redir_cache_slots, prev->redir_cache_slots,
                               NGX_CONF_UNSET_UINT);
 
@@ -706,7 +706,7 @@ xrootd_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_msec_value(conf->hc_timeout_ms,   prev->hc_timeout_ms,    5000);
     ngx_conf_merge_uint_value(conf->hc_threshold,    prev->hc_threshold,        3);
     ngx_conf_merge_msec_value(conf->hc_blacklist_ms, prev->hc_blacklist_ms, 60000);
-    ngx_conf_merge_uint_value(conf->hc_type, prev->hc_type, XROOTD_HC_TYPE_PING);
+    ngx_conf_merge_uint_value(conf->hc_type, prev->hc_type, BRIX_HC_TYPE_PING);
 
     /* Phase 24: traffic mirror — inherit parent targets if none set locally,
      * then derive `enabled` from the presence of at least one target. */
@@ -715,13 +715,13 @@ xrootd_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     }
     ngx_conf_merge_uint_value(conf->mirror.sample_pct,  prev->mirror.sample_pct, 100);
     /* Default: mirror ALL ops; the operator de-selects with
-     * xrootd_mirror_exclude_opcodes (or restricts with xrootd_mirror_opcodes). */
+     * brix_mirror_exclude_opcodes (or restricts with brix_mirror_opcodes). */
     ngx_conf_merge_uint_value(conf->mirror.opcode_mask, prev->mirror.opcode_mask,
-                              XROOTD_MIRROR_OP_ALL);
+                              BRIX_MIRROR_OP_ALL);
     ngx_conf_merge_uint_value(conf->mirror.opcode_exclude_mask,
                               prev->mirror.opcode_exclude_mask, 0);
     ngx_conf_merge_uint_value(conf->mirror.method_mask, prev->mirror.method_mask,
-                              XROOTD_MIRROR_M_DEFAULT);
+                              BRIX_MIRROR_M_DEFAULT);
     ngx_conf_merge_value(conf->mirror.strip_auth,  prev->mirror.strip_auth,  1);
     ngx_conf_merge_value(conf->mirror.log_diverge, prev->mirror.log_diverge, 1);
     ngx_conf_merge_msec_value(conf->mirror.timeout_ms, prev->mirror.timeout_ms, 5000);
@@ -775,7 +775,7 @@ xrootd_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_msec_value(conf->cms_connect_retry, prev->cms_connect_retry,
                               NGX_CONF_UNSET_MSEC);
 
-    ngx_conf_merge_value(conf->listen_port,         prev->listen_port,     XROOTD_DEFAULT_PORT);
+    ngx_conf_merge_value(conf->listen_port,         prev->listen_port,     BRIX_DEFAULT_PORT);
     ngx_conf_merge_uint_value(conf->ckscan_max_depth,
                               prev->ckscan_max_depth, 32);
     ngx_conf_merge_uint_value(conf->ckscan_max_files,
@@ -797,16 +797,16 @@ xrootd_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     }
 
     child_vo_rules = conf->vo_rules;
-    conf->vo_rules = xrootd_merge_arrays(cf, prev->vo_rules, child_vo_rules,
-                                         sizeof(xrootd_vo_rule_t));
+    conf->vo_rules = brix_merge_arrays(cf, prev->vo_rules, child_vo_rules,
+                                         sizeof(brix_vo_rule_t));
     if (conf->vo_rules == NULL && (prev->vo_rules != NULL || child_vo_rules != NULL)) {
         return NGX_CONF_ERROR;
     }
 
     child_group_rules = conf->group_rules;
-    conf->group_rules = xrootd_merge_arrays(cf, prev->group_rules,
+    conf->group_rules = brix_merge_arrays(cf, prev->group_rules,
                                             child_group_rules,
-                                            sizeof(xrootd_group_rule_t));
+                                            sizeof(brix_group_rule_t));
     if (conf->group_rules == NULL
         && (prev->group_rules != NULL || child_group_rules != NULL)) {
         return NGX_CONF_ERROR;
@@ -815,9 +815,9 @@ xrootd_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     /* Merge manager_map entries (prefix -> backend mappings) */
     {
         ngx_array_t *child_manager_map = conf->manager_map;
-        conf->manager_map = xrootd_merge_arrays(cf, prev->manager_map,
+        conf->manager_map = brix_merge_arrays(cf, prev->manager_map,
                                                child_manager_map,
-                                               sizeof(xrootd_manager_map_t));
+                                               sizeof(brix_manager_map_t));
         if (conf->manager_map == NULL
             && (prev->manager_map != NULL || child_manager_map != NULL)) {
             return NGX_CONF_ERROR;
@@ -839,8 +839,8 @@ xrootd_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
  * decision struct, OCSP, the Phase-39 network-fault deadlines, and rate-limit
  * rule inheritance. */
 static char *
-xrootd_merge_srv_proxy_net(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
-    ngx_stream_xrootd_srv_conf_t *prev)
+brix_merge_srv_proxy_net(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
 {
     ngx_array_t *child_wt_deny_prefixes;
     ngx_array_t *child_wt_allow_prefixes;
@@ -856,9 +856,9 @@ xrootd_merge_srv_proxy_net(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_value(conf->proxy_port,         prev->proxy_port,         1094);
     ngx_conf_merge_value(conf->proxy_upstream_tls, prev->proxy_upstream_tls, 0);
     ngx_conf_merge_uint_value(conf->proxy_auth,    prev->proxy_auth,
-                              XROOTD_PROXY_AUTH_ANONYMOUS);
+                              BRIX_PROXY_AUTH_ANONYMOUS);
     ngx_conf_merge_uint_value(conf->proxy_login_user, prev->proxy_login_user,
-                              XROOTD_PROXY_LOGIN_ANONYMOUS);
+                              BRIX_PROXY_LOGIN_ANONYMOUS);
     if (conf->proxy_login_user_name[0] == '\0'
         && prev->proxy_login_user_name[0] != '\0')
     {
@@ -880,22 +880,22 @@ xrootd_merge_srv_proxy_net(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     ngx_conf_merge_msec_value(conf->proxy_write_timeout,      prev->proxy_write_timeout,      60000);
     ngx_conf_merge_msec_value(conf->proxy_keepalive_interval, prev->proxy_keepalive_interval, 15000);
 
-    XROOTD_MERGE_PTR(conf, prev, proxy_upstreams);
+    BRIX_MERGE_PTR(conf, prev, proxy_upstreams);
     ngx_conf_merge_str_value(conf->proxy_host, prev->proxy_host, "");
-    XROOTD_MERGE_HOSTPORT(conf, prev, cache_origin_host, cache_origin_port);
+    BRIX_MERGE_HOSTPORT(conf, prev, cache_origin_host, cache_origin_port);
 
     ngx_conf_merge_value(conf->wt_enable, prev->wt_enable, 0);
-    XROOTD_MERGE_ENUM(conf, prev, wt_mode, XROOTD_WT_MODE_UNSET, XROOTD_WT_MODE_SYNC);
-    XROOTD_MERGE_HOSTPORT(conf, prev, wt_origin_host, wt_origin_port);
+    BRIX_MERGE_ENUM(conf, prev, wt_mode, BRIX_WT_MODE_UNSET, BRIX_WT_MODE_SYNC);
+    BRIX_MERGE_HOSTPORT(conf, prev, wt_origin_host, wt_origin_port);
     if (conf->wt_origin_host.len == 0 && conf->cache_origin_host.len > 0) {
         conf->wt_origin_host = conf->cache_origin_host;
         conf->wt_origin_port = conf->cache_origin_port;
     }
 
     child_wt_deny_prefixes = conf->wt_deny_prefixes;
-    conf->wt_deny_prefixes = xrootd_merge_arrays(cf, prev->wt_deny_prefixes,
+    conf->wt_deny_prefixes = brix_merge_arrays(cf, prev->wt_deny_prefixes,
                                                   child_wt_deny_prefixes,
-                                                  sizeof(xrootd_wt_prefix_entry_t));
+                                                  sizeof(brix_wt_prefix_entry_t));
     if (conf->wt_deny_prefixes == NULL
         && (prev->wt_deny_prefixes != NULL || child_wt_deny_prefixes != NULL))
     {
@@ -903,16 +903,16 @@ xrootd_merge_srv_proxy_net(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
     }
 
     child_wt_allow_prefixes = conf->wt_allow_prefixes;
-    conf->wt_allow_prefixes = xrootd_merge_arrays(cf, prev->wt_allow_prefixes,
+    conf->wt_allow_prefixes = brix_merge_arrays(cf, prev->wt_allow_prefixes,
                                                    child_wt_allow_prefixes,
-                                                   sizeof(xrootd_wt_prefix_entry_t));
+                                                   sizeof(brix_wt_prefix_entry_t));
     if (conf->wt_allow_prefixes == NULL
         && (prev->wt_allow_prefixes != NULL || child_wt_allow_prefixes != NULL))
     {
         return NGX_CONF_ERROR;
     }
 
-    conf->wt_decision.fn = xrootd_wt_default_decide;
+    conf->wt_decision.fn = brix_wt_default_decide;
     conf->wt_decision.user_data = &conf->wt_decision;
     conf->wt_decision.deny_prefixes = conf->wt_deny_prefixes;
     conf->wt_decision.allow_prefixes = conf->wt_allow_prefixes;
@@ -941,7 +941,7 @@ xrootd_merge_srv_proxy_net(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
      * cluster registry (config-time, before fork).  Guarded so a 0-default block
      * does not disable a sibling that enabled it. */
     if (conf->manager_stale_after > 0) {
-        xrootd_srv_set_stale_after(conf->manager_stale_after);
+        brix_srv_set_stale_after(conf->manager_stale_after);
     }
 
     /* Phase 39 (WS9): a child server block with no advanced rate-limit rules of
@@ -961,22 +961,22 @@ xrootd_merge_srv_proxy_net(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *conf,
  * returning NGX_CONF_ERROR aborts the merge (the error is already logged).
  */
 char *
-ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
+ngx_stream_brix_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 {
-    ngx_stream_xrootd_srv_conf_t *prev = parent;
-    ngx_stream_xrootd_srv_conf_t *conf = child;
+    ngx_stream_brix_srv_conf_t *prev = parent;
+    ngx_stream_brix_srv_conf_t *conf = child;
 
-    if (xrootd_merge_srv_security(cf, conf, prev) != NGX_CONF_OK) {
+    if (brix_merge_srv_security(cf, conf, prev) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
-    if (xrootd_merge_srv_storage(cf, conf, prev) != NGX_CONF_OK) {
+    if (brix_merge_srv_storage(cf, conf, prev) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
-    xrootd_merge_srv_tpc(conf, prev);
-    if (xrootd_merge_srv_cluster(cf, conf, prev) != NGX_CONF_OK) {
+    brix_merge_srv_tpc(conf, prev);
+    if (brix_merge_srv_cluster(cf, conf, prev) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
-    if (xrootd_merge_srv_proxy_net(cf, conf, prev) != NGX_CONF_OK) {
+    if (brix_merge_srv_proxy_net(cf, conf, prev) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
 
@@ -984,12 +984,12 @@ ngx_stream_xrootd_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 }
 
 /*
- * ngx_stream_xrootd_enable - handler for the "xrootd on|off;" directive.
+ * ngx_stream_brix_enable - handler for the "xrootd on|off;" directive.
  */
 char *
-ngx_stream_xrootd_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+ngx_stream_brix_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_stream_xrootd_srv_conf_t *xcf = conf;
+    ngx_stream_brix_srv_conf_t *xcf = conf;
     ngx_stream_core_srv_conf_t   *cscf;
     char                         *rv;
 
@@ -1008,7 +1008,7 @@ ngx_stream_xrootd_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
      * our session handler for this server block.
      */
     cscf = ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_core_module);
-    cscf->handler = ngx_stream_xrootd_handler;
+    cscf->handler = ngx_stream_brix_handler;
 
     return NGX_CONF_OK;
 }

@@ -1,5 +1,5 @@
-#ifndef XROOTD_SSI_CTA_QUEUE_H
-#define XROOTD_SSI_CTA_QUEUE_H
+#ifndef BRIX_SSI_CTA_QUEUE_H
+#define BRIX_SSI_CTA_QUEUE_H
 
 /*
  * cta_queue.h — CTA request-queue state machine.
@@ -39,19 +39,19 @@ typedef struct {
     cta_req_t slots[CTA_QUEUE_MAX];
     uint64_t  next_id;
     void     *journal;   /* open FILE* for append, or NULL (opaque) */
-} xrootd_cta_queue_t;
+} brix_cta_queue_t;
 
 /* Allocate a queue (malloc; free with cta_queue_destroy). NULL on OOM. */
-xrootd_cta_queue_t *cta_queue_create(void);
-void cta_queue_destroy(xrootd_cta_queue_t *q);
+brix_cta_queue_t *cta_queue_create(void);
+void cta_queue_destroy(brix_cta_queue_t *q);
 
 /* Submit a request; records it as CTA_ST_SUBMITTED and assigns an id. Returns the
  * entry, or NULL if the queue is full. */
-cta_req_t *cta_queue_submit(xrootd_cta_queue_t *q, const cta_request_t *r,
+cta_req_t *cta_queue_submit(brix_cta_queue_t *q, const cta_request_t *r,
                             const char *owner);
 
 /* Find an entry by id, or NULL. */
-cta_req_t *cta_queue_find(xrootd_cta_queue_t *q, uint64_t id);
+cta_req_t *cta_queue_find(brix_cta_queue_t *q, uint64_t id);
 
 /* Attempt a state transition. Returns 0 if legal (state updated), -1 otherwise. */
 int cta_queue_transition(cta_req_t *e, cta_state_t to);
@@ -61,11 +61,11 @@ int cta_queue_transition(cta_req_t *e, cta_state_t to);
  * the id is unknown, or -1 if the entry cannot be cancelled (terminal state). */
 #define CTA_QUEUE_EACCES (-13)   /* mirrors EACCES */
 #define CTA_QUEUE_ENOENT (-2)    /* mirrors ENOENT */
-int cta_queue_cancel(xrootd_cta_queue_t *q, uint64_t id, const char *requester,
+int cta_queue_cancel(brix_cta_queue_t *q, uint64_t id, const char *requester,
                      int is_admin);
 
 /* Count entries currently in a non-terminal state (for `query` summaries). */
-int cta_queue_active_count(const xrootd_cta_queue_t *q);
+int cta_queue_active_count(const brix_cta_queue_t *q);
 
 /*
  * Open a journal at `path` for restart recovery: replay any existing records into
@@ -73,6 +73,6 @@ int cta_queue_active_count(const xrootd_cta_queue_t *q);
  * to it. Returns 0 on success, -1 on error. Idempotent records (latest state per
  * id wins on replay). Mirrors the frm/ journal style; per-worker only.
  */
-int cta_queue_open_journal(xrootd_cta_queue_t *q, const char *path);
+int cta_queue_open_journal(brix_cta_queue_t *q, const char *path);
 
-#endif /* XROOTD_SSI_CTA_QUEUE_H */
+#endif /* BRIX_SSI_CTA_QUEUE_H */

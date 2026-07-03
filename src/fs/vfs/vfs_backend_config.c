@@ -1,6 +1,6 @@
 /*
  * vfs_backend_config.c — config-time half of the backend registry: the
- * xrootd_storage_backend directive parser (config_str), the per-driver entry
+ * brix_storage_backend directive parser (config_str), the per-driver entry
  * builders (xroot/http/s3/ceph/cephfsro/tape), and the credential / staging /
  * cache-tier / stage-tier setters. Everything here only fills registry entries;
  * building and resolving driver instances stays in vfs_backend_registry.c
@@ -11,10 +11,10 @@
 #include <string.h>
 
 void
-xrootd_vfs_backend_config(const char *root_canon, const ngx_str_t *name,
+brix_vfs_backend_config(const char *root_canon, const ngx_str_t *name,
     size_t block_size)
 {
-    xrootd_vfs_backend_entry_t *e;
+    brix_vfs_backend_entry_t *e;
 
     if (root_canon == NULL || root_canon[0] == '\0' || name == NULL
         || name->len == 0)
@@ -36,13 +36,13 @@ xrootd_vfs_backend_config(const char *root_canon, const ngx_str_t *name,
 
     /* Dedup on root_canon so a config reload updates rather than appends
      * (an existing entry keeps its backend and only refreshes block_size). */
-    e = xrootd_vfs_backend_entry_find(root_canon);
+    e = brix_vfs_backend_entry_find(root_canon);
     if (e != NULL) {
         e->block_size = (int64_t) block_size;
         e->inst = NULL;                        /* rebuilt on next resolve */
         return;
     }
-    e = xrootd_vfs_backend_entry_get_or_create(root_canon);
+    e = brix_vfs_backend_entry_get_or_create(root_canon);
     if (e == NULL) {
         return;
     }
@@ -55,7 +55,7 @@ xrootd_vfs_backend_config(const char *root_canon, const ngx_str_t *name,
 }
 
 static void
-xrootd_vfs_backend_set_xroot(xrootd_vfs_backend_entry_t *e, const char *host,
+brix_vfs_backend_set_xroot(brix_vfs_backend_entry_t *e, const char *host,
     int port, int tls, int family)
 {
     ngx_memcpy(e->backend, "xroot", sizeof("xroot"));
@@ -68,10 +68,10 @@ xrootd_vfs_backend_set_xroot(xrootd_vfs_backend_entry_t *e, const char *host,
 }
 
 void
-xrootd_vfs_backend_config_xroot(const char *root_canon, const char *host,
+brix_vfs_backend_config_xroot(const char *root_canon, const char *host,
     int port, int tls, int family)
 {
-    xrootd_vfs_backend_entry_t *e;
+    brix_vfs_backend_entry_t *e;
 
     if (root_canon == NULL || root_canon[0] == '\0' || host == NULL
         || host[0] == '\0' || port <= 0 || port > 65535)
@@ -80,24 +80,24 @@ xrootd_vfs_backend_config_xroot(const char *root_canon, const char *host,
     }
 
     /* Dedup on root_canon so a config reload updates rather than appends. */
-    e = xrootd_vfs_backend_entry_get_or_create(root_canon);
+    e = brix_vfs_backend_entry_get_or_create(root_canon);
     if (e != NULL) {
-        xrootd_vfs_backend_set_xroot(e, host, port, tls, family);
+        brix_vfs_backend_set_xroot(e, host, port, tls, family);
     }
 }
 
 void
-xrootd_vfs_backend_config_http(const char *root_canon, const char *host,
+brix_vfs_backend_config_http(const char *root_canon, const char *host,
     int port, int tls, const char *base_path)
 {
-    xrootd_vfs_backend_entry_t *e;
+    brix_vfs_backend_entry_t *e;
 
     if (root_canon == NULL || root_canon[0] == '\0' || host == NULL
         || host[0] == '\0' || port <= 0 || port > 65535)
     {
         return;
     }
-    e = xrootd_vfs_backend_entry_get_or_create(root_canon);
+    e = brix_vfs_backend_entry_get_or_create(root_canon);
     if (e == NULL) {
         return;
     }
@@ -118,10 +118,10 @@ xrootd_vfs_backend_config_http(const char *root_canon, const char *host,
  * 80/443 by tls when the URL omits it. The driver is CAP_RANGE_READ only, so an
  * S3 primary is read-only (writes are rejected, exactly like an http:// primary). */
 void
-xrootd_vfs_backend_config_s3(const char *root_canon, const char *host,
+brix_vfs_backend_config_s3(const char *root_canon, const char *host,
     int port, int tls, const char *bucket)
 {
-    xrootd_vfs_backend_entry_t *e;
+    brix_vfs_backend_entry_t *e;
 
     if (root_canon == NULL || root_canon[0] == '\0' || host == NULL
         || host[0] == '\0' || bucket == NULL || bucket[0] == '\0'
@@ -129,7 +129,7 @@ xrootd_vfs_backend_config_s3(const char *root_canon, const char *host,
     {
         return;
     }
-    e = xrootd_vfs_backend_entry_get_or_create(root_canon);
+    e = brix_vfs_backend_entry_get_or_create(root_canon);
     if (e == NULL) {
         return;
     }
@@ -146,17 +146,17 @@ xrootd_vfs_backend_config_s3(const char *root_canon, const char *host,
 /* Register a Ceph/RADOS backend for an export. pool is required; conf defaults
  * to /etc/ceph/ceph.conf and key_prefix to "" when NULL/empty. */
 static void
-xrootd_vfs_backend_config_ceph(const char *root_canon, const char *backend,
+brix_vfs_backend_config_ceph(const char *root_canon, const char *backend,
     const char *pool, const char *conf, const char *key_prefix)
 {
-    xrootd_vfs_backend_entry_t *e;
+    brix_vfs_backend_entry_t *e;
 
     if (root_canon == NULL || root_canon[0] == '\0'
         || pool == NULL || pool[0] == '\0')
     {
         return;
     }
-    e = xrootd_vfs_backend_entry_get_or_create(root_canon);
+    e = brix_vfs_backend_entry_get_or_create(root_canon);
     if (e == NULL) {
         return;
     }
@@ -175,10 +175,10 @@ xrootd_vfs_backend_config_ceph(const char *root_canon, const char *backend,
  * required; conf defaults to /etc/ceph/ceph.conf. quiesced is the operator's
  * "the filesystem is quiesced" assertion (the driver refuses to bind without it). */
 static void
-xrootd_vfs_backend_config_cephfs_ro(const char *root_canon, const char *meta_pool,
+brix_vfs_backend_config_cephfs_ro(const char *root_canon, const char *meta_pool,
     const char *data_pool, const char *conf, int quiesced, int live)
 {
-    xrootd_vfs_backend_entry_t *e;
+    brix_vfs_backend_entry_t *e;
 
     if (root_canon == NULL || root_canon[0] == '\0'
         || meta_pool == NULL || meta_pool[0] == '\0'
@@ -186,7 +186,7 @@ xrootd_vfs_backend_config_cephfs_ro(const char *root_canon, const char *meta_poo
     {
         return;
     }
-    e = xrootd_vfs_backend_entry_get_or_create(root_canon);
+    e = brix_vfs_backend_entry_get_or_create(root_canon);
     if (e == NULL) {
         return;
     }
@@ -206,17 +206,17 @@ xrootd_vfs_backend_config_cephfs_ro(const char *root_canon, const char *meta_poo
  * built-in stub) names the MSS adapter; `base` is its MSS base path. The composing
  * stack requires a cache tier in front (G8, enforced at config time). */
 static void
-xrootd_vfs_backend_config_tape(const char *root_canon, const char *adapter,
+brix_vfs_backend_config_tape(const char *root_canon, const char *adapter,
     const char *base)
 {
-    xrootd_vfs_backend_entry_t *e;
+    brix_vfs_backend_entry_t *e;
 
     if (root_canon == NULL || root_canon[0] == '\0'
         || base == NULL || base[0] == '\0')
     {
         return;
     }
-    e = xrootd_vfs_backend_entry_get_or_create(root_canon);
+    e = brix_vfs_backend_entry_get_or_create(root_canon);
     if (e == NULL) {
         return;
     }
@@ -229,11 +229,11 @@ xrootd_vfs_backend_config_tape(const char *root_canon, const char *adapter,
 }
 
 void
-xrootd_vfs_backend_set_credential(const char *root_canon,
-    const xrootd_vfs_backend_cred_t *cred)
+brix_vfs_backend_set_credential(const char *root_canon,
+    const brix_vfs_backend_cred_t *cred)
 {
-    xrootd_vfs_backend_cred_t  empty;
-    xrootd_vfs_backend_entry_t *e;
+    brix_vfs_backend_cred_t  empty;
+    brix_vfs_backend_entry_t *e;
 
     if (root_canon == NULL || root_canon[0] == '\0') {
         return;
@@ -242,7 +242,7 @@ xrootd_vfs_backend_set_credential(const char *root_canon,
         ngx_memzero(&empty, sizeof(empty));     /* NULL ⇒ clear to anonymous */
         cred = &empty;
     }
-    e = xrootd_vfs_backend_entry_find(root_canon);
+    e = brix_vfs_backend_entry_find(root_canon);
     if (e != NULL) {
         ngx_cpystrn((u_char *) e->origin_token,
                     (u_char *) (cred->bearer ? cred->bearer : ""),
@@ -307,7 +307,7 @@ vfs_parse_http_origin(ngx_conf_t *cf, u_char *seg, size_t segn,
         hn = segn - (sizeof("http://") - 1);
     } else {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_storage_backend: every |-separated origin must be an "
+            "brix_storage_backend: every |-separated origin must be an "
             "http:// or https:// URL");
         return NGX_ERROR;
     }
@@ -329,7 +329,7 @@ vfs_parse_http_origin(ngx_conf_t *cf, u_char *seg, size_t segn,
         hostn = (size_t) (colon - h);
         if (pn == NGX_ERROR || pn <= 0 || pn > 65535) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_storage_backend: invalid http origin port");
+                "brix_storage_backend: invalid http origin port");
             return NGX_ERROR;
         }
         port = (int) pn;
@@ -339,7 +339,7 @@ vfs_parse_http_origin(ngx_conf_t *cf, u_char *seg, size_t segn,
     }
     if (hostn == 0 || hostn >= host_cap || pathlen >= base_cap) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_storage_backend: invalid http origin host/path");
+            "brix_storage_backend: invalid http origin host/path");
         return NGX_ERROR;
     }
     ngx_memcpy(host, h, hostn);
@@ -356,24 +356,24 @@ vfs_parse_http_origin(ngx_conf_t *cf, u_char *seg, size_t segn,
 }
 
 /* Append one failover endpoint to the export's http backend entry (phase-68
- * T11). Must run AFTER xrootd_vfs_backend_config_http registered endpoint 0
+ * T11). Must run AFTER brix_vfs_backend_config_http registered endpoint 0
  * for the same root. */
 static ngx_int_t
 vfs_backend_add_http_endpoint(ngx_conf_t *cf, const char *root_canon,
     const char *host, int port, int tls, const char *base)
 {
-    xrootd_vfs_backend_entry_t *e = xrootd_vfs_backend_entry_find(root_canon);
+    brix_vfs_backend_entry_t *e = brix_vfs_backend_entry_find(root_canon);
     size_t                      n;
 
     if (e == NULL || ngx_strcmp(e->backend, "http") != 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_storage_backend: internal - endpoint list before primary");
+            "brix_storage_backend: internal - endpoint list before primary");
         return NGX_ERROR;
     }
     n = sizeof(e->http_extra) / sizeof(e->http_extra[0]);
     if ((size_t) e->n_http_extra >= n) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_storage_backend: too many |-separated origins (max %uz)",
+            "brix_storage_backend: too many |-separated origins (max %uz)",
             n + 1);
         return NGX_ERROR;
     }
@@ -381,7 +381,7 @@ vfs_backend_add_http_endpoint(ngx_conf_t *cf, const char *root_canon,
         || ngx_strlen(base) >= sizeof(e->http_extra[0].base))
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_storage_backend: origin host/base too long for the "
+            "brix_storage_backend: origin host/base too long for the "
             "endpoint table");
         return NGX_ERROR;
     }
@@ -398,7 +398,7 @@ vfs_backend_add_http_endpoint(ngx_conf_t *cf, const char *root_canon,
 
 
 ngx_int_t
-xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
+brix_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
     const ngx_str_t *sb, size_t block_size, int family)
 {
     u_char *addr = NULL;
@@ -420,7 +420,7 @@ xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
         {
             static const ngx_str_t posix_name = ngx_string("posix");
 
-            xrootd_vfs_backend_config(root_canon, &posix_name, block_size);
+            brix_vfs_backend_config(root_canon, &posix_name, block_size);
         }
         return NGX_OK;
     }
@@ -453,21 +453,21 @@ xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
         meta[mn] = '\0'; data[dn] = '\0'; conf[cn] = '\0'; q[qn] = '\0';
 
         if (meta[0] == '\0' || data[0] == '\0') {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "xrootd_storage_backend: "
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "brix_storage_backend: "
                 "cephfsro needs both pools (cephfsro:<meta>+<data>)");
             return NGX_ERROR;
         }
         quiesced = (ngx_strstr(q, "assume_quiesced=1") != NULL);
         live     = (ngx_strstr(q, "live=1") != NULL);
         if (!quiesced && !live) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "xrootd_storage_backend: "
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "brix_storage_backend: "
                 "cephfsro requires a consistency assertion: "
                 "?assume_quiesced=1 (fs frozen — MDS down/failed, journal flushed) "
                 "or ?live=1 (still mounted — best-effort eventually-consistent "
                 "reads with optimistic revalidation + retry)");
             return NGX_ERROR;
         }
-        xrootd_vfs_backend_config_cephfs_ro(root_canon, meta, data, conf,
+        brix_vfs_backend_config_cephfs_ro(root_canon, meta, data, conf,
                                             quiesced, live);
         return NGX_OK;
     }
@@ -504,11 +504,11 @@ xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
             pool[pn] = '\0'; conf[cn] = '\0'; prefix[xn] = '\0';
             if (pool[0] == '\0') {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_storage_backend: %s: needs a pool (%s:<pool>)",
+                    "brix_storage_backend: %s: needs a pool (%s:<pool>)",
                     backend, backend);
                 return NGX_ERROR;
             }
-            xrootd_vfs_backend_config_ceph(root_canon, backend, pool, conf, prefix);
+            brix_vfs_backend_config_ceph(root_canon, backend, pool, conf, prefix);
             return NGX_OK;
         }
     }
@@ -539,10 +539,10 @@ xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
         }
         if (pool[0] == '\0') {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_storage_backend: rados:// needs \"//<pool>[/<namespace>]\"");
+                "brix_storage_backend: rados:// needs \"//<pool>[/<namespace>]\"");
             return NGX_ERROR;
         }
-        xrootd_vfs_backend_config_ceph(root_canon, "ceph", pool, NULL, prefix);
+        brix_vfs_backend_config_ceph(root_canon, "ceph", pool, NULL, prefix);
         return NGX_OK;
     }
 
@@ -584,11 +584,11 @@ xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
             }
             if (base[0] != '/') {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_storage_backend: tape://|frm:// needs "
+                    "brix_storage_backend: tape://|frm:// needs "
                     "\"//<adapter>/<base-path>\"");
                 return NGX_ERROR;
             }
-            xrootd_vfs_backend_config_tape(root_canon, adapter, base);
+            brix_vfs_backend_config_tape(root_canon, adapter, base);
             return NGX_OK;
         }
     }
@@ -617,7 +617,7 @@ xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
                 return NGX_ERROR;              /* [emerg] already logged */
             }
             if (first) {
-                xrootd_vfs_backend_config_http(root_canon, host, port, htls,
+                brix_vfs_backend_config_http(root_canon, host, port, htls,
                                                base);
                 first = 0;
             } else if (vfs_backend_add_http_endpoint(cf, root_canon, host,
@@ -661,7 +661,7 @@ xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
             hostn = (size_t) (colon - h);
             if (pn == NGX_ERROR || pn <= 0 || pn > 65535) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_storage_backend: invalid s3 origin port");
+                    "brix_storage_backend: invalid s3 origin port");
                 return NGX_ERROR;
             }
             port = (int) pn;
@@ -674,14 +674,14 @@ xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
             || pathlen >= sizeof(bucket))
         {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_storage_backend: s3:// needs \"//host[:port]/bucket\"");
+                "brix_storage_backend: s3:// needs \"//host[:port]/bucket\"");
             return NGX_ERROR;
         }
         ngx_memcpy(host, h, hostn);
         host[hostn] = '\0';
         ngx_memcpy(bucket, path, pathlen);
         bucket[pathlen] = '\0';
-        xrootd_vfs_backend_config_s3(root_canon, host, port, 0, bucket);
+        brix_vfs_backend_config_s3(root_canon, host, port, 0, bucket);
         return NGX_OK;
     }
 
@@ -701,7 +701,7 @@ xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
     }
 
     if (addr == NULL) {
-        xrootd_vfs_backend_config(root_canon, sb, block_size);
+        brix_vfs_backend_config(root_canon, sb, block_size);
         return NGX_OK;
     }
 
@@ -717,7 +717,7 @@ xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
         }
         if (colon == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_storage_backend: remote origin needs host:port");
+                "brix_storage_backend: remote origin needs host:port");
             return NGX_ERROR;
         }
         hostn   = (size_t) (colon - addr);
@@ -726,21 +726,21 @@ xrootd_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
             || portnum <= 0 || portnum > 65535)
         {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_storage_backend: invalid remote origin host:port");
+                "brix_storage_backend: invalid remote origin host:port");
             return NGX_ERROR;
         }
         ngx_memcpy(host, addr, hostn);
         host[hostn] = '\0';
-        xrootd_vfs_backend_config_xroot(root_canon, host, (int) portnum,
+        brix_vfs_backend_config_xroot(root_canon, host, (int) portnum,
                                         is_roots, family);
     }
     return NGX_OK;
 }
 
 void
-xrootd_vfs_backend_set_staging(const char *root_canon, int on)
+brix_vfs_backend_set_staging(const char *root_canon, int on)
 {
-    xrootd_vfs_backend_entry_t *e = xrootd_vfs_backend_entry_find(root_canon);
+    brix_vfs_backend_entry_t *e = brix_vfs_backend_entry_find(root_canon);
 
     if (e != NULL) {
         e->staging = on ? 1 : 0;
@@ -748,15 +748,15 @@ xrootd_vfs_backend_set_staging(const char *root_canon, int on)
 }
 
 void
-xrootd_vfs_backend_config_cache_store(const char *root_canon,
-    const xrootd_tier_cfg_t *cfg, const xrootd_cache_policy_t *policy)
+brix_vfs_backend_config_cache_store(const char *root_canon,
+    const brix_tier_cfg_t *cfg, const brix_cache_policy_t *policy)
 {
-    xrootd_vfs_backend_entry_t *e;
+    brix_vfs_backend_entry_t *e;
 
     if (cfg == NULL || !cfg->configured) {
         return;
     }
-    e = xrootd_vfs_backend_entry_get_or_create(root_canon);
+    e = brix_vfs_backend_entry_get_or_create(root_canon);
     if (e == NULL) {
         return;
     }
@@ -772,10 +772,10 @@ xrootd_vfs_backend_config_cache_store(const char *root_canon,
  * 0, or -1 past the end / not an http backend. Pointers alias the registry's
  * stable storage. */
 int
-xrootd_vfs_backend_http_endpoint_at(const char *root_canon, int idx,
+brix_vfs_backend_http_endpoint_at(const char *root_canon, int idx,
     const char **host, int *port)
 {
-    xrootd_vfs_backend_entry_t *e = xrootd_vfs_backend_entry_find(root_canon);
+    brix_vfs_backend_entry_t *e = brix_vfs_backend_entry_find(root_canon);
 
     if (e == NULL || ngx_strcmp(e->backend, "http") != 0 || idx < 0
         || idx > e->n_http_extra)
@@ -795,10 +795,10 @@ xrootd_vfs_backend_http_endpoint_at(const char *root_canon, int idx,
 /* Record config-time selection ranks for the http backend at `root_canon`
  * (T19 geo/static policies); applied when the per-worker instance builds. */
 void
-xrootd_vfs_backend_set_http_ranks(const char *root_canon, const int *ranks,
+brix_vfs_backend_set_http_ranks(const char *root_canon, const int *ranks,
     int n)
 {
-    xrootd_vfs_backend_entry_t *e = xrootd_vfs_backend_entry_find(root_canon);
+    brix_vfs_backend_entry_t *e = brix_vfs_backend_entry_find(root_canon);
     int                         i;
 
     if (e == NULL || ngx_strcmp(e->backend, "http") != 0) {
@@ -820,18 +820,18 @@ xrootd_vfs_backend_set_http_ranks(const char *root_canon, const int *ranks,
  * per-process after fork; no cross-thread access). Returns NGX_OK, or
  * NGX_ERROR when the table is full / the paths overflow. */
 ngx_int_t
-xrootd_vfs_backend_register_http_upstream(const char *up_root,
+brix_vfs_backend_register_http_upstream(const char *up_root,
     const char *template_root, const char *host, int port, int tls,
     const char *store_suffix)
 {
-    xrootd_vfs_backend_entry_t *e, *tpl;
+    brix_vfs_backend_entry_t *e, *tpl;
 
-    e = xrootd_vfs_backend_entry_find(up_root);
+    e = brix_vfs_backend_entry_find(up_root);
     if (e != NULL) {
         return NGX_OK;                          /* already registered */
     }
-    tpl = xrootd_vfs_backend_entry_find(template_root);
-    e = xrootd_vfs_backend_entry_get_or_create(up_root);
+    tpl = brix_vfs_backend_entry_find(template_root);
+    e = brix_vfs_backend_entry_get_or_create(up_root);
     if (e == NULL) {
         return NGX_ERROR;                       /* table full */
     }
@@ -858,7 +858,7 @@ xrootd_vfs_backend_register_http_upstream(const char *up_root,
             /* the cstore mkdirs each KEY's parents but expects its own root
              * to exist — create the per-upstream subtree now (local store) */
             if (ngx_strcmp(e->cache_tier.driver, "posix") == 0) {
-                (void) xrootd_mkdir_recursive(e->cache_tier.path, 0755);
+                (void) brix_mkdir_recursive(e->cache_tier.path, 0755);
             }
         }
     }
@@ -867,15 +867,15 @@ xrootd_vfs_backend_register_http_upstream(const char *up_root,
 }
 
 void
-xrootd_vfs_backend_config_stage_store(const char *root_canon,
-    const xrootd_tier_cfg_t *cfg, const xrootd_stage_policy_t *policy)
+brix_vfs_backend_config_stage_store(const char *root_canon,
+    const brix_tier_cfg_t *cfg, const brix_stage_policy_t *policy)
 {
-    xrootd_vfs_backend_entry_t *e;
+    brix_vfs_backend_entry_t *e;
 
     if (cfg == NULL || !cfg->configured) {
         return;
     }
-    e = xrootd_vfs_backend_entry_get_or_create(root_canon);
+    e = brix_vfs_backend_entry_get_or_create(root_canon);
     if (e == NULL) {
         return;
     }

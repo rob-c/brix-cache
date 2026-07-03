@@ -1,16 +1,16 @@
 /*
  * sd_ceph_striper.c — libradosstriper data-plane wrappers. See the header.
  *
- * Gated on XROOTD_HAVE_RADOSSTRIPER: without the Ceph striper library this file is
+ * Gated on BRIX_HAVE_RADOSSTRIPER: without the Ceph striper library this file is
  * empty (a translation unit with no symbols), so a no-Ceph build is unchanged —
- * the same pattern `sd_ceph.c` uses for XROOTD_HAVE_CEPH. The logic here is the
+ * the same pattern `sd_ceph.c` uses for BRIX_HAVE_CEPH. The logic here is the
  * straight stock mapping; it requires a Ceph build (and a pool) to validate, which
- * `tests/run_rados_parity.sh` does when XROOTD_TEST_RADOS_POOL is set.
+ * `tests/run_rados_parity.sh` does when BRIX_TEST_RADOS_POOL is set.
  */
 
 #include "sd_ceph_striper.h"
 
-#if defined(XROOTD_HAVE_RADOSSTRIPER)
+#if defined(BRIX_HAVE_RADOSSTRIPER)
 
 #include <string.h>
 
@@ -153,4 +153,4 @@ sd_ceph_striper_listxattr(rados_striper_t s, const char *soid,
     return (ssize_t) used;
 }
 
-#endif /* XROOTD_HAVE_RADOSSTRIPER */
+#endif /* BRIX_HAVE_RADOSSTRIPER */

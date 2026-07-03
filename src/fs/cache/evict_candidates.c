@@ -5,14 +5,14 @@
 
 /* Phase 27 F9: upper bound on the eviction-candidate set so the growth loop
  * cannot allocate without limit even if the scanned tree is enormous. */
-#define XROOTD_EVICT_MAX_CANDIDATES  (4u * 1024u * 1024u)
+#define BRIX_EVICT_MAX_CANDIDATES  (4u * 1024u * 1024u)
 
 #include <errno.h>
 #include <netinet/in.h>
 
 
 /* Internal forward declarations (private to this file). */
-/* xrootd_cache_fs_usage — query filesystem occupancy via statvfs.
+/* brix_cache_fs_usage — query filesystem occupancy via statvfs.
  *
  * Reads filesystem statistics from the cache root directory using
  *       statvfs() and computes total, available, used bytes plus occupancy
@@ -31,12 +31,12 @@
  *      Returns NGX_OK on success, NGX_ERROR if statvfs fails or total is zero
  *      (empty filesystem).
  */
-static ngx_int_t xrootd_cache_add_candidate(xrootd_cache_evict_list_t *list,
+static ngx_int_t brix_cache_add_candidate(brix_cache_evict_list_t *list,
     const char *path, const struct stat *st);
-static int xrootd_cache_skip_name(const char *name);
+static int brix_cache_skip_name(const char *name);
 
 ngx_int_t
-xrootd_cache_fs_usage(const char *root, xrootd_cache_fs_usage_t *usage)
+brix_cache_fs_usage(const char *root, brix_cache_fs_usage_t *usage)
 {
     struct statvfs  vfs;
     uint64_t        block_size;
@@ -62,8 +62,8 @@ xrootd_cache_fs_usage(const char *root, xrootd_cache_fs_usage_t *usage)
 }
 
 ngx_int_t
-xrootd_cache_usage_measure(xrootd_cstore_t *cs, const char *root,
-    xrootd_cache_fs_usage_t *usage)
+brix_cache_usage_measure(brix_cstore_t *cs, const char *root,
+    brix_cache_fs_usage_t *usage)
 {
     uint64_t total = 0;
     uint64_t avail = 0;
@@ -72,7 +72,7 @@ xrootd_cache_usage_measure(xrootd_cstore_t *cs, const char *root,
      * stores answer today (SP2 adds the non-local statf slot), and a LOCAL store
      * statvfs's the same dir as the fallback — so this is byte-identical now. */
     if (cs != NULL
-        && xrootd_cstore_freespace(cs, &total, &avail) == NGX_OK
+        && brix_cstore_freespace(cs, &total, &avail) == NGX_OK
         && total > 0)
     {
         usage->total       = total;
@@ -83,11 +83,11 @@ xrootd_cache_usage_measure(xrootd_cstore_t *cs, const char *root,
         return NGX_OK;
     }
 
-    return xrootd_cache_fs_usage(root, usage);
+    return brix_cache_fs_usage(root, usage);
 }
 
 /*
- * xrootd_cache_try_evict_lock — acquire an exclusive eviction lock via
+ * brix_cache_try_evict_lock — acquire an exclusive eviction lock via
  * a sentinel file created with O_CREAT | O_EXCL.
  *
  * The lock prevents two nginx worker processes from running concurrent cache
@@ -98,12 +98,12 @@ xrootd_cache_usage_measure(xrootd_cstore_t *cs, const char *root,
  * seconds, it is treated as abandoned (worker crashed) and removed.
  *
  * Returns:
- *   NGX_OK      — lock acquired (caller must call xrootd_cache_evict_unlock).
+ *   NGX_OK      — lock acquired (caller must call brix_cache_evict_unlock).
  *   NGX_DECLINED — another worker holds a fresh lock; skip eviction.
  *   NGX_ERROR   — unexpected OS error.
  */
 ngx_int_t
-xrootd_cache_try_evict_lock(ngx_stream_xrootd_srv_conf_t *conf,
+brix_cache_try_evict_lock(ngx_stream_brix_srv_conf_t *conf,
     char *lock_path, size_t lock_pathsz, ngx_log_t *log)
 {
     int          n;
@@ -114,14 +114,14 @@ xrootd_cache_try_evict_lock(ngx_stream_xrootd_srv_conf_t *conf,
      * posix cache_store dir for a tier cache, else cache_root). A pure tier cache
      * advertises cache_root "/", and creating "/.ngx-xrootd-evict-lock" fails EACCES,
      * silently disabling the reaper — the lock must land in the writable store dir. */
-    const char  *root = xrootd_cache_state_root(conf);
+    const char  *root = brix_cache_state_root(conf);
 
     if (root == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }
     n = snprintf(lock_path, lock_pathsz, "%s/%s", root,
-                 XROOTD_CACHE_EVICT_LOCK_NAME);
+                 BRIX_CACHE_EVICT_LOCK_NAME);
     if (n < 0 || (size_t) n >= lock_pathsz) {
         errno = ENAMETOOLONG;
         return NGX_ERROR;
@@ -168,16 +168,16 @@ xrootd_cache_try_evict_lock(ngx_stream_xrootd_srv_conf_t *conf,
 }
 
 void
-xrootd_cache_evict_unlock(const char *lock_path)
+brix_cache_evict_unlock(const char *lock_path)
 {
     if (lock_path[0] != '\0') {
         unlink(lock_path);
     }
 }
-/* xrootd_cache_evict_unlock — release the eviction sentinel lock.
+/* brix_cache_evict_unlock — release the eviction sentinel lock.
  *
  * Removes the eviction lock sentinel file created by
- *       xrootd_cache_try_evict_lock(). Called after an eviction pass completes
+ *       brix_cache_try_evict_lock(). Called after an eviction pass completes
  *      (whether files were evicted or skipped) so the next worker can acquire
  *      the lock.
  *
@@ -188,7 +188,7 @@ xrootd_cache_evict_unlock(const char *lock_path)
  */
 
 /*
- * xrootd_cache_skip_name — filter special names during cache eviction scan.
+ * brix_cache_skip_name — filter special names during cache eviction scan.
  *
  * WHAT: Returns 1 (skip) for names that must not be evicted or processed:
  *   - "." and ".." (parent directory entries)
@@ -205,7 +205,7 @@ xrootd_cache_evict_unlock(const char *lock_path)
  *      match.
  */
 static int
-xrootd_cache_skip_name(const char *name)
+brix_cache_skip_name(const char *name)
 {
     size_t name_len;
     size_t suffix_len;
@@ -213,23 +213,23 @@ xrootd_cache_skip_name(const char *name)
     if (name[0] == '\0'
         || strcmp(name, ".") == 0
         || strcmp(name, "..") == 0
-        || strcmp(name, XROOTD_CACHE_EVICT_LOCK_NAME) == 0)
+        || strcmp(name, BRIX_CACHE_EVICT_LOCK_NAME) == 0)
     {
         return 1;
     }
 
     name_len = strlen(name);
 
-    suffix_len = sizeof(XROOTD_CACHE_PART_SUFFIX) - 1;
+    suffix_len = sizeof(BRIX_CACHE_PART_SUFFIX) - 1;
     if (name_len >= suffix_len
-        && strcmp(name + name_len - suffix_len, XROOTD_CACHE_PART_SUFFIX) == 0)
+        && strcmp(name + name_len - suffix_len, BRIX_CACHE_PART_SUFFIX) == 0)
     {
         return 1;
     }
 
-    suffix_len = sizeof(XROOTD_CACHE_LOCK_SUFFIX) - 1;
+    suffix_len = sizeof(BRIX_CACHE_LOCK_SUFFIX) - 1;
     if (name_len >= suffix_len
-        && strcmp(name + name_len - suffix_len, XROOTD_CACHE_LOCK_SUFFIX) == 0)
+        && strcmp(name + name_len - suffix_len, BRIX_CACHE_LOCK_SUFFIX) == 0)
     {
         return 1;
     }
@@ -245,7 +245,7 @@ xrootd_cache_skip_name(const char *name)
      * record. Evicting one orphans its data file's write-back-dirty protection
      * (the next pass would no longer see the file as dirty and could reap it) and
      * loses the present-block bitmap. Never a candidate; it is removed only with
-     * its data file by xrootd_cache_evict_one(). */
+     * its data file by brix_cache_evict_one(). */
     suffix_len = sizeof(".cinfo") - 1;
     if (name_len >= suffix_len
         && strcmp(name + name_len - suffix_len, ".cinfo") == 0)
@@ -257,10 +257,10 @@ xrootd_cache_skip_name(const char *name)
 }
 
 static ngx_int_t
-xrootd_cache_add_candidate(xrootd_cache_evict_list_t *list, const char *path,
+brix_cache_add_candidate(brix_cache_evict_list_t *list, const char *path,
     const struct stat *st)
 {
-    xrootd_cache_evict_candidate_t *elts;
+    brix_cache_evict_candidate_t *elts;
     char                           *evicted;
     char                           *copy;
     size_t                          len;
@@ -280,8 +280,8 @@ xrootd_cache_add_candidate(xrootd_cache_evict_list_t *list, const char *path,
         /* Phase 27 F9/W1: bound the candidate set and use overflow-checked size
          * math so a pathological scan cannot wrap new_cap*sizeof into a tiny
          * allocation that the loop then overruns. */
-        if (new_cap > XROOTD_EVICT_MAX_CANDIDATES
-            || xrootd_size_mul(new_cap, sizeof(list->elts[0]), &elts_sz)
+        if (new_cap > BRIX_EVICT_MAX_CANDIDATES
+            || brix_size_mul(new_cap, sizeof(list->elts[0]), &elts_sz)
                != NGX_OK)
         {
             return NGX_ERROR;
@@ -327,7 +327,7 @@ xrootd_cache_add_candidate(xrootd_cache_evict_list_t *list, const char *path,
 
     return NGX_OK;
 }
-/* xrootd_cache_add_candidate — append a candidate to the eviction list.
+/* brix_cache_add_candidate — append a candidate to the eviction list.
  *
  * Adds a file path and its stat metadata (size, atime, mtime) to the
  *       eviction candidate list. First checks whether this is the protected
@@ -350,10 +350,10 @@ xrootd_cache_add_candidate(xrootd_cache_evict_list_t *list, const char *path,
  * eviction candidates keyed by cache_root + key. Returns NGX_OK to continue the
  * scan, NGX_ERROR to stop (candidate-array growth failure). */
 static ngx_int_t
-evict_collect_visit(const char *key, const xrootd_cache_cinfo_t *ci,
-    const xrootd_sd_stat_t *stx, void *ctx)
+evict_collect_visit(const char *key, const brix_cache_cinfo_t *ci,
+    const brix_sd_stat_t *stx, void *ctx)
 {
-    xrootd_cache_evict_list_t *list = ctx;
+    brix_cache_evict_list_t *list = ctx;
     const char                *name;
     char                       childpath[PATH_MAX];
     char                       sidecar[PATH_MAX];
@@ -366,7 +366,7 @@ evict_collect_visit(const char *key, const xrootd_cache_cinfo_t *ci,
 
     name = strrchr(key, '/');
     name = (name != NULL) ? name + 1 : key;
-    if (xrootd_cache_skip_name(name)) {
+    if (brix_cache_skip_name(name)) {
         return NGX_OK;
     }
 
@@ -378,12 +378,12 @@ evict_collect_visit(const char *key, const xrootd_cache_cinfo_t *ci,
     /* Never evict a file with un-flushed local writes (dirty .cinfo). The .cinfo
      * lives at the state path (== childpath for a co-located cache). */
     base = childpath;
-    if (xrootd_cache_sidecar_path(list->cache_root, list->state_root,
+    if (brix_cache_sidecar_path(list->cache_root, list->state_root,
                                   childpath, sidecar, sizeof(sidecar)) == 0)
     {
         base = sidecar;
     }
-    if (xrootd_cache_cinfo_dirty_extent(base, &dlo, &dhi, &dsince) == NGX_OK) {
+    if (brix_cache_cinfo_dirty_extent(base, &dlo, &dhi, &dsince) == NGX_OK) {
         return NGX_OK;                         /* dirty — keep */
     }
 
@@ -394,25 +394,25 @@ evict_collect_visit(const char *key, const xrootd_cache_cinfo_t *ci,
     synth.st_size  = stx->size;
     synth.st_mtime = stx->mtime;
     synth.st_atime = stx->mtime;
-    return (xrootd_cache_add_candidate(list, childpath, &synth) == NGX_OK)
+    return (brix_cache_add_candidate(list, childpath, &synth) == NGX_OK)
            ? NGX_OK : NGX_ERROR;
 }
 
-/* xrootd_cache_collect_dir — collect every eviction candidate in the cache store.
+/* brix_cache_collect_dir — collect every eviction candidate in the cache store.
  *
  * WHAT: Builds the candidate list for an eviction pass by walking the whole cache
  *       store and adding each non-dirty regular object (path = cache_root + key).
  * WHY:  Cache eviction must consider every cached file regardless of nesting; the
  *       walk + per-object policy now run through the `cstore` adapter so the policy
  *       layer never touches a store driver directly (phase-64 P3/G5).
- * HOW:  xrootd_cstore_scan() recurses the store via the driver (skipping sidecars)
+ * HOW:  brix_cstore_scan() recurses the store via the driver (skipping sidecars)
  *       and calls evict_collect_visit() per object with its stat + cinfo; the
  *       visitor applies the skip/dirty filter and adds candidates. `keydir` is kept
  *       for the public signature but the scan always starts at the store root (its
  *       only caller passes "/"). Returns NGX_OK, or NGX_ERROR if the store has no
  *       cstore (cache off) or the scan stopped on a growth failure. */
 ngx_int_t
-xrootd_cache_collect_dir(xrootd_cache_evict_list_t *list, const char *keydir,
+brix_cache_collect_dir(brix_cache_evict_list_t *list, const char *keydir,
     ngx_log_t *log)
 {
     (void) keydir;   /* cstore_scan walks the whole store from its root */
@@ -421,10 +421,10 @@ xrootd_cache_collect_dir(xrootd_cache_evict_list_t *list, const char *keydir,
     if (list->cstore == NULL) {
         return NGX_ERROR;
     }
-    return xrootd_cstore_scan((xrootd_cstore_t *) list->cstore,
+    return brix_cstore_scan((brix_cstore_t *) list->cstore,
                               evict_collect_visit, list);
 }
-/* xrootd_cache_candidate_cmp — sort comparator for eviction candidates.
+/* brix_cache_candidate_cmp — sort comparator for eviction candidates.
  *
  * qsort-compatible comparison function that orders candidates by
  *       oldest access time first, then oldest modification time as tiebreaker,
@@ -440,10 +440,10 @@ xrootd_cache_collect_dir(xrootd_cache_evict_list_t *list, const char *keydir,
  */
 
 int
-xrootd_cache_candidate_cmp(const void *a, const void *b)
+brix_cache_candidate_cmp(const void *a, const void *b)
 {
-    const xrootd_cache_evict_candidate_t *ca = a;
-    const xrootd_cache_evict_candidate_t *cb = b;
+    const brix_cache_evict_candidate_t *ca = a;
+    const brix_cache_evict_candidate_t *cb = b;
 
     if (ca->atime < cb->atime) { return -1; }
     if (ca->atime > cb->atime) { return 1; }
@@ -453,7 +453,7 @@ xrootd_cache_candidate_cmp(const void *a, const void *b)
 }
 
 void
-xrootd_cache_free_candidates(xrootd_cache_evict_list_t *list)
+brix_cache_free_candidates(brix_cache_evict_list_t *list)
 {
     size_t i;
 
@@ -467,7 +467,7 @@ xrootd_cache_free_candidates(xrootd_cache_evict_list_t *list)
     list->nelts   = 0;
     list->cap     = 0;
 }
-/* xrootd_cache_free_candidates — release all memory from the eviction list.
+/* brix_cache_free_candidates — release all memory from the eviction list.
  *
  * Frees every allocated resource in the evict_list_t struct: individual
  *       path strings, the candidate array itself, and the evicted[] tracking

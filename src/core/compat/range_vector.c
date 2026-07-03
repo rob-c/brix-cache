@@ -20,7 +20,7 @@
  */
 static ngx_int_t
 range_vector_parse_one(const u_char *p, const u_char *comma, off_t file_size,
-    const xrootd_range_vector_opts_t *opts, xrootd_byte_range_t *out)
+    const brix_range_vector_opts_t *opts, brix_byte_range_t *out)
 {
     const u_char *dash;
     off_t         start, last;
@@ -86,7 +86,7 @@ range_vector_parse_one(const u_char *p, const u_char *comma, off_t file_size,
 }
 
 /*
- * xrootd_http_parse_range_vector — parse a HTTP byte-ranges header value.
+ * brix_http_parse_range_vector — parse a HTTP byte-ranges header value.
  *
  * WHAT: Parses a comma-separated list of byte ranges (e.g. "0-499, -500, 9500-")
  *       and normalises them against file_size. Handles suffix and open-ended
@@ -102,9 +102,9 @@ range_vector_parse_one(const u_char *p, const u_char *comma, off_t file_size,
  *      5. Detects unsatisfiable ranges (start >= file_size or start > end).
  */
 ngx_int_t
-xrootd_http_parse_range_vector(const u_char *data, size_t len,
-    off_t file_size, const xrootd_range_vector_opts_t *opts,
-    xrootd_byte_range_t *ranges, ngx_uint_t *nranges)
+brix_http_parse_range_vector(const u_char *data, size_t len,
+    off_t file_size, const brix_range_vector_opts_t *opts,
+    brix_byte_range_t *ranges, ngx_uint_t *nranges)
 {
     const u_char *p, *end, *comma;
     ngx_uint_t    n = 0;
@@ -142,8 +142,8 @@ xrootd_http_parse_range_vector(const u_char *data, size_t len,
 }
 
 ngx_int_t
-xrootd_range_vector_validate_total(
-    const xrootd_byte_range_t *ranges, ngx_uint_t nranges,
+brix_range_vector_validate_total(
+    const brix_byte_range_t *ranges, ngx_uint_t nranges,
     off_t max_total_bytes, off_t *total_out)
 {
     off_t      total = 0;
@@ -170,8 +170,8 @@ xrootd_range_vector_validate_total(
 }
 
 ngx_uint_t
-xrootd_range_vector_next_coalesced_run(
-    const xrootd_byte_range_t *ranges, ngx_uint_t nranges,
+brix_range_vector_next_coalesced_run(
+    const brix_byte_range_t *ranges, ngx_uint_t nranges,
     ngx_uint_t start_index, ngx_uint_t max_iov)
 {
     ngx_uint_t i;

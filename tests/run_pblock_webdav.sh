@@ -30,12 +30,12 @@ http {
         listen 127.0.0.1:${PORT};
         location / {
             dav_methods PUT DELETE MKCOL MOVE COPY;
-            xrootd_webdav on;
-            xrootd_webdav_root $PFX/root;
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
-            xrootd_webdav_storage_backend  pblock;
-            xrootd_webdav_pblock_block_size 1m;
+            brix_webdav on;
+            brix_webdav_root $PFX/root;
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
+            brix_webdav_storage_backend  pblock;
+            brix_webdav_pblock_block_size 1m;
         }
     }
 }

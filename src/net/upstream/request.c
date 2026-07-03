@@ -5,17 +5,17 @@
  * TCP without exposing the backend's identity to the client.
  *
  * WHY: Transparent XRootD proxy requires opaque relay of opcodes while maintaining
- * file-handle translation end-to-end. The upstream context (xrootd_upstream_t) stores
+ * file-handle translation end-to-end. The upstream context (brix_upstream_t) stores
  * a saved copy of the original client request; these functions serialize that state
  * into the wire protocol format and deliver it to the backend connection.
  *
  * HOW: Two-phase pipeline per function:
- *   xrootd_upstream_send_request — buffer allocation (ngx_palloc), switch dispatch
+ *   brix_upstream_send_request — buffer allocation (ngx_palloc), switch dispatch
  *     across three supported opcodes (kXR_locate, kXR_open, kXR_stat), wire-format
  *     serialization with network-byte-order conversions (htons/htonl), write buffer
  *     setup and state machine transition to XRD_UP_REQUEST. INVARIANT #4 enforced:
  *     all wire paths → resolve_path() before open().
- *   xrootd_upstream_flush — non-blocking TCP write loop using ngx_connection_t->send,
+ *   brix_upstream_flush — non-blocking TCP write loop using ngx_connection_t->send,
  *     NGX_AGAIN handling via ngx_handle_write_event for event-loop readiness, read
  *     event setup for response reception.
  */
@@ -26,7 +26,7 @@
 #include "core/compat/alloc_guard.h"
 
 ngx_int_t
-xrootd_upstream_send_request(xrootd_upstream_t *up)
+brix_upstream_send_request(brix_upstream_t *up)
 {
     ngx_pool_t *pool = up->conn->pool;
     size_t      pathlen = strlen(up->req_path);
@@ -34,7 +34,7 @@ xrootd_upstream_send_request(xrootd_upstream_t *up)
     size_t      total = hdrlen + pathlen;
     u_char     *buf;
 
-    XROOTD_PALLOC_OR_RETURN(buf, pool, total, NGX_ERROR);
+    BRIX_PALLOC_OR_RETURN(buf, pool, total, NGX_ERROR);
     ngx_memzero(buf, total);
 
     switch (up->req_opcode) {
@@ -94,11 +94,11 @@ xrootd_upstream_send_request(xrootd_upstream_t *up)
     up->resp_body_pos = 0;
     up->state = XRD_UP_REQUEST;
 
-    return xrootd_upstream_flush(up);
+    return brix_upstream_flush(up);
 }
 
 ngx_int_t
-xrootd_upstream_flush(xrootd_upstream_t *up)
+brix_upstream_flush(brix_upstream_t *up)
 {
     ngx_connection_t *uconn = up->conn;
     ssize_t           n;

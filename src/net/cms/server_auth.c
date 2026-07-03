@@ -13,7 +13,7 @@
  *               the shared SSS verifier in src/sss.
  *         W1b — accept-time CIDR allowlist of permitted data-node IPs.
  *         W1c — host-character validation at registration store time
- *               (xrootd_net_host_chars_valid, called from registry.c).
+ *               (brix_net_host_chars_valid, called from registry.c).
  *
  * WHY:  Without these, any peer that can reach the CMS port can self-report an
  *       arbitrary host:port:paths and have the manager redirect clients to it
@@ -28,8 +28,8 @@
 #define CMS_SSS_LIFETIME  3600
 
 ngx_int_t
-xrootd_cms_srv_check_peer(ngx_connection_t *c,
-    ngx_stream_xrootd_cms_srv_conf_t *conf)
+brix_cms_srv_check_peer(ngx_connection_t *c,
+    ngx_stream_brix_cms_srv_conf_t *conf)
 {
     static ngx_uint_t warned;
 
@@ -42,8 +42,8 @@ xrootd_cms_srv_check_peer(ngx_connection_t *c,
         if (!warned && conf->sss_keytab.len == 0) {
             warned = 1;
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                          "xrootd: CMS server has no xrootd_cms_server_allow "
-                          "and no xrootd_cms_server_sss_keytab — any host may "
+                          "xrootd: CMS server has no brix_cms_server_allow "
+                          "and no brix_cms_server_sss_keytab — any host may "
                           "register; set an allowlist or sss keytab to harden");
         }
         return NGX_OK;
@@ -59,17 +59,17 @@ xrootd_cms_srv_check_peer(ngx_connection_t *c,
 }
 
 ngx_int_t
-xrootd_cms_srv_verify_xauth(xrootd_cms_srv_ctx_t *ctx,
+brix_cms_srv_verify_xauth(brix_cms_srv_ctx_t *ctx,
     const u_char *payload, size_t payload_len)
 {
-    xrootd_sss_identity_t   id;
-    const xrootd_sss_key_t *key;
+    brix_sss_identity_t   id;
+    const brix_sss_key_t *key;
     char                    err[160];
     ngx_int_t               rc;
 
     ngx_memzero(&id, sizeof(id));
 
-    rc = xrootd_sss_verify_blob(ctx->conf->sss_keys, CMS_SSS_LIFETIME,
+    rc = brix_sss_verify_blob(ctx->conf->sss_keys, CMS_SSS_LIFETIME,
                                 payload, payload_len, &id, &key,
                                 err, sizeof(err));
     if (rc != NGX_OK) {
@@ -81,7 +81,7 @@ xrootd_cms_srv_verify_xauth(xrootd_cms_srv_ctx_t *ctx,
 
     {
         char safe_user[256];
-        xrootd_sanitize_log_string(id.name[0] ? id.name : "-",
+        brix_sanitize_log_string(id.name[0] ? id.name : "-",
                                    safe_user, sizeof(safe_user));
         ngx_log_error(NGX_LOG_INFO, ctx->c->log, 0,
                       "xrootd: CMS server: sss auth OK for %s (id=\"%s\")",

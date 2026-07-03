@@ -14,7 +14,7 @@ cancel / query); the service queues it, runs an executor that drives the lifecyc
 | `cta_pb.{c,h}` | Message codec: decode `cta.xrd.Request` (→ op + path + archive-id + owner + instance), encode `cta.xrd.Response` and the `cta.xrd.StreamResponse` header. |
 | `cta_queue.{c,h}` | Per-worker request-queue state machine + owner/admin-gated cancel + optional restart journal. |
 | `cta_exec.{c,h}` | Pluggable executor vtable (archive/retrieve/cancel) — a simulated test backend and a production (tier/frm) seam. |
-| `cta_service.{c,h}` | The `xrootd_ssi_process_fn` glue (registered as `cta` in `provider.c`). |
+| `cta_service.{c,h}` | The `brix_ssi_process_fn` glue (registered as `cta` in `provider.c`). |
 
 ## Request lifecycle
 

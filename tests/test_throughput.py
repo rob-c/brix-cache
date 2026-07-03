@@ -41,7 +41,7 @@ LARGE_FILE      = "large200.bin"
 LARGE_FILE_SIZE = 200 * 1024 * 1024   # 200 MiB
 LARGE_FILE_MD5  = os.environ.get("LARGE_FILE_MD5", "")
 
-READ_CHUNK = 4 * 1024 * 1024   # 4 MiB — matches XROOTD_READ_MAX in the module
+READ_CHUNK = 4 * 1024 * 1024   # 4 MiB — matches BRIX_READ_MAX in the module
 
 
 # ---------------------------------------------------------------------------

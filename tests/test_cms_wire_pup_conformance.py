@@ -4,7 +4,7 @@ wire-conformance tests.
 
 This suite is a byte-level conformance harness for the nginx-xrootd CMS
 heartbeat client (src/net/cms/{wire,frame_io,send,recv}.c).  It provisions ONE
-dedicated nginx data-node configured with ``xrootd_cms_manager`` pointing at a
+dedicated nginx data-node configured with ``brix_cms_manager`` pointing at a
 tiny in-process Python "manager" peer that speaks the real XrdCms framing.  The
 peer accepts the node's TCP connection, captures the LOGIN/LOAD frames the node
 emits, and then drives the node with manager-originated PING / kYR_space /
@@ -15,7 +15,7 @@ CMS_MOD_RAW|HAVE_ONLINE) are both asserted directly against the wire bytes.
 
 The 8-byte big-endian frame header, the >4088 oversize-frame disconnect, and
 recv-boundary fragmentation are exercised against the nginx CMS *server*
-(``xrootd_cms_server on``), where a Python data-node peer is the frame source.
+(``brix_cms_server on``), where a Python data-node peer is the frame source.
 
 Everything is self-contained on dedicated high ports (>=12950).  If the nginx
 binary is missing, or the node never dials the peer, the affected tests skip
@@ -44,7 +44,7 @@ _DIR = os.path.join(os.environ["TMPDIR"], "xrd_cms_wire_pup")
 # suite runs collision-free in one pytest invocation regardless of run order.
 NODE_DATA_PORT   = int(os.environ.get("TEST_CWP_NODE_DATA_PORT") or free_port())  # node's root:// listen
 MGR_PEER_PORT    = int(os.environ.get("TEST_CWP_MGR_PEER_PORT")  or free_port())  # Python manager peer
-CMS_SRV_PORT     = int(os.environ.get("TEST_CWP_CMS_SRV_PORT")   or free_port())  # nginx xrootd_cms_server
+CMS_SRV_PORT     = int(os.environ.get("TEST_CWP_CMS_SRV_PORT")   or free_port())  # nginx brix_cms_server
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +81,7 @@ CMS_ST_RESUME   = 0x04
 CMS_ST_NOSTAGE  = 0x02
 
 CMS_HDR_LEN  = 8
-CMS_MAX_FRAME = 4096          # NGX_XROOTD_CMS_MAX_FRAME
+CMS_MAX_FRAME = 4096          # NGX_BRIX_CMS_MAX_FRAME
 # A frame whose dlen pushes (dlen + 8) over MAX_FRAME must be rejected; the
 # largest *accepted* dlen is therefore 4088.
 CMS_MAX_DLEN = CMS_MAX_FRAME - CMS_HDR_LEN   # 4088
@@ -363,14 +363,14 @@ def _mkdirs(*paths):
 def _node_conf(name, listen_port, mgr_port, data_dir, allow_write=True):
     """A data-node nginx that serves root:// AND dials the Python manager peer.
 
-    xrootd_cms_manager makes the worker open a persistent CMS connection to the
-    peer and emit LOGIN + periodic LOAD; xrootd_cms_interval 2 keeps the
-    heartbeat tight so tests don't wait long.  xrootd_listen_port is advertised
+    brix_cms_manager makes the worker open a persistent CMS connection to the
+    peer and emit LOGIN + periodic LOAD; brix_cms_interval 2 keeps the
+    heartbeat tight so tests don't wait long.  brix_listen_port is advertised
     as dPort in the LOGIN frame.
     """
     base = os.path.join(_DIR, name)
     _mkdirs(base, os.path.join(base, "logs"))
-    write_line = "        xrootd_allow_write on;\n" if allow_write else ""
+    write_line = "        brix_allow_write on;\n" if allow_write else ""
     conf = os.path.join(base, f"{name}.conf")
     with open(conf, "w") as f:
         f.write(
@@ -381,12 +381,12 @@ def _node_conf(name, listen_port, mgr_port, data_dir, allow_write=True):
             f"stream {{\n"
             f"    server {{\n"
             f"        listen 0.0.0.0:{listen_port};\n"
-            f"        xrootd on; xrootd_storage_backend posix:{data_dir}; xrootd_auth none;\n"
+            f"        xrootd on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
             f"{write_line}"
-            f"        xrootd_listen_port {listen_port};\n"
-            f"        xrootd_cms_manager {HOST}:{mgr_port};\n"
-            f"        xrootd_cms_paths /;\n"
-            f"        xrootd_cms_interval 2;\n"
+            f"        brix_listen_port {listen_port};\n"
+            f"        brix_cms_manager {HOST}:{mgr_port};\n"
+            f"        brix_cms_paths /;\n"
+            f"        brix_cms_interval 2;\n"
             f"    }}\n"
             f"}}\n")
     return conf
@@ -408,10 +408,10 @@ def _cms_server_conf(name, listen_port, data_dir):
             f"stream {{\n"
             f"    server {{\n"
             f"        listen 0.0.0.0:{listen_port};\n"
-            f"        xrootd on; xrootd_storage_backend posix:{data_dir}; xrootd_auth none;\n"
-            f"        xrootd_manager_mode on;\n"
-            f"        xrootd_cms_server on;\n"
-            f"        xrootd_cms_server_interval 60;\n"
+            f"        xrootd on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
+            f"        brix_manager_mode on;\n"
+            f"        brix_cms_server on;\n"
+            f"        brix_cms_server_interval 60;\n"
             f"    }}\n"
             f"}}\n")
     return conf
@@ -579,7 +579,7 @@ class TestLoginPupEncoding:
 
     def test_login_paths_reencoded_w_r_newline(self, login_frame):
         """Paths is a newline-separated '<type> <path>' list; type is 'w' (the
-        node has xrootd_allow_write on) or 'r', '/' is exported."""
+        node has brix_allow_write on) or 'r', '/' is exported."""
         _sid, _code, _mod, payload = login_frame
         d = _decode_login(payload)
         paths = d["paths"]

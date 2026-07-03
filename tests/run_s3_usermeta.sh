@@ -24,10 +24,10 @@ http {
     server {
         listen 127.0.0.1:${PORT};
         location / {
-            xrootd_s3             on;
-            xrootd_s3_storage_backend        posix:$PFX/s3root;
-            xrootd_s3_bucket      testbucket;
-            xrootd_s3_allow_write on;
+            brix_s3             on;
+            brix_s3_storage_backend        posix:$PFX/s3root;
+            brix_s3_bucket      testbucket;
+            brix_s3_allow_write on;
         }
     }
 }

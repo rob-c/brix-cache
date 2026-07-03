@@ -1,7 +1,7 @@
 """
 test_metrics_coverage_root.py — Prometheus coverage for the root:// data plane.
 
-Verifies that `xrootd_requests_total{op,status}` and the byte counters actually
+Verifies that `brix_requests_total{op,status}` and the byte counters actually
 increment for every root:// pathway, with emphasis on DATA TRANSFER and FILE
 CREATE / MODIFY / DELETE / RENAME.  Each test drives one real operation against
 the live anon listener and asserts the exact labelled counter moved.
@@ -36,11 +36,11 @@ def _fs():
 
 
 def _op_ok(snap, op):
-    return snap.delta("xrootd_requests_total", {**LBL, "op": op, "status": "ok"})
+    return snap.delta("brix_requests_total", {**LBL, "op": op, "status": "ok"})
 
 
 def _op_err(snap, op):
-    return snap.delta("xrootd_requests_total",
+    return snap.delta("brix_requests_total",
                       {**LBL, "op": op, "status": "error"})
 
 
@@ -281,7 +281,7 @@ class TestRootByteCounters:
         assert r.returncode == 0, r.stderr
         time.sleep(1.0)                      # let the closed session flush
         after = fetch()
-        for name in ("xrootd_bytes_rx_total", "xrootd_bytes_root_rx_total"):
+        for name in ("brix_bytes_rx_total", "brix_bytes_root_rx_total"):
             d = snap.delta(name, LBL, after=after)
             assert d >= self.PAYLOAD, f"{name} delta {d} < {self.PAYLOAD}"
 
@@ -295,7 +295,7 @@ class TestRootByteCounters:
         assert r.returncode == 0, r.stderr
         time.sleep(1.0)
         after = fetch()
-        for name in ("xrootd_bytes_tx_total", "xrootd_bytes_root_tx_total"):
+        for name in ("brix_bytes_tx_total", "brix_bytes_root_tx_total"):
             d = snap.delta(name, LBL, after=after)
             assert d >= self.PAYLOAD, f"{name} delta {d} < {self.PAYLOAD}"
 
@@ -304,5 +304,5 @@ class TestRootByteCounters:
         assert _fs().stat("/")[0].ok
         time.sleep(0.5)
         after = fetch()
-        assert snap.delta("xrootd_wire_bytes_rx_total", LBL, after=after) >= 1
-        assert snap.delta("xrootd_wire_bytes_tx_total", LBL, after=after) >= 1
+        assert snap.delta("brix_wire_bytes_rx_total", LBL, after=after) >= 1
+        assert snap.delta("brix_wire_bytes_tx_total", LBL, after=after) >= 1

@@ -6,16 +6,16 @@
  * HTTP-TPC (curl), and any future S3 remote-copy feature.
  *
  * Two public helpers:
- *   xrootd_net_target_parse()     — split URL into scheme/host/port/path
- *   xrootd_net_target_check_dns() — resolve host and reject prohibited addrs
+ *   brix_net_target_parse()     — split URL into scheme/host/port/path
+ *   brix_net_target_check_dns() — resolve host and reject prohibited addrs
  *
  * check_dns() calls getaddrinfo(), which blocks.  It MUST be called only
  * from a background thread (ngx_thread_pool_run or equivalent), never from
  * the nginx event-loop worker.
  */
 
-#ifndef XROOTD_NET_TARGET_H
-#define XROOTD_NET_TARGET_H
+#ifndef BRIX_NET_TARGET_H
+#define BRIX_NET_TARGET_H
 
 #include <ngx_http.h>
 #include <stdint.h>
@@ -33,7 +33,7 @@ typedef struct {
     ngx_str_t  path;     /* everything from the first "/" onward, or empty */
     uint16_t   port;     /* 0 when not explicitly present in the URL */
     ngx_flag_t has_port; /* 1 when port was explicitly present */
-} xrootd_net_target_t;
+} brix_net_target_t;
 
 /*
  * Policy controlling which destinations are acceptable.
@@ -53,10 +53,10 @@ typedef struct {
     ngx_flag_t allow_private;
     uint16_t   default_https_port;
     uint16_t   default_root_port;
-} xrootd_net_target_policy_t;
+} brix_net_target_policy_t;
 
 /*
- * xrootd_net_target_parse — split a URL string into its components.
+ * brix_net_target_parse — split a URL string into its components.
  *
  * The pool parameter is accepted for API consistency but not used; all
  * fields in *out point into url->data.  Returns NGX_OK on success.
@@ -68,36 +68,36 @@ typedef struct {
  *   scheme://host:port/path
  *   scheme://[ipv6addr]:port/path
  */
-ngx_int_t xrootd_net_target_parse(ngx_pool_t *pool,
-    const ngx_str_t *url, xrootd_net_target_t *out,
+ngx_int_t brix_net_target_parse(ngx_pool_t *pool,
+    const ngx_str_t *url, brix_net_target_t *out,
     char *err, size_t errsz);
 
 /*
- * xrootd_net_target_check_addr — classify a single resolved sockaddr.
+ * brix_net_target_check_addr — classify a single resolved sockaddr.
  *
  * Returns NGX_ERROR when the address is in a prohibited range under policy,
  * NGX_OK otherwise.  Can be called from any context (no DNS, no blocking).
  * Used by native TPC connect loop to check each resolved address inline.
  */
-ngx_int_t xrootd_net_target_check_addr(const struct sockaddr *sa,
-    const xrootd_net_target_policy_t *policy,
+ngx_int_t brix_net_target_check_addr(const struct sockaddr *sa,
+    const brix_net_target_policy_t *policy,
     char *err, size_t errsz);
 
 /*
- * xrootd_net_target_check_dns — resolve host and verify against policy.
+ * brix_net_target_check_dns — resolve host and verify against policy.
  *
  * Calls getaddrinfo(3) on target->host (BLOCKING — call from thread only).
  * Rejects the target if any resolved address is in a prohibited range under
  * the given policy.  Returns NGX_OK when all addresses are permitted.
  * On rejection writes a NUL-terminated message into err[0..errsz).
  */
-ngx_int_t xrootd_net_target_check_dns(
-    const xrootd_net_target_t *target,
-    const xrootd_net_target_policy_t *policy,
+ngx_int_t brix_net_target_check_dns(
+    const brix_net_target_t *target,
+    const brix_net_target_policy_t *policy,
     char *err, size_t errsz);
 
 /*
- * xrootd_net_target_check_dns_pin — like check_dns, but also returns the first
+ * brix_net_target_check_dns_pin — like check_dns, but also returns the first
  * permitted resolved address as a numeric string in out_ip[0..out_ipsz).
  *
  * Closes the DNS-rebind TOCTOU window: the caller validates and resolves once,
@@ -106,14 +106,14 @@ ngx_int_t xrootd_net_target_check_dns(
  * BLOCKING/thread-only contract as check_dns().  Returns NGX_OK with out_ip
  * filled, NGX_ERROR otherwise (err filled).
  */
-ngx_int_t xrootd_net_target_check_dns_pin(
-    const xrootd_net_target_t *target,
-    const xrootd_net_target_policy_t *policy,
+ngx_int_t brix_net_target_check_dns_pin(
+    const brix_net_target_t *target,
+    const brix_net_target_policy_t *policy,
     char *out_ip, size_t out_ipsz,
     char *err, size_t errsz);
 
 /*
- * xrootd_net_host_chars_valid — reject host strings that could inject control
+ * brix_net_host_chars_valid — reject host strings that could inject control
  * bytes or alternate schemes into a redirect/registration string.
  *
  * Allows only the characters legal in a hostname or IPv4/IPv6 literal:
@@ -121,6 +121,6 @@ ngx_int_t xrootd_net_target_check_dns_pin(
  * byte outside that set (so "evil\r\nLocation:" or "http://x" never reach a
  * client that parses a redirect host).  Returns 1 if valid, 0 otherwise.
  */
-int xrootd_net_host_chars_valid(const char *host, size_t len);
+int brix_net_host_chars_valid(const char *host, size_t len);
 
-#endif /* XROOTD_NET_TARGET_H */
+#endif /* BRIX_NET_TARGET_H */

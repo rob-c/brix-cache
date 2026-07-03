@@ -275,7 +275,7 @@ class TestNginxDataNode:
             _skip_if_port_closed(port, label)
         yield
 
-    def test_xrootd_manager_redirects_to_nginx_data(self, tmp_path):
+    def test_brix_manager_redirects_to_nginx_data(self, tmp_path):
         """xrootd CMS manager redirects to nginx data node; xrdcp reads correctly."""
         payload = os.urandom(16 * 1024)
         name = f"ngxdata_{uuid.uuid4().hex[:8]}.bin"

@@ -1,9 +1,9 @@
-#ifndef XROOTD_CONN_DISCONNECT_H
-#define XROOTD_CONN_DISCONNECT_H
-#include "core/ngx_xrootd_module.h"
+#ifndef BRIX_CONN_DISCONNECT_H
+#define BRIX_CONN_DISCONNECT_H
+#include "core/ngx_brix_module.h"
 
 /*
- * xrootd_on_disconnect — tear down all per-connection state when a client
+ * brix_on_disconnect — tear down all per-connection state when a client
  * disconnects (read EOF, write error, or timeout).
  *
  * Responsibilities:
@@ -20,19 +20,19 @@
  *   8. Emits the DISCONNECT access-log entry with session-level throughput.
  *
  * NOTE: This function does NOT close open file handles — the caller must call
- * xrootd_close_all_files(ctx) before or after this call.
+ * brix_close_all_files(ctx) before or after this call.
  */
-void xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c);
+void brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c);
 
 /*
  * Write-pipelining teardown guards (see disconnect.c).  Every data-plane finalize
- * site calls xrootd_defer_teardown_if_writing() first: it returns 1 (and the
+ * site calls brix_defer_teardown_if_writing() first: it returns 1 (and the
  * caller must return without finalizing) when a pipelined pwrite is still in
  * flight, deferring the real teardown to the last write completion, which calls
- * xrootd_run_deferred_teardown().
+ * brix_run_deferred_teardown().
  */
-ngx_flag_t xrootd_defer_teardown_if_writing(xrootd_ctx_t *ctx,
+ngx_flag_t brix_defer_teardown_if_writing(brix_ctx_t *ctx,
     ngx_connection_t *c, ngx_int_t status);
-void xrootd_run_deferred_teardown(xrootd_ctx_t *ctx, ngx_connection_t *c);
+void brix_run_deferred_teardown(brix_ctx_t *ctx, ngx_connection_t *c);
 
-#endif /* XROOTD_CONN_DISCONNECT_H */
+#endif /* BRIX_CONN_DISCONNECT_H */

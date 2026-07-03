@@ -18,44 +18,44 @@
  *       The async path allocates a thread task with all scan parameters; the done callback delivers results back on the client connection.
  *       Sync fallback runs when no thread pool is configured or the queue is full.
  *
- * HOW:  xrootd_query_ckscan() validates payload presence, calls ckscan_select_payload() to extract algo + path from wire data (defaulting
+ * HOW:  brix_query_ckscan() validates payload presence, calls ckscan_select_payload() to extract algo + path from wire data (defaulting
  *       to adler32), extracts and resolves path, checks authdb/VO/token scope, then either posts a thread task or runs ckscan_sync().
  *       ckscan_select_payload() scans for ':' or ' ' before the first '/' to detect algo prefix; validates via checksum_parse + algorithm_supported.
  *       ckscan_sync() mirrors the async thread logic on the event loop: stat → open → checksum for files, walk tree for directories.
  */
 
 /* AIO function declarations — defined in checksum_ckscan_async.c */
-extern void xrootd_ckscan_aio_thread(void *data, ngx_log_t *log);
-extern void xrootd_ckscan_aio_done(ngx_event_t *ev);
+extern void brix_ckscan_aio_thread(void *data, ngx_log_t *log);
+extern void brix_ckscan_aio_done(ngx_event_t *ev);
 
 /* ckscan_algorithm_supported — true only for adler32 or crc32c (xrdadler32
- * compatibility), via xrootd_checksum_parse; gates the extracted algo prefix. */
+ * compatibility), via brix_checksum_parse; gates the extracted algo prefix. */
 
 static ngx_flag_t
-xrootd_ckscan_algorithm_supported(const char *algo)
+brix_ckscan_algorithm_supported(const char *algo)
 {
-    xrootd_checksum_alg_t alg;
+    brix_checksum_alg_t alg;
 
-    if (xrootd_checksum_parse(algo, strlen(algo), &alg, NULL, 0) != NGX_OK) {
+    if (brix_checksum_parse(algo, strlen(algo), &alg, NULL, 0) != NGX_OK) {
         return 0;
     }
 
-    return alg == XROOTD_CHECKSUM_ADLER32
-           || alg == XROOTD_CHECKSUM_CRC32C
-           || alg == XROOTD_CHECKSUM_CRC64
-           || alg == XROOTD_CHECKSUM_CRC64NVME;
+    return alg == BRIX_CHECKSUM_ADLER32
+           || alg == BRIX_CHECKSUM_CRC32C
+           || alg == BRIX_CHECKSUM_CRC64
+           || alg == BRIX_CHECKSUM_CRC64NVME;
 }
 
-/* ckscan_send_error — wrap xrootd_send_error, returning NGX_DONE on success
+/* ckscan_send_error — wrap brix_send_error, returning NGX_DONE on success
  * (request complete) else NGX_ERROR; used on an invalid/unsupported algo prefix. */
 
 static ngx_int_t
-xrootd_ckscan_send_error(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_ckscan_send_error(brix_ctx_t *ctx, ngx_connection_t *c,
     uint16_t errcode, const char *errmsg)
 {
     ngx_int_t rc;
 
-    rc = xrootd_send_error(ctx, c, errcode, errmsg);
+    rc = brix_send_error(ctx, c, errcode, errmsg);
     return (rc == NGX_OK) ? NGX_DONE : rc;
 }
 
@@ -65,7 +65,7 @@ xrootd_ckscan_send_error(xrootd_ctx_t *ctx, ngx_connection_t *c,
  * invalid/unsupported algo, else NGX_OK with path/algo filled. */
 
 static ngx_int_t
-xrootd_ckscan_select_payload(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_ckscan_select_payload(brix_ctx_t *ctx, ngx_connection_t *c,
     const u_char **path_payload, size_t *path_payload_len,
     char *algo, size_t algo_sz)
 {
@@ -81,18 +81,18 @@ xrootd_ckscan_select_payload(xrootd_ctx_t *ctx, ngx_connection_t *c,
     wire_len = strnlen((const char *) payload, payload_len);
     for (i = 0; i < wire_len && payload[i] != '/'; i++) {
         if (payload[i] == ':' || payload[i] == ' ') {
-            xrootd_checksum_alg_t alg;
+            brix_checksum_alg_t alg;
 
             if (i == 0 || i >= algo_sz || i + 1 >= payload_len) {
-                return xrootd_ckscan_send_error(ctx, c, kXR_ArgInvalid,
+                return brix_ckscan_send_error(ctx, c, kXR_ArgInvalid,
                                                 "invalid checksum algorithm");
             }
 
-            if (xrootd_checksum_parse((const char *) payload, i, &alg, algo,
+            if (brix_checksum_parse((const char *) payload, i, &alg, algo,
                                       algo_sz) != NGX_OK
-                || !xrootd_ckscan_algorithm_supported(algo))
+                || !brix_ckscan_algorithm_supported(algo))
             {
-                return xrootd_ckscan_send_error(ctx, c, kXR_ArgInvalid,
+                return brix_ckscan_send_error(ctx, c, kXR_ArgInvalid,
                                                 "unknown checksum algorithm");
             }
 
@@ -113,12 +113,12 @@ xrootd_ckscan_select_payload(xrootd_ctx_t *ctx, ngx_connection_t *c,
  * send ok+checksum or error. */
 
 static ngx_int_t
-xrootd_ckscan_sync(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, int rootfd,
+brix_ckscan_sync(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, int rootfd,
     const char *logical, const char *algo)
 {
     u_char      *buf;
-    size_t       cap  = XROOTD_CKSCAN_INIT_CAP;
+    size_t       cap  = BRIX_CKSCAN_INIT_CAP;
     size_t       used = 0;
     uint16_t     err_code = 0;
     char         err_msg[128] = "";
@@ -126,85 +126,85 @@ xrootd_ckscan_sync(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     buf = ngx_alloc(cap, c->log);
     if (buf == NULL) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSCAN);
-        return xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory");
+        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSCAN);
+        return brix_send_error(ctx, c, kXR_NoMemory, "out of memory");
     }
 
     /* The whole stat/open/checksum/walk now lives in the confined VFS walk
-     * (xrootd_ckscan_run → xrootd_vfs_walk); this layer only frames the result. */
-    if (xrootd_ckscan_run(c->log, rootfd, logical, algo, &buf, &cap, &used,
+     * (brix_ckscan_run → brix_vfs_walk); this layer only frames the result. */
+    if (brix_ckscan_run(c->log, rootfd, logical, algo, &buf, &cap, &used,
                           conf->ckscan_max_depth, conf->ckscan_max_files,
                           &err_code, err_msg, sizeof(err_msg)) != NGX_OK)
     {
         ngx_free(buf);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSCAN);
-        return xrootd_send_error(ctx, c, err_code, err_msg);
+        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSCAN);
+        return brix_send_error(ctx, c, err_code, err_msg);
     }
 
     buf[used] = '\0';
-    XROOTD_OP_OK(ctx, XROOTD_OP_QUERY_CKSCAN);
-    xrootd_log_access(ctx, c, "QUERY", logical, "ckscan", 1, 0, NULL, 0);
-    rc = xrootd_send_ok(ctx, c, buf, (uint32_t) (used + 1));
+    BRIX_OP_OK(ctx, BRIX_OP_QUERY_CKSCAN);
+    brix_log_access(ctx, c, "QUERY", logical, "ckscan", 1, 0, NULL, 0);
+    rc = brix_send_ok(ctx, c, buf, (uint32_t) (used + 1));
     ngx_free(buf);
     return rc;
 }
 
-/* xrootd_query_ckscan — kXR_Qckscan entry point: parse algo+path (select_payload),
+/* brix_query_ckscan — kXR_Qckscan entry point: parse algo+path (select_payload),
  * resolve against the export root, check authdb read + VO ACL + token scope, then
  * route to the async thread pool (NGX_OK posted) or the sync fallback
  * (NGX_DONE/NGX_ERROR). */
 
 ngx_int_t
-xrootd_query_ckscan(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_query_ckscan(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
 {
     char         full_path[PATH_MAX];
-    char         pathbuf[XROOTD_MAX_PATH + 1];
+    char         pathbuf[BRIX_MAX_PATH + 1];
     char         algo[32];
     const u_char *path_payload;
     size_t        path_payload_len;
     ngx_int_t     rc;
 
     if (ctx->payload == NULL || ctx->cur_dlen == 0) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_CKSCAN, "QUERY",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_QUERY_CKSCAN, "QUERY",
                           "-", "ckscan", kXR_ArgMissing, "no path given");
     }
 
-    rc = xrootd_ckscan_select_payload(ctx, c, &path_payload, &path_payload_len,
+    rc = brix_ckscan_select_payload(ctx, c, &path_payload, &path_payload_len,
                                       algo, sizeof(algo));
     if (rc == NGX_DONE) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSCAN);
+        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSCAN);
         return NGX_OK;
     }
     if (rc != NGX_OK) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSCAN);
+        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSCAN);
         return rc;
     }
 
-    if (!xrootd_extract_path(c->log, path_payload, path_payload_len,
+    if (!brix_extract_path(c->log, path_payload, path_payload_len,
                              pathbuf, sizeof(pathbuf), 1)) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_QUERY_CKSCAN, "QUERY",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_QUERY_CKSCAN, "QUERY",
                           "-", "ckscan", kXR_ArgInvalid, "invalid path payload");
     }
 
-    xrootd_beneath_full_path(conf->common.root_canon, pathbuf,
+    brix_beneath_full_path(conf->common.root_canon, pathbuf,
                              full_path, sizeof(full_path));
 
-    if (xrootd_auth_gate(ctx, c, XROOTD_OP_QUERY_CKSCAN, "QUERY",
+    if (brix_auth_gate(ctx, c, BRIX_OP_QUERY_CKSCAN, "QUERY",
                          pathbuf, full_path, conf,
-                         XROOTD_AUTH_READ, 0) != NGX_OK) {
+                         BRIX_AUTH_READ, 0) != NGX_OK) {
         return ctx->write_rc;
     }
 
     if (conf->common.thread_pool != NULL) {
-        xrootd_ckscan_aio_t *t;
+        brix_ckscan_aio_t *t;
         ngx_thread_task_t   *task;
         ngx_flag_t           posted;
 
-        task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_ckscan_aio_t));
+        task = ngx_thread_task_alloc(c->pool, sizeof(brix_ckscan_aio_t));
         if (task == NULL) {
-            XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSCAN);
-            return xrootd_send_error(ctx, c, kXR_NoMemory, "out of memory");
+            BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSCAN);
+            return brix_send_error(ctx, c, kXR_NoMemory, "out of memory");
         }
 
         t = task->ctx;
@@ -223,10 +223,10 @@ xrootd_query_ckscan(xrootd_ctx_t *ctx, ngx_connection_t *c,
         t->resp_len  = 0;
         t->error_code = 0;
 
-        xrootd_task_bind(task, xrootd_ckscan_aio_thread, xrootd_ckscan_aio_done);
+        brix_task_bind(task, brix_ckscan_aio_thread, brix_ckscan_aio_done);
         task->ctx           = t;
 
-        if (xrootd_aio_post_task(ctx, c, conf->common.thread_pool, task,
+        if (brix_aio_post_task(ctx, c, conf->common.thread_pool, task,
                                  "ckscan thread pool queue full, using sync",
                                  &posted) != NGX_OK)
         {
@@ -238,5 +238,5 @@ xrootd_query_ckscan(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    return xrootd_ckscan_sync(ctx, c, conf, conf->rootfd, pathbuf, algo);
+    return brix_ckscan_sync(ctx, c, conf, conf->rootfd, pathbuf, algo);
 }

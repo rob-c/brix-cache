@@ -9,7 +9,7 @@
  *      for delivery to the client connection. Special cases redirect (cleanup upstream, resume client read),
  *      wait (schedule retry timer), and error (extract errno+message). State machine transitions ensure
  *      correct sequencing across proxy lifecycle phases.
- * HOW: Single function xrootd_upstream_forward_response() with switch(status) covering all four response types.
+ * HOW: Single function brix_upstream_forward_response() with switch(status) covering all four response types.
  *      kXR_redirect rebuilds header + body, cleans upstream, queues to client. kXR_wait extracts seconds from
  *      body, sets timer handler, re-arms read event (epoll ET mode edge recovery). kXR_ok rebuilds header +
  *      body, cleans upstream, queues. kXR_error extracts errno/code/message, sends error frame. Default case
@@ -17,9 +17,9 @@
  */
 
 void
-xrootd_upstream_forward_response(xrootd_upstream_t *up)
+brix_upstream_forward_response(brix_upstream_t *up)
 {
-    xrootd_ctx_t     *ctx = up->client_ctx;
+    brix_ctx_t     *ctx = up->client_ctx;
     ngx_connection_t *c = up->client_conn;
     uint16_t          status = up->resp_status;
     u_char           *body = up->resp_body;
@@ -35,18 +35,18 @@ xrootd_upstream_forward_response(xrootd_upstream_t *up)
         u_char *buf;
 
         if (dlen < 4) {
-            xrootd_upstream_abort(up, "malformed kXR_redirect from upstream");
+            brix_upstream_abort(up, "malformed kXR_redirect from upstream");
             return;
         }
 
         total = XRD_RESPONSE_HDR_LEN + dlen;
         buf = ngx_palloc(c->pool, total);
         if (buf == NULL) {
-            xrootd_upstream_abort(up, "pool alloc failed forwarding redirect");
+            brix_upstream_abort(up, "pool alloc failed forwarding redirect");
             return;
         }
 
-        xrootd_build_resp_hdr(ctx->cur_streamid, kXR_redirect, dlen,
+        brix_build_resp_hdr(ctx->cur_streamid, kXR_redirect, dlen,
                               (ServerResponseHdr *) buf);
         ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, body, dlen);
 
@@ -60,16 +60,16 @@ xrootd_upstream_forward_response(xrootd_upstream_t *up)
         }
 
         ctx->state = XRD_ST_REQ_HEADER;
-        xrootd_upstream_cleanup(up);
-        xrootd_queue_response(ctx, c, buf, total);
-        xrootd_schedule_read_resume(c);
+        brix_upstream_cleanup(up);
+        brix_queue_response(ctx, c, buf, total);
+        brix_schedule_read_resume(c);
         return;
     }
 
     case kXR_wait: {
-        /* shared decode+clamp (libxrdproto): default 5s, ceiling XROOTD_UP_WAIT_MAX. */
+        /* shared decode+clamp (libxrdproto): default 5s, ceiling BRIX_UP_WAIT_MAX. */
         uint32_t secs = xrd_wait_secs_parse((const uint8_t *) body, dlen, 5,
-                                            XROOTD_UP_WAIT_MAX);
+                                            BRIX_UP_WAIT_MAX);
 
         ngx_log_error(NGX_LOG_INFO, c->log, 0,
                       "xrootd: upstream kXR_wait %u s; scheduling retry",
@@ -80,7 +80,7 @@ xrootd_upstream_forward_response(xrootd_upstream_t *up)
         up->resp_body = NULL;
         up->resp_body_pos = 0;
 
-        up->timer.handler = xrootd_upstream_wait_timer_handler;
+        up->timer.handler = brix_upstream_wait_timer_handler;
         up->timer.data = up;
         up->timer.log = c->log;
         ngx_add_timer(&up->timer, (ngx_msec_t) secs * 1000);
@@ -91,7 +91,7 @@ xrootd_upstream_forward_response(xrootd_upstream_t *up)
          * ngx_handle_read_event is a no-op when the fd is already active,
          * so buffered data would otherwise be missed until the retry timer. */
         if (ngx_handle_read_event(up->conn->read, 0) != NGX_OK) {
-            xrootd_upstream_abort(up, "upstream read arm failed after kXR_wait");
+            brix_upstream_abort(up, "upstream read arm failed after kXR_wait");
             return;
         }
         ngx_post_event(up->conn->read, &ngx_posted_events);
@@ -109,7 +109,7 @@ xrootd_upstream_forward_response(xrootd_upstream_t *up)
         up->resp_body_pos = 0;
 
         if (ngx_handle_read_event(up->conn->read, 0) != NGX_OK) {
-            xrootd_upstream_abort(up, "read arm failed after kXR_waitresp");
+            brix_upstream_abort(up, "read arm failed after kXR_waitresp");
             return;
         }
 
@@ -119,7 +119,7 @@ xrootd_upstream_forward_response(xrootd_upstream_t *up)
          * already active, so buffered data would otherwise be missed. */
         ngx_post_event(up->conn->read, &ngx_posted_events);
 
-        xrootd_send_waitresp(ctx, c);
+        brix_send_waitresp(ctx, c);
         return;
 
     case kXR_ok: {
@@ -127,10 +127,10 @@ xrootd_upstream_forward_response(xrootd_upstream_t *up)
         u_char *buf = ngx_palloc(c->pool, total);
 
         if (buf == NULL) {
-            xrootd_upstream_abort(up, "pool alloc failed forwarding ok");
+            brix_upstream_abort(up, "pool alloc failed forwarding ok");
             return;
         }
-        xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok, dlen,
+        brix_build_resp_hdr(ctx->cur_streamid, kXR_ok, dlen,
                               (ServerResponseHdr *) buf);
         if (dlen > 0) {
             ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, body, dlen);
@@ -140,9 +140,9 @@ xrootd_upstream_forward_response(xrootd_upstream_t *up)
                       "xrootd: upstream ok (dlen=%u)", dlen);
 
         ctx->state = XRD_ST_REQ_HEADER;
-        xrootd_upstream_cleanup(up);
-        xrootd_queue_response(ctx, c, buf, total);
-        xrootd_schedule_read_resume(c);
+        brix_upstream_cleanup(up);
+        brix_queue_response(ctx, c, buf, total);
+        brix_schedule_read_resume(c);
         return;
     }
 
@@ -172,16 +172,16 @@ xrootd_upstream_forward_response(xrootd_upstream_t *up)
                       "xrootd: upstream error %d: %s", (int) errcode, msg);
 
         ctx->state = XRD_ST_REQ_HEADER;
-        xrootd_upstream_cleanup(up);
-        xrootd_send_error(ctx, c, errcode, msg);
-        xrootd_schedule_read_resume(c);
+        brix_upstream_cleanup(up);
+        brix_send_error(ctx, c, errcode, msg);
+        brix_schedule_read_resume(c);
         return;
     }
 
     default:
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "xrootd: upstream unexpected status %d", (int) status);
-        xrootd_upstream_abort(up, "unexpected status from upstream");
+        brix_upstream_abort(up, "unexpected status from upstream");
         return;
     }
 }

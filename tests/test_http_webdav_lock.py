@@ -1,7 +1,7 @@
 """
 tests/test_http_webdav_lock.py
 
-WebDAV LOCK and UNLOCK tests for the ngx_http_xrootd_webdav_module.
+WebDAV LOCK and UNLOCK tests for the ngx_http_brix_webdav_module.
 """
 
 import time

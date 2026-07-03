@@ -21,7 +21,7 @@
  * Grid CAs publish CRLs either as .pem bundles or as hash.r0/hash.r1 files.
  */
 static ngx_flag_t
-xrootd_pki_crl_filename_matches(const char *name)
+brix_pki_crl_filename_matches(const char *name)
 {
     size_t name_len;
 
@@ -50,7 +50,7 @@ xrootd_pki_crl_filename_matches(const char *name)
  * Build a full file path by combining directory name and filename.
  */
 static ngx_int_t
-xrootd_pki_join_child_path(char *dst, size_t dst_size, const char *directory,
+brix_pki_join_child_path(char *dst, size_t dst_size, const char *directory,
     const char *filename)
 {
     int written;
@@ -67,7 +67,7 @@ xrootd_pki_join_child_path(char *dst, size_t dst_size, const char *directory,
  * Check whether a path points to a regular file (not a directory, symlink, etc.).
  */
 static ngx_flag_t
-xrootd_pki_is_regular_file(const char *path)
+brix_pki_is_regular_file(const char *path)
 {
     struct stat file_stat;
 
@@ -79,7 +79,7 @@ xrootd_pki_is_regular_file(const char *path)
  * Each certificate in the file is loaded one at a time until no more are found.
  */
 static ngx_uint_t
-xrootd_pki_load_certs_from_file(STACK_OF(X509) *certs, const char *path,
+brix_pki_load_certs_from_file(STACK_OF(X509) *certs, const char *path,
     ngx_log_t *log, ngx_flag_t log_open_error)
 {
     FILE      *fp;
@@ -90,7 +90,7 @@ xrootd_pki_load_certs_from_file(STACK_OF(X509) *certs, const char *path,
     if (fp == NULL) {
         if (log_open_error) {
             ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
-                          "xrootd_pki_check: cannot open CA file \"%s\"",
+                          "brix_pki_check: cannot open CA file \"%s\"",
                           path);
         }
         return 0;
@@ -102,7 +102,7 @@ xrootd_pki_load_certs_from_file(STACK_OF(X509) *certs, const char *path,
         if (sk_X509_push(certs, cert) <= 0) {
             X509_free(cert);
             ngx_log_error(NGX_LOG_ERR, log, 0,
-                          "xrootd_pki_check: failed to append CA cert from \"%s\"",
+                          "brix_pki_check: failed to append CA cert from \"%s\"",
                           path);
             break;
         }
@@ -117,7 +117,7 @@ xrootd_pki_load_certs_from_file(STACK_OF(X509) *certs, const char *path,
  * Read Certificate Revocation List (CRL) entries from a single file and add them to the CRL stack.
  */
 static ngx_uint_t
-xrootd_pki_load_crls_from_file(STACK_OF(X509_CRL) *crls, const char *path,
+brix_pki_load_crls_from_file(STACK_OF(X509_CRL) *crls, const char *path,
     ngx_log_t *log, ngx_flag_t log_open_error)
 {
     FILE      *fp;
@@ -128,7 +128,7 @@ xrootd_pki_load_crls_from_file(STACK_OF(X509_CRL) *crls, const char *path,
     if (fp == NULL) {
         if (log_open_error) {
             ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
-                          "xrootd_pki_check: cannot open CRL file \"%s\"",
+                          "brix_pki_check: cannot open CRL file \"%s\"",
                           path);
         }
         return 0;
@@ -140,7 +140,7 @@ xrootd_pki_load_crls_from_file(STACK_OF(X509_CRL) *crls, const char *path,
         if (sk_X509_CRL_push(crls, crl) <= 0) {
             X509_CRL_free(crl);
             ngx_log_error(NGX_LOG_ERR, log, 0,
-                          "xrootd_pki_check: failed to append CRL from \"%s\"",
+                          "brix_pki_check: failed to append CRL from \"%s\"",
                           path);
             break;
         }
@@ -152,14 +152,14 @@ xrootd_pki_load_crls_from_file(STACK_OF(X509_CRL) *crls, const char *path,
 }
 
 STACK_OF(X509) *
-xrootd_pki_load_certs_from_path(const char *path, ngx_log_t *log)
+brix_pki_load_certs_from_path(const char *path, ngx_log_t *log)
 {
     struct stat     st;
     STACK_OF(X509) *stack;
 
     if (stat(path, &st) != 0) {
         ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
-                      "xrootd_pki_check: cannot stat CA path \"%s\"",
+                      "brix_pki_check: cannot stat CA path \"%s\"",
                       path);
         return NULL;
     }
@@ -167,12 +167,12 @@ xrootd_pki_load_certs_from_path(const char *path, ngx_log_t *log)
     stack = sk_X509_new_null();
     if (stack == NULL) {
         ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd_pki_check: failed to allocate cert stack");
+                      "brix_pki_check: failed to allocate cert stack");
         return NULL;
     }
 
     if (S_ISREG(st.st_mode)) {
-        (void) xrootd_pki_load_certs_from_file(stack, path, log, 1);
+        (void) brix_pki_load_certs_from_file(stack, path, log, 1);
 
     } else if (S_ISDIR(st.st_mode)) {
         DIR           *directory;
@@ -181,7 +181,7 @@ xrootd_pki_load_certs_from_path(const char *path, ngx_log_t *log)
         directory = opendir(path);
         if (directory == NULL) {
             ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
-                          "xrootd_pki_check: cannot open CA dir \"%s\"",
+                          "brix_pki_check: cannot open CA dir \"%s\"",
                           path);
             sk_X509_free(stack);
             return NULL;
@@ -194,14 +194,14 @@ xrootd_pki_load_certs_from_path(const char *path, ngx_log_t *log)
                 continue;
             }
 
-            if (xrootd_pki_join_child_path(child_path, sizeof(child_path),
+            if (brix_pki_join_child_path(child_path, sizeof(child_path),
                                            path, entry->d_name)
                 != NGX_OK)
             {
                 continue;
             }
 
-            if (!xrootd_pki_is_regular_file(child_path)) {
+            if (!brix_pki_is_regular_file(child_path)) {
                 continue;
             }
 
@@ -210,7 +210,7 @@ xrootd_pki_load_certs_from_path(const char *path, ngx_log_t *log)
              * files.  Files that do not contain PEM certificates simply add
              * zero entries and are ignored.
              */
-            (void) xrootd_pki_load_certs_from_file(stack, child_path, log, 0);
+            (void) brix_pki_load_certs_from_file(stack, child_path, log, 0);
         }
         closedir(directory);
     }
@@ -224,14 +224,14 @@ xrootd_pki_load_certs_from_path(const char *path, ngx_log_t *log)
 }
 
 STACK_OF(X509_CRL) *
-xrootd_pki_load_crls_from_path(const char *path, ngx_log_t *log)
+brix_pki_load_crls_from_path(const char *path, ngx_log_t *log)
 {
     struct stat         st;
     STACK_OF(X509_CRL) *stack;
 
     if (stat(path, &st) != 0) {
         ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
-                      "xrootd_pki_check: cannot stat CRL path \"%s\"",
+                      "brix_pki_check: cannot stat CRL path \"%s\"",
                       path);
         return NULL;
     }
@@ -239,12 +239,12 @@ xrootd_pki_load_crls_from_path(const char *path, ngx_log_t *log)
     stack = sk_X509_CRL_new_null();
     if (stack == NULL) {
         ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "xrootd_pki_check: failed to allocate CRL stack");
+                      "brix_pki_check: failed to allocate CRL stack");
         return NULL;
     }
 
     if (S_ISREG(st.st_mode)) {
-        (void) xrootd_pki_load_crls_from_file(stack, path, log, 1);
+        (void) brix_pki_load_crls_from_file(stack, path, log, 1);
 
     } else if (S_ISDIR(st.st_mode)) {
         DIR           *directory;
@@ -253,7 +253,7 @@ xrootd_pki_load_crls_from_path(const char *path, ngx_log_t *log)
         directory = opendir(path);
         if (directory == NULL) {
             ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
-                          "xrootd_pki_check: cannot open CRL dir \"%s\"",
+                          "brix_pki_check: cannot open CRL dir \"%s\"",
                           path);
             sk_X509_CRL_free(stack);
             return NULL;
@@ -264,22 +264,22 @@ xrootd_pki_load_crls_from_path(const char *path, ngx_log_t *log)
             char        child_path[PATH_MAX];
 
             filename = entry->d_name;
-            if (!xrootd_pki_crl_filename_matches(filename)) {
+            if (!brix_pki_crl_filename_matches(filename)) {
                 continue;
             }
 
-            if (xrootd_pki_join_child_path(child_path, sizeof(child_path),
+            if (brix_pki_join_child_path(child_path, sizeof(child_path),
                                            path, filename)
                 != NGX_OK)
             {
                 continue;
             }
 
-            if (!xrootd_pki_is_regular_file(child_path)) {
+            if (!brix_pki_is_regular_file(child_path)) {
                 continue;
             }
 
-            (void) xrootd_pki_load_crls_from_file(stack, child_path, log, 0);
+            (void) brix_pki_load_crls_from_file(stack, child_path, log, 0);
         }
         closedir(directory);
     }

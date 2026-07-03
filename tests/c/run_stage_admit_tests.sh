@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # run_stage_admit_tests.sh — compile + run the pure two-tier staging-backpressure
-# decision unit test. Header-only (xrootd_wt_stage_decide is a static inline in
+# decision unit test. Header-only (brix_wt_stage_decide is a static inline in
 # src/fs/cache/stage_admit.h), so no compiled object is needed.
 #
 # Usage:  tests/c/run_stage_admit_tests.sh

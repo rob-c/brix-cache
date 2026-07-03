@@ -26,7 +26,7 @@
 
 /* pure helpers */
 uint64_t
-xrootd_cache_cinfo_nblocks(uint64_t size, uint32_t block_size)
+brix_cache_cinfo_nblocks(uint64_t size, uint32_t block_size)
 {
     if (size == 0 || block_size == 0) {
         return 0;
@@ -35,31 +35,31 @@ xrootd_cache_cinfo_nblocks(uint64_t size, uint32_t block_size)
 }
 
 size_t
-xrootd_cache_cinfo_bitmap_len(uint64_t nblocks)
+brix_cache_cinfo_bitmap_len(uint64_t nblocks)
 {
     return (size_t) ((nblocks + 7) / 8);
 }
 
 void
-xrootd_cache_cinfo_mark_block(uint8_t *bitmap, uint64_t blk)
+brix_cache_cinfo_mark_block(uint8_t *bitmap, uint64_t blk)
 {
     bitmap[blk >> 3] |= (uint8_t) (1u << (blk & 7u));
 }
 
 int
-xrootd_cache_cinfo_block_present(const uint8_t *bitmap, uint64_t blk)
+brix_cache_cinfo_block_present(const uint8_t *bitmap, uint64_t blk)
 {
     return (bitmap[blk >> 3] >> (blk & 7u)) & 1u;
 }
 
 uint64_t
-xrootd_cache_cinfo_present_count(const uint8_t *bitmap, uint64_t nblocks)
+brix_cache_cinfo_present_count(const uint8_t *bitmap, uint64_t nblocks)
 {
     uint64_t count = 0;
     uint64_t blk;
 
     for (blk = 0; blk < nblocks; blk++) {
-        if (xrootd_cache_cinfo_block_present(bitmap, blk)) {
+        if (brix_cache_cinfo_block_present(bitmap, blk)) {
             count++;
         }
     }
@@ -67,27 +67,27 @@ xrootd_cache_cinfo_present_count(const uint8_t *bitmap, uint64_t nblocks)
 }
 
 void
-xrootd_cache_cinfo_refresh_flags(xrootd_cache_cinfo_t *hdr, const uint8_t *bitmap)
+brix_cache_cinfo_refresh_flags(brix_cache_cinfo_t *hdr, const uint8_t *bitmap)
 {
     uint64_t present;
 
-    hdr->flags &= (uint16_t) ~(XROOTD_CINFO_F_COMPLETE | XROOTD_CINFO_F_PARTIAL);
+    hdr->flags &= (uint16_t) ~(BRIX_CINFO_F_COMPLETE | BRIX_CINFO_F_PARTIAL);
 
     if (hdr->nblocks == 0) {
-        hdr->flags |= XROOTD_CINFO_F_COMPLETE;   /* an empty file is trivially whole */
+        hdr->flags |= BRIX_CINFO_F_COMPLETE;   /* an empty file is trivially whole */
         return;
     }
-    present = xrootd_cache_cinfo_present_count(bitmap, hdr->nblocks);
+    present = brix_cache_cinfo_present_count(bitmap, hdr->nblocks);
     if (present == hdr->nblocks) {
-        hdr->flags |= XROOTD_CINFO_F_COMPLETE;
+        hdr->flags |= BRIX_CINFO_F_COMPLETE;
     } else if (present > 0) {
-        hdr->flags |= XROOTD_CINFO_F_PARTIAL;
+        hdr->flags |= BRIX_CINFO_F_PARTIAL;
     }
 }
 
 /* sidecar path */
 int
-xrootd_cache_cinfo_path(char *dst, size_t dstsz, const char *cache_path)
+brix_cache_cinfo_path(char *dst, size_t dstsz, const char *cache_path)
 {
     int n = snprintf(dst, dstsz, "%s.cinfo", cache_path);
     return (n < 0 || (size_t) n >= dstsz) ? -1 : 0;
@@ -96,14 +96,14 @@ xrootd_cache_cinfo_path(char *dst, size_t dstsz, const char *cache_path)
 /* ---- xmeta mapping (the cinfo struct stays the in-memory model) --------- */
 
 ngx_int_t
-xrootd_cache_cinfo_to_xmeta(const xrootd_cache_cinfo_t *hdr,
-    const uint8_t *bitmap, size_t bitmap_len, xrootd_xmeta_t *m)
+brix_cache_cinfo_to_xmeta(const brix_cache_cinfo_t *hdr,
+    const uint8_t *bitmap, size_t bitmap_len, brix_xmeta_t *m)
 {
-    uint32_t bs = hdr->block_size ? hdr->block_size : XROOTD_CACHE_DIRTY_BLOCK;
+    uint32_t bs = hdr->block_size ? hdr->block_size : BRIX_CACHE_DIRTY_BLOCK;
     size_t   need;
 
-    if (xrootd_xmeta_init(m, (int64_t) hdr->size, (int64_t) bs)
-        != XROOTD_XMETA_OK)
+    if (brix_xmeta_init(m, (int64_t) hdr->size, (int64_t) bs)
+        != BRIX_XMETA_OK)
     {
         return NGX_ERROR;
     }
@@ -126,8 +126,8 @@ xrootd_cache_cinfo_to_xmeta(const xrootd_cache_cinfo_t *hdr,
     m->filled_at     = hdr->filled_at;
     m->mode          = hdr->mode;
     m->state_flags   =
-        ((hdr->flags & XROOTD_CINFO_F_VERIFIED) ? XROOTD_XMETA_F_VERIFIED : 0u)
-      | ((hdr->flags & XROOTD_CINFO_F_EXPIRES)  ? XROOTD_XMETA_F_EXPIRES  : 0u);
+        ((hdr->flags & BRIX_CINFO_F_VERIFIED) ? BRIX_XMETA_F_VERIFIED : 0u)
+      | ((hdr->flags & BRIX_CINFO_F_EXPIRES)  ? BRIX_XMETA_F_EXPIRES  : 0u);
     /* Clamp the validity-string lengths at this boundary: a hand-built or
      * corrupted header must not be able to drive an over-long encode. */
     m->etag_len = (hdr->etag_len <= sizeof(hdr->etag)) ? hdr->etag_len : 0;
@@ -140,22 +140,22 @@ xrootd_cache_cinfo_to_xmeta(const xrootd_cache_cinfo_t *hdr,
 
     /* Present bitmap: adopt the caller's when it covers this geometry;
      * otherwise synthesize whole-file state from the COMPLETE flag. */
-    need = xrootd_cache_cinfo_bitmap_len(m->nblocks);
+    need = brix_cache_cinfo_bitmap_len(m->nblocks);
     if (bitmap != NULL && bitmap_len >= need && need > 0) {
         ngx_memcpy(m->bitmap, bitmap, need);
-    } else if ((hdr->flags & XROOTD_CINFO_F_COMPLETE) && need > 0) {
+    } else if ((hdr->flags & BRIX_CINFO_F_COMPLETE) && need > 0) {
         ngx_memset(m->bitmap, 0xFF, need);
     }
     return NGX_OK;
 }
 
 void
-xrootd_cache_cinfo_from_xmeta(const xrootd_xmeta_t *m,
-    xrootd_cache_cinfo_t *hdr)
+brix_cache_cinfo_from_xmeta(const brix_xmeta_t *m,
+    brix_cache_cinfo_t *hdr)
 {
     ngx_memzero(hdr, sizeof(*hdr));
-    hdr->magic         = XROOTD_CACHE_CINFO_MAGIC;
-    hdr->version       = XROOTD_CACHE_CINFO_VERSION;
+    hdr->magic         = BRIX_CACHE_CINFO_MAGIC;
+    hdr->version       = BRIX_CACHE_CINFO_VERSION;
     hdr->block_size    = (uint32_t) m->buffer_size;
     hdr->size          = (uint64_t) m->file_size;
     hdr->mtime         = m->origin_mtime;
@@ -182,16 +182,16 @@ xrootd_cache_cinfo_from_xmeta(const xrootd_xmeta_t *m,
     ngx_memcpy(hdr->cks_hex, m->cks_hex, hdr->cks_len);
 
     if (m->bitmap != NULL) {
-        xrootd_cache_cinfo_refresh_flags(hdr, m->bitmap);
+        brix_cache_cinfo_refresh_flags(hdr, m->bitmap);
     }
-    if (m->state_flags & XROOTD_XMETA_F_VERIFIED) {
-        hdr->flags |= XROOTD_CINFO_F_VERIFIED;
+    if (m->state_flags & BRIX_XMETA_F_VERIFIED) {
+        hdr->flags |= BRIX_CINFO_F_VERIFIED;
     }
-    if (m->state_flags & XROOTD_XMETA_F_EXPIRES) {
-        hdr->flags |= XROOTD_CINFO_F_EXPIRES;
+    if (m->state_flags & BRIX_XMETA_F_EXPIRES) {
+        hdr->flags |= BRIX_CINFO_F_EXPIRES;
     }
     if (m->dirty_lo < m->dirty_hi) {
-        hdr->flags |= XROOTD_CINFO_F_DIRTY;
+        hdr->flags |= BRIX_CINFO_F_DIRTY;
     }
 }
 
@@ -201,40 +201,40 @@ xrootd_cache_cinfo_from_xmeta(const xrootd_xmeta_t *m,
  * the SAME record under the SAME per-file lock. Thin NGX-return wrappers. */
 
 static ngx_int_t
-cinfo_xmeta_read(const char *cache_path, xrootd_xmeta_t *xm)
+cinfo_xmeta_read(const char *cache_path, brix_xmeta_t *xm)
 {
-    int rc = xrootd_xmeta_path_load(cache_path, xm);
+    int rc = brix_xmeta_path_load(cache_path, xm);
 
-    if (rc == XROOTD_XMETA_OK) {
+    if (rc == BRIX_XMETA_OK) {
         return NGX_OK;
     }
-    return (rc == XROOTD_XMETA_FOREIGN) ? NGX_DECLINED : NGX_ERROR;
+    return (rc == BRIX_XMETA_FOREIGN) ? NGX_DECLINED : NGX_ERROR;
 }
 
 static ngx_int_t
-cinfo_xmeta_write(const char *cache_path, const xrootd_xmeta_t *xm)
+cinfo_xmeta_write(const char *cache_path, const brix_xmeta_t *xm)
 {
-    return (xrootd_xmeta_path_save(cache_path, xm) == XROOTD_XMETA_OK)
+    return (brix_xmeta_path_save(cache_path, xm) == BRIX_XMETA_OK)
            ? NGX_OK : NGX_ERROR;
 }
 
 static int
 cinfo_rmw_lock(const char *cache_path)
 {
-    return xrootd_xmeta_path_lock(cache_path);
+    return brix_xmeta_path_lock(cache_path);
 }
 
 static void
 cinfo_rmw_unlock(int fd)
 {
-    xrootd_xmeta_path_unlock(fd);
+    brix_xmeta_path_unlock(fd);
 }
 
 ngx_int_t
-xrootd_cache_cinfo_load(const char *cache_path, xrootd_cache_cinfo_t *hdr,
+brix_cache_cinfo_load(const char *cache_path, brix_cache_cinfo_t *hdr,
     uint8_t **bitmap, size_t *bitmap_len)
 {
-    xrootd_xmeta_t xm;
+    brix_xmeta_t xm;
     size_t         blen;
     ngx_int_t      rc;
 
@@ -251,14 +251,14 @@ xrootd_cache_cinfo_load(const char *cache_path, xrootd_cache_cinfo_t *hdr,
     if (rc != NGX_OK) {
         return rc;
     }
-    xrootd_cache_cinfo_from_xmeta(&xm, hdr);
+    brix_cache_cinfo_from_xmeta(&xm, hdr);
 
-    blen = xrootd_cache_cinfo_bitmap_len(hdr->nblocks);
+    blen = brix_cache_cinfo_bitmap_len(hdr->nblocks);
     if (blen > 0) {
         uint8_t *bits = malloc(blen);
 
         if (bits == NULL) {
-            xrootd_xmeta_free(&xm);
+            brix_xmeta_free(&xm);
             errno = ENOMEM;
             return NGX_ERROR;
         }
@@ -266,32 +266,32 @@ xrootd_cache_cinfo_load(const char *cache_path, xrootd_cache_cinfo_t *hdr,
         *bitmap = bits;
         *bitmap_len = blen;
     }
-    xrootd_xmeta_free(&xm);
+    brix_xmeta_free(&xm);
     return NGX_OK;
 }
 
 ngx_int_t
-xrootd_cache_cinfo_store(const char *cache_path,
-    const xrootd_cache_cinfo_t *hdr, const uint8_t *bitmap, size_t bitmap_len)
+brix_cache_cinfo_store(const char *cache_path,
+    const brix_cache_cinfo_t *hdr, const uint8_t *bitmap, size_t bitmap_len)
 {
-    xrootd_xmeta_t xm;
+    brix_xmeta_t xm;
     ngx_int_t      rc;
 
     if (cache_path == NULL || hdr == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }
-    if (xrootd_cache_cinfo_to_xmeta(hdr, bitmap, bitmap_len, &xm) != NGX_OK) {
+    if (brix_cache_cinfo_to_xmeta(hdr, bitmap, bitmap_len, &xm) != NGX_OK) {
         return NGX_ERROR;
     }
     rc = cinfo_xmeta_write(cache_path, &xm);
-    xrootd_xmeta_free(&xm);
+    brix_xmeta_free(&xm);
     return rc;
 }
 
 ngx_int_t
-xrootd_cache_cinfo_from_meta(const xrootd_cache_meta_t *m, uint32_t block_size,
-    xrootd_cache_cinfo_t *out)
+brix_cache_cinfo_from_meta(const brix_cache_meta_t *m, uint32_t block_size,
+    brix_cache_cinfo_t *out)
 {
     if (m == NULL || out == NULL || block_size == 0) {
         errno = EINVAL;
@@ -299,13 +299,13 @@ xrootd_cache_cinfo_from_meta(const xrootd_cache_meta_t *m, uint32_t block_size,
     }
 
     ngx_memzero(out, sizeof(*out));
-    out->magic = XROOTD_CACHE_CINFO_MAGIC;
-    out->version = XROOTD_CACHE_CINFO_VERSION;
-    out->flags = XROOTD_CINFO_F_COMPLETE;   /* a legacy .meta means a whole file */
+    out->magic = BRIX_CACHE_CINFO_MAGIC;
+    out->version = BRIX_CACHE_CINFO_VERSION;
+    out->flags = BRIX_CINFO_F_COMPLETE;   /* a legacy .meta means a whole file */
     out->block_size = block_size;
     out->size = m->size;
     out->mtime = m->mtime;
-    out->nblocks = xrootd_cache_cinfo_nblocks(m->size, block_size);
+    out->nblocks = brix_cache_cinfo_nblocks(m->size, block_size);
     out->access_count = m->access_count;
     out->bytes_served = m->bytes_served;
     out->last_access = m->last_access;
@@ -325,25 +325,25 @@ xrootd_cache_cinfo_from_meta(const xrootd_cache_meta_t *m, uint32_t block_size,
  * `block_size`/`mtime`. *out is zeroed; the caller marks bits + writes.
  */
 static void
-cinfo_init(xrootd_cache_cinfo_t *out, uint64_t size, uint32_t block_size,
+cinfo_init(brix_cache_cinfo_t *out, uint64_t size, uint32_t block_size,
     uint64_t mtime)
 {
     ngx_memzero(out, sizeof(*out));
-    out->magic = XROOTD_CACHE_CINFO_MAGIC;
-    out->version = XROOTD_CACHE_CINFO_VERSION;
+    out->magic = BRIX_CACHE_CINFO_MAGIC;
+    out->version = BRIX_CACHE_CINFO_VERSION;
     out->block_size = block_size;
     out->size = size;
     out->mtime = mtime;
-    out->nblocks = xrootd_cache_cinfo_nblocks(size, block_size);
+    out->nblocks = brix_cache_cinfo_nblocks(size, block_size);
 }
 
 ngx_int_t
-xrootd_cache_cinfo_record_block(const char *cache_path, uint64_t size,
+brix_cache_cinfo_record_block(const char *cache_path, uint64_t size,
     uint32_t block_size, uint64_t mtime, uint32_t mode, uint64_t blk,
     ngx_log_t *log)
 {
-    xrootd_cache_cinfo_t hdr;
-    xrootd_xmeta_t       xm;
+    brix_cache_cinfo_t hdr;
+    brix_xmeta_t       xm;
     uint64_t             nblocks;
     int                  lfd;
     ngx_int_t            rc;
@@ -354,7 +354,7 @@ xrootd_cache_cinfo_record_block(const char *cache_path, uint64_t size,
         errno = EINVAL;
         return NGX_ERROR;
     }
-    nblocks = xrootd_cache_cinfo_nblocks(size, block_size);
+    nblocks = brix_cache_cinfo_nblocks(size, block_size);
     if (blk >= nblocks) {
         errno = ERANGE;
         return NGX_ERROR;            /* block out of range for this size */
@@ -372,18 +372,18 @@ xrootd_cache_cinfo_record_block(const char *cache_path, uint64_t size,
             && (uint64_t) xm.buffer_size == block_size
             && xm.origin_mtime == mtime)
         {
-            xrootd_cache_cinfo_from_xmeta(&xm, &hdr);
+            brix_cache_cinfo_from_xmeta(&xm, &hdr);
         } else {
-            xrootd_xmeta_free(&xm);
+            brix_xmeta_free(&xm);
             cinfo_init(&hdr, size, block_size, mtime);
-            if (xrootd_cache_cinfo_to_xmeta(&hdr, NULL, 0, &xm) != NGX_OK) {
+            if (brix_cache_cinfo_to_xmeta(&hdr, NULL, 0, &xm) != NGX_OK) {
                 cinfo_rmw_unlock(lfd);
                 return NGX_ERROR;
             }
         }
     } else {
         cinfo_init(&hdr, size, block_size, mtime);
-        if (xrootd_cache_cinfo_to_xmeta(&hdr, NULL, 0, &xm) != NGX_OK) {
+        if (brix_cache_cinfo_to_xmeta(&hdr, NULL, 0, &xm) != NGX_OK) {
             cinfo_rmw_unlock(lfd);
             return NGX_ERROR;
         }
@@ -392,10 +392,10 @@ xrootd_cache_cinfo_record_block(const char *cache_path, uint64_t size,
     if (mode != 0) {
         xm.mode = mode;              /* origin perms (0 = caller has none) */
     }
-    xrootd_xmeta_block_set(&xm, blk);
+    brix_xmeta_block_set(&xm, blk);
 
     rc = cinfo_xmeta_write(cache_path, &xm);
-    xrootd_xmeta_free(&xm);
+    brix_xmeta_free(&xm);
     cinfo_rmw_unlock(lfd);
     return rc;
 }
@@ -407,9 +407,9 @@ xrootd_cache_cinfo_record_block(const char *cache_path, uint64_t size,
  * starts fresh (clean dirty state, empty bitmap). NGX_OK / NGX_ERROR. */
 static ngx_int_t
 cinfo_rmw_load(const char *cache_path, uint64_t size, uint32_t block_size,
-    uint64_t mtime, xrootd_xmeta_t *xm)
+    uint64_t mtime, brix_xmeta_t *xm)
 {
-    xrootd_cache_cinfo_t fresh;
+    brix_cache_cinfo_t fresh;
 
     if (cinfo_xmeta_read(cache_path, xm) == NGX_OK) {
         if ((uint64_t) xm->file_size == size
@@ -418,18 +418,18 @@ cinfo_rmw_load(const char *cache_path, uint64_t size, uint32_t block_size,
         {
             return NGX_OK;
         }
-        xrootd_xmeta_free(xm);
+        brix_xmeta_free(xm);
     }
     cinfo_init(&fresh, size, block_size, mtime);
-    return xrootd_cache_cinfo_to_xmeta(&fresh, NULL, 0, xm);
+    return brix_cache_cinfo_to_xmeta(&fresh, NULL, 0, xm);
 }
 
 ngx_int_t
-xrootd_cache_cinfo_mark_dirty(const char *cache_path, uint64_t size,
+brix_cache_cinfo_mark_dirty(const char *cache_path, uint64_t size,
     uint32_t block_size, uint64_t mtime, uint64_t off, uint64_t len,
     ngx_log_t *log)
 {
-    xrootd_xmeta_t xm;
+    brix_xmeta_t xm;
     int            lfd;
     ngx_int_t      rc;
 
@@ -462,16 +462,16 @@ xrootd_cache_cinfo_mark_dirty(const char *cache_path, uint64_t size,
     }
 
     rc = cinfo_xmeta_write(cache_path, &xm);
-    xrootd_xmeta_free(&xm);
+    brix_xmeta_free(&xm);
     cinfo_rmw_unlock(lfd);
     return rc;
 }
 
 ngx_int_t
-xrootd_cache_cinfo_mark_clean(const char *cache_path, uint64_t bytes,
+brix_cache_cinfo_mark_clean(const char *cache_path, uint64_t bytes,
     ngx_log_t *log)
 {
-    xrootd_xmeta_t xm;
+    brix_xmeta_t xm;
     int            lfd;
     ngx_int_t      rc;
 
@@ -499,27 +499,27 @@ xrootd_cache_cinfo_mark_clean(const char *cache_path, uint64_t bytes,
     xm.bytes_flushed += bytes;
 
     rc = cinfo_xmeta_write(cache_path, &xm);
-    xrootd_xmeta_free(&xm);
+    brix_xmeta_free(&xm);
     cinfo_rmw_unlock(lfd);
     return rc;
 }
 
 ngx_int_t
-xrootd_cache_cinfo_dirty_extent(const char *cache_path, uint64_t *lo,
+brix_cache_cinfo_dirty_extent(const char *cache_path, uint64_t *lo,
     uint64_t *hi, uint64_t *dirty_since)
 {
-    xrootd_cache_cinfo_t h;
+    brix_cache_cinfo_t h;
     uint8_t             *bm = NULL;
     size_t               bl = 0;
     ngx_int_t            rc;
 
-    rc = xrootd_cache_cinfo_load(cache_path, &h, &bm, &bl);
+    rc = brix_cache_cinfo_load(cache_path, &h, &bm, &bl);
     if (rc != NGX_OK) {
         return rc;                          /* DECLINED (no record) or ERROR */
     }
     free(bm);
 
-    if (!(h.flags & XROOTD_CINFO_F_DIRTY) || h.dirty_lo >= h.dirty_hi) {
+    if (!(h.flags & BRIX_CINFO_F_DIRTY) || h.dirty_lo >= h.dirty_hi) {
         return NGX_DECLINED;                /* clean */
     }
     if (lo != NULL) {
@@ -535,9 +535,9 @@ xrootd_cache_cinfo_dirty_extent(const char *cache_path, uint64_t *lo,
 }
 
 ngx_int_t
-xrootd_cache_cinfo_state(const char *cache_path, xrootd_cache_cinfo_state_t *out)
+brix_cache_cinfo_state(const char *cache_path, brix_cache_cinfo_state_t *out)
 {
-    xrootd_cache_cinfo_t h;
+    brix_cache_cinfo_t h;
     uint8_t             *bm = NULL;
     size_t               bl = 0;
     ngx_int_t            rc;
@@ -547,13 +547,13 @@ xrootd_cache_cinfo_state(const char *cache_path, xrootd_cache_cinfo_state_t *out
         return NGX_ERROR;
     }
 
-    rc = xrootd_cache_cinfo_load(cache_path, &h, &bm, &bl);
+    rc = brix_cache_cinfo_load(cache_path, &h, &bm, &bl);
     if (rc != NGX_OK) {
         return rc;                          /* DECLINED (no record) or ERROR */
     }
     free(bm);
 
-    out->is_dirty    = ((h.flags & XROOTD_CINFO_F_DIRTY)
+    out->is_dirty    = ((h.flags & BRIX_CINFO_F_DIRTY)
                         && h.dirty_lo < h.dirty_hi) ? 1 : 0;
     out->dirty_lo    = h.dirty_lo;
     out->dirty_hi    = h.dirty_hi;
@@ -566,16 +566,16 @@ xrootd_cache_cinfo_state(const char *cache_path, xrootd_cache_cinfo_state_t *out
 /* ---- phase-68 manifest TTL (pure helpers on the in-memory header) -------- */
 
 void
-xrootd_cache_cinfo_set_expires(xrootd_cache_cinfo_t *ci, time_t when)
+brix_cache_cinfo_set_expires(brix_cache_cinfo_t *ci, time_t when)
 {
     ci->expires_at = (uint64_t) when;
-    ci->flags |= XROOTD_CINFO_F_EXPIRES;
+    ci->flags |= BRIX_CINFO_F_EXPIRES;
 }
 
 int
-xrootd_cache_cinfo_expired(const xrootd_cache_cinfo_t *ci, time_t now)
+brix_cache_cinfo_expired(const brix_cache_cinfo_t *ci, time_t now)
 {
-    if ((ci->flags & XROOTD_CINFO_F_EXPIRES) == 0) {
+    if ((ci->flags & BRIX_CINFO_F_EXPIRES) == 0) {
         return -1;                          /* immutable entry: never expires */
     }
     return ((uint64_t) now >= ci->expires_at) ? 1 : 0;

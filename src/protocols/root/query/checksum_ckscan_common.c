@@ -1,7 +1,7 @@
 /*
  * checksum_ckscan_common.c — shared helpers for kXR_Qckscan directory/file checksum scans.
  *
- * WHAT: Provides three functions used by checksum_ckscan_async.c and checksum_ckscan_dispatch.c to walk filesystem trees and compute per-file checksums. ckscan_append() grows a response buffer with "algo hex logical_path" lines; xrootd_ckscan_join_logical() constructs canonical logical paths from parent+child components; xrootd_ckscan_walk() recursively scans directories up to max_depth/max_files limits, computing checksums for regular files.
+ * WHAT: Provides three functions used by checksum_ckscan_async.c and checksum_ckscan_dispatch.c to walk filesystem trees and compute per-file checksums. ckscan_append() grows a response buffer with "algo hex logical_path" lines; brix_ckscan_join_logical() constructs canonical logical paths from parent+child components; brix_ckscan_walk() recursively scans directories up to max_depth/max_files limits, computing checksums for regular files.
  *
  * WHY: kXR_Qckscan walks a directory tree off the event loop (async via thread pool) and returns one checksum line per file. These shared helpers eliminate code duplication between async and dispatch implementations while providing consistent path construction, buffer growth logic, and recursive walk semantics with depth/capacity limits.
  */
@@ -10,7 +10,7 @@
 #include "protocols/root/response/response.h"
 #include "core/aio/aio.h"
 #include "core/compat/checksum.h"
-#include "fs/vfs/vfs.h"   /* xrootd_vfs_walk — confined recursive scan */
+#include "fs/vfs/vfs.h"   /* brix_vfs_walk — confined recursive scan */
 
 #include <dirent.h>
 #include <sys/stat.h>
@@ -18,10 +18,10 @@
 /* kXR_Qckscan — directory / file checksum scan */
 /* Append one "algo hex  logical_path\n" line, growing the buffer if needed. */
 int
-xrootd_ckscan_append(u_char **buf, size_t *cap, size_t *used,
+brix_ckscan_append(u_char **buf, size_t *cap, size_t *used,
     const char *algo, const char *hex, const char *logical)
 {
-    char    line[XROOTD_MAX_PATH + 64];
+    char    line[BRIX_MAX_PATH + 64];
     size_t  llen;
     u_char *nb;
 
@@ -78,7 +78,7 @@ xrootd_ckscan_append(u_char **buf, size_t *cap, size_t *used,
 
 /*
  * ckscan_walk_ctx_t + ckscan_walk_file — the per-file callback driven by
- * xrootd_vfs_walk: compute the file's checksum (algorithm-appropriate hex width)
+ * brix_vfs_walk: compute the file's checksum (algorithm-appropriate hex width)
  * and append one "algo hex logical" line. An unreadable file or unknown algorithm
  * is a soft skip (return NGX_OK so the scan continues); only an append OOM aborts
  * the walk (records cc->oom so the caller maps it to kXR_NoMemory). The confined
@@ -96,21 +96,21 @@ typedef struct {
 
 static ngx_int_t
 ckscan_walk_file(void *cookie, const char *logical,
-    const xrootd_vfs_stat_t *st, int fd)
+    const brix_vfs_stat_t *st, int fd)
 {
     ckscan_walk_ctx_t *cc = cookie;
     char               hex[129];   /* 8 (adler32/crc32c) … EVP_MAX_MD_SIZE*2 */
 
     (void) st;
 
-    if (xrootd_checksum_hex_name_fd(cc->algo, fd, logical, cc->log,
+    if (brix_checksum_hex_name_fd(cc->algo, fd, logical, cc->log,
                                     hex, sizeof(hex), NULL, 0) != NGX_OK)
     {
         return NGX_OK;   /* skip unreadable / bad-algorithm file (continue scan) */
     }
 
     /* append returns 1=ok, 0=line too long (soft skip), <0=OOM (abort). */
-    if (xrootd_ckscan_append(cc->buf, cc->cap, cc->used, cc->algo, hex,
+    if (brix_ckscan_append(cc->buf, cc->cap, cc->used, cc->algo, hex,
                              logical) < 0)
     {
         cc->oom = 1;
@@ -122,14 +122,14 @@ ckscan_walk_file(void *cookie, const char *logical,
 /* Run a kXR_Qckscan over a file/dir target through the confined VFS walk and map
  * the outcome to a kXR error code. See query_internal.h for the full contract. */
 ngx_int_t
-xrootd_ckscan_run(ngx_log_t *log, int rootfd, const char *logical,
+brix_ckscan_run(ngx_log_t *log, int rootfd, const char *logical,
     const char *algo, u_char **buf, size_t *cap, size_t *used,
     ngx_uint_t max_depth, ngx_uint_t max_files,
     uint16_t *err_code, char *err_msg, size_t err_sz)
 {
     ckscan_walk_ctx_t        cc;
-    xrootd_vfs_walk_opts_t   opts;
-    xrootd_vfs_walk_target_t target = XROOTD_VFS_WALK_NONE;
+    brix_vfs_walk_opts_t   opts;
+    brix_vfs_walk_target_t target = BRIX_VFS_WALK_NONE;
     char                     walkmsg[128] = "";
     ngx_int_t                rc;
 
@@ -145,7 +145,7 @@ xrootd_ckscan_run(ngx_log_t *log, int rootfd, const char *logical,
     opts.max_files  = max_files;
     opts.open_files = 1;   /* the walk hands each regular file a read-only fd */
 
-    rc = xrootd_vfs_walk(log, rootfd, logical, &opts, ckscan_walk_file, &cc,
+    rc = brix_vfs_walk(log, rootfd, logical, &opts, ckscan_walk_file, &cc,
                          &target, walkmsg, sizeof(walkmsg));
 
     if (rc == NGX_DECLINED) {
@@ -164,7 +164,7 @@ xrootd_ckscan_run(ngx_log_t *log, int rootfd, const char *logical,
         return NGX_ERROR;
     }
 
-    if (target == XROOTD_VFS_WALK_OTHER) {
+    if (target == BRIX_VFS_WALK_OTHER) {
         *err_code = kXR_ArgInvalid;
         snprintf(err_msg, err_sz, "not a file or directory");
         return NGX_ERROR;
@@ -172,7 +172,7 @@ xrootd_ckscan_run(ngx_log_t *log, int rootfd, const char *logical,
     /* A regular-file target that produced no line means its open succeeded but
      * the checksum failed (the callback skipped it) — a hard error for a single
      * file, unlike an (acceptably) empty directory listing. */
-    if (target == XROOTD_VFS_WALK_FILE && *used == 0) {
+    if (target == BRIX_VFS_WALK_FILE && *used == 0) {
         *err_code = kXR_IOError;
         snprintf(err_msg, err_sz, "checksum computation failed");
         return NGX_ERROR;

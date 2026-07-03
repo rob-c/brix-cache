@@ -3,13 +3,13 @@
  *
  * Consolidates three domains previously split across kxr_errno.h, http_errno.h,
  * and result_mapper.h:
- *   1. POSIX errno → XRootD kXR codes (xrootd_kxr_from_errno)
- *   2. POSIX errno → HTTP status codes (xrootd_http_errno_to_status)
- *   3. Namespace service status → HTTP (xrootd_http_map_ns_status, xrootd_http_map_errno)
+ *   1. POSIX errno → XRootD kXR codes (brix_kxr_from_errno)
+ *   2. POSIX errno → HTTP status codes (brix_http_errno_to_status)
+ *   3. Namespace service status → HTTP (brix_http_map_ns_status, brix_http_map_errno)
  */
 
-#ifndef XROOTD_COMPAT_ERROR_MAPPING_H
-#define XROOTD_COMPAT_ERROR_MAPPING_H
+#ifndef BRIX_COMPAT_ERROR_MAPPING_H
+#define BRIX_COMPAT_ERROR_MAPPING_H
 
 #include <stdint.h>
 #include "protocols/root/protocol/opcodes.h"
@@ -28,19 +28,19 @@
 #endif
 
 /* Section 1: errno → kXR (and the inverse) */
-uint16_t xrootd_kxr_from_errno(int err);
-uint16_t xrootd_kxr_map_ns_status(xrootd_ns_status_t status, int sys_errno);
+uint16_t brix_kxr_from_errno(int err);
+uint16_t brix_kxr_map_ns_status(brix_ns_status_t status, int sys_errno);
 /* kXR → errno (positive; 0 if not a recognised kXR error). Inverse of
- * xrootd_kxr_from_errno — the native client's POSIX layers negate the result. */
-int xrootd_errno_from_kxr(uint16_t kxr);
+ * brix_kxr_from_errno — the native client's POSIX layers negate the result. */
+int brix_errno_from_kxr(uint16_t kxr);
 
 /* Section 2: errno → HTTP status codes (plain integer) */
-int xrootd_http_errno_to_status(int err);
+int brix_http_errno_to_status(int err);
 
 #ifndef XRDPROTO_NO_NGX
 /* Section 3: namespace status → HTTP (ngx_int_t for NGX_HTTP_* comparison) */
-ngx_int_t xrootd_http_map_ns_status(xrootd_ns_status_t status);
-ngx_int_t xrootd_http_map_errno(int err);
+ngx_int_t brix_http_map_ns_status(brix_ns_status_t status);
+ngx_int_t brix_http_map_errno(int err);
 #endif
 
-#endif /* XROOTD_COMPAT_ERROR_MAPPING_H */
+#endif /* BRIX_COMPAT_ERROR_MAPPING_H */

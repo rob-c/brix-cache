@@ -9,9 +9,9 @@
 #include "tap.h"
 
 void
-xrootd_tap_register_sink(xrootd_tap_ctx_t *t, xrootd_tap_sink_fn fn, void *ctx)
+brix_tap_register_sink(brix_tap_ctx_t *t, brix_tap_sink_fn fn, void *ctx)
 {
-    if (t == NULL || fn == NULL || t->n >= XROOTD_TAP_MAX_SINKS) {
+    if (t == NULL || fn == NULL || t->n >= BRIX_TAP_MAX_SINKS) {
         return;
     }
     t->sinks[t->n].fn  = fn;
@@ -20,8 +20,8 @@ xrootd_tap_register_sink(xrootd_tap_ctx_t *t, xrootd_tap_sink_fn fn, void *ctx)
 }
 
 void
-xrootd_tap_emit(xrootd_tap_ctx_t *t, const xrootd_tap_frame_t *f,
-    xrootd_tap_dir_t dir, const uint8_t *payload, size_t payload_len)
+brix_tap_emit(brix_tap_ctx_t *t, const brix_tap_frame_t *f,
+    brix_tap_dir_t dir, const uint8_t *payload, size_t payload_len)
 {
     int i;
 

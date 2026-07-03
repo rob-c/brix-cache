@@ -1,5 +1,5 @@
 /* File: parse.c — TPC opaque parameter parsing and source URL decomposition
- * WHAT: Six functions parse the TPC opaque query string from a kXR_open request into structured xrootd_tpc_params_t fields. tpc_parse_opaque (public entry) zero-initializes out → iterates key=value tokens via tpc_parse_token → validates at least one recognized key present → delegates src parsing to tpc_parse_src_fields; tpc_parse_token extracts key/value pairs from '&' delimited opaque string, matching only "tpc." prefixed keys (src/dst/key/lfn/org/stage/token_mode) and setting has_* flags; tpc_parse_src_fields calls tpc_parse_src_spec() for URL/host/port/path decomposition, clears all fields on failure to prevent partial-parse security bypass, then normalizes src_path via LFN if applicable; tpc_fill_src_path_from_lfn converts lfn into src_path with leading '/' normalization when src_path is empty and has_lfn=true; tpc_parse_src_spec decomposes root://host//path or xroot://host/path URLs (or bare host[:port]) into host/port/path, delegating the authority host:port split (IPv6 brackets + 1-65535 port validation) to the shared xrootd_split_host_port() that the native client (url.c) also uses; tpc_copy_src_path strips leading double-slashes and ensures single '/' prefix.
+ * WHAT: Six functions parse the TPC opaque query string from a kXR_open request into structured brix_tpc_params_t fields. tpc_parse_opaque (public entry) zero-initializes out → iterates key=value tokens via tpc_parse_token → validates at least one recognized key present → delegates src parsing to tpc_parse_src_fields; tpc_parse_token extracts key/value pairs from '&' delimited opaque string, matching only "tpc." prefixed keys (src/dst/key/lfn/org/stage/token_mode) and setting has_* flags; tpc_parse_src_fields calls tpc_parse_src_spec() for URL/host/port/path decomposition, clears all fields on failure to prevent partial-parse security bypass, then normalizes src_path via LFN if applicable; tpc_fill_src_path_from_lfn converts lfn into src_path with leading '/' normalization when src_path is empty and has_lfn=true; tpc_parse_src_spec decomposes root://host//path or xroot://host/path URLs (or bare host[:port]) into host/port/path, delegating the authority host:port split (IPv6 brackets + 1-65535 port validation) to the shared brix_split_host_port() that the native client (url.c) also uses; tpc_copy_src_path strips leading double-slashes and ensures single '/' prefix.
  *
  * WHY: TPC (Third-Party Copy) requests carry source endpoint information in opaque query parameters appended to the kXR_open path field. Clients may send full URLs (root://host//path), bare host[:port] with lfn carrying the file name, or IPv6 addresses in bracket notation. Parsing must be robust against malformed inputs — partial parse failures must clear all fields to prevent security bypass where a partially-parsed source could reach downstream validation. LFN normalization ensures consistent path format regardless of client convention.
  *
@@ -110,7 +110,7 @@ tpc_parse_src_spec(const char *src, char *host, size_t host_size,
     memcpy(authority, authority_start, authority_len);
     authority[authority_len] = '\0';
 
-    if (xrootd_split_host_port(authority, host, host_size, &parsed_port, 0)
+    if (brix_split_host_port(authority, host, host_size, &parsed_port, 0)
         != 0) {
         return -1;
     }
@@ -144,7 +144,7 @@ tpc_copy_value(char *dst, size_t dst_size, const char *value_start,
  * HOW: Three cases → if src_path already populated or has_lfn=false, return immediately; if lfn starts with '/', copy directly via ngx_cpystrn; if relative (no leading '/'), prepend '/' then copy remaining characters into buffer with size guard. */
 
 static void
-tpc_fill_src_path_from_lfn(xrootd_tpc_params_t *out)
+tpc_fill_src_path_from_lfn(brix_tpc_params_t *out)
 {
     if (out->src_path[0] != '\0' || !out->has_lfn) {
         return;
@@ -168,7 +168,7 @@ tpc_fill_src_path_from_lfn(xrootd_tpc_params_t *out)
  * HOW: Two-phase → if has_src is false, return immediately; call tpc_parse_src_spec() to extract host/port/path; on non-zero error result, clear all fields (src_host='\0', src_path='\0', src_port=0); then call tpc_fill_src_path_from_lfn() for LFN normalization. */
 
 static void
-tpc_parse_src_fields(xrootd_tpc_params_t *out)
+tpc_parse_src_fields(brix_tpc_params_t *out)
 {
     if (!out->has_src) {
         return;
@@ -187,11 +187,11 @@ tpc_parse_src_fields(xrootd_tpc_params_t *out)
 }
 
 /* WHAT: Iterates through one "key=value" token in the '&' delimited opaque query string. Finds token boundary (next '&' or end-of-string) → locates '=' separator → verifies "tpc." prefix (4 bytes) → matches remaining key length against known keys (src=3, dst=3, key=3, lfn=3, org=3, stage=5, token_mode=10) → copies value into corresponding buffer with size guard → sets has_* flag on success → returns pointer to next token or NULL when done.
- * WHY: TPC opaque parameters are '&' delimited key=value pairs prefixed with "tpc.". This function extracts each recognized parameter into the typed xrootd_tpc_params_t struct while silently ignoring unknown keys (forward compatibility). Size-guarded copies prevent buffer overflow from oversized values. Returns next-token pointer enables iterative loop in tpc_parse_opaque.
+ * WHY: TPC opaque parameters are '&' delimited key=value pairs prefixed with "tpc.". This function extracts each recognized parameter into the typed brix_tpc_params_t struct while silently ignoring unknown keys (forward compatibility). Size-guarded copies prevent buffer overflow from oversized values. Returns next-token pointer enables iterative loop in tpc_parse_opaque.
  * HOW: memchr(&) for token boundary → memchr(=) for key/value split → memcmp("tpc.") prefix check → switch on remaining key length against known keys → tpc_copy_value with size guard → set has_* flag → return next-token pointer or NULL. */
 static const char *
 tpc_parse_token(const char *token_start, const char *opaque_end,
-    xrootd_tpc_params_t *out)
+    brix_tpc_params_t *out)
 {
     const char *token_end;
     const char *equals;
@@ -267,12 +267,12 @@ tpc_parse_token(const char *token_start, const char *opaque_end,
     return (token_end < opaque_end) ? token_end + 1 : NULL;
 }
 
-/* WHAT: Public entry point that parses the TPC opaque parameter string from a kXR_open request into structured xrootd_tpc_params_t fields. Zero-initializes out → iterates '&' delimited key=value tokens via tpc_parse_token → validates at least one recognized "tpc." key present (src/dst/key/lfn/org/stage/token_mode) → delegates src URL/host/port/path decomposition to tpc_parse_src_fields → returns 0 on success, -1 on failure.
+/* WHAT: Public entry point that parses the TPC opaque parameter string from a kXR_open request into structured brix_tpc_params_t fields. Zero-initializes out → iterates '&' delimited key=value tokens via tpc_parse_token → validates at least one recognized "tpc." key present (src/dst/key/lfn/org/stage/token_mode) → delegates src URL/host/port/path decomposition to tpc_parse_src_fields → returns 0 on success, -1 on failure.
  * WHY: TPC requests encode source endpoint information in opaque query parameters appended to the kXR_open path field. This function extracts those parameters into a typed struct for downstream security validation and file resolution. Zero-initialization prevents stale data from previous parses; full-field-clearing on src-parse failure prevents partial-parse security bypass.
  * HOW: memset(out,0) → iterate tokens via tpc_parse_token(&-delimited loop) → check at least one has_* flag set → call tpc_parse_src_fields if has_src=true → return 0/−1 based on found flags count. */
 
 int
-xrootd_tpc_parse_opaque(const char *opaque, xrootd_tpc_params_t *out)
+brix_tpc_parse_opaque(const char *opaque, brix_tpc_params_t *out)
 {
     const char *token;
     const char *end;

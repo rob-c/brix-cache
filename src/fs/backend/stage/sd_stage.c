@@ -5,11 +5,11 @@
  * `source` (open returns the source's own object, so read byte-I/O bypasses the
  * decorator) and implements only the staged-write path: a staged upload lands on
  * the STAGE STORE (`store`) and is flushed to the source on commit through the one
- * staging engine (xrootd_stage_run_inline FLUSH). A posix stage store is
+ * staging engine (brix_stage_run_inline FLUSH). A posix stage store is
  * byte-equivalent to phase-63's local-temp promote.
  */
 #include "sd_stage.h"
-#include "fs/xfer/stage_engine.h"   /* xrootd_stage_run_inline (FLUSH) */
+#include "fs/xfer/stage_engine.h"   /* brix_stage_run_inline (FLUSH) */
 
 #include <errno.h>
 #include <limits.h>
@@ -17,9 +17,9 @@
 #include <string.h>
 
 typedef struct {
-    xrootd_sd_instance_t  *source;     /* the backend (flush target)            */
-    xrootd_sd_instance_t  *store;      /* the stage buffer (any driver)         */
-    xrootd_stage_policy_t  policy;
+    brix_sd_instance_t  *source;     /* the backend (flush target)            */
+    brix_sd_instance_t  *store;      /* the stage buffer (any driver)         */
+    brix_stage_policy_t  policy;
     char                   root_canon[PATH_MAX]; /* export anchor for SP4 reconcile */
     ngx_log_t             *log;
 } sd_stage_inst_state;
@@ -27,7 +27,7 @@ typedef struct {
 typedef struct {
     sd_stage_inst_state  *is;          /* back-ref: source / store / policy     */
     char                  key[PATH_MAX];   /* export-relative final key         */
-    xrootd_sd_staged_t   *inner;       /* the stage store's staged handle       */
+    brix_sd_staged_t   *inner;       /* the stage store's staged handle       */
 } sd_stage_staged_state;
 
 /* Write-BACK object state (Option A / §12.2): a random-access write open lands on
@@ -38,14 +38,14 @@ typedef struct {
 typedef struct {
     sd_stage_inst_state  *is;              /* back-ref: source / store / policy   */
     char                  key[PATH_MAX];   /* export-relative object key          */
-    xrootd_sd_obj_t       store_obj;       /* the writable stage-store object     */
+    brix_sd_obj_t       store_obj;       /* the writable stage-store object     */
     off_t                 high_water;      /* max offset+len written (flush size) */
     unsigned              dirty:1;         /* written since the last flush        */
 } sd_stage_wb_state;
 
 #define SD_STAGE_SRC(inst)  (((sd_stage_inst_state *) (inst)->state)->source)
 
-static const xrootd_sd_driver_t xrootd_sd_stage_driver;   /* fwd: write-back objs carry it */
+static const brix_sd_driver_t brix_sd_stage_driver;   /* fwd: write-back objs carry it */
 
 /* ---- namespace / xattr / dir forwarders (delegate to the source) ---------- */
 
@@ -53,12 +53,12 @@ static const xrootd_sd_driver_t xrootd_sd_stage_driver;   /* fwd: write-back obj
  * returned obj carries the stage driver so its pwrite/pread/fsync/close dispatch to
  * the write-back methods below; the stage-store object is held BY VALUE so the handle
  * is self-contained (the shell is freed after the caller copies it into fh->sd_obj). */
-static xrootd_sd_obj_t *
-sd_stage_open_writeback(xrootd_sd_instance_t *inst, sd_stage_inst_state *is,
+static brix_sd_obj_t *
+sd_stage_open_writeback(brix_sd_instance_t *inst, sd_stage_inst_state *is,
     const char *path, int sd_flags, mode_t mode, int *err_out)
 {
-    xrootd_sd_obj_t   *store_obj;
-    xrootd_sd_obj_t   *obj;
+    brix_sd_obj_t   *store_obj;
+    brix_sd_obj_t   *obj;
     sd_stage_wb_state *wb;
     int                e = 0;
 
@@ -91,7 +91,7 @@ sd_stage_open_writeback(xrootd_sd_instance_t *inst, sd_stage_inst_state *is,
     if (store_obj->heap_shell) { free(store_obj); }
     wb->store_obj.heap_shell = 0;
 
-    obj->driver     = &xrootd_sd_stage_driver;   /* → the write-back methods below */
+    obj->driver     = &brix_sd_stage_driver;   /* → the write-back methods below */
     obj->inst       = inst;
     obj->fd         = wb->store_obj.fd;          /* expose the stage fd (posix sendfile) */
     obj->snap       = wb->store_obj.snap;
@@ -100,8 +100,8 @@ sd_stage_open_writeback(xrootd_sd_instance_t *inst, sd_stage_inst_state *is,
     return obj;
 }
 
-static xrootd_sd_obj_t *
-sd_stage_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
+static brix_sd_obj_t *
+sd_stage_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
     mode_t mode, int *err_out)
 {
     sd_stage_inst_state *is = inst->state;
@@ -109,7 +109,7 @@ sd_stage_open(xrootd_sd_instance_t *inst, const char *path, int sd_flags,
     /* Write open → a write-back object on the stage store (pwrite buffers, fsync/close
      * flush to the backend). Read open → the source's own object, so read byte-I/O
      * bypasses the decorator entirely. */
-    if (sd_flags & XROOTD_SD_O_WRITE) {
+    if (sd_flags & BRIX_SD_O_WRITE) {
         return sd_stage_open_writeback(inst, is, path, sd_flags, mode, err_out);
     }
     return is->source->driver->open(is->source, path, sd_flags, mode, err_out);
@@ -132,7 +132,7 @@ sd_stage_wb_flush(sd_stage_wb_state *wb)
     if (!wb->dirty) {
         return NGX_OK;
     }
-    rc = xrootd_stage_run_inline(XROOTD_STAGE_FLUSH, is->store, wb->key,
+    rc = brix_stage_run_inline(BRIX_STAGE_FLUSH, is->store, wb->key,
                                  is->source, wb->key);
     if (rc == NGX_OK) {
         wb->dirty = 0;
@@ -141,7 +141,7 @@ sd_stage_wb_flush(sd_stage_wb_state *wb)
 }
 
 static ssize_t
-sd_stage_wb_pwrite(xrootd_sd_obj_t *obj, const void *buf, size_t len, off_t off)
+sd_stage_wb_pwrite(brix_sd_obj_t *obj, const void *buf, size_t len, off_t off)
 {
     sd_stage_wb_state *wb = obj->state;
     ssize_t            n  = wb->store_obj.driver->pwrite(&wb->store_obj, buf, len, off);
@@ -156,7 +156,7 @@ sd_stage_wb_pwrite(xrootd_sd_obj_t *obj, const void *buf, size_t len, off_t off)
 }
 
 static ssize_t
-sd_stage_wb_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
+sd_stage_wb_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
 {
     sd_stage_wb_state *wb = obj->state;
     return wb->store_obj.driver->pread
@@ -164,7 +164,7 @@ sd_stage_wb_pread(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
 }
 
 static ngx_int_t
-sd_stage_wb_ftruncate(xrootd_sd_obj_t *obj, off_t length)
+sd_stage_wb_ftruncate(brix_sd_obj_t *obj, off_t length)
 {
     sd_stage_wb_state *wb = obj->state;
     ngx_int_t          rc;
@@ -182,7 +182,7 @@ sd_stage_wb_ftruncate(xrootd_sd_obj_t *obj, off_t length)
 }
 
 static ngx_int_t
-sd_stage_wb_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
+sd_stage_wb_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
 {
     sd_stage_wb_state *wb = obj->state;
     return wb->store_obj.driver->fstat
@@ -190,13 +190,13 @@ sd_stage_wb_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
 }
 
 static ngx_int_t
-sd_stage_wb_fsync(xrootd_sd_obj_t *obj)
+sd_stage_wb_fsync(brix_sd_obj_t *obj)
 {
     return sd_stage_wb_flush(obj->state);
 }
 
 static ngx_int_t
-sd_stage_wb_close(xrootd_sd_obj_t *obj)
+sd_stage_wb_close(brix_sd_obj_t *obj)
 {
     sd_stage_wb_state *wb = obj->state;
     ngx_int_t          rc = NGX_OK;
@@ -212,56 +212,56 @@ sd_stage_wb_close(xrootd_sd_obj_t *obj)
 }
 
 static ngx_int_t
-sd_stage_stat(xrootd_sd_instance_t *inst, const char *path, xrootd_sd_stat_t *out)
+sd_stage_stat(brix_sd_instance_t *inst, const char *path, brix_sd_stat_t *out)
 {
-    xrootd_sd_instance_t *s = SD_STAGE_SRC(inst);
+    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
     return s->driver->stat ? s->driver->stat(s, path, out) : NGX_ERROR;
 }
 
 static ngx_int_t
-sd_stage_unlink(xrootd_sd_instance_t *inst, const char *path, int is_dir)
+sd_stage_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
 {
-    xrootd_sd_instance_t *s = SD_STAGE_SRC(inst);
+    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
     return s->driver->unlink ? s->driver->unlink(s, path, is_dir) : NGX_ERROR;
 }
 
 static ngx_int_t
-sd_stage_mkdir(xrootd_sd_instance_t *inst, const char *path, mode_t mode)
+sd_stage_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
 {
-    xrootd_sd_instance_t *s = SD_STAGE_SRC(inst);
+    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
     return s->driver->mkdir ? s->driver->mkdir(s, path, mode) : NGX_ERROR;
 }
 
 static ngx_int_t
-sd_stage_rename(xrootd_sd_instance_t *inst, const char *src, const char *dst,
+sd_stage_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
     int noreplace)
 {
-    xrootd_sd_instance_t *s = SD_STAGE_SRC(inst);
+    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
     return s->driver->rename ? s->driver->rename(s, src, dst, noreplace)
                              : NGX_ERROR;
 }
 
 static ngx_int_t
-sd_stage_server_copy(xrootd_sd_instance_t *inst, const char *src, const char *dst,
+sd_stage_server_copy(brix_sd_instance_t *inst, const char *src, const char *dst,
     off_t *bytes_out)
 {
-    xrootd_sd_instance_t *s = SD_STAGE_SRC(inst);
+    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
     return s->driver->server_copy ? s->driver->server_copy(s, src, dst, bytes_out)
                                   : NGX_ERROR;
 }
 
 static ngx_int_t
-sd_stage_setattr(xrootd_sd_instance_t *inst, const char *path,
-    const xrootd_sd_setattr_t *attr)
+sd_stage_setattr(brix_sd_instance_t *inst, const char *path,
+    const brix_sd_setattr_t *attr)
 {
-    xrootd_sd_instance_t *s = SD_STAGE_SRC(inst);
+    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
     return s->driver->setattr ? s->driver->setattr(s, path, attr) : NGX_OK;
 }
 
-static xrootd_sd_dir_t *
-sd_stage_opendir(xrootd_sd_instance_t *inst, const char *path, int *err_out)
+static brix_sd_dir_t *
+sd_stage_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
 {
-    xrootd_sd_instance_t *s = SD_STAGE_SRC(inst);
+    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
     if (s->driver->opendir == NULL) {
         if (err_out != NULL) { *err_out = ENOSYS; }
         return NULL;
@@ -270,64 +270,64 @@ sd_stage_opendir(xrootd_sd_instance_t *inst, const char *path, int *err_out)
 }
 
 static ngx_int_t
-sd_stage_readdir(xrootd_sd_dir_t *d, xrootd_sd_dirent_t *out)
+sd_stage_readdir(brix_sd_dir_t *d, brix_sd_dirent_t *out)
 {
     /* The dir handle carries its owning (source) instance; dispatch through it. */
     return d->inst->driver->readdir ? d->inst->driver->readdir(d, out) : NGX_ERROR;
 }
 
 static ngx_int_t
-sd_stage_closedir(xrootd_sd_dir_t *d)
+sd_stage_closedir(brix_sd_dir_t *d)
 {
     return d->inst->driver->closedir ? d->inst->driver->closedir(d) : NGX_ERROR;
 }
 
 static ssize_t
-sd_stage_getxattr(xrootd_sd_instance_t *inst, const char *path, const char *name,
+sd_stage_getxattr(brix_sd_instance_t *inst, const char *path, const char *name,
     void *buf, size_t cap)
 {
-    xrootd_sd_instance_t *s = SD_STAGE_SRC(inst);
+    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
     if (s->driver->getxattr == NULL) { errno = ENOTSUP; return -1; }
     return s->driver->getxattr(s, path, name, buf, cap);
 }
 
 static ssize_t
-sd_stage_listxattr(xrootd_sd_instance_t *inst, const char *path, void *buf,
+sd_stage_listxattr(brix_sd_instance_t *inst, const char *path, void *buf,
     size_t cap)
 {
-    xrootd_sd_instance_t *s = SD_STAGE_SRC(inst);
+    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
     if (s->driver->listxattr == NULL) { errno = ENOTSUP; return -1; }
     return s->driver->listxattr(s, path, buf, cap);
 }
 
 static ngx_int_t
-sd_stage_setxattr(xrootd_sd_instance_t *inst, const char *path, const char *name,
+sd_stage_setxattr(brix_sd_instance_t *inst, const char *path, const char *name,
     const void *val, size_t len, int flags)
 {
-    xrootd_sd_instance_t *s = SD_STAGE_SRC(inst);
+    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
     if (s->driver->setxattr == NULL) { errno = ENOTSUP; return NGX_ERROR; }
     return s->driver->setxattr(s, path, name, val, len, flags);
 }
 
 static ngx_int_t
-sd_stage_removexattr(xrootd_sd_instance_t *inst, const char *path,
+sd_stage_removexattr(brix_sd_instance_t *inst, const char *path,
     const char *name)
 {
-    xrootd_sd_instance_t *s = SD_STAGE_SRC(inst);
+    brix_sd_instance_t *s = SD_STAGE_SRC(inst);
     if (s->driver->removexattr == NULL) { errno = ENOTSUP; return NGX_ERROR; }
     return s->driver->removexattr(s, path, name);
 }
 
 /* ---- the write-stage path (the only interposed path) ---------------------- */
 
-static xrootd_sd_staged_t *
-sd_stage_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
+static brix_sd_staged_t *
+sd_stage_staged_open(brix_sd_instance_t *inst, const char *final_path,
     mode_t mode, int *err_out)
 {
     sd_stage_inst_state   *is = inst->state;
     sd_stage_staged_state *ss;
-    xrootd_sd_staged_t    *h;
-    xrootd_sd_staged_t    *inner;
+    brix_sd_staged_t    *h;
+    brix_sd_staged_t    *inner;
     int                    err = 0;
 
     if (is->store->driver->staged_open == NULL) {
@@ -360,11 +360,11 @@ sd_stage_staged_open(xrootd_sd_instance_t *inst, const char *final_path,
 }
 
 static ssize_t
-sd_stage_staged_write(xrootd_sd_staged_t *st, const void *buf, size_t len,
+sd_stage_staged_write(brix_sd_staged_t *st, const void *buf, size_t len,
     off_t off)
 {
     sd_stage_staged_state *ss = st->state;
-    xrootd_sd_staged_t    *inner = ss->inner;
+    brix_sd_staged_t    *inner = ss->inner;
 
     return inner->inst->driver->staged_write
          ? inner->inst->driver->staged_write(inner, buf, len, off) : -1;
@@ -375,12 +375,12 @@ sd_stage_staged_write(xrootd_sd_staged_t *st, const void *buf, size_t len,
  * dropped; on a failed flush it is KEPT (durability preserved for retry, section
  * 16). Consumes the handle. */
 static ngx_int_t
-sd_stage_staged_commit(xrootd_sd_staged_t *st, int noreplace)
+sd_stage_staged_commit(brix_sd_staged_t *st, int noreplace)
 {
     sd_stage_staged_state *ss = st->state;
     sd_stage_inst_state   *is = ss->is;
-    xrootd_sd_instance_t  *store = is->store;
-    xrootd_sd_instance_t  *source = is->source;
+    brix_sd_instance_t  *store = is->store;
+    brix_sd_instance_t  *source = is->source;
     ngx_int_t              rc;
 
     /* 1. publish the buffered object on the stage store. */
@@ -400,13 +400,13 @@ sd_stage_staged_commit(xrootd_sd_staged_t *st, int noreplace)
      * the commit succeeds immediately; the scheduler flushes it to the backend and
      * drops the stage copy on completion. The export anchor rides on the durable
      * record so a restart-reconcile can rebuild both tiers and re-flush (§11.3). */
-    if (is->policy.flush_mode == XROOTD_WT_MODE_ASYNC) {
-        xrootd_stage_opts_t o;
+    if (is->policy.flush_mode == BRIX_WT_MODE_ASYNC) {
+        brix_stage_opts_t o;
 
         ngx_memzero(&o, sizeof(o));
         o.async       = 1;
         o.export_root = (is->root_canon[0] != '\0') ? is->root_canon : NULL;
-        (void) xrootd_stage_submit(XROOTD_STAGE_FLUSH, store, ss->key, source,
+        (void) brix_stage_submit(BRIX_STAGE_FLUSH, store, ss->key, source,
                                    ss->key, &o);
         free(ss);
         free(st);
@@ -414,7 +414,7 @@ sd_stage_staged_commit(xrootd_sd_staged_t *st, int noreplace)
     }
 
     /* 2b. SYNC write-back: flush inline and reflect the result. */
-    rc = xrootd_stage_run_inline(XROOTD_STAGE_FLUSH, store, ss->key, source,
+    rc = brix_stage_run_inline(BRIX_STAGE_FLUSH, store, ss->key, source,
                                  ss->key);
 
     /* 3. on success drop the stage buffer copy; on failure keep it for retry. */
@@ -428,7 +428,7 @@ sd_stage_staged_commit(xrootd_sd_staged_t *st, int noreplace)
 }
 
 static void
-sd_stage_staged_abort(xrootd_sd_staged_t *st)
+sd_stage_staged_abort(brix_sd_staged_t *st)
 {
     sd_stage_staged_state *ss = st->state;
     sd_stage_inst_state   *is = ss->is;
@@ -442,11 +442,11 @@ sd_stage_staged_abort(xrootd_sd_staged_t *st)
 
 /* The decorator advertises the writable-remote slot set; read byte-I/O is never
  * reached here (open returns source objects). */
-static const xrootd_sd_driver_t xrootd_sd_stage_driver = {
+static const brix_sd_driver_t brix_sd_stage_driver = {
     .name        = "stage",
-    .caps        = XROOTD_SD_CAP_RANGE_READ | XROOTD_SD_CAP_RANDOM_WRITE
-                 | XROOTD_SD_CAP_TRUNCATE | XROOTD_SD_CAP_XATTR
-                 | XROOTD_SD_CAP_HARD_RENAME | XROOTD_SD_CAP_SERVER_COPY,
+    .caps        = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_RANDOM_WRITE
+                 | BRIX_SD_CAP_TRUNCATE | BRIX_SD_CAP_XATTR
+                 | BRIX_SD_CAP_HARD_RENAME | BRIX_SD_CAP_SERVER_COPY,
     .open        = sd_stage_open,
     /* write-back byte-I/O (only dispatched for objects opened for write — a read
      * open returns the source's own object with the source driver). */
@@ -475,11 +475,11 @@ static const xrootd_sd_driver_t xrootd_sd_stage_driver = {
     .staged_abort  = sd_stage_staged_abort,
 };
 
-xrootd_sd_instance_t *
-xrootd_sd_stage_create(xrootd_sd_instance_t *source, xrootd_sd_instance_t *store,
-    const xrootd_stage_policy_t *policy, const char *root_canon, ngx_log_t *log)
+brix_sd_instance_t *
+brix_sd_stage_create(brix_sd_instance_t *source, brix_sd_instance_t *store,
+    const brix_stage_policy_t *policy, const char *root_canon, ngx_log_t *log)
 {
-    xrootd_sd_instance_t *inst;
+    brix_sd_instance_t *inst;
     sd_stage_inst_state  *is;
 
     if (source == NULL || store == NULL) {
@@ -505,10 +505,10 @@ xrootd_sd_stage_create(xrootd_sd_instance_t *source, xrootd_sd_instance_t *store
         is->policy = *policy;
     } else {
         ngx_memzero(&is->policy, sizeof(is->policy));
-        is->policy.flush_mode = XROOTD_WT_MODE_SYNC;
+        is->policy.flush_mode = BRIX_WT_MODE_SYNC;
     }
 
-    inst->driver = &xrootd_sd_stage_driver;
+    inst->driver = &brix_sd_stage_driver;
     inst->log    = log;
     inst->pool   = NULL;
     inst->state  = is;
@@ -516,7 +516,7 @@ xrootd_sd_stage_create(xrootd_sd_instance_t *source, xrootd_sd_instance_t *store
 }
 
 void
-xrootd_sd_stage_destroy(xrootd_sd_instance_t *inst)
+brix_sd_stage_destroy(brix_sd_instance_t *inst)
 {
     if (inst == NULL) {
         return;
@@ -525,27 +525,27 @@ xrootd_sd_stage_destroy(xrootd_sd_instance_t *inst)
     free(inst);
 }
 
-/* 1 iff `inst` is a stage decorator built by xrootd_sd_stage_create. */
+/* 1 iff `inst` is a stage decorator built by brix_sd_stage_create. */
 int
-xrootd_sd_stage_instance_is(const xrootd_sd_instance_t *inst)
+brix_sd_stage_instance_is(const brix_sd_instance_t *inst)
 {
-    return (inst != NULL && inst->driver == &xrootd_sd_stage_driver) ? 1 : 0;
+    return (inst != NULL && inst->driver == &brix_sd_stage_driver) ? 1 : 0;
 }
 
 /* The stage SOURCE instance (the backend reads forward to it), or NULL for a
  * non-stage instance. The serve-locality predicate recurses into it (a stage
  * read is served from the source, not the stage buffer). */
-xrootd_sd_instance_t *
-xrootd_sd_stage_source_instance(const xrootd_sd_instance_t *inst)
+brix_sd_instance_t *
+brix_sd_stage_source_instance(const brix_sd_instance_t *inst)
 {
-    return xrootd_sd_stage_instance_is(inst) ? SD_STAGE_SRC(inst) : NULL;
+    return brix_sd_stage_instance_is(inst) ? SD_STAGE_SRC(inst) : NULL;
 }
 
 /* The stage STORE instance (the buffer holding the durable staged object). */
-xrootd_sd_instance_t *
-xrootd_sd_stage_store_instance(const xrootd_sd_instance_t *inst)
+brix_sd_instance_t *
+brix_sd_stage_store_instance(const brix_sd_instance_t *inst)
 {
-    return xrootd_sd_stage_instance_is(inst)
+    return brix_sd_stage_instance_is(inst)
          ? ((sd_stage_inst_state *) inst->state)->store : NULL;
 }
 
@@ -554,16 +554,16 @@ xrootd_sd_stage_store_instance(const xrootd_sd_instance_t *inst)
  * success - exactly the sync staged_commit tail, run again. NGX_OK / NGX_DECLINED
  * (not a stage instance) / NGX_ERROR (errno set; the record is kept for retry). */
 ngx_int_t
-xrootd_sd_stage_reflush(xrootd_sd_instance_t *inst, const char *key)
+brix_sd_stage_reflush(brix_sd_instance_t *inst, const char *key)
 {
     sd_stage_inst_state *is;
     ngx_int_t            rc;
 
-    if (!xrootd_sd_stage_instance_is(inst) || key == NULL) {
+    if (!brix_sd_stage_instance_is(inst) || key == NULL) {
         return NGX_DECLINED;
     }
     is = inst->state;
-    rc = xrootd_stage_run_inline(XROOTD_STAGE_FLUSH, is->store, key, is->source,
+    rc = brix_stage_run_inline(BRIX_STAGE_FLUSH, is->store, key, is->source,
                                  key);
     if (rc == NGX_OK && is->store->driver->unlink != NULL) {
         (void) is->store->driver->unlink(is->store, key, 0);   /* drop stage copy */

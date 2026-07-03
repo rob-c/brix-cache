@@ -3,7 +3,7 @@
  * write-back staging the eviction guard would otherwise protect forever.
  */
 
-#include "cache_reap.h"   /* + cache_internal.h: xrootd_cache_state_root */
+#include "cache_reap.h"   /* + cache_internal.h: brix_cache_state_root */
 #include "cinfo.h"
 #include "cache_storage.h"
 
@@ -35,7 +35,7 @@ reap_unlink_sidecars(const char *data_path)
 {
     char sc[PATH_MAX];
 
-    if (xrootd_cache_cinfo_path(sc, sizeof(sc), data_path) == 0) {
+    if (brix_cache_cinfo_path(sc, sizeof(sc), data_path) == 0) {
         (void) unlink(sc);
     }
     if (snprintf(sc, sizeof(sc), "%s.meta", data_path) < (int) sizeof(sc)) {
@@ -46,20 +46,20 @@ reap_unlink_sidecars(const char *data_path)
 /* The per-server shared-memory metrics slot for `conf`, or NULL when metrics are
  * unconfigured (so the reaper degrades cleanly with no counter). Mirrors the slot
  * resolution in connection/handler.c. */
-static ngx_xrootd_srv_metrics_t *
-reap_metrics_slot(const ngx_stream_xrootd_srv_conf_t *conf)
+static ngx_brix_srv_metrics_t *
+reap_metrics_slot(const ngx_stream_brix_srv_conf_t *conf)
 {
-    ngx_xrootd_metrics_t *shm;
+    ngx_brix_metrics_t *shm;
 
     if (conf == NULL || conf->metrics_slot < 0
-        || conf->metrics_slot >= XROOTD_METRICS_MAX_SERVERS
-        || ngx_xrootd_shm_zone == NULL
-        || ngx_xrootd_shm_zone->data == NULL
-        || ngx_xrootd_shm_zone->data == (void *) 1)
+        || conf->metrics_slot >= BRIX_METRICS_MAX_SERVERS
+        || ngx_brix_shm_zone == NULL
+        || ngx_brix_shm_zone->data == NULL
+        || ngx_brix_shm_zone->data == (void *) 1)
     {
         return NULL;
     }
-    shm = ngx_xrootd_shm_zone->data;
+    shm = ngx_brix_shm_zone->data;
     return &shm->servers[conf->metrics_slot];
 }
 
@@ -69,7 +69,7 @@ reap_metrics_slot(const ngx_stream_xrootd_srv_conf_t *conf)
  * slot->cache_dirty_reaped[reason] (slot may be NULL). */
 static ngx_uint_t
 reap_dir(const char *dir, time_t cutoff, dev_t dev, ngx_log_t *log,
-    ngx_xrootd_srv_metrics_t *slot, xrootd_cstore_t *cstore,
+    ngx_brix_srv_metrics_t *slot, brix_cstore_t *cstore,
     const char *data_root)
 {
     DIR           *dp;
@@ -84,8 +84,8 @@ reap_dir(const char *dir, time_t cutoff, dev_t dev, ngx_log_t *log,
 
     while ((de = readdir(dp)) != NULL) {
         struct stat                 st;
-        xrootd_cache_cinfo_state_t  cs;
-        xrootd_cache_reap_reason_t  reason;
+        brix_cache_cinfo_state_t  cs;
+        brix_cache_reap_reason_t  reason;
 
         if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) {
             continue;
@@ -108,18 +108,18 @@ reap_dir(const char *dir, time_t cutoff, dev_t dev, ngx_log_t *log,
         if (!S_ISREG(st.st_mode)) {
             continue;
         }
-        if (xrootd_cache_cinfo_state(child, &cs) != NGX_OK) {
+        if (brix_cache_cinfo_state(child, &cs) != NGX_OK) {
             continue;                       /* no record → keep (untracked file) */
         }
 
-        /* Classify WHY this file is reapable (see xrootd_cache_reap_reason_t). */
+        /* Classify WHY this file is reapable (see brix_cache_reap_reason_t). */
         if (cs.is_dirty) {
             /* Un-flushed data: reap only once it has aged past the max-age. */
             if (cs.dirty_since == 0 || (time_t) cs.dirty_since > cutoff) {
                 continue;                   /* dirty but not yet aged → keep */
             }
-            reason = (cs.flush_gen > 0) ? XROOTD_CACHE_REAP_INCOMPLETE
-                                        : XROOTD_CACHE_REAP_ABANDONED;
+            reason = (cs.flush_gen > 0) ? BRIX_CACHE_REAP_INCOMPLETE
+                                        : BRIX_CACHE_REAP_ABANDONED;
         } else if (cs.flush_gen > 0) {
             /* Clean AND written back at least once: a finished write-back staging
              * copy whose bytes are safely on the origin. Reclaim it once the last
@@ -128,7 +128,7 @@ reap_dir(const char *dir, time_t cutoff, dev_t dev, ngx_log_t *log,
             if (cs.last_flush == 0 || (time_t) cs.last_flush > cutoff) {
                 continue;                   /* completed but not yet aged → keep */
             }
-            reason = XROOTD_CACHE_REAP_COMPLETED;
+            reason = BRIX_CACHE_REAP_COMPLETED;
         } else {
             continue;                       /* clean read-fill → keep (evictable) */
         }
@@ -142,7 +142,7 @@ reap_dir(const char *dir, time_t cutoff, dev_t dev, ngx_log_t *log,
         if (cstore != NULL && data_root != NULL
             && ngx_strncmp(child, data_root, ngx_strlen(data_root)) == 0)
         {
-            (void) xrootd_cstore_evict(cstore, child + ngx_strlen(data_root));
+            (void) brix_cstore_evict(cstore, child + ngx_strlen(data_root));
         } else {
             (void) unlink(child);
         }
@@ -150,7 +150,7 @@ reap_dir(const char *dir, time_t cutoff, dev_t dev, ngx_log_t *log,
         if (slot != NULL) {
             (void) ngx_atomic_fetch_add(&slot->cache_dirty_reaped[reason], 1);
         }
-        if (reason == XROOTD_CACHE_REAP_COMPLETED) {
+        if (reason == BRIX_CACHE_REAP_COMPLETED) {
             ngx_log_error(NGX_LOG_NOTICE, log, 0,
                 "xrootd: cache reaped completed write-back file "
                 "(flushed, reclaimed): \"%s\"", child);
@@ -158,7 +158,7 @@ reap_dir(const char *dir, time_t cutoff, dev_t dev, ngx_log_t *log,
             ngx_log_error(NGX_LOG_WARN, log, 0,
                 "xrootd: cache reaped stale-dirty file (reason=%s, %uL "
                 "un-flushed bytes discarded): \"%s\"",
-                reason == XROOTD_CACHE_REAP_INCOMPLETE ? "incomplete"
+                reason == BRIX_CACHE_REAP_INCOMPLETE ? "incomplete"
                                                        : "abandoned",
                 (unsigned long) (cs.dirty_hi - cs.dirty_lo), child);
         }
@@ -170,7 +170,7 @@ reap_dir(const char *dir, time_t cutoff, dev_t dev, ngx_log_t *log,
 }
 
 ngx_uint_t
-xrootd_cache_reap_dirty(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log)
+brix_cache_reap_dirty(const ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log)
 {
     const char *root;
     struct stat rs;
@@ -179,7 +179,7 @@ xrootd_cache_reap_dirty(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log
     if (conf == NULL || conf->cache_dirty_max_age == 0) {
         return 0;
     }
-    root = xrootd_cache_state_root(conf);
+    root = brix_cache_state_root(conf);
     if (root == NULL || stat(root, &rs) != 0) {
         return 0;
     }
@@ -190,6 +190,6 @@ xrootd_cache_reap_dirty(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log
      * tree is still walked raw above — it is the POSIX state plane (.cinfo state
      * records), not the store's data objects, so it is not a store-driver touch. */
     return reap_dir(root, cutoff, rs.st_dev, log, reap_metrics_slot(conf),
-                    xrootd_cache_storage_cstore(conf),
+                    brix_cache_storage_cstore(conf),
                     (const char *) conf->cache_root.data);
 }

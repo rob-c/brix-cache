@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Phase-4b end-to-end: a delegating GSI client -> our terminating tap proxy
-# (xrootd_tap_proxy_auth gsi, delegation capture) -> a GSI-only upstream. The
+# (brix_tap_proxy_auth gsi, delegation capture) -> a GSI-only upstream. The
 # proxy logs into the upstream AS THE USER with the delegated proxy and forwards;
 # the read must be byte-exact and the tap must log the opcodes.
 #
@@ -40,11 +40,11 @@ cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/pid;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${OP}; xrootd on; xrootd_root $PFX/o/root;
-    xrootd_auth gsi;
-    xrootd_certificate     $SERVER_CERT;
-    xrootd_certificate_key $SERVER_KEY;
-    xrootd_trusted_ca      $CA_CERT;
+    listen 127.0.0.1:${OP}; xrootd on; brix_root $PFX/o/root;
+    brix_auth gsi;
+    brix_certificate     $SERVER_CERT;
+    brix_certificate_key $SERVER_KEY;
+    brix_trusted_ca      $CA_CERT;
 } }
 EOF
 
@@ -55,15 +55,15 @@ thread_pool default threads=4;
 events { worker_connections 64; }
 stream { server {
     listen 127.0.0.1:${PP}; xrootd on;
-    xrootd_auth gsi;
-    xrootd_gsi_signed_dh require;
-    xrootd_tpc_delegate on;
-    xrootd_certificate     $SERVER_CERT;
-    xrootd_certificate_key $SERVER_KEY;
-    xrootd_trusted_ca      $CA_CERT;
-    xrootd_tap_proxy on;
-    xrootd_tap_proxy_upstream 127.0.0.1:${OP};
-    xrootd_tap_proxy_auth gsi;
+    brix_auth gsi;
+    brix_gsi_signed_dh require;
+    brix_tpc_delegate on;
+    brix_certificate     $SERVER_CERT;
+    brix_certificate_key $SERVER_KEY;
+    brix_trusted_ca      $CA_CERT;
+    brix_tap_proxy on;
+    brix_tap_proxy_upstream 127.0.0.1:${OP};
+    brix_tap_proxy_auth gsi;
 } }
 EOF
 

@@ -8,7 +8,7 @@ open, security).  By default it runs against the direct anon endpoint.  This
 module re-runs that ENTIRE suite — unchanged — against the same storage reached
 through:
 
-  * proxy    — one transparent xrootd_tap_proxy hop
+  * proxy    — one transparent brix_tap_proxy hop
   * mesh     — two stacked proxy hops (nginx -> nginx -> nginx)
   * cluster  — a CMS redirector that redirects to a registered data server
 
@@ -37,7 +37,7 @@ from settings import (
     DATA_ROOT,
     HOST,
     NGINX_ANON_PORT,
-    REF_XROOTD_PORT,
+    REF_BRIX_PORT,
     SERVER_HOST,
     free_port,
 )
@@ -120,8 +120,8 @@ def _stream(port, inner):
 def _build_proxy():
     """One transparent proxy hop in front of the DATA_ROOT nginx (ANON)."""
     conf = _write_conf("proxy", _stream(PROXY_PORT,
-        f"        xrootd on; xrootd_auth none;\n"
-        f"        xrootd_tap_proxy on; xrootd_tap_proxy_upstream {HOST}:{ANON}; xrootd_tap_proxy_auth anonymous;"))
+        f"        xrootd on; brix_auth none;\n"
+        f"        brix_tap_proxy on; brix_tap_proxy_upstream {HOST}:{ANON}; brix_tap_proxy_auth anonymous;"))
     _start(conf)
     return f"root://{H}:{PROXY_PORT}", [conf]
 
@@ -129,11 +129,11 @@ def _build_proxy():
 def _build_mesh():
     """Two stacked proxy hops: hop2 -> hop1 -> ANON (nginx->nginx->nginx)."""
     c1 = _write_conf("mesh1", _stream(MESH_HOP1_PORT,
-        f"        xrootd on; xrootd_auth none;\n"
-        f"        xrootd_tap_proxy on; xrootd_tap_proxy_upstream {HOST}:{ANON}; xrootd_tap_proxy_auth anonymous;"))
+        f"        xrootd on; brix_auth none;\n"
+        f"        brix_tap_proxy on; brix_tap_proxy_upstream {HOST}:{ANON}; brix_tap_proxy_auth anonymous;"))
     c2 = _write_conf("mesh2", _stream(MESH_HOP2_PORT,
-        f"        xrootd on; xrootd_auth none;\n"
-        f"        xrootd_tap_proxy on; xrootd_tap_proxy_upstream {HOST}:{MESH_HOP1_PORT}; xrootd_tap_proxy_auth anonymous;"))
+        f"        xrootd on; brix_auth none;\n"
+        f"        brix_tap_proxy on; brix_tap_proxy_upstream {HOST}:{MESH_HOP1_PORT}; brix_tap_proxy_auth anonymous;"))
     _start(c1)
     _start(c2)
     return f"root://{H}:{MESH_HOP2_PORT}", [c2, c1]
@@ -144,17 +144,17 @@ def _build_cluster():
     redir = _write_conf("clu_redir",
         "stream {\n"
         f"    server {{\n        listen 0.0.0.0:{CLU_REDIR_PORT};\n"
-        "        xrootd on; xrootd_auth none; xrootd_manager_mode on;\n"
+        "        xrootd on; brix_auth none; brix_manager_mode on;\n"
         "    }\n"
         f"    server {{\n        listen 0.0.0.0:{CLU_CMS_PORT};\n"
-        "        xrootd_cms_server on;\n    }\n}")
+        "        brix_cms_server on;\n    }\n}")
     ds = _write_conf("clu_ds", _stream(CLU_DS_PORT,
-        f"        xrootd on; xrootd_storage_backend posix:{DATA_ROOT}; xrootd_auth none;\n"
-        f"        xrootd_allow_write on;\n"
-        f"        xrootd_cms_manager {HOST}:{CLU_CMS_PORT};\n"
-        f"        xrootd_cms_paths /;\n"
-        f"        xrootd_cms_interval 2;\n"
-        f"        xrootd_listen_port {CLU_DS_PORT};"))
+        f"        xrootd on; brix_storage_backend posix:{DATA_ROOT}; brix_auth none;\n"
+        f"        brix_allow_write on;\n"
+        f"        brix_cms_manager {HOST}:{CLU_CMS_PORT};\n"
+        f"        brix_cms_paths /;\n"
+        f"        brix_cms_interval 2;\n"
+        f"        brix_listen_port {CLU_DS_PORT};"))
     _start(redir)
     _start(ds)
     return f"root://{H}:{CLU_REDIR_PORT}", [redir, ds]
@@ -163,7 +163,7 @@ def _build_cluster():
 def _build_mirror(port=MIRROR_PORT, name="mirror"):
     """nginx+xrootd traffic-mirror front: serves the shared DATA_ROOT to the
     client AND shadow-replays read-path traffic to the official xrootd daemon
-    (REF_XROOTD_PORT).  The client is served by the nginx front; the official
+    (REF_BRIX_PORT).  The client is served by the nginx front; the official
     server receives a mirrored copy of every read/stat/dirlist/query, with
     divergences logged.  Conformance compares the front against that same
     official server, so a green run proves nginx serves identically to the
@@ -171,17 +171,17 @@ def _build_mirror(port=MIRROR_PORT, name="mirror"):
     and the official server export the same DATA_ROOT directory, so writes made
     through the front are visible to the official server for read-back."""
     conf = _write_conf(name, _stream(port,
-        f"        xrootd on; xrootd_storage_backend posix:{DATA_ROOT}; xrootd_auth none;\n"
-        f"        xrootd_allow_write on;\n"
-        f"        xrootd_stream_mirror_url {HOST}:{REF_XROOTD_PORT};\n"
+        f"        xrootd on; brix_storage_backend posix:{DATA_ROOT}; brix_auth none;\n"
+        f"        brix_allow_write on;\n"
+        f"        brix_stream_mirror_url {HOST}:{REF_BRIX_PORT};\n"
         # Mirror the full read-path opcode set INCLUDING query/Qcksum.  The
         # mirror only actually replays self-contained requests (read-only opens,
         # path-based stat/statx, locate, dirlist, query) and treats a shadow
         # "not supported" (the official has no checksum) as benign — so this
         # "just works" in front of an official xrootd with no spurious
         # divergence (handle-based read/readv and write opens are skipped).
-        f"        xrootd_mirror_opcodes open read readv stat statx dirlist query;\n"
-        f"        xrootd_mirror_log_diverge on;"))
+        f"        brix_mirror_opcodes open read readv stat statx dirlist query;\n"
+        f"        brix_mirror_log_diverge on;"))
     _start(conf)
     return f"root://{H}:{port}", [conf]
 
@@ -250,8 +250,8 @@ def _require_fleet_backends():
     down."""
     if not _reachable(ANON):
         pytest.skip(f"storage backend anon:{ANON} (DATA_ROOT) not up")
-    if not _reachable(REF_XROOTD_PORT):
-        pytest.skip(f"reference xrootd :{REF_XROOTD_PORT} not up "
+    if not _reachable(REF_BRIX_PORT):
+        pytest.skip(f"reference xrootd :{REF_BRIX_PORT} not up "
                     "(conformance needs it for comparison)")
 
 
@@ -340,7 +340,7 @@ def test_cluster_nonexistent_returns_not_found():
     This is the divergence the topology conformance run caught: the redirector
     ignored the client's tried/triedrc retry list and kept redirecting to the
     same (enoent) data server.  src/net/manager/registry.c::
-    xrootd_manager_tried_exhausted now stops and answers not-found once every
+    brix_manager_tried_exhausted now stops and answers not-found once every
     matching server has been tried; wired into stat/open/checksum redirects."""
     from XRootD import client
 
@@ -434,7 +434,7 @@ def test_mirror_readwrite_against_official_xrootd():
 
         # --- the official xrootd serves the same bytes (shared namespace) ---
         f = client.File()
-        st, _ = f.open(f"root://{H}:{REF_XROOTD_PORT}//{rel}", OpenFlags.READ)
+        st, _ = f.open(f"root://{H}:{REF_BRIX_PORT}//{rel}", OpenFlags.READ)
         assert st.ok, f"official xrootd open: {st.message}"
         st, ref_got = f.read(); f.close()
         assert bytes(ref_got) == data, "official xrootd read not byte-exact"

@@ -42,8 +42,8 @@
 #      a clean close / final chunk, so an interrupted UPLOAD resumes from where it
 #      left off instead of restarting at byte 0, and a concurrent reader never sees
 #      a half-written object.  Disable per server/location with:
-#        * root:// (stream{}):  xrootd_upload_resume off;
-#        * davs:// (this file):  xrootd_webdav_upload_resume off;
+#        * root:// (stream{}):  brix_upload_resume off;
+#        * davs:// (this file):  brix_webdav_upload_resume off;
 #      The native client resumes automatically (root:// reopen-in-place; davs://
 #      Content-Range PUT); other clients resume davs:// via Content-Range PUT + the
 #      X-Upload-Offset reported on a 409.
@@ -52,8 +52,8 @@
 #      destination (commit is a zero-copy atomic rename).  To stage on a separate
 #      high-performance caching device (e.g. NVMe/tmpfs) in front of slower storage
 #      (e.g. a CephFS POSIX mount), point it elsewhere:
-#        * root:// (stream{}):  xrootd_stage_dir       /mnt/fastcache/xrd-stage;
-#        * davs:// (this file):  xrootd_webdav_stage_dir /mnt/fastcache/xrd-stage;
+#        * root:// (stream{}):  brix_stage_dir       /mnt/fastcache/xrd-stage;
+#        * davs:// (this file):  brix_webdav_stage_dir /mnt/fastcache/xrd-stage;
 #      Writes then land on the fast device; the close (root://) / final chunk
 #      (davs://) BLOCKS until commit copies the completed object to the storage and
 #      atomically renames it into place (cross-device commit), then drops the cache
@@ -86,14 +86,14 @@ server {
     # Prometheus scrape target (see contrib/grafana-dashboard.json +
     # contrib/prometheus-alerts.yml).
     location /metrics {
-        xrootd_metrics on;
+        brix_metrics on;
     }
 
     # Liveness/readiness probe for a load balancer or Kubernetes.
     #   GET /healthz          -> 200 {"status":"ok",...}   (liveness)
     #   GET /healthz?verbose  -> 200 + readiness checks     (shm mapped, pid, ver)
     location = /healthz {
-        xrootd_health on;
+        brix_health on;
     }
 }
 
@@ -120,54 +120,54 @@ server {
     ssl_buffer_size  64k;
 
     client_max_body_size 0;          # allow arbitrarily large PUT/uploads
-    xrootd_webdav_proxy_certs on;    # enable x509 proxy-cert validation
+    brix_webdav_proxy_certs on;    # enable x509 proxy-cert validation
 
-    access_log /var/log/nginx/xrootd_webdav_access.log;
+    access_log /var/log/nginx/brix_webdav_access.log;
 
     # Web dashboard (operational UI) — password-protected, TLS-only.
     location /xrootd/ {
-        xrootd_dashboard on;
-        xrootd_dashboard_password "CHANGE-ME";
+        brix_dashboard on;
+        brix_dashboard_password "CHANGE-ME";
 
         # Admin file browser: lets a signed-in admin list (name, local owner,
         # size, creation/modification dates) and download any file beneath this
         # root, straight from the dashboard.  Off unless set; admin-auth-only and
         # confined to this root via the kernel (openat2 RESOLVE_BENEATH), so a
         # client path can never escape it.  Point it at your storage export:
-        #xrootd_dashboard_browse_root /var/lib/nginx-xrootd/data;
+        #brix_dashboard_browse_root /var/lib/nginx-xrootd/data;
     }
 
     location / {
         root               /var/lib/nginx-xrootd/data;
         dav_methods        DELETE MKCOL;
 
-        xrootd_webdav      on;
-        xrootd_webdav_root /var/lib/nginx-xrootd/data;
+        brix_webdav      on;
+        brix_webdav_root /var/lib/nginx-xrootd/data;
 
         # Authentication: `optional` accepts anonymous + authenticated; use
         # `required` to reject unauthenticated requests.
-        xrootd_webdav_auth        optional;
-        xrootd_webdav_allow_write on;
+        brix_webdav_auth        optional;
+        brix_webdav_allow_write on;
 
         # Resumable uploads are ON by default (note 6).  Optionally stage on a
         # fast caching device in front of the storage (note 7); commit copies to
         # the storage mount.  Uncomment to enable, or disable resume entirely.
-        #xrootd_webdav_stage_dir     /mnt/fastcache/xrd-stage;
-        #xrootd_webdav_upload_resume off;
+        #brix_webdav_stage_dir     /mnt/fastcache/xrd-stage;
+        #brix_webdav_upload_resume off;
 
         # x509 / VOMS proxy validation against the IGTF CA dir.
-        xrootd_webdav_cadir /etc/grid-security/certificates;
+        brix_webdav_cadir /etc/grid-security/certificates;
 
         # WLCG bearer-token (JWT) validation — JWKS is hot-reloaded on mtime.
-        xrootd_webdav_token_jwks     /etc/nginx-xrootd/jwks.json;
-        xrootd_webdav_token_issuer   "https://wlcg.example.org/";
-        xrootd_webdav_token_audience "https://storage.example.org";
+        brix_webdav_token_jwks     /etc/nginx-xrootd/jwks.json;
+        brix_webdav_token_issuer   "https://wlcg.example.org/";
+        brix_webdav_token_audience "https://storage.example.org";
 
         # Third-party copy (TPC) — WebDAV COPY with delegated credentials.
         # tpc_cafile is a CA *bundle file* used to verify the remote TPC peer
         # (distinct from cadir above, which is the IGTF CA *directory*).
-        xrootd_webdav_tpc on;
-        xrootd_webdav_tpc_cafile /etc/pki/tls/certs/ca-bundle.crt;
+        brix_webdav_tpc on;
+        brix_webdav_tpc_cafile /etc/pki/tls/certs/ca-bundle.crt;
     }
 }
 
@@ -181,14 +181,14 @@ server {
     server_name s3.example.org;
 
     client_max_body_size 0;
-    access_log /var/log/nginx/xrootd_s3_access.log;
+    access_log /var/log/nginx/brix_s3_access.log;
 
     location / {
-        xrootd_s3            on;
-        xrootd_s3_root       /var/lib/nginx-xrootd/data;
-        xrootd_s3_bucket     mybucket;
-        xrootd_s3_allow_write on;
-        xrootd_s3_max_keys   1000;
+        brix_s3            on;
+        brix_s3_root       /var/lib/nginx-xrootd/data;
+        brix_s3_bucket     mybucket;
+        brix_s3_allow_write on;
+        brix_s3_max_keys   1000;
         # SigV4 access/secret keys are configured per your credential source;
         # see docs/04-protocols/ for the S3 auth model.
     }
@@ -205,28 +205,28 @@ server {
 #     server {
 #         listen 1094;
 #         xrootd            on;
-#         xrootd_root       /var/lib/nginx-xrootd/data;
-#         xrootd_auth       token;
-#         xrootd_allow_write on;
+#         brix_root       /var/lib/nginx-xrootd/data;
+#         brix_auth       token;
+#         brix_allow_write on;
 #         # Resumable uploads are ON by default; optionally stage on a fast device:
-#         #xrootd_stage_dir /mnt/fastcache/xrd-stage;
-#         xrootd_token_jwks     /etc/nginx-xrootd/jwks.json;
-#         xrootd_token_issuer   "https://wlcg.example.org/";
-#         xrootd_token_audience "https://storage.example.org";
-#         xrootd_access_log /var/log/nginx/xrootd_access.log;
+#         #brix_stage_dir /mnt/fastcache/xrd-stage;
+#         brix_token_jwks     /etc/nginx-xrootd/jwks.json;
+#         brix_token_issuer   "https://wlcg.example.org/";
+#         brix_token_audience "https://storage.example.org";
+#         brix_access_log /var/log/nginx/brix_access.log;
 #     }
 #
 #     # roots:// with GSI/x509 + in-protocol TLS.
 #     server {
 #         listen 1095;
 #         xrootd            on;
-#         xrootd_root       /var/lib/nginx-xrootd/data;
-#         xrootd_auth       gsi;
-#         xrootd_tls        on;
-#         xrootd_allow_write on;
-#         xrootd_certificate     /etc/grid-security/hostcert.pem;
-#         xrootd_certificate_key /etc/grid-security/hostkey.pem;
-#         xrootd_trusted_ca      /etc/grid-security/certificates/ca.pem;
-#         xrootd_access_log /var/log/nginx/xrootd_gsi_access.log;
+#         brix_root       /var/lib/nginx-xrootd/data;
+#         brix_auth       gsi;
+#         brix_tls        on;
+#         brix_allow_write on;
+#         brix_certificate     /etc/grid-security/hostcert.pem;
+#         brix_certificate_key /etc/grid-security/hostkey.pem;
+#         brix_trusted_ca      /etc/grid-security/certificates/ca.pem;
+#         brix_access_log /var/log/nginx/brix_gsi_access.log;
 #     }
 # }

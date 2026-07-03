@@ -2,25 +2,25 @@
  * lifecycle.c — kXR_ping / kXR_endsess opcode handlers (session liveness + teardown).
  */
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "net/proxy/proxy.h"
 #include "net/proxy/proxy_internal.h"
-#include "registry.h"   /* xrootd_session_unregister: targeted session teardown */
+#include "registry.h"   /* brix_session_unregister: targeted session teardown */
 
 /* kXR_ping - liveness check */
 /* Handle kXR_ping — a no-op liveness check; returns kXR_ok. */
 ngx_int_t
-xrootd_handle_ping(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_ping(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     /* No state transition here; just account for the request and reply ok. */
-    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_PING, "PING", "-", "-", 0);
+    BRIX_RETURN_OK(ctx, c, BRIX_OP_PING, "PING", "-", "-", 0);
 }
 
 /* kXR_endsess - client wants to end the session gracefully */
 /* Handle kXR_endsess — the client's explicit request to gracefully terminate
  * its session. */
 ngx_int_t
-xrootd_handle_endsess(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_endsess(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     ClientEndsessRequest *req = (ClientEndsessRequest *) ctx->hdr_buf;
 
@@ -43,12 +43,12 @@ xrootd_handle_endsess(xrootd_ctx_t *ctx, ngx_connection_t *c)
      * and open handles untouched. Only an endsess for THIS connection's own
      * session performs the full teardown + auth clear below.
      */
-    if (ngx_memcmp(req->sessid, ctx->sessid, XROOTD_SESSION_ID_LEN) != 0) {
-        xrootd_session_unregister(req->sessid);
+    if (ngx_memcmp(req->sessid, ctx->sessid, BRIX_SESSION_ID_LEN) != 0) {
+        brix_session_unregister(req->sessid);
         ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "xrootd: kXR_endsess for a different session — "
                        "released it, this connection stays authenticated");
-        return xrootd_send_ok(ctx, c, NULL, 0);
+        return brix_send_ok(ctx, c, NULL, 0);
     }
 
     /*
@@ -60,7 +60,7 @@ xrootd_handle_endsess(xrootd_ctx_t *ctx, ngx_connection_t *c)
      * unconditional and correct regardless of whether the send succeeds.
      */
     if (ctx->proxy != NULL) {
-        xrootd_proxy_ctx_t *proxy = (xrootd_proxy_ctx_t *) ctx->proxy;
+        brix_proxy_ctx_t *proxy = (brix_proxy_ctx_t *) ctx->proxy;
 
         proxy->no_pool = 1;
 
@@ -81,8 +81,8 @@ xrootd_handle_endsess(xrootd_ctx_t *ctx, ngx_connection_t *c)
      * This keeps explicit end-of-session requests aligned with the same cleanup
      * bookkeeping used for timeouts and transport-level disconnects.
      */
-    xrootd_on_disconnect(ctx, c);
-    xrootd_close_all_files(ctx);
+    brix_on_disconnect(ctx, c);
+    brix_close_all_files(ctx);
 
     /*
      * SECURITY: clear session-level auth flags so the dispatcher rejects any
@@ -94,5 +94,5 @@ xrootd_handle_endsess(xrootd_ctx_t *ctx, ngx_connection_t *c)
     ctx->logged_in = 0;
     ctx->auth_done = 0;
 
-    return xrootd_send_ok(ctx, c, NULL, 0);
+    return brix_send_ok(ctx, c, NULL, 0);
 }

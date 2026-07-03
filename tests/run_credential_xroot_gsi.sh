@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run_credential_xroot_gsi.sh — C-3 GSI half (phase-63): the §14 xrootd_credential
+# run_credential_xroot_gsi.sh — C-3 GSI half (phase-63): the §14 brix_credential
 # threads an X.509 proxy into the sd_xroot source driver, which authenticates to a
 # GSI (XrdSecgsi) root:// origin IN-PROCESS — the two-round certreq/cert handshake
 # via the shared gsi_core kernel (no xrdcp subprocess). Origin O requires GSI auth;
@@ -33,12 +33,12 @@ cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${OPORT}; xrootd on; xrootd_root $PFX/o/root;
-    xrootd_auth gsi;
-    xrootd_certificate     $SERVER_CERT;
-    xrootd_certificate_key $SERVER_KEY;
-    xrootd_trusted_ca      $CA_CERT;
-    xrootd_allow_write on;
+    listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root;
+    brix_auth gsi;
+    brix_certificate     $SERVER_CERT;
+    brix_certificate_key $SERVER_KEY;
+    brix_trusted_ca      $CA_CERT;
+    brix_allow_write on;
 } }
 EOF
 # Node B — cache over root://O, authenticating in-process with the X.509 proxy.
@@ -47,12 +47,12 @@ daemon on; error_log $PFX/b/logs/e.log info; pid $PFX/b/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream {
-    xrootd_credential origin { x509_proxy $PROXY_STD; ca_dir $CA_DIR; }
+    brix_credential origin { x509_proxy $PROXY_STD; ca_dir $CA_DIR; }
     server {
-        listen 127.0.0.1:${BPORT}; xrootd on; xrootd_root $PFX/b/export; xrootd_auth none;
-        xrootd_storage_backend root://127.0.0.1:${OPORT};
-        xrootd_storage_credential origin;
-        xrootd_cache on; xrootd_cache_root $PFX/b/cache;
+        listen 127.0.0.1:${BPORT}; xrootd on; brix_root $PFX/b/export; brix_auth none;
+        brix_storage_backend root://127.0.0.1:${OPORT};
+        brix_storage_credential origin;
+        brix_cache on; brix_cache_root $PFX/b/cache;
     }
 }
 EOF
@@ -63,12 +63,12 @@ daemon on; error_log $PFX/v/logs/e.log info; pid $PFX/v/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream {
-    xrootd_credential origin { x509_proxy $PROXY_STD; ca_dir $PFX/badca; }
+    brix_credential origin { x509_proxy $PROXY_STD; ca_dir $PFX/badca; }
     server {
-        listen 127.0.0.1:${VPORT}; xrootd on; xrootd_root $PFX/v/export; xrootd_auth none;
-        xrootd_storage_backend root://127.0.0.1:${OPORT};
-        xrootd_storage_credential origin;
-        xrootd_cache on; xrootd_cache_root $PFX/v/cache;
+        listen 127.0.0.1:${VPORT}; xrootd on; brix_root $PFX/v/export; brix_auth none;
+        brix_storage_backend root://127.0.0.1:${OPORT};
+        brix_storage_credential origin;
+        brix_cache on; brix_cache_root $PFX/v/cache;
     }
 }
 EOF
@@ -78,9 +78,9 @@ daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${NPORT}; xrootd on; xrootd_root $PFX/n/export; xrootd_auth none;
-    xrootd_storage_backend root://127.0.0.1:${OPORT};
-    xrootd_cache on; xrootd_cache_root $PFX/n/cache;
+    listen 127.0.0.1:${NPORT}; xrootd on; brix_root $PFX/n/export; brix_auth none;
+    brix_storage_backend root://127.0.0.1:${OPORT};
+    brix_cache on; brix_cache_root $PFX/n/cache;
 } }
 EOF
 

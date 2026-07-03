@@ -17,11 +17,11 @@
  * while KEEPING only CAP_SETUID/CAP_SETGID — so nothing runs as root after the
  * master-side rootfd open; the broker's base/idle identity is unprivileged and
  * it holds exactly the two capabilities impersonation needs.  Set by the
- * lifecycle layer (from xrootd_impersonation_broker_user) before broker_run; the
+ * lifecycle layer (from brix_impersonation_broker_user) before broker_run; the
  * forked broker inherits them.  (uid_t)-1 => stay as the current uid.
  */
-uid_t xrootd_imp_broker_user_uid = (uid_t) -1;
-gid_t xrootd_imp_broker_user_gid = (gid_t) -1;
+uid_t brix_imp_broker_user_uid = (uid_t) -1;
+gid_t brix_imp_broker_user_gid = (gid_t) -1;
 
 /* Set effective=permitted={SETUID,SETGID} (inheritable empty).  Returns 0/-1. */
 int
@@ -58,19 +58,19 @@ imp_capset_setuid_setgid(int with_effective, ngx_log_t *log)
 int
 imp_drop_to_service_user(ngx_log_t *log)
 {
-    uid_t svc_uid = xrootd_imp_broker_user_uid;
-    gid_t svc_gid = xrootd_imp_broker_user_gid;
+    uid_t svc_uid = brix_imp_broker_user_uid;
+    gid_t svc_gid = brix_imp_broker_user_gid;
     gid_t one[1];
 
     if (svc_uid == (uid_t) -1 || getuid() != 0) {
         return 0;                        /* no drop requested, or not root */
     }
     if (svc_uid == 0) {
-        if (log) XROOTD_DIAG_EMERG(log, 0,
+        if (log) BRIX_DIAG_EMERG(log, 0,
             "impersonate broker: service user resolves to root (uid 0)",
             "the broker must run as an unprivileged account so it cannot be "
             "abused to act as root",
-            "set xrootd_impersonation_broker_user to a dedicated non-root "
+            "set brix_impersonation_broker_user to a dedicated non-root "
             "account");
         return -1;
     }
@@ -88,7 +88,7 @@ imp_drop_to_service_user(ngx_log_t *log)
         || setresgid(svc_gid, svc_gid, svc_gid) != 0
         || setresuid(svc_uid, svc_uid, svc_uid) != 0)
     {
-        if (log) XROOTD_DIAG_EMERG(log, ngx_errno,
+        if (log) BRIX_DIAG_EMERG(log, ngx_errno,
             "impersonate broker: cannot drop to service uid %d",
             "the service account is invalid, or the container/host blocks the "
             "setresuid/setgroups transition",
@@ -134,7 +134,7 @@ imp_drop_to_service_user(ngx_log_t *log)
 
 
 int
-xrootd_imp_broker_drop_caps(ngx_log_t *log)
+brix_imp_broker_drop_caps(ngx_log_t *log)
 {
     int cap;
 
@@ -187,7 +187,7 @@ xrootd_imp_broker_drop_caps(ngx_log_t *log)
  *
  * HARD GUARD (non-bypassable, the whole point of this function): BEFORE touching
  * any credential syscall, refuse outright if the target uid, primary gid, or ANY
- * supplementary gid is 0 or below XROOTD_IMP_HARD_MIN_ID.  The mapping layer
+ * supplementary gid is 0 or below BRIX_IMP_HARD_MIN_ID.  The mapping layer
  * already rejects such principals, so reaching here with a reserved id is a
  * should-be-impossible invariant breach — we perform NO setgroups/setfsgid/
  * setfsuid and signal the caller to abort.  This makes a privileged file op
@@ -200,12 +200,12 @@ xrootd_imp_broker_drop_caps(ngx_log_t *log)
  * against any kernel/edge anomaly.
  */
 int
-imp_become(const xrootd_idmap_creds_t *cr)
+imp_become(const brix_idmap_creds_t *cr)
 {
     uid_t got_uid;
     gid_t got_gid;
 
-    if (xrootd_imp_creds_privileged(cr, XROOTD_IMP_HARD_MIN_ID, NULL, NULL)) {
+    if (brix_imp_creds_privileged(cr, BRIX_IMP_HARD_MIN_ID, NULL, NULL)) {
         return IMP_REFUSE_PRIV;          /* reserved id — touch NO syscall */
     }
 
@@ -217,8 +217,8 @@ imp_become(const xrootd_idmap_creds_t *cr)
      * the gateway's own service identity.
      */
     if (cr->uid == imp_self_uid
-        || (xrootd_imp_broker_allow_uid != 0
-            && cr->uid == xrootd_imp_broker_allow_uid))
+        || (brix_imp_broker_allow_uid != 0
+            && cr->uid == brix_imp_broker_allow_uid))
     {
         return IMP_REFUSE_PRIV;
     }
@@ -238,8 +238,8 @@ imp_become(const xrootd_idmap_creds_t *cr)
     /* Re-verify the realized fs-credentials are non-reserved before any file op. */
     got_uid = (uid_t) setfsuid((uid_t) -1);
     got_gid = (gid_t) setfsgid((gid_t) -1);
-    if (got_uid == 0 || got_uid < (uid_t) XROOTD_IMP_HARD_MIN_ID
-        || got_gid == 0 || got_gid < (gid_t) XROOTD_IMP_HARD_MIN_ID)
+    if (got_uid == 0 || got_uid < (uid_t) BRIX_IMP_HARD_MIN_ID
+        || got_gid == 0 || got_gid < (gid_t) BRIX_IMP_HARD_MIN_ID)
     {
         return IMP_REFUSE_PRIV;          /* realized fsuid/fsgid is reserved */
     }

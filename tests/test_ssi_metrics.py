@@ -30,11 +30,11 @@ stream {{
     server {{
         listen 127.0.0.1:{sport};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_ssi on;
-        xrootd_ssi_service cta;
+        brix_storage_backend posix:{data};
+        brix_auth none;
+        brix_allow_write on;
+        brix_ssi on;
+        brix_ssi_service cta;
     }}
 }}
 http {{
@@ -46,7 +46,7 @@ http {{
     scgi_temp_path {prefix}/st;
     server {{
         listen 127.0.0.1:{mport};
-        location /metrics {{ xrootd_metrics on; }}
+        location /metrics {{ brix_metrics on; }}
     }}
 }}
 """
@@ -103,7 +103,7 @@ def _label_keys(text, name):
 class TestSsiMetrics:
     def test_requests_counter_increments(self, ssi_metrics_server):
         sport, mport = ssi_metrics_server
-        before = _counter(_scrape(mport), "xrootd_ssi_requests_total")
+        before = _counter(_scrape(mport), "brix_ssi_requests_total")
         # three echo round-trips → three dispatched requests
         for i in range(3):
             sock = _handshake_login(BIND_HOST, sport)
@@ -111,22 +111,22 @@ class TestSsiMetrics:
             _write_request(sock, fh, i + 1, b"hi")
             _query_wait(sock, fh, i + 1)
             sock.close()
-        after = _counter(_scrape(mport), "xrootd_ssi_requests_total")
+        after = _counter(_scrape(mport), "brix_ssi_requests_total")
         assert after - before >= 3, f"requests {before}->{after}"
 
     def test_labels_are_low_cardinality(self, ssi_metrics_server):
         _, mport = ssi_metrics_server
         text = _scrape(mport)
         # the SSI counters must carry ONLY port/auth labels — no path/reqid/user.
-        for name in ("xrootd_ssi_requests_total", "xrootd_ssi_errors_total",
-                     "xrootd_ssi_alerts_pushed_total"):
+        for name in ("brix_ssi_requests_total", "brix_ssi_errors_total",
+                     "brix_ssi_alerts_pushed_total"):
             keys = _label_keys(text, name)
             assert keys <= {"port", "auth"}, f"{name} has labels {keys}"
 
     def test_metric_families_present(self, ssi_metrics_server):
         _, mport = ssi_metrics_server
         text = _scrape(mport)
-        for name in ("xrootd_ssi_requests_total", "xrootd_ssi_errors_total",
-                     "xrootd_ssi_alerts_pushed_total",
-                     "xrootd_ssi_attn_push_failures_total"):
+        for name in ("brix_ssi_requests_total", "brix_ssi_errors_total",
+                     "brix_ssi_alerts_pushed_total",
+                     "brix_ssi_attn_push_failures_total"):
             assert f"# TYPE {name} counter" in text, f"missing {name}"

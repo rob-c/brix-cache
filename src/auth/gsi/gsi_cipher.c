@@ -7,14 +7,14 @@
 
 
 EVP_PKEY *
-xrootd_gsi_cipher_keygen(void)
+brix_gsi_cipher_keygen(void)
 {
     return gsi_dh_keygen_with(NULL);
 }
 
 
 EVP_PKEY *
-xrootd_gsi_cipher_keygen_from(EVP_PKEY *peer)
+brix_gsi_cipher_keygen_from(EVP_PKEY *peer)
 {
     /* CRITICAL: key with the PEER's params, not the fixed group — a peer may use
      * a different DH group (e.g. ffdhe2048 vs the fixed 3072-bit) and the derive
@@ -24,7 +24,7 @@ xrootd_gsi_cipher_keygen_from(EVP_PKEY *peer)
 
 
 char *
-xrootd_gsi_cipher_public(EVP_PKEY *dh, size_t *outlen)
+brix_gsi_cipher_public(EVP_PKEY *dh, size_t *outlen)
 {
     BIGNUM *pub = NULL;
     char   *phex = NULL;
@@ -63,7 +63,7 @@ xrootd_gsi_cipher_public(EVP_PKEY *dh, size_t *outlen)
 
 
 EVP_PKEY *
-xrootd_gsi_cipher_parse_peer(const uint8_t *buf, size_t len)
+brix_gsi_cipher_parse_peer(const uint8_t *buf, size_t len)
 {
     const char *pb = (const char *) memmem(buf, len, "---BPUB---", 10);
     const char *pe = (const char *) memmem(buf, len, "---EPUB--", 9);
@@ -131,7 +131,7 @@ xrootd_gsi_cipher_parse_peer(const uint8_t *buf, size_t len)
 /* Allowlist of negotiable GSI session ciphers (XrdCrypto/OpenSSL names). */
 
 const char *
-xrootd_gsi_cipher_default_list(void)
+brix_gsi_cipher_default_list(void)
 {
     return "aes-128-cbc:aes-256-cbc:bf-cbc:des-ede3-cbc";
 }
@@ -152,7 +152,7 @@ gsi_load_legacy_once(void)
 
 
 int
-xrootd_gsi_cipher_lookup(const char *name, xrootd_gsi_cipher_t *out)
+brix_gsi_cipher_lookup(const char *name, brix_gsi_cipher_t *out)
 {
     const EVP_CIPHER *evp;
     int               i, allowed = 0;
@@ -176,8 +176,8 @@ xrootd_gsi_cipher_lookup(const char *name, xrootd_gsi_cipher_t *out)
     out->evp     = evp;
     out->key_len = EVP_CIPHER_key_length(evp);
     out->iv_len  = EVP_CIPHER_iv_length(evp);
-    if (out->key_len <= 0 || out->key_len > XROOTD_GSI_MAX_KEY
-        || out->iv_len < 0 || out->iv_len > XROOTD_GSI_MAX_IV) {
+    if (out->key_len <= 0 || out->key_len > BRIX_GSI_MAX_KEY
+        || out->iv_len < 0 || out->iv_len > BRIX_GSI_MAX_IV) {
         return 0;
     }
     return 1;
@@ -185,7 +185,7 @@ xrootd_gsi_cipher_lookup(const char *name, xrootd_gsi_cipher_t *out)
 
 
 int
-xrootd_gsi_cipher_pick(const char *offered, xrootd_gsi_cipher_t *out,
+brix_gsi_cipher_pick(const char *offered, brix_gsi_cipher_t *out,
                        char chosen[24])
 {
     const char *p = offered;
@@ -203,7 +203,7 @@ xrootd_gsi_cipher_pick(const char *offered, xrootd_gsi_cipher_t *out,
         if (n > 0 && n < sizeof(name)) {
             memcpy(name, start, n);
             name[n] = '\0';
-            if (xrootd_gsi_cipher_lookup(name, out)) {
+            if (brix_gsi_cipher_lookup(name, out)) {
                 if (chosen != NULL) {
                     memcpy(chosen, name, n + 1);
                 }
@@ -217,7 +217,7 @@ xrootd_gsi_cipher_pick(const char *offered, xrootd_gsi_cipher_t *out,
 
 
 int
-xrootd_gsi_cipher_session_key(EVP_PKEY *mine, EVP_PKEY *peer, int padded,
+brix_gsi_cipher_session_key(EVP_PKEY *mine, EVP_PKEY *peer, int padded,
                               uint8_t *key, int key_len)
 {
     EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(mine, NULL);
@@ -228,7 +228,7 @@ xrootd_gsi_cipher_session_key(EVP_PKEY *mine, EVP_PKEY *peer, int padded,
     /* `padded` MUST match the peer's XrdSecgsi HasPad: pre-DHsigned (<10400)
      * peers use dh_pad=0 (leading zeros stripped), newer ones dh_pad=1.  The
      * session key is the first key_len bytes of the resulting secret. */
-    if (key_len <= 0 || key_len > XROOTD_GSI_MAX_KEY
+    if (key_len <= 0 || key_len > BRIX_GSI_MAX_KEY
         || ctx == NULL
         || EVP_PKEY_derive_init(ctx) != 1
         || EVP_PKEY_CTX_set_dh_pad(ctx, padded ? 1 : 0) != 1
@@ -253,12 +253,12 @@ xrootd_gsi_cipher_session_key(EVP_PKEY *mine, EVP_PKEY *peer, int padded,
 
 
 uint8_t *
-xrootd_gsi_cipher_encrypt(const xrootd_gsi_cipher_t *c, const uint8_t *key,
+brix_gsi_cipher_encrypt(const brix_gsi_cipher_t *c, const uint8_t *key,
                           const uint8_t *in, size_t inlen, int use_iv,
                           size_t *outlen)
 {
     XRD_AUTO(EVP_CIPHER_CTX) *ctx = EVP_CIPHER_CTX_new();
-    uint8_t         iv[XROOTD_GSI_MAX_IV];
+    uint8_t         iv[BRIX_GSI_MAX_IV];
     size_t          ivl = (size_t) c->iv_len;
     size_t          off = use_iv ? ivl : 0;    /* IV prepended only when use_iv */
     uint8_t        *out;
@@ -297,12 +297,12 @@ xrootd_gsi_cipher_encrypt(const xrootd_gsi_cipher_t *c, const uint8_t *key,
 
 
 uint8_t *
-xrootd_gsi_cipher_decrypt(const xrootd_gsi_cipher_t *c, const uint8_t *key,
+brix_gsi_cipher_decrypt(const brix_gsi_cipher_t *c, const uint8_t *key,
                           const uint8_t *in, size_t inlen, int use_iv,
                           size_t *outlen)
 {
     XRD_AUTO(EVP_CIPHER_CTX) *ctx = EVP_CIPHER_CTX_new();
-    uint8_t         iv[XROOTD_GSI_MAX_IV];
+    uint8_t         iv[BRIX_GSI_MAX_IV];
     size_t          ivl = (size_t) c->iv_len;
     size_t          off = use_iv ? ivl : 0;
     uint8_t        *out;

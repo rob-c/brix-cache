@@ -40,7 +40,7 @@ s3_list_parse_max_keys(ngx_http_request_t *r, int default_max)
     u_char max_keys_buf[32] = { 0 };
     int    max_keys = default_max;
 
-    if (xrootd_http_query_get(r->args, "max-keys",
+    if (brix_http_query_get(r->args, "max-keys",
                               (char *) max_keys_buf, sizeof(max_keys_buf),
                               S3_LIST_QUERY_FLAGS) > 0)
     {
@@ -192,10 +192,10 @@ s3_list_emit_entries(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         }
 
         contents++;
-        xrootd_format_iso8601(entry->mtime, iso_buf, sizeof(iso_buf));
+        brix_format_iso8601(entry->mtime, iso_buf, sizeof(iso_buf));
         XML_APPEND("<Contents>");
         if (url_encode) {
-            xrootd_http_urlencode((const u_char *) entry->key,
+            brix_http_urlencode((const u_char *) entry->key,
                                   strlen(entry->key),
                                   encoded_key, sizeof(encoded_key), "");
             XML_APPEND_ELEM("Key", encoded_key, strlen(encoded_key));
@@ -236,19 +236,19 @@ s3_list_finalize(ngx_http_request_t *r, const u_char *xml, size_t xml_len,
 
     response_buf = ngx_create_temp_buf(r->pool, xml_len + 4);
     if (response_buf == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     response_buf->last = ngx_cpymem(response_buf->last, xml, xml_len);
     response_buf->last_buf = 1;
 
-    XROOTD_S3_METRIC_ADD(list_contents_total, (size_t) contents);
-    XROOTD_S3_METRIC_ADD(list_common_prefixes_total, (size_t) prefixes);
+    BRIX_S3_METRIC_ADD(list_contents_total, (size_t) contents);
+    BRIX_S3_METRIC_ADD(list_common_prefixes_total, (size_t) prefixes);
     if (truncated) {
-        XROOTD_S3_METRIC_INC(list_truncated_total);
+        BRIX_S3_METRIC_INC(list_truncated_total);
     }
-    XROOTD_S3_METRIC_ADD(bytes_tx_total, xml_len);
+    BRIX_S3_METRIC_ADD(bytes_tx_total, xml_len);
 
-    return xrootd_http_send_xml_buffer(r, NGX_HTTP_OK,
+    return brix_http_send_xml_buffer(r, NGX_HTTP_OK,
         (ngx_str_t) ngx_string("application/xml"), response_buf);
 }

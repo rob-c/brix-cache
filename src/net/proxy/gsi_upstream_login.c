@@ -4,12 +4,12 @@
  *
  * WHY: the proven in-process GSI client (the cache origin client) is BLOCKING —
  *   it runs the certreq/cert handshake on a thread-pool worker. The terminating
- *   proxy is event-driven. So for `xrootd_tap_proxy_auth gsi` we offload the whole
+ *   proxy is event-driven. So for `brix_tap_proxy_auth gsi` we offload the whole
  *   connect+GSI-login (presenting the client's DELEGATED proxy) to a thread, then
  *   promote the authenticated fd to the proxy's async forward/relay.
  *
  * HOW: thread body builds a synthetic origin conf (host/port + the delegated proxy
- *   path + the proxy server's CA store) and reuses xrootd_cache_origin_connect +
+ *   path + the proxy server's CA store) and reuses brix_cache_origin_connect +
  *   _bootstrap; on success it transfers the authenticated fd. The completion
  *   handler (event loop) wraps that fd in an ngx_connection_t already at IDLE
  *   (bootstrap done), unlinks the temp credential, and dispatches the saved
@@ -21,9 +21,9 @@
 #include "proxy_internal.h"
 #include "gsi_upstream.h"
 #include "fs/cache/cache_internal.h"          /* origin connect/bootstrap + fill_t */
-#include "core/aio/aio.h"                        /* xrootd_task_bind */
-#include "protocols/root/connection/event_sched.h"        /* xrootd_schedule_read_resume */
-#include "core/compat/af_policy.h"              /* XROOTD_AF_AUTO */
+#include "core/aio/aio.h"                        /* brix_task_bind */
+#include "protocols/root/connection/event_sched.h"        /* brix_schedule_read_resume */
+#include "core/compat/af_policy.h"              /* BRIX_AF_AUTO */
 
 #include <unistd.h>
 
@@ -37,7 +37,7 @@ typedef struct {
     ngx_log_t *log;
 
     /* back-references for the completion handler (main thread) */
-    xrootd_proxy_ctx_t *proxy;
+    brix_proxy_ctx_t *proxy;
     ngx_connection_t   *client_conn;
 
     /* outputs */
@@ -52,9 +52,9 @@ static void
 proxy_gsi_login_thread(void *data, ngx_log_t *log)
 {
     proxy_gsi_login_t            *g     = data;
-    ngx_stream_xrootd_srv_conf_t *synth = calloc(1, sizeof(*synth));
-    xrootd_cache_fill_t          *t     = calloc(1, sizeof(*t));
-    xrootd_cache_origin_conn_t    oc;
+    ngx_stream_brix_srv_conf_t *synth = calloc(1, sizeof(*synth));
+    brix_cache_fill_t          *t     = calloc(1, sizeof(*t));
+    brix_cache_origin_conn_t    oc;
 
     (void) log;
     g->result_fd = -1;
@@ -79,14 +79,14 @@ proxy_gsi_login_thread(void *data, ngx_log_t *log)
     synth->gsi_store                = g->gsi_store;       /* borrowed; do not free */
     t->conf = synth;
 
-    if (xrootd_cache_origin_connect(t, &oc) == 0
-        && xrootd_cache_origin_bootstrap(t, &oc) == 0)
+    if (brix_cache_origin_connect(t, &oc) == 0
+        && brix_cache_origin_bootstrap(t, &oc) == 0)
     {
         g->result_fd = oc.fd;        /* transfer ownership */
         oc.fd        = -1;
     }
 
-    xrootd_cache_origin_close(&oc);  /* frees SSL (if any); fd already taken */
+    brix_cache_origin_close(&oc);  /* frees SSL (if any); fd already taken */
     free(synth);
     free(t);
 }
@@ -95,7 +95,7 @@ proxy_gsi_login_thread(void *data, ngx_log_t *log)
 /* Build the upstream ngx_connection_t around the authenticated fd (already
  * post-login), wired to the proxy relay handlers, at IDLE. Returns NGX_OK. */
 static ngx_int_t
-proxy_gsi_promote_fd(xrootd_proxy_ctx_t *proxy, int fd)
+proxy_gsi_promote_fd(brix_proxy_ctx_t *proxy, int fd)
 {
     ngx_connection_t *client_conn = proxy->client_conn;
     ngx_connection_t *uconn;
@@ -123,8 +123,8 @@ proxy_gsi_promote_fd(xrootd_proxy_ctx_t *proxy, int fd)
     uconn->log           = client_conn->log;
     uconn->read->log     = client_conn->log;
     uconn->write->log    = client_conn->log;
-    uconn->read->handler  = xrootd_proxy_read_handler;
-    uconn->write->handler = xrootd_proxy_write_handler;
+    uconn->read->handler  = brix_proxy_read_handler;
+    uconn->write->handler = brix_proxy_write_handler;
 
     proxy->conn      = uconn;
     proxy->state     = XRD_PX_IDLE;   /* bootstrap already done in the thread */
@@ -144,7 +144,7 @@ proxy_gsi_login_done(ngx_event_t *ev)
 {
     ngx_thread_task_t  *task  = ev->data;
     proxy_gsi_login_t  *g     = task->ctx;
-    xrootd_proxy_ctx_t *proxy = g->proxy;
+    brix_proxy_ctx_t *proxy = g->proxy;
 
     if (g->deleg_path[0] != '\0') {
         (void) unlink(g->deleg_path);   /* vfs-seam-allow: config-domain delegated GSI proxy credential temp (not export storage) */
@@ -159,37 +159,37 @@ proxy_gsi_login_done(ngx_event_t *ev)
     }
 
     if (g->result_fd < 0) {
-        xrootd_proxy_abort(proxy, "proxy: GSI upstream login failed");
+        brix_proxy_abort(proxy, "proxy: GSI upstream login failed");
         return;
     }
 
     if (proxy_gsi_promote_fd(proxy, g->result_fd) != NGX_OK) {
         ngx_close_socket(g->result_fd);
-        xrootd_proxy_abort(proxy, "proxy: GSI upstream handoff failed");
+        brix_proxy_abort(proxy, "proxy: GSI upstream handoff failed");
         return;
     }
 
     if (proxy->saved_req != NULL) {
-        xrootd_proxy_dispatch_pending(proxy);
+        brix_proxy_dispatch_pending(proxy);
     } else {
         proxy->client_ctx->state = XRD_ST_REQ_HEADER;
-        (void) xrootd_schedule_read_resume(proxy->client_conn);
+        (void) brix_schedule_read_resume(proxy->client_conn);
     }
 }
 
 
 ngx_int_t
-xrootd_proxy_gsi_connect_async(xrootd_proxy_ctx_t *proxy,
-    ngx_stream_xrootd_srv_conf_t *conf, ngx_str_t *host, uint16_t port)
+brix_proxy_gsi_connect_async(brix_proxy_ctx_t *proxy,
+    ngx_stream_brix_srv_conf_t *conf, ngx_str_t *host, uint16_t port)
 {
     ngx_connection_t  *c   = proxy->client_conn;
-    xrootd_ctx_t      *ctx = proxy->client_ctx;
+    brix_ctx_t      *ctx = proxy->client_ctx;
     ngx_thread_task_t *task;
     proxy_gsi_login_t *g;
 
     if (conf->common.thread_pool == NULL) {
         ngx_log_error(NGX_LOG_ERR, c->log, 0,
-            "xrootd_tap_proxy_auth gsi: a thread_pool is required");
+            "brix_tap_proxy_auth gsi: a thread_pool is required");
         return NGX_ERROR;
     }
     if (ctx->gsi_deleg_proxy_pem == NULL || ctx->gsi_deleg_proxy_len == 0) {
@@ -205,7 +205,7 @@ xrootd_proxy_gsi_connect_async(xrootd_proxy_ctx_t *proxy,
     }
     g = task->ctx;
 
-    if (xrootd_proxy_gsi_write_pem_temp(ctx->gsi_deleg_proxy_pem,
+    if (brix_proxy_gsi_write_pem_temp(ctx->gsi_deleg_proxy_pem,
                                         ctx->gsi_deleg_proxy_len,
                                         g->deleg_path, sizeof(g->deleg_path)) != 0)
     {
@@ -216,14 +216,14 @@ xrootd_proxy_gsi_connect_async(xrootd_proxy_ctx_t *proxy,
 
     ngx_cpystrn((u_char *) g->host, host->data, sizeof(g->host));
     g->port        = port;
-    g->family      = XROOTD_AF_AUTO;
+    g->family      = BRIX_AF_AUTO;
     g->gsi_store   = conf->gsi_store;   /* the proxy server's CA store (borrowed) */
     g->log         = c->log;
     g->proxy       = proxy;
     g->client_conn = c;
     g->result_fd   = -1;
 
-    xrootd_task_bind(task, proxy_gsi_login_thread, proxy_gsi_login_done);
+    brix_task_bind(task, proxy_gsi_login_thread, proxy_gsi_login_done);
 
     if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
         (void) unlink(g->deleg_path);   /* vfs-seam-allow: config-domain delegated GSI proxy credential temp (not export storage) */

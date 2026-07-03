@@ -1,8 +1,8 @@
 /*
  * entity.c — expand an authenticated identity into attribute tuples.
  *
- * WHAT: xrootd_acc_entity_build() turns scalar name/host plus the comma-separated
- *   VO/role/group lists into an xrootd_acc_entity_t whose `tuples` array holds
+ * WHAT: brix_acc_entity_build() turns scalar name/host plus the comma-separated
+ *   VO/role/group lists into an brix_acc_entity_t whose `tuples` array holds
  *   one (vorg, role, grup) combination per index — the form the access engine
  *   iterates (XrdAccEntity / XrdAccEntityInfo).
  *
@@ -90,16 +90,16 @@ acc_pick(ngx_array_t *a, ngx_uint_t i)
     return (i < a->nelts) ? e[i] : NULL;
 }
 
-xrootd_acc_entity_t *
-xrootd_acc_entity_build(ngx_pool_t *pool, const char *name, const char *host,
+brix_acc_entity_t *
+brix_acc_entity_build(ngx_pool_t *pool, const char *name, const char *host,
                         int isuser, const char *vorg_csv, const char *role_csv,
                         const char *grp_csv)
 {
-    xrootd_acc_entity_t *ent;
+    brix_acc_entity_t *ent;
     ngx_array_t         *vorgs, *roles, *grps;
     ngx_uint_t           n, i;
 
-    XROOTD_PCALLOC_OR_RETURN(ent, pool, sizeof(*ent), NULL);
+    BRIX_PCALLOC_OR_RETURN(ent, pool, sizeof(*ent), NULL);
     ent->pool   = pool;
     ent->name   = (name != NULL && *name != '\0') ? name : "*";
     ent->host   = (host != NULL && *host != '\0') ? host : "?";
@@ -117,12 +117,12 @@ xrootd_acc_entity_build(ngx_pool_t *pool, const char *name, const char *host,
     if (grps->nelts  > n) { n = grps->nelts;  }
     if (n == 0) { n = 1; }   /* always at least one (possibly empty) tuple */
 
-    ent->tuples = ngx_array_create(pool, n, sizeof(xrootd_acc_attr_t));
+    ent->tuples = ngx_array_create(pool, n, sizeof(brix_acc_attr_t));
     if (ent->tuples == NULL) {
         return NULL;
     }
     for (i = 0; i < n; i++) {
-        xrootd_acc_attr_t *a = ngx_array_push(ent->tuples);
+        brix_acc_attr_t *a = ngx_array_push(ent->tuples);
         if (a == NULL) {
             return NULL;
         }

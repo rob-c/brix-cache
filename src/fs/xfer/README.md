@@ -19,7 +19,7 @@ audit*.
 
 ```
 caller (S3/WebDAV/root PUT · FRM stage · WT close · TPC COPY)
-  -> xrootd_xfer_begin(ctx, kind, src, dst, policy)
+  -> brix_xfer_begin(ctx, kind, src, dst, policy)
        policy   (xfer_policy.c)   -> SYNC | ASYNC | DENY
        move     (xfer_mover_*.c)  -> PUMP (in-proc) | AGENT (reparented argv)
        commit   (xfer_core.c)     -> atomic rename NOREPLACE (beneath-confined)
@@ -33,11 +33,11 @@ caller (S3/WebDAV/root PUT · FRM stage · WT close · TPC COPY)
 | File | Role | Status |
 |---|---|---|
 | `xfer.h` | public contract (kinds, movers, dispositions, results) | landed |
-| `xfer_mover_pump.c` | in-process SD pump (`xrootd_xfer_pump_objects`) | **Phase 1 ✓** |
+| `xfer_mover_pump.c` | in-process SD pump (`brix_xfer_pump_objects`) | **Phase 1 ✓** |
 | `xfer_mover_agent.c` | the single crash-safe reparented-agent harness | **Phase 1 ✓** |
 | `xfer_spawn.c` | crash-safe synchronous reparented command runner | **Phase 4a ✓** |
 | `xfer_ledger.c` | unified audit line (one record per terminal transfer) | **Phase 2 ✓** |
-| `xfer_core.c` | terminal chokepoint (`xrootd_xfer_finish`); full envelope pending | **Phase 4b (chokepoint ✓)** |
+| `xfer_core.c` | terminal chokepoint (`brix_xfer_finish`); full envelope pending | **Phase 4b (chokepoint ✓)** |
 | `xfer_policy.c` | SYNC/ASYNC/DENY decision (from writethrough_decision) | Phase 4b |
 | `xfer_journal.c` | durable reqfile + SHM cache (from frm/queue) | Phase 4b-2 (substrate ✓) |
 | `xfer_reconcile.c` | startup recovery across all kinds (from frm/reconcile) | Phase 4b-2 |
@@ -70,7 +70,7 @@ TPC runs the transfer with **in-process libcurl in a thread pool** (`tpc_curl.c`
 `tpc_thread.c`) — it does *not* fork/exec a curl binary, so there is no
 SIGCHLD/SHM external-process hazard and the agent migration does not apply. The
 real unification is the audit line: `tpc_thread_done` (async) and the sync
-fallback (`tpc.c`) now call `xrootd_xfer_finish(XROOTD_XFER_TPC, …)` — `dir=out`
+fallback (`tpc.c`) now call `brix_xfer_finish(BRIX_XFER_TPC, …)` — `dir=out`
 for push, `dir=in` for pull, result mapped from the HTTP status. With this, **all
 four kinds (stage/tape/wt/tpc) flow through the one terminal chokepoint and the
 one audit log.** (TPC is client-retryable at the protocol level, so async-TPC
@@ -80,15 +80,15 @@ stdout-capturing primitive — out of the engine's scope.) Verified by
 `tests/test_webdav_tpc.py` (kind=tpc lines: push/pull, ok/src_err).
 
 **Phase 6 (✓ — client-driven STAGE resume + full STAGE audit coverage).** The
-resume feature itself already existed: `xrootd_staged_open_resume` keeps an
-identity-keyed, deterministically-named `.part` (`xrootd_make_resume_path`) that
+resume feature itself already existed: `brix_staged_open_resume` keeps an
+identity-keyed, deterministically-named `.part` (`brix_make_resume_path`) that
 survives a restart, so a reconnecting client (same path + principal) resumes at
 the durable offset, and the final checksum is correct because it is computed at
 commit from the committed file (`test_shutdown_resume.py`). The engine's
 contribution was closing an **audit gap**: root:// uploads commit via
-`xrootd_commit_staged` in `read/close.c` — *not* the `vfs_staged` path Phase 2
+`brix_commit_staged` in `read/close.c` — *not* the `vfs_staged` path Phase 2
 wired — so they (and resumed uploads, which commit there too) were invisible in
-the unified log. `read/close.c` now calls `xrootd_xfer_finish(XROOTD_XFER_STAGE,
+the unified log. `read/close.c` now calls `brix_xfer_finish(BRIX_XFER_STAGE,
 …)` on commit (success + failure), with `principal = ctx->dn`. **All STAGE
 uploads on all three protocols (S3, WebDAV, root://) now emit the unified audit
 line.** `tests/test_xfer_ledger.py::test_root_upload_logs_stage_publish`.
@@ -97,10 +97,10 @@ line.** `tests/test_xfer_ledger.py::test_root_upload_logs_stage_publish`.
 
 - **TTL sweep (`xfer_resume_sweep.c`).** A worker-0 timer removes abandoned
   `*.xrdresume.part` partials from the stage dir once older than
-  `$XROOTD_UPLOAD_RESUME_TTL` (default 1 day; 0 disables), preserving fresh ones
+  `$BRIX_UPLOAD_RESUME_TTL` (default 1 day; 0 disables), preserving fresh ones
   (age < TTL) and ignoring non-resume files. Only the flat stage dir is swept (the
   adjacent-to-destination naming is intentionally left). `tests/test_xfer_resume_sweep.py`.
-- **One reconcile scan (`xfer_reconcile.c`).** `xrootd_xfer_journal_foreach`
+- **One reconcile scan (`xfer_reconcile.c`).** `brix_xfer_journal_foreach`
   (status + kind → per-record callback) is the single shared journal-recovery
   scan; WT replay (requeue + re-drive) and the tape in-flight count run through
   it. The tape QUEUED *claim* loop stays bespoke by design — it carries a copymax
@@ -108,7 +108,7 @@ line.** `tests/test_xfer_ledger.py::test_root_upload_logs_stage_publish`.
 
 ## STAGE audit coverage — every upload mode
 
-`xrootd_xfer_finish(XROOTD_XFER_STAGE, …)` now fires for **every** upload commit:
+`brix_xfer_finish(BRIX_XFER_STAGE, …)` now fires for **every** upload commit:
 
 | Upload mode | Commit path | Wired in |
 |---|---|---|
@@ -116,7 +116,7 @@ line.** `tests/test_xfer_ledger.py::test_root_upload_logs_stage_publish`.
 | root:// (incl. resume) | `read/close.c` | Phase 6 |
 | S3 `PUT` (chunked / aio) | `s3_commit_put` (`s3/put_finalize.c`) | follow-on |
 
-The S3 chunked/aio `PUT` path committed via the raw `xrootd_staged_commit`
+The S3 chunked/aio `PUT` path committed via the raw `brix_staged_commit`
 without an audit line (only S3 `POST` used the audited `vfs_staged` path); that
 gap is now closed — `s3_commit_put` emits the unified line (success +
 `commit_err`), byte count from a confined stat of the published object (the
@@ -130,7 +130,7 @@ cache:
 
 - **Journal survives reload/restart.** The reqfile is the source of truth; the
   SHM index is rebuilt from it by `frm_reconcile` at each (re)start. The index
-  mutex is created via `xrootd_shm_table_alloc()` — the spin+yield mutex
+  mutex is created via `brix_shm_table_alloc()` — the spin+yield mutex
   (invariant #10), **never** the lost-wakeup-prone POSIX-semaphore mode — so it is
   safe across reload and a stage child's exit.
 - **In-flight is drained, not dropped.** nginx's standard drain finishes in-flight
@@ -150,7 +150,7 @@ same SIGCHLD/SHM master-crash hazard the FRM agent was built for), and WT joined
 the unified ledger (`kind=wt`, sync + async). `tests/test_xfer_spawn.py` +
 `tests/test_cache_write_through.py`.
 
-**Phase 4b (in progress).** `xfer_core.c`'s `xrootd_xfer_finish()` now is the
+**Phase 4b (in progress).** `xfer_core.c`'s `brix_xfer_finish()` now is the
 single terminal chokepoint all kinds call (consolidated 7 inline ledger-emit
 blocks). Remaining 4b — the durable core — is the deepest, riskiest work and is
 sequenced as its own cycle (touches the on-disk reqfile format + master-crash
@@ -169,7 +169,7 @@ a single consumer. See the spec §9.
 
 ### The audit line (Phase 2)
 
-Sink: `$XROOTD_XFER_AUDIT_LOG`, else `<prefix>/logs/xfer_audit.log`. One
+Sink: `$BRIX_XFER_AUDIT_LOG`, else `<prefix>/logs/xfer_audit.log`. One
 append-only line per terminal transfer, atomic across workers (O_APPEND,
 sub-PIPE_BUF):
 

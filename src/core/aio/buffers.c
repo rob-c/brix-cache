@@ -1,4 +1,4 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
 /*
  * Response buffer and chain builders shared by synchronous read paths and
@@ -6,7 +6,7 @@
  */
 
 /*
- * xrootd_get_pool_scratch — return a reusable scratch buffer from the
+ * brix_get_pool_scratch — return a reusable scratch buffer from the
  * connection pool, growing it only when the current allocation is too small.
  *
  * The caller owns one buffer slot (*slot / *slot_size) anchored in the
@@ -21,7 +21,7 @@
  * NOTE: need==0 is clamped to 1 to satisfy ngx_palloc's precondition.
  */
 u_char *
-xrootd_get_pool_scratch(ngx_pool_t *pool, u_char **slot, size_t *slot_size,
+brix_get_pool_scratch(ngx_pool_t *pool, u_char **slot, size_t *slot_size,
     size_t need)
 {
     u_char *p;
@@ -37,7 +37,7 @@ xrootd_get_pool_scratch(ngx_pool_t *pool, u_char **slot, size_t *slot_size,
     /*
      * Phase 31: scratch buffers are raw heap allocations (ngx_alloc/ngx_free),
      * NOT pool allocations.  The earlier pool-backed version corrupted memory
-     * when xrootd_trim_scratch() freed and re-grew read_scratch: ngx_pfree/
+     * when brix_trim_scratch() freed and re-grew read_scratch: ngx_pfree/
      * ngx_palloc churn nginx's pool large-allocation list while stale pointers
      * (the reused read_aio_task->databuf, read_fast_body_buf) still referenced
      * the old block — a use-after-free triggered by a large kXR_read followed by
@@ -61,19 +61,19 @@ xrootd_get_pool_scratch(ngx_pool_t *pool, u_char **slot, size_t *slot_size,
 
 
 /*
- * xrootd_release_read_buffer — return a response data buffer to the pool,
+ * brix_release_read_buffer — return a response data buffer to the pool,
  * unless it is one of the reusable per-connection scratch slots.
  *
  * The scratch slots (read_scratch / read_hdr_scratch / write_scratch) are
- * long-lived raw heap allocations (see xrootd_get_pool_scratch) that must NOT
+ * long-lived raw heap allocations (see brix_get_pool_scratch) that must NOT
  * be freed on every response — they are reused across requests and freed once
  * at disconnect.  Any OTHER buffer reaching here (e.g. a dirlist response) is a
  * single-request ngx_palloc from c->pool and is returned with ngx_pfree.
  *
- * Called from xrootd_release_pending_buffer() in write_helpers.c.
+ * Called from brix_release_pending_buffer() in write_helpers.c.
  */
 void
-xrootd_release_read_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c, u_char *buf)
+brix_release_read_buffer(brix_ctx_t *ctx, ngx_connection_t *c, u_char *buf)
 {
     ngx_uint_t i;
 
@@ -110,21 +110,21 @@ xrootd_release_read_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c, u_char *buf)
 }
 
 /*
- * xrootd_acquire_read_buffer — borrow a per-in-flight data buffer from the
+ * brix_acquire_read_buffer — borrow a per-in-flight data buffer from the
  * connection's read pool (rd_pool), growing the chosen slot to >= need bytes.
  *
  * Unlike the single shared read_scratch, each in-flight read gets its OWN buffer,
  * so a memory-backed (userspace-TLS) read response can stay queued in the out_ring
  * and drain while the recv loop already issues the NEXT read into a different
  * buffer — i.e. memory reads can pipeline.  The slot is returned to the pool by
- * xrootd_release_read_buffer() when its out_ring response drains; the buffer is
+ * brix_release_read_buffer() when its out_ring response drains; the buffer is
  * freed once at disconnect (raw heap, Phase-31 discipline).
  *
  * The recv loop bounds in-flight reads at pipeline_depth (== rd_pool slot count),
  * so a free slot always exists on the hot path; NULL is returned only on OOM.
  */
 u_char *
-xrootd_acquire_read_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c, size_t need)
+brix_acquire_read_buffer(brix_ctx_t *ctx, ngx_connection_t *c, size_t need)
 {
     ngx_uint_t i;
 
@@ -156,8 +156,8 @@ xrootd_acquire_read_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c, size_t need)
 }
 
 /*
- * xrootd_trim_scratch — shrink the per-session transfer scratch buffers back to
- * XROOTD_READ_WINDOW once a large request has fully drained (Phase 31).
+ * brix_trim_scratch — shrink the per-session transfer scratch buffers back to
+ * BRIX_READ_WINDOW once a large request has fully drained (Phase 31).
  *
  * read_scratch and write_scratch grow to the largest read / pgwrite the session
  * has served and are then kept for reuse.  Without trimming, a single 64 MiB
@@ -169,26 +169,26 @@ xrootd_acquire_read_buffer(xrootd_ctx_t *ctx, ngx_connection_t *c, size_t need)
  * MUST be called only when the connection is between requests (state
  * XRD_ST_REQ_HEADER with nothing buffered), so that no in-flight response chain
  * still points into these buffers.  The recv loop calls it at the top of a fresh
- * request.  Buffers at or below XROOTD_SCRATCH_TRIM_THRESHOLD are left untouched
+ * request.  Buffers at or below BRIX_SCRATCH_TRIM_THRESHOLD are left untouched
  * (hysteresis avoids realloc thrash on sessions that oscillate near the window).
  *
  * read_hdr_scratch (per-chunk wire headers) is tiny and never trimmed.
  * payload_buf has detach semantics owned by the write path and is trimmed there.
  */
 static void
-xrootd_trim_one(ngx_pool_t *pool, u_char **slot, size_t *slot_size)
+brix_trim_one(ngx_pool_t *pool, u_char **slot, size_t *slot_size)
 {
     u_char *p;
 
-    if (*slot == NULL || *slot_size <= XROOTD_SCRATCH_TRIM_THRESHOLD) {
+    if (*slot == NULL || *slot_size <= BRIX_SCRATCH_TRIM_THRESHOLD) {
         return;
     }
 
-    /* Raw heap free/alloc — see xrootd_get_pool_scratch for why these buffers
+    /* Raw heap free/alloc — see brix_get_pool_scratch for why these buffers
      * are not pool-backed.  This is what makes the trim safe to run. */
     ngx_free(*slot);
 
-    p = ngx_alloc(XROOTD_READ_WINDOW, pool->log);
+    p = ngx_alloc(BRIX_READ_WINDOW, pool->log);
     if (p == NULL) {
         /* Could not re-seat a warm buffer; drop it so the next request
          * allocates fresh at exactly the size it needs. */
@@ -198,19 +198,19 @@ xrootd_trim_one(ngx_pool_t *pool, u_char **slot, size_t *slot_size)
     }
 
     *slot = p;
-    *slot_size = XROOTD_READ_WINDOW;
+    *slot_size = BRIX_READ_WINDOW;
 }
 
 void
-xrootd_trim_scratch(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_trim_scratch(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    xrootd_trim_one(c->pool, &ctx->read_scratch, &ctx->read_scratch_size);
-    xrootd_trim_one(c->pool, &ctx->write_scratch, &ctx->write_scratch_size);
+    brix_trim_one(c->pool, &ctx->read_scratch, &ctx->read_scratch_size);
+    brix_trim_one(c->pool, &ctx->write_scratch, &ctx->write_scratch_size);
 }
 
 /*
- * xrootd_build_single_memory_chain — build a two-link chain for a kXR_ok
- * response whose data fits in one wire chunk (data_total <= XROOTD_READ_CHUNK_MAX).
+ * brix_build_single_memory_chain — build a two-link chain for a kXR_ok
+ * response whose data fits in one wire chunk (data_total <= BRIX_READ_CHUNK_MAX).
  *
  * WHAT: Constructs an nginx ngx_chain_t with exactly two links: a header buffer
  * containing the ServerResponseHdr (streamid, status=kXR_ok, length) followed by
@@ -223,32 +223,32 @@ xrootd_trim_scratch(xrootd_ctx_t *ctx, ngx_connection_t *c)
  * pre-allocated slot->read_fast_* structs (hdr_chain, body_chain, hdr_buf, body_buf)
  * to avoid any pool allocation — zero-cost for the common case.
  *
- * HOW: 1) Acquires read_hdr_scratch via xrootd_get_read_header_scratch.
- *      2) Calls xrootd_build_resp_hdr() to populate ServerResponseHdr with
+ * HOW: 1) Acquires read_hdr_scratch via brix_get_read_header_scratch.
+ *      2) Calls brix_build_resp_hdr() to populate ServerResponseHdr with
  *         ctx->cur_streamid, kXR_ok status, and data_total length.
  *      3) Memzeros the fast structs then configures hdr_buf → hdr_chain (header).
  *      4) If data_total==0 returns header-only chain; otherwise configures
  *         body_buf pointing into databuf → body_chain (data), linking them.
  *      5) Sets last_buf/last_in_chain on the final buffer to signal end-of-response.
  *
- * Precondition: data_total <= XROOTD_READ_CHUNK_MAX.
+ * Precondition: data_total <= BRIX_READ_CHUNK_MAX.
  */
 static ngx_chain_t *
-xrootd_build_single_memory_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_build_single_memory_chain(brix_ctx_t *ctx, ngx_connection_t *c,
     u_char *databuf, size_t data_total)
 {
-    xrootd_resp_slot_t *slot = &ctx->out_ring[ctx->out_tail];
+    brix_resp_slot_t *slot = &ctx->out_ring[ctx->out_tail];
     /*
      * Header lives in THIS slot's private buffer (not the shared
      * read_hdr_scratch), so pipelining the next memory read into another slot
      * cannot overwrite a still-draining response's 8-byte header.  This is what
      * makes the memory (userspace-TLS) read path safe to pipeline; the body
-     * buffer is made per-in-flight by xrootd_acquire_read_buffer() in read.c.
+     * buffer is made per-in-flight by brix_acquire_read_buffer() in read.c.
      */
     u_char *hdrbuf = slot->hdr_bytes;
 
     (void) c;
-    xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok, (uint32_t) data_total,
+    brix_build_resp_hdr(ctx->cur_streamid, kXR_ok, (uint32_t) data_total,
                           (ServerResponseHdr *) hdrbuf);
 
     ngx_memzero(&slot->read_fast_hdr_chain, sizeof(slot->read_fast_hdr_chain));
@@ -285,32 +285,32 @@ xrootd_build_single_memory_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /*
- * xrootd_build_window_chain — build a single memory-backed response chunk with
+ * brix_build_window_chain — build a single memory-backed response chunk with
  * an explicit wire status (Phase 31 W2.1 windowed reads).
  *
- * Identical layout to xrootd_build_single_memory_chain (header + one data buf,
+ * Identical layout to brix_build_single_memory_chain (header + one data buf,
  * reusing the pre-allocated read_fast_* structs), but the caller chooses the
  * status: kXR_oksofar for every window except the last, kXR_ok for the final
  * window.  The client accumulates the oksofar frames (same streamid) until the
  * kXR_ok, reassembling the full read — the same wire sequence the >16 MiB
  * multi-chunk path already emits, just sourced one window at a time.
  *
- * Precondition: data_total <= XROOTD_READ_CHUNK_MAX (a window is <= 2 MiB).
+ * Precondition: data_total <= BRIX_READ_CHUNK_MAX (a window is <= 2 MiB).
  */
 ngx_chain_t *
-xrootd_build_window_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_build_window_chain(brix_ctx_t *ctx, ngx_connection_t *c,
     u_char *databuf, size_t data_total, uint16_t status)
 {
-    xrootd_resp_slot_t *slot = &ctx->out_ring[ctx->out_tail];
+    brix_resp_slot_t *slot = &ctx->out_ring[ctx->out_tail];
     u_char *hdrbuf;
 
-    hdrbuf = XROOTD_GET_SCRATCH(ctx, c, read_hdr_scratch, read_hdr_scratch_size,
+    hdrbuf = BRIX_GET_SCRATCH(ctx, c, read_hdr_scratch, read_hdr_scratch_size,
                                 XRD_RESPONSE_HDR_LEN);
     if (hdrbuf == NULL) {
         return NULL;
     }
 
-    xrootd_build_resp_hdr(ctx->cur_streamid, status, (uint32_t) data_total,
+    brix_build_resp_hdr(ctx->cur_streamid, status, (uint32_t) data_total,
                           (ServerResponseHdr *) hdrbuf);
 
     ngx_memzero(&slot->read_fast_hdr_chain, sizeof(slot->read_fast_hdr_chain));
@@ -350,8 +350,8 @@ xrootd_build_window_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /*
- * xrootd_build_single_sendfile_chain — build a header+file chain for a single
- * chunk sendfile response (data_total <= XROOTD_READ_CHUNK_MAX).
+ * brix_build_single_sendfile_chain — build a header+file chain for a single
+ * chunk sendfile response (data_total <= BRIX_READ_CHUNK_MAX).
  *
  * WHAT: Constructs an nginx ngx_chain_t with two links where the second link is
  * a file-backed buffer (in_file=1) pointing to an open fd at offset..offset+data.
@@ -361,12 +361,12 @@ xrootd_build_window_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
  * WHY: Non-TLS (cleartext) connections can leverage kernel-level zero-copy for superior
  * throughput. TLS connections automatically fall back to memory-backed chains because
  * nginx's SSL layer cannot wrap sendfile(2). This function handles the single-chunk
- * case; multi-chunk responses are built by xrootd_build_sendfile_chain via iteration.
+ * case; multi-chunk responses are built by brix_build_sendfile_chain via iteration.
  * Setting in_file=1 is critical: it tells nginx's output_filter to invoke sendfile()
  * syscall directly rather than reading into user space and writing back out.
  *
  * HOW: 1) Acquires read_hdr_scratch for the header buffer (same as memory chain).
- *      2) Calls xrootd_build_resp_hdr() with ctx->cur_streamid, kXR_ok, data_total.
+ *      2) Calls brix_build_resp_hdr() with ctx->cur_streamid, kXR_ok, data_total.
  *      3) Memzeros fast structs including read_fast_file (ngx_file_t).
  *      4) Configures hdr_buf → hdr_chain (header memory-backed).
  *      5) If data_total==0 returns header-only; otherwise configures:
@@ -377,11 +377,11 @@ xrootd_build_window_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
  *      7) If base_out is non-NULL, stores hdrbuf pointer for deferred free after send.
  */
 static ngx_chain_t *
-xrootd_build_single_sendfile_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_build_single_sendfile_chain(brix_ctx_t *ctx, ngx_connection_t *c,
     int fd, const char *path, off_t offset, size_t data_total,
     u_char **base_out)
 {
-    xrootd_resp_slot_t *slot = &ctx->out_ring[ctx->out_tail];
+    brix_resp_slot_t *slot = &ctx->out_ring[ctx->out_tail];
     u_char *hdrbuf = slot->hdr_bytes;
 
     /*
@@ -394,7 +394,7 @@ xrootd_build_single_sendfile_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
         *base_out = NULL;
     }
 
-    xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok, (uint32_t) data_total,
+    brix_build_resp_hdr(ctx->cur_streamid, kXR_ok, (uint32_t) data_total,
                           (ServerResponseHdr *) hdrbuf);
 
     /* A single-chunk sendfile read is the one response the recv loop pipelines. */
@@ -440,8 +440,8 @@ xrootd_build_single_sendfile_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /*
- * xrootd_build_chunked_chain — build a multi-chunk memory chain for large
- * reads (data_total > XROOTD_READ_CHUNK_MAX = 16 MiB).
+ * brix_build_chunked_chain — build a multi-chunk memory chain for large
+ * reads (data_total > BRIX_READ_CHUNK_MAX = 16 MiB).
  *
  * XRootD responses larger than 16 MiB must be split into multiple wire frames:
  *   [kXR_oksofar frame][data][kXR_oksofar frame][data]...[kXR_ok frame][data]
@@ -450,10 +450,10 @@ xrootd_build_single_sendfile_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
  * N separate pool allocations).  Each data link points into databuf at the
  * corresponding offset — zero copy from the AIO receive buffer to the wire.
  *
- * Falls through to xrootd_build_single_memory_chain for data_total <= CHUNK_MAX.
+ * Falls through to brix_build_single_memory_chain for data_total <= CHUNK_MAX.
  */
 ngx_chain_t *
-xrootd_build_chunked_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_build_chunked_chain(brix_ctx_t *ctx, ngx_connection_t *c,
     u_char *databuf, size_t data_total)
 {
     size_t       n_chunks, last_size;
@@ -462,12 +462,12 @@ xrootd_build_chunked_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
     size_t       di = 0;
     size_t       chunk;
 
-    if (data_total <= XROOTD_READ_CHUNK_MAX) {
-        return xrootd_build_single_memory_chain(ctx, c, databuf, data_total);
+    if (data_total <= BRIX_READ_CHUNK_MAX) {
+        return brix_build_single_memory_chain(ctx, c, databuf, data_total);
     }
 
     /*
-     * Chunk-count math (mirrored in xrootd_build_sendfile_chain):
+     * Chunk-count math (mirrored in brix_build_sendfile_chain):
      *   n_chunks   = ceil(data_total / CHUNK_MAX) via the +MAX-1 trick.
      *   last_size  = size of the FINAL chunk.  data_total % CHUNK_MAX is 0 when
      *                data_total is an exact multiple, but a zero-byte final chunk
@@ -476,14 +476,14 @@ xrootd_build_chunked_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
      * The n_chunks==0 guard is unreachable given data_total > CHUNK_MAX above,
      * but kept as defence-in-depth so the loop never runs zero times.
      */
-    n_chunks = (data_total + XROOTD_READ_CHUNK_MAX - 1)
-               / XROOTD_READ_CHUNK_MAX;
+    n_chunks = (data_total + BRIX_READ_CHUNK_MAX - 1)
+               / BRIX_READ_CHUNK_MAX;
     if (n_chunks == 0) {
         n_chunks = 1;
     }
-    last_size = data_total % XROOTD_READ_CHUNK_MAX;
+    last_size = data_total % BRIX_READ_CHUNK_MAX;
     if (last_size == 0 && data_total > 0) {
-        last_size = XROOTD_READ_CHUNK_MAX;
+        last_size = BRIX_READ_CHUNK_MAX;
     }
 
     /*
@@ -491,7 +491,7 @@ xrootd_build_chunked_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
      * (8 bytes each); each iteration writes into its own slice at
      * hdrbuf + chunk*XRD_RESPONSE_HDR_LEN, avoiding N separate allocations.
      */
-    hdrbuf = XROOTD_GET_SCRATCH(ctx, c, read_hdr_scratch, read_hdr_scratch_size,
+    hdrbuf = BRIX_GET_SCRATCH(ctx, c, read_hdr_scratch, read_hdr_scratch_size,
                                 n_chunks * XRD_RESPONSE_HDR_LEN);
     if (hdrbuf == NULL) {
         return NULL;
@@ -510,12 +510,12 @@ xrootd_build_chunked_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
          * all earlier frames are kXR_oksofar — the client accumulates the
          * oksofar frames under the same streamid until the kXR_ok arrives.
          */
-        chunk_data = (chunk < n_chunks - 1) ? XROOTD_READ_CHUNK_MAX
+        chunk_data = (chunk < n_chunks - 1) ? BRIX_READ_CHUNK_MAX
                                             : last_size;
         status = (chunk == n_chunks - 1) ? kXR_ok : kXR_oksofar;
         hptr = hdrbuf + chunk * XRD_RESPONSE_HDR_LEN;
 
-        xrootd_build_resp_hdr(ctx->cur_streamid, status,
+        brix_build_resp_hdr(ctx->cur_streamid, status,
                               (uint32_t) chunk_data,
                               (ServerResponseHdr *) hptr);
 
@@ -572,7 +572,7 @@ xrootd_build_chunked_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /*
- * xrootd_build_sendfile_chain — build a multi-chunk sendfile chain for reads
+ * brix_build_sendfile_chain — build a multi-chunk sendfile chain for reads
  * from a kernel file descriptor (zero-copy path for non-TLS connections).
  *
  * WHAT: Constructs an nginx ngx_chain_t where each wire frame consists of:
@@ -586,16 +586,16 @@ xrootd_build_chunked_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
  * WHY: Non-TLS connections can use the kernel-level zero-copy path for superior
  * throughput. TLS connections automatically fall back to read+write because
  * nginx's SSL layer cannot wrap sendfile — no explicit handling needed here.
- * Multi-chunk support handles reads exceeding XROOTD_READ_CHUNK_MAX (16 MiB).
+ * Multi-chunk support handles reads exceeding BRIX_READ_CHUNK_MAX (16 MiB).
  *
- * HOW: Delegates to xrootd_build_single_sendfile_chain for small responses.
+ * HOW: Delegates to brix_build_single_sendfile_chain for small responses.
  * For large responses, iterates over n_chunks allocating one ngx_file_t per
  * data link (all referencing the same fd at successive offsets). hdrbuf is
  * packed contiguously like chunked memory chain; base_out tracks allocation
  * for deferred free after send completion.
  */
 ngx_chain_t *
-xrootd_build_sendfile_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_build_sendfile_chain(brix_ctx_t *ctx, ngx_connection_t *c,
     int fd, const char *path, off_t offset, size_t data_total,
     u_char **base_out)
 {
@@ -609,22 +609,22 @@ xrootd_build_sendfile_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
         *base_out = NULL;
     }
 
-    if (data_total <= XROOTD_READ_CHUNK_MAX) {
-        return xrootd_build_single_sendfile_chain(ctx, c, fd, path, offset,
+    if (data_total <= BRIX_READ_CHUNK_MAX) {
+        return brix_build_single_sendfile_chain(ctx, c, fd, path, offset,
                                                   data_total, base_out);
     }
 
-    /* Same chunk-count math as xrootd_build_chunked_chain: ceil-divide, then
+    /* Same chunk-count math as brix_build_chunked_chain: ceil-divide, then
      * remap a zero final remainder back to a full CHUNK_MAX (the last frame
      * must carry the trailing bytes, never zero). */
-    n_chunks = (data_total + XROOTD_READ_CHUNK_MAX - 1)
-               / XROOTD_READ_CHUNK_MAX;
+    n_chunks = (data_total + BRIX_READ_CHUNK_MAX - 1)
+               / BRIX_READ_CHUNK_MAX;
     if (n_chunks == 0) {
         n_chunks = 1;
     }
-    last_size = data_total % XROOTD_READ_CHUNK_MAX;
+    last_size = data_total % BRIX_READ_CHUNK_MAX;
     if (last_size == 0 && data_total > 0) {
-        last_size = XROOTD_READ_CHUNK_MAX;
+        last_size = BRIX_READ_CHUNK_MAX;
     }
 
     /*
@@ -632,12 +632,12 @@ xrootd_build_sendfile_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
      * buffer (slot->hdr_bytes), not the shared read_hdr_scratch, so a multi-chunk
      * sendfile read can pipeline — the next read built into another slot cannot
      * clobber these headers while this response is still draining.  rlen is
-     * capped at XROOTD_READ_REQUEST_MAX so n_chunks*8 <= XROOTD_SLOT_HDR_MAX
+     * capped at BRIX_READ_REQUEST_MAX so n_chunks*8 <= BRIX_SLOT_HDR_MAX
      * always; the guard is defence-in-depth.  The data links are file-backed
      * (no heap) and the headers are slot-owned, so there is nothing to free —
      * base_out stays NULL.
      */
-    if (n_chunks * XRD_RESPONSE_HDR_LEN > XROOTD_SLOT_HDR_MAX) {
+    if (n_chunks * XRD_RESPONSE_HDR_LEN > BRIX_SLOT_HDR_MAX) {
         return NULL;
     }
     hdrbuf = ctx->out_ring[ctx->out_tail].hdr_bytes;
@@ -654,12 +654,12 @@ xrootd_build_sendfile_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
         /* Same frame layout as the memory path: full CHUNK_MAX per chunk
          * except the last (last_size); kXR_oksofar on every frame but the
          * final kXR_ok, all sharing ctx->cur_streamid. */
-        chunk_data = (chunk < n_chunks - 1) ? XROOTD_READ_CHUNK_MAX
+        chunk_data = (chunk < n_chunks - 1) ? BRIX_READ_CHUNK_MAX
                                             : last_size;
         status = (chunk == n_chunks - 1) ? kXR_ok : kXR_oksofar;
         hptr = hdrbuf + chunk * XRD_RESPONSE_HDR_LEN;
 
-        xrootd_build_resp_hdr(ctx->cur_streamid, status,
+        brix_build_resp_hdr(ctx->cur_streamid, status,
                               (uint32_t) chunk_data,
                               (ServerResponseHdr *) hptr);
 
@@ -729,20 +729,20 @@ xrootd_build_sendfile_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /*
- * xrootd_build_pgread_chain — assemble the kXR_pgread response chain:
+ * brix_build_pgread_chain — assemble the kXR_pgread response chain:
  *   [ServerStatusResponse_pgRead header] -> [encoded page data].
  *
  * `data` points at out_size bytes of already-CRC-encoded page-mode wire output
  * (the gapped [CRC32c][page]+ layout produced by the in-place encoder), and
  * carries its own per-page checksums — so it is sent verbatim, never through
- * xrootd_build_chunked_chain (which would prepend a kXR_ok framing wrong for
+ * brix_build_chunked_chain (which would prepend a kXR_ok framing wrong for
  * pgread). Both the synchronous handler (src/read/pgread.c) and the thread-pool
- * AIO completion (xrootd_pgread_aio_done) build exactly this chain, so it lives
+ * AIO completion (brix_pgread_aio_done) build exactly this chain, so it lives
  * here once. Returns the chain head, or NULL on a pool allocation failure — the
  * caller owns its scratch buffer and handles its own error/cleanup path.
  */
 ngx_chain_t *
-xrootd_build_pgread_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_build_pgread_chain(brix_ctx_t *ctx, ngx_connection_t *c,
     int64_t offset, u_char *data, uint32_t out_size)
 {
     ServerStatusResponse_pgRead *hdr_buf;
@@ -753,7 +753,7 @@ xrootd_build_pgread_chain(xrootd_ctx_t *ctx, ngx_connection_t *c,
     if (hdr_buf == NULL) {
         return NULL;
     }
-    xrootd_build_pgread_status(ctx, offset, out_size, hdr_buf);
+    brix_build_pgread_status(ctx, offset, out_size, hdr_buf);
 
     cl_hdr = ngx_alloc_chain_link(c->pool);
     if (cl_hdr == NULL) {

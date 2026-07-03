@@ -22,13 +22,13 @@
  * computation to these helpers (start with the readv segment array and the
  * eviction-candidate realloc growth).
  */
-#ifndef XROOTD_SHARED_SAFE_SIZE_H
-#define XROOTD_SHARED_SAFE_SIZE_H
+#ifndef BRIX_SHARED_SAFE_SIZE_H
+#define BRIX_SHARED_SAFE_SIZE_H
 
 /* The fuzz harness (tests/fuzz/) compiles this header standalone and supplies
- * its own ngx_int_t/size_t/alloc shims; define XROOTD_SAFE_SIZE_STANDALONE to
+ * its own ngx_int_t/size_t/alloc shims; define BRIX_SAFE_SIZE_STANDALONE to
  * skip the nginx includes in that mode. */
-#ifndef XROOTD_SAFE_SIZE_STANDALONE
+#ifndef BRIX_SAFE_SIZE_STANDALONE
 #include <ngx_config.h>
 #include <ngx_core.h>
 #endif
@@ -36,11 +36,11 @@
 /* Multiply: *out = a*b.  Returns NGX_OK on success, NGX_ERROR on overflow
  * (in which case *out is left unspecified — callers must not use it). */
 static ngx_inline ngx_int_t
-xrootd_size_mul(size_t a, size_t b, size_t *out)
+brix_size_mul(size_t a, size_t b, size_t *out)
     __attribute__((warn_unused_result));
 
 static ngx_inline ngx_int_t
-xrootd_size_mul(size_t a, size_t b, size_t *out)
+brix_size_mul(size_t a, size_t b, size_t *out)
 {
 #if defined(__GNUC__) || defined(__clang__)
     if (__builtin_mul_overflow(a, b, out)) {
@@ -58,11 +58,11 @@ xrootd_size_mul(size_t a, size_t b, size_t *out)
 
 /* Add: *out = a+b.  Returns NGX_OK / NGX_ERROR (on wrap). */
 static ngx_inline ngx_int_t
-xrootd_size_add(size_t a, size_t b, size_t *out)
+brix_size_add(size_t a, size_t b, size_t *out)
     __attribute__((warn_unused_result));
 
 static ngx_inline ngx_int_t
-xrootd_size_add(size_t a, size_t b, size_t *out)
+brix_size_add(size_t a, size_t b, size_t *out)
 {
 #if defined(__GNUC__) || defined(__clang__)
     if (__builtin_add_overflow(a, b, out)) {
@@ -84,15 +84,15 @@ xrootd_size_add(size_t a, size_t b, size_t *out)
  * callsite covers both.
  */
 static ngx_inline void *
-xrootd_palloc_array(ngx_pool_t *pool, size_t n, size_t sz)
+brix_palloc_array(ngx_pool_t *pool, size_t n, size_t sz)
     __attribute__((warn_unused_result, malloc, alloc_size(2, 3)));
 
 static ngx_inline void *
-xrootd_palloc_array(ngx_pool_t *pool, size_t n, size_t sz)
+brix_palloc_array(ngx_pool_t *pool, size_t n, size_t sz)
 {
     size_t total;
 
-    if (xrootd_size_mul(n, sz, &total) != NGX_OK || total == 0) {
+    if (brix_size_mul(n, sz, &total) != NGX_OK || total == 0) {
         return NULL;
     }
     return ngx_palloc(pool, total);
@@ -100,15 +100,15 @@ xrootd_palloc_array(ngx_pool_t *pool, size_t n, size_t sz)
 
 /* Same, zero-initialised. */
 static ngx_inline void *
-xrootd_pcalloc_array(ngx_pool_t *pool, size_t n, size_t sz)
+brix_pcalloc_array(ngx_pool_t *pool, size_t n, size_t sz)
     __attribute__((warn_unused_result, alloc_size(2, 3)));
 
 static ngx_inline void *
-xrootd_pcalloc_array(ngx_pool_t *pool, size_t n, size_t sz)
+brix_pcalloc_array(ngx_pool_t *pool, size_t n, size_t sz)
 {
     size_t total;
 
-    if (xrootd_size_mul(n, sz, &total) != NGX_OK || total == 0) {
+    if (brix_size_mul(n, sz, &total) != NGX_OK || total == 0) {
         return NULL;
     }
     return ngx_pcalloc(pool, total);
@@ -120,18 +120,18 @@ xrootd_pcalloc_array(ngx_pool_t *pool, size_t n, size_t sz)
  * overflow or OOM; free with ngx_free().
  */
 static ngx_inline void *
-xrootd_alloc_array(ngx_log_t *log, size_t n, size_t sz)
+brix_alloc_array(ngx_log_t *log, size_t n, size_t sz)
     __attribute__((warn_unused_result, malloc, alloc_size(2, 3)));
 
 static ngx_inline void *
-xrootd_alloc_array(ngx_log_t *log, size_t n, size_t sz)
+brix_alloc_array(ngx_log_t *log, size_t n, size_t sz)
 {
     size_t total;
 
-    if (xrootd_size_mul(n, sz, &total) != NGX_OK || total == 0) {
+    if (brix_size_mul(n, sz, &total) != NGX_OK || total == 0) {
         return NULL;
     }
     return ngx_alloc(total, log);
 }
 
-#endif /* XROOTD_SHARED_SAFE_SIZE_H */
+#endif /* BRIX_SHARED_SAFE_SIZE_H */

@@ -45,9 +45,9 @@
 static int
 build_stats_xml(char *buf, size_t bufsz, ngx_http_request_t *r)
 {
-    ngx_xrootd_metrics_t      *shm;
-    ngx_xrootd_webdav_metrics_t zero;
-    ngx_xrootd_webdav_metrics_t *m;
+    ngx_brix_metrics_t      *shm;
+    ngx_brix_webdav_metrics_t zero;
+    ngx_brix_webdav_metrics_t *m;
     char                        hostname[256];
     time_t                      now;
     ngx_atomic_t                gets, puts, deletes, total_req;
@@ -56,7 +56,7 @@ build_stats_xml(char *buf, size_t bufsz, ngx_http_request_t *r)
     int                         listen_port;
     int                         len;
 
-    shm = xrootd_metrics_shared();
+    shm = brix_metrics_shared();
     if (shm != NULL) {
         m = &shm->webdav;
     } else {
@@ -91,33 +91,33 @@ build_stats_xml(char *buf, size_t bufsz, ngx_http_request_t *r)
         }
     }
 
-    gets    = m->requests_total[XROOTD_WEBDAV_METHOD_GET]
-            + m->requests_total[XROOTD_WEBDAV_METHOD_HEAD];
-    puts    = m->requests_total[XROOTD_WEBDAV_METHOD_PUT];
-    deletes = m->requests_total[XROOTD_WEBDAV_METHOD_DELETE];
+    gets    = m->requests_total[BRIX_WEBDAV_METHOD_GET]
+            + m->requests_total[BRIX_WEBDAV_METHOD_HEAD];
+    puts    = m->requests_total[BRIX_WEBDAV_METHOD_PUT];
+    deletes = m->requests_total[BRIX_WEBDAV_METHOD_DELETE];
 
     total_req = 0;
-    for (ngx_uint_t i = 0; i < XROOTD_WEBDAV_NMETHODS; i++) {
+    for (ngx_uint_t i = 0; i < BRIX_WEBDAV_NMETHODS; i++) {
         total_req += m->requests_total[i];
     }
 
     bytes_in  = m->bytes_rx_total;
     bytes_out = m->bytes_tx_total;
 
-    auth_ok   = m->auth_total[XROOTD_WEBDAV_AUTH_RESULT_CERT_OK]
-              + m->auth_total[XROOTD_WEBDAV_AUTH_RESULT_TOKEN_OK]
-              + m->auth_total[XROOTD_WEBDAV_AUTH_RESULT_ANONYMOUS];
-    auth_fail = m->auth_total[XROOTD_WEBDAV_AUTH_RESULT_REJECTED];
+    auth_ok   = m->auth_total[BRIX_WEBDAV_AUTH_RESULT_CERT_OK]
+              + m->auth_total[BRIX_WEBDAV_AUTH_RESULT_TOKEN_OK]
+              + m->auth_total[BRIX_WEBDAV_AUTH_RESULT_ANONYMOUS];
+    auth_fail = m->auth_total[BRIX_WEBDAV_AUTH_RESULT_REJECTED];
 
     len = snprintf(buf, bufsz,
         "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-        "<statistics tod=\"%ld\" ver=\"" XROOTD_SERVER_VERSION "\" src=\"%s:%d\""
-        " ins=\"anon\" pid=\"%d\" pgm=\"" XROOTD_SERVER_NAME "\">\n"
+        "<statistics tod=\"%ld\" ver=\"" BRIX_SERVER_VERSION "\" src=\"%s:%d\""
+        " ins=\"anon\" pid=\"%d\" pgm=\"" BRIX_SERVER_NAME "\">\n"
 
         "  <stats id=\"info\">\n"
         "    <host>%s</host>\n"
         "    <port>%d</port>\n"
-        "    <name>" XROOTD_SERVER_NAME "</name>\n"
+        "    <name>" BRIX_SERVER_NAME "</name>\n"
         "    <role>server</role>\n"
         "  </stats>\n"
 
@@ -185,10 +185,10 @@ build_stats_xml(char *buf, size_t bufsz, ngx_http_request_t *r)
         (long long) gets,              /* getf */
         (long long) puts,              /* put */
         (long long) deletes,           /* rf (remove file) */
-        (long long) m->requests_total[XROOTD_WEBDAV_METHOD_GET], /* rd */
+        (long long) m->requests_total[BRIX_WEBDAV_METHOD_GET], /* rd */
         /* err */
-        (long long) (m->auth_total[XROOTD_WEBDAV_AUTH_RESULT_REJECTED]
-                   + m->responses_total[0][XROOTD_HTTP_STATUS_5XX]),
+        (long long) (m->auth_total[BRIX_WEBDAV_AUTH_RESULT_REJECTED]
+                   + m->responses_total[0][BRIX_HTTP_STATUS_5XX]),
         /* lgn */
         (long long) auth_ok,
         (long long) auth_fail,
@@ -196,9 +196,9 @@ build_stats_xml(char *buf, size_t bufsz, ngx_http_request_t *r)
         (long long) total_req,
         (long long) bytes_in,
         (long long) bytes_out,
-        (long long) m->tpc_total[XROOTD_WEBDAV_TPC_PULL_STARTED],
-        (long long) m->tpc_total[XROOTD_WEBDAV_TPC_PUSH_STARTED],
-        (long long) m->range_total[XROOTD_WEBDAV_RANGE_PARTIAL]
+        (long long) m->tpc_total[BRIX_WEBDAV_TPC_PULL_STARTED],
+        (long long) m->tpc_total[BRIX_WEBDAV_TPC_PUSH_STARTED],
+        (long long) m->range_total[BRIX_WEBDAV_RANGE_PARTIAL]
     );
 
     if (len < 0 || (size_t) len >= bufsz) {

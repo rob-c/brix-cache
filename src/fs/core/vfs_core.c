@@ -3,7 +3,7 @@
  *
  * The EINTR / short-I/O loop policy lives here; the raw syscalls live in the
  * backend driver (obj->driver->...). Lifted verbatim from the server's
- * xrootd_vfs_pread_full (src/fs/vfs/vfs_read.c) and xrootd_vfs_io_write_counted
+ * brix_vfs_pread_full (src/fs/vfs/vfs_read.c) and brix_vfs_io_write_counted
  * (src/fs/vfs/vfs_io_core.c) so behaviour is byte-identical across both trees.
  */
 #include "vfs_core.h"
@@ -16,7 +16,7 @@
 #include <unistd.h>
 
 int
-xvfs_pread_full(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off,
+xvfs_pread_full(brix_sd_obj_t *obj, void *buf, size_t len, off_t off,
                 size_t *nread)
 {
     size_t   done = 0;
@@ -47,7 +47,7 @@ xvfs_pread_full(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off,
 }
 
 ssize_t
-xvfs_pread_once(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
+xvfs_pread_once(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
 {
     ssize_t n;
 
@@ -59,7 +59,7 @@ xvfs_pread_once(xrootd_sd_obj_t *obj, void *buf, size_t len, off_t off)
 }
 
 int
-xvfs_pwrite_full(xrootd_sd_obj_t *obj, const void *buf, size_t len, off_t off,
+xvfs_pwrite_full(brix_sd_obj_t *obj, const void *buf, size_t len, off_t off,
                  size_t *written, int *short_io)
 {
     size_t        done = 0;
@@ -104,26 +104,26 @@ xvfs_pwrite_full(xrootd_sd_obj_t *obj, const void *buf, size_t len, off_t off,
 }
 
 int
-xvfs_fsync(xrootd_sd_obj_t *obj)
+xvfs_fsync(brix_sd_obj_t *obj)
 {
     /* driver->fsync returns NGX_OK(0)/NGX_ERROR(-1); normalise to 0/-1. */
     return (obj->driver->fsync(obj) == 0) ? 0 : -1;
 }
 
 int
-xvfs_ftruncate(xrootd_sd_obj_t *obj, off_t len)
+xvfs_ftruncate(brix_sd_obj_t *obj, off_t len)
 {
     return (obj->driver->ftruncate(obj, len) == 0) ? 0 : -1;
 }
 
 int
-xvfs_fstat(xrootd_sd_obj_t *obj, xrootd_sd_stat_t *out)
+xvfs_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
 {
     return (obj->driver->fstat(obj, out) == 0) ? 0 : -1;
 }
 
 int
-xvfs_drain(xrootd_sd_obj_t *src, xrootd_sd_obj_t *dst, void *buf, size_t bufsz,
+xvfs_drain(brix_sd_obj_t *src, brix_sd_obj_t *dst, void *buf, size_t bufsz,
            off_t *total)
 {
     off_t off = 0;
@@ -160,7 +160,7 @@ xvfs_stage_fd(int src_fd, const char *stage_dir)
     char            tmpl[PATH_MAX];
     char            proc[64];
     char           *buf;
-    xrootd_sd_obj_t s, d;
+    brix_sd_obj_t s, d;
     int             dst_fd, rd_fd, e, n;
 
     if (stage_dir == NULL || stage_dir[0] == '\0') {
@@ -185,8 +185,8 @@ xvfs_stage_fd(int src_fd, const char *stage_dir)
         errno = e;
         return -1;
     }
-    xrootd_sd_posix_wrap(&s, src_fd);
-    xrootd_sd_posix_wrap(&d, dst_fd);
+    brix_sd_posix_wrap(&s, src_fd);
+    brix_sd_posix_wrap(&d, dst_fd);
     if (xvfs_drain(&s, &d, buf, 256 * 1024, NULL) != 0) {
         e = errno;
         free(buf);

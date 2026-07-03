@@ -15,14 +15,14 @@ trap cleanup EXIT
 mkdir -p "$PFX/backend" "$PFX/stage" "$PFX/journal" "$PFX/tmp" "$PFX/logs"
 cat > "$PFX/nginx.conf" <<E2
 daemon on; error_log $PFX/logs/e.log info; pid $PFX/nginx.pid;
-env XROOTD_STAGE_JOURNAL_DIR=$PFX/journal;
+env BRIX_STAGE_JOURNAL_DIR=$PFX/journal;
 worker_processes 1;
 thread_pool default threads=2;
 events { worker_connections 64; }
 http { client_body_temp_path $PFX/tmp; server { listen 127.0.0.1:${BPORT};
   location / { dav_methods PUT DELETE;
-    xrootd_webdav on; xrootd_webdav_root $PFX/backend; xrootd_webdav_auth none; xrootd_webdav_allow_write on;
-    xrootd_webdav_stage on; xrootd_webdav_stage_store posix:$PFX/stage; xrootd_webdav_stage_flush async; } } }
+    brix_webdav on; brix_webdav_root $PFX/backend; brix_webdav_auth none; brix_webdav_allow_write on;
+    brix_webdav_stage on; brix_webdav_stage_store posix:$PFX/stage; brix_webdav_stage_flush async; } } }
 E2
 head -c 350000 /dev/urandom > "$PFX/src.bin"; SHA=$(sha256sum "$PFX/src.bin"|cut -d' ' -f1)
 setsid "$NGINX" -p "$PFX" -c "$PFX/nginx.conf" 2>"$PFX/start.err" || { echo "START FAIL"; cat "$PFX/start.err"; exit 2; }

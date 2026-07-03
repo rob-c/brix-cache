@@ -17,20 +17,20 @@
  *      Control bytes in filenames (rare but possible from wire protocol) have no standard
  *      XML entity names; percent-encoding them avoids parser confusion.
  *
- * HOW: The function delegates to `xrootd_xml_escaped_len()` and `xrootd_xml_escape()`
- *      from src/compat/xml.h with the flag `XROOTD_XML_ESCAPE_CONTROL_PERCENT`. Steps:
+ * HOW: The function delegates to `brix_xml_escaped_len()` and `brix_xml_escape()`
+ *      from src/compat/xml.h with the flag `BRIX_XML_ESCAPE_CONTROL_PERCENT`. Steps:
  *        1. Guard against NULL pool or NULL src → return NULL immediately.
  *        2. Compute src_len via strlen() (src is a C string).
- *        3. Call xrootd_xml_escaped_len() to get the exact byte length of escaped output
+ *        3. Call brix_xml_escaped_len() to get the exact byte length of escaped output
  *           including NUL terminator space — avoids double-pass allocation.
  *        4. Allocate from nginx request pool via ngx_pnalloc() — ensures cleanup on
  *           request completion without explicit free calls.
  *        5. Guard against OOM (ngx_pnalloc returns NULL).
- *        6. Call xrootd_xml_escape() to produce the escaped buffer; guard against
+ *        6. Call brix_xml_escape() to produce the escaped buffer; guard against
  *           failure (-1 return = overflow or badarg).
  *        7. Return pointer to escaped buffer (cast from u_char*).
  *
- * DEPENDENCIES: src/compat/xml.h (xrootd_xml_escaped_len, xrootd_xml_escape), nginx pool API
+ * DEPENDENCIES: src/compat/xml.h (brix_xml_escaped_len, brix_xml_escape), nginx pool API
  * SEE ALSO: webdav/propfind.c (PROPFIND XML generation), webdav/lock.c (LOCK responses)
  */
 
@@ -64,12 +64,12 @@ webdav_escape_xml_text(ngx_pool_t *pool, const char *src)
     }
 
     src_len = strlen(src);
-    escaped_len = xrootd_xml_escaped_len((const u_char *) src, src_len,
-                                         XROOTD_XML_ESCAPE_CONTROL_PERCENT);
-    XROOTD_PNALLOC_OR_RETURN(escaped, pool, escaped_len + 1, NULL);
+    escaped_len = brix_xml_escaped_len((const u_char *) src, src_len,
+                                         BRIX_XML_ESCAPE_CONTROL_PERCENT);
+    BRIX_PNALLOC_OR_RETURN(escaped, pool, escaped_len + 1, NULL);
 
-    if (xrootd_xml_escape((const u_char *) src, src_len,
-                          XROOTD_XML_ESCAPE_CONTROL_PERCENT,
+    if (brix_xml_escape((const u_char *) src, src_len,
+                          BRIX_XML_ESCAPE_CONTROL_PERCENT,
                           escaped, escaped_len + 1, NULL) != 0)
     {
         return NULL;

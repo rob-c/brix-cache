@@ -104,12 +104,12 @@ os.environ["TMPDIR"] = TMP_DIR
 _tempfile.tempdir = TMP_DIR
 
 NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
-XROOTD_BIN = os.environ.get("TEST_XROOTD_BIN", "xrootd")
+BRIX_BIN = os.environ.get("TEST_BRIX_BIN", "xrootd")
 XRDFS_BIN = os.environ.get("TEST_XRDFS_BIN", "xrdfs")
 XRDCP_BIN = os.environ.get("TEST_XRDCP_BIN", "xrdcp")
 
 NGINX_ANON_PORT = int(os.environ.get("TEST_NGINX_ANON_PORT", "11094"))
-# Same shared anon data root, but with xrootd_upload_resume OFF (stock
+# Same shared anon data root, but with brix_upload_resume OFF (stock
 # direct-to-disk write posture).  Conformance suites that inspect on-disk state
 # out-of-band (pgwrite accept-then-correct, fsync durability) target this port;
 # the resume-ON behaviour is covered on NGINX_ANON_PORT.
@@ -141,10 +141,10 @@ KRB5_CLIENT_PRINCIPAL = "alice@" + KRB5_REALM
 KRB5_CLIENT_KEYTAB = os.path.join(KRB5_DIR, "client.keytab")
 KRB5_DATA_ROOT = os.path.join(TEST_ROOT, "data-krb5")
 
-REF_XROOTD_PORT = int(os.environ.get("TEST_REF_XROOTD_PORT", "11098"))
-REF_XROOTD_GSI_PORT = int(os.environ.get("TEST_REF_XROOTD_GSI_PORT", "11099"))
-REF_XROOTD_GSI_SHARED_PORT = int(
-    os.environ.get("TEST_REF_XROOTD_GSI_SHARED_PORT", "11100")
+REF_BRIX_PORT = int(os.environ.get("TEST_REF_BRIX_PORT", "11098"))
+REF_BRIX_GSI_PORT = int(os.environ.get("TEST_REF_BRIX_GSI_PORT", "11099"))
+REF_BRIX_GSI_SHARED_PORT = int(
+    os.environ.get("TEST_REF_BRIX_GSI_SHARED_PORT", "11100")
 )
 NGINX_METRICS_PORT = int(os.environ.get("TEST_NGINX_METRICS_PORT", "9100"))
 NGINX_WEBDAV_PORT = int(os.environ.get("TEST_NGINX_WEBDAV_PORT", "8443"))
@@ -352,7 +352,7 @@ CLUSTER_ESC_LEAF_PORT = int(os.environ.get("TEST_CLUSTER_ESC_LEAF_PORT", "11199"
 CLUSTER_ESC_CMS_PORT = int(os.environ.get("TEST_CLUSTER_ESC_CMS_PORT", "12607"))
 
 # Proxy interoperability matrix (Section 3A) + credential bridge (Section 4C)
-PROXY_BRIDGE_XROOTD_PORT = int(os.environ.get("TEST_PROXY_BRIDGE_XROOTD_PORT", "11214"))
+PROXY_BRIDGE_BRIX_PORT = int(os.environ.get("TEST_PROXY_BRIDGE_BRIX_PORT", "11214"))
 PROXY_PURE_NGINX_PROXY_PORT = int(os.environ.get("TEST_PROXY_PURE_NGINX_PROXY_PORT", "11213"))
 CREDENTIAL_BRIDGE_PORT = int(os.environ.get("TEST_CREDENTIAL_BRIDGE_PORT", "11215"))
 

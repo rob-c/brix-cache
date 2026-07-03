@@ -4,7 +4,7 @@
  * slab pool's own mutex.
  *
  * THE BUG (workers stuck after many reboots)
- *   xrootd_shm_table_alloc() bound the table mutex to a lock word embedded in
+ *   brix_shm_table_alloc() bound the table mutex to a lock word embedded in
  *   the slab-allocated table.  nginx's ngx_unlock_mutexes() — run on EVERY
  *   worker death — force-unlocks only &((ngx_slab_pool_t *)shm.addr)->mutex; it
  *   has no knowledge of a mutex embedded elsewhere in the zone.  So a worker
@@ -104,10 +104,10 @@ main(void)
     zone.shm.exists = 0;
 
     /* Reload path: nginx hands us the previous cycle's table via `data`. */
-    tbl = xrootd_shm_table_alloc(&zone, &oldtbl, sizeof(oldtbl),
+    tbl = brix_shm_table_alloc(&zone, &oldtbl, sizeof(oldtbl),
                                  &tbl_mtx, &fresh);
     if (tbl != &oldtbl) {
-        fprintf(stderr, "xrootd_shm_table_alloc did not return the reload table\n");
+        fprintf(stderr, "brix_shm_table_alloc did not return the reload table\n");
         return 2;
     }
 

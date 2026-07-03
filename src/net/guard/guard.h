@@ -1,5 +1,5 @@
-#ifndef XROOTD_GUARD_GUARD_H
-#define XROOTD_GUARD_GUARD_H
+#ifndef BRIX_GUARD_GUARD_H
+#define BRIX_GUARD_GUARD_H
 
 /*
  * guard.h — protocol-agnostic bad-actor classifier (pure C, no nginx).
@@ -126,4 +126,4 @@ int guard_ruleset_add_prefix(guard_ruleset_t *rs, const char *pfx, size_t len);
  * Sets prefixes + op_allowed[]. Unknown profile leaves grammar permissive. */
 void guard_ruleset_load_profile(guard_ruleset_t *rs, const char *profile);
 
-#endif /* XROOTD_GUARD_GUARD_H */
+#endif /* BRIX_GUARD_GUARD_H */

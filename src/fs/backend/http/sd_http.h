@@ -1,5 +1,5 @@
-#ifndef XROOTD_SD_HTTP_H
-#define XROOTD_SD_HTTP_H
+#ifndef BRIX_SD_HTTP_H
+#define BRIX_SD_HTTP_H
 
 /*
  * sd_http.h — read-only HTTP(S) source storage driver (phase-63 C-4).
@@ -9,13 +9,13 @@
  *       HTTP(S) endpoint — `open` HEADs the URL for the size, `pread` issues a
  *       byte-Range GET. The sibling of the S3 `sd_remote` driver minus SigV4: it
  *       is the *generic* web source for the composable stack, so an export
- *       (`xrootd_storage_backend http://host:port/base`) or a read cache can reach
+ *       (`brix_storage_backend http://host:port/base`) or a read cache can reach
  *       any HTTP origin through the SAME driver→driver fill path C-1 uses for
  *       root:// — no bespoke per-scheme libcurl in the cache.
  *
  * HOW:  The actual HTTP is performed by an INJECTED transport vtable
- *       (`xrootd_s3_transport_t`, the shared one the S3 driver uses) — the module
- *       passes the server libcurl singleton (`xrootd_s3_origin_curl_transport`),
+ *       (`brix_s3_transport_t`, the shared one the S3 driver uses) — the module
+ *       passes the server libcurl singleton (`brix_s3_origin_curl_transport`),
  *       so this driver carries no libcurl dependency itself. No kernel fd ⇒ reads
  *       are memory-served. Blocking; runs on the cache-fill / AIO worker thread.
  *       Instances + objects are malloc-owned (no nginx pool), worker-safe.
@@ -39,7 +39,7 @@ typedef struct {
     int         port;
     int         tls;
     const char *base_path;
-} xrootd_sd_http_ep_cfg_t;
+} brix_sd_http_ep_cfg_t;
 
 /* Endpoint for one HTTP source instance. Strings are copied. `base_path` is the
  * URL path prefix ("" or "/dir"); a request key "/file" is appended to it.
@@ -50,11 +50,11 @@ typedef struct {
     int                          port;
     int                          tls;         /* 1 = https */
     const char                  *base_path;   /* URL path prefix ("" or "/sub") */
-    const xrootd_s3_transport_t *transport;   /* injected HTTP transport */
+    const brix_s3_transport_t *transport;   /* injected HTTP transport */
     void                        *tctx;        /* transport context (NULL for curl) */
     int                          timeout_ms;
     const char                  *bearer_token; /* §14: Authorization: Bearer, or NULL */
-    const xrootd_sd_http_ep_cfg_t *extra;      /* endpoints 1.. (may be NULL)   */
+    const brix_sd_http_ep_cfg_t *extra;      /* endpoints 1.. (may be NULL)   */
     int                            n_extra;    /* count of `extra` entries      */
     void                         (*failover_note)(void);  /* T16: called when a
                                     read fails over to an alternate endpoint
@@ -66,15 +66,15 @@ typedef struct {
                                     score>=128 after a failure, recovered
                                     below 128 after a success). The owner
                                     injects its logger. NULL = silent. */
-} xrootd_sd_http_cfg_t;
+} brix_sd_http_cfg_t;
 
 /* Build a read-only HTTP source instance. Returns a malloc-owned instance, or NULL
- * (errno set). Destroy with xrootd_sd_http_destroy. */
-xrootd_sd_instance_t *xrootd_sd_http_create(const xrootd_sd_http_cfg_t *cfg,
+ * (errno set). Destroy with brix_sd_http_destroy. */
+brix_sd_instance_t *brix_sd_http_create(const brix_sd_http_cfg_t *cfg,
     ngx_log_t *log);
 
-/* Free an instance built by xrootd_sd_http_create. NULL-safe. */
-void xrootd_sd_http_destroy(xrootd_sd_instance_t *inst);
+/* Free an instance built by brix_sd_http_create. NULL-safe. */
+void brix_sd_http_destroy(brix_sd_instance_t *inst);
 
 /* ---- T19/T20 selection + introspection (no-ops on non-http instances) ----
  * Effective pick score = rank*4096 + fail_score: preference is policy, health
@@ -82,19 +82,19 @@ void xrootd_sd_http_destroy(xrootd_sd_instance_t *inst);
  * consecutive failures. Ranks are relaxed atomics (event loop writes, fill
  * threads read; a momentarily stale rank costs one suboptimal fill). */
 /* Force-primary read policy (process-global; set pre-fork from the cvmfs merge
- * when xrootd_cvmfs_fill_retry_policy is force-primary). When on, every read
+ * when brix_cvmfs_fill_retry_policy is force-primary). When on, every read
  * targets the rank-preferred endpoint and never fails over to an alternate on a
  * transport failure — the fill loop retries the same origin on a fresh
  * connection. Off (default) keeps T11 alternate-endpoint failover. */
 void sd_http_force_primary_set(int on);
 
-void sd_http_set_ranks(xrootd_sd_instance_t *inst, const int *ranks, int n);
-int  sd_http_endpoint_list(xrootd_sd_instance_t *inst, char hosts[][256],
+void sd_http_set_ranks(brix_sd_instance_t *inst, const int *ranks, int n);
+int  sd_http_endpoint_list(brix_sd_instance_t *inst, char hosts[][256],
                            int *ports, int max);
-int  sd_http_n_endpoints(xrootd_sd_instance_t *inst);
-int  sd_http_last_origin(xrootd_sd_instance_t *inst, char *buf, size_t cap);
-int  sd_http_last_was_failover(xrootd_sd_instance_t *inst);
-int  sd_http_health_snapshot(xrootd_sd_instance_t *inst, char hosts[][256],
+int  sd_http_n_endpoints(brix_sd_instance_t *inst);
+int  sd_http_last_origin(brix_sd_instance_t *inst, char *buf, size_t cap);
+int  sd_http_last_was_failover(brix_sd_instance_t *inst);
+int  sd_http_health_snapshot(brix_sd_instance_t *inst, char hosts[][256],
                              int *ports, int *scores, int max);
 
-#endif /* XROOTD_SD_HTTP_H */
+#endif /* BRIX_SD_HTTP_H */

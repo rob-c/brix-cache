@@ -6,7 +6,7 @@
  * digest computation.
  *
  * EVP_MAC and EVP_MD objects are fetched once at worker init
- * (xrootd_crypto_init) and freed at worker exit (xrootd_crypto_cleanup).
+ * (brix_crypto_init) and freed at worker exit (brix_crypto_cleanup).
  * Each per-request call creates a lightweight CTX from the singleton,
  * avoiding the registry search and allocation cost of EVP_MAC_fetch per call.
  */
@@ -19,7 +19,7 @@ static EVP_MAC *s_hmac_mac;
 static EVP_MD  *s_sha256_md;
 
 int
-xrootd_crypto_init(void)
+brix_crypto_init(void)
 {
     s_hmac_mac  = EVP_MAC_fetch(NULL, "HMAC", NULL);
     s_sha256_md = EVP_MD_fetch(NULL, "SHA256", NULL);
@@ -27,7 +27,7 @@ xrootd_crypto_init(void)
 }
 
 void
-xrootd_crypto_cleanup(void)
+brix_crypto_cleanup(void)
 {
     EVP_MAC_free(s_hmac_mac);
     s_hmac_mac = NULL;
@@ -36,7 +36,7 @@ xrootd_crypto_cleanup(void)
 }
 
 int
-xrootd_hmac_sha256(const uint8_t *key, size_t keylen,
+brix_hmac_sha256(const uint8_t *key, size_t keylen,
                    const uint8_t *data, size_t datalen,
                    uint8_t out[32])
 {
@@ -64,7 +64,7 @@ xrootd_hmac_sha256(const uint8_t *key, size_t keylen,
 }
 
 int
-xrootd_sha256(const uint8_t *data, size_t len, uint8_t out[32])
+brix_sha256(const uint8_t *data, size_t len, uint8_t out[32])
 {
     EVP_MD_CTX  *ctx;
     unsigned int outlen = 32;
@@ -87,7 +87,7 @@ xrootd_sha256(const uint8_t *data, size_t len, uint8_t out[32])
 
 /* The opaque streaming handle is simply the EVP_MD_CTX itself. */
 void *
-xrootd_sha256_stream_new(void)
+brix_sha256_stream_new(void)
 {
     EVP_MD_CTX *ctx;
 
@@ -102,13 +102,13 @@ xrootd_sha256_stream_new(void)
 }
 
 int
-xrootd_sha256_stream_update(void *s, const uint8_t *data, size_t len)
+brix_sha256_stream_update(void *s, const uint8_t *data, size_t len)
 {
     return s != NULL && EVP_DigestUpdate((EVP_MD_CTX *) s, data, len) == 1;
 }
 
 int
-xrootd_sha256_stream_final(void *s, uint8_t out[32])
+brix_sha256_stream_final(void *s, uint8_t out[32])
 {
     unsigned int outlen = 32;
 
@@ -122,7 +122,7 @@ xrootd_sha256_stream_final(void *s, uint8_t out[32])
 }
 
 void
-xrootd_sha256_stream_free(void *s)
+brix_sha256_stream_free(void *s)
 {
     EVP_MD_CTX_free((EVP_MD_CTX *) s);
 }

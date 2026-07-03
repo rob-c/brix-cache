@@ -20,7 +20,7 @@
  * update the dlen header. */
 u_char *
 proxy_rewrite_path(ngx_connection_t *c,
-                    ngx_stream_xrootd_srv_conf_t *conf,
+                    ngx_stream_brix_srv_conf_t *conf,
                     u_char *req, size_t total,
                     size_t path_off, size_t path_len,
                     size_t *total_out)
@@ -78,7 +78,7 @@ proxy_rewrite_path(ngx_connection_t *c,
  */
 u_char *
 proxy_rewrite_prepare_payload(ngx_connection_t *c,
-                              ngx_stream_xrootd_srv_conf_t *conf,
+                              ngx_stream_brix_srv_conf_t *conf,
                               u_char *req, size_t total,
                               size_t *total_out)
 {
@@ -179,12 +179,12 @@ proxy_rewrite_prepare_payload(ngx_connection_t *c,
  * Returns 0 on success, -1 if the local handle is invalid.
  */
 int
-proxy_translate_fh(xrootd_proxy_ctx_t *proxy, u_char *buf, size_t offset)
+proxy_translate_fh(brix_proxy_ctx_t *proxy, u_char *buf, size_t offset)
 {
     int local_fh = (int)(unsigned char) buf[offset];
 
-    if (local_fh < 0 || local_fh >= XROOTD_MAX_FILES
-        || proxy->fh_map[local_fh].upstream_fh == XROOTD_PROXY_FH_FREE)
+    if (local_fh < 0 || local_fh >= BRIX_MAX_FILES
+        || proxy->fh_map[local_fh].upstream_fh == BRIX_PROXY_FH_FREE)
     {
         return -1;
     }

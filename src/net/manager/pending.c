@@ -2,9 +2,9 @@
 #include "core/compat/shm_slots.h"
 #include <ngx_shmtx.h>
 
-ngx_shm_zone_t *xrootd_pending_shm_zone;
+ngx_shm_zone_t *brix_pending_shm_zone;
 
-static ngx_shmtx_t  xrootd_pending_mutex;
+static ngx_shmtx_t  brix_pending_mutex;
 
 /**
  * WHAT: Retrieve the shared-memory pending-locate table pointer.
@@ -13,18 +13,18 @@ static ngx_shmtx_t  xrootd_pending_mutex;
  *      NULL-check logic so callers don't repeat it.
  * HOW: Returns NULL if the shm_zone hasn't been allocated yet, is still at
  *      initialization sentinel ((void *) 1), or has no data attached. Otherwise
- *      casts and returns the zone->data pointer as xrootd_pending_table_t*.
+ *      casts and returns the zone->data pointer as brix_pending_table_t*.
  */
-static xrootd_pending_table_t *
+static brix_pending_table_t *
 pending_table(void)
 {
-    if (xrootd_pending_shm_zone == NULL
-        || xrootd_pending_shm_zone->data == NULL
-        || xrootd_pending_shm_zone->data == (void *) 1)
+    if (brix_pending_shm_zone == NULL
+        || brix_pending_shm_zone->data == NULL
+        || brix_pending_shm_zone->data == (void *) 1)
     {
         return NULL;
     }
-    return (xrootd_pending_table_t *) xrootd_pending_shm_zone->data;
+    return (brix_pending_table_t *) brix_pending_shm_zone->data;
 }
 
 /**
@@ -32,7 +32,7 @@ pending_table(void)
  * WHY: Called during nginx configuration to allocate the shared memory region
  *      that holds slots for in-flight kXR_locate requests. The mutex is created
  *      here so all workers can safely access the table.
- * HOW: Delegates fresh-alloc / reload / re-attach to xrootd_shm_table_alloc(),
+ * HOW: Delegates fresh-alloc / reload / re-attach to brix_shm_table_alloc(),
  *      which allocates the table FROM the slab pool (leaving nginx's
  *      ngx_slab_pool_t header at shm.addr intact so ngx_unlock_mutexes() does
  *      not clobber it when a child exits) and publishes it via shm_zone->data.
@@ -41,14 +41,14 @@ pending_table(void)
  *      the live slot state is preserved. Returns NGX_OK or NGX_ERROR.
  */
 static ngx_int_t
-xrootd_pending_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
+brix_pending_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 {
     ngx_flag_t               fresh;
-    xrootd_pending_table_t  *tbl;
+    brix_pending_table_t  *tbl;
 
-    tbl = xrootd_shm_table_alloc(shm_zone, data,
-                                 sizeof(xrootd_pending_table_t),
-                                 &xrootd_pending_mutex, &fresh);
+    tbl = brix_shm_table_alloc(shm_zone, data,
+                                 sizeof(brix_pending_table_t),
+                                 &brix_pending_mutex, &fresh);
     if (tbl == NULL) {
         return NGX_ERROR;
     }
@@ -62,45 +62,45 @@ xrootd_pending_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 
 /**
  * WHAT: Configure the pending-locate shared-memory zone during nginx startup.
- * WHY: Creates a dedicated SHM region named "xrootd_pending_locate" that stores
- *      up to XROOTD_PENDING_LOCATE_SLOTS (32) in-flight kXR_locate entries. Each
+ * WHY: Creates a dedicated SHM region named "brix_pending_locate" that stores
+ *      up to BRIX_PENDING_LOCATE_SLOTS (32) in-flight kXR_locate entries. Each
  *      entry tracks a worker's locate request until the CMS manager responds with
  *      a redirect host/port via kXR_select.
- * HOW: Adds a shared memory zone sized via xrootd_shm_zone_size() so the table
+ * HOW: Adds a shared memory zone sized via brix_shm_zone_size() so the table
  *      can be slab-allocated alongside the slab-pool header (see
- *      xrootd_pending_shm_init_zone), registers xrootd_pending_shm_init_zone as
+ *      brix_pending_shm_init_zone), registers brix_pending_shm_init_zone as
  *      the init callback (called after allocation), and sets data=(void *) 1 as
  *      an initialization sentinel so accessors know the zone is not yet ready.
  *      Returns NGX_OK or NGX_ERROR.
  */
 ngx_int_t
-xrootd_pending_configure(ngx_conf_t *cf)
+brix_pending_configure(ngx_conf_t *cf)
 {
-    ngx_str_t  zone_name = ngx_string("xrootd_pending_locate");
+    ngx_str_t  zone_name = ngx_string("brix_pending_locate");
     size_t     zone_size;
 
-    zone_size = xrootd_shm_zone_size(sizeof(xrootd_pending_table_t));
+    zone_size = brix_shm_zone_size(sizeof(brix_pending_table_t));
 
-    xrootd_pending_shm_zone = ngx_shared_memory_add(cf, &zone_name,
+    brix_pending_shm_zone = ngx_shared_memory_add(cf, &zone_name,
                                                       zone_size,
-                                                      &ngx_stream_xrootd_module);
-    if (xrootd_pending_shm_zone == NULL) {
+                                                      &ngx_stream_brix_module);
+    if (brix_pending_shm_zone == NULL) {
         return NGX_ERROR;
     }
 
-    xrootd_pending_shm_zone->init = xrootd_pending_shm_init_zone;
-    xrootd_pending_shm_zone->data = (void *) 1;
+    brix_pending_shm_zone->init = brix_pending_shm_init_zone;
+    brix_pending_shm_zone->data = (void *) 1;
 
     return NGX_OK;
 }
 
 ngx_int_t
-xrootd_pending_insert(uint32_t streamid, ngx_pid_t worker_pid,
+brix_pending_insert(uint32_t streamid, ngx_pid_t worker_pid,
     int conn_fd, ngx_atomic_uint_t conn_number,
     const u_char client_streamid[2], ngx_msec_t timeout_ms)
 {
-    xrootd_pending_table_t   *tbl;
-    xrootd_pending_locate_t  *slot;
+    brix_pending_table_t   *tbl;
+    brix_pending_locate_t  *slot;
     ngx_uint_t                i, free_slot;
 
     tbl = pending_table();
@@ -108,30 +108,30 @@ xrootd_pending_insert(uint32_t streamid, ngx_pid_t worker_pid,
         return NGX_ERROR;
     }
 
-    ngx_shmtx_lock(&xrootd_pending_mutex);
+    ngx_shmtx_lock(&brix_pending_mutex);
 
-    free_slot = XROOTD_PENDING_LOCATE_SLOTS;  /* sentinel: none found yet */
+    free_slot = BRIX_PENDING_LOCATE_SLOTS;  /* sentinel: none found yet */
 
-    for (i = 0; i < XROOTD_PENDING_LOCATE_SLOTS; i++) {
+    for (i = 0; i < BRIX_PENDING_LOCATE_SLOTS; i++) {
         slot = &tbl->slots[i];
 
         if (!slot->in_use) {
-            xrootd_shm_remember_free_slot(&free_slot,
-                                          XROOTD_PENDING_LOCATE_SLOTS, i);
+            brix_shm_remember_free_slot(&free_slot,
+                                          BRIX_PENDING_LOCATE_SLOTS, i);
             continue;
         }
 
         /* Reap expired slots so they can be reused. */
-        if (xrootd_shm_slot_expired(ngx_current_msec, slot->expires)) {
+        if (brix_shm_slot_expired(ngx_current_msec, slot->expires)) {
             slot->in_use = 0;
-            xrootd_shm_remember_free_slot(&free_slot,
-                                          XROOTD_PENDING_LOCATE_SLOTS, i);
+            brix_shm_remember_free_slot(&free_slot,
+                                          BRIX_PENDING_LOCATE_SLOTS, i);
             continue;
         }
     }
 
-    if (free_slot == XROOTD_PENDING_LOCATE_SLOTS) {
-        ngx_shmtx_unlock(&xrootd_pending_mutex);
+    if (free_slot == BRIX_PENDING_LOCATE_SLOTS) {
+        ngx_shmtx_unlock(&brix_pending_mutex);
         return NGX_AGAIN;  /* table full */
     }
 
@@ -152,15 +152,15 @@ xrootd_pending_insert(uint32_t streamid, ngx_pid_t worker_pid,
     slot->redir_port  = 0;
     slot->in_use      = 1;
 
-    ngx_shmtx_unlock(&xrootd_pending_mutex);
+    ngx_shmtx_unlock(&brix_pending_mutex);
     return NGX_OK;
 }
 
-xrootd_pending_locate_t *
-xrootd_pending_lookup(uint32_t streamid, ngx_pid_t worker_pid)
+brix_pending_locate_t *
+brix_pending_lookup(uint32_t streamid, ngx_pid_t worker_pid)
 {
-    xrootd_pending_table_t   *tbl;
-    xrootd_pending_locate_t  *slot;
+    brix_pending_table_t   *tbl;
+    brix_pending_locate_t  *slot;
     ngx_uint_t                i;
 
     tbl = pending_table();
@@ -168,34 +168,34 @@ xrootd_pending_lookup(uint32_t streamid, ngx_pid_t worker_pid)
         return NULL;
     }
 
-    ngx_shmtx_lock(&xrootd_pending_mutex);
+    ngx_shmtx_lock(&brix_pending_mutex);
 
-    for (i = 0; i < XROOTD_PENDING_LOCATE_SLOTS; i++) {
+    for (i = 0; i < BRIX_PENDING_LOCATE_SLOTS; i++) {
         slot = &tbl->slots[i];
         if (slot->in_use
             && slot->streamid == streamid
             && slot->worker_pid == worker_pid)
         {
-            /* Caller must call xrootd_pending_unlock() after reading. */
+            /* Caller must call brix_pending_unlock() after reading. */
             return slot;
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_pending_mutex);
+    ngx_shmtx_unlock(&brix_pending_mutex);
     return NULL;
 }
 
 void
-xrootd_pending_unlock(void)
+brix_pending_unlock(void)
 {
-    ngx_shmtx_unlock(&xrootd_pending_mutex);
+    ngx_shmtx_unlock(&brix_pending_mutex);
 }
 
 ngx_uint_t
-xrootd_pending_reap_expired(void)
+brix_pending_reap_expired(void)
 {
-    xrootd_pending_table_t   *tbl;
-    xrootd_pending_locate_t  *slot;
+    brix_pending_table_t   *tbl;
+    brix_pending_locate_t  *slot;
     ngx_uint_t                i, reaped = 0;
 
     tbl = pending_table();
@@ -203,25 +203,25 @@ xrootd_pending_reap_expired(void)
         return 0;
     }
 
-    ngx_shmtx_lock(&xrootd_pending_mutex);
-    for (i = 0; i < XROOTD_PENDING_LOCATE_SLOTS; i++) {
+    ngx_shmtx_lock(&brix_pending_mutex);
+    for (i = 0; i < BRIX_PENDING_LOCATE_SLOTS; i++) {
         slot = &tbl->slots[i];
         if (slot->in_use
-            && xrootd_shm_slot_expired(ngx_current_msec, slot->expires))
+            && brix_shm_slot_expired(ngx_current_msec, slot->expires))
         {
             slot->in_use = 0;          /* A4: reclaim an abandoned locate slot */
             reaped++;
         }
     }
-    ngx_shmtx_unlock(&xrootd_pending_mutex);
+    ngx_shmtx_unlock(&brix_pending_mutex);
     return reaped;
 }
 
 void
-xrootd_pending_remove(uint32_t streamid, ngx_pid_t worker_pid)
+brix_pending_remove(uint32_t streamid, ngx_pid_t worker_pid)
 {
-    xrootd_pending_table_t   *tbl;
-    xrootd_pending_locate_t  *slot;
+    brix_pending_table_t   *tbl;
+    brix_pending_locate_t  *slot;
     ngx_uint_t                i;
 
     tbl = pending_table();
@@ -229,9 +229,9 @@ xrootd_pending_remove(uint32_t streamid, ngx_pid_t worker_pid)
         return;
     }
 
-    ngx_shmtx_lock(&xrootd_pending_mutex);
+    ngx_shmtx_lock(&brix_pending_mutex);
 
-    for (i = 0; i < XROOTD_PENDING_LOCATE_SLOTS; i++) {
+    for (i = 0; i < BRIX_PENDING_LOCATE_SLOTS; i++) {
         slot = &tbl->slots[i];
         if (slot->in_use
             && slot->streamid == streamid
@@ -242,5 +242,5 @@ xrootd_pending_remove(uint32_t streamid, ngx_pid_t worker_pid)
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_pending_mutex);
+    ngx_shmtx_unlock(&brix_pending_mutex);
 }

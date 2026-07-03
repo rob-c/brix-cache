@@ -140,7 +140,7 @@ def _handle_auth(conn):
     """kXR_authmore challenge → accept credential → kXR_redirect.
 
     Writes received credential bytes to RECEIVED_CRED so tests can verify
-    nginx sent the correct token from its xrootd_upstream_token_file.
+    nginx sent the correct token from its brix_upstream_token_file.
     """
     _recv_exact(conn, 20)
     conn.sendall(struct.pack(">2sHI", b"\x00\x00", kXR_ok, 8))

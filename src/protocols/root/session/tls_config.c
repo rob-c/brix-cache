@@ -3,7 +3,7 @@
 
 /*
  * WHAT: This file configures the SSL context for in-protocol TLS upgrade. When
- *       xrootd_tls is enabled, clients can request kXR_wantTLS after login and
+ *       brix_tls is enabled, clients can request kXR_wantTLS after login and
  *       the server upgrades the raw TCP connection to TLS using the configured
  *       certificate/key pair. This allows "roots://" style communication without
  *       requiring a separate TLS listener port.
@@ -39,9 +39,9 @@
  *
  * HOW: Check ocsp_staple_data/len → if present, OPENSSL_malloc copy → SSL_set_tlsext_status_ocsp_resp(ssl, copy, len) → return SSL_TLSEXT_ERR_OK; if absent or allocation fails, return SSL_TLSEXT_ERR_NOACK. */
 static int
-xrootd_ocsp_stapling_cb(SSL *ssl, void *arg)
+brix_ocsp_stapling_cb(SSL *ssl, void *arg)
 {
-    ngx_stream_xrootd_srv_conf_t *xcf = arg;
+    ngx_stream_brix_srv_conf_t *xcf = arg;
 
     if (xcf->ocsp_staple_data == NULL || xcf->ocsp_staple_len == 0) {
         return SSL_TLSEXT_ERR_NOACK;
@@ -59,7 +59,7 @@ xrootd_ocsp_stapling_cb(SSL *ssl, void *arg)
 }
 
 ngx_int_t
-xrootd_configure_tls(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
+brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
     if (!xcf->tls) {
         return NGX_OK;
@@ -67,8 +67,8 @@ xrootd_configure_tls(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
 
     if (xcf->certificate.len == 0 || xcf->certificate_key.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_tls requires xrootd_certificate and "
-            "xrootd_certificate_key");
+            "brix_tls requires brix_certificate and "
+            "brix_certificate_key");
         return NGX_ERROR;
     }
 
@@ -108,13 +108,13 @@ xrootd_configure_tls(ngx_conf_t *cf, ngx_stream_xrootd_srv_conf_t *xcf)
         SSL_CTX_set_options(xcf->tls_ctx->ctx, SSL_OP_ENABLE_KTLS);
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
             "xrootd: kernel-TLS (kTLS) send offload enabled for TLS context "
-            "(xrootd_ktls on) - only beneficial with HW TLS-offload NICs");
+            "(brix_ktls on) - only beneficial with HW TLS-offload NICs");
     }
 #endif
 
     /* Register OCSP stapling callback if stapling is configured */
     if (xcf->ocsp_stapling) {
-        SSL_CTX_set_tlsext_status_cb(xcf->tls_ctx->ctx, xrootd_ocsp_stapling_cb);
+        SSL_CTX_set_tlsext_status_cb(xcf->tls_ctx->ctx, brix_ocsp_stapling_cb);
         SSL_CTX_set_tlsext_status_arg(xcf->tls_ctx->ctx, xcf);
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
             "xrootd: OCSP stapling enabled for TLS context");

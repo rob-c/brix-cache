@@ -20,8 +20,8 @@
  *       expiry, over-long field) so a tampered keytab is rejected, never
  *       silently truncated.
  */
-#ifndef XROOTD_SSS_KEYTAB_KERNEL_H
-#define XROOTD_SSS_KEYTAB_KERNEL_H
+#ifndef BRIX_SSS_KEYTAB_KERNEL_H
+#define BRIX_SSS_KEYTAB_KERNEL_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -29,7 +29,7 @@
 
 /*
  * Field caps for the neutral entry. These match both consumers' key structs
- * (xrootd_sss_key_t in src/types/config.h and xrdc_sss_key in
+ * (brix_sss_key_t in src/types/config.h and xrdc_sss_key in
  * client/lib/sss_keytab.h); each consumer copies out with its own bounded copy,
  * so a future size change there only ever truncates safely.
  */
@@ -70,4 +70,4 @@ int sss_keytab_parse_line(char *line, sss_keytab_entry_t *out, int64_t now);
  */
 int sss_keytab_mode_ok(const char *path, mode_t mode, int allow_dotgrp);
 
-#endif /* XROOTD_SSS_KEYTAB_KERNEL_H */
+#endif /* BRIX_SSS_KEYTAB_KERNEL_H */

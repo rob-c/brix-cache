@@ -1,8 +1,8 @@
 """phase-57 §F5 gate: native root:// TPC PULL where the DESTINATION upgrades the
 pull connection to TLS (kXR_gotoTLS) before authenticating and reading.
 
-The source nginx requires in-protocol TLS (xrootd_tls on + a CA-signed host cert);
-the destination nginx has xrootd_tpc_outbound_tls on, so it advertises kXR_ableTLS,
+The source nginx requires in-protocol TLS (brix_tls on + a CA-signed host cert);
+the destination nginx has brix_tpc_outbound_tls on, so it advertises kXR_ableTLS,
 receives kXR_gotoTLS, performs a blocking SSL_connect over the pull fd, and runs the
 whole login/open/read sequence over TLS. The file must arrive byte-exact.
 
@@ -84,12 +84,12 @@ def tls_nginx(tmp_path_factory):
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
         f"    listen {SRC};\n    xrootd on;\n"
-        f"    xrootd_storage_backend posix:{sdata};\n    xrootd_auth none;\n"
-        "    xrootd_tls on;\n"
-        f"    xrootd_certificate {srv / 'hostcert.pem'};\n"
-        f"    xrootd_certificate_key {srv / 'hostkey.pem'};\n"
-        f"    xrootd_trusted_ca {certs};\n"
-        f"    xrootd_access_log {base}/src-acc.log;\n  }}\n}}\n")
+        f"    brix_storage_backend posix:{sdata};\n    brix_auth none;\n"
+        "    brix_tls on;\n"
+        f"    brix_certificate {srv / 'hostcert.pem'};\n"
+        f"    brix_certificate_key {srv / 'hostkey.pem'};\n"
+        f"    brix_trusted_ca {certs};\n"
+        f"    brix_access_log {base}/src-acc.log;\n  }}\n}}\n")
 
     dst_cfg = base / "dst.conf"
     dst_cfg.write_text(
@@ -99,12 +99,12 @@ def tls_nginx(tmp_path_factory):
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
         f"    listen 127.0.0.1:{DST};\n    xrootd on;\n"
-        f"    xrootd_storage_backend posix:{ddata};\n    xrootd_auth none;\n"
-        "    xrootd_allow_write on;\n"
-        "    xrootd_tpc_allow_local on;\n    xrootd_tpc_allow_private on;\n"
-        "    xrootd_tpc_outbound_tls on;\n"
-        f"    xrootd_trusted_ca {certs};\n"
-        f"    xrootd_access_log {base}/dst-acc.log;\n  }}\n}}\n")
+        f"    brix_storage_backend posix:{ddata};\n    brix_auth none;\n"
+        "    brix_allow_write on;\n"
+        "    brix_tpc_allow_local on;\n    brix_tpc_allow_private on;\n"
+        "    brix_tpc_outbound_tls on;\n"
+        f"    brix_trusted_ca {certs};\n"
+        f"    brix_access_log {base}/dst-acc.log;\n  }}\n}}\n")
 
     for port in (SRC, DST):
         _run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"])

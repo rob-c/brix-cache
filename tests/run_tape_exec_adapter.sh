@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # run_tape_exec_adapter.sh — phase-64 SP5: the "exec" MSS adapter (real HSM model).
-# sd_frm shells out to $XROOTD_FRM_STAGECMD <verb> <key> <online> for residency
+# sd_frm shells out to $BRIX_FRM_STAGECMD <verb> <key> <online> for residency
 # (exists), recall (async-submit), and migrate. Here the stagecmd is a test script
 # backed by a local "tape" dir; recall backgrounds the copy (returns at once), so the
 # open parks → 202 → poll → 200. Proves a real operator stagecmd drives the tier.
@@ -25,13 +25,13 @@ SC
 chmod +x "$PFX/stagecmd.sh"
 cat > "$PFX/nginx.conf" <<E2
 daemon on; error_log $PFX/logs/e.log info; pid $PFX/nginx.pid;
-env XROOTD_FRM_STAGECMD=$PFX/stagecmd.sh;
+env BRIX_FRM_STAGECMD=$PFX/stagecmd.sh;
 thread_pool default threads=2;
 events { worker_connections 64; }
 http { client_body_temp_path $PFX/tmp; server { listen 127.0.0.1:${BPORT};
-  location / { xrootd_webdav on; xrootd_webdav_root $PFX/export; xrootd_webdav_auth none;
-    xrootd_webdav_storage_backend tape://exec${PFX}/online;
-    xrootd_webdav_cache_store posix:${PFX}/cache; } } }
+  location / { brix_webdav on; brix_webdav_root $PFX/export; brix_webdav_auth none;
+    brix_webdav_storage_backend tape://exec${PFX}/online;
+    brix_webdav_cache_store posix:${PFX}/cache; } } }
 E2
 # Seed an offline object on the REAL tape (the stagecmd's domain), keyed "f.bin"
 head -c 480000 /dev/urandom > "$PFX/realtape/f.bin"; SHA=$(sha256sum "$PFX/realtape/f.bin"|cut -d' ' -f1)

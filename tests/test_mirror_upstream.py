@@ -44,7 +44,7 @@ from settings import SERVER_HOST, HOST, free_port
 pytestmark = [pytest.mark.serial]
 
 NGINX_BIN  = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
-XROOTD_BIN = os.environ.get("TEST_XROOTD_BIN", "/usr/bin/xrootd")
+BRIX_BIN = os.environ.get("TEST_BRIX_BIN", "/usr/bin/xrootd")
 H = SERVER_HOST
 _DIR = os.path.join(os.environ["TMPDIR"], "xrd_mirror_upstream")
 
@@ -102,7 +102,7 @@ def _start_xrootd(name, port, data_dir, checksum):
             f"all.adminpath {os.path.join(base, 'admin')}\n"
             f"all.pidpath {os.path.join(base, 'run')}\n"
             f"xrd.trace off\n")
-    subprocess.run([XROOTD_BIN, "-b", "-c", cfg,
+    subprocess.run([BRIX_BIN, "-b", "-c", cfg,
                     "-l", os.path.join(base, "xrootd.log")],
                    capture_output=True)
     return cfg
@@ -114,8 +114,8 @@ def _stop_xrootd(cfg):
 
 def _front_conf(name, port, data_dir, upstream_port, opcode_line=""):
     """Build a mirror-front nginx config.  opcode_line is an optional extra
-    directive line (e.g. 'xrootd_mirror_exclude_opcodes stat;' or
-    'xrootd_mirror_opcodes dirlist;').  When empty, the front uses the DEFAULT —
+    directive line (e.g. 'brix_mirror_exclude_opcodes stat;' or
+    'brix_mirror_opcodes dirlist;').  When empty, the front uses the DEFAULT —
     mirror ALL ops."""
     base = os.path.join(_DIR, name)
     _mkdirs(os.path.join(base, "logs"))
@@ -130,11 +130,11 @@ def _front_conf(name, port, data_dir, upstream_port, opcode_line=""):
             f"stream {{\n"
             f"    server {{\n"
             f"        listen 0.0.0.0:{port};\n"
-            f"        xrootd on; xrootd_storage_backend posix:{data_dir}; xrootd_auth none;\n"
-            f"        xrootd_allow_write on;\n"
-            f"        xrootd_stream_mirror_url {HOST}:{upstream_port};\n"
+            f"        xrootd on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
+            f"        brix_allow_write on;\n"
+            f"        brix_stream_mirror_url {HOST}:{upstream_port};\n"
             f"{extra}"
-            f"        xrootd_mirror_log_diverge on;\n"
+            f"        brix_mirror_log_diverge on;\n"
             f"    }}\n"
             f"}}\n")
     return conf
@@ -174,8 +174,8 @@ def _divergences_since(log_path, offset):
 def stack():
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if not os.path.exists(XROOTD_BIN):
-        pytest.skip(f"official xrootd binary not found at {XROOTD_BIN}")
+    if not os.path.exists(BRIX_BIN):
+        pytest.skip(f"official xrootd binary not found at {BRIX_BIN}")
 
     front_data = os.path.join(_DIR, "front_data")
     up_data    = os.path.join(_DIR, "up_data")
@@ -327,7 +327,7 @@ class TestMirrorGracefulUnsupported:
         """Mirroring Qcksum to an upstream xrootd with NO checksum configured
         must NOT be flagged as a divergence — the mirror 'just works' even when
         the official server supports fewer features than nginx."""
-        if not os.path.exists(NGINX_BIN) or not os.path.exists(XROOTD_BIN):
+        if not os.path.exists(NGINX_BIN) or not os.path.exists(BRIX_BIN):
             pytest.skip("nginx or xrootd binary missing")
 
         front_data = os.path.join(_DIR, "front_bare_data")
@@ -438,9 +438,9 @@ class TestMirrorOpcodeSelection:
         assert _diverges_for(url, log, _OP_QUERY),   "query not mirrored by default"
 
     def test_exclude_one_op_disables_only_it(self, front_factory):
-        """xrootd_mirror_exclude_opcodes stat -> stat is NOT mirrored; the rest
+        """brix_mirror_exclude_opcodes stat -> stat is NOT mirrored; the rest
         (dirlist, query) still are."""
-        url, log = front_factory("xrootd_mirror_exclude_opcodes stat;")
+        url, log = front_factory("brix_mirror_exclude_opcodes stat;")
         assert not _diverges_for(url, log, _OP_STAT), \
             "excluded stat should NOT be mirrored"
         assert _diverges_for(url, log, _OP_DIRLIST), \
@@ -450,15 +450,15 @@ class TestMirrorOpcodeSelection:
 
     def test_exclude_multiple_ops(self, front_factory):
         """Several ops can be de-selected at once; unlisted ops still mirror."""
-        url, log = front_factory("xrootd_mirror_exclude_opcodes dirlist query;")
+        url, log = front_factory("brix_mirror_exclude_opcodes dirlist query;")
         assert not _diverges_for(url, log, _OP_DIRLIST), "dirlist should be excluded"
         assert not _diverges_for(url, log, _OP_QUERY),   "query should be excluded"
         assert _diverges_for(url, log, _OP_STAT), "stat should still be mirrored"
 
     def test_allowlist_restricts_to_listed_only(self, front_factory):
-        """xrootd_mirror_opcodes dirlist -> ONLY dirlist is mirrored (the
+        """brix_mirror_opcodes dirlist -> ONLY dirlist is mirrored (the
         explicit-allowlist form still works and overrides the default-all)."""
-        url, log = front_factory("xrootd_mirror_opcodes dirlist;")
+        url, log = front_factory("brix_mirror_opcodes dirlist;")
         assert _diverges_for(url, log, _OP_DIRLIST), "allowlisted dirlist must mirror"
         assert not _diverges_for(url, log, _OP_STAT),  "non-listed stat must not mirror"
         assert not _diverges_for(url, log, _OP_QUERY), "non-listed query must not mirror"

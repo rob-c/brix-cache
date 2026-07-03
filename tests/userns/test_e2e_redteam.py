@@ -1,6 +1,6 @@
 """test_e2e_redteam.py — full-stack privilege-escalation red-team for phase-40.
 
-Boots the REAL nginx binary with `xrootd_impersonation map` inside an unprivileged
+Boots the REAL nginx binary with `brix_impersonation map` inside an unprivileged
 user namespace and drives it with token-authenticated WebDAV requests as many
 identities, trying to break the permissions model (escalate to root/service/low
 uid, join a forbidden group, impersonate an unmapped user, escape confinement,

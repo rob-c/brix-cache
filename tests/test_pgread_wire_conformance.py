@@ -87,7 +87,7 @@ PATTERN   = bytes((i * 31 + 7) & 0xFF for i in range(DATA_SIZE))
 
 
 # ---------------------------------------------------------------------------
-# CRC32c (Castagnoli) — pure-Python, matches xrootd_crc32c_copy()
+# CRC32c (Castagnoli) — pure-Python, matches brix_crc32c_copy()
 # ---------------------------------------------------------------------------
 
 _CRC32C_POLY = 0x82F63B78  # reflected 0x1EDC6F41

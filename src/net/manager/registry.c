@@ -4,31 +4,31 @@
  */
 #include "registry_internal.h"
 
-ngx_shm_zone_t *xrootd_srv_shm_zone;
-ngx_shmtx_t   xrootd_srv_mutex;
+ngx_shm_zone_t *brix_srv_shm_zone;
+ngx_shmtx_t   brix_srv_mutex;
 
-ngx_uint_t    xrootd_srv_registry_nslots = XROOTD_SRV_REGISTRY_SLOTS;
+ngx_uint_t    brix_srv_registry_nslots = BRIX_SRV_REGISTRY_SLOTS;
 
-ngx_msec_t    xrootd_srv_stale_after_ms;
+ngx_msec_t    brix_srv_stale_after_ms;
 
 
 void
-xrootd_srv_set_stale_after(ngx_msec_t ms)
+brix_srv_set_stale_after(ngx_msec_t ms)
 {
-    xrootd_srv_stale_after_ms = ms;
+    brix_srv_stale_after_ms = ms;
 }
 
 
-xrootd_srv_table_t *
+brix_srv_table_t *
 srv_table(void)
 {
-    if (xrootd_srv_shm_zone == NULL
-        || xrootd_srv_shm_zone->data == NULL
-        || xrootd_srv_shm_zone->data == (void *) 1)
+    if (brix_srv_shm_zone == NULL
+        || brix_srv_shm_zone->data == NULL
+        || brix_srv_shm_zone->data == (void *) 1)
     {
         return NULL;
     }
-    return (xrootd_srv_table_t *) xrootd_srv_shm_zone->data;
+    return (brix_srv_table_t *) brix_srv_shm_zone->data;
 }
 
 
@@ -43,7 +43,7 @@ srv_table(void)
  * existing table structure.
 
  * HOW
- * Delegates fresh-alloc / reload / re-attach to xrootd_shm_table_alloc(), which
+ * Delegates fresh-alloc / reload / re-attach to brix_shm_table_alloc(), which
  * allocates the table FROM the slab pool so nginx's slab-pool header survives at
  * shm.addr (ngx_unlock_mutexes() force-unlocks that header on every child death;
  * laying our own struct over it would SIGSEGV the master). The helper zero-fills
@@ -52,24 +52,24 @@ srv_table(void)
  * to preserve the live table state.
  */
 ngx_int_t
-xrootd_srv_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
+brix_srv_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
 {
-    xrootd_srv_table_t *tbl;
+    brix_srv_table_t *tbl;
     ngx_flag_t          fresh;
     size_t              table_bytes;
 
-    table_bytes = sizeof(xrootd_srv_table_t)
-                + (size_t) xrootd_srv_registry_nslots
-                  * sizeof(xrootd_srv_entry_t);
+    table_bytes = sizeof(brix_srv_table_t)
+                + (size_t) brix_srv_registry_nslots
+                  * sizeof(brix_srv_entry_t);
 
-    tbl = xrootd_shm_table_alloc(shm_zone, data, table_bytes,
-                                 &xrootd_srv_mutex, &fresh);
+    tbl = brix_shm_table_alloc(shm_zone, data, table_bytes,
+                                 &brix_srv_mutex, &fresh);
     if (tbl == NULL) {
         return NGX_ERROR;
     }
 
     if (fresh) {
-        tbl->capacity = xrootd_srv_registry_nslots;
+        tbl->capacity = brix_srv_registry_nslots;
     }
 
     return NGX_OK;
@@ -82,37 +82,37 @@ xrootd_srv_shm_init_zone(ngx_shm_zone_t *shm_zone, void *data)
  * based on the configured slot count.
 
  * WHY
- * Called during nginx configuration parsing (xrootd_registry_slots directive).
+ * Called during nginx configuration parsing (brix_registry_slots directive).
  * Must happen before any traffic so that workers can find the zone at startup.
 
  * HOW
- * Sets xrootd_srv_registry_nslots to the requested value, computes zone size
- * via xrootd_shm_zone_size(table_bytes) — the table is allocated FROM the slab
+ * Sets brix_srv_registry_nslots to the requested value, computes zone size
+ * via brix_shm_zone_size(table_bytes) — the table is allocated FROM the slab
  * pool, so the zone must hold the table plus slab overhead — adds the zone via
  * ngx_shared_memory_add(), sets init callback and (void *)1 sentinel data.
  */
 ngx_int_t
-xrootd_srv_configure_registry(ngx_conf_t *cf, ngx_uint_t slots)
+brix_srv_configure_registry(ngx_conf_t *cf, ngx_uint_t slots)
 {
-    ngx_str_t  zone_name = ngx_string("xrootd_srv_registry");
+    ngx_str_t  zone_name = ngx_string("brix_srv_registry");
     size_t     zone_size;
 
-    xrootd_srv_registry_nslots = slots;
-    zone_size = xrootd_shm_zone_size(
-                    sizeof(xrootd_srv_table_t)
-                  + (size_t) slots * sizeof(xrootd_srv_entry_t));
-    xrootd_srv_shm_zone = ngx_shared_memory_add(cf, &zone_name,
+    brix_srv_registry_nslots = slots;
+    zone_size = brix_shm_zone_size(
+                    sizeof(brix_srv_table_t)
+                  + (size_t) slots * sizeof(brix_srv_entry_t));
+    brix_srv_shm_zone = ngx_shared_memory_add(cf, &zone_name,
                                                   zone_size,
-                                                  &ngx_stream_xrootd_module);
-    if (xrootd_srv_shm_zone == NULL) {
+                                                  &ngx_stream_brix_module);
+    if (brix_srv_shm_zone == NULL) {
         return NGX_ERROR;
     }
 
-    xrootd_shm_zone_warn_on_resize(cf, xrootd_srv_shm_zone,
-                                   "xrootd_registry_slots");
+    brix_shm_zone_warn_on_resize(cf, brix_srv_shm_zone,
+                                   "brix_registry_slots");
 
-    xrootd_srv_shm_zone->init = xrootd_srv_shm_init_zone;
-    xrootd_srv_shm_zone->data = (void *) 1;
+    brix_srv_shm_zone->init = brix_srv_shm_init_zone;
+    brix_srv_shm_zone->data = (void *) 1;
 
     return NGX_OK;
 }
@@ -135,11 +135,11 @@ xrootd_srv_configure_registry(ngx_conf_t *cf, ngx_uint_t slots)
  * and increment registry_full_total Prometheus counter.
  */
 void
-xrootd_srv_register(const char *host, uint16_t port,
+brix_srv_register(const char *host, uint16_t port,
     const char *paths, uint32_t free_mb, uint32_t util_pct)
 {
-    xrootd_srv_table_t *tbl;
-    xrootd_srv_entry_t *e;
+    brix_srv_table_t *tbl;
+    brix_srv_entry_t *e;
     ngx_uint_t          i, free_slot;
     int                 found;
 
@@ -151,19 +151,19 @@ xrootd_srv_register(const char *host, uint16_t port,
     /*
      * W1c — reject any host string that is not a clean hostname / IP literal
      * before it can enter the registry.  This is the single store choke point,
-     * so it also protects every redirect-emit path (xrootd_srv_select /
-     * xrootd_srv_locate_all) from control-byte or scheme injection into the
+     * so it also protects every redirect-emit path (brix_srv_select /
+     * brix_srv_locate_all) from control-byte or scheme injection into the
      * "S<r|w>host:port" string a client parses.  Registry hosts are normally
      * the peer IP from ngx_sock_ntop, so a rejection here means a poisoned or
      * malformed registration attempt.
      */
-    if (host == NULL || !xrootd_net_host_chars_valid(host, ngx_strlen(host))) {
+    if (host == NULL || !brix_net_host_chars_valid(host, ngx_strlen(host))) {
         ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
                       "xrootd: rejected registration with invalid host string");
         return;
     }
 
-    ngx_shmtx_lock(&xrootd_srv_mutex);
+    ngx_shmtx_lock(&brix_srv_mutex);
 
     free_slot = tbl->capacity;
     found = 0;
@@ -207,17 +207,17 @@ xrootd_srv_register(const char *host, uint16_t port,
         ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
                       "xrootd: server registry full (%ui slots); "
                       "dropping registration for %s:%ui "
-                      "(increase xrootd_registry_slots)",
+                      "(increase brix_registry_slots)",
                       tbl->capacity, host, (ngx_uint_t) port);
         {
-            ngx_xrootd_metrics_t *m = xrootd_metrics_shared();
+            ngx_brix_metrics_t *m = brix_metrics_shared();
             if (m != NULL) {
                 ngx_atomic_fetch_add(&m->registry_full_total, 1);
             }
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    ngx_shmtx_unlock(&brix_srv_mutex);
 }
 
 
@@ -235,11 +235,11 @@ xrootd_srv_register(const char *host, uint16_t port,
  * last_seen fields only (no path changes). Unlocks and returns.
  */
 void
-xrootd_srv_update_load(const char *host, uint16_t port,
+brix_srv_update_load(const char *host, uint16_t port,
     uint32_t free_mb, uint32_t util_pct)
 {
-    xrootd_srv_table_t *tbl;
-    xrootd_srv_entry_t *e;
+    brix_srv_table_t *tbl;
+    brix_srv_entry_t *e;
     ngx_uint_t          i;
 
     tbl = srv_table();
@@ -247,7 +247,7 @@ xrootd_srv_update_load(const char *host, uint16_t port,
         return;
     }
 
-    ngx_shmtx_lock(&xrootd_srv_mutex);
+    ngx_shmtx_lock(&brix_srv_mutex);
 
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
@@ -261,7 +261,7 @@ xrootd_srv_update_load(const char *host, uint16_t port,
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    ngx_shmtx_unlock(&brix_srv_mutex);
 }
 
 
@@ -279,10 +279,10 @@ xrootd_srv_update_load(const char *host, uint16_t port,
  * fields cleared, in_use=0). Unlocks and returns.
  */
 void
-xrootd_srv_unregister(const char *host, uint16_t port)
+brix_srv_unregister(const char *host, uint16_t port)
 {
-    xrootd_srv_table_t *tbl;
-    xrootd_srv_entry_t *e;
+    brix_srv_table_t *tbl;
+    brix_srv_entry_t *e;
     ngx_uint_t          i;
 
     tbl = srv_table();
@@ -290,7 +290,7 @@ xrootd_srv_unregister(const char *host, uint16_t port)
         return;
     }
 
-    ngx_shmtx_lock(&xrootd_srv_mutex);
+    ngx_shmtx_lock(&brix_srv_mutex);
 
     for (i = 0; i < tbl->capacity; i++) {
         e = &tbl->slots[i];
@@ -302,5 +302,5 @@ xrootd_srv_unregister(const char *host, uint16_t port)
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_srv_mutex);
+    ngx_shmtx_unlock(&brix_srv_mutex);
 }

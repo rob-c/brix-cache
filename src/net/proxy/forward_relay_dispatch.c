@@ -2,15 +2,15 @@
 #include "protocols/root/session/registry.h"
 
 /*
- * xrootd_proxy_tap_audit_sink — emit one JSON line per tapped frame to the
- * stable log. xrootd_proxy_tap_init — lazily set up the tap on first use: a log
+ * brix_proxy_tap_audit_sink — emit one JSON line per tapped frame to the
+ * stable log. brix_proxy_tap_init — lazily set up the tap on first use: a log
  * copy with the per-session handler/data cleared (the connection log's appender
  * dereferences session state that is torn down out from under a late event), and
  * the audit sink registered. Mirrors the Phase-3 relay's stable-log pattern.
  */
 void
-xrootd_proxy_tap_audit_sink(void *ctx, const xrootd_tap_frame_t *f,
-    xrootd_tap_dir_t dir, const u_char *payload, size_t payload_len)
+brix_proxy_tap_audit_sink(void *ctx, const brix_tap_frame_t *f,
+    brix_tap_dir_t dir, const u_char *payload, size_t payload_len)
 {
     ngx_log_t *log = ctx;
     char       line[1280];
@@ -18,13 +18,13 @@ xrootd_proxy_tap_audit_sink(void *ctx, const xrootd_tap_frame_t *f,
     (void) payload;
     (void) payload_len;
 
-    if (xrootd_tap_audit_format(f, dir, line, sizeof(line)) > 0) {
+    if (brix_tap_audit_format(f, dir, line, sizeof(line)) > 0) {
         ngx_log_error(NGX_LOG_INFO, log, 0, "xrootd tap: %s", line);
     }
 }
 
 void
-xrootd_proxy_tap_init(xrootd_proxy_ctx_t *proxy, ngx_connection_t *c)
+brix_proxy_tap_init(brix_proxy_ctx_t *proxy, ngx_connection_t *c)
 {
     if (proxy->tap_inited) {
         return;
@@ -34,7 +34,7 @@ xrootd_proxy_tap_init(xrootd_proxy_ctx_t *proxy, ngx_connection_t *c)
     proxy->tap_log.data    = NULL;
     proxy->tap_log.action  = NULL;
     ngx_memzero(&proxy->tap, sizeof(proxy->tap));
-    xrootd_tap_register_sink(&proxy->tap, xrootd_proxy_tap_audit_sink,
+    brix_tap_register_sink(&proxy->tap, brix_proxy_tap_audit_sink,
                              &proxy->tap_log);
     proxy->tap_inited = 1;
 }
@@ -45,22 +45,22 @@ xrootd_proxy_tap_init(xrootd_proxy_ctx_t *proxy, ngx_connection_t *c)
  * WHY: The transparent XRootD proxy must connect to the upstream server lazily (on first non-bootstrap request) rather than eagerly.
  *      Requests arriving before bootstrap completion are saved in proxy->saved_req and dispatched after bootstrap finishes via this function.
  *      Bound-secondary channels (kXR_bind) may carry read/readv requests for handles with no upstream mapping — a synthetic kXR_open is issued first.
- * HOW: Main entry xrootd_proxy_dispatch() creates proxy ctx on first call, connects to upstream lazily; saves pending requests during bootstrap state;
- *      forwards via xrootd_proxy_forward_request when idle. Dispatch pending (after bootstrap) checks bound-secondary lazy-open case then sets forwarding state and flushes request.
+ * HOW: Main entry brix_proxy_dispatch() creates proxy ctx on first call, connects to upstream lazily; saves pending requests during bootstrap state;
+ *      forwards via brix_proxy_forward_request when idle. Dispatch pending (after bootstrap) checks bound-secondary lazy-open case then sets forwarding state and flushes request.
  */
 
 /* deferred request dispatch (called after bootstrap completes) */
-/* public API: xrootd_proxy_dispatch_pending() — dispatch saved request after bootstrap * WHAT: Dispatch proxy->saved_req to upstream when bootstrap completion triggers this callback from events.c.
+/* public API: brix_proxy_dispatch_pending() — dispatch saved request after bootstrap * WHAT: Dispatch proxy->saved_req to upstream when bootstrap completion triggers this callback from events.c.
  * WHY: Bound-secondary channel lazy-open case: if a kXR_read/kXR_pgread/kXR_readv arrives for a handle with no upstream mapping,
- *      a synthetic kXR_open must be issued first via xrootd_proxy_lazy_open before the read request can proceed. */
+ *      a synthetic kXR_open must be issued first via brix_proxy_lazy_open before the read request can proceed. */
 
-/* public API: xrootd_proxy_dispatch() — main proxy entry point (lazy-connect) * WHAT: Main dispatch entry point for all post-login opcodes — lazy-initializes upstream connection on first call, queues requests during bootstrap, forwards when ready.
+/* public API: brix_proxy_dispatch() — main proxy entry point (lazy-connect) * WHAT: Main dispatch entry point for all post-login opcodes — lazy-initializes upstream connection on first call, queues requests during bootstrap, forwards when ready.
  * WHY: Transparent XRootD proxy must connect lazily to avoid unnecessary overhead; requests arriving before bootstrap are saved and deferred until bootstrap completes via events.c callback. */
 
 ngx_int_t
-xrootd_proxy_dispatch_pending(xrootd_proxy_ctx_t *proxy)
+brix_proxy_dispatch_pending(brix_proxy_ctx_t *proxy)
 {
-    xrootd_ctx_t     *ctx = proxy->client_ctx;
+    brix_ctx_t     *ctx = proxy->client_ctx;
     ngx_connection_t *c   = proxy->client_conn;
     u_char           *req = proxy->saved_req;
     size_t            len = proxy->saved_req_len;
@@ -83,11 +83,11 @@ xrootd_proxy_dispatch_pending(xrootd_proxy_ctx_t *proxy)
         } else if (reqid == kXR_readv && len > XRD_REQUEST_HDR_LEN + 4) {
             check_fh = (int)(unsigned char) req[XRD_REQUEST_HDR_LEN];
         }
-        if (check_fh >= 0 && check_fh < XROOTD_MAX_FILES
-            && proxy->fh_map[check_fh].upstream_fh == XROOTD_PROXY_FH_FREE)
+        if (check_fh >= 0 && check_fh < BRIX_MAX_FILES
+            && proxy->fh_map[check_fh].upstream_fh == BRIX_PROXY_FH_FREE)
         {
             proxy->saved_req = NULL; /* ownership to lazy_open */
-            return xrootd_proxy_lazy_open(proxy, ctx, c, check_fh, req, len);
+            return brix_proxy_lazy_open(proxy, ctx, c, check_fh, req, len);
         }
     }
 
@@ -102,11 +102,11 @@ xrootd_proxy_dispatch_pending(xrootd_proxy_ctx_t *proxy)
     proxy->saved_req       = NULL;  /* ownership transferred to wbuf */
 
     /* Tap: this is the first post-bootstrap request (e.g. the kXR_open), queued
-     * directly here rather than through xrootd_proxy_forward_request — emit it. */
+     * directly here rather than through brix_proxy_forward_request — emit it. */
     {
-        xrootd_tap_frame_t tf;
-        if (xrootd_tap_decode_request(req, len, &tf) > 0) {
-            xrootd_tap_emit(&proxy->tap, &tf, XROOTD_TAP_C2U, NULL, 0);
+        brix_tap_frame_t tf;
+        if (brix_tap_decode_request(req, len, &tf) > 0) {
+            brix_tap_emit(&proxy->tap, &tf, BRIX_TAP_C2U, NULL, 0);
         }
     }
 
@@ -120,15 +120,15 @@ xrootd_proxy_dispatch_pending(xrootd_proxy_ctx_t *proxy)
     proxy->resp_body     = NULL;
     proxy->resp_body_pos = 0;
 
-    if (xrootd_proxy_flush(proxy) == NGX_ERROR) {
-        xrootd_proxy_abort(proxy, "proxy: send deferred request failed");
+    if (brix_proxy_flush(proxy) == NGX_ERROR) {
+        brix_proxy_abort(proxy, "proxy: send deferred request failed");
         return NGX_ERROR;
     }
     if (proxy->wbuf_pos < proxy->wbuf_len) {
         return NGX_OK; /* write handler will complete the send */
     }
     if (ngx_handle_read_event(proxy->conn->read, 0) != NGX_OK) {
-        xrootd_proxy_abort(proxy, "proxy: read arm failed after deferred send");
+        brix_proxy_abort(proxy, "proxy: read arm failed after deferred send");
         return NGX_ERROR;
     }
     return NGX_OK;
@@ -136,10 +136,10 @@ xrootd_proxy_dispatch_pending(xrootd_proxy_ctx_t *proxy)
 
 /* main dispatch entry point */
 ngx_int_t
-xrootd_proxy_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
-                      ngx_stream_xrootd_srv_conf_t *conf)
+brix_proxy_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
+                      ngx_stream_brix_srv_conf_t *conf)
 {
-    xrootd_proxy_ctx_t *proxy;
+    brix_proxy_ctx_t *proxy;
     int                 i;
 
     /* lazy initialisation: connect to upstream on first dispatch */    if (ctx->proxy == NULL) {
@@ -152,27 +152,27 @@ xrootd_proxy_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
          * this connection has burned through its failure budget, stop retrying
          * and return a hard error instead of spawning another proxy.
          */
-        if (ctx->proxy_fail_count >= XROOTD_PROXY_MAX_CONN_FAILS) {
+        if (ctx->proxy_fail_count >= BRIX_PROXY_MAX_CONN_FAILS) {
             ngx_log_error(NGX_LOG_ERR, c->log, 0,
                           "xrootd proxy: %ui consecutive upstream failures on "
                           "this connection — failing request, not retrying",
                           ctx->proxy_fail_count);
-            return xrootd_send_error(ctx, c, kXR_IOError,
+            return brix_send_error(ctx, c, kXR_IOError,
                                      "proxy: upstream unavailable");
         }
 
-        proxy = ngx_pcalloc(c->pool, sizeof(xrootd_proxy_ctx_t));
+        proxy = ngx_pcalloc(c->pool, sizeof(brix_proxy_ctx_t));
         if (proxy == NULL) {
-            return xrootd_send_error(ctx, c, kXR_IOError,
+            return brix_send_error(ctx, c, kXR_IOError,
                                      "proxy: out of memory");
         }
-        for (i = 0; i < XROOTD_MAX_FILES; i++) {
-            proxy->fh_map[i].upstream_fh = XROOTD_PROXY_FH_FREE;
+        for (i = 0; i < BRIX_MAX_FILES; i++) {
+            proxy->fh_map[i].upstream_fh = BRIX_PROXY_FH_FREE;
         }
         proxy->client_ctx     = ctx;
         proxy->client_conn    = c;
         proxy->conf           = conf;
-        xrootd_proxy_tap_init(proxy, c);
+        brix_proxy_tap_init(proxy, c);
         proxy->fwd_local_fh   = -1;
         proxy->saved_local_fh = -1;
         proxy->reconnect_left = (int) conf->proxy_reconnect_attempts;
@@ -180,13 +180,13 @@ xrootd_proxy_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
         proxy->splice_pipe[1] = -1;
         ctx->proxy            = proxy;
 
-        if (xrootd_proxy_connect(proxy, c, conf) != NGX_OK) {
+        if (brix_proxy_connect(proxy, c, conf) != NGX_OK) {
             ctx->proxy = NULL;
             /* Count synchronous connect/selection failures too (e.g. all
              * upstreams down) so they are bounded by the same per-connection
              * budget as async bootstrap aborts. */
             ctx->proxy_fail_count++;
-            return xrootd_send_error(ctx, c, kXR_IOError,
+            return brix_send_error(ctx, c, kXR_IOError,
                                      "proxy: upstream connect failed");
         }
     }
@@ -199,7 +199,7 @@ xrootd_proxy_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         saved = ngx_alloc(total, c->log);
         if (saved == NULL) {
-            return xrootd_send_error(ctx, c, kXR_IOError,
+            return brix_send_error(ctx, c, kXR_IOError,
                                      "proxy: out of memory saving request");
         }
         ngx_memcpy(saved, ctx->hdr_buf, XRD_REQUEST_HDR_LEN);
@@ -212,11 +212,11 @@ xrootd_proxy_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         /* Pre-allocate a local fh for a deferred open */
         if (ctx->cur_reqid == kXR_open) {
-            int local_fh = xrootd_proxy_alloc_local_fh(proxy);
+            int local_fh = brix_proxy_alloc_local_fh(proxy);
             if (local_fh < 0) {
                 ngx_free(saved);
                 proxy->saved_req = NULL;
-                return xrootd_send_error(ctx, c, kXR_IOError,
+                return brix_send_error(ctx, c, kXR_IOError,
                                          "proxy: no free file handles");
             }
             proxy->fh_map[local_fh].upstream_fh = 255;  /* pending */
@@ -230,5 +230,5 @@ xrootd_proxy_dispatch(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return NGX_OK;
     }
 
-    /* upstream is ready: forward the request now */    return xrootd_proxy_forward_request(proxy, ctx, c);
+    /* upstream is ready: forward the request now */    return brix_proxy_forward_request(proxy, ctx, c);
 }

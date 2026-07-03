@@ -21,9 +21,9 @@
 /* The stock PODs are emitted verbatim; pin their layout at compile time so a
  * drift from XrdPfcInfo.hh (x86-64 native layout) cannot ship silently. */
 typedef char xmeta_store_size_check[
-    sizeof(xrootd_xmeta_stock_store_t) == 48 ? 1 : -1];
+    sizeof(brix_xmeta_stock_store_t) == 48 ? 1 : -1];
 typedef char xmeta_astat_size_check[
-    sizeof(xrootd_xmeta_astat_t) == 56 ? 1 : -1];
+    sizeof(brix_xmeta_astat_t) == 56 ? 1 : -1];
 
 /* ---- small helpers ------------------------------------------------------- */
 
@@ -66,18 +66,18 @@ xmeta_get(const uint8_t *buf, size_t len, size_t *off, void *dst, size_t n)
 /* ---- lifecycle ------------------------------------------------------------ */
 
 int
-xrootd_xmeta_init(xrootd_xmeta_t *m, int64_t file_size, int64_t buffer_size)
+brix_xmeta_init(brix_xmeta_t *m, int64_t file_size, int64_t buffer_size)
 {
     uint64_t nb;
 
     if (m == NULL || buffer_size <= 0 || file_size < 0) {
         errno = EINVAL;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
     nb = xmeta_nblocks(file_size, buffer_size);
-    if (nb > XROOTD_XMETA_MAX_BLOCKS) {
+    if (nb > BRIX_XMETA_MAX_BLOCKS) {
         errno = EFBIG;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
 
     memset(m, 0, sizeof(*m));
@@ -90,16 +90,16 @@ xrootd_xmeta_init(xrootd_xmeta_t *m, int64_t file_size, int64_t buffer_size)
     m->bitmap = calloc(1, xmeta_bitmap_len(nb) ? xmeta_bitmap_len(nb) : 1);
     m->blockcrc = calloc(nb ? (size_t) nb : 1, sizeof(uint32_t));
     if (m->bitmap == NULL || m->blockcrc == NULL) {
-        xrootd_xmeta_free(m);
+        brix_xmeta_free(m);
         errno = ENOMEM;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
     m->have_blockcrc = 1;
-    return XROOTD_XMETA_OK;
+    return BRIX_XMETA_OK;
 }
 
 void
-xrootd_xmeta_free(xrootd_xmeta_t *m)
+brix_xmeta_free(brix_xmeta_t *m)
 {
     if (m == NULL) {
         return;
@@ -113,7 +113,7 @@ xrootd_xmeta_free(xrootd_xmeta_t *m)
 /* ---- bitmap ops (stock cfiBIT order: bit i = byte i/8, 1 << i%8) --------- */
 
 void
-xrootd_xmeta_block_set(xrootd_xmeta_t *m, uint64_t i)
+brix_xmeta_block_set(brix_xmeta_t *m, uint64_t i)
 {
     if (m->bitmap != NULL && i < m->nblocks) {
         m->bitmap[i / 8] |= (uint8_t) (1u << (i % 8));
@@ -121,7 +121,7 @@ xrootd_xmeta_block_set(xrootd_xmeta_t *m, uint64_t i)
 }
 
 int
-xrootd_xmeta_block_test(const xrootd_xmeta_t *m, uint64_t i)
+brix_xmeta_block_test(const brix_xmeta_t *m, uint64_t i)
 {
     if (m->bitmap == NULL || i >= m->nblocks) {
         return 0;
@@ -130,12 +130,12 @@ xrootd_xmeta_block_test(const xrootd_xmeta_t *m, uint64_t i)
 }
 
 int
-xrootd_xmeta_complete(const xrootd_xmeta_t *m)
+brix_xmeta_complete(const brix_xmeta_t *m)
 {
     uint64_t i;
 
     for (i = 0; i < m->nblocks; i++) {
-        if (!xrootd_xmeta_block_test(m, i)) {
+        if (!brix_xmeta_block_test(m, i)) {
             return 0;
         }
     }
@@ -145,7 +145,7 @@ xrootd_xmeta_complete(const xrootd_xmeta_t *m)
 /* ---- DIGEST list ---------------------------------------------------------- */
 
 int
-xrootd_xmeta_digest_add(xrootd_xmeta_t *m, uint16_t alg, const void *val,
+brix_xmeta_digest_add(brix_xmeta_t *m, uint16_t alg, const void *val,
     uint16_t len)
 {
     size_t   need = 4 + (size_t) len;
@@ -153,12 +153,12 @@ xrootd_xmeta_digest_add(xrootd_xmeta_t *m, uint16_t alg, const void *val,
 
     if (m == NULL || (val == NULL && len != 0)) {
         errno = EINVAL;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
     grown = realloc(m->digests, m->digests_len + need);
     if (grown == NULL) {
         errno = ENOMEM;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
     m->digests = grown;
     memcpy(m->digests + m->digests_len, &alg, 2);
@@ -167,11 +167,11 @@ xrootd_xmeta_digest_add(xrootd_xmeta_t *m, uint16_t alg, const void *val,
         memcpy(m->digests + m->digests_len + 4, val, len);
     }
     m->digests_len += (uint32_t) need;
-    return XROOTD_XMETA_OK;
+    return BRIX_XMETA_OK;
 }
 
 int
-xrootd_xmeta_digest_set(xrootd_xmeta_t *m, uint16_t alg, const void *val,
+brix_xmeta_digest_set(brix_xmeta_t *m, uint16_t alg, const void *val,
     uint16_t len)
 {
     uint8_t *kept = NULL;
@@ -180,13 +180,13 @@ xrootd_xmeta_digest_set(xrootd_xmeta_t *m, uint16_t alg, const void *val,
 
     if (m == NULL) {
         errno = EINVAL;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
     if (m->digests != NULL) {
         kept = malloc(m->digests_len ? m->digests_len : 1);
         if (kept == NULL) {
             errno = ENOMEM;
-            return XROOTD_XMETA_ERR;
+            return BRIX_XMETA_ERR;
         }
         while (off + 4 <= m->digests_len) {
             uint16_t a, l;
@@ -211,18 +211,18 @@ xrootd_xmeta_digest_set(xrootd_xmeta_t *m, uint16_t alg, const void *val,
             m->digests_len = 0;
         }
     }
-    return xrootd_xmeta_digest_add(m, alg, val, len);
+    return brix_xmeta_digest_add(m, alg, val, len);
 }
 
 int
-xrootd_xmeta_digest_get(const xrootd_xmeta_t *m, uint32_t idx, uint16_t *alg,
+brix_xmeta_digest_get(const brix_xmeta_t *m, uint32_t idx, uint16_t *alg,
     const uint8_t **val, uint16_t *len)
 {
     size_t   off = 0;
     uint32_t i = 0;
 
     if (m == NULL || m->digests == NULL) {
-        return XROOTD_XMETA_FOREIGN;
+        return BRIX_XMETA_FOREIGN;
     }
     while (off + 4 <= m->digests_len) {
         uint16_t a, l;
@@ -230,18 +230,18 @@ xrootd_xmeta_digest_get(const xrootd_xmeta_t *m, uint32_t idx, uint16_t *alg,
         memcpy(&a, m->digests + off, 2);
         memcpy(&l, m->digests + off + 2, 2);
         if (off + 4 + l > m->digests_len) {
-            return XROOTD_XMETA_FOREIGN;            /* malformed payload */
+            return BRIX_XMETA_FOREIGN;            /* malformed payload */
         }
         if (i == idx) {
             *alg = a;
             *len = l;
             *val = m->digests + off + 4;
-            return XROOTD_XMETA_OK;
+            return BRIX_XMETA_OK;
         }
         off += 4 + (size_t) l;
         i++;
     }
-    return XROOTD_XMETA_FOREIGN;                    /* past the end */
+    return BRIX_XMETA_FOREIGN;                    /* past the end */
 }
 
 /* ---- STATE section wire layout (80 bytes) --------------------------------- */
@@ -282,18 +282,18 @@ xmeta_put_section(uint8_t *buf, size_t *off, uint16_t type,
     xmeta_put(buf, off, &reserved, 2);
     xmeta_put(buf, off, &plen, 4);
     xmeta_put(buf, off, payload, plen);
-    crc = xrootd_crc32c_value(buf + hdr_off, 8 + (size_t) plen);
+    crc = brix_crc32c_value(buf + hdr_off, 8 + (size_t) plen);
     xmeta_put(buf, off, &crc, 4);
 }
 
 int
-xrootd_xmeta_encode(const xrootd_xmeta_t *m, uint8_t **out, size_t *out_len)
+brix_xmeta_encode(const brix_xmeta_t *m, uint8_t **out, size_t *out_len)
 {
-    xrootd_xmeta_stock_store_t store;
+    brix_xmeta_stock_store_t store;
     xmeta_state_wire_t         state;
-    int32_t   version = XROOTD_XMETA_STOCK_VERSION;
-    uint32_t  ext_magic = XROOTD_XMETA_EXT_MAGIC;
-    uint16_t  ext_version = XROOTD_XMETA_EXT_VERSION;
+    int32_t   version = BRIX_XMETA_STOCK_VERSION;
+    uint32_t  ext_magic = BRIX_XMETA_EXT_MAGIC;
+    uint16_t  ext_version = BRIX_XMETA_EXT_VERSION;
     uint16_t  nsec;
     size_t    blen, cap, off = 0;
     size_t    blockcrc_plen = 0;
@@ -304,7 +304,7 @@ xrootd_xmeta_encode(const xrootd_xmeta_t *m, uint8_t **out, size_t *out_len)
         || m->bitmap == NULL)
     {
         errno = EINVAL;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
 
     blen = xmeta_bitmap_len(m->nblocks);
@@ -332,7 +332,7 @@ xrootd_xmeta_encode(const xrootd_xmeta_t *m, uint8_t **out, size_t *out_len)
     buf = malloc(cap);
     if (buf == NULL) {
         errno = ENOMEM;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
 
     /* stock prefix — exactly what XrdPfc::Info::Write emits */
@@ -347,13 +347,13 @@ xrootd_xmeta_encode(const xrootd_xmeta_t *m, uint8_t **out, size_t *out_len)
 
     xmeta_put(buf, &off, &version, 4);
     xmeta_put(buf, &off, &store, sizeof(store));
-    crc = xrootd_crc32c_value(&store, sizeof(store));
+    crc = brix_crc32c_value(&store, sizeof(store));
     xmeta_put(buf, &off, &crc, 4);
     xmeta_put(buf, &off, m->bitmap, blen);
-    crc = xrootd_crc32c_value(m->bitmap, blen);
+    crc = brix_crc32c_value(m->bitmap, blen);
     if (store.astat_size > 0) {
         xmeta_put(buf, &off, &m->astat, sizeof(m->astat));
-        crc = xrootd_crc32c_extend(crc, &m->astat, sizeof(m->astat));
+        crc = brix_crc32c_extend(crc, &m->astat, sizeof(m->astat));
     }
     xmeta_put(buf, &off, &crc, 4);
 
@@ -375,7 +375,7 @@ xrootd_xmeta_encode(const xrootd_xmeta_t *m, uint8_t **out, size_t *out_len)
         state.filled_at     = m->filled_at;
         state.mode          = m->mode;
         state.state_flags   = m->state_flags;
-        xmeta_put_section(buf, &off, XROOTD_XMETA_SEC_STATE,
+        xmeta_put_section(buf, &off, BRIX_XMETA_SEC_STATE,
                           &state, sizeof(state));
     }
     if (have_origin) {
@@ -390,18 +390,18 @@ xrootd_xmeta_encode(const xrootd_xmeta_t *m, uint8_t **out, size_t *out_len)
         memcpy(payload + poff, m->etag, m->etag_len);       poff += m->etag_len;
         memcpy(payload + poff, m->cks_alg, m->cks_alg_len); poff += m->cks_alg_len;
         memcpy(payload + poff, m->cks_hex, m->cks_len);     poff += m->cks_len;
-        xmeta_put_section(buf, &off, XROOTD_XMETA_SEC_ORIGIN,
+        xmeta_put_section(buf, &off, BRIX_XMETA_SEC_ORIGIN,
                           payload, (uint32_t) poff);
     }
     if (m->digests != NULL) {
-        xmeta_put_section(buf, &off, XROOTD_XMETA_SEC_DIGEST,
+        xmeta_put_section(buf, &off, BRIX_XMETA_SEC_DIGEST,
                           m->digests, m->digests_len);
     }
     if (blockcrc_plen > 0) {
         /* payload: u32 granule, u32 reserved, u64 nblocks, u32 crc[] — built
          * in place to avoid a second nblocks*4 allocation */
         size_t   sec_hdr = off;
-        uint16_t type = XROOTD_XMETA_SEC_BLOCKCRC, rsv = 0;
+        uint16_t type = BRIX_XMETA_SEC_BLOCKCRC, rsv = 0;
         uint32_t plen32 = (uint32_t) blockcrc_plen;
         uint32_t granule = (uint32_t) m->buffer_size;
         uint32_t zero = 0;
@@ -414,28 +414,28 @@ xrootd_xmeta_encode(const xrootd_xmeta_t *m, uint8_t **out, size_t *out_len)
         xmeta_put(buf, &off, &zero, 4);
         xmeta_put(buf, &off, &nb, 8);
         xmeta_put(buf, &off, m->blockcrc, (size_t) m->nblocks * 4);
-        crc = xrootd_crc32c_value(buf + sec_hdr, 8 + blockcrc_plen);
+        crc = brix_crc32c_value(buf + sec_hdr, 8 + blockcrc_plen);
         xmeta_put(buf, &off, &crc, 4);
     }
 
     *out = buf;
     *out_len = off;
-    return XROOTD_XMETA_OK;
+    return BRIX_XMETA_OK;
 }
 
 /* ---- decode ---------------------------------------------------------------- */
 
 static int
-xmeta_decode_section(xrootd_xmeta_t *m, uint16_t type, const uint8_t *p,
+xmeta_decode_section(brix_xmeta_t *m, uint16_t type, const uint8_t *p,
     uint32_t plen)
 {
     switch (type) {
 
-    case XROOTD_XMETA_SEC_STATE: {
+    case BRIX_XMETA_SEC_STATE: {
         xmeta_state_wire_t state;
 
         if (plen < sizeof(state)) {
-            return XROOTD_XMETA_ERR;
+            return BRIX_XMETA_ERR;
         }
         memcpy(&state, p, sizeof(state));
         m->have_state    = 1;
@@ -450,21 +450,21 @@ xmeta_decode_section(xrootd_xmeta_t *m, uint16_t type, const uint8_t *p,
         m->filled_at     = state.filled_at;
         m->mode          = state.mode;
         m->state_flags   = state.state_flags;
-        return XROOTD_XMETA_OK;
+        return BRIX_XMETA_OK;
     }
 
-    case XROOTD_XMETA_SEC_ORIGIN: {
+    case BRIX_XMETA_SEC_ORIGIN: {
         uint8_t el, al, cl;
 
         if (plen < XMETA_ORIGIN_FIXED) {
-            return XROOTD_XMETA_ERR;
+            return BRIX_XMETA_ERR;
         }
         el = p[0]; al = p[1]; cl = p[2];
         if (el > sizeof(m->etag) || al > sizeof(m->cks_alg)
             || cl > sizeof(m->cks_hex)
             || plen < (uint32_t) XMETA_ORIGIN_FIXED + el + al + cl)
         {
-            return XROOTD_XMETA_ERR;
+            return BRIX_XMETA_ERR;
         }
         m->etag_len = el;
         memcpy(m->etag, p + XMETA_ORIGIN_FIXED, el);
@@ -472,53 +472,53 @@ xmeta_decode_section(xrootd_xmeta_t *m, uint16_t type, const uint8_t *p,
         memcpy(m->cks_alg, p + XMETA_ORIGIN_FIXED + el, al);
         m->cks_len = cl;
         memcpy(m->cks_hex, p + XMETA_ORIGIN_FIXED + el + al, cl);
-        return XROOTD_XMETA_OK;
+        return BRIX_XMETA_OK;
     }
 
-    case XROOTD_XMETA_SEC_DIGEST: {
+    case BRIX_XMETA_SEC_DIGEST: {
         uint8_t *copy = malloc(plen ? plen : 1);
 
         if (copy == NULL) {
             errno = ENOMEM;
-            return XROOTD_XMETA_ERR;
+            return BRIX_XMETA_ERR;
         }
         memcpy(copy, p, plen);
         free(m->digests);
         m->digests = copy;
         m->digests_len = plen;
-        return XROOTD_XMETA_OK;
+        return BRIX_XMETA_OK;
     }
 
-    case XROOTD_XMETA_SEC_BLOCKCRC: {
+    case BRIX_XMETA_SEC_BLOCKCRC: {
         uint64_t nb;
 
         if (plen < 16) {
-            return XROOTD_XMETA_ERR;
+            return BRIX_XMETA_ERR;
         }
         memcpy(&nb, p + 8, 8);
         if (nb != m->nblocks || plen != 16 + nb * 4) {
-            return XROOTD_XMETA_ERR;    /* table doesn't match the file */
+            return BRIX_XMETA_ERR;    /* table doesn't match the file */
         }
         free(m->blockcrc);
         m->blockcrc = malloc(nb ? (size_t) nb * 4 : 4);
         if (m->blockcrc == NULL) {
             errno = ENOMEM;
-            return XROOTD_XMETA_ERR;
+            return BRIX_XMETA_ERR;
         }
         memcpy(m->blockcrc, p + 16, (size_t) nb * 4);
         m->have_blockcrc = 1;
-        return XROOTD_XMETA_OK;
+        return BRIX_XMETA_OK;
     }
 
     default:
-        return XROOTD_XMETA_OK;         /* unknown type: skipped (fwd compat) */
+        return BRIX_XMETA_OK;         /* unknown type: skipped (fwd compat) */
     }
 }
 
 int
-xrootd_xmeta_decode(const uint8_t *buf, size_t len, xrootd_xmeta_t *m)
+brix_xmeta_decode(const uint8_t *buf, size_t len, brix_xmeta_t *m)
 {
-    xrootd_xmeta_stock_store_t store;
+    brix_xmeta_stock_store_t store;
     int32_t   version;
     uint32_t  crc, want, ext_magic;
     uint16_t  ext_version, nsec, i;
@@ -526,29 +526,29 @@ xrootd_xmeta_decode(const uint8_t *buf, size_t len, xrootd_xmeta_t *m)
 
     if (buf == NULL || m == NULL) {
         errno = EINVAL;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
     memset(m, 0, sizeof(*m));
 
     /* stock prefix */
     if (xmeta_get(buf, len, &off, &version, 4) != 0
-        || version != XROOTD_XMETA_STOCK_VERSION)
+        || version != BRIX_XMETA_STOCK_VERSION)
     {
-        return XROOTD_XMETA_FOREIGN;
+        return BRIX_XMETA_FOREIGN;
     }
     if (xmeta_get(buf, len, &off, &store, sizeof(store)) != 0
         || xmeta_get(buf, len, &off, &crc, 4) != 0)
     {
-        return XROOTD_XMETA_FOREIGN;
+        return BRIX_XMETA_FOREIGN;
     }
-    if (crc != xrootd_crc32c_value(&store, sizeof(store))) {
+    if (crc != brix_crc32c_value(&store, sizeof(store))) {
         errno = EBADMSG;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
     if (store.buffer_size <= 0 || store.file_size < 0
         || store.astat_size < 0)
     {
-        return XROOTD_XMETA_FOREIGN;
+        return BRIX_XMETA_FOREIGN;
     }
 
     m->buffer_size   = store.buffer_size;
@@ -559,55 +559,55 @@ xrootd_xmeta_decode(const uint8_t *buf, size_t len, xrootd_xmeta_t *m)
     m->status_raw    = store.status_raw;
     m->astat_count   = store.astat_size;
     m->nblocks       = xmeta_nblocks(store.file_size, store.buffer_size);
-    if (m->nblocks > XROOTD_XMETA_MAX_BLOCKS) {
-        return XROOTD_XMETA_FOREIGN;
+    if (m->nblocks > BRIX_XMETA_MAX_BLOCKS) {
+        return BRIX_XMETA_FOREIGN;
     }
 
     blen = xmeta_bitmap_len(m->nblocks);
     m->bitmap = malloc(blen ? blen : 1);
     if (m->bitmap == NULL) {
         errno = ENOMEM;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
     if (xmeta_get(buf, len, &off, m->bitmap, blen) != 0) {
-        xrootd_xmeta_free(m);
-        return XROOTD_XMETA_FOREIGN;
+        brix_xmeta_free(m);
+        return BRIX_XMETA_FOREIGN;
     }
-    want = xrootd_crc32c_value(m->bitmap, blen);
+    want = brix_crc32c_value(m->bitmap, blen);
 
     /* AStat records: keep the first, checksum them all */
     for (i = 0; (int32_t) i < store.astat_size; i++) {
-        xrootd_xmeta_astat_t a;
+        brix_xmeta_astat_t a;
 
         if (xmeta_get(buf, len, &off, &a, sizeof(a)) != 0) {
-            xrootd_xmeta_free(m);
-            return XROOTD_XMETA_FOREIGN;
+            brix_xmeta_free(m);
+            return BRIX_XMETA_FOREIGN;
         }
         if (i == 0) {
             m->astat = a;
         }
-        want = xrootd_crc32c_extend(want, &a, sizeof(a));
+        want = brix_crc32c_extend(want, &a, sizeof(a));
     }
     if (xmeta_get(buf, len, &off, &crc, 4) != 0) {
-        xrootd_xmeta_free(m);
-        return XROOTD_XMETA_FOREIGN;
+        brix_xmeta_free(m);
+        return BRIX_XMETA_FOREIGN;
     }
     if (crc != want) {
-        xrootd_xmeta_free(m);
+        brix_xmeta_free(m);
         errno = EBADMSG;
-        return XROOTD_XMETA_ERR;
+        return BRIX_XMETA_ERR;
     }
 
     /* extension (optional: a pure stock cinfo ends here) */
     if (off == len) {
-        return XROOTD_XMETA_OK;
+        return BRIX_XMETA_OK;
     }
     if (xmeta_get(buf, len, &off, &ext_magic, 4) != 0
-        || ext_magic != XROOTD_XMETA_EXT_MAGIC
+        || ext_magic != BRIX_XMETA_EXT_MAGIC
         || xmeta_get(buf, len, &off, &ext_version, 2) != 0
         || xmeta_get(buf, len, &off, &nsec, 2) != 0)
     {
-        return XROOTD_XMETA_OK;         /* foreign trailer: stock part stands */
+        return BRIX_XMETA_OK;         /* foreign trailer: stock part stands */
     }
 
     for (i = 0; i < nsec; i++) {
@@ -618,28 +618,28 @@ xrootd_xmeta_decode(const uint8_t *buf, size_t len, xrootd_xmeta_t *m)
         if (xmeta_get(buf, len, &off, &type, 2) != 0
             || xmeta_get(buf, len, &off, &rsv, 2) != 0
             || xmeta_get(buf, len, &off, &plen, 4) != 0
-            || plen > XROOTD_XMETA_MAX_SECTION
+            || plen > BRIX_XMETA_MAX_SECTION
             || len - off < (size_t) plen + 4)
         {
-            xrootd_xmeta_free(m);
+            brix_xmeta_free(m);
             errno = EBADMSG;
-            return XROOTD_XMETA_ERR;    /* truncated section = torn record */
+            return BRIX_XMETA_ERR;    /* truncated section = torn record */
         }
         memcpy(&crc, buf + off + plen, 4);
-        if (crc != xrootd_crc32c_value(buf + sec_hdr, 8 + (size_t) plen)) {
-            xrootd_xmeta_free(m);
+        if (crc != brix_crc32c_value(buf + sec_hdr, 8 + (size_t) plen)) {
+            brix_xmeta_free(m);
             errno = EBADMSG;
-            return XROOTD_XMETA_ERR;
+            return BRIX_XMETA_ERR;
         }
         if (xmeta_decode_section(m, type, buf + off, plen)
-            != XROOTD_XMETA_OK)
+            != BRIX_XMETA_OK)
         {
-            xrootd_xmeta_free(m);
+            brix_xmeta_free(m);
             errno = EBADMSG;
-            return XROOTD_XMETA_ERR;
+            return BRIX_XMETA_ERR;
         }
         off += (size_t) plen + 4;
     }
 
-    return XROOTD_XMETA_OK;
+    return BRIX_XMETA_OK;
 }

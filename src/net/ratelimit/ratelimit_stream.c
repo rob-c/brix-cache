@@ -10,12 +10,12 @@
  * Returns NGX_DECLINED to proceed with normal dispatch.
  */
 #include "ratelimit.h"
-#include "protocols/root/response/response.h"          /* xrootd_send_wait */
+#include "protocols/root/response/response.h"          /* brix_send_wait */
 #include "observability/metrics/metrics_macros.h"
 
-#define XROOTD_RL_METRIC_INC(field)                                          \
+#define BRIX_RL_METRIC_INC(field)                                          \
     do {                                                                     \
-        ngx_xrootd_metrics_t *_m = xrootd_metrics_shared();                  \
+        ngx_brix_metrics_t *_m = brix_metrics_shared();                  \
         if (_m != NULL) { (void) ngx_atomic_fetch_add(&_m->field, 1); }      \
     } while (0)
 
@@ -50,7 +50,7 @@ rl_op_path_bearing(uint16_t reqid)
 /* Copy the request path (payload up to '?' / NUL) into buf for a path-bearing
  * opcode; sets buf[0]='\0' otherwise. */
 static void
-rl_request_path(xrootd_ctx_t *ctx, char *buf, size_t bufsz)
+rl_request_path(brix_ctx_t *ctx, char *buf, size_t bufsz)
 {
     size_t n, i;
 
@@ -70,12 +70,12 @@ rl_request_path(xrootd_ctx_t *ctx, char *buf, size_t bufsz)
 }
 
 ngx_int_t
-xrootd_rl_stream_gate(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_rl_stream_gate(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
 {
-    xrootd_rl_rule_t *rules;
+    brix_rl_rule_t *rules;
     ngx_uint_t        i;
-    char              key_str[XROOTD_RL_KEY_LEN];
+    char              key_str[BRIX_RL_KEY_LEN];
     char              path[1024];
     uint32_t          wait_sec;
     ngx_int_t         rc;
@@ -99,7 +99,7 @@ xrootd_rl_stream_gate(xrootd_ctx_t *ctx, ngx_connection_t *c,
      */
     path[0] = '\0';
     for (i = 0; i < conf->rl_rules->nelts; i++) {
-        if (rules[i].key_type == XROOTD_RL_KEY_VOLUME) {
+        if (rules[i].key_type == BRIX_RL_KEY_VOLUME) {
             rl_request_path(ctx, path, sizeof(path));
             break;
         }
@@ -111,17 +111,17 @@ xrootd_rl_stream_gate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         /*
          * Phase 33 C4: identity-stable rules (VO/ISSUER/IP/DN) produce a
-         * connection-constant key.  Cache the first XROOTD_RL_RULE_CACHE_MAX such
+         * connection-constant key.  Cache the first BRIX_RL_RULE_CACHE_MAX such
          * keys on the ctx and reuse them, removing the per-read re-hash.  VOLUME
          * rules are path-dependent and rules beyond the cache bound recompute.
          */
-        cacheable = (rules[i].key_type != XROOTD_RL_KEY_VOLUME
-                     && i < XROOTD_RL_RULE_CACHE_MAX);
+        cacheable = (rules[i].key_type != BRIX_RL_KEY_VOLUME
+                     && i < BRIX_RL_RULE_CACHE_MAX);
 
         if (cacheable && (ctx->rl_key_cache_valid & (1u << i))) {
             key = ctx->rl_key_cache[i];
         } else {
-            rc = xrootd_rl_key_stream(&rules[i], ctx, path,
+            rc = brix_rl_key_stream(&rules[i], ctx, path,
                                       key_str, sizeof(key_str));
             if (rc != NGX_OK) { continue; }   /* VOLUME prefix miss or error */
             key = key_str;
@@ -133,22 +133,22 @@ xrootd_rl_stream_gate(xrootd_ctx_t *ctx, ngx_connection_t *c,
         }
 
         if (rules[i].req_rate > 0) {
-            if (xrootd_rl_check(&rules[i], key, &wait_sec) == NGX_AGAIN) {
-                XROOTD_RL_METRIC_INC(rl_throttled_stream_total);
+            if (brix_rl_check(&rules[i], key, &wait_sec) == NGX_AGAIN) {
+                BRIX_RL_METRIC_INC(rl_throttled_stream_total);
                 ngx_log_error(NGX_LOG_INFO, c->log, 0,
                     "xrootd rate limit: kXR_wait %uD for op 0x%04xd (key=%s)",
                     wait_sec, (int) ctx->cur_reqid, key);
-                return xrootd_send_wait(ctx, c, wait_sec);
+                return brix_send_wait(ctx, c, wait_sec);
             }
         }
 
         if (rules[i].bw_rate > 0) {
-            if (xrootd_rl_bw_check(&rules[i], key, &wait_sec) == NGX_AGAIN) {
-                XROOTD_RL_METRIC_INC(rl_throttled_stream_total);
+            if (brix_rl_bw_check(&rules[i], key, &wait_sec) == NGX_AGAIN) {
+                BRIX_RL_METRIC_INC(rl_throttled_stream_total);
                 ngx_log_error(NGX_LOG_INFO, c->log, 0,
                     "xrootd rate limit: kXR_wait %uD (bandwidth, key=%s)",
                     wait_sec, key);
-                return xrootd_send_wait(ctx, c, wait_sec);
+                return brix_send_wait(ctx, c, wait_sec);
             }
             /* Remember the matched bandwidth rule for the post-send charge. */
             ngx_cpystrn((u_char *) ctx->rl_bw_key, (u_char *) key,
@@ -162,17 +162,17 @@ xrootd_rl_stream_gate(xrootd_ctx_t *ctx, ngx_connection_t *c,
          * request, released in the LOG phase) the stream plane has no per-request
          * teardown, so the slot is held for the CONNECTION's lifetime — acquired
          * once on the first matching rule and released exactly once in
-         * xrootd_on_disconnect() via xrootd_rl_release_ctx().  This caps the
+         * brix_on_disconnect() via brix_rl_release_ctx().  This caps the
          * number of concurrent connections per principal; over-cap → kXR_wait so
          * the client retries when a slot frees.
          */
         if (rules[i].req_conc > 0 && ctx->rl_conc_rule == NULL) {
-            if (xrootd_rl_conc_acquire(&rules[i], key) == NGX_AGAIN) {
-                XROOTD_RL_METRIC_INC(rl_throttled_stream_total);
+            if (brix_rl_conc_acquire(&rules[i], key) == NGX_AGAIN) {
+                BRIX_RL_METRIC_INC(rl_throttled_stream_total);
                 ngx_log_error(NGX_LOG_INFO, c->log, 0,
                     "xrootd rate limit: kXR_wait (concurrency cap, key=%s)",
                     key);
-                return xrootd_send_wait(ctx, c, 1);
+                return brix_send_wait(ctx, c, 1);
             }
             ngx_cpystrn((u_char *) ctx->rl_conc_key, (u_char *) key,
                         sizeof(ctx->rl_conc_key));
@@ -184,19 +184,19 @@ xrootd_rl_stream_gate(xrootd_ctx_t *ctx, ngx_connection_t *c,
 }
 
 void
-xrootd_rl_charge_ctx(xrootd_ctx_t *ctx, size_t nbytes)
+brix_rl_charge_ctx(brix_ctx_t *ctx, size_t nbytes)
 {
     if (ctx->rl_bw_rule != NULL && ctx->rl_bw_key[0] != '\0') {
-        xrootd_rl_charge_bytes((xrootd_rl_rule_t *) ctx->rl_bw_rule,
+        brix_rl_charge_bytes((brix_rl_rule_t *) ctx->rl_bw_rule,
                                ctx->rl_bw_key, nbytes);
     }
 }
 
 void
-xrootd_rl_release_ctx(xrootd_ctx_t *ctx)
+brix_rl_release_ctx(brix_ctx_t *ctx)
 {
     if (ctx->rl_conc_rule != NULL) {
-        xrootd_rl_conc_release((xrootd_rl_rule_t *) ctx->rl_conc_rule,
+        brix_rl_conc_release((brix_rl_rule_t *) ctx->rl_conc_rule,
                                ctx->rl_conc_key);
         ctx->rl_conc_rule = NULL;
         ctx->rl_conc_key[0] = '\0';

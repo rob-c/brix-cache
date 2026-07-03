@@ -26,10 +26,10 @@ events { worker_connections 128; }
 http { access_log off; server {
     listen 127.0.0.1:$CPORT;
     location / {
-        xrootd_cvmfs_cache_store posix:$PFX/cache;
-        xrootd_cvmfs on;
-        xrootd_cvmfs_upstream_allow 127.0.0.1;
-        xrootd_cvmfs_upstream_max 4;
+        brix_cvmfs_cache_store posix:$PFX/cache;
+        brix_cvmfs on;
+        brix_cvmfs_upstream_allow 127.0.0.1;
+        brix_cvmfs_upstream_max 4;
     }
 } }
 EOF
@@ -61,7 +61,7 @@ C="$(curl -s -o /dev/null -w '%{http_code}' -x "$PROXY" \
      "http://evil.example.org/cvmfs/x/data/aa/$(python3 -c 'print("cd"*19)')")"
 [ "$C" = 403 ] && ok "disallowed upstream rejected" || bad "allowlist: $C"
 
-# 4: regression — MULTIPLE hosts on ONE xrootd_cvmfs_upstream_allow line must
+# 4: regression — MULTIPLE hosts on ONE brix_cvmfs_upstream_allow line must
 #    ALL be allowed (nginx's stock str-array slot silently kept only the first
 #    argument: every other Stratum-1 got 403 and real clients pinned to the
 #    single surviving host). Second-listed host must proxy fine.
@@ -77,10 +77,10 @@ http {
     listen 127.0.0.1:$CPORT2;
     access_log $PFX2/logs/a.log cvt;
     location / {
-        xrootd_cvmfs_cache_store posix:$PFX2/cache;
-        xrootd_cvmfs on;
-        xrootd_cvmfs_upstream_allow bogus.example.org 127.0.0.1 also-bogus.example.org;
-        xrootd_cvmfs_upstream_max 4;
+        brix_cvmfs_cache_store posix:$PFX2/cache;
+        brix_cvmfs on;
+        brix_cvmfs_upstream_allow bogus.example.org 127.0.0.1 also-bogus.example.org;
+        brix_cvmfs_upstream_max 4;
     }
 } }
 EOF

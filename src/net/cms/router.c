@@ -46,7 +46,7 @@
 #define RF_RD   (XRDCMS_RF_REPLIABLE | XRDCMS_RF_DELAYABLE)
 
 /* Manager role: forwardable client ops (initRDRrouting) + node status frames. */
-static const xrootd_cms_route_t manager_routes[] = {
+static const brix_cms_route_t manager_routes[] = {
     /* forwardable / redirector client-facing ops */
     { K_CHMOD,   "chmod",  RF_FWD },
     { K_LOCATE,  "locate", RF_RD },
@@ -80,7 +80,7 @@ static const xrootd_cms_route_t manager_routes[] = {
 };
 
 /* Node role: ops a data server executes when forwarded down from its manager. */
-static const xrootd_cms_route_t node_routes[] = {
+static const brix_cms_route_t node_routes[] = {
     { K_CHMOD,   "chmod",  RF_RD },
     { K_LOCATE,  "locate", RF_RD },
     { K_MKDIR,   "mkdir",  RF_RD },
@@ -100,8 +100,8 @@ static const xrootd_cms_route_t node_routes[] = {
     { K_UPDATE,  "update", XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS | XRDCMS_RF_REPLIABLE },
 };
 
-static const xrootd_cms_route_t *
-route_scan(const xrootd_cms_route_t *tbl, size_t n, unsigned char code)
+static const brix_cms_route_t *
+route_scan(const brix_cms_route_t *tbl, size_t n, unsigned char code)
 {
     size_t i;
     for (i = 0; i < n; i++) {
@@ -112,8 +112,8 @@ route_scan(const xrootd_cms_route_t *tbl, size_t n, unsigned char code)
     return NULL;
 }
 
-const xrootd_cms_route_t *
-xrootd_cms_route_lookup(xrootd_cms_role_t role, unsigned char code)
+const brix_cms_route_t *
+brix_cms_route_lookup(brix_cms_role_t role, unsigned char code)
 {
     if (role == XRDCMS_ROLE_NODE) {
         return route_scan(node_routes,

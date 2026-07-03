@@ -1,7 +1,7 @@
 /*
  * rate_limit.c — token-bucket rate limiter over the KV store (see header).
  */
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "rate_limit.h"
 
 /*
@@ -12,30 +12,30 @@
  * WHY:  the KV value is an opaque fixed-width byte blob (memcpy'd in/out of the
  *       shared slot), so the struct IS the on-shm record; its size must not
  *       exceed the zone's val_max (checked at config time, see directive).
- * HOW:  read with xrootd_kv_get into a stack copy, mutated locally, written
- *       back with xrootd_kv_set.  No pointers — safe to copy across the
+ * HOW:  read with brix_kv_get into a stack copy, mutated locally, written
+ *       back with brix_kv_set.  No pointers — safe to copy across the
  *       process boundary into shared memory.  sizeof() is typically 16 bytes
  *       (4-byte tokens + ngx_msec_t, modulo alignment padding).
  */
 typedef struct {
     uint32_t    tokens;       /* tokens currently available */
     ngx_msec_t  last_refill;  /* ngx_current_msec of the last refill */
-} xrootd_rl_val_t;
+} brix_rl_val_t;
 
 /* KV key is "rl:" + raw identity bytes; the prefix namespaces rate-limit
  * entries so a single zone could be shared with other "rl:"-free consumers. */
-#define XROOTD_RL_KEY_PREFIX_LEN  3   /* "rl:" */
-#define XROOTD_RL_ID_MAX          256 /* identity bytes hashed; longer ids are truncated */
+#define BRIX_RL_KEY_PREFIX_LEN  3   /* "rl:" */
+#define BRIX_RL_ID_MAX          256 /* identity bytes hashed; longer ids are truncated */
 
 /*
- * xrootd_rate_limit_check() — one token-bucket admission test for `id`.
+ * brix_rate_limit_check() — one token-bucket admission test for `id`.
  *
  * WHAT: refill the identity's bucket by elapsed time, spend one token, and
  *       return NGX_OK (admit) or NGX_DECLINED (empty bucket — reject).
  * WHY:  bucket state is shared across all workers via the KV zone, so the
  *       limit is global, not per-worker.
  * HOW (locking / consistency): this function takes NO lock itself.  Each of
- *       the xrootd_kv_get and xrootd_kv_set calls grabs and releases the
+ *       the brix_kv_get and brix_kv_set calls grabs and releases the
  *       zone's shared spinlock independently (see kv.c).  The read-modify-write
  *       is therefore NOT atomic: two workers can both read the same token count
  *       and both spend it, so the effective limit may over-admit slightly under
@@ -44,12 +44,12 @@ typedef struct {
  *       critical section to a single O(1) probe with no callback inside it.
  */
 ngx_int_t
-xrootd_rate_limit_check(const xrootd_rate_limit_conf_t *rl,
+brix_rate_limit_check(const brix_rate_limit_conf_t *rl,
     const char *id, size_t id_len)
 {
-    u_char           key[XROOTD_RL_KEY_PREFIX_LEN + XROOTD_RL_ID_MAX];
+    u_char           key[BRIX_RL_KEY_PREFIX_LEN + BRIX_RL_ID_MAX];
     size_t           key_len;
-    xrootd_rl_val_t  v;
+    brix_rl_val_t  v;
     size_t           vlen = sizeof(v);
     ngx_msec_t       now, elapsed, ttl;
     uint32_t         refill;
@@ -61,28 +61,28 @@ xrootd_rate_limit_check(const xrootd_rate_limit_conf_t *rl,
         return NGX_OK;                       /* disabled — admit */
     }
     /* Clamp the identity to the fixed key buffer; the stack `key` array is
-     * exactly PREFIX_LEN + XROOTD_RL_ID_MAX bytes, so this bounds the memcpy
+     * exactly PREFIX_LEN + BRIX_RL_ID_MAX bytes, so this bounds the memcpy
      * below and prevents a stack overflow on an attacker-influenced id_len. */
-    if (id_len > XROOTD_RL_ID_MAX) {
-        id_len = XROOTD_RL_ID_MAX;
+    if (id_len > BRIX_RL_ID_MAX) {
+        id_len = BRIX_RL_ID_MAX;
     }
 
     /* Build "rl:" + id in place; key_len is the exact span hashed by the KV
      * layer (no NUL terminator — these are length-counted opaque bytes). */
     key[0] = 'r'; key[1] = 'l'; key[2] = ':';
-    ngx_memcpy(key + XROOTD_RL_KEY_PREFIX_LEN, id, id_len);
-    key_len = XROOTD_RL_KEY_PREFIX_LEN + id_len;
+    ngx_memcpy(key + BRIX_RL_KEY_PREFIX_LEN, id, id_len);
+    key_len = BRIX_RL_KEY_PREFIX_LEN + id_len;
 
     now = ngx_current_msec;
 
-    /* Pre-seed `v` with a full, freshly-refilled bucket.  xrootd_kv_get only
+    /* Pre-seed `v` with a full, freshly-refilled bucket.  brix_kv_get only
      * overwrites &v on a hit, so on a miss (new identity, or an entry the KV
      * layer lazily evicted as TTL-expired) these defaults stand — a first-seen
      * caller starts with the full burst allowance.  vlen is passed by-ref and
      * clamped by the KV layer to the stored val_len. */
     v.tokens      = rl->burst;
     v.last_refill = now;
-    (void) xrootd_kv_get(rl->kv, key, key_len, &v, &vlen);
+    (void) brix_kv_get(rl->kv, key, key_len, &v, &vlen);
 
     /* Refill proportional to elapsed time.  When no whole token has accrued,
      * leave last_refill untouched so the fractional remainder keeps building
@@ -121,7 +121,7 @@ xrootd_rate_limit_check(const xrootd_rate_limit_conf_t *rl,
      * advances, then reject.  We still write so the next caller's elapsed is
      * measured from now, not from the original last_refill. */
     if (v.tokens == 0) {
-        (void) xrootd_kv_set(rl->kv, key, key_len, &v, sizeof(v), ttl);
+        (void) brix_kv_set(rl->kv, key, key_len, &v, sizeof(v), ttl);
         return NGX_DECLINED;                 /* bucket empty — reject */
     }
 
@@ -130,28 +130,28 @@ xrootd_rate_limit_check(const xrootd_rate_limit_conf_t *rl,
      * that and admit — failing open is the right call for a throttle whose
      * state store is momentarily saturated. */
     v.tokens--;
-    (void) xrootd_kv_set(rl->kv, key, key_len, &v, sizeof(v), ttl);
+    (void) brix_kv_set(rl->kv, key, key_len, &v, sizeof(v), ttl);
     return NGX_OK;
 }
 
 /*
- * xrootd_rate_limit_directive() — parse and bind one
- *   xrootd_rate_limit zone=<name> rate=<N>r/s burst=<N> [key=dn|ip];
+ * brix_rate_limit_directive() — parse and bind one
+ *   brix_rate_limit zone=<name> rate=<N>r/s burst=<N> [key=dn|ip];
  *
  * WHAT: validate the args, resolve the named KV zone, and populate the
- *       xrootd_rate_limit_conf_t embedded in the caller's conf struct.
+ *       brix_rate_limit_conf_t embedded in the caller's conf struct.
  * WHY:  this is the only place rl->kv is set, so a parse failure here leaves
- *       kv == NULL and xrootd_rate_limit_check() fails open (admits).
+ *       kv == NULL and brix_rate_limit_check() fails open (admits).
  * HOW:  cmd->offset is the byte offset of the embedded conf field within the
  *       owning module's conf struct — the usual ngx_command_t pattern for a
  *       sub-struct that has no dedicated NGX_*_CONF_OFFSET slot.
  */
 char *
-xrootd_rate_limit_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_rate_limit_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     /* Reach the embedded conf field by raw offset (see doc comment). */
-    xrootd_rate_limit_conf_t *rl =
-        (xrootd_rate_limit_conf_t *) ((char *) conf + cmd->offset);
+    brix_rate_limit_conf_t *rl =
+        (brix_rate_limit_conf_t *) ((char *) conf + cmd->offset);
     ngx_str_t   *value = cf->args->elts;
     ngx_str_t    zone  = ngx_null_string;
     ngx_uint_t   rate  = 0;
@@ -159,7 +159,7 @@ xrootd_rate_limit_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_uint_t   key_ip = 0;
     ngx_uint_t   i;
     ngx_int_t    n;
-    xrootd_kv_t *kv;
+    brix_kv_t *kv;
 
     for (i = 1; i < cf->args->nelts; i++) {
         if (ngx_strncmp(value[i].data, "zone=", 5) == 0) {
@@ -176,7 +176,7 @@ xrootd_rate_limit_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             n = ngx_atoi(p, len);
             if (n == NGX_ERROR || n <= 0) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "invalid xrootd_rate_limit rate \"%V\"", &value[i]);
+                    "invalid brix_rate_limit rate \"%V\"", &value[i]);
                 return NGX_CONF_ERROR;
             }
             rate = (ngx_uint_t) n;
@@ -185,7 +185,7 @@ xrootd_rate_limit_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             n = ngx_atoi(value[i].data + 6, value[i].len - 6);
             if (n == NGX_ERROR || n <= 0) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "invalid xrootd_rate_limit burst \"%V\"", &value[i]);
+                    "invalid brix_rate_limit burst \"%V\"", &value[i]);
                 return NGX_CONF_ERROR;
             }
             burst = (ngx_uint_t) n;
@@ -202,43 +202,43 @@ xrootd_rate_limit_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                 key_ip = 0;
             } else {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_rate_limit key must be dn or ip, got \"%V\"",
+                    "brix_rate_limit key must be dn or ip, got \"%V\"",
                     &value[i]);
                 return NGX_CONF_ERROR;
             }
 
         } else {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "invalid xrootd_rate_limit parameter \"%V\"", &value[i]);
+                "invalid brix_rate_limit parameter \"%V\"", &value[i]);
             return NGX_CONF_ERROR;
         }
     }
 
     if (zone.len == 0 || rate == 0 || burst == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_rate_limit requires zone=<name> rate=<N>r/s burst=<N>");
+            "brix_rate_limit requires zone=<name> rate=<N>r/s burst=<N>");
         return NGX_CONF_ERROR;
     }
 
-    /* The zone must already exist: xrootd_kv_zone is processed earlier in the
+    /* The zone must already exist: brix_kv_zone is processed earlier in the
      * same main block and registers into the module-wide registry that
-     * xrootd_kv_find searches by name. */
-    kv = xrootd_kv_find(&zone);
+     * brix_kv_find searches by name. */
+    kv = brix_kv_find(&zone);
     if (kv == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_rate_limit: unknown zone \"%V\" "
-            "(declare it with xrootd_kv_zone first)", &zone);
+            "brix_rate_limit: unknown zone \"%V\" "
+            "(declare it with brix_kv_zone first)", &zone);
         return NGX_CONF_ERROR;
     }
     /* Refuse a zone whose value slots cannot hold a whole bucket record;
-     * otherwise xrootd_kv_set would truncate/reject the value at runtime and
+     * otherwise brix_kv_set would truncate/reject the value at runtime and
      * the limiter would silently malfunction.  This is the compile-time-style
-     * guard that lets xrootd_rate_limit_check() memcpy the struct without
+     * guard that lets brix_rate_limit_check() memcpy the struct without
      * re-checking sizes on every request. */
-    if (kv->val_max < sizeof(xrootd_rl_val_t)) {
+    if (kv->val_max < sizeof(brix_rl_val_t)) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_rate_limit zone \"%V\" too small: need val>=%uz",
-            &zone, sizeof(xrootd_rl_val_t));
+            "brix_rate_limit zone \"%V\" too small: need val>=%uz",
+            &zone, sizeof(brix_rl_val_t));
         return NGX_CONF_ERROR;
     }
 

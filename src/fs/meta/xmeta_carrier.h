@@ -1,5 +1,5 @@
-#ifndef XROOTD_FS_META_XMETA_CARRIER_H
-#define XROOTD_FS_META_XMETA_CARRIER_H
+#ifndef BRIX_FS_META_XMETA_CARRIER_H
+#define BRIX_FS_META_XMETA_CARRIER_H
 
 /*
  * fs/meta/xmeta_carrier.h — carriers for the unified metadata record (P1).
@@ -28,24 +28,24 @@
 #include "xmeta.h"
 #include "fs/backend/sd.h"
 
-#define XROOTD_XMETA_XATTR_NAME     "user.xrd.cinfo"
-#define XROOTD_XMETA_SIDECAR_SUFFIX ".cinfo"
+#define BRIX_XMETA_XATTR_NAME     "user.xrd.cinfo"
+#define BRIX_XMETA_SIDECAR_SUFFIX ".cinfo"
 
 /* Largest xattr value we ever attempt (linux VFS cap). */
-#define XROOTD_XMETA_XATTR_MAX      (64 * 1024)
+#define BRIX_XMETA_XATTR_MAX      (64 * 1024)
 
 /* Persist *m for `key` (xattr preferred, sidecar fallback). Returns NGX_OK,
  * or NGX_ERROR with errno (ENOTSUP when the store can carry neither). */
-ngx_int_t xrootd_xmeta_save(xrootd_sd_instance_t *store, const char *key,
-    const xrootd_xmeta_t *m);
+ngx_int_t brix_xmeta_save(brix_sd_instance_t *store, const char *key,
+    const brix_xmeta_t *m);
 
-/* Load the record for `key` into *m (caller must xrootd_xmeta_free on OK).
+/* Load the record for `key` into *m (caller must brix_xmeta_free on OK).
  * Returns NGX_OK, NGX_DECLINED when nothing (valid) is recorded, or
  * NGX_ERROR on a hard store error / torn record (errno set). */
-ngx_int_t xrootd_xmeta_load(xrootd_sd_instance_t *store, const char *key,
-    xrootd_xmeta_t *m);
+ngx_int_t brix_xmeta_load(brix_sd_instance_t *store, const char *key,
+    brix_xmeta_t *m);
 
 /* Remove both carriers for `key` (best-effort; NGX_OK even when absent). */
-ngx_int_t xrootd_xmeta_remove(xrootd_sd_instance_t *store, const char *key);
+ngx_int_t brix_xmeta_remove(brix_sd_instance_t *store, const char *key);
 
-#endif /* XROOTD_FS_META_XMETA_CARRIER_H */
+#endif /* BRIX_FS_META_XMETA_CARRIER_H */

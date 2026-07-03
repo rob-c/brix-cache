@@ -15,7 +15,7 @@ Section 14.5 (success criteria):
   "The Requuid in the S3 logs matches the streamid in the Binary logs."
 
 All tests inspect the access logs written by the pre-launched servers.
-The log path is LOG_DIR/xrootd_access.log for stream access,
+The log path is LOG_DIR/brix_access.log for stream access,
 LOG_DIR/http_webdav_access.log for WebDAV, and LOG_DIR/s3_access.log for S3.
 
 Run:
@@ -103,7 +103,7 @@ def _xrdcp_get(src: str, dst: str, timeout: int = 30) -> subprocess.CompletedPro
     )
 
 
-STREAM_LOG  = os.path.join(LOG_DIR, "xrootd_access_anon.log")
+STREAM_LOG  = os.path.join(LOG_DIR, "brix_access_anon.log")
 WEBDAV_LOG  = os.path.join(LOG_DIR, "http_webdav_access.log")
 S3_LOG      = os.path.join(LOG_DIR, "s3_access.log")
 

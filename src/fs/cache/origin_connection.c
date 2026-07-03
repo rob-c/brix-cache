@@ -1,6 +1,6 @@
 #include "cache_internal.h"
 #include "protocols/root/connection/netconnect.h"   /* shared outbound connect/I/O hardening */
-#include "core/compat/af_policy.h"        /* xrootd_af_policy_t origin family policy */
+#include "core/compat/af_policy.h"        /* brix_af_policy_t origin family policy */
 
 
 #include <fcntl.h>
@@ -11,13 +11,13 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-/* xrootd_cache_origin_close — free everything an origin connection holds (SSL,
+/* brix_cache_origin_close — free everything an origin connection holds (SSL,
  * SSL_CTX, socket fd) and NULL the pointers; symmetric with origin_connect and
  * called on every error path. Order matters: SSL shutdown before free, SSL_CTX
  * before the fd close, fd last, so the SSL layer never dangles. */
 
 void
-xrootd_cache_origin_close(xrootd_cache_origin_conn_t *oc)
+brix_cache_origin_close(brix_cache_origin_conn_t *oc)
 {
     if (oc->ssl != NULL) {
         SSL_shutdown(oc->ssl);
@@ -36,14 +36,14 @@ xrootd_cache_origin_close(xrootd_cache_origin_conn_t *oc)
     }
 }
 
-/* xrootd_cache_origin_connect_addr — getaddrinfo, try each result with a
+/* brix_cache_origin_connect_addr — getaddrinfo, try each result with a
  * non-blocking poll-timeout connect (avoids the ~2min TCP retransmit stall), set
  * SO_RCVTIMEO/SO_SNDTIMEO, then optional TLS (SSL_CTX with CA verification, SNI,
  * SSL_connect). Runs in a blocking fill thread-pool worker, so it uses poll() rather
- * than the event loop; XROOTD_CACHE_IO_TIMEOUT bounds an unreachable peer. */
+ * than the event loop; BRIX_CACHE_IO_TIMEOUT bounds an unreachable peer. */
 int
-xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc, const ngx_str_t *host, uint16_t portnum)
+brix_cache_origin_connect_addr(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const ngx_str_t *host, uint16_t portnum)
 {
     struct addrinfo  hints;
     struct addrinfo *res, *rp;
@@ -59,7 +59,7 @@ xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
     if (host == NULL || host->len == 0 || host->data == NULL
         || portnum == 0)
     {
-        xrootd_cache_set_error(t, kXR_ServerError, 0,
+        brix_cache_set_error(t, kXR_ServerError, 0,
                                "cache origin address not configured");
         return -1;
     }
@@ -70,15 +70,15 @@ xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
     hints.ai_socktype = SOCK_STREAM;
     {
         ngx_uint_t fam = (t->conf != NULL)
-            ? t->conf->cache_origin_family : (ngx_uint_t) XROOTD_AF_AUTO;
+            ? t->conf->cache_origin_family : (ngx_uint_t) BRIX_AF_AUTO;
         if (fam == NGX_CONF_UNSET_UINT) {
-            fam = (ngx_uint_t) XROOTD_AF_AUTO;
+            fam = (ngx_uint_t) BRIX_AF_AUTO;
         }
         hints.ai_family = (int) fam;   /* AUTO==AF_UNSPEC tries every family */
     }
 
     if (getaddrinfo((char *) host->data, port, &hints, &res) != 0) {
-        xrootd_cache_set_error(t, kXR_ServerError, 0,
+        brix_cache_set_error(t, kXR_ServerError, 0,
                                "cache origin DNS resolution failed");
         return -1;
     }
@@ -91,10 +91,10 @@ xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
             continue;
         }
 
-        xrootd_apply_socket_io_timeouts(fd, XROOTD_CACHE_IO_TIMEOUT);
+        brix_apply_socket_io_timeouts(fd, BRIX_CACHE_IO_TIMEOUT);
 
-        if (xrootd_connect_fd_deadline(fd, rp->ai_addr, rp->ai_addrlen,
-                                       XROOTD_CACHE_IO_TIMEOUT * 1000) == 0)
+        if (brix_connect_fd_deadline(fd, rp->ai_addr, rp->ai_addrlen,
+                                       BRIX_CACHE_IO_TIMEOUT * 1000) == 0)
         {
             oc->fd = fd;
             rc = 0;
@@ -107,7 +107,7 @@ xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
     freeaddrinfo(res);
 
     if (rc != 0) {
-        xrootd_cache_set_syserror(t, kXR_ServerError,
+        brix_cache_set_syserror(t, kXR_ServerError,
                                   "cache origin connect failed");
         return -1;
     }
@@ -115,7 +115,7 @@ xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
     if (t->conf->cache_origin_tls) {
         oc->ssl_ctx = SSL_CTX_new(TLS_client_method());
         if (oc->ssl_ctx == NULL) {
-            xrootd_cache_set_error(t, kXR_ServerError, 0,
+            brix_cache_set_error(t, kXR_ServerError, 0,
                                    "cache origin TLS context failed");
             return -1;
         }
@@ -125,7 +125,7 @@ xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
             if (!SSL_CTX_load_verify_locations(oc->ssl_ctx,
                     (char *) t->conf->trusted_ca.data, NULL))
             {
-                xrootd_cache_set_error(t, kXR_ServerError, 0,
+                brix_cache_set_error(t, kXR_ServerError, 0,
                                        "cache origin CA load failed");
                 return -1;
             }
@@ -135,7 +135,7 @@ xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
 
         oc->ssl = SSL_new(oc->ssl_ctx);
         if (oc->ssl == NULL) {
-            xrootd_cache_set_error(t, kXR_ServerError, 0,
+            brix_cache_set_error(t, kXR_ServerError, 0,
                                    "cache origin TLS allocation failed");
             return -1;
         }
@@ -155,7 +155,7 @@ xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
             vhost[hl] = '\0';
             SSL_set_hostflags(oc->ssl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
             if (SSL_set1_host(oc->ssl, vhost) != 1) {
-                xrootd_cache_set_error(t, kXR_ServerError, 0,
+                brix_cache_set_error(t, kXR_ServerError, 0,
                                        "cache origin TLS host-verify setup failed");
                 return -1;
             }
@@ -164,7 +164,7 @@ xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
         SSL_set_fd(oc->ssl, oc->fd);
 
         if (SSL_connect(oc->ssl) != 1) {
-            xrootd_cache_set_error(t, kXR_TLSRequired, 0,
+            brix_cache_set_error(t, kXR_TLSRequired, 0,
                                    "cache origin TLS handshake failed");
             return -1;
         }
@@ -173,13 +173,13 @@ xrootd_cache_origin_connect_addr(xrootd_cache_fill_t *t,
     return 0;
 }
 
-/* xrootd_cache_origin_connect — thin wrapper: connect_addr using the configured
+/* brix_cache_origin_connect — thin wrapper: connect_addr using the configured
  * cache_origin host/port. 0 on success (with TLS if configured), -1 on error. */
 int
-xrootd_cache_origin_connect(xrootd_cache_fill_t *t,
-    xrootd_cache_origin_conn_t *oc)
+brix_cache_origin_connect(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc)
 {
-    return xrootd_cache_origin_connect_addr(t, oc,
+    return brix_cache_origin_connect_addr(t, oc,
                                             &t->conf->cache_origin_host,
                                             t->conf->cache_origin_port);
 }

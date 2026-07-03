@@ -456,7 +456,7 @@ class TestChaosMeshStep1IdentityShifting:
 
         # Verify Tier2 access log shows SSS, not JWT/bearer.
         tier2_log = (
-            Path(TEST_ROOT) / "dedicated" / "chaos-tier2" / "logs" / "xrootd_access.log"
+            Path(TEST_ROOT) / "dedicated" / "chaos-tier2" / "logs" / "brix_access.log"
         )
         if tier2_log.exists():
             log_text = tier2_log.read_text(encoding="utf-8", errors="replace")
@@ -621,7 +621,7 @@ class TestChaosMeshStep4SynchronousConflict:
             pytest.skip("TPC did not start within 15 s — conflict test skipped")
 
         # While TPC is in-flight, attempt a conflicting exclusive-write open.
-        # A read-only cache server (no xrootd_allow_write) must reject this.
+        # A read-only cache server (no brix_allow_write) must reject this.
         conflict_ok = False
         conflict_status = None
         try:

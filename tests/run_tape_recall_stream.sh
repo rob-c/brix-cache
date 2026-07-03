@@ -17,17 +17,17 @@ trap cleanup EXIT
 mkdir -p "$PFX/tape" "$PFX/cache" "$PFX/export" "$PFX/logs"
 cat > "$PFX/nginx.conf" <<E2
 daemon on; error_log $PFX/logs/e.log info; pid $PFX/nginx.pid;
-env XROOTD_FRM_STUB_RECALL_DELAY_MS=1200;
+env BRIX_FRM_STUB_RECALL_DELAY_MS=1200;
 thread_pool default threads=2;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${BPORT}; xrootd on; xrootd_root $PFX/export; xrootd_auth none;
-    xrootd_storage_backend tape://stub${PFX}/tape;
-    xrootd_cache_store posix:${PFX}/cache; } }
+stream { server { listen 127.0.0.1:${BPORT}; xrootd on; brix_root $PFX/export; brix_auth none;
+    brix_storage_backend tape://stub${PFX}/tape;
+    brix_cache_store posix:${PFX}/cache; } }
 E2
 head -c 480000 /dev/urandom > "$PFX/tape/f.bin"; SHA=$(sha256sum "$PFX/tape/f.bin"|cut -d' ' -f1)
 "$NGINX" -p "$PFX" -c "$PFX/nginx.conf" 2>"$PFX/start.err" || { echo "START FAIL"; cat "$PFX/start.err"; cat "$PFX/logs/e.log"; exit 2; }
 sleep 1
-echo "== root:// STAT of the OFFLINE tape object → kXR_offline (residency seam, no xrootd_frm) =="
+echo "== root:// STAT of the OFFLINE tape object → kXR_offline (residency seam, no brix_frm) =="
 "$XRDFS" "root://127.0.0.1:${BPORT}" stat /f.bin 2>/dev/null | grep -q "Offline" \
   && ok "kXR_stat reports Offline for a tape:// nearline object (phase-64 backend residency)" \
   || { bad "stat did not report Offline"; "$XRDFS" "root://127.0.0.1:${BPORT}" stat /f.bin 2>&1 | grep -i flags; }

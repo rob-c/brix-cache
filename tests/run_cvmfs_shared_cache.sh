@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/run_cvmfs_shared_cache.sh — xrootd_cvmfs_shared_cache (2026-07-03).
+# tests/run_cvmfs_shared_cache.sh — brix_cvmfs_shared_cache (2026-07-03).
 # In forward-proxy mode a CVMFS client fails a slow object over from one
 # Stratum-1 to the next; because CAS objects are content-addressed (identical
 # across replicas), a shared cache turns that failover into a HIT instead of a
@@ -29,10 +29,10 @@ events { worker_connections 128; }
 http { access_log off; server {
     listen 127.0.0.1:$CPORT;
     location / {
-        xrootd_cvmfs_cache_store posix:$PFX/cache;
-        xrootd_cvmfs on;
-        xrootd_cvmfs_upstream_allow 127.0.0.1;
-        xrootd_cvmfs_shared_cache $1;
+        brix_cvmfs_cache_store posix:$PFX/cache;
+        brix_cvmfs on;
+        brix_cvmfs_upstream_allow 127.0.0.1;
+        brix_cvmfs_shared_cache $1;
     }
 } }
 EOF
@@ -48,7 +48,7 @@ cmp -s "$PFX/a.bin" "$PFX/b.bin" && ok "same-seed mocks serve identical object" 
 # ---- shared_cache ON: fill via M1, request via M2 → HIT (M2 never fetched) --
 mk_conf on
 "$NGINX" -t -c "$PFX/nginx.conf" -p "$PFX" 2>/dev/null \
-    && ok "xrootd_cvmfs_shared_cache directive parses" || bad "nginx -t rejected"
+    && ok "brix_cvmfs_shared_cache directive parses" || bad "nginx -t rejected"
 rm -rf "$PFX/cache"/*; "$NGINX" -c "$PFX/nginx.conf" -p "$PFX"; sleep 0.5
 curl -s -x "http://127.0.0.1:$CPORT" "http://127.0.0.1:$M1$O" -o "$PFX/got1.bin"
 M2_BEFORE="$(curl -s "http://127.0.0.1:$M2/ctl/log" | grep -oF "$O" | wc -l)"

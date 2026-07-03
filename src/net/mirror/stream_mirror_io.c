@@ -1,7 +1,7 @@
 /*
  * stream_mirror_io.c — shared shadow-socket framing primitives.
  *
- * WHAT: Implements xrootd_mirror_io_flush() and xrootd_mirror_io_recv_frame(),
+ * WHAT: Implements brix_mirror_io_flush() and brix_mirror_io_recv_frame(),
  *       the non-blocking write-drain and resumable response-frame reader shared
  *       by stream_mirror.c (reads) and stream_wmirror.c (writes). See the header
  *       for the contract.
@@ -17,7 +17,7 @@
 #include "stream_mirror_io.h"
 
 ngx_int_t
-xrootd_mirror_io_flush(ngx_connection_t *c, const u_char *wbuf,
+brix_mirror_io_flush(ngx_connection_t *c, const u_char *wbuf,
     size_t wbuf_len, size_t *wbuf_pos)
 {
     ssize_t n;
@@ -43,7 +43,7 @@ xrootd_mirror_io_flush(ngx_connection_t *c, const u_char *wbuf,
 }
 
 ngx_int_t
-xrootd_mirror_io_recv_frame(ngx_connection_t *c, u_char *rhdr,
+brix_mirror_io_recv_frame(ngx_connection_t *c, u_char *rhdr,
     size_t *rhdr_pos, uint16_t *resp_status, uint32_t *resp_dlen,
     u_char **resp_body, size_t *resp_body_pos)
 {
@@ -65,7 +65,7 @@ xrootd_mirror_io_recv_frame(ngx_connection_t *c, u_char *rhdr,
             *resp_dlen   = ntohl((uint32_t) h->dlen);
         }
         if (*resp_dlen > 0) {
-            if (*resp_dlen > XROOTD_MIRROR_MAX_RESP_BODY) {
+            if (*resp_dlen > BRIX_MIRROR_MAX_RESP_BODY) {
                 return NGX_ERROR;
             }
             *resp_body = ngx_palloc(c->pool, *resp_dlen);

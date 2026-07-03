@@ -31,7 +31,7 @@ from settings import (
     HOST,
     NGINX_ANON_PORT,
     NGINX_METRICS_PORT,
-    REF_XROOTD_PORT,
+    REF_BRIX_PORT,
     SERVER_HOST,
     url_host,
 )
@@ -147,7 +147,7 @@ def test_status_pulls_metrics(xrddiag):
     assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"
     assert "HTTP 200" in p.stdout, p.stdout
     assert "metric series total" in p.stdout, p.stdout
-    assert "xrootd_" in p.stdout, p.stdout
+    assert "brix_" in p.stdout, p.stdout
 
 
 def test_status_bad_port_fails(xrddiag):
@@ -181,11 +181,11 @@ def two_files():
 
 
 def test_compare_identical_matches(xrddiag, two_files):
-    if not _port_up(HOST, REF_XROOTD_PORT):
+    if not _port_up(HOST, REF_BRIX_PORT):
         pytest.skip("reference xrootd not running")
     name_a, _ = two_files
     a = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}//{name_a}"
-    b = f"root://{url_host(HOST)}:{REF_XROOTD_PORT}//{name_a}"
+    b = f"root://{url_host(HOST)}:{REF_BRIX_PORT}//{name_a}"
     p = _run("compare", a, "--vs-reference", b)
     assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"
     assert "[PASS] size" in p.stdout, p.stdout
@@ -246,8 +246,8 @@ stream {{
     server {{
         listen {BIND_HOST}:{port};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
+        brix_storage_backend posix:{data};
+        brix_auth none;
     }}
 }}
 """)
@@ -334,9 +334,9 @@ stream {{
     server {{
         listen {BIND_HOST}:{port};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
-        xrootd_allow_write on;
+        brix_storage_backend posix:{data};
+        brix_auth none;
+        brix_allow_write on;
     }}
 }}
 """)

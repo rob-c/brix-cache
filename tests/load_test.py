@@ -100,15 +100,15 @@ NGINX_DAV_TOKEN_HTTP_URL = f"https://{_H}:12792"  # for curl
 NGINX_S3_HTTP_URL = f"http://{_H}:12798"
 S3_BUCKET         = "perfbucket"
 
-XROOTD_GSI_URL      = f"root://{_H}:12094"   # official xrootd GSI instance
-XROOTD_ANON_URL     = f"root://{_H}:12093"   # official xrootd anon instance
-XROOTD_DAV_HTTP_URL = f"https://{_H}:12443"  # not available in this config
+BRIX_GSI_URL      = f"root://{_H}:12094"   # official xrootd GSI instance
+BRIX_ANON_URL     = f"root://{_H}:12093"   # official xrootd anon instance
+BRIX_DAV_HTTP_URL = f"https://{_H}:12443"  # not available in this config
 
 DEFAULT_FILE    = "load_1g.bin"
 DEFAULT_WORKERS = [1, 8, 32, 64, 128, 200]
 
 
-def _apply_xrootd_gsi_env(env: dict, proxy: Optional[str],
+def _apply_brix_gsi_env(env: dict, proxy: Optional[str],
                           ca_dir: str) -> None:
     """Configure xrdcp for the local test GSI proxy.
 
@@ -150,7 +150,7 @@ def _safe_run(*args, **kwargs):
         return None
 
 
-def _xrootd_read_worker(args: dict) -> dict:
+def _brix_read_worker(args: dict) -> dict:
     """Single-process xrdcp read. One file download."""
     worker_id  = args["id"]
     url        = args["url"]         # full URL incl. path
@@ -163,7 +163,7 @@ def _xrootd_read_worker(args: dict) -> dict:
               "bytes": 0, "elapsed": 0.0}
 
     env = os.environ.copy()
-    _apply_xrootd_gsi_env(env, proxy, ca_dir)
+    _apply_brix_gsi_env(env, proxy, ca_dir)
     if tls_nosecureverify:
         # Skip hostname verification for roots:// with the test PKI whose cert
         # CN may not match "localhost".  CA trust is still enforced via X509_CERT_DIR.
@@ -207,7 +207,7 @@ def _xrootd_read_worker(args: dict) -> dict:
     return result
 
 
-def _xrootd_write_worker(args: dict) -> dict:
+def _brix_write_worker(args: dict) -> dict:
     """Single-process xrdcp write. Uploads a local file to the server."""
     worker_id  = args["id"]
     src        = args["src"]         # local file path
@@ -218,7 +218,7 @@ def _xrootd_write_worker(args: dict) -> dict:
               "bytes": 0, "elapsed": 0.0}
 
     env = os.environ.copy()
-    _apply_xrootd_gsi_env(env, proxy, ca_dir)
+    _apply_brix_gsi_env(env, proxy, ca_dir)
 
     t0 = time.perf_counter()
     proc = _safe_run(
@@ -579,7 +579,7 @@ def save_json(suites: list[Suite], path: str, target: str):
 def _cleanup_write_files() -> None:
     """Delete load_write_* upload targets from the server data dir.
 
-    Both nginx (xrootd_root) and native xrootd (oss.localroot) write into
+    Both nginx (brix_root) and native xrootd (oss.localroot) write into
     DATA_DIR, so the uploaded large files accumulate there.  Called after each
     write concurrency level to bound peak disk use to one level's worth
     (concurrency × file size) instead of the whole sweep's."""
@@ -610,12 +610,12 @@ def build_suites(target: str, filename: str, concurrency: list[int],
         dav_gsi_url      = NGINX_DAV_GSI_HTTP_URL
         dav_token_url    = NGINX_DAV_TOKEN_HTTP_URL
     else:
-        xrd_gsi_url      = XROOTD_GSI_URL
+        xrd_gsi_url      = BRIX_GSI_URL
         xrd_tls_url      = None   # xrootd native has no stream-TLS endpoint
         xrd_gsi_tls_url  = None
-        xrd_anon_url     = XROOTD_ANON_URL
-        dav_gsi_url      = XROOTD_DAV_HTTP_URL
-        dav_token_url    = XROOTD_DAV_HTTP_URL
+        xrd_anon_url     = BRIX_ANON_URL
+        dav_gsi_url      = BRIX_DAV_HTTP_URL
+        dav_token_url    = BRIX_DAV_HTTP_URL
 
     suites = []
 
@@ -647,7 +647,7 @@ def build_suites(target: str, filename: str, concurrency: list[int],
         if want("root-anon"):
             suites.append(Suite(
                 label="XRootD root:// anon (read)",
-                worker_fn=_xrootd_read_worker,
+                worker_fn=_brix_read_worker,
                 arg_fn=lambda n: _read_args_xrd(xrd_anon_url, filename, n,
                                                 sink=read_sink,
                                                 expected_bytes=src_size),
@@ -657,7 +657,7 @@ def build_suites(target: str, filename: str, concurrency: list[int],
         if want("root-gsi"):
             suites.append(Suite(
                 label="XRootD root:// + GSI (read)",
-                worker_fn=_xrootd_read_worker,
+                worker_fn=_brix_read_worker,
                 arg_fn=lambda n: _read_args_xrd(xrd_gsi_url, filename, n,
                                                  proxy=PROXY_PEM,
                                                  sink=read_sink,
@@ -668,7 +668,7 @@ def build_suites(target: str, filename: str, concurrency: list[int],
         if want("root-tls") and xrd_tls_url is not None:
             suites.append(Suite(
                 label="XRootD roots:// + TLS (read)",
-                worker_fn=_xrootd_read_worker,
+                worker_fn=_brix_read_worker,
                 arg_fn=lambda n: _read_args_xrd(xrd_tls_url, filename, n,
                                                 sink=read_sink,
                                                 expected_bytes=src_size,
@@ -679,7 +679,7 @@ def build_suites(target: str, filename: str, concurrency: list[int],
         if want("root-gsi-tls") and xrd_gsi_tls_url is not None:
             suites.append(Suite(
                 label="XRootD roots:// + GSI + TLS (read)",
-                worker_fn=_xrootd_read_worker,
+                worker_fn=_brix_read_worker,
                 arg_fn=lambda n: _read_args_xrd(xrd_gsi_tls_url, filename, n,
                                                 proxy=PROXY_PEM,
                                                 sink=read_sink,
@@ -726,7 +726,7 @@ def build_suites(target: str, filename: str, concurrency: list[int],
         if want("root-anon"):
             suites.append(Suite(
                 label="XRootD root:// anon (write)",
-                worker_fn=_xrootd_write_worker,
+                worker_fn=_brix_write_worker,
                 arg_fn=lambda n: _write_args_xrd(xrd_anon_url, src_file, n),
                 concurrency=concurrency,
                 cleanup_fn=_cleanup_write_files,
@@ -735,7 +735,7 @@ def build_suites(target: str, filename: str, concurrency: list[int],
         if want("root-gsi"):
             suites.append(Suite(
                 label="XRootD root:// + GSI (write)",
-                worker_fn=_xrootd_write_worker,
+                worker_fn=_brix_write_worker,
                 arg_fn=lambda n: _write_args_xrd(xrd_gsi_url, src_file, n,
                                                   proxy=PROXY_PEM),
                 concurrency=concurrency,

@@ -20,7 +20,7 @@
 #include "dashboard_api_internal.h"
 
 
-static const char *cvmfs_json_class_names[XROOTD_CVMFS_CLASS_COUNT] = {
+static const char *cvmfs_json_class_names[BRIX_CVMFS_CLASS_COUNT] = {
     "cas",
     "manifest",
     "geo",
@@ -31,13 +31,13 @@ static const char *cvmfs_json_class_names[XROOTD_CVMFS_CLASS_COUNT] = {
 /* 1 iff an EARLIER READY repo slot carries the same name (claim-race
  * duplicate - mirror of the exporter's lowest-index convergence rule). */
 static int
-cvmfs_json_repo_is_dup(const ngx_xrootd_cvmfs_repo_metrics_t *repos,
+cvmfs_json_repo_is_dup(const ngx_brix_cvmfs_repo_metrics_t *repos,
     ngx_uint_t i)
 {
     ngx_uint_t j;
 
     for (j = 0; j < i; j++) {
-        if (repos[j].state == XROOTD_CVMFS_REPO_READY
+        if (repos[j].state == BRIX_CVMFS_REPO_READY
             && strcmp(repos[j].name, repos[i].name) == 0)
         {
             return 1;
@@ -49,13 +49,13 @@ cvmfs_json_repo_is_dup(const ngx_xrootd_cvmfs_repo_metrics_t *repos,
 
 /* 1 iff an EARLIER READY upstream slot carries the same name. */
 static int
-cvmfs_json_upstream_is_dup(const ngx_xrootd_cvmfs_upstream_metrics_t *ups,
+cvmfs_json_upstream_is_dup(const ngx_brix_cvmfs_upstream_metrics_t *ups,
     ngx_uint_t i)
 {
     ngx_uint_t j;
 
     for (j = 0; j < i; j++) {
-        if (ups[j].state == XROOTD_CVMFS_REPO_READY
+        if (ups[j].state == BRIX_CVMFS_REPO_READY
             && strcmp(ups[j].name, ups[i].name) == 0)
         {
             return 1;
@@ -71,13 +71,13 @@ cvmfs_json_upstream_is_dup(const ngx_xrootd_cvmfs_upstream_metrics_t *ups,
  * the caller absorbs a NULL child).
  */
 static json_t *
-cvmfs_json_requests(const ngx_atomic_t counts[XROOTD_CVMFS_CLASS_COUNT])
+cvmfs_json_requests(const ngx_atomic_t counts[BRIX_CVMFS_CLASS_COUNT])
 {
     json_t     *obj = json_object();
     ngx_uint_t  cls;
 
     if (!obj) { return NULL; }
-    for (cls = 0; cls < XROOTD_CVMFS_CLASS_COUNT; cls++) {
+    for (cls = 0; cls < BRIX_CVMFS_CLASS_COUNT; cls++) {
         json_object_set_new(obj, cvmfs_json_class_names[cls],
             json_integer((json_int_t) counts[cls]));
     }
@@ -90,7 +90,7 @@ cvmfs_json_requests(const ngx_atomic_t counts[XROOTD_CVMFS_CLASS_COUNT])
  * so the anonymous view replaces it with "[redacted]" (counters stay).
  */
 static json_t *
-cvmfs_json_repo(const ngx_xrootd_cvmfs_repo_metrics_t *rm, ngx_uint_t redact)
+cvmfs_json_repo(const ngx_brix_cvmfs_repo_metrics_t *rm, ngx_uint_t redact)
 {
     json_t *obj = json_object();
 
@@ -128,7 +128,7 @@ cvmfs_json_repo(const ngx_xrootd_cvmfs_repo_metrics_t *rm, ngx_uint_t redact)
  * average fill time; the full le-bucket histogram stays Prometheus-only.
  */
 static json_t *
-cvmfs_json_upstream(const ngx_xrootd_cvmfs_upstream_metrics_t *u,
+cvmfs_json_upstream(const ngx_brix_cvmfs_upstream_metrics_t *u,
     ngx_uint_t redact)
 {
     json_t *obj = json_object();
@@ -165,15 +165,15 @@ cvmfs_json_upstream(const ngx_xrootd_cvmfs_upstream_metrics_t *u,
 void
 dashboard_fill_cvmfs(json_t *target, ngx_uint_t redact)
 {
-    ngx_xrootd_metrics_t       *met;
-    ngx_xrootd_cvmfs_metrics_t *c;
+    ngx_brix_metrics_t       *met;
+    ngx_brix_cvmfs_metrics_t *c;
     json_t                     *repos, *ups;
     ngx_uint_t                  i;
     uint64_t                    requests = 0;
 
-    if (ngx_xrootd_shm_zone == NULL
-        || ngx_xrootd_shm_zone->data == NULL
-        || ngx_xrootd_shm_zone->data == (void *) 1)
+    if (ngx_brix_shm_zone == NULL
+        || ngx_brix_shm_zone->data == NULL
+        || ngx_brix_shm_zone->data == (void *) 1)
     {
         json_object_set_new(target, "enabled",   json_false());
         json_object_set_new(target, "repos",     json_array());
@@ -181,11 +181,11 @@ dashboard_fill_cvmfs(json_t *target, ngx_uint_t redact)
         return;
     }
 
-    met = ngx_xrootd_shm_zone->data;
+    met = ngx_brix_shm_zone->data;
     c   = &met->cvmfs;
 
     json_object_set_new(target, "requests", cvmfs_json_requests(c->requests_total));
-    for (i = 0; i < XROOTD_CVMFS_CLASS_COUNT; i++) {
+    for (i = 0; i < BRIX_CVMFS_CLASS_COUNT; i++) {
         requests += (uint64_t) c->requests_total[i];
     }
     json_object_set_new(target, "enabled", requests ? json_true() : json_false());
@@ -214,10 +214,10 @@ dashboard_fill_cvmfs(json_t *target, ngx_uint_t redact)
 
     repos = json_array();
     if (repos) {
-        for (i = 0; i < XROOTD_CVMFS_REPO_SLOTS; i++) {
-            const ngx_xrootd_cvmfs_repo_metrics_t *rm = &c->repos[i];
+        for (i = 0; i < BRIX_CVMFS_REPO_SLOTS; i++) {
+            const ngx_brix_cvmfs_repo_metrics_t *rm = &c->repos[i];
 
-            if (rm->state != XROOTD_CVMFS_REPO_READY
+            if (rm->state != BRIX_CVMFS_REPO_READY
                 || cvmfs_json_repo_is_dup(c->repos, i))
             {
                 continue;
@@ -229,10 +229,10 @@ dashboard_fill_cvmfs(json_t *target, ngx_uint_t redact)
 
     ups = json_array();
     if (ups) {
-        for (i = 0; i < XROOTD_CVMFS_UPSTREAM_SLOTS; i++) {
-            const ngx_xrootd_cvmfs_upstream_metrics_t *u = &c->upstreams[i];
+        for (i = 0; i < BRIX_CVMFS_UPSTREAM_SLOTS; i++) {
+            const ngx_brix_cvmfs_upstream_metrics_t *u = &c->upstreams[i];
 
-            if (u->state != XROOTD_CVMFS_REPO_READY
+            if (u->state != BRIX_CVMFS_REPO_READY
                 || cvmfs_json_upstream_is_dup(c->upstreams, i))
             {
                 continue;
@@ -250,7 +250,7 @@ dashboard_fill_cvmfs(json_t *target, ngx_uint_t redact)
  */
 json_t *
 dashboard_build_v1_cvmfs(int64_t now_ms,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t redact)
+    const ngx_http_brix_dashboard_loc_conf_t *conf, ngx_uint_t redact)
 {
     json_t *root = dashboard_new_v1_root(now_ms, conf);
 

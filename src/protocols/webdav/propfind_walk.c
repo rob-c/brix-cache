@@ -6,11 +6,11 @@
 #include "fs/vfs/vfs.h"   /* directory listing via the VFS seam (impersonation-aware) */
 
 
-/* Adapt the VFS stat (returned per-entry by xrootd_vfs_readdir, a no-follow
+/* Adapt the VFS stat (returned per-entry by brix_vfs_readdir, a no-follow
  * lstat) to the struct stat propfind_entry consumes (it reads only
  * mode/size/mtime/ctime). */
 static void
-propfind_vfs_to_stat(const xrootd_vfs_stat_t *vs, struct stat *st)
+propfind_vfs_to_stat(const brix_vfs_stat_t *vs, struct stat *st)
 {
     ngx_memzero(st, sizeof(*st));
     st->st_mode  = (mode_t) vs->mode;
@@ -25,13 +25,13 @@ propfind_vfs_to_stat(const xrootd_vfs_stat_t *vs, struct stat *st)
  * listing). */
 static void
 propfind_dir_ctx(ngx_http_request_t *r, const char *root_canon,
-    const char *dir_path, xrootd_vfs_ctx_t *vctx)
+    const char *dir_path, brix_vfs_ctx_t *vctx)
 {
     int is_tls = 0;
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
-    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_WEBDAV,
+    brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
         root_canon, NULL, 0 /* allow_write */, is_tls, NULL, dir_path);
 }
 
@@ -59,37 +59,37 @@ propfind_walk(ngx_http_request_t *r,
               ngx_uint_t *entry_count, ngx_uint_t max_entries,
               const propfind_req_t *req, ngx_flag_t recurse)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *wdcf =
-        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    ngx_http_brix_webdav_loc_conf_t *wdcf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     const char       *root_canon = wdcf->common.root_canon;
-    xrootd_vfs_ctx_t  vctx;
-    xrootd_vfs_dir_t *dh;
+    brix_vfs_ctx_t  vctx;
+    brix_vfs_dir_t *dh;
     ngx_str_t         name;
-    xrootd_vfs_stat_t vst;
+    brix_vfs_stat_t vst;
 
     /*
      * Impersonation read-gate: verify the MAPPED user may READ this directory
-     * (kept as an explicit pre-check; xrootd_vfs_opendir below also opens AS that
+     * (kept as an explicit pre-check; brix_vfs_opendir below also opens AS that
      * user via the broker, so an unreadable dir is skipped either way). No-op
      * when impersonation is off; a denied dir is skipped, request not failed.
      */
-    if (xrootd_dirlist_access_ok(r->connection->log, root_canon, dir_path)
+    if (brix_dirlist_access_ok(r->connection->log, root_canon, dir_path)
         != NGX_OK)
     {
         return NGX_OK;
     }
 
-    /* Enumerate through the VFS: xrootd_vfs_opendir is impersonation-aware
-     * (broker fdopendir as the mapped user) and xrootd_vfs_readdir returns each
+    /* Enumerate through the VFS: brix_vfs_opendir is impersonation-aware
+     * (broker fdopendir as the mapped user) and brix_vfs_readdir returns each
      * name with a no-follow lstat — so a symlink lists as a plain resource and is
      * never recursed, exactly as before. */
     propfind_dir_ctx(r, root_canon, dir_path, &vctx);
-    dh = xrootd_vfs_opendir(&vctx, NULL);
+    dh = brix_vfs_opendir(&vctx, NULL);
     if (dh == NULL) {
         return NGX_OK;   /* unreadable subtree: skip, do not fail the request */
     }
 
-    while (xrootd_vfs_readdir(dh, &name, &vst) == NGX_OK) {
+    while (brix_vfs_readdir(dh, &name, &vst) == NGX_OK) {
         char        child_path[WEBDAV_MAX_PATH];
         char        child_href[WEBDAV_MAX_PATH + 2];
         struct stat csb;
@@ -106,7 +106,7 @@ propfind_walk(ngx_http_request_t *r,
             break;
         }
 
-        if (xrootd_fs_join_path(dir_path, (char *) name.data, child_path,
+        if (brix_fs_join_path(dir_path, (char *) name.data, child_path,
                                 sizeof(child_path)) != NGX_OK)
         {
             continue;
@@ -136,7 +136,7 @@ propfind_walk(ngx_http_request_t *r,
         if (propfind_entry(r, head, tail, child_href, child_path, &csb, req)
             != NGX_OK)
         {
-            xrootd_vfs_closedir(dh, r->connection->log);
+            brix_vfs_closedir(dh, r->connection->log);
             return NGX_ERROR;
         }
         (*entry_count)++;
@@ -154,14 +154,14 @@ propfind_walk(ngx_http_request_t *r,
                                   entry_count, max_entries, req, recurse)
                     != NGX_OK)
                 {
-                    xrootd_vfs_closedir(dh, r->connection->log);
+                    brix_vfs_closedir(dh, r->connection->log);
                     return NGX_ERROR;
                 }
             }
         }
     }
 
-    xrootd_vfs_closedir(dh, r->connection->log);
+    brix_vfs_closedir(dh, r->connection->log);
     return NGX_OK;
 }
 
@@ -201,13 +201,13 @@ propfind_do(ngx_http_request_t *r)
 
     depth = propfind_parse_depth(r);
     {
-        ngx_uint_t depth_slot = (depth == 0)  ? XROOTD_WEBDAV_PROPFIND_DEPTH_0
-                              : (depth == 1)  ? XROOTD_WEBDAV_PROPFIND_DEPTH_1
-                              :                 XROOTD_WEBDAV_PROPFIND_DEPTH_INF;
-        XROOTD_WEBDAV_METRIC_INC(propfind_depth_total[depth_slot]);
+        ngx_uint_t depth_slot = (depth == 0)  ? BRIX_WEBDAV_PROPFIND_DEPTH_0
+                              : (depth == 1)  ? BRIX_WEBDAV_PROPFIND_DEPTH_1
+                              :                 BRIX_WEBDAV_PROPFIND_DEPTH_INF;
+        BRIX_WEBDAV_METRIC_INC(propfind_depth_total[depth_slot]);
     }
 
-    if (xrootd_http_chain_appendf(r->pool, &head, &tail,
+    if (brix_http_chain_appendf(r->pool, &head, &tail,
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             "<D:multistatus xmlns:D=\"DAV:\""
             " xmlns:xrd=\"http://xrootd.org/2010/ns/dav\">") == NULL)
@@ -248,7 +248,7 @@ propfind_do(ngx_http_request_t *r)
         }
     }
 
-    if (xrootd_http_chain_appendf(r->pool, &head, &tail,
+    if (brix_http_chain_appendf(r->pool, &head, &tail,
             "</D:multistatus>") == NULL)
     {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -265,7 +265,7 @@ propfind_do(ngx_http_request_t *r)
         total_len += lc->buf->last - lc->buf->pos;
     }
 
-    XROOTD_WEBDAV_METRIC_ADD(propfind_entries_total, entry_count);
+    BRIX_WEBDAV_METRIC_ADD(propfind_entries_total, entry_count);
 
     r->headers_out.status = 207;
     r->headers_out.content_length_n = total_len;
@@ -283,12 +283,12 @@ propfind_do(ngx_http_request_t *r)
         return rc;
     }
 
-    XROOTD_WEBDAV_METRIC_ADD(bytes_tx_total, (size_t) total_len);
+    BRIX_WEBDAV_METRIC_ADD(bytes_tx_total, (size_t) total_len);
     if (r->connection && r->connection->sockaddr
         && r->connection->sockaddr->sa_family == AF_INET6) {
-        XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv6_total, (size_t) total_len);
+        BRIX_WEBDAV_METRIC_ADD(bytes_tx_ipv6_total, (size_t) total_len);
     } else {
-        XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv4_total, (size_t) total_len);
+        BRIX_WEBDAV_METRIC_ADD(bytes_tx_ipv4_total, (size_t) total_len);
     }
 
     return ngx_http_output_filter(r, head);

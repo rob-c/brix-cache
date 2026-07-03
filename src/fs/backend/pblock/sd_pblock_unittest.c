@@ -1,12 +1,12 @@
 /*
  * sd_pblock_unittest.c — standalone unit test for the pblock storage driver,
- * driven through the real xrootd_sd_driver_t vtable function pointers. No nginx,
+ * driven through the real brix_sd_driver_t vtable function pointers. No nginx,
  * no running server: it builds a throwaway export root under /tmp and exercises
  * every slot plus multi-thread and multi-process concurrency.
  *
  * Build & run (the data plane is real POSIX + SQLite, so it needs libsqlite3 and
  * the ngx-free shim surface in sd.h):
- *   cc -Wall -Wextra -DXROOTD_HAVE_SQLITE=1 -DXRDPROTO_NO_NGX -I. \
+ *   cc -Wall -Wextra -DBRIX_HAVE_SQLITE=1 -DXRDPROTO_NO_NGX -I. \
  *      sd_pblock_unittest.c sd_pblock.c sd_pblock_catalog.c \
  *      -lsqlite3 -lpthread -o /tmp/pb_ut && /tmp/pb_ut
  */
@@ -39,13 +39,13 @@ static int failures;
         }                                                                      \
     } while (0)
 
-static const xrootd_sd_driver_t *D;   /* = &xrootd_sd_pblock_driver */
+static const brix_sd_driver_t *D;   /* = &brix_sd_pblock_driver */
 
 /* pb_close — close an object and free its malloc'd shell. driver->close frees the
  * per-open state + fd but not the obj struct (the VFS adopts that by value), so a
  * direct caller owns the shell. */
 static ngx_int_t
-pb_close(xrootd_sd_obj_t *o)
+pb_close(brix_sd_obj_t *o)
 {
     ngx_int_t rc = D->close(o);
 
@@ -57,15 +57,15 @@ pb_close(xrootd_sd_obj_t *o)
 
 /* write_file — create `path`, write `data`, close. Returns 0 or -1. */
 static int
-write_file(xrootd_sd_instance_t *inst, const char *path, const char *data,
+write_file(brix_sd_instance_t *inst, const char *path, const char *data,
     size_t len)
 {
     int              err = 0;
-    xrootd_sd_obj_t *o;
+    brix_sd_obj_t *o;
     ssize_t          n;
 
     o = D->open(inst, path,
-                XROOTD_SD_O_WRITE | XROOTD_SD_O_READ | XROOTD_SD_O_CREATE,
+                BRIX_SD_O_WRITE | BRIX_SD_O_READ | BRIX_SD_O_CREATE,
                 0644, &err);
     if (o == NULL) {
         return -1;
@@ -78,13 +78,13 @@ write_file(xrootd_sd_instance_t *inst, const char *path, const char *data,
 /* read_file — open `path` read-only, read up to cap bytes at 0. Returns bytes
  * read or -1. */
 static ssize_t
-read_file(xrootd_sd_instance_t *inst, const char *path, char *buf, size_t cap)
+read_file(brix_sd_instance_t *inst, const char *path, char *buf, size_t cap)
 {
     int              err = 0;
-    xrootd_sd_obj_t *o;
+    brix_sd_obj_t *o;
     ssize_t          n;
 
-    o = D->open(inst, path, XROOTD_SD_O_READ, 0, &err);
+    o = D->open(inst, path, BRIX_SD_O_READ, 0, &err);
     if (o == NULL) {
         errno = err;
         return -1;
@@ -97,15 +97,15 @@ read_file(xrootd_sd_instance_t *inst, const char *path, char *buf, size_t cap)
 /* ---- tests ---------------------------------------------------------------- */
 
 static void
-test_write_read_fstat(xrootd_sd_instance_t *inst)
+test_write_read_fstat(brix_sd_instance_t *inst)
 {
     int               err = 0;
-    xrootd_sd_obj_t  *o;
-    xrootd_sd_stat_t  st;
+    brix_sd_obj_t  *o;
+    brix_sd_stat_t  st;
     char              buf[64];
 
     o = D->open(inst, "/hello",
-                XROOTD_SD_O_WRITE | XROOTD_SD_O_READ | XROOTD_SD_O_CREATE,
+                BRIX_SD_O_WRITE | BRIX_SD_O_READ | BRIX_SD_O_CREATE,
                 0644, &err);
     CHECK(o != NULL, "open create failed: %s", strerror(err));
     if (o == NULL) { return; }
@@ -126,14 +126,14 @@ test_write_read_fstat(xrootd_sd_instance_t *inst)
 }
 
 static void
-test_truncate_and_stat(xrootd_sd_instance_t *inst)
+test_truncate_and_stat(brix_sd_instance_t *inst)
 {
     int               err = 0;
-    xrootd_sd_obj_t  *o;
-    xrootd_sd_stat_t  st;
+    brix_sd_obj_t  *o;
+    brix_sd_stat_t  st;
 
     CHECK(write_file(inst, "/trunc", "0123456789", 10) == 0, "seed write");
-    o = D->open(inst, "/trunc", XROOTD_SD_O_WRITE | XROOTD_SD_O_READ, 0, &err);
+    o = D->open(inst, "/trunc", BRIX_SD_O_WRITE | BRIX_SD_O_READ, 0, &err);
     CHECK(o != NULL, "reopen rw: %s", strerror(err));
     if (o == NULL) { return; }
     CHECK(D->ftruncate(o, 4) == NGX_OK, "ftruncate");
@@ -149,15 +149,15 @@ test_truncate_and_stat(xrootd_sd_instance_t *inst)
 }
 
 static void
-test_preadv(xrootd_sd_instance_t *inst)
+test_preadv(brix_sd_instance_t *inst)
 {
     int              err = 0;
-    xrootd_sd_obj_t *o;
+    brix_sd_obj_t *o;
     char             a[4], b[4];
     struct iovec     iov[2];
 
     CHECK(write_file(inst, "/vec", "ABCDEFGH", 8) == 0, "seed");
-    o = D->open(inst, "/vec", XROOTD_SD_O_READ, 0, &err);
+    o = D->open(inst, "/vec", BRIX_SD_O_READ, 0, &err);
     CHECK(o != NULL, "open vec");
     if (o == NULL) { return; }
     iov[0].iov_base = a; iov[0].iov_len = 4;
@@ -168,11 +168,11 @@ test_preadv(xrootd_sd_instance_t *inst)
 }
 
 static void
-test_dirs(xrootd_sd_instance_t *inst)
+test_dirs(brix_sd_instance_t *inst)
 {
     int               err = 0;
-    xrootd_sd_dir_t  *dir;
-    xrootd_sd_dirent_t de;
+    brix_sd_dir_t  *dir;
+    brix_sd_dirent_t de;
     int               seen_a = 0, seen_b = 0, n = 0, rc;
 
     CHECK(D->mkdir(inst, "/dir", 0755) == NGX_OK, "mkdir");
@@ -194,9 +194,9 @@ test_dirs(xrootd_sd_instance_t *inst)
 }
 
 static void
-test_rename(xrootd_sd_instance_t *inst)
+test_rename(brix_sd_instance_t *inst)
 {
-    xrootd_sd_stat_t st;
+    brix_sd_stat_t st;
     char             buf[16];
 
     CHECK(write_file(inst, "/r1", "keepme", 6) == 0, "seed r1");
@@ -218,9 +218,9 @@ test_rename(xrootd_sd_instance_t *inst)
 }
 
 static void
-test_server_copy(xrootd_sd_instance_t *inst)
+test_server_copy(brix_sd_instance_t *inst)
 {
-    xrootd_sd_stat_t st;
+    brix_sd_stat_t st;
     char             buf[16];
     off_t            bytes = 0;
 
@@ -233,7 +233,7 @@ test_server_copy(xrootd_sd_instance_t *inst)
 }
 
 static void
-test_xattr(xrootd_sd_instance_t *inst)
+test_xattr(brix_sd_instance_t *inst)
 {
     char    buf[64];
     ssize_t n;
@@ -251,11 +251,11 @@ test_xattr(xrootd_sd_instance_t *inst)
 }
 
 static void
-test_staged(xrootd_sd_instance_t *inst)
+test_staged(brix_sd_instance_t *inst)
 {
     int                 err = 0;
-    xrootd_sd_staged_t *s;
-    xrootd_sd_stat_t    st;
+    brix_sd_staged_t *s;
+    brix_sd_stat_t    st;
     char                buf[16];
 
     s = D->staged_open(inst, "/staged", 0644, &err);
@@ -281,9 +281,9 @@ test_staged(xrootd_sd_instance_t *inst)
 }
 
 static void
-test_unlink(xrootd_sd_instance_t *inst)
+test_unlink(brix_sd_instance_t *inst)
 {
-    xrootd_sd_stat_t st;
+    brix_sd_stat_t st;
 
     CHECK(write_file(inst, "/del", "bye", 3) == 0, "seed");
     CHECK(D->unlink(inst, "/del", 0) == NGX_OK, "unlink file");
@@ -304,16 +304,16 @@ test_unlink(xrootd_sd_instance_t *inst)
 static void
 test_fsync_durability(const char *root)
 {
-    xrootd_sd_instance_t    inst = {0};
-    xrootd_sd_pblock_conf_t conf = { root, 2000, 0 };
+    brix_sd_instance_t    inst = {0};
+    brix_sd_pblock_conf_t conf = { root, 2000, 0 };
     int                     err = 0;
-    xrootd_sd_obj_t        *o;
-    xrootd_sd_stat_t        st;
+    brix_sd_obj_t        *o;
+    brix_sd_stat_t        st;
 
     inst.driver = D;
     CHECK(D->init(&inst, &conf) == NGX_OK, "second init");
     o = D->open(&inst, "/durable",
-                XROOTD_SD_O_WRITE | XROOTD_SD_O_READ | XROOTD_SD_O_CREATE,
+                BRIX_SD_O_WRITE | BRIX_SD_O_READ | BRIX_SD_O_CREATE,
                 0644, &err);
     CHECK(o != NULL, "open durable");
     if (o != NULL) {
@@ -337,7 +337,7 @@ test_fsync_durability(const char *root)
 /* ---- concurrency ---------------------------------------------------------- */
 
 typedef struct {
-    xrootd_sd_instance_t *inst;
+    brix_sd_instance_t *inst;
     int                   id;
     int                   ops;
     int                   ok;
@@ -373,7 +373,7 @@ thread_body(void *p)
 }
 
 static void
-test_threads(xrootd_sd_instance_t *inst)
+test_threads(brix_sd_instance_t *inst)
 {
     enum { NTHREADS = 8, NOPS = 40 };
     pthread_t  tids[NTHREADS];
@@ -399,13 +399,13 @@ test_threads(xrootd_sd_instance_t *inst)
  * the parent then verifies every child's files landed. Exercises cross-process
  * WAL locking + the busy-timeout retry path. */
 static void
-test_processes(const char *root, xrootd_sd_instance_t *inst)
+test_processes(const char *root, brix_sd_instance_t *inst)
 {
     enum { NPROC = 4, NOPS = 25 };
     pid_t pids[NPROC];
     int   i, total = 0, rc;
-    xrootd_sd_dir_t   *dir;
-    xrootd_sd_dirent_t de;
+    brix_sd_dir_t   *dir;
+    brix_sd_dirent_t de;
     int                err = 0;
 
     CHECK(D->mkdir(inst, "/mp", 0755) == NGX_OK, "mkdir mp");
@@ -414,8 +414,8 @@ test_processes(const char *root, xrootd_sd_instance_t *inst)
         pid_t pid = fork();
 
         if (pid == 0) {
-            xrootd_sd_instance_t    cinst = {0};
-            xrootd_sd_pblock_conf_t conf = { root, 5000, 0 };
+            brix_sd_instance_t    cinst = {0};
+            brix_sd_pblock_conf_t conf = { root, 5000, 0 };
             int                     j, bad = 0;
 
             cinst.driver = D;
@@ -492,9 +492,9 @@ scan_blocks(const char *root)
 /* pblock_open_block_export — fresh export with a small block size so striping is
  * exercised with a handful of bytes. Returns 0/-1 and fills *inst + *root. */
 static int
-open_block_export(xrootd_sd_instance_t *inst, char *root, int64_t block_size)
+open_block_export(brix_sd_instance_t *inst, char *root, int64_t block_size)
 {
-    static xrootd_sd_pblock_conf_t conf;   /* root must outlive the instance */
+    static brix_sd_pblock_conf_t conf;   /* root must outlive the instance */
 
     conf.root = root;
     conf.busy_timeout_ms = 2000;
@@ -510,9 +510,9 @@ static void
 test_block_striping(void)
 {
     char                 root[] = "/tmp/pb_blk.XXXXXX";
-    xrootd_sd_instance_t inst;
-    xrootd_sd_obj_t     *o;
-    xrootd_sd_stat_t     st;
+    brix_sd_instance_t inst;
+    brix_sd_obj_t     *o;
+    brix_sd_stat_t     st;
     char                 data[40], buf[40], part[20];
     int                  i, err = 0;
 
@@ -527,7 +527,7 @@ test_block_striping(void)
     CHECK(read_file(&inst, "/big", buf, sizeof(buf)) == 40
           && memcmp(buf, data, 40) == 0, "read back 40 byte-exact");
 
-    o = D->open(&inst, "/big", XROOTD_SD_O_READ, 0, &err);
+    o = D->open(&inst, "/big", BRIX_SD_O_READ, 0, &err);
     CHECK(o != NULL, "reopen read");
     if (o != NULL) {
         CHECK(D->pread(o, part, 20, 10) == 20
@@ -549,7 +549,7 @@ static void
 test_block_size_configurable(void)
 {
     char                 root[] = "/tmp/pb_blk8.XXXXXX";
-    xrootd_sd_instance_t inst;
+    brix_sd_instance_t inst;
     char                 data[40];
     int                  i;
 
@@ -573,9 +573,9 @@ static void
 test_block_sparse(void)
 {
     char                 root[] = "/tmp/pb_sps.XXXXXX";
-    xrootd_sd_instance_t inst;
-    xrootd_sd_obj_t     *o;
-    xrootd_sd_stat_t     st;
+    brix_sd_instance_t inst;
+    brix_sd_obj_t     *o;
+    brix_sd_stat_t     st;
     char                 buf[64];
     int                  i, err = 0;
 
@@ -583,7 +583,7 @@ test_block_sparse(void)
     CHECK(open_block_export(&inst, root, 16) == 0, "init bs=16");
 
     o = D->open(&inst, "/sparse",
-                XROOTD_SD_O_WRITE | XROOTD_SD_O_READ | XROOTD_SD_O_CREATE,
+                BRIX_SD_O_WRITE | BRIX_SD_O_READ | BRIX_SD_O_CREATE,
                 0644, &err);
     CHECK(o != NULL, "open sparse");
     if (o != NULL) {
@@ -610,9 +610,9 @@ static void
 test_block_truncate(void)
 {
     char                 root[] = "/tmp/pb_trc.XXXXXX";
-    xrootd_sd_instance_t inst;
-    xrootd_sd_obj_t     *o;
-    xrootd_sd_stat_t     st;
+    brix_sd_instance_t inst;
+    brix_sd_obj_t     *o;
+    brix_sd_stat_t     st;
     char                 data[40], buf[40];
     int                  i, err = 0;
 
@@ -623,7 +623,7 @@ test_block_truncate(void)
     }
     CHECK(write_file(&inst, "/t", data, 40) == 0, "seed 40");
 
-    o = D->open(&inst, "/t", XROOTD_SD_O_WRITE | XROOTD_SD_O_READ, 0, &err);
+    o = D->open(&inst, "/t", BRIX_SD_O_WRITE | BRIX_SD_O_READ, 0, &err);
     CHECK(o != NULL, "reopen rw");
     if (o != NULL) {
         CHECK(D->ftruncate(o, 10) == NGX_OK, "truncate to 10");
@@ -645,8 +645,8 @@ static void
 test_block_copy_and_unlink(void)
 {
     char                 root[] = "/tmp/pb_cu.XXXXXX";
-    xrootd_sd_instance_t inst;
-    xrootd_sd_stat_t     st;
+    brix_sd_instance_t inst;
+    brix_sd_stat_t     st;
     char                 data[40], buf[40];
     off_t                bytes = 0;
     int                  i;
@@ -675,10 +675,10 @@ int
 main(void)
 {
     char                    root[] = "/tmp/pb_ut.XXXXXX";
-    xrootd_sd_pblock_conf_t conf;
-    xrootd_sd_instance_t    inst = {0};
+    brix_sd_pblock_conf_t conf;
+    brix_sd_instance_t    inst = {0};
 
-    D = &xrootd_sd_pblock_driver;
+    D = &brix_sd_pblock_driver;
 
     CHECK(mkdtemp(root) != NULL, "mkdtemp");
     conf.root = root;

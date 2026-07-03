@@ -1,13 +1,13 @@
-#ifndef NGX_XROOTD_CONNECTION_NETCONNECT_H
-#define NGX_XROOTD_CONNECTION_NETCONNECT_H
+#ifndef NGX_BRIX_CONNECTION_NETCONNECT_H
+#define NGX_BRIX_CONNECTION_NETCONNECT_H
 
 /*
  * netconnect.h — shared OUTBOUND connect/I/O hardening for blocking-thread paths.
  *
  * WHAT: two header-only helpers used by every subsystem that opens an outbound
  *   TCP connection from a worker thread (not the event loop):
- *     - xrootd_apply_socket_io_timeouts() — SO_RCVTIMEO + SO_SNDTIMEO on a fd.
- *     - xrootd_connect_fd_deadline()      — a non-blocking connect(2) bounded by
+ *     - brix_apply_socket_io_timeouts() — SO_RCVTIMEO + SO_SNDTIMEO on a fd.
+ *     - brix_connect_fd_deadline()      — a non-blocking connect(2) bounded by
  *                                           poll(POLLOUT) + getsockopt(SO_ERROR).
  *
  * WHY: native TPC (src/tpc/outbound/connect.c), the read-through cache origin fill
@@ -40,21 +40,21 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 
-/* Outcome of xrootd_resolve_connect_socket(), so the caller can emit its own
+/* Outcome of brix_resolve_connect_socket(), so the caller can emit its own
  * (protocol-specific) log message for each failure mode. */
 typedef enum {
-    XROOTD_RESOLVE_OK = 0,
-    XROOTD_RESOLVE_ERR_DNS,     /* getaddrinfo() failed for host:port */
-    XROOTD_RESOLVE_ERR_SOCKET   /* no resolved family yielded a usable socket */
-} xrootd_resolve_status_t;
+    BRIX_RESOLVE_OK = 0,
+    BRIX_RESOLVE_ERR_DNS,     /* getaddrinfo() failed for host:port */
+    BRIX_RESOLVE_ERR_SOCKET   /* no resolved family yielded a usable socket */
+} brix_resolve_status_t;
 
 /*
  * Resolve host:port (SOCK_STREAM) and create the first non-blocking socket whose
  * address family succeeds; copy that sockaddr into *addr_out / *addrlen_out.
- * af_policy constrains getaddrinfo's family — XROOTD_AF_AUTO (AF_UNSPEC) tries all,
- * XROOTD_AF_INET / _INET6 force IPv4 / IPv6 only. Returns the connected-ready
+ * af_policy constrains getaddrinfo's family — BRIX_AF_AUTO (AF_UNSPEC) tries all,
+ * BRIX_AF_INET / _INET6 force IPv4 / IPv6 only. Returns the connected-ready
  * socket fd (caller owns it) with
- * *status_out = XROOTD_RESOLVE_OK, or NGX_INVALID_FILE with *status_out set to
+ * *status_out = BRIX_RESOLVE_OK, or NGX_INVALID_FILE with *status_out set to
  * the failure reason (DNS vs no-usable-socket) so the caller logs its own
  * message. Does no logging itself and leaves no fd open on failure.
  *
@@ -64,10 +64,10 @@ typedef enum {
  * + chosen address and does NOT call connect().
  */
 static ngx_inline int
-xrootd_resolve_connect_socket(const char *host, unsigned port,
-    xrootd_af_policy_t af_policy,
+brix_resolve_connect_socket(const char *host, unsigned port,
+    brix_af_policy_t af_policy,
     struct sockaddr_storage *addr_out, socklen_t *addrlen_out,
-    xrootd_resolve_status_t *status_out)
+    brix_resolve_status_t *status_out)
 {
     struct addrinfo  hints;
     struct addrinfo *res;
@@ -81,7 +81,7 @@ xrootd_resolve_connect_socket(const char *host, unsigned port,
     snprintf(port_str, sizeof(port_str), "%u", port);
 
     if (getaddrinfo(host, port_str, &hints, &res) != 0) {
-        *status_out = XROOTD_RESOLVE_ERR_DNS;
+        *status_out = BRIX_RESOLVE_ERR_DNS;
         return (int) NGX_INVALID_FILE;
     }
 
@@ -102,11 +102,11 @@ xrootd_resolve_connect_socket(const char *host, unsigned port,
     freeaddrinfo(res);
 
     if (fd == (int) NGX_INVALID_FILE) {
-        *status_out = XROOTD_RESOLVE_ERR_SOCKET;
+        *status_out = BRIX_RESOLVE_ERR_SOCKET;
         return (int) NGX_INVALID_FILE;
     }
 
-    *status_out = XROOTD_RESOLVE_OK;
+    *status_out = BRIX_RESOLVE_OK;
     return fd;
 }
 
@@ -115,7 +115,7 @@ xrootd_resolve_connect_socket(const char *host, unsigned port,
  * denied/missing option is swallowed (never aborts a connection).
  */
 static ngx_inline void
-xrootd_apply_socket_io_timeouts(int fd, long timeout_secs)
+brix_apply_socket_io_timeouts(int fd, long timeout_secs)
 {
     struct timeval tv;
 
@@ -137,7 +137,7 @@ xrootd_apply_socket_io_timeouts(int fd, long timeout_secs)
  * caller closes it on failure, so this is harmless.
  */
 static ngx_inline int
-xrootd_connect_fd_deadline(int fd, const struct sockaddr *addr,
+brix_connect_fd_deadline(int fd, const struct sockaddr *addr,
     socklen_t addrlen, int timeout_ms)
 {
     struct pollfd pfd;
@@ -189,4 +189,4 @@ xrootd_connect_fd_deadline(int fd, const struct sockaddr *addr,
     return 0;
 }
 
-#endif /* NGX_XROOTD_CONNECTION_NETCONNECT_H */
+#endif /* NGX_BRIX_CONNECTION_NETCONNECT_H */

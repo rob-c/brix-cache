@@ -102,11 +102,11 @@ NFILES="$(cexec find /var/cache/cvmfs -type f 2>/dev/null | wc -l)"
 
 # --- 3: Prometheus counters -------------------------------------------------
 MET="$(curl -fsS http://127.0.0.1:3130/metrics)"
-echo "$MET" | grep -q 'xrootd_cvmfs_requests_total{class="cas"} [1-9]' \
+echo "$MET" | grep -q 'brix_cvmfs_requests_total{class="cas"} [1-9]' \
     && ok "metrics: cas requests counted" || bad "metrics: cas counter"
-echo "$MET" | grep -q 'xrootd_cvmfs_requests_total{class="manifest"} [1-9]' \
+echo "$MET" | grep -q 'brix_cvmfs_requests_total{class="manifest"} [1-9]' \
     && ok "metrics: manifest requests counted" || bad "metrics: manifest counter"
-echo "$MET" | grep -q 'xrootd_cvmfs_bytes_served_total{source="hit"} [1-9]' \
+echo "$MET" | grep -q 'brix_cvmfs_bytes_served_total{source="hit"} [1-9]' \
     && ok "metrics: warm hit bytes counted" || bad "metrics: hit bytes"
 
 # --- 4: dashboard -----------------------------------------------------------

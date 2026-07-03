@@ -4,12 +4,12 @@
  */
 #include "broker_internal.h"
 
-uid_t xrootd_imp_broker_allow_uid = 0;
+uid_t brix_imp_broker_allow_uid = 0;
 uid_t  imp_base_uid;
 
 gid_t  imp_base_gid;
 
-gid_t  imp_base_groups[XROOTD_IDMAP_MAXGROUPS];
+gid_t  imp_base_groups[BRIX_IDMAP_MAXGROUPS];
 
 int    imp_base_ngroups;
 
@@ -22,13 +22,13 @@ imp_peer_allowed(int conn_fd)
     struct ucred cred;
     socklen_t    len = sizeof(cred);
 
-    if (xrootd_imp_broker_allow_uid == 0) {
+    if (brix_imp_broker_allow_uid == 0) {
         return 1;                        /* gate disabled */
     }
     if (getsockopt(conn_fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) != 0) {
         return 0;                        /* cannot verify -> refuse */
     }
-    return cred.uid == xrootd_imp_broker_allow_uid || cred.uid == 0;
+    return cred.uid == brix_imp_broker_allow_uid || cred.uid == 0;
 }
 
 
@@ -117,7 +117,7 @@ imp_serve_one(int conn_fd, int rootfd, ngx_log_t *log)
     static char          data_in[IMP_XATTR_MAX];  /* inbound SETXATTR value */
     imp_req_t            req;
     imp_rep_t            rep;
-    xrootd_idmap_creds_t creds;
+    brix_idmap_creds_t creds;
     size_t               in_len = 0;
     int                  rc, fd = -1;
 
@@ -165,8 +165,8 @@ imp_serve_one(int conn_fd, int rootfd, ngx_log_t *log)
     /* Map the principal -> UNIX creds.  Anything that is not a concrete OK/SQUASH
      * mapping (deny uid 0 / below floor, or a hard resolver error) fails closed —
      * the broker must never impersonate on an uncertain mapping. */
-    rc = xrootd_idmap_resolve(NULL, req.principal, &creds, log);
-    if (rc != XROOTD_IDMAP_OK && rc != XROOTD_IDMAP_SQUASH) {
+    rc = brix_idmap_resolve(NULL, req.principal, &creds, log);
+    if (rc != BRIX_IDMAP_OK && rc != BRIX_IDMAP_SQUASH) {
         rep.status = IMP_STATUS_DENY;
         return imp_send_reply(conn_fd, &rep, -1, NULL, 0) == 0 ? 1 : 0;
     }
@@ -192,12 +192,12 @@ imp_serve_one(int conn_fd, int rootfd, ngx_log_t *log)
                                "floor=%d); terminating broker to guarantee no "
                                "privileged file op runs",
                                (int) creds.uid, (int) creds.gid,
-                               XROOTD_IMP_HARD_MIN_ID);
+                               BRIX_IMP_HARD_MIN_ID);
         /* Also emit to stderr: this is fatal and log may be NULL (tests, or a
          * mis-set error_log), and the reason must never be silently swallowed. */
         fprintf(stderr, "impersonate broker: FATAL — refused RESERVED credential "
                 "(uid=%d gid=%d floor=%d); terminating\n",
-                (int) creds.uid, (int) creds.gid, XROOTD_IMP_HARD_MIN_ID);
+                (int) creds.uid, (int) creds.gid, BRIX_IMP_HARD_MIN_ID);
         _exit(EXIT_FAILURE);
     }
     if (rc != 0) {
@@ -224,7 +224,7 @@ imp_serve_one(int conn_fd, int rootfd, ngx_log_t *log)
 
 
 int
-xrootd_imp_broker_run(int listen_fd, int rootfd,
+brix_imp_broker_run(int listen_fd, int rootfd,
                       const volatile sig_atomic_t *stop, ngx_log_t *log)
 {
     struct pollfd pfds[IMP_BROKER_MAXCONN + 1];
@@ -237,14 +237,14 @@ xrootd_imp_broker_run(int listen_fd, int rootfd,
      * identity the broker restores to between ops, and imp_self_uid (the
      * never-impersonate-to-self guard), reflect the final, minimal identity.
      */
-    if (xrootd_imp_broker_drop_caps(log) != 0) {
+    if (brix_imp_broker_drop_caps(log) != 0) {
         return -1;                       /* fail closed: DAC would not be enforced */
     }
 
     imp_base_uid = geteuid();
     imp_base_gid = getegid();
     imp_self_uid = getuid();
-    ng = getgroups(XROOTD_IDMAP_MAXGROUPS, imp_base_groups);
+    ng = getgroups(BRIX_IDMAP_MAXGROUPS, imp_base_groups);
     imp_base_ngroups = (ng > 0) ? ng : 0;
 
     pfds[0].fd     = listen_fd;

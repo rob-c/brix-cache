@@ -77,8 +77,8 @@ pid {root}/nginx.pid;
 error_log {root}/error.log info;
 events {{ worker_connections 64; }}
 stream {{
-    server {{ listen {BIND_HOST}:{port}; xrootd on; xrootd_storage_backend posix:{data};
-             xrootd_auth none; }}
+    server {{ listen {BIND_HOST}:{port}; xrootd on; brix_storage_backend posix:{data};
+             brix_auth none; }}
 }}
 """)
     if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],

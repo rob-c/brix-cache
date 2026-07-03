@@ -12,18 +12,18 @@
  */
 
 ngx_int_t
-xrootd_cms_forward_to_node(ngx_connection_t *c, u_char code, uint32_t streamid,
+brix_cms_forward_to_node(ngx_connection_t *c, u_char code, uint32_t streamid,
     const char *ident, const char *path, const char *path2,
     const char *mode, const char *opaque)
 {
-    u_char  payload[NGX_XROOTD_CMS_MAX_FRAME];
+    u_char  payload[NGX_BRIX_CMS_MAX_FRAME];
     int     plen;
 
-    plen = xrootd_cms_rrdata_encode(code, ident, path, path2, mode, opaque,
+    plen = brix_cms_rrdata_encode(code, ident, path, path2, mode, opaque,
                                     payload, sizeof(payload));
     if (plen < 0) {
         return NGX_ERROR;
     }
 
-    return xrootd_cms_send_frame(c, streamid, code, 0, payload, (size_t) plen);
+    return brix_cms_send_frame(c, streamid, code, 0, payload, (size_t) plen);
 }

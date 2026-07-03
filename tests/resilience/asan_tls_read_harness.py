@@ -7,7 +7,7 @@ anything.
 
 This is the verification rig for the read-pipelining work (#1 TLS single-chunk,
 #4 produce-ahead, #2 multi-chunk/readv).  A roots:// read of a regular file takes
-the memory-backed builder (xrootd_build_single_memory_chain / _chunked_chain) —
+the memory-backed builder (brix_build_single_memory_chain / _chunked_chain) —
 the path being made pipelinable — because sendfile is gated off for userspace TLS.
 
 Usage:
@@ -101,11 +101,11 @@ def main():
         fh.write(f"""worker_processes 1; daemon off;
 error_log {errlog} info; pid {logs}/nginx.pid;
 events {{ worker_connections 2048; }}
-stream {{ server {{ listen 127.0.0.1:{port}; xrootd on; xrootd_storage_backend posix:{data};
-  xrootd_auth none; xrootd_allow_write on;
-  xrootd_tls on; xrootd_certificate {servers.SERVER_CERT};
-  xrootd_certificate_key {servers.SERVER_KEY};
-  xrootd_pipeline_depth {args.depth}; }} }}""")
+stream {{ server {{ listen 127.0.0.1:{port}; xrootd on; brix_storage_backend posix:{data};
+  brix_auth none; brix_allow_write on;
+  brix_tls on; brix_certificate {servers.SERVER_CERT};
+  brix_certificate_key {servers.SERVER_KEY};
+  brix_pipeline_depth {args.depth}; }} }}""")
 
     name = "/r.bin"
     src = os.path.join(data, "r.bin")

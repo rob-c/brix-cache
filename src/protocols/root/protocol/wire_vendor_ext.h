@@ -1,5 +1,5 @@
-#ifndef XROOTD_WIRE_VENDOR_EXT_H
-#define XROOTD_WIRE_VENDOR_EXT_H
+#ifndef BRIX_WIRE_VENDOR_EXT_H
+#define BRIX_WIRE_VENDOR_EXT_H
 
 /*
  * wire_vendor_ext.h — request structures for the nginx-xrootd vendor extension
@@ -39,7 +39,7 @@
  *   off 40: int32 gid          (-1 = leave unchanged)
  *   off 44: path[]             (NUL-terminated; dlen - 44 bytes)
  */
-#define XROOTD_SETATTR_PREFIX_LEN  44   /* fixed binary prefix before the path */
+#define BRIX_SETATTR_PREFIX_LEN  44   /* fixed binary prefix before the path */
 #define kXR_sa_times  0x01             /* apply atime/mtime via utimensat */
 #define kXR_sa_owner  0x02             /* apply uid/gid via fchownat       */
 
@@ -47,7 +47,7 @@ typedef struct {
     kXR_char   streamid[2];
     kXR_unt16  requestid;    /* kXR_setattr */
     kXR_char   reserved[16];
-    kXR_int32  dlen;         /* XROOTD_SETATTR_PREFIX_LEN + path length */
+    kXR_int32  dlen;         /* BRIX_SETATTR_PREFIX_LEN + path length */
     /* payload: 44-byte big-endian attribute prefix + null-terminated path */
 } ClientSetattrRequest;      /* 24 bytes */
 
@@ -96,4 +96,4 @@ typedef struct {
 
 #pragma pack(pop)
 
-#endif /* XROOTD_WIRE_VENDOR_EXT_H */
+#endif /* BRIX_WIRE_VENDOR_EXT_H */

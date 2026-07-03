@@ -1,7 +1,7 @@
 """Compile + run the standalone crash-safe reparented command runner suite
 (src/fs/xfer/xfer_spawn_unittest.c).
 
-The runner (xrootd_xfer_run_reparented) is the synchronous, double-forked,
+The runner (brix_xfer_run_reparented) is the synchronous, double-forked,
 reparented-to-init external-command launcher that write-through (and later TPC)
 use instead of posix_spawn, so nginx never reaps the child — avoiding the
 SHM/SIGCHLD master-crash hazard. The C suite checks exit-code propagation, exec

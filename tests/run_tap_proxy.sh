@@ -18,18 +18,18 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/n/logs"
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OP}; xrootd on; xrootd_root $PFX/o/root; xrootd_auth none;
-                  xrootd_allow_write on; xrootd_upload_resume off; } }
+stream { server { listen 127.0.0.1:${OP}; xrootd on; brix_root $PFX/o/root; brix_auth none;
+                  brix_allow_write on; brix_upload_resume off; } }
 EOF
 cat > "$PFX/n/nginx.conf" <<EOF
 daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/pid;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${PP}; xrootd on; xrootd_auth none;
-    xrootd_allow_write on;
-    xrootd_tap_proxy on;
-    xrootd_tap_proxy_upstream 127.0.0.1:${OP};
-    xrootd_tap_proxy_auth anonymous;
+    listen 127.0.0.1:${PP}; xrootd on; brix_auth none;
+    brix_allow_write on;
+    brix_tap_proxy on;
+    brix_tap_proxy_upstream 127.0.0.1:${OP};
+    brix_tap_proxy_auth anonymous;
 } }
 EOF
 

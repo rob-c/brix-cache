@@ -24,33 +24,33 @@
  * per-target labels per metrics INVARIANT 8). */
 #define MIR_HTTP_INC(field)                                                  \
     do {                                                                     \
-        ngx_xrootd_metrics_t *_m = xrootd_metrics_shared();                  \
+        ngx_brix_metrics_t *_m = brix_metrics_shared();                  \
         if (_m != NULL) { (void) ngx_atomic_fetch_add(&_m->field, 1); }      \
     } while (0)
 
 
 /* method filter */
 static ngx_uint_t
-xrootd_http_mirror_method_bit(ngx_http_request_t *r)
+brix_http_mirror_method_bit(ngx_http_request_t *r)
 {
     switch (r->method) {
-    case NGX_HTTP_GET:      return XROOTD_MIRROR_M_GET;
-    case NGX_HTTP_HEAD:     return XROOTD_MIRROR_M_HEAD;
-    case NGX_HTTP_PROPFIND: return XROOTD_MIRROR_M_PROPFIND;
-    case NGX_HTTP_OPTIONS:  return XROOTD_MIRROR_M_OPTIONS;
-    /* Write methods (Phase 24 write mirroring; gated by xrootd_mirror_writes). */
-    case NGX_HTTP_PUT:      return XROOTD_MIRROR_M_PUT;
-    case NGX_HTTP_DELETE:   return XROOTD_MIRROR_M_DELETE;
-    case NGX_HTTP_MKCOL:    return XROOTD_MIRROR_M_MKCOL;
-    case NGX_HTTP_MOVE:     return XROOTD_MIRROR_M_MOVE;
-    case NGX_HTTP_COPY:     return XROOTD_MIRROR_M_COPY;
+    case NGX_HTTP_GET:      return BRIX_MIRROR_M_GET;
+    case NGX_HTTP_HEAD:     return BRIX_MIRROR_M_HEAD;
+    case NGX_HTTP_PROPFIND: return BRIX_MIRROR_M_PROPFIND;
+    case NGX_HTTP_OPTIONS:  return BRIX_MIRROR_M_OPTIONS;
+    /* Write methods (Phase 24 write mirroring; gated by brix_mirror_writes). */
+    case NGX_HTTP_PUT:      return BRIX_MIRROR_M_PUT;
+    case NGX_HTTP_DELETE:   return BRIX_MIRROR_M_DELETE;
+    case NGX_HTTP_MKCOL:    return BRIX_MIRROR_M_MKCOL;
+    case NGX_HTTP_MOVE:     return BRIX_MIRROR_M_MOVE;
+    case NGX_HTTP_COPY:     return BRIX_MIRROR_M_COPY;
     default:                return 0;
     }
 }
 
 /* Methods that carry a request body the shadow must receive (PUT). */
 static ngx_int_t
-xrootd_http_mirror_method_has_body(ngx_uint_t method)
+brix_http_mirror_method_has_body(ngx_uint_t method)
 {
     return method == NGX_HTTP_PUT;
 }
@@ -62,7 +62,7 @@ xrootd_http_mirror_method_has_body(ngx_uint_t method)
  * (which is static to the proxy module); a relative/odd value is passed through.
  */
 static ngx_str_t
-xrootd_http_mirror_rewrite_dest(ngx_pool_t *pool, ngx_str_t *dest,
+brix_http_mirror_rewrite_dest(ngx_pool_t *pool, ngx_str_t *dest,
     ngx_str_t *url_base)
 {
     ngx_str_t  result = *dest;
@@ -100,7 +100,7 @@ xrootd_http_mirror_rewrite_dest(ngx_pool_t *pool, ngx_str_t *dest,
  * read-only; only the small ngx_buf_t bookkeeping is duplicated.
  */
 static ngx_chain_t *
-xrootd_http_mirror_clone_body(ngx_http_request_t *r,
+brix_http_mirror_clone_body(ngx_http_request_t *r,
     ngx_http_request_t *parent, off_t *len_out)
 {
     ngx_chain_t *in, *head = NULL, **tail = &head;
@@ -135,9 +135,9 @@ xrootd_http_mirror_clone_body(ngx_http_request_t *r,
 static ngx_int_t
 mirror_create_request(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
-    ngx_http_xrootd_webdav_req_ctx_t  *ctx;
-    xrootd_mirror_target_t            *t;
+    ngx_http_brix_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_req_ctx_t  *ctx;
+    brix_mirror_target_t            *t;
     ngx_buf_t                         *b;
     ngx_chain_t                       *cl;
     size_t                             len;
@@ -152,18 +152,18 @@ mirror_create_request(ngx_http_request_t *r)
     u_char                             clbuf[NGX_OFF_T_LEN];
     size_t                             cl_digits = 0;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-    ctx  = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    ctx  = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (ctx == NULL || conf->mirror.targets == NULL
         || ctx->mirror_target_idx >= conf->mirror.targets->nelts)
     {
         return NGX_ERROR;
     }
-    t        = (xrootd_mirror_target_t *) conf->mirror.targets->elts
+    t        = (brix_mirror_target_t *) conf->mirror.targets->elts
              + ctx->mirror_target_idx;
     host     = t->host;
     method   = r->method;
-    has_body = xrootd_http_mirror_method_has_body(method);
+    has_body = brix_http_mirror_method_has_body(method);
     ngx_str_null(&dest);
 
     /* Auth policy on the shadow request:
@@ -175,21 +175,21 @@ mirror_create_request(ngx_http_request_t *r)
     /* MOVE/COPY: rewrite the client's Destination to point at the shadow, and
      * forward Depth/Overwrite verbatim so the shadow performs the same op. */
     if (method == NGX_HTTP_MOVE || method == NGX_HTTP_COPY) {
-        ngx_table_elt_t *dest_h = xrootd_http_find_header(r,
+        ngx_table_elt_t *dest_h = brix_http_find_header(r,
             "Destination", sizeof("Destination") - 1);
         if (dest_h != NULL) {
-            dest = xrootd_http_mirror_rewrite_dest(r->pool, &dest_h->value,
+            dest = brix_http_mirror_rewrite_dest(r->pool, &dest_h->value,
                        &t->url_base);
         }
-        depth_h = xrootd_http_find_header(r, "Depth",
+        depth_h = brix_http_find_header(r, "Depth",
                       sizeof("Depth") - 1);
-        over_h  = xrootd_http_find_header(r, "Overwrite",
+        over_h  = brix_http_find_header(r, "Overwrite",
                       sizeof("Overwrite") - 1);
     }
 
     /* PUT: forward the (preserved) request body cloned from the parent request. */
     if (has_body && r->parent != NULL) {
-        body = xrootd_http_mirror_clone_body(r, r->parent, &body_len);
+        body = brix_http_mirror_clone_body(r, r->parent, &body_len);
         if (body_len < 0) {
             return NGX_ERROR;   /* clone alloc failed — don't send a truncated PUT */
         }
@@ -250,7 +250,7 @@ mirror_create_request(ngx_http_request_t *r)
                  sizeof("Connection: close" CRLF) - 1);
 
     /* Loop guard: a shadow that happens to be this same server will see this
-     * marker and decline to mirror again (xrootd_http_mirror_precontent_handler). */
+     * marker and decline to mirror again (brix_http_mirror_precontent_handler). */
     p = ngx_copy(p, "X-Xrootd-Mirror: 1" CRLF,
                  sizeof("X-Xrootd-Mirror: 1" CRLF) - 1);
 
@@ -303,9 +303,9 @@ mirror_create_request(ngx_http_request_t *r)
 static ngx_int_t
 mirror_reinit_request(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_req_ctx_t *ctx;
+    ngx_http_brix_webdav_req_ctx_t *ctx;
 
-    ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (ctx == NULL) { return NGX_ERROR; }
     ngx_memzero(&ctx->mirror_status, sizeof(ngx_http_status_t));
     return NGX_OK;
@@ -316,11 +316,11 @@ static ngx_int_t mirror_process_header(ngx_http_request_t *r);
 static ngx_int_t
 mirror_process_status_line(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_req_ctx_t *ctx;
+    ngx_http_brix_webdav_req_ctx_t *ctx;
     ngx_http_upstream_t              *u;
     ngx_int_t                         rc;
 
-    ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (ctx == NULL) { return NGX_ERROR; }
     u  = r->upstream;
 
@@ -367,11 +367,11 @@ mirror_abort_request(ngx_http_request_t *r)
 static void
 mirror_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_loc_conf_t *conf;
     ngx_http_request_t                *parent = r->parent;
     ngx_uint_t                         shadow_status;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
 
     shadow_status = (r->upstream != NULL) ? r->upstream->headers_in.status_n : 0;
 
@@ -385,12 +385,12 @@ mirror_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
     }
 
     if (parent != NULL && shadow_status != 0) {
-        ngx_http_xrootd_webdav_req_ctx_t *pctx =
-            ngx_http_get_module_ctx(parent, ngx_http_xrootd_webdav_module);
+        ngx_http_brix_webdav_req_ctx_t *pctx =
+            ngx_http_get_module_ctx(parent, ngx_http_brix_webdav_module);
 
         if (pctx != NULL && pctx->primary_status != 0
-            && xrootd_mirror_status_class(shadow_status)
-               != xrootd_mirror_status_class(pctx->primary_status))
+            && brix_mirror_status_class(shadow_status)
+               != brix_mirror_status_class(pctx->primary_status))
         {
             MIR_HTTP_INC(mirror_http_divergence_total);
             if (conf->mirror.log_diverge) {
@@ -405,21 +405,21 @@ mirror_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
 
 /* mirror subrequest execution (CONTENT phase) */
 static ngx_int_t
-xrootd_http_mirror_proxy(ngx_http_request_t *r,
-    ngx_http_xrootd_webdav_req_ctx_t *ctx)
+brix_http_mirror_proxy(ngx_http_request_t *r,
+    ngx_http_brix_webdav_req_ctx_t *ctx)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_loc_conf_t *conf;
     ngx_http_upstream_t               *u;
-    xrootd_mirror_target_t            *t;
+    brix_mirror_target_t            *t;
     struct sockaddr                   *sa;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     if (conf->mirror.targets == NULL
         || ctx->mirror_target_idx >= conf->mirror.targets->nelts)
     {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    t = (xrootd_mirror_target_t *) conf->mirror.targets->elts
+    t = (brix_mirror_target_t *) conf->mirror.targets->elts
       + ctx->mirror_target_idx;
 
     if (ngx_http_upstream_create(r) != NGX_OK) {
@@ -466,12 +466,12 @@ xrootd_http_mirror_proxy(ngx_http_request_t *r,
  * is_mirror so the precontent handler takes it over and proxies it. */
 static void
 mirror_fire_subrequests(ngx_http_request_t *r,
-    ngx_http_xrootd_webdav_loc_conf_t *conf)
+    ngx_http_brix_webdav_loc_conf_t *conf)
 {
     ngx_uint_t  i;
 
     for (i = 0; i < conf->mirror.targets->nelts; i++) {
-        ngx_http_xrootd_webdav_req_ctx_t *sctx;
+        ngx_http_brix_webdav_req_ctx_t *sctx;
         ngx_http_request_t               *sr;
 
         sctx = ngx_pcalloc(r->pool, sizeof(*sctx));
@@ -484,7 +484,7 @@ mirror_fire_subrequests(ngx_http_request_t *r,
         {
             continue;
         }
-        ngx_http_set_ctx(sr, sctx, ngx_http_xrootd_webdav_module);
+        ngx_http_set_ctx(sr, sctx, ngx_http_brix_webdav_module);
         sr->method      = r->method;
         sr->method_name = r->method_name;
         sr->header_only = 1;   /* discard shadow response body */
@@ -500,9 +500,9 @@ mirror_fire_subrequests(ngx_http_request_t *r,
 static void
 mirror_put_body_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_loc_conf_t *conf;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
 
     /* Keep the buffered body alive: the shadow subrequest sends a cloned chain
      * over the same memory/temp-file while the primary PUT handler also reads it. */
@@ -519,39 +519,39 @@ mirror_put_body_handler(ngx_http_request_t *r)
  * content-phase handler ordering. */
 
 ngx_int_t
-xrootd_http_mirror_precontent_handler(ngx_http_request_t *r)
+brix_http_mirror_precontent_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
-    ngx_http_xrootd_webdav_req_ctx_t  *ctx;
+    ngx_http_brix_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_req_ctx_t  *ctx;
     ngx_uint_t                         mbit;
 
-    ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
 
     if (r != r->main) {
         if (ctx != NULL && ctx->is_mirror) {
-            return xrootd_http_mirror_proxy(r, ctx);   /* take over the shadow req */
+            return brix_http_mirror_proxy(r, ctx);   /* take over the shadow req */
         }
         return NGX_DECLINED;   /* some other subrequest — ignore */
     }
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     if (!conf->mirror.enabled || conf->mirror.targets == NULL) {
         return NGX_DECLINED;
     }
 
-    ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (ctx != NULL && ctx->mirror_fired) {
         return NGX_DECLINED;   /* idempotent: fire once per request */
     }
 
-    mbit = xrootd_http_mirror_method_bit(r);
+    mbit = brix_http_mirror_method_bit(r);
     if ((mbit & conf->mirror.method_mask) == 0) {
         return NGX_DECLINED;
     }
-    /* Write methods only mirror when xrootd_mirror_writes is on — a second,
+    /* Write methods only mirror when brix_mirror_writes is on — a second,
      * independent guard beyond the method mask.  The shadow must be an isolated
      * namespace (replaying writes onto the primary's store would corrupt it). */
-    if ((mbit & XROOTD_MIRROR_M_WRITE_ALL) && !conf->mirror.mirror_writes) {
+    if ((mbit & BRIX_MIRROR_M_WRITE_ALL) && !conf->mirror.mirror_writes) {
         return NGX_DECLINED;
     }
 
@@ -577,7 +577,7 @@ xrootd_http_mirror_precontent_handler(ngx_http_request_t *r)
             }
         }
     }
-    if (!xrootd_mirror_should_sample(conf->mirror.sample_pct)) {
+    if (!brix_mirror_should_sample(conf->mirror.sample_pct)) {
         MIR_HTTP_INC(mirror_http_dropped_total);
         return NGX_DECLINED;
     }
@@ -585,7 +585,7 @@ xrootd_http_mirror_precontent_handler(ngx_http_request_t *r)
     if (ctx == NULL) {
         ctx = ngx_pcalloc(r->pool, sizeof(*ctx));
         if (ctx == NULL) { return NGX_DECLINED; }
-        ngx_http_set_ctx(r, ctx, ngx_http_xrootd_webdav_module);
+        ngx_http_set_ctx(r, ctx, ngx_http_brix_webdav_module);
     }
     ctx->mirror_fired = 1;
 
@@ -594,7 +594,7 @@ xrootd_http_mirror_precontent_handler(ngx_http_request_t *r)
      * resume phase processing.  NGX_DONE suspends the main request until the body
      * is buffered — it is not exposed to the client and the client is not delayed
      * beyond its own normal body read. */
-    if (xrootd_http_mirror_method_has_body(r->method)) {
+    if (brix_http_mirror_method_has_body(r->method)) {
         ngx_int_t rc;
 
         r->preserve_body = 1;
@@ -614,14 +614,14 @@ xrootd_http_mirror_precontent_handler(ngx_http_request_t *r)
 
 /* LOG handler (stamp the primary status for divergence) */
 ngx_int_t
-xrootd_http_mirror_log_handler(ngx_http_request_t *r)
+brix_http_mirror_log_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_req_ctx_t *ctx;
+    ngx_http_brix_webdav_req_ctx_t *ctx;
 
     if (r != r->main) {
         return NGX_OK;
     }
-    ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (ctx != NULL && ctx->mirror_fired) {
         ctx->primary_status = r->headers_out.status;
     }
@@ -631,9 +631,9 @@ xrootd_http_mirror_log_handler(ngx_http_request_t *r)
 
 /* merge-time upstream-conf setup */
 ngx_int_t
-xrootd_http_mirror_setup(ngx_conf_t *cf,
-    ngx_http_xrootd_webdav_loc_conf_t *conf,
-    ngx_http_xrootd_webdav_loc_conf_t *prev)
+brix_http_mirror_setup(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf,
+    ngx_http_brix_webdav_loc_conf_t *prev)
 {
     static ngx_str_t  mirror_hide_headers[] = { ngx_null_string };
     ngx_hash_init_t   hh;
@@ -679,7 +679,7 @@ xrootd_http_mirror_setup(ngx_conf_t *cf,
 
     hh.max_size    = 512;
     hh.bucket_size = ngx_align(64, ngx_cacheline_size);
-    hh.name        = "xrootd_mirror_hide_headers_hash";
+    hh.name        = "brix_mirror_hide_headers_hash";
     hh.pool        = cf->pool;
     hh.temp_pool   = NULL;
     if (ngx_http_upstream_hide_headers_hash(cf, &conf->mirror_upstream_conf,
@@ -693,12 +693,12 @@ xrootd_http_mirror_setup(ngx_conf_t *cf,
 
 /* directive setters */
 char *
-xrootd_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *wlcf = conf;
+    ngx_http_brix_webdav_loc_conf_t *wlcf = conf;
     ngx_str_t                         *value = cf->args->elts;
     ngx_str_t                          url = value[1];
-    xrootd_mirror_target_t            *t;
+    brix_mirror_target_t            *t;
     ngx_url_t                          u;
     size_t                             scheme_len;
     ngx_uint_t                         ssl;
@@ -713,20 +713,20 @@ xrootd_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         ssl = 0; scheme_len = 7; default_port = 80;
     } else {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_mirror_url: \"%V\" must start with http:// or https://",
+            "brix_mirror_url: \"%V\" must start with http:// or https://",
             &url);
         return NGX_CONF_ERROR;
     }
 
     if (wlcf->mirror.targets == NULL) {
         wlcf->mirror.targets = ngx_array_create(cf->pool,
-            XROOTD_MIRROR_MAX_TARGETS, sizeof(xrootd_mirror_target_t));
+            BRIX_MIRROR_MAX_TARGETS, sizeof(brix_mirror_target_t));
         if (wlcf->mirror.targets == NULL) { return NGX_CONF_ERROR; }
     }
-    if (wlcf->mirror.targets->nelts >= XROOTD_MIRROR_MAX_TARGETS) {
+    if (wlcf->mirror.targets->nelts >= BRIX_MIRROR_MAX_TARGETS) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_mirror_url: at most %d targets supported",
-            XROOTD_MIRROR_MAX_TARGETS);
+            "brix_mirror_url: at most %d targets supported",
+            BRIX_MIRROR_MAX_TARGETS);
         return NGX_CONF_ERROR;
     }
 
@@ -737,7 +737,7 @@ xrootd_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     u.default_port = default_port;
     if (ngx_parse_url(cf->pool, &u) != NGX_OK || u.naddrs == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_mirror_url: cannot resolve \"%V\"%s%s", &url,
+            "brix_mirror_url: cannot resolve \"%V\"%s%s", &url,
             u.err ? ": " : "", u.err ? u.err : "");
         return NGX_CONF_ERROR;
     }
@@ -780,9 +780,9 @@ xrootd_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 char *
-xrootd_http_mirror_set_methods(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_http_mirror_set_methods(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *wlcf = conf;
+    ngx_http_brix_webdav_loc_conf_t *wlcf = conf;
     ngx_str_t                         *value = cf->args->elts;
     ngx_uint_t                         i, mask = 0;
 
@@ -790,21 +790,21 @@ xrootd_http_mirror_set_methods(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     for (i = 1; i < cf->args->nelts; i++) {
         ngx_str_t *v = &value[i];
-        if      (ngx_strcasecmp(v->data, (u_char *) "GET")      == 0) mask |= XROOTD_MIRROR_M_GET;
-        else if (ngx_strcasecmp(v->data, (u_char *) "HEAD")     == 0) mask |= XROOTD_MIRROR_M_HEAD;
-        else if (ngx_strcasecmp(v->data, (u_char *) "PROPFIND") == 0) mask |= XROOTD_MIRROR_M_PROPFIND;
-        else if (ngx_strcasecmp(v->data, (u_char *) "OPTIONS")  == 0) mask |= XROOTD_MIRROR_M_OPTIONS;
-        /* Write methods (require xrootd_mirror_writes on; isolated shadow). */
-        else if (ngx_strcasecmp(v->data, (u_char *) "PUT")      == 0) mask |= XROOTD_MIRROR_M_PUT;
-        else if (ngx_strcasecmp(v->data, (u_char *) "DELETE")   == 0) mask |= XROOTD_MIRROR_M_DELETE;
-        else if (ngx_strcasecmp(v->data, (u_char *) "MKCOL")    == 0) mask |= XROOTD_MIRROR_M_MKCOL;
-        else if (ngx_strcasecmp(v->data, (u_char *) "MOVE")     == 0) mask |= XROOTD_MIRROR_M_MOVE;
-        else if (ngx_strcasecmp(v->data, (u_char *) "COPY")     == 0) mask |= XROOTD_MIRROR_M_COPY;
+        if      (ngx_strcasecmp(v->data, (u_char *) "GET")      == 0) mask |= BRIX_MIRROR_M_GET;
+        else if (ngx_strcasecmp(v->data, (u_char *) "HEAD")     == 0) mask |= BRIX_MIRROR_M_HEAD;
+        else if (ngx_strcasecmp(v->data, (u_char *) "PROPFIND") == 0) mask |= BRIX_MIRROR_M_PROPFIND;
+        else if (ngx_strcasecmp(v->data, (u_char *) "OPTIONS")  == 0) mask |= BRIX_MIRROR_M_OPTIONS;
+        /* Write methods (require brix_mirror_writes on; isolated shadow). */
+        else if (ngx_strcasecmp(v->data, (u_char *) "PUT")      == 0) mask |= BRIX_MIRROR_M_PUT;
+        else if (ngx_strcasecmp(v->data, (u_char *) "DELETE")   == 0) mask |= BRIX_MIRROR_M_DELETE;
+        else if (ngx_strcasecmp(v->data, (u_char *) "MKCOL")    == 0) mask |= BRIX_MIRROR_M_MKCOL;
+        else if (ngx_strcasecmp(v->data, (u_char *) "MOVE")     == 0) mask |= BRIX_MIRROR_M_MOVE;
+        else if (ngx_strcasecmp(v->data, (u_char *) "COPY")     == 0) mask |= BRIX_MIRROR_M_COPY;
         else {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "xrootd_mirror_methods: unsupported method \"%V\" (one of"
+                "brix_mirror_methods: unsupported method \"%V\" (one of"
                 " GET HEAD PROPFIND OPTIONS PUT DELETE MKCOL MOVE COPY;"
-                " write methods also need xrootd_mirror_writes on)", v);
+                " write methods also need brix_mirror_writes on)", v);
             return NGX_CONF_ERROR;
         }
     }

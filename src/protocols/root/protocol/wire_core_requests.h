@@ -1,5 +1,5 @@
-#ifndef XROOTD_PROTOCOL_WIRE_CORE_REQUESTS_H
-#define XROOTD_PROTOCOL_WIRE_CORE_REQUESTS_H
+#ifndef BRIX_PROTOCOL_WIRE_CORE_REQUESTS_H
+#define BRIX_PROTOCOL_WIRE_CORE_REQUESTS_H
 
 /*
  * Packed wire structures for the XRootD root:// protocol.
@@ -94,7 +94,7 @@ typedef struct {
  *      by referring to this single struct plus opcodes.h for the specific opcode ID.
  *
  * HOW: Layout is fixed: 2B streamid + 2B reqid (kXR_* from opcodes.h) + 16B body + 4B dlen.
- *      Always big-endian. Use xrootd_dispatch_opcode() to route based on requestid field. */
+ *      Always big-endian. Use brix_dispatch_opcode() to route based on requestid field. */
 
 typedef struct {
     kXR_char   streamid[2];  /* client-chosen, echoed in response */
@@ -112,7 +112,7 @@ typedef struct {
  *      by referring to this struct plus opcodes.h for status codes and wire.h for bodies.
  *
  * HOW: Layout is fixed: 2B streamid (echoed) + 2B status (kXR_* from opcodes.h) + 4B dlen.
- *      Always big-endian. Use xrootd_build_resp_hdr() to construct, xrootd_queue_response() to send. */
+ *      Always big-endian. Use brix_build_resp_hdr() to construct, brix_queue_response() to send. */
 
 typedef struct {
     kXR_char   streamid[2];  /* echoed from request */
@@ -320,7 +320,7 @@ typedef struct {
  * WHAT: Server returns a 16-byte opaque session ID (sessid) that identifies this login context across all subsequent requests. */
 
 typedef struct {
-    kXR_char   sessid[XROOTD_SESSION_ID_LEN];  /* 16 opaque bytes assigned by
+    kXR_char   sessid[BRIX_SESSION_ID_LEN];  /* 16 opaque bytes assigned by
                               * the server; echoed by kXR_bind and kXR_endsess.
                               * The login ctx is connection-scoped — multiple
                               * requests on one TCP connection share it. */
@@ -501,4 +501,4 @@ typedef struct {
  * wire.h includes after it (clang -Wpragma-pack flags such cross-file leaks). */
 #pragma pack(pop)
 
-#endif /* XROOTD_PROTOCOL_WIRE_CORE_REQUESTS_H */
+#endif /* BRIX_PROTOCOL_WIRE_CORE_REQUESTS_H */

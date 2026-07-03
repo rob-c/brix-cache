@@ -1,7 +1,7 @@
 """
 tests/test_authdb.py
 
-authdb enforcement tests: verify that xrootd_authdb restricts access
+authdb enforcement tests: verify that brix_authdb restricts access
 based on user identity and VO membership.
 """
 

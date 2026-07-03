@@ -31,8 +31,8 @@
  *         BIO       *bio = NULL;
  *         ngx_int_t  rc  = build_inner(..., &pk, &bio);
  *
- *         xrootd_evp_pkey_free(pk);   // wrapper owns the single cleanup site;
- *         xrootd_bio_free(bio);       // every destroyer tolerates NULL
+ *         brix_evp_pkey_free(pk);   // wrapper owns the single cleanup site;
+ *         brix_bio_free(bio);       // every destroyer tolerates NULL
  *         return rc;
  *     }
  *
@@ -58,8 +58,8 @@
  * Build with `*_set_new`/`*_append_new` + a single decref of the root.
  * ---------------------------------------------------------------------------
  */
-#ifndef XROOTD_CRYPTO_SCOPED_H
-#define XROOTD_CRYPTO_SCOPED_H
+#ifndef BRIX_CRYPTO_SCOPED_H
+#define BRIX_CRYPTO_SCOPED_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -73,58 +73,58 @@
 
 /* Free an EVP_PKEY (NULL-safe, no-op on NULL). Caller's pointer is not nulled;
  * the slot stays dangling, so use only at a one-shot cleanup label. */
-static ngx_inline void xrootd_evp_pkey_free(EVP_PKEY *p)
+static ngx_inline void brix_evp_pkey_free(EVP_PKEY *p)
 { if (p) { EVP_PKEY_free(p); } }
 
 /* Free an EVP_PKEY_CTX (keygen/derive/sign context); NULL-safe. */
-static ngx_inline void xrootd_evp_pkey_ctx_free(EVP_PKEY_CTX *p)
+static ngx_inline void brix_evp_pkey_ctx_free(EVP_PKEY_CTX *p)
 { if (p) { EVP_PKEY_CTX_free(p); } }
 
 /* Free an EVP_MD_CTX (digest/sign-verify context); NULL-safe. */
-static ngx_inline void xrootd_evp_md_ctx_free(EVP_MD_CTX *p)
+static ngx_inline void brix_evp_md_ctx_free(EVP_MD_CTX *p)
 { if (p) { EVP_MD_CTX_free(p); } }
 
 /* Free an EVP_CIPHER_CTX (symmetric cipher context); NULL-safe. */
-static ngx_inline void xrootd_evp_cipher_ctx_free(EVP_CIPHER_CTX *p)
+static ngx_inline void brix_evp_cipher_ctx_free(EVP_CIPHER_CTX *p)
 { if (p) { EVP_CIPHER_CTX_free(p); } }
 
 /* Free a BIO; NULL-safe. Uses BIO_free_all, so it frees the WHOLE BIO chain,
  * not just the head — never call on a BIO still linked to one you reuse. */
-static ngx_inline void xrootd_bio_free(BIO *p)
+static ngx_inline void brix_bio_free(BIO *p)
 { if (p) { BIO_free_all(p); } }
 
 /* Free an X509 certificate (decrements its refcount); NULL-safe. */
-static ngx_inline void xrootd_x509_free(X509 *p)
+static ngx_inline void brix_x509_free(X509 *p)
 { if (p) { X509_free(p); } }
 
 /* Free an X509_STORE (trust store); NULL-safe. Drops the store's refcount and
  * frees contained certs/CRLs when it reaches zero. */
-static ngx_inline void xrootd_x509_store_free(X509_STORE *p)
+static ngx_inline void brix_x509_store_free(X509_STORE *p)
 { if (p) { X509_STORE_free(p); } }
 
 /* Free an X509_STORE_CTX (single verification operation); NULL-safe. */
-static ngx_inline void xrootd_x509_store_ctx_free(X509_STORE_CTX *p)
+static ngx_inline void brix_x509_store_ctx_free(X509_STORE_CTX *p)
 { if (p) { X509_STORE_CTX_free(p); } }
 
 /* Free a BIGNUM; NULL-safe. Does NOT scrub memory — use the _clear_ variant
  * below for any value derived from secret/key material. */
-static ngx_inline void xrootd_bn_free(BIGNUM *p)
+static ngx_inline void brix_bn_free(BIGNUM *p)
 { if (p) { BN_free(p); } }
 
 /* Free a BIGNUM, zeroing its memory before release (BN_clear_free); NULL-safe.
  * Use this for private keys, shared secrets, and other sensitive scalars. */
-static ngx_inline void xrootd_bn_clear_free(BIGNUM *p)
+static ngx_inline void brix_bn_clear_free(BIGNUM *p)
 { if (p) { BN_clear_free(p); } }   /* for secret material */
 
 /* Free a STACK_OF(X509) AND every X509 it holds (sk_X509_pop_free); NULL-safe.
  * Do not use on a borrowed stack whose certs you still reference elsewhere. */
-static ngx_inline void xrootd_x509_stack_free(STACK_OF(X509) *p)
+static ngx_inline void brix_x509_stack_free(STACK_OF(X509) *p)
 { if (p) { sk_X509_pop_free(p, X509_free); } }
 
 /* Free a buffer obtained from OPENSSL_malloc / an OpenSSL out-param (e.g.
  * i2d_*, PEM read into a malloc'd char*); NULL-safe. Must NOT be used on
  * ngx_palloc'd or libc malloc'd memory. */
-static ngx_inline void xrootd_openssl_free(void *p)
+static ngx_inline void brix_openssl_free(void *p)
 { if (p) { OPENSSL_free(p); } }
 
-#endif /* XROOTD_CRYPTO_SCOPED_H */
+#endif /* BRIX_CRYPTO_SCOPED_H */

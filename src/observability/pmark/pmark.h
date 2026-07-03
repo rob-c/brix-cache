@@ -1,5 +1,5 @@
-#ifndef NGX_XROOTD_PMARK_H
-#define NGX_XROOTD_PMARK_H
+#ifndef NGX_BRIX_PMARK_H
+#define NGX_BRIX_PMARK_H
 
 /*
  * pmark.h — SciTags packet marking (network flow tagging) for nginx-xrootd.
@@ -28,16 +28,16 @@
 #include <ngx_core.h>
 
 /* ---- SciTags flow-id model (XrdNetPMark.hh:89-99) ---- */
-#define XROOTD_PMARK_FLOW_MIN    65       /* smallest valid scitag.flow value   */
-#define XROOTD_PMARK_FLOW_MAX    65535    /* 16-bit flow-id space               */
-#define XROOTD_PMARK_ACT_BITS    6        /* low 6 bits = activity              */
-#define XROOTD_PMARK_ACT_MASK    0x3F     /* activity mask                      */
-#define XROOTD_PMARK_EXP_MIN     1
-#define XROOTD_PMARK_EXP_MAX     1023     /* 10-bit experiment space            */
-#define XROOTD_PMARK_ACT_MIN     1
-#define XROOTD_PMARK_ACT_MAX     63
+#define BRIX_PMARK_FLOW_MIN    65       /* smallest valid scitag.flow value   */
+#define BRIX_PMARK_FLOW_MAX    65535    /* 16-bit flow-id space               */
+#define BRIX_PMARK_ACT_BITS    6        /* low 6 bits = activity              */
+#define BRIX_PMARK_ACT_MASK    0x3F     /* activity mask                      */
+#define BRIX_PMARK_EXP_MIN     1
+#define BRIX_PMARK_EXP_MAX     1023     /* 10-bit experiment space            */
+#define BRIX_PMARK_ACT_MIN     1
+#define BRIX_PMARK_ACT_MAX     63
 
-#define XROOTD_PMARK_FF_PORT     10514    /* default firefly collector UDP port */
+#define BRIX_PMARK_FF_PORT     10514    /* default firefly collector UDP port */
 
 /* IPv6 Flow Label encoding (flowlabel.c).  glibc does not export
  * IPV6_FLOWLABEL_MASK, so define the 20-bit mask ourselves.
@@ -53,72 +53,72 @@
  *                           **encoded in reversed bit order** per the spec
  *   E (entropy, 5 bits)   = positions 1,2,12,19,20 -> host-order bits 0,1,8,18,19
  *                           set at random ONCE per flow (ECMP spread; ignored on
- *                           decode).  See xrootd_pmark_flowlabel_encode().
+ *                           decode).  See brix_pmark_flowlabel_encode().
  *
  * Worked check (CMS): scitag.flow=206 -> exp=3, act=14 ->
  *   (reverse9(3)=384)<<9 | 14<<2 = 0x30000 | 0x38 = 196664, i.e. the value CMS
  *   reads off the wire (cms-sw/cmssw c2797da). */
-#define XROOTD_PMARK_FL_MASK          0x000FFFFFu   /* 20-bit field             */
-#define XROOTD_PMARK_FL_ENTROPY_MASK  0x000C0103u   /* E bits 0,1,8,18,19       */
+#define BRIX_PMARK_FL_MASK          0x000FFFFFu   /* 20-bit field             */
+#define BRIX_PMARK_FL_ENTROPY_MASK  0x000C0103u   /* E bits 0,1,8,18,19       */
 
-/* `xrootd_pmark_domain` enum (which address class is marked). */
+/* `brix_pmark_domain` enum (which address class is marked). */
 enum {
-    XROOTD_PMARK_DOMAIN_ANY    = 0,
-    XROOTD_PMARK_DOMAIN_LOCAL  = 1,
-    XROOTD_PMARK_DOMAIN_REMOTE = 2          /* default, matches XRootD */
+    BRIX_PMARK_DOMAIN_ANY    = 0,
+    BRIX_PMARK_DOMAIN_LOCAL  = 1,
+    BRIX_PMARK_DOMAIN_REMOTE = 2          /* default, matches XRootD */
 };
 
 /* Activity selection: which network role the local end plays for this flow.
  * Drives the "supplier is source" firefly src/dst convention + appname. */
 enum {
-    XROOTD_PMARK_ACT_READ  = 0,   /* client reads (server is source): http-get  */
-    XROOTD_PMARK_ACT_WRITE = 1,   /* client writes (client is source): http-put */
-    XROOTD_PMARK_ACT_TPC   = 2    /* third-party copy outbound                  */
+    BRIX_PMARK_ACT_READ  = 0,   /* client reads (server is source): http-get  */
+    BRIX_PMARK_ACT_WRITE = 1,   /* client writes (client is source): http-put */
+    BRIX_PMARK_ACT_TPC   = 2    /* third-party copy outbound                  */
 };
 
-/* ---- Config (lives inside ngx_http_xrootd_shared_conf_t .common) ---- */
+/* ---- Config (lives inside ngx_http_brix_shared_conf_t .common) ---- */
 
-/* One `xrootd_pmark_map_experiment {default|path <p>|vo <v>} <expName>`. */
+/* One `brix_pmark_map_experiment {default|path <p>|vo <v>} <expName>`. */
 typedef enum {
-    XROOTD_PMARK_EXP_DEFAULT = 0,
-    XROOTD_PMARK_EXP_PATH,
-    XROOTD_PMARK_EXP_VO
-} xrootd_pmark_exp_kind_t;
+    BRIX_PMARK_EXP_DEFAULT = 0,
+    BRIX_PMARK_EXP_PATH,
+    BRIX_PMARK_EXP_VO
+} brix_pmark_exp_kind_t;
 
 typedef struct {
-    xrootd_pmark_exp_kind_t  kind;
+    brix_pmark_exp_kind_t  kind;
     ngx_str_t                match;     /* path glob or VO name (empty if default) */
     ngx_str_t                exp_name;  /* experiment name (resolved via defsfile) */
-} xrootd_pmark_exp_rule_t;
+} brix_pmark_exp_rule_t;
 
-/* One `xrootd_pmark_map_activity <expName> {default|role <r>|user <u>} <actName>`. */
+/* One `brix_pmark_map_activity <expName> {default|role <r>|user <u>} <actName>`. */
 typedef enum {
-    XROOTD_PMARK_ACTR_DEFAULT = 0,
-    XROOTD_PMARK_ACTR_ROLE,
-    XROOTD_PMARK_ACTR_USER
-} xrootd_pmark_act_kind_t;
+    BRIX_PMARK_ACTR_DEFAULT = 0,
+    BRIX_PMARK_ACTR_ROLE,
+    BRIX_PMARK_ACTR_USER
+} brix_pmark_act_kind_t;
 
 typedef struct {
     ngx_str_t                exp_name;  /* experiment this rule belongs to */
-    xrootd_pmark_act_kind_t  kind;
+    brix_pmark_act_kind_t  kind;
     ngx_str_t                match;     /* role or user (empty if default) */
     ngx_str_t                act_name;  /* activity name (resolved via defsfile) */
-} xrootd_pmark_act_rule_t;
+} brix_pmark_act_rule_t;
 
 typedef struct {
-    ngx_flag_t    enable;          /* xrootd_pmark on|off (master switch)        */
-    ngx_flag_t    firefly;         /* xrootd_pmark_firefly                       */
-    ngx_flag_t    flowlabel;       /* xrootd_pmark_flowlabel (default on)        */
+    ngx_flag_t    enable;          /* brix_pmark on|off (master switch)        */
+    ngx_flag_t    firefly;         /* brix_pmark_firefly                       */
+    ngx_flag_t    flowlabel;       /* brix_pmark_flowlabel (default on)        */
     ngx_flag_t    scitag_cgi;      /* honor client scitag.flow / SciTag: header  */
     ngx_flag_t    firefly_origin;  /* also report to the client origin           */
     ngx_flag_t    http_plain;      /* mark plain WebDAV/S3 GET/PUT (default off) */
-    ngx_msec_t    echo;            /* xrootd_pmark_echo seconds (0 = off)        */
-    ngx_uint_t    domain;          /* XROOTD_PMARK_DOMAIN_*                       */
+    ngx_msec_t    echo;            /* brix_pmark_echo seconds (0 = off)        */
+    ngx_uint_t    domain;          /* BRIX_PMARK_DOMAIN_*                       */
     ngx_str_t     appname;         /* firefly context.application                 */
     ngx_str_t     defsfile;        /* scitags experiment/activity JSON registry  */
     ngx_array_t  *firefly_dest;    /* of ngx_str_t "host[:port]"                  */
-    ngx_array_t  *exp_rules;       /* of xrootd_pmark_exp_rule_t                  */
-    ngx_array_t  *act_rules;       /* of xrootd_pmark_act_rule_t                  */
+    ngx_array_t  *exp_rules;       /* of brix_pmark_exp_rule_t                  */
+    ngx_array_t  *act_rules;       /* of brix_pmark_act_rule_t                  */
 
     /* ---- Resolved at first use (runtime only; never merged) ----
      * The defsfile is parsed, mapping names are resolved to numeric ids, and
@@ -127,36 +127,36 @@ typedef struct {
      * the cycle pool so they live for the worker's lifetime. */
     unsigned      rt_ready:1;      /* resolution attempted (success or fail)     */
     unsigned      rt_ok:1;         /* resolution succeeded → marking is live      */
-    ngx_array_t  *dest_sa;         /* of xrootd_pmark_dest_t (resolved collectors)*/
-    ngx_array_t  *exp_rules_r;     /* of xrootd_pmark_exp_rule_r_t                */
-    ngx_array_t  *act_rules_r;     /* of xrootd_pmark_act_rule_r_t                */
-} xrootd_pmark_conf_t;
+    ngx_array_t  *dest_sa;         /* of brix_pmark_dest_t (resolved collectors)*/
+    ngx_array_t  *exp_rules_r;     /* of brix_pmark_exp_rule_r_t                */
+    ngx_array_t  *act_rules_r;     /* of brix_pmark_act_rule_r_t                */
+} brix_pmark_conf_t;
 
 /* A resolved firefly collector address. */
 typedef struct {
     struct sockaddr_storage  ss;
     socklen_t                len;
     int                      family;   /* AF_INET / AF_INET6 */
-} xrootd_pmark_dest_t;
+} brix_pmark_dest_t;
 
 /* Resolved experiment rule (defsfile name → numeric id). */
 typedef struct {
-    xrootd_pmark_exp_kind_t  kind;
+    brix_pmark_exp_kind_t  kind;
     ngx_str_t                match;
     ngx_uint_t               exp_id;
-} xrootd_pmark_exp_rule_r_t;
+} brix_pmark_exp_rule_r_t;
 
 /* Resolved activity rule (defsfile name → numeric id, scoped to an experiment). */
 typedef struct {
     ngx_uint_t               exp_id;   /* experiment this rule applies to (0=any) */
-    xrootd_pmark_act_kind_t  kind;
+    brix_pmark_act_kind_t  kind;
     ngx_str_t                match;
     ngx_uint_t               act_id;
-} xrootd_pmark_act_rule_r_t;
+} brix_pmark_act_rule_r_t;
 
 /* ---- Per-flow handle (one per marked transfer) ---- */
-typedef struct xrootd_pmark_flow_s {
-    xrootd_pmark_conf_t *pm;       /* owning config (for collectors at end)   */
+typedef struct brix_pmark_flow_s {
+    brix_pmark_conf_t *pm;       /* owning config (for collectors at end)   */
     ngx_uint_t    exp;             /* experiment id (1..1023), 0 = not marked */
     ngx_uint_t    act;             /* activity id (1..63)                     */
     ngx_int_t     fd;              /* socket the flow runs on (for TCP_INFO)  */
@@ -172,29 +172,29 @@ typedef struct xrootd_pmark_flow_s {
     char          afi;             /* '4' or '6'                              */
     struct sockaddr_storage peer_ss;  /* client peer (for origin firefly)     */
     socklen_t     peer_len;
-} xrootd_pmark_flow_t;
+} brix_pmark_flow_t;
 
 /* ====================================================================== */
 /* config.c — directive parsing + per-server config lifecycle             */
 /* ====================================================================== */
 
 /* Initialise a pmark config block to NGX_CONF_UNSET sentinels.  Called from
- * ngx_http_xrootd_shared_init() so every protocol inherits it. */
-void  xrootd_pmark_conf_init(xrootd_pmark_conf_t *c);
+ * ngx_http_brix_shared_init() so every protocol inherits it. */
+void  brix_pmark_conf_init(brix_pmark_conf_t *c);
 
 /* Merge parent→child pmark config (defaults: disabled; flowlabel/scitag on;
  * firefly on; domain remote; firefly port 10514).  Called from
- * ngx_http_xrootd_shared_merge().  Returns NGX_CONF_OK / NGX_CONF_ERROR. */
-char *xrootd_pmark_conf_merge(ngx_conf_t *cf, xrootd_pmark_conf_t *prev,
-    xrootd_pmark_conf_t *conf);
+ * ngx_http_brix_shared_merge().  Returns NGX_CONF_OK / NGX_CONF_ERROR. */
+char *brix_pmark_conf_merge(ngx_conf_t *cf, brix_pmark_conf_t *prev,
+    brix_pmark_conf_t *conf);
 
 /* Custom directive setters (registered in each module's command table; they cast
- * `conf` to ngx_http_xrootd_shared_conf_t* — valid because `common` is the first
+ * `conf` to ngx_http_brix_shared_conf_t* — valid because `common` is the first
  * member of every protocol conf struct — and write into ->pmark). */
-char *xrootd_pmark_set_firefly_dest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-char *xrootd_pmark_set_map_experiment(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-char *xrootd_pmark_set_map_activity(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-char *xrootd_pmark_set_domain(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+char *brix_pmark_set_firefly_dest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+char *brix_pmark_set_map_experiment(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+char *brix_pmark_set_map_activity(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+char *brix_pmark_set_domain(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 /* ====================================================================== */
 /* scitag.c — flow-id encode/decode + scitag.flow parsing                 */
@@ -202,29 +202,29 @@ char *xrootd_pmark_set_domain(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 /* Pack (experiment, activity) into a 16-bit flow-id. */
 static ngx_inline ngx_uint_t
-xrootd_pmark_flowid(ngx_uint_t exp, ngx_uint_t act)
+brix_pmark_flowid(ngx_uint_t exp, ngx_uint_t act)
 {
-    return ((exp & 0x3FF) << XROOTD_PMARK_ACT_BITS) | (act & XROOTD_PMARK_ACT_MASK);
+    return ((exp & 0x3FF) << BRIX_PMARK_ACT_BITS) | (act & BRIX_PMARK_ACT_MASK);
 }
 
 /* Split a 16-bit flow-id into (experiment, activity).  Returns NGX_ERROR (and
  * leaves the exp/act outputs untouched) for an out-of-range value — caller must treat that
  * as "no tag", never as exp=act=0 being valid. */
 static ngx_inline ngx_int_t
-xrootd_pmark_flow_split(ngx_uint_t flow, ngx_uint_t *exp, ngx_uint_t *act)
+brix_pmark_flow_split(ngx_uint_t flow, ngx_uint_t *exp, ngx_uint_t *act)
 {
-    if (flow < XROOTD_PMARK_FLOW_MIN || flow > XROOTD_PMARK_FLOW_MAX) {
+    if (flow < BRIX_PMARK_FLOW_MIN || flow > BRIX_PMARK_FLOW_MAX) {
         return NGX_ERROR;
     }
-    *exp = flow >> XROOTD_PMARK_ACT_BITS;
-    *act = flow & XROOTD_PMARK_ACT_MASK;
+    *exp = flow >> BRIX_PMARK_ACT_BITS;
+    *act = flow & BRIX_PMARK_ACT_MASK;
     return NGX_OK;
 }
 
 /* Reverse the low 9 bits of `v` (the SciTags community field is "used in reversed
  * order" — draft-cc-v6ops-wlcg-flow-label-marking §4). */
 static ngx_inline uint32_t
-xrootd_pmark_reverse9(ngx_uint_t v)
+brix_pmark_reverse9(ngx_uint_t v)
 {
     uint32_t  r = 0;
     int       i;
@@ -240,16 +240,16 @@ xrootd_pmark_reverse9(ngx_uint_t v)
 /* Encode a SciTags (experiment, activity) pair into the 20-bit IPv6 Flow Label
  * value (host order) per draft-cc-v6ops-wlcg-flow-label-marking.  This is the
  * STRUCTURAL value only (entropy bits zero) so it is deterministic and decodable;
- * the caller ORs in random entropy (XROOTD_PMARK_FL_ENTROPY_MASK) once per flow.
+ * the caller ORs in random entropy (BRIX_PMARK_FL_ENTROPY_MASK) once per flow.
  * `act` is the 6-bit activity (bits 2..7); `exp` is the 9-bit community placed in
  * reversed order at bits 9..17. */
 static ngx_inline uint32_t
-xrootd_pmark_flowlabel_encode(ngx_uint_t exp, ngx_uint_t act)
+brix_pmark_flowlabel_encode(ngx_uint_t exp, ngx_uint_t act)
 {
-    uint32_t  community = xrootd_pmark_reverse9(exp);
-    uint32_t  activity  = (uint32_t) (act & XROOTD_PMARK_ACT_MASK);
+    uint32_t  community = brix_pmark_reverse9(exp);
+    uint32_t  activity  = (uint32_t) (act & BRIX_PMARK_ACT_MASK);
 
-    return ((community << 9) | (activity << 2)) & XROOTD_PMARK_FL_MASK;
+    return ((community << 9) | (activity << 2)) & BRIX_PMARK_FL_MASK;
 }
 
 /* Parse a `scitag.flow=<N>` token out of an opaque/CGI query string (root://
@@ -257,15 +257,15 @@ xrootd_pmark_flowlabel_encode(ngx_uint_t exp, ngx_uint_t act)
  * valid in-range value sets the exp/act outputs and returns NGX_OK; returns NGX_DECLINED
  * if absent and NGX_ERROR if present but out of range/malformed.  The caller
  * uses NGX_OK as a top-priority override (see mapping.c). */
-ngx_int_t xrootd_pmark_parse_scitag(const char *cgi, ngx_uint_t *exp,
+ngx_int_t brix_pmark_parse_scitag(const char *cgi, ngx_uint_t *exp,
     ngx_uint_t *act);
 
 /* Validate an (exp, act) pair against the SciTags ranges. */
 static ngx_inline ngx_int_t
-xrootd_pmark_codes_valid(ngx_uint_t exp, ngx_uint_t act)
+brix_pmark_codes_valid(ngx_uint_t exp, ngx_uint_t act)
 {
-    return (exp >= XROOTD_PMARK_EXP_MIN && exp <= XROOTD_PMARK_EXP_MAX
-            && act >= XROOTD_PMARK_ACT_MIN && act <= XROOTD_PMARK_ACT_MAX)
+    return (exp >= BRIX_PMARK_EXP_MIN && exp <= BRIX_PMARK_EXP_MAX
+            && act >= BRIX_PMARK_ACT_MIN && act <= BRIX_PMARK_ACT_MAX)
            ? NGX_OK : NGX_ERROR;
 }
 
@@ -277,24 +277,24 @@ xrootd_pmark_codes_valid(ngx_uint_t exp, ngx_uint_t act)
 typedef struct {
     ngx_str_t   name;
     ngx_uint_t  id;
-} xrootd_pmark_named_t;
+} brix_pmark_named_t;
 
 typedef struct {
     ngx_str_t    exp_name;
     ngx_uint_t   exp_id;
-    ngx_array_t *activities;   /* of xrootd_pmark_named_t */
-} xrootd_pmark_exp_def_t;
+    ngx_array_t *activities;   /* of brix_pmark_named_t */
+} brix_pmark_exp_def_t;
 
-/* Load `path` (scitags JSON) into `*out` (ngx_array_t of xrootd_pmark_exp_def_t,
+/* Load `path` (scitags JSON) into `*out` (ngx_array_t of brix_pmark_exp_def_t,
  * allocated from `pool`).  Returns NGX_OK, NGX_DECLINED (file absent), or
  * NGX_ERROR (parse error).  Used during first-flow resolution. */
-ngx_int_t xrootd_pmark_defsfile_load(const char *path, ngx_pool_t *pool,
+ngx_int_t brix_pmark_defsfile_load(const char *path, ngx_pool_t *pool,
     ngx_array_t **out, ngx_log_t *log);
 
 /* Look up an experiment id by name in a loaded registry; 0 if not found. */
-ngx_uint_t xrootd_pmark_defs_exp_id(ngx_array_t *defs, ngx_str_t *name);
+ngx_uint_t brix_pmark_defs_exp_id(ngx_array_t *defs, ngx_str_t *name);
 /* Look up an activity id by (experiment id, activity name); 0 if not found. */
-ngx_uint_t xrootd_pmark_defs_act_id(ngx_array_t *defs, ngx_uint_t exp_id,
+ngx_uint_t brix_pmark_defs_act_id(ngx_array_t *defs, ngx_uint_t exp_id,
     ngx_str_t *name);
 
 /* ====================================================================== */
@@ -305,7 +305,7 @@ ngx_uint_t xrootd_pmark_defs_act_id(ngx_array_t *defs, ngx_uint_t exp_id,
  * is loaded; idempotent, runs once per worker.  Returns NGX_OK if marking is
  * live, NGX_DECLINED if disabled/unresolved (fail-open).  `pool` must be the
  * cycle pool (process-lifetime). */
-ngx_int_t xrootd_pmark_runtime_ensure(xrootd_pmark_conf_t *pm, ngx_pool_t *pool,
+ngx_int_t brix_pmark_runtime_ensure(brix_pmark_conf_t *pm, ngx_pool_t *pool,
     ngx_log_t *log);
 
 /* Resolve (experiment, activity) for a flow using, in priority order:
@@ -313,7 +313,7 @@ ngx_int_t xrootd_pmark_runtime_ensure(xrootd_pmark_conf_t *pm, ngx_pool_t *pool,
  * user → role → per-experiment default.  `vo_csv`/`user`/`path`/`cgi` are
  * borrowed C strings (any may be NULL/empty).  Returns NGX_OK + sets exp/act, or
  * NGX_DECLINED when nothing maps (→ flow is not marked).  Never fails a transfer. */
-ngx_int_t xrootd_pmark_map_codes(xrootd_pmark_conf_t *pm,
+ngx_int_t brix_pmark_map_codes(brix_pmark_conf_t *pm,
     const char *vo_csv, const char *user, const char *path, const char *cgi,
     ngx_uint_t *exp, ngx_uint_t *act);
 
@@ -325,19 +325,19 @@ typedef struct {
     uint64_t  bytes_recv;     /* tcpi_bytes_received (0 if unavailable) */
     uint64_t  bytes_sent;     /* tcpi_bytes_acked                      */
     uint32_t  rtt_us;         /* tcpi_rtt (microseconds)               */
-} xrootd_pmark_sockstats_t;
+} brix_pmark_sockstats_t;
 
 /* Read TCP_INFO byte/rtt counters for `fd` (Linux); zeroes the struct and
  * returns NGX_DECLINED where unavailable.  Never fails the caller. */
-ngx_int_t xrootd_pmark_sockstats(int fd, xrootd_pmark_sockstats_t *st);
+ngx_int_t brix_pmark_sockstats(int fd, brix_pmark_sockstats_t *st);
 
 /* Format "now" as a firefly timestamp: yyyy-mm-ddThh:mm:ss.uuuuuu+00:00. */
-void xrootd_pmark_iso8601_now(char *buf, size_t buflen);
+void brix_pmark_iso8601_now(char *buf, size_t buflen);
 
 /* Format the IP + port of a connected socket end.  `which` = 0 for the peer
  * (getpeername), 1 for the local end (getsockname).  Fills ip[]/port and sets
  * *afi to '4' or '6'.  Returns NGX_OK / NGX_DECLINED. */
-ngx_int_t xrootd_pmark_endpoint(int fd, int which, char *ip, size_t iplen,
+ngx_int_t brix_pmark_endpoint(int fd, int which, char *ip, size_t iplen,
     int *port, char *afi);
 
 /* ====================================================================== */
@@ -350,7 +350,7 @@ ngx_int_t xrootd_pmark_endpoint(int fd, int which, char *ip, size_t iplen,
  * selects the supplier-is-source convention.  Returns the handle (caller stores
  * it and passes it to flow_end), or NULL when the flow is not marked.  Always
  * fail-open. */
-xrootd_pmark_flow_t *xrootd_pmark_flow_begin(xrootd_pmark_conf_t *pm,
+brix_pmark_flow_t *brix_pmark_flow_begin(brix_pmark_conf_t *pm,
     ngx_pool_t *pool, ngx_connection_t *c, int is_write,
     const char *vo_csv, const char *user, const char *path, const char *cgi,
     ngx_log_t *log);
@@ -358,28 +358,28 @@ xrootd_pmark_flow_t *xrootd_pmark_flow_begin(xrootd_pmark_conf_t *pm,
 /* Emit the "end" firefly (with final TCP_INFO byte/rtt counts) for `flow` and
  * release per-flow resources.  No-op when `flow` is NULL.  Must be called while
  * the socket fd is still open (read TCP_INFO before close). */
-void xrootd_pmark_flow_end(xrootd_pmark_flow_t *flow, ngx_log_t *log);
+void brix_pmark_flow_end(brix_pmark_flow_t *flow, ngx_log_t *log);
 
 /* Emit an "ongoing" firefly for a long-lived flow (echo timer). */
-void xrootd_pmark_flow_echo(xrootd_pmark_flow_t *flow, ngx_log_t *log);
+void brix_pmark_flow_echo(brix_pmark_flow_t *flow, ngx_log_t *log);
 
 /* One-shot firefly (start+end) for a connected socket we don't hold a flow over
  * — used for outbound TPC sockets (libcurl) at close, when the fd is connected
  * and TCP_INFO is readable.  `peer_is_src`=1 when the remote supplies the data
  * (a pull).  No-op when firefly is off. */
-void xrootd_pmark_firefly_oneshot(xrootd_pmark_conf_t *pm, int fd, ngx_uint_t exp,
+void brix_pmark_firefly_oneshot(brix_pmark_conf_t *pm, int fd, ngx_uint_t exp,
     ngx_uint_t act, int peer_is_src, const char *app, ngx_log_t *log);
 
-/* ngx_pool_cleanup_add() handler: `data` is an xrootd_pmark_flow_t* — emits the
+/* ngx_pool_cleanup_add() handler: `data` is an brix_pmark_flow_t* — emits the
  * end firefly at request/pool teardown.  Lets HTTP callers (per-request flows)
  * end a flow without storing it or threading a log. */
-void xrootd_pmark_flow_cleanup(void *data);
+void brix_pmark_flow_cleanup(void *data);
 
 /* HTTP convenience: begin a per-request flow on connection `c` and register a
  * `pool` cleanup to end it at request teardown (fd still open).  Caller decides
  * whether to mark and supplies the borrowed identity/path/cgi strings.  No-op if
  * the flow does not map.  Decouples the HTTP modules from the flow internals. */
-void xrootd_pmark_http_mark(xrootd_pmark_conf_t *pm, ngx_pool_t *pool,
+void brix_pmark_http_mark(brix_pmark_conf_t *pm, ngx_pool_t *pool,
     ngx_connection_t *c, int is_write, const char *vo_csv, const char *user,
     const char *path, const char *cgi);
 
@@ -391,18 +391,18 @@ void xrootd_pmark_http_mark(xrootd_pmark_conf_t *pm, ngx_pool_t *pool,
  * (an IPv6, non-mapped address).  No-op (NGX_DECLINED) on IPv4/mapped/disabled
  * or when the kernel refuses the label; NGX_OK when stamped.  Increments the
  * flowlabel_set / flowlabel_failed metrics on `c`.  Never fails a transfer. */
-ngx_int_t xrootd_pmark_flowlabel_apply(ngx_connection_t *c, int fd,
+ngx_int_t brix_pmark_flowlabel_apply(ngx_connection_t *c, int fd,
     ngx_uint_t exp, ngx_uint_t act, ngx_log_t *log);
 
 /* Variant for an UNconnected socket with an explicit destination (libcurl
  * opensocket / native-TPC connect): leases the label toward `dst` so the kernel
  * stamps it once curl/connect() reaches that address.  Same gates/semantics as
- * xrootd_pmark_flowlabel_apply. */
-ngx_int_t xrootd_pmark_flowlabel_apply_addr(int fd, const struct sockaddr *dst,
+ * brix_pmark_flowlabel_apply. */
+ngx_int_t brix_pmark_flowlabel_apply_addr(int fd, const struct sockaddr *dst,
     socklen_t dstlen, ngx_uint_t exp, ngx_uint_t act, ngx_log_t *log);
 
 /* One-time per-worker capability probe: can we stamp a specific IPv6 flow label
  * on this host (kernel/CAP_NET_ADMIN/sysctls)?  Cached; logs once on failure. */
-ngx_int_t xrootd_pmark_flowlabel_usable(ngx_log_t *log);
+ngx_int_t brix_pmark_flowlabel_usable(ngx_log_t *log);
 
-#endif /* NGX_XROOTD_PMARK_H */
+#endif /* NGX_BRIX_PMARK_H */

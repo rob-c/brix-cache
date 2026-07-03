@@ -9,7 +9,7 @@
  *
  * WHY: completes XrdAcc parity (acc.gidlifetime / acc.pgo / acc.nisdomain).
  *   The access engine reaches this layer only through the function pointers
- *   installed by xrootd_acc_groups_init(), so the decision engine stays
+ *   installed by brix_acc_groups_init(), so the decision engine stays
  *   testable without the OS.
  *
  * HOW: a small open-addressed per-worker cache keyed by username holds the
@@ -20,7 +20,7 @@
  */
 
 #include "acc.h"
-#include "observability/metrics/metrics.h"          /* ngx_xrootd_metrics_t */
+#include "observability/metrics/metrics.h"          /* ngx_brix_metrics_t */
 #include "observability/metrics/metrics_macros.h"   /* Phase 51 (E6): breaker counter */
 
 #include <pwd.h>
@@ -35,17 +35,17 @@ static char    acc_nisdomain[256] = "";   /* acc.nisdomain ("" => default) */
 
 /* gidretran: gids whose group name is ambiguous (shared) and must be skipped
  * during resolution (XrdAccGroups retrangid[]).  Fixed cap, matching XrdAcc. */
-#define XROOTD_ACC_MAX_RETRAN 32
-static gid_t   acc_retrangid[XROOTD_ACC_MAX_RETRAN];
+#define BRIX_ACC_MAX_RETRAN 32
+static gid_t   acc_retrangid[BRIX_ACC_MAX_RETRAN];
 static int     acc_retrancnt = 0;
 
-void xrootd_acc_groups_set_gidlifetime(time_t secs) { acc_gidlifetime = secs; }
-void xrootd_acc_groups_set_primary_only(ngx_int_t on) { acc_primary_only = on ? 1 : 0; }
+void brix_acc_groups_set_gidlifetime(time_t secs) { acc_gidlifetime = secs; }
+void brix_acc_groups_set_primary_only(ngx_int_t on) { acc_primary_only = on ? 1 : 0; }
 
 /* Parse a space/comma-separated gid list into the retran table (replaces the
  * previous set).  Non-numeric / overflow entries are skipped (best effort). */
 void
-xrootd_acc_groups_set_gidretran(const char *gidlist)
+brix_acc_groups_set_gidretran(const char *gidlist)
 {
     const char *p = gidlist;
 
@@ -53,7 +53,7 @@ xrootd_acc_groups_set_gidretran(const char *gidlist)
     if (gidlist == NULL) {
         return;
     }
-    while (*p != '\0' && acc_retrancnt < XROOTD_ACC_MAX_RETRAN) {
+    while (*p != '\0' && acc_retrancnt < BRIX_ACC_MAX_RETRAN) {
         while (*p == ' ' || *p == ',' || *p == '\t') {
             p++;
         }
@@ -83,7 +83,7 @@ acc_gid_retran(gid_t gid)
 }
 
 void
-xrootd_acc_groups_set_nisdomain(const char *domain)
+brix_acc_groups_set_nisdomain(const char *domain)
 {
     if (domain == NULL) { acc_nisdomain[0] = '\0'; return; }
     size_t n = ngx_strlen(domain);
@@ -211,7 +211,7 @@ acc_resolve_unix(const char *user, char ***namesp)
 /* Public resolver (installed into the engine): user -> request-pool array of
  * group-name strings, using the TTL cache. */
 static ngx_array_t *
-xrootd_acc_unix_groups(ngx_pool_t *pool, const char *user)
+brix_acc_unix_groups(ngx_pool_t *pool, const char *user)
 {
     acc_grp_cache_t *e;
     ngx_array_t     *out;
@@ -244,9 +244,9 @@ xrootd_acc_unix_groups(ngx_pool_t *pool, const char *user)
             if (++acc_nss_breaker.consecutive_slow >= ACC_NSS_TRIP_COUNT) {
                 acc_nss_breaker.open_until = now + ACC_NSS_COOLDOWN_SECS;
                 acc_nss_breaker.consecutive_slow = 0;
-                XROOTD_RESIL_METRIC_INC(acc_nss_breaker_open_total);
+                BRIX_RESIL_METRIC_INC(acc_nss_breaker_open_total);
                 ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
-                              "xrootd_acc: NSS group lookup slow (%L ms) — "
+                              "brix_acc: NSS group lookup slow (%L ms) — "
                               "opening circuit breaker for %ds (failing to "
                               "no-supplementary-groups)",
                               (long long) elapsed, ACC_NSS_COOLDOWN_SECS);
@@ -296,7 +296,7 @@ xrootd_acc_unix_groups(ngx_pool_t *pool, const char *user)
 
 /* NIS netgroup membership test (innetgr): is (user, host) in <netgroup>? */
 static int
-xrootd_acc_in_netgroup(const char *netgroup, const char *user, const char *host)
+brix_acc_in_netgroup(const char *netgroup, const char *user, const char *host)
 {
     const char *domain = (acc_nisdomain[0] != '\0') ? acc_nisdomain : NULL;
     if (netgroup == NULL) {
@@ -306,7 +306,7 @@ xrootd_acc_in_netgroup(const char *netgroup, const char *user, const char *host)
 }
 
 void
-xrootd_acc_groups_init(void)
+brix_acc_groups_init(void)
 {
-    xrootd_acc_set_group_resolvers(xrootd_acc_unix_groups, xrootd_acc_in_netgroup);
+    brix_acc_set_group_resolvers(brix_acc_unix_groups, brix_acc_in_netgroup);
 }

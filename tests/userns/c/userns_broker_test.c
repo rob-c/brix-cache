@@ -250,8 +250,8 @@ spawn_broker_ex(const char *sockpath, int rootfd, const char *default_user,
         return -1;
     }
     /* Set the broker-user globals BEFORE fork so the broker inherits them. */
-    xrootd_imp_broker_user_uid = broker_uid;
-    xrootd_imp_broker_user_gid = broker_gid;
+    brix_imp_broker_user_uid = broker_uid;
+    brix_imp_broker_user_gid = broker_gid;
 
     pid = fork();
     if (pid < 0) {
@@ -259,7 +259,7 @@ spawn_broker_ex(const char *sockpath, int rootfd, const char *default_user,
         return -1;
     }
     if (pid == 0) {
-        xrootd_idmap_conf_t c;
+        brix_idmap_conf_t c;
         memset(&c, 0, sizeof(c));
         c.min_uid    = 1000;
         c.cache_ttl  = 600;
@@ -268,9 +268,9 @@ spawn_broker_ex(const char *sockpath, int rootfd, const char *default_user,
             c.default_user.data = (u_char *) default_user;
             c.default_user.len  = strlen(default_user);
         }
-        xrootd_idmap_init(&c, NULL);
+        brix_idmap_init(&c, NULL);
         /* broker_run drops caps (+ optional non-root drop) then serves. */
-        _exit(xrootd_imp_broker_run(lfd, rootfd, NULL, NULL) == 0 ? 0 : 1);
+        _exit(brix_imp_broker_run(lfd, rootfd, NULL, NULL) == 0 ? 0 : 1);
     }
     close(lfd);
     /* Give the broker a moment to drop caps + reach accept(). */
@@ -305,15 +305,15 @@ run_ownership_and_dac(const char *exportdir, const char *sock)
     struct stat st;
     int         fd;
 
-    if (xrootd_imp_client_connect(sock, NULL) != NGX_OK) {
+    if (brix_imp_client_connect(sock, NULL) != NGX_OK) {
         OKAY(0, "client connects to deny-broker");
         return;
     }
     OKAY(1, "client connects to deny-broker");
 
     /* (B) OPEN O_CREAT as alice -> file owned by alice:alice. */
-    xrootd_imp_set_principal("alice");
-    fd = xrootd_imp_open("/alice/newfile", O_WRONLY | O_CREAT, 0644);
+    brix_imp_set_principal("alice");
+    fd = brix_imp_open("/alice/newfile", O_WRONLY | O_CREAT, 0644);
     OKAY(fd >= 0, "alice OPEN(O_CREAT) /alice/newfile succeeds");
     if (fd >= 0) {
         OKAY(write(fd, "hello", 5) == 5, "write to broker-returned fd works");
@@ -327,31 +327,31 @@ run_ownership_and_dac(const char *exportdir, const char *sock)
     {
         struct stat bs;
         memset(&bs, 0, sizeof(bs));
-        xrootd_imp_set_principal("alice");
-        OKAY(xrootd_imp_stat("/alice/newfile", &bs, 0) == 0
+        brix_imp_set_principal("alice");
+        OKAY(brix_imp_stat("/alice/newfile", &bs, 0) == 0
                  && bs.st_uid == UID_ALICE && bs.st_size == 5,
              "broker STAT returns alice owner + size");
     }
 
     /* (D) MKDIR as alice. */
-    xrootd_imp_set_principal("alice");
-    OKAY(xrootd_imp_mkdir("/alice/adir", 0755) == 0, "alice MKDIR /alice/adir");
+    brix_imp_set_principal("alice");
+    OKAY(brix_imp_mkdir("/alice/adir", 0755) == 0, "alice MKDIR /alice/adir");
     OKAY(stat_under(exportdir, "alice/adir", &st) == 0
              && st.st_uid == UID_ALICE && S_ISDIR(st.st_mode),
          "mkdir owned by alice");
 
     /* (E) DAC ENFORCED: alice cannot write into bob's 0700 dir. */
-    xrootd_imp_set_principal("alice");
+    brix_imp_set_principal("alice");
     errno = 0;
-    fd = xrootd_imp_open("/bobonly/x", O_WRONLY | O_CREAT, 0644);
+    fd = brix_imp_open("/bobonly/x", O_WRONLY | O_CREAT, 0644);
     OKAY(fd < 0 && errno == EACCES,
          "alice DENIED in bob's 0700 dir (DAC enforced => broker dropped "
          "CAP_DAC_OVERRIDE)");
     if (fd >= 0) { close(fd); }
 
     /* ...but bob (the owner) CAN. */
-    xrootd_imp_set_principal("bob");
-    fd = xrootd_imp_open("/bobonly/x", O_WRONLY | O_CREAT, 0644);
+    brix_imp_set_principal("bob");
+    fd = brix_imp_open("/bobonly/x", O_WRONLY | O_CREAT, 0644);
     OKAY(fd >= 0, "bob ALLOWED in his own 0700 dir");
     if (fd >= 0) {
         close(fd);
@@ -361,60 +361,60 @@ run_ownership_and_dac(const char *exportdir, const char *sock)
     }
 
     /* (I) supplementary group: alice is in 'shared'(1500); the dir is 0070. */
-    xrootd_imp_set_principal("alice");
-    fd = xrootd_imp_open("/shared/viagroup", O_WRONLY | O_CREAT, 0644);
+    brix_imp_set_principal("alice");
+    fd = brix_imp_open("/shared/viagroup", O_WRONLY | O_CREAT, 0644);
     OKAY(fd >= 0, "alice ALLOWED in group-only dir via supplementary group");
     if (fd >= 0) { close(fd); }
     /* bob is NOT in 'shared' and others=---  => denied. */
-    xrootd_imp_set_principal("bob");
+    brix_imp_set_principal("bob");
     errno = 0;
-    fd = xrootd_imp_open("/shared/nope", O_WRONLY | O_CREAT, 0644);
+    fd = brix_imp_open("/shared/nope", O_WRONLY | O_CREAT, 0644);
     OKAY(fd < 0 && errno == EACCES,
          "bob DENIED in group-only dir (not a member of 'shared')");
     if (fd >= 0) { close(fd); }
 
     /* (F) confinement: "../" and symlink escapes are blocked by the broker. */
-    xrootd_imp_set_principal("alice");
+    brix_imp_set_principal("alice");
     errno = 0;
-    fd = xrootd_imp_open("/../../../../etc/passwd", O_RDONLY, 0);
+    fd = brix_imp_open("/../../../../etc/passwd", O_RDONLY, 0);
     OKAY(fd < 0, "broker blocks ../ traversal escape");
     if (fd >= 0) { close(fd); }
     errno = 0;
-    fd = xrootd_imp_open("/esc/passwd", O_RDONLY, 0);   /* /esc -> /etc symlink */
+    fd = brix_imp_open("/esc/passwd", O_RDONLY, 0);   /* /esc -> /etc symlink */
     OKAY(fd < 0, "broker blocks symlink escape (RESOLVE_BENEATH)");
     if (fd >= 0) { close(fd); }
 
     /* (G) unmapped principal => DENY (no passwd entry). */
-    xrootd_imp_set_principal("mallory");
+    brix_imp_set_principal("mallory");
     errno = 0;
-    fd = xrootd_imp_open("/alice/x", O_WRONLY | O_CREAT, 0644);
+    fd = brix_imp_open("/alice/x", O_WRONLY | O_CREAT, 0644);
     OKAY(fd < 0 && errno == EACCES, "unmapped principal 'mallory' DENIED");
     if (fd >= 0) { close(fd); }
 
     /* (H) reserved/below-floor uids => DENY. */
-    xrootd_imp_set_principal("rootish");        /* uid 0 in fake passwd */
+    brix_imp_set_principal("rootish");        /* uid 0 in fake passwd */
     errno = 0;
-    fd = xrootd_imp_open("/alice/x", O_WRONLY | O_CREAT, 0644);
+    fd = brix_imp_open("/alice/x", O_WRONLY | O_CREAT, 0644);
     OKAY(fd < 0 && errno == EACCES, "uid-0 principal 'rootish' DENIED");
     if (fd >= 0) { close(fd); }
-    xrootd_imp_set_principal("sys100");         /* uid 100 < min_uid 1000 */
+    brix_imp_set_principal("sys100");         /* uid 100 < min_uid 1000 */
     errno = 0;
-    fd = xrootd_imp_open("/alice/x", O_WRONLY | O_CREAT, 0644);
+    fd = brix_imp_open("/alice/x", O_WRONLY | O_CREAT, 0644);
     OKAY(fd < 0 && errno == EACCES, "below-min_uid principal 'sys100' DENIED");
     if (fd >= 0) { close(fd); }
 
     /* (L) rename / link / truncate / chmod / unlink under alice's own dir. */
-    xrootd_imp_set_principal("alice");
-    OKAY(xrootd_imp_rename("/alice/newfile", "/alice/renamed") == 0,
+    brix_imp_set_principal("alice");
+    OKAY(brix_imp_rename("/alice/newfile", "/alice/renamed") == 0,
          "alice RENAME within own dir");
-    OKAY(xrootd_imp_truncate("/alice/renamed", 2) == 0, "alice TRUNCATE");
+    OKAY(brix_imp_truncate("/alice/renamed", 2) == 0, "alice TRUNCATE");
     OKAY(stat_under(exportdir, "alice/renamed", &st) == 0 && st.st_size == 2,
          "truncate took effect (size==2)");
-    OKAY(xrootd_imp_chmod("/alice/renamed", 0600) == 0, "alice CHMOD");
-    OKAY(xrootd_imp_link("/alice/renamed", "/alice/hardlink") == 0,
+    OKAY(brix_imp_chmod("/alice/renamed", 0600) == 0, "alice CHMOD");
+    OKAY(brix_imp_link("/alice/renamed", "/alice/hardlink") == 0,
          "alice LINK within own dir");
-    OKAY(xrootd_imp_unlink("/alice/hardlink", 0) == 0, "alice UNLINK");
-    OKAY(xrootd_imp_unlink("/alice/adir", 1) == 0, "alice RMDIR");
+    OKAY(brix_imp_unlink("/alice/hardlink", 0) == 0, "alice UNLINK");
+    OKAY(brix_imp_unlink("/alice/adir", 1) == 0, "alice RMDIR");
 }
 
 /* (K) concurrency: two interleaved identities never cross creds. */
@@ -427,26 +427,26 @@ run_concurrency(const char *exportdir, const char *sock)
 
     a = fork();
     if (a == 0) {
-        xrootd_imp_client_connect(sock, NULL);
-        xrootd_imp_set_principal("alice");
+        brix_imp_client_connect(sock, NULL);
+        brix_imp_set_principal("alice");
         for (i = 0; i < ROUNDS; i++) {
             char p[64];
             int  fd;
             snprintf(p, sizeof(p), "/alice/c_a_%d", i);
-            fd = xrootd_imp_open(p, O_WRONLY | O_CREAT, 0644);
+            fd = brix_imp_open(p, O_WRONLY | O_CREAT, 0644);
             if (fd >= 0) { close(fd); }
         }
         _exit(0);
     }
     b = fork();
     if (b == 0) {
-        xrootd_imp_client_connect(sock, NULL);
-        xrootd_imp_set_principal("bob");
+        brix_imp_client_connect(sock, NULL);
+        brix_imp_set_principal("bob");
         for (i = 0; i < ROUNDS; i++) {
             char p[64];
             int  fd;
             snprintf(p, sizeof(p), "/bob/c_b_%d", i);
-            fd = xrootd_imp_open(p, O_WRONLY | O_CREAT, 0644);
+            fd = brix_imp_open(p, O_WRONLY | O_CREAT, 0644);
             if (fd >= 0) { close(fd); }
         }
         _exit(0);
@@ -483,24 +483,24 @@ run_reserved_id_floor(const char *exportdir, const char *sock)
     struct stat st;
     int         fd;
 
-    if (xrootd_imp_client_connect(sock, NULL) != NGX_OK) {
+    if (brix_imp_client_connect(sock, NULL) != NGX_OK) {
         OKAY(0, "client connects for reserved-id floor checks");
         return;
     }
 
     /* primary gid 50 (< 1000) -> GRACEFUL deny (EACCES, not a broker death), no file. */
-    xrootd_imp_set_principal("lowgid");
+    brix_imp_set_principal("lowgid");
     errno = 0;
-    fd = xrootd_imp_open("/pub/lowgid_file", O_WRONLY | O_CREAT, 0644);
+    fd = brix_imp_open("/pub/lowgid_file", O_WRONLY | O_CREAT, 0644);
     OKAY(fd < 0 && errno == EACCES, "reserved PRIMARY gid (50) -> denied (EACCES)");
     if (fd >= 0) { close(fd); }
     OKAY(stat_under(exportdir, "pub/lowgid_file", &st) != 0,
          "reserved PRIMARY gid -> NO file created");
 
     /* member of wheel (gid 10) -> GRACEFUL deny (EACCES), no file. */
-    xrootd_imp_set_principal("sysmember");
+    brix_imp_set_principal("sysmember");
     errno = 0;
-    fd = xrootd_imp_open("/pub/sysmember_file", O_WRONLY | O_CREAT, 0644);
+    fd = brix_imp_open("/pub/sysmember_file", O_WRONLY | O_CREAT, 0644);
     OKAY(fd < 0 && errno == EACCES,
          "reserved SUPPLEMENTARY group (wheel/10) -> denied (EACCES)");
     if (fd >= 0) { close(fd); }
@@ -509,8 +509,8 @@ run_reserved_id_floor(const char *exportdir, const char *sock)
 
     /* The broker must still be alive (these are graceful denials): a legit alice
      * op right after must still succeed. */
-    xrootd_imp_set_principal("alice");
-    fd = xrootd_imp_open("/alice/after_floor_checks", O_WRONLY | O_CREAT, 0644);
+    brix_imp_set_principal("alice");
+    fd = brix_imp_open("/alice/after_floor_checks", O_WRONLY | O_CREAT, 0644);
     OKAY(fd >= 0, "broker still serving after reserved-id denials (not crashed)");
     if (fd >= 0) {
         close(fd);
@@ -531,15 +531,15 @@ run_deny_lists(const char *exportdir, const char *sock)
     struct stat st;
     int         fd;
 
-    if (xrootd_imp_client_connect(sock, NULL) != NGX_OK) {
+    if (brix_imp_client_connect(sock, NULL) != NGX_OK) {
         OKAY(0, "client connects for deny-list checks");
         return;
     }
 
     /* forbidden user 'nobody' (uid 65534 >= floor, but on the forbidden_users list). */
-    xrootd_imp_set_principal("nobody");
+    brix_imp_set_principal("nobody");
     errno = 0;
-    fd = xrootd_imp_open("/pub/nobody_file", O_WRONLY | O_CREAT, 0644);
+    fd = brix_imp_open("/pub/nobody_file", O_WRONLY | O_CREAT, 0644);
     OKAY(fd < 0 && errno == EACCES,
          "forbidden target account 'nobody' (uid>=floor) -> denied");
     if (fd >= 0) { close(fd); }
@@ -547,9 +547,9 @@ run_deny_lists(const char *exportdir, const char *sock)
          "forbidden account -> NO file created");
 
     /* member of privileged group 'docker' (gid 1500 >= floor) -> denied by NAME. */
-    xrootd_imp_set_principal("dockerite");
+    brix_imp_set_principal("dockerite");
     errno = 0;
-    fd = xrootd_imp_open("/pub/docker_file", O_WRONLY | O_CREAT, 0644);
+    fd = brix_imp_open("/pub/docker_file", O_WRONLY | O_CREAT, 0644);
     OKAY(fd < 0 && errno == EACCES,
          "member of high-gid privileged group 'docker' (1500) -> denied by name");
     if (fd >= 0) { close(fd); }
@@ -559,24 +559,24 @@ run_deny_lists(const char *exportdir, const char *sock)
      * 1700) that sits PAST the 32-slot getgrouplist cap — it MUST still be denied
      * (the deny-list must not fail open on group-list truncation).
      */
-    xrootd_imp_set_principal("manygroups");
+    brix_imp_set_principal("manygroups");
     errno = 0;
-    fd = xrootd_imp_open("/pub/many_file", O_WRONLY | O_CREAT, 0644);
+    fd = brix_imp_open("/pub/many_file", O_WRONLY | O_CREAT, 0644);
     OKAY(fd < 0 && errno == EACCES,
          "user in a forbidden group PAST the 32-group cap -> still denied "
          "(deny-list fails closed on truncation)");
     if (fd >= 0) { close(fd); }
 
     /* ...but a heavy-group user with NO forbidden group is NOT over-denied. */
-    xrootd_imp_set_principal("manyok");
-    fd = xrootd_imp_open("/pub/manyok_file", O_WRONLY | O_CREAT, 0644);
+    brix_imp_set_principal("manyok");
+    fd = brix_imp_open("/pub/manyok_file", O_WRONLY | O_CREAT, 0644);
     OKAY(fd >= 0, "user with >32 groups but none forbidden -> still allowed "
                   "(no over-deny)");
     if (fd >= 0) { close(fd); }
 
     /* control: alice (no forbidden id) still works. */
-    xrootd_imp_set_principal("alice");
-    fd = xrootd_imp_open("/alice/after_denylist", O_WRONLY | O_CREAT, 0644);
+    brix_imp_set_principal("alice");
+    fd = brix_imp_open("/alice/after_denylist", O_WRONLY | O_CREAT, 0644);
     OKAY(fd >= 0, "control user still allowed after deny-list checks");
     if (fd >= 0) { close(fd); }
 }
@@ -588,18 +588,18 @@ run_worker_forbid(const char *exportdir, const char *sock)
     int fd;
 
     (void) exportdir;
-    if (xrootd_imp_client_connect(sock, NULL) != NGX_OK) {
+    if (brix_imp_client_connect(sock, NULL) != NGX_OK) {
         OKAY(0, "client connects to worker-forbid broker");
         return;
     }
-    xrootd_imp_set_principal("bob");          /* bob's uid == the forbidden worker uid */
+    brix_imp_set_principal("bob");          /* bob's uid == the forbidden worker uid */
     errno = 0;
-    fd = xrootd_imp_open("/bob/wf", O_WRONLY | O_CREAT, 0644);
+    fd = brix_imp_open("/bob/wf", O_WRONLY | O_CREAT, 0644);
     OKAY(fd < 0 && errno == EACCES,
          "worker uid is a forbidden impersonation target -> denied");
     if (fd >= 0) { close(fd); }
-    xrootd_imp_set_principal("alice");
-    fd = xrootd_imp_open("/alice/wf", O_WRONLY | O_CREAT, 0644);
+    brix_imp_set_principal("alice");
+    fd = brix_imp_open("/alice/wf", O_WRONLY | O_CREAT, 0644);
     OKAY(fd >= 0, "non-worker user still allowed on worker-forbid broker");
     if (fd >= 0) { close(fd); }
 }
@@ -615,12 +615,12 @@ run_broker_nonroot(const char *exportdir, const char *sock)
     struct stat st;
     int         fd;
 
-    if (xrootd_imp_client_connect(sock, NULL) != NGX_OK) {
+    if (brix_imp_client_connect(sock, NULL) != NGX_OK) {
         OKAY(0, "client connects to non-root broker");
         return;
     }
-    xrootd_imp_set_principal("alice");
-    fd = xrootd_imp_open("/alice/nonroot", O_WRONLY | O_CREAT, 0644);
+    brix_imp_set_principal("alice");
+    fd = brix_imp_open("/alice/nonroot", O_WRONLY | O_CREAT, 0644);
     OKAY(fd >= 0, "non-root broker (svc uid 990) still impersonates");
     if (fd >= 0) {
         close(fd);
@@ -641,13 +641,13 @@ run_posix_ext_ops(const char *exportdir, const char *sock)
     struct stat st;
     int         fd;
 
-    if (xrootd_imp_client_connect(sock, NULL) != NGX_OK) {
+    if (brix_imp_client_connect(sock, NULL) != NGX_OK) {
         OKAY(0, "client connects for ext-ops");
         return;
     }
 
-    xrootd_imp_set_principal("alice");
-    fd = xrootd_imp_open("/alice/extfile", O_WRONLY | O_CREAT, 0644);
+    brix_imp_set_principal("alice");
+    fd = brix_imp_open("/alice/extfile", O_WRONLY | O_CREAT, 0644);
     OKAY(fd >= 0, "alice creates a file for ext-ops");
     if (fd >= 0) { close(fd); }
 
@@ -656,7 +656,7 @@ run_posix_ext_ops(const char *exportdir, const char *sock)
         struct timespec ts[2];
         ts[0].tv_sec = 1000000; ts[0].tv_nsec = 0;
         ts[1].tv_sec = 2000000; ts[1].tv_nsec = 0;
-        OKAY(xrootd_imp_setattr("/alice/extfile", 1, ts, 1,
+        OKAY(brix_imp_setattr("/alice/extfile", 1, ts, 1,
                                 (uid_t) -1, (gid_t) GID_SHARED) == 0,
              "alice SETATTR (chgrp shared + set times) as the mapped user");
         OKAY(stat_under(exportdir, "alice/extfile", &st) == 0
@@ -665,7 +665,7 @@ run_posix_ext_ops(const char *exportdir, const char *sock)
     }
 
     /* SYMLINK: created as alice, owned by alice. */
-    OKAY(xrootd_imp_symlink("the-target-path", "/alice/slink") == 0,
+    OKAY(brix_imp_symlink("the-target-path", "/alice/slink") == 0,
          "alice SYMLINK /alice/slink");
     OKAY(stat_under(exportdir, "alice/slink", &st) == 0
              && S_ISLNK(st.st_mode) && st.st_uid == UID_ALICE,
@@ -674,7 +674,7 @@ run_posix_ext_ops(const char *exportdir, const char *sock)
     /* READLINK: read the target back through the broker (trailing payload). */
     {
         char    buf[256];
-        ssize_t n = xrootd_imp_readlink("/alice/slink", buf, sizeof(buf));
+        ssize_t n = brix_imp_readlink("/alice/slink", buf, sizeof(buf));
         OKAY(n == (ssize_t) ngx_strlen("the-target-path")
                  && memcmp(buf, "the-target-path", (size_t) (n > 0 ? n : 0)) == 0,
              "READLINK returns the symlink target");
@@ -686,7 +686,7 @@ run_posix_ext_ops(const char *exportdir, const char *sock)
         ts[0].tv_sec = 1; ts[0].tv_nsec = 0;
         ts[1].tv_sec = 1; ts[1].tv_nsec = 0;
         errno = 0;
-        OKAY(xrootd_imp_setattr("/bobonly/x", 1, ts, 0,
+        OKAY(brix_imp_setattr("/bobonly/x", 1, ts, 0,
                                 (uid_t) -1, (gid_t) -1) != 0,
              "alice SETATTR inside bob's 0700 dir -> denied (DAC enforced)");
     }
@@ -699,12 +699,12 @@ run_squash(const char *exportdir, const char *sock)
     struct stat st;
     int         fd;
 
-    if (xrootd_imp_client_connect(sock, NULL) != NGX_OK) {
+    if (brix_imp_client_connect(sock, NULL) != NGX_OK) {
         OKAY(0, "client connects to squash-broker");
         return;
     }
-    xrootd_imp_set_principal("mallory");          /* unmapped -> squash to alice */
-    fd = xrootd_imp_open("/alice/squashed", O_WRONLY | O_CREAT, 0644);
+    brix_imp_set_principal("mallory");          /* unmapped -> squash to alice */
+    fd = brix_imp_open("/alice/squashed", O_WRONLY | O_CREAT, 0644);
     OKAY(fd >= 0, "squash: unmapped principal allowed via default_user");
     if (fd >= 0) {
         close(fd);

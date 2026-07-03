@@ -98,7 +98,7 @@ pid {root}/nginx.pid;
 error_log {root}/error.log info;
 events {{ worker_connections 256; }}
 stream {{
-    server {{ listen {BIND_HOST}:{pr}; xrootd on; xrootd_storage_backend posix:{data}; xrootd_auth none; }}
+    server {{ listen {BIND_HOST}:{pr}; xrootd on; brix_storage_backend posix:{data}; brix_auth none; }}
 }}
 http {{
     access_log off;
@@ -108,12 +108,12 @@ http {{
     uwsgi_temp_path {root}/ut;
     scgi_temp_path {root}/sct;
     server {{ listen {BIND_HOST}:{ph};
-             location / {{ xrootd_webdav on; xrootd_webdav_storage_backend posix:{data}; xrootd_webdav_auth none; }} }}
+             location / {{ brix_webdav on; brix_webdav_storage_backend posix:{data}; brix_webdav_auth none; }} }}
     server {{ listen {BIND_HOST}:{ps} ssl;
              ssl_certificate {cert}; ssl_certificate_key {key};
-             location / {{ xrootd_webdav on; xrootd_webdav_storage_backend posix:{data}; xrootd_webdav_auth none; }} }}
+             location / {{ brix_webdav on; brix_webdav_storage_backend posix:{data}; brix_webdav_auth none; }} }}
     server {{ listen {BIND_HOST}:{p3};
-             location / {{ xrootd_s3 on; xrootd_s3_storage_backend posix:{data}; }} }}
+             location / {{ brix_s3 on; brix_s3_storage_backend posix:{data}; }} }}
 }}
 """)
     t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)

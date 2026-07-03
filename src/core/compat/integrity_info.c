@@ -9,7 +9,7 @@
  *       policy, and HTTP Digest formatting.  Centralising this prevents drift
  *       in cache key names and format conversions.
  * HOW:  On a cache hit, reads "user.XrdCks.<alg>" xattr and validates hex
- *       digits.  On a cache miss, delegates to xrootd_checksum_hex_fd() and
+ *       digits.  On a cache miss, delegates to brix_checksum_hex_fd() and
  *       optionally writes the result back.  Invalidation removes all known
  *       algorithm xattrs so write paths can keep the cache consistent.
  */
@@ -70,7 +70,7 @@ cks_hex_nibble(unsigned char c)
 }
 
 size_t
-xrootd_cksdata_encode(const xrootd_integrity_info_t *in, time_t fmtime,
+brix_cksdata_encode(const brix_integrity_info_t *in, time_t fmtime,
     unsigned char *out)
 {
     struct xrd_cks_data d;
@@ -94,8 +94,8 @@ xrootd_cksdata_encode(const xrootd_integrity_info_t *in, time_t fmtime,
 }
 
 int
-xrootd_cksdata_decode(const unsigned char *buf, size_t len, time_t cur_mtime,
-    xrootd_integrity_info_t *out)
+brix_cksdata_decode(const unsigned char *buf, size_t len, time_t cur_mtime,
+    brix_integrity_info_t *out)
 {
     static const char hx[] = "0123456789abcdef";
     struct xrd_cks_data d;
@@ -135,7 +135,7 @@ xrootd_cksdata_decode(const unsigned char *buf, size_t len, time_t cur_mtime,
  * miss so the caller recomputes and refreshes the xattr. */
 static int
 integrity_xattr_read(int fd, const char *algo,
-    xrootd_integrity_info_t *out)
+    brix_integrity_info_t *out)
 {
     char        key[64];
     char        val[INTEGRITY_XATTR_VAL_MAX];
@@ -151,7 +151,7 @@ integrity_xattr_read(int fd, const char *algo,
         return 0;
     }
 
-    n = xrootd_vfs_fgetxattr(NULL, fd, key, val, sizeof(val) - 1);
+    n = brix_vfs_fgetxattr(NULL, fd, key, val, sizeof(val) - 1);
     if (n <= 0) {
         return 0;
     }
@@ -162,7 +162,7 @@ integrity_xattr_read(int fd, const char *algo,
     if ((size_t) n == sizeof(struct xrd_cks_data)) {
         struct stat bst;
         time_t      cur = (fstat(fd, &bst) == 0) ? bst.st_mtim.tv_sec : (time_t) 0;
-        if (xrootd_cksdata_decode((const unsigned char *) val, (size_t) n,
+        if (brix_cksdata_decode((const unsigned char *) val, (size_t) n,
                                   cur, out))
         {
             return 1;
@@ -205,12 +205,12 @@ integrity_xattr_read(int fd, const char *algo,
 }
 
 /* §8.x process-global WRITE format (default text; reader handles either). */
-static ngx_uint_t s_xattr_format = XROOTD_CKS_FMT_TEXT;
+static ngx_uint_t s_xattr_format = BRIX_CKS_FMT_TEXT;
 
 void
-xrootd_integrity_set_xattr_format(ngx_uint_t fmt)
+brix_integrity_set_xattr_format(ngx_uint_t fmt)
 {
-    if (fmt == XROOTD_CKS_FMT_TEXT || fmt == XROOTD_CKS_FMT_XRDCKS) {
+    if (fmt == BRIX_CKS_FMT_TEXT || fmt == BRIX_CKS_FMT_XRDCKS) {
         s_xattr_format = fmt;
     }
 }
@@ -234,8 +234,8 @@ integrity_xattr_write_rc(int fd, const char *algo, const char *hexval)
         return errno;
     }
 
-    if (s_xattr_format == XROOTD_CKS_FMT_XRDCKS) {
-        xrootd_integrity_info_t tmp;
+    if (s_xattr_format == BRIX_CKS_FMT_XRDCKS) {
+        brix_integrity_info_t tmp;
         unsigned char           rec[sizeof(struct xrd_cks_data)];
         size_t                  rn;
 
@@ -243,11 +243,11 @@ integrity_xattr_write_rc(int fd, const char *algo, const char *hexval)
         ngx_cpystrn((u_char *) tmp.alg_name, (u_char *) algo,
                     sizeof(tmp.alg_name));
         ngx_cpystrn((u_char *) tmp.hex, (u_char *) hexval, sizeof(tmp.hex));
-        rn = xrootd_cksdata_encode(&tmp, st.st_mtim.tv_sec, rec);
+        rn = brix_cksdata_encode(&tmp, st.st_mtim.tv_sec, rec);
         if (rn == 0) {
             return EINVAL;
         }
-        if (xrootd_vfs_fsetxattr(NULL, fd, key, rec, rn, 0) != NGX_OK) {
+        if (brix_vfs_fsetxattr(NULL, fd, key, rec, rn, 0) != NGX_OK) {
             return errno;
         }
         return 0;
@@ -259,7 +259,7 @@ integrity_xattr_write_rc(int fd, const char *algo, const char *hexval)
     if (n < 0 || (size_t) n >= sizeof(val)) {
         return EINVAL;
     }
-    if (xrootd_vfs_fsetxattr(NULL, fd, key, val, (size_t) n, 0) != NGX_OK) {
+    if (brix_vfs_fsetxattr(NULL, fd, key, val, (size_t) n, 0) != NGX_OK) {
         return errno;
     }
     return 0;
@@ -277,15 +277,15 @@ static uint16_t
 integrity_alg_id(const char *algo)
 {
     static const struct { const char *name; uint16_t id; } map[] = {
-        { "adler32",   XROOTD_XMETA_ALG_ADLER32   },
-        { "crc32",     XROOTD_XMETA_ALG_CRC32     },
-        { "crc32c",    XROOTD_XMETA_ALG_CRC32C    },
-        { "md5",       XROOTD_XMETA_ALG_MD5       },
-        { "sha1",      XROOTD_XMETA_ALG_SHA1      },
-        { "sha256",    XROOTD_XMETA_ALG_SHA256    },
-        { "crc64",     XROOTD_XMETA_ALG_CRC64XZ   },
-        { "crc64nvme", XROOTD_XMETA_ALG_CRC64NVME },
-        { "zcrc32",    XROOTD_XMETA_ALG_ZCRC32    },
+        { "adler32",   BRIX_XMETA_ALG_ADLER32   },
+        { "crc32",     BRIX_XMETA_ALG_CRC32     },
+        { "crc32c",    BRIX_XMETA_ALG_CRC32C    },
+        { "md5",       BRIX_XMETA_ALG_MD5       },
+        { "sha1",      BRIX_XMETA_ALG_SHA1      },
+        { "sha256",    BRIX_XMETA_ALG_SHA256    },
+        { "crc64",     BRIX_XMETA_ALG_CRC64XZ   },
+        { "crc64nvme", BRIX_XMETA_ALG_CRC64NVME },
+        { "zcrc32",    BRIX_XMETA_ALG_ZCRC32    },
         { NULL, 0 },
     };
     int i;
@@ -300,16 +300,16 @@ integrity_alg_id(const char *algo)
 
 static int
 integrity_record_read(const char *path, const char *algo,
-    xrootd_integrity_info_t *out)
+    brix_integrity_info_t *out)
 {
-    xrootd_xmeta_t xm;
+    brix_xmeta_t xm;
     struct stat    st;
     uint16_t       want = integrity_alg_id(algo);
     uint32_t       idx;
     int            found = 0;
 
     if (path == NULL || want == 0 || stat(path, &st) != 0
-        || xrootd_xmeta_path_load(path, &xm) != XROOTD_XMETA_OK)
+        || brix_xmeta_path_load(path, &xm) != BRIX_XMETA_OK)
     {
         return 0;
     }
@@ -321,8 +321,8 @@ integrity_record_read(const char *path, const char *algo,
         long           ms, mn;
         long long      sz;
 
-        if (xrootd_xmeta_digest_get(&xm, idx, &alg, &val, &vlen)
-            != XROOTD_XMETA_OK)
+        if (brix_xmeta_digest_get(&xm, idx, &alg, &val, &vlen)
+            != BRIX_XMETA_OK)
         {
             break;
         }
@@ -345,14 +345,14 @@ integrity_record_read(const char *path, const char *algo,
         }
         break;                      /* entry found (fresh or stale) */
     }
-    xrootd_xmeta_free(&xm);
+    brix_xmeta_free(&xm);
     return found;
 }
 
 static void
 integrity_record_write(const char *path, const char *algo, const char *hexval)
 {
-    xrootd_xmeta_t xm;
+    brix_xmeta_t xm;
     struct stat    st;
     char           rec[INTEGRITY_XATTR_VAL_MAX + 64];
     uint16_t       id = integrity_alg_id(algo);
@@ -368,20 +368,20 @@ integrity_record_write(const char *path, const char *algo, const char *hexval)
         return;
     }
 
-    lockfd = xrootd_xmeta_path_lock(path);
+    lockfd = brix_xmeta_path_lock(path);
     if (lockfd < 0) {
         return;
     }
-    rc = xrootd_xmeta_path_load(path, &xm);
-    if (rc == XROOTD_XMETA_ERR
-        || (rc == XROOTD_XMETA_FOREIGN
-            && xrootd_xmeta_init(&xm, st.st_size, 1024 * 1024)
-               != XROOTD_XMETA_OK))
+    rc = brix_xmeta_path_load(path, &xm);
+    if (rc == BRIX_XMETA_ERR
+        || (rc == BRIX_XMETA_FOREIGN
+            && brix_xmeta_init(&xm, st.st_size, 1024 * 1024)
+               != BRIX_XMETA_OK))
     {
-        xrootd_xmeta_path_unlock(lockfd);
+        brix_xmeta_path_unlock(lockfd);
         return;
     }
-    if (rc == XROOTD_XMETA_FOREIGN) {
+    if (rc == BRIX_XMETA_FOREIGN) {
         /* fresh record for a live export file: fully present, no CRC table */
         xm.origin_mtime = (uint64_t) st.st_mtime;
         if (xm.nblocks > 0) {
@@ -389,32 +389,32 @@ integrity_record_write(const char *path, const char *algo, const char *hexval)
         }
         xm.have_blockcrc = 0;
     }
-    if (xrootd_xmeta_digest_set(&xm, id, rec, (uint16_t) n)
-        == XROOTD_XMETA_OK)
+    if (brix_xmeta_digest_set(&xm, id, rec, (uint16_t) n)
+        == BRIX_XMETA_OK)
     {
-        (void) xrootd_xmeta_path_save(path, &xm);   /* best-effort cache */
+        (void) brix_xmeta_path_save(path, &xm);   /* best-effort cache */
     }
-    xrootd_xmeta_free(&xm);
-    xrootd_xmeta_path_unlock(lockfd);
+    brix_xmeta_free(&xm);
+    brix_xmeta_path_unlock(lockfd);
 }
 
 /* Default policy when opts is NULL. */
-static const xrootd_integrity_opts_t s_default_opts = {
+static const brix_integrity_opts_t s_default_opts = {
     .allow_xattr_cache    = 1,
     .update_xattr_cache   = 1,
     .require_regular_file = 0,
 };
 
 ngx_int_t
-xrootd_integrity_get_fd(ngx_log_t *log, int fd,
-    xrootd_sd_obj_t *obj, const char *path, const char *alg_name,
-    const xrootd_integrity_opts_t *opts,
-    xrootd_integrity_info_t *out)
+brix_integrity_get_fd(ngx_log_t *log, int fd,
+    brix_sd_obj_t *obj, const char *path, const char *alg_name,
+    const brix_integrity_opts_t *opts,
+    brix_integrity_info_t *out)
 {
     int driver_backed = (obj != NULL && obj->driver != NULL);
 
     char                          hex[EVP_MAX_MD_SIZE * 2 + 1];
-    const xrootd_integrity_opts_t *o = (opts != NULL) ? opts : &s_default_opts;
+    const brix_integrity_opts_t *o = (opts != NULL) ? opts : &s_default_opts;
     ngx_int_t                     parse_rc;
 
     ngx_memzero(out, sizeof(*out));
@@ -436,7 +436,7 @@ xrootd_integrity_get_fd(ngx_log_t *log, int fd,
     }
 
     /* Parse and canonicalize the algorithm name once. */
-    parse_rc = xrootd_checksum_parse(alg_name, strlen(alg_name),
+    parse_rc = brix_checksum_parse(alg_name, strlen(alg_name),
                                       &out->alg, out->alg_name,
                                       sizeof(out->alg_name));
     if (parse_rc != NGX_OK) {
@@ -463,12 +463,12 @@ xrootd_integrity_get_fd(ngx_log_t *log, int fd,
     /* Compute the checksum — through the driver for a backend-bound object (reads
      * every block), else the default POSIX-fd kernel. */
     if (driver_backed) {
-        if (xrootd_checksum_hex_obj(out->alg, obj, path, log,
+        if (brix_checksum_hex_obj(out->alg, obj, path, log,
                                     hex, sizeof(hex)) != NGX_OK)
         {
             return NGX_ERROR;
         }
-    } else if (xrootd_checksum_hex_fd(out->alg, fd, path, log,
+    } else if (brix_checksum_hex_fd(out->alg, fd, path, log,
                                       hex, sizeof(hex)) != NGX_OK)
     {
         return NGX_ERROR;
@@ -495,7 +495,7 @@ xrootd_integrity_get_fd(ngx_log_t *log, int fd,
 }
 
 ngx_int_t
-xrootd_integrity_format_http_digest(const xrootd_integrity_info_t *info,
+brix_integrity_format_http_digest(const brix_integrity_info_t *info,
     char *out, size_t outsz)
 {
     int n = snprintf(out, outsz, "%s=%s", info->alg_name, info->hex);
@@ -507,7 +507,7 @@ xrootd_integrity_format_http_digest(const xrootd_integrity_info_t *info,
 }
 
 void
-xrootd_integrity_invalidate_fd(ngx_log_t *log, int fd)
+brix_integrity_invalidate_fd(ngx_log_t *log, int fd)
 {
     char key[64];
     int  i;
@@ -516,25 +516,25 @@ xrootd_integrity_invalidate_fd(ngx_log_t *log, int fd)
 
     for (i = 0; s_algorithms[i] != NULL; i++) {
         if (integrity_xattr_key(s_algorithms[i], key, sizeof(key)) != NULL) {
-            (void) xrootd_vfs_fremovexattr(NULL, fd, key);
+            (void) brix_vfs_fremovexattr(NULL, fd, key);
         }
     }
 }
 
 void
-xrootd_integrity_invalidate_path(ngx_log_t *log, const char *root_canon,
+brix_integrity_invalidate_path(ngx_log_t *log, const char *root_canon,
     const char *path)
 {
-    xrootd_vfs_ctx_t vctx;
+    brix_vfs_ctx_t vctx;
     char             key[64];
     int              i;
 
-    xrootd_vfs_ctx_init(&vctx, NULL, log, XROOTD_PROTO_ROOT, root_canon,
+    brix_vfs_ctx_init(&vctx, NULL, log, BRIX_PROTO_ROOT, root_canon,
         NULL, 1 /* allow_write */, 0 /* is_tls */, NULL, path);
 
     for (i = 0; s_algorithms[i] != NULL; i++) {
         if (integrity_xattr_key(s_algorithms[i], key, sizeof(key)) != NULL) {
-            (void) xrootd_vfs_removexattr(&vctx, key);
+            (void) brix_vfs_removexattr(&vctx, key);
         }
     }
 }

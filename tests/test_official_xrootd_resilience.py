@@ -1,5 +1,5 @@
 """
-test_official_xrootd_resilience.py — this repo's FUSE client vs a REAL XRootD
+test_official_brix_resilience.py — this repo's FUSE client vs a REAL XRootD
 server, through an on-the-wire fault injector.
 
 WHAT: Mounts THIS codebase's clean-room FUSE driver (client/xrootdfs, built on
@@ -22,7 +22,7 @@ HOW:  client  ->  fault_proxy  ->  official xrootd
 Skips cleanly when the official `xrootd`, /dev/fuse, or fusermount3 is absent.
 
 Run:
-  PYTHONPATH=tests python3 -m pytest tests/test_official_xrootd_resilience.py -v
+  PYTHONPATH=tests python3 -m pytest tests/test_official_brix_resilience.py -v
 """
 import hashlib
 import os

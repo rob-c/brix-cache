@@ -4,7 +4,7 @@
  */
 #include "gsi_core_internal.h"
 
-const char xrootd_gsi_dh_params_pem[] =
+const char brix_gsi_dh_params_pem[] =
 "-----BEGIN DH PARAMETERS-----\n"
 "MIIBiAKCAYEAzcEAf3ZCkm0FxJLgKd1YoT16Hietl7QV8VgJNc5CYKmRu/gKylxT\n"
 "MVZJqtUmoh2IvFHCfbTGEmZM5LdVaZfMLQf7yXjecg0nSGklYZeQQ3P0qshFLbI9\n"
@@ -26,7 +26,7 @@ const char *const gsi_cipher_allow[] = {
 /* Parse a gsi protocol parms string "v:10600,c:ssl,ca:HASH|HASH" into fields.
  * Any out pointer may be NULL.  `crypto`/`ca` are NUL-terminated, truncated. */
 void
-xrootd_gsi_parse_parms(const char *parms, uint32_t *version,
+brix_gsi_parse_parms(const char *parms, uint32_t *version,
                        char *crypto, size_t cryptosz,
                        char *ca, size_t casz)
 {
@@ -77,43 +77,43 @@ xrootd_gsi_parse_parms(const char *parms, uint32_t *version,
  * Returns a malloc'd buffer (*outlen set), or NULL.
  */
 uint8_t *
-xrootd_gsi_build_certreq(const char *cryptomod, uint32_t version,
+brix_gsi_build_certreq(const char *cryptomod, uint32_t version,
                          const char *issuer_hash, uint32_t clnt_opts,
                          const uint8_t *rtag, size_t rtaglen, size_t *outlen)
 {
-    xrootd_gbuf inner, outer;
+    brix_gbuf inner, outer;
     uint32_t    ver_be  = htonl(version);
     uint32_t    opts_be = htonl(clnt_opts);
     uint8_t    *result  = NULL;
 
     /* Nested main: "gsi\0" + kXGC_certreq + rtag bucket + terminator. */
-    xrootd_gbuf_init(&inner);
-    xrootd_gbuf_start(&inner, (uint32_t) kXGC_certreq);
-    xrootd_gbuf_bucket(&inner, (uint32_t) kXRS_rtag, rtag, rtaglen);
-    xrootd_gbuf_end(&inner);
+    brix_gbuf_init(&inner);
+    brix_gbuf_start(&inner, (uint32_t) kXGC_certreq);
+    brix_gbuf_bucket(&inner, (uint32_t) kXRS_rtag, rtag, rtaglen);
+    brix_gbuf_end(&inner);
     if (inner.err) {
-        xrootd_gbuf_free(&inner);
+        brix_gbuf_free(&inner);
         return NULL;
     }
 
-    xrootd_gbuf_init(&outer);
-    xrootd_gbuf_start(&outer, (uint32_t) kXGC_certreq);
-    xrootd_gbuf_bucket(&outer, (uint32_t) kXRS_cryptomod,
+    brix_gbuf_init(&outer);
+    brix_gbuf_start(&outer, (uint32_t) kXGC_certreq);
+    brix_gbuf_bucket(&outer, (uint32_t) kXRS_cryptomod,
                        cryptomod, strlen(cryptomod));
-    xrootd_gbuf_bucket(&outer, (uint32_t) kXRS_version, &ver_be, 4);
-    xrootd_gbuf_bucket(&outer, (uint32_t) kXRS_issuer_hash,
+    brix_gbuf_bucket(&outer, (uint32_t) kXRS_version, &ver_be, 4);
+    brix_gbuf_bucket(&outer, (uint32_t) kXRS_issuer_hash,
                        issuer_hash, strlen(issuer_hash));
-    xrootd_gbuf_bucket(&outer, (uint32_t) kXRS_clnt_opts, &opts_be, 4);
-    xrootd_gbuf_bucket(&outer, (uint32_t) kXRS_main, inner.p, inner.len);
-    xrootd_gbuf_end(&outer);
+    brix_gbuf_bucket(&outer, (uint32_t) kXRS_clnt_opts, &opts_be, 4);
+    brix_gbuf_bucket(&outer, (uint32_t) kXRS_main, inner.p, inner.len);
+    brix_gbuf_end(&outer);
 
     if (!outer.err) {
         result  = outer.p;
         *outlen = outer.len;
         outer.p = NULL;          /* ownership → caller */
     }
-    xrootd_gbuf_free(&inner);
-    xrootd_gbuf_free(&outer);
+    brix_gbuf_free(&inner);
+    brix_gbuf_free(&outer);
     return result;
 }
 
@@ -168,7 +168,7 @@ gsi_cresp_pick_md_alg(const uint8_t *sbody, uint32_t slen, char *out, size_t out
     const uint8_t *list = NULL;
     size_t         listlen = 0, n = 0;
 
-    if (xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_md_alg,
+    if (brix_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_md_alg,
                                &list, &listlen) == 0 && listlen > 0) {
         if (listlen >= 6) {
             for (size_t i = 0; i + 6 <= listlen; i++) {
@@ -214,14 +214,14 @@ gsi_cresp_fail(gsi_cresp_ctx *x, char *err, size_t errcap, const char *msg)
     EVP_PKEY_free(x->mine);
     EVP_PKEY_free(x->peer);
     EVP_PKEY_free(x->servpub);
-    xrootd_gbuf_free(&x->inner);
-    xrootd_gbuf_free(&x->outer);
+    brix_gbuf_free(&x->inner);
+    brix_gbuf_free(&x->outer);
     return -1;
 }
 
 
 int
-xrootd_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
+brix_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
                               const uint8_t *proxy_pem, size_t proxy_pem_len,
                               EVP_PKEY *proxy_key,
                               uint8_t **payload, uint32_t *plen,
@@ -236,8 +236,8 @@ xrootd_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
     const uint8_t *peerpub = NULL;
     size_t         peerpublen = 0;
     int            signed_dh;
-    uint8_t        aeskey[XROOTD_GSI_MAX_KEY];
-    xrootd_gsi_cipher_t sesscipher;
+    uint8_t        aeskey[BRIX_GSI_MAX_KEY];
+    brix_gsi_cipher_t sesscipher;
     char           chosen_cipher[24];
     char           cipher_field[40];
     int            use_iv;
@@ -247,18 +247,18 @@ xrootd_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
     gsi_cresp_ctx  x;
 
     memset(&x, 0, sizeof(x));
-    xrootd_gbuf_init(&x.inner);
-    xrootd_gbuf_init(&x.outer);
+    brix_gbuf_init(&x.inner);
+    brix_gbuf_init(&x.outer);
 
     if (proxy_pem == NULL || proxy_key == NULL) {
         return gsi_cresp_fail(&x, err, errcap, "gsi: missing proxy credential");
     }
 
     /* 1. Determine the DH variant + recover the server's DH public blob. */
-    signed_dh = xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_cipher,
+    signed_dh = brix_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_cipher,
                                        &cipher, &cipherlen) == 0;
     if (signed_dh) {
-        if (xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_x509,
+        if (brix_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_x509,
                                    &sx509, &sx509len) != 0
             || (x.servpub = gsi_cresp_cert_pubkey(sx509, sx509len)) == NULL) {
             return gsi_cresp_fail(&x, err, errcap,
@@ -268,14 +268,14 @@ xrootd_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
         if (x.peerblob == NULL) {
             return gsi_cresp_fail(&x, err, errcap, "gsi: out of memory");
         }
-        peerpublen = xrootd_gsi_rsa_decrypt_public(x.servpub, cipher, cipherlen,
+        peerpublen = brix_gsi_rsa_decrypt_public(x.servpub, cipher, cipherlen,
                                                    x.peerblob, cipherlen + 64);
         if (peerpublen == 0) {
             return gsi_cresp_fail(&x, err, errcap,
                                   "gsi: verifying signed server DH parameters");
         }
         peerpub = x.peerblob;
-    } else if (xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_puk,
+    } else if (brix_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_puk,
                                       &puk, &puklen) == 0) {
         peerpub = puk;
         peerpublen = puklen;
@@ -290,17 +290,17 @@ xrootd_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
         char           offered[128];
 
         snprintf(chosen_cipher, sizeof(chosen_cipher), "aes-128-cbc");
-        if (xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_cipher_alg,
+        if (brix_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_cipher_alg,
                                    &ca, &cal) == 0 && cal > 0
             && cal < sizeof(offered)) {
             memcpy(offered, ca, cal);
             offered[cal] = '\0';
             if (memmem(offered, cal, "aes-128-cbc", 11) == NULL) {
-                (void) xrootd_gsi_cipher_pick(offered, &sesscipher, chosen_cipher);
+                (void) brix_gsi_cipher_pick(offered, &sesscipher, chosen_cipher);
             }
         }
-        if (!xrootd_gsi_cipher_lookup(chosen_cipher, &sesscipher)) {
-            (void) xrootd_gsi_cipher_lookup("aes-128-cbc", &sesscipher);
+        if (!brix_gsi_cipher_lookup(chosen_cipher, &sesscipher)) {
+            (void) brix_gsi_cipher_lookup("aes-128-cbc", &sesscipher);
             snprintf(chosen_cipher, sizeof(chosen_cipher), "aes-128-cbc");
         }
     }
@@ -308,16 +308,16 @@ xrootd_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
     /* 2. Agree the session key (HasPad follows the variant). */
     {
         const uint8_t *cm = NULL; size_t cml = 0;
-        int peer_nopad = (xrootd_gsi_find_bucket(sbody, slen,
+        int peer_nopad = (brix_gsi_find_bucket(sbody, slen,
                               (uint32_t) kXRS_cryptomod, &cm, &cml) == 0
                           && cml >= 5
                           && memmem(cm, cml, "nopad", 5) != NULL);
         int dh_pad = signed_dh && !peer_nopad;
 
-        x.peer = xrootd_gsi_cipher_parse_peer(peerpub, peerpublen);
-        x.mine = x.peer ? xrootd_gsi_cipher_keygen_from(x.peer) : NULL;
+        x.peer = brix_gsi_cipher_parse_peer(peerpub, peerpublen);
+        x.mine = x.peer ? brix_gsi_cipher_keygen_from(x.peer) : NULL;
         if (x.peer == NULL || x.mine == NULL
-            || !xrootd_gsi_cipher_session_key(x.mine, x.peer, dh_pad, aeskey,
+            || !brix_gsi_cipher_session_key(x.mine, x.peer, dh_pad, aeskey,
                                               sesscipher.key_len)) {
             return gsi_cresp_fail(&x, err, errcap,
                                   "gsi: session-key agreement failed");
@@ -325,15 +325,15 @@ xrootd_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
     }
 
     /* 3. Sign the server's random tag with the proxy key (proof of possession). */
-    if (xrootd_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_main,
+    if (brix_gsi_find_bucket(sbody, slen, (uint32_t) kXRS_main,
                                &xmain, &xmainlen) == 0) {
         const uint8_t *srtag = NULL;
         size_t         srtaglen = 0;
 
-        if (xrootd_gsi_find_bucket(xmain, xmainlen, (uint32_t) kXRS_rtag,
+        if (brix_gsi_find_bucket(xmain, xmainlen, (uint32_t) kXRS_rtag,
                                    &srtag, &srtaglen) == 0) {
             uint8_t sig[1024];
-            size_t  siglen = xrootd_gsi_rsa_sign_raw(proxy_key, srtag, srtaglen,
+            size_t  siglen = brix_gsi_rsa_sign_raw(proxy_key, srtag, srtaglen,
                                                      sig);
             if (siglen == 0 || siglen > sizeof(sig)
                 || (x.signed_rtag = malloc(siglen)) == NULL) {
@@ -347,18 +347,18 @@ xrootd_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
     }
 
     /* 4. Build + encrypt the response main: proxy chain + signed tag + new tag. */
-    if (!xrootd_gsi_rand(newrtag, sizeof(newrtag))) {
+    if (!brix_gsi_rand(newrtag, sizeof(newrtag))) {
         OPENSSL_cleanse(aeskey, sizeof(aeskey));
         return gsi_cresp_fail(&x, err, errcap, "gsi: RNG failed");
     }
-    xrootd_gbuf_start(&x.inner, (uint32_t) kXGC_cert);
-    xrootd_gbuf_bucket(&x.inner, (uint32_t) kXRS_x509, proxy_pem, proxy_pem_len);
+    brix_gbuf_start(&x.inner, (uint32_t) kXGC_cert);
+    brix_gbuf_bucket(&x.inner, (uint32_t) kXRS_x509, proxy_pem, proxy_pem_len);
     if (x.signed_rtag != NULL) {
-        xrootd_gbuf_bucket(&x.inner, (uint32_t) kXRS_signed_rtag,
+        brix_gbuf_bucket(&x.inner, (uint32_t) kXRS_signed_rtag,
                            x.signed_rtag, x.signed_rtag_len);
     }
-    xrootd_gbuf_bucket(&x.inner, (uint32_t) kXRS_rtag, newrtag, sizeof(newrtag));
-    xrootd_gbuf_end(&x.inner);
+    brix_gbuf_bucket(&x.inner, (uint32_t) kXRS_rtag, newrtag, sizeof(newrtag));
+    brix_gbuf_end(&x.inner);
     /* IV is prepended exactly for v>=10400 peers (signed_dh tracks the same
      * condition); XRDC_GSI_USEIV overrides for interop debugging. */
     use_iv = signed_dh;
@@ -367,7 +367,7 @@ xrootd_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
         if (ivov != NULL) { use_iv = atoi(ivov); }
     }
     if (!x.inner.err) {
-        x.enc = xrootd_gsi_cipher_encrypt(&sesscipher, aeskey, x.inner.p,
+        x.enc = brix_gsi_cipher_encrypt(&sesscipher, aeskey, x.inner.p,
                                           x.inner.len, use_iv, &enclen);
     }
     /* Hand the agreed session cipher to the caller before we wipe it — the
@@ -389,23 +389,23 @@ xrootd_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
 
     /* 5. Outer kXGC_cert: our DH public — kXRS_cipher (RSA-signed) for signed-DH,
      *    else a plain kXRS_puk. */
-    x.cpub = xrootd_gsi_cipher_public(x.mine, &cpublen);
+    x.cpub = brix_gsi_cipher_public(x.mine, &cpublen);
     if (x.cpub == NULL) {
         return gsi_cresp_fail(&x, err, errcap, "gsi: cannot encode session public");
     }
-    xrootd_gbuf_start(&x.outer, (uint32_t) kXGC_cert);
-    xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_cryptomod, "ssl", 3);
+    brix_gbuf_start(&x.outer, (uint32_t) kXGC_cert);
+    brix_gbuf_bucket(&x.outer, (uint32_t) kXRS_cryptomod, "ssl", 3);
     if (signed_dh) {
         size_t cap = cpublen + (size_t) EVP_PKEY_size(proxy_key) + 64;
         x.signed_cpub = malloc(cap);
         if (x.signed_cpub != NULL) {
-            x.signed_cpub_len = xrootd_gsi_rsa_encrypt_private(
+            x.signed_cpub_len = brix_gsi_rsa_encrypt_private(
                 proxy_key, (const uint8_t *) x.cpub, cpublen, x.signed_cpub, cap);
         }
         if (x.signed_cpub == NULL || x.signed_cpub_len == 0) {
             return gsi_cresp_fail(&x, err, errcap, "gsi: signing session public");
         }
-        xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_cipher,
+        brix_gbuf_bucket(&x.outer, (uint32_t) kXRS_cipher,
                            x.signed_cpub, x.signed_cpub_len);
         {
             size_t ppl = 0;
@@ -413,10 +413,10 @@ xrootd_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
             if (x.pubpem == NULL) {
                 return gsi_cresp_fail(&x, err, errcap, "gsi: export proxy pubkey");
             }
-            xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_puk, x.pubpem, ppl);
+            brix_gbuf_bucket(&x.outer, (uint32_t) kXRS_puk, x.pubpem, ppl);
         }
     } else {
-        xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_puk, x.cpub, cpublen);
+        brix_gbuf_bucket(&x.outer, (uint32_t) kXRS_puk, x.cpub, cpublen);
     }
     if (use_iv) {
         snprintf(cipher_field, sizeof(cipher_field), "%s#%d",
@@ -424,12 +424,12 @@ xrootd_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
     } else {
         snprintf(cipher_field, sizeof(cipher_field), "%s", chosen_cipher);
     }
-    xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_cipher_alg, cipher_field,
+    brix_gbuf_bucket(&x.outer, (uint32_t) kXRS_cipher_alg, cipher_field,
                        strlen(cipher_field));
     md_alg_len = gsi_cresp_pick_md_alg(sbody, slen, md_alg, sizeof(md_alg));
-    xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_md_alg, md_alg, md_alg_len);
-    xrootd_gbuf_bucket(&x.outer, (uint32_t) kXRS_main, x.enc, enclen);
-    xrootd_gbuf_end(&x.outer);
+    brix_gbuf_bucket(&x.outer, (uint32_t) kXRS_md_alg, md_alg, md_alg_len);
+    brix_gbuf_bucket(&x.outer, (uint32_t) kXRS_main, x.enc, enclen);
+    brix_gbuf_end(&x.outer);
     if (x.outer.err) {
         return gsi_cresp_fail(&x, err, errcap, "gsi: out of memory");
     }
@@ -444,13 +444,13 @@ xrootd_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
 
 /* Back-compat wrapper: the round-2 builder without the session-key export. */
 int
-xrootd_gsi_build_cert_response(const uint8_t *sbody, uint32_t slen,
+brix_gsi_build_cert_response(const uint8_t *sbody, uint32_t slen,
                               const uint8_t *proxy_pem, size_t proxy_pem_len,
                               EVP_PKEY *proxy_key,
                               uint8_t **payload, uint32_t *plen,
                               char *err, size_t errcap)
 {
-    return xrootd_gsi_build_cert_response_ex(sbody, slen, proxy_pem,
+    return brix_gsi_build_cert_response_ex(sbody, slen, proxy_pem,
                                              proxy_pem_len, proxy_key,
                                              payload, plen,
                                              NULL, NULL, NULL, 0, NULL,
@@ -459,7 +459,7 @@ xrootd_gsi_build_cert_response(const uint8_t *sbody, uint32_t slen,
 
 
 int
-xrootd_gsi_sigver_required(uint16_t op, int level)
+brix_gsi_sigver_required(uint16_t op, int level)
 {
     if (level <= 1) {
         return 0;
@@ -483,7 +483,7 @@ xrootd_gsi_sigver_required(uint16_t op, int level)
 /* kXR_sigver HMAC — request signing (client) / verification (server). */
 
 void
-xrootd_gsi_sigver_seqno_be(uint64_t seq, uint8_t out[8])
+brix_gsi_sigver_seqno_be(uint64_t seq, uint8_t out[8])
 {
     out[0] = (uint8_t) (seq >> 56);
     out[1] = (uint8_t) (seq >> 48);
@@ -497,7 +497,7 @@ xrootd_gsi_sigver_seqno_be(uint64_t seq, uint8_t out[8])
 
 
 int
-xrootd_gsi_sigver_hmac(const uint8_t key[32], uint64_t seqno,
+brix_gsi_sigver_hmac(const uint8_t key[32], uint64_t seqno,
                        const uint8_t hdr24[24], const uint8_t *payload,
                        size_t plen, int nodata, uint8_t mac_out[32])
 {
@@ -515,13 +515,13 @@ xrootd_gsi_sigver_hmac(const uint8_t key[32], uint64_t seqno,
     if (msg == NULL) {
         return 0;
     }
-    xrootd_gsi_sigver_seqno_be(seqno, seqbe);
+    brix_gsi_sigver_seqno_be(seqno, seqbe);
     memcpy(msg, seqbe, 8);
     memcpy(msg + 8, hdr24, 24);
     if (cover_payload) {
         memcpy(msg + 32, payload, plen);
     }
-    ok = xrootd_hmac_sha256(key, 32, msg, mlen, mac_out);
+    ok = brix_hmac_sha256(key, 32, msg, mlen, mac_out);
     free(msg);
     return ok;
 }

@@ -5,10 +5,10 @@
  * the member's byte range. Stored members are served by offset translation;
  * deflate members are reserved for the streaming-inflate follow-up (currently
  * rejected with kXR_Unsupported). All bookkeeping mirrors the read-only subset
- * of xrootd_open_resolved_file(); none of the write/POSC/WT machinery applies.
+ * of brix_open_resolved_file(); none of the write/POSC/WT machinery applies.
  */
 #include "zip_member.h"
-#include "fs/vfs/vfs.h"   /* xrootd_vfs_open_fd_at (handle-table confined open) */
+#include "fs/vfs/vfs.h"   /* brix_vfs_open_fd_at (handle-table confined open) */
 #include "zip_dir.h"
 #include "fs/backend/sd.h"   /* route ZIP member byte reads through the SD backend */
 #include "fs/core/vfs_core.h"  /* xvfs_stage_fd: materialize the archive to local scratch */
@@ -54,7 +54,7 @@ typedef struct {
 #define ZIP_INFL_SCRATCH (64 * 1024)
 
 static void
-zip_deflate_free(xrootd_file_t *fh)
+zip_deflate_free(brix_file_t *fh)
 {
     zip_infl_t *st = fh->zip_inflate;
     if (st == NULL) {
@@ -69,7 +69,7 @@ zip_deflate_free(xrootd_file_t *fh)
 
 /* (Re)start the inflate stream at the member's beginning. 0 / -1. */
 static int
-zip_deflate_reset(xrootd_file_t *fh)
+zip_deflate_reset(brix_file_t *fh)
 {
     zip_infl_t *st;
 
@@ -96,7 +96,7 @@ zip_deflate_reset(xrootd_file_t *fh)
  * on a decode/IO error.  Advances fh->zip_logical_pos and fh->zip_comp_pos.
  */
 static ssize_t
-zip_deflate_pump(xrootd_file_t *fh, u_char *out, size_t want)
+zip_deflate_pump(brix_file_t *fh, u_char *out, size_t want)
 {
     zip_infl_t *st = fh->zip_inflate;
     u_char      scratch[ZIP_INFL_SCRATCH];
@@ -113,8 +113,8 @@ zip_deflate_pump(xrootd_file_t *fh, u_char *out, size_t want)
             uint64_t remain = fh->zip_comp_size - st->in_fed;
             size_t   cn = remain < sizeof(st->cin) ? (size_t) remain
                                                    : sizeof(st->cin);
-            xrootd_sd_obj_t obj;
-            xrootd_sd_posix_wrap(&obj, fh->fd);
+            brix_sd_obj_t obj;
+            brix_sd_posix_wrap(&obj, fh->fd);
             ssize_t  r = obj.driver->pread(&obj, st->cin, cn,
                                (off_t) (fh->zip_data_off + st->in_fed));
             if (r <= 0) {
@@ -166,7 +166,7 @@ zip_deflate_pump(xrootd_file_t *fh, u_char *out, size_t want)
  * or -1 on error.
  */
 static ssize_t
-zip_deflate_read(xrootd_file_t *fh, uint64_t offset, u_char *out, size_t want)
+zip_deflate_read(brix_file_t *fh, uint64_t offset, u_char *out, size_t want)
 {
     if (fh->zip_inflate == NULL || offset < fh->zip_logical_pos) {
         if (zip_deflate_reset(fh) != 0) {
@@ -190,8 +190,8 @@ static ssize_t
 zip_pread_full(int fd, u_char *buf, size_t n, off_t off)
 {
     size_t          done = 0;
-    xrootd_sd_obj_t obj;
-    xrootd_sd_posix_wrap(&obj, fd);
+    brix_sd_obj_t obj;
+    brix_sd_posix_wrap(&obj, fd);
     while (done < n) {
         ssize_t r = obj.driver->pread(&obj, buf + done, n - done,
                                                  off + (off_t) done);
@@ -210,22 +210,22 @@ zip_pread_full(int fd, u_char *buf, size_t n, off_t off)
 }
 
 ngx_int_t
-xrootd_zip_open_member(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, const char *archive_logical,
+brix_zip_open_member(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *archive_logical,
     const char *archive_full, const char *member, uint16_t options)
 {
     int                  fd, idx, zrc;
     struct stat          ast;
-    xrootd_zip_member_t  m;
+    brix_zip_member_t  m;
     size_t               cd_max;
 
     /* Open the archive read-only, confined beneath the export root (same
      * RESOLVE_BENEATH path the normal read open uses). */
-    fd = xrootd_vfs_open_fd_at(conf->rootfd, archive_logical,
+    fd = brix_vfs_open_fd_at(conf->rootfd, archive_logical,
                              O_RDONLY | O_CLOEXEC, 0);
     if (fd < 0) {
         int err = errno;
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", archive_full,
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", archive_full,
                           "zip",
                           (err == ENOENT || err == ENOTDIR) ? kXR_NotFound
                           : (err == EACCES) ? kXR_NotAuthorized : kXR_IOError,
@@ -233,7 +233,7 @@ xrootd_zip_open_member(xrootd_ctx_t *ctx, ngx_connection_t *c,
     }
     if (fstat(fd, &ast) != 0 || !S_ISREG(ast.st_mode)) {
         close(fd);
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", archive_full,
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", archive_full,
                           "zip", kXR_IOError, "zip archive not a regular file");
     }
 
@@ -242,7 +242,7 @@ xrootd_zip_open_member(xrootd_ctx_t *ctx, ngx_connection_t *c,
      * with no kernel fd cannot serve.  When staging is in effect, copy the archive
      * into a local POSIX scratch (anonymous fd) and read THAT.  Capability + size
      * gated; POSIX is a no-op (read the confined fd in place).  Config:
-     * xrootd_zip_stage_dir + xrootd_zip_force_scratch + xrootd_zip_stage_max_bytes. */
+     * brix_zip_stage_dir + brix_zip_force_scratch + brix_zip_stage_max_bytes. */
     {
         const char *sdir = (conf->zip_stage_dir.len > 0)
                            ? (const char *) conf->zip_stage_dir.data : NULL;
@@ -258,7 +258,7 @@ xrootd_zip_open_member(xrootd_ctx_t *ctx, ngx_connection_t *c,
             ngx_fd_t sfd = xvfs_stage_fd(fd, sdir);
             if (sfd == NGX_INVALID_FILE) {
                 close(fd);
-                XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", archive_full,
+                BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", archive_full,
                                   "zip", kXR_IOError, "zip archive staging failed");
             }
             close(fd);
@@ -271,25 +271,25 @@ xrootd_zip_open_member(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
     cd_max = conf->zip_cd_max_bytes ? conf->zip_cd_max_bytes
                                     : (size_t) (16 * 1024 * 1024);
-    zrc = xrootd_zip_find_member(fd, (off_t) ast.st_size, member, cd_max, &m);
-    if (zrc != XROOTD_ZIP_OK) {
+    zrc = brix_zip_find_member(fd, (off_t) ast.st_size, member, cd_max, &m);
+    if (zrc != BRIX_ZIP_OK) {
         close(fd);
-        if (zrc == XROOTD_ZIP_NOMEMBER) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", archive_full,
+        if (zrc == BRIX_ZIP_NOMEMBER) {
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", archive_full,
                               "zip", kXR_NotFound, "zip member not found");
         }
         /* ECORRUPT covers corrupt/oversize/unsupported (encrypted, method,
          * data-descriptor); EIO covers pread/alloc failure. */
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", archive_full,
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", archive_full,
                           "zip",
-                          (zrc == XROOTD_ZIP_EIO) ? kXR_IOError : kXR_Unsupported,
+                          (zrc == BRIX_ZIP_EIO) ? kXR_IOError : kXR_Unsupported,
                           "zip member unreadable");
     }
 
-    idx = xrootd_alloc_fhandle(ctx);
+    idx = brix_alloc_fhandle(ctx);
     if (idx < 0) {
         close(fd);
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", archive_full,
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", archive_full,
                           "zip", kXR_ServerError, "too many open files");
     }
 
@@ -303,8 +303,8 @@ xrootd_zip_open_member(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ctx->files[idx].cached_size     = (off_t) m.uncomp_size;
     ctx->files[idx].read_last_end   = -1;
     ctx->files[idx].read_ahead_end  = 0;
-    ctx->files[idx].read_codec      = (uint8_t) XROOTD_CODEC_IDENTITY;
-    ctx->files[idx].write_codec     = (uint8_t) XROOTD_CODEC_IDENTITY;
+    ctx->files[idx].read_codec      = (uint8_t) BRIX_CODEC_IDENTITY;
+    ctx->files[idx].write_codec     = (uint8_t) BRIX_CODEC_IDENTITY;
     ctx->files[idx].dashboard_slot  = -1;
 
     ctx->files[idx].zip_mode        = 1;
@@ -317,8 +317,8 @@ xrootd_zip_open_member(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ctx->files[idx].zip_logical_pos = 0;
     ctx->files[idx].zip_comp_pos    = 0;
 
-    if (xrootd_set_fhandle_path(ctx, c, idx, archive_full) != NGX_OK) {
-        xrootd_free_fhandle(ctx, idx);
+    if (brix_set_fhandle_path(ctx, c, idx, archive_full) != NGX_OK) {
+        brix_free_fhandle(ctx, idx);
         return NGX_ERROR;
     }
 
@@ -327,7 +327,7 @@ xrootd_zip_open_member(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ctx->files[idx].open_time     = ngx_current_msec;
 
     if (!ctx->is_bound) {
-        xrootd_session_handle_publish(ctx->sessid, idx, &ctx->files[idx]);
+        brix_session_handle_publish(ctx->sessid, idx, &ctx->files[idx]);
     }
 
     /* Build the kXR_open reply: the 4-byte handle by default, the full body +
@@ -357,10 +357,10 @@ xrootd_zip_open_member(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
         buf = ngx_palloc(c->pool, total);
         if (buf == NULL) {
-            xrootd_free_fhandle(ctx, idx);
+            brix_free_fhandle(ctx, idx);
             return NGX_ERROR;
         }
-        xrootd_build_resp_hdr(ctx->cur_streamid, kXR_ok, (uint32_t) bodylen,
+        brix_build_resp_hdr(ctx->cur_streamid, kXR_ok, (uint32_t) bodylen,
                               (ServerResponseHdr *) buf);
         ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &body, hbytes);
         if (want_stat) {
@@ -368,64 +368,64 @@ xrootd_zip_open_member(xrootd_ctx_t *ctx, ngx_connection_t *c,
                        statbuf, strlen(statbuf) + 1);
         }
 
-        xrootd_log_access(ctx, c, "OPEN", archive_full, "zip", 1, 0, NULL, 0);
-        XROOTD_OP_OK(ctx, XROOTD_OP_OPEN_RD);
-        return xrootd_queue_response(ctx, c, buf, total);
+        brix_log_access(ctx, c, "OPEN", archive_full, "zip", 1, 0, NULL, 0);
+        BRIX_OP_OK(ctx, BRIX_OP_OPEN_RD);
+        return brix_queue_response(ctx, c, buf, total);
     }
 }
 
 ngx_int_t
-xrootd_zip_read(xrootd_ctx_t *ctx, ngx_connection_t *c, int idx,
+brix_zip_read(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     int64_t offset, size_t rlen)
 {
-    xrootd_file_t *fh = &ctx->files[idx];
+    brix_file_t *fh = &ctx->files[idx];
     u_char        *buf;
     ssize_t        n;
 
     /* Past EOF → empty (matches a normal read beyond file size). */
     if ((uint64_t) offset >= fh->zip_uncomp_size) {
-        XROOTD_OP_OK(ctx, XROOTD_OP_READ);
-        return xrootd_send_ok(ctx, c, NULL, 0);
+        BRIX_OP_OK(ctx, BRIX_OP_READ);
+        return brix_send_ok(ctx, c, NULL, 0);
     }
     if ((uint64_t) offset + rlen > fh->zip_uncomp_size) {
         rlen = (size_t) (fh->zip_uncomp_size - (uint64_t) offset);
     }
 
-    if (fh->zip_method == XROOTD_ZIP_METHOD_STORE) {
+    if (fh->zip_method == BRIX_ZIP_METHOD_STORE) {
         buf = ngx_palloc(c->pool, rlen);
         if (buf == NULL) {
-            return xrootd_send_error(ctx, c, kXR_NoMemory, "zip read OOM");
+            return brix_send_error(ctx, c, kXR_NoMemory, "zip read OOM");
         }
         n = zip_pread_full(fh->fd, buf, rlen,
                            (off_t) (fh->zip_data_off + (uint64_t) offset));
         if (n < 0) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_READ, "READ",
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_READ, "READ",
                               fh->path ? fh->path : "-", "zip",
                               kXR_IOError, "zip member read failed");
         }
         fh->bytes_read += (size_t) n;
-        XROOTD_OP_OK(ctx, XROOTD_OP_READ);
-        return xrootd_send_ok(ctx, c, buf, (size_t) n);
+        BRIX_OP_OK(ctx, BRIX_OP_READ);
+        return brix_send_ok(ctx, c, buf, (size_t) n);
     }
 
     /* Deflate (method 8): streaming raw inflate. */
     buf = ngx_palloc(c->pool, rlen);
     if (buf == NULL) {
-        return xrootd_send_error(ctx, c, kXR_NoMemory, "zip read OOM");
+        return brix_send_error(ctx, c, kXR_NoMemory, "zip read OOM");
     }
     n = zip_deflate_read(fh, (uint64_t) offset, buf, rlen);
     if (n < 0) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_READ, "READ",
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_READ, "READ",
                           fh->path ? fh->path : "-", "zip",
                           kXR_IOError, "zip member inflate failed");
     }
     fh->bytes_read += (size_t) n;
-    XROOTD_OP_OK(ctx, XROOTD_OP_READ);
-    return xrootd_send_ok(ctx, c, buf, (size_t) n);
+    BRIX_OP_OK(ctx, BRIX_OP_READ);
+    return brix_send_ok(ctx, c, buf, (size_t) n);
 }
 
 void
-xrootd_zip_handle_cleanup(xrootd_file_t *fh)
+brix_zip_handle_cleanup(brix_file_t *fh)
 {
     if (fh == NULL) {
         return;

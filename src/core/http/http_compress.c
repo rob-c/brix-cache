@@ -9,18 +9,18 @@
  */
 
 #include "http_compress.h"
-#include "fs/vfs/vfs.h"   /* xrootd_vfs_pread_full (storage seam) */
+#include "fs/vfs/vfs.h"   /* brix_vfs_pread_full (storage seam) */
 #include "http_file_response.h"
 
 #include <unistd.h>
 
-#define XROOTD_COMPRESS_CHUNK  (64 * 1024)
+#define BRIX_COMPRESS_CHUNK  (64 * 1024)
 
 /* Outbound codec preference, best first. Only available ones are considered. */
-static const xrootd_codec_id_t xrootd_compress_pref[] = {
-    XROOTD_CODEC_ZSTD, XROOTD_CODEC_BROTLI, XROOTD_CODEC_GZIP,
-    XROOTD_CODEC_XZ, XROOTD_CODEC_DEFLATE, XROOTD_CODEC_BZIP2,
-    XROOTD_CODEC_LZ4   /* fastest but weakest ratio: last resort */
+static const brix_codec_id_t brix_compress_pref[] = {
+    BRIX_CODEC_ZSTD, BRIX_CODEC_BROTLI, BRIX_CODEC_GZIP,
+    BRIX_CODEC_XZ, BRIX_CODEC_DEFLATE, BRIX_CODEC_BZIP2,
+    BRIX_CODEC_LZ4   /* fastest but weakest ratio: last resort */
 };
 
 /* Content types that are already compressed — never re-compress these. */
@@ -108,35 +108,35 @@ accept_encoding_has(const u_char *ae, size_t ae_len, const char *token)
     return 0;
 }
 
-xrootd_codec_id_t
-xrootd_http_compress_negotiate(ngx_http_request_t *r, off_t file_size,
+brix_codec_id_t
+brix_http_compress_negotiate(ngx_http_request_t *r, off_t file_size,
     ngx_flag_t is_range)
 {
     ngx_table_elt_t *ae;
     size_t           i;
 
-    if (is_range || r->header_only || file_size < XROOTD_COMPRESS_MIN_SIZE) {
-        return XROOTD_CODEC_IDENTITY;
+    if (is_range || r->header_only || file_size < BRIX_COMPRESS_MIN_SIZE) {
+        return BRIX_CODEC_IDENTITY;
     }
     ae = r->headers_in.accept_encoding;
     if (ae == NULL || ae->value.len == 0) {
-        return XROOTD_CODEC_IDENTITY;
+        return BRIX_CODEC_IDENTITY;
     }
     if (content_type_incompressible(r)) {
-        return XROOTD_CODEC_IDENTITY;
+        return BRIX_CODEC_IDENTITY;
     }
-    for (i = 0; i < sizeof(xrootd_compress_pref) / sizeof(xrootd_compress_pref[0]);
+    for (i = 0; i < sizeof(brix_compress_pref) / sizeof(brix_compress_pref[0]);
          i++)
     {
-        xrootd_codec_id_t          id = xrootd_compress_pref[i];
-        const xrootd_codec_desc_t *d  = xrootd_codec_by_id(id);
+        brix_codec_id_t          id = brix_compress_pref[i];
+        const brix_codec_desc_t *d  = brix_codec_by_id(id);
         if (d != NULL && d->available
             && accept_encoding_has(ae->value.data, ae->value.len, d->http_token))
         {
             return id;
         }
     }
-    return XROOTD_CODEC_IDENTITY;
+    return BRIX_CODEC_IDENTITY;
 }
 
 /* Push one memory buffer of [data,len) to the output filter; last marks EOF. */
@@ -167,12 +167,12 @@ compress_emit(ngx_http_request_t *r, const u_char *data, size_t len, int last)
 }
 
 ngx_int_t
-xrootd_http_send_file_compressed(ngx_http_request_t *r, ngx_fd_t send_fd,
-    const char *fs_path, off_t size, xrootd_codec_id_t codec, time_t mtime,
+brix_http_send_file_compressed(ngx_http_request_t *r, ngx_fd_t send_fd,
+    const char *fs_path, off_t size, brix_codec_id_t codec, time_t mtime,
     unsigned etag_flags, off_t *bytes_in_out)
 {
-    const xrootd_codec_desc_t *desc = xrootd_codec_by_id(codec);
-    xrootd_codec_stream_t     *s;
+    const brix_codec_desc_t *desc = brix_codec_by_id(codec);
+    brix_codec_stream_t     *s;
     ngx_table_elt_t           *ce, *vary;
     u_char                    *inbuf, *outbuf;
     off_t                      off = 0;
@@ -186,7 +186,7 @@ xrootd_http_send_file_compressed(ngx_http_request_t *r, ngx_fd_t send_fd,
     }
 
     /* Headers: 200 + ETag/Last-Modified, then force chunked + Content-Encoding. */
-    if (xrootd_http_set_file_headers(r, mtime, size, size, NULL, etag_flags,
+    if (brix_http_set_file_headers(r, mtime, size, size, NULL, etag_flags,
                                      0, 0, size > 0 ? size - 1 : 0) != NGX_OK)
     {
         ngx_close_file(send_fd);
@@ -212,17 +212,17 @@ xrootd_http_send_file_compressed(ngx_http_request_t *r, ngx_fd_t send_fd,
     ngx_str_set(&vary->key, "Vary");
     ngx_str_set(&vary->value, "Accept-Encoding");
 
-    s = xrootd_codec_open(codec, XROOTD_CODEC_DIR_COMPRESS, -1, NULL);
-    inbuf  = ngx_palloc(r->pool, XROOTD_COMPRESS_CHUNK);
-    outbuf = ngx_palloc(r->pool, XROOTD_COMPRESS_CHUNK);
+    s = brix_codec_open(codec, BRIX_CODEC_DIR_COMPRESS, -1, NULL);
+    inbuf  = ngx_palloc(r->pool, BRIX_COMPRESS_CHUNK);
+    outbuf = ngx_palloc(r->pool, BRIX_COMPRESS_CHUNK);
     if (s == NULL || inbuf == NULL || outbuf == NULL) {
-        if (s) { xrootd_codec_close(s); }
+        if (s) { brix_codec_close(s); }
         ngx_close_file(send_fd);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     if (ngx_http_send_header(r) == NGX_ERROR) {
-        xrootd_codec_close(s);
+        brix_codec_close(s);
         ngx_close_file(send_fd);
         return NGX_ERROR;
     }
@@ -235,7 +235,7 @@ xrootd_http_send_file_compressed(ngx_http_request_t *r, ngx_fd_t send_fd,
 
         /* One full chunk through the storage seam (EINTR/short-read handled by
          * the primitive); a short fill means EOF and ends the stream. */
-        if (xrootd_vfs_pread_full(send_fd, inbuf, XROOTD_COMPRESS_CHUNK, off,
+        if (brix_vfs_pread_full(send_fd, inbuf, BRIX_COMPRESS_CHUNK, off,
                                   &got) != NGX_OK)
         {
             rc = NGX_ERROR; break;
@@ -245,13 +245,13 @@ xrootd_http_send_file_compressed(ngx_http_request_t *r, ngx_fd_t send_fd,
 
         for (;;) {
             size_t            op = 0;
-            xrootd_codec_rc_t crc;
+            brix_codec_rc_t crc;
 
-            crc = xrootd_codec_step(s, inbuf, fill, &ip, outbuf,
-                                    XROOTD_COMPRESS_CHUNK, &op, finish);
+            crc = brix_codec_step(s, inbuf, fill, &ip, outbuf,
+                                    BRIX_COMPRESS_CHUNK, &op, finish);
             if (crc < 0) { rc = NGX_ERROR; done = 1; break; }
             if (bytes_in_out) { *bytes_in_out += (off_t) op; }
-            if (crc == XROOTD_CODEC_END) {
+            if (crc == BRIX_CODEC_END) {
                 if (compress_emit(r, outbuf, op, 1) != NGX_OK) { rc = NGX_ERROR; }
                 done = 1;
                 break;
@@ -261,13 +261,13 @@ xrootd_http_send_file_compressed(ngx_http_request_t *r, ngx_fd_t send_fd,
                     rc = NGX_ERROR; done = 1; break;
                 }
             }
-            if (op == XROOTD_COMPRESS_CHUNK) { continue; }   /* drain more */
+            if (op == BRIX_COMPRESS_CHUNK) { continue; }   /* drain more */
             if (ip < fill) { continue; }
             break;                       /* chunk consumed; read next */
         }
     }
 
-    xrootd_codec_close(s);
+    brix_codec_close(s);
     ngx_close_file(send_fd);
     return rc;
 }

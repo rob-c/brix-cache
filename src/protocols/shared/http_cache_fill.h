@@ -1,11 +1,11 @@
-#ifndef XROOTD_HTTP_CACHE_FILL_H
-#define XROOTD_HTTP_CACHE_FILL_H
+#ifndef BRIX_HTTP_CACHE_FILL_H
+#define BRIX_HTTP_CACHE_FILL_H
 
 /*
  * http_cache_fill.h - off-event-loop cache-miss fill for the HTTP read plane
  * (phase-64 SP2 "shell -> full").
  *
- * WHAT: One helper, xrootd_http_cache_fill_if_needed(), that the WebDAV GET and
+ * WHAT: One helper, brix_http_cache_fill_if_needed(), that the WebDAV GET and
  *       S3 GetObject handlers call before their inline open+serve. When a read
  *       would be a cache MISS over a remote tier (a source the worker must reach
  *       over a socket, or a store it writes over the network), the helper runs
@@ -20,9 +20,9 @@
  *       loop, so the fill must be moved off it. This mirrors the established
  *       thread-task pattern already used by WebDAV COPY/MOVE/PUT and S3 PUT.
  *
- * HOW:  xrootd_sd_cache_fill_needs_offload() answers (without blocking) whether
+ * HOW:  brix_sd_cache_fill_needs_offload() answers (without blocking) whether
  *       the inline open would stall; if so the helper posts an
- *       xrootd_sd_cache_fill_key() task and takes r->main->count++, returning
+ *       brix_sd_cache_fill_key() task and takes r->main->count++, returning
  *       NGX_DONE. The completion event (on the loop) re-enters the handler on
  *       success or finalizes with 502 on a fill failure. A COMPLETE hit, a local
  *       source+store, a slice object, or a missing thread pool all return
@@ -33,14 +33,14 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
-#include "core/config/shared_conf.h"      /* ngx_http_xrootd_shared_conf_t */
-#include "fs/backend/sd.h"           /* xrootd_sd_instance_t */
+#include "core/config/shared_conf.h"      /* ngx_http_brix_shared_conf_t */
+#include "fs/backend/sd.h"           /* brix_sd_instance_t */
 
 /* The handler re-entry callback: invoked on the event loop after a successful
  * fill to serve the now-cached object. `data` is the opaque pointer passed to
- * xrootd_http_cache_fill_if_needed (NULL for handlers that re-resolve from r).
+ * brix_http_cache_fill_if_needed (NULL for handlers that re-resolve from r).
  * Returns the handler's terminal rc (passed to ngx_http_finalize_request). */
-typedef ngx_int_t (*xrootd_http_cache_reenter_pt)(ngx_http_request_t *r,
+typedef ngx_int_t (*brix_http_cache_reenter_pt)(ngx_http_request_t *r,
     void *data);
 
 /*
@@ -56,9 +56,9 @@ typedef ngx_int_t (*xrootd_http_cache_reenter_pt)(ngx_http_request_t *r,
  *                  NGX_DONE up the stack without further touching r.
  *   NGX_ERROR    - task alloc/post failed; the caller should return 500.
  */
-ngx_int_t xrootd_http_cache_fill_if_needed(ngx_http_request_t *r,
-    xrootd_sd_instance_t *inst, const char *key,
-    ngx_http_xrootd_shared_conf_t *common,
-    xrootd_http_cache_reenter_pt reenter, void *reenter_data);
+ngx_int_t brix_http_cache_fill_if_needed(ngx_http_request_t *r,
+    brix_sd_instance_t *inst, const char *key,
+    ngx_http_brix_shared_conf_t *common,
+    brix_http_cache_reenter_pt reenter, void *reenter_data);
 
-#endif /* XROOTD_HTTP_CACHE_FILL_H */
+#endif /* BRIX_HTTP_CACHE_FILL_H */

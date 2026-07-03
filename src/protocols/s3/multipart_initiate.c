@@ -16,7 +16,7 @@
  * three 8-hex-digit fields produce 96 bits of uniqueness (seconds + microseconds + nginx worker
  * PID). Note: initial attempt used ngx_snprintf with %l format; the fallback snprintf on lines
  * 40-44 uses plain %lx to avoid ngx_snprintf's trailing 'l' suffix characters. Phase 2: Create
- * staging directory via s3_get_mpu_dir() + xrootd_mkdir_confined_canon() — confined path ensures
+ * staging directory via s3_get_mpu_dir() + brix_mkdir_confined_canon() — confined path ensures
  * staging stays under the export root with 0700 permissions for upload isolation. Phase 3: Build
  * AWS-standard XML response body using snprintf into 512-byte stack buffer, convert to ngx_buf_t
  * via ngx_create_temp_buf(), send header + output filter chain. Three OOM/error paths all return
@@ -68,7 +68,7 @@ s3_handle_multipart_initiate(ngx_http_request_t *r,
 
     /* Phase 39 (WS8/HTTP-2): before creating this upload's staging dir,
      * opportunistically reap abandoned staging dirs in the SAME directory whose
-     * mtime is idle past xrootd_s3_mpu_max_age (a client that never sent
+     * mtime is idle past brix_s3_mpu_max_age (a client that never sent
      * Complete/Abort).  Bounded to one readdir; off (0) by default. */
     if (cf->mpu_max_age > 0) {
         (void) s3_mpu_reap_stale(r, cf, fs_path, (time_t) cf->mpu_max_age);
@@ -76,12 +76,12 @@ s3_handle_multipart_initiate(ngx_http_request_t *r,
 
     s3_get_mpu_dir(fs_path, upload_id, mpu_dir, sizeof(mpu_dir));
 
-    if (xrootd_mkdir_confined_canon(r->connection->log, cf->common.root_canon,
+    if (brix_mkdir_confined_canon(r->connection->log, cf->common.root_canon,
                                     mpu_dir, 0700) != 0)
     {
-        xrootd_log_safe_path(r->connection->log, NGX_LOG_ERR, errno,
+        brix_log_safe_path(r->connection->log, NGX_LOG_ERR, errno,
                              "s3 initiate_mpu: mkdir(\"%s\") failed", mpu_dir);
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -99,20 +99,20 @@ s3_handle_multipart_initiate(ngx_http_request_t *r,
         upload_id);
 
     if (xml_len >= sizeof(xml_buf)) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     b = ngx_create_temp_buf(r->pool, xml_len);
     if (b == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     ngx_memcpy(b->pos, xml_buf, xml_len);
     b->last     = b->pos + xml_len;
     b->last_buf = 1;
 
-    return xrootd_http_send_xml_buffer(r, NGX_HTTP_OK,
+    return brix_http_send_xml_buffer(r, NGX_HTTP_OK,
         (ngx_str_t) ngx_string("application/xml"), b);
 }
 

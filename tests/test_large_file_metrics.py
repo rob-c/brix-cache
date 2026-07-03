@@ -148,7 +148,7 @@ def test_xrdcp_200mb_download_bytes_tx_delta():
             os.unlink(out_path)
 
     after = _fetch()
-    delta = _delta(before, after, "xrootd_bytes_tx_total",
+    delta = _delta(before, after, "brix_bytes_tx_total",
                    {"port": ANON_PORT, "auth": "anon"})
     assert delta >= 200 * MiB, (
         f"bytes_tx_total delta {delta // MiB} MiB < 200 MiB after large file download"
@@ -179,7 +179,7 @@ def test_xrdcp_200mb_upload_bytes_rx_delta():
     assert rc == 0, "xrdcp upload of large200.bin failed"
 
     after = _fetch()
-    delta = _delta(before, after, "xrootd_bytes_rx_total",
+    delta = _delta(before, after, "brix_bytes_rx_total",
                    {"port": ANON_PORT, "auth": "anon"})
     assert delta >= 200 * MiB, (
         f"bytes_rx_total delta {delta // MiB} MiB < 200 MiB after large file upload"

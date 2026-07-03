@@ -19,10 +19,10 @@
 
 /*
  * Map a VFS single-file-copy errno to the same HTTP status the prior
- * xrootd_ns_local_copy → status mapping produced.  xrootd_vfs_copy() returns
+ * brix_ns_local_copy → status mapping produced.  brix_vfs_copy() returns
  * NGX_ERROR with errno set (the namespace sys_errno), so reconstruct the
  * namespace status the same way namespace_ops' errno_to_ns_status does and feed
- * it to xrootd_http_map_ns_status — guaranteeing byte-for-byte parity with the
+ * it to brix_http_map_ns_status — guaranteeing byte-for-byte parity with the
  * old code (including DENIED→403, TOO_LONG→414, NO_SPACE→507, CONFLICT→409,
  * IO_ERROR→500).  The two COPY-specific overrides (EXISTS→412, NOT_FOUND→409)
  * are applied by the caller before this helper is reached.
@@ -30,25 +30,25 @@
 static ngx_int_t
 webdav_copy_errno_to_status(int err)
 {
-    xrootd_ns_status_t status;
+    brix_ns_status_t status;
 
     switch (err) {
-    case 0:            status = XROOTD_NS_OK;        break;
-    case ENOENT:       status = XROOTD_NS_NOT_FOUND; break;
+    case 0:            status = BRIX_NS_OK;        break;
+    case ENOENT:       status = BRIX_NS_NOT_FOUND; break;
     case EACCES:
     case EPERM:
     case EXDEV:
-    case ELOOP:        status = XROOTD_NS_DENIED;    break;
-    case EEXIST:       status = XROOTD_NS_EXISTS;    break;
-    case ENOTEMPTY:    status = XROOTD_NS_NOT_EMPTY; break;
-    case ENAMETOOLONG: status = XROOTD_NS_TOO_LONG;  break;
-    case ENOSPC:       status = XROOTD_NS_NO_SPACE;  break;
+    case ELOOP:        status = BRIX_NS_DENIED;    break;
+    case EEXIST:       status = BRIX_NS_EXISTS;    break;
+    case ENOTEMPTY:    status = BRIX_NS_NOT_EMPTY; break;
+    case ENAMETOOLONG: status = BRIX_NS_TOO_LONG;  break;
+    case ENOSPC:       status = BRIX_NS_NO_SPACE;  break;
     case EBUSY:
-    case EINVAL:       status = XROOTD_NS_CONFLICT;  break;
-    default:           status = XROOTD_NS_IO_ERROR;  break;
+    case EINVAL:       status = BRIX_NS_CONFLICT;  break;
+    default:           status = BRIX_NS_IO_ERROR;  break;
     }
 
-    return xrootd_http_map_ns_status(status);
+    return brix_http_map_ns_status(status);
 }
 
 typedef struct {
@@ -87,11 +87,11 @@ webdav_copy_collection_execute(ngx_log_t *log, const char *root_canon,
     char      tmp_path[WEBDAV_MAX_PATH];
     ngx_int_t rc;
 
-    if (xrootd_make_tmp_path(dst_path, tmp_path, sizeof(tmp_path)) != NGX_OK) {
+    if (brix_make_tmp_path(dst_path, tmp_path, sizeof(tmp_path)) != NGX_OK) {
         return NGX_HTTP_REQUEST_URI_TOO_LARGE;
     }
 
-    if (xrootd_vfs_mkdir_path(log, root_canon, tmp_path, src_mode & 0777) != 0) {
+    if (brix_vfs_mkdir_path(log, root_canon, tmp_path, src_mode & 0777) != 0) {
         if (errno == ENOENT) {
             return NGX_HTTP_CONFLICT;
         }
@@ -99,7 +99,7 @@ webdav_copy_collection_execute(ngx_log_t *log, const char *root_canon,
     }
 
     webdav_dead_props_copy(log, src_path, tmp_path);
-    xrootd_ns_copy_fattrs(log, src_path, tmp_path);
+    brix_ns_copy_fattrs(log, src_path, tmp_path);
 
     if (depth_infinity) {
         rc = webdav_copy_dir_recursive(log, root_canon, src_path, tmp_path);
@@ -119,9 +119,9 @@ webdav_copy_collection_execute(ngx_log_t *log, const char *root_canon,
         }
     }
 
-    if (xrootd_rename_confined_canon(log, root_canon, tmp_path, dst_path) != 0) {
-        xrootd_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "xrootd_webdav COPY: dir rename failed: \"%s\"",
+    if (brix_rename_confined_canon(log, root_canon, tmp_path, dst_path) != 0) {
+        brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+                             "brix_webdav COPY: dir rename failed: \"%s\"",
                              dst_path);
         (void) webdav_delete_path_recursive(log, root_canon, tmp_path);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -180,7 +180,7 @@ webdav_copy_collection_done(ngx_event_t *ev)
  */
 static ngx_int_t
 webdav_copy_collection_post_task(ngx_http_request_t *r,
-    ngx_http_xrootd_webdav_loc_conf_t *conf, const char *src_path,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *src_path,
     const char *dst_path, mode_t src_mode, ngx_flag_t dst_existed,
     ngx_flag_t dst_was_dir, ngx_flag_t depth_infinity)
 {
@@ -197,7 +197,7 @@ webdav_copy_collection_post_task(ngx_http_request_t *r,
      * the event-loop thread where the principal is set and the broker socket
      * has exactly one user.
      */
-    if (xrootd_imp_enabled()) {
+    if (brix_imp_enabled()) {
         return NGX_DECLINED;
     }
 
@@ -238,7 +238,7 @@ webdav_copy_collection_post_task(ngx_http_request_t *r,
     ngx_cpystrn((u_char *) t->dst_path, (u_char *) dst_path,
                 sizeof(t->dst_path));
 
-    xrootd_task_bind(task, webdav_copy_collection_thread, webdav_copy_collection_done);
+    brix_task_bind(task, webdav_copy_collection_thread, webdav_copy_collection_done);
     task->event.log = r->connection->log;
 
     if (ngx_thread_task_post(pool, task) != NGX_OK) {
@@ -246,7 +246,7 @@ webdav_copy_collection_post_task(ngx_http_request_t *r,
     }
 
     ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-                  "xrootd_webdav: offloaded collection COPY to thread pool");
+                  "brix_webdav: offloaded collection COPY to thread pool");
 
     r->main->count++;
     return NGX_DONE;
@@ -254,7 +254,7 @@ webdav_copy_collection_post_task(ngx_http_request_t *r,
 
 /*
  * webdav_copy_probe — confined stat of `path` (follow semantics, matching the
- * prior xrootd_lstat_confined_canon nofollow=0) through the VFS probe, projected
+ * prior brix_lstat_confined_canon nofollow=0) through the VFS probe, projected
  * into the struct stat fields the COPY handler needs (ino/dev for the self-copy
  * guard, mode for is-dir, mtime/size for the conditional checks). Non-metered
  * (the COPY op accounts for itself). Returns NGX_OK / NGX_DECLINED (errno kept).
@@ -262,23 +262,23 @@ webdav_copy_collection_post_task(ngx_http_request_t *r,
 static ngx_int_t
 webdav_copy_probe(ngx_http_request_t *r, const char *path, struct stat *sb)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf =
-        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
-    ngx_http_xrootd_webdav_req_ctx_t  *rx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
-    xrootd_vfs_ctx_t   vctx;
-    xrootd_vfs_stat_t  vst;
+    ngx_http_brix_webdav_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    ngx_http_brix_webdav_req_ctx_t  *rx =
+        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+    brix_vfs_ctx_t   vctx;
+    brix_vfs_stat_t  vst;
     int                is_tls = 0;
 
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
 
-    xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log, XROOTD_PROTO_WEBDAV,
+    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
         conf->common.root_canon, conf->cache_root_canon, conf->common.allow_write,
         is_tls, (rx != NULL) ? rx->identity : NULL, path);
 
-    if (xrootd_vfs_probe(&vctx, 0 /* follow */, &vst) != NGX_OK) {
+    if (brix_vfs_probe(&vctx, 0 /* follow */, &vst) != NGX_OK) {
         return NGX_DECLINED;
     }
 
@@ -301,7 +301,7 @@ webdav_copy_probe(ngx_http_request_t *r, const char *path, struct stat *sb)
 ngx_int_t
 webdav_handle_copy(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_loc_conf_t *conf;
     ngx_table_elt_t    *dest_hdr;
     ngx_table_elt_t    *depth_hdr;
     char                src_path[WEBDAV_MAX_PATH];
@@ -316,7 +316,7 @@ webdav_handle_copy(ngx_http_request_t *r)
     int                 dst_existed;
     int                 depth_infinity = 1;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
 
     dest_hdr = webdav_tpc_find_header(r, "Destination",
                                       sizeof("Destination") - 1);
@@ -324,7 +324,7 @@ webdav_handle_copy(ngx_http_request_t *r)
         return NGX_HTTP_BAD_REQUEST;
     }
 
-    overwrite = !xrootd_http_overwrite_forbidden(r);
+    overwrite = !brix_http_overwrite_forbidden(r);
 
     depth_hdr = webdav_tpc_find_header(r, "Depth", sizeof("Depth") - 1);
     if (depth_hdr != NULL) {
@@ -347,7 +347,7 @@ webdav_handle_copy(ngx_http_request_t *r)
         return rc;
     }
 
-    rc = ngx_http_xrootd_webdav_resolve_path(r, conf->common.root_canon,
+    rc = ngx_http_brix_webdav_resolve_path(r, conf->common.root_canon,
                                              src_path, sizeof(src_path));
     if (rc != NGX_OK) {
         return rc;
@@ -426,8 +426,8 @@ webdav_handle_copy(ngx_http_request_t *r)
          * (delegates to the same namespace_ops local-copy service underneath).
          * Pre-delete destination directory if overwrite is enabled; rename(2)
          * cannot atomically replace a directory with a file. */
-        xrootd_vfs_copy_opts_t copy_opts;
-        xrootd_vfs_ctx_t       vctx;
+        brix_vfs_copy_opts_t copy_opts;
+        brix_vfs_ctx_t       vctx;
 
         if (dst_existed && S_ISDIR(dst_sb.st_mode)) {
             (void) webdav_delete_path_recursive(r->connection->log,
@@ -435,14 +435,14 @@ webdav_handle_copy(ngx_http_request_t *r)
         }
 
         {
-            ngx_http_xrootd_webdav_req_ctx_t *wctx =
-                ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+            ngx_http_brix_webdav_req_ctx_t *wctx =
+                ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
             int is_tls = 0;
 #if (NGX_HTTP_SSL)
             is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
-            xrootd_vfs_ctx_init(&vctx, r->pool, r->connection->log,
-                XROOTD_PROTO_WEBDAV, conf->common.root_canon,
+            brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
+                BRIX_PROTO_WEBDAV, conf->common.root_canon,
                 conf->cache_root_canon, conf->common.allow_write, is_tls,
                 (wctx != NULL) ? wctx->identity : NULL, src_path);
         }
@@ -452,11 +452,11 @@ webdav_handle_copy(ngx_http_request_t *r)
         copy_opts.preserve_xattrs = 1;
         copy_opts.staged_commit   = 1;
 
-        if (xrootd_vfs_copy(&vctx, dst_path, &copy_opts) != NGX_OK) {
+        if (brix_vfs_copy(&vctx, dst_path, &copy_opts) != NGX_OK) {
             /* COPY-specific RFC 4918 semantics that differ from the generic
              * namespace→HTTP mapping: an existing dst with Overwrite:F is a
              * precondition failure (412, not 409), and a missing destination
-             * parent is a Conflict (409, not 404).  xrootd_vfs_copy reports the
+             * parent is a Conflict (409, not 404).  brix_vfs_copy reports the
              * namespace failure via errno. */
             int err = errno;
             if (err == EEXIST) {

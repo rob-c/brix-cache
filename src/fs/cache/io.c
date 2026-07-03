@@ -6,13 +6,13 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-/* xrootd_cache_io_send — blocking send of all len bytes to the origin (SSL or plain
+/* brix_cache_io_send — blocking send of all len bytes to the origin (SSL or plain
  * TCP), retrying the same chunk on WANT_READ/WANT_WRITE/EINTR; other errors map to
  * EIO/-1 (a zero-length TCP write → EPIPE). Safe to block: runs in a fill
  * thread-pool worker, not the event loop. */
 
 int
-xrootd_cache_io_send(xrootd_cache_origin_conn_t *oc, const void *buf,
+brix_cache_io_send(brix_cache_origin_conn_t *oc, const void *buf,
     size_t len)
 {
     const u_char *p;
@@ -60,13 +60,13 @@ xrootd_cache_io_send(xrootd_cache_origin_conn_t *oc, const void *buf,
     return 0;
 }
 
-/* xrootd_cache_io_recv_exact — blocking recv of exactly len bytes from the origin
+/* brix_cache_io_recv_exact — blocking recv of exactly len bytes from the origin
  * (SSL or plain TCP), looping over partial reads and retrying on
  * WANT_READ/WANT_WRITE/EINTR (the XRootD wire uses fixed-size headers); other errors
  * map to EIO/-1 (a zero-length TCP read → ECONNRESET). Fill thread-pool worker only. */
 
 int
-xrootd_cache_io_recv_exact(xrootd_cache_origin_conn_t *oc, void *buf,
+brix_cache_io_recv_exact(brix_cache_origin_conn_t *oc, void *buf,
     size_t len)
 {
     u_char *p;
@@ -114,20 +114,20 @@ xrootd_cache_io_recv_exact(xrootd_cache_origin_conn_t *oc, void *buf,
     return 0;
 }
 
-/* xrootd_cache_fd_write_all — blocking write of all len bytes to a local fd (the
+/* brix_cache_fd_write_all — blocking write of all len bytes to a local fd (the
  * fill worker draining origin data into the .part file before the atomic rename):
  * loops over partial writes, retries EINTR, -1 on any other error. */
 
 int
-xrootd_cache_fd_write_all(int fd, const void *buf, size_t len, off_t offset)
+brix_cache_fd_write_all(int fd, const void *buf, size_t len, off_t offset)
 {
     const u_char   *p;
-    xrootd_sd_obj_t obj;
+    brix_sd_obj_t obj;
 
     /* Route the cache-content byte write through the Storage Driver seam so the
      * syscall stays in the backend (positional pwrite; the caller passes the
      * running file offset). */
-    xrootd_sd_posix_wrap(&obj, fd);
+    brix_sd_posix_wrap(&obj, fd);
     p = buf;
     while (len > 0) {
         ssize_t n;

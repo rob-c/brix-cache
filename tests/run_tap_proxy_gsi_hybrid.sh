@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Phase-4b HYBRID end-to-end: a delegating GSI client -> our nginx terminating
-# tap proxy (xrootd_tap_proxy_auth gsi, delegation capture) -> an OFFICIAL
+# tap proxy (brix_tap_proxy_auth gsi, delegation capture) -> an OFFICIAL
 # `xrootd` upstream. Unlike run_tap_proxy_gsi.sh (nginx upstream), this proves the
 # proxy's OUTBOUND GSI login — presenting the captured user proxy — interoperates
 # with a real XRootD server, which maps the delegated DN and logs the proxy's pull
@@ -71,9 +71,9 @@ daemon on; error_log $PFX/n/e.log info; pid $PFX/n.pid;
 thread_pool default threads=4;
 events { worker_connections 64; }
 stream { server { listen 127.0.0.1:$PP; xrootd on;
-  xrootd_auth gsi; xrootd_gsi_signed_dh require; xrootd_tpc_delegate on;
-  xrootd_certificate $SC; xrootd_certificate_key $SK; xrootd_trusted_ca $CA;
-  xrootd_tap_proxy on; xrootd_tap_proxy_upstream 127.0.0.1:$XO; xrootd_tap_proxy_auth gsi; } }
+  brix_auth gsi; brix_gsi_signed_dh require; brix_tpc_delegate on;
+  brix_certificate $SC; brix_certificate_key $SK; brix_trusted_ca $CA;
+  brix_tap_proxy on; brix_tap_proxy_upstream 127.0.0.1:$XO; brix_tap_proxy_auth gsi; } }
 EOF
 fuser -k ${PP}/tcp 2>/dev/null; sleep 0.3
 "$NGINX" -p "$PFX/n" -c "$PFX/n.conf" 2>"$PFX/n.err" || { echo "proxy-fail"; cat "$PFX/n.err"; exit 2; }

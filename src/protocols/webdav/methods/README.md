@@ -48,9 +48,9 @@ state:
   `st_size` are what the shared helper turns into the destination ETag.
 
 Relevant shared constants it passes through:
-`XROOTD_ETAG_WEAK` (`../../compat/etag.h`) selects an RFC 7232 §2.1 weak ETag
+`BRIX_ETAG_WEAK` (`../../compat/etag.h`) selects an RFC 7232 §2.1 weak ETag
 (`W/"mtime-size"`); the final `condition_flags` argument is `0` (the
-`XROOTD_HTTP_COND_WEAK_EQUIV` weak-equivalence flag is intentionally *not* set
+`BRIX_HTTP_COND_WEAK_EQUIV` weak-equivalence flag is intentionally *not* set
 for COPY).
 
 ## Control & data flow
@@ -68,12 +68,12 @@ destination has been resolved and `stat`ed and after the lock-tree /
 
 **Calls out to:**
 
-- `xrootd_http_check_etag_preconditions()` (`../../compat/http_conditionals.c`)
+- `brix_http_check_etag_preconditions()` (`../../compat/http_conditionals.c`)
   — does the real work: builds the destination ETag from `dst_sb`, parses the
   `If-Match` / `If-None-Match` header lists, applies wildcard semantics, and
   returns `NGX_OK`, `NGX_HTTP_NOT_MODIFIED` (304), or
   `NGX_HTTP_PRECONDITION_FAILED` (412).
-- `xrootd_http_etag_str()` (`../../compat/etag.c`, via the helper above) — the
+- `brix_http_etag_str()` (`../../compat/etag.c`, via the helper above) — the
   underlying `mtime-size` → ETag string formatter, shared with S3 and PROPFIND.
 - `ngx_log_debug1()` — COPY-specific failure logging only.
 
@@ -102,8 +102,8 @@ that produced `dst_path` before this runs).
   doing so would let WebDAV and S3 drift apart on conditional-request behaviour.
   (See `copy_conditionals.c:42`.)
 - **Weak ETags, no weak-equivalence comparison.** COPY passes
-  `XROOTD_ETAG_WEAK` for ETag *generation* but `0` for `condition_flags`, so the
-  comparison does not enable `XROOTD_HTTP_COND_WEAK_EQUIV`. Changing either flag
+  `BRIX_ETAG_WEAK` for ETag *generation* but `0` for `condition_flags`, so the
+  comparison does not enable `BRIX_HTTP_COND_WEAK_EQUIV`. Changing either flag
   changes overwrite/skip semantics — treat as a deliberate policy choice, not an
   arbitrary default.
 - **Semantics enforced (via the shared helper):** `If-Match` ⇒ overwrite only

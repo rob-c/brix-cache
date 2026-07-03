@@ -88,8 +88,8 @@ stream {{
     server {{
 {blocks}
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
+        brix_storage_backend posix:{data};
+        brix_auth none;
     }}
 }}
 """)
@@ -271,7 +271,7 @@ def test_remote_doctor_pii_free(anon):
 def _start_server(root, data, port, writable):
     """Start an anon stream server on a free port; writable adds allow_write."""
     conf = root / "nginx.conf"
-    extra = "        xrootd_allow_write on;\n" if writable else ""
+    extra = "        brix_allow_write on;\n" if writable else ""
     conf.write_text(f"""
 worker_processes 1;
 pid {root}/nginx.pid;
@@ -281,8 +281,8 @@ stream {{
     server {{
         listen {BIND_HOST}:{port};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
+        brix_storage_backend posix:{data};
+        brix_auth none;
 {extra}    }}
 }}
 """)
@@ -455,9 +455,9 @@ stream {{
     server {{
         listen {BIND_HOST}:{port};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth sss;
-        xrootd_sss_keytab {kt};
+        brix_storage_backend posix:{data};
+        brix_auth sss;
+        brix_sss_keytab {kt};
     }}
 }}
 """)
@@ -506,12 +506,12 @@ stream {{
     server {{
         listen {BIND_HOST}:{port};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_allow_write on;
-        xrootd_auth token;
-        xrootd_token_jwks {token_issuer.jwks_path};
-        xrootd_token_issuer "{token_issuer.issuer}";
-        xrootd_token_audience "{token_issuer.audience}";
+        brix_storage_backend posix:{data};
+        brix_allow_write on;
+        brix_auth token;
+        brix_token_jwks {token_issuer.jwks_path};
+        brix_token_issuer "{token_issuer.issuer}";
+        brix_token_audience "{token_issuer.audience}";
     }}
 }}
 """)

@@ -8,7 +8,7 @@
 # The CephFS must be seeded (cephfs_seed.c + cephfs_seed2.c) and flushed
 # (ceph tell mds.<id> flush journal) so the namespace is on RADOS.
 #
-# Prereqs: /opt/nginx-src/objs/nginx built with XROOTD_HAVE_CEPH; /etc/ceph wired.
+# Prereqs: /opt/nginx-src/objs/nginx built with BRIX_HAVE_CEPH; /etc/ceph wired.
 set -u
 
 NGINX=/opt/nginx-src/objs/nginx
@@ -41,10 +41,10 @@ stream {
     server {
         listen 127.0.0.1:${RPORT};
         xrootd on;
-        xrootd_root /export;
-        xrootd_auth none;
-        xrootd_storage_backend cephfsro:${META}+${DATA}?${ASSERT};
-        xrootd_access_log $RUN/xrd_access.log;
+        brix_root /export;
+        brix_auth none;
+        brix_storage_backend cephfsro:${META}+${DATA}?${ASSERT};
+        brix_access_log $RUN/xrd_access.log;
     }
 }
 http {
@@ -54,9 +54,9 @@ http {
     server {
         listen 127.0.0.1:${HPORT};
         location / {
-            xrootd_webdav on;
-            xrootd_webdav_root /export;
-            xrootd_webdav_auth none;
+            brix_webdav on;
+            brix_webdav_root /export;
+            brix_webdav_auth none;
         }
     }
 }

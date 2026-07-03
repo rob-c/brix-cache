@@ -229,9 +229,9 @@ def start_our_server(base, data, port=OUR_PORT):
         "thread_pool default threads=2 max_queue=4096;\n"
         "events {{ worker_connections 64; }}\n"
         "stream {{ server {{\n"
-        "  listen {bind}:{port};\n  xrootd on;\n  xrootd_storage_backend posix:{data};\n"
-        "  xrootd_auth none;\n  xrootd_allow_write on;\n"
-        "  xrootd_access_log {b}/our-access.log;\n}} }}\n"
+        "  listen {bind}:{port};\n  xrootd on;\n  brix_storage_backend posix:{data};\n"
+        "  brix_auth none;\n  brix_allow_write on;\n"
+        "  brix_access_log {b}/our-access.log;\n}} }}\n"
     ).format(b=base, bind=BIND, port=port, data=data)
     with open(cfg, "w") as f:
         f.write(body)

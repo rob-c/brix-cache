@@ -25,7 +25,7 @@
 /* Join the store's local root with an export-relative `key` into out[cap] (the
  * on-disk path of the cached object). Returns 0, or -1 when it would overflow. */
 static int
-cstore_local_path(const xrootd_cstore_t *cs, const char *key, char *out,
+cstore_local_path(const brix_cstore_t *cs, const char *key, char *out,
     size_t cap)
 {
     size_t rlen = strlen(cs->local_root);
@@ -42,7 +42,7 @@ cstore_local_path(const xrootd_cstore_t *cs, const char *key, char *out,
 /* ---- lifecycle ------------------------------------------------------------ */
 
 ngx_int_t
-xrootd_cstore_init(xrootd_cstore_t *cs, xrootd_sd_instance_t *store,
+brix_cstore_init(brix_cstore_t *cs, brix_sd_instance_t *store,
     const char *local_root, int meta_mode, size_t l1_entries, int batch_cinfo,
     ngx_log_t *log)
 {
@@ -61,23 +61,23 @@ xrootd_cstore_init(xrootd_cstore_t *cs, xrootd_sd_instance_t *store,
 
     /* AUTO resolves from the store: a known local dir -> LOCAL; a store that can
      * carry xattrs -> XATTR; else SIDECAR (section 6.3). */
-    if (meta_mode == XROOTD_CMETA_AUTO) {
+    if (meta_mode == BRIX_CMETA_AUTO) {
         if (cs->local_root[0] != '\0') {
-            meta_mode = XROOTD_CMETA_LOCAL;
-        } else if (xrootd_sd_caps(store) & XROOTD_SD_CAP_XATTR) {
-            meta_mode = XROOTD_CMETA_XATTR;
+            meta_mode = BRIX_CMETA_LOCAL;
+        } else if (brix_sd_caps(store) & BRIX_SD_CAP_XATTR) {
+            meta_mode = BRIX_CMETA_XATTR;
         } else {
-            meta_mode = XROOTD_CMETA_SIDECAR;
+            meta_mode = BRIX_CMETA_SIDECAR;
         }
     }
     cs->meta_mode = meta_mode;
 
-    cs->l1 = xrootd_cinfo_l1_create(l1_entries, log);
+    cs->l1 = brix_cinfo_l1_create(l1_entries, log);
     if (cs->l1 == NULL) {
         return NGX_ERROR;       /* errno set by create */
     }
 
-    if (meta_mode == XROOTD_CMETA_SIDECAR && cs->store->driver->staged_open == NULL
+    if (meta_mode == BRIX_CMETA_SIDECAR && cs->store->driver->staged_open == NULL
         && log != NULL)
     {
         ngx_log_error(NGX_LOG_WARN, log, 0,
@@ -88,12 +88,12 @@ xrootd_cstore_init(xrootd_cstore_t *cs, xrootd_sd_instance_t *store,
 }
 
 void
-xrootd_cstore_cleanup(xrootd_cstore_t *cs)
+brix_cstore_cleanup(brix_cstore_t *cs)
 {
     if (cs == NULL) {
         return;
     }
-    xrootd_cinfo_l1_destroy(cs->l1);
+    brix_cinfo_l1_destroy(cs->l1);
     cs->l1 = NULL;
 }
 
@@ -103,7 +103,7 @@ xrootd_cstore_cleanup(xrootd_cstore_t *cs)
  * for a nested key (e.g. "/sub/file") does not fail on a missing parent. Each
  * level is created through the store driver; an already-present level is ignored. */
 static void
-cstore_make_parents(xrootd_cstore_t *cs, const char *key)
+cstore_make_parents(brix_cstore_t *cs, const char *key)
 {
     char   path[PATH_MAX];
     size_t i;
@@ -122,10 +122,10 @@ cstore_make_parents(xrootd_cstore_t *cs, const char *key)
     }
 }
 
-xrootd_sd_staged_t *
-xrootd_cstore_fill_open(xrootd_cstore_t *cs, const char *key, mode_t mode)
+brix_sd_staged_t *
+brix_cstore_fill_open(brix_cstore_t *cs, const char *key, mode_t mode)
 {
-    xrootd_sd_staged_t *st;
+    brix_sd_staged_t *st;
     int                 err = 0;
 
     if (cs == NULL || cs->store == NULL || cs->store->driver->staged_open == NULL) {
@@ -141,7 +141,7 @@ xrootd_cstore_fill_open(xrootd_cstore_t *cs, const char *key, mode_t mode)
 }
 
 ssize_t
-xrootd_cstore_fill_write(xrootd_sd_staged_t *st, const void *buf, size_t len,
+brix_cstore_fill_write(brix_sd_staged_t *st, const void *buf, size_t len,
     off_t off)
 {
     if (st == NULL || st->inst == NULL || st->inst->driver->staged_write == NULL) {
@@ -152,7 +152,7 @@ xrootd_cstore_fill_write(xrootd_sd_staged_t *st, const void *buf, size_t len,
 }
 
 ngx_int_t
-xrootd_cstore_fill_commit(xrootd_sd_staged_t *st)
+brix_cstore_fill_commit(brix_sd_staged_t *st)
 {
     if (st == NULL || st->inst == NULL || st->inst->driver->staged_commit == NULL) {
         errno = ENOSYS;
@@ -162,7 +162,7 @@ xrootd_cstore_fill_commit(xrootd_sd_staged_t *st)
 }
 
 void
-xrootd_cstore_fill_abort(xrootd_sd_staged_t *st)
+brix_cstore_fill_abort(brix_sd_staged_t *st)
 {
     if (st != NULL && st->inst != NULL
         && st->inst->driver->staged_abort != NULL)
@@ -173,8 +173,8 @@ xrootd_cstore_fill_abort(xrootd_sd_staged_t *st)
 
 /* ---- serve ---------------------------------------------------------------- */
 
-xrootd_sd_obj_t *
-xrootd_cstore_serve_open(xrootd_cstore_t *cs, const char *key, int *err)
+brix_sd_obj_t *
+brix_cstore_serve_open(brix_cstore_t *cs, const char *key, int *err)
 {
     if (cs == NULL || cs->store == NULL || cs->store->driver->open == NULL) {
         if (err != NULL) {
@@ -182,15 +182,15 @@ xrootd_cstore_serve_open(xrootd_cstore_t *cs, const char *key, int *err)
         }
         return NULL;
     }
-    return cs->store->driver->open(cs->store, key, XROOTD_SD_O_READ, 0, err);
+    return cs->store->driver->open(cs->store, key, BRIX_SD_O_READ, 0, err);
 }
 
 ssize_t
-xrootd_cstore_serve_pread(int cache_fd, const uint8_t *bitmap, uint64_t nblocks,
+brix_cstore_serve_pread(int cache_fd, const uint8_t *bitmap, uint64_t nblocks,
     uint32_t block_size, off_t size, void *buf, size_t len, off_t off,
-    xrootd_cstore_fill_block_fn fill, void *ctx)
+    brix_cstore_fill_block_fn fill, void *ctx)
 {
-    xrootd_sd_obj_t o;
+    brix_sd_obj_t o;
     uint64_t        first, last, blk;
 
     if (block_size == 0) {
@@ -213,7 +213,7 @@ xrootd_cstore_serve_pread(int cache_fd, const uint8_t *bitmap, uint64_t nblocks,
     last  = (uint64_t) (off + (off_t) len - 1) / block_size;
     for (blk = first; blk <= last; blk++) {
         int present = (bitmap != NULL && blk < nblocks
-                       && xrootd_cache_cinfo_block_present(bitmap, blk));
+                       && brix_cache_cinfo_block_present(bitmap, blk));
         if (!present && fill != NULL && fill(ctx, blk) != 0) {
             return -1;
         }
@@ -221,19 +221,19 @@ xrootd_cstore_serve_pread(int cache_fd, const uint8_t *bitmap, uint64_t nblocks,
 
     /* Serve from the cache object through the POSIX store driver (raw byte I/O
      * stays in the backend, not here). */
-    xrootd_sd_posix_wrap(&o, cache_fd);
+    brix_sd_posix_wrap(&o, cache_fd);
     return o.driver->pread(&o, buf, len, off);
 }
 
 int
-xrootd_cstore_partial_open(xrootd_cstore_t *cs, const char *key, mode_t mode,
+brix_cstore_partial_open(brix_cstore_t *cs, const char *key, mode_t mode,
     off_t size, char *path_out, size_t path_cap)
 {
     char        path[PATH_MAX];
     struct stat sb;
     int         fd;
 
-    if (cs == NULL || cs->meta_mode != XROOTD_CMETA_LOCAL) {
+    if (cs == NULL || cs->meta_mode != BRIX_CMETA_LOCAL) {
         errno = ENOTSUP;            /* partial caching needs a local RW object */
         return -1;
     }
@@ -263,25 +263,25 @@ xrootd_cstore_partial_open(xrootd_cstore_t *cs, const char *key, mode_t mode,
 /* ---- evict ---------------------------------------------------------------- */
 
 ngx_int_t
-xrootd_cstore_evict(xrootd_cstore_t *cs, const char *key)
+brix_cstore_evict(brix_cstore_t *cs, const char *key)
 {
     if (cs == NULL || cs->store == NULL || key == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }
 
-    xrootd_cinfo_l1_drop(cs->l1, key);
+    brix_cinfo_l1_drop(cs->l1, key);
 
     /* Drop the unified record (both carriers: xattr + sidecar). LOCAL stores
      * also get the path-side unlink so a sidecar next to the local object is
      * gone even when the store driver namespaces keys differently. */
-    (void) xrootd_xmeta_remove(cs->store, key);
-    if (cs->meta_mode == XROOTD_CMETA_LOCAL) {
+    (void) brix_xmeta_remove(cs->store, key);
+    if (cs->meta_mode == BRIX_CMETA_LOCAL) {
         char path[PATH_MAX];
         char cipath[PATH_MAX];
 
         if (cstore_local_path(cs, key, path, sizeof(path)) == 0
-            && xrootd_cache_cinfo_path(cipath, sizeof(cipath), path) == 0)
+            && brix_cache_cinfo_path(cipath, sizeof(cipath), path) == 0)
         {
             (void) unlink(cipath);   /* vfs-seam-allow: svc-owned cache tree */
         }
@@ -296,20 +296,20 @@ xrootd_cstore_evict(xrootd_cstore_t *cs, const char *key)
 /* ---- cinfo ---------------------------------------------------------------- */
 
 ngx_int_t
-xrootd_cstore_cinfo_load(xrootd_cstore_t *cs, const char *key,
-    xrootd_cache_cinfo_t *ci)
+brix_cstore_cinfo_load(brix_cstore_t *cs, const char *key,
+    brix_cache_cinfo_t *ci)
 {
-    xrootd_xmeta_t xm;
+    brix_xmeta_t xm;
     ngx_int_t      rc;
 
     if (cs == NULL || key == NULL || ci == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }
-    if (xrootd_cinfo_l1_get(cs->l1, key, ci) == NGX_OK) {
+    if (brix_cinfo_l1_get(cs->l1, key, ci) == NGX_OK) {
         return NGX_OK;                          /* warm: no store round-trip */
     }
-    if (cs->meta_mode == XROOTD_CMETA_LOCAL) {
+    if (cs->meta_mode == BRIX_CMETA_LOCAL) {
         /* LOCAL: read via the path carrier so the record is shared with the
          * partial-fill/writethrough path-based writers (same file, same lock
          * discipline). */
@@ -321,29 +321,29 @@ xrootd_cstore_cinfo_load(xrootd_cstore_t *cs, const char *key,
             errno = ENAMETOOLONG;
             return NGX_ERROR;
         }
-        rc = xrootd_cache_cinfo_load(path, ci, &bitmap, &blen);
+        rc = brix_cache_cinfo_load(path, ci, &bitmap, &blen);
         free(bitmap);                           /* L1 caches only the header */
         if (rc == NGX_OK) {
-            xrootd_cinfo_l1_put(cs->l1, key, ci);
+            brix_cinfo_l1_put(cs->l1, key, ci);
         }
         return rc;
     }
 
-    rc = xrootd_xmeta_load(cs->store, key, &xm);
+    rc = brix_xmeta_load(cs->store, key, &xm);
     if (rc != NGX_OK) {
         return rc;
     }
-    xrootd_cache_cinfo_from_xmeta(&xm, ci);
-    xrootd_xmeta_free(&xm);
-    xrootd_cinfo_l1_put(cs->l1, key, ci);
+    brix_cache_cinfo_from_xmeta(&xm, ci);
+    brix_xmeta_free(&xm);
+    brix_cinfo_l1_put(cs->l1, key, ci);
     return NGX_OK;
 }
 
 ngx_int_t
-xrootd_cstore_cinfo_store(xrootd_cstore_t *cs, const char *key,
-    const xrootd_cache_cinfo_t *ci)
+brix_cstore_cinfo_store(brix_cstore_t *cs, const char *key,
+    const brix_cache_cinfo_t *ci)
 {
-    xrootd_xmeta_t xm;
+    brix_xmeta_t xm;
     ngx_int_t      rc;
 
     if (cs == NULL || key == NULL || ci == NULL) {
@@ -351,12 +351,12 @@ xrootd_cstore_cinfo_store(xrootd_cstore_t *cs, const char *key,
         return NGX_ERROR;
     }
 
-    if (cs->meta_mode == XROOTD_CMETA_LOCAL) {
+    if (cs->meta_mode == BRIX_CMETA_LOCAL) {
         /* LOCAL: preserve an existing present-bitmap (partial fills advance it
          * through the path-based writers under the per-file lock); a header
          * write must not clobber it. */
         char                  path[PATH_MAX];
-        xrootd_cache_cinfo_t  old;
+        brix_cache_cinfo_t  old;
         uint8_t              *bitmap = NULL;
         size_t                existing_len = 0;
         size_t                need_len;
@@ -365,30 +365,30 @@ xrootd_cstore_cinfo_store(xrootd_cstore_t *cs, const char *key,
             errno = ENAMETOOLONG;
             return NGX_ERROR;
         }
-        need_len = xrootd_cache_cinfo_bitmap_len(ci->nblocks);
-        if (xrootd_cache_cinfo_load(path, &old, &bitmap, &existing_len)
+        need_len = brix_cache_cinfo_bitmap_len(ci->nblocks);
+        if (brix_cache_cinfo_load(path, &old, &bitmap, &existing_len)
                 != NGX_OK
             || existing_len != need_len)
         {
             free(bitmap);
             bitmap = NULL;
         }
-        rc = xrootd_cache_cinfo_store(path, ci, bitmap,
+        rc = brix_cache_cinfo_store(path, ci, bitmap,
                                       bitmap != NULL ? need_len : 0);
         free(bitmap);
         if (rc == NGX_OK) {
-            xrootd_cinfo_l1_put(cs->l1, key, ci);    /* write-through (§6.4) */
+            brix_cinfo_l1_put(cs->l1, key, ci);    /* write-through (§6.4) */
         }
         return rc;
     }
 
-    if (xrootd_cache_cinfo_to_xmeta(ci, NULL, 0, &xm) != NGX_OK) {
+    if (brix_cache_cinfo_to_xmeta(ci, NULL, 0, &xm) != NGX_OK) {
         return NGX_ERROR;
     }
-    rc = xrootd_xmeta_save(cs->store, key, &xm);
-    xrootd_xmeta_free(&xm);
+    rc = brix_xmeta_save(cs->store, key, &xm);
+    brix_xmeta_free(&xm);
     if (rc == NGX_OK) {
-        xrootd_cinfo_l1_put(cs->l1, key, ci);        /* write-through (§6.4) */
+        brix_cinfo_l1_put(cs->l1, key, ci);        /* write-through (§6.4) */
     }
     return rc;
 }
@@ -408,11 +408,11 @@ cstore_is_sidecar(const char *name)
 
 /* Recursively visit cached objects beneath `dirkey` on the store. */
 static ngx_int_t
-cstore_scan_dir(xrootd_cstore_t *cs, const char *dirkey,
-    xrootd_cstore_visit_fn visit, void *ctx)
+cstore_scan_dir(brix_cstore_t *cs, const char *dirkey,
+    brix_cstore_visit_fn visit, void *ctx)
 {
-    xrootd_sd_dir_t    *d;
-    xrootd_sd_dirent_t  de;
+    brix_sd_dir_t    *d;
+    brix_sd_dirent_t  de;
     ngx_int_t           rc = NGX_OK;
     int                 err = 0;
     size_t              dklen = strlen(dirkey);
@@ -424,7 +424,7 @@ cstore_scan_dir(xrootd_cstore_t *cs, const char *dirkey,
 
     while (cs->store->driver->readdir(d, &de) == NGX_OK) {
         char             childkey[PATH_MAX];
-        xrootd_sd_stat_t stx;
+        brix_sd_stat_t stx;
         int              n;
 
         if (de.name[0] == '\0' || strcmp(de.name, ".") == 0
@@ -446,8 +446,8 @@ cstore_scan_dir(xrootd_cstore_t *cs, const char *dirkey,
         if (stx.is_dir) {
             rc = cstore_scan_dir(cs, childkey, visit, ctx);
         } else if (stx.is_reg) {
-            xrootd_cache_cinfo_t ci;
-            int loaded = (xrootd_cstore_cinfo_load(cs, childkey, &ci) == NGX_OK);
+            brix_cache_cinfo_t ci;
+            int loaded = (brix_cstore_cinfo_load(cs, childkey, &ci) == NGX_OK);
 
             /* Visit every regular object — with its cinfo when present, NULL when
              * not (orphan/partial) — and always the store stat, so an eviction
@@ -465,7 +465,7 @@ cstore_scan_dir(xrootd_cstore_t *cs, const char *dirkey,
 }
 
 ngx_int_t
-xrootd_cstore_scan(xrootd_cstore_t *cs, xrootd_cstore_visit_fn visit, void *ctx)
+brix_cstore_scan(brix_cstore_t *cs, brix_cstore_visit_fn visit, void *ctx)
 {
     if (cs == NULL || cs->store == NULL || visit == NULL) {
         errno = EINVAL;
@@ -483,9 +483,9 @@ xrootd_cstore_scan(xrootd_cstore_t *cs, xrootd_cstore_visit_fn visit, void *ctx)
 /* ---- introspection --------------------------------------------------------- */
 
 const char *
-xrootd_cstore_local_root(const xrootd_cstore_t *cs)
+brix_cstore_local_root(const brix_cstore_t *cs)
 {
-    if (cs == NULL || cs->meta_mode != XROOTD_CMETA_LOCAL
+    if (cs == NULL || cs->meta_mode != BRIX_CMETA_LOCAL
         || cs->local_root[0] == '\0')
     {
         return NULL;                            /* non-local store: no dir to reap */
@@ -496,7 +496,7 @@ xrootd_cstore_local_root(const xrootd_cstore_t *cs)
 /* ---- freespace ------------------------------------------------------------ */
 
 ngx_int_t
-xrootd_cstore_freespace(xrootd_cstore_t *cs, uint64_t *total, uint64_t *avail)
+brix_cstore_freespace(brix_cstore_t *cs, uint64_t *total, uint64_t *avail)
 {
     struct statvfs vfs;
 
@@ -504,7 +504,7 @@ xrootd_cstore_freespace(xrootd_cstore_t *cs, uint64_t *total, uint64_t *avail)
         errno = EINVAL;
         return NGX_ERROR;
     }
-    if (cs->meta_mode != XROOTD_CMETA_LOCAL || cs->local_root[0] == '\0') {
+    if (cs->meta_mode != BRIX_CMETA_LOCAL || cs->local_root[0] == '\0') {
         return NGX_DECLINED;                    /* non-local store: statf slot, SP2 */
     }
     if (statvfs(cs->local_root, &vfs) != 0) {

@@ -2,7 +2,7 @@
 #include "fs/backend/sd.h"      /* phase-55: route preadv through the SD seam */
 #include "core/compat/safe_size.h"   /* Phase 27 W1: overflow-checked size math */
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "protocols/root/connection/budget.h"
 #include "prefetch.h"
 #include "core/compat/range_vector.h"
@@ -11,19 +11,19 @@
 #include <stdlib.h>
 #include <sys/uio.h>
 
-#define XROOTD_MAX_READV_TOTAL  (256u * 1024u * 1024u)
-#define XROOTD_READV_PREADV_MAXIOV  64
+#define BRIX_MAX_READV_TOTAL  (256u * 1024u * 1024u)
+#define BRIX_READV_PREADV_MAXIOV  64
 
 /* Perform the readv I/O: coalesce contiguous same-fd segments into grouped
  * preadv calls (preserving on-wire order) and fill each segment's buffer.
  * Returns NGX_OK, or NGX_ERROR with the kXR error set. */
 ngx_int_t
-xrootd_readv_read_segments(xrootd_readv_seg_desc_t *segments,
+brix_readv_read_segments(brix_readv_seg_desc_t *segments,
     size_t segment_count, size_t *bytes_read_total, char *error_message,
     size_t error_message_len)
 {
-    struct iovec         iov[XROOTD_READV_PREADV_MAXIOV];
-    xrootd_byte_range_t *ranges;
+    struct iovec         iov[BRIX_READV_PREADV_MAXIOV];
+    brix_byte_range_t *ranges;
     size_t               segment_index;
     size_t               i;
 
@@ -38,8 +38,8 @@ xrootd_readv_read_segments(xrootd_readv_seg_desc_t *segments,
      * from the wire dlen and capped at recv time, but this guards a bypass). */
     {
         size_t ranges_sz;
-        if (segment_count == 0 || segment_count > XROOTD_READV_MAXSEGS
-            || xrootd_size_mul(segment_count, sizeof(*ranges), &ranges_sz)
+        if (segment_count == 0 || segment_count > BRIX_READV_MAXSEGS
+            || brix_size_mul(segment_count, sizeof(*ranges), &ranges_sz)
                != NGX_OK)
         {
             snprintf(error_message, error_message_len,
@@ -54,7 +54,7 @@ xrootd_readv_read_segments(xrootd_readv_seg_desc_t *segments,
     }
 
     /*
-     * Validate all segments upfront and build the xrootd_byte_range_t array
+     * Validate all segments upfront and build the brix_byte_range_t array
      * used by the shared coalescer.  Overflow and negative-offset errors are
      * caught here before any I/O.
      */
@@ -84,7 +84,7 @@ xrootd_readv_read_segments(xrootd_readv_seg_desc_t *segments,
     }
 
     for (segment_index = 0; segment_index < segment_count; ) {
-        xrootd_readv_seg_desc_t *first_segment = &segments[segment_index];
+        brix_readv_seg_desc_t *first_segment = &segments[segment_index];
         ngx_uint_t               run_count;
         size_t                   run_bytes;
         ngx_uint_t               k;
@@ -105,10 +105,10 @@ xrootd_readv_read_segments(xrootd_readv_seg_desc_t *segments,
          * The coalescer checks fd equality and byte adjacency using the
          * ranges array built above.
          */
-        run_count = xrootd_range_vector_next_coalesced_run(
+        run_count = brix_range_vector_next_coalesced_run(
             ranges, (ngx_uint_t) segment_count,
             (ngx_uint_t) segment_index,
-            (ngx_uint_t) XROOTD_READV_PREADV_MAXIOV);
+            (ngx_uint_t) BRIX_READV_PREADV_MAXIOV);
 
         /* Assemble the preadv iovec from the original segment descriptors. */
         run_bytes = 0;
@@ -119,14 +119,14 @@ xrootd_readv_read_segments(xrootd_readv_seg_desc_t *segments,
         }
 
         {
-            xrootd_sd_obj_t  scratch;
-            xrootd_sd_obj_t *obj;
+            brix_sd_obj_t  scratch;
+            brix_sd_obj_t *obj;
 
             /* Route the coalesced vectored read through the Storage Driver seam:
              * the handle's bound driver object when set (block-striped/object
              * backend), else a POSIX wrap of the fd (unchanged). The EINTR /
              * coalescing policy stays here. */
-            obj = xrootd_vfs_effective_obj(&first_segment->obj,
+            obj = brix_vfs_effective_obj(&first_segment->obj,
                                            first_segment->fd, &scratch);
             do {
                 bytes_read = obj->driver->preadv(
@@ -161,42 +161,42 @@ xrootd_readv_read_segments(xrootd_readv_seg_desc_t *segments,
  * element size, segment lengths within bounds), read all segments, and assemble
  * the chained response. */
 ngx_int_t
-xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_readv(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     /* phase-42 W4 invariant: readv is ALWAYS plaintext — it never consults
      * read_codec.  Inline read compression applies only to single-segment
      * kXR_read; readv's interleaved per-segment framing (and its pgread-style
      * integrity expectations) stay byte-for-byte intact. */
-    ngx_stream_xrootd_srv_conf_t *rconf;
+    ngx_stream_brix_srv_conf_t *rconf;
     size_t                          readv_seg_max;
     readahead_list                 *wire_segments;
     size_t                          segment_count;
     size_t                          segment_index;
     u_char                         *response_buffer;
     size_t                          max_response_bytes;
-    xrootd_readv_seg_desc_t        *segment_descs;
+    brix_readv_seg_desc_t        *segment_descs;
 
     if (ctx->payload == NULL || ctx->cur_dlen == 0 ||
-        (ctx->cur_dlen % XROOTD_READV_SEGSIZE) != 0)
+        (ctx->cur_dlen % BRIX_READV_SEGSIZE) != 0)
     {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_READV);
-        return xrootd_send_error(ctx, c, kXR_ArgInvalid,
+        BRIX_OP_ERR(ctx, BRIX_OP_READV);
+        return brix_send_error(ctx, c, kXR_ArgInvalid,
                                  "malformed readv request");
     }
 
     wire_segments = (readahead_list *) ctx->payload;
-    segment_count = ctx->cur_dlen / XROOTD_READV_SEGSIZE;
+    segment_count = ctx->cur_dlen / BRIX_READV_SEGSIZE;
 
     /* Phase 27 W2/F1: explicit segment-count cap at the callsite (defense in
      * depth over the recv-layer payload cap). */
-    if (segment_count == 0 || segment_count > XROOTD_READV_MAXSEGS) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_READV);
-        return xrootd_send_error(ctx, c, kXR_ArgTooLong,
+    if (segment_count == 0 || segment_count > BRIX_READV_MAXSEGS) {
+        BRIX_OP_ERR(ctx, BRIX_OP_READV);
+        return brix_send_error(ctx, c, kXR_ArgTooLong,
                                  "readv segment count exceeds server limit");
     }
 
     rconf = ngx_stream_get_module_srv_conf(
-        (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
+        (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
 
     /* Per-element read cap = the configured readv segment size (official
      * maxReadv_ior, advertised via Qconfig readv_ior_max).  An element requesting
@@ -223,51 +223,51 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
         read_length =
             (uint32_t) ntohl((uint32_t) wire_segments[segment_index].rlen);
 
-        if (!xrootd_validate_read_handle(ctx, c, handle_index, "READV",
-                                         XROOTD_OP_READV, &validate_rc)) {
+        if (!brix_validate_read_handle(ctx, c, handle_index, "READV",
+                                         BRIX_OP_READV, &validate_rc)) {
             return validate_rc;
         }
 
         if ((size_t) read_length > readv_seg_max) {
             read_length = (uint32_t) readv_seg_max;
         }
-        max_response_bytes += XROOTD_READV_SEGSIZE + read_length;
+        max_response_bytes += BRIX_READV_SEGSIZE + read_length;
 
-        if (max_response_bytes > XROOTD_MAX_READV_TOTAL) {
-            XROOTD_OP_ERR(ctx, XROOTD_OP_READV);
-            return xrootd_send_error(ctx, c, kXR_ArgTooLong,
+        if (max_response_bytes > BRIX_MAX_READV_TOTAL) {
+            BRIX_OP_ERR(ctx, BRIX_OP_READV);
+            return brix_send_error(ctx, c, kXR_ArgTooLong,
                                      "readv total would exceed server limit");
         }
     }
 
-    xrootd_prefetch_readv_segments(ctx, c, wire_segments, segment_count,
+    brix_prefetch_readv_segments(ctx, c, wire_segments, segment_count,
                                    readv_seg_max);
 
     /*
      * Phase 31 W4: kXR_readv assembles its whole response (up to
-     * XROOTD_MAX_READV_TOTAL = 256 MiB) in read_scratch.  Admit it against the
+     * BRIX_MAX_READV_TOTAL = 256 MiB) in read_scratch.  Admit it against the
      * SHM-global transfer budget so a burst of large readv requests cannot blow
      * the memory cap; over budget, defer with kXR_wait and let the client
      * re-issue.  (readv is not yet windowed like kXR_read — a single large readv
      * still allocates its full response; the budget bounds the aggregate.)
      */
-    if (!xrootd_budget_admit(ctx, rconf->memory_budget, max_response_bytes)) {
-        return xrootd_send_wait(ctx, c, 1);
+    if (!brix_budget_admit(ctx, rconf->memory_budget, max_response_bytes)) {
+        return brix_send_wait(ctx, c, 1);
     }
 
-    response_buffer = XROOTD_GET_SCRATCH(ctx, c, read_scratch,
+    response_buffer = BRIX_GET_SCRATCH(ctx, c, read_scratch,
                                          read_scratch_size, max_response_bytes);
     if (response_buffer == NULL) {
         return NGX_ERROR;
     }
 
     /* Charge the assembled-response footprint to the budget promptly. */
-    xrootd_budget_sync(ctx);
+    brix_budget_sync(ctx);
 
-    segment_descs = xrootd_alloc_array(c->log, segment_count,
-                                       sizeof(xrootd_readv_seg_desc_t));
+    segment_descs = brix_alloc_array(c->log, segment_count,
+                                       sizeof(brix_readv_seg_desc_t));
     if (segment_descs == NULL) {
-        xrootd_release_read_buffer(ctx, c, response_buffer);
+        brix_release_read_buffer(ctx, c, response_buffer);
         return NGX_ERROR;
     }
 
@@ -312,25 +312,25 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
             segment_descs[segment_index].header_read_length_ptr =
                 response_cursor + 4;
             segment_descs[segment_index].payload_ptr =
-                response_cursor + XROOTD_READV_SEGSIZE;
+                response_cursor + BRIX_READV_SEGSIZE;
 
-            response_cursor += XROOTD_READV_SEGSIZE + read_length;
+            response_cursor += BRIX_READV_SEGSIZE + read_length;
         }
     }
 
     {
         if (rconf->common.thread_pool != NULL) {
             ngx_thread_task_t       *task;
-            xrootd_readv_aio_t      *t;
+            brix_readv_aio_t      *t;
             ngx_flag_t               posted;
 
             task = ctx->readv_aio_task;
             if (task == NULL) {
                 task = ngx_thread_task_alloc(c->pool,
-                                             sizeof(xrootd_readv_aio_t));
+                                             sizeof(brix_readv_aio_t));
                 if (task == NULL) {
                     ngx_free(segment_descs);
-                    xrootd_release_read_buffer(ctx, c, response_buffer);
+                    brix_release_read_buffer(ctx, c, response_buffer);
                     return NGX_ERROR;
                 }
                 ctx->readv_aio_task = task;
@@ -351,9 +351,9 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
             t->streamid[0] = ctx->cur_streamid[0];
             t->streamid[1] = ctx->cur_streamid[1];
 
-            xrootd_task_bind(task, xrootd_readv_aio_thread, xrootd_readv_aio_done);
+            brix_task_bind(task, brix_readv_aio_thread, brix_readv_aio_done);
 
-            (void) xrootd_aio_post_task(ctx, c, rconf->common.thread_pool, task,
+            (void) brix_aio_post_task(ctx, c, rconf->common.thread_pool, task,
                                         "xrootd: thread_task_post failed, falling back to sync readv",
                                         &posted);
             if (posted) {
@@ -367,23 +367,23 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
         size_t       response_bytes;
         ngx_chain_t *rsp_chain;
         char         error_message[128];
-        xrootd_vfs_job_t job;
+        brix_vfs_job_t job;
 
         error_message[0] = '\0';
         ngx_memzero(&job, sizeof(job));
-        job.op = XROOTD_VFS_IO_READV;
+        job.op = BRIX_VFS_IO_READV;
         job.segs = segment_descs;
         job.nsegs = segment_count;
         job.err_msg = error_message;
         job.err_msg_cap = sizeof(error_message);
 
-        xrootd_vfs_io_execute(&job);
+        brix_vfs_io_execute(&job);
 
         if (job.io_errno != 0) {
             ngx_free(segment_descs);
-            xrootd_release_read_buffer(ctx, c, response_buffer);
-            XROOTD_OP_ERR(ctx, XROOTD_OP_READV);
-            return xrootd_send_error(ctx, c, kXR_IOError,
+            brix_release_read_buffer(ctx, c, response_buffer);
+            BRIX_OP_ERR(ctx, BRIX_OP_READV);
+            return brix_send_error(ctx, c, kXR_IOError,
                                      error_message[0] ? error_message
                                                        : "readv I/O error");
         }
@@ -403,25 +403,25 @@ xrootd_handle_readv(xrootd_ctx_t *ctx, ngx_connection_t *c)
             char detail[64];
 
             snprintf(detail, sizeof(detail), "%zu_segs", segment_count);
-            xrootd_log_access(ctx, c, "READV", "-", detail, 1, 0, NULL,
+            brix_log_access(ctx, c, "READV", "-", detail, 1, 0, NULL,
                               bytes_read_total);
         }
-        XROOTD_OP_OK(ctx, XROOTD_OP_READV);
+        BRIX_OP_OK(ctx, BRIX_OP_READV);
         ctx->session_bytes += bytes_read_total;
 
-        rsp_chain = xrootd_build_chunked_chain(ctx, c, response_buffer,
+        rsp_chain = brix_build_chunked_chain(ctx, c, response_buffer,
                                                response_bytes);
         if (rsp_chain == NULL) {
-            xrootd_release_read_buffer(ctx, c, response_buffer);
+            brix_release_read_buffer(ctx, c, response_buffer);
             return NGX_ERROR;
         }
 
         {
-            ngx_int_t rc = xrootd_queue_response_chain(ctx, c, rsp_chain,
+            ngx_int_t rc = brix_queue_response_chain(ctx, c, rsp_chain,
                                                        response_buffer);
 
             if (rc != NGX_OK || ctx->state != XRD_ST_SENDING) {
-                xrootd_release_read_buffer(ctx, c, response_buffer);
+                brix_release_read_buffer(ctx, c, response_buffer);
             }
             return rc;
         }

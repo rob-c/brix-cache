@@ -104,10 +104,10 @@ s3_post_basename(char *s)
  *       on success) so a partial/failed upload never leaves a corrupt object
  *       visible — the same durability contract as PUT. The VFS layer keeps every
  *       op confined to root_canon and meters the publish (OP_WRITE) + access log.
- * HOW:  ensure the parent directory exists (xrootd_vfs_mkdir, parents=1), open a
- *       staged handle (xrootd_vfs_staged_open), pwrite the whole buffer to its
+ * HOW:  ensure the parent directory exists (brix_vfs_mkdir, parents=1), open a
+ *       staged handle (brix_vfs_staged_open), pwrite the whole buffer to its
  *       fd, commit (atomic rename), then stat the result for the ETag.
- * Cleanup: any write error calls xrootd_vfs_staged_abort (discard temp) before
+ * Cleanup: any write error calls brix_vfs_staged_abort (discard temp) before
  *       returning NGX_ERROR, so no orphan temp file is left behind.
  * Returns NGX_OK (object committed, etag set) or NGX_ERROR.
  */
@@ -116,8 +116,8 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     const s3_post_form_t *form, const char *fs_path, char *etag,
     size_t etag_sz)
 {
-    xrootd_vfs_ctx_t     vctx;
-    xrootd_vfs_staged_t *st;
+    brix_vfs_ctx_t     vctx;
+    brix_vfs_staged_t *st;
     int                  vfs_err;
     off_t                off = 0;
     ngx_fd_t             stfd;
@@ -136,11 +136,11 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
             last_slash = strrchr(parent, '/');
             /* Skip if the slash is the root itself (last_slash == parent). */
             if (last_slash && last_slash != parent) {
-                xrootd_vfs_ctx_t pctx;
+                brix_vfs_ctx_t pctx;
 
                 *last_slash = '\0';
                 s3_build_vfs_ctx(r, parent, cf, &pctx);
-                if (xrootd_vfs_mkdir(&pctx, 0755, 1 /* parents */) != NGX_OK
+                if (brix_vfs_mkdir(&pctx, 0755, 1 /* parents */) != NGX_OK
                     && errno != EEXIST)
                 {
                     return NGX_ERROR;
@@ -150,7 +150,7 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     }
 
     s3_build_vfs_ctx(r, fs_path, cf, &vctx);
-    st = xrootd_vfs_staged_open(&vctx, 0600, 16, &vfs_err);
+    st = brix_vfs_staged_open(&vctx, 0600, 16, &vfs_err);
     if (st == NULL) {
         errno = vfs_err;
         return NGX_ERROR;
@@ -158,16 +158,16 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 
     /* Write the full in-memory file part through the storage seam; the VFS
      * primitive handles EINTR and short writes. */
-    stfd = xrootd_vfs_staged_fd(st);
-    if (xrootd_vfs_pwrite_full(stfd, form->file_data, form->file_len, off)
+    stfd = brix_vfs_staged_fd(st);
+    if (brix_vfs_pwrite_full(stfd, form->file_data, form->file_len, off)
         != NGX_OK)
     {
-        xrootd_vfs_staged_abort(st, 1);
+        brix_vfs_staged_abort(st, 1);
         return NGX_ERROR;
     }
 
     /* Atomically publish the staged temp as the final object. */
-    if (xrootd_vfs_staged_commit(st, 0 /* not exclusive */) != NGX_OK) {
+    if (brix_vfs_staged_commit(st, 0 /* not exclusive */) != NGX_OK) {
         return NGX_ERROR;
     }
 
@@ -176,9 +176,9 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
      * followed) and non-metered (the PostObject op already accounts for this
      * upload; a per-upload OP_STAT would inflate the stat counter). */
     {
-        xrootd_vfs_stat_t vst;
+        brix_vfs_stat_t vst;
 
-        if (xrootd_vfs_probe(&vctx, 1 /* no-follow */, &vst) == NGX_OK) {
+        if (brix_vfs_probe(&vctx, 1 /* no-follow */, &vst) == NGX_OK) {
             ngx_memzero(&sb, sizeof(sb));
             sb.st_mtime = vst.mtime;
             sb.st_size  = vst.size;
@@ -219,11 +219,11 @@ void
 s3_post_object_body_handler(ngx_http_request_t *r)
 {
     ngx_http_s3_req_ctx_t *rx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+        ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
 
-    xrootd_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    brix_imp_request_begin(rx != NULL ? rx->identity : NULL);
     s3_post_object_body_handler_inner(r);
-    xrootd_imp_request_end();
+    brix_imp_request_end();
 }
 
 
@@ -239,34 +239,34 @@ s3_post_object_body_handler_inner(ngx_http_request_t *r)
     char                    etag[48];
     ngx_int_t               rc;
 
-    cf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
+    cf = ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
     ngx_memzero(&form, sizeof(form));
 
     if (s3_post_boundary(r, boundary, sizeof(boundary)) != NGX_OK) {
         s3_metrics_finalize_request_method(
-            r, XROOTD_S3_METHOD_POST,
+            r, BRIX_S3_METHOD_POST,
             s3_post_error(r, NGX_HTTP_BAD_REQUEST, "MalformedPOSTRequest",
                           "POST Object requires multipart/form-data."));
         return;
     }
 
-    rc = xrootd_http_body_read_all(r, S3_POST_MAX_BODY, &body, &body_len);
+    rc = brix_http_body_read_all(r, S3_POST_MAX_BODY, &body, &body_len);
     if (rc == NGX_DECLINED) {
         s3_metrics_finalize_request_method(
-            r, XROOTD_S3_METHOD_POST,
+            r, BRIX_S3_METHOD_POST,
             s3_post_error(r, NGX_HTTP_REQUEST_ENTITY_TOO_LARGE,
                           "EntityTooLarge", "POST body is too large."));
         return;
     }
     if (rc != NGX_OK) {
-        s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_POST,
+        s3_metrics_finalize_request_method(r, BRIX_S3_METHOD_POST,
                                            NGX_HTTP_INTERNAL_SERVER_ERROR);
         return;
     }
 
     if (s3_post_parse_form(r, body, body_len, boundary, &form) != NGX_OK) {
         s3_metrics_finalize_request_method(
-            r, XROOTD_S3_METHOD_POST,
+            r, BRIX_S3_METHOD_POST,
             s3_post_error(r, NGX_HTTP_BAD_REQUEST, "MalformedPOSTRequest",
                           "The multipart form-data body is invalid."));
         return;
@@ -274,7 +274,7 @@ s3_post_object_body_handler_inner(ngx_http_request_t *r)
 
     if (!form.have_file || form.key[0] == '\0') {
         s3_metrics_finalize_request_method(
-            r, XROOTD_S3_METHOD_POST,
+            r, BRIX_S3_METHOD_POST,
             s3_post_error(r, NGX_HTTP_BAD_REQUEST, "InvalidArgument",
                           "POST Object requires key and file fields."));
         return;
@@ -285,7 +285,7 @@ s3_post_object_body_handler_inner(ngx_http_request_t *r)
                            fs_path, sizeof(fs_path)))
     {
         s3_metrics_finalize_request_method(
-            r, XROOTD_S3_METHOD_POST,
+            r, BRIX_S3_METHOD_POST,
             s3_post_error(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
                           "Access Denied."));
         return;
@@ -293,7 +293,7 @@ s3_post_object_body_handler_inner(ngx_http_request_t *r)
 
     rc = s3_post_verify_policy(r, cf, &form);
     if (rc != NGX_OK) {
-        s3_metrics_finalize_request_method(r, XROOTD_S3_METHOD_POST, rc);
+        s3_metrics_finalize_request_method(r, BRIX_S3_METHOD_POST, rc);
         return;
     }
 
@@ -304,7 +304,7 @@ s3_post_object_body_handler_inner(ngx_http_request_t *r)
          * A confined create that fails with EACCES/EPERM/EXDEV is a forbidden
          * write, not a server fault, and must surface as 403 AccessDenied (the
          * same contract the shared errno table gives every other handler).
-         * Under impersonation (`xrootd_impersonation map`) the create is brokered
+         * Under impersonation (`brix_impersonation map`) the create is brokered
          * as the mapped user, so a missing/unmappable principal or a DAC-denied
          * target dir lands here — a clean 403, never a 500.  Genuine I/O faults
          * (EIO/ENOSPC/...) keep their 5xx mapping.  The staged-file pattern
@@ -312,23 +312,23 @@ s3_post_object_body_handler_inner(ngx_http_request_t *r)
          */
         int werrno = errno;
 
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-        if (xrootd_http_map_errno(werrno) == NGX_HTTP_FORBIDDEN) {
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
+        if (brix_http_map_errno(werrno) == NGX_HTTP_FORBIDDEN) {
             s3_metrics_finalize_request_method(
-                r, XROOTD_S3_METHOD_POST,
+                r, BRIX_S3_METHOD_POST,
                 s3_post_error(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
                               "Access Denied."));
         } else {
             s3_metrics_finalize_request_method(
-                r, XROOTD_S3_METHOD_POST,
-                (ngx_int_t) xrootd_http_map_errno(werrno));
+                r, BRIX_S3_METHOD_POST,
+                (ngx_int_t) brix_http_map_errno(werrno));
         }
         return;
     }
 
-    XROOTD_S3_METRIC_ADD(bytes_rx_total, form.file_len);
+    BRIX_S3_METRIC_ADD(bytes_rx_total, form.file_len);
 
     s3_metrics_finalize_request_method(
-        r, XROOTD_S3_METHOD_POST,
+        r, BRIX_S3_METHOD_POST,
         s3_post_send_success(r, cf, &form, etag));
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # run_credential_webdav_xroot.sh — §14 http-scope parity (phase-63): the
-# xrootd_credential block + xrootd_webdav_storage_credential work at HTTP (WebDAV)
+# brix_credential block + brix_webdav_storage_credential work at HTTP (WebDAV)
 # scope, sharing the same process-wide credential registry as the stream scope. A
 # WebDAV export whose PRIMARY is a TOKEN-AUTH root:// origin authenticates via the
 # sd_xroot ztn path (C-3 token half) using the named credential. GET byte-exact with
@@ -25,10 +25,10 @@ cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${OPORT}; xrootd on; xrootd_root $PFX/o/root;
-    xrootd_auth token; xrootd_token_jwks $PFX/tok/jwks.json;
-    xrootd_token_issuer https://test.example.com; xrootd_token_audience nginx-xrootd;
-    xrootd_allow_write on;
+    listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root;
+    brix_auth token; brix_token_jwks $PFX/tok/jwks.json;
+    brix_token_issuer https://test.example.com; brix_token_audience nginx-xrootd;
+    brix_allow_write on;
 } }
 EOF
 # WebDAV node W — http-scope credential block + reference.
@@ -37,13 +37,13 @@ daemon on; error_log $PFX/w/logs/e.log info; pid $PFX/w/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 http {
-    xrootd_credential origin { token_file $PFX/token.jwt; }
+    brix_credential origin { token_file $PFX/token.jwt; }
     server {
         listen 127.0.0.1:${WPORT};
         location / {
-            xrootd_webdav on; xrootd_webdav_root $PFX/w/export; xrootd_webdav_auth none;
-            xrootd_webdav_storage_backend    root://127.0.0.1:${OPORT};
-            xrootd_webdav_storage_credential origin;
+            brix_webdav on; brix_webdav_root $PFX/w/export; brix_webdav_auth none;
+            brix_webdav_storage_backend    root://127.0.0.1:${OPORT};
+            brix_webdav_storage_credential origin;
         }
     }
 }
@@ -54,8 +54,8 @@ daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 http { server { listen 127.0.0.1:${NPORT}; location / {
-    xrootd_webdav on; xrootd_webdav_root $PFX/n/export; xrootd_webdav_auth none;
-    xrootd_webdav_storage_backend root://127.0.0.1:${OPORT};
+    brix_webdav on; brix_webdav_root $PFX/n/export; brix_webdav_auth none;
+    brix_webdav_storage_backend root://127.0.0.1:${OPORT};
 } } }
 EOF
 

@@ -38,10 +38,10 @@ FAULT_PROXY = os.path.join(CLIENT_BIN, "fault_proxy")
 # the main suite (which lives in 11094-12126 under /tmp/xrd-test).
 PREFIX = os.environ.get("RESIL_PREFIX", "/tmp/xrd-resilience")
 NGINX_BIN = os.environ.get("RESIL_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
-XROOTD_BIN = os.environ.get("RESIL_XROOTD_BIN") or shutil.which("xrootd")
+BRIX_BIN = os.environ.get("RESIL_BRIX_BIN") or shutil.which("xrootd")
 
 NGINX_GSI_PORT = int(os.environ.get("RESIL_NGINX_GSI_PORT", "13901"))
-XROOTD_GSI_PORT = int(os.environ.get("RESIL_XROOTD_GSI_PORT", "13902"))
+BRIX_GSI_PORT = int(os.environ.get("RESIL_BRIX_GSI_PORT", "13902"))
 
 PKI_DIR = os.path.join(PREFIX, "pki")
 CA_DIR = os.path.join(PKI_DIR, "ca")
@@ -166,13 +166,13 @@ stream {{
     server {{
         listen 127.0.0.1:{port};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth gsi;
-        xrootd_allow_write on;
-        xrootd_certificate     {server_cert};
-        xrootd_certificate_key {server_key};
-        xrootd_trusted_ca      {ca_cert};
-        xrootd_access_log {logs}/xrootd_access_gsi.log;
+        brix_storage_backend posix:{data};
+        brix_auth gsi;
+        brix_allow_write on;
+        brix_certificate     {server_cert};
+        brix_certificate_key {server_key};
+        brix_trusted_ca      {ca_cert};
+        brix_access_log {logs}/brix_access_gsi.log;
     }}
 }}
 """
@@ -236,17 +236,17 @@ stream {{
     server {{
         listen 127.0.0.1:{port};
         xrootd on;
-        xrootd_storage_backend posix:{data};
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_access_log {logs}/xrootd_access_anon.log;
+        brix_storage_backend posix:{data};
+        brix_auth none;
+        brix_allow_write on;
+        brix_access_log {logs}/brix_access_anon.log;
     }}
 }}
 """
 
 
 class NginxAnon:
-    """A dedicated nginx serving root:// with NO authentication (`xrootd_auth
+    """A dedicated nginx serving root:// with NO authentication (`brix_auth
     none`) on its own port and data root — for tests that exercise the data plane
     (read/write, resilience) without depending on the GSI/PKI machinery.  Same
     lifecycle as NginxGsi; uses a separate prefix so the two never collide."""
@@ -288,7 +288,7 @@ class NginxAnon:
 
 # --- official xrootd (GSI) ----------------------------------------------------
 
-_XROOTD_CFG = """\
+_BRIX_CFG = """\
 xrd.port {port}
 xrd.network nodnr
 xrd.allow host *
@@ -311,7 +311,7 @@ class XrootdGsi:
     probe the fleet uses cannot authenticate, which is why its 11099 readiness
     check spuriously fails."""
 
-    def __init__(self, port=XROOTD_GSI_PORT):
+    def __init__(self, port=BRIX_GSI_PORT):
         self.port = port
         self.prefix = os.path.join(PREFIX, "xrootd")
         self.data = os.path.join(self.prefix, "data")
@@ -323,7 +323,7 @@ class XrootdGsi:
         self.proc = None
 
     def __enter__(self):
-        if not XROOTD_BIN:
+        if not BRIX_BIN:
             raise RuntimeError("official `xrootd` daemon not found on PATH")
         seclib = find_sec_lib()
         if not seclib:
@@ -331,7 +331,7 @@ class XrootdGsi:
         for d in (self.data, self.admin, self.run, self.logs):
             os.makedirs(d, exist_ok=True)
         with open(self.cfg, "w") as fh:
-            fh.write(_XROOTD_CFG.format(
+            fh.write(_BRIX_CFG.format(
                 port=self.port, data=self.data, admin=self.admin, run=self.run,
                 seclib=seclib, ca_dir=CA_DIR,
                 server_cert=SERVER_CERT, server_key=SERVER_KEY,
@@ -339,7 +339,7 @@ class XrootdGsi:
         env = dict(os.environ)
         env.pop("LD_LIBRARY_PATH", None)
         self.proc = subprocess.Popen(
-            [XROOTD_BIN, "-c", self.cfg, "-l", self.log],
+            [BRIX_BIN, "-c", self.cfg, "-l", self.log],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
         )
         _wait_port(self.port, proc=self.proc)
@@ -372,7 +372,7 @@ class XrootdGsi:
 
 # --- official xrootd (anonymous, no auth) ------------------------------------
 
-_XROOTD_ANON_CFG = """\
+_BRIX_ANON_CFG = """\
 xrd.port {port}
 xrd.network nodnr
 xrd.allow host *
@@ -393,7 +393,7 @@ class XrootdAnon:
 
     def __init__(self, port=None):
         self.port = port or free_port()
-        self.prefix = os.path.join(PREFIX, "xrootd_anon")
+        self.prefix = os.path.join(PREFIX, "brix_anon")
         self.data = os.path.join(self.prefix, "data")
         self.admin = os.path.join(self.prefix, "admin")
         self.run = os.path.join(self.prefix, "run")
@@ -403,17 +403,17 @@ class XrootdAnon:
         self.proc = None
 
     def __enter__(self):
-        if not XROOTD_BIN:
+        if not BRIX_BIN:
             raise RuntimeError("official `xrootd` daemon not found on PATH")
         for d in (self.data, self.admin, self.run, self.logs):
             os.makedirs(d, exist_ok=True)
         with open(self.cfg, "w") as fh:
-            fh.write(_XROOTD_ANON_CFG.format(
+            fh.write(_BRIX_ANON_CFG.format(
                 port=self.port, data=self.data, admin=self.admin, run=self.run))
         env = dict(os.environ)
         env.pop("LD_LIBRARY_PATH", None)
         self.proc = subprocess.Popen(
-            [XROOTD_BIN, "-c", self.cfg, "-l", self.log],
+            [BRIX_BIN, "-c", self.cfg, "-l", self.log],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
         )
         _wait_port(self.port, proc=self.proc)

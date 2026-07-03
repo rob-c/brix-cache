@@ -1,5 +1,5 @@
-#ifndef XROOTD_SSI_CTA_PB_WIRE_H
-#define XROOTD_SSI_CTA_PB_WIRE_H
+#ifndef BRIX_SSI_CTA_PB_WIRE_H
+#define BRIX_SSI_CTA_PB_WIRE_H
 
 /*
  * pb_wire.h — minimal protobuf wire-format primitives (no external library).
@@ -49,4 +49,4 @@ int pb_write_len_delim(pb_writer *w, uint32_t field,
 int pb_write_string(pb_writer *w, uint32_t field, const char *s);
 int pb_write_varint_field(pb_writer *w, uint32_t field, uint64_t v);
 
-#endif /* XROOTD_SSI_CTA_PB_WIRE_H */
+#endif /* BRIX_SSI_CTA_PB_WIRE_H */

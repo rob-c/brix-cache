@@ -4,7 +4,7 @@
 
 /* WHY: HTTP-TPC (HTTP Third-Party Copy) requires OAuth2/OIDC credentials to authenticate against the source server during pull transfers. The access_token is obtained by curling the OIDC provider's token endpoint and must be passed as a Credential header to the source WebDAV server. Defensive bounds checking (TPC_CRED_MAX_TOKEN_LEN) prevents runaway memory consumption on malformed JSON responses — attackers could craft arbitrarily long "access_token" values to trigger OOM conditions. */
 
-/* HOW: Call xrootd_oauth2_parse_access_token() from src/token/oauth2.c into a bounded stack buffer, allocate the exact ngx_str_t payload from r->pool, copy and NUL-terminate it. Errors are logged with the parser's diagnostic string. */
+/* HOW: Call brix_oauth2_parse_access_token() from src/token/oauth2.c into a bounded stack buffer, allocate the exact ngx_str_t payload from r->pool, copy and NUL-terminate it. Errors are logged with the parser's diagnostic string. */
 
 #include "tpc_cred_internal.h"
 #include "auth/token/oauth2.h"
@@ -26,7 +26,7 @@ tpc_cred_parse_token_response(ngx_http_request_t *r,
     char err[256];
     size_t tok_len;
 
-    if (xrootd_oauth2_parse_access_token(json, token, sizeof(token),
+    if (brix_oauth2_parse_access_token(json, token, sizeof(token),
                                          err, sizeof(err)) != NGX_OK)
     {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,

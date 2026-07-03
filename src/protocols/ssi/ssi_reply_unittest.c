@@ -33,11 +33,11 @@ static void
 test_full_response_layout(void)
 {
     unsigned char out[64];
-    size_t n = xrootd_ssi_reply_build(XROOTD_SSI_ATTN_FULL,
+    size_t n = brix_ssi_reply_build(BRIX_SSI_ATTN_FULL,
                                       (const unsigned char *) "m", 1,
                                       (const unsigned char *) "hi", 2, out);
     CHECK(n == 19);                              /* 16 prefix + 1 md + 2 data */
-    CHECK(xrootd_ssi_reply_len(1, 2) == 19);
+    CHECK(brix_ssi_reply_len(1, 2) == 19);
     CHECK(out[0] == ':');                        /* fullResp tag */
 
     unsigned pfx, md; long db;
@@ -54,7 +54,7 @@ static void
 test_no_metadata(void)
 {
     unsigned char out[64];
-    size_t n = xrootd_ssi_reply_build(XROOTD_SSI_ATTN_FULL, NULL, 0,
+    size_t n = brix_ssi_reply_build(BRIX_SSI_ATTN_FULL, NULL, 0,
                                       (const unsigned char *) "data", 4, out);
     CHECK(n == 20);
     unsigned pfx, md; long db;
@@ -67,7 +67,7 @@ static void
 test_alert_tag(void)
 {
     unsigned char out[32];
-    size_t n = xrootd_ssi_reply_build(XROOTD_SSI_ATTN_ALRT,
+    size_t n = brix_ssi_reply_build(BRIX_SSI_ATTN_ALRT,
                                       (const unsigned char *) "go", 2, NULL, 0, out);
     CHECK(out[0] == '!');
     CHECK(n == 18);

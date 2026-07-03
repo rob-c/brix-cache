@@ -3,7 +3,7 @@ tests/test_put_content_encoding.py
 
 Coverage gap #4 (test-coverage-gap-audit): Content-Encoding gzip/deflate
 decompress-on-store for PUT bodies (WebDAV src/protocols/webdav/put.c + S3 src/protocols/s3/put.c,
-both via src/core/http/http_body.c::xrootd_http_body_inflate_to_fd).
+both via src/core/http/http_body.c::brix_http_body_inflate_to_fd).
 
 No test exercised this at all.  The contract:
   * PUT with `Content-Encoding: gzip`    (window_bits 31) → stored = ORIGINAL bytes
@@ -81,19 +81,19 @@ http {{
     server {{
         listen {BIND_HOST}:{WEBDAV_PORT};
         location / {{
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:{wroot};
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
+            brix_webdav on;
+            brix_webdav_storage_backend posix:{wroot};
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
         }}
     }}
     server {{
         listen {BIND_HOST}:{S3_PORT};
         location / {{
-            xrootd_s3 on;
-            xrootd_s3_storage_backend posix:{sroot};
-            xrootd_s3_bucket {BUCKET};
-            xrootd_s3_allow_write on;
+            brix_s3 on;
+            brix_s3_storage_backend posix:{sroot};
+            brix_s3_bucket {BUCKET};
+            brix_s3_allow_write on;
         }}
     }}
 }}

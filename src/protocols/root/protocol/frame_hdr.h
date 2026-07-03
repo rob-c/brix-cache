@@ -17,8 +17,8 @@
  *
  * Clean-room: layouts from src/protocol (cross-checked vs XProtocol.hh).
  */
-#ifndef XROOTD_PROTOCOL_FRAME_HDR_H
-#define XROOTD_PROTOCOL_FRAME_HDR_H
+#ifndef BRIX_PROTOCOL_FRAME_HDR_H
+#define BRIX_PROTOCOL_FRAME_HDR_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -124,4 +124,4 @@ xrd_error_body_decode(const uint8_t *body, uint32_t dlen, int *errnum,
     return 0;
 }
 
-#endif /* XROOTD_PROTOCOL_FRAME_HDR_H */
+#endif /* BRIX_PROTOCOL_FRAME_HDR_H */

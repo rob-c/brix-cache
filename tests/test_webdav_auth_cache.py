@@ -67,7 +67,7 @@ def _read_log(path):
 def test_cached_ca_store_built_once_and_reused(webdav_auth_cache_nginx):
     info = webdav_auth_cache_nginx
     log_before = _read_log(info["startup_log"])
-    built_before = log_before.count("xrootd_webdav: cached CA store built")
+    built_before = log_before.count("brix_webdav: cached CA store built")
     assert built_before == 2, log_before
 
     for _ in range(3):
@@ -76,7 +76,7 @@ def test_cached_ca_store_built_once_and_reused(webdav_auth_cache_nginx):
 
     startup_after = _read_log(info["startup_log"])
     runtime_after = _read_log(info["log"])
-    assert startup_after.count("xrootd_webdav: cached CA store built") == built_before
+    assert startup_after.count("brix_webdav: cached CA store built") == built_before
     assert "GSI auth OK source=manual" in runtime_after
 
 

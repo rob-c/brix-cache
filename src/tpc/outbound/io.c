@@ -34,7 +34,7 @@
 /* WHAT: Send all bytes from buf over fd using send() loop — continues on EINTR, returns -1 on any other failure. Returns 0 on full write success. Caller: thread.c, bootstrap.c, source.c (wire I/O pipeline). */
 
 int
-tpc_send_all(xrootd_tpc_pull_t *t, int fd, const void *buf, size_t len)
+tpc_send_all(brix_tpc_pull_t *t, int fd, const void *buf, size_t len)
 {
     const u_char *cursor = buf;
     SSL          *ssl = (t != NULL) ? (SSL *) t->tls : NULL;
@@ -67,7 +67,7 @@ tpc_send_all(xrootd_tpc_pull_t *t, int fd, const void *buf, size_t len)
 /* WHAT: Receive exactly len bytes into buf over fd using recv() loop — continues on EINTR, returns -1 on any other failure. Returns 0 on full read success. Caller: tpc_recv_response (header + payload), thread.c (wire I/O pipeline). */
 
 static int
-tpc_recv_exact(xrootd_tpc_pull_t *t, int fd, void *buf, size_t len)
+tpc_recv_exact(brix_tpc_pull_t *t, int fd, void *buf, size_t len)
 {
     u_char *cursor = buf;
     SSL    *ssl = (t != NULL) ? (SSL *) t->tls : NULL;
@@ -116,7 +116,7 @@ tpc_recv_exact(xrootd_tpc_pull_t *t, int fd, void *buf, size_t len)
  *      null-terminates the buffer, sets output pointers, and returns 0 on success.
  *      Caller must free(*body) after use. Returns -1 on any I/O or allocation error. */
 int
-tpc_recv_response(xrootd_tpc_pull_t *t, int fd, uint16_t *status,
+tpc_recv_response(brix_tpc_pull_t *t, int fd, uint16_t *status,
                   u_char **body, uint32_t *dlen)
 {
     ServerResponseHdr hdr;

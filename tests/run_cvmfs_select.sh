@@ -23,12 +23,12 @@ cat > "$PFX/u.c" <<'EOF'
 #include <stdio.h>
 int main(void) {
     /* Edinburgh <-> CERN is ~1180 km great-circle */
-    double d = xrootd_cvmfs_haversine_km(55.95, -3.19, 46.23, 6.05);
+    double d = brix_cvmfs_haversine_km(55.95, -3.19, 46.23, 6.05);
     assert(d > 1000.0 && d < 1300.0);
     /* argsort with a tie: ties keep input order (stability) */
     double m[4] = { 9.0, 1.0, 9.0, 4.0 };
     int r[4];
-    xrootd_cvmfs_rank_by_metric(m, 4, r);
+    brix_cvmfs_rank_by_metric(m, 4, r);
     assert(r[1] == 0 && r[3] == 1 && r[0] == 2 && r[2] == 3);
     printf("origin_geo unit OK\n");
     return 0;
@@ -52,9 +52,9 @@ events { worker_connections 128; }
 http { access_log off; server {
     listen 127.0.0.1:$CPORT;
     location /cvmfs/ {
-        xrootd_cvmfs_storage_backend "$2";
-        xrootd_cvmfs_cache_store posix:$PFX/cache;
-        xrootd_cvmfs on;
+        brix_cvmfs_storage_backend "$2";
+        brix_cvmfs_cache_store posix:$PFX/cache;
+        brix_cvmfs on;
 $1
     }
 } }
@@ -71,7 +71,7 @@ restart() { if [ -f "$PFX/nginx.pid" ]; then
             "$NGINX" -c "$PFX/nginx.conf" -p "$PFX"; sleep 0.7; }
 
 # --- 1: static — first-listed (A) serves ------------------------------------
-mkconf "        xrootd_cvmfs_origin_select static;" \
+mkconf "        brix_cvmfs_origin_select static;" \
        "http://127.0.0.1:$MA|http://127.0.0.1:$MB"
 restart
 curl -s "http://127.0.0.1:$CPORT$OBJ" -o /dev/null
@@ -81,10 +81,10 @@ NB="$(curl -s "http://127.0.0.1:$MB/ctl/log" | grep -oF "$OBJ" | wc -l)"
     || bad "static: A=$NA B=$NB"
 
 # --- 2: geo — nearer origin (B=Edinburgh) wins although listed second -------
-mkconf "        xrootd_cvmfs_origin_select geo;
-        xrootd_cvmfs_here 55.95:-3.19;
-        xrootd_cvmfs_origin_coords 127.0.0.1:$MA 46.23:6.05;
-        xrootd_cvmfs_origin_coords 127.0.0.1:$MB 55.95:-3.19;" \
+mkconf "        brix_cvmfs_origin_select geo;
+        brix_cvmfs_here 55.95:-3.19;
+        brix_cvmfs_origin_coords 127.0.0.1:$MA 46.23:6.05;
+        brix_cvmfs_origin_coords 127.0.0.1:$MB 55.95:-3.19;" \
        "http://127.0.0.1:$MA|http://127.0.0.1:$MB"
 restart
 curl -s "http://127.0.0.1:$CPORT$OBJ" -o /dev/null
@@ -92,8 +92,8 @@ NB="$(curl -s "http://127.0.0.1:$MB/ctl/log" | grep -oF "$OBJ" | wc -l)"
 [ "$NB" = 1 ] && ok "geo: nearer origin served" || bad "geo: B=$NB"
 
 # --- 3: rtt — refused endpoint pre-ranked out (not failed-over-from) --------
-mkconf "        xrootd_cvmfs_origin_select rtt;
-        xrootd_cvmfs_rtt_interval 1;" \
+mkconf "        brix_cvmfs_origin_select rtt;
+        brix_cvmfs_rtt_interval 1;" \
        "http://127.0.0.1:1|http://127.0.0.1:$MB"
 restart
 sleep 1.5                       # let the first probe run and rank
@@ -107,7 +107,7 @@ grep -Eq 'cvmfs rtt (ranks|initial ranking|ranking CHANGED)' "$PFX/logs/e.log" \
     || bad "rtt selection (log=$(grep -cE 'cvmfs rtt (ranks|initial ranking|ranking CHANGED)' "$PFX/logs/e.log" || true) fills=$((NB1-NB0)))"
 
 # --- 4: config-error negatives ----------------------------------------------
-mkconf "        xrootd_cvmfs_origin_select geo;" \
+mkconf "        brix_cvmfs_origin_select geo;" \
        "http://127.0.0.1:$MA|http://127.0.0.1:$MB"
 "$NGINX" -t -c "$PFX/nginx.conf" -p "$PFX" 2>/dev/null \
     && bad "geo without here/coords accepted" || ok "geo misconfig rejected"

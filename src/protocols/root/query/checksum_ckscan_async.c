@@ -17,24 +17,24 @@
  *       to execute the walk in a background worker thread, keeping nginx responsive while scanning completes.
  *       Results are formatted as one checksum line per file matching xrdadler32 output format for client compatibility.
  *
- * HOW:  xrootd_ckscan_aio_thread() allocates response buffer (grows via append), stat's the scan target — if regular
+ * HOW:  brix_ckscan_aio_thread() allocates response buffer (grows via append), stat's the scan target — if regular
  *       file, opens confined/canonical fd and computes single checksum; if directory, walks tree with depth/file limits
  *       calling ckscan_append per file. On error sets t->error_code + t->error_msg. Thread completion triggers
- *       xrootd_ckscan_aio_done() which restores the request streamid via aio_restore_request, sends error response or
+ *       brix_ckscan_aio_done() which restores the request streamid via aio_restore_request, sends error response or
  *       ok+checksum data to client, frees buffer, and resumes the client connection event loop.
  */
 
 
-/* public API: xrootd_ckscan_aio_thread() — async ckscan thread worker * WHAT: Thread pool worker that computes checksums for a file or directory tree. Stat's the scan target, opens confined fd
- *       for regular files and computes single checksum via xrootd_checksum_u32_fd; walks directories recursively with depth/file
+/* public API: brix_ckscan_aio_thread() — async ckscan thread worker * WHAT: Thread pool worker that computes checksums for a file or directory tree. Stat's the scan target, opens confined fd
+ *       for regular files and computes single checksum via brix_checksum_u32_fd; walks directories recursively with depth/file
  *       limits calling ckscan_append per file. Allocates response buffer with dynamic growth. Sets t->error_code on failure. */
 
 void
-xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
+brix_ckscan_aio_thread(void *data, ngx_log_t *log)
 {
-    xrootd_ckscan_aio_t *t    = data;
+    brix_ckscan_aio_t *t    = data;
     /*
-     * Growing-buffer triple, passed by reference into xrootd_ckscan_run:
+     * Growing-buffer triple, passed by reference into brix_ckscan_run:
      *   buf  = heap block (ngx_alloc, NOT pool — this runs on a thread-pool worker
      *          with no access to the request pool); ownership is transferred to
      *          t->resp on success so the done callback frees it, otherwise every
@@ -42,7 +42,7 @@ xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
      *   cap  = current allocation size; the run reallocs and updates it in place.
      *   used = bytes written so far (excludes the trailing NUL added at the end).
      */
-    size_t               cap  = XROOTD_CKSCAN_INIT_CAP;
+    size_t               cap  = BRIX_CKSCAN_INIT_CAP;
     size_t               used = 0;
     u_char              *buf;
     uint16_t             err_code = 0;
@@ -57,7 +57,7 @@ xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
     /* All stat/open/checksum/walk runs through the confined VFS walk (thread-safe:
      * no pool allocation, no metric), so the worker never touches a confined
      * helper or the request pool directly. */
-    if (xrootd_ckscan_run(log, t->rootfd, t->scan_logical, t->algo,
+    if (brix_ckscan_run(log, t->rootfd, t->scan_logical, t->algo,
                           &buf, &cap, &used, t->max_depth, t->max_files,
                           &err_code, t->error_msg, sizeof(t->error_msg))
         != NGX_OK)
@@ -80,16 +80,16 @@ xrootd_ckscan_aio_thread(void *data, ngx_log_t *log)
     t->error_code = 0;
 }
 
-/* public API: xrootd_ckscan_aio_done() — async ckscan completion callback * WHAT: Event handler invoked when the thread pool worker completes. Restores the request streamid via aio_restore_request,
+/* public API: brix_ckscan_aio_done() — async ckscan completion callback * WHAT: Event handler invoked when the thread pool worker completes. Restores the request streamid via aio_restore_request,
  *       sends error response (t->error_code + t->error_msg) or ok+checksum data to client, frees the response buffer, and
- *       resumes the client connection event loop via xrootd_aio_resume(). */
+ *       resumes the client connection event loop via brix_aio_resume(). */
 
 void
-xrootd_ckscan_aio_done(ngx_event_t *ev)
+brix_ckscan_aio_done(ngx_event_t *ev)
 {
     ngx_thread_task_t   *task = ev->data;
-    xrootd_ckscan_aio_t *t    = task->ctx;
-    xrootd_ctx_t        *ctx  = t->ctx;
+    brix_ckscan_aio_t *t    = task->ctx;
+    brix_ctx_t        *ctx  = t->ctx;
     ngx_connection_t    *c    = t->c;
 
     /*
@@ -99,7 +99,7 @@ xrootd_ckscan_aio_done(ngx_event_t *ev)
      * connection/session is gone — we must NOT touch c or send anything, but we still
      * own t->resp (transferred from the worker) and must free it here to avoid a leak.
      */
-    if (!xrootd_aio_restore_request(ctx, t->streamid)) {
+    if (!brix_aio_restore_request(ctx, t->streamid)) {
         if (t->resp) {
             ngx_free(t->resp);
         }
@@ -107,21 +107,21 @@ xrootd_ckscan_aio_done(ngx_event_t *ev)
     }
 
     if (t->error_code != 0) {
-        XROOTD_OP_ERR(ctx, XROOTD_OP_QUERY_CKSCAN);
-        xrootd_send_error(ctx, c, (uint16_t) t->error_code, t->error_msg);
+        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSCAN);
+        brix_send_error(ctx, c, (uint16_t) t->error_code, t->error_msg);
     } else {
-        XROOTD_OP_OK(ctx, XROOTD_OP_QUERY_CKSCAN);
-        xrootd_log_access(ctx, c, "QUERY", t->scan_logical, "ckscan",
+        BRIX_OP_OK(ctx, BRIX_OP_QUERY_CKSCAN);
+        brix_log_access(ctx, c, "QUERY", t->scan_logical, "ckscan",
                           1, 0, NULL, 0);
         /* resp_len + 1: include the worker's trailing NUL in the kXR_ok payload,
          * matching xrdadler32 client expectations for a C-string body. */
-        xrootd_send_ok(ctx, c, t->resp, (uint32_t) (t->resp_len + 1));
+        brix_send_ok(ctx, c, t->resp, (uint32_t) (t->resp_len + 1));
     }
 
     if (t->resp) {
         ngx_free(t->resp);
     }
 
-    xrootd_aio_resume(c);
+    brix_aio_resume(c);
 }
 

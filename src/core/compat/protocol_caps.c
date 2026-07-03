@@ -10,9 +10,9 @@
 #include "protocol_caps.h"
 #include "alloc_guard.h"
 
-const xrootd_http_operation_t *
-xrootd_http_operation_find(ngx_http_request_t *r,
-    const xrootd_http_operation_t *ops, ngx_uint_t nops)
+const brix_http_operation_t *
+brix_http_operation_find(ngx_http_request_t *r,
+    const brix_http_operation_t *ops, ngx_uint_t nops)
 {
     ngx_uint_t i;
 
@@ -32,8 +32,8 @@ xrootd_http_operation_find(ngx_http_request_t *r,
 }
 
 ngx_int_t
-xrootd_http_operation_allow_header(ngx_pool_t *pool,
-    const xrootd_http_operation_t *ops, ngx_uint_t nops,
+brix_http_operation_allow_header(ngx_pool_t *pool,
+    const brix_http_operation_t *ops, ngx_uint_t nops,
     ngx_uint_t enabled_flags, ngx_str_t *out)
 {
     size_t      total = 0;
@@ -55,7 +55,7 @@ xrootd_http_operation_allow_header(ngx_pool_t *pool,
     }
 
     /* Second pass: write the string. */
-    XROOTD_PALLOC_OR_RETURN(p, pool, total + 1, NGX_ERROR);
+    BRIX_PALLOC_OR_RETURN(p, pool, total + 1, NGX_ERROR);
 
     out->data = p;
     first = 1;

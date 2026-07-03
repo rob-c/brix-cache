@@ -7,19 +7,19 @@
 /*
  * dashboard/events.c — fixed-size ring buffer of recent dashboard events.
  *
- * WHAT: Maintains the SHM-backed event log (xrootd_dashboard_event_table_t)
+ * WHAT: Maintains the SHM-backed event log (brix_dashboard_event_table_t)
  *       that the dashboard UI shows as a scrolling activity feed.  Workers push
- *       events with xrootd_dashboard_event_add() (errors, auth rejections,
+ *       events with brix_dashboard_event_add() (errors, auth rejections,
  *       notable status codes, etc.); the JSON exporter reads the newest entries
- *       with xrootd_dashboard_events_snapshot().  ngx_xrootd_dashboard_events_-
+ *       with brix_dashboard_events_snapshot().  ngx_brix_dashboard_events_-
  *       shm_init() is the nginx SHM zone init callback for the events zone.
  * WHY:  Events must survive worker boundaries (any worker may emit; the HTTP
  *       worker serving /dashboard reads them all) and survive a config reload,
  *       so the log lives in shared memory rather than per-worker heap.  A bounded
- *       ring (XROOTD_DASHBOARD_MAX_EVENTS slots) gives O(1) insertion with no
+ *       ring (BRIX_DASHBOARD_MAX_EVENTS slots) gives O(1) insertion with no
  *       allocation and self-evicting history.
  * HOW:  A monotonically increasing next_sequence counter is the source of truth;
- *       slot index is (seq - 1) % XROOTD_DASHBOARD_MAX_EVENTS, so writes wrap and
+ *       slot index is (seq - 1) % BRIX_DASHBOARD_MAX_EVENTS, so writes wrap and
  *       overwrite the oldest entry.  A single static ngx_shmtx_t (re-created on
  *       reload via the init callback) serialises add and snapshot.  Readers
  *       reconstruct the valid window [next - MAX + 1 .. next] and copy only slots
@@ -29,20 +29,20 @@
  *       truncating a path at the first '?'/'#' to keep query strings out.
  */
 
-static ngx_shmtx_t xrootd_dashboard_events_mutex;
+static ngx_shmtx_t brix_dashboard_events_mutex;
 
-static xrootd_dashboard_event_table_t *
+static brix_dashboard_event_table_t *
 dashboard_events_table(void)
 {
-    if (ngx_xrootd_dashboard_events_shm_zone == NULL
-        || ngx_xrootd_dashboard_events_shm_zone->data == NULL
-        || ngx_xrootd_dashboard_events_shm_zone->data == (void *) 1)
+    if (ngx_brix_dashboard_events_shm_zone == NULL
+        || ngx_brix_dashboard_events_shm_zone->data == NULL
+        || ngx_brix_dashboard_events_shm_zone->data == (void *) 1)
     {
         return NULL;
     }
 
-    return (xrootd_dashboard_event_table_t *)
-           ngx_xrootd_dashboard_events_shm_zone->data;
+    return (brix_dashboard_event_table_t *)
+           ngx_brix_dashboard_events_shm_zone->data;
 }
 
 static void
@@ -79,10 +79,10 @@ dashboard_event_copy(char *dst, size_t dstsz, const char *src,
 }
 
 ngx_int_t
-ngx_xrootd_dashboard_events_shm_init(ngx_shm_zone_t *shm_zone, void *data)
+ngx_brix_dashboard_events_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 {
     ngx_flag_t                      fresh;
-    xrootd_dashboard_event_table_t *tbl;
+    brix_dashboard_event_table_t *tbl;
 
     /*
      * Allocate the event ring FROM the slab pool so the slab-pool header at
@@ -91,9 +91,9 @@ ngx_xrootd_dashboard_events_shm_init(ngx_shm_zone_t *shm_zone, void *data)
      * leading ngx_shmtx_sh_t lock on fresh, reload, and re-attach; on reuse the
      * existing ring is preserved across the config reload.
      */
-    tbl = xrootd_shm_table_alloc(shm_zone, data,
-                                 sizeof(xrootd_dashboard_event_table_t),
-                                 &xrootd_dashboard_events_mutex, &fresh);
+    tbl = brix_shm_table_alloc(shm_zone, data,
+                                 sizeof(brix_dashboard_event_table_t),
+                                 &brix_dashboard_events_mutex, &fresh);
     if (tbl == NULL) {
         return NGX_ERROR;
     }
@@ -106,11 +106,11 @@ ngx_xrootd_dashboard_events_shm_init(ngx_shm_zone_t *shm_zone, void *data)
 }
 
 void
-xrootd_dashboard_event_add(uint8_t class_id, uint8_t proto, uint16_t status,
+brix_dashboard_event_add(uint8_t class_id, uint8_t proto, uint16_t status,
     const char *message, const char *path_hint)
 {
-    xrootd_dashboard_event_table_t *tbl;
-    xrootd_dashboard_event_t       *ev;
+    brix_dashboard_event_table_t *tbl;
+    brix_dashboard_event_t       *ev;
     ngx_atomic_t                    seq;
     ngx_uint_t                      idx;
 
@@ -119,10 +119,10 @@ xrootd_dashboard_event_add(uint8_t class_id, uint8_t proto, uint16_t status,
         return;
     }
 
-    ngx_shmtx_lock(&xrootd_dashboard_events_mutex);
+    ngx_shmtx_lock(&brix_dashboard_events_mutex);
 
     seq = ++tbl->next_sequence;
-    idx = (ngx_uint_t) ((seq - 1) % XROOTD_DASHBOARD_MAX_EVENTS);
+    idx = (ngx_uint_t) ((seq - 1) % BRIX_DASHBOARD_MAX_EVENTS);
     ev = &tbl->events[idx];
     ngx_memzero(ev, sizeof(*ev));
 
@@ -134,14 +134,14 @@ xrootd_dashboard_event_add(uint8_t class_id, uint8_t proto, uint16_t status,
     dashboard_event_copy(ev->message, sizeof(ev->message), message, 0);
     dashboard_event_copy(ev->path_hint, sizeof(ev->path_hint), path_hint, 1);
 
-    ngx_shmtx_unlock(&xrootd_dashboard_events_mutex);
+    ngx_shmtx_unlock(&brix_dashboard_events_mutex);
 }
 
 ngx_uint_t
-xrootd_dashboard_events_snapshot(xrootd_dashboard_event_t *out,
+brix_dashboard_events_snapshot(brix_dashboard_event_t *out,
     ngx_uint_t max_events)
 {
-    xrootd_dashboard_event_table_t *tbl;
+    brix_dashboard_event_table_t *tbl;
     ngx_atomic_t                    next;
     ngx_atomic_t                    first;
     ngx_atomic_t                    seq;
@@ -156,16 +156,16 @@ xrootd_dashboard_events_snapshot(xrootd_dashboard_event_t *out,
         return 0;
     }
 
-    ngx_shmtx_lock(&xrootd_dashboard_events_mutex);
+    ngx_shmtx_lock(&brix_dashboard_events_mutex);
 
     next = tbl->next_sequence;
     if (next == 0) {
-        ngx_shmtx_unlock(&xrootd_dashboard_events_mutex);
+        ngx_shmtx_unlock(&brix_dashboard_events_mutex);
         return 0;
     }
 
-    first = next > XROOTD_DASHBOARD_MAX_EVENTS
-            ? next - XROOTD_DASHBOARD_MAX_EVENTS + 1
+    first = next > BRIX_DASHBOARD_MAX_EVENTS
+            ? next - BRIX_DASHBOARD_MAX_EVENTS + 1
             : 1;
 
     if ((ngx_atomic_t) max_events < next - first + 1) {
@@ -175,12 +175,12 @@ xrootd_dashboard_events_snapshot(xrootd_dashboard_event_t *out,
     n = 0;
     for (seq = first; seq <= next && n < max_events; seq++) {
         ngx_uint_t idx = (ngx_uint_t) ((seq - 1)
-                                      % XROOTD_DASHBOARD_MAX_EVENTS);
+                                      % BRIX_DASHBOARD_MAX_EVENTS);
         if (tbl->events[idx].sequence == seq) {
             out[n++] = tbl->events[idx];
         }
     }
 
-    ngx_shmtx_unlock(&xrootd_dashboard_events_mutex);
+    ngx_shmtx_unlock(&brix_dashboard_events_mutex);
     return n;
 }

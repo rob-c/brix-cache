@@ -13,8 +13,8 @@
  * HOW:  Nothing here is part of the public API — include
  *       fs/vfs_backend_registry.h for that.
  */
-#ifndef XROOTD_VFS_BACKEND_INTERNAL_H
-#define XROOTD_VFS_BACKEND_INTERNAL_H
+#ifndef BRIX_VFS_BACKEND_INTERNAL_H
+#define BRIX_VFS_BACKEND_INTERNAL_H
 
 #include "vfs_backend_registry.h"
 #include "fs/tier/tier.h"
@@ -30,7 +30,7 @@ typedef struct {
     char                  origin_host[256];   /* xroot/http: remote origin host */
     int                   origin_port;
     int                   origin_tls;
-    int                   origin_family;       /* xrootd_af_policy_t for origin connect */
+    int                   origin_family;       /* brix_af_policy_t for origin connect */
     char                  origin_path[1024];  /* http: URL base path ("" / "/sub") */
     /* phase-68 T11: additional ranked http endpoints (endpoint 0 is
      * origin_host/port/tls/path above; these are the remaining pipe-separated
@@ -69,23 +69,23 @@ typedef struct {
     /* phase-64 composable tiers (additive over the flat backend above): when a
      * cache/stage tier is configured, entry_build wraps the source in the
      * sd_stage / sd_cache decorators. */
-    xrootd_tier_cfg_t      cache_tier;
-    xrootd_cache_policy_t  cache_policy;
-    xrootd_tier_cfg_t      stage_tier;
-    xrootd_stage_policy_t  stage_policy;
-    xrootd_sd_instance_t *inst;          /* lazily built per worker, or NULL */
-} xrootd_vfs_backend_entry_t;
+    brix_tier_cfg_t      cache_tier;
+    brix_cache_policy_t  cache_policy;
+    brix_tier_cfg_t      stage_tier;
+    brix_stage_policy_t  stage_policy;
+    brix_sd_instance_t *inst;          /* lazily built per worker, or NULL */
+} brix_vfs_backend_entry_t;
 
 /* Exports are few (one per location/server block); a small fixed table avoids any
  * allocation and is scanned linearly. */
-#define XROOTD_VFS_BACKEND_MAX 64
+#define BRIX_VFS_BACKEND_MAX 64
 
 /* Find a registered entry by exact root_canon, or NULL. */
-xrootd_vfs_backend_entry_t *xrootd_vfs_backend_entry_find(const char *root_canon);
+brix_vfs_backend_entry_t *brix_vfs_backend_entry_find(const char *root_canon);
 
 /* Find or create the entry for root_canon (backend "" = default POSIX source);
  * NULL when the table is full. */
-xrootd_vfs_backend_entry_t *xrootd_vfs_backend_entry_get_or_create(
+brix_vfs_backend_entry_t *brix_vfs_backend_entry_get_or_create(
     const char *root_canon);
 
-#endif /* XROOTD_VFS_BACKEND_INTERNAL_H */
+#endif /* BRIX_VFS_BACKEND_INTERNAL_H */

@@ -20,11 +20,11 @@
  * use-after-free a waiter the done handler already resolved.
  */
 #include "http_cache_fill.h"
-#include "fs/backend/cache/sd_cache.h"   /* xrootd_sd_cache_* */
+#include "fs/backend/cache/sd_cache.h"   /* brix_sd_cache_* */
 #include "fs/backend/http/sd_http.h"    /* sd_http_n_endpoints (verify budget) */
 #include "fs/cache/fill_retry.h"        /* T20 classification + backoff */
-#include "core/aio/aio.h"                      /* xrootd_task_bind */
-#include "fs/path/path.h"        /* xrootd_sanitize_log_string (wire keys) */
+#include "core/aio/aio.h"                      /* brix_task_bind */
+#include "fs/path/path.h"        /* brix_sanitize_log_string (wire keys) */
 
 #include <limits.h>                          /* PATH_MAX */
 #include <stdatomic.h>
@@ -33,27 +33,27 @@
 
 #if (NGX_THREADS)
 
-struct xrootd_http_cache_fill_ctx_s;
+struct brix_http_cache_fill_ctx_s;
 
 /* One request parked on an in-flight fill (event-loop-only). */
-typedef struct xrootd_http_fill_waiter_s {
+typedef struct brix_http_fill_waiter_s {
     ngx_http_request_t                   *r;
-    xrootd_http_cache_reenter_pt          reenter;
+    brix_http_cache_reenter_pt          reenter;
     void                                 *reenter_data;
-    struct xrootd_http_fill_waiter_s     *next;
-    struct xrootd_http_cache_fill_ctx_s  *owner;   /* valid while !resolved */
+    struct brix_http_fill_waiter_s     *next;
+    struct brix_http_cache_fill_ctx_s  *owner;   /* valid while !resolved */
     ngx_event_t                           hold;    /* T20 client-hold timer */
     ngx_msec_t                            parked_ms;  /* attach timestamp   */
     unsigned                              resolved:1;
-} xrootd_http_fill_waiter_t;
+} brix_http_fill_waiter_t;
 
 /* Per-fill task context — ONE per (inst,key) in flight, shared by every
  * concurrent request for that object. */
-typedef struct xrootd_http_cache_fill_ctx_s {
-    xrootd_sd_instance_t                *inst;
-    xrootd_http_fill_waiter_t           *waiters;
+typedef struct brix_http_cache_fill_ctx_s {
+    brix_sd_instance_t                *inst;
+    brix_http_fill_waiter_t           *waiters;
     _Atomic int                          waiters_n;  /* read by the worker */
-    struct xrootd_http_cache_fill_ctx_s *next;       /* in-flight list     */
+    struct brix_http_cache_fill_ctx_s *next;       /* in-flight list     */
     ngx_thread_task_t                   *task;       /* the calloc block   */
     time_t                               client_hold; /* T20 deadlines     */
     time_t                               max_life;
@@ -62,25 +62,25 @@ typedef struct xrootd_http_cache_fill_ctx_s {
     ngx_msec_t                           started_ms; /* fill post timestamp */
     unsigned                             attempts;   /* origin attempts run */
     char                                 key[PATH_MAX];
-} xrootd_http_cache_fill_ctx_t;
+} brix_http_cache_fill_ctx_t;
 
 /* Sanitize the (wire-derived) object key for a log line. */
 static const char *
-xrootd_http_fill_log_key(const char *key, char *buf, size_t cap)
+brix_http_fill_log_key(const char *key, char *buf, size_t cap)
 {
-    xrootd_sanitize_log_string(key, buf, cap);
+    brix_sanitize_log_string(key, buf, cap);
     return buf;
 }
 
 /* Per-worker in-flight fills (event-loop-only; a handful at a time). */
-static xrootd_http_cache_fill_ctx_t  *xrootd_http_fills;
+static brix_http_cache_fill_ctx_t  *brix_http_fills;
 
-static xrootd_http_cache_fill_ctx_t *
-xrootd_http_fill_find(xrootd_sd_instance_t *inst, const char *key)
+static brix_http_cache_fill_ctx_t *
+brix_http_fill_find(brix_sd_instance_t *inst, const char *key)
 {
-    xrootd_http_cache_fill_ctx_t *t;
+    brix_http_cache_fill_ctx_t *t;
 
-    for (t = xrootd_http_fills; t != NULL; t = t->next) {
+    for (t = brix_http_fills; t != NULL; t = t->next) {
         if (t->inst == inst && ngx_strcmp(t->key, key) == 0) {
             return t;
         }
@@ -91,9 +91,9 @@ xrootd_http_fill_find(xrootd_sd_instance_t *inst, const char *key)
 /* Unlink `w` from its fill (idempotent; both the hold timer and the request
  * cleanup may race to it on the event loop). */
 static void
-xrootd_http_fill_detach(xrootd_http_fill_waiter_t *w)
+brix_http_fill_detach(brix_http_fill_waiter_t *w)
 {
-    xrootd_http_fill_waiter_t **pp;
+    brix_http_fill_waiter_t **pp;
 
     if (w->resolved) {
         return;
@@ -121,7 +121,7 @@ xrootd_http_fill_detach(xrootd_http_fill_waiter_t *w)
 /* 504 + Retry-After on a KEPT-ALIVE connection (convention #6: origin
  * trouble is a well-formed HTTP answer, never a broken socket). */
 static void
-xrootd_http_fill_send_retry_later(ngx_http_request_t *r)
+brix_http_fill_send_retry_later(ngx_http_request_t *r)
 {
     static u_char     body[] = "origin temporarily unreachable; retrying - "
                                "please retry\n";
@@ -163,9 +163,9 @@ xrootd_http_fill_send_retry_later(ngx_http_request_t *r)
  * kept-alive connection and leave the fill running (its own retry, arriving
  * on the same warm socket, coalesces onto this still-running fill). */
 static void
-xrootd_http_fill_hold_expire(ngx_event_t *ev)
+brix_http_fill_hold_expire(ngx_event_t *ev)
 {
-    xrootd_http_fill_waiter_t *w = ev->data;
+    brix_http_fill_waiter_t *w = ev->data;
     ngx_http_request_t        *r = w->r;
     ngx_connection_t          *c = r->connection;
 
@@ -179,7 +179,7 @@ xrootd_http_fill_hold_expire(ngx_event_t *ev)
             "held_ms=%M fill_elapsed_ms=%M waiters_left=%d "
             "action=\"504+Retry-After sent on the kept-alive connection; "
             "the fill keeps running\"",
-            xrootd_http_fill_log_key(w->owner->key, kbuf, sizeof(kbuf)),
+            brix_http_fill_log_key(w->owner->key, kbuf, sizeof(kbuf)),
             &c->addr_text,
             (ngx_msec_t) (ngx_current_msec - w->parked_ms),
             (ngx_msec_t) (ngx_current_msec - w->owner->started_ms),
@@ -187,8 +187,8 @@ xrootd_http_fill_hold_expire(ngx_event_t *ev)
                                  memory_order_relaxed) - 1);
     }
 
-    xrootd_http_fill_detach(w);
-    xrootd_http_fill_send_retry_later(r);
+    brix_http_fill_detach(w);
+    brix_http_fill_send_retry_later(r);
     ngx_http_run_posted_requests(c);
 }
 
@@ -197,14 +197,14 @@ xrootd_http_fill_hold_expire(ngx_event_t *ev)
  * just free) or on a client abort mid-fill (detach, then free; the fill
  * itself is NEVER cancelled). */
 static void
-xrootd_http_fill_waiter_cleanup(void *data)
+brix_http_fill_waiter_cleanup(void *data)
 {
-    xrootd_http_fill_waiter_t *w = data;
+    brix_http_fill_waiter_t *w = data;
 
     /* Still attached at teardown = an ABNORMAL finalize the read-abort
      * handler and the hold timer both missed (worker shutdown mid-fill, or
      * nginx forcibly closing the request). The routine client-abort case is
-     * logged promptly by xrootd_http_fill_client_read; this is the safety
+     * logged promptly by brix_http_fill_client_read; this is the safety
      * net so a parked request never disappears without a trace. */
     if (!w->resolved && w->owner != NULL) {
         ngx_connection_t *c = w->r->connection;
@@ -215,25 +215,25 @@ xrootd_http_fill_waiter_cleanup(void *data)
             "parked_ms=%M fill_elapsed_ms=%M "
             "cause=\"request finalized while parked (worker shutdown or "
             "forced close); the fill continues detached\"",
-            xrootd_http_fill_log_key(w->owner->key, kbuf, sizeof(kbuf)),
+            brix_http_fill_log_key(w->owner->key, kbuf, sizeof(kbuf)),
             &c->addr_text,
             (ngx_msec_t) (ngx_current_msec - w->parked_ms),
             (ngx_msec_t) (ngx_current_msec - w->owner->started_ms));
     }
 
-    xrootd_http_fill_detach(w);
+    brix_http_fill_detach(w);
     free(w);
 }
 
 /* Find the waiter parked for request `r` (a handful in flight; linear is
  * fine). NULL if `r` is not currently parked on any fill. */
-static xrootd_http_fill_waiter_t *
-xrootd_http_fill_waiter_for(ngx_http_request_t *r)
+static brix_http_fill_waiter_t *
+brix_http_fill_waiter_for(ngx_http_request_t *r)
 {
-    xrootd_http_cache_fill_ctx_t *t;
-    xrootd_http_fill_waiter_t    *w;
+    brix_http_cache_fill_ctx_t *t;
+    brix_http_fill_waiter_t    *w;
 
-    for (t = xrootd_http_fills; t != NULL; t = t->next) {
+    for (t = brix_http_fills; t != NULL; t = t->next) {
         for (w = t->waiters; w != NULL; w = w->next) {
             if (w->r == r) {
                 return w;
@@ -251,11 +251,11 @@ xrootd_http_fill_waiter_for(ngx_http_request_t *r)
  * (never-drop: one client hanging up must not cancel the origin fetch that
  * other clients, or the client's own retry, still need). */
 static void
-xrootd_http_fill_client_read(ngx_http_request_t *r)
+brix_http_fill_client_read(ngx_http_request_t *r)
 {
     ngx_connection_t          *c = r->connection;
     ngx_event_t               *rev = c->read;
-    xrootd_http_fill_waiter_t *w;
+    brix_http_fill_waiter_t *w;
     u_char                     probe;
     ssize_t                    n;
 
@@ -272,7 +272,7 @@ xrootd_http_fill_client_read(ngx_http_request_t *r)
         return;
     }
 
-    w = xrootd_http_fill_waiter_for(r);
+    w = brix_http_fill_waiter_for(r);
     if (w != NULL && w->owner != NULL) {
         char kbuf[256];
 
@@ -282,13 +282,13 @@ xrootd_http_fill_client_read(ngx_http_request_t *r)
             "hint=\"client broke the connection before the origin answered; "
             "the fill continues detached. If this recurs the client timeout "
             "is shorter than the fill latency (CVMFS_TIMEOUT vs client_hold)\"",
-            xrootd_http_fill_log_key(w->owner->key, kbuf, sizeof(kbuf)),
+            brix_http_fill_log_key(w->owner->key, kbuf, sizeof(kbuf)),
             &c->addr_text,
             (ngx_msec_t) (ngx_current_msec - w->parked_ms),
             (ngx_msec_t) (ngx_current_msec - w->owner->started_ms),
             atomic_load_explicit(&w->owner->waiters_n,
                                  memory_order_relaxed) - 1);
-        xrootd_http_fill_detach(w);              /* resolved=1: no dup log */
+        brix_http_fill_detach(w);              /* resolved=1: no dup log */
         r->main->count--;                        /* release the parked ref */
     }
     c->error = 1;
@@ -298,11 +298,11 @@ xrootd_http_fill_client_read(ngx_http_request_t *r)
 /* Park `r` on fill `t` (r->main->count++ balanced by the finalize in done /
  * hold-expiry / abort teardown). */
 static ngx_int_t
-xrootd_http_fill_attach(xrootd_http_cache_fill_ctx_t *t,
-    ngx_http_request_t *r, xrootd_http_cache_reenter_pt reenter,
+brix_http_fill_attach(brix_http_cache_fill_ctx_t *t,
+    ngx_http_request_t *r, brix_http_cache_reenter_pt reenter,
     void *reenter_data)
 {
-    xrootd_http_fill_waiter_t *w = calloc(1, sizeof(*w));
+    brix_http_fill_waiter_t *w = calloc(1, sizeof(*w));
     ngx_pool_cleanup_t        *cln;
 
     if (w == NULL) {
@@ -322,11 +322,11 @@ xrootd_http_fill_attach(xrootd_http_cache_fill_ctx_t *t,
     t->waiters      = w;
     atomic_fetch_add_explicit(&t->waiters_n, 1, memory_order_relaxed);
 
-    cln->handler = xrootd_http_fill_waiter_cleanup;
+    cln->handler = brix_http_fill_waiter_cleanup;
     cln->data    = w;
 
     if (t->client_hold > 0) {
-        w->hold.handler = xrootd_http_fill_hold_expire;
+        w->hold.handler = brix_http_fill_hold_expire;
         w->hold.data    = w;
         w->hold.log     = r->connection->log;
         ngx_add_timer(&w->hold, (ngx_msec_t) t->client_hold * 1000);
@@ -335,7 +335,7 @@ xrootd_http_fill_attach(xrootd_http_cache_fill_ctx_t *t,
     /* Notice a client that breaks its connection while parked (above): the
      * read handler logs it, reclaims this slot, and finalizes — the fill
      * runs on. Arm the read event so the abort actually wakes us. */
-    r->read_event_handler = xrootd_http_fill_client_read;
+    r->read_event_handler = brix_http_fill_client_read;
     if (ngx_handle_read_event(r->connection->read, 0) != NGX_OK) {
         /* non-fatal: we simply fall back to the hold timer for teardown */
         ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
@@ -350,36 +350,36 @@ xrootd_http_fill_attach(xrootd_http_cache_fill_ctx_t *t,
  * retrying transient origin failures to the T20 deadlines (single-pass when
  * no hold is configured — the pre-phase-68 semantics for other protocols). */
 static void
-xrootd_http_cache_fill_thread(void *data, ngx_log_t *log)
+brix_http_cache_fill_thread(void *data, ngx_log_t *log)
 {
-    xrootd_http_cache_fill_ctx_t *t = data;
-    xrootd_fill_retry_t           rs;
+    brix_http_cache_fill_ctx_t *t = data;
+    brix_fill_retry_t           rs;
     unsigned                      n_eps;
     char                          kbuf[256];
 
     n_eps = (unsigned) sd_http_n_endpoints(
-                xrootd_sd_cache_source_instance(t->inst));
-    xrootd_fill_retry_init(&rs, t->client_hold, t->max_life, &t->waiters_n,
+                brix_sd_cache_source_instance(t->inst));
+    brix_fill_retry_init(&rs, t->client_hold, t->max_life, &t->waiters_n,
                            n_eps);
     for ( ;; ) {
         errno = 0;
         t->attempts++;
-        t->result = xrootd_sd_cache_fill_key(t->inst, t->key);
+        t->result = brix_sd_cache_fill_key(t->inst, t->key);
         t->err = errno;
-        switch (xrootd_fill_classify(t->result, t->err, &rs)) {
-        case XROOTD_FILL_OK:
+        switch (brix_fill_classify(t->result, t->err, &rs)) {
+        case BRIX_FILL_OK:
             if (t->attempts > 1) {
                 ngx_log_error(NGX_LOG_WARN, log, 0,
                     "xrootd-fill: event=recovered key=\"%s\" attempts=%ud "
                     "elapsed_ms=%M — origin answered after transient failures",
-                    xrootd_http_fill_log_key(t->key, kbuf, sizeof(kbuf)),
+                    brix_http_fill_log_key(t->key, kbuf, sizeof(kbuf)),
                     t->attempts,
                     (ngx_msec_t) (ngx_current_msec - t->started_ms));
             }
             return;
-        case XROOTD_FILL_DEFINITIVE:
+        case BRIX_FILL_DEFINITIVE:
             return;
-        case XROOTD_FILL_RETRY:
+        case BRIX_FILL_RETRY:
             break;
         }
         /* One line per failed attempt: WHICH object, WHICH attempt, WHY —
@@ -388,12 +388,12 @@ xrootd_http_cache_fill_thread(void *data, ngx_log_t *log)
         ngx_log_error(NGX_LOG_WARN, log, t->err,
             "xrootd-fill: event=retry key=\"%s\" attempt=%ud rc=%i "
             "elapsed_ms=%M endpoints=%ud waiters=%d next_backoff_ms=%M",
-            xrootd_http_fill_log_key(t->key, kbuf, sizeof(kbuf)),
+            brix_http_fill_log_key(t->key, kbuf, sizeof(kbuf)),
             t->attempts, t->result,
             (ngx_msec_t) (ngx_current_msec - t->started_ms), n_eps,
             atomic_load_explicit(&t->waiters_n, memory_order_relaxed),
             rs.backoff_ms);
-        if (!xrootd_fill_retry_wait(&rs)) {
+        if (!brix_fill_retry_wait(&rs)) {
             if (t->err == EBADMSG) {
                 return;              /* proven-bad data: 502, not "later" */
             }
@@ -405,8 +405,8 @@ xrootd_http_cache_fill_thread(void *data, ngx_log_t *log)
 
 /* Resolve one waiter with the fill outcome (event loop). */
 static void
-xrootd_http_fill_resolve_waiter(xrootd_http_cache_fill_ctx_t *t,
-    xrootd_http_fill_waiter_t *w)
+brix_http_fill_resolve_waiter(brix_http_cache_fill_ctx_t *t,
+    brix_http_fill_waiter_t *w)
 {
     ngx_http_request_t *r = w->r;
     ngx_connection_t   *c = r->connection;
@@ -428,7 +428,7 @@ xrootd_http_fill_resolve_waiter(xrootd_http_cache_fill_ctx_t *t,
     } else if (t->err == ETIMEDOUT) {
         /* T20: deadline exhausted while this waiter was still attached —
          * same keep-alive 504 the hold timer sends. */
-        xrootd_http_fill_send_retry_later(r);
+        brix_http_fill_send_retry_later(r);
         ngx_http_run_posted_requests(c);
         return;
     } else {
@@ -448,16 +448,16 @@ xrootd_http_fill_resolve_waiter(xrootd_http_cache_fill_ctx_t *t,
  * (the stampede coalescing contract), then release the fill. Waiter memory
  * stays with its request's pool cleanup. */
 static void
-xrootd_http_cache_fill_done(ngx_event_t *ev)
+brix_http_cache_fill_done(ngx_event_t *ev)
 {
     ngx_thread_task_t             *task = ev->data;
-    xrootd_http_cache_fill_ctx_t  *t = task->ctx;
-    xrootd_http_cache_fill_ctx_t **pp;
-    xrootd_http_fill_waiter_t     *w;
+    brix_http_cache_fill_ctx_t  *t = task->ctx;
+    brix_http_cache_fill_ctx_t **pp;
+    brix_http_fill_waiter_t     *w;
 
     /* Unlink from the in-flight list FIRST so a re-entered handler that
      * misses again starts a fresh fill rather than attaching to this one. */
-    for (pp = &xrootd_http_fills; *pp != NULL; pp = &(*pp)->next) {
+    for (pp = &brix_http_fills; *pp != NULL; pp = &(*pp)->next) {
         if (*pp == t) {
             *pp = t->next;
             break;
@@ -470,7 +470,7 @@ xrootd_http_cache_fill_done(ngx_event_t *ev)
         int   waiters = atomic_load_explicit(&t->waiters_n,
                                              memory_order_relaxed);
         char  kbuf[256];
-        const char *k = xrootd_http_fill_log_key(t->key, kbuf, sizeof(kbuf));
+        const char *k = brix_http_fill_log_key(t->key, kbuf, sizeof(kbuf));
         ngx_msec_t elapsed = ngx_current_msec - t->started_ms;
 
         if (t->result == NGX_OK) {
@@ -505,8 +505,8 @@ xrootd_http_cache_fill_done(ngx_event_t *ev)
     }
 
     while ((w = t->waiters) != NULL) {
-        xrootd_http_fill_detach(w);              /* unlink + stop the hold */
-        xrootd_http_fill_resolve_waiter(t, w);
+        brix_http_fill_detach(w);              /* unlink + stop the hold */
+        brix_http_fill_resolve_waiter(t, w);
     }
     free(t->task);           /* the calloc'd task+ctx block (task is first) */
 }
@@ -515,7 +515,7 @@ xrootd_http_cache_fill_done(ngx_event_t *ev)
  * server-level loc_conf, so a nested location block resolves on first use (the
  * webdav/copy.c idiom). NULL when no pool is configured. */
 static ngx_thread_pool_t *
-xrootd_http_cache_fill_pool(ngx_http_xrootd_shared_conf_t *common)
+brix_http_cache_fill_pool(ngx_http_brix_shared_conf_t *common)
 {
     ngx_thread_pool_t *pool = common->thread_pool;
 
@@ -533,30 +533,30 @@ xrootd_http_cache_fill_pool(ngx_http_xrootd_shared_conf_t *common)
 }
 
 ngx_int_t
-xrootd_http_cache_fill_if_needed(ngx_http_request_t *r,
-    xrootd_sd_instance_t *inst, const char *key,
-    ngx_http_xrootd_shared_conf_t *common,
-    xrootd_http_cache_reenter_pt reenter, void *reenter_data)
+brix_http_cache_fill_if_needed(ngx_http_request_t *r,
+    brix_sd_instance_t *inst, const char *key,
+    ngx_http_brix_shared_conf_t *common,
+    brix_http_cache_reenter_pt reenter, void *reenter_data)
 {
     ngx_thread_task_t            *task;
-    xrootd_http_cache_fill_ctx_t *t;
+    brix_http_cache_fill_ctx_t *t;
     ngx_thread_pool_t            *pool;
     u_char                       *block;
 
     if (inst == NULL || key == NULL || reenter == NULL || common == NULL
-        || !xrootd_sd_cache_fill_needs_offload(inst, key))
+        || !brix_sd_cache_fill_needs_offload(inst, key))
     {
         return NGX_DECLINED;                 /* serve inline (hit / local / none) */
     }
 
     /* Coalesce onto an in-flight fill of the same object: the stampede case
      * (N concurrent cold reads) is exactly ONE origin fetch. */
-    t = xrootd_http_fill_find(inst, key);
+    t = brix_http_fill_find(inst, key);
     if (t != NULL) {
-        return xrootd_http_fill_attach(t, r, reenter, reenter_data);
+        return brix_http_fill_attach(t, r, reenter, reenter_data);
     }
 
-    pool = xrootd_http_cache_fill_pool(common);
+    pool = brix_http_cache_fill_pool(common);
     if (pool == NULL) {
         /* No pool: nothing can run off-loop, so fall through to the inline path
          * (preserves the pre-SP2 behaviour - a remote miss may stall/fail). */
@@ -570,7 +570,7 @@ xrootd_http_cache_fill_if_needed(ngx_http_request_t *r,
      * must not live in any one request's pool (an aborted first requester
      * would otherwise free the memory under the running task). */
     block = calloc(1, sizeof(ngx_thread_task_t)
-                      + sizeof(xrootd_http_cache_fill_ctx_t));
+                      + sizeof(brix_http_cache_fill_ctx_t));
     if (block == NULL) {
         return NGX_ERROR;
     }
@@ -585,24 +585,24 @@ xrootd_http_cache_fill_if_needed(ngx_http_request_t *r,
     t->started_ms  = ngx_current_msec;
     ngx_cpystrn((u_char *) t->key, (u_char *) key, sizeof(t->key));
 
-    xrootd_task_bind(task, xrootd_http_cache_fill_thread,
-                     xrootd_http_cache_fill_done);
+    brix_task_bind(task, brix_http_cache_fill_thread,
+                     brix_http_cache_fill_done);
     task->event.log = r->connection->log;
 
-    if (xrootd_http_fill_attach(t, r, reenter, reenter_data) != NGX_DONE) {
+    if (brix_http_fill_attach(t, r, reenter, reenter_data) != NGX_DONE) {
         free(block);
         return NGX_ERROR;
     }
 
     if (ngx_thread_task_post(pool, task) != NGX_OK) {
-        xrootd_http_fill_detach(t->waiters);     /* undo the attach        */
+        brix_http_fill_detach(t->waiters);     /* undo the attach        */
         r->main->count--;
         free(block);
         return NGX_ERROR;
     }
 
-    t->next = xrootd_http_fills;                 /* publish for coalescing */
-    xrootd_http_fills = t;
+    t->next = brix_http_fills;                 /* publish for coalescing */
+    brix_http_fills = t;
 
     ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
         "xrootd: offloaded cache fill of \"%s\" to the thread pool", key);
@@ -615,10 +615,10 @@ xrootd_http_cache_fill_if_needed(ngx_http_request_t *r,
  * inline open/fill path (correct for a local tier; a remote tier is unsupported
  * without threads, exactly as before SP2). */
 ngx_int_t
-xrootd_http_cache_fill_if_needed(ngx_http_request_t *r,
-    xrootd_sd_instance_t *inst, const char *key,
-    ngx_http_xrootd_shared_conf_t *common,
-    xrootd_http_cache_reenter_pt reenter, void *reenter_data)
+brix_http_cache_fill_if_needed(ngx_http_request_t *r,
+    brix_sd_instance_t *inst, const char *key,
+    ngx_http_brix_shared_conf_t *common,
+    brix_http_cache_reenter_pt reenter, void *reenter_data)
 {
     (void) r;
     (void) inst;

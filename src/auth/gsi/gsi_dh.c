@@ -6,7 +6,7 @@
 
 
 EVP_PKEY *
-xrootd_gsi_dh_keygen(void)
+brix_gsi_dh_keygen(void)
 {
     EVP_PKEY_CTX *ctx;
     EVP_PKEY     *k = NULL;
@@ -31,7 +31,7 @@ xrootd_gsi_dh_keygen(void)
 
 
 BIGNUM *
-xrootd_gsi_dh_pub_decode(const uint8_t *blob, size_t len)
+brix_gsi_dh_pub_decode(const uint8_t *blob, size_t len)
 {
     static const char b[] = "---BPUB---";
     static const char e[] = "---EPUB--";
@@ -63,7 +63,7 @@ xrootd_gsi_dh_pub_decode(const uint8_t *blob, size_t len)
 
 
 char *
-xrootd_gsi_dh_pub_encode(EVP_PKEY *dh)
+brix_gsi_dh_pub_encode(EVP_PKEY *dh)
 {
     BIGNUM *pub = NULL;
     char   *hex, *blob;
@@ -88,7 +88,7 @@ xrootd_gsi_dh_pub_encode(EVP_PKEY *dh)
 
 
 EVP_PKEY *
-xrootd_gsi_dh_build_peer(EVP_PKEY *mine, BIGNUM *peer_pub)
+brix_gsi_dh_build_peer(EVP_PKEY *mine, BIGNUM *peer_pub)
 {
     OSSL_PARAM     *mparams = NULL, *cparams = NULL, *merged = NULL;
     OSSL_PARAM_BLD *bld = NULL;
@@ -125,7 +125,7 @@ xrootd_gsi_dh_build_peer(EVP_PKEY *mine, BIGNUM *peer_pub)
 
 
 uint8_t *
-xrootd_gsi_dh_derive(EVP_PKEY *mine, EVP_PKEY *peer, size_t *slen)
+brix_gsi_dh_derive(EVP_PKEY *mine, EVP_PKEY *peer, size_t *slen)
 {
     EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(mine, NULL);
     uint8_t      *secret = NULL;
@@ -160,7 +160,7 @@ xrootd_gsi_dh_derive(EVP_PKEY *mine, EVP_PKEY *peer, size_t *slen)
 EVP_PKEY *
 gsi_fixed_dh_params(void)
 {
-    BIO      *bio = BIO_new_mem_buf(xrootd_gsi_dh_params_pem, -1);
+    BIO      *bio = BIO_new_mem_buf(brix_gsi_dh_params_pem, -1);
     EVP_PKEY *p   = NULL;
 
     if (bio != NULL) {

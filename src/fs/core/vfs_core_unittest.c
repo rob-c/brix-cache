@@ -34,19 +34,19 @@ int main(void)
 {
     char            tmpl[] = "/tmp/vfs_core_ut.XXXXXX";
     int             fd = mkstemp(tmpl);
-    xrootd_sd_obj_t obj;
+    brix_sd_obj_t obj;
     unsigned char   src[4096];
     unsigned char   dst[4096];
     size_t          i, n = 0;
     int             sh = 0;
     ssize_t         r;
-    xrootd_sd_stat_t st;
+    brix_sd_stat_t st;
 
     if (fd < 0) { perror("mkstemp"); return 2; }
     for (i = 0; i < sizeof(src); i++) {
         src[i] = (unsigned char) ((i * 37 + 11) & 0xff);
     }
-    xrootd_sd_posix_wrap(&obj, fd);
+    brix_sd_posix_wrap(&obj, fd);
 
     /* full write */
     CHECK(xvfs_pwrite_full(&obj, src, sizeof(src), 0, &n, &sh) == 0,
@@ -93,7 +93,7 @@ int main(void)
         char            dtmpl[] = "/tmp/vfs_core_drain_d.XXXXXX";
         int             sfd = mkstemp(stmpl);
         int             dfd = mkstemp(dtmpl);
-        xrootd_sd_obj_t sobj, dobj;
+        brix_sd_obj_t sobj, dobj;
         unsigned char   chk[4096];
         char            buf[1024];          /* small: forces multiple chunks */
         size_t          m = 0;
@@ -101,8 +101,8 @@ int main(void)
         off_t           total = 0;
 
         if (sfd < 0 || dfd < 0) { perror("mkstemp drain"); return 2; }
-        xrootd_sd_posix_wrap(&sobj, sfd);
-        xrootd_sd_posix_wrap(&dobj, dfd);
+        brix_sd_posix_wrap(&sobj, sfd);
+        brix_sd_posix_wrap(&dobj, dfd);
 
         CHECK(xvfs_pwrite_full(&sobj, src, sizeof(src), 0, &m, &msh) == 0
               && m == sizeof(src) && msh == 0, "drain: seed source");

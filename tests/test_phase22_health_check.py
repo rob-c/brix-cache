@@ -54,7 +54,7 @@ def test_health_check_module_present():
 
 def test_registry_helpers_present():
     reg = _read("src/net/manager/registry_health.c")   # split out of registry.c
-    for fn in ("xrootd_srv_hc_claim", "xrootd_srv_hc_pass", "xrootd_srv_hc_fail"):
+    for fn in ("brix_srv_hc_claim", "brix_srv_hc_pass", "brix_srv_hc_fail"):
         assert fn in reg, fn
     # Entry struct carries the new HC fields.
     h = _read("src/net/manager/registry.h")
@@ -64,17 +64,17 @@ def test_registry_helpers_present():
 def test_probe_state_machine_and_timer_present():
     hc = _read("src/net/manager/health_check.c")
     # Reuses the proven bootstrap wire builder; sends a ping; bounded by timeout.
-    assert "xrootd_upstream_build_bootstrap" in hc
+    assert "brix_upstream_build_bootstrap" in hc
     assert "kXR_ping" in hc
-    assert "xrootd_hc_timer_handler" in hc
-    assert "xrootd_srv_hc_claim" in hc
+    assert "brix_hc_timer_handler" in hc
+    assert "brix_srv_hc_claim" in hc
     # Manager start hooked into init_process.
-    assert "xrootd_hc_manager_start" in _read("src/core/config/process.c")
+    assert "brix_hc_manager_start" in _read("src/core/config/process.c")
 
 
 def test_metrics_present():
     assert "hc_pass_total" in _read("src/observability/metrics/metrics.h")
-    assert "xrootd_cluster_hc_pass_total" in _read("src/observability/metrics/cluster.c")
+    assert "brix_cluster_hc_pass_total" in _read("src/observability/metrics/cluster.c")
 
 
 # --------------------------------------------------------------------------- #
@@ -105,14 +105,14 @@ def test_all_directives_parse(tmp_path):
         server {{
             listen {BIND_HOST}:{_P_DIRECTIVES};
             xrootd on;
-            xrootd_storage_backend posix:/tmp/xrd-test/data;
-            xrootd_auth none;
-            xrootd_health_check on;
-            xrootd_health_check_interval 15s;
-            xrootd_health_check_timeout 4s;
-            xrootd_health_check_threshold 2;
-            xrootd_health_check_blacklist 45s;
-            xrootd_health_check_type stat;
+            brix_storage_backend posix:/tmp/xrd-test/data;
+            brix_auth none;
+            brix_health_check on;
+            brix_health_check_interval 15s;
+            brix_health_check_timeout 4s;
+            brix_health_check_threshold 2;
+            brix_health_check_blacklist 45s;
+            brix_health_check_type stat;
         }}
     }}
     """
@@ -126,19 +126,19 @@ def test_bad_type_rejected(tmp_path):
         server {{
             listen {BIND_HOST}:{_P_BADTYPE};
             xrootd on;
-            xrootd_storage_backend posix:/tmp/xrd-test/data;
-            xrootd_auth none;
-            xrootd_health_check_type bogus;
+            brix_storage_backend posix:/tmp/xrd-test/data;
+            brix_auth none;
+            brix_health_check_type bogus;
         }}
     }}
     """
     rc, out = _nginx_check(conf, tmp_path)
     assert rc != 0
-    assert "xrootd_health_check_type" in out or "invalid" in out.lower()
+    assert "brix_health_check_type" in out or "invalid" in out.lower()
 
 
 def test_disabled_by_default_no_timer_log(tmp_path):
-    # Without `xrootd_health_check on`, no health-check manager is started, so
+    # Without `brix_health_check on`, no health-check manager is started, so
     # the "health check manager started" notice must not appear.
     logs = tmp_path / "logs"
     logs.mkdir()
@@ -148,8 +148,8 @@ def test_disabled_by_default_no_timer_log(tmp_path):
         server {{
             listen {BIND_HOST}:{_P_DISABLED};
             xrootd on;
-            xrootd_storage_backend posix:/tmp/xrd-test/data;
-            xrootd_auth none;
+            brix_storage_backend posix:/tmp/xrd-test/data;
+            brix_auth none;
         }}
     }}
     """
@@ -192,10 +192,10 @@ def test_enabled_starts_manager(tmp_path):
         server {{
             listen {BIND_HOST}:{_P_ENABLED};
             xrootd on;
-            xrootd_storage_backend posix:/tmp/xrd-test/data;
-            xrootd_auth none;
-            xrootd_health_check on;
-            xrootd_health_check_interval 5s;
+            brix_storage_backend posix:/tmp/xrd-test/data;
+            brix_auth none;
+            brix_health_check on;
+            brix_health_check_interval 5s;
         }}
     }}
     """
@@ -281,27 +281,27 @@ def hc_cluster(tmp_path):
         server {{
             listen {BIND_HOST}:{MGR_PORT};
             xrootd on;
-            xrootd_auth none;
-            xrootd_manager_mode on;
-            xrootd_health_check on;
-            xrootd_health_check_interval 2s;
-            xrootd_health_check_timeout 3s;
+            brix_auth none;
+            brix_manager_mode on;
+            brix_health_check on;
+            brix_health_check_interval 2s;
+            brix_health_check_timeout 3s;
         }}
         # CMS server endpoint data servers register with.
         server {{
             listen {BIND_HOST}:{CMS_PORT};
-            xrootd_cms_server on;
+            brix_cms_server on;
         }}
         # Live data server that registers itself via loopback CMS.
         server {{
             listen {BIND_HOST}:{DS_PORT};
             xrootd on;
-            xrootd_auth none;
-            xrootd_storage_backend posix:{data};
-            xrootd_cms_manager {HOST}:{CMS_PORT};
-            xrootd_cms_paths /data;
-            xrootd_cms_interval 2;
-            xrootd_listen_port {DS_PORT};
+            brix_auth none;
+            brix_storage_backend posix:{data};
+            brix_cms_manager {HOST}:{CMS_PORT};
+            brix_cms_paths /data;
+            brix_cms_interval 2;
+            brix_listen_port {DS_PORT};
         }}
     }}
     http {{
@@ -310,7 +310,7 @@ def hc_cluster(tmp_path):
         scgi_temp_path {tmp_path}/t; access_log off;
         server {{
             listen {BIND_HOST}:{METRICS_PORT};
-            location /metrics {{ xrootd_metrics on; }}
+            location /metrics {{ brix_metrics on; }}
         }}
     }}
     """
@@ -341,7 +341,7 @@ def test_probe_passes_live_server(hc_cluster):
     passed = 0
     while time.time() < deadline:
         body = _metrics(METRICS_PORT)
-        passed = _counter(body, "xrootd_cluster_hc_pass_total")
+        passed = _counter(body, "brix_cluster_hc_pass_total")
         if passed >= 1:
             break
         time.sleep(0.5)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # run_cache_backend_source.sh — C-1 (phase-63): a read cache whose SOURCE is the
-# export's registered remote backend (xrootd_storage_backend root://O), with NO
-# separate xrootd_cache_origin. A miss fills FROM the backend (driver open/pread →
+# export's registered remote backend (brix_storage_backend root://O), with NO
+# separate brix_cache_origin. A miss fills FROM the backend (driver open/pread →
 # staged sink), stores locally, serves byte-exact; a warm read is a cache hit.
 set -u
 NGINX="${1:-/tmp/nginx-1.28.3/objs/nginx}"
@@ -14,17 +14,17 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/b/export" "$PFX/b/cache" "$PFX/b/logs
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OPORT}; xrootd on; xrootd_auth none; xrootd_storage_backend posix:$PFX/o/root; xrootd_allow_write on; } }
+stream { server { listen 127.0.0.1:${OPORT}; xrootd on; brix_auth none; brix_storage_backend posix:$PFX/o/root; brix_allow_write on; } }
 EOF
 cat > "$PFX/b/nginx.conf" <<EOF
 daemon on; error_log $PFX/b/logs/e.log info; pid $PFX/b/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${BPORT}; xrootd on; xrootd_auth none;
-    xrootd_storage_backend root://127.0.0.1:${OPORT};   # the origin
-    xrootd_cache_store posix:$PFX/b/cache;              # physical FSAL
-    xrootd_cache_root /;                                 # advertised root
+    listen 127.0.0.1:${BPORT}; xrootd on; brix_auth none;
+    brix_storage_backend root://127.0.0.1:${OPORT};   # the origin
+    brix_cache_store posix:$PFX/b/cache;              # physical FSAL
+    brix_cache_root /;                                 # advertised root
 } }
 EOF
 # seed two files DIRECTLY on the origin O

@@ -250,7 +250,7 @@ def _bind_secondary(port, sessid, streamid):
 #
 # A bound secondary re-validates its primary-published handle under the handle
 # mutex on EVERY read.  Phase 33 caches the matched SHM slot index on the ctx
-# (xrootd_file_t.shared_handle_slot_hint) so reads 2..N skip the table scan.  The
+# (brix_file_t.shared_handle_slot_hint) so reads 2..N skip the table scan.  The
 # cache must remain correct: repeated reads stay byte-exact, and a primary close
 # (which clears the slot's in_use flag) must still revoke the secondary on its
 # next read rather than serving a stale handle.
@@ -272,10 +272,10 @@ class TestBindHandleSlotCache:
         assert "shared_handle_slot_hint = -1" in rd("src/protocols/root/connection/fd_table.c")
         # Hinted lookup keeps the full key check (in_use guards revocation).
         h = rd("src/protocols/root/session/handles.c")
-        assert "xrootd_session_handle_lookup_hint" in h
-        assert "xrootd_shared_handle_same_key" in h
+        assert "brix_session_handle_lookup_hint" in h
+        assert "brix_shared_handle_same_key" in h
         # The read path uses the hinted variant.
-        assert "xrootd_session_handle_lookup_hint" in rd("src/protocols/root/connection/fd_table.c")
+        assert "brix_session_handle_lookup_hint" in rd("src/protocols/root/connection/fd_table.c")
 
     def test_repeated_reads_cache_hit_byte_exact(self, bind_nginx):
         """Reads 2..N on a bound handle (the slot-hint fast path) stay byte-exact."""

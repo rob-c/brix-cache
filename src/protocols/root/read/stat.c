@@ -1,4 +1,4 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "stat.h"
 #include "net/cms/cns.h"            /* §6 CNS inventory stat answer */
 #include "fs/vfs/vfs.h"            /* path stat via the VFS seam */
@@ -15,7 +15,7 @@
 #include <sys/statvfs.h>
 
 /*
- * xrootd_make_vfs_body — kXR_stat(kXR_vfs) / `xrdfs statvfs` response body.
+ * brix_make_vfs_body — kXR_stat(kXR_vfs) / `xrdfs statvfs` response body.
  *
  * The reference format (XrdCl StatInfoVFS::ParseServerResponse) is SIX
  * space-separated integers, each a bare number:
@@ -25,7 +25,7 @@
  * statvfs(2) on the export root; staging is reported as 0 (no tape staging tier).
  */
 static void
-xrootd_make_vfs_body(ngx_stream_xrootd_srv_conf_t *conf, char *out, size_t outsz)
+brix_make_vfs_body(ngx_stream_brix_srv_conf_t *conf, char *out, size_t outsz)
 {
     struct statvfs vfs;
     const char    *root = conf->common.root_canon[0]
@@ -55,14 +55,14 @@ extern char **environ;
  * backend driver's in-process stat. */
 
 /*
- * xrootd_vfs_to_struct_stat — project a VFS stat result back into the struct
+ * brix_vfs_to_struct_stat — project a VFS stat result back into the struct
  * stat fields the kXR_stat response builder reads: the unique id (st_ino<<32 |
  * st_dev), st_size, the permission triplet (st_mode/st_uid/st_gid →
  * readable/writable flags), st_mtime, and st_blocks (statvfs-style body). The
  * VFS is the only thing that touched the namespace; this is a pure field copy.
  */
 void
-xrootd_vfs_to_struct_stat(const xrootd_vfs_stat_t *v, struct stat *st)
+brix_vfs_to_struct_stat(const brix_vfs_stat_t *v, struct stat *st)
 {
     ngx_memzero(st, sizeof(*st));
     st->st_mode   = (mode_t) v->mode;
@@ -79,7 +79,7 @@ xrootd_vfs_to_struct_stat(const xrootd_vfs_stat_t *v, struct stat *st)
 
 /* Return kXR_cachersp if reqpath (client's clean path) exists in cache_root. */
 int
-xrootd_cache_path_flag(const ngx_stream_xrootd_srv_conf_t *conf, const char *reqpath)
+brix_cache_path_flag(const ngx_stream_brix_srv_conf_t *conf, const char *reqpath)
 {
     char        cache_path[PATH_MAX];
     struct stat cst;
@@ -102,12 +102,12 @@ xrootd_cache_path_flag(const ngx_stream_xrootd_srv_conf_t *conf, const char *req
            ? kXR_cachersp : 0;
 }
 
-ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_xrootd_srv_conf_t *conf)
+ngx_int_t brix_handle_stat(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf)
 {
     xrdw_stat_req_t    req;
     struct stat        st;
     char               full_path[PATH_MAX];
-    char               reqpath_buf[XROOTD_MAX_PATH + 1];
+    char               reqpath_buf[BRIX_MAX_PATH + 1];
     char               body[256];
     ngx_flag_t         is_vfs;
     const char        *reqpath = NULL;
@@ -128,16 +128,16 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
 
     if (ctx->cur_dlen > 0 && ctx->payload != NULL) {
         /* Path-based stat */
-        if (!xrootd_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+        if (!brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
                                  reqpath_buf, sizeof(reqpath_buf), 1)) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", "-", "-",
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_STAT, "STAT", "-", "-",
                               kXR_ArgInvalid, "invalid path payload");
         }
         reqpath = reqpath_buf;
         /* Reject any ".." component outright (the reference does not normalize
          * "..").  This op resolves through the kernel RESOLVE_BENEATH, which
          * would silently collapse an in-tree "..", so the guard is explicit. */
-        if (xrootd_reject_dotdot_path(ctx, c, XROOTD_OP_STAT, "STAT", reqpath)) {
+        if (brix_reject_dotdot_path(ctx, c, BRIX_OP_STAT, "STAT", reqpath)) {
             return ctx->write_rc;
         }
         /* Static manager_map: an explicit prefix→backend redirect (mirrors the
@@ -145,10 +145,10 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
          * and go-hep clients stat a path before they open it, and without this a
          * map-only redirector answered stat locally (IOError, no root). */
         if (conf->manager_map != NULL) {
-            const xrootd_manager_map_t *m =
-                xrootd_find_manager_map(reqpath, conf->manager_map);
+            const brix_manager_map_t *m =
+                brix_find_manager_map(reqpath, conf->manager_map);
             if (m != NULL) {
-                XROOTD_RETURN_REDIR(ctx, c, XROOTD_OP_STAT, "STAT", reqpath,
+                BRIX_RETURN_REDIR(ctx, c, BRIX_OP_STAT, "STAT", reqpath,
                                     "manager_map",
                                     (const char *) m->host.data, m->port);
             }
@@ -161,15 +161,15 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
             /* §6 CNS: if the cluster name space inventory has this path, answer
              * stat directly (size/mtime) instead of redirecting — a true global
              * namespace stat at the redirector. */
-            if (conf->cns_mode == XROOTD_CNS_COLLECT) {
+            if (conf->cns_mode == BRIX_CNS_COLLECT) {
                 struct stat cst;
-                if (xrootd_cns_stat(reqpath, &cst) == NGX_OK) {
+                if (brix_cns_stat(reqpath, &cst) == NGX_OK) {
                     char cbody[256];
-                    xrootd_make_stat_body(&cst, 0, 0, cbody, sizeof(cbody));
-                    xrootd_log_access(ctx, c, "STAT", reqpath, "cns",
+                    brix_make_stat_body(&cst, 0, 0, cbody, sizeof(cbody));
+                    brix_log_access(ctx, c, "STAT", reqpath, "cns",
                                       1, 0, NULL, 0);
-                    XROOTD_OP_OK(ctx, XROOTD_OP_STAT);
-                    return xrootd_send_ok(ctx, c, cbody,
+                    BRIX_OP_OK(ctx, BRIX_OP_STAT);
+                    return brix_send_ok(ctx, c, cbody,
                                           (uint32_t) (strlen(cbody) + 1));
                 }
             }
@@ -177,18 +177,18 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
             /* tried/triedrc: if the client has already visited every server
              * that holds this path and they returned enoent, stop redirecting
              * and answer not-found — otherwise the client redirect-loops. */
-            if (xrootd_manager_tried_exhausted(ctx->payload, ctx->cur_dlen,
+            if (brix_manager_tried_exhausted(ctx->payload, ctx->cur_dlen,
                                                reqpath)) {
-                XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", reqpath, "-",
+                BRIX_RETURN_ERR(ctx, c, BRIX_OP_STAT, "STAT", reqpath, "-",
                                   kXR_NotFound,
                                   "file not found on any data server");
             }
 
             /* Like open: tolerate a server whose CMS heartbeat just dropped (it
              * is almost certainly still serving) rather than a false NotFound. */
-            if (xrootd_srv_select_or_blacklisted(reqpath, 0, redir_host,
+            if (brix_srv_select_or_blacklisted(reqpath, 0, redir_host,
                                   sizeof(redir_host), &redir_port)) {
-                XROOTD_RETURN_REDIR(ctx, c, XROOTD_OP_STAT, "STAT",
+                BRIX_RETURN_REDIR(ctx, c, BRIX_OP_STAT, "STAT",
                                     reqpath, "registry",
                                     redir_host, redir_port);
             }
@@ -197,8 +197,8 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
             if (conf->cms_ctx != NULL) {
                 uint32_t streamid;
 
-                streamid = ngx_xrootd_cms_next_streamid(conf->cms_ctx);
-                if (xrootd_pending_insert(streamid, ngx_pid, c->fd,
+                streamid = ngx_brix_cms_next_streamid(conf->cms_ctx);
+                if (brix_pending_insert(streamid, ngx_pid, c->fd,
                                           c->number,
                                           ctx->cur_streamid,
                                           conf->cms_locate_timeout) == NGX_OK)
@@ -206,24 +206,24 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
                     ctx->cms_wait_streamid = streamid;
                     ctx->state = XRD_ST_WAITING_CMS;
                     ngx_add_timer(c->read, conf->cms_locate_timeout);
-                    if (ngx_xrootd_cms_send_locate(conf->cms_ctx, streamid,
+                    if (ngx_brix_cms_send_locate(conf->cms_ctx, streamid,
                                                    reqpath) == NGX_OK)
                     {
                         return NGX_AGAIN;
                     }
                     ngx_del_timer(c->read);
                     ctx->state = XRD_ST_REQ_HEADER;
-                    xrootd_pending_remove(streamid, ngx_pid);
+                    brix_pending_remove(streamid, ngx_pid);
                 }
             }
         }
 
-        xrootd_beneath_full_path(conf->common.root_canon, reqpath,
+        brix_beneath_full_path(conf->common.root_canon, reqpath,
                                   full_path, sizeof(full_path));
 
-        if (xrootd_auth_gate(ctx, c, XROOTD_OP_STAT, "STAT",
+        if (brix_auth_gate(ctx, c, BRIX_OP_STAT, "STAT",
                               reqpath, full_path, conf,
-                              XROOTD_AUTH_LOOKUP, 0) != NGX_OK) {
+                              BRIX_AUTH_LOOKUP, 0) != NGX_OK) {
             return ctx->write_rc;
         }
 
@@ -233,18 +233,18 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
              * default follows symlinks exactly as before. Both go through the VFS
              * seam (impersonation-aware, RESOLVE_IN_ROOT-confined); the result is
              * projected back into struct st for the response/fallback/frm code. */
-            xrootd_vfs_ctx_t  vctx;
-            xrootd_vfs_stat_t vst;
+            brix_vfs_ctx_t  vctx;
+            brix_vfs_stat_t vst;
             int               src;
 
-            xrootd_vfs_ctx_init(&vctx, c->pool, c->log, XROOTD_PROTO_ROOT,
+            brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
                 conf->common.root_canon, NULL, conf->common.allow_write,
                 0 /* is_tls */, NULL, full_path);
             src = (((req.options & kXR_statNoFollow)
-                    ? xrootd_vfs_stat(&vctx, &vst)
-                    : xrootd_vfs_statf(&vctx, &vst)) == NGX_OK) ? 0 : -1;
+                    ? brix_vfs_stat(&vctx, &vst)
+                    : brix_vfs_statf(&vctx, &vst)) == NGX_OK) ? 0 : -1;
             if (src == 0) {
-                xrootd_vfs_to_struct_stat(&vst, &st);
+                brix_vfs_to_struct_stat(&vst, &st);
             }
 
             /* Follow fallback for an in-export symlink with a host-ABSOLUTE
@@ -266,28 +266,28 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
                     /* The canonical target is confirmed within the export root;
                      * read its metadata through the VFS (the symlink chain is
                      * already resolved, so a non-follow probe is exact). */
-                    xrootd_vfs_ctx_t  rvctx;
-                    xrootd_vfs_stat_t rvst;
+                    brix_vfs_ctx_t  rvctx;
+                    brix_vfs_stat_t rvst;
 
-                    xrootd_vfs_ctx_init(&rvctx, c->pool, c->log,
-                        XROOTD_PROTO_ROOT, conf->common.root_canon, NULL,
+                    brix_vfs_ctx_init(&rvctx, c->pool, c->log,
+                        BRIX_PROTO_ROOT, conf->common.root_canon, NULL,
                         conf->common.allow_write, 0 /* is_tls */, NULL, real);
-                    if (xrootd_vfs_probe(&rvctx, 0 /* follow */, &rvst)
+                    if (brix_vfs_probe(&rvctx, 0 /* follow */, &rvst)
                         == NGX_OK)
                     {
-                        xrootd_vfs_to_struct_stat(&rvst, &st);
+                        brix_vfs_to_struct_stat(&rvst, &st);
                         src = 0;
                     }
                 }
             }
             if (src != 0) {
-                XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", reqpath,
-                                  "-", xrootd_kxr_from_errno(errno),
+                BRIX_RETURN_ERR(ctx, c, BRIX_OP_STAT, "STAT", reqpath,
+                                  "-", brix_kxr_from_errno(errno),
                                   strerror(errno));
             }
         }
 
-        extra_flags = xrootd_cache_path_flag(conf, reqpath);
+        extra_flags = brix_cache_path_flag(conf, reqpath);
 
         /* Phase 64: a nearline file (on a tape/MSS backend, not resident in the
          * cache) is reported offline so the client prepares/stages before reading.
@@ -295,15 +295,15 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
          * export advertises offline with NO FRM config; a non-nearline export always
          * classifies ONLINE and sets no flag. */
         {
-            xrootd_vfs_ctx_t      _rvc;
-            xrootd_sd_residency_t _res;
+            brix_vfs_ctx_t      _rvc;
+            brix_sd_residency_t _res;
 
-            xrootd_vfs_ctx_init(&_rvc, c->pool, c->log, XROOTD_PROTO_ROOT,
+            brix_vfs_ctx_init(&_rvc, c->pool, c->log, BRIX_PROTO_ROOT,
                 conf->common.root_canon, NULL, conf->common.allow_write,
                 0 /* is_tls */, NULL, full_path);
-            if (xrootd_vfs_residency(&_rvc, &_res, NULL) == NGX_OK
-                && (_res == XROOTD_SD_RES_NEARLINE
-                    || _res == XROOTD_SD_RES_OFFLINE))
+            if (brix_vfs_residency(&_rvc, &_res, NULL) == NGX_OK
+                && (_res == BRIX_SD_RES_NEARLINE
+                    || _res == BRIX_SD_RES_OFFLINE))
             {
                 extra_flags |= kXR_offline | kXR_bkpexist;
             }
@@ -314,8 +314,8 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
         /* The cached path is only for logging; the real metadata comes from fstat(). */
         int idx = (int)(unsigned char) req.fhandle[0];
 
-        if (!xrootd_validate_file_handle(ctx, c, idx, "STAT",
-                                         XROOTD_OP_STAT, &validate_rc)) {
+        if (!brix_validate_file_handle(ctx, c, idx, "STAT",
+                                         BRIX_OP_STAT, &validate_rc)) {
             return validate_rc;
         }
 
@@ -334,26 +334,26 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
              * file size.
              */
             if (fstat(ctx->files[idx].fd, &st) != 0) {
-                XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", full_path, "-",
+                BRIX_RETURN_ERR(ctx, c, BRIX_OP_STAT, "STAT", full_path, "-",
                                   kXR_IOError, strerror(errno));
             }
             st.st_size = (off_t) ctx->files[idx].cached_size;
         } else if (ctx->files[idx].sd_obj.driver != NULL
                    && ctx->files[idx].sd_obj.driver
-                          != xrootd_sd_default_driver()) {
+                          != brix_sd_default_driver()) {
             /*
              * Driver-backed handle (e.g. pblock): the bare fd is only block 0,
              * so a plain fstat would report the block size, not the logical
              * object size.  Ask the storage driver for the object's
              * (catalog-backed) metadata via its worker-safe fstat slot.
              */
-            xrootd_sd_stat_t sdst;
+            brix_sd_stat_t sdst;
 
             if (ctx->files[idx].sd_obj.driver->fstat == NULL
                 || ctx->files[idx].sd_obj.driver->fstat(
                        &ctx->files[idx].sd_obj, &sdst) != NGX_OK)
             {
-                XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", full_path,
+                BRIX_RETURN_ERR(ctx, c, BRIX_OP_STAT, "STAT", full_path,
                                   "-", kXR_IOError, strerror(errno));
             }
             ngx_memzero(&st, sizeof(st));
@@ -365,7 +365,7 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
             st.st_mode  = sdst.mode ? (mode_t) sdst.mode
                         : (sdst.is_dir ? (S_IFDIR | 0755) : (S_IFREG | 0644));
         } else if (fstat(ctx->files[idx].fd, &st) != 0) {
-            XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_STAT, "STAT", full_path, "-",
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_STAT, "STAT", full_path, "-",
                               kXR_IOError, strerror(errno));
         }
 
@@ -376,19 +376,19 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
      * 6-field RW/staging-space format (xrdfs statvfs); a plain stat is the
      * 4-field "id size flags mtime" line. */
     if (is_vfs) {
-        xrootd_make_vfs_body(conf, body, sizeof(body));
+        brix_make_vfs_body(conf, body, sizeof(body));
     } else {
-        xrootd_make_stat_body(&st, 0, extra_flags, body, sizeof(body));
+        brix_make_stat_body(&st, 0, extra_flags, body, sizeof(body));
     }
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd: kXR_stat ok: %s", body);
 
-    xrootd_log_access(ctx, c, "STAT",
+    brix_log_access(ctx, c, "STAT",
                       (reqpath && reqpath[0]) ? reqpath : full_path,
                       is_vfs ? "vfs" : "-",
                       1, 0, NULL, 0);
-    XROOTD_OP_OK(ctx, XROOTD_OP_STAT);
+    BRIX_OP_OK(ctx, BRIX_OP_STAT);
 
-    return xrootd_send_ok(ctx, c, body, (uint32_t)(strlen(body) + 1));
+    return brix_send_ok(ctx, c, body, (uint32_t)(strlen(body) + 1));
 }

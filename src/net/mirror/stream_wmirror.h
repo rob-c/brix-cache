@@ -1,5 +1,5 @@
-#ifndef XROOTD_STREAM_WMIRROR_H
-#define XROOTD_STREAM_WMIRROR_H
+#ifndef BRIX_STREAM_WMIRROR_H
+#define BRIX_STREAM_WMIRROR_H
 
 /*
  * stream_wmirror.h — Phase 24 W3: XRootD stream DATA-write mirroring.
@@ -20,15 +20,15 @@
  * / non-sequential, aborts that file's mirror (counted) and never blocks the
  * client — write mirroring is best-effort validation.
  *
- * GATING: no-op unless xrootd_mirror_writes is on, OP_WRITE is selected in
- * xrootd_mirror_opcodes, and a stream mirror target is configured.  The target
+ * GATING: no-op unless brix_mirror_writes is on, OP_WRITE is selected in
+ * brix_mirror_opcodes, and a stream mirror target is configured.  The target
  * MUST be an isolated namespace; replaying writes onto the primary's store would
  * corrupt it.
  *
- * Requires: types/context.h (xrootd_ctx_t), protocol headers, nginx headers.
+ * Requires: types/context.h (brix_ctx_t), protocol headers, nginx headers.
  */
 
-#include "core/ngx_xrootd_module.h"   /* umbrella: nginx + protocol + ctx/conf types */
+#include "core/ngx_brix_module.h"   /* umbrella: nginx + protocol + ctx/conf types */
 
 /*
  * Begin accumulating a write-open for the data-write mirror.  Called from the
@@ -36,8 +36,8 @@
  * handle index, the resolved request path, and the write flag are all known.
  * No-op unless this is a write open and data-write mirroring is enabled.
  */
-void xrootd_stream_wmirror_on_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, int client_idx, int is_write);
+void brix_stream_wmirror_on_open(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, int client_idx, int is_write);
 
 /*
  * Observe a just-dispatched kXR_write / kXR_pgwrite / kXR_close for the
@@ -47,14 +47,14 @@ void xrootd_stream_wmirror_on_open(xrootd_ctx_t *ctx, ngx_connection_t *c,
  * sequential write was accumulated, a detached shadow replay is launched.  No-op
  * when data-write mirroring is not configured/enabled.
  */
-void xrootd_stream_wmirror_observe(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, ngx_int_t primary_rc);
+void brix_stream_wmirror_observe(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, ngx_int_t primary_rc);
 
 /*
  * Free any per-connection write-mirror accumulation state.  Called from the
  * connection teardown path (disconnect) so malloc'd per-file buffers are released.
  * Safe to call when no wmirror state was ever allocated.
  */
-void xrootd_stream_wmirror_cleanup(xrootd_ctx_t *ctx);
+void brix_stream_wmirror_cleanup(brix_ctx_t *ctx);
 
-#endif /* XROOTD_STREAM_WMIRROR_H */
+#endif /* BRIX_STREAM_WMIRROR_H */

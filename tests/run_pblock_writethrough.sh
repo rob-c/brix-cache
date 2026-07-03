@@ -34,10 +34,10 @@ stream {
     server {
         listen 127.0.0.1:${ORIGIN_PORT};
         xrootd on;
-        xrootd_storage_backend posix:$PFX/o/root;
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_upload_resume off;
+        brix_storage_backend posix:$PFX/o/root;
+        brix_auth none;
+        brix_allow_write on;
+        brix_upload_resume off;
     }
 }
 EOF
@@ -53,14 +53,14 @@ stream {
     server {
         listen 127.0.0.1:${PRIMARY_PORT};
         xrootd on;
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_upload_resume off;
-        xrootd_storage_backend  pblock://$PFX/p/root/;
-        xrootd_pblock_block_size 1m;
-        xrootd_write_through on;
-        xrootd_wt_mode sync;
-        xrootd_wt_origin 127.0.0.1:${ORIGIN_PORT};
+        brix_auth none;
+        brix_allow_write on;
+        brix_upload_resume off;
+        brix_storage_backend  pblock://$PFX/p/root/;
+        brix_pblock_block_size 1m;
+        brix_write_through on;
+        brix_wt_mode sync;
+        brix_wt_origin 127.0.0.1:${ORIGIN_PORT};
     }
 }
 EOF

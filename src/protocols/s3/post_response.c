@@ -35,7 +35,7 @@ s3_post_send_created(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     ngx_str_t     host;
     char          location[S3_MAX_KEY + 512];
 
-    XROOTD_PNALLOC_OR_RETURN(xml, r->pool, xml_capacity, NGX_HTTP_INTERNAL_SERVER_ERROR);
+    BRIX_PNALLOC_OR_RETURN(xml, r->pool, xml_capacity, NGX_HTTP_INTERNAL_SERVER_ERROR);
 
     /* Absolute URL when a Host header is available; otherwise a bare path. */
     host = r->headers_in.host ? r->headers_in.host->value
@@ -100,7 +100,7 @@ s3_post_send_success(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     /* Redirect takes precedence over success_action_status when both are set. */
     if (form->success_redirect[0] != '\0') {
         /* Reject control chars: this value is reflected into a Location header. */
-        if (xrootd_http_str_has_ctl((u_char *) form->success_redirect,
+        if (brix_http_str_has_ctl((u_char *) form->success_redirect,
                                     strlen(form->success_redirect)))
         {
             return s3_post_error(r, NGX_HTTP_BAD_REQUEST, "InvalidArgument",

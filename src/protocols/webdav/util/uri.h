@@ -1,5 +1,5 @@
-#ifndef XROOTD_WEBDAV_UTIL_URI_H
-#define XROOTD_WEBDAV_UTIL_URI_H
+#ifndef BRIX_WEBDAV_UTIL_URI_H
+#define BRIX_WEBDAV_UTIL_URI_H
 
 #include "protocols/webdav/webdav.h"
 
@@ -13,9 +13,9 @@
  *      malformed input and must produce a 400 response rather than truncating the
  *      decoded string (which would cause incorrect path matching).
  *
- * HOW: Wraps `xrootd_http_urldecode()` from src/compat/uri.h with nginx status-code
+ * HOW: Wraps `brix_http_urldecode()` from src/compat/uri.h with nginx status-code
  *      mapping. Overflow → 414, null byte → 400, other → 500. The compat function
- *      is called with XROOTD_URLDECODE_REJECT_NUL to enforce null-byte rejection.
+ *      is called with BRIX_URLDECODE_REJECT_NUL to enforce null-byte rejection.
  *
  * RETURN: NGX_OK on success; nginx error code on failure (never raw compat codes).
  */
@@ -37,4 +37,4 @@ ngx_int_t webdav_urldecode(const u_char *src, size_t src_len,
 ngx_int_t webdav_destination_extract_path(const u_char *dest_data,
     size_t dest_len, const u_char **path_out, size_t *path_len_out);
 
-#endif /* XROOTD_WEBDAV_UTIL_URI_H */
+#endif /* BRIX_WEBDAV_UTIL_URI_H */

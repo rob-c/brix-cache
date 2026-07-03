@@ -1,4 +1,4 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
 #include <stdlib.h>
 
@@ -30,7 +30,7 @@
 #define CMS_SPACE_PREFIX_LEN (sizeof(CMS_SPACE_PREFIX) - 1)
 
 /*
- * xrootd_set_handle_cms_space — parse and log CMS space-availability report.
+ * brix_set_handle_cms_space — parse and log CMS space-availability report.
  *
  * WHAT: Extracts total and free byte counts from a "cms.space" payload string,
  *       then logs the capacity breakdown at INFO level for operational visibility.
@@ -45,7 +45,7 @@
  *      malformed payload (warn logged).
  */
 static void
-xrootd_set_handle_cms_space(ngx_connection_t *c, const char *payload,
+brix_set_handle_cms_space(ngx_connection_t *c, const char *payload,
                              size_t payload_len)
 {
     /* Expected format: "cms.space <total_bytes> <free_bytes>" */
@@ -83,7 +83,7 @@ xrootd_set_handle_cms_space(ngx_connection_t *c, const char *payload,
 }
 
 /*
- * xrootd_handle_set — handle kXR_set (3018) opcode.
+ * brix_handle_set — handle kXR_set (3018) opcode.
  *
  * WHAT: Dispatches the SET opcode based on its modifier byte, handling known
  *       hint types (appid with CMS space reports, clttl session TTL) and
@@ -105,7 +105,7 @@ xrootd_set_handle_cms_space(ngx_connection_t *c, const char *payload,
  *   c   — nginx connection for logging
  */
 ngx_int_t
-xrootd_handle_set(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_set(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     xrdw_set_req_t    req;
     char              detail[128];
@@ -148,8 +148,8 @@ xrootd_handle_set(xrootd_ctx_t *ctx, ngx_connection_t *c)
         && payload_len > CMS_SPACE_PREFIX_LEN
         && ngx_strncmp(payload, CMS_SPACE_PREFIX, CMS_SPACE_PREFIX_LEN) == 0)
     {
-        xrootd_set_handle_cms_space(c, payload, payload_len);
-        XROOTD_RETURN_OK(ctx, c, XROOTD_OP_SET, "SET", "-", "cms.space", 0);
+        brix_set_handle_cms_space(c, payload, payload_len);
+        BRIX_RETURN_OK(ctx, c, BRIX_OP_SET, "SET", "-", "cms.space", 0);
     }
 
     snprintf(detail, sizeof(detail), "modifier=0x%02x(%s) val=\"%s\"",
@@ -158,5 +158,5 @@ xrootd_handle_set(xrootd_ctx_t *ctx, ngx_connection_t *c)
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "xrootd: kXR_set %s", detail);
 
-    XROOTD_RETURN_OK(ctx, c, XROOTD_OP_SET, "SET", "-", detail, 0);
+    BRIX_RETURN_OK(ctx, c, BRIX_OP_SET, "SET", "-", detail, 0);
 }

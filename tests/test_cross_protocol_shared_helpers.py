@@ -2,41 +2,41 @@ from _test_cross_protocol_shared_helpers_helpers import *  # noqa: F401,F403  (P
 
 def test_copy_and_http_file_response_helpers_are_shared():
     # Phase 55: local-object copy moved behind the shared VFS copy entry point
-    # (xrootd_vfs_copy → xrootd_ns_local_copy in src/fs/vfs/vfs_copy.c).  The S3
+    # (brix_vfs_copy → brix_ns_local_copy in src/fs/vfs/vfs_copy.c).  The S3
     # CopyObject handler must route through that shared seam, not a private copy.
     _assert_markers(
         "src/protocols/s3/copy.c",
-        ['#include "s3.h"', "xrootd_vfs_copy("],
+        ['#include "s3.h"', "brix_vfs_copy("],
     )
     _assert_absent("src/protocols/s3/copy.c", ["static int\ns3_copy_file"])
     # Phase 62: WebDAV COPY's local copy moved behind the shared VFS copy seam
-    # (xrootd_vfs_copyfile / xrootd_vfs_copytree, src/fs/vfs/vfs_walk.c), which owns
+    # (brix_vfs_copyfile / brix_vfs_copytree, src/fs/vfs/vfs_walk.c), which owns
     # the underlying copy_file_range path.  The handler must route through that
-    # seam, and the shared VFS layer keeps the single xrootd_copy_range() impl.
+    # seam, and the shared VFS layer keeps the single brix_copy_range() impl.
     _assert_markers(
         "src/protocols/webdav/fs/copy_engine.c",
-        ["fs/vfs.h", "xrootd_vfs_copyfile("],
+        ["fs/vfs.h", "brix_vfs_copyfile("],
     )
     _assert_markers(
         "src/fs/vfs/vfs_walk.c",
-        ["xrootd_copy_range("],
+        ["brix_copy_range("],
     )
     # Phase 12: the range-parse → headers → send pipeline (including the
-    # xrootd_http_send_file_range call) moved into the shared file-serve
+    # brix_http_send_file_range call) moved into the shared file-serve
     # handler.  Both WebDAV GET and S3 GetObject now delegate to it via
-    # xrootd_http_serve_file_ranged() instead of each invoking the
+    # brix_http_serve_file_ranged() instead of each invoking the
     # http_file_response helpers directly.
     _assert_markers(
         "src/protocols/shared/file_serve.c",
-        ["core/http/http_file_response.h", "xrootd_http_send_file_range("],
+        ["core/http/http_file_response.h", "brix_http_send_file_range("],
     )
     _assert_markers(
         "src/protocols/webdav/get.c",
-        ["protocols/shared/file_serve.h", "xrootd_http_serve_file_ranged("],
+        ["protocols/shared/file_serve.h", "brix_http_serve_file_ranged("],
     )
     _assert_markers(
         "src/protocols/s3/object.c",
-        ["protocols/shared/file_serve.h", "xrootd_http_serve_file_ranged("],
+        ["protocols/shared/file_serve.h", "brix_http_serve_file_ranged("],
     )
 
 
@@ -46,21 +46,21 @@ def test_query_xml_and_base64url_helpers_are_shared():
         "src/protocols/s3/multipart_helpers.c",
         "src/protocols/webdav/xrdhttp.c",
     ):
-        _assert_markers(relpath, ["xrootd_http_query_"])
+        _assert_markers(relpath, ["brix_http_query_"])
 
     # propfind was split into propfind_props.c / propfind_walk.c with a shared
     # propfind_internal.h; the http_xml include lives in the header, the chain
     # builder is used by the props unit.
     _assert_markers("src/protocols/webdav/propfind_internal.h", ["core/http/http_xml.h"])
-    _assert_markers("src/protocols/webdav/propfind_props.c", ["xrootd_http_chain_appendf("])
+    _assert_markers("src/protocols/webdav/propfind_props.c", ["brix_http_chain_appendf("])
     _assert_markers(
         "src/protocols/webdav/lock.c",
-        ["core/http/http_xml.h", "xrootd_http_chain_appendf("],
+        ["core/http/http_xml.h", "brix_http_chain_appendf("],
     )
     _assert_absent("src/protocols/webdav/lock.c", ["webdav_propfind_append("])
     _assert_markers(
         "src/protocols/s3/util.c",
-        ["core/http/http_xml.h", "xrootd_http_send_xml_error("],
+        ["core/http/http_xml.h", "brix_http_send_xml_error("],
     )
     _assert_markers(
         "src/protocols/s3/list_objects_v2.c",
@@ -75,7 +75,7 @@ def test_query_xml_and_base64url_helpers_are_shared():
 def test_iso8601_and_hex_helpers_are_shared():
     _assert_markers(
         "src/core/compat/time.c",
-        ["xrootd_format_iso8601(", ".000Z"],
+        ["brix_format_iso8601(", ".000Z"],
     )
     for relpath in (
         "src/protocols/s3/copy.c",
@@ -85,41 +85,41 @@ def test_iso8601_and_hex_helpers_are_shared():
         "src/protocols/s3/multipart_complete_upload_part_copy.c",
         "src/protocols/webdav/propfind_props.c",
     ):
-        _assert_markers(relpath, ["xrootd_format_iso8601("])
+        _assert_markers(relpath, ["brix_format_iso8601("])
     _assert_markers("src/protocols/webdav/propfind_internal.h", ["core/compat/time.h"])
     _assert_absent("src/protocols/s3/util.c", ["s3_iso8601("])
     _assert_absent("src/protocols/s3/s3.h", ["s3_iso8601("])
 
     _assert_markers(
         "src/core/compat/hex.h",
-        ["xrootd_hex_nibble(", "xrootd_hex_from_char(", "xrootd_hex_encode("],
+        ["brix_hex_nibble(", "brix_hex_from_char(", "brix_hex_encode("],
     )
     _assert_markers(
         "src/fs/path/helpers.c",
-        ["core/compat/hex.h", "xrootd_hex_nibble("],
+        ["core/compat/hex.h", "brix_hex_nibble("],
     )
     _assert_markers(
         "src/core/compat/xml.c",
-        ['#include "hex.h"', "xrootd_hex_nibble("],
+        ['#include "hex.h"', "brix_hex_nibble("],
     )
     _assert_markers(
         "src/auth/token/macaroon.c",
-        ["core/compat/hex.h", "xrootd_hex_from_char("],
+        ["core/compat/hex.h", "brix_hex_from_char("],
     )
     _assert_markers(
         "src/core/compat/uri.c",
-        ['#include "hex.h"', "xrootd_hex_from_char("],
+        ['#include "hex.h"', "brix_hex_from_char("],
     )
     _assert_markers(
         "src/core/compat/checksum.c",
-        ['#include "hex.h"', "xrootd_hex_encode("],
+        ['#include "hex.h"', "brix_hex_encode("],
     )
     _assert_markers(
         "src/protocols/s3/auth_sigv4_verify.c",
-        ["core/compat/hex.h", "xrootd_hex_encode("],
+        ["core/compat/hex.h", "brix_hex_encode("],
     )
-    _assert_absent("src/fs/path/helpers.c", ["xrootd_hex_digit("])
-    _assert_absent("src/core/compat/xml.c", ["xrootd_xml_hex_digit("])
+    _assert_absent("src/fs/path/helpers.c", ["brix_hex_digit("])
+    _assert_absent("src/core/compat/xml.c", ["brix_xml_hex_digit("])
     _assert_absent("src/auth/token/macaroon.c", ["hex_to_int("])
     _assert_absent("src/core/compat/uri.c", ["hex_val("])
     _assert_absent("src/protocols/s3/auth_sigv4_canonical.c", ["hex_encode("])
@@ -132,28 +132,28 @@ def test_token_fs_usage_and_shm_slot_helpers_are_shared():
         "src/tpc/gsi/gsi_outbound_common.c",
         "src/tpc/outbound/tpc_token.c",
     ):
-        _assert_markers(relpath, ["xrootd_token_read_file("])
+        _assert_markers(relpath, ["brix_token_read_file("])
 
     for relpath in ("src/tpc/outbound/tpc_token.c", "src/protocols/webdav/tpc_cred_parse.c"):
-        _assert_markers(relpath, ["xrootd_oauth2_parse_access_token("])
+        _assert_markers(relpath, ["brix_oauth2_parse_access_token("])
 
     for relpath in (
         "src/protocols/root/query/space.c",
         "src/observability/metrics/stream_cache.c",
         "src/protocols/webdav/propfind_props.c",
     ):
-        _assert_markers(relpath, ["xrootd_fs_usage_"])
+        _assert_markers(relpath, ["brix_fs_usage_"])
 
     for relpath in (
         "src/net/manager/pending.c",
         "src/tpc/engine/key_registry.c",
     ):
-        _assert_markers(relpath, ["core/compat/shm_slots.h", "xrootd_shm_"])
+        _assert_markers(relpath, ["core/compat/shm_slots.h", "brix_shm_"])
 
     # Phase 16: WebDAV lock state migrated off the SHM slot table onto xattrs
     # (the unified prop store).  lock.c must no longer reference shm_slots and
     # must use the webdav_lock_xattr_* persistence helpers instead.
-    _assert_absent("src/protocols/webdav/lock.c", ["core/compat/shm_slots.h", "xrootd_shm_"])
+    _assert_absent("src/protocols/webdav/lock.c", ["core/compat/shm_slots.h", "brix_shm_"])
     _assert_markers("src/protocols/webdav/lock.c", ["webdav_lock_xattr_read("])
 
 
@@ -183,46 +183,46 @@ def test_phase5_tpc_common_layer_is_shared():
     )
     _assert_markers(
         "src/protocols/root/read/open_request.c",
-        ["xrootd_tpc_check_authz("],
+        ["brix_tpc_check_authz("],
     )
     _assert_markers(
         "src/protocols/webdav/tpc.c",
-        ["tpc/common/auth.h", "xrootd_tpc_check_authz("],
+        ["tpc/common/auth.h", "brix_tpc_check_authz("],
     )
     for relpath in ("src/tpc/engine/launch.c", "src/protocols/webdav/tpc_thread.c", "src/protocols/webdav/tpc.c"):
-        _assert_markers(relpath, ["xrootd_tpc_registry_add("])
+        _assert_markers(relpath, ["brix_tpc_registry_add("])
     for relpath in ("src/tpc/outbound/source.c", "src/protocols/webdav/tpc_curl_pmark.c", "src/protocols/webdav/tpc_marker.c"):
-        _assert_markers(relpath, ["xrootd_tpc_progress_emit("])
+        _assert_markers(relpath, ["brix_tpc_progress_emit("])
     for relpath in ("src/tpc/outbound/tpc_token.c", "src/protocols/webdav/tpc_cred.c"):
-        _assert_markers(relpath, ["xrootd_tpc_credential_parse("])
+        _assert_markers(relpath, ["brix_tpc_credential_parse("])
     # dashboard api was split: registry include in dashboard_api_internal.h, the
     # snapshot call in api_transfers.c.
     _assert_markers("src/observability/dashboard/dashboard_api_internal.h",
                     ["tpc/common/registry.h"])
     _assert_markers("src/observability/dashboard/api_transfers.c",
-                    ["xrootd_tpc_registry_snapshot("])
+                    ["brix_tpc_registry_snapshot("])
 
 
 def test_http_header_body_and_condition_helpers_are_shared():
     _assert_markers(
         "src/protocols/webdav/webdav.h",
-        ["core/http/http_headers.h", "xrootd_http_find_header("],
+        ["core/http/http_headers.h", "brix_http_find_header("],
     )
     _assert_markers(
         "src/protocols/s3/auth_sigv4_parse.c",
-        ["core/http/http_headers.h", "xrootd_http_get_header("],
+        ["core/http/http_headers.h", "brix_http_get_header("],
     )
     _assert_markers(
         "src/protocols/s3/copy.c",
-        ["core/http/http_headers.h", "xrootd_http_find_header("],
+        ["core/http/http_headers.h", "brix_http_find_header("],
     )
     _assert_markers(
         "src/core/http/http_headers.h",
-        ["xrootd_http_extract_bearer("],
+        ["brix_http_extract_bearer("],
     )
     _assert_markers(
         "src/protocols/webdav/auth_token.c",
-        ["core/http/http_headers.h", "xrootd_http_extract_bearer("],
+        ["core/http/http_headers.h", "brix_http_extract_bearer("],
     )
     _assert_absent(
         "src/protocols/webdav/auth_token.c",
@@ -230,7 +230,7 @@ def test_http_header_body_and_condition_helpers_are_shared():
     )
     _assert_markers(
         "src/protocols/webdav/tpc.c",
-        ["core/http/http_headers.h", "xrootd_http_extract_bearer("],
+        ["core/http/http_headers.h", "brix_http_extract_bearer("],
     )
     _assert_absent(
         "src/protocols/webdav/tpc.c",
@@ -240,55 +240,55 @@ def test_http_header_body_and_condition_helpers_are_shared():
     # s3/put was split: the http_body include lives in s3_put_internal.h while the
     # writer call stays in put.c; webdav/put.c still carries both directly.
     _assert_markers("src/protocols/webdav/put.c",
-                    ["core/http/http_body.h", "xrootd_http_body_write_to_fd("])
+                    ["core/http/http_body.h", "brix_http_body_write_to_fd("])
     _assert_markers("src/protocols/s3/s3_put_internal.h", ["core/http/http_body.h"])
-    _assert_markers("src/protocols/s3/put.c", ["xrootd_http_body_write_to_fd("])
+    _assert_markers("src/protocols/s3/put.c", ["brix_http_body_write_to_fd("])
 
     # propfind was split: the include is in propfind_internal.h, the reader in
     # propfind.c; delete_objects.c still carries both directly.
     _assert_markers("src/protocols/webdav/propfind_internal.h", ["core/http/http_body.h"])
-    _assert_markers("src/protocols/webdav/propfind.c", ["xrootd_http_body_read_all("])
+    _assert_markers("src/protocols/webdav/propfind.c", ["brix_http_body_read_all("])
     _assert_markers("src/protocols/s3/delete_objects.c",
-                    ["core/http/http_body.h", "xrootd_http_body_read_all("])
+                    ["core/http/http_body.h", "brix_http_body_read_all("])
 
     _assert_markers(
         "src/protocols/webdav/put.c",
-        ["core/http/http_conditionals.h", "xrootd_http_check_etag_preconditions("],
+        ["core/http/http_conditionals.h", "brix_http_check_etag_preconditions("],
     )
     _assert_markers(
         "src/protocols/webdav/methods/copy_conditionals.c",
-        ["core/http/http_conditionals.h", "xrootd_http_check_etag_preconditions("],
+        ["core/http/http_conditionals.h", "brix_http_check_etag_preconditions("],
     )
     _assert_markers(
         "src/protocols/webdav/get.c",
-        ["core/http/http_conditionals.h", "xrootd_http_check_if_modified_since("],
+        ["core/http/http_conditionals.h", "brix_http_check_if_modified_since("],
     )
     for relpath in ("src/protocols/webdav/copy.c", "src/protocols/webdav/move.c"):
-        _assert_markers(relpath, ["xrootd_http_overwrite_forbidden("])
+        _assert_markers(relpath, ["brix_http_overwrite_forbidden("])
 
 
 def test_phase1_http_status_header_and_query_helpers_are_shared():
     _assert_markers(
         "src/core/http/http_headers.h",
         [
-            "xrootd_http_effective_status(",
-            "xrootd_http_set_header_num(",
-            "xrootd_http_request_header_add(",
+            "brix_http_effective_status(",
+            "brix_http_set_header_num(",
+            "brix_http_request_header_add(",
         ],
     )
     for relpath in ("src/protocols/webdav/metrics.c", "src/protocols/s3/metrics.c"):
         _assert_markers(
             relpath,
-            ["core/http/http_headers.h", "xrootd_http_effective_status("],
+            ["core/http/http_headers.h", "brix_http_effective_status("],
         )
 
     _assert_markers(
         "src/protocols/webdav/xrdhttp.c",
         [
             "core/http/http_headers.h",
-            "xrootd_http_set_header(",
-            "xrootd_http_set_header_num(",
-            "xrootd_http_request_header_add(",
+            "brix_http_set_header(",
+            "brix_http_set_header_num(",
+            "brix_http_request_header_add(",
         ],
     )
     _assert_absent(
@@ -300,14 +300,14 @@ def test_phase1_http_status_header_and_query_helpers_are_shared():
         "src/protocols/s3/handler.c",
         [
             "core/http/http_query.h",
-            "xrootd_http_query_get(",
-            "xrootd_http_find_header(",
+            "brix_http_query_get(",
+            "brix_http_find_header(",
         ],
     )
     _assert_absent("src/protocols/s3/handler.c", ['needle[] = "list-type=2"'])
     _assert_markers(
         "src/protocols/s3/multipart_complete_upload_part_copy.c",
-        ["core/http/http_headers.h", "xrootd_http_find_header("],
+        ["core/http/http_headers.h", "brix_http_find_header("],
     )
 
 
@@ -321,48 +321,48 @@ def test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared():
         "src/protocols/root/dirlist/dcksm.c",
         "src/protocols/webdav/xrdhttp.c",
     ):
-        _assert_markers(relpath, ["core/compat/checksum.h", "xrootd_checksum_"])
+        _assert_markers(relpath, ["core/compat/checksum.h", "brix_checksum_"])
 
     for relpath in ("src/protocols/webdav/namespace.c", "src/protocols/s3/multipart_helpers.c"):
         _assert_markers(
             relpath,
-            ["core/compat/fs_walk.h", "xrootd_fs_remove_tree_confined("],
+            ["core/compat/fs_walk.h", "brix_fs_remove_tree_confined("],
         )
 
     # Phase 62: directory enumeration moved behind the VFS seam — propfind walks
-    # via xrootd_vfs_readdir and ckscan via xrootd_vfs_walk, both of which skip
-    # "."/".." centrally in src/fs/vfs/vfs_walk.c (the single xrootd_fs_is_dot_entry
+    # via brix_vfs_readdir and ckscan via brix_vfs_walk, both of which skip
+    # "."/".." centrally in src/fs/vfs/vfs_walk.c (the single brix_fs_is_dot_entry
     # caller) instead of each handler filtering dotted entries itself.
-    _assert_markers("src/protocols/webdav/propfind_walk.c", ["xrootd_vfs_readdir("])
-    _assert_markers("src/protocols/root/query/checksum_ckscan_common.c", ["xrootd_vfs_walk("])
-    _assert_markers("src/fs/vfs/vfs_walk.c", ["xrootd_fs_is_dot_entry("])
+    _assert_markers("src/protocols/webdav/propfind_walk.c", ["brix_vfs_readdir("])
+    _assert_markers("src/protocols/root/query/checksum_ckscan_common.c", ["brix_vfs_walk("])
+    _assert_markers("src/fs/vfs/vfs_walk.c", ["brix_fs_is_dot_entry("])
 
     # s3/put was split: the staged_file include is in s3_put_internal.h, the open
     # call stays in put.c — now routed through the VFS seam
-    # (xrootd_vfs_staged_open, phase-62 VFS closure) rather than the raw
-    # xrootd_staged_open; webdav/tpc.c still carries the raw open directly.
+    # (brix_vfs_staged_open, phase-62 VFS closure) rather than the raw
+    # brix_staged_open; webdav/tpc.c still carries the raw open directly.
     _assert_markers("src/protocols/s3/s3_put_internal.h", ["core/compat/staged_file.h"])
-    _assert_markers("src/protocols/s3/put.c", ["xrootd_vfs_staged_open("])
+    _assert_markers("src/protocols/s3/put.c", ["brix_vfs_staged_open("])
     _assert_markers("src/protocols/webdav/tpc.c",
-                    ["core/compat/staged_file.h", "xrootd_staged_open("])
+                    ["core/compat/staged_file.h", "brix_staged_open("])
 
     # Phase 55: both the S3 CopyObject and WebDAV COPY handlers delegate the
-    # local-object copy to the shared VFS copy seam (xrootd_vfs_copy), which is
-    # the single place that reaches xrootd_ns_local_copy (src/fs/vfs/vfs_copy.c).
+    # local-object copy to the shared VFS copy seam (brix_vfs_copy), which is
+    # the single place that reaches brix_ns_local_copy (src/fs/vfs/vfs_copy.c).
     for relpath in (
         "src/protocols/s3/copy.c",
         "src/protocols/webdav/copy.c",
     ):
-        _assert_markers(relpath, ['#include "s3.h"' if "s3" in relpath else "webdav.h", "xrootd_vfs_copy("])
+        _assert_markers(relpath, ['#include "s3.h"' if "s3" in relpath else "webdav.h", "brix_vfs_copy("])
 
     for relpath in ("src/net/cms/send.c", "src/net/cms/server_send.c"):
-        _assert_markers(relpath, ["frame_io.h", "xrootd_cms_send_frame("])
+        _assert_markers(relpath, ["frame_io.h", "brix_cms_send_frame("])
 
 
 def test_webdav_config_path_validation_is_shared():
     _assert_markers(
         "src/protocols/webdav/config.c",
-        ["core/config/config.h", "#define webdav_validate_path          xrootd_validate_path"],
+        ["core/config/config.h", "#define webdav_validate_path          brix_validate_path"],
     )
     _assert_absent(
         "src/protocols/webdav/config.c",
@@ -381,7 +381,7 @@ def test_unified_path_resolver_is_registered():
     _assert_markers(
         "src/fs/path/unified.h",
         [
-            "xrootd_path_resolve_cstr(",
+            "brix_path_resolve_cstr(",
             "allow_missing_tail",
             "allow_missing_parents",
             "require_directory",
@@ -398,7 +398,7 @@ def test_stream_path_resolver_uses_unified_adapter():
         "src/fs/path/resolve_path_variants.c",
         [
             '#include "unified.h"',
-            "xrootd_path_resolve_cstr(",
+            "brix_path_resolve_cstr(",
             "allow_missing_parents",
         ],
     )
@@ -406,7 +406,7 @@ def test_stream_path_resolver_uses_unified_adapter():
         "src/fs/path/resolve_path_variants.c",
         [
             "lstat(",
-            "xrootd_path_component_forbidden(",
+            "brix_path_component_forbidden(",
         ],
     )
 
@@ -414,14 +414,14 @@ def test_stream_path_resolver_uses_unified_adapter():
 def test_http_path_resolver_uses_unified_adapter():
     # Phase 8: the HTTP/S3 adapter (compat/path.c) no longer canonicalises with
     # realpath() + the unified.h string resolver.  It joins the request lexically
-    # under the export root via the shared beneath API (xrootd_beneath_full_path)
+    # under the export root via the shared beneath API (brix_beneath_full_path)
     # and lets openat2(RESOLVE_BENEATH) enforce confinement at the operation.
     # Verify it uses that shared resolver rather than reimplementing path munging.
     _assert_markers(
         "src/core/compat/path.c",
         [
             "fs/path/beneath.h",
-            "xrootd_beneath_full_path(",
+            "brix_beneath_full_path(",
         ],
     )
     _assert_absent(
@@ -445,51 +445,51 @@ def test_phase2_identity_type_is_registered():
         "src/core/types/identity.h",
         [
             "typedef struct {",
-            "XROOTD_AUTHN_GSI",
-            "XROOTD_AUTHN_TOKEN",
-            "XROOTD_AUTHN_SSS",
-            "XROOTD_AUTHN_S3KEY",
-            "xrootd_identity_t",
+            "BRIX_AUTHN_GSI",
+            "BRIX_AUTHN_TOKEN",
+            "BRIX_AUTHN_SSS",
+            "BRIX_AUTHN_S3KEY",
+            "brix_identity_t",
         ],
     )
     _assert_markers(
         "src/core/types/context.h",
-        ["xrootd_identity_t *identity"],
+        ["brix_identity_t *identity"],
     )
     _assert_markers(
         "src/protocols/webdav/webdav.h",
-        ["core/types/identity.h", "xrootd_identity_t *identity"],
+        ["core/types/identity.h", "brix_identity_t *identity"],
     )
     _assert_markers(
         "src/protocols/s3/s3.h",
-        ["core/types/identity.h", "xrootd_identity_t *identity"],
+        ["core/types/identity.h", "brix_identity_t *identity"],
     )
 
 
 def test_phase2_auth_paths_populate_identity():
     _assert_markers(
         "src/auth/gsi/auth.c",
-        ["xrootd_identity_set_dn(", "XROOTD_AUTHN_GSI"],
+        ["brix_identity_set_dn(", "BRIX_AUTHN_GSI"],
     )
     _assert_markers(
         "src/auth/gsi/token.c",
-        ["xrootd_identity_set_token_claims("],
+        ["brix_identity_set_token_claims("],
     )
     _assert_markers(
         "src/auth/sss/auth_request.c",
-        ["xrootd_identity_set_dn(", "XROOTD_AUTHN_SSS"],
+        ["brix_identity_set_dn(", "BRIX_AUTHN_SSS"],
     )
     _assert_markers(
         "src/protocols/webdav/auth_cert.c",
-        ["xrootd_identity_alloc(", "xrootd_identity_set_dn("],
+        ["brix_identity_alloc(", "brix_identity_set_dn("],
     )
     _assert_markers(
         "src/protocols/webdav/auth_token.c",
-        ["xrootd_identity_set_token_claims("],
+        ["brix_identity_set_token_claims("],
     )
     _assert_markers(
         "src/protocols/s3/auth_sigv4_verify.c",
-        ["xrootd_identity_t *identity", "XROOTD_AUTHN_S3KEY"],
+        ["brix_identity_t *identity", "BRIX_AUTHN_S3KEY"],
     )
 
 
@@ -502,8 +502,8 @@ def test_http_precondition_evaluation_is_shared():
         "src/protocols/s3/conditional.c",
         [
             "core/http/http_conditionals.h",
-            "xrootd_http_eval_preconditions(",
-            "XROOTD_HTTP_COND_READ",
+            "brix_http_eval_preconditions(",
+            "BRIX_HTTP_COND_READ",
         ],
     )
     _assert_absent(
@@ -513,10 +513,10 @@ def test_http_precondition_evaluation_is_shared():
     # WebDAV COPY/PUT keep using the shared ETag-precondition subset.
     _assert_markers(
         "src/protocols/webdav/methods/copy_conditionals.c",
-        ["xrootd_http_check_etag_preconditions("],
+        ["brix_http_check_etag_preconditions("],
     )
     # The shared engine owns both outcome modes.
     _assert_markers(
         "src/core/http/http_conditionals.c",
-        ["xrootd_http_eval_preconditions(", "XROOTD_HTTP_COND_READ"],
+        ["brix_http_eval_preconditions(", "BRIX_HTTP_COND_READ"],
     )

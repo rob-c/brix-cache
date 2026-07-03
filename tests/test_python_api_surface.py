@@ -33,11 +33,11 @@ BACKEND = selected_backend_name()
 PREFIX = worker_prefix("_api_surface_")  # per-xdist-worker; see official_interop_lib
 
 @pytest.fixture(scope="module")
-def _setup_env(test_env, ref_xrootd, ref_xrootd_gsi_shared):
+def _setup_env(test_env, ref_xrootd, ref_brix_gsi_shared):
     global ANON_URL, GSI_URL, DATA_DIR, CA_DIR, PROXY_PEM
     if BACKEND == "xrootd":
         ANON_URL = ref_xrootd["url"]
-        GSI_URL = ref_xrootd_gsi_shared["url"]
+        GSI_URL = ref_brix_gsi_shared["url"]
         DATA_DIR = ref_xrootd["data_dir"]
     else:
         ANON_URL = test_env["anon_url"]

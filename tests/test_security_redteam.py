@@ -82,8 +82,8 @@ http {{
   scgi_temp_path {prefix}/tmp;
   server {{ listen 28310;
     location /xrootd/api/v1/admin/ {{
-      xrootd_dashboard on;
-      xrootd_admin_secret {secret};
+      brix_dashboard on;
+      brix_admin_secret {secret};
       {extra}
     }} }} }}
 """
@@ -105,17 +105,17 @@ http {{
         # A clean parse reaches "test is successful"; any directive error would
         # surface as an [emerg] about the directive itself.
         assert "too short" not in out, out
-        assert "xrootd_admin" not in out or "successful" in out, out
+        assert "brix_admin" not in out or "successful" in out, out
 
     def test_proxy_allow_directive_parses(self):
         rc, out = _nginx_test(
             self.BASE.replace(
                 "{extra}",
-                "xrootd_admin_proxy_allow backend.example.org 10.1.2.3;"),
+                "brix_admin_proxy_allow backend.example.org 10.1.2.3;"),
             {"secret": ("secret",
                         b"a-sufficiently-long-admin-secret-0123456789", 0o600)},
         )
-        assert "xrootd_admin_proxy_allow" not in out or "successful" in out, out
+        assert "brix_admin_proxy_allow" not in out or "successful" in out, out
         assert "unknown directive" not in out, out
 
 
@@ -130,7 +130,7 @@ daemon off; pid {prefix}/nginx.pid; error_log {prefix}/logs/e.log info;
 events {{ worker_connections 64; }}
 stream {{
   server {{ listen 28311;
-    xrootd_cms_server on;
+    brix_cms_server on;
     {extra}
   }} }}
 """
@@ -141,8 +141,8 @@ stream {{
         rc, out = _nginx_test(
             self.BASE.replace(
                 "{extra}",
-                "xrootd_cms_server_allow 127.0.0.0/8 10.0.0.0/8;\n"
-                "    xrootd_cms_server_sss_keytab {keytab};"),
+                "brix_cms_server_allow 127.0.0.0/8 10.0.0.0/8;\n"
+                "    brix_cms_server_sss_keytab {keytab};"),
             {"keytab": ("cms.keytab", self.KEYTAB, 0o600)},
         )
         # rc == 0 means the keytab parsed and loaded (a malformed keytab or bad
@@ -153,7 +153,7 @@ stream {{
     def test_world_readable_keytab_rejected(self):
         rc, out = _nginx_test(
             self.BASE.replace(
-                "{extra}", "xrootd_cms_server_sss_keytab {keytab};"),
+                "{extra}", "brix_cms_server_sss_keytab {keytab};"),
             {"keytab": ("cms.keytab", self.KEYTAB, 0o644)},   # world-readable
         )
         assert rc != 0, "a world-readable cms sss keytab must be rejected"
@@ -162,7 +162,7 @@ stream {{
     def test_bad_cidr_rejected(self):
         rc, out = _nginx_test(
             self.BASE.replace(
-                "{extra}", "xrootd_cms_server_allow not-a-cidr;"),
+                "{extra}", "brix_cms_server_allow not-a-cidr;"),
         )
         assert rc != 0, "an invalid CIDR must be rejected"
         assert "invalid CIDR" in out, out
@@ -183,10 +183,10 @@ http {{
   fastcgi_temp_path {prefix}/tmp;
   uwsgi_temp_path {prefix}/tmp;
   scgi_temp_path {prefix}/tmp;
-  xrootd_rate_limit_zone zone=conc:1m;
+  brix_rate_limit_zone zone=conc:1m;
   server {{ listen 28312;
-    location / {{ xrootd_webdav on; xrootd_webdav_storage_backend posix:{prefix}/data;
-      xrootd_webdav_auth optional; xrootd_webdav_cafile {ca};
+    location / {{ brix_webdav on; brix_webdav_storage_backend posix:{prefix}/data;
+      brix_webdav_auth optional; brix_webdav_cafile {ca};
       {extra} }} }} }}
 """
 
@@ -196,7 +196,7 @@ http {{
     def test_concurrency_directive_parses(self):
         rc, out = _nginx_test(
             self.BASE.replace("{extra}",
-                              "xrootd_concurrency_limit zone=conc key=ip limit=4;"),
+                              "brix_concurrency_limit zone=conc key=ip limit=4;"),
             self._files(),
         )
         # cafile is a dummy so TLS init may complain, but the concurrency
@@ -207,7 +207,7 @@ http {{
     def test_concurrency_requires_limit(self):
         rc, out = _nginx_test(
             self.BASE.replace("{extra}",
-                              "xrootd_concurrency_limit zone=conc key=ip;"),
+                              "brix_concurrency_limit zone=conc key=ip;"),
             self._files(),
         )
         assert rc != 0, "concurrency limit must require limit="
@@ -216,7 +216,7 @@ http {{
     def test_concurrency_unknown_zone_rejected(self):
         rc, out = _nginx_test(
             self.BASE.replace("{extra}",
-                              "xrootd_concurrency_limit zone=nope key=ip limit=4;"),
+                              "brix_concurrency_limit zone=nope key=ip limit=4;"),
             self._files(),
         )
         assert rc != 0, "concurrency limit with an undeclared zone must be rejected"

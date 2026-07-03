@@ -6,8 +6,8 @@
  * (dashboard_send_json / admin_send_json / dashboard_files_send_json). They now
  * share this one, declared here so no handler depends on another's TU.
  */
-#ifndef XROOTD_DASHBOARD_DASHBOARD_JSON_H
-#define XROOTD_DASHBOARD_DASHBOARD_JSON_H
+#ifndef BRIX_DASHBOARD_DASHBOARD_JSON_H
+#define BRIX_DASHBOARD_DASHBOARD_JSON_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -28,4 +28,4 @@ ngx_int_t dashboard_json_send(ngx_http_request_t *r, ngx_int_t status,
  * No-op on NULL root.  Centralises the version string used by every endpoint. */
 void dashboard_json_set_schema(json_t *root);
 
-#endif /* XROOTD_DASHBOARD_DASHBOARD_JSON_H */
+#endif /* BRIX_DASHBOARD_DASHBOARD_JSON_H */

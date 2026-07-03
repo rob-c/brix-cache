@@ -45,7 +45,7 @@ n2n_copy(char *dst, size_t cap, const char *src)
 }
 
 int
-xrootd_n2n_lfn2pfn(const xrootd_n2n_cfg_t *cfg, const char *lfn,
+brix_n2n_lfn2pfn(const brix_n2n_cfg_t *cfg, const char *lfn,
                    char *pfn, size_t cap)
 {
     int r;
@@ -56,14 +56,14 @@ xrootd_n2n_lfn2pfn(const xrootd_n2n_cfg_t *cfg, const char *lfn,
     }
 
     switch (cfg->scheme) {
-    case XROOTD_N2N_IDENTITY:
+    case BRIX_N2N_IDENTITY:
         return n2n_copy(pfn, cap, lfn);
 
-    case XROOTD_N2N_RAL:
+    case BRIX_N2N_RAL:
         r = snprintf(pfn, cap, "%s:%s%s", cfg->pool, cfg->prefix, lfn);
         break;
 
-    case XROOTD_N2N_CEPHFS_PATH:
+    case BRIX_N2N_CEPHFS_PATH:
         r = snprintf(pfn, cap, "%s%s", cfg->prefix, lfn);
         break;
 
@@ -74,7 +74,7 @@ xrootd_n2n_lfn2pfn(const xrootd_n2n_cfg_t *cfg, const char *lfn,
 }
 
 int
-xrootd_n2n_pfn2lfn(const xrootd_n2n_cfg_t *cfg, const char *pfn,
+brix_n2n_pfn2lfn(const brix_n2n_cfg_t *cfg, const char *pfn,
                    char *lfn, size_t cap)
 {
     const char *p;
@@ -85,10 +85,10 @@ xrootd_n2n_pfn2lfn(const xrootd_n2n_cfg_t *cfg, const char *pfn,
     }
 
     switch (cfg->scheme) {
-    case XROOTD_N2N_IDENTITY:
+    case BRIX_N2N_IDENTITY:
         return n2n_copy(lfn, cap, pfn);
 
-    case XROOTD_N2N_RAL:
+    case BRIX_N2N_RAL:
         p = strchr(pfn, ':');
         if (p == NULL) {
             return -1;                 /* not a "<pool>:…" name */
@@ -103,7 +103,7 @@ xrootd_n2n_pfn2lfn(const xrootd_n2n_cfg_t *cfg, const char *pfn,
         }
         return n2n_copy(lfn, cap, p);
 
-    case XROOTD_N2N_CEPHFS_PATH:
+    case BRIX_N2N_CEPHFS_PATH:
         p = pfn;
         plen = strlen(cfg->prefix);
         if (plen > 0) {
@@ -120,7 +120,7 @@ xrootd_n2n_pfn2lfn(const xrootd_n2n_cfg_t *cfg, const char *pfn,
 }
 
 int
-xrootd_n2n_extract_pool(const char *objname, char *pool, size_t cap,
+brix_n2n_extract_pool(const char *objname, char *pool, size_t cap,
                         const char **rest)
 {
     const char *colon;

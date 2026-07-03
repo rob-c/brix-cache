@@ -2,7 +2,7 @@
 
 WHAT: stands up an isolated test realm under ``TEST_ROOT/krb5`` — a freshly
   created KDC database, a service principal + exported keytab for the nginx
-  ``xrootd_auth krb5`` server, a client principal, a generated ``krb5.conf`` /
+  ``brix_auth krb5`` server, a client principal, a generated ``krb5.conf`` /
   ``kdc.conf``, a running ``krb5kdc`` daemon, and a kinit'd client credential
   cache.  This is the Kerberos analogue of ``pki_helpers.blitz_test_pki()``.
 

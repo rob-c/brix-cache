@@ -11,16 +11,16 @@
  *
  * Clean-room: names come from the documented XRootD wire protocol, not XrdCl.
  */
-#ifndef XROOTD_COMPAT_KXR_NAMES_H
-#define XROOTD_COMPAT_KXR_NAMES_H
+#ifndef BRIX_COMPAT_KXR_NAMES_H
+#define BRIX_COMPAT_KXR_NAMES_H
 
 /* kXR request opcode -> "kXR_open" (kXR_-prefixed); "req?" if unknown. */
-const char *xrootd_kxr_request_name(int reqid);
+const char *brix_kxr_request_name(int reqid);
 
 /* response status -> "ok" / "redirect" / "wait" / ...; "status?" if unknown. */
-const char *xrootd_kxr_response_status_name(int status);
+const char *brix_kxr_response_status_name(int status);
 
 /* kXR error code -> short name "NotFound" (NO kXR_ prefix); "Unknown" if unknown. */
-const char *xrootd_kxr_error_name(int kxr);
+const char *brix_kxr_error_name(int kxr);
 
-#endif /* XROOTD_COMPAT_KXR_NAMES_H */
+#endif /* BRIX_COMPAT_KXR_NAMES_H */

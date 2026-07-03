@@ -29,7 +29,7 @@
  *   the server's kXGS_cert (`body`). It (optionally) verifies the server leaf cert
  *   against conf->gsi_store, serialises our proxy cert chain to PEM, and hands the
  *   server reply + proxy credential to the SHARED XrdSecgsi round-2 builder
- *   (xrootd_gsi_build_cert_response, src/gsi/gsi_core.c) — the exact
+ *   (brix_gsi_build_cert_response, src/gsi/gsi_core.c) — the exact
  *   implementation the native client uses. It then sends the resulting kXGC_cert
  *   (kXR_auth seq=4) and checks the server's final status == kXR_ok.
  *
@@ -41,7 +41,7 @@
  *   variant the server offers, the shared builder handles it.
  *
  * HOW: optional X509_verify_cert(conf->gsi_store, server-leaf) → BIO_s_mem +
- *   PEM_write_bio_X509(chain) → xrootd_gsi_build_cert_response(body, dlen,
+ *   PEM_write_bio_X509(chain) → brix_gsi_build_cert_response(body, dlen,
  *   chain_pem, pkey, &payload, &plen) → free(body) → tpc_send_kxr_auth(seq=4,
  *   payload) → tpc_recv_response → status==kXR_ok ? 0 : -1. Resource ownership:
  *   this function owns `body` (frees on every exit; the caller NULLs its copy) and
@@ -68,12 +68,12 @@ tpc_gsi_exchange_cleanup(int rc, u_char *body, BIO *chain_bio, u_char *payload)
  * the kXGC_cert via the shared gsi_core kernel, send it + check kXR_ok. Returns 0
  * or -1 with t->xrd_error set. Caller: gsi_outbound_certreq.c. */
 int
-tpc_outbound_gsi_exchange(xrootd_tpc_pull_t *t, int fd,
+tpc_outbound_gsi_exchange(brix_tpc_pull_t *t, int fd,
     u_char *body, uint32_t dlen,
     X509 *x, STACK_OF(X509) *chain, EVP_PKEY *pkey,
     u_char *certreq, BIO *cbio, BIO *kbio)
 {
-    ngx_stream_xrootd_srv_conf_t *conf = t->conf;
+    ngx_stream_brix_srv_conf_t *conf = t->conf;
     int        rc = -1;
     uint16_t   status;
     BIO       *chain_bio = NULL;
@@ -153,7 +153,7 @@ tpc_outbound_gsi_exchange(xrootd_tpc_pull_t *t, int fd,
      * borrowed (we still own/free them via the certreq.c finalizer).
      */
     err[0] = '\0';
-    if (xrootd_gsi_build_cert_response(body, dlen,
+    if (brix_gsi_build_cert_response(body, dlen,
                                        (const uint8_t *) bptr->data,
                                        bptr->length, pkey,
                                        &payload, &plen, err, sizeof(err)) != 0)

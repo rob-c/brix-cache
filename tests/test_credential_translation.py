@@ -17,7 +17,7 @@ What is validated (per roadmap Section 4C):
   5. The 'sub' field in the backend log matches the mapped DN from the GSI proxy.
 
 Because the credential bridge requires a specific nginx configuration
-(xrootd_auth gsi + xrootd_proxy_upstream_auth token + a token issuance policy),
+(brix_auth gsi + brix_proxy_upstream_auth token + a token issuance policy),
 tests that need the bridge server are skipped when that server is not running.
 
 The tests also verify the negative case: a GSI client connecting to the
@@ -162,7 +162,7 @@ class TestCredentialTranslationBridge:
 
         The bridge nginx must inject a token; the token-only backend's access log
         must show 'AUTH' with the JWT sub claim ('nginx-bridge'), never a proxy DN.
-        The log is at xrootd_access_token.log (the token backend's access log).
+        The log is at brix_access_token.log (the token backend's access log).
 
         NOTE: The AUTH event is session-level — it may appear once for an entire
         proxy session that handles multiple requests.  We verify:
@@ -170,8 +170,8 @@ class TestCredentialTranslationBridge:
           2. The file access appears in the new log entries.
           3. The log contains 'AUTH - nginx-bridge' at some point (from this session).
         """
-        # Token backend (NGINX_TOKEN_PORT) writes to xrootd_access_token.log.
-        access_log = os.path.join(LOG_DIR, "xrootd_access_token.log")
+        # Token backend (NGINX_TOKEN_PORT) writes to brix_access_token.log.
+        access_log = os.path.join(LOG_DIR, "brix_access_token.log")
         start = os.path.getsize(access_log) if os.path.exists(access_log) else 0
 
         name = f"bridge_log_{uuid.uuid4().hex[:8]}.bin"

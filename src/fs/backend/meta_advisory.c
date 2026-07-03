@@ -36,7 +36,7 @@ adv_append(char *out, size_t cap, int *n, const char *fmt, ...)
 }
 
 int
-xrootd_meta_advisory_encode(const xrootd_meta_advisory_t *m, char *out, size_t cap)
+brix_meta_advisory_encode(const brix_meta_advisory_t *m, char *out, size_t cap)
 {
     int n = 0;
 
@@ -65,7 +65,7 @@ xrootd_meta_advisory_encode(const xrootd_meta_advisory_t *m, char *out, size_t c
 }
 
 int
-xrootd_meta_advisory_decode(const char *blob, size_t len, xrootd_meta_advisory_t *m)
+brix_meta_advisory_decode(const char *blob, size_t len, brix_meta_advisory_t *m)
 {
     char    tmp[512];
     size_t  n;
@@ -120,14 +120,14 @@ xrootd_meta_advisory_decode(const char *blob, size_t len, xrootd_meta_advisory_t
 }
 
 int
-xrootd_meta_advisory_patch(char *blob, size_t cap, const xrootd_meta_advisory_t *delta)
+brix_meta_advisory_patch(char *blob, size_t cap, const brix_meta_advisory_t *delta)
 {
-    xrootd_meta_advisory_t cur;
+    brix_meta_advisory_t cur;
 
     if (blob == NULL || delta == NULL) {
         return -1;
     }
-    if (xrootd_meta_advisory_decode(blob, strlen(blob), &cur) != 0) {
+    if (brix_meta_advisory_decode(blob, strlen(blob), &cur) != 0) {
         return -1;
     }
     if (delta->have_mode) {
@@ -144,5 +144,5 @@ xrootd_meta_advisory_patch(char *blob, size_t cap, const xrootd_meta_advisory_t 
         cur.mtime_ns = delta->mtime_ns;
         cur.have_mtime = 1;
     }
-    return xrootd_meta_advisory_encode(&cur, blob, cap);
+    return brix_meta_advisory_encode(&cur, blob, cap);
 }

@@ -16,29 +16,29 @@
 /*
  * open.c — read-side cache hit path: serve a file from the local cache tree.
  *
- * WHAT: The VFS cache-open hook (xrootd_cache_open) plus its helpers: mapping a
- *       resolved export path to its cache-tree path (xrootd_cache_path_for_resolved),
- *       validating a hit against the origin (xrootd_cache_validate_meta), and
- *       bumping the access time for LRU (xrootd_cache_record_access).
+ * WHAT: The VFS cache-open hook (brix_cache_open) plus its helpers: mapping a
+ *       resolved export path to its cache-tree path (brix_cache_path_for_resolved),
+ *       validating a hit against the origin (brix_cache_validate_meta), and
+ *       bumping the access time for LRU (brix_cache_record_access).
  *
  * WHY:  When read-through caching is on, reads should be satisfied from the
  *       local cache whenever a complete, fresh copy exists, avoiding an origin
  *       round-trip. This file decides "is there a usable cache hit?" and, if so,
  *       adopts the open fd into the VFS layer.
  *
- * HOW:  xrootd_cache_open() declines (NGX_DECLINED) for anything that must not
- *       be served from cache — caching disabled, XROOTD_VFS_O_NOCACHE, or any
+ * HOW:  brix_cache_open() declines (NGX_DECLINED) for anything that must not
+ *       be served from cache — caching disabled, BRIX_VFS_O_NOCACHE, or any
  *       write/create/trunc/append intent — so callers fall back to the origin.
  *       Otherwise it derives the cache path under cache_root_canon, checks
- *       xrootd_cache_file_ready(), opens it O_RDONLY|O_NOFOLLOW|O_CLOEXEC, and
+ *       brix_cache_file_ready(), opens it O_RDONLY|O_NOFOLLOW|O_CLOEXEC, and
  *       confirms freshness via the meta sidecar (size + mtime) before handing
- *       the fd to xrootd_vfs_adopt_fd(). Confinement here is path-construction
+ *       the fd to brix_vfs_adopt_fd(). Confinement here is path-construction
  *       + O_NOFOLLOW rather than RESOLVE_BENEATH (the cache tree is a different
  *       directory from the export rootfd) — see the in-function comment.
  */
 
 /*
- * xrootd_cache_path_for_resolved — map an export path to its cache-tree path.
+ * brix_cache_path_for_resolved — map an export path to its cache-tree path.
  *
  * Strips root_canon from the resolved export path and re-roots the remaining
  * suffix under cache_root_canon, writing the result to out (NUL-terminated).
@@ -47,7 +47,7 @@
  * Note: this is a pure lexical remap, not a confinement check.
  */
 ngx_int_t
-xrootd_cache_path_for_resolved(const char *cache_root_canon,
+brix_cache_path_for_resolved(const char *cache_root_canon,
     const char *root_canon, const char *resolved, char *out, size_t outsz)
 {
     size_t      cache_len;
@@ -99,7 +99,7 @@ xrootd_cache_path_for_resolved(const char *cache_root_canon,
 }
 
 /*
- * xrootd_cache_validate_meta — confirm a cache hit still matches the origin.
+ * brix_cache_validate_meta — confirm a cache hit still matches the origin.
  *
  * Reads the sidecar meta for cache_path and compares its recorded size and
  * mtime against the live cache file stat (st). Returns NGX_OK if they agree,
@@ -107,12 +107,12 @@ xrootd_cache_path_for_resolved(const char *cache_root_canon,
  * so the caller falls back to the origin.
  */
 static ngx_int_t
-xrootd_cache_validate_meta(const char *cache_path, const struct stat *st,
+brix_cache_validate_meta(const char *cache_path, const struct stat *st,
     ngx_log_t *log)
 {
-    xrootd_cache_meta_t meta;
+    brix_cache_meta_t meta;
 
-    if (xrootd_cache_meta_read(log, cache_path, &meta) != NGX_OK) {
+    if (brix_cache_meta_read(log, cache_path, &meta) != NGX_OK) {
         return NGX_DECLINED;
     }
 
@@ -127,17 +127,17 @@ xrootd_cache_validate_meta(const char *cache_path, const struct stat *st,
 }
 
 /*
- * xrootd_cache_open — VFS cache-open hook: serve a read from the cache if able.
+ * brix_cache_open — VFS cache-open hook: serve a read from the cache if able.
  *
- * Declines (NGX_DECLINED) when caching is disabled, XROOTD_VFS_O_NOCACHE is
+ * Declines (NGX_DECLINED) when caching is disabled, BRIX_VFS_O_NOCACHE is
  * set, or any write/create/trunc/append flag is present, and on a cache miss,
  * not-ready file, or stale meta. On a validated hit it opens the cache file
- * read-only and adopts the fd via xrootd_vfs_adopt_fd(), returning *fh_out and
+ * read-only and adopts the fd via brix_vfs_adopt_fd(), returning *fh_out and
  * NGX_OK. Returns NGX_ERROR on hard I/O errors (errno set).
  */
 ngx_int_t
-xrootd_cache_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags,
-    xrootd_vfs_file_t **fh_out)
+brix_cache_open(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
+    brix_vfs_file_t **fh_out)
 {
     char        cache_path[PATH_MAX];
     const char *resolved;
@@ -152,15 +152,15 @@ xrootd_cache_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags,
 
     if (ctx == NULL || !ctx->cache_enabled
         || ctx->cache_root_canon == NULL || ctx->cache_root_canon[0] == '\0'
-        || (flags & XROOTD_VFS_O_NOCACHE)
-        || (flags & (XROOTD_VFS_O_WRITE | XROOTD_VFS_O_CREATE
-                     | XROOTD_VFS_O_TRUNC | XROOTD_VFS_O_APPEND)))
+        || (flags & BRIX_VFS_O_NOCACHE)
+        || (flags & (BRIX_VFS_O_WRITE | BRIX_VFS_O_CREATE
+                     | BRIX_VFS_O_TRUNC | BRIX_VFS_O_APPEND)))
     {
         return NGX_DECLINED;
     }
 
-    resolved = xrootd_vfs_ctx_path(ctx);
-    if (xrootd_cache_path_for_resolved(ctx->cache_root_canon,
+    resolved = brix_vfs_ctx_path(ctx);
+    if (brix_cache_path_for_resolved(ctx->cache_root_canon,
                                        ctx->root_canon, resolved,
                                        cache_path, sizeof(cache_path))
         != NGX_OK)
@@ -176,11 +176,11 @@ xrootd_cache_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags,
      * file. The normal read path memory-serves when the backend cannot sendfile.
      */
     {
-        xrootd_sd_instance_t *inst =
-            xrootd_cache_storage_by_root(ctx->cache_root_canon);
+        brix_sd_instance_t *inst =
+            brix_cache_storage_by_root(ctx->cache_root_canon);
         const char           *key;
-        xrootd_sd_stat_t      sd_st;
-        xrootd_sd_obj_t      *o;
+        brix_sd_stat_t      sd_st;
+        brix_sd_obj_t      *o;
         int                   e = 0;
 
         if (inst == NULL) {
@@ -209,25 +209,25 @@ xrootd_cache_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags,
         st.st_mode  = S_IFREG;
         {
             const char *state_root =
-                xrootd_cache_state_root_by_root(ctx->cache_root_canon);
+                brix_cache_state_root_by_root(ctx->cache_root_canon);
             char        sidecar[PATH_MAX];
 
             if (state_root == NULL
-                || xrootd_cache_sidecar_path(ctx->cache_root_canon, state_root,
+                || brix_cache_sidecar_path(ctx->cache_root_canon, state_root,
                        cache_path, sidecar, sizeof(sidecar)) != 0
-                || xrootd_cache_validate_meta(sidecar, &st, ctx->log) != NGX_OK)
+                || brix_cache_validate_meta(sidecar, &st, ctx->log) != NGX_OK)
             {
                 return NGX_DECLINED;     /* obj not opened yet — nothing to close */
             }
         }
 
-        o = inst->driver->open(inst, key, XROOTD_SD_O_READ, 0, &e);
+        o = inst->driver->open(inst, key, BRIX_SD_O_READ, 0, &e);
         if (o == NULL) {
             errno = e;
             return (e == ENOENT || e == ENOTDIR) ? NGX_DECLINED : NGX_ERROR;
         }
 
-        rc = xrootd_vfs_adopt_obj(ctx, key, o, 0 /* read-only */, fh_out);
+        rc = brix_vfs_adopt_obj(ctx, key, o, 0 /* read-only */, fh_out);
         if (rc != NGX_OK) {
             int err = errno;
             (void) inst->driver->close(o);
@@ -241,7 +241,7 @@ xrootd_cache_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags,
 }
 
 /*
- * xrootd_cache_record_access — refresh a cache file's atime for LRU eviction.
+ * brix_cache_record_access — refresh a cache file's atime for LRU eviction.
  *
  * Touches cache_path's access time (atime only, via utimensat with UTIME_NOW /
  * UTIME_OMIT) so the eviction pass in evict_policy.c sees it as recently used.
@@ -249,7 +249,7 @@ xrootd_cache_open(xrootd_vfs_ctx_t *ctx, ngx_uint_t flags,
  * UTIME_OMIT is unavailable, NGX_ERROR on bad args or a failed utimensat.
  */
 ngx_int_t
-xrootd_cache_record_access(const char *cache_path, size_t bytes,
+brix_cache_record_access(const char *cache_path, size_t bytes,
     ngx_log_t *log)
 {
     (void) bytes;

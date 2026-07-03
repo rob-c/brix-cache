@@ -1,10 +1,10 @@
 """
 Tests for manager-mode XRootD redirector functionality:
 
-  Part 1 — Static xrootd_manager_map: a fixed path-prefix → backend mapping
+  Part 1 — Static brix_manager_map: a fixed path-prefix → backend mapping
             that returns kXR_redirect for matching kXR_locate requests.
 
-  Part 2 — Dynamic cluster mode (xrootd_manager_mode + xrootd_cms_server):
+  Part 2 — Dynamic cluster mode (brix_manager_mode + brix_cms_server):
             data servers register via the CMS protocol; kXR_locate and
             kXR_open on the redirector return kXR_redirect to the best
             registered data server.
@@ -242,7 +242,7 @@ def test_locate_redirect_basic(manager_nginx):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Part 2 — Dynamic cluster mode (xrootd_manager_mode + xrootd_cms_server)
+# Part 2 — Dynamic cluster mode (brix_manager_mode + brix_cms_server)
 # ═══════════════════════════════════════════════════════════════════════════
 
 # Additional wire constants for Part 2
@@ -585,7 +585,7 @@ class TestClusterMultiPath:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Part 4 — Multi-server registration and xrootd_srv_select
+# Part 4 — Multi-server registration and brix_srv_select
 # ═══════════════════════════════════════════════════════════════════════════
 
 @pytest.fixture(scope="module")
@@ -679,7 +679,7 @@ def cluster_multi_worker():
     """Verify both nginx workers at CLUSTER_MW_PORT connect to the real CMS manager.
 
     The pre-started cluster-mw-mgr nginx at CLUSTER_MW_CMS_PORT acts as the
-    real CMS server.  With worker_processes 2 and xrootd_cms_interval 2, both
+    real CMS server.  With worker_processes 2 and brix_cms_interval 2, both
     workers open independent TCP connections to the manager.  We verify by
     counting ESTABLISHED connections to CLUSTER_MW_CMS_PORT via ss(8).
     """
@@ -716,13 +716,13 @@ class TestPerWorkerCMS:
         """With worker_processes 2 and one CMS manager, expect 2 connections.
 
         Each worker forks from the master with cms_ctx == NULL and runs its own
-        init_process hook, so both workers call ngx_xrootd_cms_start and open
+        init_process hook, so both workers call ngx_brix_cms_start and open
         an independent TCP connection to the CMS manager.
         """
         count = cluster_multi_worker["connection_count"][0]
         assert count >= 2, (
             f"expected >= 2 CMS connections (one per worker), got {count}; "
-            "check that ngx_xrootd_cms_start is not guarded to a single worker"
+            "check that ngx_brix_cms_start is not guarded to a single worker"
         )
 
 
@@ -764,7 +764,7 @@ def _cms_put_int(v: int) -> bytes:
 def _cms_put_string(data: bytes = b"") -> bytes:
     """An XrdOucPup string: a 2-byte big-endian length (which INCLUDES the
     trailing NUL) followed by the bytes and a NUL.  An empty string is just a
-    zero length with no bytes.  Matches ngx_xrootd_cms_put_string in cms/wire.c
+    zero length with no bytes.  Matches ngx_brix_cms_put_string in cms/wire.c
     and the reader in cms/server_recv.c (cms_srv_read_string)."""
     if not data:
         return struct.pack(">H", 0)
@@ -938,7 +938,7 @@ class TestCmsSelectWake:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Part 7 — Registry-full counter (xrootd_registry_slots + Prometheus)
+# Part 7 — Registry-full counter (brix_registry_slots + Prometheus)
 # ═══════════════════════════════════════════════════════════════════════════
 
 import urllib.request
@@ -977,7 +977,7 @@ def cluster_full_registry():
 
 
 class TestRegistryFullCounter:
-    """xrootd_registry_full_total increments when a data server cannot register."""
+    """brix_registry_full_total increments when a data server cannot register."""
 
     def test_registry_full_counter_nonzero(self, cluster_full_registry):
         """Prometheus metrics must show registry_full_total > 0 after overflow."""
@@ -991,15 +991,15 @@ class TestRegistryFullCounter:
 
         counter_value = None
         for line in body.splitlines():
-            if line.startswith("xrootd_registry_full_total "):
+            if line.startswith("brix_registry_full_total "):
                 counter_value = float(line.split()[1])
                 break
 
         assert counter_value is not None, (
-            "xrootd_registry_full_total not present in Prometheus output"
+            "brix_registry_full_total not present in Prometheus output"
         )
         assert counter_value > 0, (
-            f"xrootd_registry_full_total is {counter_value}; "
+            f"brix_registry_full_total is {counter_value}; "
             "expected > 0 after 4 servers tried to register into 3 slots"
         )
 

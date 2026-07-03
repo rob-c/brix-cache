@@ -18,7 +18,7 @@
 
 #include "copy_range.h"
 #include "fs/backend/sd.h"   /* copy_file_range fast path via the SD driver */
-#include "fs/vfs/vfs.h"          /* xrootd_vfs_pread_full / pwrite_full */
+#include "fs/vfs/vfs.h"          /* brix_vfs_pread_full / pwrite_full */
 
 #include <errno.h>
 #include <limits.h>
@@ -29,29 +29,29 @@
 #endif
 
 /* 256 KB fallback buffer — matches CLONE_COPY_BUF in read/clone.c. */
-#define XROOTD_COPY_RANGE_BUFSZ  (256 * 1024)
+#define BRIX_COPY_RANGE_BUFSZ  (256 * 1024)
 
-/* xrootd_copy_range_fallback — portable pread/pwrite copy of [src_off, +len)
+/* brix_copy_range_fallback — portable pread/pwrite copy of [src_off, +len)
  * WHAT: Copies `len` bytes from src_fd@src_off to dst_fd@dst_off in 256 KB
  * chunks using pread/pwrite. Returns NGX_OK on full copy, NGX_ERROR (errno set
  * and logged) on I/O failure or unexpected EOF/short write.
  *
- * WHY: Phase-2 of xrootd_copy_range — used both when copy_file_range(2) is not
+ * WHY: Phase-2 of brix_copy_range — used both when copy_file_range(2) is not
  * compiled in and when it returns a recoverable error mid-copy. Extracted into
  * its own function so the two callers share one implementation and the caller
  * stays a flat, goto-free control flow.
  *
- * HOW: Outer loop fills one buffer via xrootd_vfs_pread_full (EINTR + short-read
+ * HOW: Outer loop fills one buffer via brix_vfs_pread_full (EINTR + short-read
  * handled by the primitive); a partial fill below `want` is a premature EOF and
- * fails; xrootd_vfs_pwrite_full writes the buffer fully. Advances
+ * fails; brix_vfs_pwrite_full writes the buffer fully. Advances
  * src_off/dst_off/len until len reaches 0.
  */
 static ngx_int_t
-xrootd_copy_range_fallback(ngx_log_t *log, int src_fd, off_t src_off,
+brix_copy_range_fallback(ngx_log_t *log, int src_fd, off_t src_off,
     int dst_fd, off_t dst_off, size_t len,
     const char *src_path, const char *dst_path)
 {
-    u_char buf[XROOTD_COPY_RANGE_BUFSZ];
+    u_char buf[BRIX_COPY_RANGE_BUFSZ];
 
     while (len > 0) {
         size_t want = (len < sizeof(buf)) ? len : sizeof(buf);
@@ -59,7 +59,7 @@ xrootd_copy_range_fallback(ngx_log_t *log, int src_fd, off_t src_off,
 
         /* pread_full loops over EINTR/short reads through the storage seam,
          * filling `want` bytes unless the source ends early. */
-        if (xrootd_vfs_pread_full(src_fd, buf, want, src_off, &got) != NGX_OK) {
+        if (brix_vfs_pread_full(src_fd, buf, want, src_off, &got) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, log, errno,
                           "xrootd: copy_range pread failed %s",
                           src_path ? src_path : "-");
@@ -76,7 +76,7 @@ xrootd_copy_range_fallback(ngx_log_t *log, int src_fd, off_t src_off,
             return NGX_ERROR;
         }
 
-        if (xrootd_vfs_pwrite_full(dst_fd, buf, got, dst_off) != NGX_OK) {
+        if (brix_vfs_pwrite_full(dst_fd, buf, got, dst_off) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, log, errno,
                           "xrootd: copy_range pwrite failed %s",
                           dst_path ? dst_path : "-");
@@ -92,20 +92,20 @@ xrootd_copy_range_fallback(ngx_log_t *log, int src_fd, off_t src_off,
 }
 
 ngx_int_t
-xrootd_copy_range(ngx_log_t *log,
+brix_copy_range(ngx_log_t *log,
                   int src_fd, off_t src_off,
                   int dst_fd, off_t dst_off,
                   size_t len,
                   const char *src_path, const char *dst_path)
 {
 #if defined(__linux__) && defined(__NR_copy_file_range)
-    xrootd_sd_obj_t src_obj, dst_obj;
+    brix_sd_obj_t src_obj, dst_obj;
 
     /* Route the zero-copy primitive through the Storage Driver seam; dispatch via
      * the object's own driver vtable (backend-agnostic) rather than the hardcoded
      * POSIX driver. The pread/pwrite fallback below composes the VFS primitives. */
-    xrootd_sd_posix_wrap(&src_obj, src_fd);
-    xrootd_sd_posix_wrap(&dst_obj, dst_fd);
+    brix_sd_posix_wrap(&src_obj, src_fd);
+    brix_sd_posix_wrap(&dst_obj, dst_fd);
 
     while (len > 0) {
         size_t  want = (len > (size_t) SSIZE_MAX) ? (size_t) SSIZE_MAX : len;
@@ -136,7 +136,7 @@ xrootd_copy_range(ngx_log_t *log,
         {
             /* copy_file_range unsupported for this fd pair / range — finish the
              * remaining bytes with the portable pread/pwrite path. */
-            return xrootd_copy_range_fallback(log, src_fd, src_off,
+            return brix_copy_range_fallback(log, src_fd, src_off,
                                               dst_fd, dst_off, len,
                                               src_path, dst_path);
         }
@@ -151,7 +151,7 @@ xrootd_copy_range(ngx_log_t *log,
 #endif
 
     /* copy_file_range(2) not available at build time — use the portable path. */
-    return xrootd_copy_range_fallback(log, src_fd, src_off,
+    return brix_copy_range_fallback(log, src_fd, src_off,
                                       dst_fd, dst_off, len,
                                       src_path, dst_path);
 }

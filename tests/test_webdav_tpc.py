@@ -361,7 +361,7 @@ class TestNginxPluginToPluginTPC:
 
 
 class TestXrootdHttpInteropTPC:
-    def test_xrootd_http_source_to_nginx_plugin_destination(self, tpc_nginx, reference_xrd_http):
+    def test_brix_http_source_to_nginx_plugin_destination(self, tpc_nginx, reference_xrd_http):
         content = b"xrootd http source pulled into nginx plugin destination\n"
         _write(reference_xrd_http.data_root / "xrd-source.txt", content)
 
@@ -371,7 +371,7 @@ class TestXrootdHttpInteropTPC:
         assert code == 201
         assert (tpc_nginx.dest_cafile_root / "from-xrootd-http.txt").read_bytes() == content
 
-    def test_nginx_plugin_source_to_xrootd_http_destination(self, tpc_nginx, reference_xrd_http):
+    def test_nginx_plugin_source_to_brix_http_destination(self, tpc_nginx, reference_xrd_http):
         content = b"nginx plugin source pulled into xrootd http destination\n"
         _write(tpc_nginx.source_open_root / "nginx-source-for-xrd.txt", content)
 
@@ -471,7 +471,7 @@ class TestHTTPTPCPush:
         assert code == 409
 
     def test_push_tpc_disabled_on_source_returns_405(self, tpc_nginx):
-        """dest_disabled_port has xrootd_webdav_tpc off — COPY must be rejected."""
+        """dest_disabled_port has brix_webdav_tpc off — COPY must be rejected."""
         _write(tpc_nginx.dest_disabled_root / "push-disabled-src.txt", b"x\n")
 
         dest_url = (

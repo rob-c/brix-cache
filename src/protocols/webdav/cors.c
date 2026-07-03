@@ -11,7 +11,7 @@ typedef struct {
     ngx_flag_t    credentials;
     ngx_uint_t    max_age;
     ngx_str_t     allow_methods;
-} xrootd_cors_conf_t;
+} brix_cors_conf_t;
 
 /*
  * Match the request Origin against the configured allowlist.
@@ -20,7 +20,7 @@ typedef struct {
  * An empty/unset allowlist denies everything: CORS is opt-in.
  */
 static ngx_int_t
-origin_allowed(const xrootd_cors_conf_t *cors,
+origin_allowed(const brix_cors_conf_t *cors,
                const ngx_str_t *origin, ngx_flag_t *wildcard)
 {
     ngx_str_t  *origins;
@@ -55,8 +55,8 @@ origin_allowed(const xrootd_cors_conf_t *cors,
  * NGX_ERROR only on allocation/header-set failure.
  */
 static ngx_int_t
-xrootd_http_add_cors_headers(ngx_http_request_t *r,
-    const xrootd_cors_conf_t *cors)
+brix_http_add_cors_headers(ngx_http_request_t *r,
+    const brix_cors_conf_t *cors)
 {
     ngx_table_elt_t  *origin_hdr;
     ngx_table_elt_t  *req_headers;
@@ -66,7 +66,7 @@ xrootd_http_add_cors_headers(ngx_http_request_t *r,
     u_char            age_buf[NGX_INT_T_LEN];
     ngx_flag_t        wildcard;
 
-    origin_hdr = xrootd_http_find_header(r, "Origin", sizeof("Origin") - 1);
+    origin_hdr = brix_http_find_header(r, "Origin", sizeof("Origin") - 1);
     if (origin_hdr == NULL) {
         return NGX_DECLINED;
     }
@@ -83,32 +83,32 @@ xrootd_http_add_cors_headers(ngx_http_request_t *r,
      * the Vary: Origin below to keep caches from leaking one origin's response
      * to another. */
     if (wildcard && !cors->credentials) {
-        if (xrootd_http_set_header(r, "Access-Control-Allow-Origin", "*", NULL)
+        if (brix_http_set_header(r, "Access-Control-Allow-Origin", "*", NULL)
             != NGX_OK)
         {
             return NGX_ERROR;
         }
     } else {
-        if (xrootd_http_set_header_str(r, "Access-Control-Allow-Origin",
+        if (brix_http_set_header_str(r, "Access-Control-Allow-Origin",
                                        &origin, 0, NULL) != NGX_OK)
         {
             return NGX_ERROR;
         }
     }
 
-    if (xrootd_http_set_header(r, "Vary", "Origin", NULL) != NGX_OK) {
+    if (brix_http_set_header(r, "Vary", "Origin", NULL) != NGX_OK) {
         return NGX_ERROR;
     }
 
     if (cors->allow_methods.len > 0) {
-        if (xrootd_http_set_header_str(r, "Access-Control-Allow-Methods",
+        if (brix_http_set_header_str(r, "Access-Control-Allow-Methods",
                                        &cors->allow_methods, 0, NULL) != NGX_OK)
         {
             return NGX_ERROR;
         }
     }
 
-    if (xrootd_http_set_header(r, "Access-Control-Expose-Headers",
+    if (brix_http_set_header(r, "Access-Control-Expose-Headers",
                                "Content-Length, Content-Range, Content-Type, "
                                "DAV, ETag, Last-Modified, Location, Digest",
                                NULL) != NGX_OK)
@@ -117,7 +117,7 @@ xrootd_http_add_cors_headers(ngx_http_request_t *r,
     }
 
     if (cors->credentials) {
-        if (xrootd_http_set_header(r, "Access-Control-Allow-Credentials",
+        if (brix_http_set_header(r, "Access-Control-Allow-Credentials",
                                    "true", NULL) != NGX_OK)
         {
             return NGX_ERROR;
@@ -126,23 +126,23 @@ xrootd_http_add_cors_headers(ngx_http_request_t *r,
 
     /* Echo Access-Control-Allow-Headers from the preflight request if present
      * and safe; otherwise fall back to the standard set. */
-    req_headers = xrootd_http_find_header(
+    req_headers = brix_http_find_header(
         r, "Access-Control-Request-Headers",
         sizeof("Access-Control-Request-Headers") - 1);
     /* Echo the client's requested headers verbatim, but only after rejecting
      * any control characters (CR/LF etc.) — echoing untrusted header bytes
      * unchecked would allow response header injection. */
     if (req_headers != NULL
-        && !xrootd_http_str_has_ctl(req_headers->value.data,
+        && !brix_http_str_has_ctl(req_headers->value.data,
                                     req_headers->value.len))
     {
-        if (xrootd_http_set_header_str(r, "Access-Control-Allow-Headers",
+        if (brix_http_set_header_str(r, "Access-Control-Allow-Headers",
                                        &req_headers->value, 0, NULL) != NGX_OK)
         {
             return NGX_ERROR;
         }
     } else {
-        if (xrootd_http_set_header(r, "Access-Control-Allow-Headers",
+        if (brix_http_set_header(r, "Access-Control-Allow-Headers",
                                    "Authorization, Content-Type, "
                                    "Content-Length, Depth, Destination, Source, "
                                    "Overwrite, Credential, Credentials, "
@@ -164,7 +164,7 @@ xrootd_http_add_cors_headers(ngx_http_request_t *r,
     }
     ngx_memcpy(max_age.data, age_buf, max_age.len);
 
-    return xrootd_http_set_header_str(r, "Access-Control-Max-Age",
+    return brix_http_set_header_str(r, "Access-Control-Max-Age",
                                       &max_age, 0, NULL);
 }
 
@@ -180,43 +180,43 @@ xrootd_http_add_cors_headers(ngx_http_request_t *r,
 ngx_int_t
 webdav_add_cors_headers(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *wlcf;
-    xrootd_cors_conf_t                 cors;
+    ngx_http_brix_webdav_loc_conf_t *wlcf;
+    brix_cors_conf_t                 cors;
     ngx_int_t                          rc;
 
-    wlcf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    wlcf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
 
     cors.origins     = wlcf->cors_origins;
     cors.credentials = wlcf->cors_credentials;
     cors.max_age     = wlcf->cors_max_age;
 
-    if (xrootd_http_operation_allow_header(r->pool,
-            xrootd_webdav_operations, xrootd_webdav_operations_count,
-            XROOTD_WEBDAV_ALLOW_FLAGS(wlcf), &cors.allow_methods) != NGX_OK)
+    if (brix_http_operation_allow_header(r->pool,
+            brix_webdav_operations, brix_webdav_operations_count,
+            BRIX_WEBDAV_ALLOW_FLAGS(wlcf), &cors.allow_methods) != NGX_OK)
     {
         return NGX_ERROR;
     }
 
-    rc = xrootd_http_add_cors_headers(r, &cors);
+    rc = brix_http_add_cors_headers(r, &cors);
 
     switch (rc) {
     case NGX_OK:
-        XROOTD_WEBDAV_METRIC_INC(cors_total[XROOTD_WEBDAV_CORS_ALLOWED]);
+        BRIX_WEBDAV_METRIC_INC(cors_total[BRIX_WEBDAV_CORS_ALLOWED]);
         return NGX_OK;
 
     case NGX_DECLINED:
         /* Distinguish "no Origin header" from "origin denied" for metrics. */
-        if (xrootd_http_find_header(r, "Origin",
+        if (brix_http_find_header(r, "Origin",
                                     sizeof("Origin") - 1) == NULL)
         {
             if (wlcf->cors_origins != NULL
                 && wlcf->cors_origins->nelts > 0)
             {
-                XROOTD_WEBDAV_METRIC_INC(
-                    cors_total[XROOTD_WEBDAV_CORS_NO_ORIGIN]);
+                BRIX_WEBDAV_METRIC_INC(
+                    cors_total[BRIX_WEBDAV_CORS_NO_ORIGIN]);
             }
         } else {
-            XROOTD_WEBDAV_METRIC_INC(cors_total[XROOTD_WEBDAV_CORS_DENIED]);
+            BRIX_WEBDAV_METRIC_INC(cors_total[BRIX_WEBDAV_CORS_DENIED]);
         }
         return NGX_OK;
 

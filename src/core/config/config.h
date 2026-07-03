@@ -1,47 +1,47 @@
-#ifndef XROOTD_CONFIG_INTERNAL_H
-#define XROOTD_CONFIG_INTERNAL_H
+#ifndef BRIX_CONFIG_INTERNAL_H
+#define BRIX_CONFIG_INTERNAL_H
 
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
-/* Filesystem object kind checked by xrootd_validate_path. */
+/* Filesystem object kind checked by brix_validate_path. */
 
-/* ---- xrootd_path_kind_t — filesystem object kind for path validation ----
+/* ---- brix_path_kind_t — filesystem object kind for path validation ----
  *
- * WHAT: Enumerates the three kinds of filesystem objects that xrootd_validate_path checks:
+ * WHAT: Enumerates the three kinds of filesystem objects that brix_validate_path checks:
  *       regular file, directory, or either. Used during postconfiguration to validate
- *       configured paths (xrootd_root, cache directories) against actual filesystem state.
+ *       configured paths (brix_root, cache directories) against actual filesystem state.
  *
  * WHY: Postconfiguration validation catches misconfigured paths early — nginx -t fails
  *      with emerg errors before any traffic is accepted. Each kind maps to a specific
  *      stat check and errno translation so the error message accurately describes what
  *      was wrong (e.g., path exists but is a directory when a file was expected). */
 typedef enum {
-    XROOTD_PATH_REGULAR_FILE,      /* path must be an existing regular file */
-    XROOTD_PATH_DIRECTORY,         /* path must be an existing directory */
-    XROOTD_PATH_FILE_OR_DIRECTORY  /* path must exist; either kind is acceptable */
-} xrootd_path_kind_t;
+    BRIX_PATH_REGULAR_FILE,      /* path must be an existing regular file */
+    BRIX_PATH_DIRECTORY,         /* path must be an existing directory */
+    BRIX_PATH_FILE_OR_DIRECTORY  /* path must exist; either kind is acceptable */
+} brix_path_kind_t;
 
 /*
- * xrootd_validate_path — check that a configured path exists, is of the right
+ * brix_validate_path — check that a configured path exists, is of the right
  * kind, and is accessible with access_mode (e.g. R_OK).
  *
  * Emits NGX_LOG_EMERG and returns NGX_ERROR on any failure; used during
  * postconfiguration to catch misconfigured paths early.
  */
-ngx_int_t xrootd_validate_path(ngx_conf_t *cf, const char *label,
-    const ngx_str_t *path, xrootd_path_kind_t kind, int access_mode);
+ngx_int_t brix_validate_path(ngx_conf_t *cf, const char *label,
+    const ngx_str_t *path, brix_path_kind_t kind, int access_mode);
 
 /*
- * xrootd_copy_conf_string — duplicate a C string from an ngx_str_t source
+ * brix_copy_conf_string — duplicate a C string from an ngx_str_t source
  * into a NUL-terminated ngx_str_t using ngx_pnalloc from cf->pool.
  *
  * Returns NGX_CONF_ERROR on OOM; otherwise the cfg error string returned by
  * the directive setter.  dst->data and dst->len are set on success.
  */
-char *xrootd_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src,
+char *brix_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src,
     ngx_str_t *dst);
 
-/* ---- xrootd_config_prepare_server — validate and prepare each server block ----
+/* ---- brix_config_prepare_server — validate and prepare each server block ----
  *
  * WHAT: Validates root/cache/access-log paths, merges config defaults, prepares TLS and auth
  *       subsystems for a single stream server block. Called during postconfiguration pass.
@@ -52,7 +52,7 @@ char *xrootd_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src,
  *      nginx -t catches configuration errors (missing directories, invalid paths) early.
  */
 
-/* ---- xrootd_configure_gsi — load GSI CA store and configure authentication subsystem ----
+/* ---- brix_configure_gsi — load GSI CA store and configure authentication subsystem ----
  *
  * WHAT: Loads host certificate/key pair, reads CA directory for proxy cert verification,
  *       optionally loads CRL files. Returns NGX_OK on success, NGX_ERROR on failure.
@@ -61,9 +61,9 @@ char *xrootd_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src,
  *      intermediate certificates in the proxy chain. Host cert/key enables TLS termination.
  */
 
-/* ---- xrootd_configure_tls — resolve certificate/key and prepare SSL_CTX ----
+/* ---- brix_configure_tls — resolve certificate/key and prepare SSL_CTX ----
  *
- * WHAT: Loads xrootd_tls_certificate/xrootd_tls_certificate_key, creates and configures
+ * WHAT: Loads brix_tls_certificate/brix_tls_certificate_key, creates and configures
  *       an SSL_CTX for TLS termination on root:// connections (kXR_wantTLS upgrade).
  *       Returns NGX_OK on success, NGX_ERROR on failure.
  *
@@ -71,7 +71,7 @@ char *xrootd_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src,
  *      switch to after handshake. The certificate/key pair must be valid grid PKI certs.
  */
 
-/* ---- xrootd_configure_token_auth — load JWKS keys for bearer-token authentication ----
+/* ---- brix_configure_token_auth — load JWKS keys for bearer-token authentication ----
  *
  * WHAT: Loads JSON Web Key Set (JWKS) file from configured path, parses public keys for
  *       JWT signature verification. Returns NGX_OK on success, NGX_ERROR on failure.
@@ -81,7 +81,7 @@ char *xrootd_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src,
  *      network calls per request. Token scope enforcement is applied per-path after verification.
  */
 
-/* ---- xrootd_token_jwks_schedule_refresh — start periodic JWKS refresh timer ----
+/* ---- brix_token_jwks_schedule_refresh — start periodic JWKS refresh timer ----
  *
  * WHAT: Schedules a per-worker mtime-poll timer that watches the JWKS file for changes
  *       and reloads keys when modified. Called from init_process callback.
@@ -91,7 +91,7 @@ char *xrootd_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src,
  *      HTTP fetches while catching file changes promptly. Each worker polls independently.
  */
 
-/* ---- xrootd_configure_sss_auth — load SSS key file and validate format ----
+/* ---- brix_configure_sss_auth — load SSS key file and validate format ----
  *
  * WHAT: Loads shared-secret (SSS) authentication key from configured file path, validates
  *       key length and hex format. Returns NGX_OK on success, NGX_ERROR on failure.
@@ -101,7 +101,7 @@ char *xrootd_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src,
  *      minimum length requirements for adequate entropy.
  */
 
-/* ---- xrootd_config_finalize_policy — validate VO ACL rules and group-ownership policies ----
+/* ---- brix_config_finalize_policy — validate VO ACL rules and group-ownership policies ----
  *
  * WHAT: Parses configured VO (Virtual Organization) ACL rules, validates group ownership
  *       policies, applies path-based access restrictions. Returns NGX_OK on success.
@@ -110,7 +110,7 @@ char *xrootd_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src,
  *      access per-path based on client's VOMS attributes and group membership.
  */
 
-/* ---- xrootd_configure_metrics — create/attach shared-memory metrics zone ----
+/* ---- brix_configure_metrics — create/attach shared-memory metrics zone ----
  *
  * WHAT: Creates or attaches to a shared-memory zone for Prometheus metrics counters using
  *       ngx_shm_zone_init. Returns NGX_OK on success, NGX_ERROR on failure.
@@ -120,7 +120,7 @@ char *xrootd_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src,
  *      prevent label explosion at scale.
  */
 
-/* ---- xrootd_configure_session_registry — create/attach shared-memory session registry ----
+/* ---- brix_configure_session_registry — create/attach shared-memory session registry ----
  *
  * WHAT: Creates or attaches to a shared-memory zone for tracking active XRootD sessions.
  *       Returns NGX_OK on success, NGX_ERROR on failure.
@@ -130,7 +130,7 @@ char *xrootd_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src,
  *      the same session state without inter-worker communication.
  */
 
-/* ---- xrootd_srv_configure_registry — create/attach shared-memory server registry zone ----
+/* ---- brix_srv_configure_registry — create/attach shared-memory server registry zone ----
  *
  * WHAT: Creates or attaches to a shared-memory zone for dynamic server registration in
  *       manager mode, with configurable slot count. Returns NGX_OK on success.
@@ -139,7 +139,7 @@ char *xrootd_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src,
  *      in a shared registry so kXR_locate can return accurate redirect responses to clients.
  */
 
-/* ---- xrootd_pending_configure — create/attach shared-memory pending-locate table zone ----
+/* ---- brix_pending_configure — create/attach shared-memory pending-locate table zone ----
  *
  * WHAT: Creates or attaches to a shared-memory zone for tracking pending locate requests
  *       that require server registry lookup before completion.
@@ -149,68 +149,68 @@ char *xrootd_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src,
  */
 
 /* Called from postconfiguration to validate and prepare each server block. */
-ngx_int_t xrootd_config_prepare_server(ngx_conf_t *cf,
-    ngx_stream_xrootd_srv_conf_t *xcf);
+ngx_int_t brix_config_prepare_server(ngx_conf_t *cf,
+    ngx_stream_brix_srv_conf_t *xcf);
 
 /* Load GSI CA store and configure the GSI authentication subsystem. */
-ngx_int_t xrootd_configure_gsi(ngx_conf_t *cf,
-    ngx_stream_xrootd_srv_conf_t *xcf);
+ngx_int_t brix_configure_gsi(ngx_conf_t *cf,
+    ngx_stream_brix_srv_conf_t *xcf);
 
-/* Resolve xrootd_tls_certificate/key and prepare the SSL_CTX. */
-ngx_int_t xrootd_configure_tls(ngx_conf_t *cf,
-    ngx_stream_xrootd_srv_conf_t *xcf);
+/* Resolve brix_tls_certificate/key and prepare the SSL_CTX. */
+ngx_int_t brix_configure_tls(ngx_conf_t *cf,
+    ngx_stream_brix_srv_conf_t *xcf);
 
 /* Load JWKS keys for bearer-token (WLCG/SciToken) authentication. */
-ngx_int_t xrootd_configure_token_auth(ngx_conf_t *cf,
-    ngx_stream_xrootd_srv_conf_t *xcf);
+ngx_int_t brix_configure_token_auth(ngx_conf_t *cf,
+    ngx_stream_brix_srv_conf_t *xcf);
 
 /* Start per-worker mtime-poll JWKS refresh timer (call from init_process). */
-void xrootd_token_jwks_schedule_refresh(ngx_cycle_t *cycle,
-    ngx_stream_xrootd_srv_conf_t *conf);
+void brix_token_jwks_schedule_refresh(ngx_cycle_t *cycle,
+    ngx_stream_brix_srv_conf_t *conf);
 
 /* Load the SSS key file and validate key length/format. */
-ngx_int_t xrootd_configure_sss_auth(ngx_conf_t *cf,
-    ngx_stream_xrootd_srv_conf_t *xcf);
+ngx_int_t brix_configure_sss_auth(ngx_conf_t *cf,
+    ngx_stream_brix_srv_conf_t *xcf);
 
 /* Generic SSS keytab loader: parse <path> into a fresh key array (*out_keys).
  * Enforces the private-permission policy.  Shared by the CMS server module's
  * cluster authentication.  Returns NGX_OK / NGX_ERROR. */
-ngx_int_t xrootd_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path,
+ngx_int_t brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path,
     ngx_array_t **out_keys);
 
 /* Validate and prepare Kerberos 5 service principal/keytab state. */
-ngx_int_t xrootd_configure_krb5_auth(ngx_conf_t *cf,
-    ngx_stream_xrootd_srv_conf_t *xcf);
+ngx_int_t brix_configure_krb5_auth(ngx_conf_t *cf,
+    ngx_stream_brix_srv_conf_t *xcf);
 
 /* Validate and apply VO ACL rules and group-ownership policies. */
-ngx_int_t xrootd_config_finalize_policy(ngx_conf_t *cf,
-    ngx_stream_xrootd_srv_conf_t *xcf);
+ngx_int_t brix_config_finalize_policy(ngx_conf_t *cf,
+    ngx_stream_brix_srv_conf_t *xcf);
 
 /* Create or attach to the shared-memory metrics zone. */
 /* Idempotent metrics-SHM-zone creation — callable from HTTP-only planes
  * (phase-68: a standalone cvmfs cache node has no stream block). */
-ngx_int_t xrootd_metrics_ensure_zone(ngx_conf_t *cf);
-ngx_int_t xrootd_configure_metrics(ngx_conf_t *cf,
+ngx_int_t brix_metrics_ensure_zone(ngx_conf_t *cf);
+ngx_int_t brix_configure_metrics(ngx_conf_t *cf,
     ngx_stream_core_main_conf_t *cmcf);
 
 /* Create or attach to the shared-memory session registry zone.
- * slots = registry capacity (xrootd_session_slots); 0 selects the default. */
-ngx_int_t xrootd_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots);
+ * slots = registry capacity (brix_session_slots); 0 selects the default. */
+ngx_int_t brix_configure_session_registry(ngx_conf_t *cf, ngx_uint_t slots);
 
 /* Create or attach to the shared-memory server registry zone. */
-ngx_int_t xrootd_srv_configure_registry(ngx_conf_t *cf, ngx_uint_t slots);
+ngx_int_t brix_srv_configure_registry(ngx_conf_t *cf, ngx_uint_t slots);
 
 /* Create or attach to the shared-memory pending-locate table zone. */
-ngx_int_t xrootd_pending_configure(ngx_conf_t *cf);
+ngx_int_t brix_pending_configure(ngx_conf_t *cf);
 
 /* Create or attach to the live transfer monitor shared-memory zone. */
-ngx_int_t xrootd_configure_dashboard(ngx_conf_t *cf);
+ngx_int_t brix_configure_dashboard(ngx_conf_t *cf);
 
 /* Create or attach to the unified TPC transfer registry zone. */
-ngx_int_t xrootd_tpc_registry_configure(ngx_conf_t *cf);
+ngx_int_t brix_tpc_registry_configure(ngx_conf_t *cf);
 
 /* Resolve thread-pool names to concrete pool objects for all server blocks. */
-ngx_int_t xrootd_configure_thread_pools(ngx_conf_t *cf,
+ngx_int_t brix_configure_thread_pools(ngx_conf_t *cf,
     ngx_stream_core_main_conf_t *cmcf);
 
-#endif /* XROOTD_CONFIG_INTERNAL_H */
+#endif /* BRIX_CONFIG_INTERNAL_H */

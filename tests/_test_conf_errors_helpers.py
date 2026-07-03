@@ -238,7 +238,7 @@ def _seed_nonempty(srv, our_name, off_name):
 # =========================================================================== #
 # RAW-WIRE protocol error semantics — exact numeric kXR_* codes on both servers.
 #
-# A minimal raw-wire XRootD client (adapted from test_xrootd_conformance.py),
+# A minimal raw-wire XRootD client (adapted from test_brix_conformance.py),
 # pointed at EITHER server URL, so the same malformed/illegal request gets the
 # exact same kXR error code from OUR and the STOCK server.
 # =========================================================================== #

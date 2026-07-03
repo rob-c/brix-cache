@@ -31,7 +31,7 @@
 #include <stdio.h>
 
 ngx_int_t
-xrootd_token_read_file(const ngx_str_t *path, u_char *buf, size_t buf_sz,
+brix_token_read_file(const ngx_str_t *path, u_char *buf, size_t buf_sz,
     size_t *out_len, ngx_log_t *log, const char *label)
 {
     char   pathz[NGX_MAX_PATH];

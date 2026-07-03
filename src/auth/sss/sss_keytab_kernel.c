@@ -37,8 +37,8 @@ sss_decode_hex(const char *hex, uint8_t *out, size_t *out_len)
         return -1;
     }
     for (i = 0; i < n; i += 2) {
-        int hi = xrootd_hex_from_char((unsigned char) hex[i]);
-        int lo = xrootd_hex_from_char((unsigned char) hex[i + 1]);
+        int hi = brix_hex_from_char((unsigned char) hex[i]);
+        int lo = brix_hex_from_char((unsigned char) hex[i + 1]);
         if (hi < 0 || lo < 0) {
             return -1;
         }

@@ -3,7 +3,7 @@
  *
  * WHAT: Enters a fresh user+mount namespace with a subuid RANGE map (so the child
  *   is in-ns root over a private band of uids — exactly what is needed to run a
- *   real root-requiring service, e.g. nginx with `xrootd_impersonation map`,
+ *   real root-requiring service, e.g. nginx with `brix_impersonation map`,
  *   without any real privilege), bind-mounts caller-supplied fake /etc/passwd and
  *   /etc/group over the real ones (so getpwnam/getgrnam resolve the test
  *   identities), then exec()s an arbitrary command INSIDE that namespace.

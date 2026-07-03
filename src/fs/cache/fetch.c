@@ -3,7 +3,7 @@
 #include "cache_storage.h"
 #include "meta.h"
 #include "verify.h"
-#include "core/compat/checksum.h"   /* xrootd_checksum_hex_obj / _parse (verify) */
+#include "core/compat/checksum.h"   /* brix_checksum_hex_obj / _parse (verify) */
 #include "fs/cache/origin/s3_transport.h"               /* server libcurl S3 transport */
 #include "fs/backend/remote/sd_remote.h"    /* read-only S3 remote-origin driver */
 #include "fs/backend/xroot/sd_xroot.h"      /* read-only root:// remote-origin driver */
@@ -27,7 +27,7 @@ extern char **environ;
  * cache STORAGE driver keys its namespace on. NULL if cache_path is not under
  * cache_root (should never happen). */
 static const char *
-xrootd_cache_fill_key(const xrootd_cache_fill_t *t)
+brix_cache_fill_key(const brix_cache_fill_t *t)
 {
     size_t crlen = t->conf->cache_root.len;
 
@@ -44,34 +44,34 @@ xrootd_cache_fill_key(const xrootd_cache_fill_t *t)
  * entry THROUGH the driver against the origin's advertised digest (evict on a
  * mismatch — never serve proven-bad data), then write the .meta sidecar. */
 static int
-xrootd_cache_commit_staged(xrootd_cache_fill_t *t, xrootd_sd_instance_t *inst,
+brix_cache_commit_staged(brix_cache_fill_t *t, brix_sd_instance_t *inst,
     const char *key)
 {
     ngx_log_t        *log = (t->c != NULL) ? t->c->log : NULL;
-    xrootd_sd_stat_t  sst;
+    brix_sd_stat_t  sst;
 
     if (inst->driver->stat(inst, key, &sst) != NGX_OK) {
-        xrootd_cache_set_syserror(t, kXR_IOError, "cache commit stat failed");
+        brix_cache_set_syserror(t, kXR_IOError, "cache commit stat failed");
         return -1;
     }
     t->file_size = (uint64_t) sst.size;
 
-    if (t->conf->cache_verify != XROOTD_CACHE_VERIFY_OFF
+    if (t->conf->cache_verify != BRIX_CACHE_VERIFY_OFF
         && t->origin_cks_alg[0] != '\0')
     {
-        xrootd_checksum_alg_t alg;
+        brix_checksum_alg_t alg;
         char                  alg_name[16];
 
-        if (xrootd_checksum_parse(t->origin_cks_alg,
+        if (brix_checksum_parse(t->origin_cks_alg,
                                   ngx_strlen(t->origin_cks_alg),
                                   &alg, alg_name, sizeof(alg_name)) == NGX_OK)
         {
             int              e = 0;
-            xrootd_sd_obj_t *o = inst->driver->open(inst, key, XROOTD_SD_O_READ,
+            brix_sd_obj_t *o = inst->driver->open(inst, key, BRIX_SD_O_READ,
                                                     0, &e);
             if (o != NULL) {
                 char hex[EVP_MAX_MD_SIZE * 2 + 1];
-                int  ok = (xrootd_checksum_hex_obj(alg, o, key, log, hex,
+                int  ok = (brix_checksum_hex_obj(alg, o, key, log, hex,
                                                    sizeof(hex)) == NGX_OK)
                           && ngx_strcmp(hex, t->origin_cks_hex) == 0;
                 (void) inst->driver->close(o);
@@ -80,7 +80,7 @@ xrootd_cache_commit_staged(xrootd_cache_fill_t *t, xrootd_sd_instance_t *inst,
                 }
                 if (!ok) {
                     (void) inst->driver->unlink(inst, key, 0);
-                    xrootd_cache_set_error(t, kXR_ServerError, 0,
+                    brix_cache_set_error(t, kXR_ServerError, 0,
                         "cache fill checksum mismatch (entry evicted)");
                     return -1;
                 }
@@ -93,7 +93,7 @@ xrootd_cache_commit_staged(xrootd_cache_fill_t *t, xrootd_sd_instance_t *inst,
      * driver-backed entry has no POSIX cache_path to stat. Best-effort. */
     {
         struct stat         pst;
-        xrootd_cache_meta_t meta;
+        brix_cache_meta_t meta;
         char                sidecar[PATH_MAX];
         const char         *state_root =
             t->conf->cache_state_root.len
@@ -103,11 +103,11 @@ xrootd_cache_commit_staged(xrootd_cache_fill_t *t, xrootd_sd_instance_t *inst,
         ngx_memzero(&pst, sizeof(pst));
         pst.st_size = (off_t) sst.size;
         pst.st_mtime = sst.mtime;
-        if (xrootd_cache_meta_from_stat(&pst, NULL, &meta) == NGX_OK
-            && xrootd_cache_sidecar_path((const char *) t->conf->cache_root.data,
+        if (brix_cache_meta_from_stat(&pst, NULL, &meta) == NGX_OK
+            && brix_cache_sidecar_path((const char *) t->conf->cache_root.data,
                    state_root, t->cache_path, sidecar, sizeof(sidecar)) == 0)
         {
-            (void) xrootd_cache_meta_write(log, sidecar, &meta);
+            (void) brix_cache_meta_write(log, sidecar, &meta);
         }
     }
     return 0;
@@ -117,21 +117,21 @@ xrootd_cache_commit_staged(xrootd_cache_fill_t *t, xrootd_sd_instance_t *inst,
 /* Forward decl of the shared fill spine (defined below): open the SD source object,
  * pread sequential ranges into the cache's staged-write sink, then commit + verify.
  * Returns 0 (success), 1 (admission decline), -1 (error; t error fields set). */
-static int xrootd_cache_fill_from_source(xrootd_cache_fill_t *t,
-    xrootd_sd_instance_t *source);
+static int brix_cache_fill_from_source(brix_cache_fill_t *t,
+    brix_sd_instance_t *source);
 
 /* §14 (phase-64): the legacy cache_origin s3/http/READ-origin builders are
  * DELETED — a cache fills from the export's registered storage backend (the C-1
- * spine), whose credential is the attached xrootd_credential. */
+ * spine), whose credential is the attached brix_credential. */
 
-/* xrootd_cache_build_wt_origin — the WRITE-BACK origin (flush target): host from
- * xrootd_wt_origin, credentials from the C-3 in-process fields
- * (cache_origin_bearer/x509_proxy/ca_dir — populated from xrootd_wt_credential).
+/* brix_cache_build_wt_origin — the WRITE-BACK origin (flush target): host from
+ * brix_wt_origin, credentials from the C-3 in-process fields
+ * (cache_origin_bearer/x509_proxy/ca_dir — populated from brix_wt_credential).
  * §14: the legacy cache_origin host/credential fallbacks are deleted with the
- * cache_origin config model. Caller owns the instance (xrootd_sd_xroot_destroy).
+ * cache_origin config model. Caller owns the instance (brix_sd_xroot_destroy).
  * NULL if no wt_origin configured. */
-xrootd_sd_instance_t *
-xrootd_cache_build_wt_origin(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log)
+brix_sd_instance_t *
+brix_cache_build_wt_origin(const ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log)
 {
     char host_z[256];
 
@@ -141,7 +141,7 @@ xrootd_cache_build_wt_origin(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t
     }
     ngx_cpystrn((u_char *) host_z, conf->wt_origin_host.data,
                 ngx_min(conf->wt_origin_host.len + 1, sizeof(host_z)));
-    return xrootd_sd_xroot_create_origin(host_z, (int) conf->wt_origin_port,
+    return brix_sd_xroot_create_origin(host_z, (int) conf->wt_origin_port,
         0 /* tls: legacy cache_origin_tls retired */,
         (int) conf->cache_origin_family,
         (conf->cache_origin_bearer.len > 0)
@@ -155,50 +155,50 @@ xrootd_cache_build_wt_origin(const ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t
 }
 
 
-/* xrootd_cache_fill_from_source — THE single cache-fill spine (phase-63): fill from
+/* brix_cache_fill_from_source — THE single cache-fill spine (phase-63): fill from
  * any SD source instance generically — `source->driver->open` → `pread` loop →
  * staged sink → commit-then-verify. The caller owns `source`'s lifecycle (a
  * registry-owned backend, or a per-fill sd_xroot/sd_http/sd_remote built from the
  * cache_origin config). Checksum-on-fill reuses the xroot source's kXR_Qcksum.
  * Returns 1 (admission decline) / -1 (error) / 0 (success). */
 static int
-xrootd_cache_fill_from_source(xrootd_cache_fill_t *t,
-    xrootd_sd_instance_t *source)
+brix_cache_fill_from_source(brix_cache_fill_t *t,
+    brix_sd_instance_t *source)
 {
-    ngx_stream_xrootd_srv_conf_t *conf = t->conf;
-    xrootd_sd_instance_t         *cache_inst = xrootd_cache_storage(conf);
-    const char                   *key = xrootd_cache_fill_key(t);
-    xrootd_sd_obj_t              *src;
-    xrootd_sd_staged_t           *staged;
-    xrootd_cache_sink_t           sink;
+    ngx_stream_brix_srv_conf_t *conf = t->conf;
+    brix_sd_instance_t         *cache_inst = brix_cache_storage(conf);
+    const char                   *key = brix_cache_fill_key(t);
+    brix_sd_obj_t              *src;
+    brix_sd_staged_t           *staged;
+    brix_cache_sink_t           sink;
     u_char                       *buf;
     off_t                         off = 0;
     int                           e = 0;
 
     if (source == NULL || cache_inst == NULL || key == NULL) {
-        xrootd_cache_set_error(t, kXR_ServerError, 0,
+        brix_cache_set_error(t, kXR_ServerError, 0,
                                "cache source/storage unavailable");
         return -1;
     }
 
-    src = source->driver->open(source, t->clean_path, XROOTD_SD_O_READ, 0, &e);
+    src = source->driver->open(source, t->clean_path, BRIX_SD_O_READ, 0, &e);
     if (src == NULL) {
-        xrootd_cache_set_error(t, (e == ENOENT) ? kXR_NotFound : kXR_IOError, e,
+        brix_cache_set_error(t, (e == ENOENT) ? kXR_NotFound : kXR_IOError, e,
                                "cache source open failed");
         return -1;
     }
     t->file_size = (uint64_t) src->snap.size;
 
     {
-        xrootd_cache_admit_cfg_t admit = {
+        brix_cache_admit_cfg_t admit = {
             .deny_prefixes  = conf->cache_deny_prefixes,
             .allow_prefixes = conf->cache_allow_prefixes,
             .size_limit     = conf->cache_max_file_size,
             .include_regex  = conf->cache_include_regex_set
                               ? &conf->cache_include_regex : NULL,
         };
-        if (xrootd_cache_admit(&admit, t->clean_path, (off_t) t->file_size, 0)
-            == XROOTD_CACHE_DECLINE)
+        if (brix_cache_admit(&admit, t->clean_path, (off_t) t->file_size, 0)
+            == BRIX_CACHE_DECLINE)
         {
             source->driver->close(src);
             if (src->heap_shell) { free(src); }
@@ -211,7 +211,7 @@ xrootd_cache_fill_from_source(xrootd_cache_fill_t *t,
     if (staged == NULL) {
         source->driver->close(src);
         if (src->heap_shell) { free(src); }
-        xrootd_cache_set_error(t, kXR_IOError, e, "cache staged open failed");
+        brix_cache_set_error(t, kXR_IOError, e, "cache staged open failed");
         return -1;
     }
     sink.fd = -1;
@@ -219,33 +219,33 @@ xrootd_cache_fill_from_source(xrootd_cache_fill_t *t,
     sink.mem = NULL;
     sink.mem_cap = 0;
 
-    buf = malloc(XROOTD_CACHE_FETCH_CHUNK);
+    buf = malloc(BRIX_CACHE_FETCH_CHUNK);
     if (buf == NULL) {
         cache_inst->driver->staged_abort(staged);
         source->driver->close(src);
         if (src->heap_shell) { free(src); }
-        xrootd_cache_set_error(t, kXR_NoMemory, 0,
+        brix_cache_set_error(t, kXR_NoMemory, 0,
                                "cache fill buffer alloc failed");
         return -1;
     }
 
     for (;;) {
-        ssize_t n = src->driver->pread(src, buf, XROOTD_CACHE_FETCH_CHUNK, off);
+        ssize_t n = src->driver->pread(src, buf, BRIX_CACHE_FETCH_CHUNK, off);
 
         if (n < 0
             || (n > 0
-                && xrootd_cache_sink_pwrite(&sink, buf, (size_t) n, off) != 0))
+                && brix_cache_sink_pwrite(&sink, buf, (size_t) n, off) != 0))
         {
             free(buf);
             cache_inst->driver->staged_abort(staged);
             source->driver->close(src);
             if (src->heap_shell) { free(src); }
-            xrootd_cache_set_error(t, kXR_IOError, errno,
+            brix_cache_set_error(t, kXR_IOError, errno,
                                    "cache source read / cache write failed");
             return -1;
         }
         off += n;
-        if ((size_t) n < XROOTD_CACHE_FETCH_CHUNK) {
+        if ((size_t) n < BRIX_CACHE_FETCH_CHUNK) {
             break;                               /* short read = EOF */
         }
     }
@@ -253,10 +253,10 @@ xrootd_cache_fill_from_source(xrootd_cache_fill_t *t,
 
     /* Checksum-on-fill is the xroot source's kXR_Qcksum; other sources (http) offer
      * no in-band digest here, so the verify policy decides on the local bytes. */
-    if (conf->cache_verify != XROOTD_CACHE_VERIFY_OFF
-        && ngx_strcmp(xrootd_sd_backend_name(source), "xroot") == 0)
+    if (conf->cache_verify != BRIX_CACHE_VERIFY_OFF
+        && ngx_strcmp(brix_sd_backend_name(source), "xroot") == 0)
     {
-        xrootd_sd_xroot_query_checksum(src, t->origin_cks_alg,
+        brix_sd_xroot_query_checksum(src, t->origin_cks_alg,
             sizeof(t->origin_cks_alg), t->origin_cks_hex,
             sizeof(t->origin_cks_hex));
     }
@@ -265,31 +265,31 @@ xrootd_cache_fill_from_source(xrootd_cache_fill_t *t,
     if (src->heap_shell) { free(src); }
 
     if (cache_inst->driver->staged_commit(staged, 0) != NGX_OK) {
-        xrootd_cache_set_error(t, kXR_IOError, 0, "cache staged commit failed");
+        brix_cache_set_error(t, kXR_IOError, 0, "cache staged commit failed");
         return -1;
     }
-    return xrootd_cache_commit_staged(t, cache_inst, key);
+    return brix_cache_commit_staged(t, cache_inst, key);
 }
 
-/* xrootd_cache_fetch_origin — the fill worker's anonymous-protocol fetch: connect →
+/* brix_cache_fetch_origin — the fill worker's anonymous-protocol fetch: connect →
  * bootstrap (handshake+login) → open source → read loop → fsync the .part → atomic
  * rename, each phase isolated with origin-close cleanup. Admission filtering runs
  * first: a file over cache_max_file_size that doesn't match the include regex is
  * rejected with NGX_DECLINED (1) — not an error — so the done callback redirects the
  * client to origin. Returns 1 (policy reject), -1 (error), 0 (success). */
 int
-xrootd_cache_fetch_origin(xrootd_cache_fill_t *t)
+brix_cache_fetch_origin(brix_cache_fill_t *t)
 {
     /* §14 (phase-64): ONE fill path — the export's registered storage backend
      * (resolved on the main thread by open_or_fill, C-1) through the one spine.
      * The legacy cache_origin per-scheme fetches (xroot/s3/http/pelican) are
      * deleted with their config model. */
     if (t->source_inst != NULL) {
-        return xrootd_cache_fill_from_source(t, t->source_inst);
+        return brix_cache_fill_from_source(t, t->source_inst);
     }
 
-    xrootd_cache_set_error(t, kXR_ServerError, 0,
+    brix_cache_set_error(t, kXR_ServerError, 0,
                            "cache: no storage backend to fill from "
-                           "(xrootd_cache on requires xrootd_storage_backend)");
+                           "(brix_cache on requires brix_storage_backend)");
     return -1;
 }

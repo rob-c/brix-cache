@@ -24,7 +24,7 @@ unit test.
 
 Adapters own everything the core cannot do allocation-free:
 
-- **`path` is pre-sanitized at the adapter edge** (`xrootd_sanitize_log_string()`
+- **`path` is pre-sanitized at the adapter edge** (`brix_sanitize_log_string()`
   or equivalent — no control bytes, quotes, or backslashes) and borrowed for the
   call only.
 - **`ip` and `proto` are NUL-terminated borrowed strings.**

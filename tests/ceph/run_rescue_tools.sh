@@ -38,7 +38,7 @@ CEPHFS_SRCS="src/fs/backend/rados/sd_cephfs_ro.c src/fs/backend/rados/sd_ceph.c
              src/fs/backend/rados/sd_ceph_compat.c src/fs/backend/rados/cephfs_layout.c
              src/fs/backend/rados/cephfs_denc.c"
 FLAT_SRCS="src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/sd_ceph_compat.c"
-CC="gcc -Wall -Wextra -Werror -DXRDPROTO_NO_NGX -DXROOTD_HAVE_CEPH
+CC="gcc -Wall -Wextra -Werror -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH
     -I src/fs/backend -I src/fs/backend/rados -include tests/ceph/ngx_shim.h"
 
 $CC tests/ceph/xrdcephfs_rescue.c $CEPHFS_SRCS -lrados -o /tmp/xrdcephfs_rescue

@@ -1,8 +1,8 @@
 """
-WebDAV lock startup sweep (xrootd_webdav_lock_startup_sweep).
+WebDAV lock startup sweep (brix_webdav_lock_startup_sweep).
 
 Phase 16 moved WebDAV lock state onto xattrs (WEBDAV_LOCK_XATTR_KEY), so locks
-now persist across an nginx restart.  The xrootd_webdav_lock_startup_sweep
+now persist across an nginx restart.  The brix_webdav_lock_startup_sweep
 directive (off by default) clears every persisted lock xattr under the export
 root at startup, restoring ephemeral RFC 4918 §10.1 semantics.
 
@@ -75,10 +75,10 @@ http {{
     server {{
         listen {SWEEP_PORT};
         location / {{
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:{root};
-            xrootd_webdav_auth none;
-            xrootd_webdav_lock_startup_sweep {sweep};
+            brix_webdav on;
+            brix_webdav_storage_backend posix:{root};
+            brix_webdav_auth none;
+            brix_webdav_lock_startup_sweep {sweep};
         }}
     }}
 }}

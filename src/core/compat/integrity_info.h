@@ -1,12 +1,12 @@
-#ifndef XROOTD_INTEGRITY_INFO_H
-#define XROOTD_INTEGRITY_INFO_H
+#ifndef BRIX_INTEGRITY_INFO_H
+#define BRIX_INTEGRITY_INFO_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include "checksum.h"
 
 /*
- * xrootd_integrity_info_t — result of a checksum lookup or computation.
+ * brix_integrity_info_t — result of a checksum lookup or computation.
  *
  *   alg        parsed algorithm enum
  *   alg_name   canonical lowercase algorithm name (e.g. "adler32", "crc32c")
@@ -14,14 +14,14 @@
  *   from_cache 1 when the value was read from the xattr cache
  */
 typedef struct {
-    xrootd_checksum_alg_t alg;
+    brix_checksum_alg_t alg;
     char                  alg_name[16];
     char                  hex[129];
     ngx_flag_t            from_cache;
-} xrootd_integrity_info_t;
+} brix_integrity_info_t;
 
 /*
- * xrootd_integrity_opts_t — caller-supplied policy for integrity lookup.
+ * brix_integrity_opts_t — caller-supplied policy for integrity lookup.
  *
  *   allow_xattr_cache    1 → try reading a cached checksum from xattr first
  *   update_xattr_cache   1 → write computed checksum back to xattr on cache miss
@@ -35,10 +35,10 @@ typedef struct {
     ngx_flag_t update_xattr_cache;
     ngx_flag_t require_regular_file;
     ngx_flag_t no_compute;
-} xrootd_integrity_opts_t;
+} brix_integrity_opts_t;
 
 /*
- * xrootd_integrity_get_fd — retrieve a checksum for an open file descriptor.
+ * brix_integrity_get_fd — retrieve a checksum for an open file descriptor.
  *
  * If opts->allow_xattr_cache is set, tries reading a cached value from a
  * "user.XrdCks.<alg>" extended attribute before computing.  On a cache miss,
@@ -61,45 +61,45 @@ typedef struct {
  * fd (which exposes only block 0). NULL keeps the default POSIX-fd compute. The
  * xattr/sidecar cache layer is unchanged (keyed on fd/path).
  */
-ngx_int_t xrootd_integrity_get_fd(ngx_log_t *log, int fd,
-    xrootd_sd_obj_t *obj, const char *path, const char *alg_name,
-    const xrootd_integrity_opts_t *opts,
-    xrootd_integrity_info_t *out);
+ngx_int_t brix_integrity_get_fd(ngx_log_t *log, int fd,
+    brix_sd_obj_t *obj, const char *path, const char *alg_name,
+    const brix_integrity_opts_t *opts,
+    brix_integrity_info_t *out);
 
 /*
- * xrootd_integrity_format_http_digest — format a Digest header value.
+ * brix_integrity_format_http_digest — format a Digest header value.
  *
  * Writes "alg_name=hexvalue" into out[0..outsz), suitable for the HTTP Digest
  * response header (RFC 3230 / XrdHttp want-digest convention).
  *
  * Returns NGX_OK on success, NGX_ERROR if the buffer is too small.
  */
-ngx_int_t xrootd_integrity_format_http_digest(
-    const xrootd_integrity_info_t *info,
+ngx_int_t brix_integrity_format_http_digest(
+    const brix_integrity_info_t *info,
     char *out, size_t outsz);
 
 /*
- * xrootd_integrity_invalidate_fd — remove all cached checksums for an fd.
+ * brix_integrity_invalidate_fd — remove all cached checksums for an fd.
  *
  * Removes "user.XrdCks.<alg>" xattrs for every supported algorithm.  Should
  * be called after any write, truncate, or rename that changes file content.
  * Ignores errors (the cache is advisory).
  */
-void xrootd_integrity_invalidate_fd(ngx_log_t *log, int fd);
+void brix_integrity_invalidate_fd(ngx_log_t *log, int fd);
 
 /*
- * xrootd_integrity_invalidate_path — remove all cached checksums by path.
+ * brix_integrity_invalidate_path — remove all cached checksums by path.
  *
- * Path-based variant of xrootd_integrity_invalidate_fd for callers that have
+ * Path-based variant of brix_integrity_invalidate_fd for callers that have
  * a path but not an open fd (e.g. after a rename or local copy commit). The
  * removal is routed through the VFS xattr seam, so root_canon (the export root
  * the path is confined to) is required.
  */
-void xrootd_integrity_invalidate_path(ngx_log_t *log, const char *root_canon,
+void brix_integrity_invalidate_path(ngx_log_t *log, const char *root_canon,
     const char *path);
 
 /*
- * xrootd_cksdata_encode / xrootd_cksdata_decode — official XrdCks/XrdCksData binary
+ * brix_cksdata_encode / brix_cksdata_decode — official XrdCks/XrdCksData binary
  * codec (§8.1 interop), host byte order (ADR-4). encode writes
  * sizeof(struct xrd_cks_data) bytes (88 on x86-64) from in->alg_name/in->hex +
  * fmtime, returning the record size (0 on bad hex). decode parses a record,
@@ -108,10 +108,10 @@ void xrootd_integrity_invalidate_path(ngx_log_t *log, const char *root_canon,
  * malformed. Used by the xattr reader (read stock checksums) and reusable by the
  * .cks sidecar and cache cinfo (§9).
  */
-size_t xrootd_cksdata_encode(const xrootd_integrity_info_t *in, time_t fmtime,
+size_t brix_cksdata_encode(const brix_integrity_info_t *in, time_t fmtime,
     unsigned char *out88);
-int xrootd_cksdata_decode(const unsigned char *buf, size_t len, time_t cur_mtime,
-    xrootd_integrity_info_t *out);
+int brix_cksdata_decode(const unsigned char *buf, size_t len, time_t cur_mtime,
+    brix_integrity_info_t *out);
 
 /*
  * §8.x checksum xattr WRITE format (process-global, set at config time). The
@@ -119,8 +119,8 @@ int xrootd_cksdata_decode(const unsigned char *buf, size_t len, time_t cur_mtime
  * "user.XrdCks.<alg>". One value per key, so "both" is not representable —
  * `xrdcks` is the stock-interoperable choice. Default TEXT (no behaviour change).
  */
-#define XROOTD_CKS_FMT_TEXT    0   /* "<hex> <mtime_sec> <mtime_nsec> <size>" */
-#define XROOTD_CKS_FMT_XRDCKS  1   /* binary XrdCksData (read by stock xrdfs/OSS) */
-void xrootd_integrity_set_xattr_format(ngx_uint_t fmt);
+#define BRIX_CKS_FMT_TEXT    0   /* "<hex> <mtime_sec> <mtime_nsec> <size>" */
+#define BRIX_CKS_FMT_XRDCKS  1   /* binary XrdCksData (read by stock xrdfs/OSS) */
+void brix_integrity_set_xattr_format(ngx_uint_t fmt);
 
-#endif /* XROOTD_INTEGRITY_INFO_H */
+#endif /* BRIX_INTEGRITY_INFO_H */

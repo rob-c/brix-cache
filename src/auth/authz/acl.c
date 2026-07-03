@@ -1,4 +1,4 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -8,18 +8,18 @@
 /* Postconfig finalization of the VO-rule array: resolve each rule's path against
  * the export root. */
 ngx_int_t
-xrootd_finalize_vo_rules(ngx_log_t *log, const ngx_str_t *root,
+brix_finalize_vo_rules(ngx_log_t *log, const ngx_str_t *root,
                          ngx_array_t *rules)
 {
-    return xrootd_finalize_path_rules(log, root, rules,
-                                      sizeof(xrootd_vo_rule_t),
-                                      offsetof(xrootd_vo_rule_t, path),
-                                      offsetof(xrootd_vo_rule_t, resolved),
-                                      sizeof(((xrootd_vo_rule_t *) 0)->resolved));
+    return brix_finalize_path_rules(log, root, rules,
+                                      sizeof(brix_vo_rule_t),
+                                      offsetof(brix_vo_rule_t, path),
+                                      offsetof(brix_vo_rule_t, resolved),
+                                      sizeof(((brix_vo_rule_t *) 0)->resolved));
 }
 /* Return 1 if the client's colon/space-separated vo_list contains required_vo. */
 ngx_flag_t
-xrootd_vo_list_contains(const char *vo_list, const char *required_vo)
+brix_vo_list_contains(const char *vo_list, const char *required_vo)
 {
     const char *start;
     const char *end;
@@ -57,10 +57,10 @@ xrootd_vo_list_contains(const char *vo_list, const char *required_vo)
 /* Authorize `vo_list` against the VO rules covering resolved_path.  NGX_OK if
  * granted (or no rule applies), NGX_ERROR if denied. */
 ngx_int_t
-xrootd_check_vo_acl(ngx_log_t *log, const char *resolved_path,
+brix_check_vo_acl(ngx_log_t *log, const char *resolved_path,
                     ngx_array_t *vo_rules, const char *vo_list)
 {
-    const xrootd_vo_rule_t *rule;
+    const brix_vo_rule_t *rule;
     char                    safe_path[512];
     char                    safe_vo[128];
 
@@ -68,17 +68,17 @@ xrootd_check_vo_acl(ngx_log_t *log, const char *resolved_path,
         return NGX_OK;
     }
 
-    rule = xrootd_find_vo_rule(resolved_path, vo_rules);
+    rule = brix_find_vo_rule(resolved_path, vo_rules);
     if (rule == NULL) {
         return NGX_OK;
     }
 
-    if (xrootd_vo_list_contains(vo_list, (const char *) rule->vo.data)) {
+    if (brix_vo_list_contains(vo_list, (const char *) rule->vo.data)) {
         return NGX_OK;
     }
 
-    xrootd_sanitize_log_string(resolved_path, safe_path, sizeof(safe_path));
-    xrootd_sanitize_log_string((const char *) rule->vo.data, safe_vo,
+    brix_sanitize_log_string(resolved_path, safe_path, sizeof(safe_path));
+    brix_sanitize_log_string((const char *) rule->vo.data, safe_vo,
                                sizeof(safe_vo));
 
     ngx_log_error(NGX_LOG_WARN, log, 0,
@@ -89,12 +89,12 @@ xrootd_check_vo_acl(ngx_log_t *log, const char *resolved_path,
     return NGX_ERROR;
 }
 
-/* VO ACL check using the identity's VO list (wraps xrootd_check_vo_acl). */
+/* VO ACL check using the identity's VO list (wraps brix_check_vo_acl). */
 ngx_int_t
-xrootd_check_vo_acl_identity(ngx_log_t *log, const char *resolved_path,
+brix_check_vo_acl_identity(ngx_log_t *log, const char *resolved_path,
                              ngx_array_t *vo_rules,
-                             const xrootd_identity_t *identity)
+                             const brix_identity_t *identity)
 {
-    return xrootd_check_vo_acl(log, resolved_path, vo_rules,
-                               xrootd_identity_vo_csv_cstr(identity));
+    return brix_check_vo_acl(log, resolved_path, vo_rules,
+                               brix_identity_vo_csv_cstr(identity));
 }

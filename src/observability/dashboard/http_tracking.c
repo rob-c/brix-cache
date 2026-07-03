@@ -6,20 +6,20 @@
 /*
  * dashboard/http_tracking.c — HTTP-request lifecycle binding for live transfer slots.
  *
- * WHAT: Implements the xrootd_dashboard_http_*() API declared in
+ * WHAT: Implements the brix_dashboard_http_*() API declared in
  *       dashboard_tracking.h.  Each tracked WebDAV/S3/TPC request gets one
  *       transfer slot in the dashboard SHM table; this file allocates that slot
  *       on start, streams byte/state/error updates into it during the request,
  *       reports redacted TPC remote endpoints, and releases it on finish.  The
  *       per-request binding is stored as the request's module ctx
- *       (xrootd_dashboard_http_track_t) so any handler can reach the slot.
+ *       (brix_dashboard_http_track_t) so any handler can reach the slot.
  * WHY:  WebDAV and S3 run in the HTTP module where the unit of work is an
  *       ngx_http_request_t, not a stream session; this layer adapts the
  *       protocol-agnostic transfer_table.c slot operations to that lifecycle and
  *       guarantees the slot is freed even on abnormal teardown via an
  *       ngx_pool_cleanup handler (dashboard_http_cleanup) tied to r->pool.
- * HOW:  xrootd_dashboard_http_start_identity() is the workhorse — it validates
- *       the SHM zone, reserves a slot with xrootd_transfer_slot_alloc_ex(),
+ * HOW:  brix_dashboard_http_start_identity() is the workhorse — it validates
+ *       the SHM zone, reserves a slot with brix_transfer_slot_alloc_ex(),
  *       registers the pool cleanup, and parks the binding in module ctx; the
  *       _start() variant is a thin "anonymous" wrapper.  Updates look up the
  *       binding via dashboard_http_track() and forward to the slot ops, all
@@ -31,27 +31,27 @@
 
 typedef struct {
     int                      slot;
-    xrootd_transfer_table_t *table;
+    brix_transfer_table_t *table;
     ngx_http_request_t      *r;
-} xrootd_dashboard_http_track_t;
+} brix_dashboard_http_track_t;
 
 static void
 dashboard_http_cleanup(void *data)
 {
-    xrootd_dashboard_http_track_t *track = data;
+    brix_dashboard_http_track_t *track = data;
 
     if (track == NULL || track->slot < 0 || track->table == NULL) {
         return;
     }
 
-    xrootd_transfer_slot_free(track->table, track->slot);
+    brix_transfer_slot_free(track->table, track->slot);
     track->slot = -1;
 }
 
-static xrootd_dashboard_http_track_t *
+static brix_dashboard_http_track_t *
 dashboard_http_track(ngx_http_request_t *r)
 {
-    return ngx_http_get_module_ctx(r, ngx_http_xrootd_dashboard_module);
+    return ngx_http_get_module_ctx(r, ngx_http_brix_dashboard_module);
 }
 
 /*
@@ -89,23 +89,23 @@ dashboard_http_client(ngx_http_request_t *r, char *buf, size_t bufsz)
  * absent/uninitialised or slot/cleanup allocation fails.  Idempotent — if r is
  * already bound to a slot the existing index is returned without re-allocating.
  * The slot is automatically released when r->pool is destroyed (see
- * dashboard_http_cleanup) even if xrootd_dashboard_http_finish() is never called.
+ * dashboard_http_cleanup) even if brix_dashboard_http_finish() is never called.
  */
 int
-xrootd_dashboard_http_start_identity(ngx_http_request_t *r,
+brix_dashboard_http_start_identity(ngx_http_request_t *r,
     const char *path, const char *identity, const char *vo,
     uint8_t proto, uint8_t direction, const char *op,
     int64_t expected_bytes)
 {
-    xrootd_dashboard_http_track_t *track;
+    brix_dashboard_http_track_t *track;
     ngx_pool_cleanup_t            *cln;
     u_char                         sessid[16];
     char                           ipbuf[NGX_SOCKADDR_STRLEN + 1];
     int                            slot;
 
-    if (r == NULL || ngx_xrootd_dashboard_shm_zone == NULL
-        || ngx_xrootd_dashboard_shm_zone->data == NULL
-        || ngx_xrootd_dashboard_shm_zone->data == (void *) 1)
+    if (r == NULL || ngx_brix_dashboard_shm_zone == NULL
+        || ngx_brix_dashboard_shm_zone->data == NULL
+        || ngx_brix_dashboard_shm_zone->data == (void *) 1)
     {
         return -1;
     }
@@ -116,7 +116,7 @@ xrootd_dashboard_http_start_identity(ngx_http_request_t *r,
     }
 
     ngx_memzero(sessid, sizeof(sessid));
-    slot = xrootd_transfer_slot_alloc_ex(ngx_xrootd_dashboard_shm_zone->data,
+    slot = brix_transfer_slot_alloc_ex(ngx_brix_dashboard_shm_zone->data,
                                          sessid,
                                          dashboard_http_client(r, ipbuf,
                                                                sizeof(ipbuf)),
@@ -130,70 +130,70 @@ xrootd_dashboard_http_start_identity(ngx_http_request_t *r,
 
     cln = ngx_pool_cleanup_add(r->pool, sizeof(*track));
     if (cln == NULL) {
-        xrootd_transfer_slot_free(ngx_xrootd_dashboard_shm_zone->data, slot);
+        brix_transfer_slot_free(ngx_brix_dashboard_shm_zone->data, slot);
         return -1;
     }
 
     track = cln->data;
     track->slot = slot;
-    track->table = ngx_xrootd_dashboard_shm_zone->data;
+    track->table = ngx_brix_dashboard_shm_zone->data;
     track->r = r;
     cln->handler = dashboard_http_cleanup;
-    ngx_http_set_ctx(r, track, ngx_http_xrootd_dashboard_module);
+    ngx_http_set_ctx(r, track, ngx_http_brix_dashboard_module);
 
     if (op != NULL) {
-        xrootd_transfer_slot_count_op(track->table, track->slot, op);
+        brix_transfer_slot_count_op(track->table, track->slot, op);
     }
 
     return slot;
 }
 
 int
-xrootd_dashboard_http_start(ngx_http_request_t *r, const char *path,
+brix_dashboard_http_start(ngx_http_request_t *r, const char *path,
     uint8_t proto, uint8_t direction, const char *op,
     int64_t expected_bytes)
 {
-    return xrootd_dashboard_http_start_identity(r, path, "anonymous", "",
+    return brix_dashboard_http_start_identity(r, path, "anonymous", "",
                                                 proto, direction, op,
                                                 expected_bytes);
 }
 
 void
-xrootd_dashboard_http_add(ngx_http_request_t *r, ngx_atomic_int_t bytes)
+brix_dashboard_http_add(ngx_http_request_t *r, ngx_atomic_int_t bytes)
 {
-    xrootd_dashboard_http_track_t *track = dashboard_http_track(r);
+    brix_dashboard_http_track_t *track = dashboard_http_track(r);
 
     if (track == NULL || track->slot < 0 || track->table == NULL) {
         return;
     }
 
-    xrootd_transfer_slot_update_bytes(track->table, track->slot, bytes,
+    brix_transfer_slot_update_bytes(track->table, track->slot, bytes,
                                       (int64_t) ngx_current_msec);
 }
 
 void
-xrootd_dashboard_http_state(ngx_http_request_t *r, uint8_t state)
+brix_dashboard_http_state(ngx_http_request_t *r, uint8_t state)
 {
-    xrootd_dashboard_http_track_t *track = dashboard_http_track(r);
+    brix_dashboard_http_track_t *track = dashboard_http_track(r);
 
     if (track == NULL || track->slot < 0 || track->table == NULL) {
         return;
     }
 
-    xrootd_transfer_slot_set_state(track->table, track->slot, state,
+    brix_transfer_slot_set_state(track->table, track->slot, state,
                                    (int64_t) ngx_current_msec);
 }
 
 void
-xrootd_dashboard_http_error(ngx_http_request_t *r, const char *reason)
+brix_dashboard_http_error(ngx_http_request_t *r, const char *reason)
 {
-    xrootd_dashboard_http_track_t *track = dashboard_http_track(r);
+    brix_dashboard_http_track_t *track = dashboard_http_track(r);
 
     if (track == NULL || track->slot < 0 || track->table == NULL) {
         return;
     }
 
-    xrootd_transfer_slot_set_error(track->table, track->slot, reason,
+    brix_transfer_slot_set_error(track->table, track->slot, reason,
                                    (int64_t) ngx_current_msec);
 }
 
@@ -293,12 +293,12 @@ dashboard_redact_url(const char *url, char *host, size_t hostsz,
 }
 
 void
-xrootd_dashboard_http_tpc_remote(ngx_http_request_t *r,
+brix_dashboard_http_tpc_remote(ngx_http_request_t *r,
     const char *remote_url, int remote_status, int curl_exit)
 {
-    xrootd_dashboard_http_track_t *track = dashboard_http_track(r);
-    char                           host[XROOTD_DASHBOARD_HOST_LEN];
-    char                           path_hint[XROOTD_DASHBOARD_PATH_LEN];
+    brix_dashboard_http_track_t *track = dashboard_http_track(r);
+    char                           host[BRIX_DASHBOARD_HOST_LEN];
+    char                           path_hint[BRIX_DASHBOARD_PATH_LEN];
 
     if (track == NULL || track->slot < 0 || track->table == NULL) {
         return;
@@ -306,22 +306,22 @@ xrootd_dashboard_http_tpc_remote(ngx_http_request_t *r,
 
     dashboard_redact_url(remote_url, host, sizeof(host), path_hint,
                          sizeof(path_hint));
-    xrootd_transfer_slot_set_tpc_remote(track->table, track->slot, host,
+    brix_transfer_slot_set_tpc_remote(track->table, track->slot, host,
                                         path_hint, remote_status, curl_exit);
 }
 
 void
-xrootd_dashboard_http_finish(ngx_http_request_t *r)
+brix_dashboard_http_finish(ngx_http_request_t *r)
 {
-    xrootd_dashboard_http_track_t *track = dashboard_http_track(r);
+    brix_dashboard_http_track_t *track = dashboard_http_track(r);
 
     if (track == NULL || track->slot < 0 || track->table == NULL) {
         return;
     }
 
-    xrootd_transfer_slot_set_state(track->table, track->slot,
-                                   XROOTD_XFER_STATE_CLOSING,
+    brix_transfer_slot_set_state(track->table, track->slot,
+                                   BRIX_XFER_STATE_CLOSING,
                                    (int64_t) ngx_current_msec);
-    xrootd_transfer_slot_free(track->table, track->slot);
+    brix_transfer_slot_free(track->table, track->slot);
     track->slot = -1;
 }

@@ -5,7 +5,7 @@
 
 """
 tests/test_proxy_protocol_edges.py — protocol-edge conformance for nginx's
-transparent XRootD proxy (``xrootd_tap_proxy on`` + ``xrootd_tap_proxy_upstream``).
+transparent XRootD proxy (``brix_tap_proxy on`` + ``brix_tap_proxy_upstream``).
 
 This suite stands up its OWN dedicated nginx proxy front in front of a
 self-contained, deterministic Python protocol stub (modelled on
@@ -19,7 +19,7 @@ proxy relay is exercised, and proves the documented behaviour:
 
   * file-handle map saturation -> a single clean kXR_error, no crash;
   * a closed handle's slot is reusable and maps to a fresh upstream handle;
-  * kXR_wait retry exhaustion (after XROOTD_PROXY_MAX_WAIT_RETRIES) is relayed
+  * kXR_wait retry exhaustion (after BRIX_PROXY_MAX_WAIT_RETRIES) is relayed
     to the client rather than looping forever;
   * a kXR_wait whose in-flight request payload is too large to buffer is NOT
     saved for retry, so the wait is relayed immediately;
@@ -121,8 +121,8 @@ kXR_waitresp = 4006
 kXR_open_read = 0x0010
 
 # Source-of-truth limits (src/net/proxy/proxy_internal.h, src/core/types/tunables.h).
-XROOTD_PROXY_MAX_WAIT_RETRIES = 5
-XROOTD_MAX_FILES              = 16   # proxy fh_map slot count -> saturation point
+BRIX_PROXY_MAX_WAIT_RETRIES = 5
+BRIX_MAX_FILES              = 16   # proxy fh_map slot count -> saturation point
 WAIT_SAVE_LIMIT               = 128 * 1024  # rlen < this is saved for retry
 
 ROOTD_PQ = 2012
@@ -335,7 +335,7 @@ def _h_reuse(conn):
 
 def _h_wait_exhaust(conn):
     """Reply to the first post-login request with kXR_wait forever; the proxy
-    absorbs XROOTD_PROXY_MAX_WAIT_RETRIES and re-sends the request each time,
+    absorbs BRIX_PROXY_MAX_WAIT_RETRIES and re-sends the request each time,
     then must relay the final wait to the client.  Count re-sends to confirm."""
     _stub_bootstrap(conn)
     resends = 0
@@ -620,10 +620,10 @@ def _front_conf(name, front_port, upstream_port, extra=""):
             f"    server {{\n"
             f"        listen {BIND_HOST}:{front_port};\n"
             f"        xrootd on;\n"
-            f"        xrootd_auth none;\n"
-            f"        xrootd_tap_proxy on;\n"
-            f"        xrootd_tap_proxy_upstream {HOST}:{upstream_port};\n"
-            f"        xrootd_tap_proxy_auth anonymous;\n"
+            f"        brix_auth none;\n"
+            f"        brix_tap_proxy on;\n"
+            f"        brix_tap_proxy_upstream {HOST}:{upstream_port};\n"
+            f"        brix_tap_proxy_auth anonymous;\n"
             f"{extra_line}"
             f"    }}\n"
             f"}}\n")

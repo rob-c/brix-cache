@@ -20,52 +20,52 @@
  * HOW:  The engine is introduced incrementally (spec §9). This header carries the
  *       full vocabulary up front so the seam is stable, but only the symbols a
  *       given phase has landed are defined in the .c files. Phase 1 lands the
- *       in-process pump mover (xrootd_xfer_pump_objects) extracted from
+ *       in-process pump mover (brix_xfer_pump_objects) extracted from
  *       compat/staged_file.c.
  */
 
-#ifndef XROOTD_FS_XFER_H
-#define XROOTD_FS_XFER_H
+#ifndef BRIX_FS_XFER_H
+#define BRIX_FS_XFER_H
 
 #include <ngx_core.h>
 
-#include "fs/backend/sd.h"   /* xrootd_sd_obj_t — the byte-movable object handle */
+#include "fs/backend/sd.h"   /* brix_sd_obj_t — the byte-movable object handle */
 
 /* The transfer kind. Drives the per-kind metric callback (ledger) and the
  * server-driven vs client-driven recovery split (reconcile). */
 typedef enum {
-    XROOTD_XFER_STAGE = 0,   /* client stream -> local object (S3/WebDAV/root PUT) */
-    XROOTD_XFER_TAPE,        /* tape copycmd -> local (server-driven, async)       */
-    XROOTD_XFER_WT,          /* local cache file -> remote origin (write-through)  */
-    XROOTD_XFER_TPC          /* third-party copy (curl)                            */
-} xrootd_xfer_kind_t;
+    BRIX_XFER_STAGE = 0,   /* client stream -> local object (S3/WebDAV/root PUT) */
+    BRIX_XFER_TAPE,        /* tape copycmd -> local (server-driven, async)       */
+    BRIX_XFER_WT,          /* local cache file -> remote origin (write-through)  */
+    BRIX_XFER_TPC          /* third-party copy (curl)                            */
+} brix_xfer_kind_t;
 
 /* How bytes move. Exactly two implementations — an in-process SD pump, and the
  * single crash-safe out-of-process agent harness (extracted from frm/stage.c)
  * shared by every external-process transfer. */
 typedef enum {
-    XROOTD_XFER_MOVE_PUMP = 0,   /* in-process src->driver->pread/pwrite           */
-    XROOTD_XFER_MOVE_AGENT       /* delegated argv via the reparented stage agent  */
-} xrootd_xfer_mover_t;
+    BRIX_XFER_MOVE_PUMP = 0,   /* in-process src->driver->pread/pwrite           */
+    BRIX_XFER_MOVE_AGENT       /* delegated argv via the reparented stage agent  */
+} brix_xfer_mover_t;
 
 /* Policy disposition decided at BEGIN (generalized from writethrough_decision). */
 typedef enum {
-    XROOTD_XFER_SYNC = 0,    /* move now, in-line                                  */
-    XROOTD_XFER_ASYNC,       /* enqueue on the durable journal, return DEFERRED    */
-    XROOTD_XFER_DENY         /* policy refuses this destination                    */
-} xrootd_xfer_disp_t;
+    BRIX_XFER_SYNC = 0,    /* move now, in-line                                  */
+    BRIX_XFER_ASYNC,       /* enqueue on the durable journal, return DEFERRED    */
+    BRIX_XFER_DENY         /* policy refuses this destination                    */
+} brix_xfer_disp_t;
 
 /* Terminal result. Each protocol edge maps this to its own wire status via the
  * existing errno -> kXR -> HTTP table; the engine adds no new edge vocabulary. */
 typedef enum {
-    XROOTD_XFER_OK = 0,
-    XROOTD_XFER_DEFERRED,    /* admitted to the async journal; completes later     */
-    XROOTD_XFER_DENIED,
-    XROOTD_XFER_SRC_ERR,
-    XROOTD_XFER_DST_ERR,
-    XROOTD_XFER_COMMIT_ERR,
-    XROOTD_XFER_AGENT_FAIL
-} xrootd_xfer_result_t;
+    BRIX_XFER_OK = 0,
+    BRIX_XFER_DEFERRED,    /* admitted to the async journal; completes later     */
+    BRIX_XFER_DENIED,
+    BRIX_XFER_SRC_ERR,
+    BRIX_XFER_DST_ERR,
+    BRIX_XFER_COMMIT_ERR,
+    BRIX_XFER_AGENT_FAIL
+} brix_xfer_result_t;
 
 /*
  * Phase 1 — the delegated out-of-process agent harness.
@@ -99,32 +99,32 @@ typedef struct {
     void      (*after_drain)(void *data);          /* worker, optional (may be 0) */
     void       *data;
     const char *name;            /* for log lines, e.g. "frm stage"              */
-} xrootd_xfer_agent_ops_t;
+} brix_xfer_agent_ops_t;
 
 /* Worker-side handle for one agent. Zero-initialize before first attach; `fd < 0`
  * means "no live agent" so dispatch fails closed. */
 typedef struct {
     int                            fd;       /* worker side of socketpair, or -1 */
     ngx_connection_t              *conn;      /* nginx read-event connection      */
-    const xrootd_xfer_agent_ops_t *ops;
+    const brix_xfer_agent_ops_t *ops;
     ngx_log_t                     *log;
     void                          *rep_buf;   /* worker reply scratch, rep_size   */
-} xrootd_xfer_agent_t;
+} brix_xfer_agent_t;
 
 /* Spawn a reparented agent and register the worker side of its socketpair as an
  * nginx read event. On any failure tears down and leaves a->fd = -1 (dispatch
  * fails closed). Returns NGX_OK / NGX_ERROR. Also used internally for respawn. */
-ngx_int_t xrootd_xfer_agent_attach(xrootd_xfer_agent_t *a,
-    const xrootd_xfer_agent_ops_t *ops, ngx_log_t *log);
+ngx_int_t brix_xfer_agent_attach(brix_xfer_agent_t *a,
+    const brix_xfer_agent_ops_t *ops, ngx_log_t *log);
 
 /* Release the worker side (closes fd + frees the connection). Idempotent; the
  * reparented agent observes EOF and exits on its own. */
-void xrootd_xfer_agent_teardown(xrootd_xfer_agent_t *a);
+void brix_xfer_agent_teardown(brix_xfer_agent_t *a);
 
 /* Send one request frame (a->ops->req_size bytes) to the agent. Returns NGX_OK
  * sent, NGX_AGAIN if the agent is backed up (retry later), NGX_ERROR on a dead
  * or broken agent. */
-ngx_int_t xrootd_xfer_agent_dispatch(xrootd_xfer_agent_t *a, const void *req);
+ngx_int_t brix_xfer_agent_dispatch(brix_xfer_agent_t *a, const void *req);
 
 /* ===================== Phase 2: the unified audit ledger =================== */
 
@@ -140,24 +140,24 @@ ngx_int_t xrootd_xfer_agent_dispatch(xrootd_xfer_agent_t *a, const void *req);
  * access logs.
  */
 typedef struct {
-    xrootd_xfer_kind_t    kind;
+    brix_xfer_kind_t    kind;
     const char           *direction;   /* "in" (into our storage) | "out"       */
     const char           *path;        /* final object path (sanitized on emit) */
     const char           *principal;   /* authenticated identity, or NULL ("-")  */
     size_t                bytes;        /* committed object size                  */
-    xrootd_xfer_result_t  result;
+    brix_xfer_result_t  result;
     int                   sys_errno;    /* meaningful when result != OK           */
     ngx_log_t            *log;
-} xrootd_xfer_audit_t;
+} brix_xfer_audit_t;
 
 /* Append one unified audit line for a terminal transfer. Best-effort: a sink it
  * cannot open is warned once and skipped (auditing never blocks a transfer). The
- * sink path is $XROOTD_XFER_AUDIT_LOG, else <prefix>/logs/xfer_audit.log. */
-void xrootd_xfer_ledger_record(const xrootd_xfer_audit_t *ev);
+ * sink path is $BRIX_XFER_AUDIT_LOG, else <prefix>/logs/xfer_audit.log. */
+void brix_xfer_ledger_record(const brix_xfer_audit_t *ev);
 
 /* Stable human strings for a kind / result (used in the audit line and tests). */
-const char *xrootd_xfer_kind_str(xrootd_xfer_kind_t kind);
-const char *xrootd_xfer_result_str(xrootd_xfer_result_t result);
+const char *brix_xfer_kind_str(brix_xfer_kind_t kind);
+const char *brix_xfer_result_str(brix_xfer_result_t result);
 
 /* ===================== Phase 4: the engine terminal chokepoint ============= */
 
@@ -169,16 +169,16 @@ const char *xrootd_xfer_result_str(xrootd_xfer_result_t result);
  * ledger line); it is the seam the journal/reconcile work attaches to without
  * touching any caller again.
  */
-void xrootd_xfer_finish(xrootd_xfer_kind_t kind, const char *direction,
+void brix_xfer_finish(brix_xfer_kind_t kind, const char *direction,
     const char *path, const char *principal, size_t bytes,
-    xrootd_xfer_result_t result, int sys_errno, ngx_log_t *log);
+    brix_xfer_result_t result, int sys_errno, ngx_log_t *log);
 
 /* ===================== housekeeping ====================================== */
 
 /* Arm the worker-0 TTL sweep of abandoned upload-resume partials
  * (`*.xrdresume.part`) in `stage_dir`. No-op without a stage dir, off worker 0,
- * or when $XROOTD_UPLOAD_RESUME_TTL is 0. (xfer_resume_sweep.c) */
-void xrootd_xfer_resume_sweep_register(ngx_cycle_t *cycle, const char *stage_dir);
+ * or when $BRIX_UPLOAD_RESUME_TTL is 0. (xfer_resume_sweep.c) */
+void brix_xfer_resume_sweep_register(ngx_cycle_t *cycle, const char *stage_dir);
 
 /*
  * Phase 1 — the in-process byte pump.
@@ -193,6 +193,6 @@ void xrootd_xfer_resume_sweep_register(ngx_cycle_t *cycle, const char *stage_dir
  *
  * Returns NGX_OK, or NGX_ERROR with errno set. EINTR is retried.
  */
-ngx_int_t xrootd_xfer_pump_objects(xrootd_sd_obj_t *src, xrootd_sd_obj_t *dst);
+ngx_int_t brix_xfer_pump_objects(brix_sd_obj_t *src, brix_sd_obj_t *dst);
 
-#endif /* XROOTD_FS_XFER_H */
+#endif /* BRIX_FS_XFER_H */

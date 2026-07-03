@@ -6,7 +6,7 @@ and kernel DAC is enforced for, the real user) instead of the single nginx worke
 uid. Plan: [`docs/refactor/phase-40-unix-impersonation.md`](../../docs/refactor/phase-40-unix-impersonation.md).
 Operator guide: [`docs/06-authentication/impersonation.md`](../../docs/06-authentication/impersonation.md).
 
-## Operating modes (`xrootd_impersonation off|single|map`)
+## Operating modes (`brix_impersonation off|single|map`)
 
 | Mode | Broker | Root | Mapping |
 |---|---|---|---|
@@ -42,7 +42,7 @@ its own export rootfd, so a worker bug cannot escape the export root.
 
 | File | Role |
 |---|---|
-| `impersonate.h` | public types + API (modes, `xrootd_idmap_*`, broker + client) |
+| `impersonate.h` | public types + API (modes, `brix_idmap_*`, broker + client) |
 | `impersonate_proto.h` | fixed-size worker↔broker wire frames (`imp_req_t`/`imp_rep_t`) |
 | `idmap.c` | identity → `{uid, gid, gids}` (grid-mapfile + `getpwnam` + policy + TTL cache) |
 | `broker.c` | the privileged root broker: the request loop `imp_serve_one`, fd passing, and the `SO_PEERCRED` trust gate `imp_peer_allowed` (owns the `imp_base_*`/`imp_self_uid`/`allow_uid` state). *(Phase 38: split.)* |
@@ -54,33 +54,33 @@ its own export rootfd, so a worker bug cannot escape the export root.
 
 ## How a request routes through it
 
-1. After auth, the dispatcher calls `xrootd_imp_request_begin(identity)` (no-op
+1. After auth, the dispatcher calls `brix_imp_request_begin(identity)` (no-op
    unless `map`), which sets the worker's current principal.
-2. The confined-FS helpers — `xrootd_*_beneath()` (`src/fs/path/beneath.c`) and the
-   legacy `xrootd_open_confined_canon()` (`src/fs/path/resolve_confined_ops.c`, the
-   HTTP/S3 path) — check `xrootd_imp_client_active()` and, when active, send the
+2. The confined-FS helpers — `brix_*_beneath()` (`src/fs/path/beneath.c`) and the
+   legacy `brix_open_confined_canon()` (`src/fs/path/resolve_confined_ops.c`, the
+   HTTP/S3 path) — check `brix_imp_client_active()` and, when active, send the
    op to the broker instead of running the syscall locally.
-3. `xrootd_imp_request_end()` clears the principal so it never leaks across the
+3. `brix_imp_request_end()` clears the principal so it never leaks across the
    event loop.
 
 ## Safety invariants
 
 - **Reserved-id floor — uid/gid < 1000 is impossible** (three independent layers,
-  one authoritative test `xrootd_imp_creds_privileged()` at floor
-  `XROOTD_IMP_HARD_MIN_ID`=1000): (1) the mapper **denies** any reserved primary
-  uid / primary gid / supplementary gid (and clamps `xrootd_idmap_min_uid` up to
+  one authoritative test `brix_imp_creds_privileged()` at floor
+  `BRIX_IMP_HARD_MIN_ID`=1000): (1) the mapper **denies** any reserved primary
+  uid / primary gid / supplementary gid (and clamps `brix_idmap_min_uid` up to
   ≥1000); (2) `imp_become()` refuses — performs **no** setfsuid — and the broker
   `_exit()`s if a reserved cred ever reaches the syscall edge; (3) `imp_do_op()`
   re-reads fsuid/fsgid and returns `EPERM` before the actual file syscall. The
   broker's `imp_become()` is the ONLY credential-change site in the codebase.
-- Never resolve to **uid 0** or below `xrootd_idmap_min_uid` (default 1000).
+- Never resolve to **uid 0** or below `brix_idmap_min_uid` (default 1000).
 - **Forbidden targets**: the nginx worker uid and the broker's own uid are ALWAYS
   refused as impersonation targets (config-independent — both in the mapper and in
   `imp_become`), plus name deny-lists for service accounts
-  (`xrootd_idmap_forbidden_users`) and privileged groups
-  (`xrootd_idmap_forbidden_groups`: sudo/wheel/docker/… — denied even at gid ≥ floor,
+  (`brix_idmap_forbidden_users`) and privileged groups
+  (`brix_idmap_forbidden_groups`: sudo/wheel/docker/… — denied even at gid ≥ floor,
   across primary AND supplementary membership).
-- **Minimise root**: with `xrootd_impersonation_broker_user`, the broker drops to a
+- **Minimise root**: with `brix_impersonation_broker_user`, the broker drops to a
   non-root service account keeping only `CAP_SETUID`/`CAP_SETGID` (nothing runs as
   root after the master-side rootfd open); workers shed
   `CAP_SETUID/SETGID/DAC_*/CHOWN/…` at startup.  Caveat: `CAP_SETUID` is inherently

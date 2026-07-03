@@ -61,31 +61,31 @@ def test_mirror_modules_present():
 
 def test_stream_dispatch_hook_present():
     d = _read("src/protocols/root/handshake/dispatch.c")
-    assert "xrootd_stream_mirror_maybe" in d
+    assert "brix_stream_mirror_maybe" in d
     sm = _read("src/net/mirror/stream_mirror.c")
     # Reuses the proven bootstrap wire builder; replays the saved request.
-    assert "xrootd_upstream_build_bootstrap" in sm
-    assert "xrootd_mir_send_request" in sm
+    assert "brix_upstream_build_bootstrap" in sm
+    assert "brix_mir_send_request" in sm
     assert "mirror_stream_divergence_total" in sm
 
 
 def test_http_phase_handlers_present():
     h = _read("src/net/mirror/http_mirror.c")
-    assert "xrootd_http_mirror_precontent_handler" in h
+    assert "brix_http_mirror_precontent_handler" in h
     assert "ngx_http_subrequest" in h
     assert "NGX_HTTP_SUBREQUEST_BACKGROUND" in h
     pc = _read("src/protocols/webdav/postconfig.c")
     assert "NGX_HTTP_PRECONTENT_PHASE" in pc
-    assert "xrootd_http_mirror_precontent_handler" in pc
+    assert "brix_http_mirror_precontent_handler" in pc
 
 
 def test_directives_registered():
     wd = _read("src/protocols/webdav/module.c")
-    for name in ("xrootd_mirror_url", "xrootd_mirror_methods",
-                 "xrootd_mirror_sample", "xrootd_mirror_strip_auth"):
+    for name in ("brix_mirror_url", "brix_mirror_methods",
+                 "brix_mirror_sample", "brix_mirror_strip_auth"):
         assert name in wd, name
     st = _read("src/protocols/root/stream/module.c")
-    for name in ("xrootd_stream_mirror_url", "xrootd_mirror_opcodes"):
+    for name in ("brix_stream_mirror_url", "brix_mirror_opcodes"):
         assert name in st, name
 
 
@@ -93,7 +93,7 @@ def test_metrics_present():
     m = _read("src/observability/metrics/metrics.h")
     assert "mirror_http_total" in m
     assert "mirror_stream_divergence_total" in m
-    assert "xrootd_mirror_requests_total" in _read("src/observability/metrics/stream.c")
+    assert "brix_mirror_requests_total" in _read("src/observability/metrics/stream.c")
 
 
 # --------------------------------------------------------------------------- #
@@ -134,16 +134,16 @@ def test_http_mirror_directives_parse(tmp_path):
         server {{
             listen {BIND_HOST}:21940;
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
-                xrootd_mirror_url     http://{HOST}:21999;
-                xrootd_mirror_url     https://{HOST}:21998;
-                xrootd_mirror_methods GET HEAD PROPFIND;
-                xrootd_mirror_sample  25;
-                xrootd_mirror_strip_auth on;
-                xrootd_mirror_log_diverge on;
-                xrootd_mirror_timeout 3s;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
+                brix_mirror_url     http://{HOST}:21999;
+                brix_mirror_url     https://{HOST}:21998;
+                brix_mirror_methods GET HEAD PROPFIND;
+                brix_mirror_sample  25;
+                brix_mirror_strip_auth on;
+                brix_mirror_log_diverge on;
+                brix_mirror_timeout 3s;
             }}
         }}
     """, tmp_path)
@@ -157,10 +157,10 @@ def test_http_mirror_bad_scheme_rejected(tmp_path):
         server {{
             listen {BIND_HOST}:21941;
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
-                xrootd_mirror_url ftp://{HOST}:21999;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
+                brix_mirror_url ftp://{HOST}:21999;
             }}
         }}
     """, tmp_path)
@@ -175,13 +175,13 @@ def test_stream_mirror_directives_parse(tmp_path):
         server {{
             listen {BIND_HOST}:21942;
             xrootd on;
-            xrootd_storage_backend posix:/tmp/xrd-test/data;
-            xrootd_auth none;
-            xrootd_stream_mirror_url {HOST}:21943;
-            xrootd_mirror_opcodes stat locate dirlist;
-            xrootd_mirror_sample 50;
-            xrootd_mirror_log_diverge on;
-            xrootd_mirror_timeout 3s;
+            brix_storage_backend posix:/tmp/xrd-test/data;
+            brix_auth none;
+            brix_stream_mirror_url {HOST}:21943;
+            brix_mirror_opcodes stat locate dirlist;
+            brix_mirror_sample 50;
+            brix_mirror_log_diverge on;
+            brix_mirror_timeout 3s;
         }}
     }}
     """
@@ -195,16 +195,16 @@ def test_stream_mirror_bad_opcode_rejected(tmp_path):
         server {{
             listen {BIND_HOST}:21944;
             xrootd on;
-            xrootd_storage_backend posix:/tmp/xrd-test/data;
-            xrootd_auth none;
-            xrootd_stream_mirror_url {HOST}:21943;
-            xrootd_mirror_opcodes bogus;
+            brix_storage_backend posix:/tmp/xrd-test/data;
+            brix_auth none;
+            brix_stream_mirror_url {HOST}:21943;
+            brix_mirror_opcodes bogus;
         }}
     }}
     """
     rc, out = _nginx_check(conf, tmp_path)
     assert rc != 0
-    assert "xrootd_mirror_opcodes" in out
+    assert "brix_mirror_opcodes" in out
 
 
 # --------------------------------------------------------------------------- #
@@ -212,17 +212,17 @@ def test_stream_mirror_bad_opcode_rejected(tmp_path):
 # --------------------------------------------------------------------------- #
 
 def test_stream_mirror_write_opcodes_and_gate_parse(tmp_path):
-    """The write opcodes + xrootd_mirror_writes gate parse on the stream side."""
+    """The write opcodes + brix_mirror_writes gate parse on the stream side."""
     conf = HEADER.format(logs=tmp_path / "logs") + f"""
     stream {{
         server {{
             listen {BIND_HOST}:21945;
             xrootd on;
-            xrootd_storage_backend posix:/tmp/xrd-test/data;
-            xrootd_auth none;
-            xrootd_stream_mirror_url {HOST}:21943;
-            xrootd_mirror_writes on;
-            xrootd_mirror_opcodes mkdir rm rmdir mv truncate chmod;
+            brix_storage_backend posix:/tmp/xrd-test/data;
+            brix_auth none;
+            brix_stream_mirror_url {HOST}:21943;
+            brix_mirror_writes on;
+            brix_mirror_opcodes mkdir rm rmdir mv truncate chmod;
         }}
     }}
     """
@@ -234,12 +234,12 @@ def test_mirror_writes_off_by_default_and_gated_in_source():
     """mirror_writes defaults off; the gate is independent of opcode selection."""
     mh = _read("src/net/mirror/mirror.h")
     # Write bits exist but are excluded from the default opcode mask.
-    assert "XROOTD_MIRROR_OP_MKDIR" in mh
-    assert "XROOTD_MIRROR_OP_WRITE" in mh
+    assert "BRIX_MIRROR_OP_MKDIR" in mh
+    assert "BRIX_MIRROR_OP_WRITE" in mh
     assert "mirror_writes" in mh
     # OP_DEFAULT/OP_ALL must NOT pull in the write bits.
     import re
-    op_all = re.search(r"define\s+XROOTD_MIRROR_OP_ALL\b(.*?)\n\n", mh, re.S)
+    op_all = re.search(r"define\s+BRIX_MIRROR_OP_ALL\b(.*?)\n\n", mh, re.S)
     assert op_all and "MKDIR" not in op_all.group(1) and "OP_WRITE" not in op_all.group(1)
     # The stream maybe() enforces mirror_writes as a second, independent guard.
     sm = _read("src/net/mirror/stream_mirror.c")
@@ -380,13 +380,13 @@ def http_mirror_server(tmp_path):
         server {{
             listen {BIND_HOST}:{primary_port};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
-                xrootd_mirror_url     http://{HOST}:{shadow_port};
-                xrootd_mirror_methods GET HEAD;
-                xrootd_mirror_sample  100;
-                xrootd_mirror_strip_auth on;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
+                brix_mirror_url     http://{HOST}:{shadow_port};
+                brix_mirror_methods GET HEAD;
+                brix_mirror_sample  100;
+                brix_mirror_strip_auth on;
             }}
         }}
     """, tmp_path)
@@ -442,13 +442,13 @@ def test_shadow_failure_transparent(tmp_path):
         server {{
             listen {BIND_HOST}:{primary_port};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
-                xrootd_mirror_url     http://{HOST}:{dead_shadow};
-                xrootd_mirror_methods GET;
-                xrootd_mirror_sample  100;
-                xrootd_mirror_timeout 1s;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
+                brix_mirror_url     http://{HOST}:{dead_shadow};
+                brix_mirror_methods GET;
+                brix_mirror_sample  100;
+                brix_mirror_timeout 1s;
             }}
         }}
     """, tmp_path)
@@ -489,12 +489,12 @@ def test_sample_zero_mirrors_nothing(tmp_path):
         server {{
             listen {BIND_HOST}:{primary_port};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
-                xrootd_mirror_url     http://{HOST}:{shadow_port};
-                xrootd_mirror_methods GET;
-                xrootd_mirror_sample  0;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
+                brix_mirror_url     http://{HOST}:{shadow_port};
+                brix_mirror_methods GET;
+                brix_mirror_sample  0;
             }}
         }}
     """, tmp_path)
@@ -603,26 +603,26 @@ def _start_stream_pair(tmp_path, primary_port, shadow_port, metrics_port,
         server {{
             listen {BIND_HOST}:{shadow_port};
             xrootd on;
-            xrootd_storage_backend posix:{sdata};
-            xrootd_auth none;
+            brix_storage_backend posix:{sdata};
+            brix_auth none;
         }}
         server {{
             listen {BIND_HOST}:{primary_port};
             xrootd on;
-            xrootd_storage_backend posix:{pdata};
-            xrootd_auth none;
-            xrootd_stream_mirror_url {HOST}:{shadow_port};
-            xrootd_mirror_opcodes stat;
-            xrootd_mirror_sample 100;
-            xrootd_mirror_log_diverge on;
-            xrootd_mirror_timeout 3s;
+            brix_storage_backend posix:{pdata};
+            brix_auth none;
+            brix_stream_mirror_url {HOST}:{shadow_port};
+            brix_mirror_opcodes stat;
+            brix_mirror_sample 100;
+            brix_mirror_log_diverge on;
+            brix_mirror_timeout 3s;
         }}
     }}
     http {{
         access_log off;
         server {{
             listen {BIND_HOST}:{metrics_port};
-            location /metrics {{ xrootd_metrics on; }}
+            location /metrics {{ brix_metrics on; }}
         }}
     }}
     """
@@ -650,7 +650,7 @@ def test_stat_mirrored_to_shadow(tmp_path):
                               shadow_files=["present.txt"])
     try:
         _xrd_stat(HOST, primary, "/present.txt")
-        got = _wait_metric(metrics, "xrootd_mirror_requests_total", "stream", 1)
+        got = _wait_metric(metrics, "brix_mirror_requests_total", "stream", 1)
         assert got is not None and got >= 1, \
             f"stream mirror request not counted (got {got})"
     finally:
@@ -669,7 +669,7 @@ def test_divergence_counted(tmp_path):
                               shadow_files=[])
     try:
         _xrd_stat(HOST, primary, "/only-here.txt")
-        got = _wait_metric(metrics, "xrootd_mirror_divergence_total", "stream", 1)
+        got = _wait_metric(metrics, "brix_mirror_divergence_total", "stream", 1)
         assert got is not None and got >= 1, \
             f"divergence not counted (got {got})"
     finally:
@@ -738,14 +738,14 @@ def _start_http_writes_primary(tmp_path, primary_port, shadow_port,
         server {{
             listen {BIND_HOST}:{primary_port};
             location / {{
-                xrootd_webdav on;
-                xrootd_webdav_storage_backend posix:{data};
-                xrootd_webdav_auth none;
-                xrootd_webdav_allow_write on;
-                xrootd_mirror_url     http://{HOST}:{shadow_port};
-                xrootd_mirror_methods {methods};
-                xrootd_mirror_writes  {writes};
-                xrootd_mirror_sample  100;
+                brix_webdav on;
+                brix_webdav_storage_backend posix:{data};
+                brix_webdav_auth none;
+                brix_webdav_allow_write on;
+                brix_mirror_url     http://{HOST}:{shadow_port};
+                brix_mirror_methods {methods};
+                brix_mirror_writes  {writes};
+                brix_mirror_sample  100;
             }}
         }}
     """, tmp_path)
@@ -799,7 +799,7 @@ def test_delete_mirrored_to_shadow(http_mirror_writes_server):
 
 
 def test_writes_off_not_mirrored(tmp_path):
-    """With xrootd_mirror_writes off, a PUT is NOT replayed to the shadow."""
+    """With brix_mirror_writes off, a PUT is NOT replayed to the shadow."""
     primary_port, shadow_port = free_ports(2)
     shadow = _start_shadow(shadow_port)
     proc = _start_http_writes_primary(tmp_path, primary_port, shadow_port,
@@ -809,7 +809,7 @@ def test_writes_off_not_mirrored(tmp_path):
         time.sleep(1.0)
         with _ShadowHandler.lock:
             assert ("PUT", "/off.bin") not in _ShadowHandler.methods, \
-                "PUT mirrored despite xrootd_mirror_writes off"
+                "PUT mirrored despite brix_mirror_writes off"
     finally:
         proc.terminate()
         try:

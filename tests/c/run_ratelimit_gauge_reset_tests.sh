@@ -45,7 +45,7 @@ void *ngx_pcalloc(ngx_pool_t *p, size_t s){UNUSED(p);UNUSED(s);abort();}
 ngx_shm_zone_t *ngx_shared_memory_add(ngx_conf_t *cf, ngx_str_t *n, size_t s, void *t){UNUSED(cf);UNUSED(n);UNUSED(s);UNUSED(t);abort();}
 u_char *ngx_sprintf(u_char *b, const char *f, ...){UNUSED(b);UNUSED(f);abort();}
 void ngx_conf_log_error(ngx_uint_t l, ngx_conf_t *cf, ngx_err_t e, const char *f, ...){UNUSED(l);UNUSED(cf);UNUSED(e);UNUSED(f);}
-void *ngx_xrootd_shm_zone;
+void *ngx_brix_shm_zone;
 EOF
 
 cc -O -Wall "${INCS[@]}" -o "${BIN}" \

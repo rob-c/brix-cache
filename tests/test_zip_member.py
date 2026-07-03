@@ -1,6 +1,6 @@
 """Server-side root:// ZIP member access (phase-57 W2): ?xrdcl.unzip=<member>.
 
-Self-contained: starts its own nginx (xrootd_zip_access on) over an export dir
+Self-contained: starts its own nginx (brix_zip_access on) over an export dir
 containing a real ZIP archive.
 
 IMPORTANT: the native/stock XrdCl client handles xrdcl.unzip CLIENT-SIDE (it
@@ -124,22 +124,22 @@ def zipsrv(tmp_path_factory):
         f"error_log {logs}/err.log info;\npid {base}/nginx.pid;\n"
         "events { worker_connections 64; }\n"
         f"stream {{ server {{ listen 127.0.0.1:{PORT}; xrootd on; "
-        f"xrootd_storage_backend posix:{data}; xrootd_auth none; xrootd_zip_access on; "
-        f"xrootd_access_log {logs}/access.log; }} }}\n"
+        f"brix_storage_backend posix:{data}; brix_auth none; brix_zip_access on; "
+        f"brix_access_log {logs}/access.log; }} }}\n"
         "http {\n"
         f"  server {{ listen 127.0.0.1:{HTTP_PORT};\n"
         "    location / {\n"
-        "      xrootd_webdav on;\n"
-        f"      xrootd_webdav_storage_backend posix:{data};\n"
-        "      xrootd_webdav_auth none;\n"
-        "      xrootd_webdav_zip_access on;\n"
+        "      brix_webdav on;\n"
+        f"      brix_webdav_storage_backend posix:{data};\n"
+        "      brix_webdav_auth none;\n"
+        "      brix_webdav_zip_access on;\n"
         "    }\n  }\n"
         f"  server {{ listen 127.0.0.1:{S3_PORT};\n"
         "    location / {\n"
-        "      xrootd_s3 on;\n"
-        f"      xrootd_s3_storage_backend posix:{data};\n"
-        f"      xrootd_s3_bucket {S3_BUCKET};\n"
-        "      xrootd_s3_zip_access on;\n"
+        "      brix_s3 on;\n"
+        f"      brix_s3_storage_backend posix:{data};\n"
+        f"      brix_s3_bucket {S3_BUCKET};\n"
+        "      brix_s3_zip_access on;\n"
         "    }\n  }\n}\n")
     _run(["bash", "-c", f"fuser -k {PORT}/tcp 2>/dev/null"])
     proc = subprocess.Popen([NGINX_BIN, "-c", str(cfg), "-p", str(base)],

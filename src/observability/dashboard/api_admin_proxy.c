@@ -54,7 +54,7 @@ admin_parse_proxy_uri(ngx_http_request_t *r, uint32_t *id_out,
 /* Serialise one proxy-backend snapshot entry to JSON (mechanical field mapping;
  * the only logic is the numeric state -> name translation). */
 json_t *
-admin_proxy_backend_json(const xrootd_proxy_be_snapshot_t *e)
+admin_proxy_backend_json(const brix_proxy_be_snapshot_t *e)
 {
     json_t     *o = json_object();
     const char *state;
@@ -63,8 +63,8 @@ admin_proxy_backend_json(const xrootd_proxy_be_snapshot_t *e)
         return NULL;
     }
     switch (e->state) {
-    case XROOTD_PROXY_BE_DRAINING: state = "draining"; break;
-    case XROOTD_PROXY_BE_DEAD:     state = "dead";     break;
+    case BRIX_PROXY_BE_DRAINING: state = "draining"; break;
+    case BRIX_PROXY_BE_DEAD:     state = "dead";     break;
     default:                       state = "active";   break;
     }
     json_object_set_new(o, "id",        json_integer(e->id));
@@ -83,12 +83,12 @@ admin_proxy_backend_json(const xrootd_proxy_be_snapshot_t *e)
  *
  * A compromised admin credential could otherwise point a dynamic proxy backend
  * at an arbitrary host (data exfiltration / SSRF pivot).  When
- * xrootd_admin_proxy_allow is configured, the host parsed out of the backend
+ * brix_admin_proxy_allow is configured, the host parsed out of the backend
  * URL must match one of the listed hostnames exactly (case-insensitive).
  * When the directive is absent the function returns 1 (back-compat).
  */
 int
-admin_url_host_allowed(ngx_http_xrootd_dashboard_loc_conf_t *conf,
+admin_url_host_allowed(ngx_http_brix_dashboard_loc_conf_t *conf,
     const char *url)
 {
     const char *host, *p;
@@ -130,8 +130,8 @@ admin_url_host_allowed(ngx_http_xrootd_dashboard_loc_conf_t *conf,
 ngx_int_t
 admin_proxy_add(ngx_http_request_t *r, json_t *body)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *conf =
-        ngx_http_get_module_loc_conf(r, ngx_http_xrootd_dashboard_module);
+    ngx_http_brix_dashboard_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
     const char *url    = json_string_value(json_object_get(body, "url"));
     json_int_t  weight = json_integer_value(json_object_get(body, "weight"));
     uint32_t    id     = 0;
@@ -153,7 +153,7 @@ admin_proxy_add(ngx_http_request_t *r, json_t *body)
     if (weight <= 0)    weight = 1;
     if (weight > 1000)  weight = 1000;
 
-    rc = xrootd_proxy_pool_add(url, (ngx_uint_t) weight, r->pool,
+    rc = brix_proxy_pool_add(url, (ngx_uint_t) weight, r->pool,
                                r->connection->log, &id);
     if (rc == NGX_DECLINED) {
         admin_audit(r, "proxy/add", url, "not_enabled");
@@ -165,7 +165,7 @@ admin_proxy_add(ngx_http_request_t *r, json_t *body)
     }
 
     (void) ngx_snprintf((u_char *) target, sizeof(target) - 1, "id=%uD%Z", id);
-    xrootd_dashboard_event_add(XROOTD_DASH_EVENT_NAMESPACE, 0, 0,
+    brix_dashboard_event_add(BRIX_DASH_EVENT_NAMESPACE, 0, 0,
                                "admin: proxy backend added", url);
     admin_audit(r, "proxy/add", url, "added");
     {
@@ -185,11 +185,11 @@ admin_proxy_add(ngx_http_request_t *r, json_t *body)
 ngx_int_t
 admin_proxy_list(ngx_http_request_t *r)
 {
-    xrootd_proxy_be_snapshot_t  snap[XROOTD_PROXY_POOL_SLOTS];
+    brix_proxy_be_snapshot_t  snap[BRIX_PROXY_POOL_SLOTS];
     ngx_uint_t                  i, count;
     json_t                     *root, *arr;
 
-    count = xrootd_proxy_pool_snapshot(snap, XROOTD_PROXY_POOL_SLOTS);
+    count = brix_proxy_pool_snapshot(snap, BRIX_PROXY_POOL_SLOTS);
 
     root = json_object();
     arr  = json_array();
@@ -227,7 +227,7 @@ admin_proxy_one(ngx_http_request_t *r, const char *action, uint32_t id)
         if (r->method != NGX_HTTP_POST) {
             return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
         }
-        if (!xrootd_proxy_pool_drain(id)) {
+        if (!brix_proxy_pool_drain(id)) {
             admin_audit(r, "proxy/drain", target, "not_found");
             return admin_send_error(r, NGX_HTTP_NOT_FOUND, "not_found");
         }
@@ -238,7 +238,7 @@ admin_proxy_one(ngx_http_request_t *r, const char *action, uint32_t id)
         if (r->method != NGX_HTTP_POST) {
             return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
         }
-        if (!xrootd_proxy_pool_undrain(id)) {
+        if (!brix_proxy_pool_undrain(id)) {
             admin_audit(r, "proxy/undrain", target, "not_found");
             return admin_send_error(r, NGX_HTTP_NOT_FOUND, "not_found");
         }
@@ -247,7 +247,7 @@ admin_proxy_one(ngx_http_request_t *r, const char *action, uint32_t id)
     }
     if (action[0] == '\0') {
         if (r->method == NGX_HTTP_DELETE) {
-            if (!xrootd_proxy_pool_remove(id)) {
+            if (!brix_proxy_pool_remove(id)) {
                 admin_audit(r, "proxy/delete", target, "not_found");
                 return admin_send_error(r, NGX_HTTP_NOT_FOUND, "not_found");
             }
@@ -255,7 +255,7 @@ admin_proxy_one(ngx_http_request_t *r, const char *action, uint32_t id)
             return admin_send_ok(r, "removed");
         }
         if (r->method == NGX_HTTP_GET) {
-            long inflight = xrootd_proxy_pool_in_flight(id);
+            long inflight = brix_proxy_pool_in_flight(id);
             json_t *root;
             if (inflight < 0) {
                 return admin_send_error(r, NGX_HTTP_NOT_FOUND, "not_found");
@@ -275,13 +275,13 @@ admin_proxy_one(ngx_http_request_t *r, const char *action, uint32_t id)
 }
 
 
-/* Directive setter for `xrootd_admin_proxy_allow <host>...`: the backend-target
+/* Directive setter for `brix_admin_proxy_allow <host>...`: the backend-target
  * allowlist consulted by admin_url_host_allowed (SSRF guard). Stores raw host
  * strings (no parsing); matching is case-insensitive at request time. */
 char *
-xrootd_admin_set_proxy_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+brix_admin_set_proxy_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *lcf = conf;
+    ngx_http_brix_dashboard_loc_conf_t *lcf = conf;
     ngx_str_t  *value = cf->args->elts;
     ngx_uint_t  i;
 

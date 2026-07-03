@@ -1,13 +1,13 @@
-#ifndef XROOTD_READ_STAT_H
-#define XROOTD_READ_STAT_H
+#ifndef BRIX_READ_STAT_H
+#define BRIX_READ_STAT_H
 
-#include "fs/vfs/vfs.h"   /* xrootd_vfs_stat_t for the projection helper */
-#include <sys/stat.h>    /* struct stat for xrootd_vfs_to_struct_stat */
+#include "fs/vfs/vfs.h"   /* brix_vfs_stat_t for the projection helper */
+#include <sys/stat.h>    /* struct stat for brix_vfs_to_struct_stat */
 
 /* ---- Module: Stat Operations ----
  *
  * WHAT: Function declarations for XRootD stat opcodes — kXR_stat queries file metadata (inode, size, flags,
- *       mtime) via path-based stat(2) or handle-based fstat(2). xrootd_cache_path_flag() provides cache-hit
+ *       mtime) via path-based stat(2) or handle-based fstat(2). brix_cache_path_flag() provides cache-hit
  *       detection returning kXR_cachersp flag when a path exists under the local cache_root.
  *
  * WHY: Stat is one of the most frequently called opcodes — clients query metadata before opening files,
@@ -20,9 +20,9 @@
  *   c    - nginx connection (log, ssl state)
  *   conf - server config (root, cache, vo_rules)
  */
-ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_xrootd_srv_conf_t *conf);
+ngx_int_t brix_handle_stat(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf);
 
-/* ---- Function: xrootd_cache_path_flag() ----
+/* ---- Function: brix_cache_path_flag() ----
  *
  * WHAT: Checks whether a requested path exists in the local cache (conf->cache_root). Returns kXR_cachersp
  *       flag if found, 0 otherwise. Tells clients the file is served from cache rather than origin.
@@ -39,12 +39,12 @@ ngx_int_t xrootd_handle_stat(xrootd_ctx_t *ctx, ngx_connection_t *c, ngx_stream_
  *   conf   - server config (cache flag, cache_root ngx_str_t)
  *   reqpath - client's clean path string
  */
-int xrootd_cache_path_flag(const ngx_stream_xrootd_srv_conf_t *conf,
+int brix_cache_path_flag(const ngx_stream_brix_srv_conf_t *conf,
     const char *reqpath);
 
 /* Project a VFS stat result into the struct stat fields the kXR_stat/statx
  * response builders read (unique id, size, perm flags, mtime, blocks). Shared by
  * the stat and statx handlers' VFS-probe fallbacks. */
-void xrootd_vfs_to_struct_stat(const xrootd_vfs_stat_t *v, struct stat *st);
+void brix_vfs_to_struct_stat(const brix_vfs_stat_t *v, struct stat *st);
 
-#endif /* XROOTD_READ_STAT_H */
+#endif /* BRIX_READ_STAT_H */

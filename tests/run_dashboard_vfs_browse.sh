@@ -27,42 +27,42 @@ http {
     server {   # posix export (explicit backend => registers in the census)
         listen 127.0.0.1:$P_DAV;
         location / {
-            xrootd_webdav on;
-            xrootd_webdav_root $PFX/posix_root;
-            xrootd_webdav_auth none;
-            xrootd_webdav_storage_backend posix;
+            brix_webdav on;
+            brix_webdav_root $PFX/posix_root;
+            brix_webdav_auth none;
+            brix_webdav_storage_backend posix;
         }
     }
     server {   # pblock export (logical ns in sqlite, bytes in packed blobs)
         listen 127.0.0.1:$P_PB;
         location / {
             dav_methods PUT;
-            xrootd_webdav on;
-            xrootd_webdav_root $PFX/pblock_root;
-            xrootd_webdav_auth none;
-            xrootd_webdav_allow_write on;
-            xrootd_webdav_storage_backend pblock;
+            brix_webdav on;
+            brix_webdav_root $PFX/pblock_root;
+            brix_webdav_auth none;
+            brix_webdav_allow_write on;
+            brix_webdav_storage_backend pblock;
         }
     }
     server {   # dashboard WITH the VFS browser
         listen 127.0.0.1:$P_DASH;
         location /xrootd/ {
-            xrootd_dashboard on;
-            xrootd_dashboard_password "vfsb";
-            xrootd_dashboard_vfs_browse on;
+            brix_dashboard on;
+            brix_dashboard_password "vfsb";
+            brix_dashboard_vfs_browse on;
         }
     }
     server {   # dashboard WITHOUT it (feature must 404)
         listen 127.0.0.1:$P_OFF;
         location /xrootd/ {
-            xrootd_dashboard on;
-            xrootd_dashboard_password "vfsb";
+            brix_dashboard on;
+            brix_dashboard_password "vfsb";
         }
     }
 }
 EOF
 "$NGINX" -t -c "$PFX/nginx.conf" -p "$PFX" >/dev/null 2>&1 \
-    && ok "config parses (xrootd_dashboard_vfs_browse)" || bad "nginx -t failed"
+    && ok "config parses (brix_dashboard_vfs_browse)" || bad "nginx -t failed"
 "$NGINX" -c "$PFX/nginx.conf" -p "$PFX"; sleep 0.6
 
 TS="$(date +%s)"; H="$(printf '%s' "$TS" | openssl dgst -sha256 -hmac "vfsb" -hex | sed 's/^.*= //')"

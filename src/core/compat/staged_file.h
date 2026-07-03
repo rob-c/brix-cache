@@ -1,15 +1,15 @@
 /*
  * staged_file.h — Atomic temp-file write lifecycle.
  *
- * Provides xrootd_staged_file_t (a struct tracking fd, tmp_path, active flag) and three
+ * Provides brix_staged_file_t (a struct tracking fd, tmp_path, active flag) and three
  * operations: open → commit/abort. Used by S3 PUT, WebDAV PUT for crash-safe writes:
  * 1) Open a unique temp file with O_EXCL inside root_canon
  * 2) Write data to the fd
  * 3) Commit (rename temp → final path) or abort (close + unlink)
  */
 
-#ifndef XROOTD_COMPAT_STAGED_FILE_H
-#define XROOTD_COMPAT_STAGED_FILE_H
+#ifndef BRIX_COMPAT_STAGED_FILE_H
+#define BRIX_COMPAT_STAGED_FILE_H
 
 #include <ngx_config.h>
 #include <ngx_core.h>
@@ -18,7 +18,7 @@
 #include <sys/types.h>
 
 /*
- * xrootd_staged_file_t — Tracks the lifecycle of a staged (temp) file.
+ * brix_staged_file_t — Tracks the lifecycle of a staged (temp) file.
  *
  * Fields:
  *   fd     — open file descriptor for the temp file (NGX_INVALID_FILE when closed)
@@ -29,52 +29,52 @@ typedef struct {
     ngx_fd_t   fd;
     ngx_flag_t active;
     char       tmp_path[PATH_MAX];
-} xrootd_staged_file_t;
+} brix_staged_file_t;
 
-/* xrootd_staged_open() — See staged_file.c for WHAT/WHY/HOW. */
-ngx_int_t xrootd_staged_open(ngx_log_t *log, const char *root_canon,
+/* brix_staged_open() — See staged_file.c for WHAT/WHY/HOW. */
+ngx_int_t brix_staged_open(ngx_log_t *log, const char *root_canon,
     const char *final_path, int open_flags, mode_t mode, ngx_uint_t attempts,
-    xrootd_staged_file_t *staged);
-/* xrootd_staged_open_resume() — open the DETERMINISTIC identity-keyed upload-
+    brix_staged_file_t *staged);
+/* brix_staged_open_resume() — open the DETERMINISTIC identity-keyed upload-
  * resume partial (create-or-resume, preserves bytes, no O_EXCL/O_TRUNC), and
  * report its current size in *cur_size.  For WebDAV Content-Range PUT resume.
  * See staged_file.c. */
-ngx_int_t xrootd_staged_open_resume(ngx_log_t *log, const char *root_canon,
+ngx_int_t brix_staged_open_resume(ngx_log_t *log, const char *root_canon,
     const char *final_path, const char *principal, const char *stage_dir,
-    mode_t mode, xrootd_staged_file_t *staged, off_t *cur_size);
-/* xrootd_commit_staged() — atomically publish a staged file onto its final path,
+    mode_t mode, brix_staged_file_t *staged, off_t *cur_size);
+/* brix_commit_staged() — atomically publish a staged file onto its final path,
  * across filesystems (rename fast-path; copy+rename on EXDEV for a fast-cache
  * stage dir on a different device than the storage).  fd = open staged fd (for
  * the durability fsync) or NGX_INVALID_FILE.  See staged_file.c. */
-ngx_int_t xrootd_commit_staged(ngx_fd_t fd, const char *stage_path,
+ngx_int_t brix_commit_staged(ngx_fd_t fd, const char *stage_path,
     const char *final_path, ngx_log_t *log);
 /* --- upload stage-out tracking (durable pending-commit markers + reaper) --- */
 
 /* Register a (canonicalized) stage dir so the reaper sweeps it.  Called at config
  * time from each server/location that sets a stage dir; deduped. */
-void xrootd_stage_dir_register(const char *canon);
+void brix_stage_dir_register(const char *canon);
 /* Number of registered stage dirs (>0 => arm the reaper). */
-ngx_uint_t xrootd_stage_dir_count(void);
+ngx_uint_t brix_stage_dir_count(void);
 /* Write/remove the durable "<stage_partial>.commit" marker (content = final path)
  * that records a COMPLETE staged file pending its move to storage. */
-ngx_int_t xrootd_stage_mark_pending(const char *stage_partial,
+ngx_int_t brix_stage_mark_pending(const char *stage_partial,
     const char *final_path, ngx_log_t *log);
-void xrootd_stage_unmark_pending(const char *stage_partial);
+void brix_stage_unmark_pending(const char *stage_partial);
 /* Finish every pending stage-out in one dir / all registered dirs.  Idempotent;
  * returns the number of commits completed.  See staged_file.c. */
-ngx_uint_t xrootd_stage_reap_dir(const char *stage_dir, ngx_log_t *log);
-ngx_uint_t xrootd_stage_reap_all(ngx_log_t *log);
+ngx_uint_t brix_stage_reap_dir(const char *stage_dir, ngx_log_t *log);
+ngx_uint_t brix_stage_reap_all(ngx_log_t *log);
 
-/* xrootd_staged_commit() — See staged_file.c for WHAT/WHY/HOW. */
-ngx_int_t xrootd_staged_commit(ngx_log_t *log, const char *root_canon,
-    xrootd_staged_file_t *staged, const char *final_path);
-/* xrootd_staged_commit_excl() — atomic create-if-absent commit via
+/* brix_staged_commit() — See staged_file.c for WHAT/WHY/HOW. */
+ngx_int_t brix_staged_commit(ngx_log_t *log, const char *root_canon,
+    brix_staged_file_t *staged, const char *final_path);
+/* brix_staged_commit_excl() — atomic create-if-absent commit via
  * renameat2(RENAME_NOREPLACE).  Returns NGX_ERROR with errno==EEXIST when the
  * final path already exists (caller maps to 412). See staged_file.c. */
-ngx_int_t xrootd_staged_commit_excl(ngx_log_t *log, const char *root_canon,
-    xrootd_staged_file_t *staged, const char *final_path);
-/* xrootd_staged_abort() — See staged_file.c for WHAT/WHY/HOW. */
-void xrootd_staged_abort(ngx_log_t *log, const char *root_canon,
-    xrootd_staged_file_t *staged, ngx_flag_t remove_tmp);
+ngx_int_t brix_staged_commit_excl(ngx_log_t *log, const char *root_canon,
+    brix_staged_file_t *staged, const char *final_path);
+/* brix_staged_abort() — See staged_file.c for WHAT/WHY/HOW. */
+void brix_staged_abort(ngx_log_t *log, const char *root_canon,
+    brix_staged_file_t *staged, ngx_flag_t remove_tmp);
 
-#endif /* XROOTD_COMPAT_STAGED_FILE_H */
+#endif /* BRIX_COMPAT_STAGED_FILE_H */

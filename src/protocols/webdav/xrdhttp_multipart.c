@@ -56,7 +56,7 @@ chain_append_text(ngx_http_request_t *r,
     ngx_chain_t *link;
     size_t       len = ngx_strlen(text);
 
-    XROOTD_PCALLOC_OR_RETURN(b, r->pool, sizeof(ngx_buf_t), NGX_ERROR);
+    BRIX_PCALLOC_OR_RETURN(b, r->pool, sizeof(ngx_buf_t), NGX_ERROR);
     b->pos  = b->start = ngx_pnalloc(r->pool, len);
     if (b->pos == NULL) {
         return NGX_ERROR;
@@ -90,8 +90,8 @@ xrdhttp_handle_multipart_get(ngx_http_request_t *r,
                               const struct stat *sb,
                               int fd_from_table)
 {
-    xrootd_byte_range_t       ranges[XRDHTTP_MAX_RANGES];
-    xrootd_range_vector_opts_t opts;
+    brix_byte_range_t       ranges[XRDHTTP_MAX_RANGES];
+    brix_range_vector_opts_t opts;
     ngx_uint_t                nranges;
     off_t                     total_len = 0;
     ngx_chain_t              *head = NULL;
@@ -123,7 +123,7 @@ xrdhttp_handle_multipart_get(ngx_http_request_t *r,
     opts.allow_open_ended   = 1;
     opts.drop_unsatisfiable = 1;
 
-    if (xrootd_http_parse_range_vector(r->headers_in.range->value.data + 6,
+    if (brix_http_parse_range_vector(r->headers_in.range->value.data + 6,
                                        r->headers_in.range->value.len - 6,
                                        sb->st_size, &opts,
                                        ranges, &nranges) != NGX_OK
@@ -184,7 +184,7 @@ xrdhttp_handle_multipart_get(ngx_http_request_t *r,
 
         /* File data for this range. */
         if (part_data_len > 0) {
-            if (xrootd_http_chain_append_file_range(r, &tail, fd, path,
+            if (brix_http_chain_append_file_range(r, &tail, fd, path,
                                                     ranges[i].start,
                                                     ranges[i].end,
                                                     !fd_from_table) != NGX_OK)
@@ -247,12 +247,12 @@ xrdhttp_handle_multipart_get(ngx_http_request_t *r,
         data_bytes += ranges[i].end - ranges[i].start + 1;
     }
     snprintf(len_str, sizeof(len_str), "%lld", (long long) data_bytes);
-    XROOTD_WEBDAV_METRIC_ADD(bytes_tx_total, (size_t) data_bytes);
+    BRIX_WEBDAV_METRIC_ADD(bytes_tx_total, (size_t) data_bytes);
     if (r->connection && r->connection->sockaddr
         && r->connection->sockaddr->sa_family == AF_INET6) {
-        XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv6_total, (size_t) data_bytes);
+        BRIX_WEBDAV_METRIC_ADD(bytes_tx_ipv6_total, (size_t) data_bytes);
     } else {
-        XROOTD_WEBDAV_METRIC_ADD(bytes_tx_ipv4_total, (size_t) data_bytes);
+        BRIX_WEBDAV_METRIC_ADD(bytes_tx_ipv4_total, (size_t) data_bytes);
     }
 
     /* Inject XrdHttp response headers before send. */

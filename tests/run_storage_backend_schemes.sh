@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# run_storage_backend_schemes.sh — phase-64: the xrootd_storage_backend scheme
-# vocabulary. The primary-export backend selector (xrootd_vfs_backend_config_str)
+# run_storage_backend_schemes.sh — phase-64: the brix_storage_backend scheme
+# vocabulary. The primary-export backend selector (brix_vfs_backend_config_str)
 # must recognise the SAME generic scheme set the composable cache/stage tier parser
 # does: posix(:|://), pblock://, root(s)://, http(s)://, s3://, rados://, ceph:,
 # tape://, frm:// (and cephfsro:). Each scheme extracts protocol + authority + path.
@@ -30,7 +30,7 @@ mkdir -p "$PFX/logs" "$PFX/cache" "$PFX/data"   # posix: export root must exist 
 mkconf() { cat > "$PFX/t.conf" <<EOF
 daemon on; error_log $PFX/logs/e.log info; pid $PFX/t.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${PORT}; xrootd on; xrootd_auth none; $1 } }
+stream { server { listen 127.0.0.1:${PORT}; xrootd on; brix_auth none; $1 } }
 EOF
 }
 parse_ok() {  # desc, directives
@@ -47,40 +47,40 @@ parse_no() {  # desc, directives, expect-pattern
 }
 
 echo "== positive: every storage_backend scheme parses =="
-parse_ok "posix:<path>"          "xrootd_storage_backend posix:$PFX/data;"
-parse_ok "posix://<path>"        "xrootd_storage_backend posix://$PFX/data;"
-parse_ok "pblock://<path>"       "xrootd_storage_backend pblock://$PFX/pb;"
-parse_ok "root://host:port"      "xrootd_storage_backend root://127.0.0.1:${OPORT};"
-parse_ok "roots://host:port"     "xrootd_storage_backend roots://127.0.0.1:${OPORT};"
-parse_ok "http://host/base"      "xrootd_storage_backend http://origin.example:8080/d;"
-parse_ok "https://host/base"     "xrootd_storage_backend https://origin.example/d;"
-parse_ok "s3://host:port/bucket" "xrootd_storage_backend s3://127.0.0.1:9000/mybucket;"
-parse_ok "s3://host/bucket"      "xrootd_storage_backend s3://s3.example.com/data;"
-parse_ok "rados://pool/ns"       "xrootd_storage_backend rados://mypool/myns;"
-parse_ok "rados://pool"          "xrootd_storage_backend rados://mypool;"
-parse_ok "frm://+cache (tape alias)" "xrootd_storage_backend frm://stub/$PFX/tape; xrootd_cache_store posix:$PFX/cache; xrootd_cache_root /;"
+parse_ok "posix:<path>"          "brix_storage_backend posix:$PFX/data;"
+parse_ok "posix://<path>"        "brix_storage_backend posix://$PFX/data;"
+parse_ok "pblock://<path>"       "brix_storage_backend pblock://$PFX/pb;"
+parse_ok "root://host:port"      "brix_storage_backend root://127.0.0.1:${OPORT};"
+parse_ok "roots://host:port"     "brix_storage_backend roots://127.0.0.1:${OPORT};"
+parse_ok "http://host/base"      "brix_storage_backend http://origin.example:8080/d;"
+parse_ok "https://host/base"     "brix_storage_backend https://origin.example/d;"
+parse_ok "s3://host:port/bucket" "brix_storage_backend s3://127.0.0.1:9000/mybucket;"
+parse_ok "s3://host/bucket"      "brix_storage_backend s3://s3.example.com/data;"
+parse_ok "rados://pool/ns"       "brix_storage_backend rados://mypool/myns;"
+parse_ok "rados://pool"          "brix_storage_backend rados://mypool;"
+parse_ok "frm://+cache (tape alias)" "brix_storage_backend frm://stub/$PFX/tape; brix_cache_store posix:$PFX/cache; brix_cache_root /;"
 
 echo "== negative: malformed / bare scheme is an error, not a POSIX fallback =="
-parse_no "bare s3://"            "xrootd_storage_backend s3://;"            "needs|host|bucket"
-parse_no "s3:// no bucket"       "xrootd_storage_backend s3://127.0.0.1:9000;" "needs|bucket"
-parse_no "bare rados://"         "xrootd_storage_backend rados://;"         "needs|pool"
-parse_no "rados:/// empty pool"  "xrootd_storage_backend rados:///ns;"      "needs|pool"
-parse_no "frm:// without cache"  "xrootd_storage_backend frm://stub/$PFX/tape;" "nearline|cache_store|recall"
+parse_no "bare s3://"            "brix_storage_backend s3://;"            "needs|host|bucket"
+parse_no "s3:// no bucket"       "brix_storage_backend s3://127.0.0.1:9000;" "needs|bucket"
+parse_no "bare rados://"         "brix_storage_backend rados://;"         "needs|pool"
+parse_no "rados:/// empty pool"  "brix_storage_backend rados:///ns;"      "needs|pool"
+parse_no "frm:// without cache"  "brix_storage_backend frm://stub/$PFX/tape;" "nearline|cache_store|recall"
 
-# ---- data plane: posix:// serves bytes (no xrootd_root; helper rewrites root) ----
+# ---- data plane: posix:// serves bytes (no brix_root; helper rewrites root) ----
 echo "== data plane: posix:// storage_backend serves byte-exact =="
 mkdir -p "$PFX/data"
 head -c 200000 /dev/urandom > "$PFX/data/blob.bin"
 cat > "$PFX/p.conf" <<EOF
 daemon on; error_log $PFX/logs/p.log info; pid $PFX/p.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${PORT}; xrootd on; xrootd_auth none; xrootd_storage_backend posix://$PFX/data; } }
+stream { server { listen 127.0.0.1:${PORT}; xrootd on; brix_auth none; brix_storage_backend posix://$PFX/data; } }
 EOF
 if [ -x "$XRDCP" ]; then
     "$NGINX" -p "$PFX" -c "$PFX/p.conf" 2>"$PFX/p.err" || { bad "posix:// node start"; cat "$PFX/p.err"; }
     sleep 1
     "$XRDCP" "root://127.0.0.1:${PORT}//blob.bin" "$PFX/got.bin" -f >"$PFX/cp.err" 2>&1 \
-        && cmp -s "$PFX/data/blob.bin" "$PFX/got.bin" && ok "posix:// GET byte-exact (no xrootd_root)" \
+        && cmp -s "$PFX/data/blob.bin" "$PFX/got.bin" && ok "posix:// GET byte-exact (no brix_root)" \
         || { bad "posix:// GET"; tail -4 "$PFX/cp.err"; tail -6 "$PFX/logs/p.log"; }
     [ -f "$PFX/p.pid" ] && kill "$(cat "$PFX/p.pid")" 2>/dev/null; sleep 1
 else
@@ -93,12 +93,12 @@ if [ -x "$XRDFS" ]; then
     mkdir -p "$PFX/tape" "$PFX/fcache" "$PFX/fexport" "$PFX/flogs"
     cat > "$PFX/f.conf" <<EOF
 daemon on; error_log $PFX/flogs/e.log info; pid $PFX/f.pid;
-env XROOTD_FRM_STUB_RECALL_DELAY_MS=800;
+env BRIX_FRM_STUB_RECALL_DELAY_MS=800;
 thread_pool default threads=2;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${PORT}; xrootd on; xrootd_root $PFX/fexport; xrootd_auth none;
-    xrootd_storage_backend frm://stub${PFX}/tape;
-    xrootd_cache_store posix:${PFX}/fcache; } }
+stream { server { listen 127.0.0.1:${PORT}; xrootd on; brix_root $PFX/fexport; brix_auth none;
+    brix_storage_backend frm://stub${PFX}/tape;
+    brix_cache_store posix:${PFX}/fcache; } }
 EOF
     head -c 400000 /dev/urandom > "$PFX/tape/f.bin"; SHA=$(sha256sum "$PFX/tape/f.bin"|cut -d' ' -f1)
     "$NGINX" -p "$PFX" -c "$PFX/f.conf" 2>"$PFX/f.err" || { bad "frm:// node start"; cat "$PFX/f.err"; cat "$PFX/flogs/e.log"; }

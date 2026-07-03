@@ -1,5 +1,5 @@
-# _test_xrootd_performance_conformance_helpers.py - shared header/helpers/fixtures/constants for the Phase-38
-# split of test_xrootd_performance_conformance.py.  `from _test_xrootd_performance_conformance_helpers import *` re-exports EVERYTHING via
+# _test_brix_performance_conformance_helpers.py - shared header/helpers/fixtures/constants for the Phase-38
+# split of test_brix_performance_conformance.py.  `from _test_brix_performance_conformance_helpers import *` re-exports EVERYTHING via
 # the __all__ below so the test functions keep their exact module namespace.
 
 

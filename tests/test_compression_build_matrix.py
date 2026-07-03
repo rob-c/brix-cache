@@ -6,9 +6,9 @@ Two build-time guards for the codec compile-gating contract (codec_core.h):
   1. **Graceful degradation when an optional codec library is ABSENT.**
      `tests/c/codec_nolib_test.c` compiles the codec kernel with the mandatory
      zlib backend but every optional backend (zstd/xz/brotli/bzip2/lz4) built
-     WITHOUT its -DXROOTD_HAVE_* macro, i.e. as its `available = 0` stub, linking
+     WITHOUT its -DBRIX_HAVE_* macro, i.e. as its `available = 0` stub, linking
      none of those libraries.  It asserts the table has no holes, the absent
-     codecs report unavailable, and `xrootd_codec_open()` returns NULL for them
+     codecs report unavailable, and `brix_codec_open()` returns NULL for them
      (so the server degrades to plaintext / rejects rather than crashing).  Fast,
      deterministic, no external libs — runs by default.
 
@@ -16,7 +16,7 @@ Two build-time guards for the codec compile-gating contract (codec_core.h):
      `tests/build_dynamic_modules.sh` does a full isolated `--add-dynamic-module`
      nginx build (never touching the harness binary) and asserts the compression
      codec libraries — including lz4 — are linked into the dynamic stream `.so`
-     as DT_NEEDED records and resolve at load (the reason XROOTD_CODEC_LIBS is in
+     as DT_NEEDED records and resolve at load (the reason BRIX_CODEC_LIBS is in
      ngx_module_libs, not just CORE_LIBS).  Heavyweight (compiles nginx + all
      modules), so it is OPT-IN via XRD_RUN_BUILD_MATRIX=1.
 
@@ -50,11 +50,11 @@ def test_codec_nolib_graceful_degrade(tmp_path):
         pytest.skip("codec_nolib_test.c not present")
 
     binp = str(tmp_path / "codec_nolib_test")
-    # zlib backend compiled in (-DXROOTD_HAVE_ZLIB, -lz); the 5 optional backends
+    # zlib backend compiled in (-DBRIX_HAVE_ZLIB, -lz); the 5 optional backends
     # compiled WITHOUT their HAVE macro -> available=0 stubs, no optional libs.
     cmd = [
         _cc(), "-std=c11", "-O2", "-Wall", "-Wextra",
-        "-DXROOTD_HAVE_ZLIB", "-I", CM, src,
+        "-DBRIX_HAVE_ZLIB", "-I", CM, src,
         os.path.join(CM, "codec_core.c"),
         os.path.join(CM, "codec_zlib.c"),
         os.path.join(CM, "codec_zstd.c"),
@@ -79,11 +79,11 @@ def test_codec_nolib_graceful_degrade(tmp_path):
 
 # Per-codec drop matrix: (codec, HAVE-flag, link-libs). zlib is always kept.
 _OPT_CODECS = [
-    ("zstd",   "XROOTD_HAVE_ZSTD",   ["-lzstd"]),
-    ("xz",     "XROOTD_HAVE_LZMA",   ["-llzma"]),
-    ("brotli", "XROOTD_HAVE_BROTLI", ["-lbrotlienc", "-lbrotlidec"]),
-    ("bzip2",  "XROOTD_HAVE_BZIP2",  ["-lbz2"]),
-    ("lz4",    "XROOTD_HAVE_LZ4",    ["-l:liblz4.so.1"]),
+    ("zstd",   "BRIX_HAVE_ZSTD",   ["-lzstd"]),
+    ("xz",     "BRIX_HAVE_LZMA",   ["-llzma"]),
+    ("brotli", "BRIX_HAVE_BROTLI", ["-lbrotlienc", "-lbrotlidec"]),
+    ("bzip2",  "BRIX_HAVE_BZIP2",  ["-lbz2"]),
+    ("lz4",    "BRIX_HAVE_LZ4",    ["-l:liblz4.so.1"]),
 ]
 _CODEC_SRC = {
     "zstd": "codec_zstd.c", "xz": "codec_lzma.c", "brotli": "codec_brotli.c",
@@ -93,7 +93,7 @@ _CODEC_SRC = {
 
 @pytest.mark.parametrize("dropped", [c[0] for c in _OPT_CODECS])
 def test_codec_per_codec_drop_independence(tmp_path, dropped):
-    """Drop ONE optional codec (its -DXROOTD_HAVE_* + lib omitted) while KEEPING
+    """Drop ONE optional codec (its -DBRIX_HAVE_* + lib omitted) while KEEPING
     the others, and assert: the dropped codec degrades to available=0, every kept
     codec stays available=1, and gzip (zlib, mandatory) stays available. Proves
     codecs are independent — removing one never disables another nor leaves a
@@ -104,7 +104,7 @@ def test_codec_per_codec_drop_independence(tmp_path, dropped):
 
     # lz4's header may live off the default include path (env hint mirrors config).
     extra_cflags = []
-    lz4_inc = os.environ.get("XROOTD_LZ4_CFLAGS", "")
+    lz4_inc = os.environ.get("BRIX_LZ4_CFLAGS", "")
     if not lz4_inc:
         for inc in ("/usr/include", os.path.expanduser("~/miniconda3/include"),
                     "/opt/conda/include"):
@@ -114,7 +114,7 @@ def test_codec_per_codec_drop_independence(tmp_path, dropped):
     if lz4_inc:
         extra_cflags.append(lz4_inc)
 
-    cmd = [_cc(), "-std=c11", "-O2", "-Wall", "-Wextra", "-DXROOTD_HAVE_ZLIB",
+    cmd = [_cc(), "-std=c11", "-O2", "-Wall", "-Wextra", "-DBRIX_HAVE_ZLIB",
            *extra_cflags, "-I", CM, probe,
            os.path.join(CM, "codec_core.c"), os.path.join(CM, "codec_zlib.c")]
     libs = ["-lz"]

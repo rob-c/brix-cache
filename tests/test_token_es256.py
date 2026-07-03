@@ -4,8 +4,8 @@ tests/test_token_es256.py
 Coverage gap #9 (test-coverage-gap-audit): ES256 / EC P-256 POSITIVE JWT verify.
 
 Before this, only the FORGED ES256 case (test_token_security::test_alg_es256_rejected)
-existed — make_token.py emits RSA JWKS only, so xrootd_token_verify_es256() and
-xrootd_token_ec_pubkey_from_xy() (the P1363 r||s → DER conversion + the EC
+existed — make_token.py emits RSA JWKS only, so brix_token_verify_es256() and
+brix_token_ec_pubkey_from_xy() (the P1363 r||s → DER conversion + the EC
 pubkey-from-(x,y) build) had NEVER executed with a genuine ES256 signature.  A
 byte-order / ownership / length bug in that conversion would either silently
 accept an invalid signature or false-deny every legitimate EC token.
@@ -96,14 +96,14 @@ http {{
     server {{
         listen {BIND_HOST}:{PORT};
         location / {{
-            xrootd_webdav on;
-            xrootd_webdav_storage_backend posix:{data};
-            xrootd_webdav_auth required;
-            xrootd_webdav_cadir {d}/cadir;
-            xrootd_webdav_allow_write on;
-            xrootd_webdav_token_jwks {jwks_path};
-            xrootd_webdav_token_issuer "{ISSUER}";
-            xrootd_webdav_token_audience "{AUDIENCE}";
+            brix_webdav on;
+            brix_webdav_storage_backend posix:{data};
+            brix_webdav_auth required;
+            brix_webdav_cadir {d}/cadir;
+            brix_webdav_allow_write on;
+            brix_webdav_token_jwks {jwks_path};
+            brix_webdav_token_issuer "{ISSUER}";
+            brix_webdav_token_audience "{AUDIENCE}";
         }}
     }}
 }}

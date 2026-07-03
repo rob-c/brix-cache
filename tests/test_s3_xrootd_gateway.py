@@ -20,7 +20,7 @@ Both the S3 endpoint (NGINX_S3_PORT) and the XRootD anonymous endpoint
 (NGINX_ANON_PORT) must be pre-launched.
 
 Run:
-    pytest tests/test_s3_xrootd_gateway.py -v
+    pytest tests/test_s3_brix_gateway.py -v
 """
 
 import hashlib
@@ -280,7 +280,7 @@ class TestS3ToXRootDGateway:
             f"xrdcp-uploaded file {key!r} not found in S3 listing:\n{body[:500]}"
         )
 
-    def test_s3_delete_removes_from_xrootd_namespace(self, s3_gateway):
+    def test_s3_delete_removes_from_brix_namespace(self, s3_gateway):
         """File deleted via S3 DELETE is gone from the XRootD namespace."""
         key = f"gw_del_{uuid.uuid4().hex[:8]}.bin"
         _s3_put(key, b"delete-me")
@@ -305,7 +305,7 @@ class TestS3ToXRootDGateway:
             "File still visible in XRootD namespace after S3 DELETE"
         )
 
-    def test_large_file_s3_to_xrootd_integrity(self, s3_gateway, tmp_path):
+    def test_large_file_s3_to_brix_integrity(self, s3_gateway, tmp_path):
         """1 MiB file uploaded via S3 and downloaded via xrdcp matches SHA-256."""
         payload = os.urandom(1 * 1024 * 1024)
         key = f"gw_large_{uuid.uuid4().hex[:8]}.bin"

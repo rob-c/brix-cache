@@ -33,7 +33,7 @@ from settings import (
     NGINX_ANON_PORT,
     READONLY_DATA_ROOT,
     READONLY_PORT as FIXED_READONLY_PORT,
-    REF_XROOTD_PORT,
+    REF_BRIX_PORT,
     SERVER_HOST,
     url_host,
 )
@@ -46,7 +46,7 @@ CROSS_BACKEND = selected_backend_name()
 
 if CROSS_BACKEND == "xrootd":
     ANON_HOST, ANON_PORT = root_endpoint_parts(
-        f"root://{url_host(HOST)}:{REF_XROOTD_PORT}")
+        f"root://{url_host(HOST)}:{REF_BRIX_PORT}")
 else:
     ANON_HOST = SERVER_HOST
     ANON_PORT = NGINX_ANON_PORT
@@ -292,7 +292,7 @@ def readonly_nginx():
     reason="read-only listener coverage is specific to nginx-xrootd",
 )
 class TestReadOnlyServer:
-    """A listener without xrootd_allow_write must permit reads and block mutations."""
+    """A listener without brix_allow_write must permit reads and block mutations."""
 
     @pytest.fixture(autouse=True)
     def _setup_paths(self):
@@ -613,7 +613,7 @@ class TestReadOnlyServer:
 # ===========================================================================
 
 class TestReadSideSymlinkEscape:
-    """Read-only operations must not follow symlinks outside xrootd_root."""
+    """Read-only operations must not follow symlinks outside brix_root."""
 
     @pytest.fixture(autouse=True)
     def _setup_symlinks(self):
@@ -677,13 +677,13 @@ class TestReadSideSymlinkEscape:
 
 class TestWriteSideSymlinkEscape:
     """Mutating ops (open-create, mkdir, rm, truncate, mv-destination) must not
-    follow a symlink out of xrootd_root.  This is the write-side partner to
+    follow a symlink out of brix_root.  This is the write-side partner to
     TestReadSideSymlinkEscape and a direct regression guard for the openat2
     RESOLVE_BENEATH parent-confinement that the *at() syscall family
     (mkdirat/unlinkat/renameat) needs: a symlink in an INTERMEDIATE component
     (/link_dir -> /outside) is otherwise followed straight out of the root.
 
-    The anon endpoint has xrootd_allow_write on, so a rejection here proves
+    The anon endpoint has brix_allow_write on, so a rejection here proves
     CONFINEMENT (not an auth failure).  Each attack targets a genuinely WRITABLE
     directory outside the root and then asserts that directory is left pristine —
     nothing created, the victim file neither overwritten, truncated, nor deleted.

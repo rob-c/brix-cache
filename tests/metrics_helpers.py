@@ -86,7 +86,7 @@ class Snapshot:
             vb = value(self.before, name, labels)
             va = value(after, name, labels)
         else:
-            # Unlabelled (scalar) series, e.g. xrootd_s3_list_contents_total.
+            # Unlabelled (scalar) series, e.g. brix_s3_list_contents_total.
             vb = scalar(self.before, name)
             va = scalar(after, name)
         assert va != -1, f"metric {name}{labels} not exported after activity"

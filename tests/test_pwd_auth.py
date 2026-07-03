@@ -2,7 +2,7 @@
 
 End-to-end coverage of the native pure-C client speaking the ``pwd`` protocol to
 our nginx server: a 2-round DH-bootstrapped exchange whose credential is verified
-(PBKDF2-HMAC-SHA1) against ``xrootd_pwd_file``.  Each behaviour has the mandated
+(PBKDF2-HMAC-SHA1) against ``brix_pwd_file``.  Each behaviour has the mandated
 trio — success, error (wrong password), and a security-negative (unknown user must
 not be an enumeration oracle; no credential must be rejected).
 
@@ -84,10 +84,10 @@ def pwd_server(tmp_path_factory):
         "    server {\n"
         f"        listen 127.0.0.1:{P_PWD};\n"
         "        xrootd on;\n"
-        f"        xrootd_storage_backend posix:{data};\n"
-        "        xrootd_auth pwd;\n"
-        f"        xrootd_pwd_file {pwdfile};\n"
-        "        xrootd_allow_write on;\n"
+        f"        brix_storage_backend posix:{data};\n"
+        "        brix_auth pwd;\n"
+        f"        brix_pwd_file {pwdfile};\n"
+        "        brix_allow_write on;\n"
         "    }\n"
         "}\n")
 

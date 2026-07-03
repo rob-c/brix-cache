@@ -9,8 +9,8 @@
  *       server's net_target parser is ngx_str_t/pool-coupled, so it can't share
  *       this as-is today (a future ptr+len core could back both).
  */
-#ifndef XROOTD_COMPAT_HOST_SPLIT_H
-#define XROOTD_COMPAT_HOST_SPLIT_H
+#ifndef BRIX_COMPAT_HOST_SPLIT_H
+#define BRIX_COMPAT_HOST_SPLIT_H
 
 #include <stddef.h>
 
@@ -22,7 +22,7 @@
  * after "]", an empty/oversized host, or an explicit port outside 1..65535.
  * Does NOT handle a leading "user@" — the caller strips that first.
  */
-int xrootd_split_host_port(const char *in, char *host, size_t hsz,
+int brix_split_host_port(const char *in, char *host, size_t hsz,
                            int *port, int default_port);
 
-#endif /* XROOTD_COMPAT_HOST_SPLIT_H */
+#endif /* BRIX_COMPAT_HOST_SPLIT_H */

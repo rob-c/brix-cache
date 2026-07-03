@@ -43,40 +43,40 @@
 #include "core/compat/alloc_guard.h"
 
 /* Map an S3 request method to the XrdAcc operation it requires. */
-static xrootd_acc_op_t
+static brix_acc_op_t
 s3_method_aop(ngx_http_request_t *r)
 {
     switch (r->method) {
-    case NGX_HTTP_GET:    return XROOTD_AOP_READ;    /* GetObject / ListObjects */
-    case NGX_HTTP_HEAD:   return XROOTD_AOP_STAT;
-    case NGX_HTTP_PUT:    return XROOTD_AOP_CREATE;
-    case NGX_HTTP_POST:   return XROOTD_AOP_CREATE;  /* multipart upload */
-    case NGX_HTTP_DELETE: return XROOTD_AOP_DELETE;
-    default:              return XROOTD_AOP_STAT;
+    case NGX_HTTP_GET:    return BRIX_AOP_READ;    /* GetObject / ListObjects */
+    case NGX_HTTP_HEAD:   return BRIX_AOP_STAT;
+    case NGX_HTTP_PUT:    return BRIX_AOP_CREATE;
+    case NGX_HTTP_POST:   return BRIX_AOP_CREATE;  /* multipart upload */
+    case NGX_HTTP_DELETE: return BRIX_AOP_DELETE;
+    default:              return BRIX_AOP_STAT;
     }
 }
 
 /*
- * s3_acc_check — XrdAcc tier for S3 (when `xrootd_authdb_format xrdacc`).
+ * s3_acc_check — XrdAcc tier for S3 (when `brix_authdb_format xrdacc`).
  * Returns NGX_OK (allow / not selected) or NGX_HTTP_FORBIDDEN (deny).
  */
 static ngx_int_t
 s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-             xrootd_identity_t *id)
+             brix_identity_t *id)
 {
     const char *name = "", *vorg = "", *role = "", *grp = "";
     char        host[64], path[1024];
     size_t      n;
     ngx_int_t   rc;
 
-    if (cf->acc.format != XROOTD_AUTHDB_FORMAT_XRDACC) {
+    if (cf->acc.format != BRIX_AUTHDB_FORMAT_XRDACC) {
         return NGX_OK;
     }
     if (id != NULL) {
-        name = xrootd_identity_dn_cstr(id);     /* S3 access key (or subject) */
-        vorg = xrootd_identity_acc_vorg_cstr(id);
-        role = xrootd_identity_acc_role_cstr(id);
-        grp  = xrootd_identity_acc_group_cstr(id);
+        name = brix_identity_dn_cstr(id);     /* S3 access key (or subject) */
+        vorg = brix_identity_acc_vorg_cstr(id);
+        role = brix_identity_acc_role_cstr(id);
+        grp  = brix_identity_acc_group_cstr(id);
     }
     n = ngx_min(r->connection->addr_text.len, sizeof(host) - 1);
     ngx_memcpy(host, r->connection->addr_text.data, n);
@@ -85,7 +85,7 @@ s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     /* Opt-in reverse DNS for `h <host>`/`h .domain` rules (per request). */
     if (cf->acc.resolve_hosts) {
         char        hbuf[256];
-        const char *h = xrootd_acc_resolve_peer(r->connection->sockaddr,
+        const char *h = brix_acc_resolve_peer(r->connection->sockaddr,
                                                 r->connection->socklen,
                                                 hbuf, sizeof(hbuf));
         if (h != NULL) {
@@ -99,7 +99,7 @@ s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     ngx_memcpy(path, r->uri.data, n);
     path[n] = '\0';
 
-    rc = xrootd_acc_http_authorize(r->pool, r->connection->log,
+    rc = brix_acc_http_authorize(r->pool, r->connection->log,
                                    &cf->acc, name, host, vorg, role, grp,
                                    s3_method_aop(r), path);
     return (rc == NGX_ERROR) ? NGX_HTTP_FORBIDDEN : NGX_OK;
@@ -170,9 +170,9 @@ s3_parse_uri(ngx_http_request_t *r,
         return 1;
     }
 
-    if (xrootd_http_urldecode(uri, ulen, (char *) key_out, key_sz,
-            XROOTD_URLDECODE_PLUS_TO_SPACE |
-            XROOTD_URLDECODE_REJECT_NUL) != XROOTD_URLDECODE_OK)
+    if (brix_http_urldecode(uri, ulen, (char *) key_out, key_sz,
+            BRIX_URLDECODE_PLUS_TO_SPACE |
+            BRIX_URLDECODE_REJECT_NUL) != BRIX_URLDECODE_OK)
     {
         return 0;
     }
@@ -202,7 +202,7 @@ s3_is_list_request(ngx_http_request_t *r)
         return 0;
     }
 
-    return xrootd_http_query_get(r->args, "list-type", list_type,
+    return brix_http_query_get(r->args, "list-type", list_type,
                                  sizeof(list_type), 0) > 0
            && ngx_strcmp(list_type, "2") == 0;
 }
@@ -216,7 +216,7 @@ s3_is_post_object_form(ngx_http_request_t *r)
         return 0;
     }
 
-    ct = xrootd_http_find_header(r, "Content-Type",
+    ct = brix_http_find_header(r, "Content-Type",
                                  sizeof("Content-Type") - 1);
     if (ct == NULL || ct->value.len < sizeof("multipart/form-data") - 1) {
         return 0;
@@ -231,9 +231,9 @@ s3_allow_flags(ngx_http_s3_loc_conf_t *cf)
 {
     ngx_uint_t flags;
 
-    flags = XROOTD_PROTO_OP_READ | XROOTD_PROTO_OP_LIST;
+    flags = BRIX_PROTO_OP_READ | BRIX_PROTO_OP_LIST;
     if (cf->common.allow_write) {
-        flags |= XROOTD_PROTO_OP_WRITE | XROOTD_PROTO_OP_ASYNC_BODY;
+        flags |= BRIX_PROTO_OP_WRITE | BRIX_PROTO_OP_ASYNC_BODY;
     }
 
     return flags;
@@ -245,33 +245,33 @@ s3_add_preflight_headers(ngx_http_request_t *r, const ngx_str_t *allow)
     ngx_table_elt_t *origin;
     ngx_table_elt_t *req_headers;
 
-    origin = xrootd_http_find_header(r, "Origin", sizeof("Origin") - 1);
+    origin = brix_http_find_header(r, "Origin", sizeof("Origin") - 1);
     if (origin == NULL) {
         return NGX_OK;
     }
 
-    if (xrootd_http_set_header(r, "Access-Control-Allow-Origin", "*", NULL)
+    if (brix_http_set_header(r, "Access-Control-Allow-Origin", "*", NULL)
         != NGX_OK
-        || xrootd_http_set_header(r, "Vary", "Origin", NULL) != NGX_OK
-        || xrootd_http_set_header_str(r, "Access-Control-Allow-Methods",
+        || brix_http_set_header(r, "Vary", "Origin", NULL) != NGX_OK
+        || brix_http_set_header_str(r, "Access-Control-Allow-Methods",
                                       allow, 0, NULL) != NGX_OK)
     {
         return NGX_ERROR;
     }
 
-    req_headers = xrootd_http_find_header(
+    req_headers = brix_http_find_header(
         r, "Access-Control-Request-Headers",
         sizeof("Access-Control-Request-Headers") - 1);
     if (req_headers != NULL
-        && !xrootd_http_str_has_ctl(req_headers->value.data,
+        && !brix_http_str_has_ctl(req_headers->value.data,
                                     req_headers->value.len))
     {
-        if (xrootd_http_set_header_str(r, "Access-Control-Allow-Headers",
+        if (brix_http_set_header_str(r, "Access-Control-Allow-Headers",
                                        &req_headers->value, 0, NULL) != NGX_OK)
         {
             return NGX_ERROR;
         }
-    } else if (xrootd_http_set_header(r, "Access-Control-Allow-Headers",
+    } else if (brix_http_set_header(r, "Access-Control-Allow-Headers",
                                       "Authorization, Content-Type, "
                                       "Content-Length, Content-MD5, "
                                       "x-amz-content-sha256, x-amz-date, "
@@ -285,7 +285,7 @@ s3_add_preflight_headers(ngx_http_request_t *r, const ngx_str_t *allow)
         return NGX_ERROR;
     }
 
-    return xrootd_http_set_header(r, "Access-Control-Max-Age", "86400", NULL);
+    return brix_http_set_header(r, "Access-Control-Max-Age", "86400", NULL);
 }
 
 static ngx_int_t
@@ -294,8 +294,8 @@ s3_handle_options(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
     ngx_table_elt_t *h;
     ngx_str_t        allow;
 
-    if (xrootd_http_operation_allow_header(r->pool,
-            xrootd_s3_operations, xrootd_s3_operations_count,
+    if (brix_http_operation_allow_header(r->pool,
+            brix_s3_operations, brix_s3_operations_count,
             s3_allow_flags(cf), &allow) != NGX_OK)
     {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -368,20 +368,20 @@ ngx_http_s3_handler(ngx_http_request_t *r)
     ngx_uint_t              method_slot;
     ngx_http_s3_req_ctx_t  *s3ctx;
 
-    cf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_s3_module);
+    cf = ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
     if (!cf->common.enable) {
         return NGX_DECLINED;
     }
 
     /* AGPL-3.0 sec.13: offer remote users the source (X-Source header). */
-    xrootd_http_source_offer(r);
+    brix_http_source_offer(r);
 
-    XROOTD_PCALLOC_OR_RETURN(s3ctx, r->pool, sizeof(*s3ctx), NGX_HTTP_INTERNAL_SERVER_ERROR);
-    s3ctx->identity = xrootd_identity_alloc(r->pool);
+    BRIX_PCALLOC_OR_RETURN(s3ctx, r->pool, sizeof(*s3ctx), NGX_HTTP_INTERNAL_SERVER_ERROR);
+    s3ctx->identity = brix_identity_alloc(r->pool);
     if (s3ctx->identity == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    ngx_http_set_ctx(r, s3ctx, ngx_http_xrootd_s3_module);
+    ngx_http_set_ctx(r, s3ctx, ngx_http_brix_s3_module);
 
     /*
      * ListObjectsV2 is an HTTP GET on the wire, but it has very different
@@ -389,7 +389,7 @@ ngx_http_s3_handler(ngx_http_request_t *r)
      */
     is_list_request = s3_is_list_request(r);
     is_post_object_form = s3_is_post_object_form(r);
-    method_slot = is_list_request ? XROOTD_S3_METHOD_LIST
+    method_slot = is_list_request ? BRIX_S3_METHOD_LIST
                                   : s3_metrics_method_slot(r);
     s3_metrics_request_method(method_slot);
 
@@ -406,7 +406,7 @@ ngx_http_s3_handler(ngx_http_request_t *r)
         }
     }
 
-    /* XrdAcc engine (when xrootd_authdb_format xrdacc) */    rc = s3_acc_check(r, cf, s3ctx->identity);
+    /* XrdAcc engine (when brix_authdb_format xrdacc) */    rc = s3_acc_check(r, cf, s3ctx->identity);
     if (rc != NGX_OK) {
         return s3_metrics_return_method(r, method_slot, rc);
     }
@@ -426,7 +426,7 @@ ngx_http_s3_handler(ngx_http_request_t *r)
 
     /*
      * SciTags packet marking (phase-34).  S3 has no TPC, so only plain
-     * GET/PUT are marked, and only when xrootd_pmark_http_plain is on.
+     * GET/PUT are marked, and only when brix_pmark_http_plain is on.
      * Begun here post-SigV4; ended via a request-pool cleanup.
      */
     if (cf->common.pmark.enable && cf->common.pmark.http_plain
@@ -439,10 +439,10 @@ ngx_http_s3_handler(ngx_http_request_t *r)
         } else {
             cgi[0] = '\0';
         }
-        xrootd_pmark_http_mark(&cf->common.pmark, r->pool, r->connection,
+        brix_pmark_http_mark(&cf->common.pmark, r->pool, r->connection,
             (r->method == NGX_HTTP_PUT),
-            xrootd_identity_vo_csv_cstr(s3ctx->identity),
-            xrootd_identity_dn_cstr(s3ctx->identity),
+            brix_identity_vo_csv_cstr(s3ctx->identity),
+            brix_identity_dn_cstr(s3ctx->identity),
             (const char *) pth, (const char *) cgi);
     }
 
@@ -456,10 +456,10 @@ ngx_http_s3_handler(ngx_http_request_t *r)
      * delete-objects) return NGX_DONE and re-establish the principal in their own
      * callbacks, so clearing it here on return is correct.  No-op unless map mode.
      */
-    xrootd_imp_request_begin(s3ctx->identity);
+    brix_imp_request_begin(s3ctx->identity);
     rc = s3_dispatch_after_auth(r, cf, s3ctx, method_slot,
                                 is_list_request, is_post_object_form);
-    xrootd_imp_request_end();
+    brix_imp_request_end();
     return rc;
 }
 
@@ -479,7 +479,7 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     {
         int parse_rc = s3_parse_uri(r, cf, key, sizeof(key));
         if (parse_rc == -1) {
-            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INVALID_URI]);
+            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INVALID_URI]);
             return s3_metrics_return_method(
                 r, method_slot,
                 s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
@@ -487,7 +487,7 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
                                   "The specified bucket does not exist."));
         }
         if (parse_rc == 0) {
-            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INVALID_URI]);
+            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INVALID_URI]);
             return s3_metrics_return_method(
                 r, method_slot,
                 s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST,
@@ -521,7 +521,7 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         && s3_has_query_flag(r, "delete"))
     {
         if (!cf->common.allow_write) {
-            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_WRITE_DISABLED]);
+            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_WRITE_DISABLED]);
             return s3_metrics_return_method(
                 r, method_slot,
                 s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
@@ -529,7 +529,7 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
                                   "Write access is disabled."));
         }
         r->request_body_in_single_buf = 1;
-        rc = xrootd_http_read_body(r, s3_delete_objects_body_handler);
+        rc = brix_http_read_body(r, s3_delete_objects_body_handler);
         if (rc != NGX_DONE) {
             return s3_metrics_return_method(r, method_slot, rc);
         }
@@ -543,7 +543,7 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
      */
     if (r->method == NGX_HTTP_POST && key[0] == '\0' && is_post_object_form) {
         if (!cf->common.allow_write) {
-            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_WRITE_DISABLED]);
+            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_WRITE_DISABLED]);
             return s3_metrics_return_method(
                 r, method_slot,
                 s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
@@ -552,7 +552,7 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         }
 
         r->request_body_in_single_buf = 1;
-        rc = xrootd_http_read_body(r, s3_post_object_body_handler);
+        rc = brix_http_read_body(r, s3_post_object_body_handler);
         if (rc != NGX_DONE) {
             return s3_metrics_return_method(r, method_slot, rc);
         }
@@ -596,7 +596,7 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     }
 
     if (key[0] == '\0') {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INVALID_URI]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INVALID_URI]);
         return s3_metrics_return_method(
             r, method_slot,
             s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST,
@@ -606,7 +606,7 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     if (!s3_resolve_key(cf->common.root_canon,
                         (const char *) key,
                         fs_path, sizeof(fs_path))) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_ACCESS_DENIED]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_ACCESS_DENIED]);
         return s3_metrics_return_method(
             r, method_slot,
             s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
@@ -645,8 +645,8 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 
     if (r->method == NGX_HTTP_PUT) {
         if (!cf->common.allow_write) {
-            XROOTD_S3_METRIC_INC(
-                events_total[XROOTD_S3_EVENT_WRITE_DISABLED]);
+            BRIX_S3_METRIC_INC(
+                events_total[BRIX_S3_EVENT_WRITE_DISABLED]);
             return s3_metrics_return_method(
                 r, method_slot,
                 s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
@@ -657,7 +657,7 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         /* PutObjectTagging: PUT /key?tagging (XML body). */
         if (s3_has_query_flag(r, "tagging")) {
             r->request_body_in_single_buf = 1;
-            rc = xrootd_http_read_body(r, s3_put_object_tagging_body_handler);
+            rc = brix_http_read_body(r, s3_put_object_tagging_body_handler);
             if (rc != NGX_DONE) {
                 return s3_metrics_return_method(r, method_slot, rc);
             }
@@ -707,7 +707,7 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
              * overwrite fs_path with the part-file path below.  Calling it after
              * the overwrite fed it the part path and made s3_get_mpu_dir compute
              * the wrong dir — UploadPartCopy always returned NoSuchUpload. */
-            if (xrootd_http_find_header(r, "x-amz-copy-source",
+            if (brix_http_find_header(r, "x-amz-copy-source",
                                         sizeof("x-amz-copy-source") - 1)
                 != NULL)
             {
@@ -731,7 +731,7 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         }
 
         /* CopyObject: PUT /bucket/key  +  x-amz-copy-source (no uploadId) */
-        if (xrootd_http_find_header(r, "x-amz-copy-source",
+        if (brix_http_find_header(r, "x-amz-copy-source",
                                     sizeof("x-amz-copy-source") - 1) != NULL)
         {
             return s3_metrics_return_method(r, method_slot,
@@ -763,7 +763,7 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 
         r->request_body_in_single_buf = 1;
 
-        rc = xrootd_http_read_body(r, s3_put_body_handler);
+        rc = brix_http_read_body(r, s3_put_body_handler);
         if (rc != NGX_DONE) {
             return s3_metrics_return_method(r, method_slot, rc);
         }
@@ -772,8 +772,8 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 
     if (r->method == NGX_HTTP_DELETE) {
         if (!cf->common.allow_write) {
-            XROOTD_S3_METRIC_INC(
-                events_total[XROOTD_S3_EVENT_WRITE_DISABLED]);
+            BRIX_S3_METRIC_INC(
+                events_total[BRIX_S3_EVENT_WRITE_DISABLED]);
             return s3_metrics_return_method(
                 r, method_slot,
                 s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
@@ -798,8 +798,8 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 
     if (r->method == NGX_HTTP_POST) {
         if (!cf->common.allow_write) {
-            XROOTD_S3_METRIC_INC(
-                events_total[XROOTD_S3_EVENT_WRITE_DISABLED]);
+            BRIX_S3_METRIC_INC(
+                events_total[BRIX_S3_EVENT_WRITE_DISABLED]);
             return s3_metrics_return_method(
                 r, method_slot,
                 s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
@@ -814,7 +814,7 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         } else if (s3_get_query_param(r, "uploadId", upload_id, sizeof(upload_id))) {
             r->request_body_in_single_buf = 1;
 
-            rc = xrootd_http_read_body(r, s3_multipart_complete_body_handler);
+            rc = brix_http_read_body(r, s3_multipart_complete_body_handler);
             if (rc != NGX_DONE) {
                 return s3_metrics_return_method(r, method_slot, rc);
             }
@@ -822,6 +822,6 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         }
     }
 
-    XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_METHOD_NOT_ALLOWED]);
+    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_METHOD_NOT_ALLOWED]);
     return s3_metrics_return_method(r, method_slot, NGX_HTTP_NOT_ALLOWED);
 }

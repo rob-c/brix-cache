@@ -39,8 +39,8 @@ main(void)
     int    exclusive;
     int    failed = 0;
 
-    if (xrootd_xml_escape(webdav_src, sizeof(webdav_src) - 1,
-                          XROOTD_XML_ESCAPE_CONTROL_PERCENT,
+    if (brix_xml_escape(webdav_src, sizeof(webdav_src) - 1,
+                          BRIX_XML_ESCAPE_CONTROL_PERCENT,
                           (unsigned char *) out, sizeof(out),
                           &written) != 0)
     {
@@ -54,8 +54,8 @@ main(void)
         failed = 1;
     }
 
-    if (xrootd_xml_escape((const unsigned char *) "'", 1,
-                          XROOTD_XML_ESCAPE_APOS_ENTITY,
+    if (brix_xml_escape((const unsigned char *) "'", 1,
+                          BRIX_XML_ESCAPE_APOS_ENTITY,
                           (unsigned char *) out, sizeof(out),
                           NULL) != 0)
     {
@@ -64,17 +64,17 @@ main(void)
     }
     failed |= expect_str("s3 apostrophe", out, "&apos;");
 
-    if (xrootd_xml_escape((const unsigned char *) "&&&&", 4, 0,
+    if (brix_xml_escape((const unsigned char *) "&&&&", 4, 0,
                           (unsigned char *) out, 4, NULL) == 0)
     {
         printf("short escape buffer was accepted\n");
         failed = 1;
     }
 
-    if (xrootd_xml_write_text_element("D:href",
+    if (brix_xml_write_text_element("D:href",
                                       (const unsigned char *) "a&b<'",
                                       strlen("a&b<'"),
-                                      XROOTD_XML_ESCAPE_APOS_ENTITY,
+                                      BRIX_XML_ESCAPE_APOS_ENTITY,
                                       (unsigned char *) out, sizeof(out),
                                       &written) != 0)
     {
@@ -87,16 +87,16 @@ main(void)
         printf("text element written length failed\n");
         failed = 1;
     }
-    if (xrootd_xml_text_element_len("D:href",
+    if (brix_xml_text_element_len("D:href",
                                     (const unsigned char *) "a&b<'",
                                     strlen("a&b<'"),
-                                    XROOTD_XML_ESCAPE_APOS_ENTITY)
+                                    BRIX_XML_ESCAPE_APOS_ENTITY)
         != strlen(out))
     {
         printf("text element length helper failed\n");
         failed = 1;
     }
-    if (xrootd_xml_write_text_element("bad name",
+    if (brix_xml_write_text_element("bad name",
                                       (const unsigned char *) "x", 1, 0,
                                       (unsigned char *) out, sizeof(out),
                                       NULL) == 0)
@@ -106,14 +106,14 @@ main(void)
     }
 
     exclusive = 1;
-    if (xrootd_xml_parse_lockinfo(lock_xml, strlen(lock_xml),
+    if (brix_xml_parse_lockinfo(lock_xml, strlen(lock_xml),
                                   owner, sizeof(owner), &exclusive) != 0)
     {
         printf("lockinfo parse failed with backend %s\n",
-               xrootd_xml_backend_name());
+               brix_xml_backend_name());
         failed = 1;
     } else {
-        if (strcmp(xrootd_xml_backend_name(), "libxml2") == 0) {
+        if (strcmp(brix_xml_backend_name(), "libxml2") == 0) {
             failed |= expect_str("lock owner", owner,
                                  "mailto:a&b@example.test");
         } else {
@@ -127,7 +127,7 @@ main(void)
     }
 
     exclusive = 0;
-    if (xrootd_xml_parse_lockinfo(exclusive_xml, strlen(exclusive_xml),
+    if (brix_xml_parse_lockinfo(exclusive_xml, strlen(exclusive_xml),
                                   owner, sizeof(owner), &exclusive) != 0)
     {
         printf("exclusive lockinfo parse failed\n");
@@ -142,15 +142,15 @@ main(void)
 
     exclusive = 1;
     owner[0] = '\0';
-    (void) xrootd_xml_parse_lockinfo(xxe_xml, strlen(xxe_xml),
+    (void) brix_xml_parse_lockinfo(xxe_xml, strlen(xxe_xml),
                                      owner, sizeof(owner), &exclusive);
     if (strstr(owner, "root:") != NULL) {
         printf("external entity content was expanded into owner\n");
         failed = 1;
     }
 
-    if (strcmp(xrootd_xml_backend_name(), "libxml2") == 0
-        && xrootd_xml_parse_lockinfo("<lockinfo>", strlen("<lockinfo>"),
+    if (strcmp(brix_xml_backend_name(), "libxml2") == 0
+        && brix_xml_parse_lockinfo("<lockinfo>", strlen("<lockinfo>"),
                                      owner, sizeof(owner), &exclusive) == 0)
     {
         printf("malformed lockinfo was accepted by libxml2 parser\n");
@@ -161,6 +161,6 @@ main(void)
         return 1;
     }
 
-    printf("xml compat helpers passed using %s\n", xrootd_xml_backend_name());
+    printf("xml compat helpers passed using %s\n", brix_xml_backend_name());
     return 0;
 }

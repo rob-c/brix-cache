@@ -11,25 +11,25 @@
 #include "protocols/root/zip/zip_http.h"   /* phase-57 W2: ZIP member access over S3 GET */
 
 /* GetObject range/bytes metrics — shared by the inline serve and the off-loop
- * serve completion (xrootd_http_serve_offload), so both report identically. */
+ * serve completion (brix_http_serve_offload), so both report identically. */
 static void
 s3_serve_metrics(ngx_http_request_t *r,
-    const xrootd_http_serve_result_t *result)
+    const brix_http_serve_result_t *result)
 {
-    if (result->range_result == XROOTD_SERVE_RANGE_UNSATISFIED) {
-        XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_UNSATISFIED]);
-    } else if (result->range_result == XROOTD_SERVE_RANGE_PARTIAL) {
-        XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_PARTIAL]);
+    if (result->range_result == BRIX_SERVE_RANGE_UNSATISFIED) {
+        BRIX_S3_METRIC_INC(range_total[BRIX_S3_RANGE_UNSATISFIED]);
+    } else if (result->range_result == BRIX_SERVE_RANGE_PARTIAL) {
+        BRIX_S3_METRIC_INC(range_total[BRIX_S3_RANGE_PARTIAL]);
     } else {
-        XROOTD_S3_METRIC_INC(range_total[XROOTD_S3_RANGE_FULL]);
+        BRIX_S3_METRIC_INC(range_total[BRIX_S3_RANGE_FULL]);
     }
     if (result->bytes_sent > 0) {
-        XROOTD_S3_METRIC_ADD(bytes_tx_total, (size_t) result->bytes_sent);
+        BRIX_S3_METRIC_ADD(bytes_tx_total, (size_t) result->bytes_sent);
         if (r->connection && r->connection->sockaddr
             && r->connection->sockaddr->sa_family == AF_INET6) {
-            XROOTD_S3_METRIC_ADD(bytes_tx_ipv6_total, (size_t) result->bytes_sent);
+            BRIX_S3_METRIC_ADD(bytes_tx_ipv6_total, (size_t) result->bytes_sent);
         } else {
-            XROOTD_S3_METRIC_ADD(bytes_tx_ipv4_total, (size_t) result->bytes_sent);
+            BRIX_S3_METRIC_ADD(bytes_tx_ipv4_total, (size_t) result->bytes_sent);
         }
     }
 }
@@ -47,18 +47,18 @@ s3_serve_metrics(ngx_http_request_t *r,
 
 static void
 s3_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
-    ngx_http_s3_loc_conf_t *cf, xrootd_vfs_ctx_t *vctx)
+    ngx_http_s3_loc_conf_t *cf, brix_vfs_ctx_t *vctx)
 {
     ngx_http_s3_req_ctx_t *s3ctx;
     int                    is_tls = 0;
 
-    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
 
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
 
-    xrootd_vfs_ctx_init(vctx, r->pool, r->connection->log, XROOTD_PROTO_S3,
+    brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
         cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
         is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 }
@@ -79,9 +79,9 @@ s3_get_reenter(ngx_http_request_t *r, void *data)
     return s3_handle_get(r, d->fs_path, d->cf);
 }
 
-/* WHY: GET is the primary S3 data path — clients download object bytes via HTTP GET or byte-range requests. Range support (RFC 7233) enables resumable downloads and parallel chunked transfers, critical for large objects in HEP workflows where files often exceed gigabytes. The range-parse → headers → body-send pipeline is shared with WebDAV GET via xrootd_http_serve_file_ranged() (src/shared/file_serve.c); this handler keeps only the S3-specific concerns: NoSuchKey XML errors, identity resolution, and S3 range/bytes metrics. */
+/* WHY: GET is the primary S3 data path — clients download object bytes via HTTP GET or byte-range requests. Range support (RFC 7233) enables resumable downloads and parallel chunked transfers, critical for large objects in HEP workflows where files often exceed gigabytes. The range-parse → headers → body-send pipeline is shared with WebDAV GET via brix_http_serve_file_ranged() (src/shared/file_serve.c); this handler keeps only the S3-specific concerns: NoSuchKey XML errors, identity resolution, and S3 range/bytes metrics. */
 
-/* HOW: Phase 1 — open the object through the VFS layer (xrootd_vfs_open, read-only, cache-aware). If the open fails: ENOENT/ENOTDIR → NoSuchKey 404 XML; other errno → xrootd_http_errno_to_status() with internal_error metric. Phase 2 — xrootd_vfs_file_stat(); a directory target → NoSuchKey 404 (S3 keys are objects, not directories). Phase 3 — resolve the display identity (token subject, else access key, else "anonymous"). Phase 4 — fill xrootd_http_serve_opts_t (xfer_proto=S3, op_name="GetObject", etag_flags=0) and delegate the entire range-parse/header/send pipeline to xrootd_http_serve_file_ranged(), which also takes ownership of the vfs handle. Phase 5 — from the returned result, increment the S3 range_total[FULL/PARTIAL/UNSATISFIED] counter and, on a non-zero body, bytes_tx_total plus the IPv4/IPv6 split. */
+/* HOW: Phase 1 — open the object through the VFS layer (brix_vfs_open, read-only, cache-aware). If the open fails: ENOENT/ENOTDIR → NoSuchKey 404 XML; other errno → brix_http_errno_to_status() with internal_error metric. Phase 2 — brix_vfs_file_stat(); a directory target → NoSuchKey 404 (S3 keys are objects, not directories). Phase 3 — resolve the display identity (token subject, else access key, else "anonymous"). Phase 4 — fill brix_http_serve_opts_t (xfer_proto=S3, op_name="GetObject", etag_flags=0) and delegate the entire range-parse/header/send pipeline to brix_http_serve_file_ranged(), which also takes ownership of the vfs handle. Phase 5 — from the returned result, increment the S3 range_total[FULL/PARTIAL/UNSATISFIED] counter and, on a non-zero body, bytes_tx_total plus the IPv4/IPv6 split. */
 /*
  * s3_handle_get - serve a file as an S3 GetObject response.
  *
@@ -99,9 +99,9 @@ s3_handle_get(ngx_http_request_t *r,
               const char *fs_path,
               ngx_http_s3_loc_conf_t *cf)
 {
-    xrootd_vfs_ctx_t    vctx;
-    xrootd_vfs_file_t  *fh;
-    xrootd_vfs_stat_t   vst;
+    brix_vfs_ctx_t    vctx;
+    brix_vfs_file_t  *fh;
+    brix_vfs_stat_t   vst;
     int                 vfs_err;
     ngx_int_t           rc;
     char                identity[128];
@@ -112,19 +112,19 @@ s3_handle_get(ngx_http_request_t *r,
      * the dispatcher; serve the requested member of the archive object. */
     if (cf->zip_access) {
         char member[PATH_MAX];
-        int  zr = xrootd_zip_http_member_arg(r, member, sizeof(member));
+        int  zr = brix_zip_http_member_arg(r, member, sizeof(member));
         if (zr < 0) {
             return s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "InvalidArgument",
                                      "invalid xrdcl.unzip member");
         }
         if (zr > 0) {
-            ngx_int_t zs = xrootd_zip_http_serve(r, cf->common.root_canon,
+            ngx_int_t zs = brix_zip_http_serve(r, cf->common.root_canon,
                                                  cf->zip_cd_max_bytes,
                                                  fs_path, member);
             if (zs == NGX_HTTP_NOT_FOUND) {
                 return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
                                "The specified key does not exist.",
-                               XROOTD_S3_EVENT_NO_SUCH_KEY);
+                               BRIX_S3_EVENT_NO_SUCH_KEY);
             }
             return zs;
         }
@@ -141,13 +141,13 @@ s3_handle_get(ngx_http_request_t *r,
      * disk/object export is unaffected).
      */
     {
-        xrootd_sd_residency_t res;
-        if (xrootd_vfs_residency(&vctx, &res, NULL) == NGX_OK
-            && (res == XROOTD_SD_RES_NEARLINE || res == XROOTD_SD_RES_OFFLINE))
+        brix_sd_residency_t res;
+        if (brix_vfs_residency(&vctx, &res, NULL) == NGX_OK
+            && (res == BRIX_SD_RES_NEARLINE || res == BRIX_SD_RES_OFFLINE))
         {
             return s3_fail(r, NGX_HTTP_FORBIDDEN, "InvalidObjectState",
                 "The operation is not valid for the object's storage class.",
-                XROOTD_S3_EVENT_ACCESS_DENIED);
+                BRIX_S3_EVENT_ACCESS_DENIED);
         }
     }
 
@@ -156,30 +156,30 @@ s3_handle_get(ngx_http_request_t *r,
      * loop - run the whole open+read off-loop, materialise + sendfile. See
      * webdav/get.c. NGX_DECLINED ⇒ not a socket serve; fall through. */
     {
-        xrootd_http_serve_opts_t sopts;
+        brix_http_serve_opts_t sopts;
         ngx_int_t                sr;
 
         ngx_memzero(&sopts, sizeof(sopts));
-        sopts.xfer_proto = XROOTD_XFER_PROTO_S3;
+        sopts.xfer_proto = BRIX_XFER_PROTO_S3;
         sopts.op_name    = "GetObject";
         sopts.identity   = "";
         sopts.etag_flags = 0;
         sopts.compress   = cf->common.compress;
 
-        sr = xrootd_http_serve_offload_remote(r, vctx.sd,
-            xrootd_vfs_export_relative(&vctx, fs_path), fs_path, &sopts,
+        sr = brix_http_serve_offload_remote(r, vctx.sd,
+            brix_vfs_export_relative(&vctx, fs_path), fs_path, &sopts,
             &cf->common, s3_serve_metrics);
         if (sr == NGX_DONE) {
             return NGX_DONE;
         }
         if (sr == NGX_ERROR) {
-            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
     }
 
     /* phase-64 SP2: offload a remote cache MISS fill to the thread pool (it would
-     * otherwise stall the worker inside xrootd_vfs_open's inline fill) and re-
+     * otherwise stall the worker inside brix_vfs_open's inline fill) and re-
      * enter on completion. See webdav/get.c. NGX_DECLINED ⇒ open inline below. */
     {
         s3_get_reenter_t *rd = ngx_palloc(r->pool, sizeof(*rd));
@@ -188,53 +188,53 @@ s3_handle_get(ngx_http_request_t *r,
         ngx_int_t         fr;
 
         if (rd == NULL) {
-            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
         fplen = ngx_strlen(fs_path);
         fp = (char *) ngx_pnalloc(r->pool, fplen + 1);
         if (fp == NULL) {
-            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
         ngx_memcpy(fp, fs_path, fplen + 1);
         rd->fs_path = fp;
         rd->cf      = cf;
 
-        fr = xrootd_http_cache_fill_if_needed(r, vctx.sd,
-            xrootd_vfs_export_relative(&vctx, fs_path), &cf->common,
+        fr = brix_http_cache_fill_if_needed(r, vctx.sd,
+            brix_vfs_export_relative(&vctx, fs_path), &cf->common,
             s3_get_reenter, rd);
         if (fr == NGX_DONE) {
             return NGX_DONE;
         }
         if (fr == NGX_ERROR) {
-            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
     }
 
-    fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, &vfs_err);
+    fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, &vfs_err);
     if (fh == NULL) {
         if (vfs_err == ENOENT || vfs_err == ENOTDIR) {
             return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
                            "The specified key does not exist.",
-                           XROOTD_S3_EVENT_NO_SUCH_KEY);
+                           BRIX_S3_EVENT_NO_SUCH_KEY);
         }
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-        return (ngx_int_t) xrootd_http_errno_to_status(vfs_err);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
+        return (ngx_int_t) brix_http_errno_to_status(vfs_err);
     }
 
-    if (xrootd_vfs_file_stat(fh, &vst) != NGX_OK) {
-        xrootd_vfs_close(fh, r->connection->log);
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+    if (brix_vfs_file_stat(fh, &vst) != NGX_OK) {
+        brix_vfs_close(fh, r->connection->log);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     if (vst.is_directory) {
-        xrootd_vfs_close(fh, r->connection->log);
+        brix_vfs_close(fh, r->connection->log);
         return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
                        "The specified key does not exist.",
-                       XROOTD_S3_EVENT_NO_SUCH_KEY);
+                       BRIX_S3_EVENT_NO_SUCH_KEY);
     }
 
     /*
@@ -245,13 +245,13 @@ s3_handle_get(ngx_http_request_t *r,
     {
         ngx_int_t crc = s3_handle_conditional(r, vst.mtime, vst.size);
         if (crc != NGX_DECLINED) {
-            xrootd_vfs_close(fh, r->connection->log);
+            brix_vfs_close(fh, r->connection->log);
             return crc;
         }
     }
 
-    s3ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_s3_module);
-    subject = s3ctx != NULL ? xrootd_identity_subject_cstr(s3ctx->identity)
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
+    subject = s3ctx != NULL ? brix_identity_subject_cstr(s3ctx->identity)
                             : "";
     if (subject[0] != '\0') {
         ngx_cpystrn((u_char *) identity, (u_char *) subject,
@@ -274,7 +274,7 @@ s3_handle_get(ngx_http_request_t *r,
      * handle's fd stays valid until serve closes it.
      */
     {
-        ngx_fd_t cfd = xrootd_vfs_file_fd(fh);
+        ngx_fd_t cfd = brix_vfs_file_fd(fh);
 
         if (cfd != NGX_INVALID_FILE) {
             s3_echo_object_checksums(r, cfd, fs_path);
@@ -286,11 +286,11 @@ s3_handle_get(ngx_http_request_t *r,
     s3_echo_user_metadata(r, fs_path);
 
     {
-        xrootd_http_serve_opts_t   opts;
-        xrootd_http_serve_result_t result;
+        brix_http_serve_opts_t   opts;
+        brix_http_serve_result_t result;
 
         ngx_memzero(&opts, sizeof(opts));
-        opts.xfer_proto = XROOTD_XFER_PROTO_S3;
+        opts.xfer_proto = BRIX_XFER_PROTO_S3;
         opts.op_name    = "GetObject";
         opts.identity   = identity;
         opts.etag_flags = 0;
@@ -298,11 +298,11 @@ s3_handle_get(ngx_http_request_t *r,
         /* phase-43 W3: apply response-* query overrides just before send. */
         opts.pre_header_send = s3_get_pre_header;
 
-        rc = xrootd_http_serve_file_ranged(r, fh, &vst, fs_path, &opts,
+        rc = brix_http_serve_file_ranged(r, fh, &vst, fs_path, &opts,
                                            &result);
 
         if (rc == NGX_HTTP_INTERNAL_SERVER_ERROR) {
-            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         }
         s3_serve_metrics(r, &result);
     }
@@ -319,24 +319,24 @@ s3_handle_head(ngx_http_request_t *r,
                const char *fs_path,
                ngx_http_s3_loc_conf_t *cf)
 {
-    xrootd_vfs_ctx_t  vctx;
-    xrootd_vfs_stat_t vst;
+    brix_vfs_ctx_t  vctx;
+    brix_vfs_stat_t vst;
 
     s3_vfs_ctx(r, fs_path, cf, &vctx);
-    if (xrootd_vfs_stat(&vctx, &vst) != NGX_OK) {
+    if (brix_vfs_stat(&vctx, &vst) != NGX_OK) {
         if (errno == ENOENT || errno == ENOTDIR) {
             return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
                            "The specified key does not exist.",
-                           XROOTD_S3_EVENT_NO_SUCH_KEY);
+                           BRIX_S3_EVENT_NO_SUCH_KEY);
         }
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
-        return (ngx_int_t) xrootd_http_errno_to_status(errno);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
+        return (ngx_int_t) brix_http_errno_to_status(errno);
     }
 
     if (vst.is_directory) {
         return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
                        "The specified key does not exist.",
-                       XROOTD_S3_EVENT_NO_SUCH_KEY);
+                       BRIX_S3_EVENT_NO_SUCH_KEY);
     }
 
     /*
@@ -346,13 +346,13 @@ s3_handle_head(ngx_http_request_t *r,
      * (the restore flow is the WLCG Tape REST API, not S3 GET).
      */
     {
-        xrootd_sd_residency_t res;
-        if (xrootd_vfs_residency(&vctx, &res, NULL) == NGX_OK
-            && (res == XROOTD_SD_RES_NEARLINE || res == XROOTD_SD_RES_OFFLINE))
+        brix_sd_residency_t res;
+        if (brix_vfs_residency(&vctx, &res, NULL) == NGX_OK
+            && (res == BRIX_SD_RES_NEARLINE || res == BRIX_SD_RES_OFFLINE))
         {
-            (void) xrootd_http_set_header(r, "x-amz-storage-class",
+            (void) brix_http_set_header(r, "x-amz-storage-class",
                                           "GLACIER", NULL);
-            (void) xrootd_http_set_header(r, "x-amz-restore",
+            (void) brix_http_set_header(r, "x-amz-restore",
                                           "ongoing-request=\"false\"", NULL);
         }
     }
@@ -372,25 +372,25 @@ s3_handle_head(ngx_http_request_t *r,
      * was set at upload.
      */
     {
-        xrootd_vfs_ctx_t   vctx;
-        xrootd_vfs_file_t *fh;
+        brix_vfs_ctx_t   vctx;
+        brix_vfs_file_t *fh;
 
         s3_vfs_ctx(r, fs_path, cf, &vctx);
-        fh = xrootd_vfs_open(&vctx, XROOTD_VFS_O_READ, NULL);
+        fh = brix_vfs_open(&vctx, BRIX_VFS_O_READ, NULL);
         if (fh != NULL) {
-            s3_echo_object_checksums(r, xrootd_vfs_file_fd(fh), fs_path);
-            xrootd_vfs_close(fh, r->connection->log);
+            s3_echo_object_checksums(r, brix_vfs_file_fd(fh), fs_path);
+            brix_vfs_close(fh, r->connection->log);
         }
     }
 
     /* User metadata (x-amz-meta-*): echo the stored set on HEAD. */
     s3_echo_user_metadata(r, fs_path);
 
-    if (xrootd_http_set_file_headers(r, vst.mtime, vst.size, vst.size,
+    if (brix_http_set_file_headers(r, vst.mtime, vst.size, vst.size,
                                      NULL, 0,
                                      0, 0, 0) != NGX_OK)
     {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -429,7 +429,7 @@ s3_handle_head_bucket(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
         || stat(cf->common.root_canon, &st) != 0  /* vfs-seam-allow: HeadBucket stats the export root itself (the confinement anchor), not a path beneath it */
         || !S_ISDIR(st.st_mode))
     {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INVALID_URI]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INVALID_URI]);
         r->headers_out.status           = NGX_HTTP_NOT_FOUND;
         r->headers_out.content_length_n = 0;
         ngx_http_send_header(r);
@@ -484,7 +484,7 @@ s3_handle_get_bucket_location(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
 
     xml = ngx_palloc(r->pool, xml_capacity);
     if (xml == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -501,14 +501,14 @@ s3_handle_get_bucket_location(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
 
     response_buf = ngx_create_temp_buf(r->pool, xml_len + 4);
     if (response_buf == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     response_buf->last = ngx_cpymem(response_buf->last, xml, xml_len);
     response_buf->last_buf = 1;
 
-    XROOTD_S3_METRIC_ADD(bytes_tx_total, xml_len);
-    return xrootd_http_send_xml_buffer(r, NGX_HTTP_OK,
+    BRIX_S3_METRIC_ADD(bytes_tx_total, xml_len);
+    return brix_http_send_xml_buffer(r, NGX_HTTP_OK,
         (ngx_str_t) ngx_string("application/xml"), response_buf);
 }
 
@@ -521,20 +521,20 @@ s3_handle_delete(ngx_http_request_t *r,
                  const char *fs_path,
                  ngx_http_s3_loc_conf_t *cf)
 {
-    xrootd_vfs_ctx_t vctx;
+    brix_vfs_ctx_t vctx;
     ngx_int_t        rc;
 
-    /* Route DELETE through the metered VFS unlink. xrootd_vfs_unlink unlinks a
+    /* Route DELETE through the metered VFS unlink. brix_vfs_unlink unlinks a
      * file and rmdirs an (empty) directory — a non-empty dir surfaces as
      * ENOTEMPTY (S3 BucketNotEmpty), exactly as the old require_empty_dir path.
      * S3 DELETE is idempotent: a missing key (ENOENT) is still 204, and counts
      * as DELETE_MISSING. errno is read only on the NGX_ERROR branch. */
     s3_vfs_ctx(r, fs_path, cf, &vctx);
-    rc = xrootd_vfs_unlink(&vctx);
+    rc = brix_vfs_unlink(&vctx);
 
     if (rc == NGX_OK || errno == ENOENT) {
         if (rc != NGX_OK) {   /* ENOENT: the object did not exist */
-            XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_DELETE_MISSING]);
+            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_DELETE_MISSING]);
         }
         r->headers_out.status           = NGX_HTTP_NO_CONTENT;
         r->headers_out.content_length_n = 0;
@@ -548,13 +548,13 @@ s3_handle_delete(ngx_http_request_t *r,
                                  "The directory is not empty.");
     }
 
-    XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
     return NGX_HTTP_INTERNAL_SERVER_ERROR;
 }
 /*
  * WHY: S3 DELETE is idempotent — deleting a non-existent key returns 204 No Content (not 404), matching AWS behavior. This allows clients to safely retry delete operations without checking existence first.
  *
- * HOW: Routes the delete through the metered VFS surface (xrootd_vfs_unlink, which
+ * HOW: Routes the delete through the metered VFS surface (brix_vfs_unlink, which
  * unlinks a file and rmdirs an empty directory under root confinement). On success
  * sends a 204 No Content header-only response via ngx_http_send_special(); a missing
  * key (ENOENT) is still 204 (AWS-style idempotency) and increments DELETE_MISSING; a

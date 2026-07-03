@@ -23,45 +23,45 @@
  * request hot path: a lifecycle event fires this once, never per connection.
  *
  * USAGE:
- *     xrootd_phase_timer_t t;
- *     xrootd_phase_timer_start(&t);
- *     ... phase 1 ...   xrootd_phase_mark(&t, "uring");
- *     ... phase 2 ...   xrootd_phase_mark(&t, "servers");
- *     xrootd_phase_timer_log(&t, cycle->log, "xrootd init_process[w0]");
+ *     brix_phase_timer_t t;
+ *     brix_phase_timer_start(&t);
+ *     ... phase 1 ...   brix_phase_mark(&t, "uring");
+ *     ... phase 2 ...   brix_phase_mark(&t, "servers");
+ *     brix_phase_timer_log(&t, cycle->log, "xrootd init_process[w0]");
  *
  * Each mark records the delta since the PREVIOUS mark (or since _start for the
  * first). _log appends a final "total=<since start>" and emits at NOTICE.
  */
-#ifndef XROOTD_COMPAT_LIFECYCLE_TIMING_H
-#define XROOTD_COMPAT_LIFECYCLE_TIMING_H
+#ifndef BRIX_COMPAT_LIFECYCLE_TIMING_H
+#define BRIX_COMPAT_LIFECYCLE_TIMING_H
 
 #include <ngx_core.h>
 #include <stdint.h>
 
 /* Summary buffer holds roughly a dozen "name=NNNNNNus " tokens — generously
  * sized so marks are never silently dropped; overflow is clamped, not an error. */
-#define XROOTD_PHASE_SUMMARY_CAP  512
+#define BRIX_PHASE_SUMMARY_CAP  512
 
 typedef struct {
     uint64_t  start_ns;                         /* snapshot at _start            */
     uint64_t  last_ns;                          /* snapshot at the previous mark */
-    u_char    summary[XROOTD_PHASE_SUMMARY_CAP];/* accumulated "name=Xus " tokens*/
+    u_char    summary[BRIX_PHASE_SUMMARY_CAP];/* accumulated "name=Xus " tokens*/
     u_char   *pos;                              /* write cursor into summary     */
-} xrootd_phase_timer_t;
+} brix_phase_timer_t;
 
 /* Monotonic nanoseconds — the single time source for all phase math. */
-uint64_t xrootd_phase_now_ns(void);
+uint64_t brix_phase_now_ns(void);
 
 /* Begin a timing run: snapshot the clock and reset the summary buffer. */
-void xrootd_phase_timer_start(xrootd_phase_timer_t *t);
+void brix_phase_timer_start(brix_phase_timer_t *t);
 
 /* Record the delta since the previous mark (or _start) under `name`. `name` is a
  * short string literal; non-literal callers must keep it printf-%s-safe. */
-void xrootd_phase_mark(xrootd_phase_timer_t *t, const char *name);
+void brix_phase_mark(brix_phase_timer_t *t, const char *name);
 
 /* Emit the accumulated summary plus a trailing total=<since _start> at NOTICE,
  * prefixed with `context` (e.g. "xrootd init_process[w0]"). No-op if log is NULL. */
-void xrootd_phase_timer_log(xrootd_phase_timer_t *t, ngx_log_t *log,
+void brix_phase_timer_log(brix_phase_timer_t *t, ngx_log_t *log,
                             const char *context);
 
-#endif /* XROOTD_COMPAT_LIFECYCLE_TIMING_H */
+#endif /* BRIX_COMPAT_LIFECYCLE_TIMING_H */

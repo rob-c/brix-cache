@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # run_cache_pblock_posix.sh — Test 1 of the exclusively-VFS caching layer, on the
-# phase-64 TIER grammar (§14: the legacy xrootd_cache_origin model is retired).
+# phase-64 TIER grammar (§14: the legacy brix_cache_origin model is retired).
 # Two server blocks on one node cover the two legacy assertions:
 #   W (pblock primary + write-through): a write to the pblock primary is mirrored
 #     to a root:// origin byte-exact (multi-block, driver read-back).
@@ -33,8 +33,8 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" \
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${ORIGIN_PORT}; xrootd on; xrootd_storage_backend posix:$PFX/o/root;
-    xrootd_auth none; xrootd_allow_write on; xrootd_upload_resume off; } }
+stream { server { listen 127.0.0.1:${ORIGIN_PORT}; xrootd on; brix_storage_backend posix:$PFX/o/root;
+    brix_auth none; brix_allow_write on; brix_upload_resume off; } }
 EOF
 
 cat > "$PFX/n/nginx.conf" <<EOF
@@ -46,25 +46,25 @@ stream {
     server {
         listen 127.0.0.1:${NODE_PORT};
         xrootd on;
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_upload_resume off;
-        xrootd_storage_backend  pblock://$PFX/n/root/;   # pblock PRIMARY (path = root, created on init)
-        xrootd_pblock_block_size 1m;
-        xrootd_write_through on;
-        xrootd_wt_mode sync;
-        xrootd_wt_origin 127.0.0.1:${ORIGIN_PORT};
-        xrootd_cache_wt_stage_root $PFX/n/stage;
+        brix_auth none;
+        brix_allow_write on;
+        brix_upload_resume off;
+        brix_storage_backend  pblock://$PFX/n/root/;   # pblock PRIMARY (path = root, created on init)
+        brix_pblock_block_size 1m;
+        brix_write_through on;
+        brix_wt_mode sync;
+        brix_wt_origin 127.0.0.1:${ORIGIN_PORT};
+        brix_cache_wt_stage_root $PFX/n/stage;
     }
     # R: tier read cache — the origin is the storage backend, cached locally.
     server {
         listen 127.0.0.1:${READ_PORT};
         xrootd on;
-        xrootd_auth none;
-        xrootd_root $PFX/n/rroot;
-        xrootd_storage_backend root://127.0.0.1:${ORIGIN_PORT};
-        xrootd_cache_store posix:$PFX/n/cache;
-        xrootd_cache_root /;
+        brix_auth none;
+        brix_root $PFX/n/rroot;
+        brix_storage_backend root://127.0.0.1:${ORIGIN_PORT};
+        brix_cache_store posix:$PFX/n/cache;
+        brix_cache_root /;
     }
 }
 EOF

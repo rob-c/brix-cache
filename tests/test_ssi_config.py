@@ -2,8 +2,8 @@
 tests/test_ssi_config.py — Phase-6 SSI config directives.
 
 Verifies the gating + caps directives: the CTA service is opt-in
-(`xrootd_ssi_service cta`), an unknown service name is rejected by `nginx -t`, and
-`xrootd_ssi_max_inflight` caps concurrent requests.
+(`brix_ssi_service cta`), an unknown service name is rejected by `nginx -t`, and
+`brix_ssi_max_inflight` caps concurrent requests.
 
 Run:
     TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest tests/test_ssi_config.py -v
@@ -35,8 +35,8 @@ def _write_config(base, extra_ssi):
             "events { worker_connections 64; }\n"
             "stream { server {\n"
             f"  listen {BIND_HOST}:{port};\n  xrootd on;\n"
-            f"  xrootd_storage_backend posix:{data};\n"
-            "  xrootd_auth none;\n  xrootd_allow_write on;\n  xrootd_ssi on;\n"
+            f"  brix_storage_backend posix:{data};\n"
+            "  brix_auth none;\n  brix_allow_write on;\n  brix_ssi on;\n"
             f"{extra_ssi}"
             "} }\n")
     return cfg, port
@@ -70,7 +70,7 @@ def _open_status(sock, service):
 @pytest.mark.skipif(not os.path.exists(NGINX_BIN), reason="nginx binary not found")
 class TestSsiConfig:
     def test_cta_gated_off_by_default(self, tmp_path):
-        # xrootd_ssi on but no `xrootd_ssi_service cta` → cta must not resolve.
+        # brix_ssi on but no `brix_ssi_service cta` → cta must not resolve.
         p, port, err = _start(str(tmp_path), "")
         assert p is not None, err
         try:
@@ -83,7 +83,7 @@ class TestSsiConfig:
             p.terminate()
 
     def test_cta_enabled_resolves(self, tmp_path):
-        p, port, err = _start(str(tmp_path), "  xrootd_ssi_service cta;\n")
+        p, port, err = _start(str(tmp_path), "  brix_ssi_service cta;\n")
         assert p is not None, err
         try:
             sock = _handshake_login(BIND_HOST, port)
@@ -93,14 +93,14 @@ class TestSsiConfig:
             p.terminate()
 
     def test_unknown_service_rejected_by_nginx_t(self, tmp_path):
-        cfg, _ = _write_config(str(tmp_path), "  xrootd_ssi_service bogus;\n")
+        cfg, _ = _write_config(str(tmp_path), "  brix_ssi_service bogus;\n")
         chk = subprocess.run([NGINX_BIN, "-t", "-c", cfg],
                              capture_output=True, text=True)
         assert chk.returncode != 0
         assert "unknown SSI service" in chk.stderr
 
     def test_max_inflight_caps_concurrency(self, tmp_path):
-        p, port, err = _start(str(tmp_path), "  xrootd_ssi_max_inflight 2;\n")
+        p, port, err = _start(str(tmp_path), "  brix_ssi_max_inflight 2;\n")
         assert p is not None, err
         try:
             sock = _handshake_login(BIND_HOST, port)

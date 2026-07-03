@@ -16,15 +16,15 @@
  *       identity and stay where the protocol defines them.
  * ------------------------------------------------------------------------- */
 
-#ifndef XROOTD_CORE_IDENT_H
-#define XROOTD_CORE_IDENT_H
+#ifndef BRIX_CORE_IDENT_H
+#define BRIX_CORE_IDENT_H
 
 /* Product name reported wherever the server names itself. */
-#define XROOTD_SERVER_NAME          "BriX-Cache"
+#define BRIX_SERVER_NAME          "BriX-Cache"
 
 /* Version, bare and with the "v" prefix XRootD clients expect from
  * Qconfig "version" (they parse it for digits — keep digits present). */
-#define XROOTD_SERVER_VERSION_BARE  "1.0.7"
-#define XROOTD_SERVER_VERSION       "v" XROOTD_SERVER_VERSION_BARE
+#define BRIX_SERVER_VERSION_BARE  "1.0.8"
+#define BRIX_SERVER_VERSION       "v" BRIX_SERVER_VERSION_BARE
 
-#endif /* XROOTD_CORE_IDENT_H */
+#endif /* BRIX_CORE_IDENT_H */

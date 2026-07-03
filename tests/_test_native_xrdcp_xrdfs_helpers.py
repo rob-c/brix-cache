@@ -37,7 +37,7 @@ from settings import (
     NGINX_GSI_TLS_PORT,
     NGINX_TOKEN_PORT,
     PROXY_STD,
-    REF_XROOTD_PORT,
+    REF_BRIX_PORT,
     SERVER_HOST,
     TOKENS_DIR,
     url_host,
@@ -51,13 +51,13 @@ NATIVE_XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 
 # Native xrdcp uses root:// URLs (host:port//path).
 NGINX_URL = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
-REF_URL = f"root://{HOST}:{REF_XROOTD_PORT}"
+REF_URL = f"root://{HOST}:{REF_BRIX_PORT}"
 
 # Endpoints under test: (label, host:port string). The native xrdfs accepts the
 # bare "host:port" form (as well as a root:// URL).
 ENDPOINTS = [
     ("nginx", f"{SERVER_HOST}:{NGINX_ANON_PORT}"),
-    ("ref",   f"{HOST}:{REF_XROOTD_PORT}"),
+    ("ref",   f"{HOST}:{REF_BRIX_PORT}"),
 ]
 
 _CLEAN_ENV = {k: v for k, v in os.environ.items()}
@@ -284,7 +284,7 @@ kXR_status = 4007
 
 # Standard reflected CRC32c (Castagnoli): init 0xFFFFFFFF, final XOR 0xFFFFFFFF
 # (check value of "123456789" == 0xe3069283). This is exactly what libxrdproto's
-# xrootd_crc32c produces — verified C-vs-Python — which the client uses for both
+# brix_crc32c produces — verified C-vs-Python — which the client uses for both
 # the kXR_status header digest and per-page digests, and which the server's
 # kXR_Qcksum crc32c also matches.
 _CRC32C_POLY = 0x82F63B78
@@ -385,7 +385,7 @@ from settings import ROOT_TPC_NGINX_PORT, ROOT_TPC_REF_PORT
 TEST_ROOT = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
 ROOT_TPC_DATA = os.path.join(TEST_ROOT, "data-root-tpc")
 ROOT_TPC_REF_DATA = os.path.join(TEST_ROOT, "data-root-tpc-ref")
-ANON_ACCESS_LOG = os.path.join(TEST_ROOT, "logs", "xrootd_access_anon.log")
+ANON_ACCESS_LOG = os.path.join(TEST_ROOT, "logs", "brix_access_anon.log")
 
 
 def _port_open(port):

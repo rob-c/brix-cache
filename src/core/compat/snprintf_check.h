@@ -18,8 +18,8 @@
  *      the ngx-free storage backends too. `__attribute__((format(printf, 3, 4)))`
  *      lets the compiler check fmt/arg agreement at every callsite.
  */
-#ifndef XROOTD_COMPAT_SNPRINTF_CHECK_H
-#define XROOTD_COMPAT_SNPRINTF_CHECK_H
+#ifndef BRIX_COMPAT_SNPRINTF_CHECK_H
+#define BRIX_COMPAT_SNPRINTF_CHECK_H
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -31,11 +31,11 @@
  * always NUL-terminated; a NULL buf or cap == 0 returns 0 without writing.
  */
 static inline int
-xrootd_snprintf_ok(char *buf, size_t cap, const char *fmt, ...)
+brix_snprintf_ok(char *buf, size_t cap, const char *fmt, ...)
     __attribute__((format(printf, 3, 4), warn_unused_result));
 
 static inline int
-xrootd_snprintf_ok(char *buf, size_t cap, const char *fmt, ...)
+brix_snprintf_ok(char *buf, size_t cap, const char *fmt, ...)
 {
     va_list ap;
     int     n;
@@ -51,4 +51,4 @@ xrootd_snprintf_ok(char *buf, size_t cap, const char *fmt, ...)
     return (n >= 0 && (size_t) n < cap);
 }
 
-#endif /* XROOTD_COMPAT_SNPRINTF_CHECK_H */
+#endif /* BRIX_COMPAT_SNPRINTF_CHECK_H */

@@ -33,7 +33,7 @@ import pytest
 
 from settings import NGINX_BIN, SERVER_HOST, free_ports
 
-XROOTD_BIN = os.environ.get("TEST_XROOTD_BIN", "/usr/bin/xrootd")
+BRIX_BIN = os.environ.get("TEST_BRIX_BIN", "/usr/bin/xrootd")
 H = SERVER_HOST
 
 # Dedicated workspace for this file.
@@ -42,9 +42,9 @@ _DIR = os.path.join(os.environ["TMPDIR"], "xrd_dropin_bfb")
 # distinct free OS ports so they never collide with the managed fleet or with
 # another self-contained test running in the same pytest invocation.  Any
 # explicit env override is still honoured.
-_NGINX_FREE, _XROOTD_FREE = free_ports(2)
+_NGINX_FREE, _BRIX_FREE = free_ports(2)
 NGINX_PORT  = int(os.environ.get("TEST_DROPIN_NGINX_PORT") or _NGINX_FREE)
-XROOTD_PORT = int(os.environ.get("TEST_DROPIN_XROOTD_PORT") or _XROOTD_FREE)
+BRIX_PORT = int(os.environ.get("TEST_DROPIN_BRIX_PORT") or _BRIX_FREE)
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +103,7 @@ NOPERM_NAME  = "/dropin_noperm.bin"   # chmod 000 → EACCES family
 
 
 # ---------------------------------------------------------------------------
-# CRC32c (Castagnoli) — matches xrootd_crc32c_copy(); used to verify the
+# CRC32c (Castagnoli) — matches brix_crc32c_copy(); used to verify the
 # per-page CRCs in the pgread response are correct on BOTH servers.
 # ---------------------------------------------------------------------------
 
@@ -432,14 +432,14 @@ def _start_xrootd(data_dir):
     cfg = os.path.join(base, "xrootd.cfg")
     with open(cfg, "w") as f:
         f.write(
-            f"xrd.port {XROOTD_PORT}\n"
+            f"xrd.port {BRIX_PORT}\n"
             f"oss.localroot {data_dir}\n"
             f"all.export /\n"
             f"xrootd.chksum max 2 adler32\n"
             f"all.adminpath {os.path.join(base, 'admin')}\n"
             f"all.pidpath {os.path.join(base, 'run')}\n"
             f"xrd.trace off\n")
-    subprocess.run([XROOTD_BIN, "-b", "-c", cfg,
+    subprocess.run([BRIX_BIN, "-b", "-c", cfg,
                     "-l", os.path.join(base, "xrootd.log")],
                    capture_output=True)
     return cfg
@@ -464,9 +464,9 @@ def _nginx_conf(data_dir):
             f"    server {{\n"
             f"        listen 0.0.0.0:{NGINX_PORT};\n"
             f"        xrootd on;\n"
-            f"        xrootd_storage_backend posix:{data_dir};\n"
-            f"        xrootd_auth none;\n"
-            f"        xrootd_allow_write on;\n"
+            f"        brix_storage_backend posix:{data_dir};\n"
+            f"        brix_auth none;\n"
+            f"        brix_allow_write on;\n"
             f"    }}\n"
             f"}}\n")
     return conf
@@ -488,8 +488,8 @@ def _stop_nginx(conf):
 def stack():
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if not os.path.exists(XROOTD_BIN):
-        pytest.skip(f"official xrootd binary not found at {XROOTD_BIN}")
+    if not os.path.exists(BRIX_BIN):
+        pytest.skip(f"official xrootd binary not found at {BRIX_BIN}")
 
     data_dir = os.path.join(_DIR, "data")
     _seed_data(data_dir)
@@ -498,13 +498,13 @@ def stack():
     nx_cfg = _nginx_conf(data_dir)
     started = {"xr": xr_cfg, "nx": nx_cfg}
     try:
-        if not _wait_port(XROOTD_PORT):
+        if not _wait_port(BRIX_PORT):
             pytest.skip("official xrootd did not come up")
         # Robustness: a TIME-WAIT/orphaned listener on the port can make a bare
         # connect succeed even though THIS xrootd failed to bind and is serving
         # the wrong (or no) data.  Prove the official server actually serves the
         # seed file before trusting it; skip otherwise rather than hard-fail.
-        if not _serves_seed(XROOTD_PORT):
+        if not _serves_seed(BRIX_PORT):
             pytest.skip("official xrootd is up but not serving the seed data "
                         "(stale listener / bind race) — skipping parity run")
         _start_nginx(nx_cfg)
@@ -515,7 +515,7 @@ def stack():
         yield {
             "data_dir": data_dir,
             "nginx": (H, NGINX_PORT),
-            "xrootd": (H, XROOTD_PORT),
+            "xrootd": (H, BRIX_PORT),
         }
     finally:
         _stop_nginx(started["nx"])
@@ -524,7 +524,7 @@ def stack():
 
 @pytest.fixture
 def both(stack):
-    """Two live, logged-in sessions: (nginx_sock, xrootd_sock).  Cleaned up.
+    """Two live, logged-in sessions: (nginx_sock, brix_sock).  Cleaned up.
 
     If either session cannot be established the test SKIPS rather than errors —
     the module-level `stack` fixture has already proven both servers serve the

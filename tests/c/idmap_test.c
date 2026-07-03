@@ -29,28 +29,28 @@ int main(void)
     printf("self user=%s uid=%d gid=%d\n", myname, (int)myuid, (int)mygid);
     if (myuid < 1000) { printf("SKIP: self uid < 1000 (need a normal user)\n"); return 0; }
 
-    xrootd_idmap_conf_t conf; xrootd_idmap_creds_t cr; ngx_int_t rc;
+    brix_idmap_conf_t conf; brix_idmap_creds_t cr; ngx_int_t rc;
 
     /* 1. direct getpwnam of self -> OK, uid matches */
     memset(&conf,0,sizeof(conf)); conf.min_uid = 1000;
-    xrootd_idmap_init(&conf, NULL);
-    rc = xrootd_idmap_resolve(&conf, myname, &cr, NULL);
-    CHECK(rc==XROOTD_IDMAP_OK && cr.uid==myuid && cr.gid==mygid, "direct getpwnam(self) -> OK with right uid/gid");
+    brix_idmap_init(&conf, NULL);
+    rc = brix_idmap_resolve(&conf, myname, &cr, NULL);
+    CHECK(rc==BRIX_IDMAP_OK && cr.uid==myuid && cr.gid==mygid, "direct getpwnam(self) -> OK with right uid/gid");
     CHECK(cr.ngroups>=1, "self has >=1 supplementary group");
 
     /* 2. unknown principal -> DENY */
-    rc = xrootd_idmap_resolve(&conf, "no_such_user_zzz_42", &cr, NULL);
-    CHECK(rc==XROOTD_IDMAP_DENY, "unknown principal -> DENY");
+    rc = brix_idmap_resolve(&conf, "no_such_user_zzz_42", &cr, NULL);
+    CHECK(rc==BRIX_IDMAP_DENY, "unknown principal -> DENY");
 
     /* 3. root -> DENY (uid 0 reserved) */
-    rc = xrootd_idmap_resolve(&conf, "root", &cr, NULL);
-    CHECK(rc==XROOTD_IDMAP_DENY, "root (uid 0) -> DENY (reserved)");
+    rc = brix_idmap_resolve(&conf, "root", &cr, NULL);
+    CHECK(rc==BRIX_IDMAP_DENY, "root (uid 0) -> DENY (reserved)");
 
     /* 4. min_uid floor above self -> DENY */
     memset(&conf,0,sizeof(conf)); conf.min_uid = myuid + 1;
-    xrootd_idmap_init(&conf, NULL);
-    rc = xrootd_idmap_resolve(&conf, myname, &cr, NULL);
-    CHECK(rc==XROOTD_IDMAP_DENY, "min_uid above self -> DENY (floor)");
+    brix_idmap_init(&conf, NULL);
+    rc = brix_idmap_resolve(&conf, myname, &cr, NULL);
+    CHECK(rc==BRIX_IDMAP_DENY, "min_uid above self -> DENY (floor)");
 
     /* 5. grid-mapfile: DN -> self */
     {
@@ -59,30 +59,30 @@ int main(void)
         fclose(f);
         memset(&conf,0,sizeof(conf)); conf.min_uid = 1000;
         conf.gridmap_path = S("/tmp/idmap_test_gridmap");
-        xrootd_idmap_init(&conf, NULL);
-        rc = xrootd_idmap_resolve(&conf, "/DC=org/CN=Test User", &cr, NULL);
-        CHECK(rc==XROOTD_IDMAP_OK && cr.uid==myuid, "grid-mapfile DN -> self uid");
-        rc = xrootd_idmap_resolve(&conf, "/DC=org/CN=Unmapped", &cr, NULL);
-        CHECK(rc==XROOTD_IDMAP_DENY, "DN not in mapfile + not a user -> DENY");
+        brix_idmap_init(&conf, NULL);
+        rc = brix_idmap_resolve(&conf, "/DC=org/CN=Test User", &cr, NULL);
+        CHECK(rc==BRIX_IDMAP_OK && cr.uid==myuid, "grid-mapfile DN -> self uid");
+        rc = brix_idmap_resolve(&conf, "/DC=org/CN=Unmapped", &cr, NULL);
+        CHECK(rc==BRIX_IDMAP_DENY, "DN not in mapfile + not a user -> DENY");
         unlink("/tmp/idmap_test_gridmap");
     }
 
     /* 6. squash: default_user=self, unknown principal -> SQUASH to self */
     memset(&conf,0,sizeof(conf)); conf.min_uid = 1000;
     conf.default_user = S(myname);
-    xrootd_idmap_init(&conf, NULL);
-    rc = xrootd_idmap_resolve(&conf, "no_such_user_zzz_42", &cr, NULL);
-    CHECK(rc==XROOTD_IDMAP_SQUASH && cr.uid==myuid, "unknown + default_user -> SQUASH to default uid");
+    brix_idmap_init(&conf, NULL);
+    rc = brix_idmap_resolve(&conf, "no_such_user_zzz_42", &cr, NULL);
+    CHECK(rc==BRIX_IDMAP_SQUASH && cr.uid==myuid, "unknown + default_user -> SQUASH to default uid");
 
     /* 7. cache: repeat resolve is stable */
-    rc = xrootd_idmap_resolve(&conf, "no_such_user_zzz_42", &cr, NULL);
-    CHECK(rc==XROOTD_IDMAP_SQUASH && cr.uid==myuid, "repeat (cached) -> same verdict");
+    rc = brix_idmap_resolve(&conf, "no_such_user_zzz_42", &cr, NULL);
+    CHECK(rc==BRIX_IDMAP_SQUASH && cr.uid==myuid, "repeat (cached) -> same verdict");
 
     /* 8. primary_only */
     memset(&conf,0,sizeof(conf)); conf.min_uid=1000; conf.primary_only=1;
-    xrootd_idmap_init(&conf, NULL);
-    rc = xrootd_idmap_resolve(&conf, myname, &cr, NULL);
-    CHECK(rc==XROOTD_IDMAP_OK && cr.ngroups==1 && cr.groups[0]==mygid, "primary_only -> ngroups==1 (primary gid)");
+    brix_idmap_init(&conf, NULL);
+    rc = brix_idmap_resolve(&conf, myname, &cr, NULL);
+    CHECK(rc==BRIX_IDMAP_OK && cr.ngroups==1 && cr.groups[0]==mygid, "primary_only -> ngroups==1 (primary gid)");
 
     printf(fails? "\n%d FAILED\n" : "\nALL PASSED\n", fails);
     return fails ? 1 : 0;

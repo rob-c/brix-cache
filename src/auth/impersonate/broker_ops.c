@@ -207,8 +207,8 @@ imp_do_op(int rootfd, const imp_req_t *req, imp_rep_t *rep, int *out_fd,
      * operation as uid/gid 0 or < the hard floor.  Cheap (two syscalls), and it
      * closes the window completely — no file op runs under a reserved identity.
      */
-    if ((uid_t) setfsuid((uid_t) -1) < (uid_t) XROOTD_IMP_HARD_MIN_ID
-        || (gid_t) setfsgid((gid_t) -1) < (gid_t) XROOTD_IMP_HARD_MIN_ID)
+    if ((uid_t) setfsuid((uid_t) -1) < (uid_t) BRIX_IMP_HARD_MIN_ID
+        || (gid_t) setfsgid((gid_t) -1) < (gid_t) BRIX_IMP_HARD_MIN_ID)
     {
         return -EPERM;
     }

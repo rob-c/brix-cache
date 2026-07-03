@@ -1,5 +1,5 @@
 tests/userns/e2e_redteam.py	26739
-tests/test_xrootd_performance_conformance.py	1847
+tests/test_brix_performance_conformance.py	1847
 tests/test_privilege_escalation.py	1368
 tests/test_manager_mode.py	1006
 tests/test_conf_sequences.py	929

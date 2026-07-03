@@ -16,8 +16,8 @@
  *       response object); the driver only ever reaches it through these accessors
  *       and frees it via resp_free.
  */
-#ifndef XROOTD_SD_S3_TRANSPORT_H
-#define XROOTD_SD_S3_TRANSPORT_H
+#ifndef BRIX_SD_S3_TRANSPORT_H
+#define BRIX_SD_S3_TRANSPORT_H
 
 #include <stddef.h>
 #include <sys/types.h>   /* ssize_t */
@@ -27,9 +27,9 @@
 typedef struct {
     int   status;
     void *opaque;
-} xrootd_s3_resp_t;
+} brix_s3_resp_t;
 
-typedef struct xrootd_s3_transport_s {
+typedef struct brix_s3_transport_s {
     /* Perform one HTTP request. `path_and_query` is the already-encoded
      * "/key?canon-query" (or "/key"); `headers` is the pre-built header block
      * (the SigV4 Authorization + x-amz-* lines). On success fills *resp and
@@ -40,19 +40,19 @@ typedef struct xrootd_s3_transport_s {
                    const char *host, int port, int tls,
                    const char *method, const char *path_and_query,
                    const char *headers, const void *body, size_t body_len,
-                   int timeout_ms, xrootd_s3_resp_t *resp,
+                   int timeout_ms, brix_s3_resp_t *resp,
                    char *errbuf, size_t errcap);
 
     /* Copy response header `name` into out[outcap] (NUL-terminated). 0 if found,
      * -1 if absent. */
-    int (*resp_header)(const xrootd_s3_resp_t *resp, const char *name,
+    int (*resp_header)(const brix_s3_resp_t *resp, const char *name,
                        char *out, size_t outcap);
 
     /* The response body bytes + length (valid until resp_free). */
-    const void *(*resp_body)(const xrootd_s3_resp_t *resp, size_t *len);
+    const void *(*resp_body)(const brix_s3_resp_t *resp, size_t *len);
 
     /* Release the transport-private response. */
-    void (*resp_free)(xrootd_s3_resp_t *resp);
-} xrootd_s3_transport_t;
+    void (*resp_free)(brix_s3_resp_t *resp);
+} brix_s3_transport_t;
 
-#endif /* XROOTD_SD_S3_TRANSPORT_H */
+#endif /* BRIX_SD_S3_TRANSPORT_H */

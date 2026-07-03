@@ -19,8 +19,8 @@
  */
 json_t *
 dashboard_build_transfer_object(
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf,
-    const xrootd_transfer_slot_t *slot, int64_t now_ms,
+    const ngx_http_brix_dashboard_loc_conf_t *conf,
+    const brix_transfer_slot_t *slot, int64_t now_ms,
     ngx_uint_t v1_fields, ngx_uint_t detail_fields, ngx_uint_t redact)
 {
     int64_t  last_ms;
@@ -29,14 +29,14 @@ dashboard_build_transfer_object(
     int64_t  idle_ms;
     uint64_t avg_bps;
     uint64_t instant_bps;
-    char     client_ip[XROOTD_DASHBOARD_IP_LEN];
-    char     identity[XROOTD_DASHBOARD_IDENTITY_LEN];
-    char     vo[XROOTD_DASHBOARD_VO_LEN];
-    char     path[XROOTD_DASHBOARD_PATH_LEN];
-    char     op[XROOTD_DASHBOARD_OP_LEN];
-    char     last_error[XROOTD_DASHBOARD_REASON_LEN];
-    char     remote_host[XROOTD_DASHBOARD_HOST_LEN];
-    char     remote_path[XROOTD_DASHBOARD_PATH_LEN];
+    char     client_ip[BRIX_DASHBOARD_IP_LEN];
+    char     identity[BRIX_DASHBOARD_IDENTITY_LEN];
+    char     vo[BRIX_DASHBOARD_VO_LEN];
+    char     path[BRIX_DASHBOARD_PATH_LEN];
+    char     op[BRIX_DASHBOARD_OP_LEN];
+    char     last_error[BRIX_DASHBOARD_REASON_LEN];
+    char     remote_host[BRIX_DASHBOARD_HOST_LEN];
+    char     remote_path[BRIX_DASHBOARD_PATH_LEN];
     json_t  *obj;
 
     /* Barrier: ensure subsequent reads see a coherent view of the SHM slot
@@ -62,7 +62,7 @@ dashboard_build_transfer_object(
     {
         int64_t sample_ms = (int64_t) slot->last_sample_ms;
         int64_t missed    = (sample_ms > 0 && now_ms > sample_ms)
-                            ? (now_ms - sample_ms) / XROOTD_XFER_SAMPLE_MS : 0;
+                            ? (now_ms - sample_ms) / BRIX_XFER_SAMPLE_MS : 0;
         while (missed-- > 0 && instant_bps > 0) {
             instant_bps = (instant_bps * 3) / 4;   /* EWMA fold with raw = 0 */
         }
@@ -120,7 +120,7 @@ dashboard_build_transfer_object(
     /* Emit the nested "tpc" object only when this row actually involves a remote
      * peer: either it is a TPC transfer, or a remote host/path hint was recorded
      * (e.g. a proxied operation). Avoids cluttering plain local transfers. */
-    if (slot->direction == XROOTD_XFER_DIR_TPC
+    if (slot->direction == BRIX_XFER_DIR_TPC
         || remote_host[0] != '\0' || remote_path[0] != '\0')
     {
         json_t *tpc = json_object();
@@ -154,26 +154,26 @@ dashboard_build_transfer_object(
 
 json_t *
 dashboard_build_transfer_rows(int64_t now_ms,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf, ngx_uint_t v1_fields,
+    const ngx_http_brix_dashboard_loc_conf_t *conf, ngx_uint_t v1_fields,
     ngx_uint_t redact)
 {
-    xrootd_transfer_table_t *tbl;
+    brix_transfer_table_t *tbl;
     json_t                  *arr;
     ngx_uint_t               i;
 
     arr = json_array();
     if (!arr) { return NULL; }
 
-    if (ngx_xrootd_dashboard_shm_zone == NULL
-        || ngx_xrootd_dashboard_shm_zone->data == NULL
-        || ngx_xrootd_dashboard_shm_zone->data == (void *) 1)
+    if (ngx_brix_dashboard_shm_zone == NULL
+        || ngx_brix_dashboard_shm_zone->data == NULL
+        || ngx_brix_dashboard_shm_zone->data == (void *) 1)
     {
         return arr;
     }
 
-    tbl = ngx_xrootd_dashboard_shm_zone->data;
-    for (i = 0; i < XROOTD_DASHBOARD_MAX_TRANSFERS; i++) {
-        xrootd_transfer_slot_t *slot = &tbl->slots[i];
+    tbl = ngx_brix_dashboard_shm_zone->data;
+    for (i = 0; i < BRIX_DASHBOARD_MAX_TRANSFERS; i++) {
+        brix_transfer_slot_t *slot = &tbl->slots[i];
         int64_t                 last_ms;
         json_t                 *obj;
 
@@ -185,11 +185,11 @@ dashboard_build_transfer_rows(int64_t now_ms,
          * event so the cleanup is visible, then skip emitting the dead row. */
         last_ms = (int64_t) slot->last_ms;
         if (last_ms > 0 && now_ms - last_ms > STALE_GC_MS) {
-            xrootd_dashboard_event_add(XROOTD_DASH_EVENT_DASHBOARD,
+            brix_dashboard_event_add(BRIX_DASH_EVENT_DASHBOARD,
                                        slot->proto, 0,
                                        "stale active transfer cleaned up",
                                        slot->path);
-            xrootd_transfer_slot_free(tbl, (int) i);
+            brix_transfer_slot_free(tbl, (int) i);
             continue;
         }
 
@@ -203,7 +203,7 @@ dashboard_build_transfer_rows(int64_t now_ms,
 json_t *
 dashboard_build_tpc_registry(ngx_pool_t *pool, ngx_uint_t redact)
 {
-    xrootd_tpc_transfer_snapshot_t *rows;
+    brix_tpc_transfer_snapshot_t *rows;
     ngx_uint_t                      n, i;
     json_t                         *arr;
 
@@ -213,7 +213,7 @@ dashboard_build_tpc_registry(ngx_pool_t *pool, ngx_uint_t redact)
     rows = ngx_pcalloc(pool, sizeof(*rows) * TPC_REGISTRY_JSON_LIMIT);
     if (rows == NULL) { return arr; }
 
-    n = xrootd_tpc_registry_snapshot(rows, TPC_REGISTRY_JSON_LIMIT);
+    n = brix_tpc_registry_snapshot(rows, TPC_REGISTRY_JSON_LIMIT);
     for (i = 0; i < n; i++) {
         json_t *entry = json_object();
         if (!entry) { continue; }
@@ -235,8 +235,8 @@ dashboard_build_tpc_registry(ngx_pool_t *pool, ngx_uint_t redact)
 
 json_t *
 dashboard_build_compat_transfers(int64_t now_ms,
-    const ngx_http_xrootd_dashboard_loc_conf_t *conf,
-    const xrootd_dashboard_totals_t *totals, ngx_uint_t redact)
+    const ngx_http_brix_dashboard_loc_conf_t *conf,
+    const brix_dashboard_totals_t *totals, ngx_uint_t redact)
 {
     json_t *root = json_object();
     if (!root) { return NULL; }
@@ -250,8 +250,8 @@ dashboard_build_compat_transfers(int64_t now_ms,
 
 json_t *
 dashboard_build_v1_transfers(ngx_http_request_t *r,
-    int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf,
-    const xrootd_dashboard_totals_t *totals, ngx_uint_t redact)
+    int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf,
+    const brix_dashboard_totals_t *totals, ngx_uint_t redact)
 {
     json_t *root = dashboard_new_v1_root(now_ms, conf);
     if (!root) { return NULL; }
@@ -297,10 +297,10 @@ dashboard_parse_detail_id(ngx_http_request_t *r, uint32_t *id)
 
 json_t *
 dashboard_build_v1_transfer_detail(ngx_http_request_t *r,
-    int64_t now_ms, const ngx_http_xrootd_dashboard_loc_conf_t *conf,
+    int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf,
     ngx_int_t *status)
 {
-    xrootd_transfer_table_t *tbl;
+    brix_transfer_table_t *tbl;
     uint32_t                 id;
     ngx_uint_t               i;
     json_t                  *root;
@@ -315,17 +315,17 @@ dashboard_build_v1_transfer_detail(ngx_http_request_t *r,
         return root;
     }
 
-    if (ngx_xrootd_dashboard_shm_zone == NULL
-        || ngx_xrootd_dashboard_shm_zone->data == NULL
-        || ngx_xrootd_dashboard_shm_zone->data == (void *) 1)
+    if (ngx_brix_dashboard_shm_zone == NULL
+        || ngx_brix_dashboard_shm_zone->data == NULL
+        || ngx_brix_dashboard_shm_zone->data == (void *) 1)
     {
         json_object_set_new(root, "error", json_string("not_found"));
         return root;
     }
 
-    tbl = ngx_xrootd_dashboard_shm_zone->data;
-    for (i = 0; i < XROOTD_DASHBOARD_MAX_TRANSFERS; i++) {
-        xrootd_transfer_slot_t *slot = &tbl->slots[i];
+    tbl = ngx_brix_dashboard_shm_zone->data;
+    for (i = 0; i < BRIX_DASHBOARD_MAX_TRANSFERS; i++) {
+        brix_transfer_slot_t *slot = &tbl->slots[i];
         if (slot->in_use && slot->serial == id) {
             *status = NGX_HTTP_OK;
             json_object_set_new(root, "transfer",

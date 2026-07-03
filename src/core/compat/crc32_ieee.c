@@ -8,7 +8,7 @@
 #include "crc32_ieee.h"
 
 uint32_t
-xrootd_crc32_ieee(const uint8_t *buf, size_t len)
+brix_crc32_ieee(const uint8_t *buf, size_t len)
 {
     uint32_t crc = 0xffffffffu;
 

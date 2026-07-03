@@ -1,5 +1,5 @@
-#ifndef XROOTD_SSI_REGISTRY_H
-#define XROOTD_SSI_REGISTRY_H
+#ifndef BRIX_SSI_REGISTRY_H
+#define BRIX_SSI_REGISTRY_H
 
 /*
  * registry.h — per-worker SSI session registry (async-delivery guard).
@@ -17,18 +17,18 @@
 
 #include "session.h"
 
-#define XROOTD_SSI_REGISTRY_SLOTS 256
+#define BRIX_SSI_REGISTRY_SLOTS 256
 
 /* Register (or refresh) the session for conn_id; stores its current generation. */
-void xrootd_ssi_registry_add(uintptr_t conn_id, xrootd_ssi_session_t *s);
+void brix_ssi_registry_add(uintptr_t conn_id, brix_ssi_session_t *s);
 
 /* Remove the entry for conn_id (idempotent). MUST be called on connection
  * teardown before the session's pool memory is reclaimed. */
-void xrootd_ssi_registry_remove(uintptr_t conn_id);
+void brix_ssi_registry_remove(uintptr_t conn_id);
 
 /* Return the session for conn_id only if its stored generation equals
  * `generation`; NULL if absent or the generation has moved. */
-xrootd_ssi_session_t *xrootd_ssi_registry_find(uintptr_t conn_id,
+brix_ssi_session_t *brix_ssi_registry_find(uintptr_t conn_id,
                                                uint64_t generation);
 
-#endif /* XROOTD_SSI_REGISTRY_H */
+#endif /* BRIX_SSI_REGISTRY_H */

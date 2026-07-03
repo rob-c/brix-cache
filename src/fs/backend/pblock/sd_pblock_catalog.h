@@ -21,8 +21,8 @@
  *       descendant in one transaction. Concurrency across nginx worker processes
  *       is handled by WAL journal mode + a busy timeout, set at open.
  */
-#ifndef XROOTD_SD_PBLOCK_CATALOG_H
-#define XROOTD_SD_PBLOCK_CATALOG_H
+#ifndef BRIX_SD_PBLOCK_CATALOG_H
+#define BRIX_SD_PBLOCK_CATALOG_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -121,4 +121,4 @@ int pblock_catalog_setxattr(pblock_catalog *cat, const char *path,
 int pblock_catalog_removexattr(pblock_catalog *cat, const char *path,
     const char *name);
 
-#endif /* XROOTD_SD_PBLOCK_CATALOG_H */
+#endif /* BRIX_SD_PBLOCK_CATALOG_H */

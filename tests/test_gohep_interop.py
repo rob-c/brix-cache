@@ -11,7 +11,7 @@ Three tiers, all self-provisioning (no shared fleet, no network):
      the wire to locally-started nginx-xrootd servers and asserts:
        * the server does NOT respond to kXR_sigver (bug #1: it was acking a
          request *prefix*, so stock clients read the empty ack as their reply);
-       * a static xrootd_manager_map redirector redirects kXR_stat AND kXR_dirlist
+       * a static brix_manager_map redirector redirects kXR_stat AND kXR_dirlist
          for CHILD paths (bug #2: only open/locate consulted the map; bug #3: the
          root "/" prefix matched only "/" not "/child").
   2. GO-HEP END-TO-END (skipped without a Go toolchain) — builds xrd-ls/xrd-cp and
@@ -161,8 +161,8 @@ def servers(tmp_path_factory):
                         "stream { server {\n"
                         f"  listen {BIND}:{anon_port};\n"
                         "  xrootd on;\n"
-                        f"  xrootd_storage_backend posix:{data};\n"
-                        "  xrootd_auth none;\n"
+                        f"  brix_storage_backend posix:{data};\n"
+                        "  brix_auth none;\n"
                         "} }\n")
     # data server behind the redirector (separate root with the same files)
     ds_cfg = base / "ds.conf"
@@ -170,17 +170,17 @@ def servers(tmp_path_factory):
                       "stream { server {\n"
                       f"  listen {BIND}:{ds_port};\n"
                       "  xrootd on;\n"
-                      f"  xrootd_storage_backend posix:{data};\n"
-                      "  xrootd_auth none;\n"
+                      f"  brix_storage_backend posix:{data};\n"
+                      "  brix_auth none;\n"
                       "} }\n")
     rdr_cfg = base / "rdr.conf"
     rdr_cfg.write_text(common.replace("PIDNAME", "rdr").replace("ERRNAME", "rdr") +
                        "stream { server {\n"
                        f"  listen {BIND}:{rdr_port};\n"
                        "  xrootd on;\n"
-                       "  xrootd_manager_mode on;\n"
-                       f"  xrootd_manager_map / {BIND}:{ds_port};\n"
-                       "  xrootd_auth none;\n"
+                       "  brix_manager_mode on;\n"
+                       f"  brix_manager_map / {BIND}:{ds_port};\n"
+                       "  brix_auth none;\n"
                        "} }\n")
 
     procs = [_start(str(anon_cfg), str(base)),
@@ -331,7 +331,7 @@ def test_sigver_no_ack_tripwire():
     signing = _read("src/protocols/root/session/signing.c")
     # The function must end by returning NGX_OK (no send_ok) after logging SIGVER.
     tail = signing[signing.rindex('"SIGVER"'):]
-    assert "xrootd_send_ok" not in tail, (
+    assert "brix_send_ok" not in tail, (
         "server sends a response to kXR_sigver again (bug #1) — stock/go-hep "
         "clients will read the empty ack as the signed request's reply")
     client = _read("client/lib/sigver.c")
@@ -342,9 +342,9 @@ def test_sigver_no_ack_tripwire():
 
 def test_static_map_redirect_tripwire():
     """Bug #2: stat and dirlist must consult the static manager_map."""
-    assert "xrootd_find_manager_map" in _read("src/protocols/root/read/stat.c"), (
+    assert "brix_find_manager_map" in _read("src/protocols/root/read/stat.c"), (
         "stat no longer consults the static manager_map (bug #2)")
-    assert "xrootd_find_manager_map" in _read("src/protocols/root/dirlist/handler.c"), (
+    assert "brix_find_manager_map" in _read("src/protocols/root/dirlist/handler.c"), (
         "dirlist no longer consults the static manager_map (bug #2)")
 
 
@@ -353,6 +353,6 @@ def test_root_prefix_match_tripwire():
     aligned, so the root '/' (and any '/dir/') matches everything beneath it."""
     fr = _read("src/auth/authz/find_rule.c")
     assert "prefix[prefix_len - 1] == '/'" in fr, (
-        "xrootd_path_prefix_match no longer special-cases a trailing-'/' prefix "
+        "brix_path_prefix_match no longer special-cases a trailing-'/' prefix "
         "(bug #3) — a root-level manager_map/VO/authdb/group rule will match only "
         "'/' and not its children")

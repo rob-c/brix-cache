@@ -1,4 +1,4 @@
-#include "core/ngx_xrootd_module.h"
+#include "core/ngx_brix_module.h"
 #include "path_internal.h"
 #include "beneath.h"
 #include "auth/impersonate/impersonate.h"
@@ -20,11 +20,11 @@
 #include <linux/openat2.h>
 
 /* Helper declarations — defined in resolve_confined_helpers.c */
-extern int xrootd_open_root_fd(ngx_log_t *log, const char *root_canon);
-extern char *xrootd_split_relative_parent(const char *rel, char *parent, size_t parentsz,
+extern int brix_open_root_fd(ngx_log_t *log, const char *root_canon);
+extern char *brix_split_relative_parent(const char *rel, char *parent, size_t parentsz,
     char *base, size_t basesz);
-extern int xrootd_open_confined_parent_fallback(int rootfd, const char *parent);
-extern int xrootd_open_confined_parent_canon(ngx_log_t *log, const char *root_canon,
+extern int brix_open_confined_parent_fallback(int rootfd, const char *parent);
+extern int brix_open_confined_parent_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, char *base, size_t basesz);
 
 /*
@@ -36,7 +36,7 @@ extern int xrootd_open_confined_parent_canon(ngx_log_t *log, const char *root_ca
  */
 
 /*
- * xrootd_dirlist_access_ok — under impersonation, verify the mapped user may
+ * brix_dirlist_access_ok — under impersonation, verify the mapped user may
  * enumerate <resolved> by asking the broker to open it O_RDONLY|O_DIRECTORY as
  * that user (EACCES ⇒ not entitled). NGX_OK when impersonation is off or the
  * open succeeds; fail-closed (NGX_ERROR) when map mode is on but no principal is
@@ -44,16 +44,16 @@ extern int xrootd_open_confined_parent_canon(ngx_log_t *log, const char *root_ca
  */
 
 ngx_int_t
-xrootd_dirlist_access_ok(ngx_log_t *log, const char *root_canon,
+brix_dirlist_access_ok(ngx_log_t *log, const char *root_canon,
     const char *resolved)
 {
     char rel[PATH_MAX];
     int  fd;
 
-    if (!xrootd_imp_enabled()) {
+    if (!brix_imp_enabled()) {
         return NGX_OK;                   /* impersonation off — existing gate holds */
     }
-    if (!xrootd_imp_client_active()) {
+    if (!brix_imp_client_active()) {
         /*
          * Map mode is active but this request carries no per-request principal
          * (e.g. the principal was cleared by an async body read and not yet
@@ -67,7 +67,7 @@ xrootd_dirlist_access_ok(ngx_log_t *log, const char *root_canon,
                       " — refusing to enumerate \"%s\" (fail closed)", resolved);
         return NGX_ERROR;
     }
-    if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+    if (!brix_resolved_relative_to_root(log, root_canon, resolved,
                                           rel, sizeof(rel)))
     {
         return NGX_ERROR;
@@ -75,7 +75,7 @@ xrootd_dirlist_access_ok(ngx_log_t *log, const char *root_canon,
     /* Ask the broker to open the dir for READING as the mapped user.  readdir
      * needs read permission on the directory, so a successful O_RDONLY|O_DIRECTORY
      * open means the user is entitled to list it; EACCES means they are not. */
-    fd = xrootd_imp_open(rel, O_RDONLY | O_DIRECTORY, 0);
+    fd = brix_imp_open(rel, O_RDONLY | O_DIRECTORY, 0);
     if (fd < 0) {
         return NGX_ERROR;
     }
@@ -84,7 +84,7 @@ xrootd_dirlist_access_ok(ngx_log_t *log, const char *root_canon,
 }
 
 /*
- * xrootd_open_confined_canon — open <resolved> (already canonical, under
+ * brix_open_confined_canon — open <resolved> (already canonical, under
  * root_canon) with kernel confinement: openat2(RESOLVE_BENEATH), or on an older
  * kernel a confined parent open + O_NOFOLLOW openat of the final component.
  * Under impersonation the open is delegated to the broker (as the mapped user).
@@ -92,7 +92,7 @@ xrootd_dirlist_access_ok(ngx_log_t *log, const char *root_canon,
  * never pass permission bits in the flags slot (0644 sets O_EXCL).
  */
 int
-xrootd_open_confined_canon(ngx_log_t *log, const char *root_canon,
+brix_open_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, int flags, mode_t mode)
 {
     char rel[PATH_MAX];
@@ -102,7 +102,7 @@ xrootd_open_confined_canon(ngx_log_t *log, const char *root_canon,
     int  parentfd;
     int  fd;
 
-    if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+    if (!brix_resolved_relative_to_root(log, root_canon, resolved,
                                           rel, sizeof(rel)))
     {
         return -1;
@@ -116,17 +116,17 @@ xrootd_open_confined_canon(ngx_log_t *log, const char *root_canon,
      * (legacy confined-open) counterpart to the seam in beneath.c; off-path it is
      * an inert flag check.
      */
-    if (xrootd_imp_client_active()) {
-        return xrootd_imp_open(rel, flags, mode);
+    if (brix_imp_client_active()) {
+        return brix_imp_open(rel, flags, mode);
     }
 
-    rootfd = xrootd_open_root_fd(log, root_canon);
+    rootfd = brix_open_root_fd(log, root_canon);
     if (rootfd < 0) {
         return -1;
     }
 
-#if (XROOTD_HAVE_OPENAT2)
-    fd = xrootd_openat2_confined(rootfd, rel, flags, mode);
+#if (BRIX_HAVE_OPENAT2)
+    fd = brix_openat2_confined(rootfd, rel, flags, mode);
     if (fd >= 0
         || (errno != ENOSYS && errno != EINVAL && errno != EOPNOTSUPP))
     {
@@ -137,7 +137,7 @@ xrootd_open_confined_canon(ngx_log_t *log, const char *root_canon,
 
     /*
      * Root-directory case: rel="." means the target IS the export root.
-     * xrootd_split_relative_parent refuses "." (no parent to navigate to),
+     * brix_split_relative_parent refuses "." (no parent to navigate to),
      * so open the current directory of rootfd directly with O_NOFOLLOW.
      */
     if (rel[0] == '.' && rel[1] == '\0') {
@@ -146,14 +146,14 @@ xrootd_open_confined_canon(ngx_log_t *log, const char *root_canon,
         return fd;
     }
 
-    if (!xrootd_split_relative_parent(rel, parent, sizeof(parent),
+    if (!brix_split_relative_parent(rel, parent, sizeof(parent),
                                       base, sizeof(base)))
     {
         close(rootfd);
         return -1;
     }
 
-    parentfd = xrootd_open_confined_parent_fallback(rootfd, parent);
+    parentfd = brix_open_confined_parent_fallback(rootfd, parent);
     close(rootfd);
     if (parentfd < 0) {
         return -1;
@@ -165,24 +165,24 @@ xrootd_open_confined_canon(ngx_log_t *log, const char *root_canon,
 }
 
 int
-xrootd_open_confined(ngx_log_t *log, const ngx_str_t *root,
+brix_open_confined(ngx_log_t *log, const ngx_str_t *root,
     const char *resolved, int flags, mode_t mode)
 {
     char root_canon[PATH_MAX];
 
-    if (!xrootd_get_canonical_root(log, root, root_canon,
+    if (!brix_get_canonical_root(log, root, root_canon,
                                    sizeof(root_canon))) {
         errno = EACCES;
         return -1;
     }
 
-    return xrootd_open_confined_canon(log, root_canon, resolved, flags, mode);
+    return brix_open_confined_canon(log, root_canon, resolved, flags, mode);
 }
 
-/* xrootd_unlink_confined_canon — unlinkat (AT_REMOVEDIR when is_dir) at the
+/* brix_unlink_confined_canon — unlinkat (AT_REMOVEDIR when is_dir) at the
  * confined parent of <resolved> (broker-routed under impersonation). 0/-1. */
 int
-xrootd_unlink_confined_canon(ngx_log_t *log, const char *root_canon,
+brix_unlink_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, int is_dir)
 {
     char base[NAME_MAX + 1];
@@ -190,17 +190,17 @@ xrootd_unlink_confined_canon(ngx_log_t *log, const char *root_canon,
     int  rc;
 
     /* Phase 40: route through the broker (as the mapped user) when active. */
-    if (xrootd_imp_client_active()) {
+    if (brix_imp_client_active()) {
         char rel[PATH_MAX];
-        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+        if (!brix_resolved_relative_to_root(log, root_canon, resolved,
                                               rel, sizeof(rel)))
         {
             return -1;
         }
-        return xrootd_imp_unlink(rel, is_dir);
+        return brix_imp_unlink(rel, is_dir);
     }
 
-    parentfd = xrootd_open_confined_parent_canon(log, root_canon, resolved,
+    parentfd = brix_open_confined_parent_canon(log, root_canon, resolved,
                                                  base, sizeof(base));
     if (parentfd < 0) {
         return -1;
@@ -211,10 +211,10 @@ xrootd_unlink_confined_canon(ngx_log_t *log, const char *root_canon,
     return rc;
 }
 
-/* xrootd_mkdir_confined_canon — mkdirat(mode) at the confined parent of
+/* brix_mkdir_confined_canon — mkdirat(mode) at the confined parent of
  * <resolved> (broker-routed under impersonation). 0/-1. */
 int
-xrootd_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
+brix_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, mode_t mode)
 {
     char base[NAME_MAX + 1];
@@ -222,17 +222,17 @@ xrootd_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
     int  rc;
 
     /* Phase 40: route through the broker (as the mapped user) when active. */
-    if (xrootd_imp_client_active()) {
+    if (brix_imp_client_active()) {
         char rel[PATH_MAX];
-        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+        if (!brix_resolved_relative_to_root(log, root_canon, resolved,
                                               rel, sizeof(rel)))
         {
             return -1;
         }
-        return xrootd_imp_mkdir(rel, mode);
+        return brix_imp_mkdir(rel, mode);
     }
 
-    parentfd = xrootd_open_confined_parent_canon(log, root_canon, resolved,
+    parentfd = brix_open_confined_parent_canon(log, root_canon, resolved,
                                                  base, sizeof(base));
     if (parentfd < 0) {
         return -1;
@@ -265,27 +265,27 @@ rename_confined_canon_impl(ngx_log_t *log, const char *root_canon,
     int  rc;
 
     /* Phase 40: route through the broker (as the mapped user) when active. */
-    if (xrootd_imp_client_active()) {
+    if (brix_imp_client_active()) {
         char rsrc[PATH_MAX], rdst[PATH_MAX];
-        if (!xrootd_resolved_relative_to_root(log, root_canon, src_resolved,
+        if (!brix_resolved_relative_to_root(log, root_canon, src_resolved,
                                               rsrc, sizeof(rsrc))
-            || !xrootd_resolved_relative_to_root(log, root_canon, dst_resolved,
+            || !brix_resolved_relative_to_root(log, root_canon, dst_resolved,
                                                  rdst, sizeof(rdst)))
         {
             return -1;
         }
-        return noreplace ? xrootd_imp_rename_noreplace(rsrc, rdst)
-                         : xrootd_imp_rename(rsrc, rdst);
+        return noreplace ? brix_imp_rename_noreplace(rsrc, rdst)
+                         : brix_imp_rename(rsrc, rdst);
     }
 
-    src_parentfd = xrootd_open_confined_parent_canon(log, root_canon,
+    src_parentfd = brix_open_confined_parent_canon(log, root_canon,
                                                      src_resolved, src_base,
                                                      sizeof(src_base));
     if (src_parentfd < 0) {
         return -1;
     }
 
-    dst_parentfd = xrootd_open_confined_parent_canon(log, root_canon,
+    dst_parentfd = brix_open_confined_parent_canon(log, root_canon,
                                                      dst_resolved, dst_base,
                                                      sizeof(dst_base));
     if (dst_parentfd < 0) {
@@ -320,7 +320,7 @@ rename_confined_canon_impl(ngx_log_t *log, const char *root_canon,
 }
 
 int
-xrootd_rename_confined_canon(ngx_log_t *log, const char *root_canon,
+brix_rename_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved)
 {
     return rename_confined_canon_impl(log, root_canon, src_resolved,
@@ -328,17 +328,17 @@ xrootd_rename_confined_canon(ngx_log_t *log, const char *root_canon,
 }
 
 int
-xrootd_rename_confined_canon_excl(ngx_log_t *log, const char *root_canon,
+brix_rename_confined_canon_excl(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved)
 {
     return rename_confined_canon_impl(log, root_canon, src_resolved,
                                       dst_resolved, 1);
 }
 
-/* xrootd_link_confined_canon — linkat at the confined parents of BOTH src and
+/* brix_link_confined_canon — linkat at the confined parents of BOTH src and
  * dst (broker-routed under impersonation). 0/-1. */
 int
-xrootd_link_confined_canon(ngx_log_t *log, const char *root_canon,
+brix_link_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved)
 {
     char src_base[NAME_MAX + 1];
@@ -348,26 +348,26 @@ xrootd_link_confined_canon(ngx_log_t *log, const char *root_canon,
     int  rc;
 
     /* Phase 40: route through the broker (as the mapped user) when active. */
-    if (xrootd_imp_client_active()) {
+    if (brix_imp_client_active()) {
         char rsrc[PATH_MAX], rdst[PATH_MAX];
-        if (!xrootd_resolved_relative_to_root(log, root_canon, src_resolved,
+        if (!brix_resolved_relative_to_root(log, root_canon, src_resolved,
                                               rsrc, sizeof(rsrc))
-            || !xrootd_resolved_relative_to_root(log, root_canon, dst_resolved,
+            || !brix_resolved_relative_to_root(log, root_canon, dst_resolved,
                                                  rdst, sizeof(rdst)))
         {
             return -1;
         }
-        return xrootd_imp_link(rsrc, rdst);
+        return brix_imp_link(rsrc, rdst);
     }
 
-    src_parentfd = xrootd_open_confined_parent_canon(log, root_canon,
+    src_parentfd = brix_open_confined_parent_canon(log, root_canon,
                                                      src_resolved, src_base,
                                                      sizeof(src_base));
     if (src_parentfd < 0) {
         return -1;
     }
 
-    dst_parentfd = xrootd_open_confined_parent_canon(log, root_canon,
+    dst_parentfd = brix_open_confined_parent_canon(log, root_canon,
                                                      dst_resolved, dst_base,
                                                      sizeof(dst_base));
     if (dst_parentfd < 0) {
@@ -392,7 +392,7 @@ xrootd_link_confined_canon(ngx_log_t *log, const char *root_canon,
  *       Returns 0 on success, -1 with errno set.
  */
 int
-xrootd_setattr_confined_canon(ngx_log_t *log, const char *root_canon,
+brix_setattr_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, int set_times, const struct timespec times[2],
     int set_owner, uid_t uid, gid_t gid)
 {
@@ -402,17 +402,17 @@ xrootd_setattr_confined_canon(ngx_log_t *log, const char *root_canon,
     int  saved_errno;
 
     /* Phase 40: route through the broker (as the mapped user) when active. */
-    if (xrootd_imp_client_active()) {
+    if (brix_imp_client_active()) {
         char rel[PATH_MAX];
-        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+        if (!brix_resolved_relative_to_root(log, root_canon, resolved,
                                               rel, sizeof(rel)))
         {
             return -1;
         }
-        return xrootd_imp_setattr(rel, set_times, times, set_owner, uid, gid);
+        return brix_imp_setattr(rel, set_times, times, set_owner, uid, gid);
     }
 
-    parentfd = xrootd_open_confined_parent_canon(log, root_canon, resolved,
+    parentfd = brix_open_confined_parent_canon(log, root_canon, resolved,
                                                  base, sizeof(base));
     if (parentfd < 0) {
         return -1;
@@ -441,7 +441,7 @@ xrootd_setattr_confined_canon(ngx_log_t *log, const char *root_canon,
  *       Returns 0 on success, -1 with errno set.
  */
 int
-xrootd_chmod_confined_canon(ngx_log_t *log, const char *root_canon,
+brix_chmod_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, mode_t mode)
 {
     char base[NAME_MAX + 1];
@@ -450,17 +450,17 @@ xrootd_chmod_confined_canon(ngx_log_t *log, const char *root_canon,
     int  saved_errno;
 
     /* Phase 40: route through the broker (as the mapped user) when active. */
-    if (xrootd_imp_client_active()) {
+    if (brix_imp_client_active()) {
         char rel[PATH_MAX];
-        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+        if (!brix_resolved_relative_to_root(log, root_canon, resolved,
                                               rel, sizeof(rel)))
         {
             return -1;
         }
-        return xrootd_imp_chmod(rel, mode & 07777);
+        return brix_imp_chmod(rel, mode & 07777);
     }
 
-    parentfd = xrootd_open_confined_parent_canon(log, root_canon, resolved,
+    parentfd = brix_open_confined_parent_canon(log, root_canon, resolved,
                                                  base, sizeof(base));
     if (parentfd < 0) {
         return -1;
@@ -482,7 +482,7 @@ xrootd_chmod_confined_canon(ngx_log_t *log, const char *root_canon,
  *       Returns 0 on success, -1 with errno set.
  */
 int
-xrootd_symlink_confined_canon(ngx_log_t *log, const char *root_canon,
+brix_symlink_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *target, const char *link_resolved)
 {
     char base[NAME_MAX + 1];
@@ -491,17 +491,17 @@ xrootd_symlink_confined_canon(ngx_log_t *log, const char *root_canon,
     int  saved_errno;
 
     /* Phase 40: route through the broker (as the mapped user) when active. */
-    if (xrootd_imp_client_active()) {
+    if (brix_imp_client_active()) {
         char rel[PATH_MAX];
-        if (!xrootd_resolved_relative_to_root(log, root_canon, link_resolved,
+        if (!brix_resolved_relative_to_root(log, root_canon, link_resolved,
                                               rel, sizeof(rel)))
         {
             return -1;
         }
-        return xrootd_imp_symlink(target, rel);
+        return brix_imp_symlink(target, rel);
     }
 
-    parentfd = xrootd_open_confined_parent_canon(log, root_canon, link_resolved,
+    parentfd = brix_open_confined_parent_canon(log, root_canon, link_resolved,
                                                  base, sizeof(base));
     if (parentfd < 0) {
         return -1;
@@ -521,7 +521,7 @@ xrootd_symlink_confined_canon(ngx_log_t *log, const char *root_canon,
  *       Returns the number of bytes placed in buf, or -1 with errno set.
  */
 ssize_t
-xrootd_readlink_confined_canon(ngx_log_t *log, const char *root_canon,
+brix_readlink_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, char *buf, size_t bufsz)
 {
     char    base[NAME_MAX + 1];
@@ -530,17 +530,17 @@ xrootd_readlink_confined_canon(ngx_log_t *log, const char *root_canon,
     int     saved_errno;
 
     /* Phase 40: route through the broker (as the mapped user) when active. */
-    if (xrootd_imp_client_active()) {
+    if (brix_imp_client_active()) {
         char rel[PATH_MAX];
-        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+        if (!brix_resolved_relative_to_root(log, root_canon, resolved,
                                               rel, sizeof(rel)))
         {
             return -1;
         }
-        return xrootd_imp_readlink(rel, buf, bufsz);
+        return brix_imp_readlink(rel, buf, bufsz);
     }
 
-    parentfd = xrootd_open_confined_parent_canon(log, root_canon, resolved,
+    parentfd = brix_open_confined_parent_canon(log, root_canon, resolved,
                                                  base, sizeof(base));
     if (parentfd < 0) {
         return -1;
@@ -573,66 +573,66 @@ xrootd_readlink_confined_canon(ngx_log_t *log, const char *root_canon,
  * size when bufsz==0; -1/ERANGE when the caller buffer is too small).
  */
 int
-xrootd_setxattr_confined_canon(ngx_log_t *log, const char *root_canon,
+brix_setxattr_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, const char *name, const void *value, size_t len,
     int flags)
 {
-    if (xrootd_imp_client_active()) {
+    if (brix_imp_client_active()) {
         char rel[PATH_MAX];
-        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+        if (!brix_resolved_relative_to_root(log, root_canon, resolved,
                                               rel, sizeof(rel)))
         {
             return -1;
         }
-        return xrootd_imp_setxattr(rel, name, value, len, flags);
+        return brix_imp_setxattr(rel, name, value, len, flags);
     }
     return setxattr(resolved, name, value, len, flags);
 }
 
 ssize_t
-xrootd_getxattr_confined_canon(ngx_log_t *log, const char *root_canon,
+brix_getxattr_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, const char *name, void *buf, size_t bufsz)
 {
-    if (xrootd_imp_client_active()) {
+    if (brix_imp_client_active()) {
         char rel[PATH_MAX];
-        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+        if (!brix_resolved_relative_to_root(log, root_canon, resolved,
                                               rel, sizeof(rel)))
         {
             return -1;
         }
-        return xrootd_imp_getxattr(rel, name, buf, bufsz);
+        return brix_imp_getxattr(rel, name, buf, bufsz);
     }
     return getxattr(resolved, name, buf, bufsz);
 }
 
 int
-xrootd_removexattr_confined_canon(ngx_log_t *log, const char *root_canon,
+brix_removexattr_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, const char *name)
 {
-    if (xrootd_imp_client_active()) {
+    if (brix_imp_client_active()) {
         char rel[PATH_MAX];
-        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+        if (!brix_resolved_relative_to_root(log, root_canon, resolved,
                                               rel, sizeof(rel)))
         {
             return -1;
         }
-        return xrootd_imp_removexattr(rel, name);
+        return brix_imp_removexattr(rel, name);
     }
     return removexattr(resolved, name);
 }
 
 ssize_t
-xrootd_listxattr_confined_canon(ngx_log_t *log, const char *root_canon,
+brix_listxattr_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, void *buf, size_t bufsz)
 {
-    if (xrootd_imp_client_active()) {
+    if (brix_imp_client_active()) {
         char rel[PATH_MAX];
-        if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+        if (!brix_resolved_relative_to_root(log, root_canon, resolved,
                                               rel, sizeof(rel)))
         {
             return -1;
         }
-        return xrootd_imp_listxattr(rel, buf, bufsz);
+        return brix_imp_listxattr(rel, buf, bufsz);
     }
     return listxattr(resolved, buf, bufsz);
 }
@@ -651,24 +651,24 @@ xrootd_listxattr_confined_canon(ngx_log_t *log, const char *root_canon,
  *      enumerate a staging directory created+owned by the mapped user.  Done as a
  *      raw worker-side opendir() they fail EACCES under impersonation; routing the
  *      open through the broker fixes that while keeping per-entry removal on the
- *      already-brokered xrootd_unlink_confined_canon path.  Returns a DIR* (caller
+ *      already-brokered brix_unlink_confined_canon path.  Returns a DIR* (caller
  *      closedir()s it) or NULL (errno set). */
 DIR *
-xrootd_opendir_confined_canon(ngx_log_t *log, const char *root_canon,
+brix_opendir_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved)
 {
     char rel[PATH_MAX];
     int  rootfd;
     DIR *d;
 
-    if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+    if (!brix_resolved_relative_to_root(log, root_canon, resolved,
                                           rel, sizeof(rel)))
     {
         return NULL;
     }
 
-    if (xrootd_imp_client_active()) {
-        int fd = xrootd_imp_open(rel, O_RDONLY | O_DIRECTORY, 0); /* mapped user */
+    if (brix_imp_client_active()) {
+        int fd = brix_imp_open(rel, O_RDONLY | O_DIRECTORY, 0); /* mapped user */
         if (fd < 0) {
             return NULL;
         }
@@ -687,16 +687,16 @@ xrootd_opendir_confined_canon(ngx_log_t *log, const char *root_canon,
      * and enumerates it — a confinement escape. RESOLVE_IN_ROOT confines the
      * resolution so an escaping target is refused.
      */
-    rootfd = xrootd_open_root_fd(log, root_canon);
+    rootfd = brix_open_root_fd(log, root_canon);
     if (rootfd < 0) {
         return NULL;
     }
-    d = xrootd_opendir_beneath(rootfd, rel);
+    d = brix_opendir_beneath(rootfd, rel);
     close(rootfd);
     return d;
 }
 
-/* xrootd_lstat_confined_canon — lstat()/stat() a path *as the mapped user* under
+/* brix_lstat_confined_canon — lstat()/stat() a path *as the mapped user* under
  * impersonation, else a bare lstat/stat.  WHY: recursive walks (COPY/MOVE
  * collections, S3 multipart, remove-tree) lstat children of a directory owned
  * 0700 by the mapped user; a raw worker lstat would EACCES on the parent's
@@ -705,26 +705,26 @@ xrootd_opendir_confined_canon(ngx_log_t *log, const char *root_canon,
  * follow a trailing symlink — confinement: never resolve a link out of the
  * export).  Returns 0 on success, -1 on error (errno set). */
 int
-xrootd_lstat_confined_canon(ngx_log_t *log, const char *root_canon,
+brix_lstat_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *resolved, struct stat *st, int nofollow)
 {
     char rel[PATH_MAX];
     int  rootfd;
     int  rc;
 
-    if (!xrootd_resolved_relative_to_root(log, root_canon, resolved,
+    if (!brix_resolved_relative_to_root(log, root_canon, resolved,
                                           rel, sizeof(rel)))
     {
         return -1;
     }
 
-    if (xrootd_imp_client_active()) {
-        return xrootd_imp_stat(rel, st, nofollow);    /* as mapped user */
+    if (brix_imp_client_active()) {
+        return brix_imp_stat(rel, st, nofollow);    /* as mapped user */
     }
 
     /*
      * Off impersonation, resolve chroot-style under an O_PATH rootfd via openat2
-     * RESOLVE_IN_ROOT (xrootd_{,l}stat_beneath) rather than a bare stat()/lstat()
+     * RESOLVE_IN_ROOT (brix_{,l}stat_beneath) rather than a bare stat()/lstat()
      * on the canonical path.  A bare follow-stat() dereferences a trailing
      * symlink against the REAL filesystem, so a planted in-export link with an
      * outward absolute target (e.g. /_sym -> /etc/passwd) would be followed
@@ -734,12 +734,12 @@ xrootd_lstat_confined_canon(ngx_log_t *log, const char *root_canon,
      * realpath-confined fallback then rejects.  nofollow=1 still reports a
      * trailing link as itself (O_PATH|O_NOFOLLOW) without following it.
      */
-    rootfd = xrootd_open_root_fd(log, root_canon);
+    rootfd = brix_open_root_fd(log, root_canon);
     if (rootfd < 0) {
         return -1;
     }
-    rc = nofollow ? xrootd_lstat_beneath(rootfd, rel, st)
-                  : xrootd_stat_beneath(rootfd, rel, st);
+    rc = nofollow ? brix_lstat_beneath(rootfd, rel, st)
+                  : brix_stat_beneath(rootfd, rel, st);
     close(rootfd);
     return rc;
 }

@@ -9,7 +9,7 @@
 #include "protocols/root/protocol/opcodes.h"
 
 const char *
-xrootd_kxr_request_name(int reqid)
+brix_kxr_request_name(int reqid)
 {
     switch (reqid) {
     case kXR_auth:     return "kXR_auth";
@@ -50,7 +50,7 @@ xrootd_kxr_request_name(int reqid)
 }
 
 const char *
-xrootd_kxr_response_status_name(int status)
+brix_kxr_response_status_name(int status)
 {
     switch (status) {
     case kXR_ok:       return "ok";
@@ -67,7 +67,7 @@ xrootd_kxr_response_status_name(int status)
 }
 
 const char *
-xrootd_kxr_error_name(int kxr)
+brix_kxr_error_name(int kxr)
 {
     switch (kxr) {
     case kXR_ArgInvalid:     return "ArgInvalid";

@@ -1,8 +1,8 @@
 """
-Phase-65 bad-actor guard — ARC profile (ngx_http_xrootd_guard_module).
+Phase-65 bad-actor guard — ARC profile (ngx_http_brix_guard_module).
 
 Self-contained: spins up a hit-counting stub backend plus an nginx with
-`xrootd_guard on; xrootd_guard_profile arc;` in front of a stock proxy_pass,
+`brix_guard on; brix_guard_profile arc;` in front of a stock proxy_pass,
 and drives real HTTP through the guard.
 
 Verifies: ACCESS-phase pre-backend bounce (signature + grammar, backend never
@@ -59,9 +59,9 @@ http {{
     server {{
         listen {BIND_HOST}:{guard_port};
         location / {{
-            xrootd_guard on;
-            xrootd_guard_profile arc;
-            xrootd_guard_audit_log {audit_path};
+            brix_guard on;
+            brix_guard_profile arc;
+            brix_guard_audit_log {audit_path};
             proxy_pass http://{BIND_HOST}:{stub_backend.port};
         }}
     }}

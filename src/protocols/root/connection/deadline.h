@@ -5,7 +5,7 @@
  * WHAT: small, idempotent helpers that arm/disarm the client read (c->read) and
  *   write (c->write) timers used to shed slowloris / silently-stalled / half-open
  *   peers.  Every helper is a no-op unless the operator enabled the matching
- *   directive (xrootd_handshake_timeout / xrootd_read_timeout / xrootd_send_timeout),
+ *   directive (brix_handshake_timeout / brix_read_timeout / brix_send_timeout),
  *   whose merged value is cached on ctx at accept (src/connection/handler.c).
  *
  * WHY: official XRootD arms no steady-state deadline — a 1-byte-per-readWait
@@ -24,8 +24,8 @@
  *   WAITING_*, so rev->timedout can never fire and finalize the session while an
  *   in-flight AIO task still references ctx (the documented UAF hazard).
  */
-#ifndef NGX_XROOTD_CONNECTION_DEADLINE_H
-#define NGX_XROOTD_CONNECTION_DEADLINE_H
+#ifndef NGX_BRIX_CONNECTION_DEADLINE_H
+#define NGX_BRIX_CONNECTION_DEADLINE_H
 
 #include <ngx_core.h>
 #include <ngx_event.h>
@@ -47,7 +47,7 @@
  * COMPLETE the PDU, not time since the last byte).
  */
 static ngx_inline void
-xrootd_arm_read_deadline(ngx_connection_t *c, xrootd_ctx_t *ctx)
+brix_arm_read_deadline(ngx_connection_t *c, brix_ctx_t *ctx)
 {
     ngx_msec_t t;
 
@@ -75,7 +75,7 @@ xrootd_arm_read_deadline(ngx_connection_t *c, xrootd_ctx_t *ctx)
 /* Disarm the read deadline we armed (idempotent; never touches a timer we did not
  * arm — e.g. the CMS/FRM WAITING timers that share c->read). */
 static ngx_inline void
-xrootd_disarm_read_deadline(ngx_connection_t *c, xrootd_ctx_t *ctx)
+brix_disarm_read_deadline(ngx_connection_t *c, brix_ctx_t *ctx)
 {
     if (!ctx->read_deadline_armed) {
         return;
@@ -88,7 +88,7 @@ xrootd_disarm_read_deadline(ngx_connection_t *c, xrootd_ctx_t *ctx)
 
 /*
  * Arm / refresh c->write's response-drain deadline.  Called from
- * xrootd_schedule_write_resume on every park and re-park — i.e. once per write
+ * brix_schedule_write_resume on every park and re-park — i.e. once per write
  * event that still has queued data to drain — so the deadline RESETS on each
  * drain-progress opportunity (an EPOLLOUT means the socket accepted more bytes).
  * It therefore fires only after send_timeout_ms with NO progress at all (a stuck /
@@ -96,12 +96,12 @@ xrootd_disarm_read_deadline(ngx_connection_t *c, xrootd_ctx_t *ctx)
  * legitimate slow-but-steady large/pipelined transfer.  Reset frequency is
  * per-write-event (per socket-buffer refill), never per-byte or per-slot, so the
  * bulk-throughput drain takes one cheap rbtree reposition per refill cycle.
- * Disarmed by xrootd_disarm_send_deadline when the output queue fully drains.
+ * Disarmed by brix_disarm_send_deadline when the output queue fully drains.
  * Bounds a slow / half-open consumer that would otherwise pin the parked out_ring
  * slots + the read_scratch windows they reference forever.
  */
 static ngx_inline void
-xrootd_arm_send_deadline(ngx_connection_t *c, xrootd_ctx_t *ctx)
+brix_arm_send_deadline(ngx_connection_t *c, brix_ctx_t *ctx)
 {
     if (ctx->send_timeout_ms == 0) {
         return;  /* deadline disabled */
@@ -111,7 +111,7 @@ xrootd_arm_send_deadline(ngx_connection_t *c, xrootd_ctx_t *ctx)
 }
 
 static ngx_inline void
-xrootd_disarm_send_deadline(ngx_connection_t *c, xrootd_ctx_t *ctx)
+brix_disarm_send_deadline(ngx_connection_t *c, brix_ctx_t *ctx)
 {
     if (!ctx->send_deadline_armed) {
         return;
@@ -122,4 +122,4 @@ xrootd_disarm_send_deadline(ngx_connection_t *c, xrootd_ctx_t *ctx)
     ctx->send_deadline_armed = 0;
 }
 
-#endif /* NGX_XROOTD_CONNECTION_DEADLINE_H */
+#endif /* NGX_BRIX_CONNECTION_DEADLINE_H */

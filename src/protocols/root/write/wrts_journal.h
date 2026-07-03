@@ -1,10 +1,10 @@
 /*
  * src/write/wrts_journal.h — kXR_recoverWrts per-handle write-recovery journal.
  *
- * WHAT: A fixed-size ring buffer (XROOTD_WRTS_JOURNAL_SLOTS entries) embedded
- *       in xrootd_file_t that records the offset+length of every pwrite() that
+ * WHAT: A fixed-size ring buffer (BRIX_WRTS_JOURNAL_SLOTS entries) embedded
+ *       in brix_file_t that records the offset+length of every pwrite() that
  *       has been committed to disk.  When a client reconnects and replays an
- *       in-flight write, xrootd_wrts_is_replay() detects the overlap and the
+ *       in-flight write, brix_wrts_is_replay() detects the overlap and the
  *       write handler short-circuits the pwrite() — preventing double-writes
  *       that would corrupt the file.
  *
@@ -14,37 +14,37 @@
  *       so advertising the flag without the journal would silently double-write.
  *
  * HOW:  Four public functions:
- *   xrootd_wrts_open()      — initialise journal fields on kXR_open (writable)
- *   xrootd_wrts_record()    — append a committed write to the ring
- *   xrootd_wrts_is_replay() — return 1 if (offset,len) is already journalled
- *   xrootd_wrts_flush()     — clear the ring on kXR_sync / kXR_close
+ *   brix_wrts_open()      — initialise journal fields on kXR_open (writable)
+ *   brix_wrts_record()    — append a committed write to the ring
+ *   brix_wrts_is_replay() — return 1 if (offset,len) is already journalled
+ *   brix_wrts_flush()     — clear the ring on kXR_sync / kXR_close
  *
- * The ring is O(XROOTD_WRTS_JOURNAL_SLOTS) to scan; 64 slots covers normal
+ * The ring is O(BRIX_WRTS_JOURNAL_SLOTS) to scan; 64 slots covers normal
  * HEP streaming workloads without heap allocation.
  */
 
-#ifndef XROOTD_WRITE_WRTS_JOURNAL_H
-#define XROOTD_WRITE_WRTS_JOURNAL_H
+#ifndef BRIX_WRITE_WRTS_JOURNAL_H
+#define BRIX_WRITE_WRTS_JOURNAL_H
 
 #include "core/types/file.h"
 
 /*
- * xrootd_wrts_open — initialise the write-recovery journal for a newly opened
+ * brix_wrts_open — initialise the write-recovery journal for a newly opened
  * writable file handle.  Call immediately after the fd is stored in the slot.
  */
-void xrootd_wrts_open(xrootd_file_t *f);
+void brix_wrts_open(brix_file_t *f);
 
 /*
- * xrootd_wrts_record — record a committed write in the ring buffer.
+ * brix_wrts_record — record a committed write in the ring buffer.
  *
  * Call after a successful pwrite() (both sync and AIO paths).
  * offset  — file offset of the write
  * length  — byte count written (must be > 0)
  */
-void xrootd_wrts_record(xrootd_file_t *f, int64_t offset, uint32_t length);
+void brix_wrts_record(brix_file_t *f, int64_t offset, uint32_t length);
 
 /*
- * xrootd_wrts_is_replay — return 1 if the incoming (offset, length) range is
+ * brix_wrts_is_replay — return 1 if the incoming (offset, length) range is
  * fully covered by any existing journal entry.
  *
  * A "covered" entry satisfies:
@@ -54,16 +54,16 @@ void xrootd_wrts_record(xrootd_file_t *f, int64_t offset, uint32_t length);
  * Returns 0 if the journal is empty, wrts_enabled is 0, or no entry covers
  * the incoming range.
  */
-int xrootd_wrts_is_replay(const xrootd_file_t *f,
+int brix_wrts_is_replay(const brix_file_t *f,
                            int64_t offset, uint32_t length);
 
 /*
- * xrootd_wrts_flush — clear the journal.
+ * brix_wrts_flush — clear the journal.
  *
  * Called on kXR_sync (writes committed to stable storage — new generation
  * starts) and on kXR_close (handle going away).  After flush, any subsequent
  * write with the same offset is treated as a fresh write, not a replay.
  */
-void xrootd_wrts_flush(xrootd_file_t *f);
+void brix_wrts_flush(brix_file_t *f);
 
-#endif /* XROOTD_WRITE_WRTS_JOURNAL_H */
+#endif /* BRIX_WRITE_WRTS_JOURNAL_H */

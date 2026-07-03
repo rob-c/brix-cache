@@ -2,7 +2,7 @@
 #
 # run_root_slice_fill.sh — phase-64 §6.5: a root:// (stream) slice-cache read served
 # through the unified sd_cache partial mechanism (not the legacy slice_read path).
-# A cache node with the LEGACY config (xrootd_cache_origin + xrootd_cache_slice)
+# A cache node with the LEGACY config (brix_cache_origin + brix_cache_slice)
 # fills per-slice from a root:// origin and serves byte-exact over root://. This is
 # the parity gate for routing open_cache.c's slice branch onto sd_cache: a full read
 # (cold fill + warm hit) and a multi-slice object must be byte-identical to the
@@ -30,10 +30,10 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/c/export" "$PFX/c/cache" "$PFX/c/logs
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log error; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OPORT}; xrootd on; xrootd_root $PFX/o/root; xrootd_auth none; } }
+stream { server { listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root; brix_auth none; } }
 EOF
 
-# Legacy slice-cache node: xrootd_cache_origin + xrootd_cache_slice (>= 1 MiB).
+# Legacy slice-cache node: brix_cache_origin + brix_cache_slice (>= 1 MiB).
 cat > "$PFX/c/nginx.conf" <<EOF
 daemon on; error_log $PFX/c/logs/e.log info; pid $PFX/c/nginx.pid;
 thread_pool default threads=2;
@@ -42,11 +42,11 @@ stream {
     server {
         listen 127.0.0.1:${CPORT};
         xrootd on;
-        xrootd_root $PFX/c/export;
-        xrootd_auth none;
-        xrootd_storage_backend root://127.0.0.1:${OPORT};
-        xrootd_cache_store posix:$PFX/c/cache; xrootd_cache_root /;
-        xrootd_cache_slice_size 1m;
+        brix_root $PFX/c/export;
+        brix_auth none;
+        brix_storage_backend root://127.0.0.1:${OPORT};
+        brix_cache_store posix:$PFX/c/cache; brix_cache_root /;
+        brix_cache_slice_size 1m;
     }
 }
 EOF

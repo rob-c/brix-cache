@@ -2,8 +2,8 @@
  * s3_post_internal.h - private split contract for post_object.c and its Phase-38 siblings.
  * Not a public API: include only from src/s3/.  See docs/refactor/phase-38-file-size-unix-modularity.md.
  */
-#ifndef XROOTD_S3_POST_INTERNAL_H
-#define XROOTD_S3_POST_INTERNAL_H
+#ifndef BRIX_S3_POST_INTERNAL_H
+#define BRIX_S3_POST_INTERNAL_H
 
 #include "s3.h"
 #include "fs/backend/sd.h"   
@@ -95,4 +95,4 @@ ngx_int_t s3_post_send_success(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf
 /* post_object.c */
 void s3_post_object_body_handler_inner(ngx_http_request_t *r);
 
-#endif /* XROOTD_S3_POST_INTERNAL_H */
+#endif /* BRIX_S3_POST_INTERNAL_H */

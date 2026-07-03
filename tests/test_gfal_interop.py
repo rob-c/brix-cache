@@ -115,7 +115,7 @@ def _run_matrix(base, work, tmp_path, check_stat_size, with_crc32c):
         _gfal("gfal-rm", "-r", d)
 
 
-def test_gfal_xrootd_plugin_root(workfile, tmp_path):
+def test_gfal_brix_plugin_root(workfile, tmp_path):
     """gfal2 xrootd plugin (official XrdCl) ↔ our root:// stream module."""
     if not _port_open(11094):
         pytest.skip("fleet root:// :11094 not listening (run manage_test_servers.sh start)")

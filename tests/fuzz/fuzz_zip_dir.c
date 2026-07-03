@@ -1,8 +1,8 @@
 /*
  * fuzz_zip_dir.c — libFuzzer target for the server ZIP central-directory walk.
  *
- * WHAT: Wraps fuzz bytes in a memfd and exercises xrootd_zip_find_member (the
- *       server's ZIP member locator) plus xrootd_zip_extract_full (the one-shot
+ * WHAT: Wraps fuzz bytes in a memfd and exercises brix_zip_find_member (the
+ *       server's ZIP member locator) plus brix_zip_extract_full (the one-shot
  *       inflate path) under ASan + UBSan.
  *
  * WHY:  The central-directory parser consumes attacker-supplied byte offsets and
@@ -15,7 +15,7 @@
  *       without touching any source file or requiring -include flags. The build
  *       command is a single clang line with -lz.
  *
- *       On XROOTD_ZIP_OK the fuzzer also calls xrootd_zip_extract_full so the
+ *       On BRIX_ZIP_OK the fuzzer also calls brix_zip_extract_full so the
  *       zlib inflate path is reachable. The output buffer is capped at 1 MiB to
  *       keep per-input allocation bounded.
  *
@@ -40,12 +40,12 @@
  *                            / ngx_log_t / NGX_OK / NGX_ERROR / ngx_memzero, and
  *                            the nginx-coupled lifecycle sections of sd_posix.c
  *                            are compiled out.
- *   XROOTD_SAFE_SIZE_STANDALONE → safe_size.h skips <ngx_config.h>/<ngx_core.h>.
+ *   BRIX_SAFE_SIZE_STANDALONE → safe_size.h skips <ngx_config.h>/<ngx_core.h>.
  *   ngx_palloc / _pcalloc / _alloc → cover the safe_size.h static inline
  *                            functions that the compiler parses but zip_dir.c
- *                            never calls (xrootd_palloc_array and friends). */
+ *                            never calls (brix_palloc_array and friends). */
 #define XRDPROTO_NO_NGX              1
-#define XROOTD_SAFE_SIZE_STANDALONE  1
+#define BRIX_SAFE_SIZE_STANDALONE  1
 #define ngx_palloc(pool, n)          malloc(n)
 #define ngx_pcalloc(pool, n)         calloc(1, (n))
 #define ngx_alloc(n, log)            malloc(n)
@@ -66,8 +66,8 @@
 
 /*
  * LLVMFuzzerTestOneInput — drive the ZIP central-directory walk with hostile
- * input: write fuzz bytes to a memfd, call xrootd_zip_find_member, and on a
- * successful find drive xrootd_zip_extract_full to reach the inflate path.
+ * input: write fuzz bytes to a memfd, call brix_zip_find_member, and on a
+ * successful find drive brix_zip_extract_full to reach the inflate path.
  *
  * The member name is fixed at "any.dat"; the directory walk (not the name
  * match) is what we are exercising. A cd_max of 1 MiB matches a realistic
@@ -76,7 +76,7 @@
 int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
-    xrootd_zip_member_t m;
+    brix_zip_member_t m;
     int                 fd;
     int                 rc;
 
@@ -94,9 +94,9 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     }
 
     memset(&m, 0, sizeof(m));
-    rc = xrootd_zip_find_member(fd, (off_t) size, "any.dat", 1u << 20, &m);
+    rc = brix_zip_find_member(fd, (off_t) size, "any.dat", 1u << 20, &m);
 
-    if (rc == XROOTD_ZIP_OK && m.uncomp_size > 0
+    if (rc == BRIX_ZIP_OK && m.uncomp_size > 0
         && m.uncomp_size <= (size_t)(1u << 20))
     {
         /* Exercise the extraction path (stored + deflate inflate) up to 1 MiB.
@@ -104,7 +104,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
          * (pread_full will short-read or -1 on any inconsistency, returning -1). */
         unsigned char *buf = malloc(m.uncomp_size);
         if (buf != NULL) {
-            (void) xrootd_zip_extract_full(fd, &m, buf, m.uncomp_size);
+            (void) brix_zip_extract_full(fd, &m, buf, m.uncomp_size);
             free(buf);
         }
     }

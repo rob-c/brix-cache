@@ -7,11 +7,11 @@ backends are restarted underneath the front instances.
 
 Topology
 --------
-        anon client ──► cache-gsi ──(X.509 VOMS proxy)──► gsi-origin   (xrootd_auth gsi)
-        anon client ──► proxy-sss ──(SSS keytab)────────► sss-origin   (xrootd_auth sss)
+        anon client ──► cache-gsi ──(X.509 VOMS proxy)──► gsi-origin   (brix_auth gsi)
+        anon client ──► proxy-sss ──(SSS keytab)────────► sss-origin   (brix_auth sss)
 
   gsi-origin : data server requiring GSI.  cache-gsi is a tier cache
-               (storage_backend root://gsi-origin) whose xrootd_credential
+               (storage_backend root://gsi-origin) whose brix_credential
                x509_proxy is a temp proxy minted by a voms-proxy-init-like call
                (utils/voms_proxy_fake.py) against the temp PKI framework — so
                the cache authenticates UPSTREAM with X.509.
@@ -282,11 +282,11 @@ events {{ worker_connections 128; }}
 stream {{ server {{
     listen {BIND_HOST}:{port};
     xrootd on;
-    xrootd_root {gsi_data};
-    xrootd_auth gsi;
-    xrootd_certificate     {SERVER_CERT};
-    xrootd_certificate_key {SERVER_KEY};
-    xrootd_trusted_ca      {CA_DIR}/ca.pem;
+    brix_root {gsi_data};
+    brix_auth gsi;
+    brix_certificate     {SERVER_CERT};
+    brix_certificate_key {SERVER_KEY};
+    brix_trusted_ca      {CA_DIR}/ca.pem;
 }} }}
 """)
 
@@ -297,32 +297,32 @@ events {{ worker_connections 128; }}
 stream {{ server {{
     listen {BIND_HOST}:{port};
     xrootd on;
-    xrootd_root {sss_data};
-    xrootd_auth sss;
-    xrootd_sss_keytab {kt};
+    brix_root {sss_data};
+    brix_auth sss;
+    brix_sss_keytab {kt};
 }} }}
 """)
 
     # cache-gsi: anon front, X.509 UPSTREAM auth to gsi-origin (phase-64 tier
     # grammar: the GSI origin is the storage backend, its credential a named
-    # xrootd_credential block, the local read cache a posix cache_store).
+    # brix_credential block, the local read cache a posix cache_store).
     cache_gsi = mk("cache-gsi", lambda port, d, pidf, logf: f"""
 worker_processes 1; error_log {logf} info; pid {pidf};
 events {{ worker_connections 128; }}
 thread_pool chaos_cache threads=2 max_queue=8192;
 stream {{
-xrootd_credential chaosgsi {{ x509_proxy {proxy_pem}; ca_dir {CA_DIR}; }}
+brix_credential chaosgsi {{ x509_proxy {proxy_pem}; ca_dir {CA_DIR}; }}
 server {{
     listen {BIND_HOST}:{port};
     xrootd on;
-    xrootd_root {d}/data;
-    xrootd_auth none;
-    xrootd_allow_write off;
-    xrootd_thread_pool chaos_cache;
-    xrootd_storage_backend root://{BIND_HOST}:{gsi_origin.port};
-    xrootd_storage_credential chaosgsi;
-    xrootd_cache_store posix:{d}/cache;
-    xrootd_cache_root /;
+    brix_root {d}/data;
+    brix_auth none;
+    brix_allow_write off;
+    brix_thread_pool chaos_cache;
+    brix_storage_backend root://{BIND_HOST}:{gsi_origin.port};
+    brix_storage_credential chaosgsi;
+    brix_cache_store posix:{d}/cache;
+    brix_cache_root /;
 }} }}
 """)
 
@@ -333,11 +333,11 @@ events {{ worker_connections 128; }}
 stream {{ server {{
     listen {BIND_HOST}:{port};
     xrootd on;
-    xrootd_auth none;
-    xrootd_tap_proxy on;
-    xrootd_tap_proxy_auth sss;
-    xrootd_sss_keytab {kt};
-    xrootd_tap_proxy_upstream {BIND_HOST}:{sss_origin.port} sss;
+    brix_auth none;
+    brix_tap_proxy on;
+    brix_tap_proxy_auth sss;
+    brix_sss_keytab {kt};
+    brix_tap_proxy_upstream {BIND_HOST}:{sss_origin.port} sss;
 }} }}
 """)
 
@@ -348,11 +348,11 @@ events {{ worker_connections 128; }}
 stream {{ server {{
     listen {BIND_HOST}:{port};
     xrootd on;
-    xrootd_auth none;
-    xrootd_tap_proxy on;
-    xrootd_tap_proxy_auth sss;
-    xrootd_sss_keytab {kt_bad};
-    xrootd_tap_proxy_upstream {BIND_HOST}:{sss_origin.port} sss;
+    brix_auth none;
+    brix_tap_proxy on;
+    brix_tap_proxy_auth sss;
+    brix_sss_keytab {kt_bad};
+    brix_tap_proxy_upstream {BIND_HOST}:{sss_origin.port} sss;
 }} }}
 """)
 

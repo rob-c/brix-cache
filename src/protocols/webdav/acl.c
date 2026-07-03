@@ -19,7 +19,7 @@ webdav_handle_acl(ngx_http_request_t *r)
 
     ngx_http_discard_request_body(r);
 
-    if (xrootd_http_chain_appendf(r->pool, &head, &tail,
+    if (brix_http_chain_appendf(r->pool, &head, &tail,
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             "<D:error xmlns:D=\"DAV:\">"
             "<D:cannot-modify-protected-property/>"

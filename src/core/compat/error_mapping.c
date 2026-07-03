@@ -31,7 +31,7 @@
  */
 
 uint16_t
-xrootd_kxr_from_errno(int err)
+brix_kxr_from_errno(int err)
 {
     switch (err) {
     case ENOENT:
@@ -73,7 +73,7 @@ xrootd_kxr_from_errno(int err)
 
 /*
  * WHAT: Maps a kXR wire error code back to a POSIX errno — the inverse of
- *   xrootd_kxr_from_errno(), co-located so the project's canonical errno↔kXR
+ *   brix_kxr_from_errno(), co-located so the project's canonical errno↔kXR
  *   table (CLAUDE.md invariant) lives in ONE shared, ngx-free place rather than
  *   the forward direction here and the reverse direction in the native client.
  *   Returns a POSITIVE errno, or 0 when the code is not a recognised kXR error
@@ -85,7 +85,7 @@ xrootd_kxr_from_errno(int err)
  *   drifting out of sync as error codes are added.
  */
 int
-xrootd_errno_from_kxr(uint16_t kxr)
+brix_errno_from_kxr(uint16_t kxr)
 {
     switch (kxr) {
     case kXR_NotFound:       return ENOENT;
@@ -119,22 +119,22 @@ xrootd_errno_from_kxr(uint16_t kxr)
 }
 
 /*
- * WHAT: Maps an xrootd_ns_status_t to a kXR error code for stream protocol
- * responses.  XROOTD_NS_IO_ERROR delegates to xrootd_kxr_from_errno(sys_errno).
+ * WHAT: Maps an brix_ns_status_t to a kXR error code for stream protocol
+ * responses.  BRIX_NS_IO_ERROR delegates to brix_kxr_from_errno(sys_errno).
  */
 uint16_t
-xrootd_kxr_map_ns_status(xrootd_ns_status_t status, int sys_errno)
+brix_kxr_map_ns_status(brix_ns_status_t status, int sys_errno)
 {
     switch (status) {
-    case XROOTD_NS_OK:        return kXR_ok;
-    case XROOTD_NS_NOT_FOUND: return kXR_NotFound;
-    case XROOTD_NS_DENIED:    return kXR_NotAuthorized;
-    case XROOTD_NS_EXISTS:    return kXR_FSError;
-    case XROOTD_NS_CONFLICT:  return kXR_FSError;
-    case XROOTD_NS_NOT_EMPTY: return kXR_ItExists;   /* ENOTEMPTY → 3018 (mapError) */
-    case XROOTD_NS_NO_SPACE:  return kXR_NoSpace;    /* ENOSPC → 3017, not NoMemory */
-    case XROOTD_NS_TOO_LONG:  return kXR_ArgTooLong;
-    case XROOTD_NS_IO_ERROR:  return xrootd_kxr_from_errno(sys_errno);
+    case BRIX_NS_OK:        return kXR_ok;
+    case BRIX_NS_NOT_FOUND: return kXR_NotFound;
+    case BRIX_NS_DENIED:    return kXR_NotAuthorized;
+    case BRIX_NS_EXISTS:    return kXR_FSError;
+    case BRIX_NS_CONFLICT:  return kXR_FSError;
+    case BRIX_NS_NOT_EMPTY: return kXR_ItExists;   /* ENOTEMPTY → 3018 (mapError) */
+    case BRIX_NS_NO_SPACE:  return kXR_NoSpace;    /* ENOSPC → 3017, not NoMemory */
+    case BRIX_NS_TOO_LONG:  return kXR_ArgTooLong;
+    case BRIX_NS_IO_ERROR:  return brix_kxr_from_errno(sys_errno);
     }
     return kXR_IOError;
 }
@@ -158,7 +158,7 @@ xrootd_kxr_map_ns_status(xrootd_ns_status_t status, int sys_errno)
  */
 
 int
-xrootd_http_errno_to_status(int err)
+brix_http_errno_to_status(int err)
 {
     switch (err) {
     case ENOENT:
@@ -208,43 +208,43 @@ xrootd_http_errno_to_status(int err)
 /*
  * WHAT: Maps XRootD namespace service result codes to HTTP status.
  *
- * WHY: namespace_ops.c returns xrootd_ns_status_t for mkdir/rename/delete operations;
+ * WHY: namespace_ops.c returns brix_ns_status_t for mkdir/rename/delete operations;
  *      WebDAV handlers need the corresponding HTTP status code for response dispatch.
  *      This mapping ensures namespace errors produce consistent HTTP responses.
  */
 
 ngx_int_t
-xrootd_http_map_ns_status(xrootd_ns_status_t status)
+brix_http_map_ns_status(brix_ns_status_t status)
 {
     switch (status) {
-    case XROOTD_NS_OK:
+    case BRIX_NS_OK:
         return 200;
 
-    case XROOTD_NS_NOT_FOUND:
+    case BRIX_NS_NOT_FOUND:
         return 404;
 
-    case XROOTD_NS_DENIED:
+    case BRIX_NS_DENIED:
         return 403;
 
-    case XROOTD_NS_EXISTS:
-    case XROOTD_NS_CONFLICT:
-    case XROOTD_NS_NOT_EMPTY:
+    case BRIX_NS_EXISTS:
+    case BRIX_NS_CONFLICT:
+    case BRIX_NS_NOT_EMPTY:
         return 409;
 
-    case XROOTD_NS_TOO_LONG:
+    case BRIX_NS_TOO_LONG:
         return 414;
 
-    case XROOTD_NS_NO_SPACE:
+    case BRIX_NS_NO_SPACE:
         return 507;
 
-    case XROOTD_NS_IO_ERROR:
+    case BRIX_NS_IO_ERROR:
     default:
         return 500;
     }
 }
 
 /*
- * WHAT: Thin wrapper over xrootd_http_errno_to_status() that returns ngx_int_t.
+ * WHAT: Thin wrapper over brix_http_errno_to_status() that returns ngx_int_t.
  *
  * WHY: WebDAV handlers expect ngx_int_t for HTTP status comparisons against
  *      NGX_HTTP_* constants. This wrapper provides the type conversion without
@@ -252,9 +252,9 @@ xrootd_http_map_ns_status(xrootd_ns_status_t status)
  */
 
 ngx_int_t
-xrootd_http_map_errno(int err)
+brix_http_map_errno(int err)
 {
-    return (ngx_int_t) xrootd_http_errno_to_status(err);
+    return (ngx_int_t) brix_http_errno_to_status(err);
 }
 
 #endif /* !XRDPROTO_NO_NGX */

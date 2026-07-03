@@ -7,12 +7,12 @@ GSI cert verification path and populates ``ctx->primary_vo`` /
 
 The dedicated ``webdav-voms`` server (port 18458) is configured with:
 
-    xrootd_webdav_auth         required
-    xrootd_webdav_vomsdir      /tmp/xrd-test/pki/vomsdir
-    xrootd_webdav_voms_cert_dir /tmp/xrd-test/pki/ca
+    brix_webdav_auth         required
+    brix_webdav_vomsdir      /tmp/xrd-test/pki/vomsdir
+    brix_webdav_voms_cert_dir /tmp/xrd-test/pki/ca
 
 The test PKI produces standard proxy certs **without** VOMS attributes, so
-``xrootd_extract_voms_info()`` returns ``NGX_DECLINED`` on every request.
+``brix_extract_voms_info()`` returns ``NGX_DECLINED`` on every request.
 Tests verify:
 
   1. ``success_no_voms_attrs`` — GSI auth still succeeds when VOMS extraction
@@ -71,7 +71,7 @@ def test_success_no_voms_attrs():
     """Proxy cert with no VOMS attributes: VOMS extraction returns NGX_DECLINED.
 
     ``webdav_extract_voms_ctx()`` returns immediately when
-    ``xrootd_extract_voms_info()`` finds no VOMS extension.  The auth flow
+    ``brix_extract_voms_info()`` finds no VOMS extension.  The auth flow
     must continue normally and return 200/201 for a valid GSI proxy.
     """
     uid = uuid.uuid4().hex
@@ -105,7 +105,7 @@ def test_success_no_voms_attrs():
 def test_error_no_client_cert():
     """Requests without a client cert must be rejected even when vomsdir is set.
 
-    ``xrootd_webdav_auth required`` means the SSL handshake will fail or the
+    ``brix_webdav_auth required`` means the SSL handshake will fail or the
     module will return 401/403 when no client certificate is presented.
     Configuring vomsdir must not weaken this requirement.
     """
@@ -123,7 +123,7 @@ def test_error_no_client_cert():
 def test_security_neg_untrusted_cert():
     """A self-signed cert must be rejected; vomsdir must not bypass CA check.
 
-    If ``xrootd_webdav_vomsdir`` were consulted before the CA chain check, an
+    If ``brix_webdav_vomsdir`` were consulted before the CA chain check, an
     attacker could use a self-signed cert that happens to have a crafted VOMS
     extension to gain access.  The module checks cert validity FIRST via
     ``webdav_verify_proxy_cert()``; VOMS extraction only happens AFTER the

@@ -22,7 +22,7 @@ docker cp "$REPO/tests/ceph/ngx_shim.h"            "$WORK:/work/repo/tests/ceph/
 
 docker exec -e CEPH_POOL="$POOL" -e CEPH_CONF=/etc/ceph/ceph.conf "$WORK" bash -lc '
     cd /work/repo &&
-    gcc -Wall -Wextra -Werror -DXRDPROTO_NO_NGX -DXROOTD_HAVE_CEPH \
+    gcc -Wall -Wextra -Werror -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH \
         -I src/fs/backend -I src/fs/backend/rados \
         -include tests/ceph/ngx_shim.h \
         tests/ceph/sd_ceph_live_test.c src/fs/backend/rados/sd_ceph.c \

@@ -17,7 +17,7 @@ worker_processes 1;
 events { worker_connections 64; }
 http { client_body_temp_path $PFX/tmp; server { listen 127.0.0.1:${BPORT};
   location / { dav_methods PUT DELETE;
-    xrootd_webdav on; xrootd_webdav_storage_backend posix:$PFX/export; xrootd_webdav_auth none; xrootd_webdav_allow_write on; } } }
+    brix_webdav on; brix_webdav_storage_backend posix:$PFX/export; brix_webdav_auth none; brix_webdav_allow_write on; } } }
 E2
 # Plant orphan temps as if from a previous crashed run:
 DEAD=999999                          # a pid with no live process

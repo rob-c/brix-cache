@@ -7,9 +7,9 @@
  *       checksums across a subtree on any backend (POSIX/pblock/Ceph) — the
  *       engine rides the VFS seam so no backend-specific code lives here.
  * HOW:  mirrors the admin file-browser (dashboard/files.c): admin-auth +
- *       openat2 RESOLVE_BENEATH confinement under xrootd_scan_root. v1 runs the
+ *       openat2 RESOLVE_BENEATH confinement under brix_scan_root. v1 runs the
  *       walk synchronously and emits one buffered NDJSON body (bounded by
- *       xrootd_scan_max_files). Off-loading to the thread pool + chunked
+ *       brix_scan_max_files). Off-loading to the thread pool + chunked
  *       streaming + the byte-rate throttle is the next increment (the throttle
  *       math and ordered-emit buffer already exist in scan_throttle/scan_emit).
  *
@@ -20,10 +20,10 @@
 
 #include "observability/dashboard/dashboard_http.h"
 #include "fs/path/beneath.h"
-#include "core/http/http_headers.h"   /* xrootd_http_source_offer (AGPL sec.13) */
+#include "core/http/http_headers.h"   /* brix_http_source_offer (AGPL sec.13) */
 #include "protocols/root/protocol/opcodes.h"
-#include "fs/vfs/vfs.h"                  /* xrootd_sd_caps, xrootd_vfs_enumerate_catalog */
-#include "fs/vfs/vfs_backend_registry.h" /* xrootd_vfs_backend_resolve (export→instance) */
+#include "fs/vfs/vfs.h"                  /* brix_sd_caps, brix_vfs_enumerate_catalog */
+#include "fs/vfs/vfs_backend_registry.h" /* brix_vfs_backend_resolve (export→instance) */
 
 #include <fcntl.h>
 #include <limits.h>
@@ -152,7 +152,7 @@ scan_health(ngx_http_request_t *r, const char *root_canon)
     freeb = (uint64_t) vfs.f_bavail * vfs.f_frsize;
     used = total - (uint64_t) vfs.f_bfree * vfs.f_frsize;
 
-    n = xrootd_scan_record_health(line, sizeof(line), "posix", total, freeb, used);
+    n = brix_scan_record_health(line, sizeof(line), "posix", total, freeb, used);
     if (n < 0) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
@@ -167,16 +167,16 @@ scan_health(ngx_http_request_t *r, const char *root_canon)
 
 /* GET /xrootd/api/v1/scan */
 ngx_int_t
-ngx_http_xrootd_dashboard_scan_handler(ngx_http_request_t *r)
+ngx_http_brix_dashboard_scan_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_dashboard_loc_conf_t *conf;
-    xrootd_scan_opts_t      opts;
-    xrootd_scan_summary_t   summary;
+    ngx_http_brix_dashboard_loc_conf_t *conf;
+    brix_scan_opts_t      opts;
+    brix_scan_summary_t   summary;
     char                    relpath[PATH_MAX];
     char                    modebuf[16];
     char                    maxbuf[24];
     int                     rootfd;
-    xrootd_sd_instance_t   *sd;
+    brix_sd_instance_t   *sd;
     u_char                 *buf = NULL;
     size_t                  cap = 0, used = 0;
     u_char                 *body;
@@ -187,18 +187,18 @@ ngx_http_xrootd_dashboard_scan_handler(ngx_http_request_t *r)
     ngx_int_t               rc;
     uint64_t                t0;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_dashboard_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
     if (conf->scan_root_canon[0] == '\0') {
         return NGX_HTTP_NOT_FOUND;   /* feature disabled */
     }
-    rc = ngx_http_xrootd_dashboard_check_auth(r, conf, 0);
+    rc = ngx_http_brix_dashboard_check_auth(r, conf, 0);
     if (rc != NGX_OK) {
         return rc;
     }
     if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD) {
         return NGX_HTTP_NOT_ALLOWED;
     }
-    xrootd_http_source_offer(r);
+    brix_http_source_offer(r);
 
     ngx_memzero(&opts, sizeof(opts));
     if (scan_arg(r, "mode", 4, modebuf, sizeof(modebuf), NULL) != NGX_OK
@@ -210,7 +210,7 @@ ngx_http_xrootd_dashboard_scan_handler(ngx_http_request_t *r)
     if (strcmp(modebuf, "health") == 0) {
         return scan_health(r, conf->scan_root_canon);
     }
-    if (xrootd_scan_mode_parse(modebuf, &opts.mode) != NGX_OK) {
+    if (brix_scan_mode_parse(modebuf, &opts.mode) != NGX_OK) {
         return NGX_HTTP_BAD_REQUEST;
     }
     if (scan_arg(r, "alg", 3, opts.alg, sizeof(opts.alg), "adler32") != NGX_OK) {
@@ -240,27 +240,27 @@ ngx_http_xrootd_dashboard_scan_handler(ngx_http_request_t *r)
      * enumerating its OWN object catalog through the SD `enumerate` verb — no
      * POSIX rootfd, no namespace walk. Every other export (and every other mode)
      * runs the confined POSIX walk. */
-    sd = xrootd_vfs_backend_resolve(conf->scan_root_canon, r->connection->log);
-    if (opts.mode == XROOTD_SCAN_INVENTORY && sd != NULL
-        && (xrootd_sd_caps(sd) & XROOTD_SD_CAP_CATALOG))
+    sd = brix_vfs_backend_resolve(conf->scan_root_canon, r->connection->log);
+    if (opts.mode == BRIX_SCAN_INVENTORY && sd != NULL
+        && (brix_sd_caps(sd) & BRIX_SD_CAP_CATALOG))
     {
-        rc = xrootd_scan_run_inventory(r->connection->log, sd, &opts,
+        rc = brix_scan_run_inventory(r->connection->log, sd, &opts,
                                        &buf, &cap, &used, &summary,
                                        &err_code, err_msg, sizeof(err_msg));
-    } else if (opts.mode == XROOTD_SCAN_VERIFY && sd != NULL
-               && (xrootd_sd_caps(sd) & XROOTD_SD_CAP_CATALOG))
+    } else if (opts.mode == BRIX_SCAN_VERIFY && sd != NULL
+               && (brix_sd_caps(sd) & BRIX_SD_CAP_CATALOG))
     {
         /* Verify checksums of every object the backend physically holds, reading
          * bytes through the driver (Ceph: libradosstriper-reassembled). */
-        rc = xrootd_scan_run_verify_catalog(r->connection->log, sd, &opts,
+        rc = brix_scan_run_verify_catalog(r->connection->log, sd, &opts,
                                             &buf, &cap, &used, &summary,
                                             &err_code, err_msg, sizeof(err_msg));
     } else {
-        rootfd = xrootd_beneath_open_root(conf->scan_root_canon);
+        rootfd = brix_beneath_open_root(conf->scan_root_canon);
         if (rootfd < 0) {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
-        rc = xrootd_scan_run(r->connection->log, rootfd, relpath, &opts,
+        rc = brix_scan_run(r->connection->log, rootfd, relpath, &opts,
                              &buf, &cap, &used, &summary,
                              &err_code, err_msg, sizeof(err_msg));
         close(rootfd);
@@ -276,7 +276,7 @@ ngx_http_xrootd_dashboard_scan_handler(ngx_http_request_t *r)
     }
 
     summary.elapsed_s = (double) (ngx_current_msec - t0) / 1000.0;
-    sumlen = xrootd_scan_record_summary(sumline, sizeof(sumline), &summary);
+    sumlen = brix_scan_record_summary(sumline, sizeof(sumline), &summary);
     if (sumlen < 0) {
         if (buf != NULL) {
             ngx_free(buf);

@@ -1,5 +1,5 @@
 """
-tests/test_ipv6_xrootd_stream.py — root:// XRootD stream over IPv6 (raw-wire).
+tests/test_ipv6_brix_stream.py — root:// XRootD stream over IPv6 (raw-wire).
 
 Phase-36 §7.2.1.  Drives the dedicated IPv6 stream instance
 (`nginx_ipv6_stream.conf`, `listen [::1]:{PORT}`, auth none, allow_write on)
@@ -38,7 +38,7 @@ reachable6(port) probe (skips when the dedicated instance is down).  Instance
 absence is never a failure.
 
 Run:
-    TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest tests/test_ipv6_xrootd_stream.py -v
+    TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest tests/test_ipv6_brix_stream.py -v
 """
 
 import hashlib
@@ -89,7 +89,7 @@ kXR_open_read = 0x0010   # O_RDONLY
 kXR_open_updt = 0x0020   # O_RDWR
 
 kXR_PROTOCOLVERSION = 0x00000520
-XROOTD_SESSION_ID_LEN = 16
+BRIX_SESSION_ID_LEN = 16
 
 
 # ---------------------------------------------------------------------------
@@ -332,7 +332,7 @@ class TestIpv6Bringup:
 
             _, lstatus, lbody = _login(sock)
             assert lstatus == kXR_ok, _error_code(lbody)
-            assert len(lbody) == XROOTD_SESSION_ID_LEN, \
+            assert len(lbody) == BRIX_SESSION_ID_LEN, \
                 "anon login body must be the 16-byte session id"
             assert _ping(sock)[1] == kXR_ok
         finally:

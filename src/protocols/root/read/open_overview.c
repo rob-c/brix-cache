@@ -11,11 +11,11 @@
  * open_overview.c — kXR_open architecture map + the opaque-string helper.
  *
  * kXR_open is the protocol's densest request; its handling spans several files:
- *   - xrootd_handle_open()        (open_request.c)     — parse, auth (authdb /
+ *   - brix_handle_open()        (open_request.c)     — parse, auth (authdb /
  *       VO ACL / token scope), path resolve, manager-mode redirect, TPC
  *       detection, then dispatch to the cached-read or resolved-file opener.
- *   - xrootd_open_cached_read()   (open_cache.c)       — XCache-style cached serve.
- *   - xrootd_open_resolved_file() (open_resolved_file.c) — confined open(2),
+ *   - brix_open_cached_read()   (open_cache.c)       — XCache-style cached serve.
+ *   - brix_open_resolved_file() (open_resolved_file.c) — confined open(2),
  *       fhandle allocation (fd_table.c), per-handle bookkeeping, write-through
  *       policy, and kXR_ok response assembly (+ optional retstat, session publish).
  * This file itself holds only open_extract_opaque(), used during that parse.

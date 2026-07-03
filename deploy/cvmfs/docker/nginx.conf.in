@@ -35,16 +35,16 @@ http {
         access_log /var/log/nginx-xrootd/cvmfs_access.log cvmfs;
 
         location / {
-            xrootd_cvmfs on;
-            xrootd_cvmfs_cache_store posix:/var/cache/cvmfs;   # <-- cached data
-            xrootd_cache_verify cvmfs-cas;                     # verify on fill
+            brix_cvmfs on;
+            brix_cvmfs_cache_store posix:/var/cache/cvmfs;   # <-- cached data
+            brix_cache_verify cvmfs-cas;                     # verify on fill
 
             # Security allowlist: which Stratum-1 authorities a client may name
             # in an absolute-form request (host-only match, any port). Broad is
             # fine — it does NOT decide where we fetch from (that's the origin
             # set below). One line, space-separated.
-            xrootd_cvmfs_upstream_allow @UPSTREAM_ALLOW@;
-            xrootd_cvmfs_upstream_max 16;
+            brix_cvmfs_upstream_allow @UPSTREAM_ALLOW@;
+            brix_cvmfs_upstream_max 16;
 
             # ---- keep the client pinned + hide origin flakiness (2026-07-03) --
             # A worker node's CVMFS_TIMEOUT is ~5s; when a Stratum-1 goes slow
@@ -59,37 +59,37 @@ http {
             #    always gets 200 from the host it chose and never wanders. The
             #    "|"-list is the ranked failover order; @ORIGINS@ is rendered
             #    from $ORIGINS (default: the allowlist hosts on :8000).
-            xrootd_cvmfs_storage_backend "@ORIGINS@";
-            xrootd_cvmfs_unified_origin on;
+            brix_cvmfs_storage_backend "@ORIGINS@";
+            brix_cvmfs_unified_origin on;
 
             # 2. Answer the geo API ourselves, RTT-ranked from this cache's
             #    vantage, so the client's PREFERRED server is the near one (RAL)
             #    to begin with.
-            xrootd_cvmfs_geo_answer rtt;
+            brix_cvmfs_geo_answer rtt;
 
             # 3. Fast-fail a STUCK origin (blackholed connect, or connected but
             #    no data) so failover to the next origin lands inside the 5s
             #    client window — but PROGRESS-based, not a wall-clock cap: a
             #    large catalog that is actively downloading (multi-MB, >2s over a
             #    WAN) must be allowed to finish, so we bound *no-progress* time,
-            #    not total time. (Do NOT use xrootd_cvmfs_origin_attempt_timeout
+            #    not total time. (Do NOT use brix_cvmfs_origin_attempt_timeout
             #    here — its hard total cap aborts large catalogs mid-transfer.)
             #    client_hold sits just below the client's CVMFS_TIMEOUT so our
             #    keep-alive 504+Retry-After (which the client's own retry
             #    coalesces onto the still-running fill) fires before the client
             #    abandons the connection.
-            xrootd_cvmfs_origin_connect_timeout 1;   # cap a blackholed connect
-            xrootd_cvmfs_origin_stall_timeout   2;   # no progress for 2s = stuck
-            xrootd_cvmfs_origin_stall_bytes     1;   # ...below 1 B/s = stuck
-            xrootd_cvmfs_client_hold            4;   # < the WN CVMFS_TIMEOUT (~5s)
+            brix_cvmfs_origin_connect_timeout 1;   # cap a blackholed connect
+            brix_cvmfs_origin_stall_timeout   2;   # no progress for 2s = stuck
+            brix_cvmfs_origin_stall_bytes     1;   # ...below 1 B/s = stuck
+            brix_cvmfs_client_hold            4;   # < the WN CVMFS_TIMEOUT (~5s)
 
             # bounce junk before the handler; one audit line per signal so
             # fail2ban can ban probers. 403 keeps the no-broken-socket contract.
-            xrootd_guard on;
-            xrootd_guard_bounce_status 403;
-            xrootd_guard_audit_log /var/log/nginx-xrootd/guard-audit.log;
-            xrootd_guard_valid_prefix /cvmfs;
-            xrootd_guard_valid_method GET HEAD;
+            brix_guard on;
+            brix_guard_bounce_status 403;
+            brix_guard_audit_log /var/log/nginx-xrootd/guard-audit.log;
+            brix_guard_valid_prefix /cvmfs;
+            brix_guard_valid_method GET HEAD;
         }
     }
 
@@ -97,18 +97,18 @@ http {
     server {
         listen 3129;
         location /xrootd/ {
-            xrootd_dashboard on;
-            xrootd_dashboard_password "@DASH_PASSWORD@";
+            brix_dashboard on;
+            brix_dashboard_password "@DASH_PASSWORD@";
 
             # Make the cached CVMFS data browsable in the dashboard's "Files"
             # tab (admin-auth only; kernel-confined to this root via openat2
             # RESOLVE_BENEATH). This is the SAME directory the :3128 cache
-            # writes to (xrootd_cvmfs_cache_store), so an operator sees the
+            # writes to (brix_cvmfs_cache_store), so an operator sees the
             # actual on-disk cache contents. It is a content-addressed store:
             # entries are hash-sharded (e.g. /ab/cdef…), not /cvmfs logical
             # paths. entrypoint.sh pre-creates + chowns it to nobody, so this
             # realpath() resolves at config load and the workers can read it.
-            xrootd_dashboard_browse_root /var/cache/cvmfs;
+            brix_dashboard_browse_root /var/cache/cvmfs;
         }
         location = / { return 302 /xrootd/; }
     }
@@ -116,7 +116,7 @@ http {
     # ---- :3130  Prometheus scrape + liveness ------------------------------
     server {
         listen 3130;
-        location = /metrics { xrootd_metrics on; }
-        location = /healthz { xrootd_health on; }
+        location = /metrics { brix_metrics on; }
+        location = /healthz { brix_health on; }
     }
 }

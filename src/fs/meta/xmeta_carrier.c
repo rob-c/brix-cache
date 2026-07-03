@@ -15,7 +15,7 @@
 static int
 xmeta_sidecar_key(const char *key, char *out, size_t cap)
 {
-    int n = snprintf(out, cap, "%s%s", key, XROOTD_XMETA_SIDECAR_SUFFIX);
+    int n = snprintf(out, cap, "%s%s", key, BRIX_XMETA_SIDECAR_SUFFIX);
 
     return (n > 0 && (size_t) n < cap) ? 0 : -1;
 }
@@ -34,11 +34,11 @@ xmeta_xattr_unfit(int err)
 /* ---- sidecar carrier ------------------------------------------------------ */
 
 static ngx_int_t
-xmeta_sidecar_write(xrootd_sd_instance_t *store, const char *key,
+xmeta_sidecar_write(brix_sd_instance_t *store, const char *key,
     const uint8_t *buf, size_t len)
 {
     char                ck[PATH_MAX];
-    xrootd_sd_staged_t *st;
+    brix_sd_staged_t *st;
     int                 err = 0;
 
     if (store->driver->staged_open == NULL
@@ -74,11 +74,11 @@ xmeta_sidecar_write(xrootd_sd_instance_t *store, const char *key,
 
 /* Read the whole sidecar object into a malloc'd buffer. NGX_OK/DECLINED/ERROR. */
 static ngx_int_t
-xmeta_sidecar_read(xrootd_sd_instance_t *store, const char *key,
+xmeta_sidecar_read(brix_sd_instance_t *store, const char *key,
     uint8_t **out, size_t *out_len)
 {
     char             ck[PATH_MAX];
-    xrootd_sd_obj_t *obj;
+    brix_sd_obj_t *obj;
     uint8_t         *buf = NULL;
     size_t           cap = 0, got = 0;
     int              err = 0;
@@ -91,7 +91,7 @@ xmeta_sidecar_read(xrootd_sd_instance_t *store, const char *key,
         errno = ENAMETOOLONG;
         return NGX_ERROR;
     }
-    obj = store->driver->open(store, ck, XROOTD_SD_O_READ, 0, &err);
+    obj = store->driver->open(store, ck, BRIX_SD_O_READ, 0, &err);
     if (obj == NULL) {
         return (err == ENOENT) ? NGX_DECLINED : NGX_ERROR;
     }
@@ -143,8 +143,8 @@ xmeta_sidecar_read(xrootd_sd_instance_t *store, const char *key,
 /* ---- public API ------------------------------------------------------------ */
 
 ngx_int_t
-xrootd_xmeta_save(xrootd_sd_instance_t *store, const char *key,
-    const xrootd_xmeta_t *m)
+brix_xmeta_save(brix_sd_instance_t *store, const char *key,
+    const brix_xmeta_t *m)
 {
     uint8_t  *buf = NULL;
     size_t    len = 0;
@@ -154,12 +154,12 @@ xrootd_xmeta_save(xrootd_sd_instance_t *store, const char *key,
         errno = EINVAL;
         return NGX_ERROR;
     }
-    if (xrootd_xmeta_encode(m, &buf, &len) != XROOTD_XMETA_OK) {
+    if (brix_xmeta_encode(m, &buf, &len) != BRIX_XMETA_OK) {
         return NGX_ERROR;
     }
 
-    if (store->driver->setxattr != NULL && len <= XROOTD_XMETA_XATTR_MAX) {
-        rc = store->driver->setxattr(store, key, XROOTD_XMETA_XATTR_NAME,
+    if (store->driver->setxattr != NULL && len <= BRIX_XMETA_XATTR_MAX) {
+        rc = store->driver->setxattr(store, key, BRIX_XMETA_XATTR_NAME,
                                      buf, len, 0);
         if (rc == NGX_OK) {
             free(buf);
@@ -183,14 +183,14 @@ xrootd_xmeta_save(xrootd_sd_instance_t *store, const char *key,
     /* exactly one carrier: drop any (stale or just-outgrown) xattr copy */
     if (store->driver->removexattr != NULL) {
         (void) store->driver->removexattr(store, key,
-                                          XROOTD_XMETA_XATTR_NAME);
+                                          BRIX_XMETA_XATTR_NAME);
     }
     return NGX_OK;
 }
 
 ngx_int_t
-xrootd_xmeta_load(xrootd_sd_instance_t *store, const char *key,
-    xrootd_xmeta_t *m)
+brix_xmeta_load(brix_sd_instance_t *store, const char *key,
+    brix_xmeta_t *m)
 {
     uint8_t  *buf;
     ssize_t   n;
@@ -205,20 +205,20 @@ xrootd_xmeta_load(xrootd_sd_instance_t *store, const char *key,
 
     /* xattr carrier first */
     if (store->driver->getxattr != NULL) {
-        buf = malloc(XROOTD_XMETA_XATTR_MAX);
+        buf = malloc(BRIX_XMETA_XATTR_MAX);
         if (buf == NULL) {
             errno = ENOMEM;
             return NGX_ERROR;
         }
-        n = store->driver->getxattr(store, key, XROOTD_XMETA_XATTR_NAME,
-                                    buf, XROOTD_XMETA_XATTR_MAX);
+        n = store->driver->getxattr(store, key, BRIX_XMETA_XATTR_NAME,
+                                    buf, BRIX_XMETA_XATTR_MAX);
         if (n > 0) {
-            drc = xrootd_xmeta_decode(buf, (size_t) n, m);
+            drc = brix_xmeta_decode(buf, (size_t) n, m);
             free(buf);
-            if (drc == XROOTD_XMETA_OK) {
+            if (drc == BRIX_XMETA_OK) {
                 return NGX_OK;
             }
-            return (drc == XROOTD_XMETA_FOREIGN) ? NGX_DECLINED : NGX_ERROR;
+            return (drc == BRIX_XMETA_FOREIGN) ? NGX_DECLINED : NGX_ERROR;
         }
         free(buf);
         if (n < 0 && errno != ENODATA && errno != ENOENT
@@ -236,16 +236,16 @@ xrootd_xmeta_load(xrootd_sd_instance_t *store, const char *key,
     if (rc != NGX_OK) {
         return rc;
     }
-    drc = xrootd_xmeta_decode(buf, len, m);
+    drc = brix_xmeta_decode(buf, len, m);
     free(buf);
-    if (drc == XROOTD_XMETA_OK) {
+    if (drc == BRIX_XMETA_OK) {
         return NGX_OK;
     }
-    return (drc == XROOTD_XMETA_FOREIGN) ? NGX_DECLINED : NGX_ERROR;
+    return (drc == BRIX_XMETA_FOREIGN) ? NGX_DECLINED : NGX_ERROR;
 }
 
 ngx_int_t
-xrootd_xmeta_remove(xrootd_sd_instance_t *store, const char *key)
+brix_xmeta_remove(brix_sd_instance_t *store, const char *key)
 {
     char ck[PATH_MAX];
 
@@ -254,7 +254,7 @@ xrootd_xmeta_remove(xrootd_sd_instance_t *store, const char *key)
     }
     if (store->driver->removexattr != NULL) {
         (void) store->driver->removexattr(store, key,
-                                          XROOTD_XMETA_XATTR_NAME);
+                                          BRIX_XMETA_XATTR_NAME);
     }
     if (store->driver->unlink != NULL
         && xmeta_sidecar_key(key, ck, sizeof(ck)) == 0)

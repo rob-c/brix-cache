@@ -1,5 +1,5 @@
 /*
- * module.c — ngx_http_xrootd_guard_module definition and configuration.
+ * module.c — ngx_http_brix_guard_module definition and configuration.
  *
  * WHAT: the directive table, per-location config lifecycle (create/merge —
  *   including building the guard_ruleset_t the handlers classify against),
@@ -14,94 +14,94 @@
 
 #include "guard_http.h"
 
-static void *ngx_http_xrootd_guard_create_loc_conf(ngx_conf_t *cf);
-static char *ngx_http_xrootd_guard_merge_loc_conf(ngx_conf_t *cf,
+static void *ngx_http_brix_guard_create_loc_conf(ngx_conf_t *cf);
+static char *ngx_http_brix_guard_merge_loc_conf(ngx_conf_t *cf,
     void *parent, void *child);
-static ngx_int_t ngx_http_xrootd_guard_postconf(ngx_conf_t *cf);
-static char *ngx_http_xrootd_guard_audit_log_slot(ngx_conf_t *cf,
+static ngx_int_t ngx_http_brix_guard_postconf(ngx_conf_t *cf);
+static char *ngx_http_brix_guard_audit_log_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
-static char *ngx_http_xrootd_guard_array_slot(ngx_conf_t *cf,
+static char *ngx_http_brix_guard_array_slot(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
 
 
-static ngx_command_t ngx_http_xrootd_guard_commands[] = {
+static ngx_command_t ngx_http_brix_guard_commands[] = {
 
-    { ngx_string("xrootd_guard"),
+    { ngx_string("brix_guard"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_guard_loc_conf_t, enable),
+      offsetof(ngx_http_brix_guard_loc_conf_t, enable),
       NULL },
 
-    { ngx_string("xrootd_guard_profile"),
+    { ngx_string("brix_guard_profile"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_guard_loc_conf_t, profile),
+      offsetof(ngx_http_brix_guard_loc_conf_t, profile),
       NULL },
 
-    { ngx_string("xrootd_guard_default_signatures"),
+    { ngx_string("brix_guard_default_signatures"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_guard_loc_conf_t, default_sigs),
+      offsetof(ngx_http_brix_guard_loc_conf_t, default_sigs),
       NULL },
 
-    { ngx_string("xrootd_guard_bounce_status"),
+    { ngx_string("brix_guard_bounce_status"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_num_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_guard_loc_conf_t, bounce_status),
+      offsetof(ngx_http_brix_guard_loc_conf_t, bounce_status),
       NULL },
 
-    { ngx_string("xrootd_guard_audit_log"),
+    { ngx_string("brix_guard_audit_log"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
-      ngx_http_xrootd_guard_audit_log_slot,
+      ngx_http_brix_guard_audit_log_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
       NULL },
 
-    { ngx_string("xrootd_guard_signature"),
+    { ngx_string("brix_guard_signature"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
-      ngx_http_xrootd_guard_array_slot,
+      ngx_http_brix_guard_array_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_guard_loc_conf_t, extra_sigs),
+      offsetof(ngx_http_brix_guard_loc_conf_t, extra_sigs),
       NULL },
 
-    { ngx_string("xrootd_guard_valid_prefix"),
+    { ngx_string("brix_guard_valid_prefix"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
-      ngx_http_xrootd_guard_array_slot,
+      ngx_http_brix_guard_array_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_guard_loc_conf_t, prefixes),
+      offsetof(ngx_http_brix_guard_loc_conf_t, prefixes),
       NULL },
 
-    { ngx_string("xrootd_guard_valid_method"),
+    { ngx_string("brix_guard_valid_method"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_1MORE,
-      ngx_http_xrootd_guard_array_slot,
+      ngx_http_brix_guard_array_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_xrootd_guard_loc_conf_t, methods),
+      offsetof(ngx_http_brix_guard_loc_conf_t, methods),
       NULL },
 
     ngx_null_command
 };
 
 
-static ngx_http_module_t ngx_http_xrootd_guard_module_ctx = {
+static ngx_http_module_t ngx_http_brix_guard_module_ctx = {
     NULL,                                    /* preconfiguration    */
-    ngx_http_xrootd_guard_postconf,          /* postconfiguration   */
+    ngx_http_brix_guard_postconf,          /* postconfiguration   */
     NULL,                                    /* create main conf    */
     NULL,                                    /* init main conf      */
     NULL,                                    /* create srv conf     */
     NULL,                                    /* merge srv conf      */
-    ngx_http_xrootd_guard_create_loc_conf,   /* create loc conf     */
-    ngx_http_xrootd_guard_merge_loc_conf     /* merge loc conf      */
+    ngx_http_brix_guard_create_loc_conf,   /* create loc conf     */
+    ngx_http_brix_guard_merge_loc_conf     /* merge loc conf      */
 };
 
 
-ngx_module_t ngx_http_xrootd_guard_module = {
+ngx_module_t ngx_http_brix_guard_module = {
     NGX_MODULE_V1,
-    &ngx_http_xrootd_guard_module_ctx,
-    ngx_http_xrootd_guard_commands,
+    &ngx_http_brix_guard_module_ctx,
+    ngx_http_brix_guard_commands,
     NGX_HTTP_MODULE,
     NULL, NULL, NULL, NULL, NULL, NULL, NULL,
     NGX_MODULE_V1_PADDING
@@ -110,7 +110,7 @@ ngx_module_t ngx_http_xrootd_guard_module = {
 
 /* ---- Open the audit log file for a location ----
  *
- * WHAT: `xrootd_guard_audit_log <path>` — resolves the path through nginx's
+ * WHAT: `brix_guard_audit_log <path>` — resolves the path through nginx's
  *   shared open-file list (append mode, reopened on USR1) into
  *   lcf->audit_log. Returns NGX_CONF_OK or NGX_CONF_ERROR.
  *
@@ -121,10 +121,10 @@ ngx_module_t ngx_http_xrootd_guard_module = {
  *      2. ngx_conf_open_file(cf->cycle, &value[1]).
  */
 static char *
-ngx_http_xrootd_guard_audit_log_slot(ngx_conf_t *cf, ngx_command_t *cmd,
+ngx_http_brix_guard_audit_log_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf)
 {
-    ngx_http_xrootd_guard_loc_conf_t *lcf = conf;
+    ngx_http_brix_guard_loc_conf_t *lcf = conf;
     ngx_str_t                        *value = cf->args->elts;
 
     (void) cmd;
@@ -144,7 +144,7 @@ ngx_http_xrootd_guard_audit_log_slot(ngx_conf_t *cf, ngx_command_t *cmd,
  *
  * WHAT: generic repeatable-directive setter: pushes every argument of the
  *   directive onto the ngx_array_t at cmd->offset, creating the array on
- *   first use. Serves xrootd_guard_signature / _valid_prefix (TAKE1) and
+ *   first use. Serves brix_guard_signature / _valid_prefix (TAKE1) and
  *   _valid_method (1MORE).
  *
  * WHY: the three list directives differ only in which array they fill; one
@@ -155,7 +155,7 @@ ngx_http_xrootd_guard_audit_log_slot(ngx_conf_t *cf, ngx_command_t *cmd,
  *         pool-owned, so the ruleset can borrow them).
  */
 static char *
-ngx_http_xrootd_guard_array_slot(ngx_conf_t *cf, ngx_command_t *cmd,
+ngx_http_brix_guard_array_slot(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf)
 {
     char         *base = conf;
@@ -188,7 +188,7 @@ ngx_http_xrootd_guard_array_slot(ngx_conf_t *cf, ngx_command_t *cmd,
  * WHAT: returns the guard_op_class_t for a method-name string ("GET",
  *   "PROPFIND", ...); GUARD_OP_UNKNOWN for names outside the table.
  *
- * WHY: xrootd_guard_valid_method narrows the grammar per location; the
+ * WHY: brix_guard_valid_method narrows the grammar per location; the
  *   mapping must agree with the request-time one in guard_http_req.c.
  *
  * HOW: 1. Walk a static name→op descriptor table, case-insensitive compare.
@@ -234,8 +234,8 @@ method_name_to_op(const ngx_str_t *name)
  *      5. If methods were listed: reset op_allowed to exactly those ops.
  */
 static char *
-ngx_http_xrootd_guard_build_ruleset(ngx_conf_t *cf,
-    ngx_http_xrootd_guard_loc_conf_t *lcf)
+ngx_http_brix_guard_build_ruleset(ngx_conf_t *cf,
+    ngx_http_brix_guard_loc_conf_t *lcf)
 {
     ngx_str_t  *entries;
     ngx_uint_t  entry_index;
@@ -259,7 +259,7 @@ ngx_http_xrootd_guard_build_ruleset(ngx_conf_t *cf,
                     entries[entry_index].len))
             {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_guard_signature: more than %d signatures",
+                    "brix_guard_signature: more than %d signatures",
                     GUARD_MAX_SIGS);
                 return NGX_CONF_ERROR;
             }
@@ -276,7 +276,7 @@ ngx_http_xrootd_guard_build_ruleset(ngx_conf_t *cf,
                     entries[entry_index].len))
             {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_guard_valid_prefix: more than %d prefixes",
+                    "brix_guard_valid_prefix: more than %d prefixes",
                     GUARD_MAX_PREFIXES);
                 return NGX_CONF_ERROR;
             }
@@ -297,7 +297,7 @@ ngx_http_xrootd_guard_build_ruleset(ngx_conf_t *cf,
 
             if (op == GUARD_OP_UNKNOWN) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "xrootd_guard_valid_method: unknown method \"%V\"",
+                    "brix_guard_valid_method: unknown method \"%V\"",
                     &entries[entry_index]);
                 return NGX_CONF_ERROR;
             }
@@ -311,7 +311,7 @@ ngx_http_xrootd_guard_build_ruleset(ngx_conf_t *cf,
 
 /* ---- Create the per-location config ----
  *
- * WHAT: allocates ngx_http_xrootd_guard_loc_conf_t with every field in the
+ * WHAT: allocates ngx_http_brix_guard_loc_conf_t with every field in the
  *   nginx "unset" state so merge can inherit from the parent level.
  *
  * WHY: standard nginx conf lifecycle — anything not UNSET here would silently
@@ -321,9 +321,9 @@ ngx_http_xrootd_guard_build_ruleset(ngx_conf_t *cf,
  *      2. Mark scalars NGX_CONF_UNSET, arrays NGX_CONF_UNSET_PTR.
  */
 static void *
-ngx_http_xrootd_guard_create_loc_conf(ngx_conf_t *cf)
+ngx_http_brix_guard_create_loc_conf(ngx_conf_t *cf)
 {
-    ngx_http_xrootd_guard_loc_conf_t *lcf;
+    ngx_http_brix_guard_loc_conf_t *lcf;
 
     lcf = ngx_pcalloc(cf->pool, sizeof(*lcf));
     if (lcf == NULL) {
@@ -356,10 +356,10 @@ ngx_http_xrootd_guard_create_loc_conf(ngx_conf_t *cf)
  *         keep the zeroed ruleset and never classify).
  */
 static char *
-ngx_http_xrootd_guard_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
+ngx_http_brix_guard_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 {
-    ngx_http_xrootd_guard_loc_conf_t *prev = parent;
-    ngx_http_xrootd_guard_loc_conf_t *conf = child;
+    ngx_http_brix_guard_loc_conf_t *prev = parent;
+    ngx_http_brix_guard_loc_conf_t *conf = child;
 
     ngx_conf_merge_value(conf->enable, prev->enable, 0);
     ngx_conf_merge_str_value(conf->profile, prev->profile, "");
@@ -374,7 +374,7 @@ ngx_http_xrootd_guard_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 
     if (conf->bounce_status != 403 && conf->bounce_status != 444) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_guard_bounce_status must be 403 or 444, got %i",
+            "brix_guard_bounce_status must be 403 or 444, got %i",
             conf->bounce_status);
         return NGX_CONF_ERROR;
     }
@@ -382,14 +382,14 @@ ngx_http_xrootd_guard_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     if (!conf->enable) {
         return NGX_CONF_OK;
     }
-    return ngx_http_xrootd_guard_build_ruleset(cf, conf);
+    return ngx_http_brix_guard_build_ruleset(cf, conf);
 }
 
 
 /* ---- Register the ACCESS + LOG phase handlers ----
  *
- * WHAT: pushes ngx_http_xrootd_guard_access_handler onto the ACCESS phase
- *   and ngx_http_xrootd_guard_log_handler onto the LOG phase.
+ * WHAT: pushes ngx_http_brix_guard_access_handler onto the ACCESS phase
+ *   and ngx_http_brix_guard_log_handler onto the LOG phase.
  *
  * WHY: ACCESS runs before proxy_pass content — the bounce keeps junk off the
  *   backend entirely; LOG runs after the response status is known — the only
@@ -399,7 +399,7 @@ ngx_http_xrootd_guard_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
  *      2. Handlers self-disable per location via lcf->enable (DECLINED/OK).
  */
 static ngx_int_t
-ngx_http_xrootd_guard_postconf(ngx_conf_t *cf)
+ngx_http_brix_guard_postconf(ngx_conf_t *cf)
 {
     ngx_http_core_main_conf_t *cmcf;
     ngx_http_handler_pt       *h;
@@ -410,13 +410,13 @@ ngx_http_xrootd_guard_postconf(ngx_conf_t *cf)
     if (h == NULL) {
         return NGX_ERROR;
     }
-    *h = ngx_http_xrootd_guard_access_handler;
+    *h = ngx_http_brix_guard_access_handler;
 
     h = ngx_array_push(&cmcf->phases[NGX_HTTP_LOG_PHASE].handlers);
     if (h == NULL) {
         return NGX_ERROR;
     }
-    *h = ngx_http_xrootd_guard_log_handler;
+    *h = ngx_http_brix_guard_log_handler;
 
     return NGX_OK;
 }

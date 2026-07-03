@@ -2,7 +2,7 @@
  * scopes.c — WLCG scope parsing and path authorization.
  *
  * WHAT: Parses space-separated WLCG "permission:path" scope claims into structured
- *       xrootd_token_scope_t entries, then checks read/write access against parsed
+ *       brix_token_scope_t entries, then checks read/write access against parsed
  *       scopes for a given request path. Recognizes storage.read/write/create/modify/stage
  *       permissions with exact-length matching to prevent substring attacks.
  * WHY: WLCG tokens encode authorization as space-separated scope claims (e.g.,
@@ -42,12 +42,12 @@ token_scope_end(const char *scope_start)
     return scope_end;
 }
 
-/* WHAT: Copies a permission:path path component into the xrootd_token_scope_t structure, enforcing XROOTD_SCOPE_PATH_MAX boundary. When path_len == 0 (no path specified in "permission:" token), defaults to "/" which matches all paths per WLCG token profile convention. Enforces buffer overflow prevention via truncation at XROOTD_SCOPE_PATH_MAX - 1 when input exceeds capacity.
+/* WHAT: Copies a permission:path path component into the brix_token_scope_t structure, enforcing BRIX_SCOPE_PATH_MAX boundary. When path_len == 0 (no path specified in "permission:" token), defaults to "/" which matches all paths per WLCG token profile convention. Enforces buffer overflow prevention via truncation at BRIX_SCOPE_PATH_MAX - 1 when input exceeds capacity.
  * WHY: WLCG scope tokens use "storage.read:/atlas/reco" format where the path component grants access only to specific directories. Defaulting empty paths to "/" follows WLCG convention (unscoped permission = full access). Buffer overflow guard prevents malicious tokens with oversized path components from corrupting downstream scope validation logic.
- * HOW: Three-step → if path_len == 0, set scope->path = "/" default; else truncate at XROOTD_SCOPE_PATH_MAX - 1 for boundary safety; memcpy(path) into scope->path with null termination at truncated length. */
+ * HOW: Three-step → if path_len == 0, set scope->path = "/" default; else truncate at BRIX_SCOPE_PATH_MAX - 1 for boundary safety; memcpy(path) into scope->path with null termination at truncated length. */
 
 static void
-token_scope_copy_path(xrootd_token_scope_t *scope, const char *path,
+token_scope_copy_path(brix_token_scope_t *scope, const char *path,
     size_t path_len)
 {
     if (path_len == 0) {
@@ -56,20 +56,20 @@ token_scope_copy_path(xrootd_token_scope_t *scope, const char *path,
         return;
     }
 
-    if (path_len >= XROOTD_SCOPE_PATH_MAX) {
-        path_len = XROOTD_SCOPE_PATH_MAX - 1;
+    if (path_len >= BRIX_SCOPE_PATH_MAX) {
+        path_len = BRIX_SCOPE_PATH_MAX - 1;
     }
 
     memcpy(scope->path, path, path_len);
     scope->path[path_len] = '\0';
 }
 
-/* WHAT: Parses a WLCG "storage.*" permission string into boolean flags on xrootd_token_scope_t using exact-length memcmp comparison. Recognizes five permissions: storage.read (12 chars), storage.write (13 chars), storage.create (14 chars), storage.modify (14 chars), and storage.stage (13 chars — treated as read-only). Length-based matching prevents substring attacks where "storage.re" could incorrectly match "storage.read".
+/* WHAT: Parses a WLCG "storage.*" permission string into boolean flags on brix_token_scope_t using exact-length memcmp comparison. Recognizes five permissions: storage.read (12 chars), storage.write (13 chars), storage.create (14 chars), storage.modify (14 chars), and storage.stage (13 chars — treated as read-only). Length-based matching prevents substring attacks where "storage.re" could incorrectly match "storage.read".
  * WHY: WLCG token scope claims use standardized permission strings; exact-length memcmp ensures precise matching without partial-string ambiguity. Storage.stage is mapped to read-only (not write) per WLCG staging semantics — staged files are read-accessible but not writable until committed. Length-based validation prevents malformed tokens from granting unintended permissions through substring overlap.
  * HOW: Sequential memcmp comparison against five known permission strings with exact length checks (12/13/14 chars), setting scope->read/write/create/modify/stage flags accordingly on match. Returns immediately after first positive match; storage.stage falls-through sets read=1 as final case. */
 
 static void
-token_scope_set_permission(xrootd_token_scope_t *scope,
+token_scope_set_permission(brix_token_scope_t *scope,
     const char *permission, size_t permission_len)
 {
     if (permission_len == 12
@@ -108,14 +108,14 @@ token_scope_set_permission(xrootd_token_scope_t *scope,
 }
 
 /*
- * xrootd_token_parse_scopes — parse the WLCG "scope" claim into a structured
+ * brix_token_parse_scopes — parse the WLCG "scope" claim into a structured
  * list.
  *
  * The scope claim is a space-separated list of "permission:path" tokens
  * as defined by the WLCG token profile.  Examples:
  *   "storage.read:/atlas/reco  storage.write:/atlas/output"
  *
- * Each token is parsed into an xrootd_token_scope_t; at most max_scopes
+ * Each token is parsed into an brix_token_scope_t; at most max_scopes
  * entries are written to scopes[].
  *
  * Preconditions: scopes[] must have room for max_scopes elements.
@@ -123,8 +123,8 @@ token_scope_set_permission(xrootd_token_scope_t *scope,
  * Returns: number of scope entries written (may be 0 on empty input).
  */
 int
-xrootd_token_parse_scopes(const char *scope_str,
-    xrootd_token_scope_t *scopes, int max_scopes)
+brix_token_parse_scopes(const char *scope_str,
+    brix_token_scope_t *scopes, int max_scopes)
 {
     const char *cursor;
     int         count;
@@ -181,7 +181,7 @@ xrootd_token_parse_scopes(const char *scope_str,
 }
 
 /*
- * xrootd_token_scope_path_matches — decide whether scope_path covers
+ * brix_token_scope_path_matches — decide whether scope_path covers
  * request_path.
  *
  * Rules:
@@ -203,7 +203,7 @@ xrootd_token_parse_scopes(const char *scope_str,
  * restricted_path scoping (phase-59 W1).
  */
 int
-xrootd_token_scope_path_matches(const char *scope_path,
+brix_token_scope_path_matches(const char *scope_path,
     const char *request_path)
 {
     size_t scope_len;
@@ -228,21 +228,21 @@ xrootd_token_scope_path_matches(const char *scope_path,
 }
 
 /*
- * xrootd_token_check_read — test whether any scope grants storage.read
+ * brix_token_check_read — test whether any scope grants storage.read
  * access to path.
  *
- * Preconditions: scopes[0..scope_count-1] produced by xrootd_token_parse_scopes().
+ * Preconditions: scopes[0..scope_count-1] produced by brix_token_parse_scopes().
  * Returns: 1 if access is granted, 0 if denied.
  */
 int
-xrootd_token_check_read(const xrootd_token_scope_t *scopes, int scope_count,
+brix_token_check_read(const brix_token_scope_t *scopes, int scope_count,
     const char *path)
 {
     int scope_index;
 
     for (scope_index = 0; scope_index < scope_count; scope_index++) {
         if (scopes[scope_index].read
-            && xrootd_token_scope_path_matches(scopes[scope_index].path, path))
+            && brix_token_scope_path_matches(scopes[scope_index].path, path))
         {
             return 1;
         }
@@ -252,7 +252,7 @@ xrootd_token_check_read(const xrootd_token_scope_t *scopes, int scope_count,
 }
 
 /*
- * xrootd_token_check_write — test whether any scope grants storage.write or
+ * brix_token_check_write — test whether any scope grants storage.write or
  * storage.create access to path.
  *
  * Both write and create permission are treated as sufficient for write ops;
@@ -262,7 +262,7 @@ xrootd_token_check_read(const xrootd_token_scope_t *scopes, int scope_count,
  * Returns: 1 if access is granted, 0 if denied.
  */
 int
-xrootd_token_check_write(const xrootd_token_scope_t *scopes, int scope_count,
+brix_token_check_write(const brix_token_scope_t *scopes, int scope_count,
     const char *path)
 {
     int scope_index;
@@ -278,7 +278,7 @@ xrootd_token_check_write(const xrootd_token_scope_t *scopes, int scope_count,
          */
         if ((scopes[scope_index].write || scopes[scope_index].create
              || scopes[scope_index].modify)
-            && xrootd_token_scope_path_matches(scopes[scope_index].path, path))
+            && brix_token_scope_path_matches(scopes[scope_index].path, path))
         {
             return 1;
         }

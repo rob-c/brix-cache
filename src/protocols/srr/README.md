@@ -21,40 +21,40 @@ cache, TPC, cluster) remain on the Prometheus `/metrics` endpoint
 
 | File | Responsibility |
 |---|---|
-| `srr.h` | Public types: loc-conf, `xrootd_srr_share_t`, `xrootd_srr_endpoint_t`; handler + builder declarations. |
-| `module.c` | nginx HTTP module: the `xrootd_srr*` directives, loc-conf create/merge, handler binding. Mirrors `src/observability/metrics/module.c`. |
-| `builder.c` | `ngx_http_xrootd_srr_build_json()` — assembles the storageservice tree with jansson; per-share space via `xrootd_fs_usage_stat()` (statvfs); two-pass `json_dumpb()` into the request pool. |
-| `handler.c` | `ngx_http_xrootd_srr_handler()` — GET/HEAD only, body discarded, sends `application/json`. Mirrors `src/observability/metrics/handler.c`. |
+| `srr.h` | Public types: loc-conf, `brix_srr_share_t`, `brix_srr_endpoint_t`; handler + builder declarations. |
+| `module.c` | nginx HTTP module: the `brix_srr*` directives, loc-conf create/merge, handler binding. Mirrors `src/observability/metrics/module.c`. |
+| `builder.c` | `ngx_http_brix_srr_build_json()` — assembles the storageservice tree with jansson; per-share space via `brix_fs_usage_stat()` (statvfs); two-pass `json_dumpb()` into the request pool. |
+| `handler.c` | `ngx_http_brix_srr_handler()` — GET/HEAD only, body discarded, sends `application/json`. Mirrors `src/observability/metrics/handler.c`. |
 
 ## Configuration
 
 ```nginx
 # Serve at the conventional well-known path; record THIS URL in CRIC.
 location = /.well-known/wlcg-storage-resource-reporting {
-    xrootd_srr on;
-    xrootd_srr_name     "UKI-SCOTGRID-GLASGOW";
-    xrootd_srr_quality  production;            # optional (default production)
-    xrootd_srr_version  "3.5";                 # optional → implementationversion
+    brix_srr on;
+    brix_srr_name     "UKI-SCOTGRID-GLASGOW";
+    brix_srr_quality  production;            # optional (default production)
+    brix_srr_version  "3.5";                 # optional → implementationversion
 
     # <name> <local-fs-path> [comma,separated,vos]
-    xrootd_srr_share    atlas  /data/atlas  atlas;
-    xrootd_srr_share    cms    /data/cms    cms;
+    brix_srr_share    atlas  /data/atlas  atlas;
+    brix_srr_share    cms    /data/cms    cms;
 
     # <name> <interfacetype> <endpointurl>
-    xrootd_srr_endpoint webdav davs  https://se.example.ac.uk:8443/;
-    xrootd_srr_endpoint root   xroot root://se.example.ac.uk:1094/;
+    brix_srr_endpoint webdav davs  https://se.example.ac.uk:8443/;
+    brix_srr_endpoint root   xroot root://se.example.ac.uk:1094/;
 }
 ```
 
 | Directive | Arg(s) | Maps to |
 |---|---|---|
-| `xrootd_srr` | `on`/`off` | enables the endpoint + binds the handler |
-| `xrootd_srr_name` | name | `storageservice.name` (and `.id` if `xrootd_srr_id` unset) |
-| `xrootd_srr_id` | id | `storageservice.id` |
-| `xrootd_srr_quality` | level | `qualitylevel` (default `production`) |
-| `xrootd_srr_version` | ver | `implementationversion` (default: product version from `core/ident.h`, currently `1.0.5`) |
-| `xrootd_srr_share` | `<name> <path> [vos]` | one `storageshares[]` entry; `<path>` is `statvfs`'d for `totalsize`/`usedsize` and reported in `path[]`; `[vos]` → `vos[]` |
-| `xrootd_srr_endpoint` | `<name> <iftype> <url>` | one `storageendpoints[]` entry |
+| `brix_srr` | `on`/`off` | enables the endpoint + binds the handler |
+| `brix_srr_name` | name | `storageservice.name` (and `.id` if `brix_srr_id` unset) |
+| `brix_srr_id` | id | `storageservice.id` |
+| `brix_srr_quality` | level | `qualitylevel` (default `production`) |
+| `brix_srr_version` | ver | `implementationversion` (default: product version from `core/ident.h`, currently `1.0.5`) |
+| `brix_srr_share` | `<name> <path> [vos]` | one `storageshares[]` entry; `<path>` is `statvfs`'d for `totalsize`/`usedsize` and reported in `path[]`; `[vos]` → `vos[]` |
+| `brix_srr_endpoint` | `<name> <iftype> <url>` | one `storageendpoints[]` entry |
 
 `implementation` is fixed to the product name from `core/ident.h` (currently
 `"BriX-Cache"`); `servicetype` is `"disk"`.

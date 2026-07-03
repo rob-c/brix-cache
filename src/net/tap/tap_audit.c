@@ -62,10 +62,10 @@ tap_json_append_escaped(char *out, size_t outsz, size_t *pos,
 }
 
 size_t
-xrootd_tap_audit_format(const xrootd_tap_frame_t *f, xrootd_tap_dir_t dir,
+brix_tap_audit_format(const brix_tap_frame_t *f, brix_tap_dir_t dir,
     char *out, size_t outsz)
 {
-    const char *dirs = (dir == XROOTD_TAP_C2U) ? "c2u" : "u2c";
+    const char *dirs = (dir == BRIX_TAP_C2U) ? "c2u" : "u2c";
     const char *opn;
     size_t pos;
     int n;

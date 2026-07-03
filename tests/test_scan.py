@@ -66,7 +66,7 @@ def test_scan_core_suite(scan_core_bin):
 
 # --------------------------------------------------------------------------- #
 # HTTP integration — GET /xrootd/api/v1/scan (dump/verify/fill) over a         #
-# self-contained nginx with xrootd_scan_root on a seeded tree (mirrors         #
+# self-contained nginx with brix_scan_root on a seeded tree (mirrors         #
 # test_dashboard_files.py's provisioning).                                     #
 # --------------------------------------------------------------------------- #
 from settings import HOST, BIND_HOST  # noqa: E402
@@ -126,12 +126,12 @@ http {
     scgi_temp_path %(root)s/tmp;
     server {
         listen %(bind)s:%(hp)d;
-        location /xrootd { xrootd_dashboard on; xrootd_dashboard_password "%(pw)s";
-                           xrootd_scan_root %(data)s; }
+        location /xrootd { brix_dashboard on; brix_dashboard_password "%(pw)s";
+                           brix_scan_root %(data)s; }
     }
     server {
         listen %(bind)s:%(hp_off)d;
-        location /xrootd { xrootd_dashboard on; xrootd_dashboard_password "%(pw)s"; }
+        location /xrootd { brix_dashboard on; brix_dashboard_password "%(pw)s"; }
     }
 }
 """ % {"root": root, "bind": BIND_HOST, "hp": hp, "hp_off": hp_off,

@@ -10,11 +10,11 @@
  */
 #include "sd_s3.h"
 
-#include "core/compat/crypto.h"        /* xrootd_sha256 / xrootd_hmac_sha256 */
-#include "core/compat/hex.h"           /* xrootd_hex_encode */
-#include "core/compat/sigv4.h"         /* xrootd_sigv4_signing_key */
-#include "core/compat/uri.h"           /* xrootd_http_urlencode */
-#include "core/compat/host_format.h"   /* xrootd_format_host_port */
+#include "core/compat/crypto.h"        /* brix_sha256 / brix_hmac_sha256 */
+#include "core/compat/hex.h"           /* brix_hex_encode */
+#include "core/compat/sigv4.h"         /* brix_sigv4_signing_key */
+#include "core/compat/uri.h"           /* brix_http_urlencode */
+#include "core/compat/host_format.h"   /* brix_format_host_port */
 
 #include <errno.h>
 #include <stdarg.h>
@@ -44,7 +44,7 @@ struct sd_s3_file {
     char                         ak[128];
     char                         sk[256];
     char                         region[64];
-    const xrootd_s3_transport_t *transport;
+    const brix_s3_transport_t *transport;
     void                        *tctx;
     int                          timeout_ms;
     int64_t                      obj_size;   /* -1 until first HEAD */
@@ -131,8 +131,8 @@ static void
 sd_s3_sha256_hex(const void *data, size_t len, char *out /* >=65 */)
 {
     uint8_t d[32];
-    xrootd_sha256((const uint8_t *) data, len, d);
-    xrootd_hex_encode(d, 32, out);
+    brix_sha256((const uint8_t *) data, len, d);
+    brix_hex_encode(d, 32, out);
 }
 
 /* sd_s3_sign — build the SigV4 x-amz-date / content-sha256 / Authorization header
@@ -151,10 +151,10 @@ sd_s3_sign(const sd_s3_file *f, const char *method, const char *canon_qs,
     int         cn;
 
     if (canon_qs == NULL) { canon_qs = ""; }
-    xrootd_format_host_port(f->host, (uint16_t) f->port, host, sizeof(host));
+    brix_format_host_port(f->host, (uint16_t) f->port, host, sizeof(host));
     sd_s3_utc_now(amzdate, datestamp);
 
-    if (xrootd_http_urlencode((const unsigned char *) f->key, strlen(f->key),
+    if (brix_http_urlencode((const unsigned char *) f->key, strlen(f->key),
                               enc_uri, sizeof(enc_uri), "/") < 0) {
         return -1;
     }
@@ -178,12 +178,12 @@ sd_s3_sign(const sd_s3_file *f, const char *method, const char *canon_qs,
         return -1;
     }
 
-    if (!xrootd_sigv4_signing_key((const uint8_t *) f->sk, strlen(f->sk),
+    if (!brix_sigv4_signing_key((const uint8_t *) f->sk, strlen(f->sk),
                                   datestamp, f->region, "s3", k4)
-        || !xrootd_hmac_sha256(k4, 32, (const uint8_t *) sts, strlen(sts), sig)) {
+        || !brix_hmac_sha256(k4, 32, (const uint8_t *) sts, strlen(sts), sig)) {
         return -1;
     }
-    xrootd_hex_encode(sig, 32, sighex);
+    brix_hex_encode(sig, 32, sighex);
 
     cn = snprintf(hdrs, hdrsz,
              "x-amz-date: %s\r\nx-amz-content-sha256: %s\r\n"
@@ -255,7 +255,7 @@ sd_s3_size(sd_s3_file *f, int64_t *out_size, char *errbuf, size_t errcap)
 {
     char             auth[SD_S3_AUTH_HDRS_CAP];
     char             cl[32];
-    xrootd_s3_resp_t resp;
+    brix_s3_resp_t resp;
 
     if (f->obj_size >= 0) {
         if (out_size != NULL) { *out_size = f->obj_size; }
@@ -291,7 +291,7 @@ sd_s3_pread(sd_s3_file *f, void *buf, size_t n, off_t off,
 {
     char             auth[SD_S3_AUTH_HDRS_CAP];
     char             combined[SD_S3_AUTH_HDRS_CAP + 80];
-    xrootd_s3_resp_t resp;
+    brix_s3_resp_t resp;
     const void      *body;
     size_t           body_len = 0, n_capped;
     ssize_t          copied;
@@ -346,7 +346,7 @@ sd_s3_delete(const sd_s3_open_params *p, char *errbuf, size_t errcap)
 {
     sd_s3_file      *f;
     char             auth[SD_S3_AUTH_HDRS_CAP];
-    xrootd_s3_resp_t resp;
+    brix_s3_resp_t resp;
     int              rc = 0;
 
     f = sd_s3_open_read(p, errbuf, errcap);   /* builds the handle; no I/O */
@@ -422,7 +422,7 @@ sd_s3_mpu_upload_part(sd_s3_file *f, int part_num, const void *data, size_t len,
 {
     char             wire[SD_S3_KEY_MAX + 256], qs[256], auth[SD_S3_AUTH_HDRS_CAP];
     char             etag[SD_S3_ETAG_LEN];
-    xrootd_s3_resp_t resp;
+    brix_s3_resp_t resp;
     int              pn;
 
     pn = snprintf(wire, sizeof(wire), "%s?partNumber=%d&uploadId=%s",
@@ -482,7 +482,7 @@ static int
 sd_s3_mpu_create(sd_s3_file *f, char *errbuf, size_t errcap)
 {
     char             wire[SD_S3_KEY_MAX + 16], auth[SD_S3_AUTH_HDRS_CAP];
-    xrootd_s3_resp_t resp;
+    brix_s3_resp_t resp;
     const void      *body;
     size_t           blen = 0;
     int              pn;
@@ -525,7 +525,7 @@ sd_s3_mpu_complete(sd_s3_file *f, char *errbuf, size_t errcap)
 {
     char             wire[SD_S3_KEY_MAX + SD_S3_UPLOAD_ID_LEN + 16];
     char             qs[SD_S3_UPLOAD_ID_LEN + 16], auth[SD_S3_AUTH_HDRS_CAP];
-    xrootd_s3_resp_t resp;
+    brix_s3_resp_t resp;
     char            *xml;
     size_t           cap, len;
     int              i, pn;
@@ -595,7 +595,7 @@ sd_s3_mpu_abort(sd_s3_file *f)
 {
     char             wire[SD_S3_KEY_MAX + SD_S3_UPLOAD_ID_LEN + 16];
     char             qs[SD_S3_UPLOAD_ID_LEN + 16], auth[SD_S3_AUTH_HDRS_CAP];
-    xrootd_s3_resp_t resp;
+    brix_s3_resp_t resp;
     int              pn;
 
     if (f->upload_id[0] == '\0') { return; }
@@ -744,7 +744,7 @@ sd_s3_commit(sd_s3_file *f, char *errbuf, size_t errcap)
     /* single PUT of the whole buffer */
     {
         char             auth[SD_S3_AUTH_HDRS_CAP];
-        xrootd_s3_resp_t resp;
+        brix_s3_resp_t resp;
         if (sd_s3_sign(f, "PUT", "", auth, sizeof(auth)) != 0) {
             sd_s3_set_err(errbuf, errcap, "s3 PUT: sign failed");
             return -1;
@@ -803,7 +803,7 @@ sd_s3_get_meta(sd_s3_file *f, const char *name, char *buf, size_t cap,
 {
     char             auth[SD_S3_AUTH_HDRS_CAP];
     char             hname[160];
-    xrootd_s3_resp_t resp;
+    brix_s3_resp_t resp;
     int              n;
 
     if (f == NULL || name == NULL || buf == NULL || cap == 0) {
@@ -840,7 +840,7 @@ sd_s3_get_meta(sd_s3_file *f, const char *name, char *buf, size_t cap,
 }
 
 int
-sd_s3_get_unixattr(sd_s3_file *f, xrootd_meta_advisory_t *out,
+sd_s3_get_unixattr(sd_s3_file *f, brix_meta_advisory_t *out,
                    char *errbuf, size_t errcap)
 {
     char    blob[512];
@@ -849,7 +849,7 @@ sd_s3_get_unixattr(sd_s3_file *f, xrootd_meta_advisory_t *out,
     if (out == NULL) {
         return -1;
     }
-    n = sd_s3_get_meta(f, XROOTD_META_ADVISORY_S3META, blob, sizeof(blob),
+    n = sd_s3_get_meta(f, BRIX_META_ADVISORY_S3META, blob, sizeof(blob),
                        errbuf, errcap);
     if (n < 0) {
         return -1;
@@ -857,7 +857,7 @@ sd_s3_get_unixattr(sd_s3_file *f, xrootd_meta_advisory_t *out,
     if (n == 0) {
         return 0;    /* object carries no advisory metadata */
     }
-    if (xrootd_meta_advisory_decode(blob, (size_t) n, out) != 0) {
+    if (brix_meta_advisory_decode(blob, (size_t) n, out) != 0) {
         sd_s3_set_err(errbuf, errcap, "s3 get-unixattr: blob decode failed");
         return -1;
     }
@@ -903,9 +903,9 @@ sd_s3_sign_ext(const sd_s3_file *f, const char *method, const char *canon_qs,
     if (canon_qs == NULL) {
         canon_qs = "";
     }
-    xrootd_format_host_port(f->host, (uint16_t) f->port, host, sizeof(host));
+    brix_format_host_port(f->host, (uint16_t) f->port, host, sizeof(host));
     sd_s3_utc_now(amzdate, datestamp);
-    if (xrootd_http_urlencode((const unsigned char *) f->key, strlen(f->key),
+    if (brix_http_urlencode((const unsigned char *) f->key, strlen(f->key),
                               enc_uri, sizeof(enc_uri), "/") < 0)
     {
         return -1;
@@ -955,13 +955,13 @@ sd_s3_sign_ext(const sd_s3_file *f, const char *method, const char *canon_qs,
     if (cn < 0 || (size_t) cn >= sizeof(sts)) {
         return -1;
     }
-    if (!xrootd_sigv4_signing_key((const uint8_t *) f->sk, strlen(f->sk),
+    if (!brix_sigv4_signing_key((const uint8_t *) f->sk, strlen(f->sk),
                                   datestamp, f->region, "s3", k4)
-        || !xrootd_hmac_sha256(k4, 32, (const uint8_t *) sts, strlen(sts), sig))
+        || !brix_hmac_sha256(k4, 32, (const uint8_t *) sts, strlen(sts), sig))
     {
         return -1;
     }
-    xrootd_hex_encode(sig, 32, sighex);
+    brix_hex_encode(sig, 32, sighex);
 
     off = snprintf(hdrs, hdrsz,
                    "x-amz-date: %s\r\nx-amz-content-sha256: %s\r\n",
@@ -996,7 +996,7 @@ sd_s3_set_meta_f(sd_s3_file *f, const sd_s3_meta_kv *kv, size_t nkv,
     char             names[32][160];
     char             lname[160];
     size_t           n_extra = 0, i, j, nl;
-    xrootd_s3_resp_t resp;
+    brix_s3_resp_t resp;
 
     if (nkv > 32) {
         sd_s3_set_err(errbuf, errcap, "s3 set-meta: too many attributes");
@@ -1071,17 +1071,17 @@ sd_s3_set_meta(const sd_s3_open_params *p, const sd_s3_meta_kv *kv, size_t nkv,
 }
 
 int
-sd_s3_set_unixattr(const sd_s3_open_params *p, const xrootd_meta_advisory_t *a,
+sd_s3_set_unixattr(const sd_s3_open_params *p, const brix_meta_advisory_t *a,
                    char *errbuf, size_t errcap)
 {
     char          blob[256];
     sd_s3_meta_kv kv;
 
-    if (a == NULL || xrootd_meta_advisory_encode(a, blob, sizeof(blob)) < 0) {
+    if (a == NULL || brix_meta_advisory_encode(a, blob, sizeof(blob)) < 0) {
         sd_s3_set_err(errbuf, errcap, "s3 set-unixattr: advisory encode failed");
         return -1;
     }
-    kv.name  = XROOTD_META_ADVISORY_S3META;
+    kv.name  = BRIX_META_ADVISORY_S3META;
     kv.value = blob;
     return sd_s3_set_meta(p, &kv, 1, errbuf, errcap);
 }

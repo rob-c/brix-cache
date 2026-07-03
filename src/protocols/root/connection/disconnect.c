@@ -1,7 +1,7 @@
 #include "disconnect.h"
-#include "fd_table.h"   /* xrootd_close_all_files (deferred teardown) */
+#include "fd_table.h"   /* brix_close_all_files (deferred teardown) */
 #include "budget.h"
-#include "protocols/root/session/session.h"   /* Phase 51 (E4): xrootd_gsi_inflight_release */
+#include "protocols/root/session/session.h"   /* Phase 51 (E4): brix_gsi_inflight_release */
 #include "protocols/root/session/registry.h"
 #include "net/upstream/upstream.h"
 #include "net/proxy/proxy.h"
@@ -16,13 +16,13 @@
 
 /* §F6 GSI proxy-delegation teardown (src/gsi/delegation.c). Declared here to
  * avoid pulling the GSI internal header into the connection layer. */
-void xrootd_gsi_delegation_cleanup(xrootd_ctx_t *ctx);
+void brix_gsi_delegation_cleanup(brix_ctx_t *ctx);
 
 /* Free the payload buffer (detached from ctx->payload_buf by the AIO write/read
  * paths) and any kXR_prepare staging paths, on every disconnect/close path. */
 
 static void
-xrootd_release_disconnect_owned_buffers(xrootd_ctx_t *ctx)
+brix_release_disconnect_owned_buffers(brix_ctx_t *ctx)
 {
     if (ctx->payload_buf != NULL) {
         ngx_free(ctx->payload_buf);
@@ -39,7 +39,7 @@ xrootd_release_disconnect_owned_buffers(xrootd_ctx_t *ctx)
 
     /*
      * Phase 31: the reusable transfer scratch buffers are raw heap allocations
-     * (ngx_alloc, see src/aio/buffers.c xrootd_get_pool_scratch) — not pool
+     * (ngx_alloc, see src/aio/buffers.c brix_get_pool_scratch) — not pool
      * anchored — so they must be freed explicitly here, like payload_buf above.
      */
     if (ctx->read_scratch != NULL) {
@@ -84,7 +84,7 @@ xrootd_release_disconnect_owned_buffers(xrootd_ctx_t *ctx)
     /* Phase 24 W3: free per-file data-write-mirror accumulation buffers for any
      * write-opens that never reached kXR_close (e.g. client dropped mid-write).
      * Detached replays already in flight own their own copies and are unaffected. */
-    xrootd_stream_wmirror_cleanup(ctx);
+    brix_stream_wmirror_cleanup(ctx);
 }
 
 /* Free OpenSSL crypto objects from authentication: the GSI DH key (EVP_PKEY) and
@@ -92,7 +92,7 @@ xrootd_release_disconnect_owned_buffers(xrootd_ctx_t *ctx)
  * session and are released only on disconnect. */
 
 static void
-xrootd_release_disconnect_crypto_state(xrootd_ctx_t *ctx)
+brix_release_disconnect_crypto_state(brix_ctx_t *ctx)
 {
     if (ctx->gsi_dh_key != NULL) {
         EVP_PKEY_free(ctx->gsi_dh_key);
@@ -100,7 +100,7 @@ xrootd_release_disconnect_crypto_state(xrootd_ctx_t *ctx)
     }
 
     /* §F6: release any captured X.509 delegation state + cleanse the session key. */
-    xrootd_gsi_delegation_cleanup(ctx);
+    brix_gsi_delegation_cleanup(ctx);
 
     if (ctx->sigver_mac_ctx != NULL) {
         EVP_MAC_CTX_free(ctx->sigver_mac_ctx);
@@ -118,7 +118,7 @@ xrootd_release_disconnect_crypto_state(xrootd_ctx_t *ctx)
  * which must be committed here before ctx is destroyed. */
 
 static void
-xrootd_disconnect_update_metrics(xrootd_ctx_t *ctx)
+brix_disconnect_update_metrics(brix_ctx_t *ctx)
 {
     if (ctx->metrics == NULL) {
         return;
@@ -158,7 +158,7 @@ xrootd_disconnect_update_metrics(xrootd_ctx_t *ctx)
  * logged as a zero-byte read. */
 
 static size_t
-xrootd_disconnect_file_bytes(const xrootd_file_t *file)
+brix_disconnect_file_bytes(const brix_file_t *file)
 {
     /*
      * A handle is either read-heavy or write-heavy in the access log.  Prefer
@@ -177,13 +177,13 @@ xrootd_disconnect_file_bytes(const xrootd_file_t *file)
  * measured from the original open_time via req_start reuse. */
 
 static void
-xrootd_disconnect_log_open_files(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_disconnect_log_open_files(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_msec_t now)
 {
     int handle_index;
 
-    for (handle_index = 0; handle_index < XROOTD_MAX_FILES; handle_index++) {
-        xrootd_file_t *file;
+    for (handle_index = 0; handle_index < BRIX_MAX_FILES; handle_index++) {
+        brix_file_t *file;
         char           detail[64];
         size_t         byte_total;
         ngx_msec_t     duration_ms;
@@ -193,7 +193,7 @@ xrootd_disconnect_log_open_files(xrootd_ctx_t *ctx, ngx_connection_t *c,
             continue;
         }
 
-        byte_total = xrootd_disconnect_file_bytes(file);
+        byte_total = brix_disconnect_file_bytes(file);
         duration_ms = now - file->open_time;
 
         if (byte_total > 0 && duration_ms > 0) {
@@ -212,7 +212,7 @@ xrootd_disconnect_log_open_files(xrootd_ctx_t *ctx, ngx_connection_t *c,
          * duration from the original open time, not from disconnect time.
          */
         ctx->req_start = file->open_time;
-        xrootd_log_access(ctx, c, "CLOSE", file->path, detail, 0,
+        brix_log_access(ctx, c, "CLOSE", file->path, detail, 0,
                           kXR_Cancelled, "connection lost", byte_total);
     }
 }
@@ -221,7 +221,7 @@ xrootd_disconnect_log_open_files(xrootd_ctx_t *ctx, ngx_connection_t *c,
  * MB/s when both occurred, otherwise a single aggregate. */
 
 static void
-xrootd_disconnect_format_session_detail(xrootd_ctx_t *ctx, ngx_msec_t now,
+brix_disconnect_format_session_detail(brix_ctx_t *ctx, ngx_msec_t now,
     char *detail, size_t detail_size, size_t *total_bytes)
 {
     ngx_msec_t session_duration_ms;
@@ -251,13 +251,13 @@ xrootd_disconnect_format_session_detail(xrootd_ctx_t *ctx, ngx_msec_t now,
              (double) *total_bytes / (double) session_duration_ms / 1000.0);
 }
 
-/* xrootd_on_disconnect — entry point for an unexpected TCP close (not a normal
+/* brix_on_disconnect — entry point for an unexpected TCP close (not a normal
  * kXR_close): three-phase cleanup — buffer/crypto release, metrics finalization,
  * and cancelled access-log entries — releasing every resource (buffers, crypto
  * objects, open handles, registry slots). */
 
 void
-xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     char       session_detail[128];
     size_t     session_total_bytes;
@@ -269,12 +269,12 @@ xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c)
     /* phase-59 W3a: release any throttle open-files slots still held by this
      * connection (handles closed implicitly by disconnect, not kXR_close). */
     if (ctx->throttle_open_held > 0) {
-        ngx_stream_xrootd_srv_conf_t *tconf = ngx_stream_get_module_srv_conf(
-            (ngx_stream_session_t *) c->data, ngx_stream_xrootd_module);
+        ngx_stream_brix_srv_conf_t *tconf = ngx_stream_get_module_srv_conf(
+            (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
         if (tconf->throttle_zone != NULL) {
             const char *tuser = ctx->dn[0] ? ctx->dn : "anonymous";
             while (ctx->throttle_open_held > 0) {
-                xrootd_throttle_open_dec(tconf->throttle_zone, tuser);
+                brix_throttle_open_dec(tconf->throttle_zone, tuser);
                 ctx->throttle_open_held--;
             }
         } else {
@@ -306,50 +306,50 @@ xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c)
         ngx_del_timer(&ctx->pmark_echo_ev);
     }
     if (ctx->pmark_flow != NULL) {
-        xrootd_pmark_flow_end(ctx->pmark_flow, c->log);
+        brix_pmark_flow_end(ctx->pmark_flow, c->log);
         ctx->pmark_flow = NULL;
     }
 
     /* Phase 31 W4: return this connection's charged transfer-heap bytes to the
      * SHM-global budget before its scratch buffers are freed below. */
-    xrootd_budget_release(ctx);
+    brix_budget_release(ctx);
 
     /* Phase 25 W7 (stream): release the per-connection concurrency slot reserved
      * by the dispatch gate.  The stream plane has no per-request LOG phase, so the
      * in-flight slot is held for the connection's lifetime and freed exactly once
      * here.  No-op if no concurrency rule matched. */
-    xrootd_rl_release_ctx(ctx);
+    brix_rl_release_ctx(ctx);
 
     /* Phase 51 (E4): release this connection's in-flight GSI-handshake slot if it
      * still holds one (handshake aborted before completion).  Leak-proof: this
      * funnel always runs on close, and the release is gated by ctx->gsi_counted
      * so a completed handshake (already released) is a no-op. */
-    xrootd_gsi_inflight_release(ctx);
+    brix_gsi_inflight_release(ctx);
 
     if (ctx->upstream != NULL) {
-        xrootd_upstream_cleanup(ctx->upstream);
+        brix_upstream_cleanup(ctx->upstream);
     }
 
     if (ctx->proxy != NULL) {
-        xrootd_proxy_cleanup(ctx->proxy);
+        brix_proxy_cleanup(ctx->proxy);
         ctx->proxy = NULL;
     }
 
-    xrootd_release_disconnect_owned_buffers(ctx);
-    xrootd_release_disconnect_crypto_state(ctx);
-    xrootd_disconnect_update_metrics(ctx);
-    xrootd_disconnect_log_open_files(ctx, c, now);
+    brix_release_disconnect_owned_buffers(ctx);
+    brix_release_disconnect_crypto_state(ctx);
+    brix_disconnect_update_metrics(ctx);
+    brix_disconnect_log_open_files(ctx, c, now);
 
     /* Free any transfer monitor slots for this session (handles kXR_close was never sent). */
-    if (ngx_xrootd_dashboard_shm_zone != NULL) {
-        xrootd_transfer_slot_free_all_for_session(
-            ngx_xrootd_dashboard_shm_zone->data, ctx->sessid);
+    if (ngx_brix_dashboard_shm_zone != NULL) {
+        brix_transfer_slot_free_all_for_session(
+            ngx_brix_dashboard_shm_zone->data, ctx->sessid);
     }
 
     if (!ctx->logged_in) {
         /* Phase 33 C1: make this connection's buffered access-log lines durable
          * (it may have logged errors before login). */
-        xrootd_access_log_flush();
+        brix_access_log_flush();
         return;
     }
 
@@ -358,24 +358,24 @@ xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c)
      * session.  Only unregister the session that owns the registry slot.
      */
     if (ctx->auth_done && !ctx->is_bound) {
-        xrootd_session_unregister(ctx->sessid);
+        brix_session_unregister(ctx->sessid);
     }
 
-    xrootd_disconnect_format_session_detail(ctx, now, session_detail,
+    brix_disconnect_format_session_detail(ctx, now, session_detail,
                                             sizeof(session_detail),
                                             &session_total_bytes);
 
     ctx->req_start = ctx->session_start;
-    xrootd_log_access(ctx, c, "DISCONNECT", "-", session_detail, 1, 0, NULL,
+    brix_log_access(ctx, c, "DISCONNECT", "-", session_detail, 1, 0, NULL,
                       session_total_bytes);
 
     /* Phase 33 C1: the connection is gone — flush its batched access-log lines
      * (including the DISCONNECT record above) so they are durable now rather
      * than waiting for the next buffer-full / timer tick. */
-    xrootd_access_log_flush();
+    brix_access_log_flush();
 }
 
-/* xrootd_defer_teardown_if_writing — hold off teardown while pwrites run.
+/* brix_defer_teardown_if_writing — hold off teardown while pwrites run.
  *
  * Called at every data-plane finalize site (recv EOF/timeout/error, send
  *   error/timeout).  If a pipelined kXR_write is still in flight (wr_inflight > 0)
@@ -384,15 +384,15 @@ xrootd_on_disconnect(xrootd_ctx_t *ctx, ngx_connection_t *c)
  *   (status), marks the connection destroyed so the recv loop stops and write
  *   completion callbacks skip their ack, disarms our deadline timers so no stale
  *   timer re-fires, and returns 1 (caller must return without tearing down).  The
- *   last write completion (xrootd_write_aio_done) then runs the real teardown via
- *   xrootd_run_deferred_teardown().  Returns 0 when there are no in-flight writes,
+ *   last write completion (brix_write_aio_done) then runs the real teardown via
+ *   brix_run_deferred_teardown().  Returns 0 when there are no in-flight writes,
  *   i.e. teardown may proceed normally.
  *
  * WHY: Pipelined writes break the old "exactly one AIO in flight, recv suspended"
  *   invariant that made teardown trivially safe.  This is the single chokepoint
  *   that restores the guarantee: no finalize while any pwrite references ctx/fds. */
 ngx_flag_t
-xrootd_defer_teardown_if_writing(xrootd_ctx_t *ctx, ngx_connection_t *c,
+brix_defer_teardown_if_writing(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_int_t status)
 {
     if (ctx->wr_inflight == 0) {
@@ -417,22 +417,22 @@ xrootd_defer_teardown_if_writing(xrootd_ctx_t *ctx, ngx_connection_t *c,
     return 1;
 }
 
-/* xrootd_run_deferred_teardown — finalize once the last pwrite has landed.
+/* brix_run_deferred_teardown — finalize once the last pwrite has landed.
  *
- * Invoked from xrootd_write_aio_done when wr_inflight reaches 0 and a
+ * Invoked from brix_write_aio_done when wr_inflight reaches 0 and a
  *   teardown was deferred.  Runs the full teardown that was held off — on_disconnect
  *   (metrics/log/registry, idempotent re: the already-set destroyed flag), then
  *   close_all_files (now safe: no pwrite references any fd), then finalize the
  *   stream session with the recorded status.  After this returns the ctx/pool are
  *   gone, so the caller must touch nothing further. */
 void
-xrootd_run_deferred_teardown(xrootd_ctx_t *ctx, ngx_connection_t *c)
+brix_run_deferred_teardown(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     ngx_stream_session_t *s = c->data;
     ngx_int_t             status = ctx->finalize_status;
 
     ctx->finalize_pending = 0;
-    xrootd_on_disconnect(ctx, c);
-    xrootd_close_all_files(ctx);
+    brix_on_disconnect(ctx, c);
+    brix_close_all_files(ctx);
     ngx_stream_finalize_session(s, status);
 }

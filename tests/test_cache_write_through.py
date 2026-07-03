@@ -134,7 +134,7 @@ def write_through_async_server(test_env):
 class TestCacheReadThrough:
     """Cache-only server: connectivity and basic file access."""
 
-    def test_server_accepts_xrootd_session(self, cache_only_server):
+    def test_server_accepts_brix_session(self, cache_only_server):
         """Cache-only server must accept a complete XRootD login."""
         sock, _ = _establish_session(cache_only_server["host"], cache_only_server["port"])
         sock.close()
@@ -169,7 +169,7 @@ class TestCacheReadThrough:
 class TestWriteThroughSync:
     """WT-sync server: connectivity and round-trip write+read with checksum."""
 
-    def test_server_accepts_xrootd_session(self, write_through_sync_server):
+    def test_server_accepts_brix_session(self, write_through_sync_server):
         """WT-sync server must accept a complete XRootD login."""
         sock, _ = _establish_session(
             write_through_sync_server["host"], write_through_sync_server["port"]
@@ -223,7 +223,7 @@ class TestWriteThroughSync:
 class TestWriteThroughAsync:
     """WT-async server: connectivity and round-trip write+read with checksum."""
 
-    def test_server_accepts_xrootd_session(self, write_through_async_server):
+    def test_server_accepts_brix_session(self, write_through_async_server):
         """WT-async server must accept a complete XRootD login."""
         sock, _ = _establish_session(
             write_through_async_server["host"], write_through_async_server["port"]

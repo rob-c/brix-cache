@@ -29,10 +29,10 @@ http {
     server {
         listen 127.0.0.1:$CPORT so_keepalive=60s:10s:6 backlog=2048;
         location /cvmfs/ {
-            xrootd_cvmfs_storage_backend http://127.0.0.1:$MPORT;
-            xrootd_cvmfs_cache_store posix:$PFX/cache;
-            xrootd_cvmfs on;
-            xrootd_cvmfs_manifest_ttl 1;
+            brix_cvmfs_storage_backend http://127.0.0.1:$MPORT;
+            brix_cvmfs_cache_store posix:$PFX/cache;
+            brix_cvmfs on;
+            brix_cvmfs_manifest_ttl 1;
         }
         # nginx normalizes dot-segments before location match, so a traversal
         # like /cvmfs/../etc/passwd arrives here as /etc/passwd — refuse it.
@@ -41,13 +41,13 @@ http {
     server {   # T16: metrics + healthz scrape listener
         listen 127.0.0.1:$XPORT;
         access_log off;
-        location /metrics { xrootd_metrics on; }
-        location /healthz { xrootd_health on; }
+        location /metrics { brix_metrics on; }
+        location /healthz { brix_health on; }
     }
     server {   # T16: operator dashboard (live-transfer visibility check)
         listen 127.0.0.1:$DPORT;
         access_log off;
-        location /xrootd/ { xrootd_dashboard on; xrootd_dashboard_password "t16"; }
+        location /xrootd/ { brix_dashboard on; brix_dashboard_password "t16"; }
     }
 }
 EOF
@@ -153,13 +153,13 @@ grep -q 'cvmfs-reject: method=GET uri=.*client=.*class=reject' "$PFX/logs/e.log"
 
 # T16: the three visibility surfaces
 M="$(curl -s "http://127.0.0.1:$XPORT/metrics")"
-CASN="$(printf '%s' "$M" | sed -n 's/^xrootd_cvmfs_requests_total{class="cas"} //p')"
+CASN="$(printf '%s' "$M" | sed -n 's/^brix_cvmfs_requests_total{class="cas"} //p')"
 [ "${CASN:-0}" -ge 1 ] && ok "metrics: cas requests counted ($CASN)" \
     || bad "metrics: cas counter missing/zero"
 printf '%s' "$M" | grep -q 'proto="cvmfs"' \
     && ok "metrics: proto=cvmfs on module-wide families" \
     || bad "metrics: no proto=cvmfs label"
-FILLB="$(printf '%s' "$M" | sed -n 's/^xrootd_cvmfs_bytes_served_total{source="fill"} //p')"
+FILLB="$(printf '%s' "$M" | sed -n 's/^brix_cvmfs_bytes_served_total{source="fill"} //p')"
 [ "${FILLB:-0}" -ge 1 ] && ok "metrics: fill bytes counted" || bad "metrics: fill bytes zero"
 grep -q 'class=cas cache=fill' "$PFX/logs/cvmfs_access.log" \
     && ok "access log: cold read logged as class=cas cache=fill" \
@@ -171,15 +171,15 @@ curl -s "http://127.0.0.1:$XPORT/healthz?verbose" | grep -q '"cvmfs_origins":\[{
     && ok "healthz: cvmfs_origins present" || bad "healthz: no cvmfs_origins"
 
 # per-repository families (bounded fqrn label set)
-RREQ="$(printf '%s' "$M" | sed -n 's/^xrootd_cvmfs_repo_requests_total{repo="test.cern.ch",class="cas"} //p')"
+RREQ="$(printf '%s' "$M" | sed -n 's/^brix_cvmfs_repo_requests_total{repo="test.cern.ch",class="cas"} //p')"
 [ "${RREQ:-0}" -ge 1 ] && ok "repo metrics: per-fqrn cas requests ($RREQ)" \
     || bad "repo metrics: no test.cern.ch cas row"
-RFA="$(printf '%s' "$M" | sed -n 's/^xrootd_cvmfs_repo_files_accessed_total{repo="test.cern.ch"} //p')"
+RFA="$(printf '%s' "$M" | sed -n 's/^brix_cvmfs_repo_files_accessed_total{repo="test.cern.ch"} //p')"
 [ "${RFA:-0}" -ge 1 ] && ok "repo metrics: files_accessed counted ($RFA)" \
     || bad "repo metrics: files_accessed zero"
-RHIT="$(printf '%s' "$M" | sed -n 's/^xrootd_cvmfs_repo_cache_hits_total{repo="test.cern.ch"} //p')"
-RFILL="$(printf '%s' "$M" | sed -n 's/^xrootd_cvmfs_repo_bytes_served_total{repo="test.cern.ch",source="fill"} //p')"
-ROB="$(printf '%s' "$M" | sed -n 's/^xrootd_cvmfs_repo_origin_bytes_total{repo="test.cern.ch"} //p')"
+RHIT="$(printf '%s' "$M" | sed -n 's/^brix_cvmfs_repo_cache_hits_total{repo="test.cern.ch"} //p')"
+RFILL="$(printf '%s' "$M" | sed -n 's/^brix_cvmfs_repo_bytes_served_total{repo="test.cern.ch",source="fill"} //p')"
+ROB="$(printf '%s' "$M" | sed -n 's/^brix_cvmfs_repo_origin_bytes_total{repo="test.cern.ch"} //p')"
 [ "${RHIT:-0}" -ge 1 ] && [ "${RFILL:-0}" -ge 1 ] && [ "${ROB:-0}" -ge 1 ] \
     && ok "repo metrics: hits/bytes-served/origin-bytes all counted" \
     || bad "repo metrics: hit=$RHIT fillbytes=$RFILL originbytes=$ROB"
@@ -191,7 +191,7 @@ for i in $(seq 1 40); do
     curl -s -o /dev/null "http://127.0.0.1:$CPORT/cvmfs/flood$i.example.org/data/aa/$BOG"
 done
 M2="$(curl -s "http://127.0.0.1:$XPORT/metrics")"
-NREPO="$(printf '%s' "$M2" | grep -c '^xrootd_cvmfs_repo_files_accessed_total{')"
+NREPO="$(printf '%s' "$M2" | grep -c '^brix_cvmfs_repo_files_accessed_total{')"
 printf '%s' "$M2" | grep -q 'repo="_other"' && [ "$NREPO" -le 32 ] \
     && ok "repo metrics: label set bounded ($NREPO repos, overflow → _other)" \
     || bad "repo metrics: cardinality bound broken (repos=$NREPO)"

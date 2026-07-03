@@ -1,6 +1,6 @@
 """
 Functional read tests for root:// with GSI authentication + in-protocol TLS
-(xrootd_tls).
+(brix_tls).
 
 The server on port 11096 advertises kXR_haveTLS in its kXR_protocol response,
 so the XRootD client upgrades the connection to TLS before sending kXR_auth.
@@ -8,7 +8,7 @@ This validates that the full read path works correctly over an encrypted
 transport with x509 proxy-certificate authentication.
 
 Prerequisites:
-  - nginx running with xrootd_tls + xrootd_auth gsi on port 11096
+  - nginx running with brix_tls + brix_auth gsi on port 11096
   - Test PKI at /tmp/xrd-test/pki/
   - Test data at /tmp/xrd-test/data/ (test.txt, random.bin)
 

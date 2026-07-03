@@ -3,7 +3,7 @@
 This is the missing behavioural coverage for the code path that authenticates to a
 GSI-requiring TPC *source*: a native TPC PULL where the nginx data server (the
 destination) connects to a remote XrdSecgsi server and must present its own
-certificate (`xrootd_certificate`) — i.e. `tpc_outbound_gsi()` in
+certificate (`brix_certificate`) — i.e. `tpc_outbound_gsi()` in
 src/tpc/gsi/gsi_outbound_certreq.c + the DH/cipher exchange in gsi_outbound_exchange.c.
 
 Topology:
@@ -11,7 +11,7 @@ Topology:
         ^
         | native TPC pull (nginx dest connects + GSI-auths with its hostcert)
         |
-    nginx-xrootd (TPC destination: native TPC, xrootd_certificate=<CA-signed cert>)
+    nginx-xrootd (TPC destination: native TPC, brix_certificate=<CA-signed cert>)
         ^
         | xrdcp -f -s --tpc <mode> <gsi-source>/hello.txt <nginx-dest>/pulled.txt
     native xrdcp client
@@ -164,15 +164,15 @@ def gsi_tpc(tmp_path_factory):
         "  server {\n"
         f"    listen 127.0.0.1:{dst_port};\n"
         "    xrootd on;\n"
-        f"    xrootd_storage_backend posix:{dst_data};\n"
-        "    xrootd_auth none;\n"
-        "    xrootd_allow_write on;\n"
-        "    xrootd_tpc_allow_local on;\n"
-        "    xrootd_tpc_allow_private on;\n"
-        f"    xrootd_certificate {srv / 'destproxy.pem'};\n"
-        f"    xrootd_certificate_key {srv / 'destproxy.pem'};\n"
-        f"    xrootd_trusted_ca {certs};\n"
-        f"    xrootd_access_log {logs}/dst-access.log;\n"
+        f"    brix_storage_backend posix:{dst_data};\n"
+        "    brix_auth none;\n"
+        "    brix_allow_write on;\n"
+        "    brix_tpc_allow_local on;\n"
+        "    brix_tpc_allow_private on;\n"
+        f"    brix_certificate {srv / 'destproxy.pem'};\n"
+        f"    brix_certificate_key {srv / 'destproxy.pem'};\n"
+        f"    brix_trusted_ca {certs};\n"
+        f"    brix_access_log {logs}/dst-access.log;\n"
         "  }\n"
         "}\n")
     _free_port(dst_port)
@@ -201,7 +201,7 @@ def test_tpc_pull_over_gsi(gsi_tpc):
     """Native TPC PULL from a GSI-requiring source: exercises tpc_outbound_gsi.
 
     The nginx destination connects to the stock GSI source and authenticates with
-    its own xrootd_certificate (the server-outbound GSI handshake). Success means
+    its own brix_certificate (the server-outbound GSI handshake). Success means
     the file content arrives at the destination.
     """
     src = f"{gsi_tpc['src_url']}//gsidata/hello.txt"

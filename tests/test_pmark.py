@@ -78,12 +78,12 @@ def _write_conf(tmp_path, extra_loc):
         "  server {\n"
         f"    listen {BIND_HOST}:{HTTP_PORT};\n"
         "    location / {\n"
-        "      xrootd_webdav on;\n"
-        f"      xrootd_webdav_storage_backend posix:{root};\n"
-        "      xrootd_webdav_auth none;\n"
-        "      xrootd_pmark on;\n"
-        "      xrootd_pmark_http_plain on;\n"
-        f"      xrootd_pmark_firefly_dest {HOST}:{FF_PORT};\n"
+        "      brix_webdav on;\n"
+        f"      brix_webdav_storage_backend posix:{root};\n"
+        "      brix_webdav_auth none;\n"
+        "      brix_pmark on;\n"
+        "      brix_pmark_http_plain on;\n"
+        f"      brix_pmark_firefly_dest {HOST}:{FF_PORT};\n"
         f"{extra_loc}"
         "    }\n"
         "  }\n"
@@ -114,8 +114,8 @@ def _stop(conf, tmp_path):
 def test_firefly_scitag_override(tmp_path):
     """scitag.flow=129 → experiment 2, activity 1; start + end datagrams."""
     cap = FireflyCapture(FF_PORT)
-    conf = _write_conf(tmp_path, "      xrootd_pmark_scitag_cgi on;\n"
-                                 "      xrootd_pmark_appname pmark-test;\n")
+    conf = _write_conf(tmp_path, "      brix_pmark_scitag_cgi on;\n"
+                                 "      brix_pmark_appname pmark-test;\n")
     try:
         _serve(conf, tmp_path)
         subprocess.run(
@@ -151,9 +151,9 @@ def test_firefly_defsfile_mapping(tmp_path):
     }))
     cap = FireflyCapture(FF_PORT)
     conf = _write_conf(tmp_path,
-                       f"      xrootd_pmark_defsfile {defs};\n"
-                       "      xrootd_pmark_map_experiment default atlas;\n"
-                       "      xrootd_pmark_map_activity atlas default write;\n")
+                       f"      brix_pmark_defsfile {defs};\n"
+                       "      brix_pmark_map_experiment default atlas;\n"
+                       "      brix_pmark_map_activity atlas default write;\n")
     try:
         _serve(conf, tmp_path)
         subprocess.run(
@@ -174,7 +174,7 @@ def test_firefly_out_of_range_scitag_ignored(tmp_path):
     """scitag.flow=70000 is out of [65,65535] → flow is NOT marked (no datagram)."""
     cap = FireflyCapture(FF_PORT)
     # No defsfile / mappings: the only marking source is the (bad) client scitag.
-    conf = _write_conf(tmp_path, "      xrootd_pmark_scitag_cgi on;\n")
+    conf = _write_conf(tmp_path, "      brix_pmark_scitag_cgi on;\n")
     try:
         _serve(conf, tmp_path)
         rc = subprocess.run(

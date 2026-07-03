@@ -1,5 +1,5 @@
-#ifndef XROOTD_DASHBOARD_H
-#define XROOTD_DASHBOARD_H
+#ifndef BRIX_DASHBOARD_H
+#define BRIX_DASHBOARD_H
 
 /*
  * dashboard/dashboard.h — live transfer monitor: shared-memory types and public API.
@@ -20,11 +20,11 @@
  *   because the dashboard is display-only and eventual consistency is fine.
  *
  * SLOT LIFECYCLE:
- *   kXR_open  → xrootd_transfer_slot_alloc()  (store index in fh->dashboard_slot)
+ *   kXR_open  → brix_transfer_slot_alloc()  (store index in fh->dashboard_slot)
  *   kXR_read /
- *   kXR_write → xrootd_transfer_slot_update() (atomic byte/timestamp increment)
- *   kXR_close → xrootd_transfer_slot_free()   (reset index to -1)
- *   disconnect → xrootd_transfer_slot_free_all_for_session()  (catch dropped clients)
+ *   kXR_write → brix_transfer_slot_update() (atomic byte/timestamp increment)
+ *   kXR_close → brix_transfer_slot_free()   (reset index to -1)
+ *   disconnect → brix_transfer_slot_free_all_for_session()  (catch dropped clients)
  */
 
 #include <stdint.h>
@@ -33,41 +33,41 @@
 #include "core/types/proto_list.h"
 
 /* Maximum simultaneous tracked transfers. */
-#define XROOTD_DASHBOARD_MAX_TRANSFERS   512
+#define BRIX_DASHBOARD_MAX_TRANSFERS   512
 
 /* Field width constants — kept small to bound SHM size. */
-#define XROOTD_DASHBOARD_PATH_LEN        512
-#define XROOTD_DASHBOARD_IDENTITY_LEN    128
-#define XROOTD_DASHBOARD_IP_LEN           64
-#define XROOTD_DASHBOARD_OP_LEN           32
-#define XROOTD_DASHBOARD_REASON_LEN       96
-#define XROOTD_DASHBOARD_HOST_LEN        128
-#define XROOTD_DASHBOARD_VO_LEN           32
+#define BRIX_DASHBOARD_PATH_LEN        512
+#define BRIX_DASHBOARD_IDENTITY_LEN    128
+#define BRIX_DASHBOARD_IP_LEN           64
+#define BRIX_DASHBOARD_OP_LEN           32
+#define BRIX_DASHBOARD_REASON_LEN       96
+#define BRIX_DASHBOARD_HOST_LEN        128
+#define BRIX_DASHBOARD_VO_LEN           32
 
-/* Protocol tag values stored in xrootd_transfer_slot_t.proto */
+/* Protocol tag values stored in brix_transfer_slot_t.proto */
 /* Transfer-slot protocol ids, generated from THE central protocol
  * declaration (core/types/proto_list.h): value = list row + 1, 0 stays
  * "untracked". SHM-persisted — the list is append-only. */
 enum {
-    XROOTD_XFER_PROTO_NONE = 0,
-#define X(ID, metric_label, dash_name, http_plane) XROOTD_XFER_PROTO_##ID,
-    XROOTD_PROTO_LIST(X)
+    BRIX_XFER_PROTO_NONE = 0,
+#define X(ID, metric_label, dash_name, http_plane) BRIX_XFER_PROTO_##ID,
+    BRIX_PROTO_LIST(X)
 #undef X
-    XROOTD_XFER_PROTO__END
+    BRIX_XFER_PROTO__END
 };
-#define XROOTD_XFER_NPROTOS (XROOTD_XFER_PROTO__END - 1)
+#define BRIX_XFER_NPROTOS (BRIX_XFER_PROTO__END - 1)
 
-/* Direction tag values stored in xrootd_transfer_slot_t.direction */
-#define XROOTD_XFER_DIR_READ   1   /* client downloading (egress)        */
-#define XROOTD_XFER_DIR_WRITE  2   /* client uploading (ingress)         */
-#define XROOTD_XFER_DIR_TPC    3   /* third-party copy (no client data)  */
+/* Direction tag values stored in brix_transfer_slot_t.direction */
+#define BRIX_XFER_DIR_READ   1   /* client downloading (egress)        */
+#define BRIX_XFER_DIR_WRITE  2   /* client uploading (ingress)         */
+#define BRIX_XFER_DIR_TPC    3   /* third-party copy (no client data)  */
 
-/* State tag values stored in xrootd_transfer_slot_t.state */
-#define XROOTD_XFER_STATE_ACTIVE    1
-#define XROOTD_XFER_STATE_IDLE      2
-#define XROOTD_XFER_STATE_STALLED   3
-#define XROOTD_XFER_STATE_CLOSING   4
-#define XROOTD_XFER_STATE_ERROR     5
+/* State tag values stored in brix_transfer_slot_t.state */
+#define BRIX_XFER_STATE_ACTIVE    1
+#define BRIX_XFER_STATE_IDLE      2
+#define BRIX_XFER_STATE_STALLED   3
+#define BRIX_XFER_STATE_CLOSING   4
+#define BRIX_XFER_STATE_ERROR     5
 /*
  * THROTTLED is a *derived* display state (never stored in slot->state): the JSON
  * exporter reports it instead of "stalled" for a transfer that has moved data
@@ -75,7 +75,7 @@ enum {
  * xrdcp --xrate, which sleeps then bursts).  Such a transfer is making forward
  * progress on a schedule, not stuck, so flagging it "stalled" is misleading.
  */
-#define XROOTD_XFER_STATE_THROTTLED 6
+#define BRIX_XFER_STATE_THROTTLED 6
 
 /*
  * EWMA sampling window for slot->instant_bps.  The owning worker re-folds the
@@ -83,25 +83,25 @@ enum {
  * transfer_table.c); the exporter decays the published value by the same window
  * for read-only display while a transfer is idle between bursts.
  */
-#define XROOTD_XFER_SAMPLE_MS       1000
+#define BRIX_XFER_SAMPLE_MS       1000
 
-#define XROOTD_DASHBOARD_MAX_EVENTS          512
-#define XROOTD_DASHBOARD_EVENT_MSG_LEN       160
-#define XROOTD_DASHBOARD_HISTORY_BUCKETS     360
-#define XROOTD_DASHBOARD_HISTORY_INTERVAL_MS 5000
+#define BRIX_DASHBOARD_MAX_EVENTS          512
+#define BRIX_DASHBOARD_EVENT_MSG_LEN       160
+#define BRIX_DASHBOARD_HISTORY_BUCKETS     360
+#define BRIX_DASHBOARD_HISTORY_INTERVAL_MS 5000
 
 typedef enum {
-    XROOTD_DASH_EVENT_AUTH = 1,
-    XROOTD_DASH_EVENT_NAMESPACE,
-    XROOTD_DASH_EVENT_IO,
-    XROOTD_DASH_EVENT_TPC,
-    XROOTD_DASH_EVENT_DASHBOARD
-} xrootd_dashboard_event_class_e;
+    BRIX_DASH_EVENT_AUTH = 1,
+    BRIX_DASH_EVENT_NAMESPACE,
+    BRIX_DASH_EVENT_IO,
+    BRIX_DASH_EVENT_TPC,
+    BRIX_DASH_EVENT_DASHBOARD
+} brix_dashboard_event_class_e;
 
 /*
  * One active-transfer record.
  *
- * Lives in shared memory.  The lock in xrootd_transfer_table_t is held only
+ * Lives in shared memory.  The lock in brix_transfer_table_t is held only
  * during slot allocation — per-slot byte/timestamp updates are lock-free.
  *
  * Field notes:
@@ -120,14 +120,14 @@ typedef struct {
     uint32_t      serial;       /* monotonic ID — lets JS detect row churn    */
     u_char        sessid[16];   /* session ID for cleanup-by-sessid on disconnect */
     ngx_pid_t     worker_pid;
-    char          client_ip[XROOTD_DASHBOARD_IP_LEN];
-    char          identity[XROOTD_DASHBOARD_IDENTITY_LEN]; /* DN or "anonymous" */
-    char          vo[XROOTD_DASHBOARD_VO_LEN];
-    char          path[XROOTD_DASHBOARD_PATH_LEN];
-    char          op[XROOTD_DASHBOARD_OP_LEN];
-    uint8_t       direction;    /* XROOTD_XFER_DIR_*  */
-    uint8_t       proto;        /* XROOTD_XFER_PROTO_* */
-    uint8_t       state;        /* XROOTD_XFER_STATE_* */
+    char          client_ip[BRIX_DASHBOARD_IP_LEN];
+    char          identity[BRIX_DASHBOARD_IDENTITY_LEN]; /* DN or "anonymous" */
+    char          vo[BRIX_DASHBOARD_VO_LEN];
+    char          path[BRIX_DASHBOARD_PATH_LEN];
+    char          op[BRIX_DASHBOARD_OP_LEN];
+    uint8_t       direction;    /* BRIX_XFER_DIR_*  */
+    uint8_t       proto;        /* BRIX_XFER_PROTO_* */
+    uint8_t       state;        /* BRIX_XFER_STATE_* */
     uint8_t       flags;
     ngx_atomic_t  bytes;        /* bytes transferred so far (atomic increment) */
     ngx_atomic_t  bytes_last_sample;  /* slot->bytes at the last EWMA sample   */
@@ -141,12 +141,12 @@ typedef struct {
     ngx_atomic_t  write_ops;
     ngx_atomic_t  sync_ops;
     ngx_atomic_t  close_ops;
-    char          last_error[XROOTD_DASHBOARD_REASON_LEN];
-    char          tpc_remote_host[XROOTD_DASHBOARD_HOST_LEN];
-    char          tpc_remote_path_hint[XROOTD_DASHBOARD_PATH_LEN];
+    char          last_error[BRIX_DASHBOARD_REASON_LEN];
+    char          tpc_remote_host[BRIX_DASHBOARD_HOST_LEN];
+    char          tpc_remote_path_hint[BRIX_DASHBOARD_PATH_LEN];
     int           tpc_remote_status;
     int           tpc_curl_exit;
-} xrootd_transfer_slot_t;
+} brix_transfer_slot_t;
 
 /*
  * Root shared-memory object for the transfer table.
@@ -157,8 +157,8 @@ typedef struct {
 typedef struct {
     ngx_shmtx_sh_t           lock;         /* held only during alloc/free      */
     uint32_t                 next_serial;   /* monotonic counter for slot IDs   */
-    xrootd_transfer_slot_t  slots[XROOTD_DASHBOARD_MAX_TRANSFERS];
-} xrootd_transfer_table_t;
+    brix_transfer_slot_t  slots[BRIX_DASHBOARD_MAX_TRANSFERS];
+} brix_transfer_table_t;
 
 typedef struct {
     ngx_atomic_t  sequence;
@@ -166,21 +166,21 @@ typedef struct {
     uint8_t       class_id;
     uint8_t       proto;
     uint16_t      status;
-    char          message[XROOTD_DASHBOARD_EVENT_MSG_LEN];
+    char          message[BRIX_DASHBOARD_EVENT_MSG_LEN];
     char          path_hint[128];
-} xrootd_dashboard_event_t;
+} brix_dashboard_event_t;
 
 typedef struct {
     ngx_shmtx_sh_t            lock;
     ngx_atomic_t              next_sequence;
-    xrootd_dashboard_event_t  events[XROOTD_DASHBOARD_MAX_EVENTS];
-} xrootd_dashboard_event_table_t;
+    brix_dashboard_event_t  events[BRIX_DASHBOARD_MAX_EVENTS];
+} brix_dashboard_event_table_t;
 
 typedef struct {
     int64_t       bucket_start_ms;
     /* per-protocol live-transfer counts, indexed by proto list row
      * (JSON: "active_<dash_name>"); TPC is a direction, kept separate */
-    ngx_atomic_t  active[XROOTD_XFER_NPROTOS];
+    ngx_atomic_t  active[BRIX_XFER_NPROTOS];
     ngx_atomic_t  active_tpc;
     ngx_atomic_t  bytes_rx;
     ngx_atomic_t  bytes_tx;
@@ -188,47 +188,47 @@ typedef struct {
     ngx_atomic_t  auth_failures;
     ngx_atomic_t  write_stalls;
     uint32_t      cache_occupancy_ppm;
-} xrootd_dashboard_history_bucket_t;
+} brix_dashboard_history_bucket_t;
 
 typedef struct {
     ngx_shmtx_sh_t                   lock;
     int64_t                          last_bucket_start_ms;
-    xrootd_dashboard_history_bucket_t buckets[XROOTD_DASHBOARD_HISTORY_BUCKETS];
-} xrootd_dashboard_history_t;
+    brix_dashboard_history_bucket_t buckets[BRIX_DASHBOARD_HISTORY_BUCKETS];
+} brix_dashboard_history_t;
 
 /*
  * Global SHM zone pointer — set by the stream module during postconfiguration;
  * read by the HTTP dashboard module at request time.  NULL if the dashboard
  * feature was not compiled or no stream listeners are configured.
  */
-extern ngx_shm_zone_t *ngx_xrootd_dashboard_shm_zone;
-extern ngx_shm_zone_t *ngx_xrootd_dashboard_events_shm_zone;
-extern ngx_shm_zone_t *ngx_xrootd_dashboard_history_shm_zone;
+extern ngx_shm_zone_t *ngx_brix_dashboard_shm_zone;
+extern ngx_shm_zone_t *ngx_brix_dashboard_events_shm_zone;
+extern ngx_shm_zone_t *ngx_brix_dashboard_history_shm_zone;
 
 /*
  * SHM zone setup — called from stream postconfiguration, after metrics zone.
- * Registers the xrootd_dashboard zone.  Returns NGX_OK or NGX_ERROR.
+ * Registers the brix_dashboard zone.  Returns NGX_OK or NGX_ERROR.
  */
-ngx_int_t xrootd_configure_dashboard(ngx_conf_t *cf);
+ngx_int_t brix_configure_dashboard(ngx_conf_t *cf);
 
 /*
  * SHM zone init callback — implemented in transfer_table.c.
  * Called by nginx when the zone is first mapped (or re-attached on reload).
  */
-ngx_int_t ngx_xrootd_dashboard_shm_init(ngx_shm_zone_t *shm_zone, void *data);
+ngx_int_t ngx_brix_dashboard_shm_init(ngx_shm_zone_t *shm_zone, void *data);
 /*
  * SHM zone init callback for the events ring (events.c).
  * data != NULL on reload (re-creates the mutex over the inherited region);
  * data == NULL on first start (zeroes the region, then creates the mutex).
  * Returns NGX_OK or NGX_ERROR.
  */
-ngx_int_t ngx_xrootd_dashboard_events_shm_init(ngx_shm_zone_t *shm_zone,
+ngx_int_t ngx_brix_dashboard_events_shm_init(ngx_shm_zone_t *shm_zone,
     void *data);
 /*
  * SHM zone init callback for the history ring (history.c).
  * Same reload/first-start contract as the events init above; NGX_OK/NGX_ERROR.
  */
-ngx_int_t ngx_xrootd_dashboard_history_shm_init(ngx_shm_zone_t *shm_zone,
+ngx_int_t ngx_brix_dashboard_history_shm_init(ngx_shm_zone_t *shm_zone,
     void *data);
 
 /* transfer_table.c — the four public slot operations */
@@ -238,8 +238,8 @@ ngx_int_t ngx_xrootd_dashboard_history_shm_init(ngx_shm_zone_t *shm_zone,
  * success, -1 if the table is full (silently; the transfer is untracked).
  * now_ms is ngx_current_msec cast to int64_t.
  */
-int xrootd_transfer_slot_alloc(
-    xrootd_transfer_table_t *t,
+int brix_transfer_slot_alloc(
+    brix_transfer_table_t *t,
     const u_char             sessid[16],
     const char              *client_ip,
     const char              *identity,
@@ -249,7 +249,7 @@ int xrootd_transfer_slot_alloc(
     int64_t                  now_ms);
 
 /*
- * Extended slot allocation — superset of xrootd_transfer_slot_alloc() that also
+ * Extended slot allocation — superset of brix_transfer_slot_alloc() that also
  * records vo, op label, and expected_bytes (use -1 if the size is unknown).
  * All string args are copied into the SHM slot (no ownership taken); NULL
  * identity becomes "anonymous" and NULL op becomes "transfer".  Acquires the
@@ -257,8 +257,8 @@ int xrootd_transfer_slot_alloc(
  * -1 if the table is full (logs a dashboard event; the transfer runs untracked).
  * now_ms is epoch/current milliseconds; stored as start_ms.
  */
-int xrootd_transfer_slot_alloc_ex(
-    xrootd_transfer_table_t *t,
+int brix_transfer_slot_alloc_ex(
+    brix_transfer_table_t *t,
     const u_char             sessid[16],
     const char              *client_ip,
     const char              *identity,
@@ -274,8 +274,8 @@ int xrootd_transfer_slot_alloc_ex(
  * Increment the byte counter and refresh the last-active timestamp for a slot.
  * No-op if slot_idx is negative or the slot is no longer in use.
  */
-void xrootd_transfer_slot_update(
-    xrootd_transfer_table_t *t,
+void brix_transfer_slot_update(
+    brix_transfer_table_t *t,
     int                      slot_idx,
     ngx_atomic_int_t         nbytes,
     int64_t                  now_ms);
@@ -283,34 +283,34 @@ void xrootd_transfer_slot_update(
 /*
  * Add nbytes to the slot's cumulative byte counter (only if nbytes > 0),
  * force state back to ACTIVE, and stamp last_ms = now_ms.  Lock-free; this is
- * the underlying implementation that xrootd_transfer_slot_update() forwards to.
+ * the underlying implementation that brix_transfer_slot_update() forwards to.
  * No-op if slot_idx is out of range or the slot is not in use.
  */
-void xrootd_transfer_slot_update_bytes(
-    xrootd_transfer_table_t *t,
+void brix_transfer_slot_update_bytes(
+    brix_transfer_table_t *t,
     int                      slot_idx,
     ngx_atomic_int_t         nbytes,
     int64_t                  now_ms);
 
 /*
- * Set the slot's display state to one of XROOTD_XFER_STATE_* and stamp both
+ * Set the slot's display state to one of BRIX_XFER_STATE_* and stamp both
  * state_since_ms and last_ms with now_ms.  Lock-free; no-op if slot_idx is out
  * of range or the slot is not in use.
  */
-void xrootd_transfer_slot_set_state(
-    xrootd_transfer_table_t *t,
+void brix_transfer_slot_set_state(
+    brix_transfer_table_t *t,
     int                      slot_idx,
     uint8_t                  state,
     int64_t                  now_ms);
 
 /*
  * Copy reason into the slot's last_error field (NULL becomes "error"; string is
- * copied, not borrowed), set state to XROOTD_XFER_STATE_ERROR, stamp
+ * copied, not borrowed), set state to BRIX_XFER_STATE_ERROR, stamp
  * state_since_ms/last_ms, and emit a dashboard IO event for the activity feed.
  * Lock-free; no-op if slot_idx is out of range or the slot is not in use.
  */
-void xrootd_transfer_slot_set_error(
-    xrootd_transfer_table_t *t,
+void brix_transfer_slot_set_error(
+    brix_transfer_table_t *t,
     int                      slot_idx,
     const char              *reason,
     int64_t                  now_ms);
@@ -321,8 +321,8 @@ void xrootd_transfer_slot_set_error(
  * stored verbatim for display.  Lock-free; no-op if slot_idx is out of range or
  * the slot is not in use.
  */
-void xrootd_transfer_slot_set_tpc_remote(
-    xrootd_transfer_table_t *t,
+void brix_transfer_slot_set_tpc_remote(
+    brix_transfer_table_t *t,
     int                      slot_idx,
     const char              *remote_host,
     const char              *path_hint,
@@ -336,8 +336,8 @@ void xrootd_transfer_slot_set_tpc_remote(
  * Unrecognised labels are ignored.  Lock-free; no-op if slot_idx is out of
  * range, the slot is not in use, or op is NULL.
  */
-void xrootd_transfer_slot_count_op(
-    xrootd_transfer_table_t *t,
+void brix_transfer_slot_count_op(
+    brix_transfer_table_t *t,
     int                      slot_idx,
     const char              *op);
 
@@ -345,33 +345,33 @@ void xrootd_transfer_slot_count_op(
  * Mark a single slot as free.  Called from kXR_close.
  * Atomic CAS — no lock held.
  */
-void xrootd_transfer_slot_free(
-    xrootd_transfer_table_t *t,
+void brix_transfer_slot_free(
+    brix_transfer_table_t *t,
     int                      slot_idx);
 
 /*
- * Free all slots belonging to a session.  Called from xrootd_on_disconnect()
+ * Free all slots belonging to a session.  Called from brix_on_disconnect()
  * to clean up handles that never received kXR_close.
  */
-void xrootd_transfer_slot_free_all_for_session(
-    xrootd_transfer_table_t *t,
+void brix_transfer_slot_free_all_for_session(
+    brix_transfer_table_t *t,
     const u_char             sessid[16]);
 
 /*
  * Push one entry onto the SHM event ring (overwriting the oldest if full).
- * class_id is XROOTD_DASH_EVENT_*; message/path_hint are copied and sanitised
+ * class_id is BRIX_DASH_EVENT_*; message/path_hint are copied and sanitised
  * (control bytes -> '?'), and path_hint is truncated at the first '?'/'#' to
  * drop query strings.  Takes the events mutex briefly; silently no-ops if the
  * events SHM zone is not configured.
  */
-void xrootd_dashboard_event_add(uint8_t class_id, uint8_t proto,
+void brix_dashboard_event_add(uint8_t class_id, uint8_t proto,
     uint16_t status, const char *message, const char *path_hint);
 /*
  * Copy up to max_events of the most recent events into caller-owned out[],
  * oldest-first.  Takes the events mutex; returns the number actually written
  * (0 if no events or the zone is unconfigured).  out must hold max_events slots.
  */
-ngx_uint_t xrootd_dashboard_events_snapshot(xrootd_dashboard_event_t *out,
+ngx_uint_t brix_dashboard_events_snapshot(brix_dashboard_event_t *out,
     ngx_uint_t max_events);
 
 /*
@@ -381,14 +381,14 @@ ngx_uint_t xrootd_dashboard_events_snapshot(xrootd_dashboard_event_t *out,
  * byte/error/auth-failure totals from the metrics SHM zone.  Takes the history
  * mutex; no-op if the history zone is unconfigured.  Call periodically (timer).
  */
-void xrootd_dashboard_history_sample(int64_t now_ms);
+void brix_dashboard_history_sample(int64_t now_ms);
 /*
  * Copy up to max_buckets recent history buckets into caller-owned out[],
  * chronological (oldest-first); buckets with no matching start time are skipped
  * so n may be less than the window.  Takes the history mutex; returns the count
  * written (0 if no history yet or the zone is unconfigured).
  */
-ngx_uint_t xrootd_dashboard_history_snapshot(
-    xrootd_dashboard_history_bucket_t *out, ngx_uint_t max_buckets);
+ngx_uint_t brix_dashboard_history_snapshot(
+    brix_dashboard_history_bucket_t *out, ngx_uint_t max_buckets);
 
-#endif /* XROOTD_DASHBOARD_H */
+#endif /* BRIX_DASHBOARD_H */

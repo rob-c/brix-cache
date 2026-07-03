@@ -7,7 +7,7 @@
  *   with the owner's pid written in. It is unlinked at every normal fill exit —
  *   but a worker SIGKILLed/crashed mid-fill (e.g. at reload's
  *   worker_shutdown_timeout) leaves it orphaned. Nothing reclaims it:
- *   xrootd_cache_try_lock never reads the pid back, cache_reap.c skips *.lock,
+ *   brix_cache_try_lock never reads the pid back, cache_reap.c skips *.lock,
  *   and the eviction-sentinel stale-reclaim is a different lock. The orphaned
  *   .lock file survives reboots on disk, so EVERY later request for that entry
  *   polls to cache_lock_timeout (default 300s) and fails kXR_FileLocked —
@@ -15,7 +15,7 @@
  *   Across many restart cycles these accumulate.
  *
  * THE FIX
- *   xrootd_cache_wait_or_lock() reclaims a provably-stale lock (owner pid dead,
+ *   brix_cache_wait_or_lock() reclaims a provably-stale lock (owner pid dead,
  *   or torn content older than the timeout) and retries. A benign reclaim race
  *   at worst causes one duplicate origin fetch, which is safe: fills write a
  *   verified .part and atomically rename it into place.
@@ -46,21 +46,21 @@ ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
 }
 
 int
-xrootd_cache_file_ready(const char *path)
+brix_cache_file_ready(const char *path)
 {
     (void) path;
     return 0;                       /* cache file never "already present" here */
 }
 
 void
-xrootd_cache_set_error(xrootd_cache_fill_t *t, int xrd, int sys, const char *msg)
+brix_cache_set_error(brix_cache_fill_t *t, int xrd, int sys, const char *msg)
 {
     (void) sys; (void) msg;
     if (t) { t->result = -1; t->xrd_error = xrd; }
 }
 
 void
-xrootd_cache_set_syserror(xrootd_cache_fill_t *t, int xrd, const char *msg)
+brix_cache_set_syserror(brix_cache_fill_t *t, int xrd, const char *msg)
 {
     (void) msg;
     if (t) { t->result = -1; t->xrd_error = xrd; t->sys_errno = errno; }
@@ -104,11 +104,11 @@ main(void)
     char dir[] = "/tmp/clkrcl.XXXXXX";
     if (mkdtemp(dir) == NULL) { perror("mkdtemp"); return 2; }
 
-    ngx_stream_xrootd_srv_conf_t conf;
+    ngx_stream_brix_srv_conf_t conf;
     memset(&conf, 0, sizeof(conf));
     conf.cache_lock_timeout = 2;                 /* keep the RED timeout short */
 
-    xrootd_cache_fill_t t;
+    brix_cache_fill_t t;
 
     /* ---- Test 1: dead-owner lock must be reclaimed ---- */
     memset(&t, 0, sizeof(t));
@@ -119,7 +119,7 @@ main(void)
 
     int owned = 0;
     time_t s = time(NULL);
-    int rc = xrootd_cache_wait_or_lock(&t, &owned);
+    int rc = brix_cache_wait_or_lock(&t, &owned);
     time_t took = time(NULL) - s;
 
     check(rc == 0 && owned == 1,
@@ -136,7 +136,7 @@ main(void)
     write_lock(t.lock_path, (long) getpid());     /* this process is alive */
 
     owned = 0;
-    rc = xrootd_cache_wait_or_lock(&t, &owned);
+    rc = brix_cache_wait_or_lock(&t, &owned);
     check(rc == -1 && owned == 0,
           "live-owner lock honoured (timed out, not reclaimed)");
     unlink(t.lock_path);
@@ -147,7 +147,7 @@ main(void)
     snprintf(t.cache_path, sizeof(t.cache_path), "%s/obj3", dir);
     snprintf(t.lock_path,  sizeof(t.lock_path),  "%s/obj3.lock", dir);
     owned = 0;
-    rc = xrootd_cache_wait_or_lock(&t, &owned);
+    rc = brix_cache_wait_or_lock(&t, &owned);
     check(rc == 0 && owned == 1, "free path acquired immediately (owned=1)");
     unlink(t.lock_path);
 

@@ -3,14 +3,14 @@
  * cache eviction subsystem (evict_candidates.c and evict_policy.c).
  *
  * Include this header from both fragments; it brings in cache_internal.h
- * (which itself includes ngx_xrootd_module.h and wraps everything in
+ * (which itself includes ngx_brix_module.h and wraps everything in
  * #if (NGX_THREADS)).
  */
-#ifndef XROOTD_CACHE_EVICT_INTERNAL_H
-#define XROOTD_CACHE_EVICT_INTERNAL_H
+#ifndef BRIX_CACHE_EVICT_INTERNAL_H
+#define BRIX_CACHE_EVICT_INTERNAL_H
 
 #include "cache_internal.h"
-#include "cstore.h"                 /* xrootd_cstore_t / _scan / _evict (P3/G5) */
+#include "cstore.h"                 /* brix_cstore_t / _scan / _evict (P3/G5) */
 #include "net/manager/registry.h"
 
 #include <dirent.h>
@@ -28,7 +28,7 @@
 /*
  * Increment a cache metrics counter.  Safe to call with a NULL ctx.
  */
-#define xrootd_cache_metric_add(ctx, member, value)                      \
+#define brix_cache_metric_add(ctx, member, value)                      \
     do {                                                                 \
         if ((ctx) != NULL && (ctx)->metrics != NULL) {                    \
             ngx_atomic_fetch_add(&(ctx)->metrics->member,                 \
@@ -37,21 +37,21 @@
     } while (0)
 
 /*
- * xrootd_cache_evict_candidate_t — a single candidate file for eviction.
+ * brix_cache_evict_candidate_t — a single candidate file for eviction.
  */
 typedef struct {
     char   *path;    /* heap-allocated absolute path; freed by
-                      * xrootd_cache_free_candidates() */
+                      * brix_cache_free_candidates() */
     off_t   size;    /* file size in bytes (from lstat) */
     time_t  atime;   /* last access time — primary LRU sort key */
     time_t  mtime;   /* last modification time — secondary sort key */
-} xrootd_cache_evict_candidate_t;
+} brix_cache_evict_candidate_t;
 
 /*
- * xrootd_cache_evict_list_t — growable array of eviction candidates.
+ * brix_cache_evict_list_t — growable array of eviction candidates.
  */
 typedef struct {
-    xrootd_cache_evict_candidate_t *elts;  /* dynamically grown array */
+    brix_cache_evict_candidate_t *elts;  /* dynamically grown array */
     size_t                          nelts; /* number of valid entries */
     size_t                          cap;   /* allocated capacity */
     dev_t                           root_dev;      /* only evict files on
@@ -64,24 +64,24 @@ typedef struct {
      * driver instead of raw POSIX. `inst` is the read-cache instance and
      * `cache_root` its root (a candidate path is cache_root + the namespace key;
      * the driver-op key is `path + strlen(cache_root)`). */
-    void                           *inst;          /* xrootd_sd_instance_t* */
-    void                           *cstore;        /* xrootd_cstore_t* — policy-layer
+    void                           *inst;          /* brix_sd_instance_t* */
+    void                           *cstore;        /* brix_cstore_t* — policy-layer
                                                     * store adapter (P3/G5); the scan
                                                     * + per-object stat/cinfo come
                                                     * through this, not the driver */
     const char                     *cache_root;    /* cache_root_canon string */
     const char                     *state_root;    /* POSIX sidecar root (==cache_root if co-located) */
-} xrootd_cache_evict_list_t;
+} brix_cache_evict_list_t;
 
 /*
- * xrootd_cache_fs_usage_t — filesystem space statistics.
+ * brix_cache_fs_usage_t — filesystem space statistics.
  */
 typedef struct {
     uint64_t    total;           /* filesystem total bytes */
     uint64_t    used;            /* bytes in use (blocks - bavail) */
     uint64_t    available;       /* bytes available to unprivileged user */
     ngx_uint_t  occupancy_ppm;   /* used/total in parts-per-million (0-1000000) */
-} xrootd_cache_fs_usage_t;
+} brix_cache_fs_usage_t;
 
 /* ---- evict_candidates.c helpers called from evict_policy.c -------------- */
 
@@ -91,50 +91,50 @@ typedef struct {
  * Returns NGX_OK, or NGX_ERROR if statvfs fails or the filesystem is empty
  * (f_blocks == 0). *usage is left untouched on NGX_ERROR.
  */
-ngx_int_t xrootd_cache_fs_usage(const char *root,
-    xrootd_cache_fs_usage_t *usage);
+ngx_int_t brix_cache_fs_usage(const char *root,
+    brix_cache_fs_usage_t *usage);
 
 /*
  * Measure cache occupancy through the store adapter (phase-64 P3/G5): prefer
- * xrootd_cstore_freespace(cs) so a non-local store reports its own capacity (via
+ * brix_cstore_freespace(cs) so a non-local store reports its own capacity (via
  * its statf slot in SP2), and fall back to a raw statvfs on `root` when the
  * cstore is absent or declines (a LOCAL posix store statvfs's the same dir, so
- * the result is byte-identical to xrootd_cache_fs_usage today). Fills the same
- * xrootd_cache_fs_usage_t. NGX_OK / NGX_ERROR (usage untouched on error).
+ * the result is byte-identical to brix_cache_fs_usage today). Fills the same
+ * brix_cache_fs_usage_t. NGX_OK / NGX_ERROR (usage untouched on error).
  */
-ngx_int_t xrootd_cache_usage_measure(xrootd_cstore_t *cs, const char *root,
-    xrootd_cache_fs_usage_t *usage);
+ngx_int_t brix_cache_usage_measure(brix_cstore_t *cs, const char *root,
+    brix_cache_fs_usage_t *usage);
 
 /*
- * TTL-cached wrapper over xrootd_cache_fs_usage (per-worker), so hot callers —
+ * TTL-cached wrapper over brix_cache_fs_usage (per-worker), so hot callers —
  * the write-back staging admission gate, and the watermark reaper timer — do not
  * statvfs on every request. Returns the cached snapshot when it is younger than
  * ttl_ms, else re-samples. NGX_ERROR only when a fresh sample is needed and the
  * underlying statvfs fails (a still-valid stale slot is left in place). Defined
  * in cache_fs_sampler.c; the pure freshness predicate lives in cache_fs_sampler.h.
  */
-ngx_int_t xrootd_cache_fs_usage_sampled(const char *root, ngx_msec_t ttl_ms,
-    xrootd_cache_fs_usage_t *out);
+ngx_int_t brix_cache_fs_usage_sampled(const char *root, ngx_msec_t ttl_ms,
+    brix_cache_fs_usage_t *out);
 
 /*
  * Try to acquire the cross-worker eviction lock (an O_CREAT|O_EXCL sentinel
  * file under conf->cache_root). On success writes the sentinel path into
  * lock_path (caller-owned buffer of lock_pathsz bytes); the caller must later
- * release it with xrootd_cache_evict_unlock(). A sentinel older than
+ * release it with brix_cache_evict_unlock(). A sentinel older than
  * conf->cache_lock_timeout seconds is treated as stale and reclaimed.
  * Returns NGX_OK (lock held), NGX_DECLINED (another worker holds a fresh lock
  * or a race lost the reclaim — skip eviction), or NGX_ERROR (path too long /
  * unexpected OS error; errno set).
  */
-ngx_int_t xrootd_cache_try_evict_lock(ngx_stream_xrootd_srv_conf_t *conf,
+ngx_int_t brix_cache_try_evict_lock(ngx_stream_brix_srv_conf_t *conf,
     char *lock_path, size_t lock_pathsz, ngx_log_t *log);
 
 /*
  * Release the eviction sentinel lock by unlinking lock_path; no-op if
  * lock_path is the empty string. Call exactly once per NGX_OK from
- * xrootd_cache_try_evict_lock(); errors from unlink() are ignored.
+ * brix_cache_try_evict_lock(); errors from unlink() are ignored.
  */
-void xrootd_cache_evict_unlock(const char *lock_path);
+void brix_cache_evict_unlock(const char *lock_path);
 
 /*
  * Recursively scan directory `dir`, appending every regular file as an
@@ -145,30 +145,30 @@ void xrootd_cache_evict_unlock(const char *lock_path);
  * Returns NGX_OK, or NGX_ERROR if any entry failed (opendir/lstat/path-overflow
  * or candidate allocation); partial results are still left in *list.
  */
-ngx_int_t xrootd_cache_collect_dir(xrootd_cache_evict_list_t *list,
+ngx_int_t brix_cache_collect_dir(brix_cache_evict_list_t *list,
     const char *dir, ngx_log_t *log);
 
 /*
- * xrootd_cache_purge_to_target — the fill-task-free eviction engine shared by the
- * on-fill safety net (xrootd_cache_evict_if_needed) and the background watermark
- * reaper (xrootd_cache_watermark_purge). Collects candidates under cache_root,
+ * brix_cache_purge_to_target — the fill-task-free eviction engine shared by the
+ * on-fill safety net (brix_cache_evict_if_needed) and the background watermark
+ * reaper (brix_cache_watermark_purge). Collects candidates under cache_root,
  * sorts oldest-first, and evicts (large-files pass then LRU pass) until occupancy
  * ≤ target_ppm. `ctx` (per-conn metrics) and `c` (manager unregister socket) are
  * OPTIONAL — pass NULL from the timer. The CALLER owns the cross-worker eviction
  * lock + threshold pre-check. Writes evicted file/byte counts (out-pointers may
  * be NULL); NGX_OK, or NGX_ERROR on a mid-purge usage re-measurement failure.
  */
-ngx_int_t xrootd_cache_purge_to_target(ngx_stream_xrootd_srv_conf_t *conf,
-    xrootd_ctx_t *ctx, ngx_connection_t *c, const char *protect_path,
+ngx_int_t brix_cache_purge_to_target(ngx_stream_brix_srv_conf_t *conf,
+    brix_ctx_t *ctx, ngx_connection_t *c, const char *protect_path,
     ngx_uint_t target_ppm, ngx_log_t *log, ngx_uint_t *evicted_files_out,
     uint64_t *evicted_bytes_out);
 
 /*
- * qsort(3) comparator over xrootd_cache_evict_candidate_t for oldest-first
+ * qsort(3) comparator over brix_cache_evict_candidate_t for oldest-first
  * (LRU) ordering: ascending atime, then ascending mtime, then strcmp(path)
  * for a deterministic total order. Returns -1 / 0 / +1.
  */
-int  xrootd_cache_candidate_cmp(const void *a, const void *b);
+int  brix_cache_candidate_cmp(const void *a, const void *b);
 
 /*
  * Free every heap allocation owned by *list (each candidate->path, the elts
@@ -176,6 +176,6 @@ int  xrootd_cache_candidate_cmp(const void *a, const void *b);
  * The list struct itself is not freed (caller owns it). Safe to leave the
  * struct reusable afterward.
  */
-void xrootd_cache_free_candidates(xrootd_cache_evict_list_t *list);
+void brix_cache_free_candidates(brix_cache_evict_list_t *list);
 
-#endif /* XROOTD_CACHE_EVICT_INTERNAL_H */
+#endif /* BRIX_CACHE_EVICT_INTERNAL_H */

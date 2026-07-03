@@ -56,7 +56,7 @@ expect_u64(const char *name, uint64_t got, uint64_t want)
  * FULL_OBJECT checksums.
  */
 static int
-sweep_variant(const char *tag, xrootd_crc64_variant_t var, uint64_t poly_refl)
+sweep_variant(const char *tag, brix_crc64_variant_t var, uint64_t poly_refl)
 {
     static unsigned char buf[BUFSZ];
     const size_t lens[] = {
@@ -85,7 +85,7 @@ sweep_variant(const char *tag, xrootd_crc64_variant_t var, uint64_t poly_refl)
 
             want = ref_crc64(poly_refl, 0, buf + off, len);
 
-            got = xrootd_crc64_value(var, buf + off, len);
+            got = brix_crc64_value(var, buf + off, len);
             if (got != want) {
                 printf("%s value mismatch len=%zu off=%zu got=%016llx want=%016llx\n",
                        tag, len, off, (unsigned long long) got,
@@ -95,17 +95,17 @@ sweep_variant(const char *tag, xrootd_crc64_variant_t var, uint64_t poly_refl)
 
             /* Incremental extend across an interior split point. */
             s = len / 3;
-            split = xrootd_crc64_extend(var, 0, buf + off, s);
-            split = xrootd_crc64_extend(var, split, buf + off + s, len - s);
+            split = brix_crc64_extend(var, 0, buf + off, s);
+            split = brix_crc64_extend(var, split, buf + off + s, len - s);
             if (split != want) {
                 printf("%s extend mismatch len=%zu off=%zu\n", tag, len, off);
                 failed = 1;
             }
 
             /* GF(2) combine: crc(A||B) == combine(crc(A), crc(B), |B|). */
-            ca = xrootd_crc64_value(var, buf + off, s);
-            cb = xrootd_crc64_value(var, buf + off + s, len - s);
-            comb = xrootd_crc64_combine(var, ca, cb, (uint64_t) (len - s));
+            ca = brix_crc64_value(var, buf + off, s);
+            cb = brix_crc64_value(var, buf + off + s, len - s);
+            comb = brix_crc64_combine(var, ca, cb, (uint64_t) (len - s));
             if (comb != want) {
                 printf("%s combine mismatch len=%zu off=%zu got=%016llx want=%016llx\n",
                        tag, len, off, (unsigned long long) comb,
@@ -126,16 +126,16 @@ main(void)
 
     /* Published check constants — guard against a swapped/wrong polynomial. */
     failed |= expect_u64("xz known vector",
-                         xrootd_crc64_value(XROOTD_CRC64_XZ, known,
+                         brix_crc64_value(BRIX_CRC64_XZ, known,
                                             strlen((const char *) known)),
                          0x995DC9BBDF1939FAULL);
     failed |= expect_u64("nvme known vector",
-                         xrootd_crc64_value(XROOTD_CRC64_NVME, known,
+                         brix_crc64_value(BRIX_CRC64_NVME, known,
                                             strlen((const char *) known)),
                          0xAE8B14860A799888ULL);
 
-    failed |= sweep_variant("xz",   XROOTD_CRC64_XZ,   XZ_POLY_REFL);
-    failed |= sweep_variant("nvme", XROOTD_CRC64_NVME, NVME_POLY_REFL);
+    failed |= sweep_variant("xz",   BRIX_CRC64_XZ,   XZ_POLY_REFL);
+    failed |= sweep_variant("nvme", BRIX_CRC64_NVME, NVME_POLY_REFL);
 
     if (failed) {
         return 1;

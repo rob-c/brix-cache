@@ -41,7 +41,7 @@ headers around 228–229).
 | `xml.c` | `webdav_escape_xml_text()` — escape XML-special chars and percent-encode control bytes, allocating the result from the nginx request pool. |
 | `xml.h` | Prototype + contract for the XML-escape helper (pool ownership, NULL-on-failure semantics). |
 
-> Historical note: safe-path log formatting (`xrootd_log_safe_path`) is **not**
+> Historical note: safe-path log formatting (`brix_log_safe_path`) is **not**
 > here — it was promoted to the all-protocol shared helper in
 > `../../compat/log.{c,h}` (reached via `../webdav.h`), and the former
 > `webdav/util/logging.{c,h}` back-compat stubs were removed once all callers
@@ -52,18 +52,18 @@ headers around 228–229).
 This subsystem defines no types of its own. It consumes constants and signatures
 from `../../compat/`:
 
-- **`xrootd_http_urldecode()` result codes** (`../../compat/uri.h`):
-  `XROOTD_URLDECODE_OK` (0), `XROOTD_URLDECODE_OVERFLOW` (1),
-  `XROOTD_URLDECODE_NUL_BYTE` (2), `XROOTD_URLDECODE_BADARG` (3). `uri.c` maps
+- **`brix_http_urldecode()` result codes** (`../../compat/uri.h`):
+  `BRIX_URLDECODE_OK` (0), `BRIX_URLDECODE_OVERFLOW` (1),
+  `BRIX_URLDECODE_NUL_BYTE` (2), `BRIX_URLDECODE_BADARG` (3). `uri.c` maps
   these to `NGX_OK` / `414` / `400` / `500` respectively (BADARG and any unknown
   code fall into the `default` 500 case).
-- **`XROOTD_URLDECODE_REJECT_NUL`** (`0x01`) — the flag `webdav_urldecode()`
+- **`BRIX_URLDECODE_REJECT_NUL`** (`0x01`) — the flag `webdav_urldecode()`
   always passes so that `%00` yields `NUL_BYTE` (→ 400) instead of a silent
   truncation.
-- **`XROOTD_XML_ESCAPE_CONTROL_PERCENT`** (`0x02`) — the flag
+- **`BRIX_XML_ESCAPE_CONTROL_PERCENT`** (`0x02`) — the flag
   `webdav_escape_xml_text()` always passes so control bytes (`< 0x20`, `0x7f`) are
   rendered as `%XX` rather than left raw (they have no standard XML entity name).
-  Note: with this flag set (and `XROOTD_XML_ESCAPE_APOS_ENTITY` unset) `'` is
+  Note: with this flag set (and `BRIX_XML_ESCAPE_APOS_ENTITY` unset) `'` is
   escaped as `&#39;`.
 
 ## Control & data flow
@@ -82,8 +82,8 @@ from `../../compat/`:
   when building XML response bodies.
 
 **Calls out to:**
-- `../../compat/uri.c` (`xrootd_http_urldecode`) — the actual RFC 3986 decoder.
-- `../../compat/xml.c` (`xrootd_xml_escaped_len`, `xrootd_xml_escape`) — the
+- `../../compat/uri.c` (`brix_http_urldecode`) — the actual RFC 3986 decoder.
+- `../../compat/xml.c` (`brix_xml_escaped_len`, `brix_xml_escape`) — the
   actual two-pass escaper (length pre-sizing, then escape into the sized buffer).
 
 The decoded/escaped output then flows on into the rest of the WebDAV lifecycle:
@@ -94,7 +94,7 @@ escaped XML is written into response chains by the calling method handler.
 ## Invariants, security & gotchas
 
 - **NUL-byte rejection is load-bearing, not cosmetic.** `webdav_urldecode()` always
-  passes `XROOTD_URLDECODE_REJECT_NUL` (`uri.c:46-47`). A `%00` in a path must fail
+  passes `BRIX_URLDECODE_REJECT_NUL` (`uri.c:46-47`). A `%00` in a path must fail
   the request with `400`, never silently truncate — a truncated string would be
   confined/matched against the *wrong* path. This is the WebDAV analogue of the
   "always confine client paths" invariant.
@@ -122,8 +122,8 @@ escaped XML is written into response chains by the calling method handler.
 - **`src` for `webdav_escape_xml_text()` must be a C string.** Length is computed
   via `strlen()` (`xml.c:65`); this helper is for NUL-terminated input, unlike the
   length-explicit URI helpers.
-- **Two-pass sizing is exact.** The buffer is sized via `xrootd_xml_escaped_len()`
-  and then `xrootd_xml_escape()` is called with `escaped_len + 1` capacity
+- **Two-pass sizing is exact.** The buffer is sized via `brix_xml_escaped_len()`
+  and then `brix_xml_escape()` is called with `escaped_len + 1` capacity
   (`xml.c:66-75`); a non-zero return from the escaper (overflow/badarg) is treated
   as failure → `NULL`.
 

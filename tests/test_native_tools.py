@@ -170,16 +170,16 @@ def mpxstats_bin():
 
 def test_mpxstats_aggregates_stdin(mpxstats_bin):
     blob = ("# HELP x\n"
-            'xrootd_requests_total{op="stat"} 5\n'
-            'xrootd_requests_total{op="read"} 9\n'
-            'xrootd_bytes_total{port="11094"} 1000\n')
+            'brix_requests_total{op="stat"} 5\n'
+            'brix_requests_total{op="read"} 9\n'
+            'brix_bytes_total{port="11094"} 1000\n')
     p = subprocess.run([mpxstats_bin, "-"], input=blob, capture_output=True,
                        text=True, timeout=20)
     assert p.returncode == 0, p.stderr
     out = p.stdout
     # the two requests_total series fold into one metric with summed value 14
-    assert re.search(r"xrootd_requests_total\s+2\s+14", out), out
-    assert re.search(r"xrootd_bytes_total\s+1\s+1000", out), out
+    assert re.search(r"brix_requests_total\s+2\s+14", out), out
+    assert re.search(r"brix_bytes_total\s+1\s+1000", out), out
     assert "2 metric name(s), 3 series" in out, out
 
 

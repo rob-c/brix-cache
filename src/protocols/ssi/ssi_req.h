@@ -1,10 +1,10 @@
-#ifndef XROOTD_SSI_REQ_H
-#define XROOTD_SSI_REQ_H
+#ifndef BRIX_SSI_REQ_H
+#define BRIX_SSI_REQ_H
 
 /*
  * ssi_req.h — the per-reqId SSI request state (pure data type).
  *
- * WHAT: xrootd_ssi_req_t, one slot in a session's rrtable (see session.h).
+ * WHAT: brix_ssi_req_t, one slot in a session's rrtable (see session.h).
  * WHY:  kept free of nginx headers so the session/RRTable logic is unit-testable
  *       standalone; the nginx-bound hooks live in ssi.h/ssi.c.
  * HOW:  the only nginx type referenced is ngx_pool_t (an opaque pointer here);
@@ -21,7 +21,7 @@ typedef struct ngx_pool_s ngx_pool_t;   /* opaque in unit tests */
 #include <ngx_core.h>
 #endif
 
-#include "respbuf.h"        /* xrootd_ssi_respbuf_t (growable response buffer) */
+#include "respbuf.h"        /* brix_ssi_respbuf_t (growable response buffer) */
 
 /* Per-reqId SSI request state; lives in the session's rrtable (session.h). */
 typedef struct {
@@ -34,7 +34,7 @@ typedef struct {
     unsigned        have_size:1;       /* req_expected is known */
     unsigned        dispatched:1;      /* service has been invoked */
 
-    xrootd_ssi_respbuf_t resp;         /* response bytes (responder-filled, grows) */
+    brix_ssi_respbuf_t resp;         /* response bytes (responder-filled, grows) */
     unsigned char  *meta;              /* metadata bytes (responder-filled) */
     size_t          meta_len;
     size_t          read_cursor;       /* kXR_read stream position */
@@ -55,6 +55,6 @@ typedef struct {
     size_t          response_max;      /* per-response cap (0 = compile default) */
 
     ngx_pool_t     *pool;              /* connection pool for responder allocs */
-} xrootd_ssi_req_t;
+} brix_ssi_req_t;
 
-#endif /* XROOTD_SSI_REQ_H */
+#endif /* BRIX_SSI_REQ_H */

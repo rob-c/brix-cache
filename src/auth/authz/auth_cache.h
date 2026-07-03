@@ -1,7 +1,7 @@
 /*
  * auth_cache.h — cross-worker cache of the combined auth-gate decision.
  *
- * xrootd_auth_gate() runs three scans per request (authdb rules, VO ACL,
+ * brix_auth_gate() runs three scans per request (authdb rules, VO ACL,
  * token scope).  For hot data paths a pilot repeatedly hits the same
  * {operation, path, identity} tuple and gets the same answer every time.
  * This caches the boolean grant/deny so the repeated scans are skipped.
@@ -12,33 +12,33 @@
  * would genuinely reach the same verdict.  TTL is short (default 30 s) so a
  * config reload (which zeroes the zone) and any rule change converge quickly.
  */
-#ifndef XROOTD_PATH_AUTH_CACHE_H
-#define XROOTD_PATH_AUTH_CACHE_H
+#ifndef BRIX_PATH_AUTH_CACHE_H
+#define BRIX_PATH_AUTH_CACHE_H
 
 #include "core/shm/kv.h"
 
-/* Per-conf settings, filled by xrootd_auth_cache_directive(). */
+/* Per-conf settings, filled by brix_auth_cache_directive(). */
 typedef struct {
-    xrootd_kv_t *kv;        /* NULL = disabled */
+    brix_kv_t *kv;        /* NULL = disabled */
     ngx_uint_t   ttl_secs;  /* entry lifetime in seconds */
-} xrootd_auth_cache_conf_t;
+} brix_auth_cache_conf_t;
 
 /* Cached decision value (3 bytes). */
 typedef struct {
     uint8_t allowed;        /* 1 = grant, 0 = deny */
-    uint8_t auth_level;     /* XROOTD_AUTH_* that produced the verdict */
+    uint8_t auth_level;     /* BRIX_AUTH_* that produced the verdict */
     uint8_t pad;
-} xrootd_auth_cache_val_t;
+} brix_auth_cache_val_t;
 
-#define XROOTD_AUTH_CACHE_DEFAULT_TTL  30   /* seconds */
+#define BRIX_AUTH_CACHE_DEFAULT_TTL  30   /* seconds */
 
 /*
- * xrootd_auth_cache_directive() — setter for
- *   xrootd_auth_cache zone=<name> [ttl=<seconds>];
- * Writes the xrootd_auth_cache_conf_t at cmd->offset.  Stream-only (the auth
+ * brix_auth_cache_directive() — setter for
+ *   brix_auth_cache zone=<name> [ttl=<seconds>];
+ * Writes the brix_auth_cache_conf_t at cmd->offset.  Stream-only (the auth
  * gate runs on the root:// path).
  */
-char *xrootd_auth_cache_directive(ngx_conf_t *cf, ngx_command_t *cmd,
+char *brix_auth_cache_directive(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 
-#endif /* XROOTD_PATH_AUTH_CACHE_H */
+#endif /* BRIX_PATH_AUTH_CACHE_H */

@@ -200,7 +200,7 @@ for f in "$LOGDIR"/vg.*.log; do
     echo "$(basename "$f"): leakish=$lost  $err" >>"$RESULTS"
 done
 echo "---- MODULE-FRAME HITS (should be empty) ----" >>"$RESULTS"
-grep -nE "in (xrootd_|ngx_http_xrootd|ngx_stream_xrootd)|/src/(token|webdav|s3|gsi|crypto|dashboard|read|session|cache|metrics|aio|path|fattr|tpc)/" "$LOGDIR"/vg.*.log 2>/dev/null \
+grep -nE "in (brix_|ngx_http_xrootd|ngx_stream_xrootd)|/src/(token|webdav|s3|gsi|crypto|dashboard|read|session|cache|metrics|aio|path|fattr|tpc)/" "$LOGDIR"/vg.*.log 2>/dev/null \
     | grep -v "src/core" >>"$RESULTS" || echo "(none)" >>"$RESULTS"
 
 echo "DONE logs=$(ls "$LOGDIR"/vg.*.log 2>/dev/null | wc -l)" >>"$RESULTS"

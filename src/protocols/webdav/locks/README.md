@@ -40,7 +40,7 @@ Only the WebDAV/`davs://`/`http://` HTTP protocol path uses this code; the
 | File | Responsibility |
 |------|----------------|
 | `request.c` | The four LOCK request parsers: `webdav_lock_parse_timeout` (decode `Timeout: Second-N`/`Infinite`, clamp to `conf->lock_timeout`, return absolute wall-clock (`ngx_time()` seconds) expiry), `webdav_lock_if_header_matches` (substring-match a token in the `If` header, falling back to `Lock-Token` for non-conformant clients), `webdav_lock_parse_depth` (parse `Depth: 0`/`infinity`, default infinity, `400` on anything else), `webdav_lock_parse_body` (extract owner + exclusive/shared scope from the `<lockinfo>` XML body via the shared XML parser). |
-| `request.h` | Public prototypes for the four parsers; includes `../webdav.h` for `ngx_http_request_t`, `ngx_http_xrootd_webdav_loc_conf_t`, and the `webdav_tpc_find_header` helper. Guard `XROOTD_WEBDAV_LOCKS_REQUEST_H`. |
+| `request.h` | Public prototypes for the four parsers; includes `../webdav.h` for `ngx_http_request_t`, `ngx_http_brix_webdav_loc_conf_t`, and the `webdav_tpc_find_header` helper. Guard `BRIX_WEBDAV_LOCKS_REQUEST_H`. |
 
 > Build registration is in the top-level `config` script (`request.h` ~line 225,
 > `request.c` ~line 572 in `NGX_ADDON_SRCS`/`NGX_ADDON_DEPS`), **not** in
@@ -61,7 +61,7 @@ writes into are owned elsewhere:
   fields that `../lock.c` then stamps into this struct before calling
   `webdav_lock_xattr_write`. The xattr value is schema `v=2`; a legacy `v`-less
   record (monotonic expiry) is decoded as already-expired so it is released.
-- **`ngx_http_xrootd_webdav_loc_conf_t::lock_timeout`** (`../webdav.h`, line
+- **`ngx_http_brix_webdav_loc_conf_t::lock_timeout`** (`../webdav.h`, line
   175) — per-location maximum lock lifetime in seconds; the upper clamp and the
   value substituted for a `Timeout: Infinite` request.
 - **`ngx_table_elt_t`** — nginx's header element, the input these parsers read
@@ -82,11 +82,11 @@ writes into are owned elsewhere:
 - `webdav_lock_parse_depth` → reads `Depth` → returns `NGX_OK` (with
   `depth_infinity` set) or `NGX_HTTP_BAD_REQUEST`.
 - `webdav_lock_parse_body` → reads the buffered request body and delegates to
-  `xrootd_xml_parse_lockinfo` in [`../../compat/xml.c`](../../compat/README.md)
+  `brix_xml_parse_lockinfo` in [`../../compat/xml.c`](../../compat/README.md)
   to extract `owner` and `exclusive`.
 
 **Calls out to:**
-- [`../../compat/xml.c`](../../compat/README.md) — `xrootd_xml_parse_lockinfo`
+- [`../../compat/xml.c`](../../compat/README.md) — `brix_xml_parse_lockinfo`
   (XXE-hardened libxml2 parse of the `<lockinfo>` body).
 - `webdav_tpc_find_header` (declared in `../webdav.h`, defined in
   `../xrdhttp.c`) — the canonical header-lookup helper.
@@ -126,8 +126,8 @@ writes into are owned elsewhere:
   this is safe for headers, but note it differs from the length-bounded
   (`.len`-based) discipline used elsewhere in the module.
 - **Body parsing is size-guarded upstream.** `webdav_lock_parse_body` hands the
-  raw buffer to `xrootd_xml_parse_lockinfo`, which enforces
-  `XROOTD_XML_MAX_LOCKINFO_BODY` and parses with `XML_PARSE_NONET` +
+  raw buffer to `brix_xml_parse_lockinfo`, which enforces
+  `BRIX_XML_MAX_LOCKINFO_BODY` and parses with `XML_PARSE_NONET` +
   `XML_PARSE_NO_XXE` (no external entities / network) — the anti-XXE protection
   lives in `compat/xml.c`, not here.
 - **Defaults are RFC-fail-safe.** `webdav_lock_parse_body` defaults
@@ -154,7 +154,7 @@ To add support for a **new LOCK request header or body element**:
 3. Call it from the relevant point in `../lock.c` (`webdav_handle_lock` /
    `webdav_handle_unlock` / `webdav_check_locks`) and stamp the result into the
    `webdav_lock_xattr_t` record if it must persist.
-4. For body fields, prefer extending `xrootd_xml_parse_lockinfo` in
+4. For body fields, prefer extending `brix_xml_parse_lockinfo` in
    `../../compat/xml.c` over hand-rolling XML parsing here.
 5. If you add a **new `.c` file** in this directory, register it in the
    top-level `config` script (`NGX_ADDON_SRCS`/`NGX_ADDON_DEPS`) and re-run
@@ -168,7 +168,7 @@ To add support for a **new LOCK request header or body element**:
 - [`../README.md`](../README.md) — WebDAV subsystem overview and method router
   (the lock state machine `lock.c` and its xattr persistence `prop_xattr.c` live
   one level up).
-- [`../../compat/README.md`](../../compat/README.md) — `xrootd_xml_parse_lockinfo`
+- [`../../compat/README.md`](../../compat/README.md) — `brix_xml_parse_lockinfo`
   and the XML/HTTP-header compatibility helpers.
 - [`../../path/README.md`](../../path/README.md) — path confinement /
   RESOLVE_BENEATH applied before any lock operation.

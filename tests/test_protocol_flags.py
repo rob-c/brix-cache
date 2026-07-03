@@ -5,9 +5,9 @@ Verifies that the kXR_protocol response advertises the correct ServerProtocolBod
 bitmask for each server role.  Uses raw sockets — no PyXRootD dependency.
 
 Servers under test:
-  plain data server  — NGINX_ANON_PORT (11094)  xrootd_root only
-  cache server       — CACHE_ONLY_PORT  (11200)  xrootd_cache_root configured
-  proxy server       — PROXY_NGINX_PORT (11193)  xrootd_proxy on
+  plain data server  — NGINX_ANON_PORT (11094)  brix_root only
+  cache server       — CACHE_ONLY_PORT  (11200)  brix_cache_root configured
+  proxy server       — PROXY_NGINX_PORT (11193)  brix_proxy on
 
 Flag bit layout (XProtocol.hh, ServerProtocolBody.flags uint32 big-endian):
   kXR_isServer   0x00000001
@@ -142,7 +142,7 @@ class TestAlwaysOnFlags:
 
 @pytest.mark.requires_local_server
 class TestCacheFlag:
-    """kXR_attrCache (0x80) is set only when xrootd_cache_root is configured."""
+    """kXR_attrCache (0x80) is set only when brix_cache_root is configured."""
 
     def test_cache_flag_set_for_cache_server(self):
         flags = _get_protocol_flags(SERVER_HOST, CACHE_ONLY_PORT)
@@ -168,7 +168,7 @@ class TestCacheFlag:
 
 @pytest.mark.requires_local_server
 class TestProxyFlag:
-    """kXR_attrProxy (0x200) is set only when xrootd_proxy is on."""
+    """kXR_attrProxy (0x200) is set only when brix_proxy is on."""
 
     def test_proxy_flag_set_for_proxy_server(self):
         flags = _get_protocol_flags(SERVER_HOST, PROXY_NGINX_PORT)
@@ -270,7 +270,7 @@ class TestMetadataOnlyFlag:
 
 @pytest.mark.requires_local_server
 class TestSupervisorFlag:
-    """kXR_attrSuper (0x400) set only when xrootd_supervisor is on."""
+    """kXR_attrSuper (0x400) set only when brix_supervisor is on."""
 
     def test_supervisor_flag_set(self):
         flags = _get_protocol_flags(SERVER_HOST, SUPERVISOR_PORT)
@@ -322,7 +322,7 @@ class TestVirtualRedirFlag:
 
 @pytest.mark.requires_local_server
 class TestCollapseRedirFlag:
-    """kXR_collapseRedir (0x2000) set only when xrootd_collapse_redir is on."""
+    """kXR_collapseRedir (0x2000) set only when brix_collapse_redir is on."""
 
     def test_collapse_redir_flag_set(self):
         flags = _get_protocol_flags(SERVER_HOST, COLLAPSE_REDIR_PORT)
@@ -348,7 +348,7 @@ class TestCollapseRedirFlag:
 
 @pytest.mark.requires_local_server
 class TestRecoverWritesFlag:
-    """kXR_recoverWrts (0x1000) is set when xrootd_recover_writes is on."""
+    """kXR_recoverWrts (0x1000) is set when brix_recover_writes is on."""
 
     def test_recover_writes_set_on_anon_server(self):
         # nginx_shared.conf enables this for ANON_PORT

@@ -18,18 +18,18 @@ static int g_fail;
 
 static void test_create_and_lookup(void)
 {
-    xrootd_ssi_provider_t prov = { "echo", (xrootd_ssi_process_fn) 0x1 };
-    xrootd_ssi_session_t *s = xrootd_ssi_session_create(NULL, "echo", 4, &prov);
+    brix_ssi_provider_t prov = { "echo", (brix_ssi_process_fn) 0x1 };
+    brix_ssi_session_t *s = brix_ssi_session_create(NULL, "echo", 4, &prov);
     CHECK(s != NULL);
     CHECK(strcmp(s->service, "echo") == 0);
-    CHECK(s->provider.process == (xrootd_ssi_process_fn) 0x1);
+    CHECK(s->provider.process == (brix_ssi_process_fn) 0x1);
 
-    xrootd_ssi_req_t *a = xrootd_ssi_session_req(s, 7, 1);
+    brix_ssi_req_t *a = brix_ssi_session_req(s, 7, 1);
     CHECK(a != NULL && a->req_id == 7 && a->in_use);
     /* same reqId returns the same slot */
-    CHECK(xrootd_ssi_session_req(s, 7, 0) == a);
+    CHECK(brix_ssi_session_req(s, 7, 0) == a);
     /* a different reqId is a distinct slot (multiplex) */
-    xrootd_ssi_req_t *b = xrootd_ssi_session_req(s, 9, 1);
+    brix_ssi_req_t *b = brix_ssi_session_req(s, 9, 1);
     CHECK(b != NULL && b != a && b->req_id == 9);
 
     free(s);
@@ -37,30 +37,30 @@ static void test_create_and_lookup(void)
 
 static void test_lookup_absent(void)
 {
-    xrootd_ssi_provider_t prov = { "echo", (xrootd_ssi_process_fn) 0x1 };
-    xrootd_ssi_session_t *s = xrootd_ssi_session_create(NULL, "echo", 4, &prov);
-    CHECK(xrootd_ssi_session_req(s, 42, 0) == NULL);   /* not created */
+    brix_ssi_provider_t prov = { "echo", (brix_ssi_process_fn) 0x1 };
+    brix_ssi_session_t *s = brix_ssi_session_create(NULL, "echo", 4, &prov);
+    CHECK(brix_ssi_session_req(s, 42, 0) == NULL);   /* not created */
     free(s);
 }
 
 static void test_table_full(void)
 {
-    xrootd_ssi_provider_t prov = { "echo", (xrootd_ssi_process_fn) 0x1 };
-    xrootd_ssi_session_t *s = xrootd_ssi_session_create(NULL, "echo", 4, &prov);
-    for (uint32_t i = 0; i < XROOTD_SSI_MAX_INFLIGHT; i++) {
-        CHECK(xrootd_ssi_session_req(s, 100 + i, 1) != NULL);
+    brix_ssi_provider_t prov = { "echo", (brix_ssi_process_fn) 0x1 };
+    brix_ssi_session_t *s = brix_ssi_session_create(NULL, "echo", 4, &prov);
+    for (uint32_t i = 0; i < BRIX_SSI_MAX_INFLIGHT; i++) {
+        CHECK(brix_ssi_session_req(s, 100 + i, 1) != NULL);
     }
-    CHECK(xrootd_ssi_session_req(s, 999, 1) == NULL);  /* full → NULL */
-    xrootd_ssi_session_drop(s, 100);                   /* free one slot */
-    CHECK(xrootd_ssi_session_req(s, 999, 1) != NULL);  /* now fits */
+    CHECK(brix_ssi_session_req(s, 999, 1) == NULL);  /* full → NULL */
+    brix_ssi_session_drop(s, 100);                   /* free one slot */
+    CHECK(brix_ssi_session_req(s, 999, 1) != NULL);  /* now fits */
     free(s);
 }
 
 static void test_generation_increments(void)
 {
-    xrootd_ssi_provider_t prov = { "echo", (xrootd_ssi_process_fn) 0x1 };
-    xrootd_ssi_session_t *a = xrootd_ssi_session_create(NULL, "echo", 4, &prov);
-    xrootd_ssi_session_t *b = xrootd_ssi_session_create(NULL, "echo", 4, &prov);
+    brix_ssi_provider_t prov = { "echo", (brix_ssi_process_fn) 0x1 };
+    brix_ssi_session_t *a = brix_ssi_session_create(NULL, "echo", 4, &prov);
+    brix_ssi_session_t *b = brix_ssi_session_create(NULL, "echo", 4, &prov);
     CHECK(a->generation != 0);
     CHECK(b->generation == a->generation + 1);
     free(a); free(b);

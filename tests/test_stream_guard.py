@@ -1,8 +1,8 @@
 """
-Phase-65 bad-actor guard — root:// stream relay (xrootd_guard_stream).
+Phase-65 bad-actor guard — root:// stream relay (brix_guard_stream).
 
 Self-contained: a real nginx-xrootd origin (anon auth) behind two transparent
-relays — one with `xrootd_guard_stream on;`, one without — driven by the
+relays — one with `brix_guard_stream on;`, one without — driven by the
 clean-room xrdfs client.
 
 Verifies: clean ops relayed byte-exact through the guarded relay, a junk-path
@@ -101,21 +101,21 @@ def relays(tmp_path_factory):
     server {{
         listen {BIND_HOST}:{origin_port};
         xrootd on;
-        xrootd_root {export};
-        xrootd_auth none;
+        brix_root {export};
+        brix_auth none;
     }}""")
     guarded_conf = _write_conf(guarded, f"""
     server {{
         listen {BIND_HOST}:{guarded_port};
         xrootd on;
-        xrootd_transparent_proxy {BIND_HOST}:{origin_port};
-        xrootd_guard_stream on;
+        brix_transparent_proxy {BIND_HOST}:{origin_port};
+        brix_guard_stream on;
     }}""")
     unguarded_conf = _write_conf(unguarded, f"""
     server {{
         listen {BIND_HOST}:{unguarded_port};
         xrootd on;
-        xrootd_transparent_proxy {BIND_HOST}:{origin_port};
+        brix_transparent_proxy {BIND_HOST}:{origin_port};
     }}""")
 
     _start_nginx(origin, origin_conf)
@@ -177,7 +177,7 @@ class TestStreamGuard:
                    for ln in lines), f"no notfound audit line; got: {lines}"
 
     def test_unguarded_relay_passes_junk(self, relays):
-        """Without xrootd_guard_stream the same junk path is relayed."""
+        """Without brix_guard_stream the same junk path is relayed."""
         result = _xrdfs(relays["unguarded_port"], "stat", "/wp-login.php")
         # The origin answers kXR_NotFound (a normal error) — the connection
         # survives and nothing is classified.

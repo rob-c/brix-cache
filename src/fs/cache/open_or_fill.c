@@ -9,36 +9,36 @@
 #include <string.h>
 
 
-/* xrootd_cache_open_or_fill — kXR_open cache entry point: by xrootd_cache_file_ready()
+/* brix_cache_open_or_fill — kXR_open cache entry point: by brix_cache_file_ready()
  * — 1 serve directly from cache (fast path), -1 error — else allocate a thread-pool
  * task (ngx_thread_task_alloc, since the worker thread owns the ctx: streamid,
  * options, clean_path/cache_path), post it to conf->common.thread_pool, enter
- * XRD_ST_AIO, and await xrootd_cache_fill_done. */
+ * XRD_ST_AIO, and await brix_cache_fill_done. */
 ngx_int_t
-xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, const char *clean_path,
+brix_cache_open_or_fill(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *clean_path,
     const char *cache_path, uint16_t options, uint16_t mode_bits)
 {
     ngx_thread_task_t   *task;
-    xrootd_cache_fill_t *t;
+    brix_cache_fill_t *t;
     int                  ready;
 
-    ready = xrootd_cache_ready(conf, cache_path);
+    ready = brix_cache_ready(conf, cache_path);
     if (ready == 1) {
-        return xrootd_open_resolved_file(ctx, c, conf, cache_path,
+        return brix_open_resolved_file(ctx, c, conf, cache_path,
                                          options, mode_bits, 0, 0);
     }
     if (ready < 0) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", cache_path,
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", cache_path,
                           "cache", kXR_IOError, strerror(errno));
     }
 
     if (conf->common.thread_pool == NULL) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", clean_path,
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path,
                           "cache", kXR_ServerError, "cache thread pool missing");
     }
 
-    task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_cache_fill_t));
+    task = ngx_thread_task_alloc(c->pool, sizeof(brix_cache_fill_t));
     if (task == NULL) {
         return NGX_ERROR;
     }
@@ -58,35 +58,35 @@ xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_cpystrn((u_char *) t->cache_path, (u_char *) cache_path,
                 sizeof(t->cache_path));
 
-    /* C-1 (phase-63): when no separate xrootd_cache_origin is configured but the
+    /* C-1 (phase-63): when no separate brix_cache_origin is configured but the
      * export's PRIMARY storage is a remote SOURCE backend (xroot://), the cache
      * fills FROM that registered backend. Resolve it HERE (main thread) so the
      * registry's lazy per-worker build never races on the async fill worker. */
     if (conf->cache_origin_host.len == 0) {
-        xrootd_sd_instance_t *src =
-            xrootd_vfs_backend_resolve(conf->common.root_canon, c->log);
+        brix_sd_instance_t *src =
+            brix_vfs_backend_resolve(conf->common.root_canon, c->log);
 
         if (src != NULL
-            && (ngx_strcmp(xrootd_sd_backend_name(src), "xroot") == 0
-                || ngx_strcmp(xrootd_sd_backend_name(src), "http") == 0))
+            && (ngx_strcmp(brix_sd_backend_name(src), "xroot") == 0
+                || ngx_strcmp(brix_sd_backend_name(src), "http") == 0))
         {
             t->source_inst = src;
         }
     }
 
-    if (xrootd_cache_append_suffix(t->part_path, sizeof(t->part_path),
-                                   cache_path, XROOTD_CACHE_PART_SUFFIX) != 0
-        || xrootd_cache_append_suffix(t->lock_path, sizeof(t->lock_path),
-                                      cache_path, XROOTD_CACHE_LOCK_SUFFIX) != 0)
+    if (brix_cache_append_suffix(t->part_path, sizeof(t->part_path),
+                                   cache_path, BRIX_CACHE_PART_SUFFIX) != 0
+        || brix_cache_append_suffix(t->lock_path, sizeof(t->lock_path),
+                                      cache_path, BRIX_CACHE_LOCK_SUFFIX) != 0)
     {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", clean_path,
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path,
                           "cache", kXR_ArgTooLong, "cache path too long");
     }
 
-    xrootd_task_bind(task, xrootd_cache_fill_thread, xrootd_cache_fill_done);
+    brix_task_bind(task, brix_cache_fill_thread, brix_cache_fill_done);
 
     if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", clean_path,
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path,
                           "cache", kXR_ServerError, "cache thread post failed");
     }
 
@@ -96,14 +96,14 @@ xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
 
 /* ---- composed-cache (tier grammar) slow-tier miss offload (phase-64 SP2) ----
  *
- * A tier config (xrootd_storage_backend + xrootd_cache_store, conf->cache == 0)
+ * A tier config (brix_storage_backend + brix_cache_store, conf->cache == 0)
  * serves reads through the registry's composed sd_cache: its open() runs a MISS
  * fill INLINE, which is a blocking wire transfer (s3/http HEAD+GET, root://
  * login+read) — a stall on the stream event loop, and a self-connect deadlock
  * when the source is served by this same worker. These three helpers are the
  * stream twin of src/shared/http_cache_fill.c: probe with the decorator's
- * non-blocking xrootd_sd_cache_fill_needs_offload, run the whole-file fill
- * (xrootd_sd_cache_fill_key) on the async thread pool with the connection
+ * non-blocking brix_sd_cache_fill_needs_offload, run the whole-file fill
+ * (brix_sd_cache_fill_key) on the async thread pool with the connection
  * parked in XRD_ST_AIO, then serve the now-cached object from the done
  * callback. A COMPLETE hit, slice mode, or an all-local stack never gets here
  * (needs_offload == 0 → the caller opens inline as before). */
@@ -112,7 +112,7 @@ xrootd_cache_open_or_fill(xrootd_ctx_t *ctx, ngx_connection_t *c,
  * common.thread_pool unset when the config only declares `thread_pool default`
  * (the http_cache_fill.c idiom). NULL when no pool exists. */
 static ngx_thread_pool_t *
-cache_composed_fill_pool(ngx_stream_xrootd_srv_conf_t *conf)
+cache_composed_fill_pool(ngx_stream_brix_srv_conf_t *conf)
 {
     ngx_thread_pool_t *pool = conf->common.thread_pool;
 
@@ -132,15 +132,15 @@ cache_composed_fill_pool(ngx_stream_xrootd_srv_conf_t *conf)
 
 /* Worker thread: the blocking source → cache-store transfer, off the loop. */
 static void
-xrootd_cache_fill_composed_thread(void *data, ngx_log_t *log)
+brix_cache_fill_composed_thread(void *data, ngx_log_t *log)
 {
-    xrootd_cache_fill_t *t = data;
-    const char          *key = xrootd_vfs_export_relative_root(
+    brix_cache_fill_t *t = data;
+    const char          *key = brix_vfs_export_relative_root(
                                    t->cache_path, t->conf->common.root_canon);
 
     (void) log;
     errno = 0;
-    t->result    = xrootd_sd_cache_fill_key(t->source_inst, key);
+    t->result    = brix_sd_cache_fill_key(t->source_inst, key);
     t->sys_errno = errno;
 }
 
@@ -149,60 +149,60 @@ xrootd_cache_fill_composed_thread(void *data, ngx_log_t *log)
  * (NGX_DECLINED: sd_cache_open serves from the source), or report the fill
  * failure with the errno-mapped kXR code (ENOENT ⇒ the standard NotFound). */
 static void
-xrootd_cache_fill_composed_done(ngx_event_t *ev)
+brix_cache_fill_composed_done(ngx_event_t *ev)
 {
     ngx_thread_task_t   *task = ev->data;
-    xrootd_cache_fill_t *t = task->ctx;
-    xrootd_ctx_t        *ctx = t->ctx;
+    brix_cache_fill_t *t = task->ctx;
+    brix_ctx_t        *ctx = t->ctx;
     ngx_connection_t    *c = t->c;
     ngx_int_t            rc;
 
-    if (!xrootd_aio_restore_request(ctx, t->streamid)) {
+    if (!brix_aio_restore_request(ctx, t->streamid)) {
         return;
     }
 
     if (t->result == NGX_ERROR) {
         int      err = t->sys_errno ? t->sys_errno : EIO;
-        uint16_t kxr = xrootd_kxr_from_errno(err);
+        uint16_t kxr = brix_kxr_from_errno(err);
 
-        xrootd_log_access(ctx, c, "OPEN", t->clean_path, "cache-fill", 0, kxr,
+        brix_log_access(ctx, c, "OPEN", t->clean_path, "cache-fill", 0, kxr,
                           "composed cache fill failed", 0);
-        XROOTD_OP_ERR(ctx, XROOTD_OP_OPEN_RD);
-        xrootd_send_error(ctx, c, kxr,
+        BRIX_OP_ERR(ctx, BRIX_OP_OPEN_RD);
+        brix_send_error(ctx, c, kxr,
                           (err == ENOENT) ? "file not found"
                                           : "cache fill from source failed");
-        xrootd_aio_resume(c);
+        brix_aio_resume(c);
         return;
     }
 
     if (t->result == NGX_OK) {
-        xrootd_log_access(ctx, c, "CACHE", t->cache_path, "fill", 1, 0, NULL, 0);
+        brix_log_access(ctx, c, "CACHE", t->cache_path, "fill", 1, 0, NULL, 0);
     }
 
-    rc = xrootd_open_resolved_file(ctx, c, t->conf, t->cache_path,
+    rc = brix_open_resolved_file(ctx, c, t->conf, t->cache_path,
                                    t->options, t->mode_bits, 0, 0);
     if (rc != NGX_OK && ctx->state != XRD_ST_SENDING) {
-        xrootd_send_error(ctx, c, kXR_ServerError,
+        brix_send_error(ctx, c, kXR_ServerError,
                           "open after cache fill failed");
     }
 
-    xrootd_aio_resume(c);
+    brix_aio_resume(c);
 }
 
-/* xrootd_cache_open_fill_offload — post the composed-cache miss fill for
+/* brix_cache_open_fill_offload — post the composed-cache miss fill for
  * `full_path` (opened as `inst`, the registry's composed sd_cache) to the async
  * thread pool and park the connection in XRD_ST_AIO. Returns NGX_OK (parked; the
  * done callback responds), NGX_DECLINED (no pool — the caller must open inline,
  * accepting the stall), or a queued-error rc on a post failure. */
 ngx_int_t
-xrootd_cache_open_fill_offload(xrootd_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_xrootd_srv_conf_t *conf, const char *clean_path,
-    const char *full_path, xrootd_sd_instance_t *inst,
+brix_cache_open_fill_offload(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *clean_path,
+    const char *full_path, brix_sd_instance_t *inst,
     uint16_t options, uint16_t mode_bits)
 {
     ngx_thread_pool_t   *pool = cache_composed_fill_pool(conf);
     ngx_thread_task_t   *task;
-    xrootd_cache_fill_t *t;
+    brix_cache_fill_t *t;
 
     if (pool == NULL) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
@@ -212,7 +212,7 @@ xrootd_cache_open_fill_offload(xrootd_ctx_t *ctx, ngx_connection_t *c,
         return NGX_DECLINED;
     }
 
-    task = ngx_thread_task_alloc(c->pool, sizeof(xrootd_cache_fill_t));
+    task = ngx_thread_task_alloc(c->pool, sizeof(brix_cache_fill_t));
     if (task == NULL) {
         return NGX_ERROR;
     }
@@ -232,11 +232,11 @@ xrootd_cache_open_fill_offload(xrootd_ctx_t *ctx, ngx_connection_t *c,
     ngx_cpystrn((u_char *) t->cache_path, (u_char *) full_path,
                 sizeof(t->cache_path));
 
-    xrootd_task_bind(task, xrootd_cache_fill_composed_thread,
-                     xrootd_cache_fill_composed_done);
+    brix_task_bind(task, brix_cache_fill_composed_thread,
+                     brix_cache_fill_composed_done);
 
     if (ngx_thread_task_post(pool, task) != NGX_OK) {
-        XROOTD_RETURN_ERR(ctx, c, XROOTD_OP_OPEN_RD, "OPEN", clean_path,
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path,
                           "cache", kXR_ServerError, "cache thread post failed");
     }
 

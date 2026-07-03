@@ -25,7 +25,7 @@ static cta_request_t mk(cta_op_t op)
 
 static void test_submit_and_find(void)
 {
-    xrootd_cta_queue_t *q = cta_queue_create();
+    brix_cta_queue_t *q = cta_queue_create();
     cta_request_t r = mk(CTA_OP_ARCHIVE);
     cta_req_t *e = cta_queue_submit(q, &r, "alice");
     CHECK(e != NULL);
@@ -38,7 +38,7 @@ static void test_submit_and_find(void)
 
 static void test_legal_and_illegal_transitions(void)
 {
-    xrootd_cta_queue_t *q = cta_queue_create();
+    brix_cta_queue_t *q = cta_queue_create();
     cta_request_t r = mk(CTA_OP_ARCHIVE);
     cta_req_t *e = cta_queue_submit(q, &r, "u");
     CHECK(cta_queue_transition(e, CTA_ST_QUEUED) == 0);
@@ -52,7 +52,7 @@ static void test_legal_and_illegal_transitions(void)
 
 static void test_cancel_owner_admin_gate(void)
 {
-    xrootd_cta_queue_t *q = cta_queue_create();
+    brix_cta_queue_t *q = cta_queue_create();
     cta_request_t r = mk(CTA_OP_RETRIEVE);
     cta_req_t *e = cta_queue_submit(q, &r, "alice");
 
@@ -70,7 +70,7 @@ static void test_cancel_owner_admin_gate(void)
 
 static void test_owner_can_cancel(void)
 {
-    xrootd_cta_queue_t *q = cta_queue_create();
+    brix_cta_queue_t *q = cta_queue_create();
     cta_request_t r = mk(CTA_OP_ARCHIVE);
     cta_req_t *e = cta_queue_submit(q, &r, "carol");
     CHECK(cta_queue_cancel(q, e->id, "carol", 0) == 0);
@@ -80,7 +80,7 @@ static void test_owner_can_cancel(void)
 
 static void test_active_count(void)
 {
-    xrootd_cta_queue_t *q = cta_queue_create();
+    brix_cta_queue_t *q = cta_queue_create();
     cta_request_t r = mk(CTA_OP_ARCHIVE);
     cta_req_t *a = cta_queue_submit(q, &r, "u");
     cta_req_t *b = cta_queue_submit(q, &r, "u");
@@ -101,7 +101,7 @@ static void test_journal_round_trip(void)
 
     /* first run: submit two requests, advance one to COMPLETE */
     {
-        xrootd_cta_queue_t *q = cta_queue_create();
+        brix_cta_queue_t *q = cta_queue_create();
         cta_request_t r = mk(CTA_OP_ARCHIVE);
         cta_req_t *a, *b;
         CHECK(cta_queue_open_journal(q, path) == 0);
@@ -115,7 +115,7 @@ static void test_journal_round_trip(void)
     }
     /* second run: replay restores both entries with their latest state */
     {
-        xrootd_cta_queue_t *q = cta_queue_create();
+        brix_cta_queue_t *q = cta_queue_create();
         cta_req_t *a, *b;
         CHECK(cta_queue_open_journal(q, path) == 0);
         a = cta_queue_find(q, a_id);

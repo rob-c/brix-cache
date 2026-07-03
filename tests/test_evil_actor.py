@@ -31,7 +31,7 @@ THE ATTACK SURFACE (from a recon of the parsers/bounds):
     * login / open            — invalid usernames, path traversal/NUL/overlong.
     * THE HEADLINE — disconnect-mid-AIO: a large pgread/readv/write offloads to a
                      worker thread that pread/pwrites into ctx scratch buffers;
-                     a hard RST then drives xrootd_on_disconnect to free those
+                     a hard RST then drives brix_on_disconnect to free those
                      buffers while the worker is still in the syscall (a classic
                      use-after-free with no thread-pool drain). Hammered from many
                      connections to widen the window.
@@ -306,18 +306,18 @@ stream {
     server {
         listen %s:%d;
         xrootd on;
-        xrootd_storage_backend posix:%s;
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_thread_pool aiopool;
-        xrootd_memory_budget 8m;
+        brix_storage_backend posix:%s;
+        brix_auth none;
+        brix_allow_write on;
+        brix_thread_pool aiopool;
+        brix_memory_budget 8m;
     }
 }
 http {
     access_log off;
     server {
         listen %s:%d;
-        location = /metrics { xrootd_metrics on; }
+        location = /metrics { brix_metrics on; }
     }
 }
 """ % (prefix, prefix, BIND_HOST, root_port, datadir, BIND_HOST, http_port))

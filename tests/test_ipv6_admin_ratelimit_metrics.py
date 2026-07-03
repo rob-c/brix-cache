@@ -26,11 +26,11 @@ Harness contract (do NOT edit settings.py / manage_test_servers.sh here):
     ``nginx_ipv6_mgr.conf``.  That config (owned by the cms-redirect agent) MUST:
       - listen ``[::1]:{PORT}`` (stream manager) + ``listen [::1]:11242;`` (CMS)
         + an ``http{}`` server ``listen [::1]:11247;`` carrying the dashboard
-        (``/xrootd/`` -> xrootd_dashboard on) and ``/metrics`` (xrootd_metrics on);
-      - set ``xrootd_admin_secret`` to a file whose sole contents are the literal
+        (``/xrootd/`` -> brix_dashboard on) and ``/metrics`` (brix_metrics on);
+      - set ``brix_admin_secret`` to a file whose sole contents are the literal
         ``ipv6-admin-secret`` (see ADMIN_SECRET below) so the admin write API is
         enabled and bearer-gated;
-      - NOT set ``xrootd_dashboard_password`` on the ``/xrootd/`` location, so the
+      - NOT set ``brix_dashboard_password`` on the ``/xrootd/`` location, so the
         read-only ``GET /xrootd/api/v1/cluster`` snapshot is reachable without a
         login cookie (the round-trip assertion reads it unauthenticated).
   * ``ipv6-stream`` is pre-started from ``nginx_ipv6_stream.conf`` (owned by the
@@ -61,7 +61,7 @@ from settings import (
 # --------------------------------------------------------------------------- #
 #
 # ADMIN_SECRET is the bearer literal shared with the cms-redirect agent: it is
-# written verbatim into nginx_ipv6_mgr.conf's xrootd_admin_secret file and sent
+# written verbatim into nginx_ipv6_mgr.conf's brix_admin_secret file and sent
 # as ``Authorization: Bearer <ADMIN_SECRET>`` here.  Keep both in lock-step.
 ADMIN_SECRET = "ipv6-admin-secret"
 
@@ -133,7 +133,7 @@ def _admin(method, path, *, token=ADMIN_SECRET, json_body=None):
 
 # The read-only dashboard JSON API (GET /xrootd/api/v1/cluster) is gated by the
 # dashboard session cookie because the live ipv6-mgr config sets
-# ``xrootd_dashboard_password "testpassword"`` on /xrootd/ (the admin WRITE API
+# ``brix_dashboard_password "testpassword"`` on /xrootd/ (the admin WRITE API
 # on the same location is gated independently by the ::1/128 CIDR allowlist).
 # So the snapshot read must first authenticate: POST the password to
 # /xrootd/login (single-user mode, empty username) and reuse the resulting
@@ -313,7 +313,7 @@ def _skip_unless_admin_enabled():
     at the whitelist with 400 ``invalid_field`` when the API is wired (and never
     registers), whereas a config that exposes no admin surface 404s.
 
-    Because the ipv6-mgr config authorizes via ``xrootd_admin_allow ::1/128`` in
+    Because the ipv6-mgr config authorizes via ``brix_admin_allow ::1/128`` in
     OR-mode (no secret), a request from ::1 is admitted regardless of token — so
     a 403 here would itself be unexpected; the only ``not wired`` signal is 404."""
     _skip_unless_mgr_http()
@@ -340,9 +340,9 @@ def test_ipv6_admin_instance_startup():
 
 def test_admin_no_bearer_token_admitted_from_loopback():
     """AUTH-MODEL: the ipv6-mgr config authorizes the admin API via a CIDR
-    allowlist (``xrootd_admin_allow ::1/128``) in OR-mode and seeds NO secret
+    allowlist (``brix_admin_allow ::1/128``) in OR-mode and seeds NO secret
     file, so a request *from* ::1 is admitted regardless of any bearer token
-    (xrootd_admin_check_auth: cidr_ok || secret_ok -> OK).  A register POST with
+    (brix_admin_check_auth: cidr_ok || secret_ok -> OK).  A register POST with
     no Authorization header therefore succeeds — it is the source IP, not a
     token, that gates this surface.
 
@@ -430,7 +430,7 @@ def test_admin_api_register_ipv6_host_via_uri():
 
 def test_admin_api_drain_ipv6_server_uri_bracket_parse():
     """GATING: register ::1, then POST /cluster/servers/[::1]/PORT/drain — the
-    bracketed URI is parsed, brackets stripped, and xrootd_srv_blacklist matches
+    bracketed URI is parsed, brackets stripped, and brix_srv_blacklist matches
     the bare ``::1`` entry, which then shows ``draining: true`` in the snapshot."""
     _skip_unless_admin_enabled()
     port = 41003
@@ -458,7 +458,7 @@ def test_admin_api_undrain_ipv6_server_uri_bracket_parse():
     """GATING: a v4-mapped bracketed literal [::ffff:127.0.0.1] in the URI is
     bracket-stripped and round-trips to the bare registry host for drain then
     undrain.  undrain returns 200 only if the bracket-stripped host matched the
-    drained entry (xrootd_srv_undrain reports true)."""
+    drained entry (brix_srv_undrain reports true)."""
     _skip_unless_admin_enabled()
     host_bare = "::ffff:127.0.0.1"
     host_uri = "[::ffff:127.0.0.1]"

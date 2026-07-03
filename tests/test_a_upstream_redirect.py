@@ -39,7 +39,7 @@ from settings import (
 pytestmark = pytest.mark.timeout(60)
 
 # Stub daemon writes received auth credentials here so tests can verify
-# nginx forwarded the right token from its xrootd_upstream_token_file.
+# nginx forwarded the right token from its brix_upstream_token_file.
 _RECEIVED_CRED_PATH = os.path.join(TMP_DIR, "received-auth-cred.bin")
 
 # ------------------------------------------------------------------ #
@@ -255,7 +255,7 @@ class TestUpstreamAuth:
 
     def test_upstream_token_auth_success(self, upstream_auth_nginx):
         """Upstream issues kXR_authmore; nginx sends the ztn JWT from
-        xrootd_upstream_token_file; upstream accepts; redirect forwarded."""
+        brix_upstream_token_file; upstream accepts; redirect forwarded."""
         token_content = "eyJhbGciOiJSUzI1NiJ9.test.sig"
         token_path = os.path.join(TOKENS_DIR, "stub_auth.jwt")
         os.makedirs(TOKENS_DIR, exist_ok=True)
@@ -302,7 +302,7 @@ class TestUpstreamAuth:
             f"expected kXR_error when token_file not set, got {status}"
 
     def test_upstream_gotorls_no_tls_configured_aborts(self, upstream_gotorls_nginx):
-        """Upstream signals kXR_gotoTLS but nginx has xrootd_upstream_tls off;
+        """Upstream signals kXR_gotoTLS but nginx has brix_upstream_tls off;
         nginx must abort — no credentials may travel over a cleartext channel."""
         sock = _xrd_handshake_login(HOST, upstream_gotorls_nginx["port"])
         _send_locate(sock, "/data/file.root")

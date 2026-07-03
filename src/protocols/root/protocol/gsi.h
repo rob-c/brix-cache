@@ -1,5 +1,5 @@
-#ifndef XROOTD_PROTOCOL_GSI_H
-#define XROOTD_PROTOCOL_GSI_H
+#ifndef BRIX_PROTOCOL_GSI_H
+#define BRIX_PROTOCOL_GSI_H
 
 /*
  * GSI (x509) authentication wire constants.
@@ -55,4 +55,4 @@
 /* GSI protocol version sent in kXRS_version bucket. 20100 = 2.01.00 */
 #define kXGSI_VERSION    20100
 
-#endif /* XROOTD_PROTOCOL_GSI_H */
+#endif /* BRIX_PROTOCOL_GSI_H */

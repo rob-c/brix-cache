@@ -103,7 +103,7 @@ xfer_spawn_agent(int result_fd, const char *const argv[], char *const envp[])
 }
 
 int
-xrootd_xfer_run_reparented(const char *const argv[], char *const envp[])
+brix_xfer_run_reparented(const char *const argv[], char *const envp[])
 {
     int      sv[2];
     sigset_t block, prev;

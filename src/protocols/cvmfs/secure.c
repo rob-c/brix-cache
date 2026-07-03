@@ -1,14 +1,14 @@
 /* secure.c — scvmfs:// security preamble (EXPERIMENTAL, phase-68 T22).
  *
  * WHAT: transport + client-authz gate that runs before the cvmfs gate on
- *       locations with `xrootd_scvmfs on`.
+ *       locations with `brix_scvmfs on`.
  * WHY:  "secure CVMFS" repositories are credential-protected; the site
  *       cache must enforce the same boundary or it becomes a leak. Layering
  *       it as a preamble keeps ONE protocol core — scvmfs can never drift
  *       behaviorally from cvmfs because it IS cvmfs after this function.
  * HOW:  TLS presence comes from the connection (r->connection->ssl); bearer
  *       mode delegates to the shared SciTokens issuer registry
- *       (xrootd_token_validate_registry — the same engine the WebDAV and
+ *       (brix_token_validate_registry — the same engine the WebDAV and
  *       stream token paths use; READ scope suffices for a read-only
  *       protocol). This file contains POLICY GLUE ONLY — zero crypto.
  *       VOMS/GSI client-cert mode is future work (the WebDAV auth_cert
@@ -52,12 +52,12 @@ scvmfs_bearer_token(ngx_http_request_t *r, const char **token, size_t *len)
 
 static ngx_int_t
 scvmfs_check_bearer(ngx_http_request_t *r,
-    ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
+    ngx_http_brix_cvmfs_loc_conf_t *lcf)
 {
     const char            *token;
     size_t                 token_len;
     char                   uri_path[PATH_MAX];
-    xrootd_token_claims_t  claims;
+    brix_token_claims_t  claims;
     int                    bucket = 0;
     ngx_int_t              rc;
 
@@ -82,9 +82,9 @@ scvmfs_check_bearer(ngx_http_request_t *r,
     uri_path[r->uri.len] = '\0';
 
     /* read scope suffices for a read-only protocol */
-    if (xrootd_token_validate_registry(r->connection->log, token, token_len,
-            (const xrootd_token_registry_t *) lcf->scvmfs_registry,
-            uri_path, XROOTD_TOKEN_OP_READ,
+    if (brix_token_validate_registry(r->connection->log, token, token_len,
+            (const brix_token_registry_t *) lcf->scvmfs_registry,
+            uri_path, BRIX_TOKEN_OP_READ,
             NULL, 0, &claims, &bucket) != 0)
     {
         return NGX_HTTP_UNAUTHORIZED;      /* invalid/expired/out-of-scope */
@@ -93,11 +93,11 @@ scvmfs_check_bearer(ngx_http_request_t *r,
 }
 
 ngx_int_t
-xrootd_scvmfs_preamble(ngx_http_request_t *r,
-    ngx_http_xrootd_cvmfs_loc_conf_t *lcf)
+brix_scvmfs_preamble(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf)
 {
-    ngx_http_xrootd_cvmfs_ctx_t *ctx =
-        ngx_http_get_module_ctx(r, ngx_http_xrootd_cvmfs_module);
+    ngx_http_brix_cvmfs_ctx_t *ctx =
+        ngx_http_get_module_ctx(r, ngx_http_brix_cvmfs_module);
     ngx_int_t                    rc;
 
 #if (NGX_HTTP_SSL)
@@ -110,19 +110,19 @@ xrootd_scvmfs_preamble(ngx_http_request_t *r,
     }
 
     switch (lcf->scvmfs_authz) {
-    case XROOTD_SCVMFS_AUTHZ_BEARER:
+    case BRIX_SCVMFS_AUTHZ_BEARER:
         rc = scvmfs_check_bearer(r, lcf);
         break;
-    case XROOTD_SCVMFS_AUTHZ_NONE:
+    case BRIX_SCVMFS_AUTHZ_NONE:
     default:
         rc = NGX_DECLINED;
         break;
     }
     if (rc != NGX_DECLINED) {
-        XROOTD_CVMFS_METRIC_INC(requests_total[XROOTD_CVMFS_CLASS_REJECT]);
+        BRIX_CVMFS_METRIC_INC(requests_total[BRIX_CVMFS_CLASS_REJECT]);
         return rc;
     }
     ctx->secure = 1;                               /* unlocks https upstream */
-    XROOTD_CVMFS_METRIC_INC(secure_requests_total);
+    BRIX_CVMFS_METRIC_INC(secure_requests_total);
     return NGX_DECLINED;
 }

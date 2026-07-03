@@ -4,7 +4,7 @@
  * WHAT: This fragment implements the PUT /bucket/key?partNumber=N&uploadId=<id> + x-amz-copy-source header
  *   → UploadPartCopy operation, which copies a part from a source object into the staging directory of an
  *   active multipart upload. It contains two components:
- *     - s3_find_request_header_value(): helper that locates a named request header via xrootd_http_find_header(),
+ *     - s3_find_request_header_value(): helper that locates a named request header via brix_http_find_header(),
  *       extracts its value bytes into a pool-allocated null-terminated string, and returns it for parsing.
  *     - s3_handle_upload_part_copy(): the main handler — parses x-amz-copy-source to extract source object key
  *       (stripping leading "/" then skipping bucket prefix), validates source path against root_canon with ".."
@@ -37,12 +37,12 @@ s3_find_request_header_value(ngx_http_request_t *r, const char *name,
     ngx_table_elt_t *h;
     u_char          *value;
 
-    h = xrootd_http_find_header(r, name, name_len);
+    h = brix_http_find_header(r, name, name_len);
     if (h == NULL) {
         return NULL;
     }
 
-    XROOTD_PNALLOC_OR_RETURN(value, r->pool, h->value.len + 1, NULL);
+    BRIX_PNALLOC_OR_RETURN(value, r->pool, h->value.len + 1, NULL);
 
     ngx_memcpy(value, h->value.data, h->value.len);
     value[h->value.len] = '\0';
@@ -66,10 +66,10 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
     char         etag_buf[64];
     char         iso_buf[32];
     struct stat       part_sb;    /* fstat of the written part fd (ETag size/mtime) */
-    xrootd_vfs_ctx_t  sctx;       /* copy SOURCE ctx (probe + open below)        */
-    xrootd_vfs_ctx_t  uctx;       /* upload staging-dir (mpu_dir) existence probe */
-    xrootd_vfs_stat_t svst;
-    xrootd_vfs_file_t *fh_src;
+    brix_vfs_ctx_t  sctx;       /* copy SOURCE ctx (probe + open below)        */
+    brix_vfs_ctx_t  uctx;       /* upload staging-dir (mpu_dir) existence probe */
+    brix_vfs_stat_t svst;
+    brix_vfs_file_t *fh_src;
     int          src_fd, dst_fd;
     ssize_t      nr;
     char         iobuf[65536];
@@ -114,7 +114,7 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
      * a planted in-bucket symlink, so a raw stat() here would follow it out of
      * the export root (the same hole the open() below was hardened against). */
     s3_build_vfs_ctx(r, src_fs_path, cf, &sctx);
-    if (xrootd_vfs_probe(&sctx, 1 /* no-follow */, &svst) != NGX_OK
+    if (brix_vfs_probe(&sctx, 1 /* no-follow */, &svst) != NGX_OK
         || !svst.is_regular)
     {
         return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
@@ -133,7 +133,7 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
      * mpu_dir) rather than a raw stat — absent → 404 NoSuchUpload. */
     s3_get_mpu_dir(fs_path, upload_id, mpu_dir, sizeof(mpu_dir));
     s3_build_vfs_ctx(r, mpu_dir, cf, &uctx);
-    if (xrootd_vfs_probe(&uctx, 1 /* nofollow */, &svst) != NGX_OK) {
+    if (brix_vfs_probe(&uctx, 1 /* nofollow */, &svst) != NGX_OK) {
         return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
                                  "NoSuchUpload",
                                  "The specified upload does not exist.");
@@ -149,19 +149,19 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
      * confinement every other read path uses.  A raw open() here followed a
      * planted in-bucket symlink straight to a host file (e.g. /etc/passwd),
      * which the string checks above (strstr/strncmp) do not catch. */
-    fh_src = xrootd_vfs_open(&sctx, XROOTD_VFS_O_READ, NULL);
+    fh_src = brix_vfs_open(&sctx, BRIX_VFS_O_READ, NULL);
     if (fh_src == NULL) {
         return s3_send_xml_error(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
                                  "The specified copy source does not exist.");
     }
-    src_fd = xrootd_vfs_file_fd(fh_src);
+    src_fd = brix_vfs_file_fd(fh_src);
 
-    dst_fd = xrootd_vfs_open_fd(r->connection->log, cf->common.root_canon,
+    dst_fd = brix_vfs_open_fd(r->connection->log, cf->common.root_canon,
                                part_path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC,
                                0600);
     if (dst_fd < 0) {
-        xrootd_vfs_close(fh_src, r->connection->log);
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        brix_vfs_close(fh_src, r->connection->log);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -170,10 +170,10 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
      * positional so a non-POSIX backend slots in unchanged. */
     {
         off_t           src_off = 0, dst_off = 0;
-        xrootd_sd_obj_t src_obj, dst_obj;
+        brix_sd_obj_t src_obj, dst_obj;
 
-        xrootd_sd_posix_wrap(&src_obj, src_fd);
-        xrootd_sd_posix_wrap(&dst_obj, dst_fd);
+        brix_sd_posix_wrap(&src_obj, src_fd);
+        brix_sd_posix_wrap(&dst_obj, dst_fd);
 
         while ((nr = src_obj.driver->pread(&src_obj, iobuf, sizeof(iobuf),
                                            src_off)) > 0) {
@@ -186,12 +186,12 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
                     if (errno == EINTR) {
                         continue;
                     }
-                    xrootd_vfs_close(fh_src, r->connection->log);
+                    brix_vfs_close(fh_src, r->connection->log);
                     close(dst_fd);
-                    (void) xrootd_vfs_unlink_path(r->connection->log,
+                    (void) brix_vfs_unlink_path(r->connection->log,
                                                   cf->common.root_canon, part_path);
-                    XROOTD_S3_METRIC_INC(
-                        events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+                    BRIX_S3_METRIC_INC(
+                        events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
                     return NGX_HTTP_INTERNAL_SERVER_ERROR;
                 }
                 wbuf      += nw;
@@ -201,19 +201,19 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
             src_off += nr;
         }
     }
-    xrootd_vfs_close(fh_src, r->connection->log);
+    brix_vfs_close(fh_src, r->connection->log);
 
     /* ETag/mtime from the part fd we just wrote (metadata on a VFS-opened confined
      * fd — no raw path stat) before we release it. */
     if (fstat(dst_fd, &part_sb) != 0) {
         close(dst_fd);
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     close(dst_fd);
 
     s3_etag(&part_sb, etag_buf, sizeof(etag_buf));
-    xrootd_format_iso8601(part_sb.st_mtime, iso_buf, sizeof(iso_buf));
+    brix_format_iso8601(part_sb.st_mtime, iso_buf, sizeof(iso_buf));
 
     xml_len = (size_t) snprintf(xml_buf, sizeof(xml_buf),
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
@@ -226,13 +226,13 @@ s3_handle_upload_part_copy(ngx_http_request_t *r,
 
     b = ngx_create_temp_buf(r->pool, xml_len);
     if (b == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     ngx_memcpy(b->pos, xml_buf, xml_len);
     b->last     = b->pos + xml_len;
     b->last_buf = 1;
 
-    return xrootd_http_send_xml_buffer(r, NGX_HTTP_OK,
+    return brix_http_send_xml_buffer(r, NGX_HTTP_OK,
         (ngx_str_t) ngx_string("application/xml"), b);
 }

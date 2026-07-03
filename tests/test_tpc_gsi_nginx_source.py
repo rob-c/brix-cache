@@ -8,9 +8,9 @@ not yet handled), BOTH endpoints here are nginx, so the source serves the TPC op
 synchronously. This isolates and verifies the outbound GSI handshake end-to-end.
 
 Topology:
-    nginx (GSI source, xrootd_auth gsi, exports /srcdata)
+    nginx (GSI source, brix_auth gsi, exports /srcdata)
         ^  native TPC pull: dest GSI-auths with destproxy.pem
-    nginx (TPC destination, native TPC, xrootd_certificate=destproxy.pem)
+    nginx (TPC destination, native TPC, brix_certificate=destproxy.pem)
         ^  xrdcp --tpc only (client GSI-auths the source with the user proxy)
     native xrdcp client
 """
@@ -109,11 +109,11 @@ def gsi_nginx(tmp_path_factory):
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
         f"    listen {SRC};\n    xrootd on;\n"   # all interfaces: GSI cert CN=fqdn
-        f"    xrootd_storage_backend posix:{sdata};\n    xrootd_auth gsi;\n"
-        f"    xrootd_certificate {srv / 'hostcert.pem'};\n"
-        f"    xrootd_certificate_key {srv / 'hostkey.pem'};\n"
-        f"    xrootd_trusted_ca {certs};\n"
-        f"    xrootd_access_log {base}/src-acc.log;\n  }}\n}}\n")
+        f"    brix_storage_backend posix:{sdata};\n    brix_auth gsi;\n"
+        f"    brix_certificate {srv / 'hostcert.pem'};\n"
+        f"    brix_certificate_key {srv / 'hostkey.pem'};\n"
+        f"    brix_trusted_ca {certs};\n"
+        f"    brix_access_log {base}/src-acc.log;\n  }}\n}}\n")
 
     dst_cfg = base / "dst.conf"
     dst_cfg.write_text(
@@ -123,13 +123,13 @@ def gsi_nginx(tmp_path_factory):
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
         f"    listen 127.0.0.1:{DST};\n    xrootd on;\n"
-        f"    xrootd_storage_backend posix:{ddata};\n    xrootd_auth none;\n"
-        "    xrootd_allow_write on;\n"
-        "    xrootd_tpc_allow_local on;\n    xrootd_tpc_allow_private on;\n"
-        f"    xrootd_certificate {dproxy};\n"
-        f"    xrootd_certificate_key {dproxy};\n"
-        f"    xrootd_trusted_ca {certs};\n"
-        f"    xrootd_access_log {base}/dst-acc.log;\n  }}\n}}\n")
+        f"    brix_storage_backend posix:{ddata};\n    brix_auth none;\n"
+        "    brix_allow_write on;\n"
+        "    brix_tpc_allow_local on;\n    brix_tpc_allow_private on;\n"
+        f"    brix_certificate {dproxy};\n"
+        f"    brix_certificate_key {dproxy};\n"
+        f"    brix_trusted_ca {certs};\n"
+        f"    brix_access_log {base}/dst-acc.log;\n  }}\n}}\n")
 
     for port in (SRC, DST):
         _run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"])

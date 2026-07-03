@@ -398,17 +398,17 @@ class TestPreparePathSecurity:
 
 
 # ---------------------------------------------------------------------------
-# xrootd_prepare_command — fire-and-forget staging hook
+# brix_prepare_command — fire-and-forget staging hook
 # ---------------------------------------------------------------------------
 
 class TestPrepareStageCommand:
-    """Verify xrootd_prepare_command is invoked on kXR_stage requests.
+    """Verify brix_prepare_command is invoked on kXR_stage requests.
 
     Uses pre-started dedicated servers (launched by manage_test_servers.sh):
-      - prepare-command  (PREPARE_CMD_PORT):  xrootd_root=PREPARE_CMD_DATA_DIR,
-        xrootd_prepare_command set to a hook that appends paths to PREPARE_CMD_LOG.
+      - prepare-command  (PREPARE_CMD_PORT):  brix_root=PREPARE_CMD_DATA_DIR,
+        brix_prepare_command set to a hook that appends paths to PREPARE_CMD_LOG.
       - prepare-nocmd    (PREPARE_NOCMD_PORT): same xrootd config without
-        xrootd_prepare_command.
+        brix_prepare_command.
     """
 
     @staticmethod
@@ -423,7 +423,7 @@ class TestPrepareStageCommand:
 
     @pytest.mark.requires_local_server
     def test_stage_flag_invokes_command(self):
-        """kXR_prepare with kXR_stage flag must invoke xrootd_prepare_command
+        """kXR_prepare with kXR_stage flag must invoke brix_prepare_command
         with the resolved absolute paths of all staged files.
         """
         self._truncate_log()
@@ -444,7 +444,7 @@ class TestPrepareStageCommand:
             time.sleep(0.1)
 
         assert os.path.getsize(PREPARE_CMD_LOG) > 0, \
-            "xrootd_prepare_command was not invoked (log file empty after 3s)"
+            "brix_prepare_command was not invoked (log file empty after 3s)"
 
         content = open(PREPARE_CMD_LOG).read().strip()
         assert content.endswith("/tape_file.dat"), \
@@ -452,7 +452,7 @@ class TestPrepareStageCommand:
 
     @pytest.mark.requires_local_server
     def test_no_stage_flag_skips_command(self):
-        """kXR_prepare WITHOUT kXR_stage must NOT invoke xrootd_prepare_command."""
+        """kXR_prepare WITHOUT kXR_stage must NOT invoke brix_prepare_command."""
         self._truncate_log()
         os.makedirs(PREPARE_CMD_DATA_DIR, exist_ok=True)
         with open(os.path.join(PREPARE_CMD_DATA_DIR, "local_file.dat"), "wb") as f:
@@ -468,11 +468,11 @@ class TestPrepareStageCommand:
 
         time.sleep(0.3)
         assert open(PREPARE_CMD_LOG).read() == "", \
-            "xrootd_prepare_command was wrongly invoked (no kXR_stage flag)"
+            "brix_prepare_command was wrongly invoked (no kXR_stage flag)"
 
     @pytest.mark.requires_local_server
     def test_no_config_stage_silently_accepted(self):
-        """kXR_stage with no xrootd_prepare_command configured must return
+        """kXR_stage with no brix_prepare_command configured must return
         kXR_ok — silently accepted with no error and no command invoked.
         """
         os.makedirs(PREPARE_NOCMD_DATA_DIR, exist_ok=True)
@@ -521,7 +521,7 @@ class TestPrepareStageCommand:
     @pytest.mark.requires_local_server
     def test_stage_cancel_skips_command(self):
         """kXR_prepare with kXR_cancel must return ok immediately (no-op) and
-        must NOT invoke xrootd_prepare_command even if configured.
+        must NOT invoke brix_prepare_command even if configured.
         """
         self._truncate_log()
 
@@ -539,7 +539,7 @@ class TestPrepareStageCommand:
 
     @pytest.mark.requires_local_server
     def test_coloc_flag_passed_to_command(self):
-        """kXR_prepare with kXR_coloc flag must set XROOTD_PREPARE_COLOC=1 for the command."""
+        """kXR_prepare with kXR_coloc flag must set BRIX_PREPARE_COLOC=1 for the command."""
         self._truncate_log()
         os.makedirs(PREPARE_CMD_DATA_DIR, exist_ok=True)
         with open(os.path.join(PREPARE_CMD_DATA_DIR, "coloc_file.dat"), "wb") as f:

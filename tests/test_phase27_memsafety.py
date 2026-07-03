@@ -45,30 +45,30 @@ def _read(rel):
 
 def test_w1_safe_size_header():
     h = _read("src/core/compat/safe_size.h")
-    assert "xrootd_size_mul" in h
+    assert "brix_size_mul" in h
     assert "__builtin_mul_overflow" in h
-    assert "xrootd_alloc_array" in h
+    assert "brix_alloc_array" in h
 
 
 def test_w3_scoped_header():
     h = _read("src/auth/crypto/scoped.h")
-    assert "xrootd_evp_pkey_free" in h
-    assert "xrootd_x509_stack_free" in h
+    assert "brix_evp_pkey_free" in h
+    assert "brix_x509_stack_free" in h
     assert "JANSSON OWNERSHIP CHEATSHEET" in h
 
 
 def test_f1_readv_segment_guard():
     rv = _read("src/protocols/root/read/readv.c")
     assert "safe_size.h" in rv
-    assert "XROOTD_READV_MAXSEGS" in rv
-    assert "xrootd_size_mul" in rv
-    assert "xrootd_alloc_array" in rv
+    assert "BRIX_READV_MAXSEGS" in rv
+    assert "brix_size_mul" in rv
+    assert "brix_alloc_array" in rv
 
 
 def test_f4_session_reaper_and_f5_cap_drift():
     h = _read("src/protocols/root/session/registry.h")
     assert "last_seen" in h
-    assert "XROOTD_SESSION_REAP_MIN_AGE_MS" in h
+    assert "BRIX_SESSION_REAP_MIN_AGE_MS" in h
     # F5: cap-drift fixed — no stale "default 256" docstring remains.
     assert "default 256" not in h
     c = _read("src/protocols/root/session/registry.c")
@@ -78,8 +78,8 @@ def test_f4_session_reaper_and_f5_cap_drift():
 
 def test_f9_evict_realloc_guard():
     e = _read("src/fs/cache/evict_candidates.c")
-    assert "xrootd_size_mul" in e
-    assert "XROOTD_EVICT_MAX_CANDIDATES" in e
+    assert "brix_size_mul" in e
+    assert "BRIX_EVICT_MAX_CANDIDATES" in e
 
 
 def test_metrics_present():
@@ -87,7 +87,7 @@ def test_metrics_present():
     assert "session_registry_full_total" in m
     assert "session_evict_total" in m
     s = _read("src/observability/metrics/stream.c")
-    assert "xrootd_session_evict_total" in s
+    assert "brix_session_evict_total" in s
 
 
 def test_w7_fuzz_target_present():
@@ -156,8 +156,8 @@ def test_w6c_valgrind_findings_closed_and_harness_present():
     assert "ngx_min(r->connection->addr_text.len" in _read(
         "src/observability/dashboard/http_tracking.c")
     # Finding 2: JWKS pool cleanup registered at both conf load sites.
-    assert "xrootd_jwks_register_cleanup" in _read("src/protocols/webdav/config.c")
-    assert "xrootd_jwks_register_cleanup" in _read("src/auth/token/config.c")
+    assert "brix_jwks_register_cleanup" in _read("src/protocols/webdav/config.c")
+    assert "brix_jwks_register_cleanup" in _read("src/auth/token/config.c")
     # Committed harness + findings writeup.
     assert (ROOT / "tests/valgrind/run_valgrind.sh").exists()
     assert (ROOT / "docs/07-security/valgrind-findings.md").exists()
@@ -187,7 +187,7 @@ def _spawn_stream(tmp_path, port):
             "events { worker_connections 64; }\n"
             "stream {\n"
             f"  server {{ listen {BIND_HOST}:{port}; xrootd on;"
-            f" xrootd_storage_backend posix:{data}; xrootd_auth none; }}\n"
+            f" brix_storage_backend posix:{data}; brix_auth none; }}\n"
             "}\ndaemon off;\nmaster_process off;\n")
     cp = tmp_path / "nginx.conf"
     cp.write_text(conf)
@@ -279,7 +279,7 @@ def test_readv_oversized_rejected_cleanly(tmp_path):
         s = _login(21871)
         st, fh = _open_read(s, "/f.txt")
         assert st == 0 and fh is not None
-        # 4000 segments (> XROOTD_READV_MAXSEGS=1024): the recv-layer cap and the
+        # 4000 segments (> BRIX_READV_MAXSEGS=1024): the recv-layer cap and the
         # readv callsite cap both reject; the connection is dropped or errored.
         bogus = [(fh, 16, 0)] * 4000
         try:

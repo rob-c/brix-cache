@@ -1,5 +1,5 @@
-#ifndef XROOTD_CACHE_VERIFY_H
-#define XROOTD_CACHE_VERIFY_H
+#ifndef BRIX_CACHE_VERIFY_H
+#define BRIX_CACHE_VERIFY_H
 
 /*
  * verify.h — checksum-on-fill integrity for the read-through cache.
@@ -9,7 +9,7 @@
  *       content checksum locally and compare it to the digest the origin
  *       advertised.  A mismatch discards the part so a corrupted transfer never
  *       becomes a served cache entry; a match records the verified digest in the
- *       file's .cinfo (XROOTD_CINFO_F_VERIFIED) for durable provenance.
+ *       file's .cinfo (BRIX_CINFO_F_VERIFIED) for durable provenance.
  *
  * WHY:  The cache previously trusted whatever bytes arrived from the origin.  A
  *       truncated, bit-rotted, or man-in-the-middled transfer would be cached
@@ -22,7 +22,7 @@
  * HOW:  The transport (origin/transport.h) reports the origin's advertised
  *       algorithm+hex via its checksum() op.  This module opens the part file
  *       (O_RDONLY|O_NOFOLLOW), drives the shared checksum kernel
- *       (xrootd_checksum_hex_name_fd) for the SAME algorithm name, and compares
+ *       (brix_checksum_hex_name_fd) for the SAME algorithm name, and compares
  *       the two hex strings case-insensitively.  It is transport-agnostic: the
  *       xroot:// driver feeds it a kXR_Qcksum reply, the HTTP driver a Digest
  *       header — the verify logic is identical.
@@ -32,24 +32,24 @@
 #include "fs/cache/origin/transport.h"
 
 
-/* Verification policy (config: xrootd_cache_verify off|best-effort|require,
+/* Verification policy (config: brix_cache_verify off|best-effort|require,
  * plus the phase-68 self-verifying mode cvmfs-cas). */
 typedef enum {
-    XROOTD_CACHE_VERIFY_OFF = 0,    /* never verify (legacy behaviour)          */
-    XROOTD_CACHE_VERIFY_BESTEFFORT, /* verify if a digest is available (default)*/
-    XROOTD_CACHE_VERIFY_REQUIRE,    /* a usable digest is mandatory; else fail  */
-    XROOTD_CACHE_VERIFY_CVMFS_CAS   /* phase-68: the object NAME is the digest
+    BRIX_CACHE_VERIFY_OFF = 0,    /* never verify (legacy behaviour)          */
+    BRIX_CACHE_VERIFY_BESTEFFORT, /* verify if a digest is available (default)*/
+    BRIX_CACHE_VERIFY_REQUIRE,    /* a usable digest is mandatory; else fail  */
+    BRIX_CACHE_VERIFY_CVMFS_CAS   /* phase-68: the object NAME is the digest
                                        (CVMFS content-addressed storage) — no
                                        origin digest needed                     */
-} xrootd_cache_verify_mode_e;
+} brix_cache_verify_mode_e;
 
 /* Outcome of a verification attempt. */
 typedef enum {
-    XROOTD_CACHE_VERIFY_VERIFIED = 0, /* computed == origin digest               */
-    XROOTD_CACHE_VERIFY_UNVERIFIED,   /* no origin digest; committed best-effort  */
-    XROOTD_CACHE_VERIFY_MISMATCH,     /* computed != origin digest (reject fill)  */
-    XROOTD_CACHE_VERIFY_ERROR         /* could not compute / I/O error            */
-} xrootd_cache_verify_result_e;
+    BRIX_CACHE_VERIFY_VERIFIED = 0, /* computed == origin digest               */
+    BRIX_CACHE_VERIFY_UNVERIFIED,   /* no origin digest; committed best-effort  */
+    BRIX_CACHE_VERIFY_MISMATCH,     /* computed != origin digest (reject fill)  */
+    BRIX_CACHE_VERIFY_ERROR         /* could not compute / I/O error            */
+} brix_cache_verify_result_e;
 
 /*
  * Verify the staged part file at `part_path` against `origin` under `mode`.
@@ -68,11 +68,11 @@ typedef enum {
  * mode==OFF short-circuits to UNVERIFIED without touching the file.
  * out_alg (>=16 bytes) / out_hex (>=129 bytes) may be NULL if the caller does
  * not need the computed values.  On VERIFIED the caller persists out_alg/out_hex
- * into the .meta sidecar (xrootd_cache_meta_t.cks_alg/cks_hex) it already writes.
+ * into the .meta sidecar (brix_cache_meta_t.cks_alg/cks_hex) it already writes.
  */
-xrootd_cache_verify_result_e xrootd_cache_verify_part(xrootd_cache_fill_t *t,
-    const char *part_path, const xrootd_cache_digest_t *origin,
-    xrootd_cache_verify_mode_e mode, char *out_alg, char *out_hex);
+brix_cache_verify_result_e brix_cache_verify_part(brix_cache_fill_t *t,
+    const char *part_path, const brix_cache_digest_t *origin,
+    brix_cache_verify_mode_e mode, char *out_alg, char *out_hex);
 
 /*
  * Phase-68 CVMFS-CAS self-verification: the CAS object NAME in the fill's own
@@ -84,7 +84,7 @@ xrootd_cache_verify_result_e xrootd_cache_verify_part(xrootd_cache_fill_t *t,
  * for keys that do not classify as CAS (manifests, geo — not content-
  * addressed). `log` may be NULL.
  */
-xrootd_cache_verify_result_e xrootd_cache_verify_cvmfs_cas(
+brix_cache_verify_result_e brix_cache_verify_cvmfs_cas(
     const char *part_path, const char *key, ngx_log_t *log,
     char *out_alg, char *out_hex);
 
@@ -94,8 +94,8 @@ xrootd_cache_verify_result_e xrootd_cache_verify_cvmfs_cas(
  * plain unlink). Best-effort — the caller's fill_abort tolerates the part
  * being gone. Quarantined files are the operator's corruption evidence.
  */
-void xrootd_cache_quarantine_part(const char *part_path,
+void brix_cache_quarantine_part(const char *part_path,
     const char *quarantine_dir, ngx_log_t *log);
 
 
-#endif /* XROOTD_CACHE_VERIFY_H */
+#endif /* BRIX_CACHE_VERIFY_H */

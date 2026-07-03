@@ -18,8 +18,8 @@ for every non-SSI handle**.
 
 ## Phase 1: session multiplexing (implemented)
 
-One open `/.ssi/<service>` handle is an `xrootd_ssi_session_t` that multiplexes up
-to `XROOTD_SSI_MAX_INFLIGHT` (8) concurrent requests, each keyed by the `reqId`
+One open `/.ssi/<service>` handle is an `brix_ssi_session_t` that multiplexes up
+to `BRIX_SSI_MAX_INFLIGHT` (8) concurrent requests, each keyed by the `reqId`
 carried in the `XrdSsiRRInfo`. The session holds the resolved service provider and
 a fixed table (`rrtable`) of per-`reqId` request slots:
 
@@ -40,7 +40,7 @@ A service can answer **later** instead of inline. It calls `responder->defer()`;
 the submit is acked with `kXR_waitresp` (capturing its streamid), and the response
 is pushed unsolicited as a `kXR_attn + kXR_asynresp` frame — what a real
 `libXrdSsi` client awaits — built by `deliver.c` on top of
-`xrootd_send_attn_asynresp`. The reference deferred service is `echo-async` (the
+`brix_send_attn_asynresp`. The reference deferred service is `echo-async` (the
 `defer`-or-respond shape every async service follows).
 
 **Delivery is event-loop only and use-after-free safe:**
@@ -48,7 +48,7 @@ is pushed unsolicited as a `kXR_attn + kXR_asynresp` frame — what a real
   generation — never a raw connection/session pointer.
 - `registry.c` maps `{session-address → session}` validated by a per-session
   `generation`; `deliver`/the timer resolve a *live* session through it or drop.
-- `xrootd_ssi_handle_cleanup` (called from `xrootd_free_fhandle` on both
+- `brix_ssi_handle_cleanup` (called from `brix_free_fhandle` on both
   `kXR_close` and disconnect, before the pool is freed) cancels armed timers and
   unregisters the session, so no completion can run against freed memory.
 
@@ -59,7 +59,7 @@ is pushed unsolicited as a `kXR_attn + kXR_asynresp` frame — what a real
   response is signalled to the client as `pendResp` (`*`) and drained via
   `kXR_read`. Reference service: `stream-async`.
 - **Alerts.** `responder->alert()` is now delivered (was dropped) as an out-of-band
-  `alrtResp` (`!`) push via `xrootd_ssi_deliver_alert`; the client handles it and
+  `alrtResp` (`!`) push via `brix_ssi_deliver_alert`; the client handles it and
   keeps awaiting the response. Alerts are pushed only when a push channel exists
   (the deferred completion phase); the synchronous core still drops them.
   Reference service: `alert-async`.
@@ -83,18 +83,18 @@ progress alerts + a `cta.xrd.Response`; query answers synchronously. See
 
 | Directive | Default | Purpose |
 |---|---|---|
-| `xrootd_ssi on\|off` | off | Enable the SSI engine on the listener. |
-| `xrootd_ssi_service <name>` | — | Enable a non-default provider. `cta` is the only gated service (it exposes a storage-control surface); built-in test services always resolve. Unknown name → `nginx -t` error. |
-| `xrootd_ssi_max_inflight <n>` | 8 | Concurrent requests per session (capped at the compile-time table size). |
-| `xrootd_ssi_request_max <size>` | 1m | Per-request byte cap (≤ compile-time ceiling). |
-| `xrootd_ssi_response_max <size>` | 1m | Per-response byte cap. |
-| `xrootd_ssi_cta_journal <path>` | — | CTA restart journal path (empty = disabled). |
-| `xrootd_ssi_cta_executor test\|prod` | test | CTA executor backend (simulated vs real tier/frm). |
+| `brix_ssi on\|off` | off | Enable the SSI engine on the listener. |
+| `brix_ssi_service <name>` | — | Enable a non-default provider. `cta` is the only gated service (it exposes a storage-control surface); built-in test services always resolve. Unknown name → `nginx -t` error. |
+| `brix_ssi_max_inflight <n>` | 8 | Concurrent requests per session (capped at the compile-time table size). |
+| `brix_ssi_request_max <size>` | 1m | Per-request byte cap (≤ compile-time ceiling). |
+| `brix_ssi_response_max <size>` | 1m | Per-response byte cap. |
+| `brix_ssi_cta_journal <path>` | — | CTA restart journal path (empty = disabled). |
+| `brix_ssi_cta_executor test\|prod` | test | CTA executor backend (simulated vs real tier/frm). |
 
 ### Metrics (low-cardinality — `{port,auth}` only)
 
-`xrootd_ssi_requests_total`, `xrootd_ssi_errors_total`,
-`xrootd_ssi_alerts_pushed_total`, `xrootd_ssi_attn_push_failures_total` — exported
+`brix_ssi_requests_total`, `brix_ssi_errors_total`,
+`brix_ssi_alerts_pushed_total`, `brix_ssi_attn_push_failures_total` — exported
 per listener via the `/metrics` endpoint.
 
 ### Conformance
@@ -129,9 +129,9 @@ The reply prefix `XrdSsiRRInfoAttn` is built in `ssi_reply.c`.
 | File | Responsibility |
 |---|---|
 | `ssi.h` / `ssi.c` | Resource-path matching + the open/write/query/read wire hooks; the synchronous responder + dispatch. |
-| `ssi_req.h` | `xrootd_ssi_req_t` — the per-`reqId` request slot (nginx-free data type, so the table logic is unit-testable standalone). |
+| `ssi_req.h` | `brix_ssi_req_t` — the per-`reqId` request slot (nginx-free data type, so the table logic is unit-testable standalone). |
 | `respbuf.h` / `respbuf.c` | Grow-on-append response buffer (streamed responses). |
-| `session.h` / `session.c` | `xrootd_ssi_session_t` + RRTable (`reqId`-keyed find-or-create / drop) + per-session generation. |
+| `session.h` / `session.c` | `brix_ssi_session_t` + RRTable (`reqId`-keyed find-or-create / drop) + per-session generation. |
 | `provider.h` / `provider.c` | Service-name → implementation registry. |
 | `registry.h` / `registry.c` | Per-worker session registry (`{session-address, generation}` guard) for safe async delivery. |
 | `deliver.h` / `deliver.c` | The single async push primitive — `kXR_attn + kXR_asynresp` response/alert/error/pend. |

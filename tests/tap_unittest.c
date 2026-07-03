@@ -36,8 +36,8 @@ static void test_decode_request(void)
 {
     uint8_t buf[256];
     size_t total = mk_request(buf, 0x0102, kXR_open, "/foo/bar");
-    xrootd_tap_frame_t f;
-    size_t hdr = xrootd_tap_decode_request(buf, total, &f);
+    brix_tap_frame_t f;
+    size_t hdr = brix_tap_decode_request(buf, total, &f);
     assert(hdr == 24);
     assert(f.is_request == 1);
     assert(f.streamid == 0x0102);
@@ -51,8 +51,8 @@ static void test_decode_request_no_path(void)
     uint8_t buf[64];
     /* kXR_ping carries no path even with a payload */
     size_t total = mk_request(buf, 7, kXR_ping, NULL);
-    xrootd_tap_frame_t f;
-    size_t hdr = xrootd_tap_decode_request(buf, total, &f);
+    brix_tap_frame_t f;
+    size_t hdr = brix_tap_decode_request(buf, total, &f);
     assert(hdr == 24);
     assert(f.opcode == kXR_ping);
     assert(f.path == NULL && f.path_len == 0);
@@ -62,8 +62,8 @@ static void test_decode_response(void)
 {
     uint8_t buf[16];
     mk_response(buf, 0x0102, kXR_ok, 0);
-    xrootd_tap_frame_t f;
-    size_t hdr = xrootd_tap_decode_response(buf, 8, &f);
+    brix_tap_frame_t f;
+    size_t hdr = brix_tap_decode_response(buf, 8, &f);
     assert(hdr == 8);
     assert(f.is_request == 0);
     assert(f.streamid == 0x0102);
@@ -79,27 +79,27 @@ static void test_decode_response_errnum(void)
     mk_response(buf, 3, kXR_error, 4 + 5);
     memcpy(buf + 8, &errnum_be, 4);
     memcpy(buf + 12, "gone", 5);
-    xrootd_tap_frame_t f;
-    assert(xrootd_tap_decode_response(buf, 17, &f) == 8);
+    brix_tap_frame_t f;
+    assert(brix_tap_decode_response(buf, 17, &f) == 8);
     assert(f.status == kXR_error);
     assert(f.errnum == 3011);
 
     /* header-only view: errnum unknown -> 0 */
-    assert(xrootd_tap_decode_response(buf, 8, &f) == 8);
+    assert(brix_tap_decode_response(buf, 8, &f) == 8);
     assert(f.errnum == 0);
 }
 
 static void test_truncated(void)
 {
     uint8_t buf[4] = {0};
-    xrootd_tap_frame_t f;
-    assert(xrootd_tap_decode_request(buf, 4, &f) == 0);   /* < 24 */
-    assert(xrootd_tap_decode_response(buf, 4, &f) == 0);  /* < 8  */
+    brix_tap_frame_t f;
+    assert(brix_tap_decode_request(buf, 4, &f) == 0);   /* < 24 */
+    assert(brix_tap_decode_response(buf, 4, &f) == 0);  /* < 8  */
 }
 
 struct count_ctx { int n; uint16_t last_op; };
-static void count_sink(void *ctx, const xrootd_tap_frame_t *f,
-    xrootd_tap_dir_t dir, const uint8_t *payload, size_t payload_len)
+static void count_sink(void *ctx, const brix_tap_frame_t *f,
+    brix_tap_dir_t dir, const uint8_t *payload, size_t payload_len)
 {
     struct count_ctx *c = ctx;
     (void) dir; (void) payload; (void) payload_len;
@@ -109,15 +109,15 @@ static void count_sink(void *ctx, const xrootd_tap_frame_t *f,
 
 static void test_emit_fanout(void)
 {
-    xrootd_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
+    brix_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
     struct count_ctx a = {0, 0}, b = {0, 0};
-    xrootd_tap_register_sink(&tap, count_sink, &a);
-    xrootd_tap_register_sink(&tap, count_sink, &b);
+    brix_tap_register_sink(&tap, count_sink, &a);
+    brix_tap_register_sink(&tap, count_sink, &b);
 
-    xrootd_tap_frame_t f; memset(&f, 0, sizeof(f));
+    brix_tap_frame_t f; memset(&f, 0, sizeof(f));
     f.is_request = 1; f.opcode = kXR_open;
-    xrootd_tap_emit(&tap, &f, XROOTD_TAP_C2U, NULL, 0);
-    xrootd_tap_emit(&tap, &f, XROOTD_TAP_C2U, NULL, 0);
+    brix_tap_emit(&tap, &f, BRIX_TAP_C2U, NULL, 0);
+    brix_tap_emit(&tap, &f, BRIX_TAP_C2U, NULL, 0);
 
     assert(a.n == 2 && b.n == 2);
     assert(a.last_op == kXR_open && b.last_op == kXR_open);
@@ -127,11 +127,11 @@ static void test_audit_format(void)
 {
     uint8_t buf[256];
     size_t total = mk_request(buf, 5, kXR_open, "/a/\"b\"");  /* quote → must escape */
-    xrootd_tap_frame_t f;
-    xrootd_tap_decode_request(buf, total, &f);
+    brix_tap_frame_t f;
+    brix_tap_decode_request(buf, total, &f);
 
     char out[512];
-    size_t n = xrootd_tap_audit_format(&f, XROOTD_TAP_C2U, out, sizeof(out));
+    size_t n = brix_tap_audit_format(&f, BRIX_TAP_C2U, out, sizeof(out));
     assert(n > 0);
     assert(strstr(out, "\"dir\":\"c2u\"") != NULL);
     assert(strstr(out, "\"op\":\"open\"") != NULL);
@@ -140,13 +140,13 @@ static void test_audit_format(void)
 
     /* truncation: a tiny buffer returns 0, never overflows */
     char tiny[8];
-    assert(xrootd_tap_audit_format(&f, XROOTD_TAP_C2U, tiny, sizeof(tiny)) == 0);
+    assert(brix_tap_audit_format(&f, BRIX_TAP_C2U, tiny, sizeof(tiny)) == 0);
 }
 
 /* records every frame the stream decoder emits */
 struct rec_ctx { int n; uint16_t op[16]; uint32_t errnum[16]; char path[16][64]; };
-static void rec_sink(void *ctx, const xrootd_tap_frame_t *f,
-    xrootd_tap_dir_t dir, const uint8_t *payload, size_t payload_len)
+static void rec_sink(void *ctx, const brix_tap_frame_t *f,
+    brix_tap_dir_t dir, const uint8_t *payload, size_t payload_len)
 {
     struct rec_ctx *r = ctx;
     (void) dir; (void) payload; (void) payload_len;
@@ -172,14 +172,14 @@ static void test_stream_chunked(void)
     memcpy(wire + 20, a, na); memcpy(wire + 20 + na, b, nb);
     size_t total = 20 + na + nb;
 
-    xrootd_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
+    brix_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
     struct rec_ctx r; memset(&r, 0, sizeof(r));
-    xrootd_tap_register_sink(&tap, rec_sink, &r);
+    brix_tap_register_sink(&tap, rec_sink, &r);
 
-    xrootd_tap_stream_t st;
-    xrootd_tap_stream_init(&st, &tap, XROOTD_TAP_C2U);
+    brix_tap_stream_t st;
+    brix_tap_stream_init(&st, &tap, BRIX_TAP_C2U);
     for (size_t i = 0; i < total; i++) {
-        xrootd_tap_stream_feed(&st, wire + i, 1);   /* 1-byte chunks */
+        brix_tap_stream_feed(&st, wire + i, 1);   /* 1-byte chunks */
     }
     assert(r.n == 2);
     assert(r.op[0] == kXR_open && strcmp(r.path[0], "/x") == 0);
@@ -198,18 +198,18 @@ static void test_stream_response_and_skip(void)
     uint8_t resp[8];
     mk_response(resp, 9, kXR_ok, 0);
 
-    xrootd_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
+    brix_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
     struct rec_ctx rq; memset(&rq, 0, sizeof(rq));
     struct rec_ctx rs; memset(&rs, 0, sizeof(rs));
-    xrootd_tap_register_sink(&tap, rec_sink, &rq);
-    xrootd_tap_stream_t cu; xrootd_tap_stream_init(&cu, &tap, XROOTD_TAP_C2U);
-    xrootd_tap_stream_feed(&cu, buf, reqlen);
+    brix_tap_register_sink(&tap, rec_sink, &rq);
+    brix_tap_stream_t cu; brix_tap_stream_init(&cu, &tap, BRIX_TAP_C2U);
+    brix_tap_stream_feed(&cu, buf, reqlen);
     assert(rq.n == 1 && rq.op[0] == kXR_write);   /* emitted on header, payload skipped */
 
     memset(&tap, 0, sizeof(tap));
-    xrootd_tap_register_sink(&tap, rec_sink, &rs);
-    xrootd_tap_stream_t uc; xrootd_tap_stream_init(&uc, &tap, XROOTD_TAP_U2C);
-    xrootd_tap_stream_feed(&uc, resp, 8);
+    brix_tap_register_sink(&tap, rec_sink, &rs);
+    brix_tap_stream_t uc; brix_tap_stream_init(&uc, &tap, BRIX_TAP_U2C);
+    brix_tap_stream_feed(&uc, resp, 8);
     assert(rs.n == 1 && rs.op[0] == kXR_ok);
 }
 
@@ -241,13 +241,13 @@ static void test_stream_writev_trailing_data(void)
     memcpy(wire + off, req, nreq);
     size_t total = off + nreq;
 
-    xrootd_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
+    brix_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
     struct rec_ctx r; memset(&r, 0, sizeof(r));
-    xrootd_tap_register_sink(&tap, rec_sink, &r);
-    xrootd_tap_stream_t st;
-    xrootd_tap_stream_init(&st, &tap, XROOTD_TAP_C2U);
+    brix_tap_register_sink(&tap, rec_sink, &r);
+    brix_tap_stream_t st;
+    brix_tap_stream_init(&st, &tap, BRIX_TAP_C2U);
     for (size_t i = 0; i < total; i++) {
-        xrootd_tap_stream_feed(&st, wire + i, 1);        /* 1-byte chunks */
+        brix_tap_stream_feed(&st, wire + i, 1);        /* 1-byte chunks */
     }
 
     assert(r.n == 2);
@@ -293,13 +293,13 @@ static void test_stream_ckpxeq_trailing_subbody(void)
     memcpy(wire + off, req, nreq);
     size_t total = off + nreq;
 
-    xrootd_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
+    brix_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
     struct rec_ctx r; memset(&r, 0, sizeof(r));
-    xrootd_tap_register_sink(&tap, rec_sink, &r);
-    xrootd_tap_stream_t st;
-    xrootd_tap_stream_init(&st, &tap, XROOTD_TAP_C2U);
+    brix_tap_register_sink(&tap, rec_sink, &r);
+    brix_tap_stream_t st;
+    brix_tap_stream_init(&st, &tap, BRIX_TAP_C2U);
     for (size_t i = 0; i < total; i++) {
-        xrootd_tap_stream_feed(&st, wire + i, 1);        /* 1-byte chunks */
+        brix_tap_stream_feed(&st, wire + i, 1);        /* 1-byte chunks */
     }
 
     assert(r.n == 2);
@@ -350,13 +350,13 @@ static void test_stream_ckpxeq_write_and_truncate(void)
     memcpy(wire + off, req, nreq);
     size_t total = off + nreq;
 
-    xrootd_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
+    brix_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
     struct rec_ctx r; memset(&r, 0, sizeof(r));
-    xrootd_tap_register_sink(&tap, rec_sink, &r);
-    xrootd_tap_stream_t st;
-    xrootd_tap_stream_init(&st, &tap, XROOTD_TAP_C2U);
+    brix_tap_register_sink(&tap, rec_sink, &r);
+    brix_tap_stream_t st;
+    brix_tap_stream_init(&st, &tap, BRIX_TAP_C2U);
     for (size_t i = 0; i < total; i++) {
-        xrootd_tap_stream_feed(&st, wire + i, 1);        /* 1-byte chunks */
+        brix_tap_stream_feed(&st, wire + i, 1);        /* 1-byte chunks */
     }
 
     assert(r.n == 3);
@@ -374,12 +374,12 @@ static void test_stream_c2u_handshake_skip(void)
     memcpy(wire + 20, req, nreq);
     size_t total = 20 + nreq;
 
-    xrootd_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
+    brix_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
     struct rec_ctx r; memset(&r, 0, sizeof(r));
-    xrootd_tap_register_sink(&tap, rec_sink, &r);
-    xrootd_tap_stream_t st;
-    xrootd_tap_stream_init(&st, &tap, XROOTD_TAP_C2U);
-    xrootd_tap_stream_feed(&st, wire, total);
+    brix_tap_register_sink(&tap, rec_sink, &r);
+    brix_tap_stream_t st;
+    brix_tap_stream_init(&st, &tap, BRIX_TAP_C2U);
+    brix_tap_stream_feed(&st, wire, total);
 
     assert(r.n == 1);
     assert(r.op[0] == kXR_open && strcmp(r.path[0], "/p/q") == 0);
@@ -395,12 +395,12 @@ static void test_stream_error_errnum(void)
     memcpy(wire + off, &errnum_be, 4); off += 4;
     memcpy(wire + off, "no", 3); off += 3;
 
-    xrootd_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
+    brix_tap_ctx_t tap; memset(&tap, 0, sizeof(tap));
     struct rec_ctx r; memset(&r, 0, sizeof(r));
-    xrootd_tap_register_sink(&tap, rec_sink, &r);
-    xrootd_tap_stream_t uc; xrootd_tap_stream_init(&uc, &tap, XROOTD_TAP_U2C);
+    brix_tap_register_sink(&tap, rec_sink, &r);
+    brix_tap_stream_t uc; brix_tap_stream_init(&uc, &tap, BRIX_TAP_U2C);
     for (size_t i = 0; i < off; i++) {
-        xrootd_tap_stream_feed(&uc, wire + i, 1);
+        brix_tap_stream_feed(&uc, wire + i, 1);
     }
     assert(r.n == 2);
     assert(r.op[0] == kXR_ok && r.errnum[0] == 0);

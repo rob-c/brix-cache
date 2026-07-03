@@ -29,7 +29,7 @@
  *   8. Estimate XML buffer capacity (512 header + per-key × 6× expansion)
  *   9. Append XML: ListBucketResult root → Name, Prefix, KeyCount, MaxKeys,
  *      IsTruncated, NextContinuationToken → Contents/CommonPrefixes loop
- *   10. Create response buffer, increment metrics, send via xrootd_http_send_xml_buffer()
+ *   10. Create response buffer, increment metrics, send via brix_http_send_xml_buffer()
  *
  * Pool allocation: entries array and xml buffer use ngx_palloc(r->pool) — lifetime
  *   survives until the HTTP response filter completes.
@@ -61,11 +61,11 @@ s3_handle_list(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
     ngx_int_t    rc;
 
     /* Parse query parameters (max-keys via the shared helper). */
-    xrootd_http_query_get(r->args, "prefix",             (char *) prefix_buf,        sizeof(prefix_buf),        S3_LIST_QUERY_FLAGS);
-    xrootd_http_query_get(r->args, "delimiter",          (char *) delimiter_buf,     sizeof(delimiter_buf),     S3_LIST_QUERY_FLAGS);
-    xrootd_http_query_get(r->args, "continuation-token", (char *) token_buf,         sizeof(token_buf),         S3_LIST_QUERY_FLAGS);
-    xrootd_http_query_get(r->args, "fetch-owner",        (char *) fetch_owner_buf,   sizeof(fetch_owner_buf),   S3_LIST_QUERY_FLAGS);
-    xrootd_http_query_get(r->args, "encoding-type",      (char *) encoding_type_buf, sizeof(encoding_type_buf), S3_LIST_QUERY_FLAGS);
+    brix_http_query_get(r->args, "prefix",             (char *) prefix_buf,        sizeof(prefix_buf),        S3_LIST_QUERY_FLAGS);
+    brix_http_query_get(r->args, "delimiter",          (char *) delimiter_buf,     sizeof(delimiter_buf),     S3_LIST_QUERY_FLAGS);
+    brix_http_query_get(r->args, "continuation-token", (char *) token_buf,         sizeof(token_buf),         S3_LIST_QUERY_FLAGS);
+    brix_http_query_get(r->args, "fetch-owner",        (char *) fetch_owner_buf,   sizeof(fetch_owner_buf),   S3_LIST_QUERY_FLAGS);
+    brix_http_query_get(r->args, "encoding-type",      (char *) encoding_type_buf, sizeof(encoding_type_buf), S3_LIST_QUERY_FLAGS);
 
     if (ngx_strcasecmp(fetch_owner_buf, (u_char *) "true") == 0) {
         fetch_owner = 1;
@@ -95,7 +95,7 @@ s3_handle_list(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
                                (const char *) delimiter_buf,
                                &items, &total) != NGX_OK)
     {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
@@ -123,7 +123,7 @@ s3_handle_list(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
 
     xml = ngx_palloc(r->pool, xml_capacity);
     if (xml == NULL) {
-        XROOTD_S3_METRIC_INC(events_total[XROOTD_S3_EVENT_INTERNAL_ERROR]);
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 

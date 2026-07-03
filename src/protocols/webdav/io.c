@@ -12,11 +12,11 @@
 ngx_int_t
 webdav_write_full(ngx_fd_t fd, u_char *buf, size_t len, off_t offset)
 {
-    xrootd_sd_obj_t obj;
+    brix_sd_obj_t obj;
 
     /* Positional write-full through the Storage Driver seam (syscall stays in
      * the backend); the caller passes the destination offset. */
-    xrootd_sd_posix_wrap(&obj, fd);
+    brix_sd_posix_wrap(&obj, fd);
     while (len > 0) {
         ssize_t nwritten;
 
@@ -67,7 +67,7 @@ webdav_write_full(ngx_fd_t fd, u_char *buf, size_t len, off_t offset)
  * ENOSYS/EOPNOTSUPP/EINVAL/EPERM break out to fallback. Phase 3 (fallback): allocate scratch
  * buffer via ngx_palloc(r->pool) if not already done, loop using pread + webdav_write_full.
  * Phase 4: return NGX_OK if remaining == 0 after either phase. Logging uses
- * xrootd_log_safe_path() for safe path formatting in error messages.
+ * brix_log_safe_path() for safe path formatting in error messages.
  */
 ngx_int_t
 webdav_copy_spooled_file(ngx_http_request_t *r, ngx_fd_t dst_fd, ngx_buf_t *buf,
@@ -76,7 +76,7 @@ webdav_copy_spooled_file(ngx_http_request_t *r, ngx_fd_t dst_fd, ngx_buf_t *buf,
     off_t dst_off = 0;
 
     (void) scratch;
-    return xrootd_http_body_write_buf(r, dst_fd, buf, &dst_off, path);
+    return brix_http_body_write_buf(r, dst_fd, buf, &dst_off, path);
 }
 
 void
@@ -92,7 +92,7 @@ webdav_fadvise_willneed(ngx_log_t *log, ngx_fd_t fd, off_t offset, size_t len)
     rc = posix_fadvise(fd, offset, (off_t) len, POSIX_FADV_WILLNEED);
     if (rc != 0) {
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, log, 0,
-                       "xrootd_webdav: POSIX_FADV_WILLNEED ignored: %s",
+                       "brix_webdav: POSIX_FADV_WILLNEED ignored: %s",
                        strerror(rc));
     }
 #else

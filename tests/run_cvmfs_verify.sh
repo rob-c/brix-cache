@@ -25,13 +25,13 @@ thread_pool default threads=2;
 events { worker_connections 128; }
 http { access_log off; server {
     listen 127.0.0.1:$CPORT;
-    location /metrics { xrootd_metrics on; }
+    location /metrics { brix_metrics on; }
     location /cvmfs/ {
-        xrootd_cvmfs_storage_backend http://127.0.0.1:$MPORT;
-        xrootd_cvmfs_cache_store posix:$PFX/cache;
-        xrootd_cache_verify $1;
-        xrootd_cvmfs on;
-        xrootd_cvmfs_quarantine_dir $PFX/quarantine;
+        brix_cvmfs_storage_backend http://127.0.0.1:$MPORT;
+        brix_cvmfs_cache_store posix:$PFX/cache;
+        brix_cache_verify $1;
+        brix_cvmfs on;
+        brix_cvmfs_quarantine_dir $PFX/quarantine;
     }
 } }
 EOF
@@ -52,7 +52,7 @@ curl -s -o /dev/null -X POST -d '{"mode":"none","count":0}' "http://127.0.0.1:$M
 [ -n "$(ls -A "$PFX/quarantine")" ] && ok "corrupt part quarantined" \
     || bad "quarantine empty"
 
-V="$(curl -s "http://127.0.0.1:$CPORT/metrics" | sed -n 's/^xrootd_cvmfs_verify_failures_total //p')"
+V="$(curl -s "http://127.0.0.1:$CPORT/metrics" | sed -n 's/^brix_cvmfs_verify_failures_total //p')"
 [ "${V:-0}" -ge 1 ] && ok "verify failure counted in /metrics ($V)" \
     || bad "verify_failures_total missing/zero"
 

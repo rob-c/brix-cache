@@ -55,7 +55,7 @@ class TestSliceLibrary:
 
 
 class TestSliceConfig:
-    """Step F — the xrootd_cache_slice_size tier directive parses and validates."""
+    """Step F — the brix_cache_slice_size tier directive parses and validates."""
 
     def _nginx_t(self, tmp_path, slice_value):
         cache = tmp_path / "cache"
@@ -71,12 +71,12 @@ class TestSliceConfig:
                 server {{
                     listen 21794;
                     xrootd on;
-                    xrootd_root {tmp_path};
-                    xrootd_auth none;
-                    xrootd_storage_backend root://{HOST}:1095;
-                    xrootd_cache_store posix:{cache};
-                    xrootd_cache_root /;
-                    xrootd_cache_slice_size {slice_value};
+                    brix_root {tmp_path};
+                    brix_auth none;
+                    brix_storage_backend root://{HOST}:1095;
+                    brix_cache_store posix:{cache};
+                    brix_cache_root /;
+                    brix_cache_slice_size {slice_value};
                 }}
             }}
             """))
@@ -158,7 +158,7 @@ class TestSliceCacheIntegration:
 #
 # This is the real, runnable end-to-end coverage the spec class above sketched.
 # It self-provisions an ORIGIN data server holding a 16 MiB file and a CACHE
-# server in slice mode (xrootd_cache_slice 1m) pointed at it, then drives raw
+# server in slice mode (brix_cache_slice 1m) pointed at it, then drives raw
 # kXR_open + kXR_read (handling the async-fill kXR_wait/retry) at chosen offsets
 # and INSPECTS cache_root on disk.  The invariant under test, stated three ways:
 #   * a partial read materialises only the 1 MiB slice(s) it touched (+ slice 0,
@@ -173,7 +173,7 @@ _kXR_login, _kXR_open, _kXR_read, _kXR_close = 3007, 3010, 3013, 3003
 _kXR_ok, _kXR_oksofar, _kXR_error, _kXR_wait = 0, 4000, 4003, 4005
 _kXR_open_read = 0x0010
 
-_SLICE = 1024 * 1024          # bytes; must match `xrootd_cache_slice 1m`
+_SLICE = 1024 * 1024          # bytes; must match `brix_cache_slice 1m`
 _NSLICES = 16
 _FILESIZE = _SLICE * _NSLICES  # 16 MiB
 
@@ -293,8 +293,8 @@ def xcache(tmp_path_factory):
         "stream {\n  server {\n"
         f"    listen 127.0.0.1:{origin_port};\n"
         "    xrootd on;\n"
-        f"    xrootd_root {origin_data};\n"
-        "    xrootd_auth none;\n  }\n}\n")
+        f"    brix_root {origin_data};\n"
+        "    brix_auth none;\n  }\n}\n")
     cache_cfg = head + (
         f"pid {base}/logs/cache.pid;\n"
         f"error_log {base}/logs/cache.log info;\n"
@@ -302,12 +302,12 @@ def xcache(tmp_path_factory):
         "stream {\n  server {\n"
         f"    listen 127.0.0.1:{cache_port};\n"
         "    xrootd on;\n"
-        f"    xrootd_root {export};\n"
-        "    xrootd_auth none;\n"
-        f"    xrootd_storage_backend root://127.0.0.1:{origin_port};\n"
-        f"    xrootd_cache_store posix:{cache_root};\n"
-        "    xrootd_cache_root /;\n"
-        "    xrootd_cache_slice_size 1m;\n  }\n}\n")
+        f"    brix_root {export};\n"
+        "    brix_auth none;\n"
+        f"    brix_storage_backend root://127.0.0.1:{origin_port};\n"
+        f"    brix_cache_store posix:{cache_root};\n"
+        "    brix_cache_root /;\n"
+        "    brix_cache_slice_size 1m;\n  }\n}\n")
 
     origin = _start(base, "origin.conf", origin_cfg, origin_port)
     cache = _start(base, "cache.conf", cache_cfg, cache_port)

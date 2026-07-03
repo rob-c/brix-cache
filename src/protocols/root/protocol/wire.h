@@ -4,11 +4,11 @@
  * Do not include these fragments directly; wire.h owns the public header.
  */
 
-#ifndef XROOTD_PROTOCOL_WIRE_H
-#define XROOTD_PROTOCOL_WIRE_H
+#ifndef BRIX_PROTOCOL_WIRE_H
+#define BRIX_PROTOCOL_WIRE_H
 
 #include "wire_core_requests.h"
 #include "wire_write_extended_requests.h"
 #include "wire_vendor_ext.h"   /* nginx-xrootd vendor ops: setattr/symlink/readlink/link */
 
-#endif /* XROOTD_PROTOCOL_WIRE_H */
+#endif /* BRIX_PROTOCOL_WIRE_H */

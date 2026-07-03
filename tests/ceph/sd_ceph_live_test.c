@@ -3,13 +3,13 @@
  * against a real RADOS pool (tests/ceph_harness.sh).
  *
  * Unlike src/fs/backend/rados/sd_ceph_unittest.c (cluster-free key-map only),
- * this compiles the driver body with XROOTD_HAVE_CEPH and drives the vtable
+ * this compiles the driver body with BRIX_HAVE_CEPH and drives the vtable
  * directly — open/pwrite/pread/fstat/stat/setxattr/getxattr/listxattr/
  * removexattr/unlink — proving the librados data + metadata plane end to end,
  * independent of the nginx export wiring.
  *
  * Build (inside the xrd-ceph-build container, where librados-devel exists):
- *   gcc -DXRDPROTO_NO_NGX -DXROOTD_HAVE_CEPH -I src/fs/backend -I src/fs/backend/rados \
+ *   gcc -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH -I src/fs/backend -I src/fs/backend/rados \
  *       -include tests/ceph/ngx_shim.h \
  *       tests/ceph/sd_ceph_live_test.c src/fs/backend/rados/sd_ceph.c \
  *       -lrados -o /tmp/sd_ceph_live && /tmp/sd_ceph_live
@@ -48,11 +48,11 @@ static int g_fail;
 int
 main(void)
 {
-    const xrootd_sd_driver_t *drv = &xrootd_sd_ceph_driver;
-    xrootd_sd_instance_t      inst;
-    xrootd_sd_ceph_conf_t     conf;
-    xrootd_sd_obj_t          *o;
-    xrootd_sd_stat_t          stbuf;
+    const brix_sd_driver_t *drv = &brix_sd_ceph_driver;
+    brix_sd_instance_t      inst;
+    brix_sd_ceph_conf_t     conf;
+    brix_sd_obj_t          *o;
+    brix_sd_stat_t          stbuf;
     int                       err = 0;
     const char               *path = "/livetest/obj1";
     const char               *payload = "hello rados data plane";
@@ -84,7 +84,7 @@ main(void)
 
     /* --- write path: open(create|write|trunc) → pwrite → fsync → close --- */
     o = drv->open(&inst, path,
-                  XROOTD_SD_O_WRITE | XROOTD_SD_O_CREATE | XROOTD_SD_O_TRUNC,
+                  BRIX_SD_O_WRITE | BRIX_SD_O_CREATE | BRIX_SD_O_TRUNC,
                   0644, &err);
     CHECK(o != NULL, "open for write");
     if (o != NULL) {
@@ -95,7 +95,7 @@ main(void)
 
     /* --- read path: open(read) → fstat → pread → verify bytes --- */
     err = 0;
-    o = drv->open(&inst, path, XROOTD_SD_O_READ, 0, &err);
+    o = drv->open(&inst, path, BRIX_SD_O_READ, 0, &err);
     CHECK(o != NULL, "open for read");
     if (o != NULL) {
         memset(&stbuf, 0, sizeof(stbuf));
@@ -143,7 +143,7 @@ main(void)
         const char         *spay = "staged object payload via staged_*";
         size_t              slen = strlen(spay);
         int                 serr = 0;
-        xrootd_sd_staged_t *sh;
+        brix_sd_staged_t *sh;
 
         drv->unlink(&inst, sp, 0);
         sh = drv->staged_open(&inst, sp, 0644, &serr);
@@ -153,7 +153,7 @@ main(void)
                   "staged_write");
             CHECK(drv->staged_commit(sh, 0) == NGX_OK, "staged_commit");
         }
-        o = drv->open(&inst, sp, XROOTD_SD_O_READ, 0, &err);
+        o = drv->open(&inst, sp, BRIX_SD_O_READ, 0, &err);
         CHECK(o != NULL, "open staged object for read");
         if (o != NULL) {
             char sb[128];

@@ -28,33 +28,33 @@
 /* ---- read verify ----------------------------------------------------------- */
 
 int
-xrootd_csi_verify_read(xrootd_csi_t *c, const unsigned char *buf, off_t off,
+brix_csi_verify_read(brix_csi_t *c, const unsigned char *buf, off_t off,
     size_t len)
 {
-    xrootd_xmeta_t xm;
+    brix_xmeta_t xm;
     int64_t        g;
     uint64_t       b, b0;
-    int            rc = XROOTD_CSI_OK;
+    int            rc = BRIX_CSI_OK;
 
     if (c == NULL || buf == NULL || off < 0) {
         errno = EINVAL;
-        return XROOTD_CSI_ERR;
+        return BRIX_CSI_ERR;
     }
     if (len == 0 || c->trust_fs) {
-        return XROOTD_CSI_OK;   /* nothing to check / self-checksumming fs */
+        return BRIX_CSI_OK;   /* nothing to check / self-checksumming fs */
     }
 
-    switch (xrootd_xmeta_path_load(c->path, &xm)) {
-    case XROOTD_XMETA_OK:
+    switch (brix_xmeta_path_load(c->path, &xm)) {
+    case BRIX_XMETA_OK:
         break;
-    case XROOTD_XMETA_FOREIGN:
-        return XROOTD_CSI_NOTAGS;
+    case BRIX_XMETA_FOREIGN:
+        return BRIX_CSI_NOTAGS;
     default:
-        return XROOTD_CSI_ERR;
+        return BRIX_CSI_ERR;
     }
     if (!xm.have_blockcrc || xm.blockcrc == NULL || xm.buffer_size <= 0) {
-        xrootd_xmeta_free(&xm);
-        return XROOTD_CSI_NOTAGS;
+        brix_xmeta_free(&xm);
+        return BRIX_CSI_NOTAGS;
     }
 
     /* Verify every block the buffer FULLY covers (the last file block is
@@ -71,17 +71,17 @@ xrootd_csi_verify_read(xrootd_csi_t *c, const unsigned char *buf, off_t off,
         if (bend > off + (int64_t) len) {
             break;                      /* not fully covered by this read */
         }
-        if (xm.blockcrc[b] == XROOTD_XMETA_CRC_UNSET) {
+        if (xm.blockcrc[b] == BRIX_XMETA_CRC_UNSET) {
             continue;
         }
-        if (xrootd_crc32c_value(buf + (bstart - off),
+        if (brix_crc32c_value(buf + (bstart - off),
                                 (size_t) (bend - bstart)) != xm.blockcrc[b])
         {
-            rc = XROOTD_CSI_MISMATCH;
+            rc = BRIX_CSI_MISMATCH;
             break;
         }
     }
-    xrootd_xmeta_free(&xm);
+    brix_xmeta_free(&xm);
     return rc;
 }
 
@@ -89,12 +89,12 @@ xrootd_csi_verify_read(xrootd_csi_t *c, const unsigned char *buf, off_t off,
 
 /* Grow the handle-local table to hold block index b. 0 / -1 (cap/OOM). */
 static int
-csi_local_reserve(xrootd_csi_t *c, uint64_t b)
+csi_local_reserve(brix_csi_t *c, uint64_t b)
 {
     uint64_t  want;
     uint32_t *grown;
 
-    if (b >= XROOTD_CSI_LOCAL_MAX) {
+    if (b >= BRIX_CSI_LOCAL_MAX) {
         c->overflow = 1;
         return -1;
     }
@@ -105,8 +105,8 @@ csi_local_reserve(xrootd_csi_t *c, uint64_t b)
     while (want <= b) {
         want *= 2;
     }
-    if (want > XROOTD_CSI_LOCAL_MAX) {
-        want = XROOTD_CSI_LOCAL_MAX;
+    if (want > BRIX_CSI_LOCAL_MAX) {
+        want = BRIX_CSI_LOCAL_MAX;
     }
     grown = realloc(c->local, (size_t) want * sizeof(uint32_t));
     if (grown == NULL) {
@@ -121,7 +121,7 @@ csi_local_reserve(xrootd_csi_t *c, uint64_t b)
 }
 
 int
-xrootd_csi_write_update(xrootd_csi_t *c, const unsigned char *buf, off_t off,
+brix_csi_write_update(brix_csi_t *c, const unsigned char *buf, off_t off,
     size_t len)
 {
     uint64_t b, b0;
@@ -129,10 +129,10 @@ xrootd_csi_write_update(xrootd_csi_t *c, const unsigned char *buf, off_t off,
 
     if (c == NULL || off < 0 || (buf == NULL && len != 0)) {
         errno = EINVAL;
-        return XROOTD_CSI_ERR;
+        return BRIX_CSI_ERR;
     }
     if (len == 0) {
-        return XROOTD_CSI_OK;
+        return BRIX_CSI_OK;
     }
 
     if (!c->dirty) {
@@ -162,9 +162,9 @@ xrootd_csi_write_update(xrootd_csi_t *c, const unsigned char *buf, off_t off,
         if (csi_local_reserve(c, b) != 0) {
             break;                      /* cap/OOM: flush covers what it can */
         }
-        c->local[b] = xrootd_crc32c_value(buf + (bstart - off), (size_t) g);
+        c->local[b] = brix_crc32c_value(buf + (bstart - off), (size_t) g);
     }
-    return XROOTD_CSI_OK;
+    return BRIX_CSI_OK;
 }
 
 /* ---- flush ------------------------------------------------------------------ */
@@ -173,11 +173,11 @@ xrootd_csi_write_update(xrootd_csi_t *c, const unsigned char *buf, off_t off,
  * rewrote the file, so the local bytes are authoritative: the present bitmap
  * is fully set. 0 / -1. */
 static int
-csi_record_regeom(xrootd_xmeta_t *xm, int64_t new_size, int64_t granule)
+csi_record_regeom(brix_xmeta_t *xm, int64_t new_size, int64_t granule)
 {
-    xrootd_xmeta_t nu;
+    brix_xmeta_t nu;
 
-    if (xrootd_xmeta_init(&nu, new_size, granule) != XROOTD_XMETA_OK) {
+    if (brix_xmeta_init(&nu, new_size, granule) != BRIX_XMETA_OK) {
         return -1;
     }
     nu.creation_time = xm->creation_time ? xm->creation_time
@@ -208,59 +208,59 @@ csi_record_regeom(xrootd_xmeta_t *xm, int64_t new_size, int64_t granule)
         memset(nu.bitmap, 0xFF,
                (size_t) ((nu.nblocks + 7) / 8));       /* file is the data */
     }
-    xrootd_xmeta_free(xm);
+    brix_xmeta_free(xm);
     *xm = nu;
     return 0;
 }
 
 int
-xrootd_csi_flush(xrootd_csi_t *c)
+brix_csi_flush(brix_csi_t *c)
 {
-    xrootd_xmeta_t xm;
+    brix_xmeta_t xm;
     struct stat    st;
     int64_t        g;
     uint64_t       b, b_lo, b_hi;
-    int            fd, lockfd, budget = XROOTD_CSI_FLUSH_READ;
+    int            fd, lockfd, budget = BRIX_CSI_FLUSH_READ;
     int            fold_ok, any_unset = 0, rc;
     unsigned char *blockbuf = NULL;
 
     if (c == NULL || !c->writable) {
         errno = EINVAL;
-        return XROOTD_CSI_ERR;
+        return BRIX_CSI_ERR;
     }
     if (!c->dirty) {
-        return XROOTD_CSI_OK;
+        return BRIX_CSI_OK;
     }
 
     /* Flush reads the file back, so it opens its own O_RDONLY fd — the
      * handle's data fd may already be closed or write-only. */
     fd = open(c->path, O_RDONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW);
     if (fd < 0) {
-        return XROOTD_CSI_ERR;
+        return BRIX_CSI_ERR;
     }
     if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
         close(fd);
-        return XROOTD_CSI_ERR;
+        return BRIX_CSI_ERR;
     }
 
-    lockfd = xrootd_xmeta_path_lock(c->path);
+    lockfd = brix_xmeta_path_lock(c->path);
     if (lockfd < 0) {
         close(fd);
-        return XROOTD_CSI_ERR;
+        return BRIX_CSI_ERR;
     }
 
     /* Load / create / re-geometry the record. */
-    rc = xrootd_xmeta_path_load(c->path, &xm);
-    if (rc == XROOTD_XMETA_ERR
-        || (rc == XROOTD_XMETA_FOREIGN
-            && xrootd_xmeta_init(&xm, st.st_size,
-                                 (int64_t) c->granule) != XROOTD_XMETA_OK))
+    rc = brix_xmeta_path_load(c->path, &xm);
+    if (rc == BRIX_XMETA_ERR
+        || (rc == BRIX_XMETA_FOREIGN
+            && brix_xmeta_init(&xm, st.st_size,
+                                 (int64_t) c->granule) != BRIX_XMETA_OK))
     {
-        xrootd_xmeta_path_unlock(lockfd);
+        brix_xmeta_path_unlock(lockfd);
         close(fd);
-        return XROOTD_CSI_ERR;
+        return BRIX_CSI_ERR;
     }
-    if (rc == XROOTD_XMETA_FOREIGN) {
+    if (rc == BRIX_XMETA_FOREIGN) {
         /* Fresh record for a file this handle wrote: fully present. */
         xm.origin_mtime = (uint64_t) st.st_mtime;
         if (xm.nblocks > 0) {
@@ -271,10 +271,10 @@ xrootd_csi_flush(xrootd_csi_t *c)
                               xm.buffer_size > 0 ? xm.buffer_size
                                                  : (int64_t) c->granule) != 0)
         {
-            xrootd_xmeta_free(&xm);
-            xrootd_xmeta_path_unlock(lockfd);
+            brix_xmeta_free(&xm);
+            brix_xmeta_path_unlock(lockfd);
             close(fd);
-            return XROOTD_CSI_ERR;
+            return BRIX_CSI_ERR;
         }
         xm.origin_mtime = (uint64_t) st.st_mtime;
     }
@@ -283,11 +283,11 @@ xrootd_csi_flush(xrootd_csi_t *c)
         xm.blockcrc = calloc(xm.nblocks ? (size_t) xm.nblocks : 1,
                              sizeof(uint32_t));
         if (xm.blockcrc == NULL) {
-            xrootd_xmeta_free(&xm);
-            xrootd_xmeta_path_unlock(lockfd);
+            brix_xmeta_free(&xm);
+            brix_xmeta_path_unlock(lockfd);
             close(fd);
             errno = ENOMEM;
-            return XROOTD_CSI_ERR;
+            return BRIX_CSI_ERR;
         }
     }
     xm.have_blockcrc = 1;
@@ -304,7 +304,7 @@ xrootd_csi_flush(xrootd_csi_t *c)
     }
     for (b = b_lo; b < b_hi; b++) {
         if (fold_ok && b < c->local_n
-            && c->local[b] != XROOTD_XMETA_CRC_UNSET)
+            && c->local[b] != BRIX_XMETA_CRC_UNSET)
         {
             xm.blockcrc[b] = c->local[b];
             continue;
@@ -338,17 +338,17 @@ xrootd_csi_flush(xrootd_csi_t *c)
                 }
                 budget--;
                 if (!short_read) {
-                    xm.blockcrc[b] = xrootd_crc32c_value(blockbuf, got);
+                    xm.blockcrc[b] = brix_crc32c_value(blockbuf, got);
                     continue;
                 }
             }
         }
-        xm.blockcrc[b] = XROOTD_XMETA_CRC_UNSET;    /* cannot vouch for it */
+        xm.blockcrc[b] = BRIX_XMETA_CRC_UNSET;    /* cannot vouch for it */
     }
     free(blockbuf);
 
     for (b = 0; b < xm.nblocks; b++) {
-        if (xm.blockcrc[b] == XROOTD_XMETA_CRC_UNSET) {
+        if (xm.blockcrc[b] == BRIX_XMETA_CRC_UNSET) {
             any_unset = 1;
             break;
         }
@@ -361,12 +361,12 @@ xrootd_csi_flush(xrootd_csi_t *c)
         xm.no_cksum_time = 0;
     }
 
-    rc = (xrootd_xmeta_path_save(c->path, &xm) == XROOTD_XMETA_OK)
-         ? XROOTD_CSI_OK : XROOTD_CSI_ERR;
-    xrootd_xmeta_free(&xm);
-    xrootd_xmeta_path_unlock(lockfd);
+    rc = (brix_xmeta_path_save(c->path, &xm) == BRIX_XMETA_OK)
+         ? BRIX_CSI_OK : BRIX_CSI_ERR;
+    brix_xmeta_free(&xm);
+    brix_xmeta_path_unlock(lockfd);
     close(fd);
-    if (rc == XROOTD_CSI_OK) {
+    if (rc == BRIX_CSI_OK) {
         c->dirty = 0;
     }
     return rc;

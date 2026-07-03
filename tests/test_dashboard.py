@@ -79,7 +79,7 @@ def _get(path, cookie=None):
 
 class TestDashboardApiFoundation:
     def test_v1_snapshot_anonymous_is_pii_free(self):
-        """With `xrootd_dashboard_anonymous on` (the test fleet config) the read
+        """With `brix_dashboard_anonymous on` (the test fleet config) the read
         API is reachable WITHOUT a login cookie and returns 200 — but the data is
         PII-redacted for anonymous viewers (IPs/identities/paths scrubbed,
         worker_pid omitted; src/observability/dashboard/api.c redact path).  The config-download

@@ -5,13 +5,13 @@
  * staged_open dst, pread -> staged_write -> staged_commit) plus the inline submit
  * front door and the unified audit line. The durable queue + waiter + restart
  * reconcile are extracted from src/frm/ in SP4 (section 13b) and attach behind
- * xrootd_stage_submit() without touching a caller; until then async degrades to an
+ * brix_stage_submit() without touching a caller; until then async degrades to an
  * honest inline move and the scheduler/reconcile hooks are no-ops.
  */
 #include "stage_engine.h"
-#include "xfer.h"   /* xrootd_xfer_finish + the kind/result vocabulary (ledger) */
-#include "core/aio/aio.h"                /* xrootd_task_bind (mover thread-offload) */
-#include "fs/vfs/vfs_backend_registry.h"      /* xrootd_vfs_backend_resolve (reconcile) */
+#include "xfer.h"   /* brix_xfer_finish + the kind/result vocabulary (ledger) */
+#include "core/aio/aio.h"                /* brix_task_bind (mover thread-offload) */
+#include "fs/vfs/vfs_backend_registry.h"      /* brix_vfs_backend_resolve (reconcile) */
 #include "fs/backend/cache/sd_cache.h"    /* cache instance_is / source_instance    */
 #include "fs/backend/stage/sd_stage.h"    /* stage instance_is / reflush            */
 
@@ -33,17 +33,17 @@
  * a per-worker in-memory pending list (holding the live src/dst instances, which
  * are the memoised per-worker tier instances - they outlive the request) and,
  * when a journal dir is configured, persisted as a small record for crash
- * visibility/recovery. xrootd_stage_scheduler_tick() (a per-worker timer) drains
+ * visibility/recovery. brix_stage_scheduler_tick() (a per-worker timer) drains
  * the list, runs each mover, and drops the stage copy of a completed FLUSH. This
  * generalises the FRM queue model to SD instances (section 11); the full physical
  * extraction of src/frm/ is the remaining SP4/SP5 migration. */
 
 typedef struct stage_pending_s {
     char                     reqid[40];
-    xrootd_stage_kind_t      kind;
-    xrootd_sd_instance_t    *src;
+    brix_stage_kind_t      kind;
+    brix_sd_instance_t    *src;
     char                     src_key[1024];
-    xrootd_sd_instance_t    *dst;
+    brix_sd_instance_t    *dst;
     char                     dst_key[1024];
     char                     export_root[1024]; /* anchor for restart reconcile     */
     struct stage_pending_s  *next;
@@ -55,7 +55,7 @@ static char             stage_journal_dir[1024];     /* "" = in-memory only */
 static uint64_t         stage_reqid_seq;
 
 void
-xrootd_stage_engine_init(const char *journal_dir)
+brix_stage_engine_init(const char *journal_dir)
 {
     if (journal_dir != NULL && journal_dir[0] != '\0') {
         snprintf(stage_journal_dir, sizeof(stage_journal_dir), "%s", journal_dir);
@@ -77,7 +77,7 @@ stage_reqid_mint(char out[40])
 static void
 stage_journal_write(const stage_pending_t *p)
 {
-    xrootd_sreq_t rec;
+    brix_sreq_t rec;
     char          path[1200];
     int           fd;
 
@@ -92,7 +92,7 @@ stage_journal_write(const stage_pending_t *p)
     ngx_memzero(&rec, sizeof(rec));
     snprintf(rec.reqid, sizeof(rec.reqid), "%s", p->reqid);
     rec.kind  = p->kind;
-    rec.state = XROOTD_SREQ_QUEUED;
+    rec.state = BRIX_SREQ_QUEUED;
     snprintf(rec.src_driver, sizeof(rec.src_driver), "%s",
              (p->src->driver && p->src->driver->name) ? p->src->driver->name : "");
     snprintf(rec.src_key, sizeof(rec.src_key), "%s", p->src_key);
@@ -131,33 +131,33 @@ stage_journal_remove(const char *reqid)
 
 /* Map an async-staging kind onto the existing unified-ledger transfer kind, so
  * one audit schema covers recall/flush/upload/multipart (section 19). */
-static xrootd_xfer_kind_t
-stage_kind_to_xfer(xrootd_stage_kind_t kind)
+static brix_xfer_kind_t
+stage_kind_to_xfer(brix_stage_kind_t kind)
 {
     switch (kind) {
-    case XROOTD_STAGE_RECALL:    return XROOTD_XFER_TAPE;   /* tape -> cache store  */
-    case XROOTD_STAGE_FLUSH:     return XROOTD_XFER_WT;     /* stage -> backend     */
-    case XROOTD_STAGE_UPLOAD:    return XROOTD_XFER_STAGE;  /* body -> stage store  */
-    case XROOTD_STAGE_MULTIPART: return XROOTD_XFER_STAGE;  /* part -> stage store  */
+    case BRIX_STAGE_RECALL:    return BRIX_XFER_TAPE;   /* tape -> cache store  */
+    case BRIX_STAGE_FLUSH:     return BRIX_XFER_WT;     /* stage -> backend     */
+    case BRIX_STAGE_UPLOAD:    return BRIX_XFER_STAGE;  /* body -> stage store  */
+    case BRIX_STAGE_MULTIPART: return BRIX_XFER_STAGE;  /* part -> stage store  */
     }
-    return XROOTD_XFER_STAGE;
+    return BRIX_XFER_STAGE;
 }
 
 /* "in" = bytes land in our storage; "out" = bytes leave to the backend. */
 static const char *
-stage_kind_dir(xrootd_stage_kind_t kind)
+stage_kind_dir(brix_stage_kind_t kind)
 {
-    return (kind == XROOTD_STAGE_FLUSH) ? "out" : "in";
+    return (kind == BRIX_STAGE_FLUSH) ? "out" : "in";
 }
 
 const char *
-xrootd_stage_kind_str(xrootd_stage_kind_t kind)
+brix_stage_kind_str(brix_stage_kind_t kind)
 {
     switch (kind) {
-    case XROOTD_STAGE_RECALL:    return "recall";
-    case XROOTD_STAGE_FLUSH:     return "flush";
-    case XROOTD_STAGE_UPLOAD:    return "upload";
-    case XROOTD_STAGE_MULTIPART: return "multipart";
+    case BRIX_STAGE_RECALL:    return "recall";
+    case BRIX_STAGE_FLUSH:     return "flush";
+    case BRIX_STAGE_UPLOAD:    return "upload";
+    case BRIX_STAGE_MULTIPART: return "multipart";
     }
     return "stage";
 }
@@ -170,14 +170,14 @@ xrootd_stage_kind_str(xrootd_stage_kind_t kind)
  * loop moves bytes between ANY two tiers (posix stage -> remote backend, tape
  * buffer -> posix cache, ...). On success *bytes_out carries the moved size and
  * the staged handle is consumed by commit; on failure the staged temp is aborted
- * and *err_out carries errno. Returns an xrootd_xfer_result_t terminal code. */
-static xrootd_xfer_result_t
-stage_engine_move(xrootd_sd_instance_t *src, const char *src_key,
-    xrootd_sd_instance_t *dst, const char *dst_key, off_t *bytes_out,
+ * and *err_out carries errno. Returns an brix_xfer_result_t terminal code. */
+static brix_xfer_result_t
+stage_engine_move(brix_sd_instance_t *src, const char *src_key,
+    brix_sd_instance_t *dst, const char *dst_key, off_t *bytes_out,
     int *err_out)
 {
-    xrootd_sd_obj_t    *so;
-    xrootd_sd_staged_t *ds;
+    brix_sd_obj_t    *so;
+    brix_sd_staged_t *ds;
     u_char             *buf;
     off_t               off = 0;
     int                 oerr = 0;
@@ -185,28 +185,28 @@ stage_engine_move(xrootd_sd_instance_t *src, const char *src_key,
 
     if (src->driver->open == NULL || src->driver->pread == NULL) {
         *err_out = ENOSYS;
-        return XROOTD_XFER_SRC_ERR;
+        return BRIX_XFER_SRC_ERR;
     }
     if (dst->driver->staged_open == NULL || dst->driver->staged_write == NULL
         || dst->driver->staged_commit == NULL || dst->driver->staged_abort == NULL)
     {
         *err_out = ENOSYS;
-        return XROOTD_XFER_DST_ERR;
+        return BRIX_XFER_DST_ERR;
     }
 
-    so = src->driver->open(src, src_key, XROOTD_SD_O_READ, 0, &oerr);
+    so = src->driver->open(src, src_key, BRIX_SD_O_READ, 0, &oerr);
     if (so == NULL) {
         *err_out = oerr ? oerr : EIO;
         ngx_log_error(NGX_LOG_ERR, src->log, *err_out,
             "stage move: source open failed (%s key=\"%s\")",
             src->driver->name, src_key);
-        return XROOTD_XFER_SRC_ERR;
+        return BRIX_XFER_SRC_ERR;
     }
 
     /* open() may not populate snap (the posix driver fstats lazily); fstat for an
      * accurate mode so a flush preserves the source's permission bits. */
     {
-        xrootd_sd_stat_t snap = so->snap;
+        brix_sd_stat_t snap = so->snap;
 
         if (src->driver->fstat != NULL) {
             (void) src->driver->fstat(so, &snap);
@@ -224,7 +224,7 @@ stage_engine_move(xrootd_sd_instance_t *src, const char *src_key,
         ngx_log_error(NGX_LOG_ERR, dst->log, *err_out,
             "stage move: dest staged_open failed (%s key=\"%s\")",
             dst->driver->name, dst_key);
-        return XROOTD_XFER_DST_ERR;
+        return BRIX_XFER_DST_ERR;
     }
 
     buf = malloc(STAGE_ENGINE_CHUNK);
@@ -232,7 +232,7 @@ stage_engine_move(xrootd_sd_instance_t *src, const char *src_key,
         dst->driver->staged_abort(ds);
         src->driver->close(so);
         *err_out = ENOMEM;
-        return XROOTD_XFER_DST_ERR;
+        return BRIX_XFER_DST_ERR;
     }
 
     for ( ;; ) {
@@ -250,7 +250,7 @@ stage_engine_move(xrootd_sd_instance_t *src, const char *src_key,
             dst->driver->staged_abort(ds);
             src->driver->close(so);
             *err_out = oerr;
-            return XROOTD_XFER_SRC_ERR;
+            return BRIX_XFER_SRC_ERR;
         }
         if (r == 0) {
             break;                      /* EOF - the whole object is moved */
@@ -264,7 +264,7 @@ stage_engine_move(xrootd_sd_instance_t *src, const char *src_key,
             dst->driver->staged_abort(ds);
             src->driver->close(so);
             *err_out = oerr;
-            return XROOTD_XFER_DST_ERR;
+            return BRIX_XFER_DST_ERR;
         }
         off += r;
     }
@@ -279,20 +279,20 @@ stage_engine_move(xrootd_sd_instance_t *src, const char *src_key,
             dst->driver->name, dst_key);
         dst->driver->staged_abort(ds);     /* commit failed - drop the temp */
         *err_out = oerr;
-        return XROOTD_XFER_COMMIT_ERR;
+        return BRIX_XFER_COMMIT_ERR;
     }
 
     *bytes_out = off;
-    return XROOTD_XFER_OK;
+    return BRIX_XFER_OK;
 }
 
 /* Move the object inline and book one unified audit line. Shared by the async
- * front door (xrootd_stage_submit) and the sync path (xrootd_stage_run_inline). */
-static xrootd_xfer_result_t
-stage_engine_run(xrootd_stage_kind_t kind, xrootd_sd_instance_t *src,
-    const char *src_key, xrootd_sd_instance_t *dst, const char *dst_key)
+ * front door (brix_stage_submit) and the sync path (brix_stage_run_inline). */
+static brix_xfer_result_t
+stage_engine_run(brix_stage_kind_t kind, brix_sd_instance_t *src,
+    const char *src_key, brix_sd_instance_t *dst, const char *dst_key)
 {
-    xrootd_xfer_result_t res;
+    brix_xfer_result_t res;
     off_t                bytes = 0;
     int                  oerr = 0;
     ngx_log_t           *log = (dst->log != NULL) ? dst->log : src->log;
@@ -300,10 +300,10 @@ stage_engine_run(xrootd_stage_kind_t kind, xrootd_sd_instance_t *src,
     res = stage_engine_move(src, src_key, dst, dst_key, &bytes, &oerr);
 
     /* One unified audit line per terminal transfer (transport-agnostic). */
-    xrootd_xfer_finish(stage_kind_to_xfer(kind), stage_kind_dir(kind), dst_key,
-        NULL, (size_t) bytes, res, (res == XROOTD_XFER_OK) ? 0 : oerr, log);
+    brix_xfer_finish(stage_kind_to_xfer(kind), stage_kind_dir(kind), dst_key,
+        NULL, (size_t) bytes, res, (res == BRIX_XFER_OK) ? 0 : oerr, log);
 
-    if (res != XROOTD_XFER_OK && oerr != 0) {
+    if (res != BRIX_XFER_OK && oerr != 0) {
         errno = oerr;
     }
     return res;
@@ -312,9 +312,9 @@ stage_engine_run(xrootd_stage_kind_t kind, xrootd_sd_instance_t *src,
 /* ---- the public front doors ----------------------------------------------- */
 
 const char *
-xrootd_stage_submit(xrootd_stage_kind_t kind, xrootd_sd_instance_t *src,
-    const char *src_key, xrootd_sd_instance_t *dst, const char *dst_key,
-    const xrootd_stage_opts_t *opts)
+brix_stage_submit(brix_stage_kind_t kind, brix_sd_instance_t *src,
+    const char *src_key, brix_sd_instance_t *dst, const char *dst_key,
+    const brix_stage_opts_t *opts)
 {
     static const char ran_inline[] = "";
     static char       last_reqid[40];   /* event-loop single-threaded: stable enough */
@@ -362,8 +362,8 @@ xrootd_stage_submit(xrootd_stage_kind_t kind, xrootd_sd_instance_t *src,
 }
 
 ngx_int_t
-xrootd_stage_run_inline(xrootd_stage_kind_t kind, xrootd_sd_instance_t *src,
-    const char *src_key, xrootd_sd_instance_t *dst, const char *dst_key)
+brix_stage_run_inline(brix_stage_kind_t kind, brix_sd_instance_t *src,
+    const char *src_key, brix_sd_instance_t *dst, const char *dst_key)
 {
     if (src == NULL || src_key == NULL || dst == NULL || dst_key == NULL
         || src->driver == NULL || dst->driver == NULL)
@@ -371,7 +371,7 @@ xrootd_stage_run_inline(xrootd_stage_kind_t kind, xrootd_sd_instance_t *src,
         errno = EINVAL;
         return NGX_ERROR;
     }
-    return (stage_engine_run(kind, src, src_key, dst, dst_key) == XROOTD_XFER_OK)
+    return (stage_engine_run(kind, src, src_key, dst, dst_key) == BRIX_XFER_OK)
          ? NGX_OK : NGX_ERROR;
 }
 
@@ -384,19 +384,19 @@ xrootd_stage_run_inline(xrootd_stage_kind_t kind, xrootd_sd_instance_t *src,
  * journal record is removed; on failure the record is KEPT (the reconcile retries
  * it on restart, or a later tick re-drives it). Shared by both paths. */
 static void
-stage_complete(xrootd_stage_kind_t kind, xrootd_sd_instance_t *src,
+stage_complete(brix_stage_kind_t kind, brix_sd_instance_t *src,
     const char *src_key, const char *dst_key, const char *reqid,
-    xrootd_xfer_result_t res, ngx_log_t *log)
+    brix_xfer_result_t res, ngx_log_t *log)
 {
-    if (res == XROOTD_XFER_OK) {
-        if (kind == XROOTD_STAGE_FLUSH && src->driver->unlink != NULL) {
+    if (res == BRIX_XFER_OK) {
+        if (kind == BRIX_STAGE_FLUSH && src->driver->unlink != NULL) {
             (void) src->driver->unlink(src, src_key, 0);
         }
         stage_journal_remove(reqid);
     } else {
         ngx_log_error(NGX_LOG_WARN, log, 0,
             "xrootd stage: deferred %s of \"%s\" failed (reqid %s) - record kept",
-            xrootd_stage_kind_str(kind), dst_key, reqid);
+            brix_stage_kind_str(kind), dst_key, reqid);
     }
 }
 
@@ -411,10 +411,10 @@ static ngx_uint_t stage_inflight;
 /* The off-loop mover task (lives on its own small pool, freed in the done event). */
 typedef struct {
     ngx_pool_t           *pool;
-    xrootd_stage_kind_t   kind;
-    xrootd_sd_instance_t *src;
-    xrootd_sd_instance_t *dst;
-    xrootd_xfer_result_t  res;
+    brix_stage_kind_t   kind;
+    brix_sd_instance_t *src;
+    brix_sd_instance_t *dst;
+    brix_xfer_result_t  res;
     ngx_log_t            *log;
     char                  reqid[40];
     char                  src_key[1024];
@@ -473,13 +473,13 @@ stage_flush_offload(const stage_pending_t *p, ngx_thread_pool_t *pool)
     t->kind = p->kind;
     t->src  = p->src;
     t->dst  = p->dst;
-    t->res  = XROOTD_XFER_DST_ERR;
+    t->res  = BRIX_XFER_DST_ERR;
     t->log  = log;
     snprintf(t->reqid, sizeof(t->reqid), "%s", p->reqid);
     snprintf(t->src_key, sizeof(t->src_key), "%s", p->src_key);
     snprintf(t->dst_key, sizeof(t->dst_key), "%s", p->dst_key);
 
-    xrootd_task_bind(task, stage_flush_thread, stage_flush_done);
+    brix_task_bind(task, stage_flush_thread, stage_flush_done);
     task->event.log = log;
     if (ngx_thread_task_post(pool, task) != NGX_OK) {
         ngx_destroy_pool(tp);
@@ -502,7 +502,7 @@ stage_thread_pool(void)
 #endif /* NGX_THREADS */
 
 void
-xrootd_stage_scheduler_tick(void)
+brix_stage_scheduler_tick(void)
 {
     int budget = STAGE_TICK_BUDGET;
 #if (NGX_THREADS)
@@ -511,7 +511,7 @@ xrootd_stage_scheduler_tick(void)
 
     while (stage_pending_head != NULL && budget-- > 0) {
         stage_pending_t     *p = stage_pending_head;
-        xrootd_xfer_result_t res;
+        brix_xfer_result_t res;
         ngx_log_t           *log = (p->dst->log != NULL) ? p->dst->log
                                                          : p->src->log;
 
@@ -556,8 +556,8 @@ xrootd_stage_scheduler_tick(void)
 static int
 stage_reconcile_one(const char *path, ngx_log_t *log)
 {
-    xrootd_sreq_t         rec;
-    xrootd_sd_instance_t *inst;
+    brix_sreq_t         rec;
+    brix_sd_instance_t *inst;
     int                   fd;
     ssize_t               n;
 
@@ -571,18 +571,18 @@ stage_reconcile_one(const char *path, ngx_log_t *log)
         (void) unlink(path);                 /* corrupt/short record - drop */
         return -1;
     }
-    if (rec.kind != XROOTD_STAGE_FLUSH || rec.export_root[0] == '\0') {
+    if (rec.kind != BRIX_STAGE_FLUSH || rec.export_root[0] == '\0') {
         (void) unlink(path);                 /* not a recoverable staged write */
         return -1;
     }
 
     /* Rebuild the export's composed stack and unwrap to its stage decorator. */
-    inst = xrootd_vfs_backend_resolve(rec.export_root, log);
-    if (xrootd_sd_cache_instance_is(inst)) {
-        inst = xrootd_sd_cache_source_instance(inst);
+    inst = brix_vfs_backend_resolve(rec.export_root, log);
+    if (brix_sd_cache_instance_is(inst)) {
+        inst = brix_sd_cache_source_instance(inst);
     }
-    if (xrootd_sd_stage_instance_is(inst)
-        && xrootd_sd_stage_reflush(inst, rec.dst_key) == NGX_OK)
+    if (brix_sd_stage_instance_is(inst)
+        && brix_sd_stage_reflush(inst, rec.dst_key) == NGX_OK)
     {
         (void) unlink(path);                 /* re-flushed + stage copy dropped */
         return 1;
@@ -595,7 +595,7 @@ stage_reconcile_one(const char *path, ngx_log_t *log)
 }
 
 void
-xrootd_stage_reconcile(xrootd_stage_queue_t *queue)
+brix_stage_reconcile(brix_stage_queue_t *queue)
 {
     DIR           *d;
     struct dirent *de;

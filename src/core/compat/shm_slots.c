@@ -12,7 +12,7 @@
 
 
 /*
- * xrootd_shm_table_mutex_create — bind the table's process-local mutex to the
+ * brix_shm_table_mutex_create — bind the table's process-local mutex to the
  * slab pool's OWN lock word (&sp->lock), in spin+yield-only mode.
  *
  * WHY BIND TO &sp->lock (dead-holder recovery): nginx's ngx_unlock_mutexes(),
@@ -44,7 +44,7 @@
  * nginx's force-unlock wakeup must ever touch a semaphore.
  */
 static ngx_int_t
-xrootd_shm_table_mutex_create(ngx_shmtx_t *mtx, ngx_slab_pool_t *sp)
+brix_shm_table_mutex_create(ngx_shmtx_t *mtx, ngx_slab_pool_t *sp)
 {
     if (ngx_shmtx_create(mtx, &sp->lock, NULL) != NGX_OK) {
         return NGX_ERROR;
@@ -58,7 +58,7 @@ xrootd_shm_table_mutex_create(ngx_shmtx_t *mtx, ngx_slab_pool_t *sp)
 
 
 void *
-xrootd_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data, size_t table_bytes,
+brix_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data, size_t table_bytes,
                        ngx_shmtx_t *mtx, ngx_flag_t *fresh)
 {
     ngx_slab_pool_t *sp;
@@ -70,14 +70,14 @@ xrootd_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data, size_t table_bytes,
 
     /* The table mutex always binds to the slab pool's own lock word (&sp->lock),
      * so nginx's per-zone force-unlock recovers it on worker death (see
-     * xrootd_shm_table_mutex_create). shm.addr is the slab pool in every path —
+     * brix_shm_table_mutex_create). shm.addr is the slab pool in every path —
      * fresh, reload, and re-attach. */
     sp = (ngx_slab_pool_t *) shm_zone->shm.addr;
 
     /* Reload: nginx hands us the previous cycle's table via `data`. */
     if (data) {
         shm_zone->data = data;
-        if (mtx && xrootd_shm_table_mutex_create(mtx, sp) != NGX_OK) {
+        if (mtx && brix_shm_table_mutex_create(mtx, sp) != NGX_OK) {
             return NULL;
         }
         return data;
@@ -87,7 +87,7 @@ xrootd_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data, size_t table_bytes,
     if (shm_zone->shm.exists && sp->data != NULL) {
         tbl = sp->data;
         shm_zone->data = tbl;
-        if (mtx && xrootd_shm_table_mutex_create(mtx, sp) != NGX_OK) {
+        if (mtx && brix_shm_table_mutex_create(mtx, sp) != NGX_OK) {
             return NULL;
         }
         return tbl;
@@ -102,7 +102,7 @@ xrootd_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data, size_t table_bytes,
     sp->data       = tbl;                    /* persist for reload re-attach */
     shm_zone->data = tbl;
 
-    if (mtx && xrootd_shm_table_mutex_create(mtx, sp) != NGX_OK) {
+    if (mtx && brix_shm_table_mutex_create(mtx, sp) != NGX_OK) {
         return NULL;
     }
     if (fresh) {
@@ -113,7 +113,7 @@ xrootd_shm_table_alloc(ngx_shm_zone_t *shm_zone, void *data, size_t table_bytes,
 
 
 void
-xrootd_shm_zone_warn_on_resize(ngx_conf_t *cf, ngx_shm_zone_t *zn,
+brix_shm_zone_warn_on_resize(ngx_conf_t *cf, ngx_shm_zone_t *zn,
                                const char *directive)
 {
     ngx_cycle_t      *oc;
@@ -177,7 +177,7 @@ xrootd_shm_zone_warn_on_resize(ngx_conf_t *cf, ngx_shm_zone_t *zn,
 
 
 size_t
-xrootd_shm_zone_size(size_t table_bytes)
+brix_shm_zone_size(size_t table_bytes)
 {
     /*
      * The zone must hold the table plus the slab-pool overhead: the

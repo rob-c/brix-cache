@@ -4,7 +4,7 @@
  * WHAT: A payload-agnostic harness that runs an external transfer in a
  *       double-forked, reparented-to-init agent process and shuttles fixed-size
  *       request/reply frames over a socketpair, driving completions on the nginx
- *       event loop. Each transfer kind supplies an xrootd_xfer_agent_ops_t (frame
+ *       event loop. Each transfer kind supplies an brix_xfer_agent_ops_t (frame
  *       sizes + agent-side process() + worker-side on_reply()).
  *
  * WHY:  See xfer.h: reaping a worker child crashes the nginx master via the
@@ -85,7 +85,7 @@ xfer_write_full(int fd, const void *buf, size_t len)
 /* The agent loop: read a request, process it into a reply, send the reply.
  * Exits on EOF (worker closed) or a fatal frame error. Never returns. */
 static void
-xfer_agent_loop(int fd, const xrootd_xfer_agent_ops_t *ops)
+xfer_agent_loop(int fd, const brix_xfer_agent_ops_t *ops)
 {
     void *req;
     void *rep;
@@ -113,7 +113,7 @@ xfer_agent_loop(int fd, const xrootd_xfer_agent_ops_t *ops)
  * intermediate while SIGCHLD is blocked. Returns the non-blocking worker-side fd,
  * or -1. */
 static int
-xfer_agent_spawn(const xrootd_xfer_agent_ops_t *ops, ngx_log_t *log)
+xfer_agent_spawn(const brix_xfer_agent_ops_t *ops, ngx_log_t *log)
 {
     int      sv[2];
     sigset_t block, prev;
@@ -165,10 +165,10 @@ static void xfer_agent_on_reply(ngx_event_t *rev);
  * fresh agent so transfers keep flowing. On respawn failure a->fd stays -1 and
  * dispatch fails closed. */
 static void
-xfer_agent_respawn(xrootd_xfer_agent_t *a)
+xfer_agent_respawn(brix_xfer_agent_t *a)
 {
-    xrootd_xfer_agent_teardown(a);
-    if (xrootd_xfer_agent_attach(a, a->ops, a->log) != NGX_OK) {
+    brix_xfer_agent_teardown(a);
+    if (brix_xfer_agent_attach(a, a->ops, a->log) != NGX_OK) {
         ngx_log_error(NGX_LOG_ERR, a->log, 0,
                       "xfer: %s agent respawn failed — transfers paused until "
                       "the next reload", a->ops->name);
@@ -183,7 +183,7 @@ static void
 xfer_agent_on_reply(ngx_event_t *rev)
 {
     ngx_connection_t    *c = rev->data;
-    xrootd_xfer_agent_t *a = c->data;
+    brix_xfer_agent_t *a = c->data;
     const size_t         rep_size = a->ops->rep_size;
 
     for ( ;; ) {
@@ -231,7 +231,7 @@ xfer_agent_on_reply(ngx_event_t *rev)
 }
 
 void
-xrootd_xfer_agent_teardown(xrootd_xfer_agent_t *a)
+brix_xfer_agent_teardown(brix_xfer_agent_t *a)
 {
     if (a->conn != NULL) {
         ngx_close_connection(a->conn);   /* frees conn + closes the fd */
@@ -241,8 +241,8 @@ xrootd_xfer_agent_teardown(xrootd_xfer_agent_t *a)
 }
 
 ngx_int_t
-xrootd_xfer_agent_attach(xrootd_xfer_agent_t *a,
-    const xrootd_xfer_agent_ops_t *ops, ngx_log_t *log)
+brix_xfer_agent_attach(brix_xfer_agent_t *a,
+    const brix_xfer_agent_ops_t *ops, ngx_log_t *log)
 {
     a->ops = ops;
     a->log = log;
@@ -274,14 +274,14 @@ xrootd_xfer_agent_attach(xrootd_xfer_agent_t *a,
     if (ngx_handle_read_event(a->conn->read, 0) != NGX_OK) {
         ngx_log_error(NGX_LOG_ERR, log, 0, "xfer: %s cannot arm agent read event",
                       ops->name);
-        xrootd_xfer_agent_teardown(a);
+        brix_xfer_agent_teardown(a);
         return NGX_ERROR;
     }
     return NGX_OK;
 }
 
 ngx_int_t
-xrootd_xfer_agent_dispatch(xrootd_xfer_agent_t *a, const void *req)
+brix_xfer_agent_dispatch(brix_xfer_agent_t *a, const void *req)
 {
     const size_t req_size = a->ops->req_size;
     ssize_t      n;

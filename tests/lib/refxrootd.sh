@@ -186,7 +186,7 @@ EOF
 }
 
 start_pss_bridge_ref() {
-    local port="${1:-${PROXY_BRIDGE_XROOTD_PORT:-11214}}"
+    local port="${1:-${PROXY_BRIDGE_BRIX_PORT:-11214}}"
     local upstream_port="${2:-${PROXY_NGINX_PORT:-11193}}"
     local label="pss-bridge"
     local data_dir="${TEST_ROOT}/data-pss-bridge"
@@ -275,9 +275,9 @@ start_ref() {
     fi
 
     # Start additional reference xrootd instances for GSI and shared ports
-    local ref_gsi_port="${REF_XROOTD_GSI_PORT:-11099}"
-    local ref_shared_port="${REF_XROOTD_GSI_SHARED_PORT:-11100}"
-    local ref_gsi_data_dir="${REF_XROOTD_GSI_DATA_DIR:-${TEST_ROOT}/data-gsi-bridge}"
+    local ref_gsi_port="${REF_BRIX_GSI_PORT:-11099}"
+    local ref_shared_port="${REF_BRIX_GSI_SHARED_PORT:-11100}"
+    local ref_gsi_data_dir="${REF_BRIX_GSI_DATA_DIR:-${TEST_ROOT}/data-gsi-bridge}"
 
     start_extra_ref_gsi "gsi" "$ref_gsi_port" "$ref_gsi_data_dir"
     start_extra_ref_gsi "shared" "$ref_shared_port" "$DATA_DIR"

@@ -162,7 +162,7 @@ def _ls_l_sizes(out):
 
 # =========================================================================== #
 # RAW-WIRE kXR_dirlist client (plain / dstat / dcksm) — copied framing from
-# test_xrootd_conformance.py, extended for the options byte and dstat parsing.
+# test_brix_conformance.py, extended for the options byte and dstat parsing.
 # =========================================================================== #
 def _recv_exact(s, n):
     b = b""

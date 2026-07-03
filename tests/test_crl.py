@@ -3,7 +3,7 @@ tests/test_crl.py
 
 Certificate Revocation List (CRL) tests.
 
-Verifies that when xrootd_crl is configured, revoked user certificates
+Verifies that when brix_crl is configured, revoked user certificates
 are rejected by both the XRootD stream (GSI) and WebDAV (HTTPS) auth
 paths.
 
@@ -150,7 +150,7 @@ def crl_nginx(crl_file):
 
 @pytest.fixture(scope="session", autouse=True)
 def crl_dir_nginx(crl_file):
-    """Use the suite-level nginx with xrootd_crl pointing at a directory."""
+    """Use the suite-level nginx with brix_crl pointing at a directory."""
     os.makedirs(CRL_DIR_CRLS, exist_ok=True)
     import shutil
     shutil.copy2(crl_file, os.path.join(CRL_DIR_CRLS, "ca.r0"))
@@ -304,7 +304,7 @@ class TestCRLConfigDirectives:
 
 
 class TestCRLDirectoryMode:
-    """Verify xrootd_crl with a directory of CRL files."""
+    """Verify brix_crl with a directory of CRL files."""
 
     def test_revoked_cert_rejected_stream(self, crl_dir_nginx):
         """Stream: revoked cert should fail via directory-loaded CRL."""
@@ -352,7 +352,7 @@ class TestCRLDirectoryMode:
 
 
 class TestCRLReload:
-    """Verify xrootd_crl_reload picks up new CRLs without restart."""
+    """Verify brix_crl_reload picks up new CRLs without restart."""
 
     def test_initially_accepts_revoked_cert(self, crl_reload_nginx):
         """Before CRL is placed, revoked cert should be accepted."""

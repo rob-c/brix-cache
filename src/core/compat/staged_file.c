@@ -11,7 +11,7 @@
 #include "fs/path/path.h"
 #include "fs/path/beneath.h"
 #include "fs/backend/sd.h"   /* Storage Driver seam: VFS↔VFS (backend↔backend) move */
-#include "fs/xfer/xfer.h"    /* xrootd_xfer_pump_objects — the shared in-process mover */
+#include "fs/xfer/xfer.h"    /* brix_xfer_pump_objects — the shared in-process mover */
 #include "fs/vfs/vfs_backend_registry.h"  /* per-export backend for a non-POSIX commit */
 
 #include <dirent.h>
@@ -24,7 +24,7 @@
 
 /*
  * Confinement (Phase 8): the temp file and its final destination always live
- * under root_canon (xrootd_make_tmp_path derives the temp name next to
+ * under root_canon (brix_make_tmp_path derives the temp name next to
  * final_path, which the caller already confined to the export root).  We open a
  * kernel-confinement rootfd on root_canon and route the temp create / rename /
  * unlink through the beneath API so the operation is bounded by the kernel
@@ -40,8 +40,8 @@
  *      guarantees atomicity — either the rename succeeds (final path appears) or it doesn't
  *      (temp file remains for cleanup).
  *
- * HOW: Generate a unique tmp_path via xrootd_make_tmp_path(). Open with
- *      open_flags | O_CREAT | O_EXCL inside root_canon via xrootd_open_confined_canon().
+ * HOW: Generate a unique tmp_path via brix_make_tmp_path(). Open with
+ *      open_flags | O_CREAT | O_EXCL inside root_canon via brix_open_confined_canon().
  *      Loop up to 'attempts' times (default 16) on EEXIST. On success: set staged->active=1,
  *      store fd and tmp_path, return NGX_OK. On non-EEXIST failure or exhaustion: errno set,
  *      return NGX_ERROR.
@@ -56,9 +56,9 @@
  *   staged — output struct: fd, tmp_path, active flag populated on success
  */
 ngx_int_t
-xrootd_staged_open(ngx_log_t *log, const char *root_canon,
+brix_staged_open(ngx_log_t *log, const char *root_canon,
     const char *final_path, int open_flags, mode_t mode, ngx_uint_t attempts,
-    xrootd_staged_file_t *staged)
+    brix_staged_file_t *staged)
 {
     ngx_uint_t  i;
     int         rootfd;
@@ -77,7 +77,7 @@ xrootd_staged_open(ngx_log_t *log, const char *root_canon,
         attempts = 16;
     }
 
-    rootfd = xrootd_beneath_open_root(root_canon);
+    rootfd = brix_beneath_open_root(root_canon);
     if (rootfd < 0) {
         return NGX_ERROR;
     }
@@ -85,7 +85,7 @@ xrootd_staged_open(ngx_log_t *log, const char *root_canon,
     for (i = 0; i < attempts; i++) {
         const char *rel;
 
-        if (xrootd_make_tmp_path(final_path, staged->tmp_path,
+        if (brix_make_tmp_path(final_path, staged->tmp_path,
                                  sizeof(staged->tmp_path)) != NGX_OK)
         {
             errno = ENAMETOOLONG;
@@ -93,14 +93,14 @@ xrootd_staged_open(ngx_log_t *log, const char *root_canon,
             return NGX_ERROR;
         }
 
-        rel = xrootd_beneath_strip_root(root_canon, staged->tmp_path);
+        rel = brix_beneath_strip_root(root_canon, staged->tmp_path);
         if (rel == NULL) {
             errno = EXDEV;
             close(rootfd);
             return NGX_ERROR;
         }
 
-        staged->fd = xrootd_open_beneath(rootfd, rel,
+        staged->fd = brix_open_beneath(rootfd, rel,
                                          open_flags | O_CREAT | O_EXCL, mode);
         if (staged->fd != NGX_INVALID_FILE) {
             staged->active = 1;
@@ -129,15 +129,15 @@ xrootd_staged_open(ngx_log_t *log, const char *root_canon,
  *       offset on a partial that survives across separate PUT requests and a
  *       server restart, then commit (rename) only when complete — the HTTP
  *       analogue of the root:// resume staging.  Reuses the same name scheme
- *       (xrootd_make_resume_path) and confinement (xrootd_open_beneath) as the
+ *       (brix_make_resume_path) and confinement (brix_open_beneath) as the
  *       random staged_open so security and glob-clean are identical.
  *
  * Returns NGX_OK with staged->active=1, or NGX_ERROR (errno set).
  */
 ngx_int_t
-xrootd_staged_open_resume(ngx_log_t *log, const char *root_canon,
+brix_staged_open_resume(ngx_log_t *log, const char *root_canon,
     const char *final_path, const char *principal, const char *stage_dir,
-    mode_t mode, xrootd_staged_file_t *staged, off_t *cur_size)
+    mode_t mode, brix_staged_file_t *staged, off_t *cur_size)
 {
     int          rootfd, fd;
     const char  *rel;
@@ -155,7 +155,7 @@ xrootd_staged_open_resume(ngx_log_t *log, const char *root_canon,
         *cur_size = 0;
     }
 
-    if (xrootd_make_resume_path(final_path, principal, stage_dir,
+    if (brix_make_resume_path(final_path, principal, stage_dir,
                                 staged->tmp_path, sizeof(staged->tmp_path))
         != NGX_OK)
     {
@@ -173,18 +173,18 @@ xrootd_staged_open_resume(ngx_log_t *log, const char *root_canon,
             return NGX_ERROR;
         }
     } else {
-        rootfd = xrootd_beneath_open_root(root_canon);
+        rootfd = brix_beneath_open_root(root_canon);
         if (rootfd < 0) {
             return NGX_ERROR;
         }
-        rel = xrootd_beneath_strip_root(root_canon, staged->tmp_path);
+        rel = brix_beneath_strip_root(root_canon, staged->tmp_path);
         if (rel == NULL) {
             close(rootfd);
             errno = EXDEV;
             return NGX_ERROR;
         }
         /* O_CREAT but NOT O_EXCL / O_TRUNC: create-or-resume, preserving bytes. */
-        fd = xrootd_open_beneath(rootfd, rel, O_RDWR | O_CREAT, mode);
+        fd = brix_open_beneath(rootfd, rel, O_RDWR | O_CREAT, mode);
         close(rootfd);
         if (fd == NGX_INVALID_FILE) {
             return NGX_ERROR;
@@ -206,23 +206,23 @@ xrootd_staged_open_resume(ngx_log_t *log, const char *root_canon,
  * the place where one side could later be a block/object (S3) store while the
  * other stays POSIX.
  *
- * Today both ends are POSIX (xrootd_sd_posix_wrap over a kernel fd), so the only
+ * Today both ends are POSIX (brix_sd_posix_wrap over a kernel fd), so the only
  * raw pread/pwrite happen INSIDE the POSIX backend (src/fs/backend/sd_posix.c) —
  * never here. When a stage or final mount becomes a non-POSIX backend, only how
  * the object is obtained changes (that driver's open() instead of a bare-fd
  * wrap); this positional copy loop is unchanged. 0 / NGX_ERROR (errno set). */
 static ngx_int_t
-stage_move_objects(xrootd_sd_obj_t *src, xrootd_sd_obj_t *dst)
+stage_move_objects(brix_sd_obj_t *src, brix_sd_obj_t *dst)
 {
     /* The mover now lives in the transfer engine (src/fs/xfer/xfer_mover_pump.c)
-     * as the canonical XROOTD_XFER_MOVE_PUMP strategy; this thin wrapper keeps the
+     * as the canonical BRIX_XFER_MOVE_PUMP strategy; this thin wrapper keeps the
      * two staged-commit callsites unchanged. */
-    return xrootd_xfer_pump_objects(src, dst);
+    return brix_xfer_pump_objects(src, dst);
 }
 
 /* commit_be_logical — the export-root-relative ("/sub/file", or "/" for the root)
  * key form a non-POSIX backend's namespace expects, matching
- * xrootd_vfs_export_relative_root used by every other driver-backed op. */
+ * brix_vfs_export_relative_root used by every other driver-backed op. */
 static const char *
 commit_be_logical(const char *abs, const char *root)
 {
@@ -240,7 +240,7 @@ commit_be_logical(const char *abs, const char *root)
  * storage backend (e.g. pblock) by streaming it through that driver's staged
  * write→commit state machine. This is the cross-FILESYSTEM atomic commit that
  * rename(2) cannot do: the partial lives on an independent POSIX staging mount
- * (xrootd_stage_dir) and the final export is a different, driver-owned namespace,
+ * (brix_stage_dir) and the final export is a different, driver-owned namespace,
  * so we read the partial through the (POSIX) source backend and write it through
  * the destination driver's staged_write, then staged_commit (which publishes
  * atomically — for pblock, a single catalog row insert pointing at the freshly
@@ -250,12 +250,12 @@ commit_be_logical(const char *abs, const char *root)
  */
 static ngx_int_t
 commit_staged_to_backend(ngx_fd_t fd, const char *stage_path,
-    const char *final_path, xrootd_sd_instance_t *dst, const char *root_canon,
+    const char *final_path, brix_sd_instance_t *dst, const char *root_canon,
     ngx_log_t *log)
 {
     const char         *logical = commit_be_logical(final_path, root_canon);
-    xrootd_sd_obj_t     src_obj;
-    xrootd_sd_staged_t *st;
+    brix_sd_obj_t     src_obj;
+    brix_sd_staged_t *st;
     struct stat         sb;
     mode_t              mode;
     int                 rfd, owned = 0, serr = 0;
@@ -291,7 +291,7 @@ commit_staged_to_backend(ngx_fd_t fd, const char *stage_path,
         return NGX_ERROR;
     }
 
-    xrootd_sd_posix_wrap(&src_obj, rfd);   /* read the partial via the SD seam */
+    brix_sd_posix_wrap(&src_obj, rfd);   /* read the partial via the SD seam */
     for ( ;; ) {
         char    buf[65536];
         ssize_t r = src_obj.driver->pread(&src_obj, buf, sizeof(buf), off);
@@ -357,7 +357,7 @@ commit_staged_to_backend(ngx_fd_t fd, const char *stage_path,
  *     NGX_INVALID_FILE if already closed.  Returns NGX_OK / NGX_ERROR (errno set).
  */
 ngx_int_t
-xrootd_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path,
+brix_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path,
                      ngx_log_t *log)
 {
     char         tmp[PATH_MAX];
@@ -365,8 +365,8 @@ xrootd_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path
     struct stat  sb;
 
     if (fd != NGX_INVALID_FILE) {
-        xrootd_sd_obj_t sobj;
-        xrootd_sd_posix_wrap(&sobj, fd);   /* durability flush via the backend */
+        brix_sd_obj_t sobj;
+        brix_sd_posix_wrap(&sobj, fd);   /* durability flush via the backend */
         if (sobj.driver->fsync(&sobj) != NGX_OK) {
             return NGX_ERROR;   /* not durable — do not publish */
         }
@@ -379,11 +379,11 @@ xrootd_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path
      * POSIX exports (the common case) skip this and take the rename path below. */
     {
         const char           *be_root = NULL;
-        xrootd_sd_instance_t *dst =
-            xrootd_vfs_backend_resolve_for_path(final_path, &be_root, log);
+        brix_sd_instance_t *dst =
+            brix_vfs_backend_resolve_for_path(final_path, &be_root, log);
 
         if (dst != NULL && dst->driver != NULL
-            && dst->driver != xrootd_sd_default_driver())
+            && dst->driver != brix_sd_default_driver())
         {
             return commit_staged_to_backend(fd, stage_path, final_path, dst,
                                             be_root, log);
@@ -399,7 +399,7 @@ xrootd_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path
 
     /* Cross-device commit: copy the staged data to a temp adjacent to (and on the
      * same filesystem as) the final path, then atomically rename it into place. */
-    if (xrootd_make_tmp_path(final_path, tmp, sizeof(tmp)) != NGX_OK) {
+    if (brix_make_tmp_path(final_path, tmp, sizeof(tmp)) != NGX_OK) {
         errno = ENAMETOOLONG;
         return NGX_ERROR;
     }
@@ -417,9 +417,9 @@ xrootd_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path
         /* VFS↔VFS move: stage object (source backend) → temp object (final
          * backend). Both POSIX today; the loop is driver-mediated so a non-POSIX
          * mount on either side needs no change here. */
-        xrootd_sd_obj_t src_obj, dst_obj;
-        xrootd_sd_posix_wrap(&src_obj, rfd);
-        xrootd_sd_posix_wrap(&dst_obj, dfd);
+        brix_sd_obj_t src_obj, dst_obj;
+        brix_sd_posix_wrap(&src_obj, rfd);
+        brix_sd_posix_wrap(&dst_obj, dfd);
         if (stage_move_objects(&src_obj, &dst_obj) != NGX_OK
             || dst_obj.driver->fsync(&dst_obj) != NGX_OK) {
             e = errno; close(rfd); close(dfd); (void) unlink(tmp); errno = e;
@@ -444,18 +444,18 @@ xrootd_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path
  * cache with nothing recording where it should go.  A marker file
  * "<stage_partial>.commit" (content = the final absolute path) is written +
  * fsync'd just before the move and removed after it; if the move is interrupted
- * the marker survives, and xrootd_stage_reap_dir() finishes the move on the next
+ * the marker survives, and brix_stage_reap_dir() finishes the move on the next
  * worker startup / periodic sweep — so complete-but-uncommitted files are tracked
  * across restarts and always reach storage.
  */
-#define XROOTD_STAGE_COMMIT_SUFFIX ".commit"
-#define XROOTD_STAGE_MAX_DIRS 32
+#define BRIX_STAGE_COMMIT_SUFFIX ".commit"
+#define BRIX_STAGE_MAX_DIRS 32
 
-static char       s_stage_dirs[XROOTD_STAGE_MAX_DIRS][PATH_MAX];
+static char       s_stage_dirs[BRIX_STAGE_MAX_DIRS][PATH_MAX];
 static ngx_uint_t s_stage_dir_count;
 
 void
-xrootd_stage_dir_register(const char *canon)
+brix_stage_dir_register(const char *canon)
 {
     ngx_uint_t i;
 
@@ -467,7 +467,7 @@ xrootd_stage_dir_register(const char *canon)
             return;   /* already registered (dedup across server blocks) */
         }
     }
-    if (s_stage_dir_count >= XROOTD_STAGE_MAX_DIRS) {
+    if (s_stage_dir_count >= BRIX_STAGE_MAX_DIRS) {
         return;
     }
     ngx_memcpy(s_stage_dirs[s_stage_dir_count], canon, strlen(canon) + 1);
@@ -475,13 +475,13 @@ xrootd_stage_dir_register(const char *canon)
 }
 
 ngx_uint_t
-xrootd_stage_dir_count(void)
+brix_stage_dir_count(void)
 {
     return s_stage_dir_count;
 }
 
 ngx_int_t
-xrootd_stage_mark_pending(const char *stage_partial, const char *final_path,
+brix_stage_mark_pending(const char *stage_partial, const char *final_path,
                           ngx_log_t *log)
 {
     char    marker[PATH_MAX];
@@ -490,7 +490,7 @@ xrootd_stage_mark_pending(const char *stage_partial, const char *final_path,
 
     (void) log;
     n = snprintf(marker, sizeof(marker), "%s%s", stage_partial,
-                 XROOTD_STAGE_COMMIT_SUFFIX);
+                 BRIX_STAGE_COMMIT_SUFFIX);
     if (n < 0 || (size_t) n >= sizeof(marker)) {
         errno = ENAMETOOLONG;
         return NGX_ERROR;
@@ -509,11 +509,11 @@ xrootd_stage_mark_pending(const char *stage_partial, const char *final_path,
 }
 
 void
-xrootd_stage_unmark_pending(const char *stage_partial)
+brix_stage_unmark_pending(const char *stage_partial)
 {
     char marker[PATH_MAX];
     int  n = snprintf(marker, sizeof(marker), "%s%s", stage_partial,
-                      XROOTD_STAGE_COMMIT_SUFFIX);
+                      BRIX_STAGE_COMMIT_SUFFIX);
     if (n > 0 && (size_t) n < sizeof(marker)) {
         (void) unlink(marker);
     }
@@ -523,12 +523,12 @@ xrootd_stage_unmark_pending(const char *stage_partial)
  * commits completed this pass.  Idempotent and crash-safe: a marker whose partial
  * is already gone (committed by a racing pass / a client retry) is just dropped. */
 ngx_uint_t
-xrootd_stage_reap_dir(const char *stage_dir, ngx_log_t *log)
+brix_stage_reap_dir(const char *stage_dir, ngx_log_t *log)
 {
     DIR           *d;
     struct dirent *de;
     ngx_uint_t     done = 0;
-    size_t         slen = sizeof(XROOTD_STAGE_COMMIT_SUFFIX) - 1;
+    size_t         slen = sizeof(BRIX_STAGE_COMMIT_SUFFIX) - 1;
     /* Snapshot marker basenames first — we unlink while iterating, which would
      * otherwise make readdir skip entries. */
     char           names[256][256];
@@ -544,7 +544,7 @@ xrootd_stage_reap_dir(const char *stage_dir, ngx_log_t *log)
     while ((de = readdir(d)) != NULL && ncount < 256) {
         size_t nlen = strlen(de->d_name);
         if (nlen > slen && nlen < sizeof(names[0])
-            && strcmp(de->d_name + nlen - slen, XROOTD_STAGE_COMMIT_SUFFIX) == 0)
+            && strcmp(de->d_name + nlen - slen, BRIX_STAGE_COMMIT_SUFFIX) == 0)
         {
             ngx_memcpy(names[ncount], de->d_name, nlen + 1);
             ncount++;
@@ -582,7 +582,7 @@ xrootd_stage_reap_dir(const char *stage_dir, ngx_log_t *log)
             (void) unlink(marker);
             continue;
         }
-        if (xrootd_commit_staged(NGX_INVALID_FILE, partial, final, log)
+        if (brix_commit_staged(NGX_INVALID_FILE, partial, final, log)
             == NGX_OK)
         {
             (void) unlink(marker);
@@ -600,11 +600,11 @@ xrootd_stage_reap_dir(const char *stage_dir, ngx_log_t *log)
 }
 
 ngx_uint_t
-xrootd_stage_reap_all(ngx_log_t *log)
+brix_stage_reap_all(ngx_log_t *log)
 {
     ngx_uint_t total = 0, i;
     for (i = 0; i < s_stage_dir_count; i++) {
-        total += xrootd_stage_reap_dir(s_stage_dirs[i], log);
+        total += brix_stage_reap_dir(s_stage_dirs[i], log);
     }
     return total;
 }
@@ -617,7 +617,7 @@ xrootd_stage_reap_all(ngx_log_t *log)
  *      the old file or the new one, never a partial write.
  *
  * HOW: Close the fd if still open (data should be flushed). Rename tmp_path → final_path via
- *      xrootd_rename_confined_canon(). On rename failure: unlink the temp file as cleanup. Set
+ *      brix_rename_confined_canon(). On rename failure: unlink the temp file as cleanup. Set
  *      staged->active=0 and clear tmp_path buffer. Return NGX_OK on success, NGX_ERROR on fail.
  *
  * Parameters:
@@ -628,7 +628,7 @@ xrootd_stage_reap_all(ngx_log_t *log)
  */
 static ngx_int_t
 staged_commit_internal(ngx_log_t *log, const char *root_canon,
-    xrootd_staged_file_t *staged, const char *final_path, int exclusive)
+    brix_staged_file_t *staged, const char *final_path, int exclusive)
 {
     if (staged == NULL || !staged->active) {
         errno = EINVAL;
@@ -641,7 +641,7 @@ staged_commit_internal(ngx_log_t *log, const char *root_canon,
 
     /* Open the confinement root first so the fsync-failure cleanup path (C1) can
      * unlink the temp without re-opening it. */
-    rootfd = xrootd_beneath_open_root(root_canon);
+    rootfd = brix_beneath_open_root(root_canon);
     if (rootfd < 0) {
         if (staged->fd != NGX_INVALID_FILE) {
             ngx_close_file(staged->fd);
@@ -650,8 +650,8 @@ staged_commit_internal(ngx_log_t *log, const char *root_canon,
         staged->active = 0;
         return NGX_ERROR;
     }
-    tmp_rel   = xrootd_beneath_strip_root(root_canon, staged->tmp_path);
-    final_rel = xrootd_beneath_strip_root(root_canon, final_path);
+    tmp_rel   = brix_beneath_strip_root(root_canon, staged->tmp_path);
+    final_rel = brix_beneath_strip_root(root_canon, final_path);
     if (tmp_rel == NULL || final_rel == NULL) {
         if (staged->fd != NGX_INVALID_FILE) {
             ngx_close_file(staged->fd);
@@ -678,7 +678,7 @@ staged_commit_internal(ngx_log_t *log, const char *root_canon,
                           "\"%s\"", final_path);
             ngx_close_file(staged->fd);
             staged->fd = NGX_INVALID_FILE;
-            (void) xrootd_unlink_beneath(rootfd, tmp_rel, 0);
+            (void) brix_unlink_beneath(rootfd, tmp_rel, 0);
             close(rootfd);
             staged->active = 0;
             errno = e;
@@ -688,11 +688,11 @@ staged_commit_internal(ngx_log_t *log, const char *root_canon,
         staged->fd = NGX_INVALID_FILE;
     }
 
-    rc = exclusive ? xrootd_rename_beneath_excl(rootfd, tmp_rel, final_rel)
-                   : xrootd_rename_beneath(rootfd, tmp_rel, final_rel);
+    rc = exclusive ? brix_rename_beneath_excl(rootfd, tmp_rel, final_rel)
+                   : brix_rename_beneath(rootfd, tmp_rel, final_rel);
     if (rc != 0) {
         int e = errno;                       /* preserve EEXIST for the caller */
-        (void) xrootd_unlink_beneath(rootfd, tmp_rel, 0);
+        (void) brix_unlink_beneath(rootfd, tmp_rel, 0);
         close(rootfd);
         staged->active = 0;
         errno = e;
@@ -710,15 +710,15 @@ staged_commit_internal(ngx_log_t *log, const char *root_canon,
 }
 
 ngx_int_t
-xrootd_staged_commit(ngx_log_t *log, const char *root_canon,
-    xrootd_staged_file_t *staged, const char *final_path)
+brix_staged_commit(ngx_log_t *log, const char *root_canon,
+    brix_staged_file_t *staged, const char *final_path)
 {
     return staged_commit_internal(log, root_canon, staged, final_path, 0);
 }
 
 ngx_int_t
-xrootd_staged_commit_excl(ngx_log_t *log, const char *root_canon,
-    xrootd_staged_file_t *staged, const char *final_path)
+brix_staged_commit_excl(ngx_log_t *log, const char *root_canon,
+    brix_staged_file_t *staged, const char *final_path)
 {
     return staged_commit_internal(log, root_canon, staged, final_path, 1);
 }
@@ -731,7 +731,7 @@ xrootd_staged_commit_excl(ngx_log_t *log, const char *root_canon,
  *      or leave it for later inspection (remove_tmp=0).
  *
  * HOW: Close fd if open and valid. If remove_tmp is set AND staged is active AND tmp_path is
- *      non-empty: unlink via xrootd_unlink_confined_canon(). Always set active=0 and clear
+ *      non-empty: unlink via brix_unlink_confined_canon(). Always set active=0 and clear
  *      tmp_path buffer.
  *
  * Parameters:
@@ -741,8 +741,8 @@ xrootd_staged_commit_excl(ngx_log_t *log, const char *root_canon,
  *   remove_tmp — 1 to delete temp file, 0 to leave it on disk
  */
 void
-xrootd_staged_abort(ngx_log_t *log, const char *root_canon,
-    xrootd_staged_file_t *staged, ngx_flag_t remove_tmp)
+brix_staged_abort(ngx_log_t *log, const char *root_canon,
+    brix_staged_file_t *staged, ngx_flag_t remove_tmp)
 {
     if (staged == NULL) {
         return;
@@ -756,13 +756,13 @@ xrootd_staged_abort(ngx_log_t *log, const char *root_canon,
     }
 
     if (remove_tmp && staged->active && staged->tmp_path[0] != '\0') {
-        int         rootfd = xrootd_beneath_open_root(root_canon);
+        int         rootfd = brix_beneath_open_root(root_canon);
         const char *tmp_rel;
 
         if (rootfd >= 0) {
-            tmp_rel = xrootd_beneath_strip_root(root_canon, staged->tmp_path);
+            tmp_rel = brix_beneath_strip_root(root_canon, staged->tmp_path);
             if (tmp_rel != NULL) {
-                (void) xrootd_unlink_beneath(rootfd, tmp_rel, 0);
+                (void) brix_unlink_beneath(rootfd, tmp_rel, 0);
             }
             close(rootfd);
         }

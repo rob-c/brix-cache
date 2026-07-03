@@ -37,7 +37,7 @@
  */
 
 static char *
-xrootd_pki_name_to_str(const X509_NAME *name)
+brix_pki_name_to_str(const X509_NAME *name)
 {
     return X509_NAME_oneline(name, NULL, 0);
 }
@@ -48,16 +48,16 @@ xrootd_pki_name_to_str(const X509_NAME *name)
  *
  * WHY: CRL/CA mismatch errors need to identify which issuer or CA was problematic; without converting the binary X509_NAME structure to readable text, operators can't determine which certificate in their trust store is causing the issue.
  *
- * HOW: Calls xrootd_pki_name_to_str() to convert name → string, logs with format "%s: PKI check: %s %s" using log_prefix + message + name_text (or "<unknown>" if conversion failed), frees name_text via OPENSSL_free.
+ * HOW: Calls brix_pki_name_to_str() to convert name → string, logs with format "%s: PKI check: %s %s" using log_prefix + message + name_text (or "<unknown>" if conversion failed), frees name_text via OPENSSL_free.
  */
 
 static void
-xrootd_pki_log_name_error(ngx_log_t *log, const char *log_prefix,
+brix_pki_log_name_error(ngx_log_t *log, const char *log_prefix,
     const char *message, const X509_NAME *name)
 {
     char *name_text;
 
-    name_text = xrootd_pki_name_to_str(name);
+    name_text = brix_pki_name_to_str(name);
     ngx_log_error(NGX_LOG_ERR, log, 0,
                   "%s: PKI check: %s %s",
                   log_prefix, message, name_text ? name_text : "<unknown>");
@@ -77,7 +77,7 @@ xrootd_pki_log_name_error(ngx_log_t *log, const char *log_prefix,
  */
 
 static ngx_flag_t
-xrootd_pki_crl_matches_ca(X509_CRL *crl, X509 *ca_cert)
+brix_pki_crl_matches_ca(X509_CRL *crl, X509 *ca_cert)
 {
     X509_NAME *crl_issuer;
     X509_NAME *ca_subject;
@@ -98,7 +98,7 @@ xrootd_pki_crl_matches_ca(X509_CRL *crl, X509 *ca_cert)
  */
 
 static ngx_flag_t
-xrootd_pki_crl_signature_valid(ngx_log_t *log, X509_CRL *crl,
+brix_pki_crl_signature_valid(ngx_log_t *log, X509_CRL *crl,
     X509 *issuer_ca, const char *log_prefix)
 {
     EVP_PKEY  *issuer_public_key;
@@ -108,7 +108,7 @@ xrootd_pki_crl_signature_valid(ngx_log_t *log, X509_CRL *crl,
     issuer_subject = X509_get_subject_name(issuer_ca);
     issuer_public_key = X509_get_pubkey(issuer_ca);
     if (issuer_public_key == NULL) {
-        xrootd_pki_log_name_error(log, log_prefix,
+        brix_pki_log_name_error(log, log_prefix,
                                   "CA has no public key",
                                   issuer_subject);
         return 0;
@@ -122,7 +122,7 @@ xrootd_pki_crl_signature_valid(ngx_log_t *log, X509_CRL *crl,
     EVP_PKEY_free(issuer_public_key);
 
     if (verify_ok != 1) {
-        xrootd_pki_log_name_error(log, log_prefix,
+        brix_pki_log_name_error(log, log_prefix,
                                   "CRL signature verification failed for CRL issuer",
                                   issuer_subject);
         return 0;
@@ -132,7 +132,7 @@ xrootd_pki_crl_signature_valid(ngx_log_t *log, X509_CRL *crl,
 }
 
 /*
- * xrootd_pki_verify_crls — at startup, check that every loaded CRL has a
+ * brix_pki_verify_crls — at startup, check that every loaded CRL has a
  * matching CA certificate and a valid signature.
  *
  * This is a configuration-time consistency check, not an online revocation
@@ -150,7 +150,7 @@ xrootd_pki_crl_signature_valid(ngx_log_t *log, X509_CRL *crl,
  * Returns: always NGX_OK (errors are non-fatal, logged only).
  */
 ngx_int_t
-xrootd_pki_verify_crls(ngx_log_t *log, STACK_OF(X509) *ca_certs,
+brix_pki_verify_crls(ngx_log_t *log, STACK_OF(X509) *ca_certs,
     STACK_OF(X509_CRL) *crls, const char *log_prefix)
 {
     int crl_count;
@@ -174,9 +174,9 @@ xrootd_pki_verify_crls(ngx_log_t *log, STACK_OF(X509) *ca_certs,
             X509 *candidate_ca;
 
             candidate_ca = sk_X509_value(ca_certs, ca_index);
-            if (xrootd_pki_crl_matches_ca(crl, candidate_ca)) {
+            if (brix_pki_crl_matches_ca(crl, candidate_ca)) {
                 issuer_found = 1;
-                (void) xrootd_pki_crl_signature_valid(log, crl,
+                (void) brix_pki_crl_signature_valid(log, crl,
                                                        candidate_ca,
                                                        log_prefix);
                 break;
@@ -184,7 +184,7 @@ xrootd_pki_verify_crls(ngx_log_t *log, STACK_OF(X509) *ca_certs,
         }
 
         if (!issuer_found) {
-            xrootd_pki_log_name_error(log, log_prefix,
+            brix_pki_log_name_error(log, log_prefix,
                                       "no matching CA found for CRL issuer",
                                       crl_issuer);
         }
@@ -194,7 +194,7 @@ xrootd_pki_verify_crls(ngx_log_t *log, STACK_OF(X509) *ca_certs,
 }
 
 /*
- * xrootd_pki_check_paths — load CAs and CRLs from disk and verify
+ * brix_pki_check_paths — load CAs and CRLs from disk and verify
  * cross-signatures.  Called during nginx configuration phase.
  *
  * If ca_path or crl_path is NULL the corresponding check is skipped
@@ -202,7 +202,7 @@ xrootd_pki_verify_crls(ngx_log_t *log, STACK_OF(X509) *ca_certs,
  * as warnings.
  */
 ngx_int_t
-xrootd_pki_check_paths(ngx_log_t *log, const char *ca_path,
+brix_pki_check_paths(ngx_log_t *log, const char *ca_path,
     const char *crl_path, const char *log_prefix)
 {
     STACK_OF(X509)     *ca_certs;
@@ -212,9 +212,9 @@ xrootd_pki_check_paths(ngx_log_t *log, const char *ca_path,
         return NGX_OK;
     }
 
-    ca_certs = xrootd_pki_load_certs_from_path(ca_path, log);
+    ca_certs = brix_pki_load_certs_from_path(ca_path, log);
     if (ca_certs == NULL) {
-        XROOTD_DIAG_WARN(log, 0,
+        BRIX_DIAG_WARN(log, 0,
             "%s: no CA certificates loaded from \"%s\"",
             "directory has no readable *.pem CA certs, or wrong path",
             "point the CA setting at your grid trust store "
@@ -229,9 +229,9 @@ xrootd_pki_check_paths(ngx_log_t *log, const char *ca_path,
         return NGX_OK;
     }
 
-    crls = xrootd_pki_load_crls_from_path(crl_path, log);
+    crls = brix_pki_load_crls_from_path(crl_path, log);
     if (crls == NULL) {
-        XROOTD_DIAG_WARN(log, 0,
+        BRIX_DIAG_WARN(log, 0,
             "%s: no CRLs loaded from \"%s\"",
             "CRL directory is empty, stale, or wrong path",
             "run fetch-crl (or your CRL refresh cron) to populate it; "
@@ -241,7 +241,7 @@ xrootd_pki_check_paths(ngx_log_t *log, const char *ca_path,
         return NGX_OK;
     }
 
-    (void) xrootd_pki_verify_crls(log, ca_certs, crls, log_prefix);
+    (void) brix_pki_verify_crls(log, ca_certs, crls, log_prefix);
 
     sk_X509_pop_free(ca_certs, X509_free);
     sk_X509_CRL_pop_free(crls, X509_CRL_free);
@@ -250,9 +250,9 @@ xrootd_pki_check_paths(ngx_log_t *log, const char *ca_path,
 }
 
 int
-xrootd_check_pki_and_crl(const char *ca_dir, const char *crl_dir, ngx_log_t *log)
+brix_check_pki_and_crl(const char *ca_dir, const char *crl_dir, ngx_log_t *log)
 {
-    (void) xrootd_pki_check_paths(log, ca_dir, crl_dir, "xrootd");
+    (void) brix_pki_check_paths(log, ca_dir, crl_dir, "xrootd");
 
     return 0;
 }

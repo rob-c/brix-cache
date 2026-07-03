@@ -47,11 +47,11 @@ cat > "$PFX/mk_dirty.c" <<'EOF'
 #include <stdint.h>
 #include <stddef.h>
 typedef intptr_t ngx_int_t;
-ngx_int_t xrootd_cache_cinfo_mark_dirty(const char *cache_path, uint64_t size,
+ngx_int_t brix_cache_cinfo_mark_dirty(const char *cache_path, uint64_t size,
     uint32_t block_size, uint64_t mtime, uint64_t off, uint64_t len, void *log);
 int main(int argc, char **argv) {
     if (argc < 2) return 2;
-    return xrootd_cache_cinfo_mark_dirty(argv[1], 65536, 1048576, 1000, 0, 65536, NULL) == 0 ? 0 : 1;
+    return brix_cache_cinfo_mark_dirty(argv[1], 65536, 1048576, 1000, 0, 65536, NULL) == 0 ? 0 : 1;
 }
 EOF
 cc -O -o "$PFX/mk_dirty" "$PFX/mk_dirty.c" "$CINFO_O" || { echo "failed to build mk_dirty"; exit 2; }
@@ -60,17 +60,17 @@ cc -O -o "$PFX/mk_dirty" "$PFX/mk_dirty.c" "$CINFO_O" || { echo "failed to build
 spawn() {
     local name="$1" port="$2" high="$3" low="$4" mport="${5:-}" d="$PFX/$1" http_blk=""
     mkdir -p "$d/root" "$d/cache" "$d/logs"
-    [ -n "$mport" ] && http_blk="http { server { listen 127.0.0.1:${mport}; location /metrics { xrootd_metrics on; } } }"
+    [ -n "$mport" ] && http_blk="http { server { listen 127.0.0.1:${mport}; location /metrics { brix_metrics on; } } }"
     cat > "$d/nginx.conf" <<EOF
 daemon on; error_log $d/logs/e.log info; pid $d/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${port}; xrootd on; xrootd_auth none;
-    xrootd_storage_backend root://127.0.0.1:1; xrootd_cache_store posix:$d/cache; xrootd_cache_root /;
-    xrootd_cache_high_watermark ${high}%;
-    xrootd_cache_low_watermark  ${low}%;
-    xrootd_cache_reap_interval 1;
+    listen 127.0.0.1:${port}; xrootd on; brix_auth none;
+    brix_storage_backend root://127.0.0.1:1; brix_cache_store posix:$d/cache; brix_cache_root /;
+    brix_cache_high_watermark ${high}%;
+    brix_cache_low_watermark  ${low}%;
+    brix_cache_reap_interval 1;
 } }
 ${http_blk}
 EOF
@@ -109,13 +109,13 @@ grep -q 'watermark reaper purged' "$PFX/purge/logs/e.log" && ok "purge: watermar
 
 # --- B5 metrics: dedicated watermark-reaper family on /metrics ---
 M="$(curl -s --max-time 5 "http://127.0.0.1:11608/metrics" 2>/dev/null)"
-echo "$M" | grep -q '^xrootd_cache_usage_ratio ' && ok "metrics: cache_usage_ratio gauge present" \
+echo "$M" | grep -q '^brix_cache_usage_ratio ' && ok "metrics: cache_usage_ratio gauge present" \
     || bad "metrics: no cache_usage_ratio gauge"
-wm_files="$(echo "$M" | awk '/^xrootd_cache_watermark_evicted_files_total /{print $2}')"
+wm_files="$(echo "$M" | awk '/^brix_cache_watermark_evicted_files_total /{print $2}')"
 [ -n "$wm_files" ] && [ "${wm_files%.*}" -gt 0 ] 2>/dev/null \
     && ok "metrics: watermark_evicted_files_total > 0 ($wm_files)" \
     || bad "metrics: watermark_evicted_files_total not positive ($wm_files)"
-echo "$M" | awk '/^xrootd_cache_watermark_purges_total /{exit ($2>0)?0:1}' \
+echo "$M" | awk '/^brix_cache_watermark_purges_total /{exit ($2>0)?0:1}' \
     && ok "metrics: watermark_purges_total > 0" || bad "metrics: watermark_purges_total not positive"
 
 # --- calm instance assertions (give it the same wall time; it must NOT purge) ---

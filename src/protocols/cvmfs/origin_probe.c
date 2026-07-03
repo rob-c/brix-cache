@@ -1,4 +1,4 @@
-/* origin_probe.c — per-worker RTT probe for xrootd_cvmfs_origin_select rtt.
+/* origin_probe.c — per-worker RTT probe for brix_cvmfs_origin_select rtt.
  *
  * WHAT: a repeating per-worker timer posts a thread-pool task that measures
  *       TCP connect RTT to every configured origin endpoint; the event-loop
@@ -41,7 +41,7 @@ static cvmfs_rtt_reg_t  cvmfs_rtt_regs[CVMFS_PROBE_MAX_EXPORTS];
 static ngx_uint_t       cvmfs_rtt_regs_n;
 
 void
-xrootd_cvmfs_rtt_register(const char *root_canon, time_t interval,
+brix_cvmfs_rtt_register(const char *root_canon, time_t interval,
     const ngx_str_t *pool_name)
 {
     ngx_uint_t       i;
@@ -96,7 +96,7 @@ typedef struct {
  * (refused, unreachable, timeout, resolution failure). Shared with the
  * on-demand geo-answer probe (geo_answer.c) — ONE connect-RTT implementation. */
 long
-xrootd_cvmfs_connect_rtt_us(const char *host, int port, int timeout_ms)
+brix_cvmfs_connect_rtt_us(const char *host, int port, int timeout_ms)
 {
     struct addrinfo  hints, *ai = NULL;
     struct pollfd    pfd;
@@ -150,7 +150,7 @@ cvmfs_probe_thread(void *data, ngx_log_t *log)
 
     (void) log;
     for (i = 0; i < pc->n; i++) {
-        pc->sample_us[i] = xrootd_cvmfs_connect_rtt_us(pc->hosts[i],
+        pc->sample_us[i] = brix_cvmfs_connect_rtt_us(pc->hosts[i],
                                                 pc->ports[i],
                                                 CVMFS_PROBE_TIMEOUT_MS);
     }
@@ -229,11 +229,11 @@ cvmfs_probe_log_reachability(cvmfs_probe_ctx_t *pc, ngx_log_t *log)
 }
 
 /* Unwrap the composed stack (cache → stage → backend) to the http source. */
-static xrootd_sd_instance_t *
-cvmfs_unwrap_http(xrootd_sd_instance_t *inst)
+static brix_sd_instance_t *
+cvmfs_unwrap_http(brix_sd_instance_t *inst)
 {
     while (inst != NULL && ngx_strcmp(inst->driver->name, "http") != 0) {
-        inst = xrootd_sd_cache_source_instance(inst);
+        inst = brix_sd_cache_source_instance(inst);
     }
     return inst;
 }
@@ -246,7 +246,7 @@ cvmfs_probe_done(ngx_event_t *ev)
 {
     ngx_thread_task_t     *task = ev->data;
     cvmfs_probe_ctx_t     *pc = task->ctx;
-    xrootd_sd_instance_t  *inst;
+    brix_sd_instance_t  *inst;
     double                 metric[SD_HTTP_EP_MAX];
     char                   tbl[1024];
     int                    ranks[SD_HTTP_EP_MAX], i, best;
@@ -259,12 +259,12 @@ cvmfs_probe_done(ngx_event_t *ev)
                        ? s : pc->ewma_us[i] * 0.75 + s * 0.25;
         metric[i] = pc->ewma_us[i];
     }
-    xrootd_cvmfs_rank_by_metric(metric, pc->n, ranks);
+    brix_cvmfs_rank_by_metric(metric, pc->n, ranks);
 
     cvmfs_probe_log_reachability(pc, ev->log);
 
     inst = cvmfs_unwrap_http(
-        xrootd_vfs_backend_resolve(pc->reg->root, ev->log));
+        brix_vfs_backend_resolve(pc->reg->root, ev->log));
     if (inst != NULL) {
         sd_http_set_ranks(inst, ranks, pc->n);
     }
@@ -329,7 +329,7 @@ cvmfs_probe_fire(ngx_event_t *ev)
 }
 
 ngx_int_t
-xrootd_cvmfs_rtt_init_worker(ngx_cycle_t *cycle)
+brix_cvmfs_rtt_init_worker(ngx_cycle_t *cycle)
 {
     ngx_uint_t i;
 
@@ -348,7 +348,7 @@ xrootd_cvmfs_rtt_init_worker(ngx_cycle_t *cycle)
         pc->task = task;
         pc->reg  = reg;
         for (idx = 0; idx < SD_HTTP_EP_MAX; idx++) {
-            if (xrootd_vfs_backend_http_endpoint_at(reg->root, idx, &host,
+            if (brix_vfs_backend_http_endpoint_at(reg->root, idx, &host,
                                                     &port) != 0)
             {
                 break;
@@ -365,7 +365,7 @@ xrootd_cvmfs_rtt_init_worker(ngx_cycle_t *cycle)
             pc->prev_ranks[idx] = -1;    /* -1 = no ranking pushed yet */
         }
 
-        xrootd_task_bind(task, cvmfs_probe_thread, cvmfs_probe_done);
+        brix_task_bind(task, cvmfs_probe_thread, cvmfs_probe_done);
         task->event.log = cycle->log;
 
         pc->timer.handler = cvmfs_probe_fire;

@@ -4,7 +4,7 @@
  *
  * This links against the real compiled slice.o + meta.o objects from the nginx
  * build and provides tiny stubs for the two externals slice.o needs that live
- * elsewhere in the cache module (xrootd_cache_file_ready, ngx_log_error_core).
+ * elsewhere in the cache module (brix_cache_file_ready, ngx_log_error_core).
  * It needs no running server, so it works even when the integration test host
  * is unavailable.  Build + run via tests/c/run_slice_tests.sh.
  *
@@ -31,7 +31,7 @@ typedef intptr_t  ngx_int_t;
 
 #define SLICE_128M (128u * 1024u * 1024u)
 
-/* Mirror of xrootd_slice_t from src/fs/cache/slice.h (layout must match). */
+/* Mirror of brix_slice_t from src/fs/cache/slice.h (layout must match). */
 typedef struct {
     off_t       file_start;
     off_t       file_end;
@@ -40,20 +40,20 @@ typedef struct {
     ngx_uint_t  idx;
     char        path[PATH_MAX];
     int         ready;
-} xrootd_slice_t;
+} brix_slice_t;
 
 /* Slice library under test (defined in slice.o). */
-ngx_int_t  xrootd_slice_path(const char *cache_path, size_t slice_size,
+ngx_int_t  brix_slice_path(const char *cache_path, size_t slice_size,
     ngx_uint_t slice_idx, char *out, size_t outsz);
-ngx_int_t  xrootd_slice_enumerate(const char *cache_path, off_t file_size,
+ngx_int_t  brix_slice_enumerate(const char *cache_path, off_t file_size,
     size_t slice_size, off_t req_start, off_t req_end,
-    xrootd_slice_t *out, ngx_uint_t max_out, ngx_uint_t *nout);
-ngx_int_t  xrootd_slice_meta_base(const char *cache_path, char *out, size_t outsz);
-ngx_int_t  xrootd_slice_meta_validate(const char *cache_path, off_t origin_size,
+    brix_slice_t *out, ngx_uint_t max_out, ngx_uint_t *nout);
+ngx_int_t  brix_slice_meta_base(const char *cache_path, char *out, size_t outsz);
+ngx_int_t  brix_slice_meta_validate(const char *cache_path, off_t origin_size,
     const char *origin_etag, void *log);
-ngx_int_t  xrootd_slice_meta_write(const char *cache_path, off_t origin_size,
+ngx_int_t  brix_slice_meta_write(const char *cache_path, off_t origin_size,
     const char *origin_etag, uint64_t mtime, void *log);
-ngx_uint_t xrootd_slice_evict_all(const char *cache_path, void *log);
+ngx_uint_t brix_slice_evict_all(const char *cache_path, void *log);
 
 /* ---- Stubs for the cache-module externals slice.o / meta.o reference. ---- */
 
@@ -66,7 +66,7 @@ static ngx_time_t      _stub_cached_time;
 volatile ngx_time_t   *ngx_cached_time = &_stub_cached_time;
 
 int
-xrootd_cache_file_ready(const char *path)
+brix_cache_file_ready(const char *path)
 {
     /* A slice is "ready" iff the final (non-.part) file exists. */
     return (access(path, F_OK) == 0) ? 1 : 0;
@@ -75,7 +75,7 @@ xrootd_cache_file_ready(const char *path)
 /* Mirrors src/fs/cache/paths.c: appends ".meta".  Stubbed here so the test need
  * not link paths.o (which pulls in the whole path module). */
 int
-xrootd_cache_meta_path(char *dst, size_t dstsz, const char *cache_path)
+brix_cache_meta_path(char *dst, size_t dstsz, const char *cache_path)
 {
     int n = snprintf(dst, dstsz, "%s.meta", cache_path);
     return (n < 0 || (size_t) n >= dstsz) ? NGX_ERROR : NGX_OK;
@@ -83,7 +83,7 @@ xrootd_cache_meta_path(char *dst, size_t dstsz, const char *cache_path)
 
 /* Mirrors src/fs/cache/cinfo.c: appends ".cinfo" (slice.o drops it on evict). */
 int
-xrootd_cache_cinfo_path(char *dst, size_t dstsz, const char *cache_path)
+brix_cache_cinfo_path(char *dst, size_t dstsz, const char *cache_path)
 {
     int n = snprintf(dst, dstsz, "%s.cinfo", cache_path);
     return (n < 0 || (size_t) n >= dstsz) ? NGX_ERROR : NGX_OK;
@@ -123,13 +123,13 @@ test_slice_path(void)
 
     printf("test_slice_path\n");
 
-    rc = xrootd_slice_path("/cache/store/run3.root", SLICE_128M, 0,
+    rc = brix_slice_path("/cache/store/run3.root", SLICE_128M, 0,
                            out, sizeof(out));
     CHECK(rc == NGX_OK, "slice 0 path returns OK");
     CHECK(strcmp(out, "/cache/store/run3.root.__xrds_131072k_0") == 0,
           "slice 0 filename matches convention");
 
-    rc = xrootd_slice_path("/cache/store/run3.root", SLICE_128M, 7,
+    rc = brix_slice_path("/cache/store/run3.root", SLICE_128M, 7,
                            out, sizeof(out));
     CHECK(rc == NGX_OK && strcmp(out,
           "/cache/store/run3.root.__xrds_131072k_7") == 0,
@@ -138,13 +138,13 @@ test_slice_path(void)
     /* Security/error: a too-small output buffer must fail, not overflow. */
     {
         char tiny[8];
-        rc = xrootd_slice_path("/cache/store/run3.root", SLICE_128M, 0,
+        rc = brix_slice_path("/cache/store/run3.root", SLICE_128M, 0,
                                tiny, sizeof(tiny));
         CHECK(rc == NGX_ERROR, "path too long -> NGX_ERROR (no overflow)");
     }
 
     /* Different slice size -> different name (auto-invalidation property). */
-    rc = xrootd_slice_path("/c/f", 64u * 1024 * 1024, 1, out, sizeof(out));
+    rc = brix_slice_path("/c/f", 64u * 1024 * 1024, 1, out, sizeof(out));
     CHECK(rc == NGX_OK && strcmp(out, "/c/f.__xrds_65536k_1") == 0,
           "64m slice encodes size in filename");
 }
@@ -153,7 +153,7 @@ static void
 test_enumerate(const char *dir)
 {
     char            cache_path[PATH_MAX];
-    xrootd_slice_t  slices[16];
+    brix_slice_t  slices[16];
     ngx_uint_t      n;
     ngx_int_t       rc;
 
@@ -161,7 +161,7 @@ test_enumerate(const char *dir)
     snprintf(cache_path, sizeof(cache_path), "%s/run3.root", dir);
 
     /* file_size 300 MiB, request [100 MiB, 300 MiB) -> slices 0,1,2. */
-    rc = xrootd_slice_enumerate(cache_path, 300LL * 1024 * 1024, SLICE_128M,
+    rc = brix_slice_enumerate(cache_path, 300LL * 1024 * 1024, SLICE_128M,
                                 100LL * 1024 * 1024, 300LL * 1024 * 1024,
                                 slices, 16, &n);
     CHECK(rc == NGX_OK, "enumerate spanning range returns OK");
@@ -179,7 +179,7 @@ test_enumerate(const char *dir)
     /* Readiness: create slices 0 and 1 only. */
     touch(slices[0].path);
     touch(slices[1].path);
-    rc = xrootd_slice_enumerate(cache_path, 300LL * 1024 * 1024, SLICE_128M,
+    rc = brix_slice_enumerate(cache_path, 300LL * 1024 * 1024, SLICE_128M,
                                 100LL * 1024 * 1024, 300LL * 1024 * 1024,
                                 slices, 16, &n);
     CHECK(rc == NGX_OK && n == 3, "re-enumerate ok");
@@ -188,19 +188,19 @@ test_enumerate(const char *dir)
     CHECK(slices[2].ready == 0, "absent slice marked not ready");
 
     /* Single byte at offset 0 -> exactly slice 0. */
-    rc = xrootd_slice_enumerate(cache_path, 300LL * 1024 * 1024, SLICE_128M,
+    rc = brix_slice_enumerate(cache_path, 300LL * 1024 * 1024, SLICE_128M,
                                 0, 1, slices, 16, &n);
     CHECK(rc == NGX_OK && n == 1 && slices[0].idx == 0,
           "1-byte read at 0 -> slice 0 only");
 
     /* Cap: a 4 GiB range at 128 MiB slices spans 32 slices > 16 -> DECLINED. */
-    rc = xrootd_slice_enumerate(cache_path, 8LL * 1024 * 1024 * 1024,
+    rc = brix_slice_enumerate(cache_path, 8LL * 1024 * 1024 * 1024,
                                 SLICE_128M, 0, 4LL * 1024 * 1024 * 1024,
                                 slices, 16, &n);
     CHECK(rc == NGX_DECLINED, "range over MAX_PER_REQUEST slices -> DECLINED");
 
     /* Bad args. */
-    rc = xrootd_slice_enumerate(cache_path, 0, SLICE_128M, 50, 10,
+    rc = brix_slice_enumerate(cache_path, 0, SLICE_128M, 50, 10,
                                 slices, 16, &n);
     CHECK(rc == NGX_ERROR, "req_end <= req_start -> NGX_ERROR");
 }
@@ -215,21 +215,21 @@ test_meta(const char *dir)
     snprintf(cache_path, sizeof(cache_path), "%s/meta_file.root", dir);
 
     /* No meta yet -> "unknown" -> NGX_OK (caller proceeds). */
-    rc = xrootd_slice_meta_validate(cache_path, 12345, "etagA", g_fake_log);
+    rc = brix_slice_meta_validate(cache_path, 12345, "etagA", g_fake_log);
     CHECK(rc == NGX_OK, "missing meta validates as OK (unknown)");
 
     /* Write meta, then a matching validate succeeds. */
-    rc = xrootd_slice_meta_write(cache_path, 12345, "etagA", 999, g_fake_log);
+    rc = brix_slice_meta_write(cache_path, 12345, "etagA", 999, g_fake_log);
     CHECK(rc == NGX_OK, "meta write OK");
-    rc = xrootd_slice_meta_validate(cache_path, 12345, "etagA", g_fake_log);
+    rc = brix_slice_meta_validate(cache_path, 12345, "etagA", g_fake_log);
     CHECK(rc == NGX_OK, "matching size+etag validates OK");
 
     /* Size change -> mismatch -> NGX_DECLINED (stale). */
-    rc = xrootd_slice_meta_validate(cache_path, 99999, "etagA", g_fake_log);
+    rc = brix_slice_meta_validate(cache_path, 99999, "etagA", g_fake_log);
     CHECK(rc == NGX_DECLINED, "size mismatch -> DECLINED");
 
     /* Etag change -> mismatch -> NGX_DECLINED. */
-    rc = xrootd_slice_meta_validate(cache_path, 12345, "etagB", g_fake_log);
+    rc = brix_slice_meta_validate(cache_path, 12345, "etagB", g_fake_log);
     CHECK(rc == NGX_DECLINED, "etag mismatch -> DECLINED");
 }
 
@@ -246,27 +246,27 @@ test_evict_all(const char *dir)
 
     /* Create slices 0,1,2, a .part sibling, and the meta sidecar. */
     for (ngx_uint_t i = 0; i < 3; i++) {
-        rc = xrootd_slice_path(cache_path, SLICE_128M, i, p, sizeof(p));
+        rc = brix_slice_path(cache_path, SLICE_128M, i, p, sizeof(p));
         CHECK(rc == NGX_OK, "build slice path for evict");
         touch(p);
     }
-    rc = xrootd_slice_path(cache_path, SLICE_128M, 1, p, sizeof(p));
+    rc = brix_slice_path(cache_path, SLICE_128M, 1, p, sizeof(p));
     strncat(p, ".ngx-xrootd-part", sizeof(p) - strlen(p) - 1);
     touch(p);                                           /* in-progress .part */
-    xrootd_slice_meta_write(cache_path, 100, "e", 0, g_fake_log);
+    brix_slice_meta_write(cache_path, 100, "e", 0, g_fake_log);
 
-    removed = xrootd_slice_evict_all(cache_path, g_fake_log);
+    removed = brix_slice_evict_all(cache_path, g_fake_log);
     CHECK(removed >= 4, "evict removed >= 4 files (3 slices + .part)");
 
     /* Verify the slice files are gone. */
-    rc = xrootd_slice_path(cache_path, SLICE_128M, 0, p, sizeof(p));
+    rc = brix_slice_path(cache_path, SLICE_128M, 0, p, sizeof(p));
     CHECK(access(p, F_OK) != 0, "slice 0 unlinked after evict");
 
     /* Security: a sibling file in the SAME dir but a DIFFERENT base must NOT
      * be touched by the glob. */
     snprintf(p, sizeof(p), "%s/other_file.root.__xrds_131072k_0", dir);
     touch(p);
-    xrootd_slice_evict_all(cache_path, g_fake_log);     /* evict evict_file.* */
+    brix_slice_evict_all(cache_path, g_fake_log);     /* evict evict_file.* */
     CHECK(access(p, F_OK) == 0, "unrelated base's slice not evicted");
     unlink(p);
 }

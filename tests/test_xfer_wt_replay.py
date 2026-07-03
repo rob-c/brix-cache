@@ -66,15 +66,15 @@ stream {{
     server {{
         listen {BIND_HOST}:{PORT};
         xrootd on;
-        xrootd_root {data};
-        xrootd_auth none;
-        xrootd_allow_write on;
-        xrootd_thread_pool wtpool;
-        xrootd_write_through on;
-        xrootd_wt_mode async;
-        xrootd_wt_origin 127.0.0.1:1;        # dead origin → flush always fails
-        xrootd_frm on;
-        xrootd_frm_queue_path {queue};
+        brix_root {data};
+        brix_auth none;
+        brix_allow_write on;
+        brix_thread_pool wtpool;
+        brix_write_through on;
+        brix_wt_mode async;
+        brix_wt_origin 127.0.0.1:1;        # dead origin → flush always fails
+        brix_frm on;
+        brix_frm_queue_path {queue};
     }}
 }}
 daemon off;

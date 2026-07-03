@@ -16,11 +16,11 @@
 
 
 ngx_int_t
-xrootd_rl_check(xrootd_rl_rule_t *rule, const char *key_str,
+brix_rl_check(brix_rl_rule_t *rule, const char *key_str,
     uint32_t *wait_seconds)
 {
-    xrootd_rl_zone_t *zone = rule->zone;
-    xrootd_rl_node_t *rln;
+    brix_rl_zone_t *zone = rule->zone;
+    brix_rl_node_t *rln;
     uint32_t          hash;
     size_t            len;
     ngx_msec_t        now, elapsed;
@@ -32,14 +32,14 @@ xrootd_rl_check(xrootd_rl_rule_t *rule, const char *key_str,
     }
 
     len  = ngx_strlen(key_str);
-    hash = xrootd_rl_hash(key_str, len);
+    hash = brix_rl_hash(key_str, len);
     now  = ngx_current_msec;
 
     ngx_shmtx_lock(&zone->shpool->mutex);
 
-    rln = xrootd_rl_lookup_locked(zone, hash, key_str, len);
+    rln = brix_rl_lookup_locked(zone, hash, key_str, len);
     if (rln == NULL) {
-        rln = xrootd_rl_create_locked(zone, hash, key_str, len);
+        rln = brix_rl_create_locked(zone, hash, key_str, len);
         if (rln == NULL) {
             ngx_shmtx_unlock(&zone->shpool->mutex);
             return NGX_OK;                 /* fail open */
@@ -86,10 +86,10 @@ xrootd_rl_check(xrootd_rl_rule_t *rule, const char *key_str,
 
 /* W7: per-principal concurrency (in-flight) limit */
 ngx_int_t
-xrootd_rl_conc_acquire(xrootd_rl_rule_t *rule, const char *key_str)
+brix_rl_conc_acquire(brix_rl_rule_t *rule, const char *key_str)
 {
-    xrootd_rl_zone_t *zone = rule->zone;
-    xrootd_rl_node_t *rln;
+    brix_rl_zone_t *zone = rule->zone;
+    brix_rl_node_t *rln;
     uint32_t          hash;
     size_t            len;
     ngx_int_t         rc = NGX_OK;
@@ -99,13 +99,13 @@ xrootd_rl_conc_acquire(xrootd_rl_rule_t *rule, const char *key_str)
     }
 
     len  = ngx_strlen(key_str);
-    hash = xrootd_rl_hash(key_str, len);
+    hash = brix_rl_hash(key_str, len);
 
     ngx_shmtx_lock(&zone->shpool->mutex);
 
-    rln = xrootd_rl_lookup_locked(zone, hash, key_str, len);
+    rln = brix_rl_lookup_locked(zone, hash, key_str, len);
     if (rln == NULL) {
-        rln = xrootd_rl_create_locked(zone, hash, key_str, len);
+        rln = brix_rl_create_locked(zone, hash, key_str, len);
         if (rln == NULL) {
             ngx_shmtx_unlock(&zone->shpool->mutex);
             return NGX_OK;                 /* fail open */
@@ -126,10 +126,10 @@ xrootd_rl_conc_acquire(xrootd_rl_rule_t *rule, const char *key_str)
 }
 
 void
-xrootd_rl_conc_release(xrootd_rl_rule_t *rule, const char *key_str)
+brix_rl_conc_release(brix_rl_rule_t *rule, const char *key_str)
 {
-    xrootd_rl_zone_t *zone = rule->zone;
-    xrootd_rl_node_t *rln;
+    brix_rl_zone_t *zone = rule->zone;
+    brix_rl_node_t *rln;
     uint32_t          hash;
     size_t            len;
 
@@ -138,7 +138,7 @@ xrootd_rl_conc_release(xrootd_rl_rule_t *rule, const char *key_str)
     }
 
     len  = ngx_strlen(key_str);
-    hash = xrootd_rl_hash(key_str, len);
+    hash = brix_rl_hash(key_str, len);
 
     /*
      * Fresh lookup under the lock — never dereference a cached node pointer,
@@ -147,7 +147,7 @@ xrootd_rl_conc_release(xrootd_rl_rule_t *rule, const char *key_str)
      * is a benign accuracy drift only possible under memory pressure.
      */
     ngx_shmtx_lock(&zone->shpool->mutex);
-    rln = xrootd_rl_lookup_locked(zone, hash, key_str, len);
+    rln = brix_rl_lookup_locked(zone, hash, key_str, len);
     if (rln != NULL && rln->in_flight > 0) {
         rln->in_flight--;
     }
@@ -156,11 +156,11 @@ xrootd_rl_conc_release(xrootd_rl_rule_t *rule, const char *key_str)
 
 
 ngx_int_t
-xrootd_rl_bw_check(xrootd_rl_rule_t *rule, const char *key_str,
+brix_rl_bw_check(brix_rl_rule_t *rule, const char *key_str,
     uint32_t *wait_seconds)
 {
-    xrootd_rl_zone_t *zone = rule->zone;
-    xrootd_rl_node_t *rln;
+    brix_rl_zone_t *zone = rule->zone;
+    brix_rl_node_t *rln;
     uint32_t          hash;
     size_t            len;
     ngx_msec_t        now, elapsed;
@@ -172,12 +172,12 @@ xrootd_rl_bw_check(xrootd_rl_rule_t *rule, const char *key_str,
     }
 
     len  = ngx_strlen(key_str);
-    hash = xrootd_rl_hash(key_str, len);
+    hash = brix_rl_hash(key_str, len);
     now  = ngx_current_msec;
 
     ngx_shmtx_lock(&zone->shpool->mutex);
 
-    rln = xrootd_rl_lookup_locked(zone, hash, key_str, len);
+    rln = brix_rl_lookup_locked(zone, hash, key_str, len);
     if (rln == NULL) {
         ngx_shmtx_unlock(&zone->shpool->mutex);
         return NGX_OK;                     /* nothing charged yet — allow */
@@ -202,11 +202,11 @@ xrootd_rl_bw_check(xrootd_rl_rule_t *rule, const char *key_str,
 
 
 void
-xrootd_rl_charge_bytes(xrootd_rl_rule_t *rule, const char *key_str,
+brix_rl_charge_bytes(brix_rl_rule_t *rule, const char *key_str,
     size_t nbytes)
 {
-    xrootd_rl_zone_t *zone = rule->zone;
-    xrootd_rl_node_t *rln;
+    brix_rl_zone_t *zone = rule->zone;
+    brix_rl_node_t *rln;
     uint32_t          hash;
     size_t            len;
     ngx_msec_t        now, elapsed;
@@ -217,14 +217,14 @@ xrootd_rl_charge_bytes(xrootd_rl_rule_t *rule, const char *key_str,
     }
 
     len  = ngx_strlen(key_str);
-    hash = xrootd_rl_hash(key_str, len);
+    hash = brix_rl_hash(key_str, len);
     now  = ngx_current_msec;
 
     ngx_shmtx_lock(&zone->shpool->mutex);
 
-    rln = xrootd_rl_lookup_locked(zone, hash, key_str, len);
+    rln = brix_rl_lookup_locked(zone, hash, key_str, len);
     if (rln == NULL) {
-        rln = xrootd_rl_create_locked(zone, hash, key_str, len);
+        rln = brix_rl_create_locked(zone, hash, key_str, len);
         if (rln == NULL) {
             ngx_shmtx_unlock(&zone->shpool->mutex);
             return;
@@ -246,11 +246,11 @@ xrootd_rl_charge_bytes(xrootd_rl_rule_t *rule, const char *key_str,
 
 /* dashboard snapshot */
 ngx_int_t
-xrootd_rl_snapshot(xrootd_rl_zone_t *zone, xrootd_rl_snapshot_entry_t *out,
+brix_rl_snapshot(brix_rl_zone_t *zone, brix_rl_snapshot_entry_t *out,
     ngx_uint_t max, ngx_uint_t *count)
 {
     ngx_queue_t      *q;
-    xrootd_rl_node_t *rln;
+    brix_rl_node_t *rln;
     ngx_uint_t        n = 0;
 
     *count = 0;
@@ -265,11 +265,11 @@ xrootd_rl_snapshot(xrootd_rl_zone_t *zone, xrootd_rl_snapshot_entry_t *out,
          q != ngx_queue_sentinel(&zone->sh->queue) && n < max;
          q = ngx_queue_next(q))
     {
-        rln = ngx_queue_data(q, xrootd_rl_node_t, queue);
+        rln = ngx_queue_data(q, brix_rl_node_t, queue);
 
         ngx_memcpy(out[n].key_str, rln->key_str,
-                   ngx_min(rln->len, XROOTD_RL_KEY_LEN - 1));
-        out[n].key_str[ngx_min(rln->len, XROOTD_RL_KEY_LEN - 1)] = '\0';
+                   ngx_min(rln->len, BRIX_RL_KEY_LEN - 1));
+        out[n].key_str[ngx_min(rln->len, BRIX_RL_KEY_LEN - 1)] = '\0';
         out[n].req_total      = rln->req_total;
         out[n].bytes_total    = rln->bytes_total;
         out[n].throttle_count = rln->throttle_count;
@@ -284,7 +284,7 @@ xrootd_rl_snapshot(xrootd_rl_zone_t *zone, xrootd_rl_snapshot_entry_t *out,
     {
         ngx_uint_t i, j;
         for (i = 1; i < n; i++) {
-            xrootd_rl_snapshot_entry_t tmp = out[i];
+            brix_rl_snapshot_entry_t tmp = out[i];
             for (j = i; j > 0 && out[j - 1].throttle_count < tmp.throttle_count;
                  j--)
             {

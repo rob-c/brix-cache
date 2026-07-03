@@ -13,7 +13,7 @@
 
 /* webdav_token_op_class — map the HTTP method to a registry op class * Read-ish verbs (GET/HEAD/PROPFIND/OPTIONS) authorize against read scopes;
  * everything else (PUT/DELETE/MKCOL/MOVE/COPY/PROPPATCH/LOCK/...) is a write. */
-static xrootd_token_op_e
+static brix_token_op_e
 webdav_token_op_class(ngx_http_request_t *r)
 {
     switch (r->method) {
@@ -21,9 +21,9 @@ webdav_token_op_class(ngx_http_request_t *r)
     case NGX_HTTP_HEAD:
     case NGX_HTTP_PROPFIND:
     case NGX_HTTP_OPTIONS:
-        return XROOTD_TOKEN_OP_READ;
+        return BRIX_TOKEN_OP_READ;
     default:
-        return XROOTD_TOKEN_OP_WRITE;
+        return BRIX_TOKEN_OP_WRITE;
     }
 }
 
@@ -46,15 +46,15 @@ webdav_token_op_class(ngx_http_request_t *r)
  *
  * WHY: WLCG/SciToken grants fine-grained path-based access rights rather than binary allow/deny. A token might grant read-only access to /data/atlas but write access to /data/cms — this function prevents cross-VO file mutation by ensuring only tokens with matching scope prefixes can execute mutating operations. The raw URI path check (not filesystem path) is intentional because scope granularity must match the client-facing namespace, not the underlying storage layout.
  *
- * HOW: Retrieves request context and verifies token_auth flag is set; copies r->uri into a null-terminated buffer for scope checking; calls xrootd_token_check_write() with the extracted scopes to verify the URI path is covered by at least one write scope prefix; logs warning and returns 403 if no matching scope found. */
+ * HOW: Retrieves request context and verifies token_auth flag is set; copies r->uri into a null-terminated buffer for scope checking; calls brix_token_check_write() with the extracted scopes to verify the URI path is covered by at least one write scope prefix; logs warning and returns 403 if no matching scope found. */
 ngx_int_t
 webdav_check_token_write_scope(ngx_http_request_t *r, const char *method_name)
 {
-    ngx_http_xrootd_webdav_req_ctx_t *rctx;
+    ngx_http_brix_webdav_req_ctx_t *rctx;
     char                              uri_path[WEBDAV_MAX_PATH];
     size_t                            ulen;
 
-    rctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    rctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (rctx == NULL || !rctx->token_auth) {
         return NGX_OK;
     }
@@ -65,12 +65,12 @@ webdav_check_token_write_scope(ngx_http_request_t *r, const char *method_name)
     uri_path[ulen] = '\0';
 
     if (rctx->identity != NULL) {
-        if (xrootd_identity_check_token_scope(rctx->identity, uri_path, 1)
+        if (brix_identity_check_token_scope(rctx->identity, uri_path, 1)
             == NGX_OK)
         {
             return NGX_OK;
         }
-    } else if (xrootd_token_check_write(rctx->token_scopes,
+    } else if (brix_token_check_write(rctx->token_scopes,
                                         rctx->token_scope_count,
                                         uri_path))
     {
@@ -78,7 +78,7 @@ webdav_check_token_write_scope(ngx_http_request_t *r, const char *method_name)
     }
 
     ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                  "xrootd_webdav: token scope denies %s write to \"%s\"",
+                  "brix_webdav: token scope denies %s write to \"%s\"",
                   method_name, uri_path);
 
     return NGX_HTTP_FORBIDDEN;
@@ -100,7 +100,7 @@ webdav_check_token_write_scope(ngx_http_request_t *r, const char *method_name)
  */
 static ngx_int_t
 webdav_bearer_from_query(ngx_http_request_t *r,
-                         ngx_http_xrootd_webdav_loc_conf_t *conf, ngx_str_t *out)
+                         ngx_http_brix_webdav_loc_conf_t *conf, ngx_str_t *out)
 {
     ngx_str_t raw;
     size_t    len;
@@ -108,11 +108,11 @@ webdav_bearer_from_query(ngx_http_request_t *r,
     if (!conf->http_query_token) {
         return NGX_DECLINED;
     }
-    if (xrootd_http_arg(r, "authz", 5, &raw) != NGX_OK
-        && xrootd_http_arg(r, "access_token", 12, &raw) != NGX_OK) {
+    if (brix_http_arg(r, "authz", 5, &raw) != NGX_OK
+        && brix_http_arg(r, "access_token", 12, &raw) != NGX_OK) {
         return NGX_DECLINED;
     }
-    len = xrootd_urldecode_inplace((char *) raw.data);
+    len = brix_urldecode_inplace((char *) raw.data);
     if (len >= 7 && ngx_strncasecmp(raw.data, (u_char *) "Bearer ", 7) == 0) {
         raw.data += 7;
         len      -= 7;
@@ -132,13 +132,13 @@ webdav_bearer_from_query(ngx_http_request_t *r,
  *
  * WHY: WebDAV clients authenticate using bearer tokens rather than GSI certificates or anonymous access. This function must handle both JWT (via JWKS key set) and macaroon formats since different WLCG sites use different token types. The grace-period fallback prevents immediate access disruption during secret key rotation — in-flight tokens should be accepted until they naturally expire, avoiding a "hard break" scenario where all active clients are suddenly denied after a config reload.
  *
- * HOW: Declines if no keys/secrets configured; parses macaroon secret for validation if present; creates or retrieves request context (declines if already token-authenticated to avoid redundant verification); extracts a Bearer token from Authorization with shared case-insensitive scheme parsing; calls xrootd_token_validate() with JWKS keys, issuer/audience config, and optionally the macaroon secret; attempts old-secret fallback only when primary validation fails AND an old secret exists; on success stores claims (sub, scopes) in ctx for downstream scope checks. */
+ * HOW: Declines if no keys/secrets configured; parses macaroon secret for validation if present; creates or retrieves request context (declines if already token-authenticated to avoid redundant verification); extracts a Bearer token from Authorization with shared case-insensitive scheme parsing; calls brix_token_validate() with JWKS keys, issuer/audience config, and optionally the macaroon secret; attempts old-secret fallback only when primary validation fails AND an old secret exists; on success stores claims (sub, scopes) in ctx for downstream scope checks. */
 ngx_int_t
 webdav_verify_bearer_token(ngx_http_request_t *r,
-                           ngx_http_xrootd_webdav_loc_conf_t *conf)
+                           ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    ngx_http_xrootd_webdav_req_ctx_t *ctx;
-    xrootd_token_claims_t             claims;
+    ngx_http_brix_webdav_req_ctx_t *ctx;
+    brix_token_claims_t             claims;
     ngx_str_t                         auth_hdr;
     ngx_str_t                         bearer;
     const char                       *token;
@@ -156,24 +156,24 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
     }
 
     if (conf->token_macaroon_secret.len) {
-        slen = xrootd_macaroon_secret_parse(
+        slen = brix_macaroon_secret_parse(
             (const char *) conf->token_macaroon_secret.data,
             conf->token_macaroon_secret.len, secret, sizeof(secret));
     }
  
-    ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (ctx == NULL) {
         ctx = ngx_pcalloc(r->pool, sizeof(*ctx));
         if (ctx == NULL) {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
-        ctx->identity = xrootd_identity_alloc(r->pool);
+        ctx->identity = brix_identity_alloc(r->pool);
         if (ctx->identity == NULL) {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
-        ngx_http_set_ctx(r, ctx, ngx_http_xrootd_webdav_module);
+        ngx_http_set_ctx(r, ctx, ngx_http_brix_webdav_module);
     } else if (ctx->identity == NULL) {
-        ctx->identity = xrootd_identity_alloc(r->pool);
+        ctx->identity = brix_identity_alloc(r->pool);
         if (ctx->identity == NULL) {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
@@ -190,7 +190,7 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
         }
     } else {
         auth_hdr = r->headers_in.authorization->value;
-        rc = xrootd_http_extract_bearer(&auth_hdr, &bearer);
+        rc = brix_http_extract_bearer(&auth_hdr, &bearer);
         if (rc == NGX_DECLINED) {
             /* Header present but not Bearer — still allow the query fallback. */
             if (webdav_bearer_from_query(r, conf, &bearer) != NGX_OK) {
@@ -209,9 +209,9 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
      * line) so a URL-borne bearer token never reaches access/error logs. r->uri (the
      * decoded path used for routing/scope) excludes the query, so this is safe. */
     if (r->args.len > 0) {
-        xrootd_http_redact_query_token(&r->args);
-        xrootd_http_redact_query_token(&r->unparsed_uri);
-        xrootd_http_redact_query_token(&r->request_line);
+        brix_http_redact_query_token(&r->args);
+        brix_http_redact_query_token(&r->unparsed_uri);
+        brix_http_redact_query_token(&r->request_line);
     }
  
     /*
@@ -231,22 +231,22 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
     int via_registry = (conf->token_registry != NULL);
 
     if (conf->token_l1 == NULL) {
-        conf->token_l1 = xrootd_token_l1_create(ngx_cycle->pool,
-                                                XROOTD_TOKEN_L1_SLOTS);
+        conf->token_l1 = brix_token_l1_create(ngx_cycle->pool,
+                                                BRIX_TOKEN_L1_SLOTS);
     }
 
     if (!via_registry
-        && xrootd_token_l1_lookup(conf->token_l1, token, token_len, &claims))
+        && brix_token_l1_lookup(conf->token_l1, token, token_len, &claims))
     {
         rc = 0;
         cache_hit = 1;
     } else if (!via_registry && conf->token_cache_kv != NULL
-               && xrootd_token_cache_lookup(conf->token_cache_kv,
+               && brix_token_cache_lookup(conf->token_cache_kv,
                                             token, token_len, &claims))
     {
         rc = 0;
         cache_hit = 1;
-        xrootd_token_l1_store(conf->token_l1, token, token_len, &claims);
+        brix_token_l1_store(conf->token_l1, token, token_len, &claims);
     } else if (via_registry) {
         char               pathz[2048];
         size_t             plen;
@@ -256,12 +256,12 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
         ngx_memcpy(pathz, r->uri.data, plen);
         pathz[plen] = '\0';
 
-        rc = xrootd_token_validate_registry(r->connection->log, token,
+        rc = brix_token_validate_registry(r->connection->log, token,
                 token_len, conf->token_registry, pathz,
                 webdav_token_op_class(r),
                 slen > 0 ? secret : NULL, (size_t) slen, &claims, &bucket);
     } else {
-        rc = xrootd_token_validate(r->connection->log, token, token_len,
+        rc = brix_token_validate(r->connection->log, token, token_len,
                                    conf->jwks_keys, conf->jwks_key_count,
                                    (const char *) conf->token_issuer.data,
                                    (const char *) conf->token_audience.data,
@@ -276,13 +276,13 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
         u_char  old_secret[64];
         ssize_t old_slen;
 
-        old_slen = xrootd_macaroon_secret_parse(
+        old_slen = brix_macaroon_secret_parse(
             (const char *) conf->token_macaroon_secret_old.data,
             conf->token_macaroon_secret_old.len,
             old_secret, sizeof(old_secret));
 
         if (old_slen > 0) {
-            rc = xrootd_token_validate(r->connection->log, token, token_len,
+            rc = brix_token_validate(r->connection->log, token, token_len,
                                        conf->jwks_keys, conf->jwks_key_count,
                                        (const char *) conf->token_issuer.data,
                                        (const char *) conf->token_audience.data,
@@ -290,7 +290,7 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
                                        &claims);
             if (rc == 0) {
                 ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-                              "xrootd_webdav: macaroon accepted via old secret "
+                              "brix_webdav: macaroon accepted via old secret "
                               "(grace-period key rotation)");
             }
         }
@@ -298,7 +298,7 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
 
     if (rc != 0) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                      "xrootd_webdav: bearer token validation failed");
+                      "brix_webdav: bearer token validation failed");
         return NGX_HTTP_UNAUTHORIZED;
     }
 
@@ -306,9 +306,9 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
      * L2 when a SHM zone is configured).  Registry-authorized tokens are never
      * cached: the decision is path-dependent and the cache is token-keyed. */
     if (!cache_hit && !via_registry) {
-        xrootd_token_l1_store(conf->token_l1, token, token_len, &claims);
+        brix_token_l1_store(conf->token_l1, token, token_len, &claims);
         if (conf->token_cache_kv != NULL) {
-            xrootd_token_cache_store(conf->token_cache_kv, token, token_len,
+            brix_token_cache_store(conf->token_cache_kv, token, token_len,
                                      &claims);
         }
     }
@@ -316,7 +316,7 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
     ctx->verified = 1;
     ctx->token_auth = 1;
     ctx->auth_source = "token";
-    if (xrootd_identity_set_token_claims(ctx->identity, r->pool, &claims)
+    if (brix_identity_set_token_claims(ctx->identity, r->pool, &claims)
         != NGX_OK)
     {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -324,12 +324,12 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
     ngx_cpystrn((u_char *) ctx->dn, (u_char *) claims.sub, sizeof(ctx->dn));
 
     ctx->token_scope_count = claims.scope_count;
-    for (i = 0; i < claims.scope_count && i < XROOTD_MAX_TOKEN_SCOPES; i++) {
+    for (i = 0; i < claims.scope_count && i < BRIX_MAX_TOKEN_SCOPES; i++) {
         ctx->token_scopes[i] = claims.scopes[i];
     }
 
     ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-                  "xrootd_webdav: token auth OK sub=\"%s\" scopes=%d",
+                  "brix_webdav: token auth OK sub=\"%s\" scopes=%d",
                   claims.sub, claims.scope_count);
 
     return NGX_OK;

@@ -20,7 +20,7 @@
  *             proxy_pass        https://iam.example.org/introspect;
  *         }
  *
- *     and names it with `xrootd_webdav_token_introspect_loc /internal/introspect;`.
+ *     and names it with `brix_webdav_token_introspect_loc /internal/introspect;`.
  *     We fire a subrequest at that URI carrying `?token=<jwt>` (JWTs are
  *     base64url, so they are URL-safe as a query value).
  *
@@ -43,8 +43,8 @@
 
 /* State carried from the subrequest fire to its completion callback. */
 typedef struct {
-    ngx_http_xrootd_webdav_req_ctx_t  *parent_ctx;
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_req_ctx_t  *parent_ctx;
+    ngx_http_brix_webdav_loc_conf_t *conf;
     u_char                             key[32];
     unsigned                           have_key:1;
 } webdav_introspect_data_t;
@@ -91,8 +91,8 @@ static ngx_int_t
 webdav_introspect_done(ngx_http_request_t *r, void *data, ngx_int_t rc)
 {
     webdav_introspect_data_t          *d    = data;
-    ngx_http_xrootd_webdav_req_ctx_t  *pctx = d->parent_ctx;
-    ngx_http_xrootd_webdav_loc_conf_t *conf = d->conf;
+    ngx_http_brix_webdav_req_ctx_t  *pctx = d->parent_ctx;
+    ngx_http_brix_webdav_loc_conf_t *conf = d->conf;
     ngx_uint_t                         status;
     int                                active;
 
@@ -105,7 +105,7 @@ webdav_introspect_done(ngx_http_request_t *r, void *data, ngx_int_t rc)
 
         /* Cache only negative (revoked) results so revocation propagates. */
         if (!active && conf->revoke_kv != NULL && d->have_key) {
-            (void) xrootd_kv_set(conf->revoke_kv, d->key, 32,
+            (void) brix_kv_set(conf->revoke_kv, d->key, 32,
                                  (const u_char *) "1", 1,
                                  (ngx_msec_t) conf->introspect_ttl * 1000);
         }
@@ -113,7 +113,7 @@ webdav_introspect_done(ngx_http_request_t *r, void *data, ngx_int_t rc)
         /* IdP unreachable / error → honour the configured failure policy. */
         active = conf->introspect_fail_open ? 1 : 0;
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                      "xrootd_webdav: token introspection failed "
+                      "brix_webdav: token introspection failed "
                       "(rc=%i status=%ui) — %s",
                       rc, status,
                       conf->introspect_fail_open ? "allowing (fail-open)"
@@ -127,8 +127,8 @@ webdav_introspect_done(ngx_http_request_t *r, void *data, ngx_int_t rc)
 
 static ngx_int_t
 webdav_introspect_fire(ngx_http_request_t *r,
-    ngx_http_xrootd_webdav_req_ctx_t *ctx,
-    ngx_http_xrootd_webdav_loc_conf_t *conf,
+    ngx_http_brix_webdav_req_ctx_t *ctx,
+    ngx_http_brix_webdav_loc_conf_t *conf,
     const ngx_str_t *token, const u_char key[32], int have_key)
 {
     ngx_http_request_t        *sr;
@@ -173,13 +173,13 @@ webdav_introspect_fire(ngx_http_request_t *r,
 ngx_int_t
 webdav_introspect_access_handler(ngx_http_request_t *r)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf;
-    ngx_http_xrootd_webdav_req_ctx_t  *ctx;
+    ngx_http_brix_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_req_ctx_t  *ctx;
     ngx_str_t                          auth, bearer;
     u_char                             key[32];
     int                                have_key = 0;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module);
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     if (conf == NULL || conf->introspect_loc.len == 0) {
         return NGX_DECLINED;            /* introspection not configured */
     }
@@ -194,7 +194,7 @@ webdav_introspect_access_handler(ngx_http_request_t *r)
         return NGX_DECLINED;
     }
     auth = r->headers_in.authorization->value;
-    if (xrootd_http_extract_bearer(&auth, &bearer) != NGX_OK
+    if (brix_http_extract_bearer(&auth, &bearer) != NGX_OK
         || bearer.len == 0)
     {
         return NGX_DECLINED;
@@ -203,17 +203,17 @@ webdav_introspect_access_handler(ngx_http_request_t *r)
     /* This access handler may run before the main webdav access handler that
      * normally allocates the request context, so get-or-create it here.  The
      * struct layout matches xrdhttp_get_ctx(), so a later call there reuses it. */
-    ctx = ngx_http_get_module_ctx(r, ngx_http_xrootd_webdav_module);
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (ctx == NULL) {
-        XROOTD_PCALLOC_OR_RETURN(ctx, r->pool, sizeof(*ctx), NGX_ERROR);
-        ngx_http_set_ctx(r, ctx, ngx_http_xrootd_webdav_module);
+        BRIX_PCALLOC_OR_RETURN(ctx, r->pool, sizeof(*ctx), NGX_ERROR);
+        ngx_http_set_ctx(r, ctx, ngx_http_brix_webdav_module);
     }
 
     /* Resume path: the subrequest already produced a verdict. */
     if (ctx->introspect_done) {
         if (!ctx->introspect_active) {
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                          "xrootd_webdav: bearer token rejected by"
+                          "brix_webdav: bearer token rejected by"
                           " introspection (revoked)");
             return NGX_HTTP_FORBIDDEN;
         }
@@ -221,14 +221,14 @@ webdav_introspect_access_handler(ngx_http_request_t *r)
     }
 
     /* Fast path: token fingerprint already known-revoked. */
-    if (xrootd_sha256(bearer.data, bearer.len, key) == 1) {
+    if (brix_sha256(bearer.data, bearer.len, key) == 1) {
         have_key = 1;
         if (conf->revoke_kv != NULL) {
             u_char  v[4];
             size_t  vl = sizeof(v);
-            if (xrootd_kv_get(conf->revoke_kv, key, 32, v, &vl) == 1) {
+            if (brix_kv_get(conf->revoke_kv, key, 32, v, &vl) == 1) {
                 ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                              "xrootd_webdav: bearer token rejected"
+                              "brix_webdav: bearer token rejected"
                               " (revocation cache hit)");
                 return NGX_HTTP_FORBIDDEN;
             }
@@ -245,15 +245,15 @@ webdav_introspect_access_handler(ngx_http_request_t *r)
     return NGX_AGAIN;                   /* suspend until subrequest completes */
 }
 
-/* directive: xrootd_webdav_revoke_cache zone=<name>; */
+/* directive: brix_webdav_revoke_cache zone=<name>; */
 char *
 webdav_conf_revoke_cache(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 {
-    ngx_http_xrootd_webdav_loc_conf_t *conf = conf_ptr;
+    ngx_http_brix_webdav_loc_conf_t *conf = conf_ptr;
     ngx_str_t                         *value = cf->args->elts;
     ngx_str_t                          zone = ngx_null_string;
     ngx_uint_t                         i;
-    xrootd_kv_t                       *kv;
+    brix_kv_t                       *kv;
 
     (void) cmd;
 
@@ -263,27 +263,27 @@ webdav_conf_revoke_cache(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
             zone.len  = value[i].len - 5;
         } else {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "invalid xrootd_webdav_revoke_cache parameter \"%V\"",
+                "invalid brix_webdav_revoke_cache parameter \"%V\"",
                 &value[i]);
             return NGX_CONF_ERROR;
         }
     }
     if (zone.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_webdav_revoke_cache requires zone=<name>");
+            "brix_webdav_revoke_cache requires zone=<name>");
         return NGX_CONF_ERROR;
     }
 
-    kv = xrootd_kv_find(&zone);
+    kv = brix_kv_find(&zone);
     if (kv == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_webdav_revoke_cache: unknown zone \"%V\" "
-            "(declare it with xrootd_kv_zone first)", &zone);
+            "brix_webdav_revoke_cache: unknown zone \"%V\" "
+            "(declare it with brix_kv_zone first)", &zone);
         return NGX_CONF_ERROR;
     }
     if (kv->key_max < 32 || kv->val_max < 1) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd_webdav_revoke_cache zone \"%V\" too small: need key>=32 val>=1",
+            "brix_webdav_revoke_cache zone \"%V\" too small: need key>=32 val>=1",
             &zone);
         return NGX_CONF_ERROR;
     }

@@ -21,12 +21,12 @@
  */
 
 static ngx_int_t
-xrootd_dirlist_parse_algorithm(const u_char *src, size_t len,
+brix_dirlist_parse_algorithm(const u_char *src, size_t len,
     char *algo, size_t algo_sz)
 {
-    xrootd_checksum_alg_t alg;
+    brix_checksum_alg_t alg;
 
-    return xrootd_checksum_parse((const char *) src, len, &alg, algo,
+    return brix_checksum_parse((const char *) src, len, &alg, algo,
                                  algo_sz);
 }
 
@@ -39,7 +39,7 @@ xrootd_dirlist_parse_algorithm(const u_char *src, size_t len,
  */
 
 ngx_int_t
-xrootd_dirlist_checksum_algorithm(const u_char *payload, size_t payload_len,
+brix_dirlist_checksum_algorithm(const u_char *payload, size_t payload_len,
     char *algo, size_t algo_sz, char *bad_algo, size_t bad_algo_sz)
 {
     const u_char *qmark, *p, *end;
@@ -78,7 +78,7 @@ xrootd_dirlist_checksum_algorithm(const u_char *payload, size_t payload_len,
             size_t        value_len = field_len - (sizeof(key) - 1);
             ngx_int_t     rc;
 
-            rc = xrootd_dirlist_parse_algorithm(value, value_len,
+            rc = brix_dirlist_parse_algorithm(value, value_len,
                                                 algo, algo_sz);
             if (rc == NGX_DECLINED || rc == NGX_ERROR) {
                 size_t copy_len = value_len;
@@ -111,7 +111,7 @@ xrootd_dirlist_checksum_algorithm(const u_char *payload, size_t payload_len,
  * checksum fails.
  */
 void
-xrootd_dirlist_checksum_token(ngx_log_t *log, int dfd,
+brix_dirlist_checksum_token(ngx_log_t *log, int dfd,
     const char *name, const char *path, const struct stat *st,
     const char *algo, char *out, size_t outsz)
 {
@@ -122,21 +122,21 @@ xrootd_dirlist_checksum_token(ngx_log_t *log, int dfd,
         return;
     }
 
-    fd = openat(dfd, name, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);  /* vfs-seam-allow: dirfd-relative open within an already-VFS-opened confined dir stream (xrootd_vfs_dir_fd) */
+    fd = openat(dfd, name, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);  /* vfs-seam-allow: dirfd-relative open within an already-VFS-opened confined dir stream (brix_vfs_dir_fd) */
     if (fd < 0) {
         snprintf(out, outsz, "%s:none", algo);
         return;
     }
 
     {
-        xrootd_integrity_info_t  info;
-        xrootd_integrity_opts_t  iopts;
+        brix_integrity_info_t  info;
+        brix_integrity_opts_t  iopts;
 
         ngx_memzero(&iopts, sizeof(iopts));
         iopts.allow_xattr_cache  = 1;
         iopts.update_xattr_cache = 1;
 
-        if (xrootd_integrity_get_fd(log, fd, NULL, path, algo, &iopts, &info) == NGX_OK) {
+        if (brix_integrity_get_fd(log, fd, NULL, path, algo, &iopts, &info) == NGX_OK) {
             snprintf(out, outsz, "%s:%s", info.alg_name, info.hex);
         } else {
             snprintf(out, outsz, "%s:none", algo);
@@ -153,7 +153,7 @@ xrootd_dirlist_checksum_token(ngx_log_t *log, int dfd,
  * flags based on permission bits. This is used when kXR_dcksm is requested.
  */
 void
-xrootd_dirlist_make_dcksm_stat_body(const struct stat *st, char *out,
+brix_dirlist_make_dcksm_stat_body(const struct stat *st, char *out,
     size_t outsz)
 {
     int flags = 0;

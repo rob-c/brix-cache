@@ -1,5 +1,5 @@
-#ifndef NGX_XROOTD_METRICS_INTERNAL_H
-#define NGX_XROOTD_METRICS_INTERNAL_H
+#ifndef NGX_BRIX_METRICS_INTERNAL_H
+#define NGX_BRIX_METRICS_INTERNAL_H
 
 /*
  * metrics_internal.h — private contract of the /metrics HTTP exporter module.
@@ -7,15 +7,15 @@
  * WHAT: the buffered Prometheus-text writer (metrics_writer_t + mw_* helpers)
  *       and the per-subsystem "export" entry points (one per .c) that the
  *       handler calls to stream the counters out of the shared-memory metrics
- *       block (ngx_xrootd_metrics_t, defined in metrics.h) as Prometheus text.
+ *       block (ngx_brix_metrics_t, defined in metrics.h) as Prometheus text.
  * WHY:  the counters live in SHM and are written on the hot path by every
  *       protocol; this read-only exporter is a SEPARATE nginx HTTP module
- *       (ngx_http_xrootd_metrics_module) so /metrics can be scraped without
+ *       (ngx_http_brix_metrics_module) so /metrics can be scraped without
  *       touching the data plane. Splitting the exporters per subsystem
  *       (stream/webdav/s3/cluster/ratelimit/...) keeps each .c small.
  * HOW:  mw_init/mw_printf/mw_emit_* append into a pool-backed ngx_chain_t of
  *       64 KiB buffers; mw_finish caps the chain; the handler sends it as the
- *       response body. The xrootd_export_* functions each read one region of
+ *       response body. The brix_export_* functions each read one region of
  *       *shm and emit its HELP/TYPE/counter lines via the writer.
  */
 
@@ -25,15 +25,15 @@
 
 #include "metrics.h"
 
-/* Location config — the `xrootd_metrics on;` flag plus the `xrootd_health on;`
+/* Location config — the `brix_metrics on;` flag plus the `brix_health on;`
  * flag (phase-47 W2: a tiny liveness/readiness endpoint co-located in this
  * module so it needs no new .so).  Both default off (NGX_CONF_UNSET). */
 typedef struct {
-    ngx_flag_t  enable;   /* xrootd_metrics — Prometheus exporter   */
-    ngx_flag_t  health;   /* xrootd_health  — /healthz JSON probe   */
-} ngx_http_xrootd_metrics_loc_conf_t;
+    ngx_flag_t  enable;   /* brix_metrics — Prometheus exporter   */
+    ngx_flag_t  health;   /* brix_health  — /healthz JSON probe   */
+} ngx_http_brix_metrics_loc_conf_t;
 
-extern ngx_module_t ngx_http_xrootd_metrics_module;
+extern ngx_module_t ngx_http_brix_metrics_module;
 
 /* Buffer chain writer for Prometheus text output. */
 #define METRICS_BUF_SIZE  65536
@@ -51,8 +51,8 @@ typedef struct {
 } metrics_writer_t;
 
 /* writer.c */
-extern const char *xrootd_http_status_names[XROOTD_HTTP_NSTATUS];
-extern const char *xrootd_http_range_result_names[3];
+extern const char *brix_http_status_names[BRIX_HTTP_NSTATUS];
+extern const char *brix_http_range_result_names[3];
 
 /* Initialise *mw and allocate its first METRICS_BUF_SIZE buffer from `pool`
  * (pool not owned — caller's request pool). Must be called before any
@@ -84,11 +84,11 @@ void       mw_emit_scalar(metrics_writer_t *mw, const char *name,
  * every configured KV zone, labelled by operator-chosen zone name. Reads each
  * zone's stats snapshot; emits nothing when no zones are configured. Module-
  * global state — takes no shm argument. */
-void       xrootd_kv_metrics_emit(metrics_writer_t *mw);
+void       brix_kv_metrics_emit(metrics_writer_t *mw);
 
 /* C-7: per-export composed-storage-stack info gauge (backend/origin/auth/staging).
  * Exports are config-fixed and few, so the export-root label is low-cardinality. */
-void       xrootd_storage_backend_metrics_emit(metrics_writer_t *mw);
+void       brix_storage_backend_metrics_emit(metrics_writer_t *mw);
 
 /* Seal the chain: trim the tail buffer to the written length and mark it
  * last_buf, making mw->head a complete response body. Call exactly once after
@@ -101,108 +101,108 @@ void       mw_finish(metrics_writer_t *mw);
  * cluster/ratelimit/mirror), so the handler only needs this one call. `shm` is
  * the per-worker metrics SHM (borrowed, read-only). Counters read lock-free;
  * output is eventually consistent (no global snapshot lock). */
-void  xrootd_export_prometheus_metrics(metrics_writer_t *mw,
-    ngx_xrootd_metrics_t *shm);
+void  brix_export_prometheus_metrics(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm);
 /* Emit read-through/write-through cache families (occupancy, evictions,
  * thresholds), one {port,auth} row per active server slot. Re-stats each cache
  * root via statvfs(2) at scrape time; skips inactive/cache-disabled slots. */
-void  xrootd_export_stream_cache_metrics(metrics_writer_t *mw,
-    ngx_xrootd_metrics_t *shm);
+void  brix_export_stream_cache_metrics(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm);
 /* Emit transparent-proxy families (connect/auth/op/byte counters), aggregate
  * per server plus a per-upstream row for each labelled upstream slot. */
-void  xrootd_export_stream_proxy_metrics(metrics_writer_t *mw,
-    ngx_xrootd_metrics_t *shm);
+void  brix_export_stream_proxy_metrics(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm);
 /* Emit VO and unique-user tracking families from the bounded SHM LRU tables
  * (per-VO bytes/requests, VO overflow, unique-user current/total/evictions).
  * VO label is the truncated VO name; users are FNV-1a-hashed (no DNs as labels). */
-void  xrootd_export_stream_tracking_metrics(metrics_writer_t *mw,
-    ngx_xrootd_metrics_t *shm);
-/* Emit the cross-protocol unified families (xrootd_io_*, xrootd_cache_*,
- * xrootd_auth_total, xrootd_tpc_*). Latency histogram buckets are stored
+void  brix_export_stream_tracking_metrics(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm);
+/* Emit the cross-protocol unified families (brix_io_*, brix_cache_*,
+ * brix_auth_total, brix_tpc_*). Latency histogram buckets are stored
  * non-cumulative in SHM and cumulated here at scrape time; also folds legacy
  * per-server stream counters into the stream-proto rows. */
-void  xrootd_export_unified_metrics(metrics_writer_t *mw,
-    ngx_xrootd_metrics_t *shm);
+void  brix_export_unified_metrics(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm);
 
 /* cvmfs.c */
 /* Emit the phase-68 cvmfs:// protocol families from shm->cvmfs (per-class
  * requests, fills/failures/verify/failover, scvmfs admissions, and the
  * LAN-out/WAN-in byte split). Labels are a fixed 4-value class set. */
-void  xrootd_export_cvmfs_metrics(metrics_writer_t *mw,
-    ngx_xrootd_metrics_t *shm);
+void  brix_export_cvmfs_metrics(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm);
 
 /* webdav.c */
 /* Emit all WebDAV counter families from shm->webdav (per-method requests and
  * method x status responses, auth outcomes, bytes, range/PUT modes, PROPFIND
  * depth, HTTP-TPC, CORS, credential delegation). Labels are fixed enums only. */
-void  xrootd_export_webdav_metrics(metrics_writer_t *mw,
-    ngx_xrootd_metrics_t *shm);
+void  brix_export_webdav_metrics(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm);
 
 /* s3.c */
 /* Emit all S3-endpoint counter families from shm->s3 (requests, method x status
  * responses, auth, bytes, range/PUT modes, events, ListObjectsV2 stats). */
-void  xrootd_export_s3_metrics(metrics_writer_t *mw,
-    ngx_xrootd_metrics_t *shm);
+void  brix_export_s3_metrics(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm);
 
 /* stream.c — Phase 34 SciTags packet-marking aggregate counters (flows started/
  * ended, firefly sent/dropped, flow-label set/failed, unmapped opens). */
-void  xrootd_export_pmark_metrics(metrics_writer_t *mw,
-    ngx_xrootd_metrics_t *shm);
+void  brix_export_pmark_metrics(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm);
 
 /* stream.c — Phase 51 cross-protocol resilience counters (CMS timeouts/idle/cap/
  * yields, OCSP timeouts, auth-gate L1 hit/miss, NSS/DNS breaker trips). */
-void  xrootd_export_resilience_metrics(metrics_writer_t *mw,
-    ngx_xrootd_metrics_t *shm);
+void  brix_export_resilience_metrics(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm);
 
 /* frm/metrics.c — phase-35 FRM tape-stage counters (stage requests/dedup/
  * success/fail-by-reason, in-flight gauge, evict/migrate/purge, async
  * waitresp/asynresp, and the coarse seconds stage-latency histogram). */
-void  xrootd_export_frm_metrics(metrics_writer_t *mw,
-    ngx_xrootd_metrics_t *shm);
+void  brix_export_frm_metrics(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm);
 
 /* cluster.c — reads registry SHM directly, no shm argument needed */
 /* Emit per-server cluster gauges (space/load/heartbeat-age/blacklist) plus
  * health-check counters from a locked snapshot of the registry SHM. Emits
  * nothing (not even the count gauge) when no registry zone exists, i.e. unless
  * running in manager/redirector mode. */
-void  xrootd_export_cluster_metrics(metrics_writer_t *mw);
+void  brix_export_cluster_metrics(metrics_writer_t *mw);
 
 /* ratelimit.c — Phase 25 advanced rate-limit aggregate counters */
 /* Emit the four low-cardinality rate-limiter aggregate counters (throttled,
  * evictions, zone-full errors). No-op if `shm` is NULL. Per-principal detail is
  * exposed only via the dashboard API, never here. */
-void  xrootd_export_ratelimit_metrics(metrics_writer_t *mw,
-    ngx_xrootd_metrics_t *shm);
+void  brix_export_ratelimit_metrics(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm);
 
 /* handler.c */
 /* /metrics HTTP content handler. Returns NGX_DECLINED when the location's
- * `xrootd_metrics` flag is off, NGX_HTTP_NOT_ALLOWED for non-GET/HEAD, 500 if
+ * `brix_metrics` flag is off, NGX_HTTP_NOT_ALLOWED for non-GET/HEAD, 500 if
  * the writer can't init; otherwise builds the Prometheus body in the request
  * pool and returns ngx_http_output_filter()'s rc. Reads SHM only (no mutation);
  * emits an informational comment body when no stream zone is configured. */
-ngx_int_t  ngx_http_xrootd_metrics_handler(ngx_http_request_t *r);
+ngx_int_t  ngx_http_brix_metrics_handler(ngx_http_request_t *r);
 
-/* health.c — content handler for `xrootd_health on;` (phase-47 W2).  Serves
+/* health.c — content handler for `brix_health on;` (phase-47 W2).  Serves
  * GET/HEAD /healthz as a small JSON liveness document (always 200 while the
  * worker is accepting connections); `?verbose` adds cheap, non-secret
  * readiness signals (metrics SHM mapped, worker pid, nginx version).  Reads
  * only process/global state — never the request body and never any secret. */
-ngx_int_t  ngx_http_xrootd_health_handler(ngx_http_request_t *r);
+ngx_int_t  ngx_http_brix_health_handler(ngx_http_request_t *r);
 
 /* tracking.c — per-VO traffic and unique user identity counting. */
 /* Atomically add `bytes_tx`/`bytes_rx` and a request to the SHM slot for
- * NUL-terminated `vo_name` (copied, truncated to XROOTD_VO_NAME_LEN-1). A new VO
+ * NUL-terminated `vo_name` (copied, truncated to BRIX_VO_NAME_LEN-1). A new VO
  * takes a free slot; if the table is full, overflow_total is bumped and slot 0 is
  * reused. Returns NGX_OK, or NGX_ERROR if shm/vo_name is NULL or vo_name empty.
  * Hot-path mutator (write side), not an exporter. */
-ngx_int_t  xrootd_track_vo_activity(ngx_xrootd_metrics_t *shm, const char *vo_name,
+ngx_int_t  brix_track_vo_activity(ngx_brix_metrics_t *shm, const char *vo_name,
     size_t bytes_tx, size_t bytes_rx);
 /* Record a session for the user identified by FNV-1a hash of (`identity`,
  * `identity_len`) — `identity` is borrowed, hashed, never stored verbatim
  * (INVARIANT #8). Bumps the existing slot's session count, or claims a free slot
  * (LRU-evicts slot 0, bumping evictions_total, when full). Returns NGX_OK, or
  * NGX_ERROR if shm/identity is NULL or identity_len is 0. */
-ngx_int_t  xrootd_track_unique_user(ngx_xrootd_metrics_t *shm, const char *identity,
+ngx_int_t  brix_track_unique_user(ngx_brix_metrics_t *shm, const char *identity,
     size_t identity_len);
 
-#endif /* NGX_XROOTD_METRICS_INTERNAL_H */
+#endif /* NGX_BRIX_METRICS_INTERNAL_H */

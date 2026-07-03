@@ -83,7 +83,7 @@ def srv(tmp_path_factory):
 
 
 # --------------------------------------------------------------------------- #
-# raw-wire client — minimal, mirrors test_xrootd_conformance.py framing but is
+# raw-wire client — minimal, mirrors test_brix_conformance.py framing but is
 # port-parametric so the same probe runs against our server and the stock one.
 # --------------------------------------------------------------------------- #
 def _recv_exact(s, n):

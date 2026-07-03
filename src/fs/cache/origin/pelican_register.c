@@ -34,17 +34,17 @@
 
 /* Reusable advertise task (one per worker; reused each tick under in_flight). */
 typedef struct {
-    ngx_stream_xrootd_srv_conf_t *conf;
+    ngx_stream_brix_srv_conf_t *conf;
     ngx_log_t                    *log;
     ngx_thread_task_t            *task;
     unsigned                      in_flight:1;
     ngx_int_t                     result;
-} xrootd_pelican_adv_t;
+} brix_pelican_adv_t;
 
 
 /* small helpers */
 static void
-xrootd_pelican_rfc3339(time_t t, char *out, size_t outsz)
+brix_pelican_rfc3339(time_t t, char *out, size_t outsz)
 {
     struct tm tmv;
     gmtime_r(&t, &tmv);
@@ -52,7 +52,7 @@ xrootd_pelican_rfc3339(time_t t, char *out, size_t outsz)
 }
 
 static void
-xrootd_pelican_hex_random(char *out, size_t nbytes)
+brix_pelican_hex_random(char *out, size_t nbytes)
 {
     unsigned char  raw[20];
     static const char hexd[] = "0123456789abcdef";
@@ -74,14 +74,14 @@ xrootd_pelican_hex_random(char *out, size_t nbytes)
 }
 
 static const char *
-xrootd_pelican_cstr(const ngx_str_t *s, const char *dflt)
+brix_pelican_cstr(const ngx_str_t *s, const char *dflt)
 {
     return (s != NULL && s->len > 0) ? (const char *) s->data : dflt;
 }
 
 
 /* capabilities object (cache defaults: public read-only serving) */static json_t *
-xrootd_pelican_caps_json(void)
+brix_pelican_caps_json(void)
 {
     json_t *c = json_object();
     if (c == NULL) {
@@ -98,7 +98,7 @@ xrootd_pelican_caps_json(void)
 
 
 /* OriginAdvertiseV2 document → compact JSON string (caller free()s) */static char *
-xrootd_pelican_build_ad(ngx_stream_xrootd_srv_conf_t *conf, time_t now)
+brix_pelican_build_ad(ngx_stream_brix_srv_conf_t *conf, time_t now)
 {
     json_t      *ad;
     json_t      *nslist;
@@ -113,10 +113,10 @@ xrootd_pelican_build_ad(ngx_stream_xrootd_srv_conf_t *conf, time_t now)
         return NULL;
     }
 
-    site = xrootd_pelican_cstr(&conf->cache_sitename, "nginx-xrootd-cache");
-    xrootd_pelican_rfc3339(now + (time_t) (conf->cache_advertise_interval / 1000)
+    site = brix_pelican_cstr(&conf->cache_sitename, "nginx-xrootd-cache");
+    brix_pelican_rfc3339(now + (time_t) (conf->cache_advertise_interval / 1000)
                            + 30, expiry, sizeof(expiry));
-    xrootd_pelican_rfc3339(now, nowstr, sizeof(nowstr));
+    brix_pelican_rfc3339(now, nowstr, sizeof(nowstr));
     (void) snprintf(regpfx, sizeof(regpfx), "/caches/%s", site);
 
     /* ServerBaseAd (embedded — fields are flattened into the parent object). */
@@ -127,18 +127,18 @@ xrootd_pelican_build_ad(ngx_stream_xrootd_srv_conf_t *conf, time_t now)
     json_object_set_new(ad, "generationID",
                         json_integer((json_int_t) conf->cache_advertise_gen));
     json_object_set_new(ad, "version",
-                        json_string(XROOTD_SERVER_NAME " " XROOTD_SERVER_VERSION));
+                        json_string(BRIX_SERVER_NAME " " BRIX_SERVER_VERSION));
     json_object_set_new(ad, "expiry", json_string(expiry));
 
     json_object_set_new(ad, "serverId", json_string(site));
     json_object_set_new(ad, "registry-prefix", json_string(regpfx));
     json_object_set_new(ad, "data-url",
-        json_string(xrootd_pelican_cstr(&conf->cache_data_url, "")));
+        json_string(brix_pelican_cstr(&conf->cache_data_url, "")));
     if (conf->cache_web_url.len > 0) {
         json_object_set_new(ad, "web-url",
             json_string((char *) conf->cache_web_url.data));
     }
-    json_object_set_new(ad, "capabilities", xrootd_pelican_caps_json());
+    json_object_set_new(ad, "capabilities", brix_pelican_caps_json());
 
     /* namespaces[]: the configured prefixes, or "/" (cache everything). */
     nslist = json_array();
@@ -147,7 +147,7 @@ xrootd_pelican_build_ad(ngx_stream_xrootd_srv_conf_t *conf, time_t now)
                           ? conf->cache_advertise_ns->nelts : 0;
         if (n == 0) {
             json_t *ns = json_object();
-            json_object_set_new(ns, "Caps", xrootd_pelican_caps_json());
+            json_object_set_new(ns, "Caps", brix_pelican_caps_json());
             json_object_set_new(ns, "path", json_string("/"));
             json_object_set_new(ns, "token-generation", json_array());
             json_object_set_new(ns, "token-issuer", json_array());
@@ -156,7 +156,7 @@ xrootd_pelican_build_ad(ngx_stream_xrootd_srv_conf_t *conf, time_t now)
             ngx_str_t *pfx = conf->cache_advertise_ns->elts;
             for (i = 0; i < n; i++) {
                 json_t *ns = json_object();
-                json_object_set_new(ns, "Caps", xrootd_pelican_caps_json());
+                json_object_set_new(ns, "Caps", brix_pelican_caps_json());
                 json_object_set_new(ns, "path",
                     json_stringn((char *) pfx[i].data, pfx[i].len));
                 json_object_set_new(ns, "token-generation", json_array());
@@ -179,7 +179,7 @@ xrootd_pelican_build_ad(ngx_stream_xrootd_srv_conf_t *conf, time_t now)
 
 
 /* advertise JWT (ES256, scope pelican.advertise) */static ngx_int_t
-xrootd_pelican_build_jwt(ngx_stream_xrootd_srv_conf_t *conf,
+brix_pelican_build_jwt(ngx_stream_brix_srv_conf_t *conf,
     const char *director, time_t now, char *out, size_t outsz)
 {
     json_t   *payload;
@@ -188,17 +188,17 @@ xrootd_pelican_build_jwt(ngx_stream_xrootd_srv_conf_t *conf,
     time_t    exp = now + 60;            /* 1-minute lifetime (MinFedTokenTicker) */
     ngx_int_t rc;
 
-    xrootd_pelican_hex_random(jti, 16);
+    brix_pelican_hex_random(jti, 16);
 
     payload = json_object();
     if (payload == NULL) {
         return NGX_ERROR;
     }
     json_object_set_new(payload, "iss",
-        json_string(xrootd_pelican_cstr(&conf->cache_issuer_url,
-            xrootd_pelican_cstr(&conf->cache_data_url, ""))));
+        json_string(brix_pelican_cstr(&conf->cache_issuer_url,
+            brix_pelican_cstr(&conf->cache_data_url, ""))));
     json_object_set_new(payload, "sub",
-        json_string(xrootd_pelican_cstr(&conf->cache_data_url, "")));
+        json_string(brix_pelican_cstr(&conf->cache_data_url, "")));
     json_object_set_new(payload, "aud", json_string(director));
     json_object_set_new(payload, "scope", json_string("pelican.advertise"));
     json_object_set_new(payload, "wlcg.ver", json_string("1.0"));
@@ -213,7 +213,7 @@ xrootd_pelican_build_jwt(ngx_stream_xrootd_srv_conf_t *conf,
         return NGX_ERROR;
     }
 
-    rc = xrootd_jwt_sign_es256((EVP_PKEY *) conf->cache_advertise_key_pkey,
+    rc = brix_jwt_sign_es256((EVP_PKEY *) conf->cache_advertise_key_pkey,
                                "{\"alg\":\"ES256\",\"typ\":\"JWT\"}", pstr,
                                out, outsz);
     free(pstr);
@@ -221,12 +221,12 @@ xrootd_pelican_build_jwt(ngx_stream_xrootd_srv_conf_t *conf,
 }
 
 
-/* bounded in-memory GET (discovery) */typedef struct { char *buf; size_t len, cap; } xrootd_pelican_mem2_t;
+/* bounded in-memory GET (discovery) */typedef struct { char *buf; size_t len, cap; } brix_pelican_mem2_t;
 
 static size_t
-xrootd_pelican_mem2_cb(char *ptr, size_t size, size_t nmemb, void *ud)
+brix_pelican_mem2_cb(char *ptr, size_t size, size_t nmemb, void *ud)
 {
-    xrootd_pelican_mem2_t *m = ud;
+    brix_pelican_mem2_t *m = ud;
     size_t                 n = size * nmemb;
     if (n == 0 || m->len + n > m->cap) {
         return 0;
@@ -237,7 +237,7 @@ xrootd_pelican_mem2_cb(char *ptr, size_t size, size_t nmemb, void *ud)
 }
 
 static void
-xrootd_pelican_set_ca(ngx_stream_xrootd_srv_conf_t *conf, CURL *curl)
+brix_pelican_set_ca(ngx_stream_brix_srv_conf_t *conf, CURL *curl)
 {
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
@@ -247,12 +247,12 @@ xrootd_pelican_set_ca(ngx_stream_xrootd_srv_conf_t *conf, CURL *curl)
 }
 
 static ngx_int_t
-xrootd_pelican_discover_cfg(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
+brix_pelican_discover_cfg(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
     char *out, size_t outsz)
 {
     CURL                 *curl;
     CURLcode              res;
-    xrootd_pelican_mem2_t mem;
+    brix_pelican_mem2_t mem;
     char                  url[512];
     char                  doc[64 * 1024];
     json_t               *root, *ep;
@@ -275,14 +275,14 @@ xrootd_pelican_discover_cfg(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
     }
     mem.buf = doc; mem.len = 0; mem.cap = sizeof(doc) - 1;
     curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, xrootd_pelican_mem2_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, brix_pelican_mem2_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &mem);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, (long) XROOTD_CACHE_IO_TIMEOUT);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long) XROOTD_CACHE_IO_TIMEOUT);
-    xrootd_pelican_set_ca(conf, curl);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, (long) BRIX_CACHE_IO_TIMEOUT);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long) BRIX_CACHE_IO_TIMEOUT);
+    brix_pelican_set_ca(conf, curl);
 
     res = curl_easy_perform(curl);
     if (res == CURLE_OK) {
@@ -315,7 +315,7 @@ xrootd_pelican_discover_cfg(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
 
 
 /* POST the advertisement */static ngx_int_t
-xrootd_pelican_post(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
+brix_pelican_post(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
     const char *director, const char *body, const char *jwt)
 {
     CURL              *curl;
@@ -349,9 +349,9 @@ xrootd_pelican_post(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, (long) XROOTD_CACHE_IO_TIMEOUT);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long) XROOTD_CACHE_IO_TIMEOUT);
-    xrootd_pelican_set_ca(conf, curl);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, (long) BRIX_CACHE_IO_TIMEOUT);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long) BRIX_CACHE_IO_TIMEOUT);
+    brix_pelican_set_ca(conf, curl);
 
     res = curl_easy_perform(curl);
     if (res == CURLE_OK) {
@@ -376,7 +376,7 @@ xrootd_pelican_post(ngx_stream_xrootd_srv_conf_t *conf, ngx_log_t *log,
 
 
 ngx_int_t
-xrootd_cache_pelican_advertise_once(ngx_stream_xrootd_srv_conf_t *conf,
+brix_cache_pelican_advertise_once(ngx_stream_brix_srv_conf_t *conf,
     ngx_log_t *log)
 {
     char       director[512];
@@ -391,19 +391,19 @@ xrootd_cache_pelican_advertise_once(ngx_stream_xrootd_srv_conf_t *conf,
         return NGX_ERROR;
     }
 
-    if (xrootd_pelican_discover_cfg(conf, log, director, sizeof(director))
+    if (brix_pelican_discover_cfg(conf, log, director, sizeof(director))
         != NGX_OK)
     {
         return NGX_ERROR;
     }
 
     conf->cache_advertise_gen++;
-    body = xrootd_pelican_build_ad(conf, now);
+    body = brix_pelican_build_ad(conf, now);
     if (body == NULL) {
         return NGX_ERROR;
     }
 
-    if (xrootd_pelican_build_jwt(conf, director, now, jwt, sizeof(jwt))
+    if (brix_pelican_build_jwt(conf, director, now, jwt, sizeof(jwt))
         != NGX_OK)
     {
         free(body);
@@ -412,7 +412,7 @@ xrootd_cache_pelican_advertise_once(ngx_stream_xrootd_srv_conf_t *conf,
         return NGX_ERROR;
     }
 
-    rc = xrootd_pelican_post(conf, log, director, body, jwt);
+    rc = brix_pelican_post(conf, log, director, body, jwt);
     free(body);
     return rc;
 }
@@ -420,24 +420,24 @@ xrootd_cache_pelican_advertise_once(ngx_stream_xrootd_srv_conf_t *conf,
 
 /* thread-offloaded periodic timer */
 static void
-xrootd_pelican_adv_thread(void *data, ngx_log_t *log)
+brix_pelican_adv_thread(void *data, ngx_log_t *log)
 {
-    xrootd_pelican_adv_t *a = data;
-    a->result = xrootd_cache_pelican_advertise_once(a->conf, log);
+    brix_pelican_adv_t *a = data;
+    a->result = brix_cache_pelican_advertise_once(a->conf, log);
 }
 
 static void
-xrootd_pelican_adv_done(ngx_event_t *ev)
+brix_pelican_adv_done(ngx_event_t *ev)
 {
-    xrootd_pelican_adv_t *a = ev->data;
+    brix_pelican_adv_t *a = ev->data;
     a->in_flight = 0;
 }
 
 static void
-xrootd_pelican_adv_timer(ngx_event_t *ev)
+brix_pelican_adv_timer(ngx_event_t *ev)
 {
-    xrootd_pelican_adv_t         *a = ev->data;
-    ngx_stream_xrootd_srv_conf_t *conf = a->conf;
+    brix_pelican_adv_t         *a = ev->data;
+    ngx_stream_brix_srv_conf_t *conf = a->conf;
 
     /* Re-arm first so a slow advertisement never stops the cadence. */
     ngx_add_timer(ev, conf->cache_advertise_interval);
@@ -448,7 +448,7 @@ xrootd_pelican_adv_timer(ngx_event_t *ev)
         /* No pool or a still-running advertisement: run inline only when there
          * is no thread pool (best-effort; bounded by the curl timeouts). */
         if (conf->common.thread_pool == NULL && !a->in_flight) {
-            (void) xrootd_cache_pelican_advertise_once(conf, ev->log);
+            (void) brix_cache_pelican_advertise_once(conf, ev->log);
         }
         return;
     }
@@ -461,12 +461,12 @@ xrootd_pelican_adv_timer(ngx_event_t *ev)
 
 
 void
-xrootd_cache_pelican_schedule_advertise(ngx_cycle_t *cycle,
-    ngx_stream_xrootd_srv_conf_t *conf)
+brix_cache_pelican_schedule_advertise(ngx_cycle_t *cycle,
+    ngx_stream_brix_srv_conf_t *conf)
 {
     ngx_event_t          *ev;
     ngx_thread_task_t    *task;
-    xrootd_pelican_adv_t *a;
+    brix_pelican_adv_t *a;
 
     if (!conf->cache_advertise || conf->cache_advertise == NGX_CONF_UNSET
         || conf->cache_advertise_key.len == 0
@@ -478,7 +478,7 @@ xrootd_cache_pelican_schedule_advertise(ngx_cycle_t *cycle,
 
     /* Load the EC signing key once per worker. */
     conf->cache_advertise_key_pkey =
-        xrootd_jwt_load_ec_key((char *) conf->cache_advertise_key.data);
+        brix_jwt_load_ec_key((char *) conf->cache_advertise_key.data);
     if (conf->cache_advertise_key_pkey == NULL) {
         ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
             "xrootd: pelican advertise disabled — cannot load EC key \"%s\"",
@@ -487,10 +487,10 @@ xrootd_cache_pelican_schedule_advertise(ngx_cycle_t *cycle,
     }
 
     if (conf->cache_advertise_instance[0] == '\0') {
-        xrootd_pelican_hex_random(conf->cache_advertise_instance, 16);
+        brix_pelican_hex_random(conf->cache_advertise_instance, 16);
     }
 
-    task = ngx_thread_task_alloc(cycle->pool, sizeof(xrootd_pelican_adv_t));
+    task = ngx_thread_task_alloc(cycle->pool, sizeof(brix_pelican_adv_t));
     ev = ngx_pcalloc(cycle->pool, sizeof(*ev));
     if (task == NULL || ev == NULL) {
         return;
@@ -500,11 +500,11 @@ xrootd_cache_pelican_schedule_advertise(ngx_cycle_t *cycle,
     a->log = cycle->log;
     a->task = task;
     a->in_flight = 0;
-    task->handler = xrootd_pelican_adv_thread;
-    task->event.handler = xrootd_pelican_adv_done;
+    task->handler = brix_pelican_adv_thread;
+    task->event.handler = brix_pelican_adv_done;
     task->event.data = a;
 
-    ev->handler = xrootd_pelican_adv_timer;
+    ev->handler = brix_pelican_adv_timer;
     ev->data = a;
     ev->log = cycle->log;
     conf->cache_advertise_timer = ev;
