@@ -27,7 +27,7 @@ This file is a **lookup reference**, not memorization material. If your context 
 
 ## SRC TOPOLOGY (phase-66, 2026-07-02 — seven concept buckets)
 ```
-src/core/           platform primitives: compat/ types/ config/ shm/ aio/ + ngx_xrootd_module.h
+src/core/           platform primitives: compat/ types/ config/ shm/ aio/ + ngx_brix_module.h
                     + http/ (shared HTTP semantics: headers/body/conditionals/etag/query/
                     xml/file-response — split from compat/ 2026-07-02, security-load-bearing)
 src/protocols/      one subdir per wire protocol: root/ (all root:// machinery incl.
@@ -95,15 +95,15 @@ Full mapping: [docs/refactor/phase-66-map.tsv](docs/refactor/phase-66-map.tsv).
 ## HELPERS (MUST USE — NEVER REIMPLEMENT)
 | Function | Purpose |
 |---|---|
-| `ngx_http_xrootd_webdav_resolve_path(path)` | Canonical+confined path |
-| `xrootd_open_confined_canon(fd, path)` | Confined fd open |
+| `ngx_http_brix_webdav_resolve_path(path)` | Canonical+confined path |
+| `brix_open_confined_canon(fd, path)` | Confined fd open |
 | `webdav_verify_proxy_cert(cert_path)` | Valid GSI cert → NGX_OK |
 | `webdav_verify_bearer_token(token_str)` | Valid JWT → NGX_OK |
-| `xrootd_token_check_scope(scope, path)` | Scope grants access → NGX_OK |
+| `brix_token_check_scope(scope, path)` | Scope grants access → NGX_OK |
 | `webdav_tpc_find_header(headers, name)` | Find header in linked list |
 | `webdav_add_cors_headers(r)` | Add Access-Control-* headers |
 | `webdav_metrics_return(status_bytes, proto)` | Increment bytes_sent metric |
-| `XROOTD_PROXY_METRIC_INC(op, status)` | Increment request counter |
+| `BRIX_PROXY_METRIC_INC(op, status)` | Increment request counter |
 | `webdav_check_locks(path)` | NGX_OK or 423 |
 | `webdav_copy_fds(src_fd, dst_fd)` | copy_file_range for TPC |
 
@@ -123,12 +123,12 @@ Full mapping: [docs/refactor/phase-66-map.tsv](docs/refactor/phase-66-map.tsv).
 7. Stat: use handle metadata; no extra path syscalls per read
 8. Metric labels: low-cardinality only (no paths/bucket-names/UUIDs)
 9. CRC64: `crc64`=CRC-64/XZ, `crc64nvme`=CRC-64/NVME — DIFFERENT polys, not interchangeable. Engine `src/core/compat/crc64.c`; root://+WebDAV emit 16-hex, S3 `x-amz-checksum-crc64nvme` emits base64-of-8-big-endian-bytes (encode at the edge, never in the kernel). See [docs/10-reference/crc64-checksums.md](docs/10-reference/crc64-checksums.md)
-10. **SHM mutexes = spin+yield, NEVER the POSIX-semaphore mode.** Every module shared-memory table mutex MUST be created via `xrootd_shm_table_alloc()` / `xrootd_shm_table_mutex_create()` (`src/core/compat/shm_slots.c`), which clears `mtx->semaphore` after `ngx_shmtx_create()`. Stock `ngx_shmtx_create(…, NULL)` silently enables a POSIX semaphore whose wakeup path is **lost-wakeup-prone under high cross-worker contention**: a worker blocks in `sem_wait` forever with the lock already free (`*lock==0, *wait==0`), freezing the whole worker (it stops running its event loop) and stalling every connection pinned to it. This hit the hot `kXR_open` path (`xrootd_handle_mutex`) and caused 60–450s multi-worker connection stalls. Our critical sections are µs-held fixed-slot scans, so spin+yield is correct and cheaper. See [docs/09-developer-guide/postmortem-shmtx-semaphore-stall.md](docs/09-developer-guide/postmortem-shmtx-semaphore-stall.md).
+10. **SHM mutexes = spin+yield, NEVER the POSIX-semaphore mode.** Every module shared-memory table mutex MUST be created via `brix_shm_table_alloc()` / `brix_shm_table_mutex_create()` (`src/core/compat/shm_slots.c`), which clears `mtx->semaphore` after `ngx_shmtx_create()`. Stock `ngx_shmtx_create(…, NULL)` silently enables a POSIX semaphore whose wakeup path is **lost-wakeup-prone under high cross-worker contention**: a worker blocks in `sem_wait` forever with the lock already free (`*lock==0, *wait==0`), freezing the whole worker (it stops running its event loop) and stalling every connection pinned to it. This hit the hot `kXR_open` path (`brix_handle_mutex`) and caused 60–450s multi-worker connection stalls. Our critical sections are µs-held fixed-slot scans, so spin+yield is correct and cheaper. See [docs/09-developer-guide/postmortem-shmtx-semaphore-stall.md](docs/09-developer-guide/postmortem-shmtx-semaphore-stall.md).
 
 **Architecture:**
 9. Native TPC = SHM key registry (`src/tpc/engine/key_registry.c`) — cross-process, zero-copy
 10. WebDAV TPC = curl COPY with Source/Credential headers (`src/protocols/webdav/tpc.c`)
-11. **Storage plane ≈ `proto → VFS → backend`. The VFS is the SOLE source of storage truth — bytes AND namespace AND metadata.** (a) **Byte data**: proto handler → VFS (`src/fs/`) → storage driver (`src/fs/backend/`, POSIX default); raw `pread`/`pwrite`/`preadv`/`copy_file_range`/`fstat`/`sendfile` on file data live ONLY in `src/fs/backend/` (tier-1, HARD rule). `root://` read/write/readv/pgread/pgwrite/sync/truncate → `xrootd_vfs_io_execute()` (`vfs_io_core.c`); WebDAV/S3 GET → `xrootd_vfs_open()`+`xrootd_vfs_file_sendfile_fd()`+`xrootd_vfs_close()`. (b) **Namespace + metadata (phase-62)**: every handler reaches `open`/`stat`/`opendir`/`unlink`/`rename`/`mkdir`/`truncate`/`chmod`/**xattr** on an export path through `xrootd_vfs_*` — `xrootd_vfs_probe` (non-metered existence/type), `xrootd_vfs_stat`/`statf`, `xrootd_vfs_open_fd`/`_at`, `xrootd_vfs_{get,set,list,remove}xattr` + fd variants `xrootd_vfs_f{get,set,list,remove}xattr`, `xrootd_vfs_unlink_path`/`_at`/`mkdir_path`/`rename_path`/`walk` — never a raw libc call. **Only raw FS left in handlers:** (i) non-export resources (config/cert/token, `/tmp` creds, `/dev/null`, `/proc`, sockets) and (ii) SEPARATE svc-owned storage domains (read-through cache, upload stage dir, FRM control/journal, S3 multipart staging, checkpoint journal) which MUST stay raw-as-worker — the VFS confines to ONE export root + routes to the impersonation broker as the mapped user, the wrong root/identity for those. Each such raw call carries a same-line `/* vfs-seam-allow: <reason> */` marker. `*_confined_canon` primitives take the ABSOLUTE path (they strip root_canon themselves — never pre-strip). **Guard `tools/ci/check_vfs_seam.sh`** (3 tiers; tier-2 backlog `vfs_seam_backlog.txt`=0, tier-3 ns backlog `vfs_seam_backlog_ns.txt`=0; `--regen` only after a deliberate migration). Driver = capability-typed pluggable seam (`xrootd_sd_driver_t`, `src/fs/backend/sd.h`): an object/S3 backend can become primary without changing anything above it. See [src/fs/README.md](src/fs/README.md), [src/fs/backend/README.md](src/fs/backend/README.md), [docs/refactor/phase-62-vfs-namespace-metadata-seam-closure.md](docs/refactor/phase-62-vfs-namespace-metadata-seam-closure.md).
+11. **Storage plane ≈ `proto → VFS → backend`. The VFS is the SOLE source of storage truth — bytes AND namespace AND metadata.** (a) **Byte data**: proto handler → VFS (`src/fs/`) → storage driver (`src/fs/backend/`, POSIX default); raw `pread`/`pwrite`/`preadv`/`copy_file_range`/`fstat`/`sendfile` on file data live ONLY in `src/fs/backend/` (tier-1, HARD rule). `root://` read/write/readv/pgread/pgwrite/sync/truncate → `brix_vfs_io_execute()` (`vfs_io_core.c`); WebDAV/S3 GET → `brix_vfs_open()`+`brix_vfs_file_sendfile_fd()`+`brix_vfs_close()`. (b) **Namespace + metadata (phase-62)**: every handler reaches `open`/`stat`/`opendir`/`unlink`/`rename`/`mkdir`/`truncate`/`chmod`/**xattr** on an export path through `brix_vfs_*` — `brix_vfs_probe` (non-metered existence/type), `brix_vfs_stat`/`statf`, `brix_vfs_open_fd`/`_at`, `brix_vfs_{get,set,list,remove}xattr` + fd variants `brix_vfs_f{get,set,list,remove}xattr`, `brix_vfs_unlink_path`/`_at`/`mkdir_path`/`rename_path`/`walk` — never a raw libc call. **Only raw FS left in handlers:** (i) non-export resources (config/cert/token, `/tmp` creds, `/dev/null`, `/proc`, sockets) and (ii) SEPARATE svc-owned storage domains (read-through cache, upload stage dir, FRM control/journal, S3 multipart staging, checkpoint journal) which MUST stay raw-as-worker — the VFS confines to ONE export root + routes to the impersonation broker as the mapped user, the wrong root/identity for those. Each such raw call carries a same-line `/* vfs-seam-allow: <reason> */` marker. `*_confined_canon` primitives take the ABSOLUTE path (they strip root_canon themselves — never pre-strip). **Guard `tools/ci/check_vfs_seam.sh`** (3 tiers; tier-2 backlog `vfs_seam_backlog.txt`=0, tier-3 ns backlog `vfs_seam_backlog_ns.txt`=0; `--regen` only after a deliberate migration). Driver = capability-typed pluggable seam (`brix_sd_driver_t`, `src/fs/backend/sd.h`): an object/S3 backend can become primary without changing anything above it. See [src/fs/README.md](src/fs/README.md), [src/fs/backend/README.md](src/fs/backend/README.md), [docs/refactor/phase-62-vfs-namespace-metadata-seam-closure.md](docs/refactor/phase-62-vfs-namespace-metadata-seam-closure.md).
 
 ---
 
@@ -181,7 +181,7 @@ TEST_CROSS_BACKEND=nginx  pytest tests/test_X.py -v # cross-backend (nginx vs xr
 tests/manage_test_servers.sh start|restart|stop
 ```
 
-**Logs:** `/tmp/xrd-test/logs/` — `error.log`, `xrootd_access*.log`, `http_webdav_access.log`, `s3_access.log`
+**Logs:** `/tmp/xrd-test/logs/` — `error.log`, `brix_access*.log`, `http_webdav_access.log`, `s3_access.log`
 
 ## BUILD GOVERNANCE (read before editing)
 
@@ -211,7 +211,7 @@ tests/manage_test_servers.sh start|restart|stop
 ## RECIPES (step-by-step implementation patterns)
 **New WebDAV method:** `src/protocols/webdav/op.c` → declare `webdav.h` → register `dispatch.c` → update Allow header test → `make` → 3 tests
 **New XRootD opcode:** `src/protocols/root/<sub>/op.c` → register `protocols/root/handshake/dispatch_<type>.c` → constants `protocols/root/protocol/opcodes.h`/`wire.h` → add to `./config` → `./configure`+`make` → 3 tests
-**New metric:** enum `metrics.h` → field `metrics_internal.h` → export `src/observability/metrics/<sub>.c` → `XROOTD_<TYPE>_METRIC_INC(slot)` at callsite
+**New metric:** enum `metrics.h` → field `metrics_internal.h` → export `src/observability/metrics/<sub>.c` → `BRIX_<TYPE>_METRIC_INC(slot)` at callsite
 **New protocol:** ONE row in `src/core/types/proto_list.h` (append-only!) → unified enum+labels, dashboard ids+names+JSON buckets all generate; then follow the checklist in that header (SHM family, totals glue, vfs proto, zone-ensure for HTTP-only, docs, tests)
 **New config directive:** field `src/core/config/config.h` (`NGX_CONF_UNSET`) → `ngx_command_t` `src/core/config/directives.c` → merge in `merge_*_conf()` — no `./configure` unless new top-level block
 
@@ -225,12 +225,12 @@ tests/manage_test_servers.sh start|restart|stop
 | ngx_str_t? | NOT null-terminated; use `.len`. No strcpy/strlen. Null-term: `char z[s.len+1]; ngx_memcpy(z,s.data,s.len); z[s.len]=0;` |
 | Async I/O? | Event-loop only. No wait/sleep/read. Use `ngx_thread_pool_run` (`src/core/aio/`) or timers |
 | Send response? | Build `ngx_chain_t` of `ngx_buf_t`; never raw write/send. HTTP: `r->headers_out.status=X; r->headers_out.content_length_n=n; ngx_http_send_header(r); return ngx_http_output_filter(r,&chain);` |
-| Stream ctx? | `xrootd_ctx_t *ctx = ngx_stream_get_module_ctx(s, ngx_stream_xrootd_module)` |
-| HTTP loc conf? | `ngx_http_get_module_loc_conf(r, ngx_http_xrootd_webdav_module)` |
+| Stream ctx? | `brix_ctx_t *ctx = ngx_stream_get_module_ctx(s, ngx_stream_brix_module)` |
+| HTTP loc conf? | `ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module)` |
 | Conf merge? | main→srv→loc. Check `NGX_CONF_UNSET` in merge |
-| File handles? | 0–255 → `xrootd_file_t` in `src/protocols/root/connection/fd_table.c` |
-| Log strings from wire? | `xrootd_sanitize_log_string()` — escapes control bytes, quotes, backslashes, non-ASCII to `\xNN` |
-| Config reload? | Standard nginx drain — new conns get new settings, in-flight finish on old workers. `config_generation`/`config_version` in `/healthz` + `xrootd_config_generation` gauge confirm it. Cert/key/keytab rotate **on reload** (not in-place); slot-count changes reset the SHM table (WARN). Full matrix: [docs/09-developer-guide/reload-semantics.md](docs/09-developer-guide/reload-semantics.md) |
+| File handles? | 0–255 → `brix_file_t` in `src/protocols/root/connection/fd_table.c` |
+| Log strings from wire? | `brix_sanitize_log_string()` — escapes control bytes, quotes, backslashes, non-ASCII to `\xNN` |
+| Config reload? | Standard nginx drain — new conns get new settings, in-flight finish on old workers. `config_generation`/`config_version` in `/healthz` + `brix_config_generation` gauge confirm it. Cert/key/keytab rotate **on reload** (not in-place); slot-count changes reset the SHM table (WARN). Full matrix: [docs/09-developer-guide/reload-semantics.md](docs/09-developer-guide/reload-semantics.md) |
 
 ---
 
