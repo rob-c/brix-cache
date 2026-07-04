@@ -146,6 +146,23 @@ brix_open_resolved_via_driver(brix_sd_instance_t *sd, const char *logical,
         struct stat rst;
         if (fstat(fh->sd_obj.fd, &rst) == 0) {
             st->st_dev = rst.st_dev;
+
+            /* Anti-wedge parity with the non-driver path's S_ISREG gate: a FIFO,
+             * socket, or device is not a servable byte stream. The confined open
+             * forced O_NONBLOCK so the open(2) itself could not park the worker,
+             * but a subsequent read/write would spin on EAGAIN — refuse it here,
+             * where the real st_mode is available (the driver snapshot may not
+             * carry a mode). A directory keeps its own handling upstream; only
+             * special files are cut. */
+            if (!S_ISREG(rst.st_mode) && !S_ISDIR(rst.st_mode)) {
+                (void) sd->driver->close(&fh->sd_obj);
+                fh->sd_obj.driver = NULL;
+                fh->sd_obj.inst   = NULL;
+                fh->sd_obj.state  = NULL;
+                fh->sd_obj.fd     = -1;
+                errno = EINVAL;
+                return NGX_ERROR;
+            }
         }
     }
 
