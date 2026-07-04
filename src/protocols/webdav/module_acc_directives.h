@@ -12,6 +12,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
+char *brix_http_set_ktls(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 char *brix_acc_http_set_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 char *brix_acc_http_set_format(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 char *brix_acc_http_set_audit(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);

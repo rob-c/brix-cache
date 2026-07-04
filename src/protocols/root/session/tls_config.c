@@ -107,8 +107,9 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     if (xcf->tls_ktls) {
         SSL_CTX_set_options(xcf->tls_ctx->ctx, SSL_OP_ENABLE_KTLS);
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "brix: kernel-TLS (kTLS) send offload enabled for TLS context "
-            "(brix_ktls on) - only beneficial with HW TLS-offload NICs");
+            "brix: kernel-TLS (kTLS) requested for root:// TLS context "
+            "(brix_ktls on, default) - engages per-connection when the "
+            "negotiated cipher is kTLS-offloadable, else userspace TLS");
     }
 #endif
 

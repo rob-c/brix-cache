@@ -27,46 +27,30 @@
 
 /* ---- read verify ----------------------------------------------------------- */
 
-int
-brix_csi_verify_read(brix_csi_t *c, const unsigned char *buf, off_t off,
-    size_t len)
+/* Verify the bytes in [off, off+len) against the block CRCs in *xm. Pure: no
+ * I/O, no allocation — the record is supplied by the caller (cached snapshot on
+ * the read hot path, or a one-off load on the write read-after-write path). */
+static int
+csi_verify_against(const brix_csi_t *c, const brix_xmeta_t *xm,
+    const unsigned char *buf, off_t off, size_t len)
 {
-    brix_xmeta_t xm;
-    int64_t        g;
-    uint64_t       b, b0;
-    int            rc = BRIX_CSI_OK;
+    int64_t   g;
+    uint64_t  b, b0;
 
-    if (c == NULL || buf == NULL || off < 0) {
-        errno = EINVAL;
-        return BRIX_CSI_ERR;
-    }
-    if (len == 0 || c->trust_fs) {
-        return BRIX_CSI_OK;   /* nothing to check / self-checksumming fs */
-    }
-
-    switch (brix_xmeta_path_load(c->path, &xm)) {
-    case BRIX_XMETA_OK:
-        break;
-    case BRIX_XMETA_FOREIGN:
-        return BRIX_CSI_NOTAGS;
-    default:
-        return BRIX_CSI_ERR;
-    }
-    if (!xm.have_blockcrc || xm.blockcrc == NULL || xm.buffer_size <= 0) {
-        brix_xmeta_free(&xm);
+    if (!xm->have_blockcrc || xm->blockcrc == NULL || xm->buffer_size <= 0) {
         return BRIX_CSI_NOTAGS;
     }
 
     /* Verify every block the buffer FULLY covers (the last file block is
      * short: it ends at file_size). Slot 0 = not computed -> skipped. */
-    g  = xm.buffer_size;
+    g  = xm->buffer_size;
     b0 = ((uint64_t) off + (uint64_t) g - 1) / (uint64_t) g;
-    for (b = b0; b < xm.nblocks; b++) {
+    for (b = b0; b < xm->nblocks; b++) {
         int64_t bstart = (int64_t) b * g;
         int64_t bend   = bstart + g;
 
-        if (bend > xm.file_size) {
-            bend = xm.file_size;
+        if (bend > xm->file_size) {
+            bend = xm->file_size;
         }
         if (bend > off + (int64_t) len) {
             break;                      /* not fully covered by this read */
@@ -80,16 +64,52 @@ brix_csi_verify_read(brix_csi_t *c, const unsigned char *buf, off_t off,
         if (c->dirty && bstart < c->dirty_hi && bend > c->dirty_lo) {
             continue;
         }
-        if (xm.blockcrc[b] == BRIX_XMETA_CRC_UNSET) {
+        if (xm->blockcrc[b] == BRIX_XMETA_CRC_UNSET) {
             continue;
         }
         if (brix_crc32c_value(buf + (bstart - off),
-                                (size_t) (bend - bstart)) != xm.blockcrc[b])
+                                (size_t) (bend - bstart)) != xm->blockcrc[b])
         {
-            rc = BRIX_CSI_MISMATCH;
-            break;
+            return BRIX_CSI_MISMATCH;
         }
     }
+    return BRIX_CSI_OK;
+}
+
+int
+brix_csi_verify_read(brix_csi_t *c, const unsigned char *buf, off_t off,
+    size_t len)
+{
+    brix_xmeta_t xm;
+    int          rc;
+
+    if (c == NULL || buf == NULL || off < 0) {
+        errno = EINVAL;
+        return BRIX_CSI_ERR;
+    }
+    if (len == 0 || c->trust_fs) {
+        return BRIX_CSI_OK;   /* nothing to check / self-checksumming fs */
+    }
+
+    /* Read hot path: verify against the snapshot taken once at open. No
+     * getxattr / parse / malloc per read — the record cannot change under a
+     * read handle, so the at-open copy is authoritative for at-rest checking. */
+    if (c->record != NULL) {
+        return csi_verify_against(c, c->record, buf, off, len);
+    }
+
+    /* Fallback: a handle with no cached record (a write handle serving a
+     * read-after-write) loads the record for this call. Rare and not the
+     * throughput hot path. */
+    switch (brix_xmeta_path_load(c->path, &xm)) {
+    case BRIX_XMETA_OK:
+        break;
+    case BRIX_XMETA_FOREIGN:
+        return BRIX_CSI_NOTAGS;
+    default:
+        return BRIX_CSI_ERR;
+    }
+    rc = csi_verify_against(c, &xm, buf, off, len);
     brix_xmeta_free(&xm);
     return rc;
 }

@@ -151,6 +151,40 @@ main(void)
         free(big);
     }
 
+    /* ---- load-once: a read handle snapshots the record at open and keeps
+     * verifying against it even after the on-disk record is removed. A per-read
+     * reload implementation would see no record and stop catching corruption —
+     * this is the regression guard for the multi-threaded read hot path. ---- */
+    {
+        char p3[4400];
+        brix_csi_t rc;
+        unsigned char d3[2 * G];
+        size_t k;
+
+        for (k = 0; k < sizeof(d3); k++) {
+            d3[k] = (unsigned char) (k * 17u + 3u);
+        }
+        snprintf(p3, sizeof(p3), "%s/cached.bin", dir);
+        write_file(p3, d3, sizeof(d3));
+
+        CHECK(brix_csi_open(&w, p3, G, 1) == BRIX_CSI_OK, "cached: write open");
+        CHECK(brix_csi_write_update(&w, d3, 0, sizeof(d3)) == BRIX_CSI_OK,
+              "cached: fold blocks");
+        CHECK(brix_csi_flush(&w) == BRIX_CSI_OK, "cached: flush writes record");
+        brix_csi_close(&w);
+
+        CHECK(brix_csi_open(&rc, p3, G, 0) == BRIX_CSI_OK,
+              "cached: read open loads the record once");
+        /* Drop both on-disk carriers: a load-once handle keeps its snapshot. */
+        brix_xmeta_path_remove(p3);
+        CHECK(brix_csi_verify_read(&rc, d3, 0, sizeof(d3)) == BRIX_CSI_OK,
+              "cached: clean verify survives record removal (load-once)");
+        d3[G + 5] ^= 0xFF;   /* corrupt block 1 */
+        CHECK(brix_csi_verify_read(&rc, d3, 0, sizeof(d3)) == BRIX_CSI_MISMATCH,
+              "cached: corruption still caught after removal (load-once)");
+        brix_csi_close(&rc);
+    }
+
     /* ---- no record: read open reports NOTAGS ---- */
     {
         char p2[4400];

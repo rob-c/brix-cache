@@ -62,6 +62,7 @@ ngx_http_s3_create_loc_conf(ngx_conf_t *cf)
     c->common.allow_write = NGX_CONF_UNSET;
     c->common.read_only   = NGX_CONF_UNSET;
     c->common.compress    = NGX_CONF_UNSET;   /* phase-42 W2 outbound GET */
+    c->common.ktls        = NGX_CONF_UNSET;   /* kTLS default ON (merge) */
     brix_pmark_conf_init(&c->common.pmark);  /* SciTags packet marking */
     /* phase-64 tier grammar scalars (str/array fields stay zeroed by pcalloc) */
     c->common.stage_enable      = NGX_CONF_UNSET;
@@ -98,6 +99,7 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     /* Hard read-only: force allow_write off so the S3 write-method gate rejects. */
     brix_shared_apply_read_only(&conf->common, cf->log);
     ngx_conf_merge_value(conf->common.compress,    prev->common.compress,    0);
+    ngx_conf_merge_value(conf->common.ktls,        prev->common.ktls,        1);
     ngx_conf_merge_value(conf->allow_unsigned_session_token,
                          prev->allow_unsigned_session_token, 0);
     ngx_conf_merge_value(conf->verify_chunk_signatures,
@@ -295,6 +297,9 @@ ngx_http_s3_postconfiguration(ngx_conf_t *cf)
                 "async PUT I/O disabled (add a thread_pool directive)",
                 pool_name);
         }
+        /* kTLS for S3 https servers is enabled centrally in the WebDAV
+         * postconfiguration server loop (every server carries a server-level
+         * webdav loc-conf whose common.ktls flag drives SSL_OP_ENABLE_KTLS). */
     }
 
     return NGX_OK;

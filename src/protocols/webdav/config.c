@@ -124,6 +124,7 @@ ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->common.allow_write  = NGX_CONF_UNSET;
     conf->common.read_only    = NGX_CONF_UNSET;
     conf->common.compress     = NGX_CONF_UNSET;
+    conf->common.ktls         = NGX_CONF_UNSET;
     conf->common.storage_staging = NGX_CONF_UNSET;
     conf->common.pblock_block_size = NGX_CONF_UNSET_SIZE;
     conf->common.storage_instance  = NULL;
@@ -374,6 +375,7 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
     ngx_conf_merge_value(conf->common.read_only, prev->common.read_only, 0);
     ngx_conf_merge_value(conf->common.compress, prev->common.compress, 0);
+    ngx_conf_merge_value(conf->common.ktls, prev->common.ktls, 1);  /* kTLS default ON */
     ngx_conf_merge_value(conf->common.storage_staging,
                          prev->common.storage_staging, 0);
     /* Hard read-only: force allow_write off after the merge so every WebDAV write-

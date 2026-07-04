@@ -429,9 +429,12 @@ def _make_bearer_token() -> Optional[str]:
     )
     if not os.path.exists(script):
         return None
+    # Default is a read-only token (negative-test friendly); override the scope
+    # via env for a read+write token when profiling the token WRITE path.
+    scope = os.environ.get("BRIX_LOAD_TOKEN_SCOPE", "storage.read:/")
     proc = subprocess.run(
         [sys.executable, script, "gen",
-         "--scope", "storage.read:/",
+         "--scope", scope,
          TOKEN_DIR],
         capture_output=True, timeout=10,
     )

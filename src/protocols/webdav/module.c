@@ -43,6 +43,19 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       offsetof(ngx_http_brix_webdav_loc_conf_t, common.enable),
       NULL },
 
+    /* Kernel-TLS (SSL_OP_ENABLE_KTLS) for the HTTPS data path — HTTPS GET
+     * sendfiles over kTLS, PUT decrypts in-kernel. Default ON; transparent
+     * no-op when the negotiated cipher/kernel cannot offload. Registered once
+     * but the shared setter writes BOTH the WebDAV and S3 loc-confs' common.ktls
+     * (an S3-only location still needs it); enabled per brix server in
+     * postconfiguration. */
+    { ngx_string("brix_ktls"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      brix_http_set_ktls,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
     /* XrdAcc engine — registered once here; the shared setters populate both
      * the WebDAV and S3 loc-confs (valid in any http location). */
     { ngx_string("brix_authdb"),

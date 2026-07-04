@@ -432,7 +432,9 @@ brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_ptr_value(conf->host_allow,      prev->host_allow,      NULL);
     ngx_conf_merge_uint_value(conf->security_level, prev->security_level, 0);
     ngx_conf_merge_value(conf->tls,             prev->tls,             0);
-    ngx_conf_merge_value(conf->tls_ktls,        prev->tls_ktls,        0);
+    /* kTLS default ON (unified with the HTTP plane); SSL_OP_ENABLE_KTLS is a
+     * transparent no-op when the negotiated cipher/kernel cannot offload. */
+    ngx_conf_merge_value(conf->tls_ktls,        prev->tls_ktls,        1);
 
     return NGX_CONF_OK;
 }

@@ -664,8 +664,9 @@ ngx_command_t ngx_stream_brix_commands[] = {
       NULL },
 
     /* Enable kernel-TLS (SSL_OP_ENABLE_KTLS) so TLS reads can use sendfile.
-     * Default off — only beneficial with hardware TLS-offload NICs; software
-     * kTLS is slower than userspace OpenSSL on AES-NI CPUs (Phase 29). */
+     * Default ON (unified across root://, WebDAV, S3); transparent no-op when the
+     * negotiated cipher/kernel cannot offload. Software kTLS can be slower than
+     * userspace OpenSSL on AES-NI CPUs without a HW-offload NIC — set off there. */
     { ngx_string("brix_ktls"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,

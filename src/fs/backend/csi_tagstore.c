@@ -36,8 +36,12 @@ brix_csi_open(brix_csi_t *c, const char *abs_path,
         return BRIX_CSI_OK;       /* the record is created/merged at flush */
     }
 
-    /* Read handle: report whether there is anything verifiable, so the
-     * caller can enforce csi_require at open. */
+    /* Read handle: load the record ONCE and snapshot it on the handle. The
+     * at-rest record is immutable for a read handle's lifetime, so verify reads
+     * the cached copy instead of re-loading (getxattr + parse + malloc) on every
+     * read job — the difference between O(1) and O(reads) filesystem/heap work
+     * on the multi-threaded read hot path. A verifiable record also reports OK
+     * so the caller can enforce csi_require at open. */
     {
         brix_xmeta_t xm;
         int rc = brix_xmeta_path_load(c->path, &xm);
@@ -48,10 +52,18 @@ brix_csi_open(brix_csi_t *c, const char *abs_path,
         if (rc == BRIX_XMETA_FOREIGN) {
             return BRIX_CSI_NOTAGS;
         }
-        rc = (xm.have_blockcrc && xm.blockcrc != NULL)
-             ? BRIX_CSI_OK : BRIX_CSI_NOTAGS;
-        brix_xmeta_free(&xm);
-        return rc;
+        if (!xm.have_blockcrc || xm.blockcrc == NULL) {
+            brix_xmeta_free(&xm);
+            return BRIX_CSI_NOTAGS;
+        }
+        c->record = malloc(sizeof(*c->record));
+        if (c->record == NULL) {
+            brix_xmeta_free(&xm);
+            errno = ENOMEM;
+            return BRIX_CSI_ERR;
+        }
+        *c->record = xm;             /* move ownership (bitmap/blockcrc) */
+        return BRIX_CSI_OK;
     }
 }
 
@@ -64,6 +76,10 @@ brix_csi_close(brix_csi_t *c)
     if (c->writable && c->dirty) {
         (void) brix_csi_flush(c);     /* best-effort; tags stay unset on
                                            failure (never falsely failing) */
+    }
+    if (c->record != NULL) {
+        brix_xmeta_free(c->record);
+        free(c->record);
     }
     free(c->local);
     memset(c, 0, sizeof(*c));
