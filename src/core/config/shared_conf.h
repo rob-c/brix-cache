@@ -97,6 +97,13 @@ typedef struct {
     ngx_flag_t          compress;           /* phase-42: outbound GET compression
                                              * (Accept-Encoding negotiated). Off by
                                              * default; bypasses sendfile when used. */
+    ngx_flag_t          ktls;               /* [brix_ktls on|off] SSL_OP_ENABLE_KTLS
+                                             * on this server's TLS context so HTTPS
+                                             * GET sendfiles over kernel-TLS (and PUT
+                                             * decrypts in-kernel). Default ON:
+                                             * transparent no-op when the negotiated
+                                             * cipher/kernel cannot offload. See
+                                             * docs/.../ktls.md.                     */
     ngx_str_t           thread_pool_name;   /* async I/O thread pool name          */
     ngx_thread_pool_t  *thread_pool;        /* resolved pool handle (runtime only) */
     int                 rootfd;             /* O_PATH fd on root_canon for openat2
@@ -125,6 +132,7 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->enable             = NGX_CONF_UNSET;
     conf->allow_write        = NGX_CONF_UNSET;
     conf->read_only          = NGX_CONF_UNSET;
+    conf->ktls               = NGX_CONF_UNSET;
     conf->thread_pool_name.len  = 0;
     conf->thread_pool_name.data = NULL;
     conf->thread_pool        = NULL;
@@ -173,6 +181,7 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
     ngx_conf_merge_str_value(conf->root, prev->root, "");
     ngx_conf_merge_value(conf->allow_write, prev->allow_write, 0);
     ngx_conf_merge_value(conf->read_only, prev->read_only, 0);
+    ngx_conf_merge_value(conf->ktls, prev->ktls, 1);   /* default ON (offload-gated) */
     ngx_conf_merge_str_value(conf->thread_pool_name, prev->thread_pool_name, "");
     ngx_conf_merge_str_value(conf->storage_backend, prev->storage_backend, "");
     ngx_conf_merge_str_value(conf->storage_credential, prev->storage_credential,

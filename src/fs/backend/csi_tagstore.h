@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include "fs/meta/xmeta.h"
+
 /*
  * fs/backend/csi_tagstore.h — block-granule checksum integrity on the unified
  * metadata record (xmeta P3; replaces the phase-59 per-page ".xrdt" sidecar).
@@ -52,6 +54,9 @@ typedef struct {
     int64_t   dirty_hi;
     uint32_t *local;             /* handle-local folded CRCs (0 = none)      */
     uint64_t  local_n;           /* entries allocated in local[]             */
+    brix_xmeta_t *record;        /* read handle: at-rest record snapshotted  */
+                                 /* at open (owned) — verify reads this, so  */
+                                 /* the hot read path does zero record I/O   */
 } brix_csi_t;
 
 /*

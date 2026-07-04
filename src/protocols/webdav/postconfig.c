@@ -9,6 +9,7 @@
  */
 
 #include "webdav.h"
+#include "core/http/ktls.h"
 #include "tpc/common/registry.h"
 #include "net/mirror/http_mirror.h"
 #include "net/ratelimit/ratelimit.h"
@@ -92,7 +93,7 @@ ngx_http_brix_webdav_postconfiguration(ngx_conf_t *cf)
         ngx_http_conf_ctx_t *ctx = cscfp[s]->ctx;
 
         wdcf = ctx->loc_conf[ngx_http_brix_webdav_module.ctx_index];
-        if (wdcf == NULL || !wdcf->proxy_certs) {
+        if (wdcf == NULL) {
             continue;
         }
 
@@ -101,13 +102,26 @@ ngx_http_brix_webdav_postconfiguration(ngx_conf_t *cf)
             continue;
         }
 
-        param = SSL_CTX_get0_param(sslcf->ssl.ctx);
-        if (param) {
-            X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_ALLOW_PROXY_CERTS);
-            ngx_log_error(NGX_LOG_INFO, cf->log, 0,
-                          "brix_webdav: enabled X509_V_FLAG_ALLOW_PROXY_CERTS"
-                          " on SSL context for server %V",
-                          &cscfp[s]->server_name);
+        if (wdcf->proxy_certs) {
+            param = SSL_CTX_get0_param(sslcf->ssl.ctx);
+            if (param) {
+                X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_ALLOW_PROXY_CERTS);
+                ngx_log_error(NGX_LOG_INFO, cf->log, 0,
+                              "brix_webdav: enabled X509_V_FLAG_ALLOW_PROXY_CERTS"
+                              " on SSL context for server %V",
+                              &cscfp[s]->server_name);
+            }
+        }
+
+        /* kTLS: opt every https server's TLS context into kernel-TLS so HTTPS
+         * GET sendfiles over kTLS and PUT decrypts in-kernel (unless brix_ktls
+         * off on that server). The server-level webdav loc-conf carries the flag
+         * (default on) for EVERY server — WebDAV and S3 alike, since brix_webdav/
+         * brix_s3 typically sit in a location block while ssl + brix_ktls are
+         * server-level. Transparent no-op for non-offloadable ciphers. */
+        if (wdcf->common.ktls) {
+            brix_http_ktls_enable_ctx(sslcf->ssl.ctx, cf->log,
+                                      &cscfp[s]->server_name);
         }
     }
 
