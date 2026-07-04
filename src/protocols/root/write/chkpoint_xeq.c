@@ -1,4 +1,5 @@
 #include "chkpoint_xeq.h"
+#include "fs/backend/csi_tagstore.h"
 
 #include <errno.h>
 #include <string.h>
@@ -101,6 +102,16 @@ ckp_xeq_write(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
 
     snprintf(detail, sizeof(detail), "xeq_write %lld+%u",
              (long long) offset, (unsigned) sub_dlen);
+
+    /* Integrity: the write went straight through the VFS I/O core, bypassing the
+     * normal write path's per-block CRC fold. Fold the bytes into the handle's
+     * csi engine so it marks the touched extent dirty — otherwise a read of the
+     * just-written region on this handle verifies the new data against the stale
+     * pre-write on-disk CRC and fails with EIO (kXR_IOError). */
+    if (ctx->files[idx].csi != NULL && nw > 0) {
+        (void) brix_csi_write_update((brix_csi_t *) ctx->files[idx].csi,
+                                       sub_payload, (off_t) offset, (size_t) nw);
+    }
 
     ctx->files[idx].bytes_written += (size_t) nw;
     ctx->session_bytes_written    += (size_t) nw;
@@ -214,6 +225,15 @@ ckp_xeq_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
         write_offset  += (int64_t) nw;
         src           += page_data;
         rem           -= page_data;
+    }
+
+    /* Integrity: same as ckp_xeq_write — the pages went straight through the
+     * VFS I/O core, so fold the decoded plaintext into the csi engine to mark
+     * the written extent dirty. Without this a read-back on this handle verifies
+     * the new pages against the stale on-disk CRC and fails with EIO. */
+    if (ctx->files[idx].csi != NULL && flat_sz > 0) {
+        (void) brix_csi_write_update((brix_csi_t *) ctx->files[idx].csi,
+                                       flat, (off_t) offset, flat_sz);
     }
 
     ctx->files[idx].bytes_written += total_written;
