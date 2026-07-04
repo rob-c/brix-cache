@@ -324,14 +324,28 @@ def read_range(port, path, off, length):
 
 
 def residency(store_dir, key):
-    """Run xrdcinfo on <store_dir>/<key>.cinfo; return the parsed dict, or
-    {'absent': True} when neither the object nor its sidecar was cached."""
+    """Return the parsed xrdcinfo record for the cached object <store_dir>/<key>.
+
+    The unified metadata record is xattr-preferred: on an xattr-capable store fs
+    it rides the object's ``user.xrd.cinfo`` xattr with NO ``.cinfo`` sidecar, and
+    only falls back to a sidecar where xattrs are unsupported. So read the sidecar
+    first and, when it is absent, read the xattr off the object itself. Returns
+    {'absent': True} only when neither carrier holds a record."""
     cinfo = os.path.join(store_dir, key + ".cinfo")
     p = subprocess.run([XRDCINFO, cinfo], capture_output=True, text=True)
     out = (p.stdout or "").strip()
-    if not out:
-        return {"absent": True}
-    return json.loads(out)
+    parsed = json.loads(out) if out else {"absent": True}
+    if not parsed.get("absent"):
+        return parsed
+
+    data = os.path.join(store_dir, key)
+    px = subprocess.run([XRDCINFO, "--xattr", data], capture_output=True, text=True)
+    xout = (px.stdout or "").strip()
+    if xout:
+        xparsed = json.loads(xout)
+        if not xparsed.get("absent"):
+            return xparsed
+    return {"absent": True}
 
 
 def backend_available(backend):
