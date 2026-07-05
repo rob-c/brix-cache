@@ -31,6 +31,7 @@
 #include "core/config/config.h"           /* brix_metrics_ensure_zone */
 #include "core/config/root_prepare.h"
 #include "core/config/http_rootfd.h"
+#include "core/config/http_common.h"       /* unified brix_* directive adoption */
 #include "core/compat/alloc_guard.h"
 #include "fs/cache/verify.h"               /* brix_cache_verify_mode_e */
 #include "fs/vfs/vfs_backend_registry.h"
@@ -302,6 +303,11 @@ ngx_http_brix_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 {
     ngx_http_brix_cvmfs_loc_conf_t *prev = parent;
     ngx_http_brix_cvmfs_loc_conf_t *conf = child;
+
+    /* Unified directives (brix_export, brix_cache_store, brix_cache_verify,
+     * ...) live in the common module; pull the merged values for this location
+     * into our embedded preamble before protocol merge applies defaults. */
+    brix_http_common_adopt(cf, &conf->common);
 
     /* Shared common.* preamble. Two deliberate gains over the old manual
      * block: read_only now forces allow_write off (hardening; cvmfs is a

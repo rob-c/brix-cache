@@ -1144,6 +1144,20 @@ ngx_module_deps="$ngx_addon_dir/src/net/httpguard/guard_http.h \
 ngx_module_libs=
 xrd_emit_module
 
+# Unified brix storage grammar (brix_export, brix_cache_store, brix_stage, ...):
+# ONE http module owns the bare directive names; the protocol modules below
+# adopt the merged values into their embedded common preamble. Emitted BEFORE
+# webdav/s3/cvmfs so nginx's first-module-wins name resolution binds the bare
+# names here and this module's merge_loc_conf runs first for every location.
+ngx_module_type=HTTP
+ngx_module_name=ngx_http_brix_common_module
+ngx_module_srcs="$ngx_addon_dir/src/core/config/http_common.c"
+ngx_module_deps="$ngx_addon_dir/src/core/config/http_common.h \
+                 $ngx_addon_dir/src/core/config/shared_conf.h \
+                 $ngx_addon_dir/src/core/config/tier_directives.h"
+ngx_module_libs=
+xrd_emit_module
+
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_brix_webdav_module
 ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
