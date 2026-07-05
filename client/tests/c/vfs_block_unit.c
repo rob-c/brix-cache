@@ -8,7 +8,7 @@
  *       read-back bytes, error on missing path, clean reject for truncate.
  */
 
-#include "../../lib/vfs.h"
+#include "../../lib/fs/vfs.h"
 #include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>

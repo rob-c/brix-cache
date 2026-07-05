@@ -13,7 +13,7 @@
  *       — that is the expected RED state.  Run it after A3 is merged.
  */
 
-#include "../../lib/vfs.h"
+#include "../../lib/fs/vfs.h"
 #include <assert.h>
 #include <fcntl.h>
 #include <stdint.h>
