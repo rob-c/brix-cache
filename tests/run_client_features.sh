@@ -191,10 +191,58 @@ section_mirror_delete() {
   # TODO(Task 10): clean scratch dirs with xrdfs rm -r once recursive delete is implemented
 }
 
+section_remove_source() {
+  echo "== --remove-source =="
+  local RS="$WORK/rs"
+  mkdir -p "$RS"
+
+  # Security: web/S3 source + --remove-source must exit 50.
+  "$BIN/xrdcp" --remove-source "s3://bucket/obj" "$RS/" 2>/dev/null
+  check "--remove-source s3:// exits 50" '[ "$?" -eq 50 ]'
+  "$BIN/xrdcp" --remove-source "https://example.com/f" "$RS/" 2>/dev/null
+  check "--remove-source https:// exits 50" '[ "$?" -eq 50 ]'
+
+  # Dry-run + --remove-source: source must still exist and the message must include
+  # "(then remove source)".  transfer_one short-circuits before brix_copy in
+  # dry-run mode, so local->local is fine here (no actual I/O).
+  echo "dry-run test" >"$RS/dry.txt"
+  OUT=$("$BIN/xrdcp" --dry-run --remove-source "$RS/dry.txt" "$RS/dry_out.txt" 2>/dev/null)
+  check "--dry-run --remove-source: src intact" '[ -e "$RS/dry.txt" ]'
+  check "--dry-run --remove-source: prints (then remove source)" \
+    'echo "$OUT" | grep -q "(then remove source)"'
+
+  echo "== --remove-source (fleet) =="
+  if ! have_fleet; then
+    echo "  SKIP fleet --remove-source tests (no fleet at $URL)"
+    return
+  fi
+
+  local RSBASE="/tmp/cfeat-$$-rs"
+
+  # Upload with --remove-source: local source file must be gone after the
+  # transfer, and the remote destination must be present and byte-exact.
+  printf 'upload-move\n' >"$RS/up.txt"
+  "$BIN/xrdcp" -s --remove-source "$RS/up.txt" "${URL}//${RSBASE}/up.txt" 2>/dev/null
+  check "--remove-source upload: local src removed" '[ ! -e "$RS/up.txt" ]'
+  check "--remove-source upload: remote dst exists" \
+    '"$BIN/xrdfs" "$URL" stat "${RSBASE}/up.txt" >/dev/null 2>&1'
+
+  # Download with --remove-source: remote source must be gone and local
+  # destination must contain the original bytes.
+  printf 'download-move\n' >"$RS/dl_seed.txt"
+  "$BIN/xrdcp" -s -f "$RS/dl_seed.txt" "${URL}//${RSBASE}/dl.txt" 2>/dev/null
+  "$BIN/xrdcp" -s --remove-source "${URL}//${RSBASE}/dl.txt" "$RS/dl_out.txt" 2>/dev/null
+  check "--remove-source download: local dst has content" \
+    '[ "$(cat "$RS/dl_out.txt")" = "download-move" ]'
+  check "--remove-source download: remote src removed" \
+    '! "$BIN/xrdfs" "$URL" stat "${RSBASE}/dl.txt" >/dev/null 2>&1'
+}
+
 main() {
   section_dryrun_filters
   section_sync_modes
   section_mirror_delete
+  section_remove_source
   echo "client-features: $PASS pass, $FAIL fail"
   [ "$FAIL" -eq 0 ]
 }

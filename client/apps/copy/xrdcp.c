@@ -32,6 +32,7 @@ usage(void)
         "  --exclude <pat> skip files matching this fnmatch pattern (repeatable)\n"
         "  --include <pat> only transfer files matching a pattern (repeatable)\n"
         "  --delete       with -r --sync: delete dest entries missing from the source\n"
+        "  --remove-source  delete each source after its transfer succeeds (local/root://)\n"
         "  --progress     show a transfer progress bar + ETA (auto on a TTY; single copy)\n"
         "  --verify       after the transfer, verify the checksum against the server (root://)\n"
         "  --tls          require in-protocol TLS (implied by roots://)\n"
@@ -403,6 +404,7 @@ main(int argc, char **argv)
                 if (str_append(&incl, &nincl, &inclcap, argv[++i]) != 0) { oom = 1; }
             }
             else if (strcmp(a, "--delete") == 0) { opts.sync_delete = 1; }
+            else if (strcmp(a, "--remove-source") == 0) { opts.remove_source = 1; }
             else if (strcmp(a, "--progress") == 0) { force_progress = 1; }
             else if (strcmp(a, "--verify") == 0) { verify = 1; }
             else if (strcmp(a, "--auto-refresh") == 0) { auto_refresh = 1; }
@@ -533,6 +535,19 @@ main(int argc, char **argv)
         str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
         str_free(excl, nexcl); str_free(incl, nincl);
         return 50;
+    }
+    /* --remove-source supports local and root:// sources only: web/S3 sources
+     * have no cheap post-transfer delete path and cannot be safely removed. */
+    if (opts.remove_source) {
+        for (i = 0; i < nexp; i++) {
+            if (brix_is_web_url(exp[i])) {
+                fprintf(stderr, "xrdcp: --remove-source supports local and "
+                                "root:// sources only\n");
+                str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
+                str_free(excl, nexcl); str_free(incl, nincl);
+                return 50;
+            }
+        }
     }
 
     /*
