@@ -110,4 +110,20 @@ int brix_overlay_utimens(const brix_overlay *ov, const char *rel,
                          const struct timespec tv[2]);
 int brix_overlay_truncate(const brix_overlay *ov, const char *rel, off_t len);
 
+/* ---- copy-up ------------------------------------------------------------- */
+
+/* Lower-layer reader injected by the FUSE driver (cvmfs_client_read shaped):
+ * fill buf with up to `len` bytes at `off`; *outlen = bytes produced (0 only
+ * at/after EOF). Returns 0 / -errno. */
+typedef int (*brix_ov_read_fn)(void *ud, const char *rel, uint64_t off,
+                               size_t len, unsigned char *buf, size_t *outlen);
+
+/* Materialise lower file `rel` in the upper tree: parent chain is created,
+ * bytes stream into a ".brix.tmp.<leaf>" sibling (1 MiB chunks) which is
+ * renamed into place only when complete — a failure leaves NO trace. Lower
+ * mode bits and mtime are preserved; any whiteout on `rel` is cleared. */
+int brix_overlay_copyup(const brix_overlay *ov, const char *rel,
+                        const struct stat *lower_st,
+                        brix_ov_read_fn read_lower, void *ud);
+
 #endif /* XRDC_OVERLAY_H */

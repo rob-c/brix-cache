@@ -229,10 +229,83 @@ static void test_mutations(void) {
     fix_down(&f);
 }
 
+/* ---- section 3: copy-up -------------------------------------------------- */
+
+#define CU_SIZE (3u * 1024u * 1024u)   /* 3 MiB → exercises the chunk loop */
+
+typedef struct { int fail_at_mib; } cu_src_t;
+
+/* mock lower reader: byte i = (i * 7) & 0xff; optional -EIO at a boundary */
+static int cu_read(void *ud, const char *rel, uint64_t off, size_t len,
+                   unsigned char *buf, size_t *outlen) {
+    cu_src_t *s = ud;
+    (void) rel;
+    if (s->fail_at_mib >= 0 && off >= (uint64_t) s->fail_at_mib * 1024 * 1024)
+        return -EIO;
+    if (off >= CU_SIZE) { *outlen = 0; return 0; }
+    size_t n = len;
+    if (off + n > CU_SIZE) n = CU_SIZE - off;
+    for (size_t i = 0; i < n; i++) buf[i] = (unsigned char) (((off + i) * 7) & 0xff);
+    *outlen = n;
+    return 0;
+}
+
+/* any ".brix.tmp.*" residue under upper/<dir>? */
+static int cu_tmp_residue(const fix_t *f) {
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd),
+             "find '%s/upper' -name '.brix.tmp.*' | grep -q .", f->root);
+    return system(cmd) == 0;
+}
+
+static void test_copyup(void) {
+    fix_t f;
+    printf("== copy-up ==\n");
+    CHECK(fix_up(&f) == 0, "overlay init");
+
+    struct stat lower = { 0 };
+    lower.st_size  = CU_SIZE;
+    lower.st_mode  = S_IFREG | 0664;
+    lower.st_mtime = 424242;
+
+    cu_src_t ok_src = { .fail_at_mib = -1 };
+    CHECK(brix_overlay_copyup(&f.ov, "sw/pkg/big.bin", &lower, cu_read, &ok_src) == 0,
+          "copyup succeeds");
+    struct stat st;
+    CHECK(cls(&f, "sw/pkg/big.bin", &st) == BRIX_OV_UPPER
+          && (uint64_t) st.st_size == CU_SIZE, "target UPPER with full size");
+    CHECK((st.st_mode & 07777) == 0664, "lower mode preserved");
+    CHECK(st.st_mtime == 424242, "lower mtime preserved");
+    CHECK(!cu_tmp_residue(&f), "no tmp residue after success");
+
+    int fd = brix_overlay_open(&f.ov, "sw/pkg/big.bin", O_RDONLY, 0);
+    unsigned char b[3];
+    CHECK(fd >= 0 && pread(fd, b, 3, 2u * 1024u * 1024u + 1u) == 3
+          && b[0] == (unsigned char) (((2u * 1024u * 1024u + 1u) * 7) & 0xff),
+          "byte spot-check past 2 MiB");
+    if (fd >= 0) close(fd);
+
+    /* copy-up over an existing whiteout clears it */
+    CHECK(brix_overlay_whiteout_set(&f.ov, "sw/pkg/back") == 0, "seed whiteout");
+    CHECK(brix_overlay_copyup(&f.ov, "sw/pkg/back", &lower, cu_read, &ok_src) == 0
+          && brix_overlay_whiteout(&f.ov, "sw/pkg/back") == 0,
+          "copyup clears whiteout");
+
+    /* error-neg: reader failing mid-stream leaves nothing behind */
+    cu_src_t bad_src = { .fail_at_mib = 1 };
+    CHECK(brix_overlay_copyup(&f.ov, "sw/pkg/torn.bin", &lower, cu_read, &bad_src) == -EIO,
+          "mid-stream -EIO propagates");
+    CHECK(cls(&f, "sw/pkg/torn.bin", NULL) == BRIX_OV_NONE, "no torn target");
+    CHECK(!cu_tmp_residue(&f), "no tmp residue after failure");
+
+    fix_down(&f);
+}
+
 int main(void) {
     test_reserved_names();
     test_classify();
     test_mutations();
+    test_copyup();
     printf("%d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;
 }
