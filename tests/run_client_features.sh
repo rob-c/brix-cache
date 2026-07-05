@@ -236,6 +236,21 @@ section_remove_source() {
     '[ "$(cat "$RS/dl_out.txt")" = "download-move" ]'
   check "--remove-source download: remote src removed" \
     '! "$BIN/xrdfs" "$URL" stat "${RSBASE}/dl.txt" >/dev/null 2>&1'
+
+  # Recursive upload with --remove-source: build a small tree (2 files, 1 subdir),
+  # move it to remote with -r --remove-source, then verify local tree is gone,
+  # remote files exist, and no spurious "could not remove source" warning.
+  local RMVTREE="$RS/rmv-tree"
+  mkdir -p "$RMVTREE/sub"
+  printf 'file-1\n' >"$RMVTREE/f1.txt"
+  printf 'file-2\n' >"$RMVTREE/f2.txt"
+  printf 'file-sub\n' >"$RMVTREE/sub/f_sub.txt"
+  RMVERR=$("$BIN/xrdcp" -r -s --remove-source "$RMVTREE/" "${URL}//${RSBASE}/rmvtree/" 2>&1)
+  check "-r --remove-source: local tree removed" '[ ! -d "$RMVTREE" ]'
+  check "-r --remove-source: remote file 1 exists" \
+    '"$BIN/xrdfs" "$URL" stat "${RSBASE}/rmvtree/f1.txt" >/dev/null 2>&1'
+  check "-r --remove-source: no spurious warning" \
+    '! echo "$RMVERR" | grep -q "could not remove source"'
 }
 
 main() {
