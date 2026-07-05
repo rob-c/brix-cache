@@ -72,3 +72,8 @@ export const AUDIENCES: NavItem[] = [
   { label: 'Engineers', href: '/for/engineers' },
   { label: 'Stakeholders', href: '/for/stakeholders' },
 ];
+
+/** Product pages shown in the primary nav after the audience links. */
+export const PRODUCT_PAGES: NavItem[] = [
+  { label: 'brixMount', href: '/brixmount' },
+];

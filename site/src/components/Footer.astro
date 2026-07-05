@@ -1,5 +1,5 @@
 ---
-import { url, REPO_URL, DOCS_URL, LICENSE, AUDIENCES, PROTOCOLS } from '../lib/site';
+import { url, REPO_URL, DOCS_URL, LICENSE, AUDIENCES, PRODUCT_PAGES, PROTOCOLS } from '../lib/site';
 ---
 
 <footer class="band band--ink band-pad">
@@ -19,6 +19,7 @@ import { url, REPO_URL, DOCS_URL, LICENSE, AUDIENCES, PROTOCOLS } from '../lib/s
 
     <nav class="foot-col" aria-label="Project">
       <span class="foot-h">Project</span>
+      {PRODUCT_PAGES.map((p) => <a href={url(p.href)}>{p.label}</a>)}
       <a href={DOCS_URL}>Documentation</a>
       <a href={REPO_URL}>Source on GitHub</a>
       <a href={`${REPO_URL}/blob/main/LICENSE`}>License · {LICENSE}</a>
