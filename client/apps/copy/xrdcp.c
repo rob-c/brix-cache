@@ -281,9 +281,7 @@ web_scheme_str(brix_web_proto pr)
 int
 rel_is_unsafe(const char *rel)
 {
-    return rel[0] == '/' || strcmp(rel, "..") == 0
-        || strncmp(rel, "../", 3) == 0 || strstr(rel, "/../") != NULL
-        || (strlen(rel) >= 3 && strcmp(rel + strlen(rel) - 3, "/..") == 0);
+    return brix_rel_is_unsafe(rel);
 }
 
 

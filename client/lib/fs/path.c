@@ -107,3 +107,27 @@ brix_open_credfile(const char *path, int secret, brix_status *st)
     }
     return fd;
 }
+
+/* WHAT: 1 if a relative path would escape the directory it is joined under.
+ * WHY:  server dirlists, manifests, and archives are untrusted inputs; a
+ *       "../" component or absolute path must never place files outside the
+ *       destination root (moved here from apps/copy so every consumer shares
+ *       one guard).
+ * HOW:  flag absolute paths and any exact ".." path component. */
+int
+brix_rel_is_unsafe(const char *rel)
+{
+    size_t len;
+
+    if (rel == NULL || rel[0] == '/') {
+        return rel != NULL;
+    }
+    len = strlen(rel);
+    if (strcmp(rel, "..") == 0
+        || strncmp(rel, "../", 3) == 0
+        || strstr(rel, "/../") != NULL
+        || (len >= 3 && strcmp(rel + len - 3, "/..") == 0)) {
+        return 1;
+    }
+    return 0;
+}
