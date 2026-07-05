@@ -1,7 +1,10 @@
 # brixMount CVMFS writable overlay — design
 
 **Date:** 2026-07-05
-**Status:** approved
+**Status:** implemented (2026-07-05 — overlay core `client/lib/fs/overlay.{c,h}`,
+rw driver `client/apps/fs/brixcvmfs_rw.c`, brixMount `cvmfs-rw` type +
+`--overlay-list`/`--overlay-reset`; tests `tests/run_overlay_unit.sh`,
+`tests/run_brixmount_unit.sh`, `tests/run_brixcvmfs_overlay.sh`)
 
 ## Goal
 

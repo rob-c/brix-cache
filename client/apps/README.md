@@ -56,6 +56,7 @@ record the groupings; the table lists each tool by its binary, not its files.
 | Binary | Purpose |
 |---|---|
 | `xrootdfs` | FUSE mount. One binary containing both drivers — the async/resilient default and a simple synchronous `--legacy` fallback (front-end `xrootdfs_main.c`, multi-call like `xrd`). |
+| `brixMount` | Umbrella FUSE front-end: `brixMount <type> <endpoint> <mountdir>` — `cvmfs` (CVMFS-brix, read-only), `cvmfs-rw` (CVMFS-brix-rw: same mount plus a local writable overlay in `<mountdir>/.brixwrites` — copy-up, whiteout deletes; manage with `brixMount --overlay-list/--overlay-reset <mountdir>`), `eos`/`root`/`roots` (XRootDFS-brix). |
 | `libbrixposix_preload.so` | LD_PRELOAD POSIX→XRootD read-path shim (see [`../preload/`](../preload/)). |
 
 ## See also
