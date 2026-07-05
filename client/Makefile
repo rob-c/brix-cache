@@ -421,6 +421,33 @@ install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES)
 	[ -f $(BINDIR)/xrootdfs ] && install -m755 $(BINDIR)/xrootdfs $(DESTDIR)$(PREFIX)/bin/ || true
 	[ -f man/xrootdfs.1 ] && install -m644 man/xrootdfs.1 $(DESTDIR)$(PREFIX)/share/man/man1/ || true
 
+# ---------------------------------------------------------------------------
+# `make test` — build + run every self-contained C unit test under tests/c/.
+# vfs_s3_smoke is excluded (needs an external S3 endpoint; run it manually).
+# Each test is a standalone main() linking the client lib + libxrdproto, the
+# same recipe as the Build+run comment in each test's header.
+CLIENT_UNIT_TESTS := cli_cred_unit cred_unit cred_store_unit vfs_posix_unit vfs_block_unit
+# The tests predate the phase-69 bucket reshuffle and include bucket-local
+# headers bare ("cred.h"); add the bucket dirs rather than churning the tests.
+TEST_INC := -Ilib/auth/cred -Ilib/auth/sss -Ilib/fs -Ilib/cli -Ilib/core/types -Ilib/net
+# The cred-handler and vfs-backend registries are weak-symbol accessors: a
+# plain static-archive link would not extract their defining objects (weak
+# refs do not force member extraction; the registry would see NULL slots), so
+# those tests link --whole-archive. cred_store_unit instead OVERRIDES a strong
+# lib symbol (brix_cred_s3keys) and must use the plain archive link.
+WHOLEARCH_TESTS := cli_cred_unit cred_unit vfs_posix_unit vfs_block_unit
+test: $(CLIENT_LIB) proto | $(BINDIR)
+	@set -e; for t in $(CLIENT_UNIT_TESTS); do \
+	  echo "== $$t"; \
+	  case " $(WHOLEARCH_TESTS) " in \
+	  *" $$t "*) lib='-Wl,--whole-archive $(CLIENT_LIB) -Wl,--no-whole-archive' ;; \
+	  *)         lib='$(CLIENT_LIB)' ;; \
+	  esac; \
+	  $(CC) $(ALL_CFLAGS) $(TEST_INC) tests/c/$$t.c \
+	    $$lib $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/$$t; \
+	  $(BINDIR)/$$t; \
+	done; echo "client unit tests: ALL PASS"
+
 # Build the sample consumer against the INSTALLED library via pkg-config.
 example-test:
 	$(CC) -std=c11 examples/brix_stat_demo.c \
