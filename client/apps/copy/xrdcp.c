@@ -19,6 +19,8 @@ usage(void)
         "  -s             silent\n"
         "  -v, -d         verbose / debug\n"
         "  --from <file>  read sources from a manifest (one per line; '-'=stdin)\n"
+        "  --journal <p>  record completed transfers; skip them on the next run\n"
+        "  --resume       shorthand: --journal <manifest>.journal (needs --from)\n"
         "  --retry <n>    retry each failed transfer up to n times (backoff); 0 = fail fast\n"
         "  --no-retry     disable transport resilience: fail on the first fault\n"
         "  --max-stall <ms> reconnect/resume patience window (0 = fail fast)\n"
@@ -336,13 +338,16 @@ main(int argc, char **argv)
     size_t         npos = 0, poscap = 0, nsrc = 0, srccap = 0, nexp = 0, expcap = 0, i;
     size_t         nexcl = 0, exclcap = 0, nincl = 0, inclcap = 0;
     const char    *from = NULL, *dst = NULL, *oidc_account = NULL;
-    const char    *proxy = NULL;   /* --proxy: explicit X.509 proxy path override */
+    const char    *proxy = NULL;          /* --proxy: explicit X.509 proxy path override */
+    const char    *journal_path = NULL;   /* --journal <path> or derived from --resume */
     int            retries = 0, jobs = 1, sync_mode = 0, force_progress = 0, verify = 0, rc = 0, oom = 0;
     int            auto_refresh = 0;   /* Phase 40 (b): --auto-refresh */
+    int            resume = 0;         /* --resume: derive journal path from --from */
     /* C1: credential store built from CLI values after arg parsing; INERT until C2
      * threads it through the auth path.  NULL until brix_cli_cred_store_build runs;
      * freed on every exit path after construction. */
     struct brix_cred_store *cred_store = NULL;
+    brix_journal  *jrn = NULL;   /* completion journal; NULL = journalling disabled */
 
     memset(&opts, 0, sizeof(opts));
     memset(&conn, 0, sizeof(conn));
@@ -374,6 +379,8 @@ main(int argc, char **argv)
             else if (strcmp(a, "-v") == 0 || strcmp(a, "-d") == 0) { opts.verbose = 1; }
             else if (strcmp(a, "-N") == 0)  { /* no progress bar — already none */ }
             else if (strcmp(a, "--from") == 0 && i + 1 < (size_t) argc) { from = argv[++i]; }
+            else if (strcmp(a, "--journal") == 0 && i + 1 < (size_t) argc) { journal_path = argv[++i]; }
+            else if (strcmp(a, "--resume") == 0) { resume = 1; }
             else if (strcmp(a, "--retry") == 0 && i + 1 < (size_t) argc) {
                 retries = atoi(argv[++i]);
                 if (retries <= 0) { retries = 0; opts.no_retry = 1; }  /* 0 ⇒ fail fast */
@@ -506,6 +513,28 @@ main(int argc, char **argv)
         str_free(pos, npos); str_free(srcs, nsrc);
         str_free(excl, nexcl); str_free(incl, nincl);
         return 51;
+    }
+    /* --resume shorthand: derive journal path from the manifest path.  Must come
+     * before nsrc==0 so the specific error fires even when there are no sources. */
+    if (resume && journal_path == NULL) {
+        if (from == NULL || strcmp(from, "-") == 0) {
+            fprintf(stderr, "xrdcp: --resume needs --from <file> (not stdin) "
+                            "or an explicit --journal <path>\n");
+            str_free(pos, npos); str_free(srcs, nsrc);
+            str_free(excl, nexcl); str_free(incl, nincl);
+            return 50;
+        }
+        {
+            static char jbuf[XRDC_PATH_MAX];
+            if ((size_t) snprintf(jbuf, sizeof(jbuf), "%s.journal", from)
+                    >= sizeof(jbuf)) {
+                fprintf(stderr, "xrdcp: journal path too long\n");
+                str_free(pos, npos); str_free(srcs, nsrc);
+                str_free(excl, nexcl); str_free(incl, nincl);
+                return 50;
+            }
+            journal_path = jbuf;
+        }
     }
     if (nsrc == 0) {
         fprintf(stderr, "xrdcp: no source given\n");
@@ -643,6 +672,19 @@ main(int argc, char **argv)
             }
         }
     }
+    /* Open the completion journal when requested.  Journal writes are serialized
+     * internally so both the sequential and parallel batch paths share one handle. */
+    if (journal_path != NULL) {
+        brix_status_clear(&st);
+        jrn = brix_journal_open(journal_path, &st);
+        if (jrn == NULL) {
+            fprintf(stderr, "xrdcp: %s\n", st.msg);
+            brix_cred_store_free(cred_store);
+            str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
+            str_free(excl, nexcl); str_free(incl, nincl);
+            return 51;
+        }
+    }
     if (nexp == 1 && from == NULL) {
         /* Classic single copy — dst may be a file, directory, or '-'. */
         char       label[XRDC_NAME_MAX];
@@ -674,6 +716,7 @@ main(int argc, char **argv)
         if (dest_is_dir(dst, &conn) != 1) {
             fprintf(stderr, "xrdcp: destination must be an existing directory for "
                             "multi-source copy: %s\n", dst);
+            brix_journal_close(jrn);
             brix_cred_store_free(cred_store);
             str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
             str_free(excl, nexcl); str_free(incl, nincl);
@@ -682,17 +725,31 @@ main(int argc, char **argv)
         if (jobs > (int) nexp) { jobs = (int) nexp; }
         if (jobs > 1) {
             batch_parallel(exp, nexp, dst, &opts, &conn, retries, sync_mode,
-                           jobs, &ok, &skip, &fail);
+                           jobs, jrn, &ok, &skip, &fail);
         } else {
             for (i = 0; i < nexp; i++) {
                 char dpath[XRDC_PATH_MAX];
-                int  one = batch_copy_one(exp[i], dst, &opts, &conn, retries,
-                                          sync_mode, dpath, sizeof(dpath), &st);
+                int  one;
+                /* journal skip: already-completed sources need no reprocessing */
+                if (jrn != NULL && brix_journal_has(jrn, exp[i])) {
+                    skip++;
+                    if (!opts.silent) {
+                        fprintf(stderr, "[%zu/%zu] %s (already transferred)\n",
+                                ok + skip + fail, nexp, exp[i]);
+                    }
+                    continue;
+                }
+                one = batch_copy_one(exp[i], dst, &opts, &conn, retries,
+                                     sync_mode, dpath, sizeof(dpath), &st);
                 if (one == 0) {
                     ok++;
                     if (!opts.silent) {
                         fprintf(stderr, "[%zu/%zu] %s -> %s\n",
                                 ok + skip + fail, nexp, exp[i], dpath);
+                    }
+                    /* mark only on real success; dry-run completes nothing */
+                    if (jrn != NULL && !opts.dry_run) {
+                        (void) brix_journal_mark(jrn, exp[i]);
                     }
                 } else if (one == 1) {
                     skip++;
@@ -715,6 +772,7 @@ main(int argc, char **argv)
         rc = (fail == 0) ? 0 : 1;
     }
 
+    brix_journal_close(jrn);
     brix_cred_store_free(cred_store);
     str_free(pos, npos);
     str_free(srcs, nsrc);
