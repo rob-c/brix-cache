@@ -1,0 +1,17 @@
+#!/bin/sh
+# auto.cvmfs — autofs program map for CVMFS-brix, drop-in compatible with the
+# stock /etc/auto.cvmfs. autofs invokes it with the requested repo as $1 and
+# expects a single map entry on stdout; we emit an `-fstype=cvmfs` entry so the
+# mount is handed to mount.cvmfs (→ brixMount cvmfs).
+#
+# Install (mirrors stock CVMFS):
+#   /etc/auto.master.d/cvmfs.autofs:   /cvmfs  /etc/auto.cvmfs
+#   /etc/auto.cvmfs -> this script (chmod +x)
+#   /sbin/mount.cvmfs -> deploy/cvmfs/mount.cvmfs
+# then: systemctl restart autofs ; ls /cvmfs/<repo>
+set -eu
+
+repo=$1
+# allow_other lets other users read the mount (matches stock CVMFS defaults);
+# nodev,nosuid harden the auto-mounted tree.
+printf -- "-fstype=cvmfs,allow_other,nodev,nosuid \\:%s\n" "$repo"

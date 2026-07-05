@@ -1,0 +1,37 @@
+#!/bin/sh
+# mount.cvmfs — Linux mount-helper for CVMFS-brix, so the stock invocations work:
+#     mount -t cvmfs <repo.fqrn> <mountpoint> [-o opts]
+#     autofs `-fstype=cvmfs` maps
+# The kernel/`mount` calls us as:  mount.cvmfs <spec> <dir> [-o <opts>]
+# We translate that into `brixMount cvmfs <repo> <dir> [-o <opts>]`.
+#
+# brixMount is located via $BRIXMOUNT_BIN, else PATH. Without -f, brixMount
+# daemonizes (libfuse default) so this helper returns once the mount is live —
+# exactly what mount(8)/autofs expect.
+set -eu
+
+if [ $# -lt 2 ]; then
+    echo "usage: mount.cvmfs <repo.fqrn> <mountpoint> [-o opts]" >&2
+    exit 1
+fi
+
+repo=$1
+mnt=$2
+shift 2
+
+opts=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -o) opts=$2; shift 2 ;;
+        -n|-s|-v|-r|-w) shift ;;   # mount(8) flags we can safely ignore
+        *)  shift ;;
+    esac
+done
+
+BRIXMOUNT=${BRIXMOUNT_BIN:-brixMount}
+
+if [ -n "$opts" ]; then
+    exec "$BRIXMOUNT" cvmfs "$repo" "$mnt" -o "$opts"
+else
+    exec "$BRIXMOUNT" cvmfs "$repo" "$mnt"
+fi
