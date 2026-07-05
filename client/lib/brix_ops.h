@@ -474,6 +474,8 @@ typedef struct {
 #define XRDC_SYNC_CKSUM 2   /* sizes match AND checksums match (caller does I/O) */
 
 int brix_copy_filter_match(const brix_copy_opts *o, const char *rel);
+/* brix_sync_should_skip: for XRDC_SYNC_CKSUM, this is only the size gate; the
+ * caller performs the checksum comparison itself if sizes match. */
 int brix_sync_should_skip(int cmp, long long ssz, long long smt,
                           long long dsz, long long dmt);
 
