@@ -85,6 +85,186 @@ sync_cksum_match(brix_conn *c, const char *rpath, const char *lpath,
 }
 
 
+/* Recursively remove a local tree (mirror-delete helper).
+ *
+ * WHAT: post-order deletion of a local path without following symlinks.
+ * WHY:  called by mirror_delete_local to prune extra local paths that have no
+ *       corresponding remote entry.  lstat (not stat) is used throughout so a
+ *       symlink inside the destination tree can never escape the root and delete
+ *       unrelated data.
+ * HOW:  lstat to classify; dirs → opendir + recurse each child + rmdir; files
+ *       → unlink.  Returns 0 on success, -1 with errno set on first failure. */
+static int
+local_rmtree(const char *path)
+{
+    struct stat sb;
+
+    if (lstat(path, &sb) != 0) {
+        return -1;
+    }
+    if (S_ISDIR(sb.st_mode)) {
+        DIR           *d = opendir(path);
+        struct dirent *de;
+        if (d == NULL) { return -1; }
+        while ((de = readdir(d)) != NULL) {
+            char child[XRDC_PATH_MAX];
+            if (de->d_name[0] == '.'
+                && (de->d_name[1] == '\0'
+                    || (de->d_name[1] == '.' && de->d_name[2] == '\0'))) {
+                continue;
+            }
+            if ((size_t) snprintf(child, sizeof(child), "%s/%s", path,
+                                  de->d_name) >= sizeof(child)) {
+                closedir(d);
+                errno = ENAMETOOLONG;
+                return -1;
+            }
+            if (local_rmtree(child) != 0) { closedir(d); return -1; }
+        }
+        closedir(d);
+        return rmdir(path);
+    }
+    return unlink(path);
+}
+
+
+/* Prune local entries under lpath that are absent from the remote listing.
+ *
+ * WHAT: the download-direction mirror pass for xrdcp -r --sync --delete.
+ * WHY:  after the download loop the ents[] array holds every name the remote
+ *       directory contains; a local child absent from that set is an extra
+ *       that must be removed to keep the local tree a faithful mirror of the
+ *       remote.  Excluded paths are outside the sync scope and must never be
+ *       deleted (the filter gate enforces this).
+ * HOW:  opendir(lpath); for each local entry, linear-scan ents[] by name; if
+ *       absent AND brix_copy_filter_match passes → dry-run print or delete via
+ *       local_rmtree (for dirs) / unlink (for files). */
+static void
+mirror_delete_local(const char *lpath, const brix_dirent *ents, size_t nents,
+                    const char *rel, const brix_copy_opts *o)
+{
+    DIR           *d;
+    struct dirent *de;
+
+    d = opendir(lpath);
+    if (d == NULL) {
+        fprintf(stderr, "xrdcp: --delete: opendir %s: %s\n", lpath, strerror(errno));
+        return;
+    }
+    while ((de = readdir(d)) != NULL) {
+        char   relc[XRDC_PATH_MAX];
+        char   lchild[XRDC_PATH_MAX];
+        size_t i;
+        int    in_remote = 0;
+
+        if (de->d_name[0] == '.'
+            && (de->d_name[1] == '\0'
+                || (de->d_name[1] == '.' && de->d_name[2] == '\0'))) {
+            continue;
+        }
+        /* Is this local name present in the remote listing? */
+        for (i = 0; i < nents; i++) {
+            if (strcmp(ents[i].name, de->d_name) == 0) { in_remote = 1; break; }
+        }
+        if (in_remote) {
+            continue;
+        }
+        /* Build relative and absolute paths for the filter check and deletion. */
+        if ((size_t) snprintf(relc, sizeof(relc), "%s%s%s",
+                              rel, rel[0] ? "/" : "", de->d_name) >= sizeof(relc)
+            || (size_t) snprintf(lchild, sizeof(lchild), "%s/%s",
+                                 lpath, de->d_name) >= sizeof(lchild)) {
+            fprintf(stderr, "xrdcp: --delete: path too long under %s\n", lpath);
+            continue;
+        }
+        /* Excluded entries are outside the sync scope — never delete them. */
+        if (!brix_copy_filter_match(o, relc)) {
+            continue;
+        }
+        if (o->dry_run) {
+            printf("[dry-run] delete %s\n", lchild);
+        } else if (local_rmtree(lchild) != 0) {
+            fprintf(stderr, "xrdcp: --delete: cannot remove %s: %s\n",
+                    lchild, strerror(errno));
+        }
+    }
+    closedir(d);
+}
+
+
+/* Prune remote entries under rpath that have no local counterpart in lpath.
+ *
+ * WHAT: the upload-direction mirror pass for xrdcp -r --sync --delete.
+ * WHY:  after the upload loop the local tree is authoritative; a remote entry
+ *       with no local counterpart must be removed so the remote mirrors the
+ *       local.  Excluded paths are outside the sync scope and must never be
+ *       deleted.
+ * HOW:  brix_dirlist(rpath) for the remote snapshot; for each remote entry,
+ *       lstat the local counterpart; if absent AND filter passes → dry-run
+ *       print or delete (brix_rmtree for dirs, brix_rm for files). */
+static void
+mirror_delete_remote(brix_conn *c, const char *rpath, const char *lpath,
+                     const char *rel, const brix_copy_opts *o)
+{
+    brix_dirent *ents = NULL;
+    brix_status  st;
+    size_t       n = 0, i;
+
+    brix_status_clear(&st);
+    if (brix_dirlist(c, rpath, 1, &ents, &n, &st) != 0) {
+        fprintf(stderr, "xrdcp: --delete: dirlist %s: %s\n", rpath, st.msg);
+        return;
+    }
+    for (i = 0; i < n; i++) {
+        char        relc[XRDC_PATH_MAX];
+        char        rchild[XRDC_PATH_MAX];
+        char        lchild[XRDC_PATH_MAX];
+        struct stat sb;
+        int         is_dir;
+
+        if (ents[i].name[0] == '.'
+            && (ents[i].name[1] == '\0'
+                || (ents[i].name[1] == '.' && ents[i].name[2] == '\0'))) {
+            continue;
+        }
+        if ((size_t) snprintf(relc, sizeof(relc), "%s%s%s",
+                              rel, rel[0] ? "/" : "", ents[i].name) >= sizeof(relc)
+            || (size_t) snprintf(rchild, sizeof(rchild), "%s/%s",
+                                 rpath, ents[i].name) >= sizeof(rchild)
+            || (size_t) snprintf(lchild, sizeof(lchild), "%s/%s",
+                                 lpath, ents[i].name) >= sizeof(lchild)) {
+            fprintf(stderr, "xrdcp: --delete: path too long under %s\n", rpath);
+            continue;
+        }
+        /* Keep the remote entry if the local counterpart exists. */
+        if (lstat(lchild, &sb) == 0) {
+            continue;
+        }
+        /* Excluded entries are outside the sync scope — never delete them. */
+        if (!brix_copy_filter_match(o, relc)) {
+            continue;
+        }
+        is_dir = ents[i].have_stat && (ents[i].st.flags & kXR_isDir);
+        if (o->dry_run) {
+            printf("[dry-run] delete %s\n", rchild);
+        } else if (is_dir) {
+            brix_status_clear(&st);
+            if (brix_rmtree(c, rchild, 0, NULL, NULL, &st) != 0) {
+                fprintf(stderr, "xrdcp: --delete: cannot remove %s: %s\n",
+                        rchild, st.msg);
+            }
+        } else {
+            brix_status_clear(&st);
+            if (brix_rm(c, rchild, &st) != 0) {
+                fprintf(stderr, "xrdcp: --delete: cannot remove %s: %s\n",
+                        rchild, st.msg);
+            }
+        }
+    }
+    free(ents);
+}
+
+
 /* Recurse a remote tree (rpath) under conn c into local lpath.
  *
  * WHAT: downloads every regular file under rpath into the mirrored local path,
@@ -181,6 +361,12 @@ copy_tree_download(brix_conn *c, const char *rpath, const char *lpath,
                 return -1;
             }
         }
+    }
+    /* Mirror-delete pass: remove local entries that the remote no longer has.
+     * Runs only when --sync --delete is active; ents[] is still live here so
+     * the remote snapshot is coherent with the copies just done above. */
+    if (o->sync_delete) {
+        mirror_delete_local(lpath, ents, n, rel, o);
     }
     free(ents);
     return 0;
@@ -286,6 +472,12 @@ copy_tree_upload(brix_conn *c, const char *lpath, const char *rpath,
         }
     }
     closedir(d);
+    /* Mirror-delete pass: remove remote entries that the local tree no longer
+     * has.  Runs only when --sync --delete is active; lists the remote
+     * directory here (post-upload) so the remote snapshot is fresh. */
+    if (o->sync_delete) {
+        mirror_delete_remote(c, rpath, lpath, rel, o);
+    }
     return 0;
 }
 

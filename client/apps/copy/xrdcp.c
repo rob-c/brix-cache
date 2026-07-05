@@ -31,6 +31,7 @@ usage(void)
         "  -n, --dry-run  print what would be transferred/deleted; move no bytes\n"
         "  --exclude <pat> skip files matching this fnmatch pattern (repeatable)\n"
         "  --include <pat> only transfer files matching a pattern (repeatable)\n"
+        "  --delete       with -r --sync: delete dest entries missing from the source\n"
         "  --progress     show a transfer progress bar + ETA (auto on a TTY; single copy)\n"
         "  --verify       after the transfer, verify the checksum against the server (root://)\n"
         "  --tls          require in-protocol TLS (implied by roots://)\n"
@@ -401,6 +402,7 @@ main(int argc, char **argv)
             else if (strcmp(a, "--include") == 0 && i + 1 < (size_t) argc) {
                 if (str_append(&incl, &nincl, &inclcap, argv[++i]) != 0) { oom = 1; }
             }
+            else if (strcmp(a, "--delete") == 0) { opts.sync_delete = 1; }
             else if (strcmp(a, "--progress") == 0) { force_progress = 1; }
             else if (strcmp(a, "--verify") == 0) { verify = 1; }
             else if (strcmp(a, "--auto-refresh") == 0) { auto_refresh = 1; }
@@ -465,6 +467,14 @@ main(int argc, char **argv)
         opts.force = 1;
     }
     opts.sync = sync_mode;   /* recursive walkers read o->sync (+ sync_cmp/algo) */
+    /* --delete requires -r and --sync: without a recursive pass there is no
+     * listing to diff against; without --sync the extra-deletion semantics are
+     * ill-defined (we might delete a destination the caller wanted to keep). */
+    if (opts.sync_delete && !(opts.recursive && sync_mode)) {
+        fprintf(stderr, "xrdcp: --delete requires -r and --sync\n");
+        str_free(pos, npos); str_free(excl, nexcl); str_free(incl, nincl);
+        return 50;
+    }
     /* --verify: post-transfer checksum against the server. An explicit --cksum wins. */
     if (verify && opts.cksum == NULL) {
         opts.cksum = "adler32:source";
