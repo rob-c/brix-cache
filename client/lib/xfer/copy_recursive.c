@@ -244,7 +244,28 @@ mirror_delete_remote(brix_conn *c, const char *rpath, const char *lpath,
         if (!brix_copy_filter_match(o, relc)) {
             continue;
         }
-        is_dir = ents[i].have_stat && (ents[i].st.flags & kXR_isDir);
+        /* Determine if the remote entry is a directory. If dirlist provided no stat
+         * info (have_stat=0), do a defensive stat to resolve the type before deletion.
+         * Without this, a stat-less directory would be treated as a file, causing
+         * brix_rm to fail confusingly. If the defensive stat also fails, skip the
+         * entry and warn rather than guessing. */
+        is_dir = 0;
+        if (ents[i].have_stat) {
+            is_dir = (ents[i].st.flags & kXR_isDir) ? 1 : 0;
+        } else {
+            brix_statinfo si;
+            brix_status   sst;
+            brix_status_clear(&sst);
+            if (brix_stat(c, rchild, &si, &sst) == 0) {
+                is_dir = (si.flags & kXR_isDir) ? 1 : 0;
+            } else {
+                fprintf(stderr, "xrdcp: --delete: cannot stat %s, skipping\n", rchild);
+                continue;
+            }
+        }
+        /* For dry-run, only print; do not call brix_rmtree with BRIX_RMTREE_DRYRUN
+         * because that would walk the remote tree (I/O), bloating the dry-run output.
+         * Instead, we guard the call itself so dry-run performs no remote I/O. */
         if (o->dry_run) {
             printf("[dry-run] delete %s\n", rchild);
         } else if (is_dir) {

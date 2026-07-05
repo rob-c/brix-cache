@@ -187,6 +187,8 @@ section_mirror_delete() {
     'echo "$DRY_OUT" | grep -q "\[dry-run\] delete"'
   check "--dry-run --delete: phantom file unchanged" \
     '"$BIN/xrdfs" "$URL" stat "/tmp/cfeat-$$-mddst3/phantom.root" >/dev/null 2>&1'
+
+  # TODO(Task 10): clean scratch dirs with xrdfs rm -r once recursive delete is implemented
 }
 
 main() {
