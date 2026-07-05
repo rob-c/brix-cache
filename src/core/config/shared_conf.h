@@ -214,7 +214,19 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
                              const char *root_default)
 {
     ngx_conf_merge_value(conf->enable, prev->enable, 0);
-    ngx_conf_merge_str_value(conf->root, prev->root, root_default);
+    /* root_default is a runtime const char* parameter, not a string literal;
+     * ngx_conf_merge_str_value computes sizeof(default)-1, which yields the
+     * pointer width (7 on 64-bit) rather than the actual string length — the
+     * empty-string default used by s3/cvmfs became {len:7,data:""}, so the
+     * pure-cache-node root.len==0 → "/" fallback never fired.  Hand-roll. */
+    if (conf->root.data == NULL) {
+        if (prev->root.data != NULL) {
+            conf->root = prev->root;
+        } else {
+            conf->root.data = (u_char *) root_default;
+            conf->root.len = ngx_strlen(root_default);
+        }
+    }
     ngx_conf_merge_value(conf->allow_write, prev->allow_write, 0);
     ngx_conf_merge_value(conf->read_only, prev->read_only, 0);
     ngx_conf_merge_value(conf->compress, prev->compress, 0);
