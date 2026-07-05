@@ -188,7 +188,13 @@ transfer_one(const char *src, const char *dst, const brix_copy_opts *o,
             }
         }
     }
-    if (o->dry_run) {
+    /* When --delete is active the walker must run even in dry-run mode: it
+     * needs to list both sides to report which extras would be removed.  Skip
+     * the early-out so copy_one_with_retry drives the full recursive walk;
+     * the walker prints its own per-entry "[dry-run] copy/delete" messages and
+     * guards every mutation with !o->dry_run internally.
+     * For all other dry-run cases, print one top-level line and return. */
+    if (o->dry_run && !o->sync_delete) {
         printf("[dry-run] copy %s -> %s\n", src, dst);
         return 0;
     }

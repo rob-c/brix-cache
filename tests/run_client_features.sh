@@ -137,10 +137,62 @@ section_sync_modes() {
   check "fleet -r --sync-check cksum: stale tree file recopied" '[ "$(cat "$S/out/f")" = "AAAA" ]'
 }
 
+section_mirror_delete() {
+  echo "== mirror delete (--delete) =="
+
+  # Error case: --delete without --sync must exit 50.
+  "$BIN/xrdcp" -r --delete "$WORK/src/" "$WORK/dst/" 2>/dev/null
+  check "--delete without --sync exits 50" '[ "$?" -eq 50 ]'
+
+  # Error case: --delete without -r must exit 50.
+  "$BIN/xrdcp" --sync --delete "$WORK/src/a.root" "$WORK/dst/" 2>/dev/null
+  check "--delete without -r exits 50" '[ "$?" -eq 50 ]'
+
+  echo "== mirror delete (fleet) =="
+  if ! have_fleet; then
+    echo "  SKIP fleet mirror-delete tests (no fleet at $URL)"
+    return
+  fi
+
+  # Seed the source tree on the remote (a.root, b.log, sub/c.root).
+  local RSRC="${URL}//tmp/cfeat-$$-mdsrc"
+  "$BIN/xrdcp" -r -s -f "$WORK/src/" "$RSRC/" 2>/dev/null
+
+  # Upload direction: pre-seed an extra file on the remote dst, then run
+  # xrdcp -r --sync --delete.  The extra must disappear; the seeded files survive.
+  local RDST="${URL}//tmp/cfeat-$$-mddst"
+  "$BIN/xrdcp" -s "$WORK/src/a.root" "${RDST}/a.root" 2>/dev/null
+  "$BIN/xrdcp" -s "$WORK/src/b.log" "${RDST}/b.log" 2>/dev/null
+  "$BIN/xrdcp" -s "$WORK/src/a.root" "${RDST}/extra.root" 2>/dev/null
+  "$BIN/xrdcp" -r -s --sync --delete "$WORK/src/" "$RDST/" 2>/dev/null
+  check "--delete upload: synced file survives" \
+    '"$BIN/xrdfs" "$URL" stat "/tmp/cfeat-$$-mddst/a.root" >/dev/null 2>&1'
+  check "--delete upload: extra removed" \
+    '! "$BIN/xrdfs" "$URL" stat "/tmp/cfeat-$$-mddst/extra.root" >/dev/null 2>&1'
+
+  # Security: excluded extra must NOT be deleted (it is outside the sync scope).
+  local RDST2="${URL}//tmp/cfeat-$$-mddst2"
+  "$BIN/xrdcp" -s "$WORK/src/a.root" "${RDST2}/a.root" 2>/dev/null
+  "$BIN/xrdcp" -s "$WORK/src/a.root" "${RDST2}/keep.dat" 2>/dev/null
+  "$BIN/xrdcp" -r -s --sync --delete --exclude 'keep.dat' "$WORK/src/" "$RDST2/" 2>/dev/null
+  check "--delete upload: excluded extra survives" \
+    '"$BIN/xrdfs" "$URL" stat "/tmp/cfeat-$$-mddst2/keep.dat" >/dev/null 2>&1'
+
+  # --dry-run --delete: the extra file must still be present after the run.
+  local RDST3="${URL}//tmp/cfeat-$$-mddst3"
+  "$BIN/xrdcp" -s "$WORK/src/a.root" "${RDST3}/a.root" 2>/dev/null
+  "$BIN/xrdcp" -s "$WORK/src/a.root" "${RDST3}/phantom.root" 2>/dev/null
+  DRY_OUT=$("$BIN/xrdcp" -r -s --sync --delete --dry-run "$WORK/src/" "$RDST3/" 2>/dev/null)
+  check "--dry-run --delete: prints delete line" \
+    'echo "$DRY_OUT" | grep -q "\[dry-run\] delete"'
+  check "--dry-run --delete: phantom file unchanged" \
+    '"$BIN/xrdfs" "$URL" stat "/tmp/cfeat-$$-mddst3/phantom.root" >/dev/null 2>&1'
+}
+
 main() {
   section_dryrun_filters
   section_sync_modes
-  # (later tasks append sections + calls here)
+  section_mirror_delete
   echo "client-features: $PASS pass, $FAIL fail"
   [ "$FAIL" -eq 0 ]
 }
