@@ -95,6 +95,10 @@ t "brix_stage under cvmfs rejected" 1 "
 server { listen 127.0.0.1:18499; location / { $CV
   brix_stage on; brix_stage_store posix:$PFX/data; } }"
 
+t "brix_stage_store alone under cvmfs rejected" 1 "
+server { listen 127.0.0.1:18499; location / { $CV
+  brix_stage_store posix:$PFX/data; } }"
+
 t "brix_cache_slice_size under cvmfs rejected" 1 "
 server { listen 127.0.0.1:18499; location / { $CV brix_cache_slice_size 1m; } }"
 
