@@ -84,3 +84,6 @@ k8s-tests/remote-suite/tests/nginx-bin
 
 # versioned shared-lib artifacts (the *.so pattern misses these)
 client/libbrix.so.*
+
+# committed-by-accident compiled server binary
+tests/nginx-bin
