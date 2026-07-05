@@ -2,15 +2,38 @@
 
 Pure-C, libXrdCl-free implementation of the `root://` (+ HTTP/S3/WebDAV) client
 that the `client/apps/` CLIs and the FUSE driver link against. The internal API
-spine is `brix.h`.
+spine is `brix.h` (kept at the `lib/` root — it is the public umbrella, included
+almost everywhere, alongside `brix_ops.h` / `brix_net.h` / `brix_auth.h`).
 
-## Phase-38 split groups (file-size discipline)
+## Concept buckets (phase-69)
 
-The following large translation units were split into single-responsibility
-siblings sharing a private `*_internal.h` (behavior-identical refactor — see
+`client/lib/` mirrors the server `src/` concept-bucket layout — every file lives in
+a single-purpose bucket, includes are root-relative from `lib/` (e.g.
+`#include "fs/vfs.h"`, resolved by `-Ilib`), and same-bucket includes stay bare.
+The exhaustive old→new move map is
+[docs/refactor/phase-69-client-map.tsv](../../docs/refactor/phase-69-client-map.tsv).
+
+| Bucket | Concern |
+|---|---|
+| `core/aio/` | epoll/io_uring event loop, buffers, per-connection lifecycle (`aio*`, `uring`) |
+| `core/config/`, `core/types/` | rc-file parsing (`xrdrc`); status/kXR names + unit formatting |
+| `net/` | connection/socket/stream/pool/TLS transport, URL parse, timeouts, resilience |
+| `auth/` | auth driver + request signing; `cred/` credentials, `sec/` security protocols, `gsi/` X.509 proxy, `sss/` keytab |
+| `fs/` | client VFS (`vfs*`, `iobuf`, `path`, `glob`, `fattr`); `overlay` writable-union core for `brixMount cvmfs-rw` (classify/copy-up/whiteouts/CLI); `backend/s3/` S3 VFS backend |
+| `protocols/` | `root/` root:// ops + framing, `http/` HTTP client + webfile, `s3/` SigV4, `shared/` zip + checksums |
+| `xfer/` | the `brix_copy` transfer engine (pump/local/remote/recursive/zip/block) |
+| `posix/` | FUSE meta-op runner + POSIX stat translation |
+| `cli/` | shared CLI helpers linked by `client/apps/` |
+| `observability/` | trace/capture; `metabench/` benchmarking |
+
+## File responsibilities (Phase-38 split groups)
+
+These large translation units were split into single-responsibility siblings
+sharing a private `*_internal.h` (behavior-identical refactor — see
 [docs/refactor/phase-38-file-size-unix-modularity.md](../../docs/refactor/phase-38-file-size-unix-modularity.md)).
 All siblings are listed in `LIB_SRCS` in `client/Makefile` and link into the one
-static lib, so cross-file references resolve at link time.
+static lib, so cross-file references resolve at link time. Filenames below are
+basenames; their bucket paths are in the phase-69 map linked above.
 
 | File | Responsibility |
 |---|---|
@@ -39,13 +62,12 @@ static lib, so cross-file references resolve at link time.
 | `copy_recursive.c` | Recursive tree download/upload + web-auth headers. |
 | `copy_internal.h` | Private split contract shared by `copy*.c` (anchors deliberately excluded). |
 
-The **CLI apps** in `client/apps/` are split the same way, each with a per-binary
-link rule in `client/Makefile` that links the extracted `apps/*.o` siblings:
+The **CLI apps** in `client/apps/` are grouped into tool families (`copy/ fs/
+cksum/ auth/ diag/ scan/ prep/`). Each binary's translation units — including its
+Phase-38 split siblings — are listed in a `<name>_OBJS` variable in
+`client/Makefile`, which a single `.SECONDEXPANSION` link rule resolves: e.g.
 `xrdcp` (→ `xrdcp_transfer`/`xrdcp_recursive`), `xrd` (→ `xrd_battery`/`xrd_doctor`/
 `xrd_clockskew`/`xrd_mount`), `xrdfs` (→ `xrdfs_data`/`xrdfs_walk`/`xrdfs_fmt`),
 `xrddiag` (→ `diag_check`/`diag_bench`/`diag_watch`/`diag_topology`/`diag_compare`).
-
-> Not yet split (Phase-38 remaining): `client/apps/xrootdfs.c` (FUSE — custom
-> compile/link rules + a thorny preamble), `client/lib/webfile.c` (watch tier), and
-> `client/lib/brix.h` (mixed-ABI header). The rest of `client/lib/` (connection/auth/
-> VFS/checksum layers) is not yet catalogued here.
+The FUSE `xrootdfs` keeps bespoke compile/link rules (libfuse3 flags + its
+async/legacy driver co-link) under `apps/fs/`.
