@@ -1,0 +1,214 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Band from '../components/Band.astro';
+import Benefit from '../components/Benefit.astro';
+import Cta from '../components/Cta.astro';
+import { url } from '../lib/site';
+
+// The tool families, mirroring client/apps/ one-to-one. Tool lists and
+// capabilities come from client/apps/README.md — landed features only.
+const families = [
+  {
+    name: 'Data movement',
+    tools: 'xrdcp · xrdfs · xrd',
+    d: 'xrdcp copies between root://, web URLs (davs, http(s), s3), local paths, and stdin/stdout — recursive, ZIP-member aware. xrdfs covers the filesystem verbs and doubles as an interactive shell. xrd is the swiss-army front-end: ls, stat, cat, cp, du, df, tree, find, locate, query, prepare — plus doctor, battery, and clockskew self-checks.',
+  },
+  {
+    name: 'Checksums & verification',
+    tools: 'xrdcrc32c · xrdcrc64 · xrdadler32 · xrdckverify · xrdcinfo',
+    d: 'One multi-call binary, five personalities. Hash a local or root:// file, verify a file on disk against its recorded checksum, or dump a cache file’s present-bitmap as JSON.',
+  },
+  {
+    name: 'Diagnostics & monitoring',
+    tools: 'xrddiag · xrdqstats · mpxstats · xrdmapc · wait41',
+    d: 'xrddiag turns raw failures into explanations — check, bench, watch, topology, compare, doctor. Query server stats and config, map a redirector’s live cluster, or block until a server accepts connections in your orchestration scripts.',
+  },
+  {
+    name: 'Storage admin',
+    tools: 'xrdstorascan',
+    d: 'verify pulls the bytes, recomputes the checksum, and compares against the server’s answer — end-to-end integrity, any backend. bench sweeps block size × parallelism and reports throughput, IOPS, and latency.',
+  },
+  {
+    name: 'Auth & security',
+    tools: 'xrdgsiproxy · xrdgsitest · xrdsssadmin',
+    d: 'Create, inspect, and destroy X.509 GSI proxies; self-test a GSI handshake against a live server; manage SSS shared-secret keytabs.',
+  },
+  {
+    name: 'Staging',
+    tools: 'xrdprep',
+    d: 'Issue kXR_prepare requests — stage, cancel, evict — for one or many paths on tape-backed or tiered storage.',
+  },
+];
+---
+
+<Layout
+  title="Tools"
+  description="BriX-Cache ships a complete pure-C client toolset — the stock XRootD tool names keep working with no XRootD client stack installed, and your existing clients keep working against the server."
+  accent="root"
+>
+  <!-- HERO -->
+  <Band first={true}>
+    <div class="tl-hero">
+      <div class="stack">
+        <span class="eyebrow">The BriX tool suite</span>
+        <h1 class="display">Your muscle memory<br />still works.</h1>
+        <p class="lede">
+          BriX-Cache ships a complete client toolset in plain C — and the stock XRootD tool
+          names keep working: <span class="mono">xrdcp</span>, <span class="mono">xrdfs</span>,
+          <span class="mono">xrdadler32</span>, <span class="mono">xrdgsiproxy</span>. No
+          XRootD client stack to install, nothing to relearn.
+        </p>
+      </div>
+      <div class="term" aria-label="Stock tool names working">
+        <div class="term-title">stock names, no stock install</div>
+        <div><span class="p">$</span> xrdcp root://host//data/higgs.root .</div>
+        <div><span class="p">$</span> xrdadler32 higgs.root</div>
+        <div><span class="k">2f0a37b1</span>  higgs.root</div>
+        <div class="mt"><span class="c"># each stock name is a personality of one small</span></div>
+        <div><span class="c"># pure-C multi-call binary — symlinks, not a 400 MB stack</span></div>
+      </div>
+    </div>
+  </Band>
+
+  <!-- WHY THESE TOOLS -->
+  <Band variant="sunken" id="why">
+    <span class="eyebrow">Why these tools</span>
+    <h2 class="display band-head">Four reasons to stop installing the big stack.</h2>
+    <div class="grid grid-2">
+      <Benefit marker="drop-in" title="The names you already type">
+        <p>
+          Stock tool names stay invocable — <span class="mono">xrdcksum</span> answers as
+          <span class="mono">xrdcrc32c</span>, <span class="mono">xrdcrc64</span>,
+          <span class="mono">xrdadler32</span>, <span class="mono">xrdckverify</span>, and
+          <span class="mono">xrdcinfo</span>; <span class="mono">xrddiag</span> absorbed
+          <span class="mono">xrdqstats</span>, <span class="mono">wait41</span>, and
+          <span class="mono">mpxstats</span>. Your scripts don't change.
+        </p>
+      </Benefit>
+      <Benefit marker="self-contained" title="Small, plain C, hardened">
+        <p>
+          Every tool is a thin front-end over one client library — pure C, no libXrdCl, no
+          dependency tree. Binaries link with full RELRO, immediate binding, and
+          non-executable stacks by default.
+        </p>
+      </Benefit>
+      <Benefit marker="protocols" title="One toolset, every protocol">
+        <p>
+          The same <span class="mono">xrdcp</span> that speaks <span class="mono">root://</span>
+          and <span class="mono">roots://</span> also copies from and to
+          <span class="mono">davs://</span>, <span class="mono">http(s)://</span>, and
+          <span class="mono">s3://</span> URLs, local paths, and <span class="mono">-</span>.
+          One tool, one syntax, the whole storage estate.
+        </p>
+      </Benefit>
+      <Benefit marker="resilient" title="Hardened for bad networks">
+        <p>
+          Every tool rides the same machinery as <a href={url('/brixmount')}>brixMount</a>:
+          reconnect, full re-authentication, handle reopen, and offset resume inside one
+          <span class="mono">--max-stall</span> patience budget. A flaky link costs you time,
+          not a transfer.
+        </p>
+      </Benefit>
+    </div>
+  </Band>
+
+  <!-- THE SUITE -->
+  <Band id="suite">
+    <span class="eyebrow">The suite</span>
+    <h2 class="display band-head">Six families, one library underneath.</h2>
+    <div class="grid grid-3">
+      {families.map((f) => (
+        <article class="panel panel--hover tl-fam">
+          <h3 class="tl-fam-t">{f.name}</h3>
+          <p class="mono tl-fam-tools">{f.tools}</p>
+          <p class="muted">{f.d}</p>
+        </article>
+      ))}
+    </div>
+  </Band>
+
+  <!-- MOUNTS & SHIM -->
+  <Band variant="sunken" id="mounts">
+    <span class="eyebrow">Mounts & the POSIX shim</span>
+    <h2 class="display band-head">When the tool is “just a directory”.</h2>
+    <div class="grid grid-3">
+      <article class="panel panel--hover tl-fam">
+        <h3 class="tl-fam-t">brixMount</h3>
+        <p class="mono tl-fam-tools">cvmfs · cvmfs-rw · eos · root · roots</p>
+        <p class="muted">
+          The umbrella FUSE front-end: any CVMFS repository or XRootD/EOS endpoint as a local
+          directory, torture-tested for bad networks.
+          <a href={url('/brixmount')}>Read the brixMount page →</a>
+        </p>
+      </article>
+      <article class="panel panel--hover tl-fam">
+        <h3 class="tl-fam-t">xrootdfs</h3>
+        <p class="mono tl-fam-tools">one binary, two drivers</p>
+        <p class="muted">
+          The XRootD FUSE mount itself: the async, resilient driver by default, and a simple
+          synchronous fallback behind <span class="mono">--legacy</span> when you want the
+          dumbest possible thing.
+        </p>
+      </article>
+      <article class="panel panel--hover tl-fam">
+        <h3 class="tl-fam-t">LD_PRELOAD shim</h3>
+        <p class="mono tl-fam-tools">libbrixposix_preload.so</p>
+        <p class="muted">
+          A POSIX→XRootD read-path shim for binaries you can't change: preload it and existing
+          applications read <span class="mono">root://</span> paths as if they were local files
+          — no mount, no recompile.
+        </p>
+      </article>
+    </div>
+  </Band>
+
+  <!-- BRING YOUR OWN TOOLS -->
+  <Band variant="ink" id="byot">
+    <span class="eyebrow">Bring your own tools</span>
+    <h2 class="display band-head">Already have a toolchain? Keep it.</h2>
+    <p class="lede muted tl-intro">
+      The server side of the same promise: BriX-Cache speaks the wire protocols your existing
+      clients expect, and the test suite runs the same conformance tests against BriX-Cache
+      and the reference XRootD implementation.
+    </p>
+    <div class="grid grid-3">
+      <article class="panel tl-fam">
+        <span class="chip chip--root mono">root://</span>
+        <p class="mono tl-fam-tools">stock xrdcp · xrdfs · pyxrootd</p>
+        <p class="muted">The reference XRootD clients work unmodified — same opcodes, same semantics.</p>
+      </article>
+      <article class="panel tl-fam">
+        <span class="chip chip--dav mono">davs://</span>
+        <p class="mono tl-fam-tools">curl · rucio · browser</p>
+        <p class="muted">Standard WebDAV over HTTPS with x509 or WLCG tokens — anything that speaks HTTP works.</p>
+      </article>
+      <article class="panel tl-fam">
+        <span class="chip chip--s3 mono">s3://</span>
+        <p class="mono tl-fam-tools">aws-cli · boto3</p>
+        <p class="muted">SigV4 REST against the same tree — point your existing S3 tooling at it.</p>
+      </article>
+    </div>
+  </Band>
+
+  <Band>
+    <Cta
+      title="One library. Every tool you need."
+      note="All of it ships with BriX-Cache — build the client suite with a plain make."
+    />
+  </Band>
+</Layout>
+
+<style>
+  .tl-hero { display: grid; gap: 2.5rem; align-items: center; }
+  @media (min-width: 900px) { .tl-hero { grid-template-columns: 1.05fr 0.95fr; gap: 3rem; } }
+  .band-head { margin: 0.5rem 0 1.4rem; max-width: 26ch; }
+  .tl-intro { margin: 0.4rem 0 1.6rem; }
+  .tl-fam { display: flex; flex-direction: column; gap: 0.5rem; }
+  .tl-fam-t {
+    font-family: var(--display); font-stretch: 112%; font-weight: 700;
+    font-size: 1.25rem; line-height: 1.1;
+  }
+  .tl-fam-tools { font-size: 0.82rem; font-weight: 600; }
+  .tl-fam .muted a { color: inherit; }
+  .term .mt { margin-top: 0.6rem; }
+</style>
