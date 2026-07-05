@@ -49,5 +49,5 @@ int main(void) {
     return 0;
 }
 EOF
-gcc -Wall -Werror -I"$HERE/src" -o "$T/t" "$T/t.c" "$HERE/src/protocols/cvmfs/classify.c"
+gcc -Wall -Werror -I"$HERE/src" -I"$HERE/shared" -o "$T/t" "$T/t.c" "$HERE/shared/cvmfs/grammar/classify.c"
 "$T/t"
