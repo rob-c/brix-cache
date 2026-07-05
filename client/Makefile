@@ -145,10 +145,17 @@ PKGCONFDIR ?= $(LIBDIR)/pkgconfig
 BINDIR := bin
 
 # Every binary is a thin front-end: apps/<family>/<name>.o + the client lib + libxrdproto.
-BINS := xrd xrdfs xrdcp xrdcrc32c xrdcrc64 xrdadler32 xrdqstats wait41 xrdprep xrdgsiproxy xrddiag \
-        xrdmapc xrdgsitest mpxstats \
-        xrdsssadmin xrdckverify xrdstorascan xrdcinfo
+BINS := xrd xrdfs xrdcp xrdcksum xrdprep xrdgsiproxy xrddiag \
+        xrdmapc xrdgsitest \
+        xrdsssadmin xrdstorascan
 BIN_EXES := $(addprefix $(BINDIR)/,$(BINS))
+
+# Multi-call personalities: the stock tool names stay invocable as symlinks to
+# their multi-call binary (xrdcksum dispatches on argv[0]/subcommand; xrddiag
+# likewise absorbed the qstats/wait41/mpxstats micro-tools).
+CKSUM_LINKS := xrdcrc32c xrdcrc64 xrdadler32 xrdckverify xrdcinfo
+DIAG_LINKS  := xrdqstats wait41 mpxstats
+LINK_EXES   := $(addprefix $(BINDIR)/,$(CKSUM_LINKS) $(DIAG_LINKS))
 
 # §14.4: the FUSE mount + the LD_PRELOAD POSIX shim are built only when libfuse3
 # is present. They are NOT in BINS (they need extra flags / a separate link rule).
@@ -172,28 +179,22 @@ endif
 xrdcp_OBJS        := apps/copy/xrdcp.o apps/copy/xrdcp_transfer.o apps/copy/xrdcp_recursive.o
 xrdfs_OBJS        := apps/fs/xrdfs.o apps/fs/xrdfs_data.o apps/fs/xrdfs_walk.o apps/fs/xrdfs_fmt.o apps/fs/xrdfs_meta.o apps/fs/xrdfs_web.o
 xrd_OBJS          := apps/diag/xrd.o apps/diag/xrd_battery.o apps/diag/xrd_doctor.o apps/diag/xrd_clockskew.o apps/diag/xrd_mount.o
-xrddiag_OBJS      := apps/diag/xrddiag.o apps/diag/diag_check.o apps/diag/diag_bench.o apps/diag/diag_metabench.o apps/diag/diag_watch.o apps/diag/diag_topology.o apps/diag/diag_compare.o apps/diag/diag_doctor.o apps/diag/diag_misc.o
+xrddiag_OBJS      := apps/diag/xrddiag.o apps/diag/diag_check.o apps/diag/diag_bench.o apps/diag/diag_metabench.o apps/diag/diag_watch.o apps/diag/diag_topology.o apps/diag/diag_compare.o apps/diag/diag_doctor.o apps/diag/diag_misc.o \
+                     apps/diag/xrdqstats.o apps/diag/wait41.o apps/diag/mpxstats.o
 xrdstorascan_OBJS := apps/scan/xrdstorascan.o apps/scan/storascan_core.o
 xrdstorascan_LDLIBS := -lm
-xrdcrc32c_OBJS    := apps/cksum/xrdcrc32c.o
-xrdcrc64_OBJS     := apps/cksum/xrdcrc64.o
-xrdadler32_OBJS   := apps/cksum/xrdadler32.o
-xrdckverify_OBJS  := apps/cksum/xrdckverify.o
-xrdcinfo_OBJS     := apps/cksum/xrdcinfo.o
+xrdcksum_OBJS     := apps/cksum/xrdcksum.o apps/cksum/xrdckverify.o apps/cksum/xrdcinfo.o
 xrdgsiproxy_OBJS  := apps/auth/xrdgsiproxy.o
 xrdgsitest_OBJS   := apps/auth/xrdgsitest.o
 xrdsssadmin_OBJS  := apps/auth/xrdsssadmin.o
-xrdqstats_OBJS    := apps/diag/xrdqstats.o
 xrdmapc_OBJS      := apps/diag/xrdmapc.o
-mpxstats_OBJS     := apps/diag/mpxstats.o
-wait41_OBJS       := apps/diag/wait41.o
 xrdprep_OBJS      := apps/prep/xrdprep.o
 
 ALL_OBJS := $(LIB_OBJS) $(foreach b,$(BINS),$($(b)_OBJS))
 DEPS     := $(ALL_OBJS:.o=.d)
 
-.PHONY: all proto clean lib install install-bin example-test libbrix.pc $(BINS) xrootdfs brixMount
-all: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES)
+.PHONY: all proto clean lib install install-bin example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount
+all: $(BIN_EXES) $(LINK_EXES) $(OPT_BINS) $(OPT_EXES)
 
 # Keep intermediates (apps/*.o, lib/*.o built via the chained pattern rules). Without
 # this, GNU make auto-deletes them after `make all`, so a later `make <tool>` must
@@ -212,8 +213,15 @@ $(BINDIR):
 # Phony aliases: `make xrdcp` (bare name) builds the real artifact bin/xrdcp, so
 # existing `make -C client <name>` invocations keep working after the move to bin/.
 $(BINS): %: $(BINDIR)/%
+$(CKSUM_LINKS) $(DIAG_LINKS): %: $(BINDIR)/%
 xrootdfs: $(BINDIR)/xrootdfs
 brixMount: $(BINDIR)/brixMount
+
+# Multi-call symlinks (stock tool names → their dispatcher binary).
+$(addprefix $(BINDIR)/,$(CKSUM_LINKS)): $(BINDIR)/xrdcksum
+	ln -sf xrdcksum $@
+$(addprefix $(BINDIR)/,$(DIAG_LINKS)): $(BINDIR)/xrddiag
+	ln -sf xrddiag $@
 
 $(BIN_EXES): | proto $(BINDIR)
 
@@ -277,11 +285,13 @@ $(BRIX_CVMFS_OBJS): %.o: %.c
 
 apps/fs/brixcvmfs.o: apps/fs/brixcvmfs.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
+apps/fs/brixcvmfs_rw.o: apps/fs/brixcvmfs_rw.c | proto
+	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
 apps/fs/brixmount.o: apps/fs/brixmount.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
 
-BRIXMOUNT_OBJS := apps/fs/brixmount.o apps/fs/brixcvmfs.o $(BRIX_CVMFS_OBJS) \
-                  apps/fs/xrootdfs.o $(XROOTDFS_SPLIT)
+BRIXMOUNT_OBJS := apps/fs/brixmount.o apps/fs/brixcvmfs.o apps/fs/brixcvmfs_rw.o \
+                  $(BRIX_CVMFS_OBJS) apps/fs/xrootdfs.o $(XROOTDFS_SPLIT)
 $(BINDIR)/brixMount: $(BRIXMOUNT_OBJS) $(CLIENT_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(BRIXMOUNT_OBJS) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -lcurl -lsqlite3 -lcrypto -lz -o $@
 	@echo " + built $@ (CVMFS-brix + XRootDFS-brix; libfuse3/libcurl/libsqlite3)"
@@ -406,6 +416,8 @@ install: lib
 install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES)
 	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/share/man/man1
 	install -m755 $(BIN_EXES) $(DESTDIR)$(PREFIX)/bin/
+	for l in $(CKSUM_LINKS); do ln -sf xrdcksum $(DESTDIR)$(PREFIX)/bin/$$l; done
+	for l in $(DIAG_LINKS); do ln -sf xrddiag $(DESTDIR)$(PREFIX)/bin/$$l; done
 	[ -f $(BINDIR)/xrootdfs ] && install -m755 $(BINDIR)/xrootdfs $(DESTDIR)$(PREFIX)/bin/ || true
 	[ -f man/xrootdfs.1 ] && install -m644 man/xrootdfs.1 $(DESTDIR)$(PREFIX)/share/man/man1/ || true
 

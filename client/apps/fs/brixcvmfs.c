@@ -360,6 +360,7 @@ typedef struct {
     int   tls;                 /* -o tls: prefer https:// */
     int   retries;            /* -o retries=<N> (-1 = from config/default) */
     char  cache_dir[512];      /* -o cache=<DIR> (implies non-clever) */
+    char  writes_dir[512];     /* -o writes=<DIR> (cvmfs-rw overlay location) */
     char  fuse_extra[512];     /* passthrough -o tokens, comma-joined */
     char *flags[16]; int nflags;  /* passthrough flags (-f/-d/-h/...) */
 } brix_opts_t;
@@ -375,6 +376,8 @@ static void opts_o_list(char *list, brix_opts_t *o) {
         else if (strncmp(t, "retries=", 8) == 0) o->retries = atoi(t + 8);
         else if (strncmp(t, "cache=", 6) == 0)
             snprintf(o->cache_dir, sizeof(o->cache_dir), "%s", t + 6);
+        else if (strncmp(t, "writes=", 7) == 0)
+            snprintf(o->writes_dir, sizeof(o->writes_dir), "%s", t + 7);
         else {   /* forward to libfuse */
             size_t cur = strlen(o->fuse_extra);
             snprintf(o->fuse_extra + cur, sizeof(o->fuse_extra) - cur,
@@ -567,6 +570,21 @@ int brixcvmfs_main(int argc, char **argv) {
             fprintf(stderr, "brixcvmfs: overlay cache unavailable, falling back\n");
     }
 
+    /* cvmfs-rw: bind the writable overlay (<mnt>/.brixwrites or -o writes=)
+     * BEFORE fuse_main hides the mountpoint — same trick as .brixcache. The rw
+     * hooks are weak so a ro-only link (test builds) still works. */
+    if (brixcvmfs_rw) {
+        if (brixcvmfs_setup_rw == NULL || &brixcvmfs_rw_ops == NULL) {
+            fprintf(stderr, "brixcvmfs: rw overlay driver not linked in this build\n");
+            if (cache_dirfd >= 0) close(cache_dirfd);
+            return 2;
+        }
+        if (brixcvmfs_setup_rw(mnt, o.writes_dir) != 0) {
+            if (cache_dirfd >= 0) close(cache_dirfd);
+            return 1;
+        }
+    }
+
     cvmfs_client_t *cl = brixcvmfs_open(repo, cache_override, cache_dirfd, quota, o.retries);
     if (cl == NULL) { if (cache_dirfd >= 0) close(cache_dirfd); return 1; }
     g_cl = cl;
@@ -582,8 +600,10 @@ int brixcvmfs_main(int argc, char **argv) {
     for (int i = 0; i < o.nflags && fargc < 20; i++) fargv[fargc++] = o.flags[i];
     if (o.fuse_extra[0]) { fargv[fargc++] = (char *) "-o"; fargv[fargc++] = o.fuse_extra; }
 
-    int rc = fuse_main(fargc, fargv, &brixcvmfs_ops, NULL);
+    int rc = fuse_main(fargc, fargv,
+                       brixcvmfs_rw ? &brixcvmfs_rw_ops : &brixcvmfs_ops, NULL);
 
+    if (brixcvmfs_rw && brixcvmfs_teardown_rw != NULL) brixcvmfs_teardown_rw();
     cvmfs_client_umount(cl);
     curl_global_cleanup();
     if (cache_dirfd >= 0) close(cache_dirfd);
@@ -592,5 +612,15 @@ int brixcvmfs_main(int argc, char **argv) {
 }
 
 #ifndef BRIXCVMFS_NO_MAIN
-int main(int argc, char **argv) { return brixcvmfs_main(argc, argv); }
+int main(int argc, char **argv) {
+    if (argc >= 2 && strcmp(argv[1], "--rw") == 0) {   /* brixcvmfs --rw <repo> <mnt> */
+        if (brixcvmfs_rw_main == NULL) {
+            fprintf(stderr, "brixcvmfs: rw overlay driver not linked in this build\n");
+            return 2;
+        }
+        argv[1] = argv[0];
+        return brixcvmfs_rw_main(argc - 1, argv + 1);
+    }
+    return brixcvmfs_main(argc, argv);
+}
 #endif
