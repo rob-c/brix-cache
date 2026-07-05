@@ -46,6 +46,8 @@
 static ngx_int_t ngx_http_brix_cvmfs_postconfiguration(ngx_conf_t *cf);
 static char *cvmfs_geo_rank_config(ngx_conf_t *cf,
     ngx_http_brix_cvmfs_loc_conf_t *conf);
+static char *brix_cvmfs_reject_unsupported(ngx_conf_t *cf,
+    ngx_http_brix_cvmfs_loc_conf_t *conf);
 
 /*
  * Config lifecycle
@@ -298,6 +300,65 @@ ngx_http_brix_cvmfs_set_coords(ngx_conf_t *cf, ngx_command_t *cmd,
     return NGX_CONF_OK;
 }
 
+/*
+ * brix_cvmfs_reject_unsupported() — EMERG at config load for storage grammar
+ * that cvmfs cannot honour.
+ *
+ * WHAT: Checks three merged common-preamble fields for features that are
+ *   structurally incompatible with a read-only content-addressed site cache:
+ *   (1) staging — brix_stage on / brix_stage_store, (2) object slicing —
+ *   brix_cache_slice_size, and (3) explicit write permission — brix_allow_write.
+ *
+ * WHY: Without an explicit rejection at config-load time these directives
+ *   silently pass nginx -t, misleading operators into believing their config
+ *   is active when it is not.  cvmfs is structurally read-only; writes and
+ *   staging have no meaning (CAS objects are immutable whole objects), and
+ *   slicing never applies because the cache fill and CAS verification run on
+ *   the whole object.  A loud nginx -t rejection surfaces operator mistakes
+ *   before traffic is served.
+ *
+ * HOW: Called at the top of the cvmfs-enabled branch in merge_loc_conf,
+ *   after brix_http_common_adopt() and ngx_http_brix_shared_merge() have
+ *   resolved unified directive values into conf->common (so brix_stage,
+ *   brix_allow_write, and brix_cache_slice_size are visible).  Returns
+ *   NGX_CONF_ERROR on any violation; NGX_CONF_OK otherwise.  The caller
+ *   must check the return and propagate NGX_CONF_ERROR to nginx.
+ */
+static char *
+brix_cvmfs_reject_unsupported(ngx_conf_t *cf,
+    ngx_http_brix_cvmfs_loc_conf_t *conf)
+{
+    /* Staging (brix_stage on / brix_stage_store) implies mutability: a cvmfs
+     * cache is a read-through CAS store; write-back staging makes no sense. */
+    if (conf->common.stage_enable == 1 || conf->common.stage_store.len > 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_stage/brix_stage_store: cvmfs is a read-only protocol; "
+            "staging is not supported");
+        return NGX_CONF_ERROR;
+    }
+
+    /* CAS object slicing: cvmfs objects are immutable and must be filled and
+     * verified as whole units; per-slice CAS verification is undefined. */
+    if (conf->common.cache_slice_size > 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cache_slice_size: cvmfs CAS objects are immutable whole "
+            "objects; slicing is not supported");
+        return NGX_CONF_ERROR;
+    }
+
+    /* Explicit write permission: the hard force (conf->common.allow_write = 0)
+     * below already prevents accidental writes, but an explicit on is a
+     * config mistake that deserves a loud rejection rather than silent no-op. */
+    if (conf->common.allow_write == 1) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_allow_write on: cvmfs is a read-only protocol; "
+            "write permission cannot be granted");
+        return NGX_CONF_ERROR;
+    }
+
+    return NGX_CONF_OK;
+}
+
 static char *
 ngx_http_brix_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 {
@@ -447,6 +508,13 @@ ngx_http_brix_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     if (conf->cvmfs.enable) {
         brix_export_root_opts_t root_opts;
 
+        /* Reject storage grammar cvmfs cannot honour before doing anything
+         * else: staging, slicing, and explicit writes make no sense for a
+         * read-only content-addressed site cache. */
+        if (brix_cvmfs_reject_unsupported(cf, conf) != NGX_CONF_OK) {
+            return NGX_CONF_ERROR;
+        }
+
         /* CVMFS is a read-only protocol: no directive can enable writes. */
         conf->common.allow_write = 0;
 
@@ -511,6 +579,18 @@ ngx_http_brix_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
             brix_cvmfs_rtt_register(conf->common.root_canon,
                                       conf->cvmfs.rtt_interval,
                                       &conf->common.thread_pool_name);
+        }
+
+        /* WARN (not NOTICE — config-parse NOTICE is dropped at cf->log ERR
+         * level) when coordinates were supplied but origin_select is not geo:
+         * the coordinates are silently ignored in all other modes and the
+         * operator may not realise their geo config has no effect. */
+        if (conf->cvmfs.origin_select != BRIX_CVMFS_SELECT_GEO
+            && conf->cvmfs.origin_coords != NULL)
+        {
+            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                "brix_cvmfs_origin_coords set but brix_cvmfs_origin_select "
+                "is not geo — coordinates are ignored");
         }
     }
 

@@ -80,5 +80,32 @@ server { listen 127.0.0.1:18499;
 server { listen 127.0.0.1:18498;
   location /v/   { brix_s3 on; brix_s3_bucket b; brix_export $PFX/data; } }"
 
+# cvmfs-specific rejection tests (Task 3)
+# CV is a minimal valid cvmfs location base: brix_cvmfs on + explicit export
+# root (required: the pure-cache-node "/" auto-default requires a running VFS
+# registry) + an http backend + a cache store.
+CV="brix_cvmfs on; brix_export $PFX/data;
+    brix_cvmfs_storage_backend http://127.0.0.1:1;
+    brix_cvmfs_cache_store posix:$PFX/cache;"
+
+# brix_stage on alone is caught by the existing tier check ("requires
+# brix_stage_store"); use both together to specifically test the cvmfs
+# read-only rejection that fires before the tier-level check.
+t "brix_stage under cvmfs rejected" 1 "
+server { listen 127.0.0.1:18499; location / { $CV
+  brix_stage on; brix_stage_store posix:$PFX/data; } }"
+
+t "brix_cache_slice_size under cvmfs rejected" 1 "
+server { listen 127.0.0.1:18499; location / { $CV brix_cache_slice_size 1m; } }"
+
+t "brix_allow_write under cvmfs rejected" 1 "
+server { listen 127.0.0.1:18499; location / { $CV brix_allow_write on; } }"
+
+# geo-without-here is already caught by the existing cvmfs_geo_rank_config
+# check; this test is regression coverage to ensure it stays rejected.
+t "origin_select geo without brix_cvmfs_here rejected" 1 "
+server { listen 127.0.0.1:18499; location / { $CV
+  brix_cvmfs_origin_select geo; } }"
+
 echo "unified_conf: $pass passed, $fail failed"; rm -rf "$PFX"
 [ $fail -eq 0 ]
