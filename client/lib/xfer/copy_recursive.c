@@ -44,10 +44,52 @@ local_mkdirs(const char *lpath, mode_t mode)
 }
 
 
+/* 1 = the remote file (rpath, over the walker's open conn) and the local file
+ * (lpath) have the same digest under o->sync_cksum_algo; 0 = differ or
+ * undeterminable.
+ *
+ * WHAT: the XRDC_SYNC_CKSUM content check for the recursive walkers.
+ * WHY:  brix_sync_should_skip is only the size gate for CKSUM mode; the byte
+ *       comparison happens here.  Any failure (bad algo, query error, open or
+ *       read error) returns 0 so the walker COPIES — an undeterminable
+ *       comparison must never skip (silent skip on error is data loss).
+ * HOW:  server digest via kXR_Qcksum on the already-open conn (no reconnect
+ *       per file), local digest via brix_cksum_fd; case-insensitive hex compare. */
+static int
+sync_cksum_match(brix_conn *c, const char *rpath, const char *lpath,
+                 const brix_copy_opts *o)
+{
+    const char     *algo = o->sync_cksum_algo ? o->sync_cksum_algo : "adler32";
+    brix_cksum_algo a;
+    brix_status     st;
+    char            rhex[132], lhex[132];
+    int             fd, rc;
+
+    brix_status_clear(&st);
+    if (brix_cksum_algo_parse(algo, &a) != 0) {
+        return 0;
+    }
+    if (brix_query_cksum(c, rpath, algo, rhex, sizeof(rhex), &st) != 0) {
+        return 0;
+    }
+    fd = open(lpath, O_RDONLY);
+    if (fd < 0) {
+        return 0;
+    }
+    rc = brix_cksum_fd(fd, a, lhex, sizeof(lhex), &st);
+    close(fd);
+    if (rc != 0) {
+        return 0;
+    }
+    return strcasecmp(rhex, lhex) == 0;
+}
+
+
 /* Recurse a remote tree (rpath) under conn c into local lpath.
  *
  * WHAT: downloads every regular file under rpath into the mirrored local path,
- *       applying --exclude/--include filters and honoring --dry-run.
+ *       applying --exclude/--include filters and honoring --dry-run and --sync
+ *       (size/mtime/cksum up-to-date skip per o->sync_cmp).
  * WHY:  threading `rel` (path relative to the copy root, "" at the top level)
  *       through every recursive call lets brix_copy_filter_match compare
  *       both the full relative path and its basename, so pattern semantics are
@@ -116,6 +158,24 @@ copy_tree_download(brix_conn *c, const char *rpath, const char *lpath,
                 printf("[dry-run] copy %s -> %s\n", rc, lc);
                 continue;
             }
+            /* --sync: skip an up-to-date destination.  Only when the remote
+             * side has trustworthy dirlist stat data (no kXR_other — a
+             * symlink's listed size is the link-target-path length, not the
+             * served bytes) AND the local side stats as a regular file; any
+             * undeterminable side falls through to the copy (data-loss rule). */
+            if (o->sync && ents[i].have_stat && !(ents[i].st.flags & kXR_other)) {
+                struct stat sb;
+                if (stat(lc, &sb) == 0 && S_ISREG(sb.st_mode)
+                    && brix_sync_should_skip(o->sync_cmp,
+                                             (long long) ents[i].st.size,
+                                             (long long) ents[i].st.mtime,
+                                             (long long) sb.st_size,
+                                             (long long) sb.st_mtime)
+                    && (o->sync_cmp != XRDC_SYNC_CKSUM
+                        || sync_cksum_match(c, rc, lc, o))) {
+                    continue;   /* up-to-date — skip */
+                }
+            }
             if (copy_one_r2l(c, rc, lc, expected, st) != 0) {
                 free(ents);
                 return -1;
@@ -130,7 +190,8 @@ copy_tree_download(brix_conn *c, const char *rpath, const char *lpath,
 /* Recurse a local tree (lpath) into a remote tree (rpath) under conn c.
  *
  * WHAT: uploads every regular file under lpath to the mirrored remote path,
- *       applying --exclude/--include filters and honoring --dry-run.
+ *       applying --exclude/--include filters and honoring --dry-run and --sync
+ *       (size/mtime/cksum up-to-date skip per o->sync_cmp).
  * WHY:  same rel-threading rationale as copy_tree_download — filter patterns
  *       must see the full relative path so they behave consistently at depth.
  * HOW:  skip brix_mkdir in dry-run mode; build relc from de->d_name; apply
@@ -199,6 +260,24 @@ copy_tree_upload(brix_conn *c, const char *lpath, const char *rpath,
             if (o->dry_run) {
                 printf("[dry-run] copy %s -> %s\n", lc, rc);
                 continue;
+            }
+            /* --sync: skip an up-to-date remote destination.  A failed remote
+             * stat (missing file, error) or a directory in the way falls
+             * through to the copy — never skip on an undeterminable compare. */
+            if (o->sync) {
+                brix_statinfo si;
+                brix_status   sst;
+                brix_status_clear(&sst);
+                if (brix_stat(c, rc, &si, &sst) == 0 && !(si.flags & kXR_isDir)
+                    && brix_sync_should_skip(o->sync_cmp,
+                                             (long long) sb.st_size,
+                                             (long long) sb.st_mtime,
+                                             (long long) si.size,
+                                             (long long) si.mtime)
+                    && (o->sync_cmp != XRDC_SYNC_CKSUM
+                        || sync_cksum_match(c, rc, lc, o))) {
+                    continue;   /* up-to-date — skip */
+                }
             }
             if (copy_one_l2r(c, lc, rc, o, st) != 0) {
                 closedir(d);

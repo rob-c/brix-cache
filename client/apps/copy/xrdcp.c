@@ -27,6 +27,7 @@ usage(void)
         "  --oidc-account <name>  oidc-agent account for --auto-refresh (or $OIDC_ACCOUNT)\n"
         "  -j, --jobs <n> copy up to n files concurrently (batch mode)\n"
         "  --sync         skip transfers whose destination already has the same size\n"
+        "  --sync-check <m>  --sync comparison: size (default) | mtime | cksum[:algo]\n"
         "  -n, --dry-run  print what would be transferred/deleted; move no bytes\n"
         "  --exclude <pat> skip files matching this fnmatch pattern (repeatable)\n"
         "  --include <pat> only transfer files matching a pattern (repeatable)\n"
@@ -378,6 +379,21 @@ main(int argc, char **argv)
             else if (strcmp(a, "--no-retry") == 0) { opts.no_retry = 1; }
             else if ((strcmp(a, "-j") == 0 || strcmp(a, "--jobs") == 0) && i + 1 < (size_t) argc) { jobs = atoi(argv[++i]); }
             else if (strcmp(a, "--sync") == 0) { sync_mode = 1; }
+            else if (strcmp(a, "--sync-check") == 0 && i + 1 < (size_t) argc) {
+                const char *m = argv[++i];
+                sync_mode = 1;
+                if (strcmp(m, "size") == 0)       { opts.sync_cmp = XRDC_SYNC_SIZE; }
+                else if (strcmp(m, "mtime") == 0) { opts.sync_cmp = XRDC_SYNC_MTIME; }
+                else if (strncmp(m, "cksum", 5) == 0
+                         && (m[5] == '\0' || m[5] == ':')) {
+                    opts.sync_cmp = XRDC_SYNC_CKSUM;
+                    opts.sync_cksum_algo = (m[5] == ':' && m[6] != '\0') ? m + 6 : "adler32";
+                } else {
+                    fprintf(stderr, "xrdcp: --sync-check needs size|mtime|cksum[:algo]\n");
+                    usage();
+                    return 50;
+                }
+            }
             else if (strcmp(a, "--dry-run") == 0 || strcmp(a, "-n") == 0) { opts.dry_run = 1; }
             else if (strcmp(a, "--exclude") == 0 && i + 1 < (size_t) argc) {
                 if (str_append(&excl, &nexcl, &exclcap, argv[++i]) != 0) { oom = 1; }
@@ -448,6 +464,7 @@ main(int argc, char **argv)
     if (sync_mode) {
         opts.force = 1;
     }
+    opts.sync = sync_mode;   /* recursive walkers read o->sync (+ sync_cmp/algo) */
     /* --verify: post-transfer checksum against the server. An explicit --cksum wins. */
     if (verify && opts.cksum == NULL) {
         opts.cksum = "adler32:source";

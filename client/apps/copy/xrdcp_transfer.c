@@ -51,10 +51,12 @@ copy_one_with_retry(const char *src, const char *dst, const brix_copy_opts *o,
 }
 
 
-/* Size of a regular file at `url` (root:// or local). 0 and *size set if it exists
- * as a regular file; -1 otherwise (missing, a directory, web, or error). */
+/* Size + mtime of a regular file at `url` (root:// or local). 0 with *size and
+ * *mtime set if it exists as a regular file; -1 otherwise (missing, a directory,
+ * web, or error).  The -1-on-web behavior keeps --sync always copying web
+ * targets: an undeterminable comparison must copy, never skip. */
 int
-entry_size(const char *url, const brix_opts *co, long long *size)
+entry_meta(const char *url, const brix_opts *co, long long *size, long long *mtime)
 {
     brix_url    u;
     brix_status st;
@@ -68,7 +70,8 @@ entry_size(const char *url, const brix_opts *co, long long *size)
     if (u.scheme == XRDC_SCHEME_LOCAL) {
         struct stat sb;
         if (stat(u.path, &sb) != 0 || !S_ISREG(sb.st_mode)) { return -1; }
-        *size = (long long) sb.st_size;
+        *size  = (long long) sb.st_size;
+        *mtime = (long long) sb.st_mtime;
         return 0;
     }
     if (u.scheme == XRDC_SCHEME_ROOT || u.scheme == XRDC_SCHEME_ROOTS) {
@@ -77,11 +80,69 @@ entry_size(const char *url, const brix_opts *co, long long *size)
         int           ok;
         if (brix_connect(&c, &u, co, &st) != 0) { return -1; }
         ok = (brix_stat(&c, u.path, &si, &st) == 0 && !(si.flags & kXR_isDir));
-        if (ok) { *size = (long long) si.size; }
+        if (ok) {
+            *size  = (long long) si.size;
+            *mtime = (long long) si.mtime;
+        }
         brix_close(&c);
         return ok ? 0 : -1;
     }
     return -1;
+}
+
+
+/* Digest of a file at `url` (local: computed via brix_cksum_fd; root://: server
+ * kXR_Qcksum).  Writes the lowercase hex digest into hex[hexsz].  0 / -1.
+ *
+ * WHY a fresh connection for root://: this runs in the single/batch copy paths
+ * where no walker connection exists; the recursive walkers use their own helper
+ * that reuses the open conn instead. */
+static int
+entry_cksum(const char *url, const brix_opts *co, const char *algo,
+            char *hex, size_t hexsz)
+{
+    brix_url    u;
+    brix_status st;
+
+    brix_status_clear(&st);
+    if (brix_is_web_url(url) || brix_url_parse(url, &u, &st) != 0) {
+        return -1;
+    }
+    if (u.scheme == XRDC_SCHEME_LOCAL) {
+        brix_cksum_algo a;
+        int fd, rc;
+        if (brix_cksum_algo_parse(algo, &a) != 0) { return -1; }
+        fd = open(u.path, O_RDONLY);
+        if (fd < 0) { return -1; }
+        rc = brix_cksum_fd(fd, a, hex, hexsz, &st);
+        close(fd);
+        return rc;
+    }
+    if (u.scheme == XRDC_SCHEME_ROOT || u.scheme == XRDC_SCHEME_ROOTS) {
+        brix_conn c;
+        int rc;
+        if (brix_connect(&c, &u, co, &st) != 0) { return -1; }
+        rc = brix_query_cksum(&c, u.path, algo, hex, hexsz, &st);
+        brix_close(&c);
+        return rc;
+    }
+    return -1;
+}
+
+
+/* 1 = both ends have the same <algo> digest; 0 = differ or undeterminable
+ * (undeterminable must copy — a sync that silently skips on error is data loss). */
+static int
+sync_cksum_equal(const char *src, const char *dst, const char *algo,
+                 const brix_opts *co)
+{
+    char shex[132], dhex[132];
+
+    if (entry_cksum(src, co, algo, shex, sizeof(shex)) != 0
+        || entry_cksum(dst, co, algo, dhex, sizeof(dhex)) != 0) {
+        return 0;
+    }
+    return strcasecmp(shex, dhex) == 0;
 }
 
 
@@ -95,25 +156,36 @@ entry_size(const char *url, const brix_opts *co, long long *size)
  * top-level source directory name, e.g. "mydir", against *.log).
  * A plain regular file supplied with -r — e.g. `xrdcp -r --exclude '*.log'
  * a.log remote/` — does NOT go through a walker, so it must still be filtered
- * here.  entry_size() returns 0 only for regular files (local or root://); -1
+ * here.  entry_meta() returns 0 only for regular files (local or root://); -1
  * for directories, web, and errors.  That lets us apply the check precisely
- * for the plain-file-with-r case without re-filtering recursive walker outputs. */
+ * for the plain-file-with-r case without re-filtering recursive walker outputs.
+ *
+ * Sync: skip only when both endpoints stat as regular files AND the configured
+ * comparison (size / mtime / cksum via o->sync_cmp) says they match.  Any
+ * undeterminable side (web, missing, error) falls through to the copy — the
+ * data-loss rule: a sync that silently skips on error loses updates. */
 int
 transfer_one(const char *src, const char *dst, const brix_copy_opts *o,
              const brix_opts *co, int retries, int sync_mode, brix_status *st)
 {
     char      base[XRDC_NAME_MAX];
-    long long tmp;
+    long long tmp, tmpm;
 
     path_basename(src, base, sizeof(base));
-    if ((!o->recursive || entry_size(src, co, &tmp) == 0) && !brix_copy_filter_match(o, base)) {
+    if ((!o->recursive || entry_meta(src, co, &tmp, &tmpm) == 0)
+        && !brix_copy_filter_match(o, base)) {
         return 1;                               /* filtered — like a skip */
     }
     if (sync_mode || o->sync) {
-        long long ssz = 0, dsz = 0;
-        if (entry_size(src, co, &ssz) == 0 && entry_size(dst, co, &dsz) == 0
-            && ssz == dsz) {
-            return 1;   /* up-to-date — skip (Task 6 upgrades this test) */
+        long long ssz = 0, smt = 0, dsz = 0, dmt = 0;
+        if (entry_meta(src, co, &ssz, &smt) == 0
+            && entry_meta(dst, co, &dsz, &dmt) == 0
+            && brix_sync_should_skip(o->sync_cmp, ssz, smt, dsz, dmt)) {
+            if (o->sync_cmp != XRDC_SYNC_CKSUM
+                || sync_cksum_equal(src, dst,
+                       o->sync_cksum_algo ? o->sync_cksum_algo : "adler32", co)) {
+                return 1;   /* up-to-date — skip */
+            }
         }
     }
     if (o->dry_run) {
