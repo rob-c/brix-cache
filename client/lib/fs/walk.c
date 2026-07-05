@@ -49,6 +49,11 @@ tree_walk_depth(brix_conn *c, const char *path, int depth,
             break;
         }
         rc = fn(full, &ents[i], depth, u);
+        /* Normalize any non-zero visitor return to 1 (abort); -1 is reserved for
+         * internal walk errors (dirlist failure, depth cap, path overflow). */
+        if (rc != 0) {
+            rc = 1;
+        }
         if (rc == 0 && ents[i].have_stat && (ents[i].st.flags & kXR_isDir)) {
             if (depth + 1 >= BRIX_WALK_MAXDEPTH) {
                 brix_status_set(st, XRDC_EUSAGE, 0, "walk: depth cap at %s", full);

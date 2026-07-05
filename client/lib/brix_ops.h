@@ -333,13 +333,14 @@ int brix_truncate(brix_conn *c, const char *path, int64_t size, brix_status *st)
 /* ---- walk.c / rmtree.c (remote tree walk + recursive delete) ---- */
 /* Visitor callback for brix_tree_walk: invoked once per entry with full path,
  * entry metadata, depth, and opaque argument. Return 0 to continue, nonzero to
- * abort. */
+ * abort (any nonzero from visitor becomes 1 in brix_tree_walk return). */
 typedef int (*brix_walk_fn)(const char *path, const brix_dirent *e, int depth,
                             void *u);
 
 /* Pre-order tree walk: visit every entry under `path` (files and directories),
  * parent before children. Directories descend to BRIX_WALK_MAXDEPTH (64).
- * Returns 0 on success, 1 if fn() aborted, -1 on error (st set). */
+ * Returns 0 on success, 1 if fn() visitor aborted (any visitor non-zero return),
+ * -1 on walk error (st set; internal errors only: dirlist failure, depth cap, path overflow). */
 int brix_tree_walk(brix_conn *c, const char *path, brix_walk_fn fn, void *u,
                    brix_status *st);
 
