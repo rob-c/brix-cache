@@ -89,21 +89,25 @@ entry_size(const char *url, const brix_opts *co, long long *size)
  * Returns 0 (copied), 1 (skipped), or -1 (failed, st set).
  *
  * Filter is applied to the BASENAME of src here, covering the single-file and
- * batch-copy paths.  It is intentionally skipped when o->recursive is set because
- * the walkers (copy_tree_download, copy_tree_upload) apply the filter per-file
- * internally — applying it here too would incorrectly treat the top-level source
- * directory basename (e.g. "mydir") as the filename under test. */
+ * batch-copy paths.  When o->recursive is set the walkers (copy_tree_download,
+ * copy_tree_upload) apply the filter per-file internally, so we skip the check
+ * for directory-source callers (applying it there would incorrectly test the
+ * top-level source directory name, e.g. "mydir", against *.log).
+ * A plain regular file supplied with -r — e.g. `xrdcp -r --exclude '*.log'
+ * a.log remote/` — does NOT go through a walker, so it must still be filtered
+ * here.  entry_size() returns 0 only for regular files (local or root://); -1
+ * for directories, web, and errors.  That lets us apply the check precisely
+ * for the plain-file-with-r case without re-filtering recursive walker outputs. */
 int
 transfer_one(const char *src, const char *dst, const brix_copy_opts *o,
              const brix_opts *co, int retries, int sync_mode, brix_status *st)
 {
-    char base[XRDC_NAME_MAX];
+    char      base[XRDC_NAME_MAX];
+    long long tmp;
 
-    if (!o->recursive) {
-        path_basename(src, base, sizeof(base));
-        if (!brix_copy_filter_match(o, base)) {
-            return 1;                               /* filtered — like a skip */
-        }
+    path_basename(src, base, sizeof(base));
+    if ((!o->recursive || entry_size(src, co, &tmp) == 0) && !brix_copy_filter_match(o, base)) {
+        return 1;                               /* filtered — like a skip */
     }
     if (sync_mode || o->sync) {
         long long ssz = 0, dsz = 0;

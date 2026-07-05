@@ -206,7 +206,7 @@ ensure_web_dst_base(const char *dstroot, const brix_copy_opts *fo,
     brix_status  st;
 
     if (!brix_is_web_url(dstroot) || brix_weburl_parse(dstroot, &du) != 0
-        || du.is_s3) {
+        || du.is_s3 || (fo != NULL && fo->dry_run)) {
         return;
     }
     snprintf(dbase, sizeof(dbase), "%s", du.path);
@@ -453,8 +453,10 @@ web_upload_walk(web_upload_ctx *c, const char *localdir, const char *rel)
         }
         if (S_ISDIR(sb.st_mode)) {
             /* Create the remote collection (top-down) before descending so the
-             * child PUTs/MKCOLs don't hit 409 Conflict. S3 has no real dirs. */
-            if (!c->u->is_s3) {
+             * child PUTs/MKCOLs don't hit 409 Conflict. S3 has no real dirs.
+             * Under --dry-run, skip the MKCOL but still recurse so files get
+             * printed. */
+            if (!c->u->is_s3 && (c->fo == NULL || !c->fo->dry_run)) {
                 char        rpath[XRDC_PATH_MAX * 2];
                 brix_status mst;
                 brix_status_clear(&mst);
@@ -546,8 +548,9 @@ recursive_web_upload(const char *localdir, const char *dst, const brix_copy_opts
     c.fail    = 0;
 
     /* Ensure the destination collection itself exists (idempotent). Root ("")
-     * and S3 buckets need no MKCOL. */
-    if (!u.is_s3 && base[0] != '\0') {
+     * and S3 buckets need no MKCOL. Under --dry-run, skip to avoid creating
+     * the base collection on the remote. */
+    if (!u.is_s3 && base[0] != '\0' && !fo.dry_run) {
         brix_status mst;
         brix_status_clear(&mst);
         if (brix_webdav_mkcol(&u, base, c.bearer, co ? co->verify_host : 1,
