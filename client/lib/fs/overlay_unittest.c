@@ -345,12 +345,67 @@ static void test_nameset(void) {
     fix_down(&f);
 }
 
+/* ---- section 5: CLI cores (--overlay-list / --overlay-reset) ------------- */
+
+/* The CLI operates on <mountdir>/.brixwrites — build a fake mountdir whose
+ * .brixwrites is the fixture root (raw-dir mode, i.e. unmounted). */
+static void test_cli(void) {
+    printf("== CLI list/reset ==\n");
+
+    char mnt[128];
+    snprintf(mnt, sizeof(mnt), "/tmp/ovcli.XXXXXX");
+    CHECK(mkdtemp(mnt) != NULL, "mountdir fixture");
+    char wr[256];
+    snprintf(wr, sizeof(wr), "%s/" BRIX_OV_DIRNAME "/" BRIX_OV_UPPER_DIRNAME "/sub", mnt);
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd), "mkdir -p '%s' && echo n > '%s/../n.txt' && echo m > '%s/m.txt' "
+             "&& touch '%s/../.brix.wh.del' '%s/.brix.opq'", wr, wr, wr, wr, wr);
+    CHECK(system(cmd) == 0, "seed upper tree");
+
+    char  *lbuf = NULL;
+    size_t llen = 0;
+    FILE  *ls = open_memstream(&lbuf, &llen);
+    CHECK(brix_overlay_cli_list(mnt, ls) == 0, "list rc 0");
+    fclose(ls);
+    CHECK(lbuf != NULL && strstr(lbuf, "upper n.txt\n") != NULL, "lists upper n.txt");
+    CHECK(lbuf != NULL && strstr(lbuf, "dir sub\n") != NULL, "lists dir sub");
+    CHECK(lbuf != NULL && strstr(lbuf, "upper sub/m.txt\n") != NULL, "lists nested file");
+    CHECK(lbuf != NULL && strstr(lbuf, "deleted del\n") != NULL, "lists whiteout as deleted");
+    CHECK(lbuf != NULL && strstr(lbuf, ".brix.opq") == NULL, "opaque marker not listed");
+    free(lbuf);
+
+    CHECK(brix_overlay_cli_reset(mnt) == 0, "reset rc 0");
+    char up[256];
+    snprintf(up, sizeof(up), "%s/" BRIX_OV_DIRNAME "/" BRIX_OV_UPPER_DIRNAME, mnt);
+    struct stat st;
+    CHECK(lstat(up, &st) == 0 && S_ISDIR(st.st_mode), "upper/ still present");
+    snprintf(cmd, sizeof(cmd), "find '%s' -mindepth 1 | grep -q .", up);
+    CHECK(system(cmd) != 0, "upper/ emptied");
+
+    /* error-neg: a dir with no .brixwrites is refused untouched */
+    char plain[128];
+    snprintf(plain, sizeof(plain), "/tmp/ovplain.XXXXXX");
+    CHECK(mkdtemp(plain) != NULL, "plain dir fixture");
+    snprintf(cmd, sizeof(cmd), "touch '%s/keep'", plain);
+    CHECK(system(cmd) == 0, "seed plain dir");
+    FILE *devnull = fopen("/dev/null", "w");
+    CHECK(brix_overlay_cli_list(plain, devnull) == 2, "list on non-overlay dir → 2");
+    CHECK(brix_overlay_cli_reset(plain) == 2, "reset on non-overlay dir → 2");
+    fclose(devnull);
+    snprintf(cmd, sizeof(cmd), "test -f '%s/keep'", plain);
+    CHECK(system(cmd) == 0, "plain dir untouched");
+
+    snprintf(cmd, sizeof(cmd), "rm -rf '%s' '%s'", mnt, plain);
+    if (system(cmd) != 0) { /* best-effort teardown */ }
+}
+
 int main(void) {
     test_reserved_names();
     test_classify();
     test_mutations();
     test_copyup();
     test_nameset();
+    test_cli();
     printf("%d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;
 }
