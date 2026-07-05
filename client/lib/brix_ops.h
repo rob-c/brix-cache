@@ -445,6 +445,17 @@ typedef struct {
                             * the local-disk io_uring overlap ring in copy.c.
                             * auto = use it iff brix_uring_available(); on with no
                             * liburing = clean CLI error; off = classic read/write. */
+    /* --- 2026-07-05 transfer-policy extensions (zero-init = legacy) --- */
+    const char *const *excludes;   /* fnmatch(3) patterns; a match skips the file */
+    size_t             n_excludes;
+    const char *const *includes;   /* when non-empty, a file must match one       */
+    size_t             n_includes;
+    int  dry_run;                  /* print decisions, transfer nothing            */
+    int  remove_source;            /* delete source after verified success         */
+    int  sync;                     /* --sync honored inside recursive walkers      */
+    int  sync_cmp;                 /* XRDC_SYNC_SIZE | _MTIME | _CKSUM             */
+    const char *sync_cksum_algo;   /* algo for XRDC_SYNC_CKSUM (default adler32)   */
+    int  sync_delete;              /* recursive sync: delete dst entries not in src */
 } brix_copy_opts;
 
 /* brix_copy_opts.io_uring tri-state values (match the server enum spelling). */
@@ -457,6 +468,15 @@ typedef struct {
 #define XRDC_TPC_FIRST    1   /* try TPC, fall back to client-mediated on failure */
 #define XRDC_TPC_ONLY     2   /* TPC or hard fail */
 #define XRDC_TPC_DELEGATE 3   /* TPC with credential delegation (tpc.token_mode) */
+
+#define XRDC_SYNC_SIZE  0   /* skip when sizes match (legacy --sync)            */
+#define XRDC_SYNC_MTIME 1   /* sizes match AND dst mtime >= src mtime           */
+#define XRDC_SYNC_CKSUM 2   /* sizes match AND checksums match (caller does I/O) */
+
+int brix_copy_filter_match(const brix_copy_opts *o, const char *rel);
+int brix_sync_should_skip(int cmp, long long ssz, long long smt,
+                          long long dsz, long long dmt);
+
 /* Copy between a root://[s] URL and a local path (or "-"). Direction is inferred
  * from the schemes: remote→local download, local→remote upload. `co` carries the
  * connection (auth/TLS) options; may be NULL. */

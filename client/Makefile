@@ -113,7 +113,7 @@ LIB_SRCS   := \
   lib/protocols/http/http.c lib/protocols/http/http_download.c lib/protocols/http/http_req.c lib/protocols/http/http_upload.c lib/protocols/http/webfile.c lib/protocols/http/webfile_io.c lib/protocols/http/weblist.c \
   lib/protocols/s3/s3.c \
   lib/protocols/shared/checksum.c lib/protocols/shared/cks_verify.c lib/protocols/shared/zip.c lib/protocols/shared/zip_write.c \
-  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_local.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_remote.c lib/xfer/copy_zip.c \
+  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_filter.c lib/xfer/copy_local.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_remote.c lib/xfer/copy_zip.c \
   lib/posix/fuse_ops.c lib/posix/posix_map.c \
   lib/cli/cli_cksum.c lib/cli/cli_conn.c lib/cli/cli_cred.c lib/cli/cli_opts.c lib/cli/jsonout.c \
   lib/observability/capture.c lib/observability/trace.c \
@@ -426,7 +426,7 @@ install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES)
 # vfs_s3_smoke is excluded (needs an external S3 endpoint; run it manually).
 # Each test is a standalone main() linking the client lib + libxrdproto, the
 # same recipe as the Build+run comment in each test's header.
-CLIENT_UNIT_TESTS := cli_cred_unit cred_unit cred_store_unit vfs_posix_unit vfs_block_unit jsonout_unit
+CLIENT_UNIT_TESTS := cli_cred_unit cred_unit cred_store_unit vfs_posix_unit vfs_block_unit jsonout_unit copy_filter_unit
 # The tests predate the phase-69 bucket reshuffle and include bucket-local
 # headers bare ("cred.h"); add the bucket dirs rather than churning the tests.
 TEST_INC := -Ilib/auth/cred -Ilib/auth/sss -Ilib/fs -Ilib/cli -Ilib/core/types -Ilib/net
