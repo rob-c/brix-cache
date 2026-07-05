@@ -6,6 +6,7 @@
 #define BRIX_XRDCP_INTERNAL_H
 
 #include "brix.h"
+#include "cli/xferjournal.h"
 #include "core/compat/crypto.h"
 #include <dirent.h>
 #include <errno.h>
@@ -28,11 +29,12 @@ typedef struct {
     const brix_opts *co;
     int              retries;
     int              sync_mode;
-    size_t           next;   /* next item index to claim */
+    size_t           next;    /* next item index to claim */
     size_t           ok;
     size_t           skip;
     size_t           fail;
     pthread_mutex_t  lock;
+    brix_journal    *jrn;     /* NULL = journalling disabled */
 } batch_ctx;
 
 typedef struct {
@@ -82,7 +84,7 @@ int transfer_one(const char *src, const char *dst, const brix_copy_opts *o, cons
 int relay_web_to_web(const char *src, const char *dst, const brix_copy_opts *o, const brix_opts *co, int retries, brix_status *st);
 int batch_copy_one(const char *item, const char *dstdir, const brix_copy_opts *o, const brix_opts *co, int retries, int sync_mode, char *dpath, size_t dpsz, brix_status *st);
 void * batch_worker(void *arg);
-void batch_parallel(char **items, size_t n, const char *dst, const brix_copy_opts *o, const brix_opts *co, int retries, int sync_mode, int jobs, size_t *ok, size_t *skip, size_t *fail);
+void batch_parallel(char **items, size_t n, const char *dst, const brix_copy_opts *o, const brix_opts *co, int retries, int sync_mode, int jobs, brix_journal *jrn, size_t *ok, size_t *skip, size_t *fail);
 
 /* xrdcp.c */
 const char * web_scheme_str(brix_web_proto pr);

@@ -253,11 +253,65 @@ section_remove_source() {
     '! echo "$RMVERR" | grep -q "could not remove source"'
 }
 
+section_journal() {
+  echo "== --journal / --resume =="
+  local J="$WORK/jrn"
+  mkdir -p "$J/src"
+
+  # (d) --resume without --from must exit 50 — always local, no fleet needed
+  "$BIN/xrdcp" --resume "$J/src/a.txt" "$J/src/" 2>/dev/null
+  check "journal (d): --resume without --from exits 50" '[ "$?" -eq 50 ]'
+
+  echo "== --journal / --resume (fleet) =="
+  if ! have_fleet; then
+    echo "  SKIP journal fleet tests (no fleet at $URL)"
+    return
+  fi
+
+  # Batch copy requires one remote endpoint (local→local is unsupported).
+  # Use root://localhost to copy local source files into a remote scratch dir.
+  local JBASE="/tmp/cfeat-$$-jrn"
+  local RDST="${URL}/${JBASE}"
+  "$BIN/xrdfs" "$URL" mkdir "$JBASE" 2>/dev/null
+
+  # seed 3 source files and a manifest listing them
+  printf 'alpha\n'   > "$J/src/a.txt"
+  printf 'bravo\n'   > "$J/src/b.txt"
+  printf 'charlie\n' > "$J/src/c.txt"
+  printf '%s\n' "$J/src/a.txt" "$J/src/b.txt" "$J/src/c.txt" > "$J/manifest.txt"
+
+  # (a) first run: 3 files copied, journal written with 3 "ok " lines
+  OUT=$("$BIN/xrdcp" --from "$J/manifest.txt" --journal "$J/j.journal" "$RDST/" 2>&1)
+  check "journal (a): 3 copied, 0 skipped" \
+    'echo "$OUT" | grep -q "3 copied, 0 skipped, 0 failed"'
+  check "journal (a): journal has 3 ok lines" \
+    '[ "$(grep -c "^ok " "$J/j.journal")" -eq 3 ]'
+
+  # (b) add 4th file; rerun with same journal → 1 copied, 3 skipped
+  printf 'delta\n' > "$J/src/d.txt"
+  printf '%s\n' "$J/src/a.txt" "$J/src/b.txt" "$J/src/c.txt" "$J/src/d.txt" \
+    > "$J/manifest.txt"
+  OUT=$("$BIN/xrdcp" --from "$J/manifest.txt" --journal "$J/j.journal" "$RDST/" 2>&1)
+  check "journal (b): 1 copied, 3 skipped" \
+    'echo "$OUT" | grep -q "1 copied, 3 skipped, 0 failed"'
+  check "journal (b): d.txt was uploaded" \
+    '"$BIN/xrdfs" "$URL" stat "$JBASE/d.txt" >/dev/null 2>&1'
+
+  # (c) prepend a corrupt line to the journal; rerun → 0 copied, 4 skipped
+  #     hostile/malformed lines must be silently ignored (never crash)
+  { printf 'garbage-not-an-ok-line\n'; cat "$J/j.journal"; } > "$J/j.journal.tmp"
+  mv "$J/j.journal.tmp" "$J/j.journal"
+  OUT=$("$BIN/xrdcp" --from "$J/manifest.txt" --journal "$J/j.journal" "$RDST/" 2>&1)
+  check "journal (c): 0 copied, 4 skipped (corrupt line tolerated)" \
+    'echo "$OUT" | grep -q "0 copied, 4 skipped, 0 failed"'
+}
+
 main() {
   section_dryrun_filters
   section_sync_modes
   section_mirror_delete
   section_remove_source
+  section_journal
   echo "client-features: $PASS pass, $FAIL fail"
   [ "$FAIL" -eq 0 ]
 }

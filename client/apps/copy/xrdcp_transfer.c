@@ -329,8 +329,19 @@ batch_copy_one(const char *item, const char *dstdir, const brix_copy_opts *o,
 
 /* Shared state for the parallel batch worker pool. Each brix_copy() is fully
  * independent (its own connection + fds), so workers only contend on this counter
- * block + stderr, guarded by one mutex. */
+ * block + stderr, guarded by one mutex.  The journal (b->jrn) is NULL when
+ * journalling is disabled; its write path is internally serialized, so workers
+ * call brix_journal_mark without holding b->lock. */
 
+/* WHAT: consume batch items from b->items until exhausted; skip journal-completed
+ *       sources, call batch_copy_one for the rest, and mark successes.
+ * WHY:  each worker is independent (no shared connection/fd), so concurrency is
+ *       safe. Journal has() reads an immutable sorted array (thread-safe); mark()
+ *       is internally mutex-protected.
+ * HOW:  claim item by incrementing b->next under b->lock (only the counter claim
+ *       is locked — the copy itself runs unlocked), then lock again to update
+ *       counters and print. Journal mark runs after releasing b->lock (different
+ *       mutex; avoids unnecessary contention). */
 void *
 batch_worker(void *arg)
 {
@@ -346,6 +357,17 @@ batch_worker(void *arg)
         pthread_mutex_unlock(&b->lock);
         if (idx >= b->n) {
             break;
+        }
+        /* journal skip: done[] is immutable after load — bsearch is thread-safe */
+        if (b->jrn != NULL && brix_journal_has(b->jrn, b->items[idx])) {
+            pthread_mutex_lock(&b->lock);
+            b->skip++;
+            if (!b->o->silent) {
+                fprintf(stderr, "[%zu/%zu] %s (already transferred)\n",
+                        b->ok + b->skip + b->fail, b->n, b->items[idx]);
+            }
+            pthread_mutex_unlock(&b->lock);
+            continue;
         }
         brix_status_clear(&st);
         rc = batch_copy_one(b->items[idx], b->dst, b->o, b->co, b->retries,
@@ -368,16 +390,24 @@ batch_worker(void *arg)
             fprintf(stderr, "xrdcp: %s: %s\n", b->items[idx], st.msg);
         }
         pthread_mutex_unlock(&b->lock);
+        /* mark after releasing b->lock; brix_journal_mark is internally serialized.
+         * dry-run completes nothing — the actual bytes were not moved. */
+        if (rc == 0 && b->jrn != NULL && !b->o->dry_run) {
+            (void) brix_journal_mark(b->jrn, b->items[idx]);
+        }
     }
     return NULL;
 }
 
 
-/* Run the batch with `jobs` concurrent workers (jobs>=2). Fills ok/skip/fail counts. */
+/* WHAT: run the batch with `jobs` concurrent workers (jobs>=2).
+ * WHY:  concurrency amortizes per-connection and per-file latency over many items.
+ * HOW:  initialize a batch_ctx with shared state, spawn worker threads (fall back
+ *       to single-threaded drain on malloc/pthread failure), join, return counts. */
 void
 batch_parallel(char **items, size_t n, const char *dst, const brix_copy_opts *o,
                const brix_opts *co, int retries, int sync_mode, int jobs,
-               size_t *ok, size_t *skip, size_t *fail)
+               brix_journal *jrn, size_t *ok, size_t *skip, size_t *fail)
 {
     batch_ctx  b;
     pthread_t *th;
@@ -385,7 +415,7 @@ batch_parallel(char **items, size_t n, const char *dst, const brix_copy_opts *o,
 
     memset(&b, 0, sizeof(b));
     b.items = items; b.n = n; b.dst = dst; b.o = o; b.co = co; b.retries = retries;
-    b.sync_mode = sync_mode;
+    b.sync_mode = sync_mode; b.jrn = jrn;
     pthread_mutex_init(&b.lock, NULL);
     th = (pthread_t *) malloc((size_t) jobs * sizeof(pthread_t));
     if (th == NULL) {
