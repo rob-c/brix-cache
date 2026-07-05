@@ -227,9 +227,9 @@ def test_wire_contract_tripwires():
     that no CI-reachable server would catch — see the interop landmines in
     docs/10-reference/comparison/brix-implementations.md (§5.4).
     """
-    client_gsi = _read("client/lib/sec/sec_gsi.c")
+    client_gsi = _read("client/lib/auth/sec/sec_gsi.c")  # phase-69 client reorg: lib/sec/ -> lib/auth/sec/
     core = _read("src/auth/gsi/gsi_core.c")
-    conn = _read("client/lib/conn.c")
+    conn = _read("client/lib/net/conn.c")  # phase-69 client reorg: lib/ -> lib/net/
     server_parse = _read("src/auth/gsi/parse_x509.c")
 
     # (F4) The XrdSecgsi round-2 (kXGC_cert) now lives in ONE shared kernel,
