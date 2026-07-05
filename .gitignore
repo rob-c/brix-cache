@@ -87,3 +87,18 @@ client/libbrix.so.*
 
 # committed-by-accident compiled server binary
 tests/nginx-bin
+
+# one-off test-transfer outputs / audit scratch (purged from history 2026-07-05 —
+# keep them from ever being re-committed)
+bridge_*.bin
+bridge_*.txt
+eos-write-test.txt
+mcp-test-output.txt
+/table_body.txt
+/sorted_table_body*.txt
+/cleaned_table.txt
+/current_files.txt
+/full_test_files.txt
+/mapped_files.txt
+/test_files_list.txt
+/codebase_audit.list
