@@ -8,6 +8,44 @@
 /* Relay a web->web copy through a private local temp file (download then upload).
  * Defined after copy_one_with_retry (which it calls for each leg). */
 
+/* Remove the source file at `url` after a successful transfer (local => unlink;
+ * root:// => connect + brix_rm). Called only when the copy (including any
+ * --cksum/--verify check) reported success.
+ *
+ * WHAT: best-effort post-transfer source deletion ("move" semantics).
+ * WHY:  a plain unlink/rm is the correct model — the copy is complete and the
+ *       source is now redundant.  Web sources (davs/http/s3) are rejected at the
+ *       validation stage in xrdcp.c before we reach here, so XRDC_SCHEME_LOCAL
+ *       and XRDC_SCHEME_ROOT/ROOTS cover every reachable source.
+ * HOW:  parse the URL to discriminate local from root://; for local: unlink the
+ *       path directly; for root://: open a fresh connection and issue brix_rm.
+ *       Returns -1 on any failure (the caller logs a warning and continues — the
+ *       transfer itself succeeded). */
+static int
+remove_source_entry(const char *url, const brix_opts *co)
+{
+    brix_url    u;
+    brix_status st;
+
+    brix_status_clear(&st);
+    if (brix_url_parse(url, &u, &st) != 0) {
+        return -1;
+    }
+    if (u.scheme == XRDC_SCHEME_LOCAL) {
+        return unlink(u.path);
+    }
+    if (u.scheme == XRDC_SCHEME_ROOT || u.scheme == XRDC_SCHEME_ROOTS) {
+        brix_conn c;
+        int       rc;
+        if (brix_connect(&c, &u, co, &st) != 0) { return -1; }
+        rc = brix_rm(&c, u.path, &st);
+        brix_close(&c);
+        return rc;
+    }
+    return -1;
+}
+
+
 /* Copy one src->dst, retrying up to `retries` times with capped exponential backoff. */
 int
 copy_one_with_retry(const char *src, const char *dst, const brix_copy_opts *o,
@@ -195,10 +233,18 @@ transfer_one(const char *src, const char *dst, const brix_copy_opts *o,
      * guards every mutation with !o->dry_run internally.
      * For all other dry-run cases, print one top-level line and return. */
     if (o->dry_run && !o->sync_delete) {
-        printf("[dry-run] copy %s -> %s\n", src, dst);
+        printf("[dry-run] copy %s -> %s%s\n", src, dst,
+               o->remove_source ? " (then remove source)" : "");
         return 0;
     }
-    return (copy_one_with_retry(src, dst, o, co, retries, st) == 0) ? 0 : -1;
+    if (copy_one_with_retry(src, dst, o, co, retries, st) != 0) {
+        return -1;
+    }
+    if (o->remove_source && remove_source_entry(src, co) != 0) {
+        fprintf(stderr, "xrdcp: warning: transferred but could not remove "
+                        "source %s\n", src);
+    }
+    return 0;
 }
 
 

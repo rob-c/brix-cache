@@ -342,6 +342,11 @@ copy_tree_download(brix_conn *c, const char *rpath, const char *lpath,
                 free(ents);
                 return -1;
             }
+            if (o->remove_source && !o->dry_run) {
+                brix_status rst;
+                brix_status_clear(&rst);
+                (void) brix_rmdir(c, rc, &rst);
+            }
         } else {
             /* For a symlink (kXR_other) the dirlist size is the lstat size — the
              * LENGTH OF THE LINK TARGET PATH, not the bytes the server serves
@@ -380,6 +385,11 @@ copy_tree_download(brix_conn *c, const char *rpath, const char *lpath,
             if (copy_one_r2l(c, rc, lc, expected, st) != 0) {
                 free(ents);
                 return -1;
+            }
+            if (o->remove_source && !o->dry_run) {
+                brix_status rst;
+                brix_status_clear(&rst);
+                (void) brix_rm(c, rc, &rst);
             }
         }
     }
@@ -460,6 +470,9 @@ copy_tree_upload(brix_conn *c, const char *lpath, const char *rpath,
                 closedir(d);
                 return -1;
             }
+            if (o->remove_source && !o->dry_run) {
+                (void) rmdir(lc);
+            }
         } else if (S_ISREG(sb.st_mode)) {
             if (!brix_copy_filter_match(o, relc)) {
                 continue;
@@ -489,6 +502,9 @@ copy_tree_upload(brix_conn *c, const char *lpath, const char *rpath,
             if (copy_one_l2r(c, lc, rc, o, st) != 0) {
                 closedir(d);
                 return -1;
+            }
+            if (o->remove_source && !o->dry_run) {
+                (void) unlink(lc);
             }
         }
     }
@@ -566,9 +582,22 @@ copy_recursive(const brix_url *su, const brix_url *du, int download,
     if (download) {
         if (brix_connect(&c, su, co, st) != 0) { return -1; }
         rc = copy_tree_download(&c, su->path, destroot, "", o, st);
+        /* Best-effort: remove the source root dir when the whole tree succeeded.
+         * The walker already removed each file and subdir, so the root will only
+         * succeed when nothing was filtered; failure is silently ignored. */
+        if (rc == 0 && o->remove_source && !o->dry_run) {
+            brix_status rst;
+            brix_status_clear(&rst);
+            (void) brix_rmdir(&c, su->path, &rst);
+        }
     } else {
         if (brix_connect(&c, du, co, st) != 0) { return -1; }
         rc = copy_tree_upload(&c, su->path, destroot, "", o, st);
+        /* Best-effort: remove the local source root after a fully-successful
+         * upload walk (only succeeds if the directory is now empty). */
+        if (rc == 0 && o->remove_source && !o->dry_run) {
+            (void) rmdir(su->path);
+        }
     }
     brix_close(&c);
     return rc;
