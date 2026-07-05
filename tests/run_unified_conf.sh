@@ -111,5 +111,14 @@ t "origin_select geo without brix_cvmfs_here rejected" 1 "
 server { listen 127.0.0.1:18499; location / { $CV
   brix_cvmfs_origin_select geo; } }"
 
+# regression: shared_merge root_default was a runtime pointer; ngx_conf_merge_str_value
+# computed sizeof(ptr)-1 = 7 instead of strlen("") = 0, so the pure-cache-node
+# root.len==0 → "/" fallback never fired and nginx -t rejected this config.
+t "cvmfs pure cache node without brix_export accepted" 0 "
+server { listen 127.0.0.1:18499; location / {
+  brix_cvmfs on;
+  brix_cvmfs_storage_backend http://127.0.0.1:1;
+  brix_cvmfs_cache_store posix:$PFX/cache; } }"
+
 echo "unified_conf: $pass passed, $fail failed"; rm -rf "$PFX"
 [ $fail -eq 0 ]
