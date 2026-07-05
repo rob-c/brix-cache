@@ -13,6 +13,7 @@ int main(void)
     assert(brix_rel_is_unsafe("...") == 0);
     /* error/edge: empty is safe to join (degenerate but not escaping) */
     assert(brix_rel_is_unsafe("") == 0);
+    assert(brix_rel_is_unsafe(NULL) == 0);
     /* security-negative: every escape shape is caught */
     assert(brix_rel_is_unsafe("/etc/passwd") == 1);
     assert(brix_rel_is_unsafe("..") == 1);
