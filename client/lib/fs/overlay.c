@@ -464,3 +464,79 @@ int brix_overlay_copyup(const brix_overlay *ov, const char *rel,
 
     return rc == 0 ? brix_overlay_whiteout_clear(ov, rel) : rc;
 }
+
+/* ---- merged-readdir support ---------------------------------------------- */
+
+static int ov_nameset_add(brix_ov_nameset *s, char flag, const char *name) {
+    size_t need = strlen(name) + 2;              /* flag + name + NUL */
+    if (s->used + need > s->cap) {
+        size_t ncap = s->cap ? s->cap * 2 : 512;
+        while (ncap < s->used + need) ncap *= 2;
+        char *nb = realloc(s->buf, ncap);
+        if (nb == NULL) return -ENOMEM;
+        s->buf = nb;
+        s->cap = ncap;
+    }
+    s->buf[s->used] = flag;
+    memcpy(s->buf + s->used + 1, name, need - 1);
+    s->used += need;
+    s->count++;
+    return 0;
+}
+
+int brix_overlay_read_upper(const brix_overlay *ov, const char *rel,
+                            brix_ov_nameset *set, int *opaque) {
+    memset(set, 0, sizeof(*set));
+    *opaque = 0;
+
+    int dir = ov_open_dir(ov, rel);
+    if (dir == -ENOENT || dir == -ENOTDIR) return 0;   /* nothing in upper */
+    if (dir < 0) return dir;
+
+    DIR *d = fdopendir(dir);                     /* owns dir from here */
+    if (d == NULL) { int e = errno; close(dir); return -e; }
+
+    int            rc = 0;
+    struct dirent *e;
+    while (rc == 0 && (e = readdir(d)) != NULL) {
+        const char *n = e->d_name;
+        if (strcmp(n, ".") == 0 || strcmp(n, "..") == 0) continue;
+        if (strcmp(n, BRIX_OV_OPQ_NAME) == 0) { *opaque = 1; continue; }
+        if (strncmp(n, BRIX_OV_TMP_PREFIX, sizeof(BRIX_OV_TMP_PREFIX) - 1) == 0) continue;
+        if (strncmp(n, BRIX_OV_WH_PREFIX, sizeof(BRIX_OV_WH_PREFIX) - 1) == 0)
+            rc = ov_nameset_add(set, 'w', n + sizeof(BRIX_OV_WH_PREFIX) - 1);
+        else
+            rc = ov_nameset_add(set, 'u', n);
+    }
+    closedir(d);
+    if (rc != 0) brix_ov_nameset_free(set);
+    return rc;
+}
+
+char brix_ov_nameset_flag(const brix_ov_nameset *s, const char *name) {
+    for (size_t off = 0; off < s->used; ) {
+        char        fl = s->buf[off];
+        const char *nm = s->buf + off + 1;
+        if (strcmp(nm, name) == 0) return fl;
+        off += strlen(nm) + 2;
+    }
+    return 0;
+}
+
+const char *brix_ov_nameset_at(const brix_ov_nameset *s, size_t i, char *flag) {
+    size_t idx = 0;
+    for (size_t off = 0; off < s->used; idx++) {
+        const char *nm = s->buf + off + 1;
+        if (idx == i) {
+            if (flag != NULL) *flag = s->buf[off];
+            return nm;
+        }
+        off += strlen(nm) + 2;
+    }
+    return NULL;
+}
+
+void brix_ov_nameset_free(brix_ov_nameset *s) {
+    free(s->buf);
+    memset(s, 0, sizeof(*s));
+}

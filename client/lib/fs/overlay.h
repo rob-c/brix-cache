@@ -126,4 +126,30 @@ int brix_overlay_copyup(const brix_overlay *ov, const char *rel,
                         const struct stat *lower_st,
                         brix_ov_read_fn read_lower, void *ud);
 
+/* ---- merged-readdir support ---------------------------------------------- */
+
+/* Packed upper-dir listing: entries are `<flag><name>\0` where flag 'u' = a
+ * real upper entry (emit it; suppress the lower duplicate) and 'w' = a
+ * whiteout base-name (suppress the lower entry). Marker files themselves
+ * (.brix.opq / .brix.tmp.*) never appear. */
+typedef struct {
+    char  *buf;
+    size_t used, cap;
+    size_t count;
+} brix_ov_nameset;
+
+/* List upper dir `rel` into *set (caller frees); *opaque = 1 when the dir
+ * carries .brix.opq (don't merge the lower listing). A missing upper dir is
+ * an empty set, not an error. */
+int brix_overlay_read_upper(const brix_overlay *ov, const char *rel,
+                            brix_ov_nameset *set, int *opaque);
+
+/* 0 = absent, else the entry's flag ('u' / 'w'). */
+char brix_ov_nameset_flag(const brix_ov_nameset *s, const char *name);
+
+/* i-th entry name (NULL past the end); *flag gets its flag when non-NULL. */
+const char *brix_ov_nameset_at(const brix_ov_nameset *s, size_t i, char *flag);
+
+void brix_ov_nameset_free(brix_ov_nameset *s);
+
 #endif /* XRDC_OVERLAY_H */

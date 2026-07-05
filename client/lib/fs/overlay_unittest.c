@@ -301,11 +301,56 @@ static void test_copyup(void) {
     fix_down(&f);
 }
 
+/* ---- section 4: readdir nameset ------------------------------------------ */
+
+static void test_nameset(void) {
+    fix_t f;
+    printf("== readdir nameset ==\n");
+    CHECK(fix_up(&f) == 0, "overlay init");
+
+    raw_mkdir(&f, "upper/d");
+    raw_put(&f, "upper/d/a", "1");
+    raw_mkdir(&f, "upper/d/sub");
+    raw_put(&f, "upper/d/.brix.wh.gone", "");
+    raw_put(&f, "upper/d/.brix.opq", "");
+    raw_put(&f, "upper/d/.brix.tmp.x", "");
+
+    brix_ov_nameset set;
+    int opaque = -1;
+    CHECK(brix_overlay_read_upper(&f.ov, "d", &set, &opaque) == 0, "read_upper");
+    CHECK(set.count == 3, "3 entries (a, sub, gone) — tmp/opq stripped");
+    CHECK(opaque == 1, "opaque detected");
+    CHECK(brix_ov_nameset_flag(&set, "a") == 'u', "a flagged upper");
+    CHECK(brix_ov_nameset_flag(&set, "sub") == 'u', "sub flagged upper");
+    CHECK(brix_ov_nameset_flag(&set, "gone") == 'w', "gone flagged whiteout");
+    CHECK(brix_ov_nameset_flag(&set, "other") == 0, "absent name → 0");
+
+    size_t uppers = 0, whs = 0;
+    for (size_t i = 0; i < set.count; i++) {
+        char fl = 0;
+        const char *nm = brix_ov_nameset_at(&set, i, &fl);
+        if (nm != NULL && fl == 'u') uppers++;
+        if (nm != NULL && fl == 'w') whs++;
+    }
+    CHECK(uppers == 2 && whs == 1, "iteration sees 2 upper + 1 whiteout");
+    CHECK(brix_ov_nameset_at(&set, 3, NULL) == NULL, "out-of-range → NULL");
+    brix_ov_nameset_free(&set);
+
+    brix_ov_nameset empty;
+    opaque = -1;
+    CHECK(brix_overlay_read_upper(&f.ov, "noexist", &empty, &opaque) == 0
+          && empty.count == 0 && opaque == 0, "missing upper dir → empty set");
+    brix_ov_nameset_free(&empty);
+
+    fix_down(&f);
+}
+
 int main(void) {
     test_reserved_names();
     test_classify();
     test_mutations();
     test_copyup();
+    test_nameset();
     printf("%d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;
 }
