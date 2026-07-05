@@ -3,6 +3,7 @@
  * Phase-38 split of xrddiag.c; behavior-identical.
  */
 #include "diag_internal.h"
+#include "cli/jsonout.h"
 
 int g_fails;
 
@@ -404,23 +405,7 @@ s3_sign(const char *method, const char *host, const char *uri,
 void
 fjson_str(FILE *out, const char *s)
 {
-    fputc('"', out);
-    for (; s != NULL && *s != '\0'; s++) {
-        unsigned char ch = (unsigned char) *s;
-        switch (ch) {
-        case '"':  fputs("\\\"", out); break;
-        case '\\': fputs("\\\\", out); break;
-        case '\n': fputs("\\n", out);  break;
-        case '\r': fputs("\\r", out);  break;
-        case '\t': fputs("\\t", out);  break;
-        default:
-            /* escape control AND high bytes so the output is always valid JSON,
-             * even if a server returned non-ASCII wire text. */
-            if (ch < 0x20 || ch >= 0x80) { fprintf(out, "\\u%04x", ch); }
-            else                         { fputc((int) ch, out); }
-        }
-    }
-    fputc('"', out);
+    brix_json_fputs(out, s);
 }
 
 
