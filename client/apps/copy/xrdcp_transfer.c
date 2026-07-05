@@ -240,7 +240,9 @@ transfer_one(const char *src, const char *dst, const brix_copy_opts *o,
     if (copy_one_with_retry(src, dst, o, co, retries, st) != 0) {
         return -1;
     }
-    if (o->remove_source && remove_source_entry(src, co) != 0) {
+    /* For non-recursive copies, remove the source; recursive removal is already
+     * handled per-file and per-directory inside copy_recursive. */
+    if (o->remove_source && !o->recursive && remove_source_entry(src, co) != 0) {
         fprintf(stderr, "xrdcp: warning: transferred but could not remove "
                         "source %s\n", src);
     }
