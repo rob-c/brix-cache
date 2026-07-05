@@ -43,7 +43,7 @@ ifeq ($(HAVE_KRB5),yes)
   KRB5_LIBS   := $(shell pkg-config --libs krb5 2>/dev/null)
 endif
 
-# io_uring (phase-44): lib/uring.c is ALWAYS in LIB_SRCS and stubs out under
+# io_uring (phase-44): lib/core/aio/uring.c is ALWAYS in LIB_SRCS and stubs out under
 # #ifndef BRIX_HAVE_LIBURING (the always-compiled-stub model, like sec_krb5.c),
 # so the library API is stable regardless of build config. When liburing-dev is
 # present, arm -DBRIX_HAVE_LIBURING + its cflags/libs; otherwise the disk ring
@@ -86,7 +86,7 @@ endif
 # -DXRDPROTO_NO_NGX: the native client is an nginx-free consumer of the shared
 # protocol core (libxrdproto), so dual-build headers (e.g. compat/error_mapping.h)
 # resolve to their ngx-free variants exactly as the libxrdproto build does.
-ALL_CFLAGS := -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -pthread -Ilib -I$(SRC) -DXRDPROTO_NO_NGX -MMD -MP $(KRB5_CFLAGS) $(URING_CFLAGS) $(CFLAGS)
+ALL_CFLAGS := -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -pthread -Ilib -I$(SRC) -I../shared -DXRDPROTO_NO_NGX -MMD -MP $(KRB5_CFLAGS) $(URING_CFLAGS) $(CFLAGS)
 
 # OpenSSL: libssl (in-protocol TLS) + libcrypto (GSI/sigver + libxrdproto kernels +
 # md5). zlib (-lz): adler32 for --cksum (the algorithm xrdcp historically uses).
@@ -94,21 +94,30 @@ ALL_CFLAGS := -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -pthread -Ilib -I$(SRC) -D
 # brotli/bzip2 for the shared codec kernels (gzip/deflate already via -lz).
 LDLIBS := -lssl -lcrypto -lz $(KRB5_LIBS) $(CODEC_LIBS) $(URING_LIBS)
 
-LIB_SRCS   := lib/sock.c lib/netpref.c lib/nettmo.c lib/url.c lib/status.c lib/trace.c lib/frame.c lib/zip.c lib/cred.c lib/cred_x509.c lib/cred_bearer.c lib/cred_sss.c lib/cred_krb5.c lib/cred_s3.c \
-              lib/conn.c lib/pool.c lib/aio.c lib/aio_mgr.c lib/streams.c lib/ops_meta.c lib/ops_file.c lib/ops_fs.c \
-              lib/copy.c lib/glob.c lib/xrdrc.c lib/weblist.c lib/webfile.c lib/checksum.c lib/fattr.c lib/ops_ext.c lib/proxy.c lib/http.c lib/s3.c lib/tls.c lib/auth.c \
-              lib/sigver.c lib/sss_keytab.c lib/credinfo.c lib/credrefresh.c lib/capture.c lib/netdiag.c \
-              lib/cli_cksum.c lib/cks_verify.c lib/cli_opts.c lib/cli_conn.c lib/cli_cred.c lib/resilient.c lib/posix_map.c lib/iobuf.c lib/fuse_ops.c \
-              lib/path.c lib/units.c lib/uring.c lib/vfs.c lib/vfs_posix.c lib/vfs_block.c lib/vfs_s3.c \
-              lib/sec/sec_token.c lib/sec/sec_unix.c lib/sec/sec_gsi.c lib/sec/sec_sss.c \
-              lib/sec/sec_krb5.c lib/sec/sec_host.c lib/sec/sec_pwd.c \
-              lib/aio_buffers.c lib/aio_io.c lib/aio_engine.c lib/aio_conn.c \
-              lib/http_req.c lib/http_download.c lib/http_upload.c \
-              lib/ops_file_rw.c lib/ops_file_pg.c lib/zip_write.c \
-              lib/copy_pump.c lib/copy_local.c lib/copy_remote.c lib/copy_recursive.c \
-              lib/copy_zip.c lib/copy_block.c \
-              lib/vfs_s3_io.c lib/vfs_s3_http.c lib/vfs_s3_transport.c lib/webfile_io.c \
-              lib/metabench.c lib/metabench_run.c
+# phase-69: client/lib reorganized into src-style concept buckets. Paths below are
+# the single source of truth for the build; every .c must be listed (no wildcards).
+LIB_SRCS   := \
+  lib/core/aio/aio.c lib/core/aio/aio_buffers.c lib/core/aio/aio_conn.c lib/core/aio/aio_engine.c lib/core/aio/aio_io.c lib/core/aio/aio_mgr.c lib/core/aio/uring.c \
+  lib/core/config/xrdrc.c \
+  lib/core/types/status.c lib/core/types/units.c \
+  lib/net/conn.c lib/net/netdiag.c lib/net/netpref.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/url.c \
+  ../shared/net/proxy_env.c ../shared/net/proxy_connect.c \
+  lib/auth/auth.c lib/auth/sigver.c \
+  lib/auth/cred/cred.c lib/auth/cred/cred_bearer.c lib/auth/cred/cred_krb5.c lib/auth/cred/cred_s3.c lib/auth/cred/cred_sss.c lib/auth/cred/cred_x509.c lib/auth/cred/credinfo.c lib/auth/cred/credrefresh.c \
+  lib/auth/sec/sec_gsi.c lib/auth/sec/sec_host.c lib/auth/sec/sec_krb5.c lib/auth/sec/sec_pwd.c lib/auth/sec/sec_sss.c lib/auth/sec/sec_token.c lib/auth/sec/sec_unix.c \
+  lib/auth/gsi/proxy.c \
+  lib/auth/sss/sss_keytab.c \
+  lib/fs/fattr.c lib/fs/glob.c lib/fs/iobuf.c lib/fs/overlay.c lib/fs/path.c lib/fs/vfs.c lib/fs/vfs_block.c lib/fs/vfs_posix.c \
+  lib/fs/backend/s3/vfs_s3.c lib/fs/backend/s3/vfs_s3_http.c lib/fs/backend/s3/vfs_s3_io.c lib/fs/backend/s3/vfs_s3_transport.c \
+  lib/protocols/root/frame.c lib/protocols/root/ops_ext.c lib/protocols/root/ops_file.c lib/protocols/root/ops_file_pg.c lib/protocols/root/ops_file_rw.c lib/protocols/root/ops_fs.c lib/protocols/root/ops_meta.c \
+  lib/protocols/http/http.c lib/protocols/http/http_download.c lib/protocols/http/http_req.c lib/protocols/http/http_upload.c lib/protocols/http/webfile.c lib/protocols/http/webfile_io.c lib/protocols/http/weblist.c \
+  lib/protocols/s3/s3.c \
+  lib/protocols/shared/checksum.c lib/protocols/shared/cks_verify.c lib/protocols/shared/zip.c lib/protocols/shared/zip_write.c \
+  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_local.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_remote.c lib/xfer/copy_zip.c \
+  lib/posix/fuse_ops.c lib/posix/posix_map.c \
+  lib/cli/cli_cksum.c lib/cli/cli_conn.c lib/cli/cli_cred.c lib/cli/cli_opts.c \
+  lib/observability/capture.c lib/observability/trace.c \
+  lib/observability/metabench/metabench.c lib/observability/metabench/metabench_run.c
 LIB_OBJS   := $(LIB_SRCS:.c=.o)
 
 # §14.1: the connection/session layer is the public libbrix — a clean-room,
@@ -135,7 +144,7 @@ PKGCONFDIR ?= $(LIBDIR)/pkgconfig
 # bin/<name>.
 BINDIR := bin
 
-# Every binary is a thin front-end: apps/<name>.o + the client lib + libxrdproto.
+# Every binary is a thin front-end: apps/<family>/<name>.o + the client lib + libxrdproto.
 BINS := xrd xrdfs xrdcp xrdcrc32c xrdcrc64 xrdadler32 xrdqstats wait41 xrdprep xrdgsiproxy xrddiag \
         xrdmapc xrdgsitest mpxstats \
         xrdsssadmin xrdckverify xrdstorascan xrdcinfo
@@ -154,12 +163,36 @@ OPT_EXES     :=
 # time by `--legacy` (front-end apps/xrootdfs_main.c).
 ifeq ($(HAVE_FUSE3),yes)
   OPT_EXES += $(BINDIR)/xrootdfs
+  OPT_EXES += $(BINDIR)/brixMount
 endif
 
-ALL_OBJS := $(LIB_OBJS) $(addprefix apps/,$(addsuffix .o,$(BINS)))
+# phase-69: apps regrouped into tool-family subdirs — each CLI's translation units
+# are listed in a <name>_OBJS variable (the Phase-38 split siblings are just extra
+# entries). The single link rule below expands these via .SECONDEXPANSION.
+xrdcp_OBJS        := apps/copy/xrdcp.o apps/copy/xrdcp_transfer.o apps/copy/xrdcp_recursive.o
+xrdfs_OBJS        := apps/fs/xrdfs.o apps/fs/xrdfs_data.o apps/fs/xrdfs_walk.o apps/fs/xrdfs_fmt.o apps/fs/xrdfs_meta.o apps/fs/xrdfs_web.o
+xrd_OBJS          := apps/diag/xrd.o apps/diag/xrd_battery.o apps/diag/xrd_doctor.o apps/diag/xrd_clockskew.o apps/diag/xrd_mount.o
+xrddiag_OBJS      := apps/diag/xrddiag.o apps/diag/diag_check.o apps/diag/diag_bench.o apps/diag/diag_metabench.o apps/diag/diag_watch.o apps/diag/diag_topology.o apps/diag/diag_compare.o apps/diag/diag_doctor.o apps/diag/diag_misc.o
+xrdstorascan_OBJS := apps/scan/xrdstorascan.o apps/scan/storascan_core.o
+xrdstorascan_LDLIBS := -lm
+xrdcrc32c_OBJS    := apps/cksum/xrdcrc32c.o
+xrdcrc64_OBJS     := apps/cksum/xrdcrc64.o
+xrdadler32_OBJS   := apps/cksum/xrdadler32.o
+xrdckverify_OBJS  := apps/cksum/xrdckverify.o
+xrdcinfo_OBJS     := apps/cksum/xrdcinfo.o
+xrdgsiproxy_OBJS  := apps/auth/xrdgsiproxy.o
+xrdgsitest_OBJS   := apps/auth/xrdgsitest.o
+xrdsssadmin_OBJS  := apps/auth/xrdsssadmin.o
+xrdqstats_OBJS    := apps/diag/xrdqstats.o
+xrdmapc_OBJS      := apps/diag/xrdmapc.o
+mpxstats_OBJS     := apps/diag/mpxstats.o
+wait41_OBJS       := apps/diag/wait41.o
+xrdprep_OBJS      := apps/prep/xrdprep.o
+
+ALL_OBJS := $(LIB_OBJS) $(foreach b,$(BINS),$($(b)_OBJS))
 DEPS     := $(ALL_OBJS:.o=.d)
 
-.PHONY: all proto clean lib install install-bin example-test libbrix.pc $(BINS) xrootdfs
+.PHONY: all proto clean lib install install-bin example-test libbrix.pc $(BINS) xrootdfs brixMount
 all: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES)
 
 # Keep intermediates (apps/*.o, lib/*.o built via the chained pattern rules). Without
@@ -180,6 +213,7 @@ $(BINDIR):
 # existing `make -C client <name>` invocations keep working after the move to bin/.
 $(BINS): %: $(BINDIR)/%
 xrootdfs: $(BINDIR)/xrootdfs
+brixMount: $(BINDIR)/brixMount
 
 $(BIN_EXES): | proto $(BINDIR)
 
@@ -194,58 +228,63 @@ LDFLAGS ?= -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack
 # Executables are PIE; the shared lib is already -shared (implicitly PIC).
 LDFLAGS_PIE := -pie
 
-# One uniform link rule for every front-end.
-$(BINDIR)/%: apps/%.o $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/$*.o $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
+# phase-69: ONE static-pattern link rule for every front-end. Secondary expansion
+# resolves each target's own object set ($<name>_OBJS, defined above) as its
+# prerequisites, so the Phase-38 split siblings and any per-tool $<name>_LDLIBS
+# (e.g. xrdstorascan's -lm) fold in without a bespoke rule per binary.
+.SECONDEXPANSION:
+$(BIN_EXES): $(BINDIR)/%: $$($$*_OBJS) $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $($*_OBJS) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $($*_LDLIBS) -o $@
 	@echo " + built $@ (no libXrdCl/libXrdSec*)"
-
-# Phase-38 split front-ends: a per-binary rule (overriding the generic one above)
-# that also links the extracted apps/*.o siblings.  See
-# docs/refactor/phase-38-file-size-unix-modularity.md §7.4.
-XRDCP_SPLIT := apps/xrdcp_transfer.o apps/xrdcp_recursive.o
-$(BINDIR)/xrdcp: apps/xrdcp.o $(XRDCP_SPLIT) $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/xrdcp.o $(XRDCP_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
-	@echo " + built $@ (split)"
-
-XRD_SPLIT := apps/xrd_battery.o apps/xrd_doctor.o apps/xrd_clockskew.o apps/xrd_mount.o
-$(BINDIR)/xrd: apps/xrd.o $(XRD_SPLIT) $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/xrd.o $(XRD_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
-	@echo " + built $@ (split)"
-
-XRDFS_SPLIT := apps/xrdfs_data.o apps/xrdfs_walk.o apps/xrdfs_fmt.o apps/xrdfs_meta.o apps/xrdfs_web.o
-$(BINDIR)/xrdfs: apps/xrdfs.o $(XRDFS_SPLIT) $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/xrdfs.o $(XRDFS_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
-	@echo " + built $@ (split)"
-
-XRDDIAG_SPLIT := apps/diag_check.o apps/diag_bench.o apps/diag_metabench.o apps/diag_watch.o apps/diag_topology.o apps/diag_compare.o apps/diag_doctor.o apps/diag_misc.o
-$(BINDIR)/xrddiag: apps/xrddiag.o $(XRDDIAG_SPLIT) $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/xrddiag.o $(XRDDIAG_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -o $@
-	@echo " + built $@ (split)"
-
-# xrdstorascan = front-end + the pure statistics/verdict core (storascan_core.o);
-# needs libm for the percentile/throughput math (ceil/fabs).
-STORASCAN_SPLIT := apps/storascan_core.o
-$(BINDIR)/xrdstorascan: apps/xrdstorascan.o $(STORASCAN_SPLIT) $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/xrdstorascan.o $(STORASCAN_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) -lm -o $@
-	@echo " + built $@ (split)"
 
 # §14.4 unified xrootdfs (FUSE) — ONE binary linking the front-end
 # (xrootdfs_main.c) + both drivers: xrootdfs.c (async default) and
 # xrootdfs_legacy.c (synchronous, via --legacy). The two driver TUs share no
 # symbols but main(), so they co-link cleanly. Needs the libfuse3 headers/libs.
-apps/xrootdfs.o: apps/xrootdfs.c apps/xrootdfs_drivers.h | proto
+apps/fs/xrootdfs.o: apps/fs/xrootdfs.c apps/fs/xrootdfs_drivers.h | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -c $< -o $@
-apps/xrootdfs_legacy.o: apps/xrootdfs_legacy.c apps/xrootdfs_drivers.h | proto
+apps/fs/xrootdfs_legacy.o: apps/fs/xrootdfs_legacy.c apps/fs/xrootdfs_drivers.h | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -c $< -o $@
-apps/xrootdfs_main.o: apps/xrootdfs_main.c apps/xrootdfs_drivers.h | proto
+apps/fs/xrootdfs_main.o: apps/fs/xrootdfs_main.c apps/fs/xrootdfs_drivers.h | proto
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 # Phase-38 split of the async driver: the siblings also need the fuse3 headers.
-XROOTDFS_SPLIT := apps/xrootdfs_meta.o apps/xrootdfs_io.o apps/xrootdfs_xattr.o
-$(XROOTDFS_SPLIT): apps/%.o: apps/%.c apps/xrootdfs_internal.h | proto
+XROOTDFS_SPLIT := apps/fs/xrootdfs_meta.o apps/fs/xrootdfs_io.o apps/fs/xrootdfs_xattr.o
+$(XROOTDFS_SPLIT): apps/fs/%.o: apps/fs/%.c apps/fs/xrootdfs_internal.h | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -c $< -o $@
-$(BINDIR)/xrootdfs: apps/xrootdfs_main.o apps/xrootdfs.o apps/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(CLIENT_LIB) | $(BINDIR)
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/xrootdfs_main.o apps/xrootdfs.o apps/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -o $@
+$(BINDIR)/xrootdfs: apps/fs/xrootdfs_main.o apps/fs/xrootdfs.o apps/fs/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) apps/fs/xrootdfs_main.o apps/fs/xrootdfs.o apps/fs/xrootdfs_legacy.o $(XROOTDFS_SPLIT) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -o $@
 	@echo " + built $@ (libfuse3; unified async+legacy; no libXrdCl/libXrdSec*)"
+
+# §14.5 brixMount (FUSE) — the umbrella front-end `brixMount <type> <endpoint>
+# <mountdir>` that mounts CVMFS-brix (cvmfs) and XRootDFS-brix (eos/root). It
+# links the shared ngx-free CVMFS core (../shared/cvmfs + ../shared/cache), the
+# brixcvmfs driver (BRIXCVMFS_NO_MAIN — the umbrella owns main()), and the
+# xrootdfs async driver (for its xrootdfs_aio_main entry). Needs libfuse3 +
+# libcurl + libsqlite3 in addition to the usual client libs.
+SHARED_DIR := ../shared
+BRIX_CVMFS_OBJS := \
+  $(SHARED_DIR)/cvmfs/grammar/classify.o  $(SHARED_DIR)/cvmfs/grammar/hash.o \
+  $(SHARED_DIR)/cvmfs/signature/manifest.o $(SHARED_DIR)/cvmfs/signature/whitelist.o \
+  $(SHARED_DIR)/cvmfs/signature/verify.o  $(SHARED_DIR)/cvmfs/config/repo.o \
+  $(SHARED_DIR)/cvmfs/config/cvmfs_conf.o \
+  $(SHARED_DIR)/cvmfs/failover/failover.o $(SHARED_DIR)/cvmfs/object/object.o \
+  $(SHARED_DIR)/cvmfs/fetch/fetch.o       $(SHARED_DIR)/cvmfs/catalog/catalog.o \
+  $(SHARED_DIR)/cvmfs/client/client.o     $(SHARED_DIR)/cache/cas_store.o
+
+# shared cvmfs core: pure C, only needs -I../shared (no client/lib, no ngx).
+$(BRIX_CVMFS_OBJS): %.o: %.c
+	$(CC) -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -I$(SHARED_DIR) -MMD -MP -c $< -o $@
+
+apps/fs/brixcvmfs.o: apps/fs/brixcvmfs.c | proto
+	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
+apps/fs/brixmount.o: apps/fs/brixmount.c | proto
+	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
+
+BRIXMOUNT_OBJS := apps/fs/brixmount.o apps/fs/brixcvmfs.o $(BRIX_CVMFS_OBJS) \
+                  apps/fs/xrootdfs.o $(XROOTDFS_SPLIT)
+$(BINDIR)/brixMount: $(BRIXMOUNT_OBJS) $(CLIENT_LIB) | $(BINDIR)
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(BRIXMOUNT_OBJS) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -lcurl -lsqlite3 -lcrypto -lz -o $@
+	@echo " + built $@ (CVMFS-brix + XRootDFS-brix; libfuse3/libcurl/libsqlite3)"
 
 # A5 VFS S3 backend smoke test — exercises the brix_vfs S3 backend directly.
 # Run against a live S3 server: S3_URL=s3://host:port/bucket/key AWS_* ./vfs_s3_smoke
@@ -377,7 +416,7 @@ example-test:
 	    -o $(DESTDIR)/brix_stat_demo
 
 clean:
-	rm -f $(LIB_OBJS) $(PIC_OBJS) apps/*.o apps/*.d lib/*.d lib/sec/*.d \
+	rm -f $(LIB_OBJS) $(PIC_OBJS) $(LIB_OBJS:.o=.d) $(PIC_OBJS:.o=.d) apps/*/*.o apps/*/*.d \
 	    preload/*.o preload/*.d \
 	    $(CLIENT_LIB) $(LIBBRIX_SO) $(LIBBRIX_SONAME) $(LIBBRIX_REAL) libbrix.pc \
 	    $(PRELOAD_SO)
