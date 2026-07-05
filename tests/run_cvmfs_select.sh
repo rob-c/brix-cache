@@ -111,4 +111,19 @@ mkconf "        brix_cvmfs_origin_select geo;" \
        "http://127.0.0.1:$MA|http://127.0.0.1:$MB"
 "$NGINX" -t -c "$PFX/nginx.conf" -p "$PFX" 2>/dev/null \
     && bad "geo without here/coords accepted" || ok "geo misconfig rejected"
+
+# --- 5: default (no brix_cvmfs_origin_select) → rtt pre-ranks live origin ---
+# Proves that BRIX_CVMFS_SELECT_RTT is the built-in default for cvmfs locations
+# — operators get adaptive origin selection without any explicit directive.
+mkconf "        brix_cvmfs_rtt_interval 1;" \
+       "http://127.0.0.1:1|http://127.0.0.1:$MB"
+restart
+sleep 1.5                       # let the first probe run and rank
+NB0_d="$(curl -s "http://127.0.0.1:$MB/ctl/log" | grep -oF "$OBJ" | wc -l)"
+curl -s "http://127.0.0.1:$CPORT$OBJ" -o /dev/null
+NB1_d="$(curl -s "http://127.0.0.1:$MB/ctl/log" | grep -oF "$OBJ" | wc -l)"
+grep -Eq 'cvmfs rtt (ranks|initial ranking|ranking CHANGED)' "$PFX/logs/e.log" \
+    && [ "$((NB1_d - NB0_d))" = 1 ] \
+    && ok "default: rtt active — probe pre-ranked live origin first" \
+    || bad "default rtt (log=$(grep -cE 'cvmfs rtt (ranks|initial ranking|ranking CHANGED)' "$PFX/logs/e.log" || true) fills=$((NB1_d-NB0_d)))"
 exit $fail

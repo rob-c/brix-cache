@@ -370,6 +370,36 @@ ngx_http_brix_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
      * into our embedded preamble before protocol merge applies defaults. */
     brix_http_common_adopt(cf, &conf->common);
 
+    /* Merge enable first — before shared_merge — so we can distinguish a
+     * cvmfs location from a non-cvmfs one when pre-seeding the verify default
+     * below.  enable merges only from prev->cvmfs.enable: it has no dependency
+     * on any common.* field set by shared_merge, so this ordering is safe. */
+    ngx_conf_merge_value(conf->cvmfs.enable, prev->cvmfs.enable, 0);
+
+    /* cvmfs default: fills are verified against their CAS SHA-1 content
+     * address.  Pre-seed before shared_merge, which turns NGX_CONF_UNSET_UINT
+     * into 0 (BRIX_CACHE_VERIFY_OFF) and would otherwise suppress this default.
+     *
+     * brix_http_common_adopt above copied any user-set value from the common
+     * module into conf->common.cache_verify_mode.  The common module's own
+     * merge is inheritance-only (no defaults), so if the user never touched
+     * brix_cache_verify at ANY scope, the common module's conf remains
+     * NGX_CONF_UNSET_UINT and nothing is copied — the field is still UNSET
+     * here.  If the user DID set it, adopt carried the explicit value over and
+     * the guard below will not fire, respecting the operator's choice.
+     *
+     * prev->common.cache_verify_mode is intentionally NOT checked: at location
+     * level, prev is the server-level cvmfs conf, which has already been
+     * through shared_merge (setting it to 0), so checking prev would never
+     * allow the default to apply.  The UNSET check on conf is sufficient.
+     *
+     * The guard on cvmfs.enable confines this to cvmfs locations only. */
+    if (conf->cvmfs.enable == 1
+        && conf->common.cache_verify_mode == NGX_CONF_UNSET_UINT)
+    {
+        conf->common.cache_verify_mode = BRIX_CACHE_VERIFY_CVMFS_CAS;
+    }
+
     /* Shared common.* preamble. Two deliberate gains over the old manual
      * block: read_only now forces allow_write off (hardening; cvmfs is a
      * read path anyway), and common.ktls merges to its default — inert here
@@ -379,8 +409,6 @@ ngx_http_brix_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     {
         return NGX_CONF_ERROR;
     }
-
-    ngx_conf_merge_value(conf->cvmfs.enable, prev->cvmfs.enable, 0);
     ngx_conf_merge_sec_value(conf->cvmfs.manifest_ttl, prev->cvmfs.manifest_ttl,
                              61);
     ngx_conf_merge_sec_value(conf->cvmfs.negative_ttl, prev->cvmfs.negative_ttl,
@@ -393,7 +421,7 @@ ngx_http_brix_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
                               8);
     ngx_conf_merge_uint_value(conf->cvmfs.origin_select,
                               prev->cvmfs.origin_select,
-                              BRIX_CVMFS_SELECT_STATIC);
+                              BRIX_CVMFS_SELECT_RTT);
     ngx_conf_merge_ptr_value(conf->cvmfs.origin_coords,
                              prev->cvmfs.origin_coords, NULL);
     ngx_conf_merge_str_value(conf->cvmfs.here, prev->cvmfs.here, "");
