@@ -41,12 +41,18 @@ server { listen 127.0.0.1:18499;
     brix_cache_evict_at 85; brix_cache_evict_to 70;
   } }"
 
-# success: server-level unified directives inherit into locations
+# success: server-level unified directives inherit into locations.
+# The two protocols sit on separate ports (Task 2 forbids mixing brix
+# protocols under one listen port); each server still proves that its
+# server-level brix_cache_store/brix_export inherit into the location.
 t "server-level brix_cache_store inherits" 0 "
 server { listen 127.0.0.1:18499;
   brix_cache_store posix:$PFX/cache;
   brix_export $PFX/data;
-  location /dav/ { brix_webdav on; brix_webdav_auth none; }
+  location /dav/ { brix_webdav on; brix_webdav_auth none; } }
+server { listen 127.0.0.1:18498;
+  brix_cache_store posix:$PFX/cache;
+  brix_export $PFX/data;
   location /v/   { brix_s3 on; brix_s3_bucket b; } }"
 
 # error: malformed unified directive still rejected
@@ -54,6 +60,25 @@ t "brix_cache_evict_at rejects non-numeric" 1 "
 server { listen 127.0.0.1:18499;
   location /dav/ { brix_webdav on; brix_webdav_auth none; brix_export $PFX/data;
     brix_cache_evict_at lots; } }"
+
+# error: two protocols in one location
+t "two protocols in one location rejected" 1 "
+server { listen 127.0.0.1:18499;
+  location / { brix_webdav on; brix_webdav_auth none; brix_export $PFX/data;
+               brix_s3 on; brix_s3_bucket b; } }"
+
+# error: two protocols under one listen port (different locations)
+t "two protocols on one port rejected" 1 "
+server { listen 127.0.0.1:18499;
+  location /dav/ { brix_webdav on; brix_webdav_auth none; brix_export $PFX/data; }
+  location /v/   { brix_s3 on; brix_s3_bucket b; brix_export $PFX/data; } }"
+
+# success: same two protocols on different ports
+t "protocols on separate ports accepted" 0 "
+server { listen 127.0.0.1:18499;
+  location /dav/ { brix_webdav on; brix_webdav_auth none; brix_export $PFX/data; } }
+server { listen 127.0.0.1:18498;
+  location /v/   { brix_s3 on; brix_s3_bucket b; brix_export $PFX/data; } }"
 
 echo "unified_conf: $pass passed, $fail failed"; rm -rf "$PFX"
 [ $fail -eq 0 ]
