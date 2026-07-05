@@ -20,6 +20,12 @@ gcc -Wall -I shared -o /tmp/brix_mkrepo tests/cvmfs/brix_mkrepo.c \
 gcc -Wall -Wextra -Werror -I shared -I client/lib $(pkg-config --cflags fuse3) -o /tmp/brixcvmfs_rw \
     client/apps/fs/brixcvmfs.c client/apps/fs/brixcvmfs_rw.c client/lib/fs/overlay.c $CORE \
     $(pkg-config --libs fuse3) -lcurl -lsqlite3 -lcrypto -lz
+# the real brixMount front-end (cvmfs drivers only; xrootdfs is weak-absent)
+gcc -Wall -Wextra -Werror -I shared -I client/lib $(pkg-config --cflags fuse3) \
+    -DBRIXCVMFS_NO_MAIN -o /tmp/brixmount_ov \
+    client/apps/fs/brixmount.c client/apps/fs/brixcvmfs.c client/apps/fs/brixcvmfs_rw.c \
+    client/lib/fs/overlay.c $CORE \
+    $(pkg-config --libs fuse3) -lcurl -lsqlite3 -lcrypto -lz
 
 EXPECT=$(/tmp/brix_mkrepo "$REPO" "$WEB" "$PUB")
 ( cd "$WEB" && exec python3 -m http.server "$PORT" >/dev/null 2>&1 ) & HP=$!
@@ -69,12 +75,31 @@ umnt
 [ -f "$MNT/.brixwrites/upper/.brix.wh.hello" ] || { echo "   FAIL: whiteout marker missing"; fail=1; }
 [ -f "$MNT/.brixwrites/upper/hello.moved" ]    || { echo "   FAIL: upper/hello.moved missing"; fail=1; }
 
-echo "== remount: local changes persist, deletion stays =="
-mount_rw
+echo "== unmounted --overlay-list works on the raw tree =="
+RAWLS=$(/tmp/brixmount_ov --overlay-list "$MNT")
+echo "$RAWLS" | grep -qx "upper newfile"  || { echo "   FAIL: raw list newfile"; fail=1; }
+echo "$RAWLS" | grep -qx "deleted hello"  || { echo "   FAIL: raw list whiteout"; fail=1; }
+echo "$RAWLS" | grep -qx "dir newdir"     || { echo "   FAIL: raw list dir"; fail=1; }
+/tmp/brixmount_ov --overlay-list "$TMP" >/dev/null 2>&1 \
+    && { echo "   FAIL: list accepted non-overlay dir"; fail=1; }
+
+echo "== remount via brixMount cvmfs-rw: local changes persist =="
+/tmp/brixmount_ov cvmfs-rw "$REPO" "$MNT" -o auto_unmount -f & sleep 3
 [ "$(cat "$MNT/newfile" 2>&1)" = "local" ]        || { echo "   FAIL: newfile lost"; fail=1; }
 [ "$(cat "$MNT/hello.moved" 2>&1)" = "changed" ]  || { echo "   FAIL: hello.moved lost"; fail=1; }
 [ "$(cat "$MNT/newdir/sub/f" 2>&1)" = "nested" ]  || { echo "   FAIL: nested lost"; fail=1; }
 cat "$MNT/hello" 2>/dev/null && { echo "   FAIL: deleted hello resurfaced"; fail=1; }
+
+echo "== mounted --overlay-list classifies through the passthrough =="
+MLS=$(/tmp/brixmount_ov --overlay-list "$MNT")
+echo "$MLS" | grep -qx "new newfile"      || { echo "   FAIL: mounted list newfile [$MLS]"; fail=1; }
+echo "$MLS" | grep -qx "deleted hello"    || { echo "   FAIL: mounted list whiteout"; fail=1; }
+echo "$MLS" | grep -qx "new hello.moved"  || { echo "   FAIL: mounted list moved"; fail=1; }
+
+echo "== mounted --overlay-reset restores pristine lower =="
+/tmp/brixmount_ov --overlay-reset "$MNT" || { echo "   FAIL: reset rc"; fail=1; }
+[ "$(cat "$MNT/hello" 2>&1)" = "$EXPECT" ] || { echo "   FAIL: hello not restored"; fail=1; }
+cat "$MNT/newfile" 2>/dev/null && { echo "   FAIL: newfile survived reset"; fail=1; }
 umnt
 
 echo "== regression: plain ro mount stays EROFS, pristine lower =="
