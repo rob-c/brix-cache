@@ -102,3 +102,8 @@ mcp-test-output.txt
 /mapped_files.txt
 /test_files_list.txt
 /codebase_audit.list
+
+# actual exploit/attack code — NEVER commit (kept local like xrootd-session-hijack-poc)
+bind-exploit.bak/
+# large prebuilt python wheel (fetch locally, don't vendor)
+*.whl
