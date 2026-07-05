@@ -51,6 +51,7 @@ static void test_hostile_rel(void)               /* security-negative */
     assert(brix_copy_filter_match(&o, big) == 0);
     assert(brix_copy_filter_match(&o, "") == 1);
     assert(brix_copy_filter_match(NULL, "x") == 1);
+    assert(brix_copy_filter_match(&o, NULL) == 1);  /* NULL rel path; guard fires first */
 }
 
 static void test_sync_should_skip(void)
@@ -60,6 +61,8 @@ static void test_sync_should_skip(void)
     assert(brix_sync_should_skip(XRDC_SYNC_MTIME, 10, 100, 10, 100) == 1);
     assert(brix_sync_should_skip(XRDC_SYNC_MTIME, 10, 200, 10, 100) == 0); /* src newer */
     assert(brix_sync_should_skip(XRDC_SYNC_MTIME, 10, 100, 11, 200) == 0); /* size differs */
+    assert(brix_sync_should_skip(XRDC_SYNC_CKSUM, 10, 0, 10, 0) == 1);  /* sizes match — caller then compares digests */
+    assert(brix_sync_should_skip(XRDC_SYNC_CKSUM, 10, 0, 11, 0) == 0);  /* sizes differ */
 }
 
 int main(void)
