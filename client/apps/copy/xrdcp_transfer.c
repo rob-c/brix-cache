@@ -85,18 +85,36 @@ entry_size(const char *url, const brix_opts *co, long long *size)
 }
 
 
-/* Transfer src -> dst. In --sync mode, skip when both ends exist with the same size.
- * Returns 0 (copied), 1 (skipped, up-to-date), or -1 (failed, st set). */
+/* Transfer src -> dst honoring filters, --sync and --dry-run.
+ * Returns 0 (copied), 1 (skipped), or -1 (failed, st set).
+ *
+ * Filter is applied to the BASENAME of src here, covering the single-file and
+ * batch-copy paths.  It is intentionally skipped when o->recursive is set because
+ * the walkers (copy_tree_download, copy_tree_upload) apply the filter per-file
+ * internally — applying it here too would incorrectly treat the top-level source
+ * directory basename (e.g. "mydir") as the filename under test. */
 int
 transfer_one(const char *src, const char *dst, const brix_copy_opts *o,
              const brix_opts *co, int retries, int sync_mode, brix_status *st)
 {
-    if (sync_mode) {
+    char base[XRDC_NAME_MAX];
+
+    if (!o->recursive) {
+        path_basename(src, base, sizeof(base));
+        if (!brix_copy_filter_match(o, base)) {
+            return 1;                               /* filtered — like a skip */
+        }
+    }
+    if (sync_mode || o->sync) {
         long long ssz = 0, dsz = 0;
         if (entry_size(src, co, &ssz) == 0 && entry_size(dst, co, &dsz) == 0
             && ssz == dsz) {
-            return 1;   /* up-to-date — skip */
+            return 1;   /* up-to-date — skip (Task 6 upgrades this test) */
         }
+    }
+    if (o->dry_run) {
+        printf("[dry-run] copy %s -> %s\n", src, dst);
+        return 0;
     }
     return (copy_one_with_retry(src, dst, o, co, retries, st) == 0) ? 0 : -1;
 }

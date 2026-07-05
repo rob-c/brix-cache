@@ -44,15 +44,24 @@ local_mkdirs(const char *lpath, mode_t mode)
 }
 
 
-/* Recurse a remote tree (rpath) under conn c into local lpath. */
+/* Recurse a remote tree (rpath) under conn c into local lpath.
+ *
+ * WHAT: downloads every regular file under rpath into the mirrored local path,
+ *       applying --exclude/--include filters and honoring --dry-run.
+ * WHY:  threading `rel` (path relative to the copy root, "" at the top level)
+ *       through every recursive call lets brix_copy_filter_match compare
+ *       both the full relative path and its basename, so pattern semantics are
+ *       consistent at any depth.
+ * HOW:  skip mkdir in dry-run mode; build relc for each entry; apply filter
+ *       then dry-run guard before calling copy_one_r2l; recurse with relc. */
 int
 copy_tree_download(brix_conn *c, const char *rpath, const char *lpath,
-                   const brix_copy_opts *o, brix_status *st)
+                   const char *rel, const brix_copy_opts *o, brix_status *st)
 {
     brix_dirent *ents = NULL;
     size_t       n = 0, i;
 
-    if (local_mkdirs(lpath, 0755) != 0) {
+    if (!o->dry_run && local_mkdirs(lpath, 0755) != 0) {
         brix_status_set(st, XRDC_ESOCK, errno, "mkdir %s: %s", lpath, strerror(errno));
         return -1;
     }
@@ -60,11 +69,21 @@ copy_tree_download(brix_conn *c, const char *rpath, const char *lpath,
         return -1;
     }
     for (i = 0; i < n; i++) {
+        char relc[XRDC_PATH_MAX];
         char rc[XRDC_PATH_MAX], lc[XRDC_PATH_MAX];
         if (ents[i].name[0] == '.'
             && (ents[i].name[1] == '\0'
                 || (ents[i].name[1] == '.' && ents[i].name[2] == '\0'))) {
             continue;
+        }
+        /* Build the path of this entry relative to the copy root so that
+         * brix_copy_filter_match can match at both full-rel and basename. */
+        if ((size_t) snprintf(relc, sizeof(relc), "%s%s%s",
+                              rel, rel[0] ? "/" : "", ents[i].name) >= sizeof(relc)) {
+            brix_status_set(st, XRDC_EUSAGE, 0,
+                            "recursive copy: rel path too long under %s", rpath);
+            free(ents);
+            return -1;
         }
         if ((size_t) snprintf(rc, sizeof(rc), "%s/%s", rpath, ents[i].name)
                 >= sizeof(rc)
@@ -76,7 +95,10 @@ copy_tree_download(brix_conn *c, const char *rpath, const char *lpath,
             return -1;
         }
         if (ents[i].have_stat && (ents[i].st.flags & kXR_isDir)) {
-            if (copy_tree_download(c, rc, lc, o, st) != 0) { free(ents); return -1; }
+            if (copy_tree_download(c, rc, lc, relc, o, st) != 0) {
+                free(ents);
+                return -1;
+            }
         } else {
             /* For a symlink (kXR_other) the dirlist size is the lstat size — the
              * LENGTH OF THE LINK TARGET PATH, not the bytes the server serves
@@ -87,6 +109,13 @@ copy_tree_download(brix_conn *c, const char *rpath, const char *lpath,
             int64_t expected = (ents[i].have_stat
                                 && !(ents[i].st.flags & kXR_other))
                                ? ents[i].st.size : -1;
+            if (!brix_copy_filter_match(o, relc)) {
+                continue;
+            }
+            if (o->dry_run) {
+                printf("[dry-run] copy %s -> %s\n", rc, lc);
+                continue;
+            }
             if (copy_one_r2l(c, rc, lc, expected, st) != 0) {
                 free(ents);
                 return -1;
@@ -98,29 +127,48 @@ copy_tree_download(brix_conn *c, const char *rpath, const char *lpath,
 }
 
 
-/* Recurse a local tree (lpath) into a remote tree (rpath) under conn c. */
+/* Recurse a local tree (lpath) into a remote tree (rpath) under conn c.
+ *
+ * WHAT: uploads every regular file under lpath to the mirrored remote path,
+ *       applying --exclude/--include filters and honoring --dry-run.
+ * WHY:  same rel-threading rationale as copy_tree_download — filter patterns
+ *       must see the full relative path so they behave consistently at depth.
+ * HOW:  skip brix_mkdir in dry-run mode; build relc from de->d_name; apply
+ *       filter then dry-run guard before copy_one_l2r; recurse with relc. */
 int
 copy_tree_upload(brix_conn *c, const char *lpath, const char *rpath,
-                 const brix_copy_opts *o, brix_status *st)
+                 const char *rel, const brix_copy_opts *o, brix_status *st)
 {
     DIR           *d;
     struct dirent *de;
     brix_status    mst;
 
     brix_status_clear(&mst);
-    (void) brix_mkdir(c, rpath, 0755, 1 /*parents*/, &mst);  /* may already exist */
+    if (!o->dry_run) {
+        (void) brix_mkdir(c, rpath, 0755, 1 /*parents*/, &mst);  /* may already exist */
+    }
     d = opendir(lpath);
     if (d == NULL) {
         brix_status_set(st, XRDC_ESOCK, errno, "opendir %s: %s", lpath, strerror(errno));
         return -1;
     }
     while ((de = readdir(d)) != NULL) {
+        char        relc[XRDC_PATH_MAX];
         char        lc[XRDC_PATH_MAX], rc[XRDC_PATH_MAX];
         struct stat sb;
         if (de->d_name[0] == '.'
             && (de->d_name[1] == '\0'
                 || (de->d_name[1] == '.' && de->d_name[2] == '\0'))) {
             continue;
+        }
+        /* Build the path of this entry relative to the copy root so that
+         * brix_copy_filter_match can match at both full-rel and basename. */
+        if ((size_t) snprintf(relc, sizeof(relc), "%s%s%s",
+                              rel, rel[0] ? "/" : "", de->d_name) >= sizeof(relc)) {
+            brix_status_set(st, XRDC_EUSAGE, 0,
+                            "recursive copy: path too long under %s", lpath);
+            closedir(d);
+            return -1;
         }
         if ((size_t) snprintf(lc, sizeof(lc), "%s/%s", lpath, de->d_name)
                 >= sizeof(lc)
@@ -140,9 +188,22 @@ copy_tree_upload(brix_conn *c, const char *lpath, const char *rpath,
             continue;   /* skip symlinks (loop-safe; mirrors official -r default) */
         }
         if (S_ISDIR(sb.st_mode)) {
-            if (copy_tree_upload(c, lc, rc, o, st) != 0) { closedir(d); return -1; }
+            if (copy_tree_upload(c, lc, rc, relc, o, st) != 0) {
+                closedir(d);
+                return -1;
+            }
         } else if (S_ISREG(sb.st_mode)) {
-            if (copy_one_l2r(c, lc, rc, o, st) != 0) { closedir(d); return -1; }
+            if (!brix_copy_filter_match(o, relc)) {
+                continue;
+            }
+            if (o->dry_run) {
+                printf("[dry-run] copy %s -> %s\n", lc, rc);
+                continue;
+            }
+            if (copy_one_l2r(c, lc, rc, o, st) != 0) {
+                closedir(d);
+                return -1;
+            }
         }
     }
     closedir(d);
@@ -212,10 +273,10 @@ copy_recursive(const brix_url *su, const brix_url *du, int download,
 
     if (download) {
         if (brix_connect(&c, su, co, st) != 0) { return -1; }
-        rc = copy_tree_download(&c, su->path, destroot, o, st);
+        rc = copy_tree_download(&c, su->path, destroot, "", o, st);
     } else {
         if (brix_connect(&c, du, co, st) != 0) { return -1; }
-        rc = copy_tree_upload(&c, su->path, destroot, o, st);
+        rc = copy_tree_upload(&c, su->path, destroot, "", o, st);
     }
     brix_close(&c);
     return rc;
