@@ -102,12 +102,12 @@ brix_handle_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c)
 	ngx_stream_brix_srv_conf_t *rconf;
 	int     idx;
 	int64_t offset;
-	size_t  dlen   = ctx->cur_dlen;
-	u_char *payload = ctx->payload;
+	size_t  dlen   = ctx->recv.cur_dlen;
+	u_char *payload = ctx->recv.payload;
 	int     is_retry;
 	ngx_int_t rc;
 
-	xrdw_pgwrite_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+	xrdw_pgwrite_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
 	idx      = (int)(unsigned char) req.fhandle[0];
 	offset   = req.offset;
 	is_retry = (req.reqflags & kXR_pgRetry) != 0;
@@ -159,8 +159,8 @@ brix_handle_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c)
 
 	{
 		/* Reusable per-session buffer: avoids a malloc/free per request. */
-		u_char *flat    = BRIX_GET_SCRATCH(ctx, c, write_scratch,
-		                                     write_scratch_size, dlen);
+		u_char *flat    = BRIX_GET_SCRATCH(ctx, c, rd.write_scratch,
+		                                     rd.write_scratch_size, dlen);
 		size_t  flat_sz = 0;
 		/* CSE (checksum-error) retransmit: verify ALL pages, copy them all into
 		 * flat (accept-then-correct, matching stock), and collect the failures.
@@ -233,7 +233,7 @@ brix_handle_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c)
 		if (!is_retry) {
 		ngx_flag_t posted;
 
-		/* Pass NULL as payload_to_free: flat is write_scratch (pool-managed,
+		/* Pass NULL as payload_to_free: flat is rd.write_scratch (pool-managed,
 		 * not heap-allocated) and must not be freed by the done handler.
 		 * The CSE bad-page list (if any) rides along so the async completion
 		 * sends the retransmit frame. */
@@ -285,7 +285,7 @@ brix_handle_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c)
 		write_offset  += (int64_t) nw;
 
 		ctx->files[idx].bytes_written += total_written;
-		ctx->session_bytes_written    += total_written;
+		ctx->totals.bytes_written    += total_written;
 		brix_rl_charge_ctx(ctx, total_written);  /* Phase 25 bandwidth */
 
 		/* write-through dirty state tracking (mirrors XrdPfcFile::m_dirtyOffset)

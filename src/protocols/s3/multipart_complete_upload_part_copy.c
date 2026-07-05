@@ -23,7 +23,7 @@
 #include "fs/backend/sd.h"   /* route the part-copy byte move through the SD backend */
 
 #include <string.h>
-#include "core/compat/alloc_guard.h"
+#include "core/compat/cstr.h"
 
 /*
  * PUT /bucket/key?partNumber=N&uploadId=<id>  +  x-amz-copy-source header
@@ -42,10 +42,10 @@ s3_find_request_header_value(ngx_http_request_t *r, const char *name,
         return NULL;
     }
 
-    BRIX_PNALLOC_OR_RETURN(value, r->pool, h->value.len + 1, NULL);
-
-    ngx_memcpy(value, h->value.data, h->value.len);
-    value[h->value.len] = '\0';
+    value = (u_char *) brix_pstrdup_z(r->pool, &h->value);
+    if (value == NULL) {
+        return NULL;
+    }
 
     return (const char *) value;
 }

@@ -6,7 +6,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include "core/compat/alloc_guard.h"
+#include "core/compat/cstr.h"
 
 /* Parse `manager_map <prefix> <host:port>` into a prefix->endpoint entry for
  * CMS manager mode: normalise the prefix (policy conventions), parse the
@@ -48,9 +48,10 @@ brix_conf_set_manager_map(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     /* Copy the host:port argument into a NUL-terminated buffer for parsing. */
-    BRIX_PNALLOC_OR_RETURN(addr_copy, cf->pool, value[2].len + 1, NGX_CONF_ERROR);
-    ngx_memcpy(addr_copy, value[2].data, value[2].len);
-    addr_copy[value[2].len] = '\0';
+    addr_copy = brix_pstrdup_z(cf->pool, &value[2]);
+    if (addr_copy == NULL) {
+        return NGX_CONF_ERROR;
+    }
 
     /* IPv6 literal form [addr]:port */
     if (addr_copy[0] == '[') {

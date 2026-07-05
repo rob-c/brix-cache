@@ -60,8 +60,8 @@ brix_query_space(brix_ctx_t *ctx, ngx_connection_t *c,
      * is disallowed." (XrdXrootdProtocol::rpEmsg).  We confine via
      * RESOLVE_BENEATH rather than lexical rpCheck, but still honour this guard
      * so an empty/relative Qspace argument is rejected identically. */
-    if (ctx->cur_dlen == 0 || ctx->payload == NULL
-        || ((const char *) ctx->payload)[0] != '/') {
+    if (ctx->recv.cur_dlen == 0 || ctx->recv.payload == NULL
+        || ((const char *) ctx->recv.payload)[0] != '/') {
         BRIX_OP_ERR(ctx, BRIX_OP_QUERY_SPACE);
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "query relative path '' is disallowed.");

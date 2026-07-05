@@ -113,7 +113,7 @@ brix_readv_aio_done(ngx_event_t *ev)
     }
 
     BRIX_OP_OK(ctx, BRIX_OP_READV);
-    ctx->session_bytes += t->bytes_read_total;
+    ctx->totals.bytes += t->bytes_read_total;
     for (i = 0; i < t->segment_count; i++) {
         ctx->files[t->segments[i].handle_index].bytes_read +=
             t->segments[i].read_length;

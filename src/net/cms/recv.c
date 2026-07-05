@@ -272,8 +272,8 @@ cms_wake_pending_session(ngx_brix_cms_ctx_t *cms_ctx, uint32_t streamid,
 
     ngx_del_timer(client_conn->read);
     xrd_ctx->state = XRD_ST_REQ_HEADER;
-    xrd_ctx->cur_streamid[0] = client_streamid[0];
-    xrd_ctx->cur_streamid[1] = client_streamid[1];
+    xrd_ctx->recv.cur_streamid[0] = client_streamid[0];
+    xrd_ctx->recv.cur_streamid[1] = client_streamid[1];
     if (brix_send_redirect(xrd_ctx, client_conn, host, port) == NGX_ERROR) {
         ngx_log_error(NGX_LOG_ERR, cms_ctx->cycle->log, 0,
                       "brix: CMS select: failed to queue redirect for fd=%d",
@@ -340,11 +340,11 @@ ngx_brix_cms_process_frame(ngx_brix_cms_ctx_t *ctx)
     case CMS_RR_STATUS: {
         u_char mod = ctx->inbuf[5];
         if (mod & CMS_ST_SUSPEND) {
-            ctx->conf->cms_suspended = 1;
+            ctx->conf->cms.suspended = 1;
             ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
                           "brix: CMS suspend received — new logins paused");
         } else if (mod & CMS_ST_RESUME) {
-            ctx->conf->cms_suspended = 0;
+            ctx->conf->cms.suspended = 0;
             ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
                           "brix: CMS resume received — accepting logins");
         } else {

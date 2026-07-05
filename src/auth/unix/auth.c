@@ -11,8 +11,8 @@
  *       protocol. The client merely *declares* a user name (and optional
  *       group) in the credential blob; there is no cryptographic proof.
  *       brix_handle_unix_auth() parses and character-validates those names,
- *       populates the per-connection identity (ctx->dn, ctx->vo_list,
- *       ctx->primary_vo, and the canonical ctx->identity), registers the
+ *       populates the per-connection identity (ctx->login.dn, ctx->login.vo_list,
+ *       ctx->login.primary_vo, and the canonical ctx->identity), registers the
  *       session, emits auth metrics, writes a sanitised audit line, and
  *       replies kXR_ok — or rejects with kXR_NotAuthorized / kXR_NoMemory.
  *
@@ -29,7 +29,7 @@
  * HOW:  This is the stream / root:// path, downstream of kXR_login and inside
  *       the kXR_auth dispatcher. brix_handle_unix_auth() first gates on
  *       brix_unix_peer_is_loopback() (over the connection sockaddr), then
- *       validates the leading "unix\0" tag in ctx->payload, splits the
+ *       validates the leading "unix\0" tag in ctx->recv.payload, splits the
  *       remaining space/NUL-delimited bytes into user and optional group, runs
  *       each through brix_unix_copy_name() (which enforces an allow-list of
  *       safe bytes via brix_unix_name_byte_ok() and a bounded destination).
@@ -130,11 +130,11 @@ brix_unix_track_identity(brix_ctx_t *ctx)
         return;
     }
 
-    if (ctx->primary_vo[0] != '\0') {
-        brix_track_vo_activity(shm, ctx->primary_vo, 0, 0);
+    if (ctx->login.primary_vo[0] != '\0') {
+        brix_track_vo_activity(shm, ctx->login.primary_vo, 0, 0);
     }
-    if (ctx->dn[0] != '\0') {
-        brix_track_unique_user(shm, ctx->dn, strlen(ctx->dn));
+    if (ctx->login.dn[0] != '\0') {
+        brix_track_unique_user(shm, ctx->login.dn, strlen(ctx->login.dn));
     }
 }
 
@@ -145,9 +145,9 @@ brix_unix_track_identity(brix_ctx_t *ctx)
  *
  * Enforces the loopback trust gate (unless conf->unix_trust_remote), validates
  * the "unix\0" tag, parses the space/NUL-delimited user and optional group out
- * of ctx->payload, and character-validates both via brix_unix_copy_name().
- * On success it marks the session authenticated (ctx->auth_done = 1,
- * token_auth = 0), fills ctx->dn / ctx->vo_list / ctx->primary_vo and the
+ * of ctx->recv.payload, and character-validates both via brix_unix_copy_name().
+ * On success it marks the session authenticated (ctx->login.auth_done = 1,
+ * token_auth = 0), fills ctx->login.dn / ctx->login.vo_list / ctx->login.primary_vo and the
  * canonical ctx->identity, registers the session, bumps metrics, logs a
  * sanitised audit line, and returns kXR_ok via BRIX_RETURN_OK. Any failure
  * increments the failed-auth metric and returns kXR_NotAuthorized (bad peer,
@@ -171,17 +171,17 @@ brix_handle_unix_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                           "unix auth is restricted to loopback peers");
     }
 
-    if (ctx->payload == NULL || ctx->cur_dlen < 6
-        || ngx_strncmp(ctx->payload, "unix", 4) != 0
-        || ctx->payload[4] != '\0')
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen < 6
+        || ngx_strncmp(ctx->recv.payload, "unix", 4) != 0
+        || ctx->recv.payload[4] != '\0')
     {
         brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_UNIX, 0);
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "unix",
                           kXR_NotAuthorized, "malformed unix credential");
     }
 
-    p = ctx->payload + 5;
-    end = ctx->payload + ctx->cur_dlen;
+    p = ctx->recv.payload + 5;
+    end = ctx->recv.payload + ctx->recv.cur_dlen;
     while (p < end && *p == ' ') {
         p++;
     }
@@ -219,28 +219,28 @@ brix_handle_unix_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                           kXR_NotAuthorized, "invalid unix user");
     }
 
-    ctx->auth_done = 1;
-    ctx->token_auth = 0;
-    ngx_cpystrn((u_char *) ctx->dn, (u_char *) user, sizeof(ctx->dn));
+    ctx->login.auth_done = 1;
+    ctx->token.auth = 0;
+    ngx_cpystrn((u_char *) ctx->login.dn, (u_char *) user, sizeof(ctx->login.dn));
     if (group[0] != '\0') {
-        ngx_cpystrn((u_char *) ctx->vo_list, (u_char *) group,
-                    sizeof(ctx->vo_list));
-        ngx_cpystrn((u_char *) ctx->primary_vo, (u_char *) group,
-                    sizeof(ctx->primary_vo));
+        ngx_cpystrn((u_char *) ctx->login.vo_list, (u_char *) group,
+                    sizeof(ctx->login.vo_list));
+        ngx_cpystrn((u_char *) ctx->login.primary_vo, (u_char *) group,
+                    sizeof(ctx->login.primary_vo));
     }
 
     if (ctx->identity != NULL) {
-        if (brix_identity_set_dn(ctx->identity, c->pool, ctx->dn,
+        if (brix_identity_set_dn(ctx->identity, c->pool, ctx->login.dn,
                                    BRIX_AUTHN_UNIX) != NGX_OK
             || brix_identity_set_vos_csv(ctx->identity, c->pool,
-                                           ctx->vo_list) != NGX_OK)
+                                           ctx->login.vo_list) != NGX_OK)
         {
             return brix_send_error(ctx, c, kXR_NoMemory,
                                      "identity allocation failed");
         }
     }
 
-    brix_session_register(ctx->sessid, ctx->dn, ctx->vo_list, 0);
+    brix_session_register(ctx->login.sessid, ctx->login.dn, ctx->login.vo_list, 0);
     brix_unix_track_identity(ctx);
 
     brix_sanitize_log_string(user, safe_user, sizeof(safe_user));

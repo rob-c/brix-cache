@@ -89,18 +89,18 @@ brix_handle_dirlist(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_flag_t            want_cksum;
 
 
-    xrdw_dirlist_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    xrdw_dirlist_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     options = req.options;
     want_cksum = (options & kXR_dcksm) ? 1 : 0;
     want_stat = (options & (kXR_dstat | kXR_dcksm)) ? 1 : 0;
 
-    if (ctx->payload == NULL || ctx->cur_dlen == 0) {
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0) {
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_DIRLIST, "DIRLIST", "-", "-",
                           kXR_ArgMissing, "no path given");
     }
 
     if (want_cksum
-        && brix_dirlist_checksum_algorithm(ctx->payload, ctx->cur_dlen,
+        && brix_dirlist_checksum_algorithm(ctx->recv.payload, ctx->recv.cur_dlen,
                                              cksum_algo, sizeof(cksum_algo),
                                              bad_algo, sizeof(bad_algo))
            != NGX_OK)
@@ -118,7 +118,7 @@ brix_handle_dirlist(brix_ctx_t *ctx, ngx_connection_t *c,
                     sizeof(cksum_algo));
     }
 
-    if (!brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+    if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
                              reqpath, sizeof(reqpath), 1)) {
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_DIRLIST, "DIRLIST", "-", "-",
                           kXR_ArgInvalid, "invalid path payload");
@@ -197,13 +197,13 @@ brix_handle_dirlist(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     /* Guard against pool exhaustion from a flood of dirlist calls. */
-    if (ctx->pool_bytes_used + XRD_RESPONSE_HDR_LEN + chunk_cap
+    if (ctx->login.pool_bytes_used + XRD_RESPONSE_HDR_LEN + chunk_cap
             > BRIX_MAX_CONN_POOL_BYTES)
     {
         brix_vfs_closedir(dh, c->log);
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "brix: dirlist pool limit reached (%uz bytes), "
-                      "closing connection", ctx->pool_bytes_used);
+                      "closing connection", ctx->login.pool_bytes_used);
         return brix_send_error(ctx, c, kXR_NoMemory,
                                  "connection pool limit exceeded");
     }
@@ -212,7 +212,7 @@ brix_handle_dirlist(brix_ctx_t *ctx, ngx_connection_t *c,
         brix_vfs_closedir(dh, c->log);
         return NGX_ERROR;
     }
-    ctx->pool_bytes_used += XRD_RESPONSE_HDR_LEN + chunk_cap;
+    ctx->login.pool_bytes_used += XRD_RESPONSE_HDR_LEN + chunk_cap;
 
     {
         u_char *data = chunk + XRD_RESPONSE_HDR_LEN;
@@ -303,7 +303,7 @@ brix_handle_dirlist(brix_ctx_t *ctx, ngx_connection_t *c,
             }
 
             if (chunk_pos + need > chunk_cap) {
-                brix_build_resp_hdr(ctx->cur_streamid, kXR_oksofar,
+                brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_oksofar,
                                       (uint32_t) chunk_pos,
                                       (ServerResponseHdr *) chunk);
 
@@ -356,7 +356,7 @@ brix_handle_dirlist(brix_ctx_t *ctx, ngx_connection_t *c,
                 final_len = chunk_pos;
             }
 
-            brix_build_resp_hdr(ctx->cur_streamid, kXR_ok,
+            brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok,
                                   (uint32_t) final_len,
                                   (ServerResponseHdr *) chunk);
 

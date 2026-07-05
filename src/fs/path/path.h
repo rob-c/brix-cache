@@ -36,7 +36,7 @@ const brix_vo_rule_t *brix_find_vo_rule(const char *resolved_path,
     ngx_array_t *rules);
 /* Longest-prefix authdb rule that BOTH matches <ctx>'s identity and grants all
  * <needed_privs> bits. Reads identity from ctx->identity, else synthesises one
- * from ctx->dn / ctx->vo_list. Borrows into <rules>; NULL if no sufficient rule. */
+ * from ctx->login.dn / ctx->login.vo_list. Borrows into <rules>; NULL if no sufficient rule. */
 const brix_authdb_rule_t *brix_find_authdb_rule(const char *resolved_path,
     ngx_array_t *rules, brix_ctx_t *ctx, uint32_t needed_privs);
 /* As above but takes an explicit identity and peer IP (for host rules). Only

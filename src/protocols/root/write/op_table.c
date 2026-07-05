@@ -28,7 +28,7 @@ exec_chmod(const brix_op_exec_t *e, int *out_errno)
     xrdw_chmod_req_t req;
     mode_t mode;
 
-    xrdw_chmod_req_unpack(((ClientRequestHdr *) e->ctx->hdr_buf)->body, &req);
+    xrdw_chmod_req_unpack(((ClientRequestHdr *) e->ctx->recv.hdr_buf)->body, &req);
     mode = req.mode & 0777;
 
     if (mode == 0) {

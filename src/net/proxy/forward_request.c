@@ -38,14 +38,14 @@ brix_proxy_forward_request(brix_proxy_ctx_t *proxy,
                               brix_ctx_t       *ctx,
                               ngx_connection_t   *c)
 {
-    uint16_t  reqid = ctx->cur_reqid;
+    uint16_t  reqid = ctx->recv.cur_reqid;
     /* body_len covers everything after the header: cur_dlen plus any
      * streamed trailing body the recv framing appended (cur_body_extra) —
      * kXR_writev segment data after the dlen-framed descriptor block, or the
      * kXR_ckpXeq sub-request body after the dlen-framed embedded header.
      * The header is forwarded verbatim (its dlen still frames only the
      * dlen-counted part), so the upstream sees the exact stock wire layout. */
-    size_t    body_len = (size_t) ctx->cur_dlen + ctx->cur_body_extra;
+    size_t    body_len = (size_t) ctx->recv.cur_dlen + ctx->recv.cur_body_extra;
     size_t    total    = XRD_REQUEST_HDR_LEN + body_len;
     u_char   *req;
 
@@ -57,17 +57,17 @@ brix_proxy_forward_request(brix_proxy_ctx_t *proxy,
     }
 
     /* Copy full request header then payload (descriptors + any trailing data) */
-    ngx_memcpy(req, ctx->hdr_buf, XRD_REQUEST_HDR_LEN);
-    if (body_len > 0 && ctx->payload != NULL) {
-        ngx_memcpy(req + XRD_REQUEST_HDR_LEN, ctx->payload, body_len);
+    ngx_memcpy(req, ctx->recv.hdr_buf, XRD_REQUEST_HDR_LEN);
+    if (body_len > 0 && ctx->recv.payload != NULL) {
+        ngx_memcpy(req + XRD_REQUEST_HDR_LEN, ctx->recv.payload, body_len);
     }
 
     /* Pre-set forwarding metadata */
     proxy->fwd_reqid       = reqid;
-    proxy->fwd_streamid[0] = ctx->cur_streamid[0];
-    proxy->fwd_streamid[1] = ctx->cur_streamid[1];
+    proxy->fwd_streamid[0] = ctx->recv.cur_streamid[0];
+    proxy->fwd_streamid[1] = ctx->recv.cur_streamid[1];
     proxy->fwd_streaming   = 0;
-    proxy->fwd_payload_len = ctx->cur_dlen;
+    proxy->fwd_payload_len = ctx->recv.cur_dlen;
 
     /* file handle translation */
     switch (reqid) {
@@ -85,18 +85,18 @@ brix_proxy_forward_request(brix_proxy_ctx_t *proxy,
         proxy->fwd_local_fh = local_fh;
 
         /* Apply path rewriting before capturing path for audit */
-        if (proxy->conf != NULL && proxy->conf->proxy_path_strip.len > 0
-            && ctx->cur_dlen > 0)
+        if (proxy->conf != NULL && proxy->conf->proxy.path_strip.len > 0
+            && ctx->recv.cur_dlen > 0)
         {
             req = proxy_rewrite_path(c, proxy->conf, req, total,
-                                     XRD_REQUEST_HDR_LEN, ctx->cur_dlen,
+                                     XRD_REQUEST_HDR_LEN, ctx->recv.cur_dlen,
                                      &total);
             /* Recalculate cur_dlen for audit capture below */
         }
 
         /* Capture path from payload for audit log */
         if (proxy->conf != NULL
-            && proxy->conf->proxy_audit_log_fd != NGX_INVALID_FILE)
+            && proxy->conf->proxy.audit_log_fd != NGX_INVALID_FILE)
         {
             const u_char *path_start = req + XRD_REQUEST_HDR_LEN;
             size_t        path_len   = total > XRD_REQUEST_HDR_LEN
@@ -189,11 +189,11 @@ brix_proxy_forward_request(brix_proxy_ctx_t *proxy,
             }
         } else if (reqid == kXR_truncate
                    && proxy->conf != NULL
-                   && proxy->conf->proxy_audit_log_fd != NGX_INVALID_FILE
-                   && ctx->cur_dlen > 0)
+                   && proxy->conf->proxy.audit_log_fd != NGX_INVALID_FILE
+                   && ctx->recv.cur_dlen > 0)
         {
-            size_t plen = ctx->cur_dlen < BRIX_PROXY_PATH_MAX
-                          ? ctx->cur_dlen : BRIX_PROXY_PATH_MAX - 1;
+            size_t plen = ctx->recv.cur_dlen < BRIX_PROXY_PATH_MAX
+                          ? ctx->recv.cur_dlen : BRIX_PROXY_PATH_MAX - 1;
             ngx_memcpy(proxy->fwd_path, req + XRD_REQUEST_HDR_LEN, plen);
             proxy->fwd_path[plen]  = '\0';
             proxy->fwd_path2[0]    = '\0';
@@ -213,7 +213,7 @@ brix_proxy_forward_request(brix_proxy_ctx_t *proxy,
          */
         u_char *payload = req + XRD_REQUEST_HDR_LEN;
 
-        if (ctx->is_bound && ctx->cur_dlen >= 4) {
+        if (ctx->is_bound && ctx->recv.cur_dlen >= 4) {
             /* First pass: collect unique unresolved fhs */
             int   pending[BRIX_MAX_FILES];
             int   n_pending = 0;
@@ -224,7 +224,7 @@ brix_proxy_forward_request(brix_proxy_ctx_t *proxy,
             for (i = 0; i < BRIX_MAX_FILES; i++) { seen[i] = 0; }
 
             pos = 0;
-            while (pos + 16 <= ctx->cur_dlen) {
+            while (pos + 16 <= ctx->recv.cur_dlen) {
                 int fh = (int)(unsigned char) payload[pos];
                 if (fh >= 0 && fh < BRIX_MAX_FILES
                     && proxy->fh_map[fh].upstream_fh == BRIX_PROXY_FH_FREE
@@ -249,7 +249,7 @@ brix_proxy_forward_request(brix_proxy_ctx_t *proxy,
 
         {
             size_t pos = 0;
-            while (pos + 16 <= ctx->cur_dlen) {
+            while (pos + 16 <= ctx->recv.cur_dlen) {
                 if (proxy_translate_fh(proxy, payload + pos, 0) != 0) {
                     ngx_free(req);
                     return brix_send_error(ctx, c, kXR_InvalidRequest,
@@ -266,7 +266,7 @@ brix_proxy_forward_request(brix_proxy_ctx_t *proxy,
         /* Payload: write_list { fhandle[4], wlen[4], offset[8] } */
         u_char *payload = req + XRD_REQUEST_HDR_LEN;
         size_t  pos     = 0;
-        while (pos + 16 <= ctx->cur_dlen) {
+        while (pos + 16 <= ctx->recv.cur_dlen) {
             if (proxy_translate_fh(proxy, payload + pos, 0) != 0) {
                 ngx_free(req);
                 return brix_send_error(ctx, c, kXR_InvalidRequest,
@@ -294,8 +294,8 @@ brix_proxy_forward_request(brix_proxy_ctx_t *proxy,
     case kXR_prepare:
         proxy->fwd_local_fh   = -1;
         proxy->fwd_path_audit = 0;
-        if (proxy->conf != NULL && proxy->conf->proxy_path_strip.len > 0
-            && ctx->cur_dlen > 0)
+        if (proxy->conf != NULL && proxy->conf->proxy.path_strip.len > 0
+            && ctx->recv.cur_dlen > 0)
         {
             req = proxy_rewrite_prepare_payload(c, proxy->conf, req, total, &total);
         }
@@ -305,17 +305,17 @@ brix_proxy_forward_request(brix_proxy_ctx_t *proxy,
         /* Path-based ops: rewrite the path payload if configured */
         proxy->fwd_local_fh   = -1;
         proxy->fwd_path_audit = 0;
-        if (proxy->conf != NULL && proxy->conf->proxy_path_strip.len > 0
-            && ctx->cur_dlen > 0)
+        if (proxy->conf != NULL && proxy->conf->proxy.path_strip.len > 0
+            && ctx->recv.cur_dlen > 0)
         {
             req = proxy_rewrite_path(c, proxy->conf, req, total,
-                                     XRD_REQUEST_HDR_LEN, ctx->cur_dlen,
+                                     XRD_REQUEST_HDR_LEN, ctx->recv.cur_dlen,
                                      &total);
         }
         /* Capture path/dest for mutation-op audit log */
         if (proxy->conf != NULL
-            && proxy->conf->proxy_audit_log_fd != NGX_INVALID_FILE
-            && ctx->cur_dlen > 0)
+            && proxy->conf->proxy.audit_log_fd != NGX_INVALID_FILE
+            && ctx->recv.cur_dlen > 0)
         {
             switch (reqid) {
             case kXR_rm:
@@ -423,12 +423,12 @@ brix_proxy_forward_request(brix_proxy_ctx_t *proxy,
             brix_proxy_abort(proxy, "proxy: read arm failed");
             return NGX_ERROR;
         }
-    } else if (proxy->conf != NULL && proxy->conf->proxy_write_timeout > 0) {
+    } else if (proxy->conf != NULL && proxy->conf->proxy.write_timeout > 0) {
         /* Phase 39 (PXY-2): the request is parked for the upstream write event —
          * bound how long a slow/backpressured upstream may stall it (the write
          * handler refreshes/clears the timer).  Armed here too in case the write
          * event never fires. */
-        ngx_add_timer(proxy->conn->write, proxy->conf->proxy_write_timeout);
+        ngx_add_timer(proxy->conn->write, proxy->conf->proxy.write_timeout);
     }
     /* else: write handler will complete the send and arm the read */
 

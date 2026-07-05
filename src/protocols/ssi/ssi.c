@@ -420,7 +420,7 @@ brix_ssi_open(brix_ctx_t *ctx, ngx_connection_t *c,
     if (buf == NULL) {
         return brix_send_error(ctx, c, kXR_NoMemory, "ssi resp");
     }
-    brix_build_resp_hdr(ctx->cur_streamid, kXR_ok, (uint32_t) bodylen,
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok, (uint32_t) bodylen,
                           (ServerResponseHdr *) buf);
     ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &body, sizeof(ServerOpenBody));
     if (want_stat) {
@@ -440,7 +440,7 @@ brix_ssi_write(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     brix_ssi_req_t     *rq;
     int                   cmd;
     uint32_t              id, size;
-    size_t                n = ctx->cur_dlen;
+    size_t                n = ctx->recv.cur_dlen;
 
     brix_ssi_rrinfo_decode(off8, &cmd, &id, &size);
 
@@ -480,8 +480,8 @@ brix_ssi_write(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
                 return brix_send_error(ctx, c, kXR_NoMemory, "ssi req buf");
             }
         }
-        if (ctx->payload != NULL) {
-            ngx_memcpy(rq->req + rq->req_len, ctx->payload, n);
+        if (ctx->recv.payload != NULL) {
+            ngx_memcpy(rq->req + rq->req_len, ctx->recv.payload, n);
             rq->req_len += n;
         }
     }
@@ -500,7 +500,7 @@ brix_ssi_write(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
          * completion, and ack with kXR_waitresp — the response is pushed later
          * via kXR_attn (brix_ssi_deliver). */
         if (rq->deferred && !rq->responded) {
-            ngx_memcpy(rq->defer_streamid, ctx->cur_streamid,
+            ngx_memcpy(rq->defer_streamid, ctx->recv.cur_streamid,
                        sizeof(rq->defer_streamid));
             rq->waiting = 1;
             if (ssi_defer_arm(ctx, c, sess, rq) != NGX_OK) {

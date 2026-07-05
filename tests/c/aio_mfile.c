@@ -13,7 +13,7 @@
  *
  * Usage: XRD_BOUNCE_CMD="<restart server>" aio_mfile [endpoint]
  */
-#include "aio.h"
+#include "core/aio/aio.h"
 #include "brix.h"
 
 #include <signal.h>

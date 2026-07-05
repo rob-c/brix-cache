@@ -24,8 +24,8 @@ brix_handle_sss_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     uint32_t               got_crc, want_crc, gen_time, now;
     const char            *user, *group;
 
-    payload = ctx->payload;
-    if (payload == NULL || ctx->cur_dlen < BRIX_SSS_HDR_LEN
+    payload = ctx->recv.payload;
+    if (payload == NULL || ctx->recv.cur_dlen < BRIX_SSS_HDR_LEN
         + BRIX_SSS_DATA_HDR_LEN + 4)
     {
         return brix_sss_auth_failed(ctx, c);
@@ -45,7 +45,7 @@ brix_handle_sss_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     hdr_len = BRIX_SSS_HDR_LEN + kn_size;
-    if (hdr_len >= ctx->cur_dlen || (kn_size && payload[hdr_len - 1] != '\0')) {
+    if (hdr_len >= ctx->recv.cur_dlen || (kn_size && payload[hdr_len - 1] != '\0')) {
         return brix_sss_auth_failed(ctx, c);
     }
 
@@ -56,7 +56,7 @@ brix_handle_sss_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     cipher = payload + hdr_len;
-    cipher_len = ctx->cur_dlen - hdr_len;
+    cipher_len = ctx->recv.cur_dlen - hdr_len;
     if (cipher_len <= 4) {
         return brix_sss_auth_failed(ctx, c);
     }
@@ -121,20 +121,20 @@ brix_handle_sss_auth(brix_ctx_t *ctx, ngx_connection_t *c,
      * Prevents plaintext identity data from lingering across later requests. */
     OPENSSL_cleanse(clear, cipher_len);
 
-    ctx->auth_done = 1;
-    ctx->token_auth = 0;
-    ngx_cpystrn((u_char *) ctx->dn, (u_char *) user, sizeof(ctx->dn));
+    ctx->login.auth_done = 1;
+    ctx->token.auth = 0;
+    ngx_cpystrn((u_char *) ctx->login.dn, (u_char *) user, sizeof(ctx->login.dn));
     if (group[0]) {
-        ngx_cpystrn((u_char *) ctx->vo_list, (u_char *) group,
-                    sizeof(ctx->vo_list));
-        ngx_cpystrn((u_char *) ctx->primary_vo, (u_char *) group,
-                    sizeof(ctx->primary_vo));
+        ngx_cpystrn((u_char *) ctx->login.vo_list, (u_char *) group,
+                    sizeof(ctx->login.vo_list));
+        ngx_cpystrn((u_char *) ctx->login.primary_vo, (u_char *) group,
+                    sizeof(ctx->login.primary_vo));
     }
     if (ctx->identity != NULL) {
-        if (brix_identity_set_dn(ctx->identity, c->pool, ctx->dn,
+        if (brix_identity_set_dn(ctx->identity, c->pool, ctx->login.dn,
                                    BRIX_AUTHN_SSS) != NGX_OK
             || brix_identity_set_vos_csv(ctx->identity, c->pool,
-                                           ctx->vo_list) != NGX_OK)
+                                           ctx->login.vo_list) != NGX_OK)
         {
             return brix_send_error(ctx, c, kXR_NoMemory,
                                      "identity allocation failed");
@@ -145,12 +145,12 @@ brix_handle_sss_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     {
         ngx_brix_metrics_t *shm = brix_metrics_shared();
         if (shm != NULL) {
-            size_t vo_len = strlen(ctx->primary_vo);
-            if (vo_len > 0 && vo_len < sizeof(ctx->primary_vo)) {
-                brix_track_vo_activity(shm, ctx->primary_vo, 0, 0);
+            size_t vo_len = strlen(ctx->login.primary_vo);
+            if (vo_len > 0 && vo_len < sizeof(ctx->login.primary_vo)) {
+                brix_track_vo_activity(shm, ctx->login.primary_vo, 0, 0);
                 ngx_uint_t vi;
                 for (vi = 0; vi < BRIX_VO_MAX_TRACKED; vi++) {
-                    if (ngx_strncmp(shm->vo_global.slots[vi].name, ctx->primary_vo,
+                    if (ngx_strncmp(shm->vo_global.slots[vi].name, ctx->login.primary_vo,
                                     BRIX_VO_NAME_LEN) == 0)
                     {
                         BRIX_ATOMIC_INC(&shm->vo_global.slots[vi].requests_total);
@@ -158,11 +158,11 @@ brix_handle_sss_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                     }
                 }
             }
-            brix_track_unique_user(shm, ctx->dn, strlen(ctx->dn));
+            brix_track_unique_user(shm, ctx->login.dn, strlen(ctx->login.dn));
         }
     }
 
-    brix_session_register(ctx->sessid, ctx->dn, ctx->vo_list, 0);
+    brix_session_register(ctx->login.sessid, ctx->login.dn, ctx->login.vo_list, 0);
 
     {
         char safe_user[256], safe_group[256];

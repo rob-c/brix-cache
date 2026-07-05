@@ -104,7 +104,7 @@ brix_queue_response_base(brix_ctx_t *ctx, ngx_connection_t *c,
     u_char *buffer, size_t buffer_len, u_char *owned_base)
 {
     ssize_t bytes_sent;
-    brix_resp_slot_t *slot = &ctx->out_ring[ctx->out_tail];
+    brix_resp_slot_t *slot = &ctx->out.ring[ctx->out.tail];
 
     BRIX_SRV_METRIC_INC(ctx, response_frames_total);
 
@@ -113,16 +113,16 @@ brix_queue_response_base(brix_ctx_t *ctx, ngx_connection_t *c,
      * sets resp_async while the recv loop may be mid-receiving the next request.
      * Park the ack in the out_ring and arm the write event WITHOUT touching the
      * socket or ctx->state — the ack drains head-first on the write event while
-     * recv continues uninterrupted.  out_count + wr_inflight < ctx->pipeline_depth
+     * recv continues uninterrupted.  out_count + wr_inflight < ctx->out.pipeline_depth
      * is enforced at the recv boundary, so the ring always has a free slot here.
      */
-    if (ctx->resp_async) {
+    if (ctx->out.resp_async) {
         slot->wbuf      = buffer;
         slot->wbuf_len  = buffer_len;
         slot->wbuf_pos  = 0;
         slot->wbuf_base = owned_base;
-        ctx->out_tail   = (ctx->out_tail + 1) % ctx->pipeline_depth;
-        ctx->out_count++;
+        ctx->out.tail   = (ctx->out.tail + 1) % ctx->out.pipeline_depth;
+        ctx->out.count++;
         if (brix_schedule_write_resume(c) != NGX_OK) {
             return NGX_ERROR;
         }
@@ -135,13 +135,13 @@ brix_queue_response_base(brix_ctx_t *ctx, ngx_connection_t *c,
      * interleave on the wire.  Park this response in its tail slot and commit it
      * to the ring; brix_flush_pending() drains slots strictly head-first.
      */
-    if (ctx->out_count > 0) {
+    if (ctx->out.count > 0) {
         slot->wbuf      = buffer;
         slot->wbuf_len  = buffer_len;
         slot->wbuf_pos  = 0;
         slot->wbuf_base = owned_base;
-        ctx->out_tail   = (ctx->out_tail + 1) % ctx->pipeline_depth;
-        ctx->out_count++;
+        ctx->out.tail   = (ctx->out.tail + 1) % ctx->out.pipeline_depth;
+        ctx->out.count++;
         ctx->state      = XRD_ST_SENDING;
         if (brix_schedule_write_resume(c) != NGX_OK) {
             return NGX_ERROR;
@@ -165,8 +165,8 @@ brix_queue_response_base(brix_ctx_t *ctx, ngx_connection_t *c,
             slot->wbuf_len  = buffer_len;
             slot->wbuf_pos  = 0;
             slot->wbuf_base = owned_base;
-            ctx->out_tail   = (ctx->out_tail + 1) % ctx->pipeline_depth;
-            ctx->out_count++;
+            ctx->out.tail   = (ctx->out.tail + 1) % ctx->out.pipeline_depth;
+            ctx->out.count++;
             ctx->state      = XRD_ST_SENDING;
             if (brix_schedule_write_resume(c) != NGX_OK) {
                 return NGX_ERROR;
@@ -199,7 +199,7 @@ brix_queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_uint_t  spin_count = 0;
     off_t       pending, sent_before;
     ngx_flag_t  progressed;
-    brix_resp_slot_t *slot = &ctx->out_ring[ctx->out_tail];
+    brix_resp_slot_t *slot = &ctx->out.ring[ctx->out.tail];
 
     BRIX_SRV_METRIC_INC(ctx, response_frames_total);
 
@@ -209,12 +209,12 @@ brix_queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
      * socket (frames must not interleave).  flush_pending drains head-first and
      * will send this chain from the start once it becomes the head slot.
      */
-    if (ctx->out_count > 0) {
+    if (ctx->out.count > 0) {
         slot->wchain         = chain;
         slot->wchain_pending = (off_t) brix_chain_pending_bytes(chain);
         slot->wchain_base    = owned_base;
-        ctx->out_tail        = (ctx->out_tail + 1) % ctx->pipeline_depth;
-        ctx->out_count++;
+        ctx->out.tail        = (ctx->out.tail + 1) % ctx->out.pipeline_depth;
+        ctx->out.count++;
         ctx->state           = XRD_ST_SENDING;
         if (brix_schedule_write_resume(c) != NGX_OK) {
             return NGX_ERROR;
@@ -252,8 +252,8 @@ brix_queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
         slot->wchain = unsent;
         slot->wchain_pending = pending;
         slot->wchain_base = owned_base;
-        ctx->out_tail = (ctx->out_tail + 1) % ctx->pipeline_depth;
-        ctx->out_count++;
+        ctx->out.tail = (ctx->out.tail + 1) % ctx->out.pipeline_depth;
+        ctx->out.count++;
         ctx->state = XRD_ST_SENDING;
         if (brix_schedule_write_resume(c) != NGX_OK) {
             return NGX_ERROR;
@@ -278,8 +278,8 @@ brix_flush_pending(brix_ctx_t *ctx, ngx_connection_t *c)
      * returns so the next write event resumes exactly there — frames never
      * interleave on the wire because only the head slot ever touches the socket.
      */
-    while (ctx->out_count > 0) {
-        brix_resp_slot_t *slot = &ctx->out_ring[ctx->out_head];
+    while (ctx->out.count > 0) {
+        brix_resp_slot_t *slot = &ctx->out.ring[ctx->out.head];
 
         if (slot->wchain != NULL) {
             ngx_uint_t spin_count = 0;
@@ -359,8 +359,8 @@ brix_flush_pending(brix_ctx_t *ctx, ngx_connection_t *c)
         /* Head slot fully drained — retire it and advance to the next. */
         slot->wchain = NULL;
         slot->wchain_pending = 0;
-        ctx->out_head = (ctx->out_head + 1) % ctx->pipeline_depth;
-        ctx->out_count--;
+        ctx->out.head = (ctx->out.head + 1) % ctx->out.pipeline_depth;
+        ctx->out.count--;
     }
 
     /* Phase 39: the output queue fully drained (reached only on the NGX_OK exit;

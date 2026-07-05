@@ -17,6 +17,7 @@
  */
 #include "cvmfs.h"
 #include "auth/token/issuer_registry.h"
+#include "core/compat/cstr.h"
 
 #include <limits.h>
 
@@ -75,11 +76,9 @@ scvmfs_check_bearer(ngx_http_request_t *r,
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (r->uri.len >= sizeof(uri_path)) {
+    if (brix_str_cbuf(uri_path, sizeof(uri_path), &r->uri) == NULL) {
         return NGX_HTTP_REQUEST_URI_TOO_LARGE;
     }
-    ngx_memcpy(uri_path, r->uri.data, r->uri.len);
-    uri_path[r->uri.len] = '\0';
 
     /* read scope suffices for a read-only protocol */
     if (brix_token_validate_registry(r->connection->log, token, token_len,

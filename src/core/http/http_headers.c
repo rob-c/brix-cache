@@ -17,6 +17,7 @@
 */
 
 #include "http_headers.h"
+#include "core/compat/cstr.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -470,12 +471,10 @@ brix_http_arg(ngx_http_request_t *r, const char *name, size_t name_len,
     if (ngx_http_arg(r, (u_char *) name, name_len, &v) != NGX_OK) {
         return NGX_DECLINED;
     }
-    out->data = ngx_pnalloc(r->pool, v.len + 1);
+    out->data = (u_char *) brix_pstrdup_z(r->pool, &v);
     if (out->data == NULL) {
         return NGX_ERROR;
     }
-    ngx_memcpy(out->data, v.data, v.len);
-    out->data[v.len] = '\0';
     out->len = v.len;
     return NGX_OK;
 }

@@ -204,15 +204,15 @@ brix_sss_upstream_needed(ngx_stream_brix_srv_conf_t *xcf)
 {
     ngx_uint_t i;
 
-    if (!xcf->proxy_enable) {
+    if (!xcf->proxy.enable) {
         return 0;
     }
-    if (xcf->proxy_auth == BRIX_PROXY_AUTH_SSS) {
+    if (xcf->proxy.auth == BRIX_PROXY_AUTH_SSS) {
         return 1;
     }
-    if (xcf->proxy_upstreams != NULL) {
-        brix_proxy_upstream_t *ups = xcf->proxy_upstreams->elts;
-        for (i = 0; i < xcf->proxy_upstreams->nelts; i++) {
+    if (xcf->proxy.upstreams != NULL) {
+        brix_proxy_upstream_t *ups = xcf->proxy.upstreams->elts;
+        for (i = 0; i < xcf->proxy.upstreams->nelts; i++) {
             if (ups[i].auth == (ngx_int_t) BRIX_PROXY_AUTH_SSS) {
                 return 1;
             }

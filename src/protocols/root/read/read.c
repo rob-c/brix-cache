@@ -100,7 +100,7 @@ brix_read_serve_sendfile(brix_ctx_t *ctx, ngx_connection_t *c,
                               data_total, file_size);
 
     ctx->files[idx].bytes_read += data_total;
-    ctx->session_bytes += data_total;
+    ctx->totals.bytes += data_total;
     brix_rl_charge_ctx(ctx, data_total);  /* Phase 25 bandwidth */
 
     /* Per-backend storage byte totals: this zero-copy branch never reaches
@@ -173,7 +173,7 @@ brix_handle_read(brix_ctx_t *ctx, ngx_connection_t *c)
      * (BRIX_MAX_FILES <= 256); the (unsigned char) cast prevents sign-extension
      * of a high-bit handle byte into a negative idx.
      */
-    xrdw_read_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    xrdw_read_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     idx = (int) (unsigned char) req.fhandle[0];
     offset = req.offset;
     rlen = (size_t) (uint32_t) req.rlen;
@@ -292,13 +292,13 @@ brix_handle_read(brix_ctx_t *ctx, ngx_connection_t *c)
              * id, but cur_streamid will be overwritten by the next inbound header
              * before this stream finishes draining.
              */
-            ctx->rd_win_active = 1;
-            ctx->rd_win_fd = fd;
-            ctx->rd_win_idx = idx;
-            ctx->rd_win_offset = (off_t) offset;
-            ctx->rd_win_remaining = total;
-            ctx->rd_win_streamid[0] = ctx->cur_streamid[0];
-            ctx->rd_win_streamid[1] = ctx->cur_streamid[1];
+            ctx->rd.win_active = 1;
+            ctx->rd.win_fd = fd;
+            ctx->rd.win_idx = idx;
+            ctx->rd.win_offset = (off_t) offset;
+            ctx->rd.win_remaining = total;
+            ctx->rd.win_streamid[0] = ctx->recv.cur_streamid[0];
+            ctx->rd.win_streamid[1] = ctx->recv.cur_streamid[1];
 
             brix_prefetch_read_file(c->log, &ctx->files[idx], (off_t) offset,
                                       total,
@@ -423,19 +423,19 @@ brix_handle_read(brix_ctx_t *ctx, ngx_connection_t *c)
             ngx_flag_t         posted;
 
             /*
-             * One reusable task per session (ctx->read_aio_task): allocate it the
+             * One reusable task per session (ctx->rd.read_aio_task): allocate it the
              * first time, otherwise reset the two fields ngx reuse requires —
              * unlink from any prior queue (next) and clear the completion flag so
              * the event loop will fire the done-callback again.
              */
-            task = ctx->read_aio_task;
+            task = ctx->rd.read_aio_task;
             if (task == NULL) {
                 task = ngx_thread_task_alloc(c->pool, sizeof(brix_read_aio_t));
                 if (task == NULL) {
                     brix_release_read_buffer(ctx, c, databuf);
                     return NGX_ERROR;
                 }
-                ctx->read_aio_task = task;
+                ctx->rd.read_aio_task = task;
             } else {
                 task->next = NULL;
                 task->event.complete = 0;
@@ -449,8 +449,8 @@ brix_handle_read(brix_ctx_t *ctx, ngx_connection_t *c)
             t->offset = (off_t) offset;
             t->rlen = rlen;
             t->databuf = databuf;
-            t->streamid[0] = ctx->cur_streamid[0];
-            t->streamid[1] = ctx->cur_streamid[1];
+            t->streamid[0] = ctx->recv.cur_streamid[0];
+            t->streamid[1] = ctx->recv.cur_streamid[1];
             t->nread = 0;
             t->io_errno = 0;
             t->csi = ctx->files[idx].csi;   /* phase-59 W2: verify on read */
@@ -514,7 +514,7 @@ brix_handle_read(brix_ctx_t *ctx, ngx_connection_t *c)
     data_total = (size_t) nread;
 
     ctx->files[idx].bytes_read += data_total;
-    ctx->session_bytes += data_total;
+    ctx->totals.bytes += data_total;
 
     if (ctx->files[idx].dashboard_slot >= 0 &&
         ngx_brix_dashboard_shm_zone != NULL)
@@ -556,7 +556,7 @@ brix_handle_read(brix_ctx_t *ctx, ngx_connection_t *c)
              * jittered socket.  (A single-chunk response only: the non-windowed
              * path is bounded by BRIX_READ_WINDOW < BRIX_READ_CHUNK_MAX.)
              */
-            ctx->resp_pipelinable = 1;
+            ctx->out.resp_pipelinable = 1;
         }
         return rc;
     }

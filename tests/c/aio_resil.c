@@ -15,7 +15,7 @@
  *
  * Usage: XRD_BOUNCE_CMD="<shell to restart the server>" aio_resil [endpoint]
  */
-#include "aio.h"
+#include "core/aio/aio.h"
 #include "brix.h"
 #include "protocols/root/protocol/protocol.h"
 

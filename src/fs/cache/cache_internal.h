@@ -239,6 +239,14 @@ void brix_cache_set_origin_error(brix_cache_fill_t *t, u_char *body,
  * requires credentials. Returns 0 ready-for-requests, -1 on failure (t error set). */
 int brix_cache_origin_bootstrap(brix_cache_fill_t *t,
     brix_cache_origin_conn_t *oc);
+/* Origin-side auth handshakes (cache/origin_auth.c), called from bootstrap when
+ * the origin demands credentials (kXR_authmore).  0 on success, -1 on failure. */
+int brix_cache_origin_auth_ztn(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const ngx_str_t *token);
+int brix_cache_origin_auth_gsi(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *gsi_parms, const char *proxy_path);
+int brix_cache_origin_auth_sss(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *keytab_path);
 /* kXR_open (read|retstat) on t->clean_path. Copies the file handle into fhandle
  * (XRD_FHANDLE_LEN bytes, caller-provided) and parses the retstat string to set
  * t->file_size when present. A redirect response is rejected as kXR_Unsupported

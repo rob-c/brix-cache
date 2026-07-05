@@ -132,7 +132,10 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->enable             = NGX_CONF_UNSET;
     conf->allow_write        = NGX_CONF_UNSET;
     conf->read_only          = NGX_CONF_UNSET;
+    conf->compress           = NGX_CONF_UNSET;
     conf->ktls               = NGX_CONF_UNSET;
+    conf->storage_staging    = NGX_CONF_UNSET;
+    conf->cache_verify_mode  = NGX_CONF_UNSET_UINT;
     conf->thread_pool_name.len  = 0;
     conf->thread_pool_name.data = NULL;
     conf->thread_pool        = NULL;
@@ -163,25 +166,60 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
 }
 
 /*
+ * brix_shared_apply_read_only() — enforce the hard read-only switch. When
+ * common->read_only is on, force allow_write off so EVERY existing write gate
+ * (root:// brix_dispatch_require_write, the WebDAV/S3 write-method gate, the
+ * write-open gate) rejects writes at the protocol edge - before the VFS, and
+ * before token scope (allow_write is checked first), so a write-scoped token
+ * cannot bypass it. ngx_http_brix_shared_merge() applies it after the
+ * allow_write/read_only merges so no protocol can forget the enforcement;
+ * callers with later allow_write-dependent validations (e.g. WebDAV's
+ * "writes need auth" check) simply run them after the shared merge.
+ */
+static inline void
+brix_shared_apply_read_only(ngx_http_brix_shared_conf_t *common,
+    ngx_log_t *log)
+{
+    if (common->read_only != 1) {
+        return;
+    }
+    if (common->allow_write == 1 && log != NULL) {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: read_only on - the export is read-only; all write "
+            "operations are rejected at the protocol edge (overrides allow_write)");
+    }
+    common->allow_write = 0;
+}
+
+/*
  * ngx_http_brix_shared_merge() — Merges shared preamble fields from parent to
  * child using standard nginx merge macros. Called at the top of each protocol's
  * merge_loc_conf function before protocol-specific merge logic runs.
  *
- * WHY: Consolidates ~30 individual merge calls (10 per protocol) into one helper,
- * reducing boilerplate and ensuring shared fields always use consistent defaults
- * regardless of which protocol is active. Defaults: enable=0, allow_write=0,
- * root="", thread_pool_name="".
+ * WHY: This is the SINGLE audit point for common.* config inheritance — every
+ * HTTP protocol (WebDAV, S3, cvmfs) calls it instead of hand-merging the same
+ * ~20 fields (which drifted per protocol and dropped the read-only enforcement
+ * in cvmfs). Defaults: enable=0, allow_write=0, compress=0, ktls=1,
+ * thread_pool_name="", tier grammar defaults as before.
+ *
+ * HOW: root_default parameterizes the one deliberate per-protocol difference
+ * (WebDAV exports default to "/", S3/cvmfs to ""). Ends by applying the hard
+ * read-only switch (see brix_shared_apply_read_only above) and merging pmark;
+ * returns NGX_CONF_OK or NGX_CONF_ERROR (pmark merge failure).
  */
 static inline char *
 ngx_http_brix_shared_merge(ngx_conf_t *cf,
                              ngx_http_brix_shared_conf_t *prev,
-                             ngx_http_brix_shared_conf_t *conf)
+                             ngx_http_brix_shared_conf_t *conf,
+                             const char *root_default)
 {
     ngx_conf_merge_value(conf->enable, prev->enable, 0);
-    ngx_conf_merge_str_value(conf->root, prev->root, "");
+    ngx_conf_merge_str_value(conf->root, prev->root, root_default);
     ngx_conf_merge_value(conf->allow_write, prev->allow_write, 0);
     ngx_conf_merge_value(conf->read_only, prev->read_only, 0);
+    ngx_conf_merge_value(conf->compress, prev->compress, 0);
     ngx_conf_merge_value(conf->ktls, prev->ktls, 1);   /* default ON (offload-gated) */
+    ngx_conf_merge_value(conf->storage_staging, prev->storage_staging, 0);
     ngx_conf_merge_str_value(conf->thread_pool_name, prev->thread_pool_name, "");
     ngx_conf_merge_str_value(conf->storage_backend, prev->storage_backend, "");
     ngx_conf_merge_str_value(conf->storage_credential, prev->storage_credential,
@@ -207,32 +245,16 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
     ngx_conf_merge_uint_value(conf->cache_batch_cinfo, prev->cache_batch_cinfo, 2);
     ngx_conf_merge_size_value(conf->cache_index_cache, prev->cache_index_cache, 0);
     ngx_conf_merge_size_value(conf->cache_slice_size, prev->cache_slice_size, 0);
+    /* 0 == BRIX_CACHE_VERIFY_OFF (fs/cache/verify.h; not included here — it
+     * drags stream-typed cache internals into every HTTP module conf). */
+    ngx_conf_merge_uint_value(conf->cache_verify_mode, prev->cache_verify_mode,
+                              0);
+
+    /* Hard read-only: force allow_write off HERE so no protocol merge can
+     * forget the enforcement (it must win before token-scope checks). */
+    brix_shared_apply_read_only(conf, cf->log);
 
     return brix_pmark_conf_merge(cf, &prev->pmark, &conf->pmark);
-}
-
-/*
- * brix_shared_apply_read_only() — enforce the hard read-only switch. When
- * common->read_only is on, force allow_write off so EVERY existing write gate
- * (root:// brix_dispatch_require_write, the WebDAV/S3 write-method gate, the
- * write-open gate) rejects writes at the protocol edge - before the VFS, and
- * before token scope (allow_write is checked first), so a write-scoped token
- * cannot bypass it. Call from each protocol finaliser BEFORE the allow_write-
- * dependent validations (e.g. WebDAV's "writes need auth" check).
- */
-static inline void
-brix_shared_apply_read_only(ngx_http_brix_shared_conf_t *common,
-    ngx_log_t *log)
-{
-    if (common->read_only != 1) {
-        return;
-    }
-    if (common->allow_write == 1 && log != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, log, 0,
-            "brix: read_only on - the export is read-only; all write "
-            "operations are rejected at the protocol edge (overrides allow_write)");
-    }
-    common->allow_write = 0;
 }
 
 /*

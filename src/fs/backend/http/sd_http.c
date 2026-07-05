@@ -7,6 +7,7 @@
  */
 
 #include "sd_http.h"
+#include "sd_http_internal.h"    /* endpoint + inst_state layout (split out) */
 #include "fs/path/path.h"        /* brix_sanitize_log_string (wire keys) */
 
 #include <errno.h>
@@ -18,9 +19,6 @@
 #include <sys/stat.h>
 
 #define SD_HTTP_PREAD_MAX  (8LL * 1024 * 1024)
-#define SD_HTTP_BASE_MAX   512                  /* URL base path prefix */
-#define SD_HTTP_PATH_MAX   2048                 /* full URL path = base + key */
-#define SD_HTTP_AUTH_MAX   4160                 /* "Authorization: Bearer <tok>\r\n" */
 
 /* Force-primary read policy (process-global operator toggle; set pre-fork from
  * the cvmfs merge when brix_cvmfs_fill_retry_policy is force-primary, so all
@@ -37,52 +35,6 @@ sd_http_force_primary_set(int on)
     g_sd_http_force_primary = on ? 1 : 0;
 }
 
-/* One ranked origin endpoint (phase-68 T11). fail_score is an integer EWMA of
- * transport failures (0 = healthy, decays 7/8 per outcome); rank is the
- * selection preference the T19 policies write (0 = most preferred). */
-typedef struct {
-    char  host[256];
-    int   port;
-    int   tls;
-    char  base_path[SD_HTTP_BASE_MAX];
-    int   fail_score;
-    _Atomic int rank;                 /* T19 selection preference; relaxed */
-} sd_http_endpoint;
-
-/* Health breaks ties inside a rank; a preferred-but-sick endpoint is only
- * overridden after ~16 consecutive failures — preference is policy, health
- * is protection (phase-68 T19 contract). */
-#define SD_HTTP_RANK_WEIGHT 4096
-
-typedef struct {
-    sd_http_endpoint             eps[SD_HTTP_EP_MAX];
-    int                          n_eps;
-    const brix_s3_transport_t *transport;
-    void                        *tctx;
-    int                          timeout_ms;
-    void                       (*failover_note)(void);  /* T16 metric hook */
-    void                       (*health_note)(const char *host, int port,
-                                              int healthy);
-    char                         last_origin[300]; /* "host:port" of the last
-                                    endpoint that answered a read — display
-                                    only ($cvmfs_origin); racy-by-design
-                                    under concurrent fills. */
-    int                          last_failover; /* 1 iff the last answering
-                                    endpoint was NOT the first tried (a
-                                    failover); pairs with last_origin.       */
-    unsigned                     probe_tick;  /* half-open recovery probe clock */
-    char                         auth_hdr[SD_HTTP_AUTH_MAX]; /* §14 bearer hdr or "" */
-    ngx_log_t                   *log;         /* selection diagnostics (create-
-                                    time log; the registry builds instances
-                                    with the cycle log, which outlives any
-                                    request/connection). */
-    int                          cur_ep;      /* index of the endpoint that
-                                    answered the last successful request, -1 =
-                                    none yet. Written by fill threads without
-                                    ordering (like last_origin): a duplicated
-                                    or missed "origin switched" line under a
-                                    concurrent-fill race is acceptable. */
-} sd_http_inst_state;
 
 typedef struct {
     char key[SD_HTTP_PATH_MAX];    /* export-relative key (leading '/'); the
@@ -673,109 +625,15 @@ static const brix_sd_driver_t brix_sd_http_driver = {
     .staged_abort  = sd_http_staged_abort,
 };
 
-/* ---- T19/T20 selection + introspection API -------------------------------- */
-
-/* 1 iff `inst` is an sd_http instance (guards the accessors below). */
-static int
+/* 1 iff `inst` is an sd_http instance.  Kept beside the (file-private) driver
+ * struct it checks; the introspection accessors (sd_http_introspect.c) reach it
+ * via sd_http_internal.h. */
+int
 sd_http_instance_is(const brix_sd_instance_t *inst)
 {
     return inst != NULL && inst->driver == &brix_sd_http_driver;
 }
 
-/* Push selection ranks (rank 0 = most preferred; order = endpoint order).
- * Written on the event loop, read by fill threads — relaxed atomics. */
-void
-sd_http_set_ranks(brix_sd_instance_t *inst, const int *ranks, int n)
-{
-    sd_http_inst_state *is;
-    int                 i;
-
-    if (!sd_http_instance_is(inst)) {
-        return;
-    }
-    is = inst->state;
-    for (i = 0; i < is->n_eps && i < n; i++) {
-        atomic_store_explicit(&is->eps[i].rank, ranks[i],
-                              memory_order_relaxed);
-    }
-}
-
-/* Endpoint inventory for the RTT prober (copies, no ngx types). */
-int
-sd_http_endpoint_list(brix_sd_instance_t *inst, char hosts[][256],
-    int *ports, int max)
-{
-    sd_http_inst_state *is;
-    int                 i, n;
-
-    if (!sd_http_instance_is(inst)) {
-        return 0;
-    }
-    is = inst->state;
-    n = (is->n_eps < max) ? is->n_eps : max;
-    for (i = 0; i < n; i++) {
-        memcpy(hosts[i], is->eps[i].host, sizeof(is->eps[i].host));
-        ports[i] = is->eps[i].port;
-    }
-    return n;
-}
-
-/* Endpoint count (0 for a non-http instance). */
-int
-sd_http_n_endpoints(brix_sd_instance_t *inst)
-{
-    return sd_http_instance_is(inst)
-         ? ((sd_http_inst_state *) inst->state)->n_eps : 0;
-}
-
-/* "host:port" of the endpoint that answered the most recent read (display
- * only; racy-by-design). 0 with buf filled, or -1 (non-http / none yet). */
-int
-sd_http_last_origin(brix_sd_instance_t *inst, char *buf, size_t cap)
-{
-    sd_http_inst_state *is;
-
-    if (!sd_http_instance_is(inst)) {
-        return -1;
-    }
-    is = inst->state;
-    if (is->last_origin[0] == '\0') {
-        return -1;
-    }
-    snprintf(buf, cap, "%s", is->last_origin);
-    return 0;
-}
-
-/* 1 iff the endpoint that answered the most recent read was a failover (not
- * the first-tried). Pairs with sd_http_last_origin; racy-by-design. */
-int
-sd_http_last_was_failover(brix_sd_instance_t *inst)
-{
-    return sd_http_instance_is(inst)
-         ? ((sd_http_inst_state *) inst->state)->last_failover : 0;
-}
-
-/* Health snapshot for /healthz: copies up to `max` (host, port, fail_score)
- * triplets. Returns the count (0 for a non-http instance). */
-int
-sd_http_health_snapshot(brix_sd_instance_t *inst, char hosts[][256],
-    int *ports, int *scores, int max)
-{
-    sd_http_inst_state *is;
-    int                 i, n;
-
-    if (!sd_http_instance_is(inst)) {
-        return 0;
-    }
-    is = inst->state;
-    n = (is->n_eps < max) ? is->n_eps : max;
-    for (i = 0; i < n; i++) {
-        memcpy(hosts[i], is->eps[i].host, sizeof(is->eps[i].host));
-        ports[i]  = is->eps[i].port;
-        scores[i] = is->eps[i].fail_score;
-    }
-    return n;
-}
 
 brix_sd_instance_t *
 brix_sd_http_create(const brix_sd_http_cfg_t *cfg, ngx_log_t *log)

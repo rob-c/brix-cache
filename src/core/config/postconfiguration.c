@@ -58,7 +58,7 @@ brix_log_startup_summary(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)
             "brix:   mode: cluster manager — redirects clients to data "
             "servers (does not serve local files)");
     }
-    if (xcf->proxy_enable) {
+    if (xcf->proxy.enable) {
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
             "brix:   mode: proxy — forwards client traffic to a backend");
     }
@@ -211,7 +211,7 @@ ngx_stream_brix_postconfiguration(ngx_conf_t *cf)
             for (i = 0; i < cmcf->servers.nelts; i++) {
                 xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
                                                            ngx_stream_brix_module);
-                if (xcf->common.enable && xcf->collapse_redir) {
+                if (xcf->common.enable && xcf->caps.collapse_redir) {
                     has_collapse = 1;
                     if (xcf->redir_cache_slots != NGX_CONF_UNSET_UINT
                         && xcf->redir_cache_slots > redir_slots)

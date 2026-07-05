@@ -37,7 +37,7 @@ brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
     ctx->req_start = ngx_current_msec;
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "brix: dispatch reqid=%d", (int) ctx->cur_reqid);
+                   "brix: dispatch reqid=%d", (int) ctx->recv.cur_reqid);
 
     rc = brix_verify_pending_sigver(ctx, c);
     if (rc != BRIX_DISPATCH_CONTINUE) {
@@ -57,7 +57,7 @@ brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
     /*
      * Proxy mode: all post-login file-system opcodes go to the upstream.
      *
-     * SECURITY (fail-closed): gate on ctx->auth_done, NOT merely ctx->logged_in.
+     * SECURITY (fail-closed): gate on ctx->login.auth_done, NOT merely ctx->login.logged_in.
      * kXR_login only sets logged_in; for any configured auth (gsi/token/sss/...)
      * auth_done stays 0 until kXR_auth completes (login.c).  The session opcodes
      * (login/auth/bind/...) are already handled above, so anything reaching here
@@ -68,7 +68,7 @@ brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
      * login, so this remains a no-op gate there.  This mirrors the require_auth
      * gate enforced on the direct (non-proxy) read/write dispatchers.
      */
-    if (conf->proxy_enable && ctx->auth_done) {
+    if (conf->proxy.enable && ctx->login.auth_done) {
         return brix_proxy_dispatch(ctx, c, conf);
     }
 
@@ -125,7 +125,7 @@ brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: unsupported request %d",
-                   (int) ctx->cur_reqid);
+                   (int) ctx->recv.cur_reqid);
     /* An unrecognized opcode is kXR_InvalidRequest ("Invalid request code"),
      * matching the reference (XrdXrootdProtocol.cc:608); kXR_Unsupported is
      * reserved for a recognized op the backend cannot perform (ENOTSUP). */

@@ -64,8 +64,8 @@ ngx_int_t brix_handle_auth(brix_ctx_t *ctx, ngx_connection_t *c);
 
 /* Phase 51 (E4): per-worker in-flight GSI-handshake admission gauge (gsi/auth.c).
  * _admit returns 1 if the new handshake is admitted under `cap` (0 = unlimited)
- * and marks ctx->gsi_counted; 0 if it should be shed.  _release frees the slot
- * exactly once (gated by ctx->gsi_counted) — called at auth completion AND from
+ * and marks ctx->login.gsi_counted; 0 if it should be shed.  _release frees the slot
+ * exactly once (gated by ctx->login.gsi_counted) — called at auth completion AND from
  * the disconnect funnel so the gauge can never leak. */
 ngx_int_t brix_gsi_inflight_admit(brix_ctx_t *ctx, ngx_int_t cap);
 void      brix_gsi_inflight_release(brix_ctx_t *ctx);

@@ -114,7 +114,7 @@ ngx_int_t brix_handle_stat(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix
     ngx_int_t          validate_rc;
     int                extra_flags = 0;
 
-    xrdw_stat_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    xrdw_stat_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     is_vfs = (req.options & kXR_vfs) ? 1 : 0;
 
     /*
@@ -126,9 +126,9 @@ ngx_int_t brix_handle_stat(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix
      * handle case: logs use the cached canonical path, while fstat() uses the fd.
      */
 
-    if (ctx->cur_dlen > 0 && ctx->payload != NULL) {
+    if (ctx->recv.cur_dlen > 0 && ctx->recv.payload != NULL) {
         /* Path-based stat */
-        if (!brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+        if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
                                  reqpath_buf, sizeof(reqpath_buf), 1)) {
             BRIX_RETURN_ERR(ctx, c, BRIX_OP_STAT, "STAT", "-", "-",
                               kXR_ArgInvalid, "invalid path payload");
@@ -177,7 +177,7 @@ ngx_int_t brix_handle_stat(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix
             /* tried/triedrc: if the client has already visited every server
              * that holds this path and they returned enoent, stop redirecting
              * and answer not-found — otherwise the client redirect-loops. */
-            if (brix_manager_tried_exhausted(ctx->payload, ctx->cur_dlen,
+            if (brix_manager_tried_exhausted(ctx->recv.payload, ctx->recv.cur_dlen,
                                                reqpath)) {
                 BRIX_RETURN_ERR(ctx, c, BRIX_OP_STAT, "STAT", reqpath, "-",
                                   kXR_NotFound,
@@ -194,19 +194,19 @@ ngx_int_t brix_handle_stat(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix
             }
 
             /* Registry miss — ask CMS parent if configured. */
-            if (conf->cms_ctx != NULL) {
+            if (conf->cms.ctx != NULL) {
                 uint32_t streamid;
 
-                streamid = ngx_brix_cms_next_streamid(conf->cms_ctx);
+                streamid = ngx_brix_cms_next_streamid(conf->cms.ctx);
                 if (brix_pending_insert(streamid, ngx_pid, c->fd,
                                           c->number,
-                                          ctx->cur_streamid,
-                                          conf->cms_locate_timeout) == NGX_OK)
+                                          ctx->recv.cur_streamid,
+                                          conf->cms.locate_timeout) == NGX_OK)
                 {
                     ctx->cms_wait_streamid = streamid;
                     ctx->state = XRD_ST_WAITING_CMS;
-                    ngx_add_timer(c->read, conf->cms_locate_timeout);
-                    if (ngx_brix_cms_send_locate(conf->cms_ctx, streamid,
+                    ngx_add_timer(c->read, conf->cms.locate_timeout);
+                    if (ngx_brix_cms_send_locate(conf->cms.ctx, streamid,
                                                    reqpath) == NGX_OK)
                     {
                         return NGX_AGAIN;

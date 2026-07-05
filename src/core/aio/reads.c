@@ -33,12 +33,12 @@
 
 /*
  * brix_read_window_emit — build + queue one window's wire chunk from
- * read_scratch[0..nread), advancing the continuation state.  Status is
+ * rd.read_scratch[0..nread), advancing the continuation state.  Status is
  * kXR_oksofar for every window except the last (or a short read at EOF), which
  * is kXR_ok.  Returns NGX_ERROR if the read failed or the chain could not be
  * built (an error response has already been sent); otherwise NGX_OK, with
  * ctx->state == XRD_ST_SENDING if the chunk is still draining and
- * ctx->rd_win_active cleared when this was the final window.
+ * ctx->rd.win_active cleared when this was the final window.
  */
 static ngx_int_t
 brix_read_window_emit(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -49,9 +49,9 @@ brix_read_window_emit(brix_ctx_t *ctx, ngx_connection_t *c,
     size_t       got;
 
     if (nread < 0) {
-        ctx->rd_win_active = 0;
+        ctx->rd.win_active = 0;
         ctx->state = XRD_ST_REQ_HEADER;
-        ctx->hdr_pos = 0;
+        ctx->recv.hdr_pos = 0;
         BRIX_OP_ERR(ctx, BRIX_OP_READ);
         brix_send_error(ctx, c, kXR_IOError,
                           io_errno ? strerror(io_errno) : "async read error");
@@ -59,42 +59,42 @@ brix_read_window_emit(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     got = (size_t) nread;
-    ctx->files[ctx->rd_win_idx].bytes_read += got;
-    ctx->session_bytes += got;
+    ctx->files[ctx->rd.win_idx].bytes_read += got;
+    ctx->totals.bytes += got;
 
-    if (got < ctx->rd_win_remaining) {
-        ctx->rd_win_remaining -= got;
-        ctx->rd_win_offset += (off_t) got;
+    if (got < ctx->rd.win_remaining) {
+        ctx->rd.win_remaining -= got;
+        ctx->rd.win_offset += (off_t) got;
     } else {
-        ctx->rd_win_remaining = 0;
+        ctx->rd.win_remaining = 0;
     }
 
     /* Last planned window, or a short read (EOF), terminates the response. */
-    status = (ctx->rd_win_remaining == 0 || got == 0) ? kXR_ok : kXR_oksofar;
+    status = (ctx->rd.win_remaining == 0 || got == 0) ? kXR_ok : kXR_oksofar;
 
-    chain = brix_build_window_chain(ctx, c, ctx->read_scratch, got, status);
+    chain = brix_build_window_chain(ctx, c, ctx->rd.read_scratch, got, status);
     if (chain == NULL) {
-        ctx->rd_win_active = 0;
+        ctx->rd.win_active = 0;
         ctx->state = XRD_ST_REQ_HEADER;
         return NGX_ERROR;
     }
 
     if (status == kXR_ok) {
-        ctx->rd_win_active = 0;
+        ctx->rd.win_active = 0;
         BRIX_OP_OK(ctx, BRIX_OP_READ);
     }
 
     ctx->state = XRD_ST_REQ_HEADER;
-    ctx->hdr_pos = 0;
-    brix_queue_response_chain(ctx, c, chain, ctx->read_scratch);
+    ctx->recv.hdr_pos = 0;
+    brix_queue_response_chain(ctx, c, chain, ctx->rd.read_scratch);
     if (ctx->state != XRD_ST_SENDING) {
-        brix_release_read_buffer(ctx, c, ctx->read_scratch);  /* no-op slot */
+        brix_release_read_buffer(ctx, c, ctx->rd.read_scratch);  /* no-op slot */
     }
     return NGX_OK;
 }
 
 /*
- * brix_read_window_pump — read the next window into read_scratch and emit it,
+ * brix_read_window_pump — read the next window into rd.read_scratch and emit it,
  * looping while sends complete synchronously.  Posts an AIO task when a thread
  * pool is available (returns with state XRD_ST_AIO; brix_read_aio_done resumes
  * the pump); otherwise reads the window inline (bounded to one window).  When
@@ -109,18 +109,18 @@ brix_read_window_pump(brix_ctx_t *ctx, ngx_connection_t *c,
         u_char  *databuf;
         ssize_t  nread;
 
-        if (!ctx->rd_win_active) {
+        if (!ctx->rd.win_active) {
             brix_aio_resume(c);
             return;
         }
 
-        want = ctx->rd_win_remaining < (size_t) BRIX_READ_WINDOW
-               ? ctx->rd_win_remaining : (size_t) BRIX_READ_WINDOW;
+        want = ctx->rd.win_remaining < (size_t) BRIX_READ_WINDOW
+               ? ctx->rd.win_remaining : (size_t) BRIX_READ_WINDOW;
 
-        databuf = BRIX_GET_SCRATCH(ctx, c, read_scratch, read_scratch_size,
+        databuf = BRIX_GET_SCRATCH(ctx, c, rd.read_scratch, rd.read_scratch_size,
                                      want);
         if (databuf == NULL) {
-            ctx->rd_win_active = 0;
+            ctx->rd.win_active = 0;
             ctx->state = XRD_ST_REQ_HEADER;
             brix_send_error(ctx, c, kXR_NoMemory, "read window alloc failed");
             brix_aio_resume(c);
@@ -129,13 +129,13 @@ brix_read_window_pump(brix_ctx_t *ctx, ngx_connection_t *c,
         brix_budget_sync(ctx);
 
         if (rconf->common.thread_pool != NULL) {
-            ngx_thread_task_t *task = ctx->read_aio_task;
+            ngx_thread_task_t *task = ctx->rd.read_aio_task;
             brix_read_aio_t *t;
             ngx_flag_t         posted = 0;
 
             /*
              * One task struct is allocated once per stream and cached on
-             * ctx->read_aio_task, then reused across every window of this read
+             * ctx->rd.read_aio_task, then reused across every window of this read
              * (and across later reads) to avoid a pool allocation per window.
              * On reuse the task is dirty from its last trip through the pool:
              * task->next must be cleared (the pool threads it onto its run
@@ -146,7 +146,7 @@ brix_read_window_pump(brix_ctx_t *ctx, ngx_connection_t *c,
                 task = ngx_thread_task_alloc(c->pool,
                                              sizeof(brix_read_aio_t));
                 if (task != NULL) {
-                    ctx->read_aio_task = task;
+                    ctx->rd.read_aio_task = task;
                 }
             } else {
                 task->next = NULL;
@@ -158,9 +158,9 @@ brix_read_window_pump(brix_ctx_t *ctx, ngx_connection_t *c,
                 t->c = c;
                 t->ctx = ctx;
                 t->conf = rconf;
-                t->fd = ctx->rd_win_fd;
-                t->handle_idx = ctx->rd_win_idx;
-                t->offset = ctx->rd_win_offset;
+                t->fd = ctx->rd.win_fd;
+                t->handle_idx = ctx->rd.win_idx;
+                t->offset = ctx->rd.win_offset;
                 t->rlen = want;
                 t->databuf = databuf;
                 /*
@@ -169,8 +169,8 @@ brix_read_window_pump(brix_ctx_t *ctx, ngx_connection_t *c,
                  * time the worker finishes, this connection may have been torn
                  * down and the slot reused by an unrelated stream.
                  */
-                t->streamid[0] = ctx->rd_win_streamid[0];
-                t->streamid[1] = ctx->rd_win_streamid[1];
+                t->streamid[0] = ctx->rd.win_streamid[0];
+                t->streamid[1] = ctx->rd.win_streamid[1];
                 t->nread = 0;
                 t->io_errno = 0;
                 brix_task_bind(task, brix_read_aio_thread,
@@ -195,8 +195,8 @@ brix_read_window_pump(brix_ctx_t *ctx, ngx_connection_t *c,
         {
             brix_vfs_job_t job;
 
-            brix_vfs_job_read_init(&job, ctx->rd_win_fd,
-                                      ctx->rd_win_offset, want, databuf,
+            brix_vfs_job_read_init(&job, ctx->rd.win_fd,
+                                      ctx->rd.win_offset, want, databuf,
                                       want, 0);
             brix_vfs_io_execute(&job);
             nread = job.nio;
@@ -272,7 +272,7 @@ brix_read_aio_done(ngx_event_t *ev)
         return;
     }
 
-    if (ctx->rd_win_active) {
+    if (ctx->rd.win_active) {
         /*
          * Phase 31 W2.1: this completion belongs to one window of a windowed
          * read.  Emit its chunk, then continue (next window) or finish.
@@ -296,7 +296,7 @@ brix_read_aio_done(ngx_event_t *ev)
         if (ctx->state == XRD_ST_SENDING) {
             return;            /* (a) send.c resumes the pump when the chunk drains */
         }
-        if (ctx->rd_win_active) {
+        if (ctx->rd.win_active) {
             brix_read_window_pump(ctx, c, t->conf);   /* (b) sync-sent: next window */
             return;
         }
@@ -306,7 +306,7 @@ brix_read_aio_done(ngx_event_t *ev)
 
     if (t->nread < 0) {
         ctx->state = XRD_ST_REQ_HEADER;
-        ctx->hdr_pos = 0;
+        ctx->recv.hdr_pos = 0;
         brix_release_read_buffer(ctx, c, t->databuf);
         BRIX_OP_ERR(ctx, BRIX_OP_READ);
         brix_send_error(ctx, c, kXR_IOError,
@@ -316,7 +316,7 @@ brix_read_aio_done(ngx_event_t *ev)
     }
 
     ctx->files[t->handle_idx].bytes_read += (size_t) t->nread;
-    ctx->session_bytes += (size_t) t->nread;
+    ctx->totals.bytes += (size_t) t->nread;
     BRIX_OP_OK(ctx, BRIX_OP_READ);
 
     rsp_chain = brix_build_chunked_chain(ctx, c,
@@ -329,7 +329,7 @@ brix_read_aio_done(ngx_event_t *ev)
     }
 
     ctx->state = XRD_ST_REQ_HEADER;
-    ctx->hdr_pos = 0;
+    ctx->recv.hdr_pos = 0;
 
     brix_queue_response_chain(ctx, c, rsp_chain, t->databuf);
     if (ctx->state != XRD_ST_SENDING) {
@@ -345,7 +345,7 @@ brix_read_aio_done(ngx_event_t *ev)
          * that will let cold reads pipeline like the warm-cache inline path does.
          * Single-chunk only (non-windowed read <= BRIX_READ_WINDOW < CHUNK_MAX).
          */
-        ctx->resp_pipelinable = 1;
+        ctx->out.resp_pipelinable = 1;
     }
     brix_aio_resume(c);
 }
@@ -450,7 +450,7 @@ brix_pgread_aio_done(ngx_event_t *ev)
     }
 
     ctx->files[t->handle_idx].bytes_read += (size_t) t->nread;
-    ctx->session_bytes += (size_t) t->nread;
+    ctx->totals.bytes += (size_t) t->nread;
 
     rconf = ngx_stream_get_module_srv_conf(
         (ngx_stream_session_t *) c->data, ngx_stream_brix_module);

@@ -3,6 +3,7 @@
  * See credential_block.h for the WHAT/WHY/HOW.
  */
 #include "credential_block.h"
+#include "core/compat/cstr.h"
 
 #include <fcntl.h>
 #include <string.h>
@@ -105,12 +106,10 @@ brix_credential_line(ngx_conf_t *cf, ngx_command_t *dummy, void *conf)
         {
             ngx_str_t *dst = (ngx_str_t *) ((char *) cred + fld->str_off);
 
-            dst->data = ngx_pnalloc(cf->pool, value[1].len + 1);
+            dst->data = (u_char *) brix_pstrdup_z(cf->pool, &value[1]);
             if (dst->data == NULL) {
                 return NGX_CONF_ERROR;
             }
-            ngx_memcpy(dst->data, value[1].data, value[1].len);
-            dst->data[value[1].len] = '\0';
             dst->len = value[1].len;
         }
         return NGX_CONF_OK;
@@ -151,12 +150,10 @@ brix_conf_credential_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     ngx_memzero(cred, sizeof(*cred));
-    cred->name.data = ngx_pnalloc(cf->pool, value[1].len + 1);
+    cred->name.data = (u_char *) brix_pstrdup_z(cf->pool, &value[1]);
     if (cred->name.data == NULL) {
         return NGX_CONF_ERROR;
     }
-    ngx_memcpy(cred->name.data, value[1].data, value[1].len);
-    cred->name.data[value[1].len] = '\0';
     cred->name.len = value[1].len;
 
     save = *cf;

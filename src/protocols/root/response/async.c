@@ -153,7 +153,7 @@ brix_send_attn(brix_ctx_t *ctx, ngx_connection_t *c,
 
     BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
-    brix_build_resp_hdr(ctx->cur_streamid, kXR_attn, bodylen,
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_attn, bodylen,
                           (ServerResponseHdr *) buf);
 
     ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &act_be, 4);

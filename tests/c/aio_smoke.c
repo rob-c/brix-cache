@@ -23,7 +23,7 @@
  * Usage: aio_smoke [endpoint] [remote_path]
  *        endpoint default root://localhost:11199 ; remote_path default /aio_smoke.bin
  */
-#include "aio.h"
+#include "core/aio/aio.h"
 #include "brix.h"
 #include "protocols/root/protocol/protocol.h"
 

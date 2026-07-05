@@ -13,7 +13,7 @@
  * the number admitted concurrently per worker and sheds the excess with kXR_wait
  * (the client waits and retries).  Cache hits / already-authed sessions never
  * touch this.  Released EXACTLY ONCE — at auth completion OR at disconnect (the
- * guaranteed funnel) — gated by ctx->gsi_counted, so the gauge can never leak and
+ * guaranteed funnel) — gated by ctx->login.gsi_counted, so the gauge can never leak and
  * wedge auth.  Lock-free: per-worker, event-loop only.
  */
 static ngx_uint_t  brix_gsi_inflight;
@@ -21,25 +21,25 @@ static ngx_uint_t  brix_gsi_inflight;
 ngx_int_t
 brix_gsi_inflight_admit(brix_ctx_t *ctx, ngx_int_t cap)
 {
-    if (ctx->gsi_counted) {
+    if (ctx->login.gsi_counted) {
         return 1;                  /* already counted this handshake */
     }
     if (cap > 0 && brix_gsi_inflight >= (ngx_uint_t) cap) {
         return 0;                  /* over the cap — shed */
     }
     brix_gsi_inflight++;
-    ctx->gsi_counted = 1;
+    ctx->login.gsi_counted = 1;
     return 1;
 }
 
 void
 brix_gsi_inflight_release(brix_ctx_t *ctx)
 {
-    if (ctx->gsi_counted) {
+    if (ctx->login.gsi_counted) {
         if (brix_gsi_inflight > 0) {
             brix_gsi_inflight--;
         }
-        ctx->gsi_counted = 0;
+        ctx->login.gsi_counted = 0;
     }
 }
 
@@ -56,7 +56,7 @@ brix_gsi_complete_auth(brix_ctx_t *ctx, ngx_connection_t *c,
 {
     /* Phase 20: per-identity request rate limit, applied once the DN is known. */
     if (conf->rate_limit.kv != NULL) {
-        const char *rl_id = conf->rate_limit.key_ip ? ctx->peer_ip : ctx->dn;
+        const char *rl_id = conf->rate_limit.key_ip ? ctx->login.peer_ip : ctx->login.dn;
 
         if (brix_rate_limit_check(&conf->rate_limit, rl_id,
                                     ngx_strlen(rl_id)) != NGX_OK)
@@ -66,30 +66,30 @@ brix_gsi_complete_auth(brix_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    ctx->auth_done = 1;
+    ctx->login.auth_done = 1;
     brix_gsi_inflight_release(ctx);   /* E4: handshake done — free the slot */
     if (ctx->identity != NULL) {
-        if (brix_identity_set_dn(ctx->identity, c->pool, ctx->dn,
+        if (brix_identity_set_dn(ctx->identity, c->pool, ctx->login.dn,
                                    BRIX_AUTHN_GSI) != NGX_OK
             || brix_identity_set_vos_csv(ctx->identity, c->pool,
-                                           ctx->vo_list) != NGX_OK)
+                                           ctx->login.vo_list) != NGX_OK)
         {
             return brix_send_error(ctx, c, kXR_NoMemory,
                                      "identity allocation failed");
         }
     }
-    brix_session_register(ctx->sessid, ctx->dn, ctx->vo_list, 0);
+    brix_session_register(ctx->login.sessid, ctx->login.dn, ctx->login.vo_list, 0);
 
     /* Track unique user and VO at auth completion. */
     {
         ngx_brix_metrics_t *shm = brix_metrics_shared();
         if (shm != NULL) {
-            size_t vo_len = strlen(ctx->primary_vo);
-            if (vo_len > 0 && vo_len < sizeof(ctx->primary_vo)) {
-                brix_track_vo_activity(shm, ctx->primary_vo, 0, 0);
+            size_t vo_len = strlen(ctx->login.primary_vo);
+            if (vo_len > 0 && vo_len < sizeof(ctx->login.primary_vo)) {
+                brix_track_vo_activity(shm, ctx->login.primary_vo, 0, 0);
                 ngx_uint_t vi;
                 for (vi = 0; vi < BRIX_VO_MAX_TRACKED; vi++) {
-                    if (ngx_strncmp(shm->vo_global.slots[vi].name, ctx->primary_vo,
+                    if (ngx_strncmp(shm->vo_global.slots[vi].name, ctx->login.primary_vo,
                                     BRIX_VO_NAME_LEN) == 0)
                     {
                         BRIX_ATOMIC_INC(&shm->vo_global.slots[vi].requests_total);
@@ -97,14 +97,14 @@ brix_gsi_complete_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                     }
                 }
             }
-            brix_track_unique_user(shm, ctx->dn, strlen(ctx->dn));
+            brix_track_unique_user(shm, ctx->login.dn, strlen(ctx->login.dn));
         }
     }
 
     {
         char dn_log[1024];
 
-        brix_sanitize_log_string(ctx->dn, dn_log, sizeof(dn_log));
+        brix_sanitize_log_string(ctx->login.dn, dn_log, sizeof(dn_log));
         ngx_log_error(NGX_LOG_INFO, c->log, 0,
                       "brix: GSI auth OK dn=\"%s\"", dn_log);
     }
@@ -113,7 +113,7 @@ brix_gsi_complete_auth(brix_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /* brix_handle_auth_inner — the kXR_auth dispatcher: route by the 4-byte credtype
- * (ztn→token, sss→SSS, gsi→GSI), requiring ctx->logged_in first. The GSI path runs
+ * (ztn→token, sss→SSS, gsi→GSI), requiring ctx->login.logged_in first. The GSI path runs
  * the two-round DH exchange (kXGC_certreq → server cert via brix_gsi_send_cert;
  * kXGC_cert → encrypted proxy chain via brix_gsi_parse_x509) so the client's cert
  * is never sent in clear, verifies the chain against the CA store with
@@ -128,7 +128,7 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
     brix_gsi_verify_result_t    verify_res;
     uint32_t                      gsi_step;
 
-    if (!ctx->logged_in) {
+    if (!ctx->login.logged_in) {
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "login required before auth");
     }
@@ -137,7 +137,7 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
                                           ngx_stream_brix_module);
 
     if (conf->auth == BRIX_AUTH_NONE) {
-        ctx->auth_done = 1;
+        ctx->login.auth_done = 1;
         return brix_send_ok(ctx, c, NULL, 0);
     }
 
@@ -145,14 +145,14 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
         char credtype[5];
         char safe_credtype[32];
 
-        ngx_memcpy(credtype, ctx->cur_body + 12, 4);
+        ngx_memcpy(credtype, ctx->recv.cur_body + 12, 4);
         credtype[4] = '\0';
         brix_sanitize_log_string(credtype, safe_credtype,
                                    sizeof(safe_credtype));
 
         ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "brix: kXR_auth credtype=\"%s\" payloadlen=%d",
-                       safe_credtype, (int) ctx->cur_dlen);
+                       safe_credtype, (int) ctx->recv.cur_dlen);
 
         if (credtype[0] == 'z' && credtype[1] == 't' && credtype[2] == 'n') {
             if (conf->auth != BRIX_AUTH_TOKEN
@@ -231,12 +231,12 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
                                  "GSI not configured");
     }
 
-    if (ctx->payload == NULL || ctx->cur_dlen < 8) {
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen < 8) {
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "empty GSI credential");
     }
 
-    ngx_memcpy(&gsi_step, ctx->payload + 4, 4);
+    ngx_memcpy(&gsi_step, ctx->recv.payload + 4, 4);
     gsi_step = ntohl(gsi_step);
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
@@ -258,7 +258,7 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
     /* §F6: the client's signed delegated proxy — only valid mid-delegation, after
      * we sent kXGS_pxyreq. Capture it, then complete the deferred auth. */
     if (gsi_step == (uint32_t) kXGC_sigpxy) {
-        if (!ctx->gsi_deleg_await
+        if (!ctx->gsi.deleg_await
             || brix_gsi_handle_sigpxy(ctx, c) != NGX_OK) {
             BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "gsi",
                               kXR_NotAuthorized, "GSI proxy delegation failed");
@@ -275,9 +275,9 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
 
     chain = brix_gsi_parse_x509(ctx, c);
 
-    if (ctx->gsi_dh_key) {
-        EVP_PKEY_free(ctx->gsi_dh_key);
-        ctx->gsi_dh_key = NULL;
+    if (ctx->gsi.dh_key) {
+        EVP_PKEY_free(ctx->gsi.dh_key);
+        ctx->gsi.dh_key = NULL;
     }
 
     if (chain == NULL) {
@@ -320,11 +320,11 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
      * The certificate chain is still valid at this point: leaf is chain[0],
      * its issuer is chain[1] (may be NULL for single-cert chains).
      */
-    if (conf->ocsp_enable) {
+    if (conf->ocsp.enable) {
         X509 *issuer = (sk_X509_num(chain) > 1)
                        ? sk_X509_value(chain, 1) : NULL;
         if (brix_ocsp_check_cert(c->log, leaf, issuer,
-                                   (int)conf->ocsp_soft_fail) != 0)
+                                   (int)conf->ocsp.soft_fail) != 0)
         {
             brix_log_access(ctx, c, "AUTH", "-", "gsi",
                               0, kXR_NotAuthorized, "OCSP check failed", 0);
@@ -335,15 +335,15 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
         }
     }
 
-    if (strlen(verify_res.dn_buf) >= sizeof(ctx->dn)) {
+    if (strlen(verify_res.dn_buf) >= sizeof(ctx->login.dn)) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI DN too long (%uz bytes), truncating to %uz; "
                       "VO ACL rules may not match correctly",
-                      strlen(verify_res.dn_buf), sizeof(ctx->dn) - 1);
+                      strlen(verify_res.dn_buf), sizeof(ctx->login.dn) - 1);
     }
-    ngx_cpystrn((u_char *) ctx->dn,
+    ngx_cpystrn((u_char *) ctx->login.dn,
                 (u_char *) verify_res.dn_buf,
-                sizeof(ctx->dn));
+                sizeof(ctx->login.dn));
 
     if (brix_voms_available()
         && conf->vomsdir.len > 0 && conf->voms_cert_dir.len > 0)
@@ -351,13 +351,13 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
         ngx_int_t voms_rc = brix_extract_voms_info(
             c->log, leaf, chain,
             &conf->vomsdir, &conf->voms_cert_dir,
-            ctx->primary_vo, sizeof(ctx->primary_vo),
-            ctx->vo_list, sizeof(ctx->vo_list));
+            ctx->login.primary_vo, sizeof(ctx->login.primary_vo),
+            ctx->login.vo_list, sizeof(ctx->login.vo_list));
 
         if (voms_rc == NGX_OK) {
             char vo_log[256];
 
-            brix_sanitize_log_string(ctx->vo_list, vo_log, sizeof(vo_log));
+            brix_sanitize_log_string(ctx->login.vo_list, vo_log, sizeof(vo_log));
             ngx_log_error(NGX_LOG_INFO, c->log, 0,
                           "brix: VOMS VO membership: %s", vo_log);
         }
@@ -370,7 +370,7 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
      * session cipher was persisted by parse_x509. begin_delegation sends
      * kXGS_pxyreq (kXR_authmore) and auth completes when kXGC_sigpxy arrives.
      */
-    if (conf->tpc_delegate && !ctx->gsi_deleg_await && ctx->gsi_sess_keylen > 0) {
+    if (conf->tpc_delegate && !ctx->gsi.deleg_await && ctx->gsi.sess_keylen > 0) {
         ngx_int_t drc = brix_gsi_begin_delegation(ctx, c, conf, leaf, chain);
 
         sk_X509_pop_free(chain, X509_free);
@@ -408,10 +408,10 @@ brix_handle_auth(brix_ctx_t *ctx, ngx_connection_t *c)
 
     /* Reject after repeated failures — guards against brute-force attempts
      * and CPU-amplification via costly GSI/OpenSSL/VOMS operations. */
-    if (ctx->auth_fail_count >= BRIX_MAX_AUTH_ATTEMPTS) {
+    if (ctx->login.auth_fail_count >= BRIX_MAX_AUTH_ATTEMPTS) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "brix: %s: auth attempt limit reached, disconnecting",
-                      ctx->login_user);
+                      ctx->login.user);
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "Too many authentication failures");
     }
@@ -422,27 +422,27 @@ brix_handle_auth(brix_ctx_t *ctx, ngx_connection_t *c)
      * not a credential failure, so it must not count toward the attempt limit.
      */
     is_certreq = 0;
-    if (ctx->cur_dlen >= 8 && ctx->payload != NULL) {
-        const u_char *ctype = ctx->cur_body + 12;
+    if (ctx->recv.cur_dlen >= 8 && ctx->recv.payload != NULL) {
+        const u_char *ctype = ctx->recv.cur_body + 12;
         if (ctype[0] == 'g' && ctype[1] == 's' && ctype[2] == 'i') {
             uint32_t step;
-            ngx_memcpy(&step, ctx->payload + 4, 4);
+            ngx_memcpy(&step, ctx->recv.payload + 4, 4);
             is_certreq = (ntohl(step) == (uint32_t) kXGC_certreq);
         } else if (ctype[0] == 'p' && ctype[1] == 'w' && ctype[2] == 'd'
                    && ctype[3] == 0) {
-            /* pwd round 1 is the puk-exchange (ctx->pwd_round still 0). */
-            is_certreq = (ctx->pwd_round == 0);
+            /* pwd round 1 is the puk-exchange (ctx->pwd.round still 0). */
+            is_certreq = (ctx->pwd.round == 0);
         }
     }
 
-    was_auth_done = ctx->auth_done;
+    was_auth_done = ctx->login.auth_done;
     rc = brix_handle_auth_inner(ctx, c);
 
     if (!is_certreq) {
-        if (!was_auth_done && ctx->auth_done) {
-            ctx->auth_fail_count = 0;   /* successful auth resets the counter */
-        } else if (!ctx->auth_done) {
-            ctx->auth_fail_count++;     /* failed or protocol-level challenge */
+        if (!was_auth_done && ctx->login.auth_done) {
+            ctx->login.auth_fail_count = 0;   /* successful auth resets the counter */
+        } else if (!ctx->login.auth_done) {
+            ctx->login.auth_fail_count++;     /* failed or protocol-level challenge */
         }
     }
 

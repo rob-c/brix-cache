@@ -14,7 +14,7 @@
  * buffer accommodates the worst-case expanded sanitized output where each dangerous byte becomes a \xNN escape. */
 
 /* HOW: Six-phase formatting pipeline. Phase 1: Extract client IP from c->addr_text or fallback to '-'.
- * Phase 2: Determine authmethod (gsi/sss/anon) and identity (ctx->dn or '-') based on server config + session state.
+ * Phase 2: Determine authmethod (gsi/sss/anon) and identity (ctx->login.dn or '-') based on server config + session state.
  * Phase 3: Format timestamp using ngx_timeofday() + strftime() in Apache-like "%d/%b/%Y:%H:%M:%S %z" format.
  * Phase 4: Compute request duration from ngx_current_msec - ctx->req_start with floor at zero (clock skew protection).
  * Phase 5: Sanitize ALL fields through brix_sanitize_log_string() — client_ip, identity, verb, path, detail, errmsg.
@@ -23,6 +23,7 @@
  * if access_log_fd == NGX_INVALID_FILE (logging disabled by config). */
 
 #include "core/ngx_brix_module.h"
+#include "core/compat/cstr.h"
 
 #include <arpa/inet.h>
 #include <time.h>
@@ -134,26 +135,25 @@ brix_log_access(brix_ctx_t *ctx, ngx_connection_t *c,
         return;
     }
 
-    if (c->addr_text.len > 0 && c->addr_text.len < sizeof(client_ip)) {
-        ngx_memcpy(client_ip, c->addr_text.data, c->addr_text.len);
-        client_ip[c->addr_text.len] = '\0';
-    } else {
+    if (c->addr_text.len == 0
+        || brix_str_cbuf(client_ip, sizeof(client_ip), &c->addr_text) == NULL)
+    {
         client_ip[0] = '-';
         client_ip[1] = '\0';
     }
 
     if (conf->auth == BRIX_AUTH_GSI) {
         authmethod = "gsi";
-        identity = (ctx->dn[0] != '\0') ? ctx->dn : "-";
+        identity = (ctx->login.dn[0] != '\0') ? ctx->login.dn : "-";
     } else if (conf->auth == BRIX_AUTH_SSS) {
         authmethod = "sss";
-        identity = (ctx->dn[0] != '\0') ? ctx->dn : "-";
+        identity = (ctx->login.dn[0] != '\0') ? ctx->login.dn : "-";
     } else if (conf->auth == BRIX_AUTH_UNIX) {
         authmethod = "unix";
-        identity = (ctx->dn[0] != '\0') ? ctx->dn : "-";
+        identity = (ctx->login.dn[0] != '\0') ? ctx->login.dn : "-";
     } else if (conf->auth == BRIX_AUTH_KRB5) {
         authmethod = "krb5";
-        identity = (ctx->dn[0] != '\0') ? ctx->dn : "-";
+        identity = (ctx->login.dn[0] != '\0') ? ctx->login.dn : "-";
     } else {
         authmethod = "anon";
         identity = "-";

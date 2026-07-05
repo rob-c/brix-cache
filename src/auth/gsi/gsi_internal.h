@@ -24,7 +24,7 @@
 
 /*---- GSI round 1 function postconditions ----
  *
- * WHY: Sets ctx->gsi_dh_key on success — this private DH key is used in round 2 (parse.c) for shared secret derivation via EVP_PKEY_derive().
+ * WHY: Sets ctx->gsi.dh_key on success — this private DH key is used in round 2 (parse.c) for shared secret derivation via EVP_PKEY_derive().
  *      Key is freed after kXGC_cert arrives and signing_key = SHA-256(DH-shared) is computed. */
 
 /*---- GSI round 1 function return values ----
@@ -48,7 +48,7 @@ ngx_int_t brix_gsi_send_cert(brix_ctx_t *ctx, ngx_connection_t *c);
 
 /*---- Token authentication postconditions ----
  *
- * WHY: Sets ctx->auth_done = 1 on success — enables subsequent authenticated operations like file access and TPC transfers. */
+ * WHY: Sets ctx->login.auth_done = 1 on success — enables subsequent authenticated operations like file access and TPC transfers. */
 
 /*---- Token authentication function declaration ----
  *
@@ -68,7 +68,7 @@ ngx_int_t brix_handle_token_auth(brix_ctx_t *ctx, ngx_connection_t *c,
 
 /*---- SSS authentication postconditions ----
  *
- * WHY: Sets ctx->auth_done = 1 on success — enables subsequent authenticated operations like file access and TPC transfers. */
+ * WHY: Sets ctx->login.auth_done = 1 on success — enables subsequent authenticated operations like file access and TPC transfers. */
 
 /*---- SSS authentication function declaration ----
  *

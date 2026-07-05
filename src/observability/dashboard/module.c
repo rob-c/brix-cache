@@ -1,6 +1,7 @@
 #include "dashboard_http.h"
 #include "api_admin.h"   /* Phase 23: brix_admin_dispatch + admin directives */
 #include "core/http/http_headers.h"   /* brix_http_source_offer (AGPL sec.13) */
+#include "core/compat/cstr.h"         /* brix_str_cbuf */
 
 #include <limits.h>
 #include <stdio.h>
@@ -121,11 +122,9 @@ ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_str_value(conf->browse_root, prev->browse_root, "");
     if (conf->browse_root_canon[0] == '\0' && conf->browse_root.len > 0) {
         char tmp[PATH_MAX];
-        if (conf->browse_root.len >= sizeof(tmp)) {
+        if (brix_str_cbuf(tmp, sizeof(tmp), &conf->browse_root) == NULL) {
             return "brix_dashboard_browse_root path too long";
         }
-        ngx_memcpy(tmp, conf->browse_root.data, conf->browse_root.len);
-        tmp[conf->browse_root.len] = '\0';
         if (realpath(tmp, conf->browse_root_canon) == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
                 "brix_dashboard_browse_root \"%V\" is not accessible",
@@ -145,11 +144,9 @@ ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_uint_value(conf->scan_max_files, prev->scan_max_files, 100000);
     if (conf->scan_root_canon[0] == '\0' && conf->scan_root.len > 0) {
         char tmp[PATH_MAX];
-        if (conf->scan_root.len >= sizeof(tmp)) {
+        if (brix_str_cbuf(tmp, sizeof(tmp), &conf->scan_root) == NULL) {
             return "brix_scan_root path too long";
         }
-        ngx_memcpy(tmp, conf->scan_root.data, conf->scan_root.len);
-        tmp[conf->scan_root.len] = '\0';
         if (realpath(tmp, conf->scan_root_canon) == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
                 "brix_scan_root \"%V\" is not accessible", &conf->scan_root);

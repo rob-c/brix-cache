@@ -192,7 +192,7 @@ brix_proxy_gsi_connect_async(brix_proxy_ctx_t *proxy,
             "brix_tap_proxy_auth gsi: a thread_pool is required");
         return NGX_ERROR;
     }
-    if (ctx->gsi_deleg_proxy_pem == NULL || ctx->gsi_deleg_proxy_len == 0) {
+    if (ctx->gsi.deleg_proxy_pem == NULL || ctx->gsi.deleg_proxy_len == 0) {
         ngx_log_error(NGX_LOG_ERR, c->log, 0,
             "xrootd tap proxy: no delegated X.509 proxy from the client "
             "(client must delegate; is the client GSI with delegation?)");
@@ -205,8 +205,8 @@ brix_proxy_gsi_connect_async(brix_proxy_ctx_t *proxy,
     }
     g = task->ctx;
 
-    if (brix_proxy_gsi_write_pem_temp(ctx->gsi_deleg_proxy_pem,
-                                        ctx->gsi_deleg_proxy_len,
+    if (brix_proxy_gsi_write_pem_temp(ctx->gsi.deleg_proxy_pem,
+                                        ctx->gsi.deleg_proxy_len,
                                         g->deleg_path, sizeof(g->deleg_path)) != 0)
     {
         ngx_log_error(NGX_LOG_ERR, c->log, ngx_errno,

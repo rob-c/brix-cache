@@ -114,7 +114,7 @@ ckp_xeq_write(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     }
 
     ctx->files[idx].bytes_written += (size_t) nw;
-    ctx->session_bytes_written    += (size_t) nw;
+    ctx->totals.bytes_written    += (size_t) nw;
     return brix_send_ok(ctx, c, NULL, 0);
 }
 
@@ -237,7 +237,7 @@ ckp_xeq_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     }
 
     ctx->files[idx].bytes_written += total_written;
-    ctx->session_bytes_written    += total_written;
+    ctx->totals.bytes_written    += total_written;
 
     snprintf(detail, sizeof(detail), "xeq_pgwrite %lld+%zu",
              (long long) offset, total_written);
@@ -386,7 +386,7 @@ ckp_xeq_writev(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
                               kXR_IOError, msg);
         }
         ctx->files[idx].bytes_written += (size_t) nw;
-        ctx->session_bytes_written    += (size_t) nw;
+        ctx->totals.bytes_written    += (size_t) nw;
         bytes_written_total           += (size_t) nw;
         data_ptr                      += wlen;
     }
@@ -483,7 +483,7 @@ brix_ckpxeq_body_extra(const u_char *body, uint32_t have,
  *      (sub_dlen bytes per the embedded header; for writev, descriptors then
  *      data, see ckp_xeq_writev) streams after the frame.  The recv framing
  *      (brix_ckpxeq_body_extra) has already appended those streamed bytes
- *      to ctx->payload (ctx->cur_body_extra of them), so the sub-request is
+ *      to ctx->recv.payload (ctx->recv.cur_body_extra of them), so the sub-request is
  *      contiguous here.
  * HOW: Stock-parity validation, then dispatch: 1) embedded streamid must
  *      match the outer header's. 2) dlen must be 24. 3) An embedded chkpoint,
@@ -504,9 +504,9 @@ ckp_xeq(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
     uint16_t       sub_reqid;
 
     /* Stock parity: the embedded request must carry the outer streamid. */
-    if (ctx->payload != NULL && ctx->cur_dlen >= 2
-        && (ctx->payload[0] != ctx->cur_streamid[0]
-            || ctx->payload[1] != ctx->cur_streamid[1]))
+    if (ctx->recv.payload != NULL && ctx->recv.cur_dlen >= 2
+        && (ctx->recv.payload[0] != ctx->recv.cur_streamid[0]
+            || ctx->recv.payload[1] != ctx->recv.cur_streamid[1]))
     {
         BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
         (void) brix_send_error(ctx, c, kXR_ArgInvalid,
@@ -518,7 +518,7 @@ ckp_xeq(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
      * sub-request body streams after it.  This also rejects the legacy
      * private layout (header + body counted inside dlen) the way a stock
      * server does. */
-    if (ctx->cur_dlen != 24 || ctx->payload == NULL) {
+    if (ctx->recv.cur_dlen != 24 || ctx->recv.payload == NULL) {
         BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
         (void) brix_send_error(ctx, c, kXR_ArgInvalid,
                                  "Request length invalid");
@@ -529,10 +529,10 @@ ckp_xeq(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
      *   [0 .. 24)                 embedded ClientRequestHdr
      *   [24 .. 24+cur_body_extra) streamed sub-request body
      * requestid at header offset 2, dlen at offset 20, both big-endian. */
-    sub_hdr     = ctx->payload;
+    sub_hdr     = ctx->recv.payload;
     sub_reqid   = (uint16_t) ntohs(*(const uint16_t *) (sub_hdr + 2));
     sub_dlen    = (uint32_t) ntohl(*(const uint32_t *) (sub_hdr + 20));
-    sub_payload = ctx->payload + 24;
+    sub_payload = ctx->recv.payload + 24;
 
     /* Stock parity: a chkpoint may not embed a chkpoint, and an embedded
      * truncate carries no data (its length rides in the offset field). */
@@ -552,8 +552,8 @@ ckp_xeq(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
      * no resync is possible: error + drop.  Runs BEFORE the checkpoint-
      * active check so a framing violation always takes the link-drop path. */
     if (((sub_reqid == kXR_write || sub_reqid == kXR_pgwrite)
-         && ctx->cur_body_extra != sub_dlen)
-        || (sub_reqid == kXR_writev && ctx->cur_body_extra < sub_dlen))
+         && ctx->recv.cur_body_extra != sub_dlen)
+        || (sub_reqid == kXR_writev && ctx->recv.cur_body_extra < sub_dlen))
     {
         BRIX_OP_ERR(ctx, BRIX_OP_CHKPOINT);
         (void) brix_send_error(ctx, c, kXR_ArgInvalid,
@@ -583,7 +583,7 @@ ckp_xeq(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
 
     case kXR_writev:
         return ckp_xeq_writev(ctx, c, idx, sub_payload, sub_dlen,
-                              ctx->cur_body_extra - sub_dlen);
+                              ctx->recv.cur_body_extra - sub_dlen);
 
     default:
         /* Stock parity: unknown embedded op — error, keep the link (stock's

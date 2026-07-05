@@ -30,12 +30,12 @@ brix_handle_truncate(brix_ctx_t *ctx, ngx_connection_t *c,
 	int64_t  length;
 	char     detail[64];
 
-	xrdw_truncate_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+	xrdw_truncate_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
 	length = req.offset;
 
 	snprintf(detail, sizeof(detail), "%lld", (long long) length);
 
-	if (ctx->cur_dlen > 0) {
+	if (ctx->recv.cur_dlen > 0) {
 		/* Path-based truncate */
 		char resolved[PATH_MAX];
 		char reqpath[BRIX_MAX_PATH + 1];

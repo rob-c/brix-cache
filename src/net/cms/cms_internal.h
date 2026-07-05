@@ -196,7 +196,7 @@ u_char   *ngx_brix_cms_put_string(u_char *p, const u_char *data, size_t len);
 
 /* space.c — filesystem space measurement */
 
-/* Return the path(s) this node exports to the manager: conf->cms_paths if set,
+/* Return the path(s) this node exports to the manager: conf->cms.paths if set,
  * else conf->common.root. Returns the ngx_str_t by value but its .data still
  * borrows conf-owned memory (do not free; valid for the config lifetime). */
 ngx_str_t  ngx_brix_cms_export_paths(ngx_stream_brix_srv_conf_t *conf);
@@ -272,7 +272,7 @@ void  ngx_brix_cms_schedule_retry(ngx_brix_cms_ctx_t *ctx);
  * socket.  Measures bounded silence since the last manager activity / our last
  * heartbeat; on expiry recv.c's ev->timedout path disconnects and reconnects with
  * backoff, so a black-holed/half-open manager is detected and failed over.  No-op
- * when disconnected or when conf->cms_read_timeout is 0 (disabled). */
+ * when disconnected or when conf->cms.read_timeout is 0 (disabled). */
 void  ngx_brix_cms_arm_read_deadline(ngx_brix_cms_ctx_t *ctx);
 
 #endif /* NGX_BRIX_CMS_INTERNAL_H */

@@ -8,7 +8,7 @@
  *       covered request matches the expected opcode and HMAC; the static
  *       brix_verify_sigver_hmac() recomputes the HMAC-SHA256 over the seqno,
  *       request header, and (unless sigver_nodata) the payload, comparing it in
- *       constant time against the client-supplied ctx->sigver_hmac; and
+ *       constant time against the client-supplied ctx->sigver.hmac; and
  *       brix_signing_enforce_level() rejects opcodes that the configured
  *       brix_security_level requires to be signed but were not.
  *
@@ -23,21 +23,21 @@
  *
  * HOW:  kXR_sigver records pending state (expected reqid, supplied HMAC, nodata
  *       flag, seqno) elsewhere; dispatch then calls brix_verify_pending_sigver()
- *       on the next request, which gates on ctx->signing_active, matches
+ *       on the next request, which gates on ctx->sigver.signing_active, matches
  *       sigver_expectrid against cur_reqid, and delegates the cryptographic check
- *       to brix_verify_sigver_hmac() using ctx->signing_key via OpenSSL EVP_MAC
+ *       to brix_verify_sigver_hmac() using ctx->sigver.signing_key via OpenSSL EVP_MAC
  *       (HMAC/SHA256, MAC + ctx cached on ctx for reuse). On success it sets
- *       ctx->verified_signing; brix_signing_enforce_level() later consults that
+ *       ctx->sigver.verified; brix_signing_enforce_level() later consults that
  *       flag plus brix_sigver_opcode_requires() (a level 0-4 policy table) to
  *       decide whether an unsigned opcode is permitted. */
 
 /*
  * Recompute and compare the HMAC-SHA256 over the covered request. Lazily fetches
  * the OpenSSL "HMAC" EVP_MAC and allocates an EVP_MAC_CTX (both cached on ctx for
- * reuse across requests), keys it with the 32-byte ctx->signing_key, and updates
- * it with the big-endian seqno, the request header (ctx->hdr_buf,
- * XRD_REQUEST_HDR_LEN), and — unless ctx->sigver_nodata or there is no payload —
- * the request payload. The digest is compared against ctx->sigver_hmac with
+ * reuse across requests), keys it with the 32-byte ctx->sigver.signing_key, and updates
+ * it with the big-endian seqno, the request header (ctx->recv.hdr_buf,
+ * XRD_REQUEST_HDR_LEN), and — unless ctx->sigver.nodata or there is no payload —
+ * the request payload. The digest is compared against ctx->sigver.hmac with
  * CRYPTO_memcmp (constant time). Returns BRIX_DISPATCH_CONTINUE on a match;
  * otherwise sends kXR_ServerError on a computation failure or kXR_NotAuthorized
  * on a digest mismatch and returns that send's result.
@@ -50,28 +50,28 @@ brix_verify_sigver_hmac(brix_ctx_t *ctx, ngx_connection_t *c)
     /* Shared HMAC (libxrdproto gsi_core) — recomputes over the SAME covered bytes
      * the client signs: seqno_be(8) || request header(24) || (payload unless the
      * nodata flag). Single source of the covered-byte layout. */
-    if (!brix_gsi_sigver_hmac(ctx->signing_key, ctx->sigver_seqno,
-                                ctx->hdr_buf, ctx->payload, ctx->cur_dlen,
-                                ctx->sigver_nodata, computed))
+    if (!brix_gsi_sigver_hmac(ctx->sigver.signing_key, ctx->sigver.seqno,
+                                ctx->recv.hdr_buf, ctx->recv.payload, ctx->recv.cur_dlen,
+                                ctx->sigver.nodata, computed))
     {
         ngx_log_error(NGX_LOG_ERR, c->log, 0,
                       "brix: sigver HMAC calculation failed for reqid=%d",
-                      (int) ctx->cur_reqid);
+                      (int) ctx->recv.cur_reqid);
         return brix_send_error(ctx, c, kXR_ServerError,
                                  "signature verification failed");
     }
 
-    if (CRYPTO_memcmp(computed, ctx->sigver_hmac, 32) != 0) {
+    if (CRYPTO_memcmp(computed, ctx->sigver.hmac, 32) != 0) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "brix: sigver HMAC mismatch for reqid=%d",
-                      (int) ctx->cur_reqid);
+                      (int) ctx->recv.cur_reqid);
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "signature verification failed");
     }
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: sigver verified reqid=%d",
-                   (int) ctx->cur_reqid);
+                   (int) ctx->recv.cur_reqid);
 
     return BRIX_DISPATCH_CONTINUE;
 }
@@ -88,17 +88,17 @@ brix_verify_pending_sigver(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     ngx_int_t rc;
 
-    ctx->verified_signing = 0;
+    ctx->sigver.verified = 0;
 
-    if (ctx->sigver_pending && ctx->cur_reqid != kXR_sigver) {
-        ctx->sigver_pending = 0;
+    if (ctx->sigver.pending && ctx->recv.cur_reqid != kXR_sigver) {
+        ctx->sigver.pending = 0;
 
-        if (ctx->signing_active) {
-            if (ctx->sigver_expectrid != ctx->cur_reqid) {
+        if (ctx->sigver.signing_active) {
+            if (ctx->sigver.expectrid != ctx->recv.cur_reqid) {
                 ngx_log_error(NGX_LOG_WARN, c->log, 0,
                               "brix: sigver expectrid=%d but got reqid=%d",
-                              (int) ctx->sigver_expectrid,
-                              (int) ctx->cur_reqid);
+                              (int) ctx->sigver.expectrid,
+                              (int) ctx->recv.cur_reqid);
                 /* kXR_InvalidRequest: the request is malformed or not allowed now */
                 return brix_send_error(ctx, c, kXR_InvalidRequest,
                                          "signed request opcode mismatch");
@@ -109,10 +109,10 @@ brix_verify_pending_sigver(brix_ctx_t *ctx, ngx_connection_t *c)
                 return rc;
             }
 
-            ctx->verified_signing = 1;
+            ctx->sigver.verified = 1;
         }
-    } else if (ctx->cur_reqid == kXR_sigver) {
-        ctx->sigver_pending = 0;
+    } else if (ctx->recv.cur_reqid == kXR_sigver) {
+        ctx->sigver.pending = 0;
     }
 
     return BRIX_DISPATCH_CONTINUE;
@@ -145,21 +145,21 @@ ngx_int_t
 brix_signing_enforce_level(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
 {
-    if (!ctx->signing_active || conf->security_level == 0) {
+    if (!ctx->sigver.signing_active || conf->security_level == 0) {
         return BRIX_DISPATCH_CONTINUE;
     }
 
-    if (brix_sigver_opcode_requires(ctx->cur_reqid, conf->security_level)) {
-        if (!ctx->verified_signing) {
+    if (brix_sigver_opcode_requires(ctx->recv.cur_reqid, conf->security_level)) {
+        if (!ctx->sigver.verified) {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
                           "brix: unsigned request %d rejected by security_level=%d",
-                          (int) ctx->cur_reqid, (int) conf->security_level);
+                          (int) ctx->recv.cur_reqid, (int) conf->security_level);
             return brix_send_error(ctx, c, kXR_NotAuthorized,
                                      "request signing required for this opcode");
         }
 
         /* Pedantic mode: also enforce that the signature covered the payload. */
-        if (conf->security_level >= 4 && ctx->sigver_nodata && ctx->cur_dlen > 0) {
+        if (conf->security_level >= 4 && ctx->sigver.nodata && ctx->recv.cur_dlen > 0) {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
                           "brix: pedantic signing rejection: sigver nodata flag set but payload present");
             return brix_send_error(ctx, c, kXR_NotAuthorized,

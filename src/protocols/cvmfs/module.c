@@ -57,24 +57,7 @@ ngx_http_brix_cvmfs_create_loc_conf(ngx_conf_t *cf)
 
     BRIX_PCALLOC_OR_RETURN(c, cf->pool, sizeof(*c), NULL);
 
-    c->common.enable      = NGX_CONF_UNSET;
-    c->common.allow_write = NGX_CONF_UNSET;
-    c->common.read_only   = NGX_CONF_UNSET;
-    c->common.compress    = NGX_CONF_UNSET;
-    brix_pmark_conf_init(&c->common.pmark);
-    /* phase-64 tier grammar scalars (str/array fields stay zeroed by pcalloc) */
-    c->common.stage_enable      = NGX_CONF_UNSET;
-    c->common.stage_flush_async = NGX_CONF_UNSET_UINT;
-    c->common.cache_max_object  = NGX_CONF_UNSET;
-    c->common.cache_evict_at    = NGX_CONF_UNSET_UINT;
-    c->common.cache_evict_to    = NGX_CONF_UNSET_UINT;
-    c->common.cache_meta_mode   = NGX_CONF_UNSET_UINT;
-    c->common.cache_batch_cinfo = NGX_CONF_UNSET_UINT;
-    c->common.cache_index_cache = NGX_CONF_UNSET_SIZE;
-    c->common.cache_slice_size  = NGX_CONF_UNSET_SIZE;
-    c->common.cache_verify_mode = NGX_CONF_UNSET_UINT;
-    c->common.pblock_block_size = NGX_CONF_UNSET_SIZE;
-    c->common.rootfd            = -1;
+    ngx_http_brix_shared_init(&c->common);
 
     c->cvmfs.enable         = NGX_CONF_UNSET;
     c->cvmfs.manifest_ttl   = NGX_CONF_UNSET;
@@ -320,51 +303,11 @@ ngx_http_brix_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_http_brix_cvmfs_loc_conf_t *prev = parent;
     ngx_http_brix_cvmfs_loc_conf_t *conf = child;
 
-    ngx_conf_merge_value(conf->common.enable,      prev->common.enable,      0);
-    ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
-    ngx_conf_merge_value(conf->common.read_only,   prev->common.read_only,   0);
-    ngx_conf_merge_value(conf->common.compress,    prev->common.compress,    0);
-    ngx_conf_merge_str_value(conf->common.root,    prev->common.root,        "");
-    ngx_conf_merge_str_value(conf->common.thread_pool_name,
-                             prev->common.thread_pool_name, "");
-    ngx_conf_merge_str_value(conf->common.storage_backend,
-                             prev->common.storage_backend, "");
-    ngx_conf_merge_str_value(conf->common.storage_credential,
-                             prev->common.storage_credential, "");
-    ngx_conf_merge_size_value(conf->common.pblock_block_size,
-                              prev->common.pblock_block_size, 0);
-    /* phase-64 tier grammar */
-    ngx_conf_merge_str_value(conf->common.cache_store, prev->common.cache_store,
-                             "");
-    if (conf->common.cache_store_args == NULL) {
-        conf->common.cache_store_args = prev->common.cache_store_args;
-    }
-    ngx_conf_merge_value(conf->common.stage_enable, prev->common.stage_enable, 0);
-    ngx_conf_merge_str_value(conf->common.stage_store, prev->common.stage_store,
-                             "");
-    if (conf->common.stage_store_args == NULL) {
-        conf->common.stage_store_args = prev->common.stage_store_args;
-    }
-    ngx_conf_merge_uint_value(conf->common.stage_flush_async,
-                              prev->common.stage_flush_async, 0);
-    ngx_conf_merge_off_value(conf->common.cache_max_object,
-                             prev->common.cache_max_object, 0);
-    ngx_conf_merge_uint_value(conf->common.cache_evict_at,
-                              prev->common.cache_evict_at, 90);
-    ngx_conf_merge_uint_value(conf->common.cache_evict_to,
-                              prev->common.cache_evict_to, 80);
-    ngx_conf_merge_uint_value(conf->common.cache_meta_mode,
-                              prev->common.cache_meta_mode, 0);
-    ngx_conf_merge_uint_value(conf->common.cache_batch_cinfo,
-                              prev->common.cache_batch_cinfo, 2);
-    ngx_conf_merge_size_value(conf->common.cache_index_cache,
-                              prev->common.cache_index_cache, 0);
-    ngx_conf_merge_size_value(conf->common.cache_slice_size,
-                              prev->common.cache_slice_size, 0);
-    ngx_conf_merge_uint_value(conf->common.cache_verify_mode,
-                              prev->common.cache_verify_mode,
-                              BRIX_CACHE_VERIFY_OFF);
-    if (brix_pmark_conf_merge(cf, &prev->common.pmark, &conf->common.pmark)
+    /* Shared common.* preamble. Two deliberate gains over the old manual
+     * block: read_only now forces allow_write off (hardening; cvmfs is a
+     * read path anyway), and common.ktls merges to its default — inert here
+     * (nothing under protocols/cvmfs/ reads it). */
+    if (ngx_http_brix_shared_merge(cf, &prev->common, &conf->common, "")
         != NGX_CONF_OK)
     {
         return NGX_CONF_ERROR;
@@ -800,231 +743,11 @@ static ngx_conf_enum_t  brix_cvmfs_geo_answer_enum[] = {
 
 static ngx_command_t ngx_http_brix_cvmfs_commands[] = {
 
-    { ngx_string("brix_cvmfs_origin_select"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_enum_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.origin_select),
-      brix_cvmfs_select_enum },
+    /* ---- origin resilience directives (split into directives_resilience.inc) ---- */
+#include "directives_resilience.inc"
 
-    { ngx_string("brix_cvmfs_origin_coords"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE2,
-      ngx_http_brix_cvmfs_set_coords,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      0,
-      NULL },
-
-    { ngx_string("brix_cvmfs_here"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.here),
-      NULL },
-
-    { ngx_string("brix_cvmfs_client_hold"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_sec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.client_hold),
-      NULL },
-
-    { ngx_string("brix_cvmfs_fill_max_life"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_sec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.fill_max_life),
-      NULL },
-
-    { ngx_string("brix_cvmfs_rtt_interval"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_sec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.rtt_interval),
-      NULL },
-
-    /* ---- upstream stall detection + force-through retry (2026-07-03) ---- */
-
-    { ngx_string("brix_cvmfs_origin_connect_timeout"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_sec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.origin_connect_timeout),
-      NULL },
-
-    { ngx_string("brix_cvmfs_origin_stall_timeout"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_sec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.origin_stall_timeout),
-      NULL },
-
-    { ngx_string("brix_cvmfs_origin_stall_bytes"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.origin_stall_bytes),
-      NULL },
-
-    { ngx_string("brix_cvmfs_origin_attempt_timeout"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_sec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.origin_attempt_timeout),
-      NULL },
-
-    { ngx_string("brix_cvmfs_shared_cache"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.shared_cache),
-      NULL },
-
-    { ngx_string("brix_cvmfs_unified_origin"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.unified_origin),
-      NULL },
-
-    { ngx_string("brix_cvmfs_origin_reuse_conn"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.origin_reuse_conn),
-      NULL },
-
-    { ngx_string("brix_cvmfs_fill_retry_policy"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_enum_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.fill_retry_policy),
-      brix_cvmfs_retry_policy_enum },
-
-    /* ---- server-side geo answering (2026-07-03) ---- */
-
-    { ngx_string("brix_cvmfs_geo_answer"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_enum_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.geo_answer),
-      brix_cvmfs_geo_answer_enum },
-
-    { ngx_string("brix_cvmfs_geo_cache_ttl"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_sec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.geo_cache_ttl),
-      NULL },
-
-    { ngx_string("brix_cvmfs_geo_max_servers"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.geo_max_servers),
-      NULL },
-
-    /* ---- scvmfs:// (T22, EXPERIMENTAL) — the secure layer ON cvmfs ---- */
-
-    { ngx_string("brix_scvmfs"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, scvmfs),
-      NULL },
-
-    { ngx_string("brix_scvmfs_authz"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_enum_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, scvmfs_authz),
-      brix_scvmfs_authz_enum },
-
-    { ngx_string("brix_scvmfs_token_issuers"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, scvmfs_token_issuers),
-      NULL },
-
-    { ngx_string("brix_cache_verify"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_enum_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, common.cache_verify_mode),
-      brix_cvmfs_verify_enum },
-
-    { ngx_string("brix_cvmfs"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_http_brix_cvmfs_set,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.enable),
-      NULL },
-
-    { ngx_string("brix_cvmfs_manifest_ttl"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_sec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.manifest_ttl),
-      NULL },
-
-    { ngx_string("brix_cvmfs_negative_ttl"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_sec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.negative_ttl),
-      NULL },
-
-    { ngx_string("brix_cvmfs_quarantine_dir"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.quarantine_dir),
-      NULL },
-
-    { ngx_string("brix_cvmfs_upstream_allow"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_1MORE,
-      cvmfs_conf_upstream_allow,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.upstream_allow),
-      NULL },
-
-    { ngx_string("brix_cvmfs_upstream_max"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.upstream_max),
-      NULL },
-
-    { ngx_string("brix_cvmfs_trace"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.trace),
-      NULL },
-
-    /* ---- per-protocol tier directives over the shared preamble ---- */
-
-    { ngx_string("brix_cvmfs_storage_backend"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, common.storage_backend),
-      NULL },
-
-    { ngx_string("brix_cvmfs_cache_store"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1234,
-      brix_conf_set_store_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, common.cache_store),
-      (void *) offsetof(ngx_http_brix_cvmfs_loc_conf_t,
-                        common.cache_store_args) },
-
-    { ngx_string("brix_cvmfs_thread_pool"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, common.thread_pool_name),
-      NULL },
+    /* ---- cvmfs core + scvmfs + tier directives (split into directives_core.inc) ---- */
+#include "directives_core.inc"
 
     ngx_null_command
 };

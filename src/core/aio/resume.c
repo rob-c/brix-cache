@@ -25,8 +25,8 @@ brix_aio_restore_stream(brix_ctx_t *ctx, const u_char streamid[2])
         return 0;
     }
 
-    ctx->cur_streamid[0] = streamid[0];
-    ctx->cur_streamid[1] = streamid[1];
+    ctx->recv.cur_streamid[0] = streamid[0];
+    ctx->recv.cur_streamid[1] = streamid[1];
 
     return 1;
 }
@@ -47,7 +47,7 @@ brix_aio_restore_request(brix_ctx_t *ctx, const u_char streamid[2])
     }
 
     ctx->state = XRD_ST_REQ_HEADER;
-    ctx->hdr_pos = 0;
+    ctx->recv.hdr_pos = 0;
 
     return 1;
 }

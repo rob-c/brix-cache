@@ -30,7 +30,7 @@ typedef struct brix_proxy_ctx_s brix_proxy_ctx_t;
  *
  * Called from handshake/dispatch.c immediately after session opcodes are
  * handled but before the local read/write dispatchers, whenever
- * conf->proxy_enable is set and ctx->logged_in is true.
+ * conf->proxy.enable is set and ctx->login.logged_in is true.
  *
  * Returns NGX_OK / NGX_ERROR / NGX_DONE (never BRIX_DISPATCH_CONTINUE).
  */

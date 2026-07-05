@@ -255,7 +255,7 @@ brix_resolve_op_path(brix_ctx_t *ctx, ngx_connection_t *c,
 {
     ngx_int_t rc;
 
-    if (ctx->payload == NULL || ctx->cur_dlen == 0) {
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0) {
         brix_log_access(ctx, c, op_name, "-", "-",
                           0, kXR_ArgMissing, "no path given", 0);
         BRIX_OP_ERR(ctx, op_id);
@@ -264,7 +264,7 @@ brix_resolve_op_path(brix_ctx_t *ctx, ngx_connection_t *c,
         return NGX_DONE;
     }
 
-    if (!brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+    if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
                              reqpath, reqpath_sz, 1)) {
         brix_log_access(ctx, c, op_name, "-", "-",
                           0, kXR_ArgInvalid, "invalid path payload", 0);

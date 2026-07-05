@@ -48,8 +48,8 @@ brix_cache_open_or_fill(brix_ctx_t *ctx, ngx_connection_t *c,
     t->c = c;
     t->ctx = ctx;
     t->conf = conf;
-    t->streamid[0] = ctx->cur_streamid[0];
-    t->streamid[1] = ctx->cur_streamid[1];
+    t->streamid[0] = ctx->recv.cur_streamid[0];
+    t->streamid[1] = ctx->recv.cur_streamid[1];
     t->options = options;
     t->mode_bits = mode_bits;
 
@@ -222,8 +222,8 @@ brix_cache_open_fill_offload(brix_ctx_t *ctx, ngx_connection_t *c,
     t->c           = c;
     t->ctx         = ctx;
     t->conf        = conf;
-    t->streamid[0] = ctx->cur_streamid[0];
-    t->streamid[1] = ctx->cur_streamid[1];
+    t->streamid[0] = ctx->recv.cur_streamid[0];
+    t->streamid[1] = ctx->recv.cur_streamid[1];
     t->options     = options;
     t->mode_bits   = mode_bits;
     t->source_inst = inst;                 /* the composed sd_cache instance */

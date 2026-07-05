@@ -1,6 +1,7 @@
 #include "proxy_internal.h"
 #include "protocols/root/session/registry.h"
 #include "protocols/root/protocol/frame_hdr.h"   /* shared kXR_wait seconds parse (libxrdproto) */
+#include "core/compat/cstr.h"
 
 /*
  * WHAT: Relay upstream XRootD responses to the client, handling special cases:
@@ -229,9 +230,8 @@ brix_proxy_relay_try_redirect(brix_proxy_ctx_t *proxy, ngx_connection_t *c,
             proxy->redirect_host.data = ngx_alloc(proxy->redirect_host.len + 1,
                                                  c->log);
             if (proxy->redirect_host.data != NULL) {
-                ngx_memcpy(proxy->redirect_host.data, target,
-                           proxy->redirect_host.len);
-                proxy->redirect_host.data[proxy->redirect_host.len] = '\0';
+                (void) brix_cbuf_copy((char *) proxy->redirect_host.data,
+                    proxy->redirect_host.len + 1, target, proxy->redirect_host.len);
                 {
                     char    *endp;
                     long     pval;

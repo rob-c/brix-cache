@@ -59,8 +59,8 @@ brix_upstream_abort(brix_upstream_t *up, const char *reason)
  *       Restore client ctx state: set cur_streamid = sid (same stream), state = XRD_ST_REQ_HEADER
  */
 
-    ctx->cur_streamid[0] = sid[0];
-    ctx->cur_streamid[1] = sid[1];
+    ctx->recv.cur_streamid[0] = sid[0];
+    ctx->recv.cur_streamid[1] = sid[1];
     ctx->state = XRD_ST_REQ_HEADER;
 
     brix_send_error(ctx, c, kXR_ServerError, reason);

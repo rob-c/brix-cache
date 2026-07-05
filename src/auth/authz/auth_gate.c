@@ -33,7 +33,7 @@ brix_acc_gate_engine(brix_ctx_t *ctx, ngx_connection_t *c,
     const char           *name, *host;
     const char           *vorg = "", *role = "", *grp = "";
 
-    if (conf->acc_tables == NULL) {
+    if (conf->acc.tables == NULL) {
         return NGX_ERROR;   /* xrdacc selected but authdb failed to load */
     }
     if (path == NULL) {
@@ -58,20 +58,20 @@ brix_acc_gate_engine(brix_ctx_t *ctx, ngx_connection_t *c,
         role = brix_identity_acc_role_cstr(ctx->identity);
         grp  = brix_identity_acc_group_cstr(ctx->identity);
     } else {
-        name = (ctx->dn[0] != '\0') ? ctx->dn : "";
-        vorg = ctx->vo_list;        /* best-effort when no structured identity */
+        name = (ctx->login.dn[0] != '\0') ? ctx->login.dn : "";
+        vorg = ctx->login.vo_list;        /* best-effort when no structured identity */
     }
-    host = (ctx->peer_ip[0] != '\0') ? ctx->peer_ip : "?";
+    host = (ctx->login.peer_ip[0] != '\0') ? ctx->login.peer_ip : "?";
 
     /* Opt-in reverse DNS for `h <host>`/`h .domain` rules: resolve the peer to
      * a hostname once per connection (cached on ctx), falling back to the IP
      * when there is no PTR record.  Off by default (XrdAccAccess::Resolve). */
-    if (conf->acc_resolve_hosts) {
-        if (!ctx->acc_host_done) {
+    if (conf->acc.resolve_hosts) {
+        if (!ctx->login.acc_host_done) {
             char hbuf[256];
             const char *h;
 
-            ctx->acc_host_done = 1;
+            ctx->login.acc_host_done = 1;
             h = brix_acc_resolve_peer(c->sockaddr, c->socklen,
                                         hbuf, sizeof(hbuf));
             if (h != NULL) {
@@ -79,12 +79,12 @@ brix_acc_gate_engine(brix_ctx_t *ctx, ngx_connection_t *c,
                 char   *dup = ngx_pnalloc(c->pool, n + 1);
                 if (dup != NULL) {
                     ngx_memcpy(dup, h, n + 1);
-                    ctx->acc_host = dup;
+                    ctx->login.acc_host = dup;
                 }
             }
         }
-        if (ctx->acc_host != NULL) {
-            host = ctx->acc_host;
+        if (ctx->login.acc_host != NULL) {
+            host = ctx->login.acc_host;
         }
     }
 
@@ -95,9 +95,9 @@ brix_acc_gate_engine(brix_ctx_t *ctx, ngx_connection_t *c,
         return NGX_ERROR;
     }
 
-    privs = brix_acc_access(conf->acc_tables, ent, path, op);
+    privs = brix_acc_access(conf->acc.tables, ent, path, op);
 
-    brix_acc_audit(c->log, conf->acc_audit, privs != BRIX_ACC_PRIV_NONE,
+    brix_acc_audit(c->log, conf->acc.audit, privs != BRIX_ACC_PRIV_NONE,
                      op_name, name, host, path);
 
     return (privs != BRIX_ACC_PRIV_NONE) ? NGX_OK : NGX_ERROR;
@@ -120,7 +120,7 @@ brix_authz_check(brix_ctx_t *ctx, ngx_connection_t *c,
     const char *resolved, const char *op_name, int auth_level,
     brix_acc_op_t aop)
 {
-    if (conf->acc_format == BRIX_AUTHDB_FORMAT_XRDACC) {
+    if (conf->acc.format == BRIX_AUTHDB_FORMAT_XRDACC) {
         return brix_acc_gate_engine(ctx, c, conf,
                                       (reqpath != NULL) ? reqpath : resolved,
                                       op_name, auth_level, aop);
@@ -150,8 +150,8 @@ brix_auth_gate_cache_key(u_char key[32], int auth_level, int need_write,
 {
     u_char       buf[3 + 64 + 1 + PATH_MAX + PATH_MAX + 512 + 512 + 1024 + 8];
     size_t       n = 0;
-    const char  *dn      = ctx->dn;
-    const char  *vo      = ctx->vo_list;
+    const char  *dn      = ctx->login.dn;
+    const char  *vo      = ctx->login.vo_list;
     const char  *scope   = "";
     size_t       scope_len = 0;
     size_t       hl, rl, ql, dl, vl;
@@ -219,14 +219,14 @@ brix_auth_gate_op(brix_ctx_t *ctx, ngx_connection_t *c,
     u_char           ac_key[32];
     int              ac_have_key = 0;
     int              is_xrdacc =
-                         (conf->acc_format == BRIX_AUTHDB_FORMAT_XRDACC);
+                         (conf->acc.format == BRIX_AUTHDB_FORMAT_XRDACC);
     /* xrdacc verdicts also depend on the operation and peer host, so fold both
      * into the key (native passes AOP_ANY + "" → its keys are unchanged).  OS
      * group membership — the one remaining xrdacc input — is bounded by the
      * gidlifetime TTL, matching the auth-cache TTL, so a cached entry cannot
      * outlive a group change by more than the configured window. */
     brix_acc_op_t  key_aop  = is_xrdacc ? aop : BRIX_AOP_ANY;
-    const char      *key_host = is_xrdacc ? ctx->peer_ip : "";
+    const char      *key_host = is_xrdacc ? ctx->login.peer_ip : "";
 
     /* auth-result cache: fast path (E2: lockless L1, then SHM L2) */    if (conf->auth_cache.kv != NULL) {
         ac_have_key = brix_auth_gate_cache_key(ac_key, auth_level,

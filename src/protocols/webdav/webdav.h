@@ -433,384 +433,41 @@ char     *webdav_conf_revoke_cache(ngx_conf_t *cf, ngx_command_t *cmd,
 extern const brix_http_operation_t brix_webdav_operations[];
 extern const ngx_uint_t brix_webdav_operations_count;
 
-/* Path, URI, XML, and logging utilities */
-/* Canonical helper (see HELPERS): url-decode r->uri, strip trailing slashes,
- * and resolve+confine under root_canon into out[outsz].  NGX_OK, else an
- * NGX_HTTP_* status (404/403/414/500/400-on-NUL). */
-ngx_int_t ngx_http_brix_webdav_resolve_path(ngx_http_request_t *r,
-    const char *root_canon, char *out, size_t outsz);
-/* Resolve an already-decoded Destination path (COPY/MOVE target) under
- * root_canon.  Same as above but maps a non-existent parent to
- * NGX_HTTP_CONFLICT (409) per RFC 4918.  op_label/log are advisory. */
-ngx_int_t webdav_resolve_destination_path(ngx_log_t *log, const char *op_label,
-    const char *root_canon, const char *decoded_path, char *out, size_t outsz);
-/* resolve_path + stat in one call: fills path[pathsz] and, if sb != NULL,
- * sb (via the VFS layer).  NGX_OK; 404 if missing, 500 on other stat error,
- * or the resolve error.  sb fields beyond size/mtime/ctime/mode/ino are zeroed. */
-ngx_int_t webdav_resolve_stat(ngx_http_request_t *r, char *path,
-    size_t pathsz, struct stat *sb);
-/* Percent-decode src[src_len] into NUL-terminated dst[dst_sz], rejecting
- * embedded NULs.  NGX_OK / 414 overflow / 400 NUL byte / 500. */
-ngx_int_t webdav_urldecode(const u_char *src, size_t src_len,
-    char *dst, size_t dst_sz);
-/* Strip a leading scheme://authority from a Destination header value; on NGX_OK
- * *path_out points INTO dest_data (no copy) and *path_len_out is its length.
- * NGX_HTTP_BAD_REQUEST if the path part would be empty. */
-ngx_int_t webdav_destination_extract_path(const u_char *dest_data,
-    size_t dest_len, const u_char **path_out, size_t *path_len_out);
-/* XML-escape a C string for response bodies (& < > " ' as entities, control
- * bytes as %XX).  Result allocated from `pool`; NULL on OOM or NULL args. */
-char *webdav_escape_xml_text(ngx_pool_t *pool, const char *src);
-/* Sole CORS entry point (see HELPERS): emit Access-Control-* per the request
- * Origin and config.  Always NGX_OK (no/denied Origin folded to OK) except
- * NGX_ERROR on allocation failure. */
-ngx_int_t webdav_add_cors_headers(ngx_http_request_t *r);
-/* Lock xattr encode/decode/read/write/delete (prop_xattr.c) */
-/* Serialise a lock entry to the pipe-delimited xattr value form in out[outsz].
- * NGX_OK, or NGX_ERROR if it would not fit. */
-ngx_int_t webdav_lock_xattr_encode(const webdav_lock_xattr_t *e,
-    char *out, size_t outsz);
-/* Parse a stored lock value raw[rawlen] back into *e.  NGX_OK; NGX_DECLINED if
- * empty/oversized or no token field was found (not a valid lock record). */
-ngx_int_t webdav_lock_xattr_decode(const char *raw, size_t rawlen,
-    webdav_lock_xattr_t *e);
-/* setxattr the encoded lock onto `path`.  Pass flags=XATTR_CREATE for atomic
- * cross-worker lock acquisition: NGX_DECLINED means another worker won the race
- * (EEXIST -> caller maps to 423).  NGX_OK / NGX_ERROR otherwise.  Takes the
- * request (not just a log) so the lock xattr is written as the mapped user under
- * impersonation (root_canon is derived from the request's loc conf). */
-ngx_int_t webdav_lock_xattr_write(ngx_http_request_t *r, const char *path,
-    const webdav_lock_xattr_t *e, int flags);
-/* getxattr+decode the lock on `path`.  NGX_OK; NGX_DECLINED if no lock present
- * (or path gone); NGX_ERROR on a real getxattr fault. */
-ngx_int_t webdav_lock_xattr_read(ngx_http_request_t *r, const char *path,
-    webdav_lock_xattr_t *e);
-/* removexattr the lock on `path`.  Idempotent: NGX_OK even if absent; NGX_ERROR
- * only on an unexpected fault. */
-ngx_int_t webdav_lock_xattr_delete(ngx_http_request_t *r, const char *path);
+/* Path / URI / XML request-shaping utilities: confined path + Destination
+ * resolvers, resolve+stat, percent-decode, Destination scheme strip, XML escape,
+ * and the sole CORS entry point — split into webdav_path.h (included after the
+ * shared request/config types). */
+#include "webdav_path.h"
+/* WebDAV LOCK: xattr-backed lock record primitives, startup sweep, path/tree
+ * lock checks, and lockdiscovery/supportedlock body builders — split into
+ * webdav_lock.h (included after the shared lock-record/request types). */
+#include "webdav_lock.h"
+/* WebDAV per-request metric helpers (method-slot classify, request/response
+ * counters, status-only + finalise tails) — split into webdav_metrics.h
+ * (included after the shared request types). */
+#include "webdav_metrics.h"
 
-/*
- * webdav_lock_startup_sweep — recursively remove every persisted lock xattr
- * (WEBDAV_LOCK_XATTR_KEY) under root_canon.  Used at startup when
- * brix_webdav_lock_startup_sweep is on, to restore ephemeral lock semantics.
- * Returns the number of lock xattrs removed.
- */
-ngx_uint_t webdav_lock_startup_sweep(ngx_pool_t *pool, ngx_log_t *log,
-    const char *root_canon);
+/* Authentication (webdav_auth.h) */
+#include "webdav_auth.h"
 
-/* Walk path -> export root checking each level's lock xattr (O(path_depth)
- * getxattr calls); expired locks are lazily deleted in passing.  NGX_HTTP_LOCKED
- * if an unexpired lock not matched by the request If header covers `path`; 500
- * on a getxattr fault; NGX_OK otherwise.  need_write is currently advisory. */
-ngx_int_t webdav_check_locks(ngx_http_request_t *r, const char *path,
-    int need_write);
-/* webdav_check_locks() plus, when `path` is a directory, a recursive descendant
- * scan (opendir walk).  Use for DELETE/COPY/MOVE on collections so a lock on any
- * child blocks the op.  Same return codes as webdav_check_locks(). */
-ngx_int_t webdav_check_locks_tree(ngx_http_request_t *r, const char *path);
-/* Append <D:lockdiscovery> for `path` to the head/tail chain (r->pool), reading
- * the live lock xattr (empty element if none/expired; owner XML-escaped; expired
- * locks lazily deleted).  NGX_OK / NGX_ERROR on chain alloc failure. */
-ngx_int_t webdav_lock_append_discovery(ngx_http_request_t *r, const char *path,
-    ngx_chain_t **head, ngx_chain_t **tail);
-/* Append the static <D:supportedlock> element (exclusive+shared write) to the
- * head/tail chain (r->pool).  NGX_OK / NGX_ERROR on chain alloc failure. */
-ngx_int_t webdav_lock_append_supported(ngx_http_request_t *r,
-    ngx_chain_t **head, ngx_chain_t **tail);
-/* Classify the request method into the WebDAV metric slot (the requests_total
- * index); BRIX_WEBDAV_METHOD_OTHER for unrecognised verbs. */
-ngx_uint_t webdav_metrics_method(ngx_http_request_t *r);
-/* Count this request's arrival (requests_total[method]). */
-void webdav_metrics_request(ngx_http_request_t *r);
-/* Record the outcome (responses_total[method][status-class] + unified op),
- * deriving the status from rc/headers_out.  No-op when rc == NGX_DONE (the
- * request already accounted for itself). */
-void webdav_metrics_response(ngx_http_request_t *r, ngx_int_t rc);
-/* webdav_metrics_response(r, rc) then return rc — convenience for handler tails. */
-ngx_int_t webdav_metrics_return(ngx_http_request_t *r, ngx_int_t rc);
-/* Emit a status-only (empty-body) response — set status + zero content length,
- * send the header, and finalise via the send_special result (records response
- * metrics).  Finalises the request: must be the caller's last action on `r`.
- * Set any extra headers (e.g. Location for 201) before calling. */
-void webdav_send_status_only(ngx_http_request_t *r, ngx_uint_t status);
-/* webdav_metrics_response(r, rc) then ngx_http_finalize_request(r, rc) — for
- * async/self-finalising paths. */
-void webdav_metrics_finalize_request(ngx_http_request_t *r, ngx_int_t rc);
+/* WebDAV HTTP-method handlers (OPTIONS/HEAD/GET/PUT/DELETE/MKCOL/PROPFIND/
+ * PROPPATCH/SEARCH/ACL/MOVE/COPY/LOCK/UNLOCK), macaroon token endpoints, and
+ * the XrdDig entry point — split into webdav_methods.h (included after the
+ * shared request/config types). */
+#include "webdav_methods.h"
 
-/* Authentication */
-/* Allocate the global SSL/SSL_SESSION ex_data indices used to cache TLS auth
- * results; call once at postconfig.  NGX_OK / NGX_ERROR. */
-ngx_int_t webdav_auth_init_ssl_indices(ngx_log_t *log);
-/* Build an X509_STORE from conf->cadir/cafile/crl (no proxy-cert chains for
- * plain WebDAV x509).  Returns the store (caller/postconfig owns it) or NULL;
- * *crl_count_out receives the number of CRLs loaded. */
-X509_STORE *webdav_build_ca_store(ngx_log_t *log,
-    ngx_http_brix_webdav_loc_conf_t *conf, int *crl_count_out);
-/* Auth gate (see HELPERS): verify the peer's GSI/X.509 (proxy) cert against
- * conf->ca_store, allocating+caching the req ctx and identity.  Result is
- * memoised per TLS session.  NGX_OK; 403 (no/invalid cert or non-TLS); 500. */
-ngx_int_t webdav_verify_proxy_cert(ngx_http_request_t *r,
-    ngx_http_brix_webdav_loc_conf_t *conf);
-/* Auth gate (see HELPERS): validate the Bearer token (JWKS JWT or macaroon,
- * with old-secret grace-period fallback) and stash claims/scopes in the req
- * ctx.  NGX_OK; NGX_DECLINED if no token/keys configured (try other auth);
- * 401 invalid; 500. */
-ngx_int_t webdav_verify_bearer_token(ngx_http_request_t *r,
-    ngx_http_brix_webdav_loc_conf_t *conf);
-/* For token-authed mutating methods, require a write scope covering r->uri
- * (matched against the decoded URI path, not the filesystem path).  NGX_OK if
- * granted OR auth was not token-based; NGX_HTTP_FORBIDDEN otherwise. */
-ngx_int_t webdav_check_token_write_scope(ngx_http_request_t *r,
-    const char *method_name);
-/* Postconfig-time validation of CA/CRL paths so misconfiguration fails
- * `nginx -t`.  NGX_OK / NGX_ERROR. */
-ngx_int_t webdav_check_pki_consistency(ngx_log_t *log,
-    ngx_http_brix_webdav_loc_conf_t *conf);
+/* Dead WebDAV properties (xattr-backed PROPPATCH/PROPFIND + COPY/MOVE carry-over)
+ * and the low-level PUT/copy file-I/O helpers — split into webdav_props.h
+ * (included after the shared request types). */
+#include "webdav_props.h"
 
-/* HTTP methods.  Unless noted, each fully handles its method and returns NGX_OK
- * or an NGX_HTTP_* status for the dispatcher to finalise; the `void` ones own
- * the response and finalise the request themselves (async/body paths). */
-/* OPTIONS: emit DAV/DASL/Allow headers (Allow derived from the live op table). */
-ngx_int_t webdav_handle_options(ngx_http_request_t *r);
-/* HEAD/GET-metadata: resolve+stat, set Content-Length/Type/Last-Modified/ETag
- * and send headers; send_body=0 (or r->header_only) emits no body. */
-ngx_int_t webdav_handle_head(ngx_http_request_t *r, int send_body);
-/* GET a file body (range/multipart aware, cache-backed); 403 on a directory. */
-ngx_int_t webdav_handle_get(ngx_http_request_t *r);
-/* PUT: body read callback — streams the request body to the destination file
- * and finalises the request (it self-finalises; do not also return its rc). */
-void webdav_handle_put_body(ngx_http_request_t *r);
-/* DELETE: lock-checked recursive removal (204, or 404/409/500). */
-ngx_int_t webdav_handle_delete(ngx_http_request_t *r);
-/* Recursively remove the tree at `path` under confinement (no request/lock
- * context).  Returns the underlying remove-tree result. */
-ngx_int_t webdav_delete_path_recursive(ngx_log_t *log, const char *root_canon,
-    const char *path);
-/* MKCOL: create one collection (201; 409 if parent missing, 405 if exists). */
-ngx_int_t webdav_handle_mkcol(ngx_http_request_t *r);
-/* PROPFIND: 207 Multi-Status (Depth 0/1) incl. live + dead properties + locks. */
-ngx_int_t webdav_handle_propfind(ngx_http_request_t *r);
-/* PROPPATCH: set/remove dead (xattr) properties; rejects protected DAV: props. */
-ngx_int_t webdav_handle_proppatch(ngx_http_request_t *r);
-/* SEARCH (RFC 5323 DAV:basicsearch) over the request-URI scope. */
-ngx_int_t webdav_handle_search(ngx_http_request_t *r);
-/* ACL: read-only export — always 403 with a cannot-modify-protected-property
- * error body (client-side ACL mutation is not permitted). */
-ngx_int_t webdav_handle_acl(ngx_http_request_t *r);
-
-/* MOVE: lock-checked rename within the export (201/204; may finalise -> NGX_DONE). */
-ngx_int_t webdav_handle_move(ngx_http_request_t *r);
-/* COPY: in-export copy (NOT third-party — see tpc_handle_copy for Source/Dest). */
-ngx_int_t webdav_handle_copy(ngx_http_request_t *r);
-/* LOCK: create/refresh a lock and send the lockdiscovery body; self-finalises. */
-void webdav_handle_lock(ngx_http_request_t *r);
-/* UNLOCK: remove the lock named by the Lock-Token header (204; 400/409/412). */
-ngx_int_t webdav_handle_unlock(ngx_http_request_t *r);
-
-/* Macaroon token issuance endpoints (macaroon_endpoint.c) */
-/* GET /.well-known/oauth-authorization-server discovery document. */
-ngx_int_t webdav_handle_macaroon_discovery(ngx_http_request_t *r);
-/* POST /.oauth2/token: mint a scoped macaroon; self-finalises the request. */
-void webdav_handle_macaroon_token(ngx_http_request_t *r);
-/* POST <path> with Content-Type: application/macaroon-request (dCache/XrdMacaroons
- * convention): mint a macaroon from a JSON {caveats[],validity} body, returning the
- * dCache {macaroon, uri{...}} shape. Self-finalises the request. */
-void webdav_handle_macaroon_request(ngx_http_request_t *r);
-
-/* §3 XrdDig: GET/HEAD /.well-known/dig/<export>/<rel> — read-only, RESOLVE_BENEATH-
- * confined, allow-file-gated exposure of whitelisted server files. Returns an HTTP
- * status, or NGX_DECLINED when dig is disabled / the path is not a dig path (so
- * normal WebDAV handling proceeds). Defined in src/dig/dig.c. */
-ngx_int_t brix_dig_handle(ngx_http_request_t *r);
-
-/* Dead WebDAV properties persisted as filesystem extended attributes.
- * `xml` for set() must be already-escaped, well-formed XML — it is stored and
- * echoed back verbatim.  ns/local identify the property (namespace URI + local
- * name); head/tail are an ngx_chain_t accumulator for response XML. */
-/* PROPPATCH set: store xml[xml_len] as the property's xattr value.  NGX_OK;
- * NGX_ERROR (errno ENAMETOOLONG if the name/value is over the cap). */
-ngx_int_t webdav_dead_prop_set(ngx_http_request_t *r, const char *path,
-    const char *ns, const char *local, const char *xml, size_t xml_len);
-/* PROPPATCH remove: delete the property's xattr.  Idempotent (absent -> NGX_OK). */
-ngx_int_t webdav_dead_prop_remove(ngx_http_request_t *r, const char *path,
-    const char *ns, const char *local);
-/* PROPFIND: if the named property exists, append its stored XML and set *found=1;
- * a missing property is NGX_OK with *found=0 (caller reports 404 in-multistatus).
- * NGX_ERROR only on a real fault. */
-ngx_int_t webdav_dead_prop_append_value(ngx_http_request_t *r,
-    const char *path, const char *ns, const char *local,
-    ngx_chain_t **head, ngx_chain_t **tail, ngx_flag_t *found);
-/* PROPFIND propname: append an empty self-closing element for one name.
- * NGX_OK / NGX_ERROR. */
-ngx_int_t webdav_dead_prop_append_empty(ngx_http_request_t *r,
-    const char *ns, const char *local, ngx_chain_t **head,
-    ngx_chain_t **tail);
-/* PROPFIND allprop/propname: enumerate every dead property on `path`, appending
- * name (names_only) or name+value.  NGX_OK (incl. none present) / NGX_ERROR. */
-ngx_int_t webdav_dead_props_append_all(ngx_http_request_t *r,
-    const char *path, ngx_chain_t **head, ngx_chain_t **tail,
-    ngx_flag_t names_only);
-/* True if `local` is a protected (server-managed) DAV: property that PROPPATCH
- * may not touch; the caller has already matched the DAV: namespace, so this is
- * effectively a non-NULL guard returning 1. */
-ngx_flag_t webdav_dead_prop_is_protected_dav(const char *local);
-/* Copy all dead properties from src to dst (so they travel with COPY/MOVE);
- * best-effort, no return value. */
-void webdav_dead_props_copy(ngx_log_t *log, const char *src, const char *dst);
-
-/* File I/O helpers */
-/* Advisory POSIX_FADV_WILLNEED readahead hint; best-effort, no-op if
- * unsupported or len==0. */
-void webdav_fadvise_willneed(ngx_log_t *log, ngx_fd_t fd, off_t offset,
-    size_t len);
-/* write(2) the whole buffer, retrying EINTR/short writes.  NGX_OK / NGX_ERROR
- * (errno set; EIO on a 0-byte write). */
-ngx_int_t webdav_write_full(ngx_fd_t fd, u_char *buf, size_t len, off_t offset);
-/* Copy a spooled PUT temp file (buf->file) into dst_fd, preferring zero-copy
- * copy_file_range with a pread+write fallback.  `scratch` is an optional reused
- * fallback buffer slot (may be ignored).  NGX_OK / NGX_ERROR. */
-ngx_int_t webdav_copy_spooled_file(ngx_http_request_t *r, ngx_fd_t dst_fd,
-    ngx_buf_t *buf, const char *path, u_char **scratch);
-
-/* Max parallel streams for HTTP-TPC multi-stream pull (X-Number-Of-Streams). */
-#define BRIX_TPC_MAX_STREAMS  16
-
-/*
- * Progress counters shared between the curl background thread and the
- * nginx event-loop poll timer during 202-streaming TPC transfers.
- * Allocated from r->pool before the thread is posted; valid until
- * ngx_http_finalize_request is called.
- */
-typedef struct {
-    volatile ngx_atomic_t  bytes_per_stream[BRIX_TPC_MAX_STREAMS];
-    volatile ngx_atomic_t  completed;  /* 1 when thread is done */
-    ngx_int_t              result;     /* HTTP status; set before completed=1 */
-    ngx_uint_t             n_streams;
-    off_t                  total_size; /* from HEAD; -1 if unknown */
-} tpc_ms_progress_t;
-
-/* HTTP-TPC */
-/* Set the TPC-related loc-conf fields to NGX_CONF_UNSET[_UINT] (called from the
- * module's create_loc_conf). */
-void ngx_http_brix_webdav_tpc_create_loc_conf(
-    ngx_http_brix_webdav_loc_conf_t *conf);
-/* Merge the TPC-related fields, inheriting unset values from `prev` and applying
- * defaults (called from the module's merge_loc_conf). */
-void ngx_http_brix_webdav_tpc_merge_loc_conf(
-    ngx_http_brix_webdav_loc_conf_t *conf,
-    ngx_http_brix_webdav_loc_conf_t *prev);
-/* TPC header lookup, value comparison, and NUL-copy helpers.
- * Macro aliases to compat equivalents — call sites unchanged, no wrapper functions. */
-#define webdav_tpc_find_header(r, name, name_len) \
-    brix_http_find_header(r, name, name_len)
-#define webdav_tpc_str_has_ctl(data, len) \
-    brix_http_str_has_ctl(data, len)
-#define webdav_tpc_header_value_equals(value, literal) \
-    brix_http_header_value_equals(value, literal)
-
-/* Copy data[len] into a fresh NUL-terminated `pool` buffer; NULL on OOM. */
-static inline char *
-webdav_tpc_pstrndup0(ngx_pool_t *pool, const u_char *data, size_t len)
-{
-    char *out = ngx_pnalloc(pool, len + 1);
-    if (out != NULL) {
-        ngx_memcpy(out, data, len);
-        out[len] = '\0';
-    }
-    return out;
-}
-/* Gather every "TransferHeaderX-Foo: bar" request header into a fresh r->pool
- * ngx_array_t of ngx_str_t "X-Foo: bar" (NUL-terminated), capped at
- * WEBDAV_TPC_MAX_HEADERS, for forwarding by curl.  *out set on NGX_OK; 400 if a
- * name/value has control bytes or the cap is exceeded; NGX_ERROR on OOM. */
-ngx_int_t webdav_tpc_collect_transfer_headers(ngx_http_request_t *r,
-    ngx_array_t **out);
-/* Blocking single-stream curl pull (source_url -> tmp_path); runs on a thread,
- * not the event loop.  transfer_id keys the live-transfer registry; bumps the
- * TPC success/error metric.  NGX_OK / NGX_HTTP_* on failure. */
-ngx_int_t webdav_tpc_run_curl_pull(ngx_log_t *log,
-    ngx_http_brix_webdav_loc_conf_t *conf, const char *source_url,
-    const char *tmp_path, ngx_array_t *transfer_headers,
-    uint64_t transfer_id);
-/* Blocking curl push (local_path -> dest_url); thread-only, mirror of the pull
- * above.  NGX_OK / NGX_HTTP_* on failure. */
-ngx_int_t webdav_tpc_run_curl_push(ngx_log_t *log,
-    ngx_http_brix_webdav_loc_conf_t *conf, const char *dest_url,
-    const char *local_path, ngx_array_t *transfer_headers,
-    uint64_t transfer_id);
-/* Post a curl pull/push to conf->common.thread_pool (the 201 non-marker path).
- * local_path/dest_path are copied into the task ctx (caller stack buffers safe to
- * reuse).  On NGX_DONE it has taken a request ref (r->main->count++) and the
- * done-handler finalises; the caller must propagate NGX_DONE.  NGX_DECLINED if no
- * thread pool (use the sync path); 503 if the transfer registry is full;
- * NGX_ERROR on alloc/post failure or bad args. */
-ngx_int_t webdav_tpc_post_thread_task(ngx_http_request_t *r,
-    ngx_http_brix_webdav_loc_conf_t *conf,
-    int is_push, ngx_flag_t existed, ngx_flag_t overwrite,
-    const char *url, const char *local_path, const char *dest_path,
-    ngx_array_t *transfer_headers, ngx_uint_t n_streams);
-/* Blocking parallel-range curl_multi pull into tmp_path: HEADs for size, splits
- * into n_streams disjoint ranges each pwrite-ing in place (no merge), capped at
- * BRIX_TPC_MAX_STREAMS.  Falls back to single-stream when size is unknown or
- * n_streams <= 1.  progress may be NULL; when set, each stream atomically updates
- * bytes_per_stream[i] for the poll timer.  NGX_OK / NGX_HTTP_* on failure. */
-ngx_int_t webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
-    ngx_http_brix_webdav_loc_conf_t *conf,
-    const char *source_url, const char *tmp_path,
-    ngx_array_t *transfer_headers, ngx_uint_t n_streams,
-    uint64_t transfer_id, tpc_ms_progress_t *progress);
-/* 202-streaming TPC with Performance-Markers and optional multi-stream.
- * Returns NGX_DONE (202 sent, poll timer running) or NGX_DECLINED (no thread
- * pool configured; caller falls back to the 201 path). */
-ngx_int_t webdav_tpc_marker_start(ngx_http_request_t *r,
-    ngx_http_brix_webdav_loc_conf_t *conf, ngx_uint_t n_streams,
-    const char *url, const char *tmp_path, const char *final_path,
-    ngx_flag_t is_pull, ngx_flag_t overwrite, ngx_flag_t existed,
-    ngx_array_t *transfer_headers, uint64_t transfer_id);
-/* HTTP-TPC COPY dispatcher: routes by Source (pull, https only) vs Destination
- * (push) header, parses X-Number-Of-Streams (capped at conf->tpc_max_streams),
- * stages a pull through a temp file (atomic rename/link on success, unlink on
- * failure), and tries marker -> thread-pool -> sync tiers.  NGX_OK (201/204 sent
- * via webdav_send_no_body), an NGX_HTTP_* status for the dispatcher to finalise,
- * or NGX_DONE when an async (202 marker / thread) path self-finalises. */
-ngx_int_t ngx_http_brix_webdav_tpc_handle_copy(ngx_http_request_t *r);
-
-/* Upstream HTTP(S) proxy */
-/* Content-phase handler (proxy mode): create the nginx upstream, pick a backend
- * (dynamic SHM pool or static round-robin array), set ssl per backend, and start
- * the request via brix_http_read_body.  Returns NGX_DONE on the async upstream
- * path; an NGX_HTTP_* status (500 OOM, 503 no live backend) on setup failure. */
-ngx_int_t webdav_proxy_handler(ngx_http_request_t *r);
-/* Backward-compat single-URL config parser; thin wrapper over
- * webdav_proxy_build_backends.  NGX_OK / NGX_ERROR. */
-ngx_int_t webdav_proxy_parse_upstream_url(ngx_conf_t *cf,
-    ngx_http_brix_webdav_loc_conf_t *conf);
-/* Postconfig: build conf->upstream_backends (cf->pool) from upstream_urls (or the
- * legacy single upstream_url), apply upstream_conf timeout/buffer defaults, wire
- * the TLS ctx, and point the legacy upstream_* aliases at backend[0].  NGX_ERROR
- * (fails nginx -t) when no usable backend; NGX_OK otherwise. */
-ngx_int_t webdav_proxy_build_backends(ngx_conf_t *cf,
-    ngx_http_brix_webdav_loc_conf_t *conf);
-/* Directive setter: brix_webdav_proxy_upstream <url> [<url> ...]; */
-char *webdav_conf_proxy_upstream(ngx_conf_t *cf, ngx_command_t *cmd,
-    void *conf);
-
-/* HTTP-TPC credential delegation */
-/* Map a Credential-mode token value[len] to the enum; "none"/"oidc-agent"/
- * "token-exchange" recognised, else BRIX_TPC_CRED_UNKNOWN. */
-brix_tpc_cred_mode_e webdav_tpc_cred_parse_mode(const char *value, size_t len);
-/* Obtain a delegated bearer token for the TPC transfer via the given mode
- * (oidc-agent fetch, or RFC 8693 token-exchange of subject_token at the
- * configured token_endpoint), validating the result.  On NGX_OK *token_out is
- * filled from r->pool (NUL-terminated); bumps the tpc_cred started/success/error
- * metrics.  NGX_ERROR on misconfig, missing subject token, fetch, or validation
- * failure. */
-ngx_int_t webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
-    brix_tpc_cred_mode_e mode, const char *source_url,
-    const char *subject_token, const char *scope, ngx_str_t *token_out);
-/* Static metric-name string for a tpc_cred metric index (never NULL; do not
- * free). */
-const char *webdav_tpc_cred_metric_name(brix_tpc_cred_metrics_e idx);
+/* HTTP third-party-copy (TPC): multi-stream cap + shared progress struct, curl
+ * pull/push/multi workers, 202-marker streaming, the COPY dispatcher, and the
+ * OAuth2/OIDC credential-delegation helpers — split into webdav_tpc.h.  WebDAV
+ * reverse-proxy mode is split into webdav_proxy.h.  Both included after the
+ * shared request/config types. */
+#include "webdav_tpc.h"
+#include "webdav_proxy.h"
 
 /* Operation capability table (operation_table.c) */
 #include "core/compat/protocol_caps.h"

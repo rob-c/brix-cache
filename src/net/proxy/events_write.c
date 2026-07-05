@@ -73,10 +73,10 @@ brix_proxy_write_handler(ngx_event_t *wev)
 
 #if (NGX_SSL)
         if (proxy->conf != NULL
-            && proxy->conf->proxy_upstream_tls
-            && proxy->conf->proxy_tls_ctx != NULL)
+            && proxy->conf->proxy.upstream_tls
+            && proxy->conf->proxy.tls_ctx != NULL)
         {
-            if (ngx_ssl_create_connection(proxy->conf->proxy_tls_ctx, uconn,
+            if (ngx_ssl_create_connection(proxy->conf->proxy.tls_ctx, uconn,
                                           NGX_SSL_BUFFER | NGX_SSL_CLIENT)
                 != NGX_OK)
             {
@@ -88,9 +88,9 @@ brix_proxy_write_handler(ngx_event_t *wev)
             /* SNI: prefer explicit name directive, fall back to configured host */
             {
                 const char *sni =
-                    (proxy->conf->proxy_upstream_tls_name.len > 0)
-                    ? (const char *) proxy->conf->proxy_upstream_tls_name.data
-                    : (const char *) proxy->conf->proxy_host.data;
+                    (proxy->conf->proxy.upstream_tls_name.len > 0)
+                    ? (const char *) proxy->conf->proxy.upstream_tls_name.data
+                    : (const char *) proxy->conf->proxy.host.data;
                 SSL_set_tlsext_host_name(uconn->ssl->connection, sni);
             }
             uconn->ssl->handler = brix_proxy_tls_handshake_done;
@@ -118,8 +118,8 @@ brix_proxy_write_handler(ngx_event_t *wev)
              * Arm/refresh the write-stall deadline (reset each write event, so it
              * fires only after proxy_write_timeout with no progress).  wev->timedout
              * above aborts cleanly.  Off (0) leaves the legacy behaviour. */
-            if (proxy->conf != NULL && proxy->conf->proxy_write_timeout > 0) {
-                ngx_add_timer(uconn->write, proxy->conf->proxy_write_timeout);
+            if (proxy->conf != NULL && proxy->conf->proxy.write_timeout > 0) {
+                ngx_add_timer(uconn->write, proxy->conf->proxy.write_timeout);
             }
             return;
         }

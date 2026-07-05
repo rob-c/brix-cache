@@ -48,12 +48,12 @@ brix_handle_setattr(brix_ctx_t *ctx, ngx_connection_t *c,
     char          reqpath[BRIX_MAX_PATH + 1];
     char          resolved[PATH_MAX];
 
-    if (ctx->payload == NULL
-        || ctx->cur_dlen <= (uint32_t) BRIX_SETATTR_PREFIX_LEN) {
+    if (ctx->recv.payload == NULL
+        || ctx->recv.cur_dlen <= (uint32_t) BRIX_SETATTR_PREFIX_LEN) {
         return brix_send_error(ctx, c, kXR_ArgMissing, "setattr: short payload");
     }
 
-    p = ctx->payload;
+    p = ctx->recv.payload;
     {
         /* Shared 44-byte attribute-prefix codec (libxrdproto) — same offsets the
          * client encodes with, so the two cannot drift. */
@@ -69,7 +69,7 @@ brix_handle_setattr(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (!brix_extract_path(c->log, p + BRIX_SETATTR_PREFIX_LEN,
-                             ctx->cur_dlen - BRIX_SETATTR_PREFIX_LEN,
+                             ctx->recv.cur_dlen - BRIX_SETATTR_PREFIX_LEN,
                              reqpath, sizeof(reqpath), 1)) {
         return brix_send_error(ctx, c, kXR_ArgInvalid, "setattr: invalid path");
     }
@@ -128,28 +128,28 @@ brix_handle_symlink(brix_ctx_t *ctx, ngx_connection_t *c,
     int16_t  tlen;
     size_t   link_len;
 
-    if (ctx->payload == NULL || ctx->cur_dlen == 0) {
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0) {
         return brix_send_error(ctx, c, kXR_ArgMissing, "symlink: no paths");
     }
-    xrdw_twopath_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    xrdw_twopath_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     tlen = req.arg1len;
-    if (tlen <= 0 || (uint32_t) (tlen + 1) >= ctx->cur_dlen
+    if (tlen <= 0 || (uint32_t) (tlen + 1) >= ctx->recv.cur_dlen
         || (size_t) tlen >= sizeof(target)) {
         return brix_send_error(ctx, c, kXR_ArgInvalid, "symlink: bad arg1len");
     }
-    if (ctx->payload[tlen] != ' ') {
+    if (ctx->recv.payload[tlen] != ' ') {
         return brix_send_error(ctx, c, kXR_ArgInvalid, "symlink: bad separator");
     }
     /* target is verbatim link content — copy as-is, reject an embedded NUL. */
-    if (memchr(ctx->payload, '\0', (size_t) tlen) != NULL) {
+    if (memchr(ctx->recv.payload, '\0', (size_t) tlen) != NULL) {
         return brix_send_error(ctx, c, kXR_ArgInvalid, "symlink: NUL in target");
     }
-    memcpy(target, ctx->payload, (size_t) tlen);
+    memcpy(target, ctx->recv.payload, (size_t) tlen);
     target[tlen] = '\0';
 
-    link_len = (size_t) ctx->cur_dlen - (size_t) tlen - 1;
+    link_len = (size_t) ctx->recv.cur_dlen - (size_t) tlen - 1;
     if (link_len == 0
-        || !brix_extract_path(c->log, ctx->payload + tlen + 1, link_len,
+        || !brix_extract_path(c->log, ctx->recv.payload + tlen + 1, link_len,
                                 link_buf, sizeof(link_buf), 1)) {
         return brix_send_error(ctx, c, kXR_ArgInvalid, "symlink: invalid linkpath");
     }
@@ -192,22 +192,22 @@ brix_handle_link(brix_ctx_t *ctx, ngx_connection_t *c,
     int16_t  src_len;
     size_t   dst_len;
 
-    if (ctx->payload == NULL || ctx->cur_dlen == 0) {
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0) {
         return brix_send_error(ctx, c, kXR_ArgMissing, "link: no paths");
     }
-    xrdw_twopath_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    xrdw_twopath_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     src_len = req.arg1len;
-    if (src_len <= 0 || (uint32_t) (src_len + 1) >= ctx->cur_dlen) {
+    if (src_len <= 0 || (uint32_t) (src_len + 1) >= ctx->recv.cur_dlen) {
         return brix_send_error(ctx, c, kXR_ArgInvalid, "link: bad arg1len");
     }
-    if (ctx->payload[src_len] != ' ') {
+    if (ctx->recv.payload[src_len] != ' ') {
         return brix_send_error(ctx, c, kXR_ArgInvalid, "link: bad separator");
     }
-    dst_len = (size_t) ctx->cur_dlen - (size_t) src_len - 1;
+    dst_len = (size_t) ctx->recv.cur_dlen - (size_t) src_len - 1;
     if (dst_len == 0
-        || !brix_extract_path(c->log, ctx->payload, (size_t) src_len,
+        || !brix_extract_path(c->log, ctx->recv.payload, (size_t) src_len,
                                 src_buf, sizeof(src_buf), 1)
-        || !brix_extract_path(c->log, ctx->payload + src_len + 1, dst_len,
+        || !brix_extract_path(c->log, ctx->recv.payload + src_len + 1, dst_len,
                                 dst_buf, sizeof(dst_buf), 1)) {
         return brix_send_error(ctx, c, kXR_ArgInvalid, "link: invalid path");
     }

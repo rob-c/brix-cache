@@ -15,6 +15,7 @@
 #include "protocols/webdav/webdav.h"
 #include "fs/path/beneath.h"
 #include "fs/vfs/vfs.h"   /* serve diagnostics files through the VFS seam */
+#include "core/compat/cstr.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -212,11 +213,9 @@ brix_dig_handle(ngx_http_request_t *r)
 
     /* Serve through the VFS seam, confined under the export realpath
      * (brix_vfs_open uses the same kernel RESOLVE_BENEATH open underneath). */
-    if (match->canon.len >= sizeof(canon)) {
+    if (brix_str_cbuf(canon, sizeof(canon), &match->canon) == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    ngx_memcpy(canon, match->canon.data, match->canon.len);
-    canon[match->canon.len] = '\0';
 
     if ((size_t) snprintf(full, sizeof(full), "%s/%s", canon, rel)
         >= sizeof(full))

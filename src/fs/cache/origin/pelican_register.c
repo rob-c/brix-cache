@@ -113,8 +113,8 @@ brix_pelican_build_ad(ngx_stream_brix_srv_conf_t *conf, time_t now)
         return NULL;
     }
 
-    site = brix_pelican_cstr(&conf->cache_sitename, "nginx-xrootd-cache");
-    brix_pelican_rfc3339(now + (time_t) (conf->cache_advertise_interval / 1000)
+    site = brix_pelican_cstr(&conf->advertise.sitename, "nginx-xrootd-cache");
+    brix_pelican_rfc3339(now + (time_t) (conf->advertise.interval / 1000)
                            + 30, expiry, sizeof(expiry));
     brix_pelican_rfc3339(now, nowstr, sizeof(nowstr));
     (void) snprintf(regpfx, sizeof(regpfx), "/caches/%s", site);
@@ -123,9 +123,9 @@ brix_pelican_build_ad(ngx_stream_brix_srv_conf_t *conf, time_t now)
     json_object_set_new(ad, "name", json_string(site));
     json_object_set_new(ad, "startTime", json_integer((json_int_t) now));
     json_object_set_new(ad, "instanceID",
-                        json_string(conf->cache_advertise_instance));
+                        json_string(conf->advertise.instance));
     json_object_set_new(ad, "generationID",
-                        json_integer((json_int_t) conf->cache_advertise_gen));
+                        json_integer((json_int_t) conf->advertise.gen));
     json_object_set_new(ad, "version",
                         json_string(BRIX_SERVER_NAME " " BRIX_SERVER_VERSION));
     json_object_set_new(ad, "expiry", json_string(expiry));
@@ -133,18 +133,18 @@ brix_pelican_build_ad(ngx_stream_brix_srv_conf_t *conf, time_t now)
     json_object_set_new(ad, "serverId", json_string(site));
     json_object_set_new(ad, "registry-prefix", json_string(regpfx));
     json_object_set_new(ad, "data-url",
-        json_string(brix_pelican_cstr(&conf->cache_data_url, "")));
-    if (conf->cache_web_url.len > 0) {
+        json_string(brix_pelican_cstr(&conf->advertise.data_url, "")));
+    if (conf->advertise.web_url.len > 0) {
         json_object_set_new(ad, "web-url",
-            json_string((char *) conf->cache_web_url.data));
+            json_string((char *) conf->advertise.web_url.data));
     }
     json_object_set_new(ad, "capabilities", brix_pelican_caps_json());
 
     /* namespaces[]: the configured prefixes, or "/" (cache everything). */
     nslist = json_array();
     if (nslist != NULL) {
-        ngx_uint_t i, n = (conf->cache_advertise_ns != NULL)
-                          ? conf->cache_advertise_ns->nelts : 0;
+        ngx_uint_t i, n = (conf->advertise.ns != NULL)
+                          ? conf->advertise.ns->nelts : 0;
         if (n == 0) {
             json_t *ns = json_object();
             json_object_set_new(ns, "Caps", brix_pelican_caps_json());
@@ -153,7 +153,7 @@ brix_pelican_build_ad(ngx_stream_brix_srv_conf_t *conf, time_t now)
             json_object_set_new(ns, "token-issuer", json_array());
             json_array_append_new(nslist, ns);
         } else {
-            ngx_str_t *pfx = conf->cache_advertise_ns->elts;
+            ngx_str_t *pfx = conf->advertise.ns->elts;
             for (i = 0; i < n; i++) {
                 json_t *ns = json_object();
                 json_object_set_new(ns, "Caps", brix_pelican_caps_json());
@@ -195,10 +195,10 @@ brix_pelican_build_jwt(ngx_stream_brix_srv_conf_t *conf,
         return NGX_ERROR;
     }
     json_object_set_new(payload, "iss",
-        json_string(brix_pelican_cstr(&conf->cache_issuer_url,
-            brix_pelican_cstr(&conf->cache_data_url, ""))));
+        json_string(brix_pelican_cstr(&conf->advertise.issuer_url,
+            brix_pelican_cstr(&conf->advertise.data_url, ""))));
     json_object_set_new(payload, "sub",
-        json_string(brix_pelican_cstr(&conf->cache_data_url, "")));
+        json_string(brix_pelican_cstr(&conf->advertise.data_url, "")));
     json_object_set_new(payload, "aud", json_string(director));
     json_object_set_new(payload, "scope", json_string("pelican.advertise"));
     json_object_set_new(payload, "wlcg.ver", json_string("1.0"));
@@ -213,7 +213,7 @@ brix_pelican_build_jwt(ngx_stream_brix_srv_conf_t *conf,
         return NGX_ERROR;
     }
 
-    rc = brix_jwt_sign_es256((EVP_PKEY *) conf->cache_advertise_key_pkey,
+    rc = brix_jwt_sign_es256((EVP_PKEY *) conf->advertise.key_pkey,
                                "{\"alg\":\"ES256\",\"typ\":\"JWT\"}", pstr,
                                out, outsz);
     free(pstr);
@@ -385,8 +385,8 @@ brix_cache_pelican_advertise_once(ngx_stream_brix_srv_conf_t *conf,
     time_t     now = time(NULL);
     ngx_int_t  rc;
 
-    if (conf->cache_advertise_key_pkey == NULL
-        || conf->cache_data_url.len == 0)
+    if (conf->advertise.key_pkey == NULL
+        || conf->advertise.data_url.len == 0)
     {
         return NGX_ERROR;
     }
@@ -397,7 +397,7 @@ brix_cache_pelican_advertise_once(ngx_stream_brix_srv_conf_t *conf,
         return NGX_ERROR;
     }
 
-    conf->cache_advertise_gen++;
+    conf->advertise.gen++;
     body = brix_pelican_build_ad(conf, now);
     if (body == NULL) {
         return NGX_ERROR;
@@ -440,7 +440,7 @@ brix_pelican_adv_timer(ngx_event_t *ev)
     ngx_stream_brix_srv_conf_t *conf = a->conf;
 
     /* Re-arm first so a slow advertisement never stops the cadence. */
-    ngx_add_timer(ev, conf->cache_advertise_interval);
+    ngx_add_timer(ev, conf->advertise.interval);
 
     if (a->in_flight || a->task == NULL
         || conf->common.thread_pool == NULL)
@@ -468,26 +468,26 @@ brix_cache_pelican_schedule_advertise(ngx_cycle_t *cycle,
     ngx_thread_task_t    *task;
     brix_pelican_adv_t *a;
 
-    if (!conf->cache_advertise || conf->cache_advertise == NGX_CONF_UNSET
-        || conf->cache_advertise_key.len == 0
-        || conf->cache_data_url.len == 0
+    if (!conf->advertise.enable || conf->advertise.enable == NGX_CONF_UNSET
+        || conf->advertise.key.len == 0
+        || conf->advertise.data_url.len == 0
         || conf->cache_origin_host.len == 0)
     {
         return;
     }
 
     /* Load the EC signing key once per worker. */
-    conf->cache_advertise_key_pkey =
-        brix_jwt_load_ec_key((char *) conf->cache_advertise_key.data);
-    if (conf->cache_advertise_key_pkey == NULL) {
+    conf->advertise.key_pkey =
+        brix_jwt_load_ec_key((char *) conf->advertise.key.data);
+    if (conf->advertise.key_pkey == NULL) {
         ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
             "brix: pelican advertise disabled — cannot load EC key \"%s\"",
-            conf->cache_advertise_key.data);
+            conf->advertise.key.data);
         return;
     }
 
-    if (conf->cache_advertise_instance[0] == '\0') {
-        brix_pelican_hex_random(conf->cache_advertise_instance, 16);
+    if (conf->advertise.instance[0] == '\0') {
+        brix_pelican_hex_random(conf->advertise.instance, 16);
     }
 
     task = ngx_thread_task_alloc(cycle->pool, sizeof(brix_pelican_adv_t));
@@ -507,7 +507,7 @@ brix_cache_pelican_schedule_advertise(ngx_cycle_t *cycle,
     ev->handler = brix_pelican_adv_timer;
     ev->data = a;
     ev->log = cycle->log;
-    conf->cache_advertise_timer = ev;
+    conf->advertise.timer = ev;
 
     /* First advertisement shortly after startup, then every interval. */
     ngx_add_timer(ev, 2000);
@@ -515,5 +515,5 @@ brix_cache_pelican_schedule_advertise(ngx_cycle_t *cycle,
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
         "brix: pelican cache advertise started — federation=%s interval=%Mms "
         "data-url=%V", conf->cache_origin_host.data,
-        conf->cache_advertise_interval, &conf->cache_data_url);
+        conf->advertise.interval, &conf->advertise.data_url);
 }

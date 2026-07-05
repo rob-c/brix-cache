@@ -25,7 +25,7 @@ brix_send_redirect(brix_ctx_t *ctx, ngx_connection_t *c,
 
     BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
-    brix_build_resp_hdr(ctx->cur_streamid, kXR_redirect, bodylen,
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_redirect, bodylen,
         (ServerResponseHdr *) buf);
 
     pbe = htonl((uint32_t) port);
@@ -69,7 +69,7 @@ brix_send_redirect_tpc(brix_ctx_t *ctx, ngx_connection_t *c,
 
     BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
-    brix_build_resp_hdr(ctx->cur_streamid, kXR_redirect, (uint32_t) bodylen,
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_redirect, (uint32_t) bodylen,
         (ServerResponseHdr *) buf);
 
     p   = buf + XRD_RESPONSE_HDR_LEN;
@@ -106,7 +106,7 @@ brix_send_wait(brix_ctx_t *ctx, ngx_connection_t *c, uint32_t seconds)
         return NGX_ERROR;
     }
 
-    brix_build_resp_hdr(ctx->cur_streamid, kXR_wait,
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_wait,
         (uint32_t) sizeof(uint32_t), (ServerResponseHdr *) buf);
 
     sbe = htonl(seconds);
@@ -127,7 +127,7 @@ brix_send_waitresp(brix_ctx_t *ctx, ngx_connection_t *c)
 
     BRIX_PALLOC_OR_RETURN(buf, c->pool, XRD_RESPONSE_HDR_LEN, NGX_ERROR);
 
-    brix_build_resp_hdr(ctx->cur_streamid, kXR_waitresp, 0,
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_waitresp, 0,
         (ServerResponseHdr *) buf);
 
     ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,

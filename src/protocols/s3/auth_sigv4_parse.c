@@ -1,6 +1,7 @@
 #include "s3.h"
 #include "s3_auth_internal.h"
 #include "core/http/http_headers.h"
+#include "core/compat/cstr.h"
 
 #include <string.h>
 #include <errno.h>
@@ -307,12 +308,12 @@ parse_presigned_authorization(ngx_http_request_t *r, sigv4_components_t *out)
     ngx_memzero(out, sizeof(*out));
     out->presigned = 1;
 
-    if (sig_qs.len == 0 || sig_qs.len >= sizeof(out->signature)) {
+    if (sig_qs.len == 0
+        || brix_str_cbuf(out->signature, sizeof(out->signature), &sig_qs)
+           == NULL)
+    {
         return NGX_ERROR;
     }
-
-    ngx_memcpy(out->signature, sig_qs.data, sig_qs.len);
-    out->signature[sig_qs.len] = '\0';
 
     /* All of these fields are mandatory; the short-circuit && treats any
      * missing/over-long/badly-encoded field (or wrong algorithm) as a single

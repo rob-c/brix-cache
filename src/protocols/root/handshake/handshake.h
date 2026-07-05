@@ -11,7 +11,7 @@
 #define BRIX_DISPATCH_CONTINUE NGX_DECLINED
 
 /*
- * brix_verify_pending_sigver — if ctx->sigver_pending is set, verify the
+ * brix_verify_pending_sigver — if ctx->sigver.pending is set, verify the
  * HMAC-SHA256 envelope that the client sent before the current request.
  *
  * When GSI request signing is active the client wraps each request in a

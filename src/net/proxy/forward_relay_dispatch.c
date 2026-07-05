@@ -175,7 +175,7 @@ brix_proxy_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
         brix_proxy_tap_init(proxy, c);
         proxy->fwd_local_fh   = -1;
         proxy->saved_local_fh = -1;
-        proxy->reconnect_left = (int) conf->proxy_reconnect_attempts;
+        proxy->reconnect_left = (int) conf->proxy.reconnect_attempts;
         proxy->splice_pipe[0] = -1;
         proxy->splice_pipe[1] = -1;
         ctx->proxy            = proxy;
@@ -194,7 +194,7 @@ brix_proxy_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
     proxy = ctx->proxy;
 
     /* if bootstrap is still in progress, save this request */    if (proxy->state != XRD_PX_IDLE) {
-        size_t total = XRD_REQUEST_HDR_LEN + ctx->cur_dlen;
+        size_t total = XRD_REQUEST_HDR_LEN + ctx->recv.cur_dlen;
         u_char *saved;
 
         saved = ngx_alloc(total, c->log);
@@ -202,16 +202,16 @@ brix_proxy_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
             return brix_send_error(ctx, c, kXR_IOError,
                                      "proxy: out of memory saving request");
         }
-        ngx_memcpy(saved, ctx->hdr_buf, XRD_REQUEST_HDR_LEN);
-        if (ctx->cur_dlen > 0 && ctx->payload != NULL) {
-            ngx_memcpy(saved + XRD_REQUEST_HDR_LEN, ctx->payload, ctx->cur_dlen);
+        ngx_memcpy(saved, ctx->recv.hdr_buf, XRD_REQUEST_HDR_LEN);
+        if (ctx->recv.cur_dlen > 0 && ctx->recv.payload != NULL) {
+            ngx_memcpy(saved + XRD_REQUEST_HDR_LEN, ctx->recv.payload, ctx->recv.cur_dlen);
         }
 
         proxy->saved_req     = saved;
         proxy->saved_req_len = total;
 
         /* Pre-allocate a local fh for a deferred open */
-        if (ctx->cur_reqid == kXR_open) {
+        if (ctx->recv.cur_reqid == kXR_open) {
             int local_fh = brix_proxy_alloc_local_fh(proxy);
             if (local_fh < 0) {
                 ngx_free(saved);

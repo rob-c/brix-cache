@@ -9,6 +9,7 @@
 #include "tpc/engine/tpc_internal.h"
 #include "auth/gsi/gsi_core.h"          /* build_certreq / parse_parms / rand */
 #include "protocols/root/session/session.h"       /* BRIX_SESSION_ID_LEN */
+#include "core/compat/cstr.h"
 
 /* Helper functions declared in gsi_outbound_common.c — extern to link them.
  * tpc_put_u32 writes a big-endian uint32 (wire byte order); tpc_send_kxr_auth
@@ -77,11 +78,13 @@ tpc_outbound_gsi(brix_tpc_pull_t *t, int fd,
     } else {
         /* WHY: paths come from config as length-counted ngx_str_t; reject empty
          * paths and any that would not fit (with room for the NUL) in the local
-         * PATH_MAX buffers before we ngx_memcpy + NUL-terminate them below.
-         * The >= comparison reserves the final byte for the NUL terminator. */
+         * PATH_MAX buffers — brix_str_cbuf() copies + NUL-terminates and
+         * returns NULL when the result would not fit. */
         if (conf->certificate.len == 0 || conf->certificate_key.len == 0
-            || conf->certificate.len >= sizeof(cert_path)
-            || conf->certificate_key.len >= sizeof(key_path))
+            || brix_str_cbuf((char *) cert_path, sizeof(cert_path),
+                             &conf->certificate) == NULL
+            || brix_str_cbuf((char *) key_path, sizeof(key_path),
+                             &conf->certificate_key) == NULL)
         {
             snprintf(t->err_msg, sizeof(t->err_msg),
                      "TPC GSI outbound needs brix_certificate and "
@@ -89,11 +92,6 @@ tpc_outbound_gsi(brix_tpc_pull_t *t, int fd,
             t->xrd_error = kXR_ArgInvalid;
             return -1;
         }
-
-        ngx_memcpy(cert_path, conf->certificate.data, conf->certificate.len);
-        cert_path[conf->certificate.len] = '\0';
-        ngx_memcpy(key_path, conf->certificate_key.data, conf->certificate_key.len);
-        key_path[conf->certificate_key.len] = '\0';
 
         /* Open read-only PEM streams over the cert and key files. */
         cbio = BIO_new_file((char *) cert_path, "r");

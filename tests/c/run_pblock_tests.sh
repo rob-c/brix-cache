@@ -42,6 +42,7 @@ echo "== building + running sd_pblock_unittest (vtable + concurrency) =="
     -I"${BACKEND}/pblock" -I"${BACKEND}" -I"${HERE}/../../src" ${SQLITE_CFLAGS} \
     "${BACKEND}/pblock/sd_pblock_unittest.c" \
     "${BACKEND}/pblock/sd_pblock.c" \
+    "${BACKEND}/pblock/pblock_store.c" \
     "${BACKEND}/pblock/sd_pblock_catalog.c" \
     ${SQLITE_LIBS} -lpthread -o "${DRV_BIN}"
 "${DRV_BIN}"

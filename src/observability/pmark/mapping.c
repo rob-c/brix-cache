@@ -19,6 +19,7 @@
  */
 
 #include "pmark.h"
+#include "core/compat/cstr.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -185,9 +186,7 @@ brix_pmark_runtime_ensure(brix_pmark_conf_t *pm, ngx_pool_t *pool,
     /* Load the scitags registry (optional; only needed for named mappings). */
     if (pm->defsfile.len) {
         char path[1024];
-        if (pm->defsfile.len < sizeof(path)) {
-            ngx_memcpy(path, pm->defsfile.data, pm->defsfile.len);
-            path[pm->defsfile.len] = '\0';
+        if (brix_str_cbuf(path, sizeof(path), &pm->defsfile) != NULL) {
             if (brix_pmark_defsfile_load(path, pool, &defs, log) == NGX_ERROR) {
                 ngx_log_error(NGX_LOG_WARN, log, 0,
                     "pmark: defsfile load failed; named mappings disabled");

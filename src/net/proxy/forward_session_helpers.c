@@ -13,7 +13,7 @@
  *       Local fh allocation provides the proxy's own handle namespace for each connection.
  *
  * HOW:  proxy_write_audit() writes a JSON line (path, bytes_read, bytes_written, duration_ms)
- *       to conf->proxy_audit_log_fd when configured; skips if audit fd is invalid or
+ *       to conf->proxy.audit_log_fd when configured; skips if audit fd is invalid or
  *       local_fh slot is out of range. brix_proxy_wait_handler() fires on timer expiry,
  *       restores fwd_reqid/streamid/fh from saved retry data, resets response state,
  *       flushes the saved request to upstream, and arms read event.
@@ -39,7 +39,7 @@ proxy_write_audit(brix_proxy_ctx_t *proxy, int local_fh)
     u_char                       *p;
     ngx_msec_int_t                duration_ms;
 
-    if (conf == NULL || conf->proxy_audit_log_fd == NGX_INVALID_FILE) {
+    if (conf == NULL || conf->proxy.audit_log_fd == NGX_INVALID_FILE) {
         return;
     }
     if (local_fh < 0 || local_fh >= BRIX_MAX_FILES) {
@@ -59,7 +59,7 @@ proxy_write_audit(brix_proxy_ctx_t *proxy, int local_fh)
         (uint64_t) entry->bytes_written,
         duration_ms);
 
-    ngx_write_fd(conf->proxy_audit_log_fd, buf, (size_t)(p - buf));
+    ngx_write_fd(conf->proxy.audit_log_fd, buf, (size_t)(p - buf));
 }
 
 /* brix_proxy_wait_handler — kXR_wait retry timer: restore the saved request

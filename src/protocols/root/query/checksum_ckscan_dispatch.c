@@ -69,8 +69,8 @@ brix_ckscan_select_payload(brix_ctx_t *ctx, ngx_connection_t *c,
     const u_char **path_payload, size_t *path_payload_len,
     char *algo, size_t algo_sz)
 {
-    const u_char *payload = ctx->payload;
-    size_t        payload_len = (size_t) ctx->cur_dlen;
+    const u_char *payload = ctx->recv.payload;
+    size_t        payload_len = (size_t) ctx->recv.cur_dlen;
     size_t        wire_len;
     size_t        i;
 
@@ -165,7 +165,7 @@ brix_query_ckscan(brix_ctx_t *ctx, ngx_connection_t *c,
     size_t        path_payload_len;
     ngx_int_t     rc;
 
-    if (ctx->payload == NULL || ctx->cur_dlen == 0) {
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0) {
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_QUERY_CKSCAN, "QUERY",
                           "-", "ckscan", kXR_ArgMissing, "no path given");
     }
@@ -213,7 +213,7 @@ brix_query_ckscan(brix_ctx_t *ctx, ngx_connection_t *c,
         t->c      = c;
         t->conf   = conf;
         t->rootfd = conf->rootfd;
-        ngx_memcpy(t->streamid, ctx->cur_streamid, 2);
+        ngx_memcpy(t->streamid, ctx->recv.cur_streamid, 2);
         ngx_cpystrn((u_char *) t->algo, (u_char *) algo, sizeof(t->algo));
         ngx_cpystrn((u_char *) t->scan_logical, (u_char *) pathbuf,
                     sizeof(t->scan_logical));

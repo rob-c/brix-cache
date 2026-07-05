@@ -16,7 +16,7 @@
  * Exit:  0 = completed kXR_ok; 1 = completed with an error (message on stderr);
  *        2 = harness/bring-up failure.
  */
-#include "aio.h"
+#include "core/aio/aio.h"
 #include "brix.h"
 #include "protocols/root/protocol/protocol.h"
 

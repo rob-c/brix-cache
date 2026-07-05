@@ -22,7 +22,7 @@ brix_process_handshake(brix_ctx_t *ctx, ngx_connection_t *c)
     /* Fixed v5-compatible body: protocol version + server role. */
     static const size_t BODY_LEN = 8;
 
-    hs = (ClientInitHandShake *) ctx->hdr_buf;
+    hs = (ClientInitHandShake *) ctx->recv.hdr_buf;
 
     /*
      * The client hello has mostly fixed magic values; we only validate the

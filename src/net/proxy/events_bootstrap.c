@@ -58,16 +58,16 @@ proxy_resolve_upstream_auth(brix_proxy_ctx_t *proxy, ngx_uint_t *eff_auth,
 {
     ngx_stream_brix_srv_conf_t *conf = proxy->conf;
 
-    *eff_auth = conf ? conf->proxy_auth : BRIX_PROXY_AUTH_ANONYMOUS;
+    *eff_auth = conf ? conf->proxy.auth : BRIX_PROXY_AUTH_ANONYMOUS;
     *eff_key  = NULL;
 
     if (proxy->upstream_idx >= 0
         && conf != NULL
-        && conf->proxy_upstreams != NULL
-        && proxy->upstream_idx < (int) conf->proxy_upstreams->nelts)
+        && conf->proxy.upstreams != NULL
+        && proxy->upstream_idx < (int) conf->proxy.upstreams->nelts)
     {
         brix_proxy_upstream_t *u =
-            (brix_proxy_upstream_t *) conf->proxy_upstreams->elts
+            (brix_proxy_upstream_t *) conf->proxy.upstreams->elts
             + proxy->upstream_idx;
 
         if (u->auth >= 0) {
@@ -208,7 +208,7 @@ brix_proxy_bs_login(brix_proxy_ctx_t *proxy)
 {
     if (proxy->resp_status == kXR_authmore) {
         /* Upstream requests authentication — handle by configured policy.
-         * Effective policy: per-upstream override if set, else global conf->proxy_auth. */
+         * Effective policy: per-upstream override if set, else global conf->proxy.auth. */
         ngx_stream_brix_srv_conf_t  *conf      = proxy->conf;
         ngx_uint_t                     eff_auth;
         const brix_sss_key_t        *eff_key;
@@ -569,7 +569,7 @@ brix_proxy_handle_bootstrap(brix_proxy_ctx_t *proxy)
 
     /* Restore the full reconnect budget on every successful bootstrap */
     if (proxy->conf != NULL) {
-        proxy->reconnect_left = (int) proxy->conf->proxy_reconnect_attempts;
+        proxy->reconnect_left = (int) proxy->conf->proxy.reconnect_attempts;
     }
 
     ngx_log_debug0(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,

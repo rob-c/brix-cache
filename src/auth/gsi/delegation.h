@@ -17,7 +17,7 @@
  * for `leaf` (the client's EEC/proxy), encrypt it under the persisted GSI session
  * cipher, and send it as kXGS_pxyreq (kXR_authmore). Saves the fresh request key
  * and the client chain PEM on ctx for the kXGC_sigpxy round and sets
- * ctx->gsi_deleg_await. Returns NGX_OK (request sent — auth completes later) or
+ * ctx->gsi.deleg_await. Returns NGX_OK (request sent — auth completes later) or
  * NGX_ERROR. The caller still owns/frees `chain`.
  */
 ngx_int_t brix_gsi_begin_delegation(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -28,7 +28,7 @@ ngx_int_t brix_gsi_begin_delegation(brix_ctx_t *ctx, ngx_connection_t *c,
  * brix_gsi_handle_sigpxy — process the client's kXGC_sigpxy: decrypt the main
  * under the session cipher, extract the signed proxy, assemble the delegated
  * credential (signed proxy + saved request key + client chain) into
- * ctx->gsi_deleg_proxy_pem, clear the await flag and cleanse the session key.
+ * ctx->gsi.deleg_proxy_pem, clear the await flag and cleanse the session key.
  * Returns NGX_OK on success, NGX_ERROR on failure.
  */
 ngx_int_t brix_gsi_handle_sigpxy(brix_ctx_t *ctx, ngx_connection_t *c);

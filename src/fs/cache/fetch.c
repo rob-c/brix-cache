@@ -135,13 +135,13 @@ brix_cache_build_wt_origin(const ngx_stream_brix_srv_conf_t *conf, ngx_log_t *lo
 {
     char host_z[256];
 
-    if (conf->wt_origin_host.len == 0 || conf->wt_origin_port == 0) {
+    if (conf->wt.origin_host.len == 0 || conf->wt.origin_port == 0) {
         errno = EINVAL;
         return NULL;
     }
-    ngx_cpystrn((u_char *) host_z, conf->wt_origin_host.data,
-                ngx_min(conf->wt_origin_host.len + 1, sizeof(host_z)));
-    return brix_sd_xroot_create_origin(host_z, (int) conf->wt_origin_port,
+    ngx_cpystrn((u_char *) host_z, conf->wt.origin_host.data,
+                ngx_min(conf->wt.origin_host.len + 1, sizeof(host_z)));
+    return brix_sd_xroot_create_origin(host_z, (int) conf->wt.origin_port,
         0 /* tls: legacy cache_origin_tls retired */,
         (int) conf->cache_origin_family,
         (conf->cache_origin_bearer.len > 0)
@@ -194,8 +194,8 @@ brix_cache_fill_from_source(brix_cache_fill_t *t,
             .deny_prefixes  = conf->cache_deny_prefixes,
             .allow_prefixes = conf->cache_allow_prefixes,
             .size_limit     = conf->cache_max_file_size,
-            .include_regex  = conf->cache_include_regex_set
-                              ? &conf->cache_include_regex : NULL,
+            .include_regex  = conf->include_regex.set
+                              ? &conf->include_regex.re : NULL,
         };
         if (brix_cache_admit(&admit, t->clean_path, (off_t) t->file_size, 0)
             == BRIX_CACHE_DECLINE)

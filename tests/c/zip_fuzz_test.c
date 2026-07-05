@@ -27,7 +27,7 @@
  * fuzz entirely in-process where ASAN can see every out-of-bounds access.
  */
 
-#include "zip.h"
+#include "protocols/shared/zip.h"
 
 #include <stdint.h>
 #include <stdio.h>

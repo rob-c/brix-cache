@@ -19,6 +19,7 @@
  */
 
 #include "impersonate.h"
+#include "core/compat/cstr.h"
 
 #include <pwd.h>
 #include <grp.h>
@@ -517,9 +518,7 @@ brix_idmap_init(const brix_idmap_conf_t *conf, ngx_log_t *log)
         char  buf[1024];
         const char *users  = NULL;
         if (conf->forbidden_users.len > 0
-            && conf->forbidden_users.len < sizeof(buf)) {
-            ngx_memcpy(buf, conf->forbidden_users.data, conf->forbidden_users.len);
-            buf[conf->forbidden_users.len] = '\0';
+            && brix_str_cbuf(buf, sizeof(buf), &conf->forbidden_users) != NULL) {
             users = buf;
         }
         idmap_forbid_load(users, BRIX_IMP_DEFAULT_FORBIDDEN_USERS, 1, log);
@@ -528,9 +527,7 @@ brix_idmap_init(const brix_idmap_conf_t *conf, ngx_log_t *log)
         char  buf[1024];
         const char *groups = NULL;
         if (conf->forbidden_groups.len > 0
-            && conf->forbidden_groups.len < sizeof(buf)) {
-            ngx_memcpy(buf, conf->forbidden_groups.data, conf->forbidden_groups.len);
-            buf[conf->forbidden_groups.len] = '\0';
+            && brix_str_cbuf(buf, sizeof(buf), &conf->forbidden_groups) != NULL) {
             groups = buf;
         }
         idmap_forbid_load(groups, BRIX_IMP_DEFAULT_FORBIDDEN_GROUPS, 0, log);
@@ -553,12 +550,9 @@ brix_idmap_init(const brix_idmap_conf_t *conf, ngx_log_t *log)
     }
 
     idmap_default_user[0] = '\0';
-    if (conf->default_user.len > 0
-        && conf->default_user.len < sizeof(idmap_default_user))
-    {
-        ngx_memcpy(idmap_default_user, conf->default_user.data,
-                   conf->default_user.len);
-        idmap_default_user[conf->default_user.len] = '\0';
+    if (conf->default_user.len > 0) {
+        (void) brix_str_cbuf(idmap_default_user, sizeof(idmap_default_user),
+                             &conf->default_user);
     }
 
     ngx_memzero(idmap_cache, sizeof(idmap_cache));    /* drop the cache */
@@ -567,10 +561,8 @@ brix_idmap_init(const brix_idmap_conf_t *conf, ngx_log_t *log)
         char  pbuf[IDMAP_PRINC_MAX];
         const char *path = NULL;
         if (conf->gridmap_path.len > 0
-            && conf->gridmap_path.len < sizeof(pbuf))
+            && brix_str_cbuf(pbuf, sizeof(pbuf), &conf->gridmap_path) != NULL)
         {
-            ngx_memcpy(pbuf, conf->gridmap_path.data, conf->gridmap_path.len);
-            pbuf[conf->gridmap_path.len] = '\0';
             path = pbuf;
         }
         return idmap_gridmap_load(path, log);

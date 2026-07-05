@@ -25,8 +25,8 @@ brix_upstream_forward_response(brix_upstream_t *up)
     u_char           *body = up->resp_body;
     uint32_t          dlen = up->resp_dlen;
 
-    ctx->cur_streamid[0] = up->req_streamid[0];
-    ctx->cur_streamid[1] = up->req_streamid[1];
+    ctx->recv.cur_streamid[0] = up->req_streamid[0];
+    ctx->recv.cur_streamid[1] = up->req_streamid[1];
 
     switch (status) {
 
@@ -46,7 +46,7 @@ brix_upstream_forward_response(brix_upstream_t *up)
             return;
         }
 
-        brix_build_resp_hdr(ctx->cur_streamid, kXR_redirect, dlen,
+        brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_redirect, dlen,
                               (ServerResponseHdr *) buf);
         ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, body, dlen);
 
@@ -130,7 +130,7 @@ brix_upstream_forward_response(brix_upstream_t *up)
             brix_upstream_abort(up, "pool alloc failed forwarding ok");
             return;
         }
-        brix_build_resp_hdr(ctx->cur_streamid, kXR_ok, dlen,
+        brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok, dlen,
                               (ServerResponseHdr *) buf);
         if (dlen > 0) {
             ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, body, dlen);

@@ -33,7 +33,7 @@ brix_handle_mkdir(brix_ctx_t *ctx, ngx_connection_t *c,
 	mode_t   mode;
 	int      recursive;
 
-	xrdw_mkdir_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+	xrdw_mkdir_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
 	recursive = (req.options & kXR_mkdirpath) ? 1 : 0;
 	mode      = req.mode & 0777;
 	if (mode == 0) {

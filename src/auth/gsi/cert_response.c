@@ -191,23 +191,23 @@ brix_gsi_send_cert(brix_ctx_t *ctx, ngx_connection_t *c)
      * server key cannot sign — degrade to unsigned rather than fail the auth.
      */
     signed_dh = gsi_use_signed_dh(conf->gsi_signed_dh,
-                                  gsi_certreq_version(ctx->payload,
-                                                      ctx->cur_dlen));
+                                  gsi_certreq_version(ctx->recv.payload,
+                                                      ctx->recv.cur_dlen));
     if (signed_dh && conf->gsi_key == NULL) {
         signed_dh = 0;
     }
-    ctx->gsi_signed_dh = signed_dh;
+    ctx->gsi.signed_dh = signed_dh;
 
     /* §F6: capture the client's advertised delegation mode (kXRS_clnt_opts) so a
      * later delegation round picks the flow the client actually supports —
      * kOptsFwdPxy (forward) vs kOptsDlgPxy/kOptsSigReq (sign-request). */
-    ctx->gsi_clnt_opts = gsi_certreq_clnt_opts(ctx->payload, ctx->cur_dlen);
+    ctx->gsi.clnt_opts = gsi_certreq_clnt_opts(ctx->recv.payload, ctx->recv.cur_dlen);
     ngx_log_error(NGX_LOG_INFO, c->log, 0,
                   "brix: GSI client delegation opts=0x%02xd (fwd=%d sign=%d dlg=%d)",
-                  (unsigned) ctx->gsi_clnt_opts,
-                  (ctx->gsi_clnt_opts & 0x2) ? 1 : 0,
-                  (ctx->gsi_clnt_opts & 0x4) ? 1 : 0,
-                  (ctx->gsi_clnt_opts & 0x1) ? 1 : 0);
+                  (unsigned) ctx->gsi.clnt_opts,
+                  (ctx->gsi.clnt_opts & 0x2) ? 1 : 0,
+                  (ctx->gsi.clnt_opts & 0x4) ? 1 : 0,
+                  (ctx->gsi.clnt_opts & 0x1) ? 1 : 0);
 
     /*
      * Phase 33: take a pre-generated ephemeral ffdhe2048 DH key from the
@@ -241,7 +241,7 @@ brix_gsi_send_cert(brix_ctx_t *ctx, ngx_connection_t *c)
         return NGX_ERROR;
     }
     PEM_write_bio_Parameters(bio, dhkey);
-    ctx->gsi_dh_key = dhkey;
+    ctx->gsi.dh_key = dhkey;
     BIO_get_mem_ptr(bio, &bptr);
 
     puk_written = snprintf(puk_buf, sizeof(puk_buf),
@@ -284,7 +284,7 @@ brix_gsi_send_cert(brix_ctx_t *ctx, ngx_connection_t *c)
         pub_type = (uint32_t) kXRS_puk;
     }
 
-    if (gsi_find_bucket(ctx->payload, ctx->cur_dlen,
+    if (gsi_find_bucket(ctx->recv.payload, ctx->recv.cur_dlen,
                         (uint32_t) kXRS_main, &main_data, &main_dlen) == 0) {
         gsi_find_bucket(main_data, main_dlen,
                         (uint32_t) kXRS_rtag, &clnt_rtag, &clnt_rtlen);
@@ -368,7 +368,7 @@ brix_gsi_send_cert(brix_ctx_t *ctx, ngx_connection_t *c)
     total = XRD_RESPONSE_HDR_LEN + body_len;
     BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
-    brix_build_resp_hdr(ctx->cur_streamid, kXR_authmore,
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_authmore,
                           (uint32_t) body_len, (ServerResponseHdr *) buf);
 
     p = buf + XRD_RESPONSE_HDR_LEN;

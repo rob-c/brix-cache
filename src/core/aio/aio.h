@@ -259,7 +259,7 @@ typedef struct {
 /* --- Resume the nginx event loop after an AIO task completes. --- */
 
 /* Liveness guard for a done callback: copies the saved 2-byte streamid into
- * ctx->cur_streamid so the response is built for the right request.  Returns 1
+ * ctx->recv.cur_streamid so the response is built for the right request.  Returns 1
  * if the connection is still alive, 0 if ctx->destroyed (caller must then touch
  * nothing further — ctx/c may be stale). */
 ngx_flag_t brix_aio_restore_stream(brix_ctx_t *ctx,

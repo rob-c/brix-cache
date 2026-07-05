@@ -34,7 +34,7 @@ ngx_uint_t brix_cache_watermark_purge(ngx_stream_brix_srv_conf_t *conf,
 
 /*
  * Per-worker background timer handler (ev->data = the srv conf). Calls
- * brix_cache_watermark_purge() and re-arms at conf->cache_reap_interval until
+ * brix_cache_watermark_purge() and re-arms at conf->reaper.reap_interval until
  * the worker is exiting.
  */
 void brix_cache_watermark_timer_handler(ngx_event_t *ev);

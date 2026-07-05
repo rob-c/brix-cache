@@ -115,7 +115,7 @@ brix_handle_set(brix_ctx_t *ctx, ngx_connection_t *c)
     size_t            payload_len;
     const char       *payload;
 
-    xrdw_set_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    xrdw_set_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     modifier = (u_char) req.modifier;
 
     switch (modifier) {
@@ -124,9 +124,9 @@ brix_handle_set(brix_ctx_t *ctx, ngx_connection_t *c)
     default:            mod_name = "unknown"; break;
     }
 
-    payload_len = (size_t) ctx->cur_dlen;
-    payload     = (ctx->cur_dlen > 0 && ctx->payload != NULL)
-                  ? (const char *) ctx->payload : "";
+    payload_len = (size_t) ctx->recv.cur_dlen;
+    payload     = (ctx->recv.cur_dlen > 0 && ctx->recv.payload != NULL)
+                  ? (const char *) ctx->recv.payload : "";
 
     payload_snippet[0] = '\0';
     if (payload_len > 0) {

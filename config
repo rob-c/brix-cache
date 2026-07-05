@@ -343,10 +343,14 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/net/mirror/stream_mirror_io.h \
                         $ngx_addon_dir/src/net/ratelimit/ratelimit.h \
                         $ngx_addon_dir/src/core/types/config.h \
+                        $ngx_addon_dir/src/core/types/conf_structs.h \
                         $ngx_addon_dir/src/core/types/proto_list.h \
                         $ngx_addon_dir/src/core/types/fs_list.h \
                         $ngx_addon_dir/src/core/config/shared_conf.h \
+                        $ngx_addon_dir/src/core/config/tier_directives.h \
+                        $ngx_addon_dir/src/core/compat/cstr.h \
                         $ngx_addon_dir/src/core/types/context.h \
+                        $ngx_addon_dir/src/core/types/ctx_structs.h \
                         $ngx_addon_dir/src/core/types/tunables.h \
                         $ngx_addon_dir/src/core/config/config.h \
                         $ngx_addon_dir/src/protocols/root/handshake/handshake.h \
@@ -383,9 +387,14 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/fs/tier/tier.h \
                         $ngx_addon_dir/src/fs/backend/sd.h \
                         $ngx_addon_dir/src/fs/backend/cache/sd_cache.h \
+                 $ngx_addon_dir/src/fs/backend/cache/sd_cache_internal.h \
+                 $ngx_addon_dir/src/fs/backend/cache/sd_cache_policy.h \
                         $ngx_addon_dir/src/fs/backend/frm/sd_frm.h \
+                 $ngx_addon_dir/src/fs/backend/frm/sd_frm_mss.h \
+                 $ngx_addon_dir/src/fs/backend/frm/sd_frm_mss.h \
                         $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
                         $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_store.h \
                         $ngx_addon_dir/src/core/config/tape_stage_conf.h \
                         $ngx_addon_dir/src/fs/path/path.h \
                         $ngx_addon_dir/src/protocols/root/read/clone.h \
@@ -481,6 +490,12 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/net/cms/node_ops.h \
                         $ngx_addon_dir/src/net/cms/forward.h \
                         $ngx_addon_dir/src/observability/metrics/metrics.h \
+                        $ngx_addon_dir/src/observability/metrics/metrics_cvmfs.h \
+                        $ngx_addon_dir/src/observability/metrics/metrics_proxy.h \
+                        $ngx_addon_dir/src/observability/metrics/metrics_frm.h \
+                        $ngx_addon_dir/src/observability/metrics/metrics_http_labels.h \
+                        $ngx_addon_dir/src/observability/metrics/metrics_webdav.h \
+                        $ngx_addon_dir/src/observability/metrics/metrics_s3.h \
                         $ngx_addon_dir/src/observability/metrics/metrics_macros.h \
                         $ngx_addon_dir/src/observability/metrics/unified.h \
                         $ngx_addon_dir/src/observability/metrics/access_log.h \
@@ -501,6 +516,17 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/auth/token/token_cache.h \
                         $ngx_addon_dir/src/auth/token/worker_cache.h"
 ngx_brix_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
+                 $ngx_addon_dir/src/protocols/webdav/directives_storage.inc \
+                 $ngx_addon_dir/src/protocols/webdav/directives_net.inc \
+                 $ngx_addon_dir/src/protocols/webdav/directives_zones.inc \
+                      $ngx_addon_dir/src/protocols/webdav/webdav_lock.h \
+                      $ngx_addon_dir/src/protocols/webdav/webdav_methods.h \
+                      $ngx_addon_dir/src/protocols/webdav/webdav_tpc.h \
+                      $ngx_addon_dir/src/protocols/webdav/webdav_proxy.h \
+                      $ngx_addon_dir/src/protocols/webdav/webdav_path.h \
+                      $ngx_addon_dir/src/protocols/webdav/webdav_metrics.h \
+                      $ngx_addon_dir/src/protocols/webdav/webdav_auth.h \
+                      $ngx_addon_dir/src/protocols/webdav/webdav_props.h \
                         $ngx_addon_dir/src/core/ident.h \
                         $ngx_addon_dir/src/protocols/dig/dig.h \
                         $ngx_addon_dir/src/protocols/webdav/tape_rest.h \
@@ -510,6 +536,7 @@ ngx_brix_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
                         $ngx_addon_dir/src/fs/backend/sd.h \
                         $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
                         $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_store.h \
                         $ngx_addon_dir/src/fs/cache/open.h \
                         $ngx_addon_dir/src/protocols/webdav/xrdhttp.h \
                         $ngx_addon_dir/src/core/compat/time.h \
@@ -554,7 +581,7 @@ xrd_emit_module() {
 # Build both the stream module and the companion HTTP metrics module
 ngx_module_type=STREAM
 ngx_module_name=ngx_stream_brix_module
-ngx_module_incs="$ngx_addon_dir/src"
+ngx_module_incs="$ngx_addon_dir/src $ngx_addon_dir/shared"
 ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/stream/module.c \
     $ngx_addon_dir/src/protocols/root/stream/module_enums.c \
@@ -658,14 +685,21 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_compat.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_striper.c \
     $ngx_addon_dir/src/fs/backend/pblock/sd_pblock.c \
+    $ngx_addon_dir/src/fs/backend/pblock/pblock_store.c \
     $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.c \
     $ngx_addon_dir/src/fs/backend/s3/sd_s3.c \
+    $ngx_addon_dir/src/fs/backend/s3/sd_s3_meta.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote.c \
     $ngx_addon_dir/src/fs/backend/xroot/sd_xroot.c \
+    $ngx_addon_dir/src/fs/backend/xroot/sd_xroot_ns.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http.c \
+    $ngx_addon_dir/src/fs/backend/http/sd_http_introspect.c \
     $ngx_addon_dir/src/fs/backend/stage/sd_stage.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache.c \
+    $ngx_addon_dir/src/fs/backend/cache/sd_cache_policy.c \
     $ngx_addon_dir/src/fs/backend/frm/sd_frm.c \
+    $ngx_addon_dir/src/fs/backend/frm/sd_frm_stub.c \
+    $ngx_addon_dir/src/fs/backend/frm/sd_frm_exec.c \
     $ngx_addon_dir/src/fs/backend/meta_advisory.c \
     $ngx_addon_dir/src/fs/backend/site_n2n.c \
     $ngx_addon_dir/src/fs/backend/sd_registry.c \
@@ -807,7 +841,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/cache/cstore.c \
     $ngx_addon_dir/src/fs/cache/verify.c \
     $ngx_addon_dir/src/fs/cache/fill_retry.c \
-    $ngx_addon_dir/src/protocols/cvmfs/classify.c \
+    $ngx_addon_dir/shared/cvmfs/grammar/classify.c \
     $ngx_addon_dir/src/fs/cache/origin/s3_transport.c \
     $ngx_addon_dir/src/fs/cache/origin/pelican_register.c \
     $ngx_addon_dir/src/fs/cache/lock.c \
@@ -822,6 +856,9 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/cache/origin_connection.c \
     $ngx_addon_dir/src/fs/cache/origin_response.c \
     $ngx_addon_dir/src/fs/cache/origin_protocol.c \
+    $ngx_addon_dir/src/fs/cache/origin_auth.c \
+    $ngx_addon_dir/src/fs/cache/origin_ns.c \
+    $ngx_addon_dir/src/fs/cache/origin_write.c \
     $ngx_addon_dir/src/fs/cache/fetch.c \
     $ngx_addon_dir/src/fs/cache/evict_candidates.c \
     $ngx_addon_dir/src/fs/cache/evict_policy.c \
@@ -1023,6 +1060,17 @@ ngx_module_srcs="\
 "
 
 ngx_module_deps="$ngx_brix_stream_deps \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_auth.inc \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_tier.inc \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_tpc.inc \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_security.inc \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_cms.inc \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_net.inc \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_cache.inc \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_caps.inc \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_writethrough.inc \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_zones.inc \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_pmark.inc \
                  $ngx_addon_dir/src/core/aio/uring.h \
                  $ngx_addon_dir/src/observability/dashboard/dashboard.h"
 # Stream module .so links: OpenSSL + the external libs its own objects call —
@@ -1051,6 +1099,12 @@ ngx_module_name=ngx_http_brix_metrics_module
                   $ngx_addon_dir/src/observability/metrics/handler.c \
                   $ngx_addon_dir/src/observability/metrics/health.c"
 ngx_module_deps="$ngx_addon_dir/src/observability/metrics/metrics.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_cvmfs.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_proxy.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_frm.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_http_labels.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_webdav.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_s3.h \
                  $ngx_addon_dir/src/core/ident.h \
                  $ngx_addon_dir/src/observability/metrics/metrics_macros.h \
                  $ngx_addon_dir/src/observability/metrics/unified.h \
@@ -1211,16 +1265,24 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/s3/module.c \
                  $ngx_addon_dir/src/protocols/s3/util.c \
                  $ngx_addon_dir/src/protocols/s3/operation_table.c"
 ngx_module_deps="$ngx_addon_dir/src/protocols/s3/s3.h \
+                 $ngx_addon_dir/src/protocols/s3/s3_handlers.h \
                  $ngx_addon_dir/src/protocols/s3/aws_chunked.h \
                  $ngx_addon_dir/src/protocols/s3/tagging.h \
                  $ngx_addon_dir/src/fs/vfs/vfs.h \
                  $ngx_addon_dir/src/fs/backend/sd.h \
                  $ngx_addon_dir/src/fs/backend/rados/sd_ceph.h \
                  $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_store.h \
                  $ngx_addon_dir/src/fs/cache/open.h \
                  $ngx_addon_dir/src/core/compat/hex.h \
                  $ngx_addon_dir/src/core/compat/time.h \
                  $ngx_addon_dir/src/observability/metrics/metrics.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_cvmfs.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_proxy.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_frm.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_http_labels.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_webdav.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_s3.h \
                  $ngx_addon_dir/src/observability/metrics/unified.h \
                  $ngx_addon_dir/src/observability/metrics/metrics_macros.h"
 # S3 module .so links: OpenSSL (SigV4 HMAC) + libxml2 (DeleteObjects request /
@@ -1241,7 +1303,9 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/cvmfs/module.c \
                  $ngx_addon_dir/src/protocols/cvmfs/origin_probe.c \
                  $ngx_addon_dir/src/protocols/cvmfs/secure.c"
 ngx_module_deps="$ngx_addon_dir/src/protocols/cvmfs/cvmfs.h \
-                 $ngx_addon_dir/src/protocols/cvmfs/classify.h \
+                 $ngx_addon_dir/src/protocols/cvmfs/directives_resilience.inc \
+                 $ngx_addon_dir/src/protocols/cvmfs/directives_core.inc \
+                 $ngx_addon_dir/shared/cvmfs/grammar/classify.h \
                  $ngx_addon_dir/src/core/config/shared_conf.h \
                  $ngx_addon_dir/src/fs/backend/sd.h \
                  $ngx_addon_dir/src/fs/vfs/vfs_backend_registry.h"
@@ -1284,6 +1348,12 @@ ngx_module_deps="$ngx_addon_dir/src/observability/dashboard/dashboard.h \
                  $ngx_addon_dir/src/observability/dashboard/api_admin.h \
                  $ngx_addon_dir/src/protocols/webdav/proxy_pool.h \
                  $ngx_addon_dir/src/observability/metrics/metrics.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_cvmfs.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_proxy.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_frm.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_http_labels.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_webdav.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_s3.h \
                  $ngx_addon_dir/src/tpc/common/registry.h \
                  $ngx_addon_dir/src/tpc/common/transfer.h"
 # Dashboard module .so links: OpenSSL + libcrypt (session-cookie HMAC/crypt) +
@@ -1328,7 +1398,7 @@ if [ "$ngx_module_link" = DYNAMIC ]; then
                      ngx_http_brix_cvmfs_module \
                      ngx_http_brix_dashboard_module \
                      ngx_stream_brix_cms_srv_module"
-    ngx_module_incs="$ngx_addon_dir/src"
+    ngx_module_incs="$ngx_addon_dir/src $ngx_addon_dir/shared"
     ngx_module_srcs="$xrd_comb_srcs"
     ngx_module_deps="$xrd_dyn_deps"
     ngx_module_libs="$xrd_dyn_libs"

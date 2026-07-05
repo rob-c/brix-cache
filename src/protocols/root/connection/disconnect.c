@@ -18,23 +18,23 @@
  * avoid pulling the GSI internal header into the connection layer. */
 void brix_gsi_delegation_cleanup(brix_ctx_t *ctx);
 
-/* Free the payload buffer (detached from ctx->payload_buf by the AIO write/read
+/* Free the payload buffer (detached from ctx->recv.payload_buf by the AIO write/read
  * paths) and any kXR_prepare staging paths, on every disconnect/close path. */
 
 static void
 brix_release_disconnect_owned_buffers(brix_ctx_t *ctx)
 {
-    if (ctx->payload_buf != NULL) {
-        ngx_free(ctx->payload_buf);
-        ctx->payload_buf = NULL;
-        ctx->payload_buf_size = 0;
-        ctx->payload = NULL;
+    if (ctx->recv.payload_buf != NULL) {
+        ngx_free(ctx->recv.payload_buf);
+        ctx->recv.payload_buf = NULL;
+        ctx->recv.payload_buf_size = 0;
+        ctx->recv.payload = NULL;
     }
 
-    if (ctx->prepare_paths != NULL) {
-        ngx_free(ctx->prepare_paths);
-        ctx->prepare_paths = NULL;
-        ctx->prepare_paths_len = 0;
+    if (ctx->prepare.paths != NULL) {
+        ngx_free(ctx->prepare.paths);
+        ctx->prepare.paths = NULL;
+        ctx->prepare.paths_len = 0;
     }
 
     /*
@@ -42,25 +42,25 @@ brix_release_disconnect_owned_buffers(brix_ctx_t *ctx)
      * (ngx_alloc, see src/aio/buffers.c brix_get_pool_scratch) — not pool
      * anchored — so they must be freed explicitly here, like payload_buf above.
      */
-    if (ctx->read_scratch != NULL) {
-        ngx_free(ctx->read_scratch);
-        ctx->read_scratch = NULL;
-        ctx->read_scratch_size = 0;
+    if (ctx->rd.read_scratch != NULL) {
+        ngx_free(ctx->rd.read_scratch);
+        ctx->rd.read_scratch = NULL;
+        ctx->rd.read_scratch_size = 0;
     }
-    if (ctx->read_hdr_scratch != NULL) {
-        ngx_free(ctx->read_hdr_scratch);
-        ctx->read_hdr_scratch = NULL;
-        ctx->read_hdr_scratch_size = 0;
+    if (ctx->rd.read_hdr_scratch != NULL) {
+        ngx_free(ctx->rd.read_hdr_scratch);
+        ctx->rd.read_hdr_scratch = NULL;
+        ctx->rd.read_hdr_scratch_size = 0;
     }
-    if (ctx->write_scratch != NULL) {
-        ngx_free(ctx->write_scratch);
-        ctx->write_scratch = NULL;
-        ctx->write_scratch_size = 0;
+    if (ctx->rd.write_scratch != NULL) {
+        ngx_free(ctx->rd.write_scratch);
+        ctx->rd.write_scratch = NULL;
+        ctx->rd.write_scratch_size = 0;
     }
-    if (ctx->cmp_scratch != NULL) {           /* phase-42 W4 codec output */
-        ngx_free(ctx->cmp_scratch);
-        ctx->cmp_scratch = NULL;
-        ctx->cmp_scratch_size = 0;
+    if (ctx->rd.cmp_scratch != NULL) {           /* phase-42 W4 codec output */
+        ngx_free(ctx->rd.cmp_scratch);
+        ctx->rd.cmp_scratch = NULL;
+        ctx->rd.cmp_scratch_size = 0;
     }
 
     /*
@@ -70,15 +70,15 @@ brix_release_disconnect_owned_buffers(brix_ctx_t *ctx)
      */
     {
         ngx_uint_t i;
-        for (i = 0; i < ctx->pipeline_depth; i++) {
-            if (ctx->rd_pool[i].buf != NULL) {
-                ngx_free(ctx->rd_pool[i].buf);
-                ctx->rd_pool[i].buf = NULL;
-                ctx->rd_pool[i].size = 0;
-                ctx->rd_pool[i].in_use = 0;
+        for (i = 0; i < ctx->out.pipeline_depth; i++) {
+            if (ctx->rd.pool[i].buf != NULL) {
+                ngx_free(ctx->rd.pool[i].buf);
+                ctx->rd.pool[i].buf = NULL;
+                ctx->rd.pool[i].size = 0;
+                ctx->rd.pool[i].in_use = 0;
             }
         }
-        ctx->rd_inflight = 0;
+        ctx->rd.inflight = 0;
     }
 
     /* Phase 24 W3: free per-file data-write-mirror accumulation buffers for any
@@ -94,22 +94,22 @@ brix_release_disconnect_owned_buffers(brix_ctx_t *ctx)
 static void
 brix_release_disconnect_crypto_state(brix_ctx_t *ctx)
 {
-    if (ctx->gsi_dh_key != NULL) {
-        EVP_PKEY_free(ctx->gsi_dh_key);
-        ctx->gsi_dh_key = NULL;
+    if (ctx->gsi.dh_key != NULL) {
+        EVP_PKEY_free(ctx->gsi.dh_key);
+        ctx->gsi.dh_key = NULL;
     }
 
     /* §F6: release any captured X.509 delegation state + cleanse the session key. */
     brix_gsi_delegation_cleanup(ctx);
 
-    if (ctx->sigver_mac_ctx != NULL) {
-        EVP_MAC_CTX_free(ctx->sigver_mac_ctx);
-        ctx->sigver_mac_ctx = NULL;
+    if (ctx->sigver.mac_ctx != NULL) {
+        EVP_MAC_CTX_free(ctx->sigver.mac_ctx);
+        ctx->sigver.mac_ctx = NULL;
     }
 
-    if (ctx->sigver_mac != NULL) {
-        EVP_MAC_free(ctx->sigver_mac);
-        ctx->sigver_mac = NULL;
+    if (ctx->sigver.mac != NULL) {
+        EVP_MAC_free(ctx->sigver.mac);
+        ctx->sigver.mac = NULL;
     }
 }
 
@@ -127,29 +127,29 @@ brix_disconnect_update_metrics(brix_ctx_t *ctx)
     ngx_atomic_fetch_add(&ctx->metrics->connections_active,
                          (ngx_atomic_int_t) -1);
     ngx_atomic_fetch_add(&ctx->metrics->bytes_rx_total,
-                         (ngx_atomic_int_t) ctx->session_bytes_written);
+                         (ngx_atomic_int_t) ctx->totals.bytes_written);
     ngx_atomic_fetch_add(&ctx->metrics->bytes_tx_total,
-                         (ngx_atomic_int_t) ctx->session_bytes);
+                         (ngx_atomic_int_t) ctx->totals.bytes);
 
     /* Per-IP-version byte accounting — mirrors the aggregate totals above. */
     if (ctx->ip_version == AF_INET6) {
         ngx_atomic_fetch_add(&ctx->metrics->bytes_rx_ipv6_total,
-                             (ngx_atomic_int_t) ctx->session_bytes_written);
+                             (ngx_atomic_int_t) ctx->totals.bytes_written);
         ngx_atomic_fetch_add(&ctx->metrics->bytes_tx_ipv6_total,
-                             (ngx_atomic_int_t) ctx->session_bytes);
+                             (ngx_atomic_int_t) ctx->totals.bytes);
     } else if (ctx->ip_version == AF_INET) {
         ngx_atomic_fetch_add(&ctx->metrics->bytes_rx_ipv4_total,
-                             (ngx_atomic_int_t) ctx->session_bytes_written);
+                             (ngx_atomic_int_t) ctx->totals.bytes_written);
         ngx_atomic_fetch_add(&ctx->metrics->bytes_tx_ipv4_total,
-                             (ngx_atomic_int_t) ctx->session_bytes);
+                             (ngx_atomic_int_t) ctx->totals.bytes);
     }
 
     /* Per-protocol byte accounting for native stream-layer traffic. */
     if (ngx_strcmp(ctx->protocol_label, "root") == 0) {
         ngx_atomic_fetch_add(&ctx->metrics->proto_root_bytes_rx_total,
-                             (ngx_atomic_int_t) ctx->session_bytes_written);
+                             (ngx_atomic_int_t) ctx->totals.bytes_written);
         ngx_atomic_fetch_add(&ctx->metrics->proto_root_bytes_tx_total,
-                             (ngx_atomic_int_t) ctx->session_bytes);
+                             (ngx_atomic_int_t) ctx->totals.bytes);
     }
 }
 
@@ -226,21 +226,21 @@ brix_disconnect_format_session_detail(brix_ctx_t *ctx, ngx_msec_t now,
 {
     ngx_msec_t session_duration_ms;
 
-    *total_bytes = ctx->session_bytes + ctx->session_bytes_written;
-    session_duration_ms = now - ctx->session_start;
+    *total_bytes = ctx->totals.bytes + ctx->totals.bytes_written;
+    session_duration_ms = now - ctx->totals.start;
 
     if (*total_bytes == 0 || session_duration_ms == 0) {
         snprintf(detail, detail_size, "-");
         return;
     }
 
-    if (ctx->session_bytes_written > 0) {
+    if (ctx->totals.bytes_written > 0) {
         double read_mbps;
         double write_mbps;
 
-        read_mbps = (double) ctx->session_bytes
+        read_mbps = (double) ctx->totals.bytes
                     / (double) session_duration_ms / 1000.0;
-        write_mbps = (double) ctx->session_bytes_written
+        write_mbps = (double) ctx->totals.bytes_written
                       / (double) session_duration_ms / 1000.0;
         snprintf(detail, detail_size, "rx=%.2fMB/s tx=%.2fMB/s",
                  read_mbps, write_mbps);
@@ -268,17 +268,17 @@ brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c)
 
     /* phase-59 W3a: release any throttle open-files slots still held by this
      * connection (handles closed implicitly by disconnect, not kXR_close). */
-    if (ctx->throttle_open_held > 0) {
+    if (ctx->throttle.open_held > 0) {
         ngx_stream_brix_srv_conf_t *tconf = ngx_stream_get_module_srv_conf(
             (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
-        if (tconf->throttle_zone != NULL) {
-            const char *tuser = ctx->dn[0] ? ctx->dn : "anonymous";
-            while (ctx->throttle_open_held > 0) {
-                brix_throttle_open_dec(tconf->throttle_zone, tuser);
-                ctx->throttle_open_held--;
+        if (tconf->throttle.zone != NULL) {
+            const char *tuser = ctx->login.dn[0] ? ctx->login.dn : "anonymous";
+            while (ctx->throttle.open_held > 0) {
+                brix_throttle_open_dec(tconf->throttle.zone, tuser);
+                ctx->throttle.open_held--;
             }
         } else {
-            ctx->throttle_open_held = 0;
+            ctx->throttle.open_held = 0;
         }
     }
 
@@ -289,25 +289,25 @@ brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c)
      * defensive against an AIO completion racing teardown.  Guarded on our armed
      * bit so it never touches the CMS/FRM WAITING timers that share c->read.
      */
-    if (ctx->read_deadline_armed && c->read->timer_set) {
+    if (ctx->deadline.read_armed && c->read->timer_set) {
         ngx_del_timer(c->read);
     }
-    ctx->read_deadline_armed = 0;
-    if (ctx->send_deadline_armed && c->write->timer_set) {
+    ctx->deadline.read_armed = 0;
+    if (ctx->deadline.send_armed && c->write->timer_set) {
         ngx_del_timer(c->write);
     }
-    ctx->send_deadline_armed = 0;
+    ctx->deadline.send_armed = 0;
 
     /* SciTags packet marking (phase-34): cancel the echo timer (its ngx_event_t
      * lives in this ctx, freed with the pool below), then emit the firefly "end"
      * report while the socket fd is still open (TCP_INFO byte/rtt read here).
      * No-op if the connection was never marked. */
-    if (ctx->pmark_echo_ev.timer_set) {
-        ngx_del_timer(&ctx->pmark_echo_ev);
+    if (ctx->pmark.echo_ev.timer_set) {
+        ngx_del_timer(&ctx->pmark.echo_ev);
     }
-    if (ctx->pmark_flow != NULL) {
-        brix_pmark_flow_end(ctx->pmark_flow, c->log);
-        ctx->pmark_flow = NULL;
+    if (ctx->pmark.flow != NULL) {
+        brix_pmark_flow_end(ctx->pmark.flow, c->log);
+        ctx->pmark.flow = NULL;
     }
 
     /* Phase 31 W4: return this connection's charged transfer-heap bytes to the
@@ -322,7 +322,7 @@ brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c)
 
     /* Phase 51 (E4): release this connection's in-flight GSI-handshake slot if it
      * still holds one (handshake aborted before completion).  Leak-proof: this
-     * funnel always runs on close, and the release is gated by ctx->gsi_counted
+     * funnel always runs on close, and the release is gated by ctx->login.gsi_counted
      * so a completed handshake (already released) is a no-op. */
     brix_gsi_inflight_release(ctx);
 
@@ -343,10 +343,10 @@ brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c)
     /* Free any transfer monitor slots for this session (handles kXR_close was never sent). */
     if (ngx_brix_dashboard_shm_zone != NULL) {
         brix_transfer_slot_free_all_for_session(
-            ngx_brix_dashboard_shm_zone->data, ctx->sessid);
+            ngx_brix_dashboard_shm_zone->data, ctx->login.sessid);
     }
 
-    if (!ctx->logged_in) {
+    if (!ctx->login.logged_in) {
         /* Phase 33 C1: make this connection's buffered access-log lines durable
          * (it may have logged errors before login). */
         brix_access_log_flush();
@@ -357,15 +357,15 @@ brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c)
      * Bound sessions are represented in the shared registry by their parent
      * session.  Only unregister the session that owns the registry slot.
      */
-    if (ctx->auth_done && !ctx->is_bound) {
-        brix_session_unregister(ctx->sessid);
+    if (ctx->login.auth_done && !ctx->is_bound) {
+        brix_session_unregister(ctx->login.sessid);
     }
 
     brix_disconnect_format_session_detail(ctx, now, session_detail,
                                             sizeof(session_detail),
                                             &session_total_bytes);
 
-    ctx->req_start = ctx->session_start;
+    ctx->req_start = ctx->totals.start;
     brix_log_access(ctx, c, "DISCONNECT", "-", session_detail, 1, 0, NULL,
                       session_total_bytes);
 
@@ -395,23 +395,23 @@ ngx_flag_t
 brix_defer_teardown_if_writing(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_int_t status)
 {
-    if (ctx->wr_inflight == 0) {
+    if (ctx->out.wr_inflight == 0) {
         return 0;
     }
 
-    if (!ctx->finalize_pending) {
-        ctx->finalize_pending = 1;
-        ctx->finalize_status  = status;
+    if (!ctx->out.finalize_pending) {
+        ctx->out.finalize_pending = 1;
+        ctx->out.finalize_status  = status;
         ctx->destroyed        = 1;
 
-        if (ctx->read_deadline_armed && c->read->timer_set) {
+        if (ctx->deadline.read_armed && c->read->timer_set) {
             ngx_del_timer(c->read);
         }
-        ctx->read_deadline_armed = 0;
-        if (ctx->send_deadline_armed && c->write->timer_set) {
+        ctx->deadline.read_armed = 0;
+        if (ctx->deadline.send_armed && c->write->timer_set) {
             ngx_del_timer(c->write);
         }
-        ctx->send_deadline_armed = 0;
+        ctx->deadline.send_armed = 0;
     }
 
     return 1;
@@ -429,9 +429,9 @@ void
 brix_run_deferred_teardown(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     ngx_stream_session_t *s = c->data;
-    ngx_int_t             status = ctx->finalize_status;
+    ngx_int_t             status = ctx->out.finalize_status;
 
-    ctx->finalize_pending = 0;
+    ctx->out.finalize_pending = 0;
     brix_on_disconnect(ctx, c);
     brix_close_all_files(ctx);
     ngx_stream_finalize_session(s, status);

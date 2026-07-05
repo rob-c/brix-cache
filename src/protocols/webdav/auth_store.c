@@ -4,6 +4,7 @@
 
 #include "webdav.h"
 #include "auth/crypto/pki_build.h"
+#include "core/compat/cstr.h"
 
 #include <limits.h>
 
@@ -27,29 +28,25 @@ webdav_build_ca_store(ngx_log_t *log,
     const char *crl    = NULL;
 
     if (conf->cadir.len > 0) {
-        if (conf->cadir.len >= sizeof(cadir_buf)) {
+        if (brix_str_cbuf(cadir_buf, sizeof(cadir_buf), &conf->cadir) == NULL) {
             return NULL;
         }
-        ngx_memcpy(cadir_buf, conf->cadir.data, conf->cadir.len);
-        cadir_buf[conf->cadir.len] = '\0';
         cadir = cadir_buf;
     }
 
     if (conf->cafile.len > 0) {
-        if (conf->cafile.len >= sizeof(cafile_buf)) {
+        if (brix_str_cbuf(cafile_buf, sizeof(cafile_buf), &conf->cafile)
+            == NULL)
+        {
             return NULL;
         }
-        ngx_memcpy(cafile_buf, conf->cafile.data, conf->cafile.len);
-        cafile_buf[conf->cafile.len] = '\0';
         cafile = cafile_buf;
     }
 
     if (conf->crl.len > 0) {
-        if (conf->crl.len >= sizeof(crl_buf)) {
+        if (brix_str_cbuf(crl_buf, sizeof(crl_buf), &conf->crl) == NULL) {
             return NULL;
         }
-        ngx_memcpy(crl_buf, conf->crl.data, conf->crl.len);
-        crl_buf[conf->crl.len] = '\0';
         crl = crl_buf;
     }
 

@@ -33,28 +33,28 @@
 
 /*
  *
- * WHAT: OpenSSL callback invoked for each TLS ClientHello that includes the status_request extension. If a cached staple exists in srv_conf->ocsp_staple_data, it is attached to the ServerHello via SSL_set_tlsext_status_ocsp_resp(). The buffer is allocated with OPENSSL_malloc and freed by OpenSSL on SSL_free.
+ * WHAT: OpenSSL callback invoked for each TLS ClientHello that includes the status_request extension. If a cached staple exists in srv_conf->ocsp.staple_data, it is attached to the ServerHello via SSL_set_tlsext_status_ocsp_resp(). The buffer is allocated with OPENSSL_malloc and freed by OpenSSL on SSL_free.
  *
  * WHY: OCSP stapling allows clients to verify certificate revocation status without making a separate network request to the CA's OCSP responder, reducing TLS handshake latency and improving privacy (the server reveals revocation status instead of the client).
  *
- * HOW: Check ocsp_staple_data/len → if present, OPENSSL_malloc copy → SSL_set_tlsext_status_ocsp_resp(ssl, copy, len) → return SSL_TLSEXT_ERR_OK; if absent or allocation fails, return SSL_TLSEXT_ERR_NOACK. */
+ * HOW: Check ocsp.staple_data/len → if present, OPENSSL_malloc copy → SSL_set_tlsext_status_ocsp_resp(ssl, copy, len) → return SSL_TLSEXT_ERR_OK; if absent or allocation fails, return SSL_TLSEXT_ERR_NOACK. */
 static int
 brix_ocsp_stapling_cb(SSL *ssl, void *arg)
 {
     ngx_stream_brix_srv_conf_t *xcf = arg;
 
-    if (xcf->ocsp_staple_data == NULL || xcf->ocsp_staple_len == 0) {
+    if (xcf->ocsp.staple_data == NULL || xcf->ocsp.staple_len == 0) {
         return SSL_TLSEXT_ERR_NOACK;
     }
 
     /* OpenSSL takes ownership and frees this buffer via OPENSSL_free(). */
-    unsigned char *copy = OPENSSL_malloc(xcf->ocsp_staple_len);
+    unsigned char *copy = OPENSSL_malloc(xcf->ocsp.staple_len);
     if (copy == NULL) {
         return SSL_TLSEXT_ERR_NOACK;
     }
 
-    ngx_memcpy(copy, xcf->ocsp_staple_data, xcf->ocsp_staple_len);
-    SSL_set_tlsext_status_ocsp_resp(ssl, copy, (int)xcf->ocsp_staple_len);
+    ngx_memcpy(copy, xcf->ocsp.staple_data, xcf->ocsp.staple_len);
+    SSL_set_tlsext_status_ocsp_resp(ssl, copy, (int)xcf->ocsp.staple_len);
     return SSL_TLSEXT_ERR_OK;
 }
 
@@ -114,7 +114,7 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 #endif
 
     /* Register OCSP stapling callback if stapling is configured */
-    if (xcf->ocsp_stapling) {
+    if (xcf->ocsp.stapling) {
         SSL_CTX_set_tlsext_status_cb(xcf->tls_ctx->ctx, brix_ocsp_stapling_cb);
         SSL_CTX_set_tlsext_status_arg(xcf->tls_ctx->ctx, xcf);
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,

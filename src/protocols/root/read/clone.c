@@ -48,7 +48,7 @@ brix_handle_clone(brix_ctx_t *ctx, ngx_connection_t *c)
     ngx_int_t           rc;
     uint64_t            total_bytes = 0;
 
-    xrdw_clone_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    xrdw_clone_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     dst_idx = (int)(unsigned char) req.dst_fhandle[0];
 
     if (!brix_validate_write_handle(ctx, c, dst_idx, "CLONE",
@@ -56,19 +56,19 @@ brix_handle_clone(brix_ctx_t *ctx, ngx_connection_t *c)
         return rc;
     }
 
-    if (ctx->payload == NULL || ctx->cur_dlen == 0) {
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0) {
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_CLONE, "CLONE",
                           ctx->files[dst_idx].path, "-",
                           kXR_ArgMissing, "clone list is missing");
     }
 
-    if (ctx->cur_dlen % CLONE_ITEM_LEN != 0) {
+    if (ctx->recv.cur_dlen % CLONE_ITEM_LEN != 0) {
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_CLONE, "CLONE",
                           ctx->files[dst_idx].path, "-",
                           kXR_ArgInvalid, "malformed clone list");
     }
 
-    n_items = ctx->cur_dlen / CLONE_ITEM_LEN;
+    n_items = ctx->recv.cur_dlen / CLONE_ITEM_LEN;
     if (n_items > CLONE_MAX_ITEMS) {
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_CLONE, "CLONE",
                           ctx->files[dst_idx].path, "-",
@@ -77,8 +77,8 @@ brix_handle_clone(brix_ctx_t *ctx, ngx_connection_t *c)
 
     dst_fd = ctx->files[dst_idx].fd;
 
-    p   = ctx->payload;
-    end = ctx->payload + ctx->cur_dlen;
+    p   = ctx->recv.payload;
+    end = ctx->recv.payload + ctx->recv.cur_dlen;
 
     while (p < end) {
         const clone_item *item = (const clone_item *) p;
@@ -153,7 +153,7 @@ brix_handle_clone(brix_ctx_t *ctx, ngx_connection_t *c)
 
         total_bytes += copy_len;
         ctx->files[dst_idx].bytes_written += copy_len;
-        ctx->session_bytes += copy_len;
+        ctx->totals.bytes += copy_len;
 
         p += CLONE_ITEM_LEN;
     }

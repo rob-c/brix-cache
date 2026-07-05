@@ -41,7 +41,7 @@ int brix_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer,
  * certificate.
  *
  * Queries the OCSP responder URL embedded in xcf->gsi_cert and stores the
- * raw DER-encoded OCSP response in xcf->ocsp_staple_data / ocsp_staple_len.
+ * raw DER-encoded OCSP response in xcf->ocsp.staple_data / ocsp.staple_len.
  * Memory is allocated with ngx_alloc() and must be freed by the caller when
  * the configuration is destroyed.
  *

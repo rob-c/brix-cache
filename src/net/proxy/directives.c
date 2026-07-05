@@ -9,15 +9,15 @@
  *
  * WHY: Proxy mode requires configurable upstream endpoints with per-endpoint auth policies,
  *      username passthrough/fixed/anonymous modes, and optional path rewriting for namespace mapping.
- *      These directives populate conf->proxy_upstreams array, conf->proxy_auth policy enum,
- *      conf->proxy_login_user mode, and strip/add prefix strings — all consumed by proxy forward
+ *      These directives populate conf->proxy.upstreams array, conf->proxy.auth policy enum,
+ *      conf->proxy.login_user mode, and strip/add prefix strings — all consumed by proxy forward
  *      handlers (forward_request.c, forward_relay.c). Backward compat: first upstream occurrence sets
  *      legacy single-upstream fields (proxy_host/proxy_port) for prior configuration style.
  *
  * HOW: Each directive handler reads cf->args->elts for parsed argument values. proxy_parse_host_port()
  *      handles IPv6 literal [addr]:port and IPv4/hostname host:port formats — zeroing colon delimiter,
  *      extracting host string via ngx_pnalloc, parsing port via strtol with 1-65535 range validation.
- *      brix_conf_set_proxy_upstream() appends to conf->proxy_upstreams array (lazily created), sets
+ *      brix_conf_set_proxy_upstream() appends to conf->proxy.upstreams array (lazily created), sets
  *      host/port/auth=-1 (inherit global default), parses optional third arg for per-upstream auth override.
  *      brix_conf_set_proxy_auth() maps value string to BRIX_PROXY_AUTH_* enum, logs EMERG on invalid.
  *      brix_conf_set_proxy_login_user() handles anonymous/passthrough/fixed:<name> (1-8 chars) modes.
@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "core/compat/alloc_guard.h"
+#include "core/compat/cstr.h"
 
 /*
  * Parse "host[:port]" from addr_copy into *host_out / *port_out.
@@ -94,7 +95,7 @@ proxy_parse_host_port(ngx_conf_t *cf, ngx_str_t *value,
 /*
  * brix_proxy_upstream "host:port" [auth-policy]
  *
- * Appends to conf->proxy_upstreams (round-robin pool).  The optional second
+ * Appends to conf->proxy.upstreams (round-robin pool).  The optional second
  * argument overrides the global brix_proxy_auth policy for this specific
  * upstream endpoint:
  *
@@ -103,7 +104,7 @@ proxy_parse_host_port(ngx_conf_t *cf, ngx_str_t *value,
  *   sss              — build an SSS credential from conf->sss_keys[0]
  *   sss:<keyname>    — build an SSS credential from the named key
  *
- * When the auth argument is omitted the global conf->proxy_auth applies.
+ * When the auth argument is omitted the global conf->proxy.auth applies.
  * The directive may appear multiple times to register several backends.
  */
 char *
@@ -120,9 +121,10 @@ brix_conf_set_proxy_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 
     value = cf->args->elts;
 
-    BRIX_PNALLOC_OR_RETURN(addr_copy, cf->pool, value[1].len + 1, NGX_CONF_ERROR);
-    ngx_memcpy(addr_copy, value[1].data, value[1].len);
-    addr_copy[value[1].len] = '\0';
+    addr_copy = brix_pstrdup_z(cf->pool, &value[1]);
+    if (addr_copy == NULL) {
+        return NGX_CONF_ERROR;
+    }
 
     host.data = NULL;
     host.len  = 0;
@@ -133,14 +135,14 @@ brix_conf_set_proxy_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
     }
 
     /* Append to the upstreams array (lazily created) */
-    if (conf->proxy_upstreams == NULL) {
-        conf->proxy_upstreams = ngx_array_create(cf->pool, 2,
+    if (conf->proxy.upstreams == NULL) {
+        conf->proxy.upstreams = ngx_array_create(cf->pool, 2,
                                     sizeof(brix_proxy_upstream_t));
-        if (conf->proxy_upstreams == NULL) {
+        if (conf->proxy.upstreams == NULL) {
             return NGX_CONF_ERROR;
         }
     }
-    entry = ngx_array_push(conf->proxy_upstreams);
+    entry = ngx_array_push(conf->proxy.upstreams);
     if (entry == NULL) {
         return NGX_CONF_ERROR;
     }
@@ -185,9 +187,9 @@ brix_conf_set_proxy_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
     }
 
     /* Backward compat: first occurrence sets the legacy single-upstream fields */
-    if (conf->proxy_host.len == 0) {
-        conf->proxy_host = host;
-        conf->proxy_port = (ngx_int_t) port;
+    if (conf->proxy.host.len == 0) {
+        conf->proxy.host = host;
+        conf->proxy.port = (ngx_int_t) port;
     }
 
     return NGX_CONF_OK;
@@ -212,13 +214,13 @@ brix_conf_set_proxy_auth(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
     value = cf->args->elts;
 
     if (ngx_strcmp(value[1].data, "anonymous") == 0) {
-        conf->proxy_auth = BRIX_PROXY_AUTH_ANONYMOUS;
+        conf->proxy.auth = BRIX_PROXY_AUTH_ANONYMOUS;
     } else if (ngx_strcmp(value[1].data, "forward") == 0) {
-        conf->proxy_auth = BRIX_PROXY_AUTH_FORWARD;
+        conf->proxy.auth = BRIX_PROXY_AUTH_FORWARD;
     } else if (ngx_strcmp(value[1].data, "sss") == 0) {
-        conf->proxy_auth = BRIX_PROXY_AUTH_SSS;
+        conf->proxy.auth = BRIX_PROXY_AUTH_SSS;
     } else if (ngx_strcmp(value[1].data, "gsi") == 0) {
-        conf->proxy_auth = BRIX_PROXY_AUTH_GSI;
+        conf->proxy.auth = BRIX_PROXY_AUTH_GSI;
     } else {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_proxy_auth: invalid value \"%V\"; "
@@ -252,10 +254,10 @@ brix_conf_set_proxy_login_user(ngx_conf_t *cf, ngx_command_t *cmd,
     value = cf->args->elts;
 
     if (ngx_strcmp(value[1].data, "anonymous") == 0) {
-        conf->proxy_login_user = BRIX_PROXY_LOGIN_ANONYMOUS;
+        conf->proxy.login_user = BRIX_PROXY_LOGIN_ANONYMOUS;
 
     } else if (ngx_strcmp(value[1].data, "passthrough") == 0) {
-        conf->proxy_login_user = BRIX_PROXY_LOGIN_PASSTHROUGH;
+        conf->proxy.login_user = BRIX_PROXY_LOGIN_PASSTHROUGH;
 
     } else if (value[1].len >= 7
                && ngx_strncmp(value[1].data, "fixed:", 6) == 0)
@@ -266,9 +268,9 @@ brix_conf_set_proxy_login_user(ngx_conf_t *cf, ngx_command_t *cmd,
                 "brix_proxy_login_user: fixed name must be 1-8 characters");
             return NGX_CONF_ERROR;
         }
-        conf->proxy_login_user = BRIX_PROXY_LOGIN_FIXED;
-        ngx_memcpy(conf->proxy_login_user_name, value[1].data + 6, nlen);
-        conf->proxy_login_user_name[nlen] = '\0';
+        conf->proxy.login_user = BRIX_PROXY_LOGIN_FIXED;
+        ngx_memcpy(conf->proxy.login_user_name, value[1].data + 6, nlen);
+        conf->proxy.login_user_name[nlen] = '\0';
 
     } else {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
@@ -298,8 +300,8 @@ brix_conf_set_proxy_path_rewrite(ngx_conf_t *cf, ngx_command_t *cmd,
 
     value = cf->args->elts;
 
-    conf->proxy_path_strip = value[1];
-    conf->proxy_path_add   = value[2];
+    conf->proxy.path_strip = value[1];
+    conf->proxy.path_add   = value[2];
 
     return NGX_CONF_OK;
 }

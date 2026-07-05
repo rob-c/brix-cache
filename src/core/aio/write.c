@@ -62,8 +62,8 @@ brix_write_aio_done(ngx_event_t *ev)
      * writes were still running) fires on the LAST completion, once no pwrite
      * references ctx/fds.
      */
-    if (pipelined && ctx->wr_inflight > 0) {
-        ctx->wr_inflight--;
+    if (pipelined && ctx->out.wr_inflight > 0) {
+        ctx->out.wr_inflight--;
     }
 
     if (ctx->destroyed) {
@@ -72,7 +72,7 @@ brix_write_aio_done(ngx_event_t *ev)
          * writes were in flight.  Touch nothing further except, on the last
          * pipelined completion, running the teardown that was held off.
          */
-        if (pipelined && ctx->finalize_pending && ctx->wr_inflight == 0) {
+        if (pipelined && ctx->out.finalize_pending && ctx->out.wr_inflight == 0) {
             brix_run_deferred_teardown(ctx, c);   /* frees ctx — return now */
         }
         return;
@@ -89,12 +89,12 @@ brix_write_aio_done(ngx_event_t *ev)
          * this ack's frame) and queue the reply asynchronously (resp_async →
          * parked in the out_ring, drained by the write event, recv untouched).
          * Then nudge the read side in case recv throttled on out_count +
-         * wr_inflight reaching ctx->pipeline_depth.
+         * wr_inflight reaching ctx->out.pipeline_depth.
          */
         const char *errmsg = NULL;
 
         if (!brix_aio_restore_stream(ctx, t->streamid)) {
-            if (ctx->finalize_pending && ctx->wr_inflight == 0) {
+            if (ctx->out.finalize_pending && ctx->out.wr_inflight == 0) {
                 brix_run_deferred_teardown(ctx, c);
             }
             return;
@@ -115,15 +115,15 @@ brix_write_aio_done(ngx_event_t *ev)
                                   0, kXR_IOError, errmsg, 0);
             }
             BRIX_OP_ERR(ctx, op);
-            ctx->resp_async = 1;
+            ctx->out.resp_async = 1;
             (void) brix_send_error(ctx, c, kXR_IOError, errmsg);
-            ctx->resp_async = 0;
+            ctx->out.resp_async = 0;
             (void) brix_schedule_read_resume(c);
             return;
         }
 
         ctx->files[t->handle_idx].bytes_written += (size_t) t->nwritten;
-        ctx->session_bytes_written += (size_t) t->nwritten;
+        ctx->totals.bytes_written += (size_t) t->nwritten;
         if (ctx->files[t->handle_idx].wt_enabled) {
             brix_wt_mark_dirty(ctx, t->handle_idx,
                 t->req_offset + (int64_t) t->nwritten - 1,
@@ -142,9 +142,9 @@ brix_write_aio_done(ngx_event_t *ev)
         }
         BRIX_OP_OK(ctx, op);
 
-        ctx->resp_async = 1;
+        ctx->out.resp_async = 1;
         (void) brix_send_ok(ctx, c, NULL, 0);
-        ctx->resp_async = 0;
+        ctx->out.resp_async = 0;
         (void) brix_schedule_read_resume(c);
         return;
     }
@@ -199,7 +199,7 @@ brix_write_aio_done(ngx_event_t *ev)
 
     /* Success path: commit accounting and side effects on the main thread. */
     ctx->files[t->handle_idx].bytes_written += (size_t) t->nwritten;
-    ctx->session_bytes_written += (size_t) t->nwritten;
+    ctx->totals.bytes_written += (size_t) t->nwritten;
     if (ctx->files[t->handle_idx].wt_enabled) {
         /*
          * Mark the write-through cache range dirty.  The dirty-mark API takes
@@ -358,7 +358,7 @@ brix_writev_write_aio_done(ngx_event_t *ev)
             }
         }
     }
-    ctx->session_bytes_written += t->bytes_total;
+    ctx->totals.bytes_written += t->bytes_total;
 
     rconf = ngx_stream_get_module_srv_conf(
         (ngx_stream_session_t *) c->data, ngx_stream_brix_module);

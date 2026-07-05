@@ -31,36 +31,36 @@ brix_handle_sigver(brix_ctx_t *ctx, ngx_connection_t *c)
     uint16_t             expectrid;
     uint64_t             seqno;
 
-    xrdw_sigver_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    xrdw_sigver_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     expectrid = req.expectrid;
     seqno     = req.seqno;
 
-    if (ctx->signing_active) {
+    if (ctx->sigver.signing_active) {
         /* Reject replays: seqno must strictly increase across the session. */
-        if (seqno <= ctx->last_seqno) {
+        if (seqno <= ctx->sigver.last_seqno) {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
                           "brix: sigver replay (seqno=%llu <= last=%llu)",
                           (unsigned long long) seqno,
-                          (unsigned long long) ctx->last_seqno);
+                          (unsigned long long) ctx->sigver.last_seqno);
             return brix_send_error(ctx, c, kXR_NotAuthorized,
                                      "sigver replay detected");
         }
-        ctx->last_seqno = seqno;
+        ctx->sigver.last_seqno = seqno;
 
         if ((req.crypto & kXR_HashMask_sig) == kXR_SHA256_sig
             && !(req.crypto & kXR_rsaKey_sig))
         {
             /* Need exactly 32 bytes of HMAC in the body. */
-            if (ctx->cur_dlen < 32 || ctx->payload == NULL) {
+            if (ctx->recv.cur_dlen < 32 || ctx->recv.payload == NULL) {
                 return brix_send_error(ctx, c, kXR_ArgInvalid,
                                          "sigver body too short");
             }
 
-            ctx->sigver_pending = 1;
-            ctx->sigver_expectrid = expectrid;
-            ctx->sigver_seqno = seqno;
-            ctx->sigver_nodata = (req.flags & kXR_nodata_sig) ? 1 : 0;
-            ngx_memcpy(ctx->sigver_hmac, ctx->payload, 32);
+            ctx->sigver.pending = 1;
+            ctx->sigver.expectrid = expectrid;
+            ctx->sigver.seqno = seqno;
+            ctx->sigver.nodata = (req.flags & kXR_nodata_sig) ? 1 : 0;
+            ngx_memcpy(ctx->sigver.hmac, ctx->recv.payload, 32);
 
             ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
                            "brix: sigver pending expectrid=%d seqno=%llu",

@@ -139,17 +139,17 @@ brix_mirror_opcode_bit(uint16_t reqid)
 static int
 brix_mirror_request_replayable(brix_ctx_t *ctx)
 {
-    switch (ctx->cur_reqid) {
+    switch (ctx->recv.cur_reqid) {
     case kXR_locate:
     case kXR_dirlist:
     case kXR_query:
         return 1;
     case kXR_stat:
     case kXR_statx:
-        return ctx->cur_dlen > 0;
+        return ctx->recv.cur_dlen > 0;
     case kXR_open: {
         uint16_t options;     /* ClientOpenRequest.options — header byte 6 */
-        ngx_memcpy(&options, ctx->hdr_buf + 6, sizeof(options));
+        ngx_memcpy(&options, ctx->recv.hdr_buf + 6, sizeof(options));
         options = ntohs(options);
         return (options & BRIX_MIRROR_OPEN_WRITE_FLAGS) == 0;
     }
@@ -164,7 +164,7 @@ brix_mirror_request_replayable(brix_ctx_t *ctx)
     case kXR_mv:
     case kXR_chmod:
     case kXR_truncate:
-        return ctx->cur_dlen > 0;
+        return ctx->recv.cur_dlen > 0;
     default:
         return 0;
     }
@@ -491,7 +491,7 @@ brix_stream_mirror_maybe(brix_ctx_t *ctx, ngx_connection_t *c,
         return;
     }
 
-    opbit = brix_mirror_opcode_bit(ctx->cur_reqid);
+    opbit = brix_mirror_opcode_bit(ctx->recv.cur_reqid);
     /* Mirror all ops in opcode_mask (default ALL) that are not de-selected via
      * brix_mirror_exclude_opcodes. */
     if (opbit == 0
@@ -521,7 +521,7 @@ brix_stream_mirror_maybe(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     /* Skip oversized payloads (write bodies); also a sanity guard. */
-    if (ctx->cur_dlen > BRIX_MIRROR_MAX_PAYLOAD) {
+    if (ctx->recv.cur_dlen > BRIX_MIRROR_MAX_PAYLOAD) {
         return;
     }
 
@@ -563,15 +563,15 @@ brix_stream_mirror_maybe(brix_ctx_t *ctx, ngx_connection_t *c,
                                          : (u_char *) "?",
                     sizeof(mir->host));
 
-        /* Snapshot the request now — ctx->payload may be reused by the next
+        /* Snapshot the request now — ctx->recv.payload may be reused by the next
          * request before the shadow exchange completes. */
-        ngx_memcpy(mir->saved_hdr, ctx->hdr_buf, 24);
-        mir->saved_opcode = ctx->cur_reqid;
-        if (ctx->payload != NULL && ctx->cur_dlen > 0) {
-            mir->saved_payload = ngx_palloc(pool, ctx->cur_dlen);
+        ngx_memcpy(mir->saved_hdr, ctx->recv.hdr_buf, 24);
+        mir->saved_opcode = ctx->recv.cur_reqid;
+        if (ctx->recv.payload != NULL && ctx->recv.cur_dlen > 0) {
+            mir->saved_payload = ngx_palloc(pool, ctx->recv.cur_dlen);
             if (mir->saved_payload != NULL) {
-                ngx_memcpy(mir->saved_payload, ctx->payload, ctx->cur_dlen);
-                mir->saved_dlen = ctx->cur_dlen;
+                ngx_memcpy(mir->saved_payload, ctx->recv.payload, ctx->recv.cur_dlen);
+                mir->saved_dlen = ctx->recv.cur_dlen;
             }
         }
 

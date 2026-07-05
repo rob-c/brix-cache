@@ -40,8 +40,8 @@ static ngx_uint_t          proxy_up_status_count;
 void
 brix_proxy_up_status_init(ngx_stream_brix_srv_conf_t *conf)
 {
-    ngx_uint_t n = (conf->proxy_upstreams != NULL)
-                   ? conf->proxy_upstreams->nelts : 1;
+    ngx_uint_t n = (conf->proxy.upstreams != NULL)
+                   ? conf->proxy.upstreams->nelts : 1;
 
     if (proxy_up_status != NULL && proxy_up_status_count >= n) {
         return;
@@ -224,14 +224,14 @@ brix_proxy_pool_get(brix_proxy_ctx_t *proxy,
 {
     ngx_queue_t                *q;
     brix_proxy_pooled_conn_t *pc;
-    ngx_uint_t                  auth_type = conf->proxy_auth;
+    ngx_uint_t                  auth_type = conf->proxy.auth;
     u_char                      thash[16];
     ngx_uint_t                  tries, n_upstreams, start_idx;
 
     brix_proxy_up_status_init(conf);
 
     /* Selection logic with health awareness. */
-    n_upstreams = (conf->proxy_upstreams != NULL) ? conf->proxy_upstreams->nelts : 1;
+    n_upstreams = (conf->proxy.upstreams != NULL) ? conf->proxy.upstreams->nelts : 1;
     start_idx   = (ngx_uint_t) ngx_random() % n_upstreams;
 
     /* Skip redirect for pool check for now; pooling is for primary upstreams. */
@@ -335,10 +335,10 @@ brix_proxy_pool_put(brix_proxy_ctx_t *proxy)
 
     pc->conn         = proxy->conn;
     pc->upstream_idx = (proxy->upstream_idx < 0) ? 0 : (ngx_uint_t) proxy->upstream_idx;
-    pc->auth_type    = conf->proxy_auth;
+    pc->auth_type    = conf->proxy.auth;
     pc->idle_since         = ngx_time();
-    pc->keepalive_interval = (conf->proxy_keepalive_interval > 0)
-                             ? conf->proxy_keepalive_interval : 15000;
+    pc->keepalive_interval = (conf->proxy.keepalive_interval > 0)
+                             ? conf->proxy.keepalive_interval : 15000;
 
     if (pc->auth_type == BRIX_PROXY_AUTH_FORWARD && proxy->client_ctx->bearer_token[0]) {
         MD5((const u_char *) proxy->client_ctx->bearer_token,

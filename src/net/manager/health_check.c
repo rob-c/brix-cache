@@ -468,7 +468,7 @@ brix_hc_pre_connect_fail(struct addrinfo *res, const char *host,
     if (res != NULL) {
         freeaddrinfo(res);
     }
-    brix_srv_hc_fail(host, port, conf->hc_threshold, conf->hc_blacklist_ms);
+    brix_srv_hc_fail(host, port, conf->hc.threshold, conf->hc.blacklist_ms);
     ngx_destroy_pool(pool);
 }
 
@@ -514,9 +514,9 @@ brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
     hc->pool         = pool;
     hc->log          = cycle->log;
     hc->phase        = XRD_HC_HANDSHAKE;
-    hc->probe_type   = conf->hc_type;
-    hc->threshold    = (uint32_t) conf->hc_threshold;
-    hc->blacklist_ms = conf->hc_blacklist_ms;
+    hc->probe_type   = conf->hc.type;
+    hc->threshold    = (uint32_t) conf->hc.threshold;
+    hc->blacklist_ms = conf->hc.blacklist_ms;
     hc->port         = port;
     ngx_cpystrn((u_char *) hc->host, (u_char *) host, sizeof(hc->host));
 
@@ -530,8 +530,8 @@ brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
         ngx_log_error(NGX_LOG_WARN, cycle->log, 0,
                       "brix: health check: cannot resolve %s:%d",
                       host, (int) port);
-        brix_srv_hc_fail(host, port, conf->hc_threshold,
-                           conf->hc_blacklist_ms);
+        brix_srv_hc_fail(host, port, conf->hc.threshold,
+                           conf->hc.blacklist_ms);
         ngx_destroy_pool(pool);
         return;
     }
@@ -581,7 +581,7 @@ brix_hc_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
     hc->tev.handler = brix_hc_timeout_handler;
     hc->tev.data    = hc;
     hc->tev.log     = cycle->log;
-    ngx_add_timer(&hc->tev, conf->hc_timeout_ms);
+    ngx_add_timer(&hc->tev, conf->hc.timeout_ms);
 
     BRIX_HC_METRIC_INC(hc_probes_total);
 
@@ -629,13 +629,13 @@ brix_hc_timer_handler(ngx_event_t *ev)
     ngx_stream_brix_srv_conf_t *conf = mgr->conf;
     char        host[256];
     uint16_t    port;
-    ngx_msec_t  next_due = conf->hc_interval_ms;
+    ngx_msec_t  next_due = conf->hc.interval_ms;
     ngx_msec_t  delay;
 
     /* Claim is atomic under the registry spinlock and self-rate-limits via
      * hc_next_check, so concurrent workers never double-probe one server. */
     if (brix_srv_hc_claim(host, sizeof(host), &port,
-                            conf->hc_interval_ms, &next_due))
+                            conf->hc.interval_ms, &next_due))
     {
         brix_hc_start(mgr->cycle, conf, host, port);
         /* More servers may be due now — spread the remaining probes at the
@@ -650,8 +650,8 @@ brix_hc_timer_handler(ngx_event_t *ev)
         if (delay < mgr->scan_interval_ms) {
             delay = mgr->scan_interval_ms;
         }
-        if (delay > conf->hc_interval_ms) {
-            delay = conf->hc_interval_ms;
+        if (delay > conf->hc.interval_ms) {
+            delay = conf->hc.interval_ms;
         }
     }
 
@@ -670,7 +670,7 @@ brix_hc_manager_start(ngx_cycle_t *cycle,
     brix_hc_mgr_t *mgr;
     ngx_msec_t       scan;
 
-    if (!conf->hc_enabled || conf->hc_interval_ms == 0) {
+    if (!conf->hc.enabled || conf->hc.interval_ms == 0) {
         return;
     }
 
@@ -683,7 +683,7 @@ brix_hc_manager_start(ngx_cycle_t *cycle,
 
     /* Spread probes across the interval: one claim attempt every
      * interval/slots ms, floored at 100 ms. */
-    scan = conf->hc_interval_ms / BRIX_SRV_REGISTRY_SLOTS;
+    scan = conf->hc.interval_ms / BRIX_SRV_REGISTRY_SLOTS;
     mgr->scan_interval_ms = scan < 100 ? 100 : scan;
 
     mgr->timer.handler = brix_hc_timer_handler;
@@ -695,6 +695,6 @@ brix_hc_manager_start(ngx_cycle_t *cycle,
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
                   "brix: health check manager started "
                   "(interval=%Ms timeout=%Ms scan=%Ms)",
-                  conf->hc_interval_ms, conf->hc_timeout_ms,
+                  conf->hc.interval_ms, conf->hc.timeout_ms,
                   mgr->scan_interval_ms);
 }

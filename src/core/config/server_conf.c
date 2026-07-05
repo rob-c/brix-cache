@@ -47,39 +47,14 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
      * logic; runtime-only objects start out NULL/invalid and are created later
      * during postconfiguration once parsing has finished.
      */
-    conf->common.enable       = NGX_CONF_UNSET;
+    ngx_http_brix_shared_init(&conf->common);
     conf->auth         = NGX_CONF_UNSET_UINT;
-    conf->common.allow_write  = NGX_CONF_UNSET;
-    conf->common.read_only    = NGX_CONF_UNSET;
-    conf->common.pblock_block_size = NGX_CONF_UNSET_SIZE;
-    conf->common.storage_instance  = NULL;
-    /* common.storage_backend (ngx_str_t) left zeroed by pcalloc */
-    /* phase-64 tier grammar scalars (str/array fields stay zeroed by pcalloc) */
-    conf->common.stage_enable      = NGX_CONF_UNSET;
-    conf->common.stage_flush_async = NGX_CONF_UNSET_UINT;
-    conf->common.cache_max_object  = NGX_CONF_UNSET;
-    conf->common.cache_evict_at    = NGX_CONF_UNSET_UINT;
-    conf->common.cache_evict_to    = NGX_CONF_UNSET_UINT;
-    conf->common.cache_meta_mode   = NGX_CONF_UNSET_UINT;
-    conf->common.cache_batch_cinfo = NGX_CONF_UNSET_UINT;
-    conf->common.cache_index_cache = NGX_CONF_UNSET_SIZE;
-    conf->common.cache_slice_size  = NGX_CONF_UNSET_SIZE;
 
     /* XrdAcc engine (acc_tables / acc_timer / acc_nisdomain stay NULL/zero). */
-    conf->acc_format      = NGX_CONF_UNSET_UINT;
-    conf->acc_audit       = NGX_CONF_UNSET_UINT;
-    conf->acc_refresh     = NGX_CONF_UNSET;
-    conf->acc_gidlifetime = NGX_CONF_UNSET;
-    conf->acc_pgo         = NGX_CONF_UNSET;
-    conf->acc_resolve_hosts = NGX_CONF_UNSET;
-    conf->acc_encoding    = NGX_CONF_UNSET;
-    conf->csi_enable      = NGX_CONF_UNSET;
-    conf->csi_block       = NGX_CONF_UNSET_SIZE;
-    conf->csi_require     = NGX_CONF_UNSET;
-    conf->csi_trust_fs    = NGX_CONF_UNSET;
-    conf->throttle_max_open_files  = NGX_CONF_UNSET_UINT;
-    conf->throttle_max_active_conn = NGX_CONF_UNSET_UINT;
-    brix_pmark_conf_init(&conf->common.pmark);  /* SciTags packet marking */
+    brix_acc_conf_init(&conf->acc);
+    brix_csi_conf_init(&conf->csi);
+    conf->throttle.max_open_files  = NGX_CONF_UNSET_UINT;
+    conf->throttle.max_active_conn = NGX_CONF_UNSET_UINT;
     conf->prepare_command.len  = 0;
     conf->prepare_command.data = NULL;
     brix_frm_conf_init(&conf->frm);   /* Phase 35: FRM tape staging */
@@ -119,11 +94,9 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->io_uring_queue_depth     = NGX_CONF_UNSET;
     conf->io_uring_admin           = NGX_CONF_UNSET;
     conf->io_uring_restrict        = NGX_CONF_UNSET;
-    conf->cache_include_regex_set  = 0;
+    conf->include_regex.set  = 0;
     conf->cache_dirty_max_age      = NGX_CONF_UNSET;
-    conf->cache_high_watermark     = NGX_CONF_UNSET_UINT;
-    conf->cache_low_watermark      = NGX_CONF_UNSET_UINT;
-    conf->cache_reap_interval      = NGX_CONF_UNSET;
+    brix_cache_reaper_conf_init(&conf->reaper);
     conf->cache_deny_prefixes      = NULL;
     conf->cache_allow_prefixes     = NULL;
     conf->cache_wt_stage_block_size = NGX_CONF_UNSET_SIZE;
@@ -137,21 +110,11 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     /* cache_state_root left zeroed (ngx_str_t {0,NULL}) by pcalloc */
     conf->cache_verify             = NGX_CONF_UNSET_UINT;
     /* cache_verify_digest left zeroed (ngx_str_t {0,NULL}) by pcalloc */
-    conf->cache_advertise          = NGX_CONF_UNSET;
-    conf->cache_advertise_interval = NGX_CONF_UNSET_MSEC;
-    conf->wt_enable                = NGX_CONF_UNSET;
-    conf->wt_mode                  = BRIX_WT_MODE_UNSET;
-    conf->wt_origin_port           = 0;
-    conf->wt_deny_prefixes         = NULL;
-    conf->wt_allow_prefixes        = NULL;
-    ngx_memzero(&conf->wt_decision, sizeof(conf->wt_decision));
+    conf->advertise.enable          = NGX_CONF_UNSET;
+    conf->advertise.interval = NGX_CONF_UNSET_MSEC;
+    brix_wt_conf_init(&conf->wt);
     conf->manager_mode       = NGX_CONF_UNSET;
-    conf->metadata_only      = NGX_CONF_UNSET;
-    conf->supervisor         = NGX_CONF_UNSET;
-    conf->virtual_redirector = NGX_CONF_UNSET;
-    conf->collapse_redir     = NGX_CONF_UNSET;
-    conf->collapse_redir_ttl = NGX_CONF_UNSET_MSEC;
-    conf->recover_writes     = NGX_CONF_UNSET;
+    brix_node_caps_conf_init(&conf->caps);
     conf->upload_resume      = NGX_CONF_UNSET;
     /* upload_stage_dir: ngx_str_t left zeroed by pcalloc (handled by merge_str). */
     conf->pipeline_depth = NGX_CONF_UNSET_UINT;
@@ -160,12 +123,7 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->gsi_keypool_size = NGX_CONF_UNSET_UINT;
     conf->gsi_keypool_seed = NGX_CONF_UNSET_UINT;
     conf->redir_cache_slots = NGX_CONF_UNSET_UINT;
-    conf->hc_enabled     = NGX_CONF_UNSET;
-    conf->hc_interval_ms = NGX_CONF_UNSET_MSEC;
-    conf->hc_timeout_ms  = NGX_CONF_UNSET_MSEC;
-    conf->hc_threshold   = NGX_CONF_UNSET_UINT;
-    conf->hc_blacklist_ms = NGX_CONF_UNSET_MSEC;
-    conf->hc_type        = NGX_CONF_UNSET_UINT;
+    brix_hc_conf_init(&conf->hc);
 
     /* Phase 24: traffic mirror (targets array NULL until a directive adds one). */
     conf->mirror.enabled     = NGX_CONF_UNSET;
@@ -178,37 +136,13 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->mirror.log_diverge = NGX_CONF_UNSET;
     conf->mirror.timeout_ms  = NGX_CONF_UNSET_MSEC;
     conf->mirror.mirror_writes = NGX_CONF_UNSET;
-    conf->proxy_enable              = NGX_CONF_UNSET;
-    conf->proxy_port                = NGX_CONF_UNSET;
-    conf->proxy_upstream_tls        = NGX_CONF_UNSET;
-#if (NGX_SSL)
-    conf->proxy_tls_ctx             = NULL;
-#endif
-    conf->proxy_auth                = NGX_CONF_UNSET_UINT;
-    conf->proxy_login_user          = NGX_CONF_UNSET_UINT;
-    conf->proxy_login_user_name[0]  = '\0';
-    conf->proxy_audit_log_fd        = NGX_INVALID_FILE;
-    conf->proxy_reconnect_attempts  = NGX_CONF_UNSET_UINT;
-    conf->proxy_upstreams           = NULL;
-    conf->proxy_connect_timeout     = NGX_CONF_UNSET_MSEC;
-    conf->proxy_read_timeout        = NGX_CONF_UNSET_MSEC;
-    conf->proxy_write_timeout       = NGX_CONF_UNSET_MSEC;
-    conf->proxy_keepalive_interval  = NGX_CONF_UNSET_MSEC;
-    conf->cms_locate_timeout = NGX_CONF_UNSET_MSEC;
-    conf->cms_addr     = NULL;
+    brix_proxy_conf_init(&conf->proxy);
+    brix_cms_conf_init(&conf->cms);
     conf->http_handoff_addr = NULL;
     conf->relay_addr = NULL;
     conf->relay_guard_enable = NGX_CONF_UNSET;
     conf->upstream_addr = NULL;
-    conf->cms_interval = NGX_CONF_UNSET;
-    conf->cms_read_timeout     = NGX_CONF_UNSET_MSEC;
-    conf->cms_send_timeout     = NGX_CONF_UNSET_MSEC;
-    conf->cms_tcp_keepalive    = NGX_CONF_UNSET;
-    conf->cms_tcp_user_timeout = NGX_CONF_UNSET_MSEC;
-    conf->cms_initial_delay    = NGX_CONF_UNSET_MSEC;
-    conf->cms_connect_retry    = NGX_CONF_UNSET_MSEC;
     conf->listen_port  = NGX_CONF_UNSET;
-    conf->cms_ctx      = NULL;
     conf->ckscan_max_depth = NGX_CONF_UNSET_UINT;
     conf->ckscan_max_files = NGX_CONF_UNSET_UINT;
     conf->jwks_mtime                 = 0;
@@ -216,12 +150,7 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->jwks_timer                  = NULL;
     conf->sss_lifetime      = NGX_CONF_UNSET;
     conf->sss_keys          = NULL;
-    conf->krb5_ip_check     = NGX_CONF_UNSET;
-#if (BRIX_HAVE_KRB5)
-    conf->krb5_context       = NULL;
-    conf->krb5_keytab_obj    = NULL;
-    conf->krb5_principal_obj = NULL;
-#endif
+    brix_krb5_conf_init(&conf->krb5);
     conf->unix_trust_remote = NGX_CONF_UNSET;
     conf->host_allow        = NGX_CONF_UNSET_PTR;
     conf->tpc_allow_local   = NGX_CONF_UNSET;
@@ -260,11 +189,7 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->upstream_token_file.len  = 0;
     conf->upstream_token_file.data = NULL;
 
-    conf->ocsp_enable     = NGX_CONF_UNSET;
-    conf->ocsp_soft_fail  = NGX_CONF_UNSET;
-    conf->ocsp_stapling   = NGX_CONF_UNSET;
-    conf->ocsp_staple_data = NULL;
-    conf->ocsp_staple_len  = 0;
+    brix_ocsp_conf_init(&conf->ocsp);
 
     /* Phase 20 caches/limits: kv == NULL means the feature is disabled.  The
      * directive setters fill these in; merge inherits the parent block. */
@@ -310,8 +235,14 @@ brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
      * override the parent, otherwise we fall back to the parent or the hard
      * coded module default.
      */
-    ngx_conf_merge_value(conf->common.enable,      prev->common.enable,      0);
-    ngx_conf_merge_str_value(conf->common.root,    prev->common.root,        "/");
+    /* Shared common.* preamble (root defaults to "/": a pure cache node may
+     * omit brix_root and serve the whole namespace). Also covers the tier
+     * grammar + pmark + hard read-only enforcement — do not re-merge those. */
+    if (ngx_http_brix_shared_merge(cf, &prev->common, &conf->common, "/")
+        != NGX_CONF_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
     ngx_conf_merge_uint_value(conf->auth,   prev->auth,        BRIX_AUTH_NONE);
     ngx_conf_merge_uint_value(conf->gsi_signed_dh, prev->gsi_signed_dh,
                               BRIX_GSI_SDH_OFF);
@@ -322,22 +253,20 @@ brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
                               BRIX_GSI_KEYPOOL_SEED_DEFAULT);
     ngx_conf_merge_str_value(conf->gsi_ciphers, prev->gsi_ciphers, "");
     ngx_conf_merge_str_value(conf->pwd_file, prev->pwd_file, "");
-    ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
-    ngx_conf_merge_value(conf->common.read_only,    prev->common.read_only,    0);
 
     /* XrdAcc engine: default native, audit off, refresh off, 12h gid cache. */
-    ngx_conf_merge_uint_value(conf->acc_format, prev->acc_format,
+    ngx_conf_merge_uint_value(conf->acc.format, prev->acc.format,
                               BRIX_AUTHDB_FORMAT_NATIVE);
-    ngx_conf_merge_uint_value(conf->acc_audit, prev->acc_audit,
+    ngx_conf_merge_uint_value(conf->acc.audit, prev->acc.audit,
                               BRIX_AUTHDB_AUDIT_NONE);
-    ngx_conf_merge_value(conf->acc_refresh, prev->acc_refresh, 0);
-    ngx_conf_merge_value(conf->acc_gidlifetime, prev->acc_gidlifetime, 43200);
-    ngx_conf_merge_value(conf->acc_pgo, prev->acc_pgo, 0);
-    ngx_conf_merge_value(conf->acc_resolve_hosts, prev->acc_resolve_hosts, 0);
-    ngx_conf_merge_value(conf->acc_encoding, prev->acc_encoding, 0);
-    ngx_conf_merge_str_value(conf->acc_nisdomain, prev->acc_nisdomain, "");
-    ngx_conf_merge_str_value(conf->acc_spacechar, prev->acc_spacechar, "");
-    ngx_conf_merge_str_value(conf->acc_gidretran, prev->acc_gidretran, "");
+    ngx_conf_merge_value(conf->acc.refresh, prev->acc.refresh, 0);
+    ngx_conf_merge_value(conf->acc.gidlifetime, prev->acc.gidlifetime, 43200);
+    ngx_conf_merge_value(conf->acc.pgo, prev->acc.pgo, 0);
+    ngx_conf_merge_value(conf->acc.resolve_hosts, prev->acc.resolve_hosts, 0);
+    ngx_conf_merge_value(conf->acc.encoding, prev->acc.encoding, 0);
+    ngx_conf_merge_str_value(conf->acc.nisdomain, prev->acc.nisdomain, "");
+    ngx_conf_merge_str_value(conf->acc.spacechar, prev->acc.spacechar, "");
+    ngx_conf_merge_str_value(conf->acc.gidretran, prev->acc.gidretran, "");
 
     /*
      * The native authdb engine matches by DN/VO and so needs an authenticating
@@ -345,7 +274,7 @@ brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
      * exempt.  Validated here, where both directives have settled.
      */
     if (conf->authdb.len > 0
-        && conf->acc_format == BRIX_AUTHDB_FORMAT_NATIVE
+        && conf->acc.format == BRIX_AUTHDB_FORMAT_NATIVE
         && conf->auth != BRIX_AUTH_GSI && conf->auth != BRIX_AUTH_TOKEN
         && conf->auth != (BRIX_AUTH_GSI | BRIX_AUTH_TOKEN))
     {
@@ -355,11 +284,6 @@ brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
         return NGX_CONF_ERROR;
     }
 
-    if (brix_pmark_conf_merge(cf, &prev->common.pmark, &conf->common.pmark)
-        != NGX_CONF_OK)
-    {
-        return NGX_CONF_ERROR;
-    }
     ngx_conf_merge_str_value(conf->prepare_command, prev->prepare_command, "");
     if (brix_frm_conf_merge(cf, &conf->frm, &prev->frm, &conf->prepare_command)
         != NGX_CONF_OK)
@@ -382,31 +306,27 @@ brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_str_value(conf->token_audience,  prev->token_audience,  "");
     ngx_conf_merge_str_value(conf->token_config,    prev->token_config,    "");
     ngx_conf_merge_ptr_value(conf->token_registry,  prev->token_registry,  NULL);
-    ngx_conf_merge_str_value(conf->throttle_zone_name,
-                             prev->throttle_zone_name, "");
-    ngx_conf_merge_ptr_value(conf->throttle_zone, prev->throttle_zone, NULL);
-    ngx_conf_merge_uint_value(conf->throttle_max_open_files,
-                              prev->throttle_max_open_files, 0);
-    ngx_conf_merge_uint_value(conf->throttle_max_active_conn,
-                              prev->throttle_max_active_conn, 0);
+    ngx_conf_merge_str_value(conf->throttle.zone_name,
+                             prev->throttle.zone_name, "");
+    ngx_conf_merge_ptr_value(conf->throttle.zone, prev->throttle.zone, NULL);
+    ngx_conf_merge_uint_value(conf->throttle.max_open_files,
+                              prev->throttle.max_open_files, 0);
+    ngx_conf_merge_uint_value(conf->throttle.max_active_conn,
+                              prev->throttle.max_active_conn, 0);
 
     /* phase-59 W3a: resolve the named rate-limit zone the throttle keys its
      * per-user counters into (declared via brix_rate_limit_zone). */
-    if (conf->throttle_zone == NULL && conf->throttle_zone_name.len > 0) {
-        conf->throttle_zone = brix_rl_zone_get(&conf->throttle_zone_name);
-        if (conf->throttle_zone == NULL) {
+    if (conf->throttle.zone == NULL && conf->throttle.zone_name.len > 0) {
+        conf->throttle.zone = brix_rl_zone_get(&conf->throttle.zone_name);
+        if (conf->throttle.zone == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "brix_throttle_zone \"%V\" is not a declared "
-                "brix_rate_limit_zone", &conf->throttle_zone_name);
+                "brix_rate_limit_zone", &conf->throttle.zone_name);
             return NGX_CONF_ERROR;
         }
     }
 
-    ngx_conf_merge_value(conf->csi_enable,  prev->csi_enable,  1);
-    ngx_conf_merge_size_value(conf->csi_block, prev->csi_block,
-                              1024 * 1024);   /* 1MiB, the cinfo default */
-    ngx_conf_merge_value(conf->csi_require, prev->csi_require, 0);
-    ngx_conf_merge_value(conf->csi_trust_fs, prev->csi_trust_fs, 0);
+    brix_csi_conf_merge(&conf->csi, &prev->csi);
     ngx_conf_merge_str_value(conf->token_macaroon_secret,
                              prev->token_macaroon_secret,     "");
     ngx_conf_merge_str_value(conf->token_macaroon_secret_old,
@@ -425,9 +345,9 @@ brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     }
     ngx_conf_merge_str_value(conf->sss_keytab,      prev->sss_keytab,      "");
     ngx_conf_merge_value(conf->sss_lifetime,        prev->sss_lifetime,    13);
-    ngx_conf_merge_str_value(conf->krb5_principal,  prev->krb5_principal,  "");
-    ngx_conf_merge_str_value(conf->krb5_keytab,     prev->krb5_keytab,     "");
-    ngx_conf_merge_value(conf->krb5_ip_check,       prev->krb5_ip_check,   0);
+    ngx_conf_merge_str_value(conf->krb5.principal,  prev->krb5.principal,  "");
+    ngx_conf_merge_str_value(conf->krb5.keytab,     prev->krb5.keytab,     "");
+    ngx_conf_merge_value(conf->krb5.ip_check,       prev->krb5.ip_check,   0);
     ngx_conf_merge_value(conf->unix_trust_remote,   prev->unix_trust_remote, 0);
     ngx_conf_merge_ptr_value(conf->host_allow,      prev->host_allow,      NULL);
     ngx_conf_merge_uint_value(conf->security_level, prev->security_level, 0);
@@ -446,40 +366,9 @@ static char *
 brix_merge_srv_storage(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
-    /* Storage backend selection (default POSIX) + pblock stripe size. */
-    ngx_conf_merge_str_value(conf->common.storage_backend,
-                             prev->common.storage_backend, "");
-    ngx_conf_merge_size_value(conf->common.pblock_block_size,
-                              prev->common.pblock_block_size, 0);
-
-    /* phase-64 composable tier grammar */
-    ngx_conf_merge_str_value(conf->common.cache_store, prev->common.cache_store,
-                             "");
-    if (conf->common.cache_store_args == NULL) {
-        conf->common.cache_store_args = prev->common.cache_store_args;
-    }
-    ngx_conf_merge_value(conf->common.stage_enable, prev->common.stage_enable, 0);
-    ngx_conf_merge_str_value(conf->common.stage_store, prev->common.stage_store,
-                             "");
-    if (conf->common.stage_store_args == NULL) {
-        conf->common.stage_store_args = prev->common.stage_store_args;
-    }
-    ngx_conf_merge_uint_value(conf->common.stage_flush_async,
-                              prev->common.stage_flush_async, 0);
-    ngx_conf_merge_off_value(conf->common.cache_max_object,
-                             prev->common.cache_max_object, 0);
-    ngx_conf_merge_uint_value(conf->common.cache_evict_at,
-                              prev->common.cache_evict_at, 90);
-    ngx_conf_merge_uint_value(conf->common.cache_evict_to,
-                              prev->common.cache_evict_to, 80);
-    ngx_conf_merge_uint_value(conf->common.cache_meta_mode,
-                              prev->common.cache_meta_mode, 0);
-    ngx_conf_merge_uint_value(conf->common.cache_batch_cinfo,
-                              prev->common.cache_batch_cinfo, 2);
-    ngx_conf_merge_size_value(conf->common.cache_index_cache,
-                              prev->common.cache_index_cache, 0);
-    ngx_conf_merge_size_value(conf->common.cache_slice_size,
-                              prev->common.cache_slice_size, 0);
+    /* common.* (storage backend, pblock stripe, tier grammar) is merged by
+     * ngx_http_brix_shared_merge() in brix_merge_srv_security — only the
+     * stream-specific validation below stays here. */
 
     /* §6.5: the tier slice size must be 0 (off) or a positive multiple of the
      * 1 MiB cinfo block granule (so a partial fill never records a mis-aligned
@@ -543,16 +432,16 @@ brix_merge_srv_storage(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
      * existing config keeps its bound; LOW defaults 50000 ppm (5%) below HIGH for
      * hysteresis; the timer runs every 60s by default. The ordering invariant
      * (0 < low < high < 1e6) is enforced in runtime_server.c. */
-    ngx_conf_merge_uint_value(conf->cache_high_watermark,
-                              prev->cache_high_watermark,
+    ngx_conf_merge_uint_value(conf->reaper.high_watermark,
+                              prev->reaper.high_watermark,
                               conf->cache_eviction_threshold);
-    ngx_conf_merge_uint_value(conf->cache_low_watermark,
-                              prev->cache_low_watermark,
-                              conf->cache_high_watermark > 50000
-                                  ? conf->cache_high_watermark - 50000
-                                  : conf->cache_high_watermark / 2);
-    ngx_conf_merge_sec_value(conf->cache_reap_interval,
-                             prev->cache_reap_interval, 60);
+    ngx_conf_merge_uint_value(conf->reaper.low_watermark,
+                              prev->reaper.low_watermark,
+                              conf->reaper.high_watermark > 50000
+                                  ? conf->reaper.high_watermark - 50000
+                                  : conf->reaper.high_watermark / 2);
+    ngx_conf_merge_sec_value(conf->reaper.reap_interval,
+                             prev->reaper.reap_interval, 60);
     ngx_conf_merge_off_value(conf->cache_max_file_size,
                              prev->cache_max_file_size, 0);
     ngx_conf_merge_off_value(conf->memory_budget,
@@ -585,27 +474,27 @@ brix_merge_srv_storage(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
 
     /* Pelican cache advertisement (default off; interval clamped to the
      * federation minimum of 60s = MinFedTokenTickerRate). */
-    ngx_conf_merge_value(conf->cache_advertise, prev->cache_advertise, 0);
-    ngx_conf_merge_msec_value(conf->cache_advertise_interval,
-                              prev->cache_advertise_interval, 60000);
-    if (conf->cache_advertise_interval < 60000) {
-        conf->cache_advertise_interval = 60000;
+    ngx_conf_merge_value(conf->advertise.enable, prev->advertise.enable, 0);
+    ngx_conf_merge_msec_value(conf->advertise.interval,
+                              prev->advertise.interval, 60000);
+    if (conf->advertise.interval < 60000) {
+        conf->advertise.interval = 60000;
     }
-    ngx_conf_merge_str_value(conf->cache_advertise_key,
-                             prev->cache_advertise_key, "");
-    ngx_conf_merge_str_value(conf->cache_data_url, prev->cache_data_url, "");
-    ngx_conf_merge_str_value(conf->cache_web_url, prev->cache_web_url, "");
-    ngx_conf_merge_str_value(conf->cache_sitename, prev->cache_sitename, "");
-    ngx_conf_merge_str_value(conf->cache_issuer_url, prev->cache_issuer_url, "");
-    if (conf->cache_advertise_ns == NULL) {
-        conf->cache_advertise_ns = prev->cache_advertise_ns;
+    ngx_conf_merge_str_value(conf->advertise.key,
+                             prev->advertise.key, "");
+    ngx_conf_merge_str_value(conf->advertise.data_url, prev->advertise.data_url, "");
+    ngx_conf_merge_str_value(conf->advertise.web_url, prev->advertise.web_url, "");
+    ngx_conf_merge_str_value(conf->advertise.sitename, prev->advertise.sitename, "");
+    ngx_conf_merge_str_value(conf->advertise.issuer_url, prev->advertise.issuer_url, "");
+    if (conf->advertise.ns == NULL) {
+        conf->advertise.ns = prev->advertise.ns;
     }
 
     /* Inherit compiled regex from parent if the child didn't set one */
-    if (!conf->cache_include_regex_set && prev->cache_include_regex_set) {
-        conf->cache_include_regex_str = prev->cache_include_regex_str;
-        conf->cache_include_regex     = prev->cache_include_regex;
-        conf->cache_include_regex_set = 1;
+    if (!conf->include_regex.set && prev->include_regex.set) {
+        conf->include_regex.str = prev->include_regex.str;
+        conf->include_regex.re     = prev->include_regex.re;
+        conf->include_regex.set = 1;
     }
 
     return NGX_CONF_OK;
@@ -674,12 +563,7 @@ brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_array_t *child_group_rules;
 
     ngx_conf_merge_value(conf->manager_mode,         prev->manager_mode,         0);
-    ngx_conf_merge_value(conf->metadata_only,        prev->metadata_only,        0);
-    ngx_conf_merge_value(conf->supervisor,           prev->supervisor,           0);
-    ngx_conf_merge_value(conf->virtual_redirector,   prev->virtual_redirector,   0);
-    ngx_conf_merge_value(conf->collapse_redir,       prev->collapse_redir,       0);
-    ngx_conf_merge_msec_value(conf->collapse_redir_ttl, prev->collapse_redir_ttl, 30000);
-    ngx_conf_merge_value(conf->recover_writes,       prev->recover_writes,       0);
+    brix_node_caps_conf_merge(&conf->caps, &prev->caps);
     /* Uploads are staged + resumable by DEFAULT (atomic commit-on-close, resume
      * across a restart).  Set brix_upload_resume off to opt out. */
     ngx_conf_merge_value(conf->upload_resume,        prev->upload_resume,        1);
@@ -703,12 +587,12 @@ brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
                               NGX_CONF_UNSET_UINT);
 
     /* Phase 22: active health checks — disabled by default (non-breaking). */
-    ngx_conf_merge_value(conf->hc_enabled,       prev->hc_enabled,       0);
-    ngx_conf_merge_msec_value(conf->hc_interval_ms,  prev->hc_interval_ms,  30000);
-    ngx_conf_merge_msec_value(conf->hc_timeout_ms,   prev->hc_timeout_ms,    5000);
-    ngx_conf_merge_uint_value(conf->hc_threshold,    prev->hc_threshold,        3);
-    ngx_conf_merge_msec_value(conf->hc_blacklist_ms, prev->hc_blacklist_ms, 60000);
-    ngx_conf_merge_uint_value(conf->hc_type, prev->hc_type, BRIX_HC_TYPE_PING);
+    ngx_conf_merge_value(conf->hc.enabled,       prev->hc.enabled,       0);
+    ngx_conf_merge_msec_value(conf->hc.interval_ms,  prev->hc.interval_ms,  30000);
+    ngx_conf_merge_msec_value(conf->hc.timeout_ms,   prev->hc.timeout_ms,    5000);
+    ngx_conf_merge_uint_value(conf->hc.threshold,    prev->hc.threshold,        3);
+    ngx_conf_merge_msec_value(conf->hc.blacklist_ms, prev->hc.blacklist_ms, 60000);
+    ngx_conf_merge_uint_value(conf->hc.type, prev->hc.type, BRIX_HC_TYPE_PING);
 
     /* Phase 24: traffic mirror — inherit parent targets if none set locally,
      * then derive `enabled` from the presence of at least one target. */
@@ -732,14 +616,14 @@ brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     conf->mirror.enabled = (conf->mirror.targets != NULL
                             && conf->mirror.targets->nelts > 0) ? 1 : 0;
 
-    ngx_conf_merge_msec_value(conf->cms_locate_timeout, prev->cms_locate_timeout,
+    ngx_conf_merge_msec_value(conf->cms.locate_timeout, prev->cms.locate_timeout,
                               5000);
-    ngx_conf_merge_str_value(conf->cms_paths,       prev->cms_paths,       "");
-    ngx_conf_merge_value(conf->cms_interval,        prev->cms_interval,    30);
-    if (conf->cms_interval < 1) {
+    ngx_conf_merge_str_value(conf->cms.paths,       prev->cms.paths,       "");
+    ngx_conf_merge_value(conf->cms.interval,        prev->cms.interval,    30);
+    if (conf->cms.interval < 1) {
         /* 0 would arm a 0ms heartbeat timer AND zero the reconnect backoff
          * (connect.c) — both busy-loops. Floor the heartbeat at 1s. */
-        conf->cms_interval = 1;
+        conf->cms.interval = 1;
     }
 
     /*
@@ -751,30 +635,30 @@ brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
      *   - send timeout: 10s — bounds a manager that stops draining our writes.
      *   - tcp_user_timeout: defaults to the read-timeout as a kernel backstop.
      */
-    if (conf->cms_read_timeout == NGX_CONF_UNSET_MSEC) {
-        if (prev->cms_read_timeout != NGX_CONF_UNSET_MSEC) {
-            conf->cms_read_timeout = prev->cms_read_timeout;
+    if (conf->cms.read_timeout == NGX_CONF_UNSET_MSEC) {
+        if (prev->cms.read_timeout != NGX_CONF_UNSET_MSEC) {
+            conf->cms.read_timeout = prev->cms.read_timeout;
         } else {
-            ngx_msec_t d = (ngx_msec_t) conf->cms_interval * 3 * 1000;
-            conf->cms_read_timeout = (d > 90000) ? d : 90000;
+            ngx_msec_t d = (ngx_msec_t) conf->cms.interval * 3 * 1000;
+            conf->cms.read_timeout = (d > 90000) ? d : 90000;
         }
     }
-    ngx_conf_merge_msec_value(conf->cms_send_timeout, prev->cms_send_timeout,
+    ngx_conf_merge_msec_value(conf->cms.send_timeout, prev->cms.send_timeout,
                               10000);
-    ngx_conf_merge_value(conf->cms_tcp_keepalive, prev->cms_tcp_keepalive, 1);
-    if (conf->cms_tcp_user_timeout == NGX_CONF_UNSET_MSEC) {
-        conf->cms_tcp_user_timeout =
-            (prev->cms_tcp_user_timeout != NGX_CONF_UNSET_MSEC)
-                ? prev->cms_tcp_user_timeout
-                : conf->cms_read_timeout;
+    ngx_conf_merge_value(conf->cms.tcp_keepalive, prev->cms.tcp_keepalive, 1);
+    if (conf->cms.tcp_user_timeout == NGX_CONF_UNSET_MSEC) {
+        conf->cms.tcp_user_timeout =
+            (prev->cms.tcp_user_timeout != NGX_CONF_UNSET_MSEC)
+                ? prev->cms.tcp_user_timeout
+                : conf->cms.read_timeout;
     }
 
     /* Leave these UNSET through the merge so connect.c can pick the manager-locality
      * (loopback vs remote) profile default at worker start; an explicit directive
      * still wins and is inherited child<-parent. */
-    ngx_conf_merge_msec_value(conf->cms_initial_delay, prev->cms_initial_delay,
+    ngx_conf_merge_msec_value(conf->cms.initial_delay, prev->cms.initial_delay,
                               NGX_CONF_UNSET_MSEC);
-    ngx_conf_merge_msec_value(conf->cms_connect_retry, prev->cms_connect_retry,
+    ngx_conf_merge_msec_value(conf->cms.connect_retry, prev->cms.connect_retry,
                               NGX_CONF_UNSET_MSEC);
 
     ngx_conf_merge_value(conf->listen_port,         prev->listen_port,     BRIX_DEFAULT_PORT);
@@ -783,9 +667,9 @@ brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_uint_value(conf->ckscan_max_files,
                               prev->ckscan_max_files, 100000);
 
-    if (conf->cms_addr == NULL && prev->cms_addr != NULL) {
-        conf->cms_addr = prev->cms_addr;
-        conf->cms_manager = prev->cms_manager;
+    if (conf->cms.addr == NULL && prev->cms.addr != NULL) {
+        conf->cms.addr = prev->cms.addr;
+        conf->cms.manager = prev->cms.manager;
     }
 
     if (conf->http_handoff_addr == NULL && prev->http_handoff_addr != NULL) {
@@ -854,79 +738,77 @@ brix_merge_srv_proxy_net(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
                              prev->upstream_token_file, "");
 
     ngx_conf_merge_value(conf->relay_guard_enable, prev->relay_guard_enable, 0);
-    ngx_conf_merge_value(conf->proxy_enable,       prev->proxy_enable,       0);
-    ngx_conf_merge_value(conf->proxy_port,         prev->proxy_port,         1094);
-    ngx_conf_merge_value(conf->proxy_upstream_tls, prev->proxy_upstream_tls, 0);
-    ngx_conf_merge_uint_value(conf->proxy_auth,    prev->proxy_auth,
+    ngx_conf_merge_value(conf->proxy.enable,       prev->proxy.enable,       0);
+    ngx_conf_merge_value(conf->proxy.port,         prev->proxy.port,         1094);
+    ngx_conf_merge_value(conf->proxy.upstream_tls, prev->proxy.upstream_tls, 0);
+    ngx_conf_merge_uint_value(conf->proxy.auth,    prev->proxy.auth,
                               BRIX_PROXY_AUTH_ANONYMOUS);
-    ngx_conf_merge_uint_value(conf->proxy_login_user, prev->proxy_login_user,
+    ngx_conf_merge_uint_value(conf->proxy.login_user, prev->proxy.login_user,
                               BRIX_PROXY_LOGIN_ANONYMOUS);
-    if (conf->proxy_login_user_name[0] == '\0'
-        && prev->proxy_login_user_name[0] != '\0')
+    if (conf->proxy.login_user_name[0] == '\0'
+        && prev->proxy.login_user_name[0] != '\0')
     {
-        ngx_cpystrn((u_char *) conf->proxy_login_user_name,
-                    (u_char *) prev->proxy_login_user_name,
-                    sizeof(conf->proxy_login_user_name));
+        ngx_cpystrn((u_char *) conf->proxy.login_user_name,
+                    (u_char *) prev->proxy.login_user_name,
+                    sizeof(conf->proxy.login_user_name));
     }
-    ngx_conf_merge_str_value(conf->proxy_audit_log,          prev->proxy_audit_log,          "");
-    ngx_conf_merge_str_value(conf->proxy_upstream_tls_ca,    prev->proxy_upstream_tls_ca,    "");
-    ngx_conf_merge_str_value(conf->proxy_upstream_tls_name,  prev->proxy_upstream_tls_name,  "");
-    ngx_conf_merge_uint_value(conf->proxy_reconnect_attempts, prev->proxy_reconnect_attempts, 0);
-    ngx_conf_merge_str_value(conf->proxy_path_strip, prev->proxy_path_strip, "");
-    ngx_conf_merge_str_value(conf->proxy_path_add,   prev->proxy_path_add,   "");
-    ngx_conf_merge_msec_value(conf->proxy_connect_timeout,    prev->proxy_connect_timeout,    10000);
-    ngx_conf_merge_msec_value(conf->proxy_read_timeout,       prev->proxy_read_timeout,       60000);
+    ngx_conf_merge_str_value(conf->proxy.audit_log,          prev->proxy.audit_log,          "");
+    ngx_conf_merge_str_value(conf->proxy.upstream_tls_ca,    prev->proxy.upstream_tls_ca,    "");
+    ngx_conf_merge_str_value(conf->proxy.upstream_tls_name,  prev->proxy.upstream_tls_name,  "");
+    ngx_conf_merge_uint_value(conf->proxy.reconnect_attempts, prev->proxy.reconnect_attempts, 0);
+    ngx_conf_merge_str_value(conf->proxy.path_strip, prev->proxy.path_strip, "");
+    ngx_conf_merge_str_value(conf->proxy.path_add,   prev->proxy.path_add,   "");
+    ngx_conf_merge_msec_value(conf->proxy.connect_timeout,    prev->proxy.connect_timeout,    10000);
+    ngx_conf_merge_msec_value(conf->proxy.read_timeout,       prev->proxy.read_timeout,       60000);
     /* Phase 51 (B1): default the upstream write-stall deadline ON (60s) so a
      * slow/backpressured upstream that stops draining our writes can no longer
      * pin the client connection indefinitely.  0 still disables (back-compat). */
-    ngx_conf_merge_msec_value(conf->proxy_write_timeout,      prev->proxy_write_timeout,      60000);
-    ngx_conf_merge_msec_value(conf->proxy_keepalive_interval, prev->proxy_keepalive_interval, 15000);
+    ngx_conf_merge_msec_value(conf->proxy.write_timeout,      prev->proxy.write_timeout,      60000);
+    ngx_conf_merge_msec_value(conf->proxy.keepalive_interval, prev->proxy.keepalive_interval, 15000);
 
-    BRIX_MERGE_PTR(conf, prev, proxy_upstreams);
-    ngx_conf_merge_str_value(conf->proxy_host, prev->proxy_host, "");
+    BRIX_MERGE_PTR(conf, prev, proxy.upstreams);
+    ngx_conf_merge_str_value(conf->proxy.host, prev->proxy.host, "");
     BRIX_MERGE_HOSTPORT(conf, prev, cache_origin_host, cache_origin_port);
 
-    ngx_conf_merge_value(conf->wt_enable, prev->wt_enable, 0);
-    BRIX_MERGE_ENUM(conf, prev, wt_mode, BRIX_WT_MODE_UNSET, BRIX_WT_MODE_SYNC);
-    BRIX_MERGE_HOSTPORT(conf, prev, wt_origin_host, wt_origin_port);
-    if (conf->wt_origin_host.len == 0 && conf->cache_origin_host.len > 0) {
-        conf->wt_origin_host = conf->cache_origin_host;
-        conf->wt_origin_port = conf->cache_origin_port;
+    ngx_conf_merge_value(conf->wt.enable, prev->wt.enable, 0);
+    BRIX_MERGE_ENUM(conf, prev, wt.mode, BRIX_WT_MODE_UNSET, BRIX_WT_MODE_SYNC);
+    BRIX_MERGE_HOSTPORT(conf, prev, wt.origin_host, wt.origin_port);
+    if (conf->wt.origin_host.len == 0 && conf->cache_origin_host.len > 0) {
+        conf->wt.origin_host = conf->cache_origin_host;
+        conf->wt.origin_port = conf->cache_origin_port;
     }
 
-    child_wt_deny_prefixes = conf->wt_deny_prefixes;
-    conf->wt_deny_prefixes = brix_merge_arrays(cf, prev->wt_deny_prefixes,
+    child_wt_deny_prefixes = conf->wt.deny_prefixes;
+    conf->wt.deny_prefixes = brix_merge_arrays(cf, prev->wt.deny_prefixes,
                                                   child_wt_deny_prefixes,
                                                   sizeof(brix_wt_prefix_entry_t));
-    if (conf->wt_deny_prefixes == NULL
-        && (prev->wt_deny_prefixes != NULL || child_wt_deny_prefixes != NULL))
+    if (conf->wt.deny_prefixes == NULL
+        && (prev->wt.deny_prefixes != NULL || child_wt_deny_prefixes != NULL))
     {
         return NGX_CONF_ERROR;
     }
 
-    child_wt_allow_prefixes = conf->wt_allow_prefixes;
-    conf->wt_allow_prefixes = brix_merge_arrays(cf, prev->wt_allow_prefixes,
+    child_wt_allow_prefixes = conf->wt.allow_prefixes;
+    conf->wt.allow_prefixes = brix_merge_arrays(cf, prev->wt.allow_prefixes,
                                                    child_wt_allow_prefixes,
                                                    sizeof(brix_wt_prefix_entry_t));
-    if (conf->wt_allow_prefixes == NULL
-        && (prev->wt_allow_prefixes != NULL || child_wt_allow_prefixes != NULL))
+    if (conf->wt.allow_prefixes == NULL
+        && (prev->wt.allow_prefixes != NULL || child_wt_allow_prefixes != NULL))
     {
         return NGX_CONF_ERROR;
     }
 
-    conf->wt_decision.fn = brix_wt_default_decide;
-    conf->wt_decision.user_data = &conf->wt_decision;
-    conf->wt_decision.deny_prefixes = conf->wt_deny_prefixes;
-    conf->wt_decision.allow_prefixes = conf->wt_allow_prefixes;
-    conf->wt_decision.max_write_through_bytes = conf->cache_max_file_size;
-    conf->wt_decision.include_regex = conf->cache_include_regex;
-    conf->wt_decision.include_regex_set = conf->cache_include_regex_set;
+    conf->wt.decision.fn = brix_wt_default_decide;
+    conf->wt.decision.user_data = &conf->wt.decision;
+    conf->wt.decision.deny_prefixes = conf->wt.deny_prefixes;
+    conf->wt.decision.allow_prefixes = conf->wt.allow_prefixes;
+    conf->wt.decision.max_write_through_bytes = conf->cache_max_file_size;
+    conf->wt.decision.include_regex = conf->include_regex.re;
+    conf->wt.decision.include_regex_set = conf->include_regex.set;
 
-    ngx_conf_merge_value(conf->ocsp_enable,    prev->ocsp_enable,    0);
-    ngx_conf_merge_value(conf->ocsp_soft_fail, prev->ocsp_soft_fail, 1);
-    ngx_conf_merge_value(conf->ocsp_stapling,  prev->ocsp_stapling,  0);
+    brix_ocsp_conf_merge(&conf->ocsp, &prev->ocsp);
 
-    /* ocsp_staple_data/len are populated at init_process, not here */
+    /* ocsp.staple_data/len are populated at init_process, not here */
 
     /* Phase 39: network-fault resilience — default OFF (0) = no behaviour change.
      * 0 means "disabled"; arm sites all guard on `> 0` (ngx_msec_t is unsigned). */

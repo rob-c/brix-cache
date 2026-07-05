@@ -25,10 +25,10 @@ proxy_rewrite_path(ngx_connection_t *c,
                     size_t path_off, size_t path_len,
                     size_t *total_out)
 {
-    const u_char *strip = conf->proxy_path_strip.data;
-    size_t        slen  = conf->proxy_path_strip.len;
-    const u_char *add   = conf->proxy_path_add.data;
-    size_t        alen  = conf->proxy_path_add.len;
+    const u_char *strip = conf->proxy.path_strip.data;
+    size_t        slen  = conf->proxy.path_strip.len;
+    const u_char *add   = conf->proxy.path_add.data;
+    size_t        alen  = conf->proxy.path_add.len;
     size_t        new_path_len, new_total;
     u_char       *new_req;
 
@@ -82,10 +82,10 @@ proxy_rewrite_prepare_payload(ngx_connection_t *c,
                               u_char *req, size_t total,
                               size_t *total_out)
 {
-    const u_char *strip = conf->proxy_path_strip.data;
-    size_t        slen  = conf->proxy_path_strip.len;
-    const u_char *add   = conf->proxy_path_add.data;
-    size_t        alen  = conf->proxy_path_add.len;
+    const u_char *strip = conf->proxy.path_strip.data;
+    size_t        slen  = conf->proxy.path_strip.len;
+    const u_char *add   = conf->proxy.path_add.data;
+    size_t        alen  = conf->proxy.path_add.len;
     u_char       *payload, *p, *line_start, *new_req, *dst;
     size_t        plen, new_total, line_len;
     ngx_uint_t    needs_rewrite = 0;

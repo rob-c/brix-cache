@@ -27,7 +27,7 @@ brix_handle_login(brix_ctx_t *ctx, ngx_connection_t *c,
     char                user[9];
     char                user_log[64];
 
-    if (conf->cms_suspended) {
+    if (conf->cms.suspended) {
         return brix_send_error(ctx, c, kXR_Overloaded,
                                  "server suspended by manager");
     }
@@ -39,12 +39,12 @@ brix_handle_login(brix_ctx_t *ctx, ngx_connection_t *c,
      * to surface kXR_ArgMissing here, but the current reference source — and the
      * correct semantics for a malformed-in-context request — is kXR_InvalidRequest;
      * either way a live session cannot re-login.) */
-    if (ctx->logged_in) {
+    if (ctx->login.logged_in) {
         return brix_send_error(ctx, c, kXR_InvalidRequest,
                                  "duplicate login; already logged in");
     }
 
-    xrdw_login_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    xrdw_login_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
 
     /* Username is an 8-byte fixed field on the wire, so copy and terminate it locally. */
     ngx_memcpy(user, req.username, 8);
@@ -64,8 +64,8 @@ brix_handle_login(brix_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    ngx_memcpy(ctx->login_user, user, sizeof(ctx->login_user));
-    ctx->login_pid = (uint32_t) req.pid;
+    ngx_memcpy(ctx->login.user, user, sizeof(ctx->login.user));
+    ctx->login.pid = (uint32_t) req.pid;
     brix_sanitize_log_string(user, user_log, sizeof(user_log));
 
     ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
@@ -79,27 +79,27 @@ brix_handle_login(brix_ctx_t *ctx, ngx_connection_t *c,
                    (conf->auth == BRIX_AUTH_KRB5) ? "krb5" : "none");
 
     /* Login marks the session as known; auth_done is deferred for GSI mode. */
-    ctx->logged_in = 1;
+    ctx->login.logged_in = 1;
 
     if (conf->auth == BRIX_AUTH_NONE) {
         /* Anonymous mode completes login in one round-trip with only the sessid. */
-        ctx->auth_done = 1;
+        ctx->login.auth_done = 1;
 
         total = XRD_RESPONSE_HDR_LEN + BRIX_SESSION_ID_LEN;
         BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
-        brix_build_resp_hdr(ctx->cur_streamid, kXR_ok,
+        brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok,
                               BRIX_SESSION_ID_LEN,
                               (ServerResponseHdr *) buf);
-        ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, ctx->sessid,
+        ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, ctx->login.sessid,
                    BRIX_SESSION_ID_LEN);
 
         /* Session timing starts at successful login so later disconnect stats have an origin. */
-        ctx->session_start = ngx_current_msec;
+        ctx->totals.start = ngx_current_msec;
         if (ctx->identity != NULL) {
             ctx->identity->auth_method = BRIX_AUTHN_NONE;
         }
-        brix_session_register(ctx->sessid, ctx->dn, ctx->vo_list, 0);
+        brix_session_register(ctx->login.sessid, ctx->login.dn, ctx->login.vo_list, 0);
         brix_log_access(ctx, c, "LOGIN", "-", user, 1, 0, NULL, 0);
         brix_count_login_ok(ctx);
 
@@ -141,7 +141,7 @@ brix_handle_login(brix_ctx_t *ctx, ngx_connection_t *c,
         } else if (conf->auth == BRIX_AUTH_KRB5) {
             parms_len = (size_t) snprintf(parms, sizeof(parms),
                                           "&P=krb5,%s",
-                                          (const char *) conf->krb5_principal.data)
+                                          (const char *) conf->krb5.principal.data)
                         + 1;
         } else if (conf->auth == BRIX_AUTH_HOST) {
             /* Phase 52 WS-C: host auth asserts no credential — bare protocol id. */
@@ -177,11 +177,11 @@ brix_handle_login(brix_ctx_t *ctx, ngx_connection_t *c,
         total = XRD_RESPONSE_HDR_LEN + BRIX_SESSION_ID_LEN + parms_len;
         BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
-        brix_build_resp_hdr(ctx->cur_streamid, kXR_ok,
+        brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok,
                               (uint32_t)(BRIX_SESSION_ID_LEN + parms_len),
                               (ServerResponseHdr *) buf);
 
-        ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, ctx->sessid,
+        ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, ctx->login.sessid,
                    BRIX_SESSION_ID_LEN);
         ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN + BRIX_SESSION_ID_LEN,
                    parms, parms_len);
@@ -191,7 +191,7 @@ brix_handle_login(brix_ctx_t *ctx, ngx_connection_t *c,
                        parms, (unsigned) conf->gsi_ca_hash);
 
         /* Successful login still marks the start of the session even though auth continues. */
-        ctx->session_start = ngx_current_msec;
+        ctx->totals.start = ngx_current_msec;
         brix_log_access(ctx, c, "LOGIN", "-", user, 1, 0, NULL, 0);
         brix_count_login_ok(ctx);
 

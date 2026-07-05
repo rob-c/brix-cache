@@ -10,7 +10,7 @@
  * WHAT: Implements brix_handle_krb5_auth(), the per-connection handler that
  *       verifies an AP_REQ ticket presented by a client during the kXR_login /
  *       kXR_auth exchange. On success it records the mapped client name in
- *       ctx->dn, marks the session authenticated, registers it in the session
+ *       ctx->login.dn, marks the session authenticated, registers it in the session
  *       registry and tracks the identity in shared metrics.
  *
  * WHY: One of the stream protocol's supported auth mechanisms is "krb5". When a
@@ -21,8 +21,8 @@
  *
  * HOW: The payload carries the literal prefix "krb5" followed by the raw AP_REQ
  *      bytes. We init a krb5_auth_context, optionally bind the peer address for
- *      replay/IP checking (conf->krb5_ip_check), then call krb5_rd_req() against
- *      conf->krb5_principal_obj / conf->krb5_keytab_obj prepared at config time.
+ *      replay/IP checking (conf->krb5.ip_check), then call krb5_rd_req() against
+ *      conf->krb5.principal_obj / conf->krb5.keytab_obj prepared at config time.
  *      The verified ticket's client principal is mapped to a local name
  *      (krb5_aname_to_localname, falling back to the full unparsed principal).
  *      All krb5 code is gated on BRIX_HAVE_KRB5; when absent the handler
@@ -34,16 +34,16 @@
 static const char *
 brix_krb5_error(ngx_stream_brix_srv_conf_t *conf, krb5_error_code rc)
 {
-    return conf->krb5_context != NULL
-           ? krb5_get_error_message(conf->krb5_context, rc)
+    return conf->krb5.context != NULL
+           ? krb5_get_error_message(conf->krb5.context, rc)
            : NULL;
 }
 
 static void
 brix_krb5_free_error(ngx_stream_brix_srv_conf_t *conf, const char *msg)
 {
-    if (conf->krb5_context != NULL && msg != NULL) {
-        krb5_free_error_message(conf->krb5_context, msg);
+    if (conf->krb5.context != NULL && msg != NULL) {
+        krb5_free_error_message(conf->krb5.context, msg);
     }
 }
 
@@ -100,7 +100,7 @@ brix_krb5_client_name(ngx_stream_brix_srv_conf_t *conf,
         return NGX_ERROR;
     }
 
-    rc = krb5_aname_to_localname(conf->krb5_context,
+    rc = krb5_aname_to_localname(conf->krb5.context,
                                  ticket->enc_part2->client,
                                  (int) dst_len - 1, dst);
     if (rc == 0) {
@@ -109,19 +109,19 @@ brix_krb5_client_name(ngx_stream_brix_srv_conf_t *conf,
     }
 
     principal = NULL;
-    rc = krb5_unparse_name(conf->krb5_context, ticket->enc_part2->client,
+    rc = krb5_unparse_name(conf->krb5.context, ticket->enc_part2->client,
                            &principal);
     if (rc != 0 || principal == NULL) {
         return NGX_ERROR;
     }
 
     ngx_cpystrn((u_char *) dst, (u_char *) principal, dst_len);
-    krb5_free_unparsed_name(conf->krb5_context, principal);
+    krb5_free_unparsed_name(conf->krb5.context, principal);
     return NGX_OK;
 }
 
 /*
- * Record the authenticated client's name (ctx->dn) in the shared-memory
+ * Record the authenticated client's name (ctx->login.dn) in the shared-memory
  * metrics so it counts toward the unique-user gauge. No-op if metrics shm is
  * unavailable or the identity is empty.
  */
@@ -131,11 +131,11 @@ brix_krb5_track_identity(brix_ctx_t *ctx)
     ngx_brix_metrics_t *shm;
 
     shm = brix_metrics_shared();
-    if (shm == NULL || ctx->dn[0] == '\0') {
+    if (shm == NULL || ctx->login.dn[0] == '\0') {
         return;
     }
 
-    brix_track_unique_user(shm, ctx->dn, strlen(ctx->dn));
+    brix_track_unique_user(shm, ctx->login.dn, strlen(ctx->login.dn));
 }
 #endif
 
@@ -152,11 +152,11 @@ brix_krb5_track_identity(brix_ctx_t *ctx)
  * HOW: 1. Reject early if krb5 is unconfigured (no context/principal/keytab) or
  *         the payload is not the "krb5"-prefixed credential blob.
  *      2. krb5_auth_con_init, optionally bind the peer address when
- *         conf->krb5_ip_check is set.
+ *         conf->krb5.ip_check is set.
  *      3. krb5_rd_req() validates the AP_REQ against the server principal and
  *         keytab, yielding the client ticket.
  *      4. Map the client principal to a name (brix_krb5_client_name) into
- *         ctx->dn, free ticket/auth context, set auth_done, populate the
+ *         ctx->login.dn, free ticket/auth context, set auth_done, populate the
  *         identity object, register the session, track metrics, and return OK.
  *      Returns the result of BRIX_RETURN_OK / brix_send_error (NGX_*).
  *      Built without BRIX_HAVE_KRB5, it unconditionally denies.
@@ -175,16 +175,16 @@ brix_handle_krb5_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     char              cname[512];
     char              safe_cname[1024];
 
-    if (conf->krb5_context == NULL || conf->krb5_principal_obj == NULL
-        || conf->krb5_keytab_obj == NULL)
+    if (conf->krb5.context == NULL || conf->krb5.principal_obj == NULL
+        || conf->krb5.keytab_obj == NULL)
     {
         brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_KRB5, 0);
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "krb5",
                           kXR_NotAuthorized, "krb5 not configured");
     }
 
-    if (ctx->payload == NULL || ctx->cur_dlen <= 4
-        || ngx_strncmp(ctx->payload, "krb5", 4) != 0)
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen <= 4
+        || ngx_strncmp(ctx->recv.payload, "krb5", 4) != 0)
     {
         brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_KRB5, 0);
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "krb5",
@@ -194,7 +194,7 @@ brix_handle_krb5_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     auth_ctx = NULL;
     ticket = NULL;
 
-    rc = krb5_auth_con_init(conf->krb5_context, &auth_ctx);
+    rc = krb5_auth_con_init(conf->krb5.context, &auth_ctx);
     if (rc != 0) {
         kmsg = brix_krb5_error(conf, rc);
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
@@ -207,16 +207,16 @@ brix_handle_krb5_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                                  "krb5 authentication failed");
     }
 
-    if (conf->krb5_ip_check) {
+    if (conf->krb5.ip_check) {
         if (brix_krb5_peer_addr(c, &peer_addr) != NGX_OK) {
-            krb5_auth_con_free(conf->krb5_context, auth_ctx);
+            krb5_auth_con_free(conf->krb5.context, auth_ctx);
             brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_KRB5, 0);
             BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "krb5",
                               kXR_NotAuthorized,
                               "cannot bind krb5 peer address");
         }
 
-        rc = krb5_auth_con_setaddrs(conf->krb5_context, auth_ctx,
+        rc = krb5_auth_con_setaddrs(conf->krb5.context, auth_ctx,
                                     NULL, &peer_addr);
         if (rc != 0) {
             kmsg = brix_krb5_error(conf, rc);
@@ -224,7 +224,7 @@ brix_handle_krb5_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                           "brix: krb5 peer address check setup failed: %s",
                           kmsg ? kmsg : "unknown");
             brix_krb5_free_error(conf, kmsg);
-            krb5_auth_con_free(conf->krb5_context, auth_ctx);
+            krb5_auth_con_free(conf->krb5.context, auth_ctx);
             BRIX_OP_ERR(ctx, BRIX_OP_AUTH);
             brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_KRB5, 0);
             return brix_send_error(ctx, c, kXR_NotAuthorized,
@@ -245,15 +245,15 @@ brix_handle_krb5_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     {
         size_t krb5_off = 4;
 
-        if (ctx->cur_dlen > 5 && ctx->payload[4] == '\0') {
+        if (ctx->recv.cur_dlen > 5 && ctx->recv.payload[4] == '\0') {
             krb5_off = 5;
         }
-        inbuf.length = (unsigned int) (ctx->cur_dlen - krb5_off);
-        inbuf.data = (char *) (ctx->payload + krb5_off);
+        inbuf.length = (unsigned int) (ctx->recv.cur_dlen - krb5_off);
+        inbuf.data = (char *) (ctx->recv.payload + krb5_off);
     }
 
-    rc = krb5_rd_req(conf->krb5_context, &auth_ctx, &inbuf,
-                     conf->krb5_principal_obj, conf->krb5_keytab_obj,
+    rc = krb5_rd_req(conf->krb5.context, &auth_ctx, &inbuf,
+                     conf->krb5.principal_obj, conf->krb5.keytab_obj,
                      NULL, &ticket);
     if (rc != 0) {
         kmsg = brix_krb5_error(conf, rc);
@@ -261,7 +261,7 @@ brix_handle_krb5_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                       "brix: krb5 credential verification failed: %s",
                       kmsg ? kmsg : "unknown");
         brix_krb5_free_error(conf, kmsg);
-        krb5_auth_con_free(conf->krb5_context, auth_ctx);
+        krb5_auth_con_free(conf->krb5.context, auth_ctx);
         brix_log_access(ctx, c, "AUTH", "-", "krb5",
                           0, kXR_NotAuthorized,
                           "krb5 credential verification failed", 0);
@@ -274,23 +274,23 @@ brix_handle_krb5_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     if (brix_krb5_client_name(conf, ticket, cname, sizeof(cname))
         != NGX_OK)
     {
-        krb5_free_ticket(conf->krb5_context, ticket);
-        krb5_auth_con_free(conf->krb5_context, auth_ctx);
+        krb5_free_ticket(conf->krb5.context, ticket);
+        krb5_auth_con_free(conf->krb5.context, auth_ctx);
         brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_KRB5, 0);
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "krb5",
                           kXR_NotAuthorized,
                           "cannot map krb5 client principal");
     }
 
-    krb5_free_ticket(conf->krb5_context, ticket);
-    krb5_auth_con_free(conf->krb5_context, auth_ctx);
+    krb5_free_ticket(conf->krb5.context, ticket);
+    krb5_auth_con_free(conf->krb5.context, auth_ctx);
 
-    ctx->auth_done = 1;
-    ctx->token_auth = 0;
-    ngx_cpystrn((u_char *) ctx->dn, (u_char *) cname, sizeof(ctx->dn));
+    ctx->login.auth_done = 1;
+    ctx->token.auth = 0;
+    ngx_cpystrn((u_char *) ctx->login.dn, (u_char *) cname, sizeof(ctx->login.dn));
 
     if (ctx->identity != NULL) {
-        if (brix_identity_set_dn(ctx->identity, c->pool, ctx->dn,
+        if (brix_identity_set_dn(ctx->identity, c->pool, ctx->login.dn,
                                    BRIX_AUTHN_KRB5) != NGX_OK)
         {
             return brix_send_error(ctx, c, kXR_NoMemory,
@@ -298,7 +298,7 @@ brix_handle_krb5_auth(brix_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    brix_session_register(ctx->sessid, ctx->dn, ctx->vo_list, 0);
+    brix_session_register(ctx->login.sessid, ctx->login.dn, ctx->login.vo_list, 0);
     brix_krb5_track_identity(ctx);
 
     brix_sanitize_log_string(cname, safe_cname, sizeof(safe_cname));

@@ -56,15 +56,15 @@ brix_handle_locate(brix_ctx_t *ctx, ngx_connection_t *c,
     /* options: kXR_prefname (0x0100) = prefer DNS names over IPs in response.
      * We always store the server's registered hostname so this is the default.
      * Parse the field so the compiler sees req as used. */
-    xrdw_locate_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    xrdw_locate_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     (void) req.options;
 
-    if (ctx->cur_dlen == 0 || ctx->payload == NULL) {
+    if (ctx->recv.cur_dlen == 0 || ctx->recv.payload == NULL) {
         BRIX_OP_ERR(ctx, BRIX_OP_LOCATE);
         return brix_send_error(ctx, c, kXR_ArgMissing, "no path given");
     }
 
-    if (!brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+    if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
                              reqpath_buf, sizeof(reqpath_buf), 1))
     {
         BRIX_OP_ERR(ctx, BRIX_OP_LOCATE);
@@ -92,7 +92,7 @@ brix_handle_locate(brix_ctx_t *ctx, ngx_connection_t *c,
     if (conf->manager_mode && !is_wildcard) {
 
         /* Collapse-redir cache: fast path — single recently-resolved server. */
-        if (conf->collapse_redir) {
+        if (conf->caps.collapse_redir) {
             char     redir_host[256];
             uint16_t redir_port;
             if (brix_redir_cache_lookup(reqpath_buf, redir_host,
@@ -110,10 +110,10 @@ brix_handle_locate(brix_ctx_t *ctx, ngx_connection_t *c,
             uint16_t redir_port;
             if (brix_srv_select(reqpath_buf, 0, redir_host,
                                   sizeof(redir_host), &redir_port)) {
-                if (conf->collapse_redir) {
+                if (conf->caps.collapse_redir) {
                     brix_redir_cache_insert(reqpath_buf, redir_host,
                                               redir_port,
-                                              conf->collapse_redir_ttl);
+                                              conf->caps.collapse_redir_ttl);
                 }
                 brix_log_access(ctx, c, "LOCATE", reqpath_buf,
                                   "registry", 1, 0, NULL, 0);
@@ -123,19 +123,19 @@ brix_handle_locate(brix_ctx_t *ctx, ngx_connection_t *c,
         }
 
         /* Registry miss — ask the CMS parent via kYR_locate. */
-        if (conf->cms_ctx != NULL) {
+        if (conf->cms.ctx != NULL) {
             uint32_t  streamid;
 
-            streamid = ngx_brix_cms_next_streamid(conf->cms_ctx);
+            streamid = ngx_brix_cms_next_streamid(conf->cms.ctx);
             if (brix_pending_insert(streamid, ngx_pid, c->fd,
                                       c->number,
-                                      ctx->cur_streamid,
-                                      conf->cms_locate_timeout) == NGX_OK)
+                                      ctx->recv.cur_streamid,
+                                      conf->cms.locate_timeout) == NGX_OK)
             {
                 ctx->cms_wait_streamid = streamid;
                 ctx->state = XRD_ST_WAITING_CMS;
-                ngx_add_timer(c->read, conf->cms_locate_timeout);
-                if (ngx_brix_cms_send_locate(conf->cms_ctx, streamid,
+                ngx_add_timer(c->read, conf->cms.locate_timeout);
+                if (ngx_brix_cms_send_locate(conf->cms.ctx, streamid,
                                                reqpath_buf) == NGX_OK)
                 {
                     return NGX_AGAIN;

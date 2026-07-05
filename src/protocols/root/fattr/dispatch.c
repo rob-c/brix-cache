@@ -52,7 +52,7 @@ brix_handle_fattr(brix_ctx_t *ctx, ngx_connection_t *c,
      * calls below. */
     brix_vfs_ctx_t    vctx;
 
-    xrdw_fattr_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    xrdw_fattr_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     subcode = req.subcode;
     numattr = req.numattr;
     options = req.options;
@@ -93,7 +93,7 @@ brix_handle_fattr(brix_ctx_t *ctx, ngx_connection_t *c,
      *   (c) otherwise          → payload starts with a NUL-terminated path;
      *                            args (if any) follow the path's terminator.
      */
-    if (ctx->cur_dlen == 0) {
+    if (ctx->recv.cur_dlen == 0) {
         /* (a) Empty body is only meaningful for list; others need an nvec. */
         if (subcode != kXR_fattrList) {
             return brix_send_error(ctx, c, kXR_ArgMissing,
@@ -126,7 +126,7 @@ brix_handle_fattr(brix_ctx_t *ctx, ngx_connection_t *c,
             conf->common.root_canon, NULL, conf->common.allow_write,
             0 /* is_tls */, NULL, path);
 
-    } else if (ctx->payload != NULL && ctx->payload[0] == 0) {
+    } else if (ctx->recv.payload != NULL && ctx->recv.payload[0] == 0) {
         /* (b) fhandle-targeted request with a leading 0 marker byte. */
         int idx = (int) (unsigned char) req.fhandle[0];
 
@@ -150,9 +150,9 @@ brix_handle_fattr(brix_ctx_t *ctx, ngx_connection_t *c,
             conf->common.root_canon, NULL, conf->common.allow_write,
             0 /* is_tls */, NULL, path);
         /* Everything after the marker byte is the nvec/vvec args region. */
-        if (ctx->cur_dlen > 1) {
-            args_buf = ctx->payload + 1;
-            args_len = ctx->cur_dlen - 1;
+        if (ctx->recv.cur_dlen > 1) {
+            args_buf = ctx->recv.payload + 1;
+            args_len = ctx->recv.cur_dlen - 1;
         }
 
     } else {
@@ -160,17 +160,17 @@ brix_handle_fattr(brix_ctx_t *ctx, ngx_connection_t *c,
         size_t path_wire_len;
         size_t path_payload_len;
 
-        if (ctx->payload == NULL || ctx->cur_dlen == 0) {
+        if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0) {
             return brix_send_error(ctx, c, kXR_ArgMissing,
                                      "fattr: missing path");
         }
 
         /* Bounded scan for the path's NUL; path_payload_len includes it so the
          * args region begins exactly at payload + path_payload_len below. */
-        path_wire_len = strnlen((char *) ctx->payload, ctx->cur_dlen);
+        path_wire_len = strnlen((char *) ctx->recv.payload, ctx->recv.cur_dlen);
         path_payload_len = path_wire_len + 1;
 
-        if (!brix_extract_path(c->log, ctx->payload, path_payload_len,
+        if (!brix_extract_path(c->log, ctx->recv.payload, path_payload_len,
                                  pathbuf, sizeof(pathbuf), 1)) {
             BRIX_OP_ERR(ctx, BRIX_OP_FATTR);
             return brix_send_error(ctx, c, kXR_ArgInvalid,
@@ -211,9 +211,9 @@ brix_handle_fattr(brix_ctx_t *ctx, ngx_connection_t *c,
             path = full_path;
         }
         /* Args (nvec/vvec) are whatever bytes follow the path's NUL. */
-        if (path_payload_len < ctx->cur_dlen) {
-            args_buf = ctx->payload + path_payload_len;
-            args_len = ctx->cur_dlen - path_payload_len;
+        if (path_payload_len < ctx->recv.cur_dlen) {
+            args_buf = ctx->recv.payload + path_payload_len;
+            args_len = ctx->recv.cur_dlen - path_payload_len;
         }
     }
 

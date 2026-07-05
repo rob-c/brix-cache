@@ -34,7 +34,7 @@ brix_handle_protocol(brix_ctx_t *ctx, ngx_connection_t *c,
     int                 offer_tls;
 
     /* kXR_protocol packs client capability flags into the fifth byte of body[]. */
-    client_flags = ctx->cur_body[4];
+    client_flags = ctx->recv.cur_body[4];
     want_gsi = (conf->auth == BRIX_AUTH_GSI
                 || conf->auth == BRIX_AUTH_BOTH);
     want_token = (conf->auth == BRIX_AUTH_TOKEN
@@ -75,7 +75,7 @@ brix_handle_protocol(brix_ctx_t *ctx, ngx_connection_t *c,
     total = XRD_RESPONSE_HDR_LEN + bodylen;
     BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
-    brix_build_resp_hdr(ctx->cur_streamid, kXR_ok,
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok,
                           (uint32_t) bodylen,
                           (ServerResponseHdr *) buf);
 
@@ -85,18 +85,18 @@ brix_handle_protocol(brix_ctx_t *ctx, ngx_connection_t *c,
             | kXR_suppgrw   /* pgread/pgwrite always implemented */
             | kXR_supposc   /* POSC always implemented */
             | ((conf->manager_map || conf->manager_mode) ? kXR_isManager : 0)
-            | (conf->supervisor
+            | (conf->caps.supervisor
                    ? (kXR_isManager | kXR_attrSuper) : 0)
-            | ((conf->virtual_redirector
-                || (conf->manager_map != NULL && conf->cms_addr == NULL))
+            | ((conf->caps.virtual_redirector
+                || (conf->manager_map != NULL && conf->cms.addr == NULL))
                    ? (kXR_isManager | kXR_attrVirtRdr) : 0)
-            | (conf->metadata_only ? kXR_attrMeta : 0)
-            | ((conf->proxy_enable > 0 || conf->proxy_upstreams != NULL)
+            | (conf->caps.metadata_only ? kXR_attrMeta : 0)
+            | ((conf->proxy.enable > 0 || conf->proxy.upstreams != NULL)
                    ? kXR_attrProxy : 0)
             | ((conf->cache_root.len > 0 || conf->cache_origin_host.len > 0)
                    ? kXR_attrCache : 0)
-            | (conf->collapse_redir ? kXR_collapseRedir : 0)
-            | (conf->recover_writes ? kXR_recoverWrts : 0)
+            | (conf->caps.collapse_redir ? kXR_collapseRedir : 0)
+            | (conf->caps.recover_writes ? kXR_recoverWrts : 0)
             | (offer_tls ? (kXR_haveTLS | kXR_gotoTLS | kXR_tlsLogin) : 0);
         body.flags = htonl(caps);
     }

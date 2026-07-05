@@ -20,6 +20,7 @@
 #include "fs/backend/frm/sd_frm.h"        /* brix_sd_frm_create (tape)     */
 #include "fs/backend/rados/sd_ceph.h"     /* brix_sd_ceph_conf_t (rados)   */
 #include "fs/cache/origin/s3_transport.h"  /* brix_s3_origin_curl_transport */
+#include "core/compat/cstr.h"              /* brix_str_cbuf                 */
 
 #include <string.h>
 
@@ -38,13 +39,11 @@ tier_resolve_creds(const brix_tier_cfg_t *t, char *bearer, size_t bcap,
         return;
     }
     (void) brix_credential_bearer(c, bearer, bcap, log);   /* "" when none */
-    if (c->x509_proxy.len > 0 && c->x509_proxy.len < pcap) {
-        ngx_memcpy(proxy, c->x509_proxy.data, c->x509_proxy.len);
-        proxy[c->x509_proxy.len] = '\0';
+    if (c->x509_proxy.len > 0) {
+        (void) brix_str_cbuf(proxy, pcap, &c->x509_proxy);
     }
-    if (c->ca_dir.len > 0 && c->ca_dir.len < ccap) {
-        ngx_memcpy(cadir, c->ca_dir.data, c->ca_dir.len);
-        cadir[c->ca_dir.len] = '\0';
+    if (c->ca_dir.len > 0) {
+        (void) brix_str_cbuf(cadir, ccap, &c->ca_dir);
     }
 }
 

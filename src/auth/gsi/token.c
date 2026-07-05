@@ -19,7 +19,7 @@
  *
  * HOW: 1) Extract token from payload; 2) Parse macaroon secret if configured;
  *      3) Validate JWT signature + claims; 4) Grace-period fallback with old
- *      secret for key rotation during reload; 5) On success set ctx->auth_done,
+ *      secret for key rotation during reload; 5) On success set ctx->login.auth_done,
  *      extract DN/groups/scopes from claims, track metrics, register session.
  *
  * Grace-period key rotation: if the primary macaroon secret rejects a token
@@ -31,7 +31,7 @@
  *
  * Postconditions on success:
  *
- * WHY: ctx->auth_done = 1 enables subsequent authenticated operations.
+ * WHY: ctx->login.auth_done = 1 enables subsequent authenticated operations.
  *      ctx->bearer_token stores raw token for proxy auth-bridging to upstream.
  *      DN, vo_list, primary_vo extracted from JWT claims (sub/groups).
  *      Token scopes stored for per-path scope checks. Unique user and VO
@@ -49,7 +49,7 @@ brix_handle_token_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     size_t                token_len;
     int                   rc, i;
 
-    if (ctx->payload == NULL || ctx->cur_dlen <= 4) {
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen <= 4) {
         brix_log_access(ctx, c, "AUTH", "-", "ztn",
                           0, kXR_NotAuthorized, "empty token payload", 0);
         BRIX_OP_ERR(ctx, BRIX_OP_AUTH);
@@ -57,8 +57,8 @@ brix_handle_token_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                                  "empty bearer token");
     }
 
-    token = (const char *) (ctx->payload + 4);
-    token_len = ctx->cur_dlen - 4;
+    token = (const char *) (ctx->recv.payload + 4);
+    token_len = ctx->recv.cur_dlen - 4;
 
     while (token_len > 0 && token[token_len - 1] == '\0') {
         token_len--;
@@ -173,8 +173,8 @@ brix_handle_token_auth(brix_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    ctx->token_auth = 1;
-    ctx->auth_done = 1;
+    ctx->token.auth = 1;
+    ctx->login.auth_done = 1;
     if (ctx->identity != NULL
         && brix_identity_set_token_claims(ctx->identity, c->pool, &claims)
            != NGX_OK)
@@ -195,36 +195,36 @@ brix_handle_token_auth(brix_ctx_t *ctx, ngx_connection_t *c,
         ctx->bearer_token[token_len] = '\0';
     }
 
-    ngx_cpystrn((u_char *) ctx->dn, (u_char *) claims.sub, sizeof(ctx->dn));
+    ngx_cpystrn((u_char *) ctx->login.dn, (u_char *) claims.sub, sizeof(ctx->login.dn));
 
     if (claims.groups[0]) {
         const char *comma;
         size_t      pvo_len;
 
-        ngx_cpystrn((u_char *) ctx->vo_list,
+        ngx_cpystrn((u_char *) ctx->login.vo_list,
                     (u_char *) claims.groups,
-                    sizeof(ctx->vo_list));
+                    sizeof(ctx->login.vo_list));
 
         comma = strchr(claims.groups, ',');
         pvo_len = comma ? (size_t) (comma - claims.groups)
                         : strlen(claims.groups);
-        if (pvo_len >= sizeof(ctx->primary_vo)) {
-            pvo_len = sizeof(ctx->primary_vo) - 1;
+        if (pvo_len >= sizeof(ctx->login.primary_vo)) {
+            pvo_len = sizeof(ctx->login.primary_vo) - 1;
         }
-        ngx_memcpy(ctx->primary_vo, claims.groups, pvo_len);
-        ctx->primary_vo[pvo_len] = '\0';
+        ngx_memcpy(ctx->login.primary_vo, claims.groups, pvo_len);
+        ctx->login.primary_vo[pvo_len] = '\0';
     }
 
     /* Track unique user and VO at auth completion. */
     {
         ngx_brix_metrics_t *shm = brix_metrics_shared();
         if (shm != NULL) {
-            size_t vo_len = strlen(ctx->primary_vo);
-            if (vo_len > 0 && vo_len < sizeof(ctx->primary_vo)) {
-                brix_track_vo_activity(shm, ctx->primary_vo, 0, 0);
+            size_t vo_len = strlen(ctx->login.primary_vo);
+            if (vo_len > 0 && vo_len < sizeof(ctx->login.primary_vo)) {
+                brix_track_vo_activity(shm, ctx->login.primary_vo, 0, 0);
                 ngx_uint_t vi;
                 for (vi = 0; vi < BRIX_VO_MAX_TRACKED; vi++) {
-                    if (ngx_strncmp(shm->vo_global.slots[vi].name, ctx->primary_vo,
+                    if (ngx_strncmp(shm->vo_global.slots[vi].name, ctx->login.primary_vo,
                                     BRIX_VO_NAME_LEN) == 0)
                     {
                         BRIX_ATOMIC_INC(&shm->vo_global.slots[vi].requests_total);
@@ -232,15 +232,15 @@ brix_handle_token_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                     }
                 }
             }
-            brix_track_unique_user(shm, ctx->dn, strlen(ctx->dn));
+            brix_track_unique_user(shm, ctx->login.dn, strlen(ctx->login.dn));
         }
     }
 
-    brix_session_register(ctx->sessid, ctx->dn, ctx->vo_list, 1);
+    brix_session_register(ctx->login.sessid, ctx->login.dn, ctx->login.vo_list, 1);
 
-    ctx->token_scope_count = claims.scope_count;
+    ctx->token.scope_count = claims.scope_count;
     for (i = 0; i < claims.scope_count && i < BRIX_MAX_TOKEN_SCOPES; i++) {
-        ctx->token_scopes[i] = claims.scopes[i];
+        ctx->token.scopes[i] = claims.scopes[i];
     }
 
     ngx_log_error(NGX_LOG_INFO, c->log, 0,

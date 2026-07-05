@@ -63,25 +63,25 @@ brix_acc_refresh_handler(ngx_event_t *ev)
         && ngx_file_info(xcf->authdb.data, &fi) != NGX_FILE_ERROR)
     {
         time_t mt  = ngx_file_mtime(&fi);
-        time_t cur = (xcf->acc_tables != NULL) ? xcf->acc_tables->mtime : 0;
+        time_t cur = (xcf->acc.tables != NULL) ? xcf->acc.tables->mtime : 0;
 
         if (mt != cur) {
             brix_acc_tables_t *nt =
                 brix_acc_build((const char *) xcf->authdb.data,
-                                 xcf->acc_gidlifetime, xcf->acc_pgo,
-                                 (xcf->acc_nisdomain.len > 0)
-                                     ? (const char *) xcf->acc_nisdomain.data
+                                 xcf->acc.gidlifetime, xcf->acc.pgo,
+                                 (xcf->acc.nisdomain.len > 0)
+                                     ? (const char *) xcf->acc.nisdomain.data
                                      : NULL,
-                                 (xcf->acc_gidretran.len > 0)
-                                     ? (const char *) xcf->acc_gidretran.data
+                                 (xcf->acc.gidretran.len > 0)
+                                     ? (const char *) xcf->acc.gidretran.data
                                      : NULL,
-                                 (xcf->acc_spacechar.len > 0)
-                                     ? (char) xcf->acc_spacechar.data[0] : 0,
-                                 xcf->acc_encoding,
+                                 (xcf->acc.spacechar.len > 0)
+                                     ? (char) xcf->acc.spacechar.data[0] : 0,
+                                 xcf->acc.encoding,
                                  ev->log);
             if (nt != NULL) {
-                brix_acc_tables_t *old = xcf->acc_tables;
-                xcf->acc_tables = nt;          /* single-threaded: safe swap */
+                brix_acc_tables_t *old = xcf->acc.tables;
+                xcf->acc.tables = nt;          /* single-threaded: safe swap */
                 brix_acc_tables_free(old);
                 ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
                               "xrootd authdb reloaded: %s", xcf->authdb.data);
@@ -89,8 +89,8 @@ brix_acc_refresh_handler(ngx_event_t *ev)
         }
     }
 
-    if (xcf->acc_refresh > 0 && !ngx_exiting) {
-        ngx_add_timer(ev, (ngx_msec_t) xcf->acc_refresh * 1000);
+    if (xcf->acc.refresh > 0 && !ngx_exiting) {
+        ngx_add_timer(ev, (ngx_msec_t) xcf->acc.refresh * 1000);
     }
 }
 
@@ -239,20 +239,20 @@ ngx_int_t
 brix_acc_init_server(ngx_stream_brix_srv_conf_t *xcf, ngx_cycle_t *cycle)
 {
     /* Only servers using the xrdacc engine with an authdb file. */
-    if (xcf->acc_format != BRIX_AUTHDB_FORMAT_XRDACC || xcf->authdb.len == 0) {
+    if (xcf->acc.format != BRIX_AUTHDB_FORMAT_XRDACC || xcf->authdb.len == 0) {
         return NGX_OK;
     }
 
-    xcf->acc_tables = brix_acc_build(
-        (const char *) xcf->authdb.data, xcf->acc_gidlifetime, xcf->acc_pgo,
-        (xcf->acc_nisdomain.len > 0) ? (const char *) xcf->acc_nisdomain.data
+    xcf->acc.tables = brix_acc_build(
+        (const char *) xcf->authdb.data, xcf->acc.gidlifetime, xcf->acc.pgo,
+        (xcf->acc.nisdomain.len > 0) ? (const char *) xcf->acc.nisdomain.data
                                      : NULL,
-        (xcf->acc_gidretran.len > 0) ? (const char *) xcf->acc_gidretran.data
+        (xcf->acc.gidretran.len > 0) ? (const char *) xcf->acc.gidretran.data
                                      : NULL,
-        (xcf->acc_spacechar.len > 0) ? (char) xcf->acc_spacechar.data[0] : 0,
-        xcf->acc_encoding,
+        (xcf->acc.spacechar.len > 0) ? (char) xcf->acc.spacechar.data[0] : 0,
+        xcf->acc.encoding,
         cycle->log);
-    if (xcf->acc_tables == NULL) {
+    if (xcf->acc.tables == NULL) {
         BRIX_DIAG_EMERG(cycle->log, 0,
             "brix: failed to load authorization database \"%V\"",
             "the authdb could not be opened or parsed",
@@ -262,15 +262,15 @@ brix_acc_init_server(ngx_stream_brix_srv_conf_t *xcf, ngx_cycle_t *cycle)
         return NGX_ERROR;
     }
 
-    if (xcf->acc_refresh > 0) {
-        xcf->acc_timer = ngx_pcalloc(cycle->pool, sizeof(ngx_event_t));
-        if (xcf->acc_timer == NULL) {
+    if (xcf->acc.refresh > 0) {
+        xcf->acc.timer = ngx_pcalloc(cycle->pool, sizeof(ngx_event_t));
+        if (xcf->acc.timer == NULL) {
             return NGX_ERROR;
         }
-        xcf->acc_timer->handler = brix_acc_refresh_handler;
-        xcf->acc_timer->data    = xcf;
-        xcf->acc_timer->log     = cycle->log;
-        ngx_add_timer(xcf->acc_timer, (ngx_msec_t) xcf->acc_refresh * 1000);
+        xcf->acc.timer->handler = brix_acc_refresh_handler;
+        xcf->acc.timer->data    = xcf;
+        xcf->acc.timer->log     = cycle->log;
+        ngx_add_timer(xcf->acc.timer, (ngx_msec_t) xcf->acc.refresh * 1000);
     }
 
     return NGX_OK;
