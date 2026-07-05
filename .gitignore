@@ -81,3 +81,6 @@ k8s-tests/remote-suite/tests/fuzz/fuzz_b64url
 k8s-tests/remote-suite/tests/fuzz/fuzz_safe_size
 k8s-tests/remote-suite/tests/fuzz/fuzz_zip_dir
 k8s-tests/remote-suite/tests/nginx-bin
+
+# versioned shared-lib artifacts (the *.so pattern misses these)
+client/libbrix.so.*
