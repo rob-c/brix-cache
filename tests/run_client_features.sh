@@ -56,6 +56,15 @@ section_dryrun_filters() {
   mkdir -p "$WORK/dst_both"
   "$BIN/xrdcp" -r -s --include '*' --exclude 'a.*' "$RSRC/" "$WORK/dst_both" 2>/dev/null
   check "exclude beats include" '[ ! -e "$WORK/dst_both/a.root" ] && [ -e "$WORK/dst_both/b.log" ]'
+
+  # dry-run upload (root://) — must not create the remote directory.
+  # The tree is local→root://, so copy_tree_upload is called via brix_copy; its
+  # brix_mkdir is already guarded by !dry_run in copy_recursive.c. Verify that
+  # no directory is left on the server after a dry-run walk.
+  DRYUP_RPATH="/tmp/cfeat-$$-dryup"
+  "$BIN/xrdcp" -r -s --dry-run "$WORK/src/" "${URL}//${DRYUP_RPATH}/" 2>/dev/null
+  check "dry-run upload: remote dir not created" \
+    '! "$BIN/xrdfs" "$URL" stat "$DRYUP_RPATH" >/dev/null 2>&1'
 }
 
 main() {
