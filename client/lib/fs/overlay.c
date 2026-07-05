@@ -405,3 +405,62 @@ int brix_overlay_whiteout_clear(const brix_overlay *ov, const char *rel) {
     close(parent);
     return rc;
 }
+
+/* ---- copy-up ------------------------------------------------------------- */
+
+#define OV_COPYUP_CHUNK (1024u * 1024u)
+
+/* Stream `size` lower bytes of `rel` into fd via the injected reader. A short
+ * read before `size` is a lower-layer lie → -EIO. */
+static int ov_copyup_stream(int fd, const char *rel, uint64_t size,
+                            brix_ov_read_fn read_lower, void *ud) {
+    unsigned char *buf = malloc(OV_COPYUP_CHUNK);
+    if (buf == NULL) return -ENOMEM;
+
+    uint64_t off = 0;
+    int      rc  = 0;
+    while (rc == 0 && off < size) {
+        size_t want = size - off > OV_COPYUP_CHUNK ? OV_COPYUP_CHUNK
+                                                   : (size_t) (size - off);
+        size_t got  = 0;
+        rc = read_lower(ud, rel, off, want, buf, &got);
+        if (rc == 0 && got == 0) rc = -EIO;         /* premature EOF */
+        for (size_t done = 0; rc == 0 && done < got; ) {
+            ssize_t w = pwrite(fd, buf + done, got - done, (off_t) (off + done));
+            if (w < 0) rc = -errno;
+            else done += (size_t) w;
+        }
+        off += got;
+    }
+    free(buf);
+    return rc;
+}
+
+int brix_overlay_copyup(const brix_overlay *ov, const char *rel,
+                        const struct stat *lower_st,
+                        brix_ov_read_fn read_lower, void *ud) {
+    char leaf[OV_NAME_MAX], tmp[OV_NAME_MAX + sizeof(BRIX_OV_TMP_PREFIX)];
+    int  parent = ov_walk_parent_mk(ov, rel, leaf, sizeof(leaf), 1, NULL, NULL);
+    if (parent < 0) return parent;
+
+    snprintf(tmp, sizeof(tmp), BRIX_OV_TMP_PREFIX "%s", leaf);
+    int fd = openat(parent, tmp, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC,
+                    lower_st->st_mode & 07777);
+    if (fd < 0) { int e = errno; close(parent); return -e; }
+
+    /* the openat mode is umask-filtered — restate the exact lower bits */
+    int rc = fchmod(fd, lower_st->st_mode & 07777) != 0 ? -errno : 0;
+    if (rc == 0)
+        rc = ov_copyup_stream(fd, rel, (uint64_t) lower_st->st_size, read_lower, ud);
+    if (rc == 0) {
+        struct timespec tv[2] = { { lower_st->st_mtime, 0 }, { lower_st->st_mtime, 0 } };
+        if (futimens(fd, tv) != 0) rc = -errno;
+    }
+    close(fd);
+
+    if (rc == 0 && renameat(parent, tmp, parent, leaf) != 0) rc = -errno;
+    if (rc != 0) unlinkat(parent, tmp, 0);          /* leave no torn trace */
+    close(parent);
+
+    return rc == 0 ? brix_overlay_whiteout_clear(ov, rel) : rc;
+}
