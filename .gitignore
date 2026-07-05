@@ -107,3 +107,11 @@ mcp-test-output.txt
 bind-exploit.bak/
 # large prebuilt python wheel (fetch locally, don't vendor)
 *.whl
+
+# local agent/tooling state (never project content)
+.omo/
+.sisyphus/
+opencode.json
+/package.json
+/package-lock.json
+/node_modules/
