@@ -330,6 +330,39 @@ int brix_mv(brix_conn *c, const char *src, const char *dst, brix_status *st);
 int brix_chmod(brix_conn *c, const char *path, int mode, brix_status *st);
 int brix_truncate(brix_conn *c, const char *path, int64_t size, brix_status *st);
 
+/* ---- walk.c / rmtree.c (remote tree walk + recursive delete) ---- */
+/* Visitor callback for brix_tree_walk: invoked once per entry with full path,
+ * entry metadata, depth, and opaque argument. Return 0 to continue, nonzero to
+ * abort. */
+typedef int (*brix_walk_fn)(const char *path, const brix_dirent *e, int depth,
+                            void *u);
+
+/* Pre-order tree walk: visit every entry under `path` (files and directories),
+ * parent before children. Directories descend to BRIX_WALK_MAXDEPTH (64).
+ * Returns 0 on success, 1 if fn() aborted, -1 on error (st set). */
+int brix_tree_walk(brix_conn *c, const char *path, brix_walk_fn fn, void *u,
+                   brix_status *st);
+
+/* Flags for brix_rmtree. */
+#define BRIX_RMTREE_DRYRUN 0x1
+
+/* Report callback for brix_rmtree: invoked for each deleted entry (or would-be
+ * deleted when DRYRUN). is_dir=0 for files, 1 for directories. Return 0 to
+ * continue, nonzero to abort (post-order: files first, then their parents). */
+typedef int (*brix_rmtree_report)(const char *path, int is_dir, void *u);
+
+/* Post-order recursive delete: remove every file then every directory bottom-up
+ * under `path`, then `path` itself. Refuses "" and "/" (the export root).
+ * Respects BRIX_RMTREE_DRYRUN (report without deleting). report may be NULL.
+ * Returns 0 on success, -1 on error (st set). */
+int brix_rmtree(brix_conn *c, const char *path, unsigned flags,
+                brix_rmtree_report report, void *u, brix_status *st);
+
+/* ---- path.c (path helpers) ---- */
+/* 1 if a relative path would escape the directory it is joined under (absolute
+ * path or contains a ".." component). Used to guard server-supplied paths. */
+int brix_rel_is_unsafe(const char *rel);
+
 /* ---- ops_ext.c — vendor POSIX-completeness ops (kXR_setattr/symlink/readlink/
  * link). Only emit these against a server that advertises them: brix_ext_probe
  * queries kXR_Qconfig "xrdfs.ext" and sets the four flags (0 = unsupported). All

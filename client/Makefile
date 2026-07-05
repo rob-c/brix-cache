@@ -107,7 +107,7 @@ LIB_SRCS   := \
   lib/auth/sec/sec_gsi.c lib/auth/sec/sec_host.c lib/auth/sec/sec_krb5.c lib/auth/sec/sec_pwd.c lib/auth/sec/sec_sss.c lib/auth/sec/sec_token.c lib/auth/sec/sec_unix.c \
   lib/auth/gsi/proxy.c \
   lib/auth/sss/sss_keytab.c \
-  lib/fs/fattr.c lib/fs/glob.c lib/fs/iobuf.c lib/fs/overlay.c lib/fs/path.c lib/fs/vfs.c lib/fs/vfs_block.c lib/fs/vfs_posix.c \
+  lib/fs/fattr.c lib/fs/glob.c lib/fs/iobuf.c lib/fs/overlay.c lib/fs/path.c lib/fs/rmtree.c lib/fs/vfs.c lib/fs/vfs_block.c lib/fs/vfs_posix.c lib/fs/walk.c \
   lib/fs/backend/s3/vfs_s3.c lib/fs/backend/s3/vfs_s3_http.c lib/fs/backend/s3/vfs_s3_io.c lib/fs/backend/s3/vfs_s3_transport.c \
   lib/protocols/root/frame.c lib/protocols/root/ops_ext.c lib/protocols/root/ops_file.c lib/protocols/root/ops_file_pg.c lib/protocols/root/ops_file_rw.c lib/protocols/root/ops_fs.c lib/protocols/root/ops_meta.c \
   lib/protocols/http/http.c lib/protocols/http/http_download.c lib/protocols/http/http_req.c lib/protocols/http/http_upload.c lib/protocols/http/webfile.c lib/protocols/http/webfile_io.c lib/protocols/http/weblist.c \
@@ -426,7 +426,7 @@ install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES)
 # vfs_s3_smoke is excluded (needs an external S3 endpoint; run it manually).
 # Each test is a standalone main() linking the client lib + libxrdproto, the
 # same recipe as the Build+run comment in each test's header.
-CLIENT_UNIT_TESTS := cli_cred_unit cred_unit cred_store_unit vfs_posix_unit vfs_block_unit jsonout_unit copy_filter_unit xferjournal_unit
+CLIENT_UNIT_TESTS := cli_cred_unit cred_unit cred_store_unit vfs_posix_unit vfs_block_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit
 # The tests predate the phase-69 bucket reshuffle and include bucket-local
 # headers bare ("cred.h"); add the bucket dirs rather than churning the tests.
 TEST_INC := -Ilib/auth/cred -Ilib/auth/sss -Ilib/fs -Ilib/cli -Ilib/core/types -Ilib/net
