@@ -67,8 +67,79 @@ section_dryrun_filters() {
     '! "$BIN/xrdfs" "$URL" stat "$DRYUP_RPATH" >/dev/null 2>&1'
 }
 
+section_sync_modes() {
+  echo "== sync modes (local) =="
+  local S="$WORK/sync"
+  mkdir -p "$S"
+  # Same size, DIFFERENT content: the size gate alone cannot tell them apart.
+  printf 'AAAA\n' >"$S/src"
+  printf 'BBBB\n' >"$S/stale"
+
+  # --sync (size mode): same size => skipped (transfer_one returns before
+  # brix_copy, so local->local is fine and the stale bytes stay untouched).
+  "$BIN/xrdcp" --sync "$S/src" "$S/stale" >/dev/null 2>&1
+  check "--sync (size): same-size stale dst skipped" \
+    '[ "$(cat "$S/stale")" = "BBBB" ]'
+
+  # --sync-check cksum: content differs => the copy gate must OPEN. Local->local
+  # can't actually copy, so observe the gate via --dry-run's "[dry-run] copy".
+  check "--sync-check cksum: stale dst recopied (gate opens)" \
+    '"$BIN/xrdcp" --sync-check cksum --dry-run "$S/src" "$S/stale" | grep -q "\[dry-run\] copy"'
+
+  # --sync-check cksum on identical content => skipped (no dry-run line).
+  cp "$S/src" "$S/same"
+  check "--sync-check cksum: identical dst skipped" \
+    '! "$BIN/xrdcp" --sync-check cksum --dry-run "$S/src" "$S/same" | grep -q "\[dry-run\] copy"'
+
+  # --sync-check mtime: same size but src NEWER than dst => recopy.
+  touch -d '2020-01-01 00:00:00' "$S/stale"
+  check "--sync-check mtime: newer src recopied" \
+    '"$BIN/xrdcp" --sync-check mtime --dry-run "$S/src" "$S/stale" | grep -q "\[dry-run\] copy"'
+
+  # --sync-check mtime: dst newer than (or same age as) src => skipped.
+  touch -d '2030-01-01 00:00:00' "$S/stale"
+  check "--sync-check mtime: newer dst skipped" \
+    '! "$BIN/xrdcp" --sync-check mtime --dry-run "$S/src" "$S/stale" | grep -q "\[dry-run\] copy"'
+
+  # error case: a bogus comparison mode is a usage error (exit 50).
+  "$BIN/xrdcp" --sync-check bogus "$S/src" "$S/stale" >/dev/null 2>&1
+  check "--sync-check bogus exits 50" '[ "$?" -eq 50 ]'
+
+  echo "== sync modes (fleet) =="
+  if ! have_fleet; then
+    echo "  SKIP fleet sync tests (no fleet at $URL)"
+    return
+  fi
+
+  # Seed a remote file, then make a same-size different-content local copy.
+  local RS="/tmp/cfeat-$$-sync"
+  "$BIN/xrdcp" -s -f "$S/src" "${URL}/${RS}" 2>/dev/null
+  printf 'BBBB\n' >"$S/dl"
+
+  # --sync (size) download: same size => local stale bytes survive.
+  "$BIN/xrdcp" -s --sync "${URL}/${RS}" "$S/dl" 2>/dev/null
+  check "fleet --sync (size): stale local dst kept" '[ "$(cat "$S/dl")" = "BBBB" ]'
+
+  # --sync-check cksum download: digests differ => REAL recopy, bytes replaced.
+  "$BIN/xrdcp" -s --sync-check cksum "${URL}/${RS}" "$S/dl" 2>/dev/null
+  check "fleet --sync-check cksum: stale dst recopied" '[ "$(cat "$S/dl")" = "AAAA" ]'
+
+  # Recursive download honors --sync-check cksum via the walker (open-conn path).
+  local RT="/tmp/cfeat-$$-synctree"
+  mkdir -p "$S/tree"
+  printf 'AAAA\n' >"$S/tree/f"
+  "$BIN/xrdcp" -r -s -f "$S/tree/" "${URL}/${RT}/" 2>/dev/null
+  mkdir -p "$S/out"
+  printf 'BBBB\n' >"$S/out/f"
+  "$BIN/xrdcp" -r -s --sync "${URL}/${RT}/" "$S/out" 2>/dev/null
+  check "fleet -r --sync (size): stale tree file kept" '[ "$(cat "$S/out/f")" = "BBBB" ]'
+  "$BIN/xrdcp" -r -s --sync-check cksum "${URL}/${RT}/" "$S/out" 2>/dev/null
+  check "fleet -r --sync-check cksum: stale tree file recopied" '[ "$(cat "$S/out/f")" = "AAAA" ]'
+}
+
 main() {
   section_dryrun_filters
+  section_sync_modes
   # (later tasks append sections + calls here)
   echo "client-features: $PASS pass, $FAIL fail"
   [ "$FAIL" -eq 0 ]

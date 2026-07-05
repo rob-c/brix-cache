@@ -6,9 +6,10 @@
 #define BRIX_XRDCP_INTERNAL_H
 
 #include "brix.h"
-#include "core/compat/crypto.h"   
-#include <dirent.h>   
+#include "core/compat/crypto.h"
+#include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <glob.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -76,7 +77,7 @@ int both_web(const char *src, const char *dst);
 
 /* xrdcp_transfer.c */
 int copy_one_with_retry(const char *src, const char *dst, const brix_copy_opts *o, const brix_opts *co, int retries, brix_status *st);
-int entry_size(const char *url, const brix_opts *co, long long *size);
+int entry_meta(const char *url, const brix_opts *co, long long *size, long long *mtime);
 int transfer_one(const char *src, const char *dst, const brix_copy_opts *o, const brix_opts *co, int retries, int sync_mode, brix_status *st);
 int relay_web_to_web(const char *src, const char *dst, const brix_copy_opts *o, const brix_opts *co, int retries, brix_status *st);
 int batch_copy_one(const char *item, const char *dstdir, const brix_copy_opts *o, const brix_opts *co, int retries, int sync_mode, char *dpath, size_t dpsz, brix_status *st);
