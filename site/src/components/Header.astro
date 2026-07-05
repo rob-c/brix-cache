@@ -1,5 +1,5 @@
 ---
-import { url, REPO_URL, DOCS_URL, AUDIENCES } from '../lib/site';
+import { url, REPO_URL, DOCS_URL, AUDIENCES, PRODUCT_PAGES } from '../lib/site';
 const path = Astro.url.pathname.replace(/\/$/, '');
 const isActive = (href: string) => path.endsWith(href);
 ---
@@ -13,6 +13,9 @@ const isActive = (href: string) => path.endsWith(href);
     <nav class="nav" aria-label="Primary">
       {AUDIENCES.map((a) => (
         <a href={url(a.href)} class:list={['nav-link', { on: isActive(a.href) }]}>{a.label}</a>
+      ))}
+      {PRODUCT_PAGES.map((p) => (
+        <a href={url(p.href)} class:list={['nav-link', { on: isActive(p.href) }]}>{p.label}</a>
       ))}
       <a href={DOCS_URL} class="nav-link">Docs</a>
       <a href={REPO_URL} class="nav-link nav-cta">GitHub ↗</a>
