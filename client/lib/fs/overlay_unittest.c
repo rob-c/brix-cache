@@ -140,9 +140,99 @@ static void test_classify(void) {
     fix_down(&f);
 }
 
+/* ---- section 2: mutation primitives ------------------------------------- */
+
+static mode_t mode_0700(void *ud, const char *rel_dir) {
+    (void) ud; (void) rel_dir;
+    return 0700;
+}
+
+static void test_mutations(void) {
+    fix_t f;
+    printf("== mutations ==\n");
+    CHECK(fix_up(&f) == 0, "overlay init");
+
+    struct stat st;
+    CHECK(brix_overlay_mkdirs(&f.ov, "d1/d2/d3", NULL, NULL) == 0
+          && cls(&f, "d1/d2/d3", &st) == BRIX_OV_UPPER && S_ISDIR(st.st_mode),
+          "mkdirs deep chain");
+    CHECK(brix_overlay_mkdirs(&f.ov, "m1/m2", mode_0700, NULL) == 0
+          && cls(&f, "m1", &st) == BRIX_OV_UPPER && (st.st_mode & 07777) == 0700,
+          "mkdirs honors mode_fn");
+
+    int fd = brix_overlay_open(&f.ov, "d1/d2/new", O_WRONLY | O_CREAT | O_EXCL, 0644);
+    CHECK(fd >= 0, "open O_CREAT|O_EXCL");
+    CHECK(write(fd, "abc", 3) == 3, "write via returned fd");
+    close(fd);
+    CHECK(cls(&f, "d1/d2/new", &st) == BRIX_OV_UPPER && st.st_size == 3,
+          "created file classifies UPPER, size 3");
+    CHECK(brix_overlay_open(&f.ov, "noparent/x", O_WRONLY | O_CREAT, 0644) == -ENOENT,
+          "open with missing parent → -ENOENT");  /* neg */
+
+    CHECK(brix_overlay_mkdir(&f.ov, "d1/sub", 0750) == 0
+          && cls(&f, "d1/sub", &st) == BRIX_OV_UPPER && (st.st_mode & 07777) == 0750,
+          "mkdir with mode");
+    CHECK(brix_overlay_mkdir(&f.ov, "d1/sub", 0750) == -EEXIST, "mkdir twice → -EEXIST");
+
+    CHECK(brix_overlay_set_opaque(&f.ov, "d1/sub") == 0, "set_opaque");
+    CHECK(cls(&f, "d1/sub/anything", NULL) == BRIX_OV_MASKED, "opaque masks below");
+
+    CHECK(brix_overlay_unlink_upper(&f.ov, "d1/d2/new") == 0
+          && cls(&f, "d1/d2/new", NULL) == BRIX_OV_NONE, "unlink_upper");
+
+    /* rmdir_upper: marker-only dir succeeds, real entries refuse */
+    CHECK(brix_overlay_whiteout_set(&f.ov, "wd/x") == 0, "seed marker-only dir");
+    CHECK(brix_overlay_rmdir_upper(&f.ov, "wd") == 0
+          && cls(&f, "wd", NULL) == BRIX_OV_NONE, "rmdir_upper removes marker-only dir");
+    raw_mkdir(&f, "upper/full");
+    raw_put(&f, "upper/full/keep", "k");
+    CHECK(brix_overlay_rmdir_upper(&f.ov, "full") == -ENOTEMPTY,
+          "rmdir_upper with real entry → -ENOTEMPTY");  /* neg */
+
+    /* rename across dirs */
+    raw_put(&f, "upper/d1/src", "mv");
+    CHECK(brix_overlay_rename_upper(&f.ov, "d1/src", "d1/d2/dst") == 0
+          && cls(&f, "d1/d2/dst", NULL) == BRIX_OV_UPPER
+          && cls(&f, "d1/src", NULL) == BRIX_OV_NONE, "rename_upper across dirs");
+
+    /* symlink + readlink round-trip */
+    char lbuf[64];
+    CHECK(brix_overlay_symlink(&f.ov, "target/here", "d1/lnk") == 0, "symlink");
+    CHECK(brix_overlay_readlink(&f.ov, "d1/lnk", lbuf, sizeof(lbuf)) == 0
+          && strcmp(lbuf, "target/here") == 0, "readlink round-trip");
+
+    /* chmod / truncate / utimens */
+    raw_put(&f, "upper/d1/attrs", "0123456789");
+    CHECK(brix_overlay_chmod(&f.ov, "d1/attrs", 0640) == 0
+          && cls(&f, "d1/attrs", &st) == BRIX_OV_UPPER && (st.st_mode & 07777) == 0640,
+          "chmod 0640");
+    CHECK(brix_overlay_chmod(&f.ov, "d1/lnk", 0640) == -EOPNOTSUPP,
+          "chmod on symlink refused");  /* neg */
+    CHECK(brix_overlay_truncate(&f.ov, "d1/attrs", 3) == 0
+          && cls(&f, "d1/attrs", &st) == BRIX_OV_UPPER && st.st_size == 3,
+          "truncate to 3");
+    struct timespec tv[2] = { { 12345, 0 }, { 12345, 0 } };
+    CHECK(brix_overlay_utimens(&f.ov, "d1/attrs", tv) == 0
+          && cls(&f, "d1/attrs", &st) == BRIX_OV_UPPER && st.st_mtime == 12345,
+          "utimens sets mtime");
+
+    /* security-neg: mutation through a planted symlink dead-ends */
+    char lp[512];
+    snprintf(lp, sizeof(lp), "%s/upper/esc", f.root);
+    CHECK(symlink("/etc", lp) == 0, "plant escape symlink");
+    CHECK(brix_overlay_truncate(&f.ov, "esc/passwd", 0) < 0
+          && brix_overlay_truncate(&f.ov, "esc/passwd", 0) != -EISDIR,
+          "truncate through symlink refused (walk dead-ends)");
+    CHECK(brix_overlay_truncate(&f.ov, "esc", 0) == -ELOOP,
+          "truncate of symlink itself → -ELOOP");
+
+    fix_down(&f);
+}
+
 int main(void) {
     test_reserved_names();
     test_classify();
+    test_mutations();
     printf("%d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;
 }
