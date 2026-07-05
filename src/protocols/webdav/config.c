@@ -17,6 +17,7 @@
 #include "core/config/config.h"
 #include "core/config/root_prepare.h"
 #include "core/config/http_rootfd.h"
+#include "core/config/http_common.h"      /* unified brix_* directive adoption */
 #include "core/compat/staged_file.h"
 #include "fs/backend/sd.h"           /* SD registry: lazy per-worker instance */
 #include "fs/vfs/vfs_backend_registry.h" /* per-export backend config + resolve */
@@ -301,6 +302,11 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
 {
     ngx_http_brix_webdav_loc_conf_t *prev = parent;
     ngx_http_brix_webdav_loc_conf_t *conf = child;
+
+    /* Unified directives (brix_export, brix_cache_store, ...) live in the
+     * common module; pull the merged values for this location into our
+     * embedded preamble before protocol merge applies defaults. */
+    brix_http_common_adopt(cf, &conf->common);
 
     /* Shared common.* preamble (incl. hard read-only enforcement + pmark);
      * WebDAV exports default to "/" (pure cache nodes serve the whole ns). */

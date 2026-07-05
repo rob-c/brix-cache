@@ -43,6 +43,7 @@
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
 #include "core/config/credential_block.h"   /* §14 brix_credential lookup/bearer */
 #include "core/config/tier_directives.h"    /* shared tier-grammar X-macro */
+#include "core/config/http_common.h"        /* unified brix_* directive adoption */
 #include "fs/vfs/vfs_backend_registry.h"   /* per-export backend registration */
 #include "core/compat/alloc_guard.h"
 
@@ -78,6 +79,11 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 {
     ngx_http_s3_loc_conf_t *prev = parent;
     ngx_http_s3_loc_conf_t *conf = child;
+
+    /* Unified directives (brix_export, brix_cache_store, ...) live in the
+     * common module; pull the merged values for this location into our
+     * embedded preamble before protocol merge applies defaults. */
+    brix_http_common_adopt(cf, &conf->common);
 
     /* Shared common.* preamble (incl. hard read-only enforcement + pmark). */
     if (ngx_http_brix_shared_merge(cf, &prev->common, &conf->common, "")
