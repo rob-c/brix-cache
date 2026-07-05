@@ -171,6 +171,456 @@ brix_open_resolved_via_driver(brix_sd_instance_t *sd, const char *logical,
 }
 
 /*
+ * brix_open_attach_csi — attach the CSI block-checksum integrity engine to a
+ * freshly-opened handle (xmeta P3).  A write handle folds block CRCs and merges
+ * them into the file's xmeta record at close; a read handle verifies spanned
+ * blocks against the record.  A pure read on a trust_fs backing fs skips the
+ * engine; a require=on read with no verifiable record is refused (fd closed).
+ * Returns NGX_OK, or the error-response value on refusal.
+ */
+static ngx_int_t
+brix_open_attach_csi(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *resolved, int idx, int fd,
+    const struct stat *st, ngx_flag_t is_write)
+{
+	ctx->files[idx].csi = NULL;
+	if (conf->csi.enable && S_ISREG(st->st_mode)
+	    && !(conf->csi.trust_fs && !is_write))
+	{
+		brix_csi_t *csi = ngx_alloc(sizeof(brix_csi_t), c->log);
+
+		if (csi != NULL) {
+			int crc = brix_csi_open(csi, resolved,
+			    (uint32_t) conf->csi.block, is_write);
+
+			csi->trust_fs = conf->csi.trust_fs ? 1 : 0;
+			if (crc == BRIX_CSI_OK) {
+				ctx->files[idx].csi = csi;
+			} else {
+				brix_csi_close(csi);
+				ngx_free(csi);
+				if (!is_write && crc == BRIX_CSI_NOTAGS
+				    && conf->csi.require)
+				{
+					close(fd);
+					ctx->files[idx].fd = -1;
+					BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD,
+					    "OPEN", resolved, "rd",
+					    kXR_ChkSumErr, "integrity record missing");
+				}
+				/* unrecorded read (require off) or engine error:
+				 * proceed without CSI for this handle (fail-open). */
+			}
+		}
+	}
+	return NGX_OK;
+}
+
+
+/*
+ * brix_open_apply_throttle — enforce the XrdThrottle per-user open-files cap on a
+ * freshly-opened handle (phase-59 W3a).  Checked after the fd is open; on
+ * rejection the fd + any CSI engine are torn down.  Returns NGX_OK, or the
+ * error-response value when the cap is exceeded.
+ */
+static ngx_int_t
+brix_open_apply_throttle(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *resolved, int idx, int fd,
+    ngx_flag_t is_write)
+{
+	/* phase-59 W3a: XrdThrottle per-user open-files cap. Checked after the fd
+	 * is open (closed again on rejection); the resolved identity is the key. */
+	if (conf->throttle.zone != NULL && conf->throttle.max_open_files > 0) {
+		const char *tuser = ctx->login.dn[0] ? ctx->login.dn : "anonymous";
+
+		if (!brix_throttle_open_inc(conf->throttle.zone, tuser,
+		                              conf->throttle.max_open_files))
+		{
+			close(fd);
+			ctx->files[idx].fd = -1;
+			if (ctx->files[idx].csi != NULL) {
+				brix_csi_close(ctx->files[idx].csi);
+				ngx_free(ctx->files[idx].csi);
+				ctx->files[idx].csi = NULL;
+			}
+			BRIX_RETURN_ERR(ctx, c,
+			    is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
+			    "OPEN", resolved, is_write ? "wr" : "rd",
+			    kXR_Overloaded, "too many open files for this user");
+		}
+		ctx->throttle.open_held++;
+	}
+	return NGX_OK;
+}
+
+
+	/* Write-through decision evaluation (mirrors XrdPfc::Cache::Decide())
+	 * WHAT: Evaluate write-through policy at kXR_open time and cache the result on the handle.
+	 *       This is called once per open — the cached wt_policy determines close-time flush behavior.
+	 *
+	 * WHY: Mirrors XrdPfcDecision::Decide() from official XRootD PFC module (Cache::Attach()).
+	 *      Caching at open time avoids repeated policy evaluation for every write operation,
+	 *      reduces latency, and ensures consistent close-time behavior across the session.
+	 *
+	 * HOW: Policy callback flow (src/cache/writethrough_decision.h):
+	 *   1. conf->wt.decision.fn(resolved, options, &conf->wt.decision) — default is brix_wt_default_decide()
+	 *   2. Default engine checks: size filter → deny prefixes → allow prefixes → ALLOW_ASYNC (default)
+	 *   3. Cache result on handle: ctx->files[idx].wt_policy = decision, wt_enabled = (decision != DENY),
+	 *      wt_dirty_offset = -1 (clean state), wt_bytes_written = 0
+	 *
+	 * Decision outcomes are cached for a future close-time write-back implementation:
+	 *   DENY       → no write-back; local-only writes, handle treated as non-WT
+	 *   ALLOW_SYNC → synchronous flush to origin before closing handle (blocks)
+	 *   ALLOW_ASYNC→ schedule async thread-pool flush, return immediately to client */
+
+/* WT decision policy engine (default: prefix-based)
+ * WHAT: brix_wt_default_decide() — built-in prefix-based policy engine.
+ *       External plugins can provide their own fn pointer for custom policies.
+ *
+ * WHY: Provides sensible defaults for most deployments without requiring external plugin setup.
+ *      Prefix-based matching is O(n) where n = prefix length — acceptable for typical paths (/data/, /atlas/).
+ *
+ * HOW: Decision logic order (src/cache/writethrough_decision.c):
+ *   1. Size filter: if file > max_write_through_bytes AND no include regex match → DENY
+ *   2. Deny prefixes: any deny_prefix matches → DENY (deny takes precedence)
+ *   3. Allow prefixes: if allow list configured AND none match → DENY (whitelist mode)
+ *   4. Default: ALLOW_ASYNC (mirrors XrdPfcAllowDecision, sync preferred for local origins) */
+static void
+brix_open_decide_writethrough(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *resolved, uint16_t options,
+    int idx, mode_t create_mode, ngx_flag_t is_write, ngx_flag_t wt_via_stage)
+{
+	if (is_write && conf->wt.enable) {
+		brix_wt_decision_t decision = BRIX_WT_DECISION_DENY;
+
+		if (conf->wt.decision.fn != NULL) {
+			decision = conf->wt.decision.fn(resolved, options, &conf->wt.decision);
+		}
+
+		/* wt sd_stage handles flush on the storage path (sync job / close), NOT via
+		 * the close-time run_flush — so leave wt_enabled clear for them. */
+		ctx->files[idx].wt_enabled  = (!wt_via_stage
+		                               && decision != BRIX_WT_DECISION_DENY) ? 1 : 0;
+		ctx->files[idx].wt_policy   = decision;
+		ctx->files[idx].wt_mode_bits = create_mode;
+		ctx->files[idx].wt_dirty_offset = -1; /* no dirty writes yet */
+		ctx->files[idx].wt_bytes_written    = 0;
+
+		ctx->files[idx].wt_flush_task     = NULL;
+		ctx->files[idx].wt_flush_pending  = 0;
+
+		if (c->log->log_level & NGX_LOG_DEBUG_STREAM) {
+			char wt_log_path[512];
+
+			brix_sanitize_log_string(resolved, wt_log_path,
+			                           sizeof(wt_log_path));
+			ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+			               "brix: wt decision=%s path=%s",
+			               decision == BRIX_WT_DECISION_DENY ? "DENY" :
+			               decision == BRIX_WT_DECISION_ALLOW_SYNC ? "ALLOW_SYNC" : "ALLOW_ASYNC",
+			               wt_log_path);
+		}
+	}
+}
+
+
+/* Register a freshly-opened handle with the live transfer monitor (dashboard
+ * slot), so an in-flight read/write shows up in the dashboard SHM table. */
+static void
+brix_open_register_monitor(brix_ctx_t *ctx, const char *resolved, int idx,
+    ngx_flag_t is_write)
+{
+	if (ngx_brix_dashboard_shm_zone != NULL) {
+		brix_transfer_table_t *dash_tbl = ngx_brix_dashboard_shm_zone->data;
+		const char *dash_identity = ctx->login.dn[0] ? ctx->login.dn : "anonymous";
+		uint8_t     dash_dir = is_write ? BRIX_XFER_DIR_WRITE
+		                                : BRIX_XFER_DIR_READ;
+		ctx->files[idx].dashboard_slot = brix_transfer_slot_alloc(
+		    dash_tbl, ctx->login.sessid, ctx->login.peer_ip,
+		    dash_identity, resolved, dash_dir,
+		    BRIX_XFER_PROTO_ROOT, (int64_t) ngx_current_msec);
+	}
+}
+
+
+/* Build the kXR_retstat metadata string for a retstat open: fstat the real-fd
+ * path (a driver no-fd handle already has st), format "ino size flags mtime"
+ * into statbuf, and clear *want_stat when the stat is unavailable. */
+static void
+brix_open_build_retstat(brix_ctx_t *ctx, int idx, int fd, struct stat *st,
+    ngx_flag_t *want_stat, char *statbuf, size_t statbuf_sz)
+{
+	statbuf[0] = '\0';
+	if (*want_stat) {
+		/* A driver-backed no-fd handle (e.g. RADOS) has fd == NGX_INVALID_FILE;
+		 * `st` already holds the metadata the driver captured at open (above).
+		 * Only the real-fd path needs a fresh fstat. Without this guard,
+		 * fstat(-1) fails and we silently drop the retstat the client requested
+		 * with kXR_open — which stock clients reject ("invalid response"). */
+		int have_st = (fd != NGX_INVALID_FILE) ? (fstat(fd, st) == 0) : 1;
+
+		if (have_st) {
+			int stat_flags = 0;
+			if (st->st_mode & (S_IRUSR | S_IRGRP | S_IROTH)) {
+				stat_flags |= kXR_readable;
+			}
+			if (st->st_mode & (S_IWUSR | S_IWGRP | S_IWOTH)) {
+				stat_flags |= kXR_writable;
+			}
+			if (ctx->files[idx].from_cache) {
+				stat_flags |= kXR_cachersp;
+			}
+			snprintf(statbuf, statbuf_sz, "%llu %lld %d %ld",
+					 (unsigned long long) st->st_ino,
+					 (long long) st->st_size,
+					 stat_flags,
+					 (long) st->st_mtime);
+		} else {
+			*want_stat = 0;
+		}
+	}
+}
+
+
+	/*
+	 * POSC: store the temp path in the path field so that a non-clean close
+	 * (handled by brix_free_fhandle → unlink(path)) discards the partial
+	 * upload.  Store the final target in posc_final_path; brix_handle_close
+	 * will rename() on clean close and then clear this field before freeing.
+	 */
+static ngx_int_t
+brix_open_set_handle_path(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
+    const char *resolved, const char *posc_temp_path, ngx_flag_t stage,
+    ngx_flag_t use_resume)
+{
+	if (stage) {
+		if (brix_set_fhandle_path(ctx, c, idx, posc_temp_path) != NGX_OK) {
+			brix_free_fhandle(ctx, idx);
+			return NGX_ERROR;
+		}
+		ctx->files[idx].posc_final_path = ngx_alloc(strlen(resolved) + 1,
+		                                             c->log);
+		if (ctx->files[idx].posc_final_path == NULL) {
+			brix_free_fhandle(ctx, idx);
+			return NGX_ERROR;
+		}
+		ngx_cpystrn((u_char *) ctx->files[idx].posc_final_path,
+		            (u_char *) resolved, strlen(resolved) + 1);
+		/* Resume staging: keep the partial on a non-clean close (the difference
+		 * from plain POSC, which discards it).  See brix_free_fhandle. */
+		ctx->files[idx].is_resume = use_resume ? 1 : 0;
+	} else {
+		if (brix_set_fhandle_path(ctx, c, idx, resolved) != NGX_OK) {
+			brix_free_fhandle(ctx, idx);
+			return NGX_ERROR;
+		}
+	}
+	return NGX_OK;
+}
+
+
+	/* The POSIX-fd path stats the fd to validate type and clear O_NONBLOCK. A
+	 * driver-backed open already synthesized `st` from the driver snapshot and
+	 * its directory/type rejection happens at the driver (EISDIR mapped above)
+	 * and the pre-flight VFS probe, so this fd-specific block is skipped. */
+static ngx_int_t
+brix_open_validate_fd(brix_ctx_t *ctx, ngx_connection_t *c, const char *resolved,
+    int fd, struct stat *st, ngx_flag_t is_write, ngx_flag_t driver_backed)
+{
+	if (!driver_backed) {
+		if (fstat(fd, st) != 0) {
+			int err = errno;
+
+			close(fd);
+			BRIX_RETURN_ERR(ctx, c,
+							  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
+							  "OPEN", resolved, is_write ? "wr" : "rd",
+							  kXR_IOError, strerror(err));
+		}
+
+		if (S_ISDIR(st->st_mode)) {
+			close(fd);
+			BRIX_RETURN_ERR(ctx, c,
+							  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
+							  "OPEN", resolved, is_write ? "wr" : "rd",
+							  kXR_isDirectory, "is a directory");
+		}
+
+		/* Only regular files are servable byte streams.  A FIFO, socket, device
+		 * or other special file was opened O_NONBLOCK (so the open could not
+		 * wedge the worker); refuse to serve it rather than let a read/write spin
+		 * on EAGAIN.  A staged write always lands on a freshly O_CREAT'd regular
+		 * temp, so this only ever rejects a pre-existing special file. */
+		if (!S_ISREG(st->st_mode)) {
+			close(fd);
+			BRIX_RETURN_ERR(ctx, c,
+							  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
+							  "OPEN", resolved, is_write ? "wr" : "rd",
+							  kXR_IOError, "not a regular file");
+		}
+
+		/* The fd is a confirmed regular file: drop O_NONBLOCK so every downstream
+		 * read/write/sendfile sees ordinary blocking semantics (a no-op for local
+		 * regular files, but it keeps the fd's flags unsurprising for callers). */
+		{
+			int fl = fcntl(fd, F_GETFL);
+			if (fl != -1 && (fl & O_NONBLOCK)) {
+				(void) fcntl(fd, F_SETFL, fl & ~O_NONBLOCK);
+			}
+		}
+	}
+	return NGX_OK;
+}
+
+
+	/* A write open of an existing DIRECTORY must be rejected up front with
+	 * kXR_isDirectory (stock parity: O_WRONLY on a directory fails EISDIR).
+	 * Without this the staging path below would derive a ".part" FILE from the
+	 * directory's name, create it, and wrongly report success — diverging from
+	 * stock. The read side is rejected symmetrically just below. */
+static ngx_int_t
+brix_open_check_write_target(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *resolved, ngx_flag_t is_write)
+{
+	if (is_write) {
+		brix_vfs_stat_t dst;
+		/* A final path that is itself a symlink must be rejected for write: we
+		 * never write THROUGH an in-root link. The direct-open mapping enforces
+		 * this with O_NOFOLLOW on the final component (ELOOP), but the staging
+		 * path opens a randomly-named temp instead of the final and would commit
+		 * over the link on rename — so guard it here. lstat (no-follow) reports
+		 * the link as itself; resolution is already confined to the export, so
+		 * this catches an in-export link with EITHER an in-root or outward target
+		 * without following it. */
+		if (brix_open_probe(c->log, conf->common.root_canon, resolved, 1,
+		                      &dst) && S_ISLNK((mode_t) dst.mode)) {
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
+			                  resolved, "wr", kXR_NotAuthorized,
+			                  "refusing to write through a symlink");
+		}
+		if (brix_open_probe(c->log, conf->common.root_canon, resolved, 0,
+		                      &dst) && dst.is_directory) {
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
+			                  resolved, "wr", kXR_isDirectory,
+			                  "is a directory");
+		}
+	}
+	/* NGX_DECLINED = allow/continue.  A rejection above sends its own error and
+	 * returns that send's rc (NGX_OK on success), so the caller MUST test for
+	 * NGX_DECLINED — not NGX_OK — to tell "continue" from "error already sent"
+	 * (else it falls through and sends a second, conflicting reply). */
+	return NGX_DECLINED;
+}
+
+
+	/* Phase C: two-tier write-back-staging backpressure. When write-through
+	 * staging is configured with watermarks, shed new write-opens while the
+	 * staging filesystem is full — delay in the soft band (kXR_wait, the client
+	 * retries), reject at the hard cap (kXR_Overloaded). Runs before any handle or
+	 * staging-temp allocation, so a shed write consumes nothing. Reads never reach
+	 * here. */
+static ngx_int_t   /* the value to return from the caller, or NGX_DECLINED = allow/continue */
+brix_open_stage_backpressure(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *resolved, ngx_flag_t is_write)
+{
+	if (is_write && conf->wt.enable) {
+		switch (brix_wt_stage_admit(conf)) {
+		case BRIX_WT_ADMIT_WAIT:
+			brix_metric_wt_stage_throttled(0 /* wait */);
+			brix_log_access(ctx, c, "OPEN", resolved, "wr-staging-wait",
+			                  0, 0, "write-back staging busy; retry", 0);
+			return brix_send_wait(ctx, c, BRIX_WT_STAGE_WAIT_SECS);
+		case BRIX_WT_ADMIT_REJECT:
+			brix_metric_wt_stage_throttled(1 /* reject */);
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", resolved,
+			                  "wr", kXR_Overloaded,
+			                  "write-back staging area full");
+		case BRIX_WT_ADMIT_ALLOW:
+		default:
+			break;
+		}
+	}
+	return NGX_DECLINED;
+}
+
+
+	/* When staging is active the kXR_new exclusive-create check must run against
+	 * the FINAL path, not the staging temp (which is what actually gets O_EXCL):
+	 * staging never opens the final, so without this an exclusive create over an
+	 * existing object would wrongly succeed and overwrite it on commit.
+	 *
+	 * This is an EXCLUSIVE-create check, so it only applies when kXR_new is set
+	 * WITHOUT kXR_delete — exactly the O_EXCL condition in the direct-open
+	 * mapping (open_flags.h: kXR_new adds O_EXCL "unless kXR_delete is also
+	 * set"). With kXR_delete also present the client explicitly asked to
+	 * truncate/overwrite any existing object (the delete intent wins over the
+	 * new intent), so an existing final must NOT be rejected — staging will
+	 * replace it on the commit rename. Without this guard a delete+new overwrite
+	 * (e.g. xrdcp -f, or a kXR_recoverWrts reopen) was wrongly rejected with
+	 * kXR_ItExists. */
+static ngx_int_t
+brix_open_check_exclusive_create(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *resolved, ngx_flag_t stage,
+    uint16_t options)
+{
+	if (stage && (options & kXR_new) && !(options & kXR_delete)) {
+		brix_vfs_stat_t fst;
+		if (brix_open_probe(c->log, conf->common.root_canon, resolved, 0,
+		                      &fst)) {
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
+			                  resolved, "wr", kXR_ItExists,
+			                  "file already exists");
+		}
+	}
+	/* NGX_DECLINED = allow/continue; a kXR_ItExists rejection above already sent
+	 * its reply and returned that send's rc — the caller tests for NGX_DECLINED,
+	 * not NGX_OK, so a sent error stops the open instead of falling through to
+	 * open the staging temp and send a second (fhandle) reply. */
+	return NGX_DECLINED;
+}
+
+
+/* Build the POSC/resume staging temp path into posc_temp_path (resume = a
+ * deterministic identity-keyed partial; POSC = a random ".posc.*" temp on the
+ * final path's fs).  Returns NGX_OK, or an error response on a too-long path. */
+static ngx_int_t
+brix_open_build_stage_temp(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *resolved, ngx_flag_t use_resume,
+    ngx_flag_t use_posc, char *posc_temp_path, size_t posc_temp_path_sz)
+{
+	if (use_resume) {
+		/* Deterministic, identity-keyed: a reconnecting client re-opening the
+		 * same final path lands on the SAME partial and resumes from its
+		 * offset.  Anonymous (empty dn) shares per-path (no per-user isolation
+		 * on such an endpoint anyway).  When brix_stage_dir is set the partial
+		 * lives on that fast device and the close-time commit moves it to the
+		 * destination (cross-device copy). */
+		const char *principal = ctx->login.dn[0] ? ctx->login.dn : NULL;
+		const char *stage_dir = conf->upload_stage_dir_canon[0]
+		                        ? conf->upload_stage_dir_canon : NULL;
+		if (brix_make_resume_path(resolved, principal, stage_dir,
+		                            posc_temp_path, posc_temp_path_sz)
+		    != NGX_OK) {
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
+			                  resolved, "wr", kXR_ServerError,
+			                  "resume temp path too long");
+		}
+	} else if (use_posc) {
+		if (brix_make_tmp_path(resolved, posc_temp_path,
+		                         posc_temp_path_sz) != NGX_OK) {
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
+			                  resolved, "wr", kXR_ServerError,
+			                  "POSC temp path too long");
+		}
+	}
+	/* NGX_DECLINED = built OK / nothing to build (continue); a path-too-long
+	 * rejection above already sent its reply — caller tests NGX_DECLINED, not
+	 * NGX_OK, so a sent error is not mistaken for "continue". */
+	return NGX_DECLINED;
+}
+
+
+/*
  *
  * WHAT: Opens the actual file on disk and allocates a file handle (fhandle). Called after path resolution.
  *       This function performs the POSIX open(2) call with proper security guarantees including:
@@ -236,56 +686,22 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 	                             conf->cache_root.data,
 	                             conf->cache_root.len) == 0);
 
-	/* A write open of an existing DIRECTORY must be rejected up front with
-	 * kXR_isDirectory (stock parity: O_WRONLY on a directory fails EISDIR).
-	 * Without this the staging path below would derive a ".part" FILE from the
-	 * directory's name, create it, and wrongly report success — diverging from
-	 * stock. The read side is rejected symmetrically just below. */
-	if (is_write) {
-		brix_vfs_stat_t dst;
-		/* A final path that is itself a symlink must be rejected for write: we
-		 * never write THROUGH an in-root link. The direct-open mapping enforces
-		 * this with O_NOFOLLOW on the final component (ELOOP), but the staging
-		 * path opens a randomly-named temp instead of the final and would commit
-		 * over the link on rename — so guard it here. lstat (no-follow) reports
-		 * the link as itself; resolution is already confined to the export, so
-		 * this catches an in-export link with EITHER an in-root or outward target
-		 * without following it. */
-		if (brix_open_probe(c->log, conf->common.root_canon, resolved, 1,
-		                      &dst) && S_ISLNK((mode_t) dst.mode)) {
-			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
-			                  resolved, "wr", kXR_NotAuthorized,
-			                  "refusing to write through a symlink");
-		}
-		if (brix_open_probe(c->log, conf->common.root_canon, resolved, 0,
-		                      &dst) && dst.is_directory) {
-			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
-			                  resolved, "wr", kXR_isDirectory,
-			                  "is a directory");
+	/* Reject a write open onto a symlink or existing directory (split out). */
+	{
+		ngx_int_t wtc = brix_open_check_write_target(ctx, c, conf, resolved,
+		    is_write);
+		if (wtc != NGX_DECLINED) {
+			return wtc;   /* rejected: error already sent, propagate its rc */
 		}
 	}
 
-	/* Phase C: two-tier write-back-staging backpressure. When write-through
-	 * staging is configured with watermarks, shed new write-opens while the
-	 * staging filesystem is full — delay in the soft band (kXR_wait, the client
-	 * retries), reject at the hard cap (kXR_Overloaded). Runs before any handle or
-	 * staging-temp allocation, so a shed write consumes nothing. Reads never reach
-	 * here. */
-	if (is_write && conf->wt_enable) {
-		switch (brix_wt_stage_admit(conf)) {
-		case BRIX_WT_ADMIT_WAIT:
-			brix_metric_wt_stage_throttled(0 /* wait */);
-			brix_log_access(ctx, c, "OPEN", resolved, "wr-staging-wait",
-			                  0, 0, "write-back staging busy; retry", 0);
-			return brix_send_wait(ctx, c, BRIX_WT_STAGE_WAIT_SECS);
-		case BRIX_WT_ADMIT_REJECT:
-			brix_metric_wt_stage_throttled(1 /* reject */);
-			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", resolved,
-			                  "wr", kXR_Overloaded,
-			                  "write-back staging area full");
-		case BRIX_WT_ADMIT_ALLOW:
-		default:
-			break;
+	/* Two-tier write-back-staging backpressure: shed new write-opens when the
+	 * staging fs is full (kXR_wait / kXR_Overloaded) (split out). */
+	{
+		ngx_int_t bprc = brix_open_stage_backpressure(ctx, c, conf, resolved,
+		    is_write);
+		if (bprc != NGX_DECLINED) {
+			return bprc;
 		}
 	}
 
@@ -294,53 +710,21 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 	 * with a ".posc.<pid>.<random>" suffix appended.  This keeps the temp
 	 * file on the same filesystem as the destination so rename(2) is atomic.
 	 */
-	/* When staging is active the kXR_new exclusive-create check must run against
-	 * the FINAL path, not the staging temp (which is what actually gets O_EXCL):
-	 * staging never opens the final, so without this an exclusive create over an
-	 * existing object would wrongly succeed and overwrite it on commit.
-	 *
-	 * This is an EXCLUSIVE-create check, so it only applies when kXR_new is set
-	 * WITHOUT kXR_delete — exactly the O_EXCL condition in the direct-open
-	 * mapping (open_flags.h: kXR_new adds O_EXCL "unless kXR_delete is also
-	 * set"). With kXR_delete also present the client explicitly asked to
-	 * truncate/overwrite any existing object (the delete intent wins over the
-	 * new intent), so an existing final must NOT be rejected — staging will
-	 * replace it on the commit rename. Without this guard a delete+new overwrite
-	 * (e.g. xrdcp -f, or a kXR_recoverWrts reopen) was wrongly rejected with
-	 * kXR_ItExists. */
-	if (stage && (options & kXR_new) && !(options & kXR_delete)) {
-		brix_vfs_stat_t fst;
-		if (brix_open_probe(c->log, conf->common.root_canon, resolved, 0,
-		                      &fst)) {
-			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
-			                  resolved, "wr", kXR_ItExists,
-			                  "file already exists");
+	/* kXR_new exclusive-create check against the FINAL path when staging (split out). */
+	{
+		ngx_int_t xrc = brix_open_check_exclusive_create(ctx, c, conf, resolved,
+		    stage, options);
+		if (xrc != NGX_DECLINED) {
+			return xrc;   /* kXR_ItExists already sent, propagate its rc */
 		}
 	}
 
-	if (use_resume) {
-		/* Deterministic, identity-keyed: a reconnecting client re-opening the
-		 * same final path lands on the SAME partial and resumes from its
-		 * offset.  Anonymous (empty dn) shares per-path (no per-user isolation
-		 * on such an endpoint anyway).  When brix_stage_dir is set the partial
-		 * lives on that fast device and the close-time commit moves it to the
-		 * destination (cross-device copy). */
-		const char *principal = ctx->dn[0] ? ctx->dn : NULL;
-		const char *stage_dir = conf->upload_stage_dir_canon[0]
-		                        ? conf->upload_stage_dir_canon : NULL;
-		if (brix_make_resume_path(resolved, principal, stage_dir,
-		                            posc_temp_path, sizeof(posc_temp_path))
-		    != NGX_OK) {
-			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
-			                  resolved, "wr", kXR_ServerError,
-			                  "resume temp path too long");
-		}
-	} else if (use_posc) {
-		if (brix_make_tmp_path(resolved, posc_temp_path,
-		                         sizeof(posc_temp_path)) != NGX_OK) {
-			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN",
-			                  resolved, "wr", kXR_ServerError,
-			                  "POSC temp path too long");
+	/* Build the POSC/resume staging temp path (split out). */
+	{
+		ngx_int_t strc = brix_open_build_stage_temp(ctx, c, conf, resolved,
+		    use_resume, use_posc, posc_temp_path, sizeof(posc_temp_path));
+		if (strc != NGX_DECLINED) {
+			return strc;   /* path-too-long error already sent, propagate its rc */
 		}
 	}
 
@@ -435,7 +819,7 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 	 * wt sd_stage decorator (buffer on the export store, flush to the origin on
 	 * sync/close) instead of the local backend + close-time run_flush. Falls back to
 	 * run_flush (wt_via_stage stays 0) when no sd_stage is composed. */
-	if (is_write && conf->wt_enable && !from_cache && !use_resume) {
+	if (is_write && conf->wt.enable && !from_cache && !use_resume) {
 		brix_sd_instance_t *wt = brix_cache_wt_stage_sd_inst(conf);
 
 		if (wt != NULL) {
@@ -564,50 +948,12 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 						  kXR_IOError, strerror(err));
 	}
 
-	/* The POSIX-fd path stats the fd to validate type and clear O_NONBLOCK. A
-	 * driver-backed open already synthesized `st` from the driver snapshot and
-	 * its directory/type rejection happens at the driver (EISDIR mapped above)
-	 * and the pre-flight VFS probe, so this fd-specific block is skipped. */
-	if (!driver_backed) {
-		if (fstat(fd, &st) != 0) {
-			int err = errno;
-
-			close(fd);
-			BRIX_RETURN_ERR(ctx, c,
-							  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
-							  "OPEN", resolved, is_write ? "wr" : "rd",
-							  kXR_IOError, strerror(err));
-		}
-
-		if (S_ISDIR(st.st_mode)) {
-			close(fd);
-			BRIX_RETURN_ERR(ctx, c,
-							  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
-							  "OPEN", resolved, is_write ? "wr" : "rd",
-							  kXR_isDirectory, "is a directory");
-		}
-
-		/* Only regular files are servable byte streams.  A FIFO, socket, device
-		 * or other special file was opened O_NONBLOCK (so the open could not
-		 * wedge the worker); refuse to serve it rather than let a read/write spin
-		 * on EAGAIN.  A staged write always lands on a freshly O_CREAT'd regular
-		 * temp, so this only ever rejects a pre-existing special file. */
-		if (!S_ISREG(st.st_mode)) {
-			close(fd);
-			BRIX_RETURN_ERR(ctx, c,
-							  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
-							  "OPEN", resolved, is_write ? "wr" : "rd",
-							  kXR_IOError, "not a regular file");
-		}
-
-		/* The fd is a confirmed regular file: drop O_NONBLOCK so every downstream
-		 * read/write/sendfile sees ordinary blocking semantics (a no-op for local
-		 * regular files, but it keeps the fd's flags unsurprising for callers). */
-		{
-			int fl = fcntl(fd, F_GETFL);
-			if (fl != -1 && (fl & O_NONBLOCK)) {
-				(void) fcntl(fd, F_SETFL, fl & ~O_NONBLOCK);
-			}
+	/* Stat + validate the POSIX fd (regular file, clear O_NONBLOCK) (split out). */
+	{
+		ngx_int_t vrc = brix_open_validate_fd(ctx, c, resolved, fd, &st,
+		    is_write, driver_backed);
+		if (vrc != NGX_OK) {
+			return vrc;
 		}
 	}
 
@@ -622,67 +968,22 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 	ctx->files[idx].read_last_end  = -1;
 	ctx->files[idx].read_ahead_end = 0;
 
-	/* xmeta P3: attach the CSI block-checksum engine to this handle when
-	 * enabled. A write handle folds block CRCs as bytes stream through and
-	 * merges them into the file's xmeta record at close; a read handle
-	 * verifies fully-spanned blocks against the record. A file without a
-	 * verifiable record and require=on is refused at open.
-	 * trust_fs (self-checksumming backing fs): a pure read handle skips the
-	 * engine entirely — no record load, no per-read verify, and csi_require
-	 * is deliberately not enforced; a write handle still attaches so tags
-	 * stay fresh, with its own read-verify suppressed via csi->trust_fs. */
-	ctx->files[idx].csi = NULL;
-	if (conf->csi_enable && S_ISREG(st.st_mode)
-	    && !(conf->csi_trust_fs && !is_write))
+	/* Attach the CSI integrity engine to the handle (xmeta P3, split out). */
 	{
-		brix_csi_t *csi = ngx_alloc(sizeof(brix_csi_t), c->log);
-
-		if (csi != NULL) {
-			int crc = brix_csi_open(csi, resolved,
-			    (uint32_t) conf->csi_block, is_write);
-
-			csi->trust_fs = conf->csi_trust_fs ? 1 : 0;
-			if (crc == BRIX_CSI_OK) {
-				ctx->files[idx].csi = csi;
-			} else {
-				brix_csi_close(csi);
-				ngx_free(csi);
-				if (!is_write && crc == BRIX_CSI_NOTAGS
-				    && conf->csi_require)
-				{
-					close(fd);
-					ctx->files[idx].fd = -1;
-					BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD,
-					    "OPEN", resolved, "rd",
-					    kXR_ChkSumErr, "integrity record missing");
-				}
-				/* unrecorded read (require off) or engine error:
-				 * proceed without CSI for this handle (fail-open). */
-			}
+		ngx_int_t attach_rc = brix_open_attach_csi(ctx, c, conf, resolved, idx,
+		    fd, &st, is_write);
+		if (attach_rc != NGX_OK) {
+			return attach_rc;
 		}
 	}
 
-	/* phase-59 W3a: XrdThrottle per-user open-files cap. Checked after the fd
-	 * is open (closed again on rejection); the resolved identity is the key. */
-	if (conf->throttle_zone != NULL && conf->throttle_max_open_files > 0) {
-		const char *tuser = ctx->dn[0] ? ctx->dn : "anonymous";
-
-		if (!brix_throttle_open_inc(conf->throttle_zone, tuser,
-		                              conf->throttle_max_open_files))
-		{
-			close(fd);
-			ctx->files[idx].fd = -1;
-			if (ctx->files[idx].csi != NULL) {
-				brix_csi_close(ctx->files[idx].csi);
-				ngx_free(ctx->files[idx].csi);
-				ctx->files[idx].csi = NULL;
-			}
-			BRIX_RETURN_ERR(ctx, c,
-			    is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
-			    "OPEN", resolved, is_write ? "wr" : "rd",
-			    kXR_Overloaded, "too many open files for this user");
+	/* Enforce the per-user open-files cap (phase-59 W3a, split out). */
+	{
+		ngx_int_t throttle_rc = brix_open_apply_throttle(ctx, c, conf, resolved,
+		    idx, fd, is_write);
+		if (throttle_rc != NGX_OK) {
+			return throttle_rc;
 		}
-		ctx->throttle_open_held++;
 	}
 
 	/*
@@ -713,7 +1014,7 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 		ngx_stream_brix_srv_conf_t *wrts_conf;
 		wrts_conf = ngx_stream_get_module_srv_conf(
 		    (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
-		if (is_write && wrts_conf->recover_writes) {
+		if (is_write && wrts_conf->caps.recover_writes) {
 			brix_wrts_open(&ctx->files[idx]);
 		} else {
 			ctx->files[idx].wrts_enabled = 0;
@@ -725,44 +1026,16 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 
 	ctx->files[idx].dashboard_slot = -1;
 
-	/* Register the open file with the live transfer monitor. */
-	if (ngx_brix_dashboard_shm_zone != NULL) {
-		brix_transfer_table_t *dash_tbl = ngx_brix_dashboard_shm_zone->data;
-		const char *dash_identity = ctx->dn[0] ? ctx->dn : "anonymous";
-		uint8_t     dash_dir = is_write ? BRIX_XFER_DIR_WRITE
-		                                : BRIX_XFER_DIR_READ;
-		ctx->files[idx].dashboard_slot = brix_transfer_slot_alloc(
-		    dash_tbl, ctx->sessid, ctx->peer_ip,
-		    dash_identity, resolved, dash_dir,
-		    BRIX_XFER_PROTO_ROOT, (int64_t) ngx_current_msec);
-	}
+	/* Register the open file with the live transfer monitor (split out). */
+	brix_open_register_monitor(ctx, resolved, idx, is_write);
 
-	/*
-	 * POSC: store the temp path in the path field so that a non-clean close
-	 * (handled by brix_free_fhandle → unlink(path)) discards the partial
-	 * upload.  Store the final target in posc_final_path; brix_handle_close
-	 * will rename() on clean close and then clear this field before freeing.
-	 */
-	if (stage) {
-		if (brix_set_fhandle_path(ctx, c, idx, posc_temp_path) != NGX_OK) {
-			brix_free_fhandle(ctx, idx);
-			return NGX_ERROR;
-		}
-		ctx->files[idx].posc_final_path = ngx_alloc(strlen(resolved) + 1,
-		                                             c->log);
-		if (ctx->files[idx].posc_final_path == NULL) {
-			brix_free_fhandle(ctx, idx);
-			return NGX_ERROR;
-		}
-		ngx_cpystrn((u_char *) ctx->files[idx].posc_final_path,
-		            (u_char *) resolved, strlen(resolved) + 1);
-		/* Resume staging: keep the partial on a non-clean close (the difference
-		 * from plain POSC, which discards it).  See brix_free_fhandle. */
-		ctx->files[idx].is_resume = use_resume ? 1 : 0;
-	} else {
-		if (brix_set_fhandle_path(ctx, c, idx, resolved) != NGX_OK) {
-			brix_free_fhandle(ctx, idx);
-			return NGX_ERROR;
+	/* Record the handle's on-disk path (POSC temp vs final) for close-time
+	 * rename/unlink (split out). */
+	{
+		ngx_int_t path_rc = brix_open_set_handle_path(ctx, c, idx, resolved,
+		    posc_temp_path, stage, use_resume);
+		if (path_rc != NGX_OK) {
+			return path_rc;
 		}
 	}
 
@@ -771,35 +1044,9 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 											conf->group_rules);
 	}
 
-	statbuf[0] = '\0';
-	if (want_stat) {
-		/* A driver-backed no-fd handle (e.g. RADOS) has fd == NGX_INVALID_FILE;
-		 * `st` already holds the metadata the driver captured at open (above).
-		 * Only the real-fd path needs a fresh fstat. Without this guard,
-		 * fstat(-1) fails and we silently drop the retstat the client requested
-		 * with kXR_open — which stock clients reject ("invalid response"). */
-		int have_st = (fd != NGX_INVALID_FILE) ? (fstat(fd, &st) == 0) : 1;
-
-		if (have_st) {
-			int stat_flags = 0;
-			if (st.st_mode & (S_IRUSR | S_IRGRP | S_IROTH)) {
-				stat_flags |= kXR_readable;
-			}
-			if (st.st_mode & (S_IWUSR | S_IWGRP | S_IWOTH)) {
-				stat_flags |= kXR_writable;
-			}
-			if (ctx->files[idx].from_cache) {
-				stat_flags |= kXR_cachersp;
-			}
-			snprintf(statbuf, sizeof(statbuf), "%llu %lld %d %ld",
-					 (unsigned long long) st.st_ino,
-					 (long long) st.st_size,
-					 stat_flags,
-					 (long) st.st_mtime);
-		} else {
-			want_stat = 0;
-		}
-	}
+	/* Build the kXR_retstat metadata string when requested (split out). */
+	brix_open_build_retstat(ctx, idx, fd, &st, &want_stat, statbuf,
+	    sizeof(statbuf));
 
 	if (c->log->log_level & NGX_LOG_DEBUG_STREAM) {
 		char log_path[512];
@@ -811,69 +1058,9 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 					   (int) want_stat);
 	}
 
-	/* Write-through decision evaluation (mirrors XrdPfc::Cache::Decide())
-	 * WHAT: Evaluate write-through policy at kXR_open time and cache the result on the handle.
-	 *       This is called once per open — the cached wt_policy determines close-time flush behavior.
-	 *
-	 * WHY: Mirrors XrdPfcDecision::Decide() from official XRootD PFC module (Cache::Attach()).
-	 *      Caching at open time avoids repeated policy evaluation for every write operation,
-	 *      reduces latency, and ensures consistent close-time behavior across the session.
-	 *
-	 * HOW: Policy callback flow (src/cache/writethrough_decision.h):
-	 *   1. conf->wt_decision.fn(resolved, options, &conf->wt_decision) — default is brix_wt_default_decide()
-	 *   2. Default engine checks: size filter → deny prefixes → allow prefixes → ALLOW_ASYNC (default)
-	 *   3. Cache result on handle: ctx->files[idx].wt_policy = decision, wt_enabled = (decision != DENY),
-	 *      wt_dirty_offset = -1 (clean state), wt_bytes_written = 0
-	 *
-	 * Decision outcomes are cached for a future close-time write-back implementation:
-	 *   DENY       → no write-back; local-only writes, handle treated as non-WT
-	 *   ALLOW_SYNC → synchronous flush to origin before closing handle (blocks)
-	 *   ALLOW_ASYNC→ schedule async thread-pool flush, return immediately to client */
-
-/* WT decision policy engine (default: prefix-based)
- * WHAT: brix_wt_default_decide() — built-in prefix-based policy engine.
- *       External plugins can provide their own fn pointer for custom policies.
- *
- * WHY: Provides sensible defaults for most deployments without requiring external plugin setup.
- *      Prefix-based matching is O(n) where n = prefix length — acceptable for typical paths (/data/, /atlas/).
- *
- * HOW: Decision logic order (src/cache/writethrough_decision.c):
- *   1. Size filter: if file > max_write_through_bytes AND no include regex match → DENY
- *   2. Deny prefixes: any deny_prefix matches → DENY (deny takes precedence)
- *   3. Allow prefixes: if allow list configured AND none match → DENY (whitelist mode)
- *   4. Default: ALLOW_ASYNC (mirrors XrdPfcAllowDecision, sync preferred for local origins) */
-
-	if (is_write && conf->wt_enable) {
-		brix_wt_decision_t decision = BRIX_WT_DECISION_DENY;
-
-		if (conf->wt_decision.fn != NULL) {
-			decision = conf->wt_decision.fn(resolved, options, &conf->wt_decision);
-		}
-
-		/* wt sd_stage handles flush on the storage path (sync job / close), NOT via
-		 * the close-time run_flush — so leave wt_enabled clear for them. */
-		ctx->files[idx].wt_enabled  = (!wt_via_stage
-		                               && decision != BRIX_WT_DECISION_DENY) ? 1 : 0;
-		ctx->files[idx].wt_policy   = decision;
-		ctx->files[idx].wt_mode_bits = create_mode;
-		ctx->files[idx].wt_dirty_offset = -1; /* no dirty writes yet */
-		ctx->files[idx].wt_bytes_written    = 0;
-
-		ctx->files[idx].wt_flush_task     = NULL;
-		ctx->files[idx].wt_flush_pending  = 0;
-
-		if (c->log->log_level & NGX_LOG_DEBUG_STREAM) {
-			char wt_log_path[512];
-
-			brix_sanitize_log_string(resolved, wt_log_path,
-			                           sizeof(wt_log_path));
-			ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-			               "brix: wt decision=%s path=%s",
-			               decision == BRIX_WT_DECISION_DENY ? "DENY" :
-			               decision == BRIX_WT_DECISION_ALLOW_SYNC ? "ALLOW_SYNC" : "ALLOW_ASYNC",
-			               wt_log_path);
-		}
-	}
+	/* Evaluate + cache the write-through policy on the handle (split out). */
+	brix_open_decide_writethrough(ctx, c, conf, resolved, options, idx,
+	    create_mode, is_write, wt_via_stage);
 
 	/*
 	 * Build the open response body.  The reference (XrdXrootdXeq.cc:1501) returns
@@ -916,7 +1103,7 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 			return NGX_ERROR;
 		}
 
-		brix_build_resp_hdr(ctx->cur_streamid, kXR_ok,
+		brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok,
 							  (uint32_t) bodylen,
 							  (ServerResponseHdr *) buf);
 
@@ -934,7 +1121,7 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 	ctx->files[idx].open_time     = ngx_current_msec;
 
 	if (!ctx->is_bound) {
-		brix_session_handle_publish(ctx->sessid, idx, &ctx->files[idx]);
+		brix_session_handle_publish(ctx->login.sessid, idx, &ctx->files[idx]);
 	}
 
 	brix_log_access(ctx, c, "OPEN", resolved,
@@ -949,8 +1136,8 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 	 * client, the answer must travel as kXR_attn(asynresp) on the saved streamid,
 	 * not a plain kXR_ok header. The body bytes (ServerOpenBody [+ stat]) sit at
 	 * buf + header; asynresp wraps them itself. */
-	if (ctx->stage_async_active) {
-		return brix_send_attn_asynresp(ctx, c, ctx->stage_async_streamid,
+	if (ctx->prepare.stage_async_active) {
+		return brix_send_attn_asynresp(ctx, c, ctx->prepare.stage_async_streamid,
 		                                 (uint16_t) kXR_ok,
 		                                 buf + XRD_RESPONSE_HDR_LEN,
 		                                 (uint32_t) bodylen);

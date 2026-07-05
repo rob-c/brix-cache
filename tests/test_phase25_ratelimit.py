@@ -45,7 +45,18 @@ def _require_binary():
 def _read(rel):
     p = ROOT / rel
     assert p.exists(), f"missing {rel}"
-    return p.read_text(encoding="utf-8")
+    text = p.read_text(encoding="utf-8")
+    # Two refactors split source out of the file being read: the ngx_command_t
+    # directive table into per-concern directives_*.inc fragments, and the big
+    # brix_ctx_t / srv-conf structs into *_structs.h sub-structs — both #included
+    # back into the original.  Inline those siblings so a presence check against
+    # module.c / context.h sees the full effective source.
+    import re as _re
+    def _inc(m):
+        frag = p.parent / m.group(1)
+        return frag.read_text(encoding="utf-8") if frag.exists() else m.group(0)
+    return _re.sub(r'#include "(directives_[a-z0-9_]+\.inc|[a-z0-9_]+_structs\.h)"',
+                   _inc, text)
 
 
 # --------------------------------------------------------------------------- #
@@ -559,8 +570,8 @@ def test_stream_concurrency_wiring():
     assert "brix_rl_release_ctx" in rs
     # ... the per-connection slot lives on the ctx ...
     ctx = _read("src/core/types/context.h")
-    assert "rl_conc_rule" in ctx
-    assert "rl_conc_key" in ctx
+    assert "conc_rule" in ctx   # brix_ctx_rl_t field (context.h → ctx_structs.h split)
+    assert "conc_key" in ctx
     # ... and the release is hooked on disconnect (no LOG phase on the stream).
     dc = _read("src/protocols/root/connection/disconnect.c")
     assert "brix_rl_release_ctx" in dc
@@ -697,9 +708,9 @@ def test_stream_concurrency_high_limit_no_throttle(tmp_path):
 def test_keycache_wiring():
     assert "BRIX_RL_RULE_CACHE_MAX" in _read("src/core/types/tunables.h")
     ctx = _read("src/core/types/context.h")
-    assert "rl_key_cache" in ctx and "rl_key_cache_valid" in ctx
+    assert "key_cache" in ctx and "key_cache_valid" in ctx  # brix_ctx_rl_t (ctx_structs.h)
     gate = _read("src/net/ratelimit/ratelimit_stream.c")
-    assert "rl_key_cache_valid" in gate
+    assert "key_cache_valid" in gate  # accessed as rl.key_cache_valid (ctx_structs.h split)
     # VOLUME rules must be excluded from caching.
     assert "BRIX_RL_KEY_VOLUME" in gate
 

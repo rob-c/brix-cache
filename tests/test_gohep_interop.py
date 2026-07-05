@@ -334,7 +334,7 @@ def test_sigver_no_ack_tripwire():
     assert "brix_send_ok" not in tail, (
         "server sends a response to kXR_sigver again (bug #1) — stock/go-hep "
         "clients will read the empty ack as the signed request's reply")
-    client = _read("client/lib/sigver.c")
+    client = _read("client/lib/auth/sigver.c")  # phase-69 client reorg: flat lib/ -> lib/auth/
     assert "acks the sigver" not in client and "brix_recv(c, sid" not in client, (
         "client reads a kXR_sigver ack again (bug #1) — it will consume the "
         "covered request's response")
