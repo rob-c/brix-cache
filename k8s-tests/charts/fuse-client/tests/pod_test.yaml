@@ -1,0 +1,21 @@
+suite: fuse client pod
+templates:
+  - templates/pod.yaml
+release:
+  name: brix-fuse
+tests:
+  - it: runs privileged with /dev/fuse mounted from the host
+    asserts:
+      - isKind:
+          of: Pod
+      - equal:
+          path: spec.containers[0].securityContext.privileged
+          value: true
+      - contains:
+          path: spec.volumes
+          any: true
+          content:
+            name: fuse
+            hostPath:
+              path: /dev/fuse
+              type: CharDevice

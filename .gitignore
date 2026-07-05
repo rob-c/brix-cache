@@ -72,3 +72,12 @@ xrootd-session-hijack-poc/
 
 # superpowers brainstorm scratch
 .superpowers/
+
+# compiled fuzz harnesses + the copied server binary in the remote suite
+tests/fuzz/fuzz_b64url
+tests/fuzz/fuzz_safe_size
+tests/fuzz/fuzz_zip_dir
+k8s-tests/remote-suite/tests/fuzz/fuzz_b64url
+k8s-tests/remote-suite/tests/fuzz/fuzz_safe_size
+k8s-tests/remote-suite/tests/fuzz/fuzz_zip_dir
+k8s-tests/remote-suite/tests/nginx-bin

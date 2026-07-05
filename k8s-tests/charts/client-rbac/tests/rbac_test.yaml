@@ -1,0 +1,36 @@
+suite: client rbac
+templates:
+  - templates/rbac.yaml
+release:
+  name: brix-remote
+tests:
+  - it: grants pods/exec with get AND create (get = the kubernetes client's GET exec)
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Role
+      - contains:
+          path: rules[1].resources
+          content: pods/exec
+      - contains:
+          path: rules[1].verbs
+          content: get
+      - contains:
+          path: rules[1].verbs
+          content: create
+  - it: binds the client ServiceAccount with an explicit namespace
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: RoleBinding
+      - equal:
+          path: subjects[0].namespace
+          value: NAMESPACE
+  - it: creates the client ServiceAccount
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.name
+          value: brix-remote-client

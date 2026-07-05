@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "topology-role.fullname" . }}-conf
+  labels:
+    {{- include "brix-common.labels" . | nindent 4 }}
+data:
+  nginx.conf: |
+    # Workers run as root so posix storage writes and cache fills (which the
+    # cache store creates root-owned) succeed inside the container.
+    user root;
+    {{- $tmpl := printf "configs/%s.conf" .Values.role.configKey -}}
+    {{- tpl (.Files.Get $tmpl) . | nindent 4 }}

@@ -1,0 +1,17 @@
+# Default profile renders nothing; a profile values file turns subcharts on.
+# Every subchart defaults OFF so a profile must explicitly opt in (otherwise a
+# dependency `condition` on a missing key defaults the chart to enabled).
+smoke:
+  enabled: false
+auth-authority:
+  enabled: false
+chaos-mesh:
+  enabled: false
+main-fleet:
+  enabled: false
+cms-mesh:
+  enabled: false
+backend-ceph:
+  enabled: false
+fuse-client:
+  enabled: false

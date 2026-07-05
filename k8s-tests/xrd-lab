@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# xrd-lab — thin wrapper. The driver logic lives in labtools/lab.py (Python);
+# tests call plan_up()/plan_deploy()/scenario_*() directly. See PARITY.md.
+LAB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PYTHONPATH="$LAB:${PYTHONPATH:-}"
+exec python3 -m labtools.lab "$@"

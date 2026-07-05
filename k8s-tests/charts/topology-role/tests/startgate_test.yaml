@@ -1,0 +1,24 @@
+suite: role start gate
+templates:
+  - templates/deployment.yaml
+release:
+  name: brix-chaos
+tests:
+  - it: no init container by default
+    set:
+      role:
+        name: chaos-tier3
+        ports: [{ name: xrootd, port: 1094 }]
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers
+  - it: adds a delay init container when startGate enabled
+    set:
+      role:
+        name: chaos-discovery-redir
+        ports: [{ name: xrootd, port: 1094 }]
+        startGate: { enabled: true, waitSeconds: 8 }
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "sleep 8"

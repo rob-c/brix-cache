@@ -1,0 +1,10 @@
+apiVersion: v2
+name: smoke
+description: Minimal deployable that exercises the brix-common foundation end-to-end
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: brix-common
+    version: 0.1.0
+    repository: file://../brix-common

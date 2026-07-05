@@ -1,0 +1,17 @@
+image: { repository: brix-test-runner, tag: dev, pullPolicy: Never }
+serviceAccount: ""     # set for the remote client (svc_read via kubectl exec)
+testRunner:
+  tier: custom        # fast | pr | nightly | custom
+  selection: tests/
+  marker: ""
+  extraArgs: "-p no:xdist -v"
+  junit: false
+  env: {}
+results:
+  pvc: ""
+# When enabled, mount the authority material and lay out the client PKI (via
+# client-pki-init.sh) before pytest so gsi/token tests find client certs/tokens.
+clientPki:
+  enabled: false
+  pkiSecret: ""        # the <rel>-pki Secret (ca.pem, usercert/key, signing_key)
+  jwksConfigMap: ""    # the <rel>-jwks ConfigMap (jwks.json)

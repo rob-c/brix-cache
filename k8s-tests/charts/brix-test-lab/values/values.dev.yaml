@@ -1,0 +1,13 @@
+# dev profile — single-node smoke deployment proving the foundation.
+smoke:
+  enabled: true
+  image:
+    repository: brix-smoke
+    tag: dev
+    pullPolicy: Never
+  nodePinning:
+    mode: off
+  networkPolicy:
+    enabled: true
+  resourceQuota:
+    enabled: false

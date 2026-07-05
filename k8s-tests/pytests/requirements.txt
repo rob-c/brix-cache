@@ -1,0 +1,3 @@
+# k8s-tests Python port — see docs/superpowers/specs/2026-07-05-k8s-tests-python-port-design.md
+kubernetes>=28
+pytest>=7

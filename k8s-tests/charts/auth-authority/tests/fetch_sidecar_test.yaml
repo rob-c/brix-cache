@@ -1,0 +1,16 @@
+suite: fetch sidecar
+templates:
+  - templates/probe.yaml
+release:
+  name: rel
+tests:
+  - it: emits a curl-loop container writing to the dest
+    set:
+      renderFetchProbe: true
+    asserts:
+      - equal:
+          path: spec.containers[0].name
+          value: crl-refresh
+      - matchRegex:
+          path: spec.containers[0].args[0]
+          pattern: "curl .*grid-ca:8080/crl/test-user.crl.pem.*-o /shared/crl.pem"

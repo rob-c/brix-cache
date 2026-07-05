@@ -1,0 +1,138 @@
+# nginx.conf.in — self-contained config for the Valgrind memory-safety harness.
+#
+# WHAT: One nginx instance that exercises every external-handle code path under
+# Valgrind Memcheck — GSI/TLS x509 (OpenSSL), bearer JWT (jansson + EVP),
+# macaroon (HMAC/AES), libcurl TPC, and S3 SigV4. Derived directly from the real
+# committed test configs (tests/configs/nginx_shared.conf and
+# nginx_webdav_tpc.conf) so the directives match production usage.
+#
+# WHY master_process on + worker_processes 1: TLS/SSL does NOT serve under
+# `master_process off` (the old scratch harness limitation), so the GSI/TLS and
+# TPC planes were never reachable. With a real worker, valgrind --trace-children
+# follows the forked worker (where all request handling runs) and emits its leak
+# report to vg.<workerpid>.log on graceful shutdown (SIGQUIT to the master).
+#
+# Placeholders ({WORK}, {PKI}, ports, …) are substituted by run_valgrind.sh.
+# Listeners bind 127.0.0.1 on a dedicated high-port range so the harness can run
+# alongside the managed test fleet without port conflicts.
+
+worker_processes 1;
+daemon off;
+master_process on;
+
+error_log {WORK}/logs/error.log info;
+pid {WORK}/logs/nginx.pid;
+
+thread_pool default threads=4 max_queue=65536;
+
+events { worker_connections 256; }
+
+http {
+    access_log off;
+    client_body_temp_path {WORK}/tmp;
+    proxy_temp_path        {WORK}/tmp;
+    fastcgi_temp_path      {WORK}/tmp;
+    uwsgi_temp_path        {WORK}/tmp;
+    scgi_temp_path         {WORK}/tmp;
+
+    # Prometheus metrics endpoint (exercises the metrics writer path).
+    server {
+        listen 127.0.0.1:{METRICS_PORT};
+        location /metrics { brix_metrics on; }
+    }
+
+    # ---- GSI / x509 proxy-cert WebDAV over TLS (auth required) ----
+    # Exercises OpenSSL x509 chain verify + VOMS (src/crypto/gsi_verify.c,
+    # src/webdav/auth*.c).  Mirrors the port-8444 block in nginx_shared.conf.
+    server {
+        listen 127.0.0.1:{GSI_TLS_PORT} ssl;
+        server_name localhost;
+
+        ssl_certificate     {SERVER_CERT};
+        ssl_certificate_key {SERVER_KEY};
+
+        brix_webdav_proxy_certs on;
+        ssl_verify_client   optional_no_ca;
+        ssl_verify_depth    10;
+        client_max_body_size 1g;
+
+        location / {
+            root                  {WORK}/data;
+            dav_methods           DELETE MKCOL;
+
+            brix_webdav         on;
+            brix_webdav_storage_backend    posix:{WORK}/data;
+            brix_webdav_cadir   {CA_DIR};
+            brix_webdav_auth    required;
+            brix_webdav_allow_write on;
+
+            brix_webdav_token_jwks     {TOKEN_DIR}/jwks.json;
+            brix_webdav_token_issuer   "https://test.example.com";
+            brix_webdav_token_audience "nginx-xrootd";
+
+            # TPC on the x509-authenticated block: a COPY with a valid client
+            # cert passes the auth/write gate and reaches the libcurl handle
+            # lifecycle (src/webdav/tpc_curl.c) — the curl path the plain-HTTP
+            # block can't reach (its token lacks write scope → 403 pre-curl).
+            brix_webdav_tpc            on;
+            brix_webdav_tpc_allow_local on;
+            brix_webdav_tpc_cert       {CLIENT_CERT};
+            brix_webdav_tpc_key        {CLIENT_KEY};
+            brix_webdav_tpc_cafile     {CA_CERT};
+            brix_webdav_tpc_timeout    5;
+        }
+    }
+
+    # ---- Plain-HTTP WebDAV: bearer JWT + macaroon + libcurl TPC ----
+    # Exercises jansson/EVP token verify, macaroon HMAC/AES, and the curl handle
+    # lifecycle (src/webdav/tpc_curl.c).  Mirrors the HTTP_WEBDAV block in
+    # nginx_shared.conf plus the tpc_cert/key from nginx_webdav_tpc.conf so the
+    # outbound (push/pull) curl path is fully configured.
+    server {
+        listen 127.0.0.1:{HTTP_PORT};
+        server_name localhost;
+        client_max_body_size 1g;
+
+        location / {
+            root                  {WORK}/data;
+            dav_methods           DELETE MKCOL;
+
+            brix_webdav         on;
+            brix_webdav_storage_backend    posix:{WORK}/data;
+            brix_webdav_auth    optional;
+            brix_webdav_cafile  {CA_CERT};
+            brix_webdav_allow_write on;
+
+            brix_webdav_cors_origin      https://debug.example.test;
+            brix_webdav_cors_credentials on;
+            brix_webdav_cors_max_age     600;
+
+            brix_webdav_token_jwks     {TOKEN_DIR}/jwks.json;
+            brix_webdav_token_issuer   "https://test.example.com";
+            brix_webdav_token_audience "nginx-xrootd";
+            brix_webdav_macaroon_secret deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef;
+
+            brix_webdav_tpc            on;
+            brix_webdav_tpc_allow_local on;
+            brix_webdav_tpc_cert       {CLIENT_CERT};
+            brix_webdav_tpc_key        {CLIENT_KEY};
+            brix_webdav_tpc_cafile     {CA_CERT};
+            brix_webdav_tpc_timeout    5;
+        }
+    }
+
+    # ---- S3-compatible object storage (SigV4 reject + anonymous) ----
+    server {
+        listen 127.0.0.1:{S3_PORT};
+        server_name localhost;
+        client_max_body_size 1g;
+
+        location / {
+            brix_s3           on;
+            brix_s3_storage_backend      posix:{WORK}/data;
+            brix_s3_bucket    testbucket;
+            brix_s3_allow_write on;
+            brix_s3_max_keys  1000;
+        }
+    }
+}

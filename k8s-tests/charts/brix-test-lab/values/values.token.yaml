@@ -1,0 +1,10 @@
+# token profile — token/JWKS issuer + krb5 KDC (plus CA for TLS trust).
+auth-authority:
+  enabled: true
+  services:
+    ca: true
+    token: true
+    voms: false
+    krb5: true
+smoke:
+  enabled: false

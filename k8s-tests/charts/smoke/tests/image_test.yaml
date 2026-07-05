@@ -1,0 +1,26 @@
+suite: smoke image reference
+templates:
+  - templates/deployment.yaml
+release:
+  name: rel
+tests:
+  - it: renders repository:tag from values
+    set:
+      image.repository: brix-smoke
+      image.tag: abc123
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: brix-smoke:abc123
+  - it: defaults pull policy to Never (registry-free lab)
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Never
+  - it: honors an explicit pull policy override
+    set:
+      image.pullPolicy: IfNotPresent
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: IfNotPresent

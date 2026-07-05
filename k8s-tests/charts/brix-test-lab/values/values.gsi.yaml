@@ -1,0 +1,12 @@
+# gsi profile — x509 + token authority site-services (CA/CRL over HTTP, VOMS,
+# JWKS over HTTP). krb5 KDC is off here (see values.token.yaml). No fleet yet —
+# the servers that consume these authorities arrive in Sub-project #3.
+auth-authority:
+  enabled: true
+  services:
+    ca: true
+    token: true
+    voms: true
+    krb5: false
+smoke:
+  enabled: false

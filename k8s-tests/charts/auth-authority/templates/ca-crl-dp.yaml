@@ -1,0 +1,14 @@
+{{- if .Values.services.ca }}
+{{ include "auth-authority.deploymentService" (dict
+    "root" .
+    "name" "grid-ca"
+    "port" 8080
+    "image" .Values.image
+    "mounts" (list
+       (dict "name" "crl" "mountPath" "/srv/dist/crl")
+       (dict "name" "ca"  "mountPath" "/srv/dist/certs"))
+    "volumes" (list
+       (dict "name" "crl" "configMap" (dict "name" (printf "%s-crl" .Release.Name)))
+       (dict "name" "ca"  "configMap" (dict "name" (printf "%s-ca-bundle" .Release.Name))))
+  ) }}
+{{- end }}

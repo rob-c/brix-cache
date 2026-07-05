@@ -1,0 +1,6 @@
+ceph:
+  image: quay.io/ceph/ceph:v18
+  dataDirHostPath: /var/lib/rook
+  pool: xrdtest
+  filesystem: xrdfs
+  monCount: 1

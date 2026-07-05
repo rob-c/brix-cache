@@ -1,0 +1,7 @@
+# chaos profile — the 5-role chaos-mesh topology, one pod per role, wired by
+# Service DNS. Verified client-observably by `xrd-lab test chaos` (read-through
+# cache round-trip + delayed-CMS registration).
+chaos-mesh:
+  enabled: true
+smoke:
+  enabled: false

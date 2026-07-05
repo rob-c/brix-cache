@@ -1,0 +1,48 @@
+{{- if .Values.services.krb5 }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-krb5-kdc
+  labels:
+    {{- include "brix-common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: krb5-kdc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "brix-common.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: krb5-kdc
+  template:
+    metadata:
+      labels:
+        {{- include "brix-common.labels" . | nindent 8 }}
+        app.kubernetes.io/component: krb5-kdc
+    spec:
+      serviceAccountName: {{ .Release.Name }}-bootstrap
+      containers:
+        - name: krb5-kdc
+          image: "{{ .Values.kdcImage.repository }}:{{ .Values.kdcImage.tag }}"
+          imagePullPolicy: {{ .Values.kdcImage.pullPolicy | default "Never" }}
+          env:
+            - { name: NS,  value: "{{ .Release.Namespace }}" }
+            - { name: REL, value: "{{ .Release.Name }}" }
+            - { name: TEST_ROOT, value: /work }
+          ports:
+            - { name: kdc-tcp, containerPort: 88, protocol: TCP }
+            - { name: kdc-udp, containerPort: 88, protocol: UDP }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-krb5-kdc
+  labels:
+    {{- include "brix-common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: krb5-kdc
+spec:
+  selector:
+    {{- include "brix-common.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: krb5-kdc
+  ports:
+    - { name: kdc-tcp, port: 88, targetPort: 88, protocol: TCP }
+    - { name: kdc-udp, port: 88, targetPort: 88, protocol: UDP }
+{{- end }}

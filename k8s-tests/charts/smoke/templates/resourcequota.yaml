@@ -1,0 +1,3 @@
+{{- if .Values.resourceQuota.enabled }}
+{{ include "brix-common.resourceQuota" . }}
+{{- end }}

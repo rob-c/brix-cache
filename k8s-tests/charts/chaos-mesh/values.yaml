@@ -1,0 +1,33 @@
+chaos-tier3:
+  role:
+    name: chaos-tier3
+    configKey: chaos-tier3
+    ports: [{ name: xrootd, port: 1094 }]
+chaos-tier2:
+  role:
+    name: chaos-tier2
+    configKey: chaos-tier2
+    ports: [{ name: xrootd, port: 1094 }]
+    upstreams: [{ name: UPSTREAM, service: chaos-tier3, port: 1094 }]
+chaos-tier1:
+  role:
+    name: chaos-tier1
+    configKey: chaos-tier1
+    ports: [{ name: xrootd, port: 1094 }]
+    upstreams: [{ name: UPSTREAM, service: chaos-tier2, port: 1094 }]
+chaos-discovery-redir:
+  role:
+    name: chaos-discovery-redir
+    configKey: chaos-redir
+    ports:
+      - { name: xrootd, port: 1094 }
+      - { name: cms, port: 1096 }
+    # Comes up late so the data-server attempts CMS registration first, then
+    # converges — reproducing the delayed-CMS sequence test_chaos_mesh asserts.
+    startGate: { enabled: true, waitSeconds: 12 }
+chaos-discovery-ds:
+  role:
+    name: chaos-discovery-ds
+    configKey: chaos-ds
+    ports: [{ name: xrootd, port: 1094 }]
+    upstreams: [{ name: CMS, service: chaos-discovery-redir, port: 1096 }]

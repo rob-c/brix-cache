@@ -1,0 +1,13 @@
+manager:
+  role:
+    name: manager
+    configKey: cluster_redir
+    ports:
+      - { name: xrootd, port: 1094 }
+      - { name: cms, port: 1096 }
+ds:
+  role:
+    name: ds
+    configKey: cluster_ds
+    ports: [{ name: xrootd, port: 1094 }]
+    upstreams: [{ name: CMS, service: manager, port: 1096 }]

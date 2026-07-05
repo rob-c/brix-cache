@@ -1,0 +1,18 @@
+dependencies:
+- name: topology-role
+  repository: file://../topology-role
+  version: 0.1.0
+- name: topology-role
+  repository: file://../topology-role
+  version: 0.1.0
+- name: topology-role
+  repository: file://../topology-role
+  version: 0.1.0
+- name: topology-role
+  repository: file://../topology-role
+  version: 0.1.0
+- name: topology-role
+  repository: file://../topology-role
+  version: 0.1.0
+digest: sha256:44534a3277cc9238cf35412c6a56274509e3fecc77e955a880a4bdbd7a94ffbc
+generated: "2026-07-04T17:53:35.57201638+01:00"

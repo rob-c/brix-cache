@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "brix-common.fullname" . }}
+  labels:
+    {{- include "brix-common.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "brix-common.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "brix-common.labels" . | nindent 8 }}
+    spec:
+      {{- include "brix-common.nodePinning" . | nindent 6 }}
+      containers:
+        - name: smoke
+          image: {{ include "brix-common.image" . | quote }}
+          imagePullPolicy: {{ include "brix-common.imagePullPolicy" . }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}

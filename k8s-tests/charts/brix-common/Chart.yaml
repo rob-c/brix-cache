@@ -1,0 +1,5 @@
+apiVersion: v2
+name: brix-common
+description: Shared library chart (labels, image, node-pinning, policies) for the nginx-xrootd test lab
+type: library
+version: 0.1.0

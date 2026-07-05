@@ -1,0 +1,33 @@
+suite: ca + crl distribution point
+templates:
+  - templates/ca-crl-dp.yaml
+release:
+  name: rel
+tests:
+  - it: renders the grid-ca authority when ca is enabled
+    set:
+      services.ca: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: rel-grid-ca
+          documentIndex: 0
+  - it: mounts the crl + ca-bundle configmaps into the distributor
+    set:
+      services.ca: true
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: crl
+            configMap:
+              name: rel-crl
+  - it: renders nothing when ca disabled
+    set:
+      services.ca: false
+    asserts:
+      - hasDocuments:
+          count: 0

@@ -1,0 +1,37 @@
+# Auth roles reference the authority Services of release "brix-fleet" (the fleet
+# profile pins that release name). gsi consumes CA bundle + host cert + CRL;
+# token consumes JWKS — all fetched over HTTP into the pod, production-fidelity.
+anon:
+  enabled: true
+  role:
+    name: anon
+    configKey: anon
+    ports: [{ name: xrootd, port: 11094 }]
+    data: { root: /data/xrootd }
+gsi:
+  enabled: true
+  role:
+    name: gsi
+    configKey: gsi
+    ports: [{ name: xrootd, port: 11095 }]
+    data: { root: /data/xrootd }
+    auth:
+      caBundle: brix-fleet-ca-bundle
+      hostCertSecret: brix-fleet-pki
+      crlUrl: http://brix-fleet-grid-ca:8080/crl/test-user.crl.pem
+token:
+  enabled: true
+  role:
+    name: token
+    configKey: token
+    ports: [{ name: xrootd, port: 11097 }]
+    data: { root: /data/xrootd }
+    auth:
+      jwksUrl: http://brix-fleet-token-issuer:8080/certs/jwks.json
+metrics:
+  enabled: true
+  role:
+    name: metrics
+    configKey: metrics
+    ports: [{ name: http, port: 9100 }]
+    data: { root: /data/xrootd }

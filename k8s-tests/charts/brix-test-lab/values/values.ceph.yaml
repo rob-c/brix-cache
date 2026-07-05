@@ -1,0 +1,6 @@
+# ceph profile — Rook-Ceph backend (CephCluster + RADOS pool + CephFS). Heavyweight:
+# requires the Rook operator (installed separately) and a larger minikube.
+backend-ceph:
+  enabled: true
+smoke:
+  enabled: false

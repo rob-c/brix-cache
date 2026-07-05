@@ -1,0 +1,37 @@
+# LeakSanitizer suppressions for the nginx-xrootd test suite (Phase 27 W6).
+#
+# A suppression matches if ANY frame in the leak's stack contains the substring.
+# These are kept DELIBERATELY NARROW — third-party library one-time global
+# state and the dynamic loader only — so that any leak passing through the
+# module's own code (a `src/...` frame, i.e. brix_* / ngx_http_brix_* /
+# ngx_stream_brix_*) is still reported.
+#
+# Note: LSan by default reports only "definitely/indirectly lost", not "still
+# reachable", so nginx-core config/cycle allocations kept for the process
+# lifetime are already excluded without a suppression.
+
+# ---- OpenSSL global init (one-time, torn down by the OS at exit) ----
+leak:libcrypto.so
+leak:libssl.so
+leak:CRYPTO_zalloc
+leak:OPENSSL_init_crypto
+leak:OPENSSL_init_ssl
+leak:ENGINE_
+leak:ERR_get_state
+leak:OSSL_LIB_CTX
+
+# ---- other third-party libraries' one-time state ----
+leak:libcurl.so
+leak:libxml2.so
+leak:xmlInitParser
+leak:libjansson.so
+leak:libk5crypto.so
+leak:libkrb5.so
+leak:libgssapi
+leak:libpcre2
+
+# ---- dynamic loader / dlopen (e.g. the VOMS plugin loaded at runtime) ----
+leak:dlopen
+leak:_dl_open
+leak:dl_init
+leak:__libc_

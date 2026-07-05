@@ -1,0 +1,26 @@
+suite: bootstrap job + rbac
+release:
+  name: rel
+tests:
+  - it: is a pre-install/pre-upgrade hook Job with the bootstrap SA
+    templates:
+      - templates/bootstrap-job.yaml
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-install,pre-upgrade
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: rel-bootstrap
+  - it: grants secret+configmap write via Role
+    templates:
+      - templates/bootstrap-rbac.yaml
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Role
+      - contains:
+          path: rules[0].resources
+          content: secrets

@@ -1,0 +1,26 @@
+suite: krb5 kdc
+templates:
+  - templates/krb5-kdc.yaml
+release:
+  name: rel
+tests:
+  - it: exposes kerberos 88 udp when krb5 enabled
+    set:
+      services.krb5: true
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Service
+      - contains:
+          path: spec.ports
+          any: true
+          content:
+            name: kdc-udp
+            port: 88
+            protocol: UDP
+  - it: absent when disabled
+    set:
+      services.krb5: false
+    asserts:
+      - hasDocuments:
+          count: 0

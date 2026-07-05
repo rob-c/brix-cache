@@ -1,0 +1,28 @@
+suite: role config DNS wiring
+templates:
+  - templates/configmap.yaml
+release:
+  name: brix-chaos
+tests:
+  - it: tier2 points its storage backend at the tier3 Service DNS
+    set:
+      role:
+        name: chaos-tier2
+        configKey: chaos-tier2
+        ports: [{ name: xrootd, port: 1094 }]
+        upstreams: [{ name: UPSTREAM, service: chaos-tier3, port: 1094 }]
+    asserts:
+      - matchRegex:
+          path: data["nginx.conf"]
+          pattern: "brix_storage_backend root://brix-chaos-chaos-tier3:1094"
+  - it: ds points its cms manager at the redirector Service DNS
+    set:
+      role:
+        name: chaos-discovery-ds
+        configKey: chaos-ds
+        ports: [{ name: xrootd, port: 1094 }]
+        upstreams: [{ name: CMS, service: chaos-discovery-redir, port: 1096 }]
+    asserts:
+      - matchRegex:
+          path: data["nginx.conf"]
+          pattern: "brix_cms_manager brix-chaos-chaos-discovery-redir:1096"

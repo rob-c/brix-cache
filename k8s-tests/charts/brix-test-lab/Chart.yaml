@@ -1,0 +1,35 @@
+apiVersion: v2
+name: brix-test-lab
+description: Umbrella chart composing the nginx-xrootd Kubernetes test lab per profile
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: smoke
+    version: 0.1.0
+    repository: file://../smoke
+    condition: smoke.enabled
+  - name: auth-authority
+    version: 0.1.0
+    repository: file://../auth-authority
+    condition: auth-authority.enabled
+  - name: chaos-mesh
+    version: 0.1.0
+    repository: file://../chaos-mesh
+    condition: chaos-mesh.enabled
+  - name: main-fleet
+    version: 0.1.0
+    repository: file://../main-fleet
+    condition: main-fleet.enabled
+  - name: cms-mesh
+    version: 0.1.0
+    repository: file://../cms-mesh
+    condition: cms-mesh.enabled
+  - name: backend-ceph
+    version: 0.1.0
+    repository: file://../backend-ceph
+    condition: backend-ceph.enabled
+  - name: fuse-client
+    version: 0.1.0
+    repository: file://../fuse-client
+    condition: fuse-client.enabled

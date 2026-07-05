@@ -1,0 +1,5 @@
+# cms profile — a CMS manager + data-server, wired by Service DNS.
+cms-mesh:
+  enabled: true
+smoke:
+  enabled: false

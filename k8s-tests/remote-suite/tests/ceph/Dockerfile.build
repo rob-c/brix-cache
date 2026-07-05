@@ -1,0 +1,43 @@
+# Build/run environment for the nginx-xrootd module WITH the Ceph (librados)
+# storage backend, for use against the tests/ceph_harness.sh single-node cluster.
+#
+# Based on the Ceph project's CentOS-Stream image because the Ceph Storage WG
+# ships librados-devel only for CentOS Stream, not RHEL — the image already has
+# the ceph dnf repos wired, so `librados-devel` installs cleanly here.
+#
+# The repo source is NOT baked in: run this image with the source delivered via
+# `docker cp` (tests/ceph/build_in_container.sh), so edits don't need an image
+# rebuild. nginx source is unpacked at /opt/nginx-src.
+FROM quay.io/ceph/demo:latest-reef
+
+ARG NGINX_VER=1.28.3
+
+# CRB (liburing-devel etc.) + EPEL (brotli) widen the dep set on CentOS Stream 9.
+RUN dnf -y install 'dnf-command(config-manager)' \
+ && dnf config-manager --set-enabled crb \
+ && dnf -y install epel-release \
+ && dnf -y install \
+      gcc make perl-interpreter findutils tar gzip wget which diffutils \
+      openssl-devel pcre2-devel zlib-devel \
+      libxml2-devel libxslt-devel jansson-devel krb5-devel libcurl-devel \
+      sqlite-devel libuuid-devel \
+      libzstd-devel xz-devel bzip2-devel lz4-devel \
+      brotli-devel liburing-devel \
+      librados-devel \
+ && dnf clean all
+
+# nginx upstream source — the module is added at ./configure time.
+RUN wget -q "https://nginx.org/download/nginx-${NGINX_VER}.tar.gz" -O /tmp/nginx.tgz \
+ && tar -xzf /tmp/nginx.tgz -C /opt \
+ && ln -s "/opt/nginx-${NGINX_VER}" /opt/nginx-src \
+ && rm -f /tmp/nginx.tgz
+
+# Sanity: the librados dev header + a linkable .so must be present so the module's
+# ./configure detects BRIX_HAVE_CEPH.
+RUN test -f /usr/include/rados/librados.h \
+ && printf '#include <rados/librados.h>\nint main(void){rados_t c;return rados_create(&c,0);}\n' > /tmp/t.c \
+ && gcc /tmp/t.c -lrados -o /tmp/t \
+ && echo "librados-devel OK (BRIX_HAVE_CEPH will be detected)"
+
+WORKDIR /work
+ENTRYPOINT ["/bin/bash"]
