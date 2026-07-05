@@ -138,12 +138,23 @@ mkcol_parents(const brix_weburl *du, const char *base, const char *rel,
  * which may be a LOCAL directory (mkdir -p + copy) or a WEB collection (MKCOL the
  * parent collections + a web->web relay via copy_one_with_retry). Centralising the
  * destination side lets both the WebDAV and S3 recursive sources copy to a local
- * tree OR another web endpoint (web->web). 0 / -1 (st set). */
+ * tree OR another web endpoint (web->web). 0 / -1 (st set).
+ *
+ * Filter and dry-run are applied here — before any I/O — so they cover all
+ * recursive sources (WebDAV, S3). A filtered or dry-run item returns 0 (handled,
+ * not a failure) so the caller counts it in `ok`, not `fail`. */
 int
 recursive_place(const char *dstroot, const char *rel, const char *srcurl,
                 const brix_copy_opts *fo, const brix_opts *co, int retries,
                 brix_status *st)
 {
+    if (fo != NULL && !brix_copy_filter_match(fo, rel)) {
+        return 0;   /* filtered — not an error, skip silently */
+    }
+    if (fo != NULL && fo->dry_run) {
+        printf("[dry-run] copy %s -> %s/%s\n", srcurl, dstroot, rel);
+        return 0;
+    }
     if (brix_is_web_url(dstroot)) {
         brix_weburl du;
         char        dbase[XRDC_PATH_MAX], dsturl[XRDC_PATH_MAX * 2 + 320];
@@ -461,12 +472,21 @@ web_upload_walk(web_upload_ctx *c, const char *localdir, const char *rel)
             char        rurl[XRDC_PATH_MAX * 2 + 320];
             char        rpath[XRDC_PATH_MAX * 2];
             brix_status cst;
+            /* Apply --exclude/--include and --dry-run before any I/O. */
+            if (c->fo != NULL && !brix_copy_filter_match(c->fo, childrel)) {
+                continue;   /* filtered — skip, not a failure */
+            }
             if (web_join(c->base, childrel, rpath, sizeof(rpath)) != 0
                 || (size_t) snprintf(rurl, sizeof(rurl), "%s://%s:%d%s",
                                      c->scheme, c->u->host, c->u->port, rpath)
                        >= sizeof(rurl)) {
                 fprintf(stderr, "xrdcp: remote path too long for %s\n", childrel);
                 c->fail++;
+                continue;
+            }
+            if (c->fo != NULL && c->fo->dry_run) {
+                printf("[dry-run] copy %s -> %s\n", childlocal, rurl);
+                c->ok++;
                 continue;
             }
             brix_status_clear(&cst);

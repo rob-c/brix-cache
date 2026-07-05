@@ -27,6 +27,9 @@ usage(void)
         "  --oidc-account <name>  oidc-agent account for --auto-refresh (or $OIDC_ACCOUNT)\n"
         "  -j, --jobs <n> copy up to n files concurrently (batch mode)\n"
         "  --sync         skip transfers whose destination already has the same size\n"
+        "  -n, --dry-run  print what would be transferred/deleted; move no bytes\n"
+        "  --exclude <pat> skip files matching this fnmatch pattern (repeatable)\n"
+        "  --include <pat> only transfer files matching a pattern (repeatable)\n"
         "  --progress     show a transfer progress bar + ETA (auto on a TTY; single copy)\n"
         "  --verify       after the transfer, verify the checksum against the server (root://)\n"
         "  --tls          require in-protocol TLS (implied by roots://)\n"
@@ -326,7 +329,9 @@ main(int argc, char **argv)
     brix_opts      conn;
     brix_status    st;
     char         **pos = NULL, **srcs = NULL, **exp = NULL;
+    char         **excl = NULL, **incl = NULL;
     size_t         npos = 0, poscap = 0, nsrc = 0, srccap = 0, nexp = 0, expcap = 0, i;
+    size_t         nexcl = 0, exclcap = 0, nincl = 0, inclcap = 0;
     const char    *from = NULL, *dst = NULL, *oidc_account = NULL;
     const char    *proxy = NULL;   /* --proxy: explicit X.509 proxy path override */
     int            retries = 0, jobs = 1, sync_mode = 0, force_progress = 0, verify = 0, rc = 0, oom = 0;
@@ -373,6 +378,13 @@ main(int argc, char **argv)
             else if (strcmp(a, "--no-retry") == 0) { opts.no_retry = 1; }
             else if ((strcmp(a, "-j") == 0 || strcmp(a, "--jobs") == 0) && i + 1 < (size_t) argc) { jobs = atoi(argv[++i]); }
             else if (strcmp(a, "--sync") == 0) { sync_mode = 1; }
+            else if (strcmp(a, "--dry-run") == 0 || strcmp(a, "-n") == 0) { opts.dry_run = 1; }
+            else if (strcmp(a, "--exclude") == 0 && i + 1 < (size_t) argc) {
+                if (str_append(&excl, &nexcl, &exclcap, argv[++i]) != 0) { oom = 1; }
+            }
+            else if (strcmp(a, "--include") == 0 && i + 1 < (size_t) argc) {
+                if (str_append(&incl, &nincl, &inclcap, argv[++i]) != 0) { oom = 1; }
+            }
             else if (strcmp(a, "--progress") == 0) { force_progress = 1; }
             else if (strcmp(a, "--verify") == 0) { verify = 1; }
             else if (strcmp(a, "--auto-refresh") == 0) { auto_refresh = 1; }
@@ -426,6 +438,11 @@ main(int argc, char **argv)
         }
     }
 
+    opts.excludes   = (const char *const *) excl;
+    opts.n_excludes = nexcl;
+    opts.includes   = (const char *const *) incl;
+    opts.n_includes = nincl;
+
     /* --sync replaces destinations that differ, so the files it does copy must be
      * allowed to overwrite (skipped ones are left untouched by the size check). */
     if (sync_mode) {
@@ -439,7 +456,7 @@ main(int argc, char **argv)
     /* Need a destination (the last positional) and at least one source. */
     if (npos < 1) {
         usage();
-        str_free(pos, npos);
+        str_free(pos, npos); str_free(excl, nexcl); str_free(incl, nincl);
         return 50;
     }
     {
@@ -452,17 +469,19 @@ main(int argc, char **argv)
     }
     if (from != NULL && read_manifest(from, &srcs, &nsrc, &srccap) != 0) {
         str_free(pos, npos); str_free(srcs, nsrc);
+        str_free(excl, nexcl); str_free(incl, nincl);
         return 51;
     }
     if (oom) {
         fprintf(stderr, "xrdcp: out of memory\n");
         str_free(pos, npos); str_free(srcs, nsrc);
+        str_free(excl, nexcl); str_free(incl, nincl);
         return 51;
     }
     if (nsrc == 0) {
         fprintf(stderr, "xrdcp: no source given\n");
         usage();
-        str_free(pos, npos);
+        str_free(pos, npos); str_free(excl, nexcl); str_free(incl, nincl);
         return 50;
     }
 
@@ -478,12 +497,14 @@ main(int argc, char **argv)
         if (expand_source(srcs[i], &conn, &exp, &nexp, &expcap) != 0) {
             fprintf(stderr, "xrdcp: out of memory\n");
             str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
+            str_free(excl, nexcl); str_free(incl, nincl);
             return 51;
         }
     }
     if (nexp == 0) {
         fprintf(stderr, "xrdcp: no sources after expansion\n");
         str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
+        str_free(excl, nexcl); str_free(incl, nincl);
         return 50;
     }
 
@@ -549,6 +570,7 @@ main(int argc, char **argv)
             }
             brix_cred_store_free(cred_store);
             str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
+            str_free(excl, nexcl); str_free(incl, nincl);
             return (bad == 0) ? 0 : 1;
         }
         /* Symmetric case: local directory tree(s) → a web (davs/http/s3)
@@ -574,6 +596,7 @@ main(int argc, char **argv)
                 }
                 brix_cred_store_free(cred_store);
                 str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
+                str_free(excl, nexcl); str_free(incl, nincl);
                 return (bad == 0) ? 0 : 1;
             }
         }
@@ -611,6 +634,7 @@ main(int argc, char **argv)
                             "multi-source copy: %s\n", dst);
             brix_cred_store_free(cred_store);
             str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
+            str_free(excl, nexcl); str_free(incl, nincl);
             return 50;
         }
         if (jobs > (int) nexp) { jobs = (int) nexp; }
@@ -653,5 +677,7 @@ main(int argc, char **argv)
     str_free(pos, npos);
     str_free(srcs, nsrc);
     str_free(exp, nexp);
+    str_free(excl, nexcl);
+    str_free(incl, nincl);
     return rc;
 }

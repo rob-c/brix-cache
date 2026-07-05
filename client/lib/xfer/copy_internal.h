@@ -113,8 +113,8 @@ int copy_one_r2l(brix_conn *c, const char *rpath, const char *lpath, int64_t exp
 int copy_one_l2r(brix_conn *c, const char *lpath, const char *rpath, const brix_copy_opts *o, brix_status *st);
 
 /* copy_recursive.c */
-int copy_tree_download(brix_conn *c, const char *rpath, const char *lpath, const brix_copy_opts *o, brix_status *st);
-int copy_tree_upload(brix_conn *c, const char *lpath, const char *rpath, const brix_copy_opts *o, brix_status *st);
+int copy_tree_download(brix_conn *c, const char *rpath, const char *lpath, const char *rel, const brix_copy_opts *o, brix_status *st);
+int copy_tree_upload(brix_conn *c, const char *lpath, const char *rpath, const char *rel, const brix_copy_opts *o, brix_status *st);
 int recursive_dest_root(const char *dstdir, const char *srcpath, char *out, size_t outsz);
 int copy_recursive(const brix_url *su, const brix_url *du, int download, const brix_copy_opts *o, const brix_opts *co, brix_status *st);
 int web_auth_headers(const brix_weburl *u, const char *method, const brix_copy_opts *o, const brix_opts *co, char *hdrs, size_t hdrsz, brix_status *st);
