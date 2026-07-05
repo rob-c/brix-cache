@@ -112,8 +112,57 @@ const families = [
     </div>
   </Band>
 
+  <!-- THE HONEST COMPARISON -->
+  <Band id="compare">
+    <span class="eyebrow">The honest comparison</span>
+    <h2 class="display band-head">Same job, side by side.</h2>
+    <div class="cmp-wrap">
+      <table class="cmp">
+        <thead>
+          <tr>
+            <th scope="col"><span class="visually-hidden">Dimension</span></th>
+            <th scope="col" class="mono">the stock XRootD client stack</th>
+            <th scope="col" class="mono">the BriX suite</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Install</th>
+            <td>C++ client libraries plus their dependency tree</td>
+            <td>Plain-C binaries over one library — <span class="mono">make</span> and done</td>
+          </tr>
+          <tr>
+            <th scope="row">Protocol reach</th>
+            <td><span class="mono">root://</span> natively; HTTP via plugin</td>
+            <td><span class="mono">root://</span>, <span class="mono">roots://</span>, <span class="mono">davs://</span>, <span class="mono">http(s)://</span>, <span class="mono">s3://</span> in the same tools — no plugins</td>
+          </tr>
+          <tr>
+            <th scope="row">Tool sprawl</th>
+            <td>One binary per micro-tool</td>
+            <td>Multi-call personalities: five checksum tools and three monitors are symlinks onto two binaries</td>
+          </tr>
+          <tr>
+            <th scope="row">When it breaks</th>
+            <td>kXR error strings</td>
+            <td><span class="mono">xrddiag</span> check / doctor turn failures into causes and fixes</td>
+          </tr>
+          <tr>
+            <th scope="row">Bad networks</th>
+            <td>Client-level retries</td>
+            <td>Reconnect, re-auth, handle reopen, offset resume — one <span class="mono">--max-stall</span> budget, in every tool</td>
+          </tr>
+          <tr>
+            <th scope="row">Compatibility</th>
+            <td>It <em>is</em> the reference</td>
+            <td>Validated against the reference — the cross-backend suite runs identical tests against both</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </Band>
+
   <!-- THE SUITE -->
-  <Band id="suite">
+  <Band variant="sunken" id="suite">
     <span class="eyebrow">The suite</span>
     <h2 class="display band-head">Six families, one library underneath.</h2>
     <div class="grid grid-3">
@@ -128,7 +177,7 @@ const families = [
   </Band>
 
   <!-- MOUNTS & SHIM -->
-  <Band variant="sunken" id="mounts">
+  <Band id="mounts">
     <span class="eyebrow">Mounts & the POSIX shim</span>
     <h2 class="display band-head">When the tool is “just a directory”.</h2>
     <div class="grid grid-3">
@@ -158,6 +207,46 @@ const families = [
           applications read <span class="mono">root://</span> paths as if they were local files
           — no mount, no recompile.
         </p>
+      </article>
+    </div>
+  </Band>
+
+  <!-- A DAY WITH THESE TOOLS -->
+  <Band variant="sunken" id="day">
+    <span class="eyebrow">A day with these tools</span>
+    <h2 class="display band-head">Three moments where it pays off.</h2>
+    <div class="grid grid-3">
+      <article class="panel vg">
+        <h3 class="vg-t">The transfer that died at 90%</h3>
+        <p class="muted">A 60 GB pull over a link that drops every few minutes.</p>
+        <div class="term" aria-label="Resumed transfer example">
+          <div><span class="p">$</span> xrdcp root://dc//run7/big.root .</div>
+          <div><span class="c"># 54.1 GB in — connection reset by peer</span></div>
+          <div><span class="c"># reconnect → re-auth → reopen → resume at 54.1 GB</span></div>
+          <div>[60.0/60.0 GB] <span class="k">done</span> — checksum ok</div>
+        </div>
+        <p class="vg-take">A flaky link costs you time, not the transfer.</p>
+      </article>
+      <article class="panel vg">
+        <h3 class="vg-t">The error that explains itself</h3>
+        <p class="muted">Auth fails five minutes before your slot on the batch farm.</p>
+        <div class="term" aria-label="Diagnostic example">
+          <div><span class="p">$</span> xrddiag check root://dc.example.org</div>
+          <div>auth: GSI handshake <span class="k">failed</span></div>
+          <div>cause: proxy certificate expired 3h ago</div>
+          <div>fix:   <span class="k">xrdgsiproxy init</span></div>
+        </div>
+        <p class="vg-take">The doctor is built in — causes and fixes, not error codes.</p>
+      </article>
+      <article class="panel vg">
+        <h3 class="vg-t">Prove the bytes, end to end</h3>
+        <p class="muted">After a migration, “it copied” is not the same as “it’s intact”.</p>
+        <div class="term" aria-label="End-to-end verify example">
+          <div><span class="p">$</span> xrdstorascan verify root://dc//run7/big.root</div>
+          <div>local  crc32c <span class="k">8f3d21aa</span></div>
+          <div>server crc32c <span class="k">8f3d21aa</span>  MATCH</div>
+        </div>
+        <p class="vg-take">Trust is a command, not a hope.</p>
       </article>
     </div>
   </Band>
@@ -211,4 +300,19 @@ const families = [
   .tl-fam-tools { font-size: 0.82rem; font-weight: 600; }
   .tl-fam .muted a { color: inherit; }
   .term .mt { margin-top: 0.6rem; }
+  .cmp-wrap { overflow-x: auto; }
+  .cmp { width: 100%; border-collapse: collapse; border: 3px solid var(--ink); background: var(--paper); }
+  .cmp th, .cmp td { border: 2px solid var(--ink); padding: 0.7rem 0.9rem; text-align: left; vertical-align: top; font-size: 0.95rem; }
+  .cmp thead th { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; background: var(--band); }
+  .cmp thead th:last-child { background: var(--accent); }
+  .cmp tbody th { font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+  .cmp td:last-child { font-weight: 600; }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .vg { display: flex; flex-direction: column; gap: 0.6rem; }
+  .vg-t {
+    font-family: var(--display); font-stretch: 112%; font-weight: 700;
+    font-size: 1.2rem; line-height: 1.1;
+  }
+  .vg .term { font-size: 0.78rem; }
+  .vg-take { font-weight: 600; }
 </style>
