@@ -152,4 +152,21 @@ const char *brix_ov_nameset_at(const brix_ov_nameset *s, size_t i, char *flag);
 
 void brix_ov_nameset_free(brix_ov_nameset *s);
 
+/* ---- CLI cores (brixMount --overlay-list / --overlay-reset) -------------- */
+
+/* Walk <mountdir>/.brixwrites/upper and print one change per line to `out`:
+ *   deleted <rel>   whiteout marker
+ *   dir <rel>       directory
+ *   new|modified <rel>   when the live mount answers the user.overlay xattr
+ *   upper <rel>     files, when unmounted (no xattr available)
+ * Works identically on a live cvmfs-rw mount (via the /.brixwrites
+ * passthrough subtree) and on the raw on-disk tree. Returns an exit code:
+ * 0 ok, 2 when <mountdir> has no .brixwrites (wrong-mountpoint guard). */
+int brix_overlay_cli_list(const char *mountdir, FILE *out);
+
+/* Recursively empty <mountdir>/.brixwrites/upper (the dir itself stays) —
+ * every local change is discarded and lower shows through again. Same
+ * exit-code contract as list. */
+int brix_overlay_cli_reset(const char *mountdir);
+
 #endif /* XRDC_OVERLAY_H */

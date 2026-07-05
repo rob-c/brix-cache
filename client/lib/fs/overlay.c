@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/xattr.h>
 
 #define OV_NAME_MAX 256   /* one path component incl. NUL */
 
@@ -539,4 +540,130 @@ const char *brix_ov_nameset_at(const brix_ov_nameset *s, size_t i, char *flag) {
 void brix_ov_nameset_free(brix_ov_nameset *s) {
     free(s->buf);
     memset(s, 0, sizeof(*s));
+}
+
+/* ---- CLI cores (--overlay-list / --overlay-reset) ------------------------ */
+
+/* Wrong-mountpoint guard: <mountdir>/.brixwrites/upper must be a directory.
+ * On success *upper_out (asprintf'd, caller frees) holds its path. */
+static int ov_cli_guard(const char *mountdir, char **upper_out) {
+    if (asprintf(upper_out, "%s/" BRIX_OV_DIRNAME "/" BRIX_OV_UPPER_DIRNAME,
+                 mountdir) < 0)
+        return 1;
+    struct stat st;
+    if (lstat(*upper_out, &st) == 0 && S_ISDIR(st.st_mode)) return 0;
+    fprintf(stderr, "brixMount: no " BRIX_OV_DIRNAME
+            " overlay under %s (not a cvmfs-rw mountpoint?)\n", mountdir);
+    free(*upper_out);
+    *upper_out = NULL;
+    return 2;
+}
+
+/* Change kind for an upper file: the live mount answers the user.overlay
+ * magic xattr ("new"/"modified"); unmounted raw trees have none → "upper". */
+static void ov_cli_kind(const char *mountdir, const char *rel,
+                        char *kind, size_t cap) {
+    char   *p = NULL;
+    ssize_t n = -1;
+    if (asprintf(&p, "%s/%s", mountdir, rel) >= 0) {
+        n = lgetxattr(p, "user.overlay", kind, cap - 1);
+        free(p);
+    }
+    if (n > 0) kind[n] = '\0';
+    else       snprintf(kind, cap, "upper");
+}
+
+static int ov_cli_list_dir(const char *mountdir, const char *upper_root,
+                           const char *rel, FILE *out) {
+    char *dirp = NULL;
+    if (asprintf(&dirp, "%s%s%s", upper_root, rel[0] ? "/" : "", rel) < 0) return 1;
+    DIR *d = opendir(dirp);
+    if (d == NULL) { free(dirp); return 1; }
+
+    int            rc = 0;
+    struct dirent *e;
+    while (rc == 0 && (e = readdir(d)) != NULL) {
+        const char *n = e->d_name;
+        if (strcmp(n, ".") == 0 || strcmp(n, "..") == 0) continue;
+        if (strcmp(n, BRIX_OV_OPQ_NAME) == 0) continue;
+        if (strncmp(n, BRIX_OV_TMP_PREFIX, sizeof(BRIX_OV_TMP_PREFIX) - 1) == 0) continue;
+
+        if (strncmp(n, BRIX_OV_WH_PREFIX, sizeof(BRIX_OV_WH_PREFIX) - 1) == 0) {
+            fprintf(out, "deleted %s%s%s\n", rel, rel[0] ? "/" : "",
+                    n + sizeof(BRIX_OV_WH_PREFIX) - 1);
+            continue;
+        }
+
+        char *crel = NULL, *full = NULL;
+        if (asprintf(&crel, "%s%s%s", rel, rel[0] ? "/" : "", n) < 0
+            || asprintf(&full, "%s/%s", dirp, n) < 0) {
+            free(crel);
+            rc = 1;
+            continue;
+        }
+        struct stat st;
+        if (lstat(full, &st) == 0 && S_ISDIR(st.st_mode)) {
+            fprintf(out, "dir %s\n", crel);
+            rc = ov_cli_list_dir(mountdir, upper_root, crel, out);
+        } else {
+            char kind[64];
+            ov_cli_kind(mountdir, crel, kind, sizeof(kind));
+            fprintf(out, "%s %s\n", kind, crel);
+        }
+        free(crel);
+        free(full);
+    }
+    closedir(d);
+    free(dirp);
+    return rc;
+}
+
+int brix_overlay_cli_list(const char *mountdir, FILE *out) {
+    char *upper = NULL;
+    int   rc    = ov_cli_guard(mountdir, &upper);
+    if (rc != 0) return rc;
+    rc = ov_cli_list_dir(mountdir, upper, "", out);
+    free(upper);
+    return rc;
+}
+
+/* Recursively delete everything inside dirfd (never following symlinks). */
+static int ov_cli_reset_contents(int dirfd) {
+    int lfd = openat(dirfd, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (lfd < 0) return 1;
+    DIR *d = fdopendir(lfd);                     /* owns lfd */
+    if (d == NULL) { close(lfd); return 1; }
+
+    int            rc = 0;
+    struct dirent *e;
+    while (rc == 0 && (e = readdir(d)) != NULL) {
+        const char *n = e->d_name;
+        if (strcmp(n, ".") == 0 || strcmp(n, "..") == 0) continue;
+        struct stat st;
+        if (fstatat(dirfd, n, &st, AT_SYMLINK_NOFOLLOW) != 0) { rc = 1; break; }
+        if (S_ISDIR(st.st_mode)) {
+            int sub = openat(dirfd, n, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+            if (sub < 0) { rc = 1; break; }
+            rc = ov_cli_reset_contents(sub);
+            close(sub);
+            if (rc == 0 && unlinkat(dirfd, n, AT_REMOVEDIR) != 0) rc = 1;
+        } else if (unlinkat(dirfd, n, 0) != 0) {
+            rc = 1;
+        }
+    }
+    closedir(d);
+    return rc;
+}
+
+int brix_overlay_cli_reset(const char *mountdir) {
+    char *upper = NULL;
+    int   rc    = ov_cli_guard(mountdir, &upper);
+    if (rc != 0) return rc;
+
+    int fd = open(upper, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    free(upper);
+    if (fd < 0) return 1;
+    rc = ov_cli_reset_contents(fd);
+    close(fd);
+    return rc;
 }
