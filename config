@@ -459,6 +459,7 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/protocols/shared/file_serve.h \
                         $ngx_addon_dir/src/protocols/shared/http_cache_fill.h \
                         $ngx_addon_dir/src/protocols/shared/http_serve_offload.h \
+                        $ngx_addon_dir/src/protocols/shared/proto_exclusive.h \
                         $ngx_addon_dir/src/core/http/http_file_response.h \
                         $ngx_addon_dir/src/core/http/http_headers.h \
                         $ngx_addon_dir/src/core/compat/error_mapping.h \
@@ -1166,6 +1167,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
                  $ngx_addon_dir/src/protocols/webdav/module_acc_directives.c \
                  $ngx_addon_dir/src/protocols/webdav/config.c \
                  $ngx_addon_dir/src/protocols/webdav/postconfig.c \
+                 $ngx_addon_dir/src/protocols/shared/proto_exclusive.c \
                  $ngx_addon_dir/src/protocols/dig/dig.c \
                  $ngx_addon_dir/src/protocols/webdav/access.c \
                  $ngx_addon_dir/src/protocols/webdav/dispatch.c \

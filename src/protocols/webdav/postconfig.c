@@ -9,6 +9,7 @@
  */
 
 #include "webdav.h"
+#include "protocols/shared/proto_exclusive.h"
 #include "core/http/ktls.h"
 #include "tpc/common/registry.h"
 #include "net/mirror/http_mirror.h"
@@ -156,6 +157,13 @@ ngx_http_brix_webdav_postconfiguration(ngx_conf_t *cf)
     }
 
     if (brix_tpc_registry_configure(cf) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    /* All module merges are done by the time any postconfiguration runs, so
+     * every protocol's enable flag is final here: reject a config that mixes
+     * brix protocols within one location or under one listen port. */
+    if (brix_http_proto_exclusive_check(cf) != NGX_OK) {
         return NGX_ERROR;
     }
 
