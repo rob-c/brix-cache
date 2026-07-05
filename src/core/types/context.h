@@ -83,100 +83,26 @@ typedef struct {
     unsigned           in_use:1;  /* 1 while an in-flight read owns this entry */
 } brix_read_slot_t;
 
+/* Per-connection concern sub-structs (ctx->recv, ctx->gsi, ctx->out, ...).
+ * Split into ctx_structs.h so brix_ctx_t reads as named groups; included after
+ * the slot structs above and after this TU's prerequisite includes. */
+#include "ctx_structs.h"
+
 typedef struct {
     ngx_stream_session_t  *session;  /* nginx session; gives us c, pool, log */
     brix_state_t         state;    /* drives the read/write event callbacks */
 
-    /*
-     * Input accumulation.
-     * We read in two stages: first the fixed 24-byte request header into
-     * hdr_buf, then (if hdr->dlen > 0) the payload into *payload.
-     */
-    u_char     hdr_buf[24];   /* raw bytes of the current request header */
-    size_t     hdr_pos;       /* how many header bytes we have so far */
+    /* Request receive/framing state (header + payload accumulation) — see
+     * brix_ctx_recv_t. */
+    brix_ctx_recv_t  recv;
 
-    /* Parsed fields from the most recent 24-byte request header */
-    u_char     cur_streamid[2]; /* echoed back unchanged in every response */
-    uint16_t   cur_reqid;       /* opcode, host byte order (e.g. kXR_open=3010) */
-    u_char     cur_body[16];    /* request-specific parameter bytes (see wire.h) */
-    uint32_t   cur_dlen;        /* payload length that follows the header */
-
-    /*
-     * Trailing body streamed after the dlen-framed payload (stock wire
-     * framing).
-     *
-     * For kXR_writev the header dlen covers ONLY the 16-byte write_list
-     * descriptor block; the segment data is streamed after the frame and its
-     * length is sum(wlen) over the descriptors.  Once the descriptor block is
-     * fully received, the recv framing validates it and extends the expected
-     * body by cur_body_extra so descriptors + data land contiguously in
-     * payload_buf.
-     *
-     * For kXR_chkpoint/kXR_ckpXeq the header dlen covers ONLY the embedded
-     * 24-byte sub-request header; the sub-request body streams after the
-     * frame and the extension runs in up to two stages (embedded header ->
-     * sub_dlen bytes; for an embedded kXR_writev the descriptor block then
-     * extends again by sum(wlen)).  cur_body_extended counts the completed
-     * extension stages (2 = no further extension); both fields reset when
-     * the next request header is parsed.
-     */
-    uint32_t   cur_body_extra;    /* streamed data bytes beyond cur_dlen */
-    unsigned   cur_body_extended:2; /* completed extension stages (2 = done) */
-
-    /*
-     * Payload accumulation.
-     *
-     * payload points at payload_buf while a request is being read/dispatched.
-     * payload_buf is an explicitly owned reusable allocation so long-lived
-     * xrdcp sessions do not retain every request payload in the nginx pool.
-     * Async write handlers may detach the current payload_buf and free it from
-     * their completion callback, leaving these fields NULL until the next
-     * payload-bearing request.
-     */
-    u_char    *payload;          /* current request payload, NULL if none */
-    size_t     payload_pos;      /* bytes accumulated so far */
-    u_char    *payload_buf;      /* reusable receive buffer */
-    size_t     payload_buf_size; /* allocated size of payload_buf */
-
-    /*
-     * Session auth state.
-     *
-     * XRootD uses a two-step login model:
-     *   1. kXR_login  → server issues session ID; logged_in = 1
-     *   2. kXR_auth   → client presents credentials; auth_done = 1
-     *
-     * When brix_auth = none, auth_done is set immediately after login.
-     * Most file opcodes require both flags.  kXR_ping and kXR_protocol
-     * are allowed before login.
-     */
-    u_char     sessid[BRIX_SESSION_ID_LEN]; /* opaque ID we issued at login */
-    ngx_flag_t logged_in;  /* set when kXR_login is accepted */
-    ngx_flag_t auth_done;  /* set when authentication is complete */
-    char       login_user[9]; /* fixed-width kXR_login username, NUL-terminated */
-    uint32_t   login_pid;     /* client pid from kXR_login, host byte order */
-    uint8_t    auth_fail_count; /* failed kXR_auth attempts; capped at BRIX_MAX_AUTH_ATTEMPTS */
-    size_t     pool_bytes_used; /* cumulative ngx_palloc bytes; capped at BRIX_MAX_CONN_POOL_BYTES */
-
-    /* Authenticated identity (filled during kXR_auth / token validation) */
-    char  dn[512];          /* GSI subject DN, e.g. "/DC=org/DC=cilogon/CN=Rob" */
-    char  primary_vo[128];  /* first VO from the VOMS attribute cert, e.g. "cms" */
-    char  vo_list[512];     /* space-separated list of all VOs, e.g. "cms atlas" */
-    char  peer_ip[64];      /* remote peer address for authdb HOST ('p') rules */
-    /* XrdAcc reverse-DNS host cache: resolved once per connection (opt-in via
-     * brix_acc_resolve_hosts).  acc_host points into c->pool; NULL once
-     * acc_host_done is set means resolution failed → fall back to peer_ip. */
-    const char *acc_host;
-    unsigned    acc_host_done:1;
-    unsigned    gsi_counted:1;   /* Phase 51 (E4): this conn holds a GSI in-flight
-                                  * handshake slot (released exactly once at auth
-                                  * completion or disconnect) */
+    /* Session login + authenticated-identity state — see brix_ctx_login_t. */
+    brix_ctx_login_t  login;
     brix_identity_t *identity; /* canonical Phase 2 identity object */
 
     /* SciTags packet-marking flow handle (NULL = not marked); begun on the
      * first file open, ended on disconnect.  See src/pmark/. */
-    struct brix_pmark_flow_s *pmark_flow;
-    ngx_event_t  pmark_echo_ev;  /* periodic "ongoing" firefly timer (if echo>0) */
-    ngx_msec_t   pmark_echo_ms;  /* echo interval, for the timer to re-arm itself */
+    brix_ctx_pmark_t  pmark;  /* SciTags packet-marking flow — see brix_ctx_pmark_t. */
 
     /* Open file table — array index IS the XRootD file handle (0-based) */
     brix_file_t  files[BRIX_MAX_FILES];
@@ -194,108 +120,18 @@ typedef struct {
      * Phase 1 lands the ring with effective depth 1: the recv loop stays serial
      * (it suspends on XRD_ST_SENDING), so out_head == out_tail == 0 throughout
      * and behaviour is identical to the previous single wbuf/wchain singletons.
-     * Phase 2 raises the in-flight bound to ctx->pipeline_depth.
+     * Phase 2 raises the in-flight bound to ctx->out.pipeline_depth.
      *
      * out_ring/rd_pool are heap-allocated (c->pool) to pipeline_depth slots at
      * connection setup (handler.c); all ring arithmetic is modulo pipeline_depth.
      */
-    ngx_uint_t         pipeline_depth; /* ring capacity = configured in-flight bound */
-    brix_resp_slot_t *out_ring;  /* [pipeline_depth] response slots */
-    ngx_uint_t         out_head;   /* slot being drained to the socket */
-    ngx_uint_t         out_tail;   /* slot currently being built */
-    ngx_uint_t         out_count;  /* number of slots in use (responses queued) */
+    /* Response ring + write-pipelining + deferred-teardown state — see brix_ctx_out_t. */
+    brix_ctx_out_t  out;
 
-    /*
-     * Phase 29 drain barrier: set when a non-pipelinable request was fully read
-     * while pipelined reads were still in flight.  The request stays parked in
-     * the cur_ header fields and payload buffer and is dispatched by the recv
-     * loop once the output queue has fully drained (out_count==0), preserving
-     * the serial invariant for every
-     * opcode except kXR_read.
-     */
-    unsigned           recv_deferred:1;
-
-    /*
-     * Phase 29: set by the single-chunk sendfile read builder, cleared by every
-     * other response builder.  The recv loop only pipelines a kXR_read when this
-     * is set — i.e. the response is a single sendfile span whose 8-byte header
-     * lives in its own slot (slot->hdr_bytes), so queueing the next read cannot
-     * clobber it.  Multi-chunk (>16 MiB) reads and all other opcodes stay serial.
-     */
-    unsigned           resp_pipelinable:1;
-
-    /*
-     * Write pipelining (mirrors the Phase-29 read pipelining above, for the
-     * plain kXR_write path).  Without this, each kXR_write posts its pwrite to
-     * the thread pool, transitions to XRD_ST_AIO, and SUSPENDS the recv loop
-     * until the write completes — so network-receive of the next chunk and the
-     * disk-write of the current one never overlap, and at most one pwrite is in
-     * flight per connection.  With it, after posting a write the recv loop keeps
-     * receiving (and posting) further writes, and the completion callback queues
-     * the kXR_ok ack into the out_ring WITHOUT suspending recv (resp_async).
-     *
-     * wr_inflight counts plain-write pwrites posted to the pool and not yet
-     * acked.  The recv loop only keeps reading while out_count + wr_inflight <
-     * ctx->pipeline_depth, which bounds BOTH the in-flight pwrites (thread-pool
-     * fairness) AND the queued acks (out_ring has pipeline_depth slots) so
-     * the ring can never overflow.  Non-pipelinable opcodes (close, sync,
-     * pgwrite, …) still drain to wr_inflight == 0 before dispatch, preserving
-     * the serial invariant (e.g. a close cannot retire a handle a pwrite is
-     * still writing through).
-     *
-     * resp_async: while set (only around the pipelined-write ack send in the
-     * completion callback), brix_queue_response_base parks the response in the
-     * out_ring and arms the write event but leaves ctx->state untouched, so the
-     * ack drains independently of — and never disturbs — the recv loop that may
-     * be mid-receiving the next request.
-     */
-    ngx_uint_t         wr_inflight;
-    unsigned           resp_async:1;
-
-    /*
-     * Deferred teardown for in-flight pipelined writes.  Because the recv loop
-     * may be active (REQ_HEADER/REQ_PAYLOAD) while wr_inflight > 0, a client
-     * disconnect / read deadline / send error must NOT finalize the session
-     * immediately — that would free ctx and close the fds out from under the
-     * pwrites still running in worker threads (use-after-free / wrong-fd write).
-     * Instead every data-plane teardown site routes through
-     * brix_defer_teardown_if_writing(): if wr_inflight > 0 it records the
-     * pending finalize (and sets destroyed so recv stops and completion callbacks
-     * skip their ack), and the LAST write completion runs the real teardown
-     * (on_disconnect + close_all_files + finalize) once no pwrite references the
-     * connection.  finalize_status carries the ngx_stream status to finalize with.
-     */
-    unsigned           finalize_pending:1;
-    ngx_int_t          finalize_status;
-
-    /*
-     * Reusable response scratch buffers for read-heavy sessions.
-     *
-     * Building a kXR_read response header + data, or a kXR_readv interleaved
-     * response, requires a temporary buffer.  Instead of allocating from the
-     * connection pool on every request (which grows the pool permanently),
-     * we malloc/realloc a single buffer and keep it for the session lifetime.
-     *
-     *   read_scratch      — holds the flat data block (for read/pgread)
-     *   read_hdr_scratch  — holds the per-chunk response headers (for readv)
-     */
-    u_char   *read_scratch;          /* reusable data buffer */
-    size_t    read_scratch_size;      /* current allocated size */
-    u_char   *read_hdr_scratch;       /* reusable header buffer */
-    size_t    read_hdr_scratch_size;  /* current allocated size */
-    u_char   *write_scratch;          /* reusable pgwrite decode buffer */
-    size_t    write_scratch_size;     /* current allocated size */
-
-    /*
-     * Phase-42 W4 — inline read compression output buffer.  When a read handle
-     * was opened with "?xrootd.compress=", kXR_read compresses the plaintext
-     * (staged in read_scratch) into cmp_scratch and sends that.  Like the other
-     * scratch slots it is a raw ngx_alloc kept for the session lifetime (grown
-     * on demand, freed on disconnect), so brix_release_read_buffer() must
-     * recognise it as a keep-slot.  Only used on the opt-in compressed path.
-     */
-    u_char   *cmp_scratch;            /* reusable codec output buffer */
-    size_t    cmp_scratch_size;       /* current allocated size */
+    /* Read pipeline + reusable read/write/compression scratch buffers,
+     * per-opcode AIO tasks, concurrent-read pool, and windowed-read
+     * continuation — see brix_ctx_rd_t. */
+    brix_ctx_rd_t  rd;
 
     /*
      * Phase 31 W4 — bytes this connection currently has charged to the global
@@ -304,53 +140,6 @@ typedef struct {
      */
     size_t    budget_charged;
 
-    /*
-     * Reusable thread-pool task for memory-backed kXR_read.  TLS/native GSI
-     * reads cannot use sendfile, so avoiding per-request task allocation keeps
-     * single-stream encrypted reads from growing the connection pool.
-     */
-    ngx_thread_task_t *read_aio_task;
-
-    /*
-     * Reusable thread-pool tasks for kXR_pgread and kXR_readv, mirroring
-     * read_aio_task above.  The connection is a strictly serial state machine
-     * (one in-flight request at a time), so a single cached task per opcode is
-     * reused across requests instead of allocating a fresh one each time.
-     * Reset task->next and event.complete before each reuse.
-     */
-    ngx_thread_task_t *pgread_aio_task;
-    ngx_thread_task_t *readv_aio_task;
-
-    /*
-     * Phase 32 WS3 — concurrent-AIO read pipeline state.  rd_pool holds up to
-     * ctx->pipeline_depth in-flight memory-read buffers/tasks; rd_inflight is the
-     * count currently in use.  rd_backpressured is set when the recv loop stops
-     * admitting reads because the pool + out_ring are full, and cleared when a
-     * pool entry frees (driving a read-resume).  Single-shot memory reads draw
-     * from this pool so several can be outstanding at once; the legacy
-     * read_scratch/read_aio_task pair still backs windowed reads (serial).
-     * Heap-allocated to pipeline_depth slots alongside out_ring (handler.c).
-     */
-    brix_read_slot_t *rd_pool;   /* [pipeline_depth] in-flight read buffers */
-    ngx_uint_t         rd_inflight;
-    unsigned           rd_backpressured:1;
-
-    /*
-     * Phase 31 W2.1 — windowed memory read continuation.  A large memory-backed
-     * kXR_read (TLS / non-regular file) that exceeds BRIX_READ_WINDOW is served
-     * as a sequence of kXR_oksofar wire chunks ending in kXR_ok, each sourced
-     * from one window-sized disk read into read_scratch.  The next window is
-     * read only after the previous chunk has fully drained from read_scratch
-     * (so the single buffer is never overwritten while still being sent).
-     * rd_win_active marks a windowed read in flight; rd_win_offset is the next
-     * file offset to read; rd_win_remaining is the bytes still to send.
-     */
-    unsigned   rd_win_active:1;
-    int        rd_win_idx;
-    int        rd_win_fd;
-    off_t      rd_win_offset;
-    size_t     rd_win_remaining;
-    u_char     rd_win_streamid[2];
 
     /*
      * Reusable chain objects for the common one-chunk read response now live
@@ -359,51 +148,9 @@ typedef struct {
      * draining on the wire.
      */
 
-    /*
-     * GSI Diffie-Hellman key — generated during kXGS_cert and freed
-     * immediately after the DH shared secret is derived at kXGC_cert.
-     * NULL at all other times.
-     */
-    EVP_PKEY  *gsi_dh_key;
-
-    /*
-     * GSI signed-DH variant selector for this handshake (phase-48).
-     * 0 = unsigned DH (pre-DHsigned <10400 wire form: bare kXRS_puk Public()
-     *     blob, dh_pad=0, zero IV) — the universally-interoperable default.
-     * 1 = signed DH (>=10400: server RSA-signs its DH Public() into kXRS_cipher,
-     *     dh_pad=1, IV-prepended main).  Chosen in round 1 (cert_response.c) from
-     *     the client's advertised kXRS_version and conf->gsi_signed_dh, and read
-     *     back in round 2 (parse_x509.c) so both rounds agree on padding/IV.
-     */
-    int        gsi_signed_dh;
-
-    /*
-     * phase-57 §F6: X.509 proxy delegation (capture the client's proxy during the
-     * inbound GSI login so a later TPC pull can present it). Off unless
-     * brix_tpc_delegate is on. The GSI session cipher (derived in round 2,
-     * parse_x509.c) is persisted here so the extra kXGS_pxyreq/kXGC_sigpxy round
-     * can encrypt/decrypt its main; cleansed once delegation completes or at
-     * disconnect. gsi_deleg_reqkey is the fresh proxy key from
-     * brix_gsi_build_pxyreq (kept until kXGC_sigpxy pairs it with the signed
-     * proxy via brix_gsi_assemble_proxy). gsi_deleg_await gates the 3rd round.
-     */
-    char       gsi_sess_cipher[24];  /* negotiated session cipher name           */
-    u_char     gsi_sess_key[32];     /* session AES key (DH-secret derived)       */
-    int        gsi_sess_keylen;      /* valid bytes in gsi_sess_key (0 = unset)   */
-    int        gsi_sess_use_iv;      /* 1 = IV-prepended main (signed-DH path)    */
-    EVP_PKEY  *gsi_deleg_reqkey;     /* fresh proxy key (build_pxyreq), or NULL   */
-    uint32_t   gsi_clnt_opts;        /* client's kXRS_clnt_opts flags (kOpts*): the
-                                        client's delegation mode — kOptsFwdPxy(2)=
-                                        forward, kOptsDlgPxy(1)/kOptsSigReq(4)=sign. */
-    int        gsi_deleg_await;      /* 1 = sent kXGS_pxyreq, awaiting kXGC_sigpxy */
-    u_char    *gsi_deleg_chain_pem;  /* client chain PEM (for assemble), heap      */
-    size_t     gsi_deleg_chain_len;
-    u_char    *gsi_deleg_proxy_pem;  /* captured delegated proxy credential (PEM)  */
-    size_t     gsi_deleg_proxy_len;
-    u_char     gsi_deleg_client_rtag[64]; /* client's kXGC_cert random tag — the   */
-    int        gsi_deleg_client_rtag_len; /* server RSA-signs it into the pxyreq   */
-                                          /* (kXRS_signed_rtag) so the client's     */
-                                          /* CheckRtag accepts the kXGS_pxyreq.     */
+    /* GSI DH key + signed-DH selector + session cipher + X.509 proxy delegation
+     * state (phase-48/57 §F6) — see brix_ctx_gsi_t. */
+    brix_ctx_gsi_t  gsi;
 
     /*
      * Phase 52 (WS-B): XrdSecpwd multi-round handshake state.  Round 1 derives the
@@ -413,9 +160,7 @@ typedef struct {
      * (1 = puk-exchange done, awaiting creds).  pwd_user is the username asserted
      * in round 1, verified against the creds in round 2.
      */
-    uint8_t    pwd_session_key[16];
-    unsigned   pwd_round;
-    char       pwd_user[64];
+    brix_ctx_pwd_t  pwd;  /* XrdSecpwd handshake state — see brix_ctx_pwd_t. */
 
     /*
      * Bearer-token auth state.
@@ -426,43 +171,22 @@ typedef struct {
      *
      * token_auth=0 with auth_done=1 means GSI was used; scopes are not relevant.
      */
-    int                   token_auth;         /* 1 = token session */
-    int                   token_scope_count;  /* valid entries in token_scopes[] */
-    brix_token_scope_t  token_scopes[BRIX_MAX_TOKEN_SCOPES];
+    brix_ctx_token_t  token;  /* bearer-token auth state — see brix_ctx_token_t. */
 
     /* phase-59 W3a: XrdThrottle per-user accounting state for this connection.
      * throttle_open_held = open-file increments this conn holds (so disconnect
      * decrements exactly that many); throttle_conn_counted = this conn has been
      * counted toward the per-user active-connection total. */
-    ngx_uint_t            throttle_open_held;
-    unsigned              throttle_conn_counted:1;
+    brix_ctx_throttle_t   throttle;  /* per-user throttle accounting — see brix_ctx_throttle_t. */
 
     /* Per-request start time for latency logging */
     ngx_msec_t  req_start;
 
-    /* State saved from a kXR_prepare + kXR_stage request for kXR_QPrep polling.
-     * The reqid we issued is stored so we can recognize it in QPrep.
-     * The path list (newline-separated, heap-allocated) lets us check disk
-     * status when the client queries without re-supplying the paths. */
-    char    prepare_reqid[40];   /* stage "<seq>.<pid>@<host>" reqid          */
-    u_char *prepare_paths;
-    size_t  prepare_paths_len;
-
-    /* Async tape recall (kXR_waitresp → kXR_attn asynresp). When
-     * stage_async_active is set during a replayed open of a just-staged file, the
-     * open-OK emit goes out wrapped in kXR_attn(asynresp) on the saved
-     * stage_async_streamid instead of a normal kXR_ok header. */
-    unsigned  stage_async_active:1;
-    u_char    stage_async_streamid[2];
+    /* kXR_prepare/kXR_stage polling + async tape recall — see brix_ctx_prepare_t. */
+    brix_ctx_prepare_t  prepare;
 
     /* Session-level transfer totals written to the access log at disconnect */
-    size_t      session_bytes;          /* total bytes read by client           */
-    size_t      session_bytes_written;  /* total bytes written by client        */
-    size_t      session_bytes_tx_ipv4;  /* bytes sent to IPv4 clients (session) */
-    size_t      session_bytes_rx_ipv4;  /* bytes received from IPv4 clients     */
-    size_t      session_bytes_tx_ipv6;  /* bytes sent to IPv6 clients (session) */
-    size_t      session_bytes_rx_ipv6;  /* bytes received from IPv6 clients     */
-    ngx_msec_t  session_start;          /* ngx_current_msec at login            */
+    brix_ctx_totals_t  totals;  /* session transfer totals — see brix_ctx_totals_t. */
 
     /* Points into the shared-memory metrics segment for this server slot.
      * NULL if metrics are not configured (brix_metrics_zone not set). */
@@ -525,18 +249,7 @@ typedef struct {
      *   next dispatch       → HMAC verified; sigver_pending = 0
      *   replay guard        → seqno must be > last_seqno
      */
-    u_char    signing_key[32];    /* HMAC-SHA256 key (SHA-256 of DH secret) */
-    int       signing_active;     /* 1 = signing_key is valid and in use */
-    uint64_t  last_seqno;         /* highest seqno accepted so far */
-
-    int       sigver_pending;     /* 1 = next dispatch must verify the HMAC */
-    int       verified_signing;   /* 1 = current request passed sigver verification */
-    uint16_t  sigver_expectrid;   /* the opcode the sigver envelope covers */
-    uint64_t  sigver_seqno;       /* seqno from the kXR_sigver frame */
-    int       sigver_nodata;      /* 1 = payload was excluded from the HMAC */
-    u_char    sigver_hmac[32];    /* expected HMAC bytes to check against */
-    EVP_MAC      *sigver_mac;     /* cached OpenSSL HMAC provider handle */
-    EVP_MAC_CTX  *sigver_mac_ctx; /* reusable HMAC context for signed reqs */
+    brix_ctx_sigver_t  sigver;  /* kXR_sigver request-signing state — see brix_ctx_sigver_t. */
 
     /*
      * kXR_bind parallel-stream state.
@@ -575,30 +288,8 @@ typedef struct {
      * immediately after an brix_auth_gate() call that returned NGX_DONE. */
     ngx_int_t   write_rc;
 
-    /* Phase 25 — bandwidth charge target set by the rate-limit dispatch gate
-     * for the current request; consumed by read/write completion via
-     * brix_rl_charge_ctx().  rl_bw_rule is an brix_rl_rule_t* (void to keep
-     * ratelimit.h out of this widely-included header). */
-    void       *rl_bw_rule;
-    char        rl_bw_key[128];
-
-    /* Phase 25 W7 (stream) — per-principal concurrency slot held by THIS
-     * connection.  Acquired once by the rate-limit dispatch gate on the first
-     * matching brix_concurrency_limit rule and released exactly once in
-     * brix_on_disconnect (the stream plane has no LOG phase), so it caps the
-     * number of concurrent connections per principal.  Non-NULL rl_conc_rule
-     * means a slot is held.  void* to keep ratelimit.h out of this header. */
-    void       *rl_conc_rule;
-    char        rl_conc_key[128];
-
-    /* Phase 33 C4 — per-connection rate-limit key cache.  Identity-stable rules
-     * (VO/ISSUER/IP/DN) yield a connection-constant key, so the stream dispatch
-     * gate caches the first BRIX_RL_RULE_CACHE_MAX such keys here and reuses
-     * them instead of re-hashing per read.  rl_key_cache_valid is a bitmask:
-     * bit i set ⇒ rl_key_cache[i] holds rule i's key.  VOLUME (path-dependent)
-     * rules are never cached.  Zero-initialised ⇒ cold (recompute on first use). */
-    char        rl_key_cache[BRIX_RL_RULE_CACHE_MAX][128];
-    uint32_t    rl_key_cache_valid;
+    /* Per-connection rate-limit state (Phase 25/33) — see brix_ctx_rl_t. */
+    brix_ctx_rl_t  rl;
 
     /*
      * Phase 39 — network-fault resilience (steady-state deadlines).
@@ -615,11 +306,7 @@ typedef struct {
      * The merged timeouts are cached here at accept so the hot recv/park paths
      * avoid a srv_conf lookup.  0 = the corresponding deadline is disabled.
      */
-    unsigned    read_deadline_armed:1;  /* 1 = we armed c->read's timer  */
-    unsigned    send_deadline_armed:1;  /* 1 = we armed c->write's timer */
-    ngx_msec_t  read_timeout_ms;        /* cached brix_read_timeout (0 = off)      */
-    ngx_msec_t  handshake_timeout_ms;   /* cached brix_handshake_timeout (0 = off) */
-    ngx_msec_t  send_timeout_ms;        /* cached brix_send_timeout (0 = off)      */
+    brix_ctx_deadline_t  deadline;  /* network-fault deadlines — see brix_ctx_deadline_t. */
 
     /*
      * Single-port protocol handoff (src/handoff/handoff.c): when a non-XRootD

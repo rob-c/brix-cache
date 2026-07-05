@@ -20,7 +20,7 @@
 
 /*
  * Start the per-worker health-check timer for `conf`.  No-op when health
- * checks are disabled (conf->hc_enabled == 0) or the interval is 0.  Called
+ * checks are disabled (conf->hc.enabled == 0) or the interval is 0.  Called
  * once per enabled server block from the stream module's init_process hook.
  */
 void brix_hc_manager_start(ngx_cycle_t *cycle,

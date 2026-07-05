@@ -6,7 +6,7 @@
  *
  * WHAT: when brix_tap_proxy_auth gsi is set, the proxy presents the client's
  *   DELEGATED X.509 proxy (captured by the GSI server delegation path into
- *   ctx->gsi_deleg_proxy_pem) to the upstream's GSI auth, logging in AS THE USER.
+ *   ctx->gsi.deleg_proxy_pem) to the upstream's GSI auth, logging in AS THE USER.
  * WHY: monitor/forward a user's traffic to a GSI-only backend using the user's
  *   own credential, not a service identity.
  * HOW: the working in-process GSI client is blocking (it runs the certreq/cert

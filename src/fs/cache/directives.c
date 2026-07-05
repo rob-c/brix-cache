@@ -14,6 +14,7 @@
 #include "core/compat/checksum.h"  /* brix_checksum_parse */
 #include "core/compat/af_policy.h" /* brix_af_policy_parse */
 #include "verify.h"           /* brix_cache_verify_mode_e */
+#include "core/compat/cstr.h" /* brix_str_cbuf / brix_pstrdup_z */
 
 /* §14 (phase-64): brix_conf_set_cache_origin is DELETED with the legacy
  * cache_origin config model (a cache's source is brix_storage_backend). */
@@ -59,10 +60,10 @@ brix_conf_set_cache_eviction_threshold(ngx_conf_t *cf, ngx_command_t *cmd,
         return "is duplicate";
     }
 
-    BRIX_PNALLOC_OR_RETURN(copy, cf->pool, value[1].len + 1, NGX_CONF_ERROR);
-
-    ngx_memcpy(copy, value[1].data, value[1].len);
-    copy[value[1].len] = '\0';
+    copy = brix_pstrdup_z(cf->pool, &value[1]);
+    if (copy == NULL) {
+        return NGX_CONF_ERROR;
+    }
 
     errno = 0;
     ratio = strtod(copy, &endp);
@@ -121,9 +122,10 @@ brix_conf_set_cache_watermark(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return "is duplicate";
     }
 
-    BRIX_PNALLOC_OR_RETURN(copy, cf->pool, value[1].len + 1, NGX_CONF_ERROR);
-    ngx_memcpy(copy, value[1].data, value[1].len);
-    copy[value[1].len] = '\0';
+    copy = brix_pstrdup_z(cf->pool, &value[1]);
+    if (copy == NULL) {
+        return NGX_CONF_ERROR;
+    }
 
     errno = 0;
     ratio = strtod(copy, &endp);
@@ -180,14 +182,13 @@ brix_conf_set_cache_max_file_size(ngx_conf_t *cf, ngx_command_t *cmd,
         return "is duplicate";
     }
 
-    if (value[1].len == 0 || value[1].len >= sizeof(copy)) {
+    if (value[1].len == 0
+        || brix_str_cbuf(copy, sizeof(copy), &value[1]) == NULL)
+    {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_cache_max_file_size: invalid value \"%V\"", &value[1]);
         return NGX_CONF_ERROR;
     }
-
-    ngx_memcpy(copy, value[1].data, value[1].len);
-    copy[value[1].len] = '\0';
 
     errno = 0;
     raw = strtoull(copy, &endp, 10);
@@ -250,27 +251,28 @@ brix_conf_set_cache_include_regex(ngx_conf_t *cf, ngx_command_t *cmd,
     value = cf->args->elts;
     (void) cmd;
 
-    if (xcf->cache_include_regex_set) {
+    if (xcf->include_regex.set) {
         return "is duplicate";
     }
 
     /* Copy to NUL-terminated buffer for regcomp */
-    BRIX_PNALLOC_OR_RETURN(pattern, cf->pool, value[1].len + 1, NGX_CONF_ERROR);
-    ngx_memcpy(pattern, value[1].data, value[1].len);
-    pattern[value[1].len] = '\0';
+    pattern = brix_pstrdup_z(cf->pool, &value[1]);
+    if (pattern == NULL) {
+        return NGX_CONF_ERROR;
+    }
 
-    rc = regcomp(&xcf->cache_include_regex, pattern, REG_EXTENDED | REG_NOSUB);
+    rc = regcomp(&xcf->include_regex.re, pattern, REG_EXTENDED | REG_NOSUB);
     if (rc != 0) {
-        regerror(rc, &xcf->cache_include_regex, errbuf, sizeof(errbuf));
+        regerror(rc, &xcf->include_regex.re, errbuf, sizeof(errbuf));
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_cache_include_regex: invalid pattern \"%V\": %s",
             &value[1], errbuf);
         return NGX_CONF_ERROR;
     }
 
-    xcf->cache_include_regex_str.data = (u_char *) pattern;
-    xcf->cache_include_regex_str.len  = value[1].len;
-    xcf->cache_include_regex_set      = 1;
+    xcf->include_regex.str.data = (u_char *) pattern;
+    xcf->include_regex.str.len  = value[1].len;
+    xcf->include_regex.set      = 1;
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
         "brix: cache include regex: \"%V\"", &value[1]);
@@ -368,15 +370,15 @@ brix_conf_set_cache_advertise_ns(ngx_conf_t *cf, ngx_command_t *cmd,
     value = cf->args->elts;
     (void) cmd;
 
-    if (xcf->cache_advertise_ns == NULL) {
-        xcf->cache_advertise_ns =
+    if (xcf->advertise.ns == NULL) {
+        xcf->advertise.ns =
             ngx_array_create(cf->pool, 4, sizeof(ngx_str_t));
-        if (xcf->cache_advertise_ns == NULL) {
+        if (xcf->advertise.ns == NULL) {
             return NGX_CONF_ERROR;
         }
     }
 
-    entry = ngx_array_push(xcf->cache_advertise_ns);
+    entry = ngx_array_push(xcf->advertise.ns);
     if (entry == NULL) {
         return NGX_CONF_ERROR;
     }
@@ -415,7 +417,7 @@ brix_conf_set_wt_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    xcf->wt_enable = flag;
+    xcf->wt.enable = flag;
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
         "brix: write-through %s", (flag ? "on" : "off"));
     return NGX_CONF_OK;
@@ -435,9 +437,9 @@ brix_conf_set_wt_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     (void) cmd;
 
     if (ngx_strcmp(value[1].data, "sync") == 0) {
-        xcf->wt_mode = BRIX_WT_MODE_SYNC;
+        xcf->wt.mode = BRIX_WT_MODE_SYNC;
     } else if (ngx_strcmp(value[1].data, "async") == 0) {
-        xcf->wt_mode = BRIX_WT_MODE_ASYNC;
+        xcf->wt.mode = BRIX_WT_MODE_ASYNC;
     } else {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_wt_mode: invalid value \"%V\", must be sync or async",
@@ -446,7 +448,7 @@ brix_conf_set_wt_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "brix: write-through mode: %s", (xcf->wt_mode == BRIX_WT_MODE_SYNC) ? "sync" : "async");
+        "brix: write-through mode: %s", (xcf->wt.mode == BRIX_WT_MODE_SYNC) ? "sync" : "async");
     return NGX_CONF_OK;
 }
 
@@ -467,7 +469,7 @@ brix_conf_set_wt_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     value = cf->args->elts;
     (void) cmd;
 
-    if (xcf->wt_origin_host.len > 0) {
+    if (xcf->wt.origin_host.len > 0) {
         return "is duplicate";
     }
 
@@ -495,7 +497,7 @@ brix_conf_set_wt_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             return NGX_CONF_ERROR;
         }
         size_t hostlen = (size_t)(rb - addr_copy - 1);
-        if (brix_pstrdupz(cf->pool, &xcf->wt_origin_host,
+        if (brix_pstrdupz(cf->pool, &xcf->wt.origin_host,
                             (u_char *) addr_copy + 1, hostlen) != NGX_OK) {
             return NGX_CONF_ERROR;
         }
@@ -508,7 +510,7 @@ brix_conf_set_wt_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             return NGX_CONF_ERROR;
         }
         size_t hostlen = (size_t)(colon - addr_copy);
-        if (brix_pstrdupz(cf->pool, &xcf->wt_origin_host,
+        if (brix_pstrdupz(cf->pool, &xcf->wt.origin_host,
                             (u_char *) addr_copy, hostlen) != NGX_OK) {
             return NGX_CONF_ERROR;
         }
@@ -520,11 +522,11 @@ brix_conf_set_wt_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             "brix_wt_origin: invalid port in \"%V\"", &value[1]);
         return NGX_CONF_ERROR;
     }
-    xcf->wt_origin_port = (uint16_t) pnum;
+    xcf->wt.origin_port = (uint16_t) pnum;
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
         "brix: write-through origin: %s:%d",
-        (char *) xcf->wt_origin_host.data, (int) xcf->wt_origin_port);
+        (char *) xcf->wt.origin_host.data, (int) xcf->wt.origin_port);
 
     return NGX_CONF_OK;
 }
@@ -556,12 +558,10 @@ brix_conf_push_prefix(ngx_conf_t *cf, ngx_array_t **target,
     if (entry == NULL) {
         return NGX_CONF_ERROR;
     }
-    prefix_copy = ngx_pnalloc(cf->pool, value[1].len + 1);
+    prefix_copy = brix_pstrdup_z(cf->pool, &value[1]);
     if (prefix_copy == NULL) {
         return NGX_CONF_ERROR;
     }
-    ngx_memcpy(prefix_copy, value[1].data, value[1].len);
-    prefix_copy[value[1].len] = '\0';
     entry->prefix.data = (u_char *) prefix_copy;
     entry->prefix.len  = value[1].len;
 
@@ -575,7 +575,7 @@ brix_conf_add_wt_prefix(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int is_d
     ngx_stream_brix_srv_conf_t *xcf = conf;
     (void) cmd;
     return brix_conf_push_prefix(cf,
-        is_deny ? &xcf->wt_deny_prefixes : &xcf->wt_allow_prefixes,
+        is_deny ? &xcf->wt.deny_prefixes : &xcf->wt.allow_prefixes,
         is_deny ? "brix_wt_deny_prefix" : "brix_wt_allow_prefix");
 }
 

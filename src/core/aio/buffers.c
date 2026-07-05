@@ -37,7 +37,7 @@ brix_get_pool_scratch(ngx_pool_t *pool, u_char **slot, size_t *slot_size,
     /*
      * Phase 31: scratch buffers are raw heap allocations (ngx_alloc/ngx_free),
      * NOT pool allocations.  The earlier pool-backed version corrupted memory
-     * when brix_trim_scratch() freed and re-grew read_scratch: ngx_pfree/
+     * when brix_trim_scratch() freed and re-grew rd.read_scratch: ngx_pfree/
      * ngx_palloc churn nginx's pool large-allocation list while stale pointers
      * (the reused read_aio_task->databuf, read_fast_body_buf) still referenced
      * the old block — a use-after-free triggered by a large kXR_read followed by
@@ -64,7 +64,7 @@ brix_get_pool_scratch(ngx_pool_t *pool, u_char **slot, size_t *slot_size,
  * brix_release_read_buffer — return a response data buffer to the pool,
  * unless it is one of the reusable per-connection scratch slots.
  *
- * The scratch slots (read_scratch / read_hdr_scratch / write_scratch) are
+ * The scratch slots (rd.read_scratch / rd.read_hdr_scratch / rd.write_scratch) are
  * long-lived raw heap allocations (see brix_get_pool_scratch) that must NOT
  * be freed on every response — they are reused across requests and freed once
  * at disconnect.  Any OTHER buffer reaching here (e.g. a dirlist response) is a
@@ -81,8 +81,8 @@ brix_release_read_buffer(brix_ctx_t *ctx, ngx_connection_t *c, u_char *buf)
         return;
     }
 
-    if (buf == ctx->read_scratch || buf == ctx->read_hdr_scratch
-        || buf == ctx->write_scratch || buf == ctx->cmp_scratch)
+    if (buf == ctx->rd.read_scratch || buf == ctx->rd.read_hdr_scratch
+        || buf == ctx->rd.write_scratch || buf == ctx->rd.cmp_scratch)
     {
         return;
     }
@@ -94,12 +94,12 @@ brix_release_read_buffer(brix_ctx_t *ctx, ngx_connection_t *c, u_char *buf)
      * no-op, so the queued-then-error double-release path cannot underflow
      * rd_inflight.
      */
-    for (i = 0; i < ctx->pipeline_depth; i++) {
-        if (ctx->rd_pool[i].buf == buf) {
-            if (ctx->rd_pool[i].in_use) {
-                ctx->rd_pool[i].in_use = 0;
-                if (ctx->rd_inflight > 0) {
-                    ctx->rd_inflight--;
+    for (i = 0; i < ctx->out.pipeline_depth; i++) {
+        if (ctx->rd.pool[i].buf == buf) {
+            if (ctx->rd.pool[i].in_use) {
+                ctx->rd.pool[i].in_use = 0;
+                if (ctx->rd.inflight > 0) {
+                    ctx->rd.inflight--;
                 }
             }
             return;
@@ -113,7 +113,7 @@ brix_release_read_buffer(brix_ctx_t *ctx, ngx_connection_t *c, u_char *buf)
  * brix_acquire_read_buffer — borrow a per-in-flight data buffer from the
  * connection's read pool (rd_pool), growing the chosen slot to >= need bytes.
  *
- * Unlike the single shared read_scratch, each in-flight read gets its OWN buffer,
+ * Unlike the single shared rd.read_scratch, each in-flight read gets its OWN buffer,
  * so a memory-backed (userspace-TLS) read response can stay queued in the out_ring
  * and drain while the recv loop already issues the NEXT read into a different
  * buffer — i.e. memory reads can pipeline.  The slot is returned to the pool by
@@ -132,24 +132,24 @@ brix_acquire_read_buffer(brix_ctx_t *ctx, ngx_connection_t *c, size_t need)
         need = 1;
     }
 
-    for (i = 0; i < ctx->pipeline_depth; i++) {
-        if (ctx->rd_pool[i].in_use) {
+    for (i = 0; i < ctx->out.pipeline_depth; i++) {
+        if (ctx->rd.pool[i].in_use) {
             continue;
         }
-        if (ctx->rd_pool[i].size < need) {
+        if (ctx->rd.pool[i].size < need) {
             u_char *p = ngx_alloc(need, c->log);
             if (p == NULL) {
                 return NULL;
             }
-            if (ctx->rd_pool[i].buf != NULL) {
-                ngx_free(ctx->rd_pool[i].buf);
+            if (ctx->rd.pool[i].buf != NULL) {
+                ngx_free(ctx->rd.pool[i].buf);
             }
-            ctx->rd_pool[i].buf  = p;
-            ctx->rd_pool[i].size = need;
+            ctx->rd.pool[i].buf  = p;
+            ctx->rd.pool[i].size = need;
         }
-        ctx->rd_pool[i].in_use = 1;
-        ctx->rd_inflight++;
-        return ctx->rd_pool[i].buf;
+        ctx->rd.pool[i].in_use = 1;
+        ctx->rd.inflight++;
+        return ctx->rd.pool[i].buf;
     }
 
     return NULL;   /* pool exhausted — should not happen given the recv bound */
@@ -159,7 +159,7 @@ brix_acquire_read_buffer(brix_ctx_t *ctx, ngx_connection_t *c, size_t need)
  * brix_trim_scratch — shrink the per-session transfer scratch buffers back to
  * BRIX_READ_WINDOW once a large request has fully drained (Phase 31).
  *
- * read_scratch and write_scratch grow to the largest read / pgwrite the session
+ * rd.read_scratch and rd.write_scratch grow to the largest read / pgwrite the session
  * has served and are then kept for reuse.  Without trimming, a single 64 MiB
  * read pins ~64 MiB of resident heap for the entire connection lifetime even
  * while idle — the dominant memory-scaling term for a TLS gateway.  This trims
@@ -172,7 +172,7 @@ brix_acquire_read_buffer(brix_ctx_t *ctx, ngx_connection_t *c, size_t need)
  * request.  Buffers at or below BRIX_SCRATCH_TRIM_THRESHOLD are left untouched
  * (hysteresis avoids realloc thrash on sessions that oscillate near the window).
  *
- * read_hdr_scratch (per-chunk wire headers) is tiny and never trimmed.
+ * rd.read_hdr_scratch (per-chunk wire headers) is tiny and never trimmed.
  * payload_buf has detach semantics owned by the write path and is trimmed there.
  */
 static void
@@ -204,8 +204,8 @@ brix_trim_one(ngx_pool_t *pool, u_char **slot, size_t *slot_size)
 void
 brix_trim_scratch(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    brix_trim_one(c->pool, &ctx->read_scratch, &ctx->read_scratch_size);
-    brix_trim_one(c->pool, &ctx->write_scratch, &ctx->write_scratch_size);
+    brix_trim_one(c->pool, &ctx->rd.read_scratch, &ctx->rd.read_scratch_size);
+    brix_trim_one(c->pool, &ctx->rd.write_scratch, &ctx->rd.write_scratch_size);
 }
 
 /*
@@ -223,9 +223,9 @@ brix_trim_scratch(brix_ctx_t *ctx, ngx_connection_t *c)
  * pre-allocated slot->read_fast_* structs (hdr_chain, body_chain, hdr_buf, body_buf)
  * to avoid any pool allocation — zero-cost for the common case.
  *
- * HOW: 1) Acquires read_hdr_scratch via brix_get_read_header_scratch.
+ * HOW: 1) Acquires rd.read_hdr_scratch via brix_get_read_header_scratch.
  *      2) Calls brix_build_resp_hdr() to populate ServerResponseHdr with
- *         ctx->cur_streamid, kXR_ok status, and data_total length.
+ *         ctx->recv.cur_streamid, kXR_ok status, and data_total length.
  *      3) Memzeros the fast structs then configures hdr_buf → hdr_chain (header).
  *      4) If data_total==0 returns header-only chain; otherwise configures
  *         body_buf pointing into databuf → body_chain (data), linking them.
@@ -237,10 +237,10 @@ static ngx_chain_t *
 brix_build_single_memory_chain(brix_ctx_t *ctx, ngx_connection_t *c,
     u_char *databuf, size_t data_total)
 {
-    brix_resp_slot_t *slot = &ctx->out_ring[ctx->out_tail];
+    brix_resp_slot_t *slot = &ctx->out.ring[ctx->out.tail];
     /*
      * Header lives in THIS slot's private buffer (not the shared
-     * read_hdr_scratch), so pipelining the next memory read into another slot
+     * rd.read_hdr_scratch), so pipelining the next memory read into another slot
      * cannot overwrite a still-draining response's 8-byte header.  This is what
      * makes the memory (userspace-TLS) read path safe to pipeline; the body
      * buffer is made per-in-flight by brix_acquire_read_buffer() in read.c.
@@ -248,7 +248,7 @@ brix_build_single_memory_chain(brix_ctx_t *ctx, ngx_connection_t *c,
     u_char *hdrbuf = slot->hdr_bytes;
 
     (void) c;
-    brix_build_resp_hdr(ctx->cur_streamid, kXR_ok, (uint32_t) data_total,
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok, (uint32_t) data_total,
                           (ServerResponseHdr *) hdrbuf);
 
     ngx_memzero(&slot->read_fast_hdr_chain, sizeof(slot->read_fast_hdr_chain));
@@ -301,16 +301,16 @@ ngx_chain_t *
 brix_build_window_chain(brix_ctx_t *ctx, ngx_connection_t *c,
     u_char *databuf, size_t data_total, uint16_t status)
 {
-    brix_resp_slot_t *slot = &ctx->out_ring[ctx->out_tail];
+    brix_resp_slot_t *slot = &ctx->out.ring[ctx->out.tail];
     u_char *hdrbuf;
 
-    hdrbuf = BRIX_GET_SCRATCH(ctx, c, read_hdr_scratch, read_hdr_scratch_size,
+    hdrbuf = BRIX_GET_SCRATCH(ctx, c, rd.read_hdr_scratch, rd.read_hdr_scratch_size,
                                 XRD_RESPONSE_HDR_LEN);
     if (hdrbuf == NULL) {
         return NULL;
     }
 
-    brix_build_resp_hdr(ctx->cur_streamid, status, (uint32_t) data_total,
+    brix_build_resp_hdr(ctx->recv.cur_streamid, status, (uint32_t) data_total,
                           (ServerResponseHdr *) hdrbuf);
 
     ngx_memzero(&slot->read_fast_hdr_chain, sizeof(slot->read_fast_hdr_chain));
@@ -365,8 +365,8 @@ brix_build_window_chain(brix_ctx_t *ctx, ngx_connection_t *c,
  * Setting in_file=1 is critical: it tells nginx's output_filter to invoke sendfile()
  * syscall directly rather than reading into user space and writing back out.
  *
- * HOW: 1) Acquires read_hdr_scratch for the header buffer (same as memory chain).
- *      2) Calls brix_build_resp_hdr() with ctx->cur_streamid, kXR_ok, data_total.
+ * HOW: 1) Acquires rd.read_hdr_scratch for the header buffer (same as memory chain).
+ *      2) Calls brix_build_resp_hdr() with ctx->recv.cur_streamid, kXR_ok, data_total.
  *      3) Memzeros fast structs including read_fast_file (ngx_file_t).
  *      4) Configures hdr_buf → hdr_chain (header memory-backed).
  *      5) If data_total==0 returns header-only; otherwise configures:
@@ -381,12 +381,12 @@ brix_build_single_sendfile_chain(brix_ctx_t *ctx, ngx_connection_t *c,
     int fd, const char *path, off_t offset, size_t data_total,
     u_char **base_out)
 {
-    brix_resp_slot_t *slot = &ctx->out_ring[ctx->out_tail];
+    brix_resp_slot_t *slot = &ctx->out.ring[ctx->out.tail];
     u_char *hdrbuf = slot->hdr_bytes;
 
     /*
      * Phase 29: write the 8-byte header into THIS slot's private header buffer
-     * (not the shared read_hdr_scratch), so pipelining the next read cannot
+     * (not the shared rd.read_hdr_scratch), so pipelining the next read cannot
      * overwrite a still-draining read's header.  The header is owned by the slot
      * for its lifetime, so there is nothing to release — base_out stays NULL.
      */
@@ -394,11 +394,11 @@ brix_build_single_sendfile_chain(brix_ctx_t *ctx, ngx_connection_t *c,
         *base_out = NULL;
     }
 
-    brix_build_resp_hdr(ctx->cur_streamid, kXR_ok, (uint32_t) data_total,
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok, (uint32_t) data_total,
                           (ServerResponseHdr *) hdrbuf);
 
     /* A single-chunk sendfile read is the one response the recv loop pipelines. */
-    ctx->resp_pipelinable = 1;
+    ctx->out.resp_pipelinable = 1;
 
     ngx_memzero(&slot->read_fast_hdr_chain, sizeof(slot->read_fast_hdr_chain));
     ngx_memzero(&slot->read_fast_body_chain, sizeof(slot->read_fast_body_chain));
@@ -446,7 +446,7 @@ brix_build_single_sendfile_chain(brix_ctx_t *ctx, ngx_connection_t *c,
  * XRootD responses larger than 16 MiB must be split into multiple wire frames:
  *   [kXR_oksofar frame][data][kXR_oksofar frame][data]...[kXR_ok frame][data]
  *
- * Each header is written into a contiguous block in read_hdr_scratch (avoiding
+ * Each header is written into a contiguous block in rd.read_hdr_scratch (avoiding
  * N separate pool allocations).  Each data link points into databuf at the
  * corresponding offset — zero copy from the AIO receive buffer to the wire.
  *
@@ -491,7 +491,7 @@ brix_build_chunked_chain(brix_ctx_t *ctx, ngx_connection_t *c,
      * (8 bytes each); each iteration writes into its own slice at
      * hdrbuf + chunk*XRD_RESPONSE_HDR_LEN, avoiding N separate allocations.
      */
-    hdrbuf = BRIX_GET_SCRATCH(ctx, c, read_hdr_scratch, read_hdr_scratch_size,
+    hdrbuf = BRIX_GET_SCRATCH(ctx, c, rd.read_hdr_scratch, rd.read_hdr_scratch_size,
                                 n_chunks * XRD_RESPONSE_HDR_LEN);
     if (hdrbuf == NULL) {
         return NULL;
@@ -515,7 +515,7 @@ brix_build_chunked_chain(brix_ctx_t *ctx, ngx_connection_t *c,
         status = (chunk == n_chunks - 1) ? kXR_ok : kXR_oksofar;
         hptr = hdrbuf + chunk * XRD_RESPONSE_HDR_LEN;
 
-        brix_build_resp_hdr(ctx->cur_streamid, status,
+        brix_build_resp_hdr(ctx->recv.cur_streamid, status,
                               (uint32_t) chunk_data,
                               (ServerResponseHdr *) hptr);
 
@@ -629,7 +629,7 @@ brix_build_sendfile_chain(brix_ctx_t *ctx, ngx_connection_t *c,
 
     /*
      * Phase 32 WS2: keep the per-chunk headers in THIS slot's private header
-     * buffer (slot->hdr_bytes), not the shared read_hdr_scratch, so a multi-chunk
+     * buffer (slot->hdr_bytes), not the shared rd.read_hdr_scratch, so a multi-chunk
      * sendfile read can pipeline — the next read built into another slot cannot
      * clobber these headers while this response is still draining.  rlen is
      * capped at BRIX_READ_REQUEST_MAX so n_chunks*8 <= BRIX_SLOT_HDR_MAX
@@ -640,9 +640,9 @@ brix_build_sendfile_chain(brix_ctx_t *ctx, ngx_connection_t *c,
     if (n_chunks * XRD_RESPONSE_HDR_LEN > BRIX_SLOT_HDR_MAX) {
         return NULL;
     }
-    hdrbuf = ctx->out_ring[ctx->out_tail].hdr_bytes;
+    hdrbuf = ctx->out.ring[ctx->out.tail].hdr_bytes;
 
-    ctx->resp_pipelinable = 1;
+    ctx->out.resp_pipelinable = 1;
 
     for (chunk = 0; chunk < n_chunks; chunk++) {
         size_t        chunk_data;
@@ -653,13 +653,13 @@ brix_build_sendfile_chain(brix_ctx_t *ctx, ngx_connection_t *c,
 
         /* Same frame layout as the memory path: full CHUNK_MAX per chunk
          * except the last (last_size); kXR_oksofar on every frame but the
-         * final kXR_ok, all sharing ctx->cur_streamid. */
+         * final kXR_ok, all sharing ctx->recv.cur_streamid. */
         chunk_data = (chunk < n_chunks - 1) ? BRIX_READ_CHUNK_MAX
                                             : last_size;
         status = (chunk == n_chunks - 1) ? kXR_ok : kXR_oksofar;
         hptr = hdrbuf + chunk * XRD_RESPONSE_HDR_LEN;
 
-        brix_build_resp_hdr(ctx->cur_streamid, status,
+        brix_build_resp_hdr(ctx->recv.cur_streamid, status,
                               (uint32_t) chunk_data,
                               (ServerResponseHdr *) hptr);
 

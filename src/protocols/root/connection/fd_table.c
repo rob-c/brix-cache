@@ -308,7 +308,7 @@ brix_free_fhandle(brix_ctx_t *ctx, int handle_index)
            ? ctx->session->connection->log : NULL;
 
     if (!ctx->is_bound && file->fd >= 0) {
-        brix_session_handle_unpublish(ctx->sessid, handle_index);
+        brix_session_handle_unpublish(ctx->login.sessid, handle_index);
     }
 
     if (file->sd_obj.driver != NULL) {

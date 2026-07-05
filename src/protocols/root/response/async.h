@@ -58,7 +58,7 @@ ngx_int_t brix_send_attn_asynresp(brix_ctx_t *ctx, ngx_connection_t *c,
 
 /*
  * brix_send_attn — generic kXR_attn frame.
- * outer streamid = ctx->cur_streamid, body = actnum[4] + parms[msglen].
+ * outer streamid = ctx->recv.cur_streamid, body = actnum[4] + parms[msglen].
  * Prefer the structured helpers above for active action codes.
  */
 ngx_int_t brix_send_attn(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -71,7 +71,7 @@ ngx_int_t brix_send_attn(brix_ctx_t *ctx, ngx_connection_t *c,
 /*
  * Each handler queues a single kXR_error(kXR_Unsupported) response naming its
  * own retired opcode and performs no other work. Common to all:
- *   ctx->cur_streamid is echoed into the error frame; the body is allocated
+ *   ctx->recv.cur_streamid is echoed into the error frame; the body is allocated
  *   from c->pool and queued on ctx via brix_send_error.
  *   Returns NGX_OK once the error frame is queued, NGX_ERROR on alloc failure.
  */

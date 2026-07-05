@@ -106,8 +106,8 @@ brix_query_cksum_path(brix_ctx_t *ctx, ngx_connection_t *c,
     char               resp[256];
     int                fd;
     brix_vfs_file_t *fh = NULL;
-    const u_char      *payload = ctx->payload;
-    size_t        payload_len = (size_t) ctx->cur_dlen;
+    const u_char      *payload = ctx->recv.payload;
+    size_t        payload_len = (size_t) ctx->recv.cur_dlen;
     size_t        wire_len;
     const u_char *sep = NULL;
     size_t        alg_len = 0;
@@ -200,7 +200,7 @@ brix_query_cksum_path(brix_ctx_t *ctx, ngx_connection_t *c,
 
         /* tried/triedrc: converge to not-found once the client has visited
          * every server holding this path (avoids the redirect-limit loop). */
-        if (brix_manager_tried_exhausted(ctx->payload, ctx->cur_dlen,
+        if (brix_manager_tried_exhausted(ctx->recv.payload, ctx->recv.cur_dlen,
                                            pathbuf)) {
             BRIX_RETURN_ERR(ctx, c, BRIX_OP_QUERY_CKSUM, "QUERY", pathbuf,
                               "cksum", kXR_NotFound,
@@ -214,18 +214,18 @@ brix_query_cksum_path(brix_ctx_t *ctx, ngx_connection_t *c,
         }
 
         /* Registry miss — ask the CMS parent via kYR_locate (async). */
-        if (conf->cms_ctx != NULL) {
+        if (conf->cms.ctx != NULL) {
             uint32_t streamid;
 
-            streamid = ngx_brix_cms_next_streamid(conf->cms_ctx);
+            streamid = ngx_brix_cms_next_streamid(conf->cms.ctx);
             if (brix_pending_insert(streamid, ngx_pid, c->fd, c->number,
-                                      ctx->cur_streamid,
-                                      conf->cms_locate_timeout) == NGX_OK)
+                                      ctx->recv.cur_streamid,
+                                      conf->cms.locate_timeout) == NGX_OK)
             {
                 ctx->cms_wait_streamid = streamid;
                 ctx->state = XRD_ST_WAITING_CMS;
-                ngx_add_timer(c->read, conf->cms_locate_timeout);
-                if (ngx_brix_cms_send_locate(conf->cms_ctx, streamid,
+                ngx_add_timer(c->read, conf->cms.locate_timeout);
+                if (ngx_brix_cms_send_locate(conf->cms.ctx, streamid,
                                                pathbuf) == NGX_OK)
                 {
                     return NGX_AGAIN;
@@ -304,7 +304,7 @@ brix_query_cksum_path(brix_ctx_t *ctx, ngx_connection_t *c,
         t->fh       = fh;        /* done cb releases the VFS handle */
         t->close_fd = 1;
         brix_vfs_file_sd_obj(fh, &t->obj); /* Layer 3: whole-object checksum */
-        ngx_memcpy(t->streamid, ctx->cur_streamid, 2);
+        ngx_memcpy(t->streamid, ctx->recv.cur_streamid, 2);
         ngx_cpystrn((u_char *) t->algo, (u_char *) algo, sizeof(t->algo));
         ngx_cpystrn((u_char *) t->resolved, (u_char *) full_path,
                     sizeof(t->resolved));
@@ -363,11 +363,11 @@ brix_query_cksum_handle(brix_ctx_t *ctx, ngx_connection_t *c,
     int       idx;
     ngx_int_t rc;
 
-    if (ctx->payload != NULL && ctx->cur_dlen > 1 && ctx->payload[0] == 0) {
-        const u_char *ap = ctx->payload + 1;
+    if (ctx->recv.payload != NULL && ctx->recv.cur_dlen > 1 && ctx->recv.payload[0] == 0) {
+        const u_char *ap = ctx->recv.payload + 1;
         size_t        alen;
 
-        alen = strnlen((const char *) ap, (size_t) (ctx->cur_dlen - 1));
+        alen = strnlen((const char *) ap, (size_t) (ctx->recv.cur_dlen - 1));
         if (alen > 0) {
             (void) brix_query_parse_algorithm(ap, alen, algo, algo_sz);
         }
@@ -403,7 +403,7 @@ brix_query_cksum_handle(brix_ctx_t *ctx, ngx_connection_t *c,
         t->fd       = ctx->files[idx].fd;
         t->close_fd = 0;
         t->obj      = ctx->files[idx].sd_obj; /* Layer 3: whole-object checksum */
-        ngx_memcpy(t->streamid, ctx->cur_streamid, 2);
+        ngx_memcpy(t->streamid, ctx->recv.cur_streamid, 2);
         ngx_cpystrn((u_char *) t->algo, (u_char *) algo, sizeof(t->algo));
         ngx_cpystrn((u_char *) t->resolved, (u_char *) resolved,
                     sizeof(t->resolved));
@@ -458,7 +458,7 @@ brix_query_cksum(brix_ctx_t *ctx, ngx_connection_t *c,
      * The default algorithm is adler32 (xrdcp's default) in either variant; a
      * leading "algo:" prefix in the path payload overrides it downstream.
      */
-    if (ctx->cur_dlen > 0 && ctx->payload != NULL && ctx->payload[0] != 0) {
+    if (ctx->recv.cur_dlen > 0 && ctx->recv.payload != NULL && ctx->recv.payload[0] != 0) {
         return brix_query_cksum_path(ctx, c, conf, algo, sizeof(algo));
     }
 

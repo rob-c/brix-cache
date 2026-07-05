@@ -1,0 +1,46 @@
+/*
+ * webdav/webdav_auth.h
+ *
+ * WebDAV authentication surface: SSL ex_data index init, CA-store build from
+ * cadir/cafile/crl, the GSI/X.509 proxy-cert and Bearer-token auth gates, the
+ * token write-scope check, and postconfig PKI-path validation.  Split out of
+ * webdav.h so the auth surface is grouped by concern and individually
+ * reviewable.  Includes webdav.h for the shared request/config types.
+ */
+
+#ifndef NGX_HTTP_BRIX_WEBDAV_AUTH_H
+#define NGX_HTTP_BRIX_WEBDAV_AUTH_H
+
+#include "webdav.h"
+
+/* Authentication */
+/* Allocate the global SSL/SSL_SESSION ex_data indices used to cache TLS auth
+ * results; call once at postconfig.  NGX_OK / NGX_ERROR. */
+ngx_int_t webdav_auth_init_ssl_indices(ngx_log_t *log);
+/* Build an X509_STORE from conf->cadir/cafile/crl (no proxy-cert chains for
+ * plain WebDAV x509).  Returns the store (caller/postconfig owns it) or NULL;
+ * *crl_count_out receives the number of CRLs loaded. */
+X509_STORE *webdav_build_ca_store(ngx_log_t *log,
+    ngx_http_brix_webdav_loc_conf_t *conf, int *crl_count_out);
+/* Auth gate (see HELPERS): verify the peer's GSI/X.509 (proxy) cert against
+ * conf->ca_store, allocating+caching the req ctx and identity.  Result is
+ * memoised per TLS session.  NGX_OK; 403 (no/invalid cert or non-TLS); 500. */
+ngx_int_t webdav_verify_proxy_cert(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf);
+/* Auth gate (see HELPERS): validate the Bearer token (JWKS JWT or macaroon,
+ * with old-secret grace-period fallback) and stash claims/scopes in the req
+ * ctx.  NGX_OK; NGX_DECLINED if no token/keys configured (try other auth);
+ * 401 invalid; 500. */
+ngx_int_t webdav_verify_bearer_token(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf);
+/* For token-authed mutating methods, require a write scope covering r->uri
+ * (matched against the decoded URI path, not the filesystem path).  NGX_OK if
+ * granted OR auth was not token-based; NGX_HTTP_FORBIDDEN otherwise. */
+ngx_int_t webdav_check_token_write_scope(ngx_http_request_t *r,
+    const char *method_name);
+/* Postconfig-time validation of CA/CRL paths so misconfiguration fails
+ * `nginx -t`.  NGX_OK / NGX_ERROR. */
+ngx_int_t webdav_check_pki_consistency(ngx_log_t *log,
+    ngx_http_brix_webdav_loc_conf_t *conf);
+
+#endif /* NGX_HTTP_BRIX_WEBDAV_AUTH_H */

@@ -66,7 +66,7 @@ brix_handle_statx(brix_ctx_t *ctx, ngx_connection_t *c,
     struct stat   st;
     int           n_paths = 0;
 
-    if (ctx->cur_dlen == 0 || ctx->payload == NULL) {
+    if (ctx->recv.cur_dlen == 0 || ctx->recv.payload == NULL) {
         BRIX_OP_ERR(ctx, BRIX_OP_STATX);
         return brix_send_error(ctx, c, kXR_ArgMissing, "no paths given");
     }
@@ -75,8 +75,8 @@ brix_handle_statx(brix_ctx_t *ctx, ngx_connection_t *c,
 
     rsp_ptr = rsp_buf;
     rsp_end = rsp_buf + BRIX_STATX_BUF_MAX;
-    cursor  = ctx->payload;
-    end     = ctx->payload + ctx->cur_dlen;
+    cursor  = ctx->recv.payload;
+    end     = ctx->recv.payload + ctx->recv.cur_dlen;
 
     while (cursor < end && n_paths < BRIX_STATX_MAX_PATHS) {
         if (!brix_statx_next_path(&cursor, end, reqpath_buf,

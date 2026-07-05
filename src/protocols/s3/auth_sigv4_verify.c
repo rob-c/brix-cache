@@ -5,6 +5,7 @@
 #include "core/compat/uri.h"
 #include "core/compat/sigv4.h"   /* shared SigV4 signing-key derive (libxrdproto) */
 #include "observability/metrics/unified.h"
+#include "core/compat/cstr.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -483,12 +484,11 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
             return s3_reject_bad_amz_date(r, "Missing X-Amz-Date header");
         }
 
-        if (date_hdr.len >= sizeof(header_amz_date)) {
+        if (brix_str_cbuf(header_amz_date, sizeof(header_amz_date), &date_hdr)
+            == NULL)
+        {
             return s3_reject_bad_amz_date(r, "Invalid X-Amz-Date");
         }
-
-        ngx_memcpy(header_amz_date, date_hdr.data, date_hdr.len);
-        header_amz_date[date_hdr.len] = '\0';
 
         if (s3_parse_amz_datetime(header_amz_date, &request_time) != NGX_OK) {
             return s3_reject_bad_amz_date(r, "Invalid X-Amz-Date");

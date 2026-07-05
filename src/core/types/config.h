@@ -102,6 +102,8 @@ typedef struct {
 #include "auth/authz/auth_cache.h"
 #include "core/shm/rate_limit.h"
 
+#include "conf_structs.h"
+
 /*
  * Per-server configuration block.
  * Directive names in square brackets show which nginx.conf directive
@@ -143,18 +145,8 @@ typedef struct {
     ngx_array_t  *authdb_rules; /* brix_authdb_rule_t[] parsed from authdb (native) */
 
     /* ---- XrdAcc engine (selected by `brix_authdb_format xrdacc`) ---- */
-    ngx_uint_t    acc_format;        /* 0=native (default), 1=xrdacc */
-    ngx_uint_t    acc_audit;         /* 0=none 1=deny 2=grant 3=all */
-    ngx_int_t     acc_refresh;       /* authdb hot-reload interval, s; 0=off */
-    ngx_int_t     acc_gidlifetime;   /* Unix group cache TTL, s */
-    ngx_flag_t    acc_pgo;           /* resolve primary Unix group only */
-    ngx_str_t     acc_nisdomain;     /* NIS domain for netgroup lookups */
-    ngx_flag_t    acc_resolve_hosts; /* reverse-DNS peer for 'h' host rules */
-    ngx_str_t     acc_spacechar;     /* legacy: char substituted for spaces in ids */
-    ngx_flag_t    acc_encoding;      /* legacy: URI-decode authdb path tokens */
-    ngx_str_t     acc_gidretran;     /* legacy: gids to skip in group resolution */
-    struct brix_acc_tables_s *acc_tables; /* per-worker tables (init_process) */
-    ngx_event_t  *acc_timer;         /* per-worker authdb refresh timer */
+    brix_acc_conf_t  acc;  /* [brix_authdb_format, brix_authdb_audit, ...]
+                              — see brix_acc_conf_t. */
     ngx_array_t  *group_rules;  /* brix_group_rule_t[] from brix_inherit_parent_group */
     ngx_array_t  *manager_map;  /* brix_manager_map_t[] from brix_manager_map */
 
@@ -232,19 +224,12 @@ typedef struct {
                                     issuer_registry.h out of this header. */
 
     /* ---- Phase-59 W3a: XrdThrottle contract (off by default) ---- */
-    ngx_str_t   throttle_zone_name;  /* [brix_throttle_zone <rate-limit zone>] */
-    void       *throttle_zone;       /* brix_rl_zone_t* resolved at postconfig */
-    ngx_uint_t  throttle_max_open_files;     /* [brix_throttle_max_open_files] */
-    ngx_uint_t  throttle_max_active_conn;    /* [brix_throttle_max_active_connections] */
+    brix_throttle_conf_t  throttle;  /* [brix_throttle_zone, brix_throttle_max_*]
+                                        — see brix_throttle_conf_t. */
 
-    /* ---- CSI block-checksum integrity on the xmeta record (ON by default,
-     * xmeta P3 — the phase-59 per-page .xrdt tagstore is retired) ---- */
-    ngx_flag_t  csi_enable;      /* [brix_csi on|off] default ON */
-    size_t      csi_block;       /* [brix_csi_block 1m] granule for NEW
-                                    records (existing keep their own) */
-    ngx_flag_t  csi_require;     /* [brix_csi_require on|off] no record=err */
-    ngx_flag_t  csi_trust_fs;    /* [brix_csi_trust_fs on|off] fs is
-                                    self-checksumming: skip read-verify */
+    /* ---- CSI block-checksum integrity on the xmeta record (ON by default) ---- */
+    brix_csi_conf_t  csi;  /* [brix_csi, brix_csi_block, brix_csi_require,
+                              brix_csi_trust_fs] — see brix_csi_conf_t. */
 
     ngx_str_t   token_macaroon_secret;     /* [brix_macaroon_secret <hex>] */
     ngx_str_t   token_macaroon_secret_old; /* [brix_macaroon_secret_old <hex>]
@@ -286,16 +271,8 @@ typedef struct {
     ngx_array_t *sss_keys;      /* brix_sss_key_t[] parsed from sss_keytab */
 
     /* ---- Kerberos 5 settings (used when auth = krb5) ---- */
-    ngx_str_t    krb5_principal; /* [brix_krb5_principal xrootd/host@REALM] */
-    ngx_str_t    krb5_keytab;    /* [brix_krb5_keytab FILE:/etc/xrootd.keytab]
-                                    Empty = Kerberos default keytab. */
-    ngx_flag_t   krb5_ip_check;  /* [brix_krb5_ip_check on|off]
-                                    Default off, matching upstream XrdSeckrb5. */
-#if (BRIX_HAVE_KRB5)
-    krb5_context   krb5_context;
-    krb5_keytab    krb5_keytab_obj;
-    krb5_principal krb5_principal_obj;
-#endif
+    brix_krb5_conf_t  krb5;  /* [brix_krb5_principal, brix_krb5_keytab,
+                                brix_krb5_ip_check] + loaded libkrb5 objects. */
 
     /* ---- Unix auth settings (used when auth = unix) ---- */
     ngx_flag_t   unix_trust_remote; /* [brix_unix_trust_remote on|off]
@@ -460,24 +437,10 @@ typedef struct {
                                                XrdSecsss protocol; "" = no SSS. Set on
                                                sd_xroot's synthetic conf from the
                                                credential (sss_keytab field). */
-    /* ---- Pelican cache registration / advertisement (origin/pelican_register.c) ----
-     * When enabled, this node periodically POSTs a signed OriginAdvertiseV2 to the
-     * federation Director's /api/v1.0/director/registerCache so it is discoverable
-     * as a cache. The advertise JWT (scope pelican.advertise) is ES256-signed with
-     * cache_advertise_key; the cache's public key must be registered with the
-     * federation registry out of band (the prerequisite handshake). */
-    ngx_flag_t  cache_advertise;            /* [brix_cache_advertise on] */
-    ngx_str_t   cache_advertise_key;        /* [..._key <ec-p256.pem>] signing key */
-    ngx_str_t   cache_data_url;             /* [..._data_url https://cache:8443] public data URL (data-url) */
-    ngx_str_t   cache_web_url;              /* [..._web_url https://cache:8444] (web-url) */
-    ngx_str_t   cache_sitename;             /* [..._sitename MyCache] → registry-prefix /caches/<name> */
-    ngx_str_t   cache_issuer_url;           /* [..._issuer <url>] advertise token iss */
-    ngx_msec_t  cache_advertise_interval;   /* [..._interval 60s] re-advertise period (>=60s) */
-    ngx_array_t *cache_advertise_ns;        /* ngx_str_t[] namespace prefixes advertised */
-    void        *cache_advertise_key_pkey;  /* loaded EVP_PKEY* (init_process) */
-    void        *cache_advertise_timer;     /* ngx_event_t* periodic timer */
-    char        cache_advertise_instance[40];/* hex UUID instanceID, set at init */
-    uint64_t    cache_advertise_gen;        /* monotonic generationID */
+    /* ---- Pelican cache registration / advertisement (origin/pelican_register.c) ---- */
+    brix_cache_advertise_conf_t  advertise;  /* [brix_cache_advertise, ..._key,
+                                                ..._data_url, ..._sitename, ...]
+                                                — see brix_cache_advertise_conf_t. */
     time_t      cache_lock_timeout; /* [brix_cache_lock_timeout 30] — how long to
                                        wait for another worker's fill before giving up */
     ngx_uint_t  cache_eviction_threshold; /* [brix_cache_eviction_threshold 0.9]
@@ -496,13 +459,8 @@ typedef struct {
                                              requesting more is capped to this and the
                                              client re-reads the tail. Default matches
                                              stock XRootD: maxBuffsz(2MiB) - 16. */
-    ngx_str_t   cache_include_regex_str;  /* [brix_cache_include_regex "\.root$"]
-                                             POSIX extended regular expression matched
-                                             against the path basename; a match always
-                                             admits the file regardless of size. */
-    regex_t     cache_include_regex;      /* compiled POSIX ERE; valid only when
-                                             cache_include_regex_set is 1 */
-    ngx_flag_t  cache_include_regex_set;  /* 1 after a successful regcomp() */
+    brix_cache_include_regex_conf_t  include_regex;  /* [brix_cache_include_regex]
+                                                        — see brix_cache_include_regex_conf_t. */
 
     /* ---- unified cache-state engine (src/cache/cinfo.h v3) ----
      * cache_state_root: where the per-file .cinfo persistence records live; "" ⇒
@@ -522,10 +480,8 @@ typedef struct {
      * (hysteresis). Watermarks are filesystem occupancy in ppm (0-1000000), the
      * same unit as cache_eviction_threshold (which maps to high for back-compat).
      * cache_reap_interval is the timer period in seconds. */
-    ngx_uint_t   cache_high_watermark;    /* [brix_cache_high_watermark] ppm; start purge above */
-    ngx_uint_t   cache_low_watermark;     /* [brix_cache_low_watermark] ppm; purge down to */
-    time_t       cache_reap_interval;     /* [brix_cache_reap_interval] secs between ticks */
-    ngx_event_t *cache_watermark_timer;   /* per-worker watermark reaper; NULL if off */
+    brix_cache_reaper_conf_t  reaper;  /* [brix_cache_high_watermark, ..._low_watermark,
+                                          ..._reap_interval] — see brix_cache_reaper_conf_t. */
 
     /* ---- exclusively-VFS cache storage (src/cache/cache_storage.h) ----
      * The cache does ALL disk byte-I/O through an SD driver instance per role
@@ -594,24 +550,9 @@ typedef struct {
      * is replaced here by sync-close-flush vs async-thread-pool-flush.
      */
 
-    /* Write-through configuration (mirrors XrdPfcDecision pattern from
-     * /tmp/xrootd-src/src/XrdPfc/XrdPfcDecision.hh). */
-    ngx_flag_t               wt_enable;            /* [brix_write_through on|off] */
-    uint8_t                  wt_mode;              /* [brix_wt_mode sync|async] — BRIX_WT_MODE_* */
-#define BRIX_WT_MODE_SYNC  0
-#define BRIX_WT_MODE_ASYNC 1
-#define BRIX_WT_MODE_UNSET 255
-    ngx_str_t                wt_origin_host;       /* [brix_wt_origin host:port] — defaults to cache_origin */
-    uint16_t                 wt_origin_port;       /* parsed TCP port for write-back target */
-    ngx_str_t                wt_credential;        /* [brix_wt_credential <name>] — §14 credential
-                                                    * the write-back authenticates with (→ ztn). */
-    ngx_array_t             *wt_deny_prefixes;     /* brix_wt_prefix_entry[] paths excluded from WT */
-    ngx_array_t             *wt_allow_prefixes;    /* same, always included in WT regardless of size */
-
-    /* Decision configuration — populated at postconfiguration. The fn pointer
-     * points to the default policy engine (brix_wt_default_decide) unless an
-     * external plugin overrides it via a future extension point. */
-    brix_wt_decision_cfg_t wt_decision;          /* decision callback + config block */
+    /* ---- write-through mode ---- */
+    brix_wt_conf_t  wt;  /* [brix_write_through, brix_wt_mode, brix_wt_origin,
+                            brix_wt_credential, ...] — see brix_wt_conf_t. */
 
     /* ---- request signing / security level ---- */
     ngx_uint_t  security_level;  /* [brix_security_level none|compatible|standard|intense|pedantic]
@@ -681,54 +622,12 @@ typedef struct {
                                     default BRIX_REDIR_CACHE_SLOTS */
 
     /* ---- Phase 22: active health checks (off by default) ---- */
-    ngx_flag_t  hc_enabled;      /* [brix_health_check on|off] */
-    ngx_msec_t  hc_interval_ms;  /* [brix_health_check_interval 30s] */
-    ngx_msec_t  hc_timeout_ms;   /* [brix_health_check_timeout 5s] */
-    ngx_uint_t  hc_threshold;    /* [brix_health_check_threshold 3] */
-    ngx_msec_t  hc_blacklist_ms; /* [brix_health_check_blacklist 60s] */
-    ngx_uint_t  hc_type;         /* [brix_health_check_type ping|stat] */
+    brix_hc_conf_t  hc;  /* [brix_health_check, brix_health_check_*] — see brix_hc_conf_t. */
 
-    /* ---- CMS manager heartbeat ---- */
-    ngx_msec_t            cms_locate_timeout; /* [brix_cms_locate_timeout 5s]
-                                                  how long to wait for a kYR_select
-                                                  reply before returning an error */
-    ngx_str_t             cms_manager;   /* [brix_cms_manager host:port] — raw directive */
-    ngx_addr_t           *cms_addr;      /* resolved manager address */
-    ngx_str_t             cms_paths;     /* [brix_cms_paths /data] — exported path list */
-    time_t                cms_interval;  /* [brix_cms_interval 60] — heartbeat period */
-    ngx_int_t             listen_port;   /* [brix_listen_port 1094] — port advertised to CMS manager */
-    ngx_brix_cms_ctx_t *cms_ctx;       /* runtime connection / timer state (heap) */
-    ngx_uint_t            cms_suspended; /* set by kYR_status suspend; cleared by resume */
-
-    /* ---- Phase 50: CMS client (node->manager) network-fault resilience ----
-     * The CMS heartbeat client never armed a steady-state read/send deadline, so a
-     * black-holed / half-open manager was never detected and the node never failed
-     * over.  These bound that.  Unset auto-derives a generous default ON (safe with
-     * real cmsd, which pings within its interval); an explicit 0 disables.  All
-     * resolved at merge time from cms_interval and cached on the ctx at start. */
-    ngx_msec_t            cms_read_timeout;     /* [brix_cms_read_timeout] manager
-                                                   inactivity deadline; unset =>
-                                                   max(3*cms_interval, 90s). 0 = off. */
-    ngx_msec_t            cms_send_timeout;     /* [brix_cms_send_timeout] heartbeat
-                                                   send-stall deadline; unset => 10s.
-                                                   0 = off. */
-    ngx_flag_t            cms_tcp_keepalive;    /* [brix_cms_tcp_keepalive on]
-                                                   SO_KEEPALIVE + tight probes on the
-                                                   manager socket. */
-    ngx_msec_t            cms_tcp_user_timeout; /* [brix_cms_tcp_user_timeout]
-                                                   TCP_USER_TIMEOUT (ms); unset =>
-                                                   read-timeout backstop. 0 = off. */
-    /* Fast cold-start mesh settling.  Both default by manager-locality profile when
-     * left unset (see src/cms/connect.c): a loopback manager settles most
-     * aggressively.  Only affect the PRE-FIRST-LOGIN window — once a node has
-     * registered, reconnects use the normal exponential backoff. */
-    ngx_msec_t            cms_initial_delay;    /* [brix_cms_initial_delay] delay
-                                                   before the first connect attempt;
-                                                   unset => 0 (loopback) / 10ms. */
-    ngx_msec_t            cms_connect_retry;    /* [brix_cms_connect_retry] interval
-                                                   between connect retries while the
-                                                   manager is not yet listening; unset
-                                                   => 10ms (loopback) / 75ms. */
+    /* ---- CMS manager heartbeat + client network-fault resilience ---- */
+    brix_cms_conf_t  cms;  /* [brix_cms_manager, brix_cms_paths, brix_cms_interval,
+                              brix_cms_*_timeout, ...] — see brix_cms_conf_t. */
+    ngx_int_t        listen_port;  /* [brix_listen_port 1094] — port advertised to CMS manager */
 
     /* ---- bounded recursive query walks ---- */
     ngx_uint_t  ckscan_max_depth; /* [brix_ckscan_depth N] — maximum
@@ -757,96 +656,15 @@ typedef struct {
     ngx_flag_t  relay_guard_enable;
 
     /* ---- transparent proxy mode ---- */
-    ngx_flag_t  proxy_enable;  /* [brix_proxy on|off] */
-    ngx_str_t   proxy_host;    /* [brix_proxy_upstream host] */
-    ngx_int_t   proxy_port;    /* [brix_proxy_upstream host:port] */
+    brix_proxy_conf_t  proxy;  /* [brix_proxy, brix_proxy_upstream, brix_proxy_auth,
+                                  brix_proxy_login_user, brix_proxy_*_timeout, ...]
+                                  — see brix_proxy_conf_t. */
 
-    /* Wrap the outbound TCP socket in TLS before sending the bootstrap. */
-    ngx_flag_t  proxy_upstream_tls;    /* [brix_proxy_upstream_tls on|off] */
-#if (NGX_SSL)
-    ngx_ssl_t  *proxy_tls_ctx;         /* SSL_CTX built at postconfiguration */
-#endif
-
-    /* Auth forwarding policy. */
-    ngx_uint_t  proxy_auth;            /* [brix_proxy_auth anonymous|forward|sss] */
-#define BRIX_PROXY_AUTH_ANONYMOUS  0
-#define BRIX_PROXY_AUTH_FORWARD    1
-#define BRIX_PROXY_AUTH_SSS        2
-#define BRIX_PROXY_AUTH_GSI        3   /* phase-4b: present the user's delegated
-                                          * X.509 proxy to the upstream GSI auth */
-
-    /* Username placed in the upstream kXR_login frame. */
-    ngx_uint_t  proxy_login_user;      /* [brix_proxy_login_user anonymous|passthrough|fixed:<n>] */
-#define BRIX_PROXY_LOGIN_ANONYMOUS   0   /* default: "xrd" */
-#define BRIX_PROXY_LOGIN_PASSTHROUGH 1   /* copy client's authenticated username */
-#define BRIX_PROXY_LOGIN_FIXED       2   /* literal name from proxy_login_user_name */
-    char        proxy_login_user_name[9];  /* NUL-terminated, max 8 chars (kXR_login limit) */
-
-    /* One JSON line per closed/abandoned upstream file handle. */
-    ngx_str_t   proxy_audit_log;       /* [brix_proxy_audit_log <path>|off] */
-    ngx_fd_t    proxy_audit_log_fd;    /* opened fd; NGX_INVALID_FILE if off.
-                                          Captured per-worker from proxy_audit_log_file->fd. */
-    ngx_open_file_t *proxy_audit_log_file;  /* nginx-managed handle; see access_log_file. */
-
-    /* Upstream TLS certificate verification (requires proxy_upstream_tls on). */
-    ngx_str_t   proxy_upstream_tls_ca;    /* [brix_proxy_upstream_tls_ca /etc/pki/ca.pem]
-                                             PEM CA bundle to verify upstream certificate */
-    ngx_str_t   proxy_upstream_tls_name;  /* [brix_proxy_upstream_tls_name host]
-                                             SNI hostname override; defaults to proxy_host */
-
-    /* Reconnect on upstream drop (0 = disabled). */
-    ngx_uint_t  proxy_reconnect_attempts; /* [brix_proxy_reconnect_attempts N]
-                                             reconnect budget per connection when upstream
-                                             drops while idle with no open file handles */
-
-    /* Multiple upstream endpoints — round-robin selected at connect time. */
-    ngx_array_t *proxy_upstreams;          /* brix_proxy_upstream_t[]; may be NULL */
-
-    /* Path prefix rewriting applied to all outbound path-bearing opcodes. */
-    ngx_str_t   proxy_path_strip;          /* [brix_proxy_path_rewrite strip add] */
-    ngx_str_t   proxy_path_add;
-
-    /* Upstream connect and idle-read timeouts. */
-    ngx_msec_t  proxy_connect_timeout;      /* [brix_proxy_connect_timeout 10s] */
-    ngx_msec_t  proxy_read_timeout;         /* [brix_proxy_read_timeout 60s] */
-    ngx_msec_t  proxy_write_timeout;        /* [brix_proxy_write_timeout 0]
-                                               Phase 39 (PXY-2): upstream write-stall
-                                               deadline — bounds a backpressured /
-                                               slow upstream that stops accepting the
-                                               forwarded request.  0 = off. */
-
-    /* Interval between kXR_ping keepalives on pooled idle connections. */
-    ngx_msec_t  proxy_keepalive_interval;   /* [brix_proxy_keepalive_interval 15s] */
-
-    /* ---- node topology role flags (Phase 2 capability flags) ---- */
-    ngx_flag_t  metadata_only;     /* [brix_metadata_only on|off]
-                                      Advertise kXR_attrMeta.  kXR_open is rejected
-                                      (kXR_Unsupported) unless a manager_map redirects
-                                      it to a data server.  Stat/dirlist/locate work
-                                      normally from the local root. */
-    ngx_flag_t  supervisor;        /* [brix_supervisor on|off]
-                                      Top-tier manager in a three-level CMS hierarchy.
-                                      Advertises kXR_isManager | kXR_attrSuper.
-                                      Requires brix_manager_mode on (no local root). */
-    ngx_flag_t  virtual_redirector; /* [brix_virtual_redirector on|off]
-                                       Static path-mapping redirector (no live CMS).
-                                       Advertises kXR_isManager | kXR_attrVirtRdr.
-                                       Also auto-set when manager_map != NULL and
-                                       cms_addr == NULL (static-only routing). */
-
-    /* ---- Phase 3 behavioral capability flags ---- */
-    ngx_flag_t  collapse_redir;     /* [brix_collapse_redir on|off]
-                                       Cache recent (path→DS) redirect targets so
-                                       repeat requests skip the CMS round-trip.
-                                       Advertises kXR_collapseRedir. Default off. */
-    ngx_msec_t  collapse_redir_ttl; /* [brix_collapse_redir_ttl <time>]
-                                       Per-entry TTL for the redirect collapse cache.
-                                       Default 30000 ms (30 s). */
-    ngx_flag_t  recover_writes;     /* [brix_recover_writes on|off]
-                                       RESERVED — blocked on kXR_attn write journal.
-                                       Directive accepted to allow forward config
-                                       preparation; kXR_recoverWrts flag is NOT
-                                       advertised until the backend is implemented. */
+    /* ---- node topology + behavioral capability flags (Phase 2/3) ---- */
+    brix_node_caps_conf_t  caps;  /* [brix_metadata_only, brix_supervisor,
+                                     brix_virtual_redirector, brix_collapse_redir,
+                                     brix_collapse_redir_ttl, brix_recover_writes]
+                                     — see brix_node_caps_conf_t. */
     ngx_str_t   upload_stage_dir;   /* [brix_stage_dir <path>] optional fast-cache
                                        staging device; empty = stage adjacent to the
                                        destination.  Canonicalized into
@@ -862,20 +680,9 @@ typedef struct {
                                        src/compat/tmp_path.c brix_make_resume_path. */
 
     /* ---- OCSP certificate revocation checking (Feature 8e) ---- */
-    ngx_flag_t  ocsp_enable;      /* [brix_ocsp_enable on|off]
-                                     Query OCSP responder for each client certificate
-                                     after GSI chain verification.  Default off. */
-    ngx_flag_t  ocsp_soft_fail;   /* [brix_ocsp_soft_fail on|off]
-                                     If on (default), network errors and UNKNOWN status
-                                     are treated as GOOD (non-blocking).
-                                     REVOKED always fails regardless. */
-    ngx_flag_t  ocsp_stapling;    /* [brix_ocsp_stapling on|off]
-                                     Fetch an OCSP staple for the server certificate
-                                     at init time and serve it via the TLS status_request
-                                     extension (RFC 6066).  Default off. */
-    u_char     *ocsp_staple_data; /* Cached DER-encoded OCSP response for stapling;
-                                     NULL if not yet fetched or stapling is disabled. */
-    size_t      ocsp_staple_len;  /* Byte length of ocsp_staple_data. */
+    brix_ocsp_conf_t  ocsp;  /* [brix_ocsp_enable, brix_ocsp_soft_fail,
+                                brix_ocsp_stapling] revocation + stapling state;
+                                staple_data/len populated at init_process. */
 
     /* ---- Phase 24: traffic mirroring (off by default) ---- */
     brix_mirror_conf_t  mirror;  /* [brix_stream_mirror_url, brix_mirror_*]
@@ -959,7 +766,7 @@ typedef struct {
 
 /*
  * Per-worker init of the xrdacc authorization engine for one server: parses the
- * authdb into xcf->acc_tables and arms the hot-reload timer.  No-op unless the
+ * authdb into xcf->acc.tables and arms the hot-reload timer.  No-op unless the
  * server uses `brix_authdb_format xrdacc`.  Implemented in src/acc/config.c.
  */
 ngx_int_t brix_acc_init_server(ngx_stream_brix_srv_conf_t *xcf,

@@ -35,7 +35,7 @@ brix_handle_mv(brix_ctx_t *ctx, ngx_connection_t *c,
 	int16_t  src_len;
 	size_t   dst_len;
 
-	if (ctx->payload == NULL || ctx->cur_dlen == 0) {
+	if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0) {
 		return brix_send_error(ctx, c, kXR_ArgMissing, "no paths given");
 	}
 
@@ -46,9 +46,9 @@ brix_handle_mv(brix_ctx_t *ctx, ngx_connection_t *c,
 	 *   payload = src[arg1len] + ' ' + dst[...]
 	 * The separator between source and destination is a single space (0x20).
 	 */
-	xrdw_twopath_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+	xrdw_twopath_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
 	src_len = req.arg1len;
-	if (src_len < 0 || (uint32_t) src_len >= ctx->cur_dlen) {
+	if (src_len < 0 || (uint32_t) src_len >= ctx->recv.cur_dlen) {
 		return brix_send_error(ctx, c, kXR_ArgInvalid,
 								 "invalid arg1len for mv");
 	}
@@ -57,35 +57,35 @@ brix_handle_mv(brix_ctx_t *ctx, ngx_connection_t *c,
 	 * the FIRST space itself ("old new") rather than rejecting.  Reproduce that
 	 * autosplit so a well-formed space-separated buffer with arg1len=0 works. */
 	if (src_len == 0) {
-		u_char *sp = memchr(ctx->payload, ' ', (size_t) ctx->cur_dlen);
-		if (sp == NULL || sp == ctx->payload
-			|| (size_t)(sp - ctx->payload) > 0x7fff) {
+		u_char *sp = memchr(ctx->recv.payload, ' ', (size_t) ctx->recv.cur_dlen);
+		if (sp == NULL || sp == ctx->recv.payload
+			|| (size_t)(sp - ctx->recv.payload) > 0x7fff) {
 			return brix_send_error(ctx, c, kXR_ArgInvalid,
 									 "invalid path specification");
 		}
-		src_len = (int16_t)(sp - ctx->payload);
+		src_len = (int16_t)(sp - ctx->recv.payload);
 	}
 
 	/* Separator byte at src_len must be a space, with a non-empty dst after it. */
-	if ((uint32_t)(src_len + 1) >= ctx->cur_dlen
-		|| ctx->payload[src_len] != ' ') {
+	if ((uint32_t)(src_len + 1) >= ctx->recv.cur_dlen
+		|| ctx->recv.payload[src_len] != ' ') {
 		return brix_send_error(ctx, c, kXR_ArgInvalid,
 								 "mv payload separator not a space");
 	}
-	dst_len = (size_t) ctx->cur_dlen - (size_t) src_len - 1;
+	dst_len = (size_t) ctx->recv.cur_dlen - (size_t) src_len - 1;
 	if (dst_len == 0) {
 		return brix_send_error(ctx, c, kXR_ArgInvalid,
 								 "missing destination path");
 	}
 
 	/* Parse each half independently so embedded-NUL and traversal checks apply to both. */
-	if (!brix_extract_path(c->log, ctx->payload, (size_t) src_len,
+	if (!brix_extract_path(c->log, ctx->recv.payload, (size_t) src_len,
 							 src_buf, sizeof(src_buf), 1)) {
 		return brix_send_error(ctx, c, kXR_ArgInvalid,
 								 "invalid source path payload");
 	}
 
-	if (!brix_extract_path(c->log, ctx->payload + src_len + 1, dst_len,
+	if (!brix_extract_path(c->log, ctx->recv.payload + src_len + 1, dst_len,
 							 dst_buf, sizeof(dst_buf), 1)) {
 		return brix_send_error(ctx, c, kXR_ArgInvalid,
 								 "invalid destination path payload");

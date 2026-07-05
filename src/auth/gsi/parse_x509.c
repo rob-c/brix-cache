@@ -26,14 +26,14 @@ gsi_persist_session_cipher(brix_ctx_t *ctx, const char *name,
     int n = (keylen > 32) ? 32 : (keylen < 0 ? 0 : keylen);
     size_t nl = ngx_strlen(name);
 
-    ngx_memcpy(ctx->gsi_sess_key, key, (size_t) n);
-    ctx->gsi_sess_keylen = n;
-    ctx->gsi_sess_use_iv = use_iv;
-    if (nl > sizeof(ctx->gsi_sess_cipher) - 1) {
-        nl = sizeof(ctx->gsi_sess_cipher) - 1;
+    ngx_memcpy(ctx->gsi.sess_key, key, (size_t) n);
+    ctx->gsi.sess_keylen = n;
+    ctx->gsi.sess_use_iv = use_iv;
+    if (nl > sizeof(ctx->gsi.sess_cipher) - 1) {
+        nl = sizeof(ctx->gsi.sess_cipher) - 1;
     }
-    ngx_memcpy(ctx->gsi_sess_cipher, name, nl);
-    ctx->gsi_sess_cipher[nl] = '\0';
+    ngx_memcpy(ctx->gsi.sess_cipher, name, nl);
+    ctx->gsi.sess_cipher[nl] = '\0';
 }
 
 /*
@@ -48,9 +48,9 @@ gsi_capture_client_rtag(brix_ctx_t *ctx, const u_char *plain, size_t plain_len)
     size_t         rtl = 0;
 
     if (brix_gsi_find_bucket(plain, plain_len, (uint32_t) kXRS_rtag, &rt, &rtl)
-        == 0 && rtl > 0 && rtl <= sizeof(ctx->gsi_deleg_client_rtag)) {
-        ngx_memcpy(ctx->gsi_deleg_client_rtag, rt, rtl);
-        ctx->gsi_deleg_client_rtag_len = (int) rtl;
+        == 0 && rtl > 0 && rtl <= sizeof(ctx->gsi.deleg_client_rtag)) {
+        ngx_memcpy(ctx->gsi.deleg_client_rtag, rt, rtl);
+        ctx->gsi.deleg_client_rtag_len = (int) rtl;
     }
 }
 
@@ -160,14 +160,14 @@ gsi_recover_peer_signed(const u_char *payload, size_t plen, ngx_log_t *log)
  * (mirrors the client's signed path in client/lib/sec/sec_gsi.c).  Recovers the
  * peer DH public from the RSA-signed kXRS_cipher, agrees the padded (HasPad=1)
  * DH secret, decrypts the IV-prepended kXRS_main, and returns the proxy chain.
- * Sets ctx->signing_key = SHA-256(secret) / signing_active for symmetry with
+ * Sets ctx->sigver.signing_key = SHA-256(secret) / signing_active for symmetry with
  * the unsigned path.  Returns STACK_OF(X509) * or NULL.
  */
 static STACK_OF(X509) *
 brix_gsi_parse_x509_signed(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    const u_char   *payload = ctx->payload;
-    size_t          plen = ctx->cur_dlen;
+    const u_char   *payload = ctx->recv.payload;
+    size_t          plen = ctx->recv.cur_dlen;
     ngx_log_t      *log = c->log;
     const u_char   *main_data = NULL;
     size_t          main_len = 0;
@@ -200,7 +200,7 @@ brix_gsi_parse_x509_signed(brix_ctx_t *ctx, ngx_connection_t *c)
      * unsigned path's pad=0).  signing_key = SHA-256(secret) mirrors the
      * unsigned path; sigver is off by default whenever signed-DH is selected.
      */
-    pkctx = EVP_PKEY_CTX_new(ctx->gsi_dh_key, NULL);
+    pkctx = EVP_PKEY_CTX_new(ctx->gsi.dh_key, NULL);
     if (pkctx == NULL
         || EVP_PKEY_derive_init(pkctx) != 1
         || EVP_PKEY_CTX_set_dh_pad(pkctx, 1) != 1
@@ -245,8 +245,8 @@ brix_gsi_parse_x509_signed(brix_ctx_t *ctx, ngx_connection_t *c)
             && EVP_DigestUpdate(mdctx, secret, secret_len) == 1
             && EVP_DigestFinal_ex(mdctx, digest, &dlen) == 1)
         {
-            ngx_memcpy(ctx->signing_key, digest, 32);
-            ctx->signing_active = 1;
+            ngx_memcpy(ctx->sigver.signing_key, digest, 32);
+            ctx->sigver.signing_active = 1;
         }
         if (mdctx) {
             EVP_MD_CTX_free(mdctx);
@@ -285,12 +285,12 @@ brix_gsi_parse_x509_signed(brix_ctx_t *ctx, ngx_connection_t *c)
  * brix_gsi_parse_x509 — top-level kXGC_cert handler.
  *
  * Preconditions:
- *   - ctx->gsi_dh_key is set (populated by the preceding kXGC_certreq exchange).
- *   - ctx->payload / ctx->cur_dlen hold the raw kXGC_cert payload.
+ *   - ctx->gsi.dh_key is set (populated by the preceding kXGC_certreq exchange).
+ *   - ctx->recv.payload / ctx->recv.cur_dlen hold the raw kXGC_cert payload.
  *
  * Postconditions on success:
- *   - ctx->signing_key[0..31] contains the SHA-256 of the DH shared secret.
- *   - ctx->signing_active = 1 (enables kXR_sigver HMAC verification).
+ *   - ctx->sigver.signing_key[0..31] contains the SHA-256 of the DH shared secret.
+ *   - ctx->sigver.signing_active = 1 (enables kXR_sigver HMAC verification).
  *   - Returns a non-empty STACK_OF(X509) with the client's proxy chain.
  *     Caller must call sk_X509_pop_free(chain, X509_free).
  *
@@ -299,8 +299,8 @@ brix_gsi_parse_x509_signed(brix_ctx_t *ctx, ngx_connection_t *c)
 STACK_OF(X509) *
 brix_gsi_parse_x509(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    const u_char      *payload = ctx->payload;
-    size_t             plen = ctx->cur_dlen;
+    const u_char      *payload = ctx->recv.payload;
+    size_t             plen = ctx->recv.cur_dlen;
     ngx_log_t         *log = c->log;
     const u_char      *cpub_data = NULL, *main_data = NULL;
     size_t             cpub_len = 0, main_len = 0;
@@ -316,7 +316,7 @@ brix_gsi_parse_x509(brix_ctx_t *ctx, ngx_connection_t *c)
     char               cipher_name[64];
     char               cipher_log[128];
 
-    if (ctx->gsi_dh_key == NULL) {
+    if (ctx->gsi.dh_key == NULL) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
                       "brix: GSI kXGC_cert: no server DH key (kXGC_certreq skipped?)");
         return NULL;
@@ -324,7 +324,7 @@ brix_gsi_parse_x509(brix_ctx_t *ctx, ngx_connection_t *c)
 
     /* Signed-DH (>=10400) was selected in round 1 — take the signed path that
      * verifies the RSA-signed kXRS_cipher and decrypts the IV-prepended main. */
-    if (ctx->gsi_signed_dh) {
+    if (ctx->gsi.signed_dh) {
         return brix_gsi_parse_x509_signed(ctx, c);
     }
 
@@ -352,7 +352,7 @@ brix_gsi_parse_x509(brix_ctx_t *ctx, ngx_connection_t *c)
         return NULL;
     }
 
-    peer = brix_gsi_build_peer_dh_key(log, ctx->gsi_dh_key, bnpub);
+    peer = brix_gsi_build_peer_dh_key(log, ctx->gsi.dh_key, bnpub);
     BN_free(bnpub);
     bnpub = NULL;
 
@@ -361,13 +361,13 @@ brix_gsi_parse_x509(brix_ctx_t *ctx, ngx_connection_t *c)
     }
 
     /*
-     * Derive the DH shared secret from OUR private key (ctx->gsi_dh_key, set in
+     * Derive the DH shared secret from OUR private key (ctx->gsi.dh_key, set in
      * round 1) and the client's public value (peer). set_dh_pad(pkctx, 0) is
      * deliberate: XRootD/gsi expects the *unpadded* big-endian secret (leading
      * zero bytes stripped). Pad-mode 1 would left-pad to the prime size and the
      * subsequent SHA-256 — and thus signing_key — would not match the client's.
      */
-    pkctx = EVP_PKEY_CTX_new(ctx->gsi_dh_key, NULL);
+    pkctx = EVP_PKEY_CTX_new(ctx->gsi.dh_key, NULL);
     if (pkctx == NULL
         || EVP_PKEY_derive_init(pkctx) != 1
         || EVP_PKEY_CTX_set_dh_pad(pkctx, 0) != 1
@@ -414,8 +414,8 @@ brix_gsi_parse_x509(brix_ctx_t *ctx, ngx_connection_t *c)
             && EVP_DigestUpdate(mdctx, secret, secret_len) == 1
             && EVP_DigestFinal_ex(mdctx, digest, &dlen) == 1)
         {
-            ngx_memcpy(ctx->signing_key, digest, 32);
-            ctx->signing_active = 1;
+            ngx_memcpy(ctx->sigver.signing_key, digest, 32);
+            ctx->sigver.signing_active = 1;
             ngx_log_debug0(NGX_LOG_DEBUG_STREAM, log, 0,
                            "brix: GSI signing key derived (HMAC-SHA256)");
         }

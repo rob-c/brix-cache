@@ -35,7 +35,7 @@ brix_reject_bound_nonread_file_op(brix_ctx_t *ctx, ngx_connection_t *c,
     return fn(ctx, c, ##__VA_ARGS__)
 
 /* brix_dispatch_read_opcode — phase 2 routing (from handshake/dispatch.c) for the
- * non-mutating opcodes: a switch on ctx->cur_reqid over stat/statx, open/read/close,
+ * non-mutating opcodes: a switch on ctx->recv.cur_reqid over stat/statx, open/read/close,
  * dirlist/query/locate, readv/pgread, fattr, prepare, and clone. Each case passes
  * the DISPATCH_RD gate (brix_dispatch_require_auth) — and DISPATCH_RD_BOUND adds
  * the bound-stream check for handle-affecting ops — before its handler. Returns the
@@ -46,7 +46,7 @@ brix_dispatch_read_opcode(brix_ctx_t *ctx, ngx_connection_t *c,
 {
     ngx_int_t rc;
 
-    switch (ctx->cur_reqid) {
+    switch (ctx->recv.cur_reqid) {
 
     case kXR_stat:    DISPATCH_RD_BOUND("STAT",    brix_handle_stat,    conf);
     case kXR_open:    DISPATCH_RD_BOUND("OPEN",    brix_handle_open,    conf);

@@ -47,7 +47,7 @@
  * kernel TCP timeout (~60-120 s), freezing ALL connections.  The connect phase is
  * bounded with a non-blocking connect + poll() (SO_SNDTIMEO does not bound
  * connect()); the read/write phases with SO_RCVTIMEO/SO_SNDTIMEO.  On timeout the
- * fetch returns NULL and the caller applies its ocsp_soft_fail policy.
+ * fetch returns NULL and the caller applies its ocsp.soft_fail policy.
  */
 #define BRIX_OCSP_TIMEOUT_SECS  5
 
@@ -502,7 +502,7 @@ brix_ocsp_check_cert(ngx_log_t *log, X509 *leaf, X509 *issuer, int soft_fail)
  * brix_ocsp_staple_fetch — fetch and cache an OCSP staple.
  *
  * Queries the OCSP responder for xcf->gsi_cert and stores the raw DER
- * response bytes in xcf->ocsp_staple_data / ocsp_staple_len.
+ * response bytes in xcf->ocsp.staple_data / ocsp.staple_len.
  *
  * Memory is allocated with ngx_alloc() and freed on the next reload.
  */
@@ -613,11 +613,11 @@ brix_ocsp_staple_fetch(ngx_log_t *log, ngx_stream_brix_srv_conf_t *xcf)
         OPENSSL_free(der);
 
         /* Free old staple if present (reload path) */
-        if (xcf->ocsp_staple_data != NULL) {
-            ngx_free(xcf->ocsp_staple_data);
+        if (xcf->ocsp.staple_data != NULL) {
+            ngx_free(xcf->ocsp.staple_data);
         }
-        xcf->ocsp_staple_data = buf;
-        xcf->ocsp_staple_len  = (size_t)der_len;
+        xcf->ocsp.staple_data = buf;
+        xcf->ocsp.staple_len  = (size_t)der_len;
 
         ngx_log_error(NGX_LOG_INFO, log, 0,
                       "brix_ocsp: staple cached (%d bytes) from \"%s\"",

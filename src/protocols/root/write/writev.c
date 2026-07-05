@@ -54,7 +54,7 @@ brix_writev_body_extra(const u_char *desc, uint32_t dlen, uint32_t *extra)
  * Wire contract (stock XrdXrootdProtocol::do_WriteV): the header dlen frames
  * ONLY the N*16-byte write_list descriptor block; the concatenated segment data
  * (sum(wlen) bytes) streams after the frame.  The recv framing has already
- * appended that trailing data to ctx->payload (ctx->cur_body_extra bytes), so
+ * appended that trailing data to ctx->recv.payload (ctx->recv.cur_body_extra bytes), so
  * descriptors and data are contiguous here.  Framing violations are rejected
  * exactly like the reference server — send the error, then drop the link
  * (return NGX_ERROR): once the descriptor block is in doubt the trailing byte
@@ -75,13 +75,13 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 	size_t               bytes_written_total = 0;
 	int                  do_sync;
 
-	xrdw_writev_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+	xrdw_writev_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
 	do_sync = (req.options & kXR_wv_doSync) ? 1 : 0;
 
 	/* Stock parity: a dlen that is zero or not a whole number of write_list
 	 * descriptors is "Write vector is invalid" (kXR_ArgInvalid) + link drop. */
-	if (ctx->payload == NULL || ctx->cur_dlen == 0
-	    || ctx->cur_dlen % BRIX_WRITEV_SEGSIZE != 0)
+	if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0
+	    || ctx->recv.cur_dlen % BRIX_WRITEV_SEGSIZE != 0)
 	{
 		BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
 		(void) brix_send_error(ctx, c, kXR_ArgInvalid,
@@ -89,8 +89,8 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 		return NGX_ERROR;
 	}
 
-	wl     = (write_list *) ctx->payload;
-	n_segs = ctx->cur_dlen / BRIX_WRITEV_SEGSIZE;
+	wl     = (write_list *) ctx->recv.payload;
+	n_segs = ctx->recv.cur_dlen / BRIX_WRITEV_SEGSIZE;
 
 	/* Stock parity: vector count cap (stock maxWvecsz == 1024 == ours). */
 	if (n_segs > BRIX_WRITEV_MAXSEGS) {
@@ -108,7 +108,7 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 	/* Our aggregate transfer cap (stock instead caps each element at its
 	 * maxTransz); enforced by the framing BEFORE it reads the data, so a
 	 * violation means the trailing bytes were never accepted — drop. */
-	if ((uint64_t) ctx->cur_dlen + total_wlen > BRIX_MAX_WRITE_PAYLOAD) {
+	if ((uint64_t) ctx->recv.cur_dlen + total_wlen > BRIX_MAX_WRITE_PAYLOAD) {
 		BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
 		(void) brix_send_error(ctx, c, kXR_NoMemory,
 								 "writev transfer is too large");
@@ -118,7 +118,7 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 	/* Defensive: the recv framing extends the body by exactly sum(wlen); a
 	 * mismatch means the extension never ran for this frame (unreachable in
 	 * normal operation) and the data bytes are not in the buffer. */
-	if (total_wlen != (uint64_t) ctx->cur_body_extra) {
+	if (total_wlen != (uint64_t) ctx->recv.cur_body_extra) {
 		BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
 		(void) brix_send_error(ctx, c, kXR_ArgInvalid,
 								 "Write vector is invalid");
@@ -153,7 +153,7 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 
 	/* All N descriptors occupy the first n_segs*16 bytes; the per-segment data
 	 * blocks follow contiguously in segment order from here. */
-	data_ptr = ctx->payload + n_segs * BRIX_WRITEV_SEGSIZE;
+	data_ptr = ctx->recv.payload + n_segs * BRIX_WRITEV_SEGSIZE;
 
 	{
 		ngx_stream_brix_srv_conf_t *conf;
@@ -219,12 +219,12 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 			t->ctx         = ctx;
 			t->n_segs      = n_segs;
 			t->segs        = seg_descs;
-			t->payload_buf = ctx->payload_buf;  /* transfer ownership */
+			t->payload_buf = ctx->recv.payload_buf;  /* transfer ownership */
 			t->do_sync     = do_sync;
 			t->bytes_total = 0;
 			t->io_error    = 0;
-			t->streamid[0] = ctx->cur_streamid[0];
-			t->streamid[1] = ctx->cur_streamid[1];
+			t->streamid[0] = ctx->recv.cur_streamid[0];
+			t->streamid[1] = ctx->recv.cur_streamid[1];
 
 			brix_task_bind(task, brix_writev_write_aio_thread, brix_writev_write_aio_done);
 
@@ -238,9 +238,9 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 			 * failed; payload_buf is still ours and we fall through to the
 			 * synchronous path below using the original data_ptr. */
 			if (posted) {
-				ctx->payload         = NULL;
-				ctx->payload_buf     = NULL;
-				ctx->payload_buf_size = 0;
+				ctx->recv.payload         = NULL;
+				ctx->recv.payload_buf     = NULL;
+				ctx->recv.payload_buf_size = 0;
 				return NGX_OK;
 			}
 		}
@@ -299,7 +299,7 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 		}
 
 		ctx->files[idx].bytes_written  += (size_t) nw;
-		ctx->session_bytes_written     += (size_t) nw;
+		ctx->totals.bytes_written     += (size_t) nw;
 		bytes_written_total            += (size_t) nw;
 		/* write-through cache: flag the just-written extent dirty so it gets
 		 * flushed to the backing store (end offset is inclusive: off+nw-1). */

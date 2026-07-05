@@ -2,7 +2,7 @@
 #include "fs/vfs/vfs.h"   /* brix_vfs_open_fd_at (handle-table confined open) */
 #include "core/compat/host_format.h"  /* brix_format_host_port — IPv6 bracketing */
 /* File: launch.c — TPC pull entry point and destination-side preparation for native root:// third-party copy
- * WHAT: Six functions implement the TPC pull launch pipeline on the event thread. tpc_send_open_response builds kXR_ok open response body (fhandle + optional statbuf) → brix_queue_response; tpc_build_origin_id constructs origin ID string from ctx->login_user+ngx_pid+getnameinfo host via snprintf+cpystrn; tpc_destination_open_flags derives O_CREAT/O_EXCL/O_TRUNC flags from options bitmask for POSIX open; brix_tpc_prepare_pull validates thread_pool + TPC source host/path → checks src policy (allow_local/allow_private) → alloc fhandle idx → brix_open_confined(canonical path) → set file metadata (writable=1, tpc_destination=1) → generate+register key if empty → store token_mode → send open response; brix_tpc_start_pull validates fhandle_idx + tpc_destination flag → alloc ngx_thread_task → populate brix_tpc_pull_t struct from file fields → set handler=brix_tpc_pull_thread, event.handler=brix_tpc_pull_done → post to thread pool; brix_tpc_launch_pull is wrapper for prepare_pull. Non-NGX_THREADS stubs return kXR_ServerError "TPC pull requires NGX_THREADS support". Caller: dispatch.c (kXR_open TPC opaque param path).
+ * WHAT: Six functions implement the TPC pull launch pipeline on the event thread. tpc_send_open_response builds kXR_ok open response body (fhandle + optional statbuf) → brix_queue_response; tpc_build_origin_id constructs origin ID string from ctx->login.user+ngx_pid+getnameinfo host via snprintf+cpystrn; tpc_destination_open_flags derives O_CREAT/O_EXCL/O_TRUNC flags from options bitmask for POSIX open; brix_tpc_prepare_pull validates thread_pool + TPC source host/path → checks src policy (allow_local/allow_private) → alloc fhandle idx → brix_open_confined(canonical path) → set file metadata (writable=1, tpc_destination=1) → generate+register key if empty → store token_mode → send open response; brix_tpc_start_pull validates fhandle_idx + tpc_destination flag → alloc ngx_thread_task → populate brix_tpc_pull_t struct from file fields → set handler=brix_tpc_pull_thread, event.handler=brix_tpc_pull_done → post to thread pool; brix_tpc_launch_pull is wrapper for prepare_pull. Non-NGX_THREADS stubs return kXR_ServerError "TPC pull requires NGX_THREADS support". Caller: dispatch.c (kXR_open TPC opaque param path).
  *
  * WHY: The destination server needs to create the local file handle before connecting to the source — this ensures the write target exists with correct permissions and metadata before the thread-pool worker starts pulling data. The launch pipeline separates preparation (event-thread, synchronous) from execution (thread-pool, blocking I/O), allowing nginx to respond immediately to the client open request while the actual fetch runs asynchronously.
  *
@@ -17,6 +17,7 @@
 
 #include <netdb.h>
 #include "core/compat/alloc_guard.h"
+#include "core/compat/cstr.h"
 
 /* WHAT: Build kXR_ok open response body (fhandle + optional statbuf from fstat) → brix_build_resp_hdr → brix_queue_response. Returns NGX_OK or NGX_ERROR on alloc failure. Caller: brix_tpc_prepare_pull (end of pull prep pipeline). */
 static ngx_int_t
@@ -56,7 +57,7 @@ tpc_send_open_response(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     total = XRD_RESPONSE_HDR_LEN + bodylen;
     BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
-    brix_build_resp_hdr(ctx->cur_streamid, kXR_ok, (uint32_t) bodylen,
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok, (uint32_t) bodylen,
                           (ServerResponseHdr *) buf);
 
     ngx_memzero(&body, sizeof(body));
@@ -71,7 +72,7 @@ tpc_send_open_response(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     return brix_queue_response(ctx, c, buf, total);
 }
 
-/* WHAT: Construct origin ID string from ctx->login_user+ngx_pid+getnameinfo host via snprintf("%s.%u@host") — falls back to "xrd" for empty user, ngx_pid for zero pid, addr_text.len then "unknown" for unresolved host. Caller: brix_tpc_prepare_pull (origin ID storage step). */
+/* WHAT: Construct origin ID string from ctx->login.user+ngx_pid+getnameinfo host via snprintf("%s.%u@host") — falls back to "xrd" for empty user, ngx_pid for zero pid, addr_text.len then "unknown" for unresolved host. Caller: brix_tpc_prepare_pull (origin ID storage step). */
 
 static void
 tpc_build_origin_id(brix_ctx_t *ctx, ngx_connection_t *c, char *dst,
@@ -81,8 +82,8 @@ tpc_build_origin_id(brix_ctx_t *ctx, ngx_connection_t *c, char *dst,
     const char *user;
     uint32_t    pid;
 
-    user = ctx->login_user[0] != '\0' ? ctx->login_user : "xrd";
-    pid = ctx->login_pid != 0 ? ctx->login_pid : (uint32_t) ngx_pid;
+    user = ctx->login.user[0] != '\0' ? ctx->login.user : "xrd";
+    pid = ctx->login.pid != 0 ? ctx->login.pid : (uint32_t) ngx_pid;
 
     host[0] = '\0';
     if (c->sockaddr != NULL
@@ -338,7 +339,7 @@ brix_tpc_prepare_pull(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (!ctx->is_bound) {
-        brix_session_handle_publish(ctx->sessid, idx, file);
+        brix_session_handle_publish(ctx->login.sessid, idx, file);
     }
 
     /* Store token_mode for use during pull task execution. */
@@ -408,8 +409,8 @@ brix_tpc_start_pull(brix_ctx_t *ctx, ngx_connection_t *c,
     t->c = c;
     t->ctx = ctx;
     t->conf = conf;
-    t->streamid[0] = ctx->cur_streamid[0];
-    t->streamid[1] = ctx->cur_streamid[1];
+    t->streamid[0] = ctx->recv.cur_streamid[0];
+    t->streamid[1] = ctx->recv.cur_streamid[1];
     t->dst_fd = file->fd;
     t->fhandle_idx = fhandle_idx;
     t->reply_kind = BRIX_TPC_REPLY_SYNC;
@@ -432,22 +433,20 @@ brix_tpc_start_pull(brix_ctx_t *ctx, ngx_connection_t *c,
      * authenticates to the source AS THE USER. malloc (thread-owned, freed in
      * thread.c). Off unless brix_tpc_delegate + a proxy was actually captured.
      */
-    if (conf->tpc_delegate && ctx->gsi_deleg_proxy_pem != NULL
-        && ctx->gsi_deleg_proxy_len > 0) {
-        t->deleg_cred_pem = malloc(ctx->gsi_deleg_proxy_len);
+    if (conf->tpc_delegate && ctx->gsi.deleg_proxy_pem != NULL
+        && ctx->gsi.deleg_proxy_len > 0) {
+        t->deleg_cred_pem = malloc(ctx->gsi.deleg_proxy_len);
         if (t->deleg_cred_pem != NULL) {
-            ngx_memcpy(t->deleg_cred_pem, ctx->gsi_deleg_proxy_pem,
-                       ctx->gsi_deleg_proxy_len);
-            t->deleg_cred_len = ctx->gsi_deleg_proxy_len;
+            ngx_memcpy(t->deleg_cred_pem, ctx->gsi.deleg_proxy_pem,
+                       ctx->gsi.deleg_proxy_len);
+            t->deleg_cred_len = ctx->gsi.deleg_proxy_len;
         }
     }
 
     t->token_scope[0] = '\0';
-    if (conf->tpc_outbound_scope.len > 0
-        && conf->tpc_outbound_scope.len < sizeof(t->token_scope)) {
-        ngx_memcpy(t->token_scope, conf->tpc_outbound_scope.data,
-                   conf->tpc_outbound_scope.len);
-        t->token_scope[conf->tpc_outbound_scope.len] = '\0';
+    if (conf->tpc_outbound_scope.len > 0) {
+        (void) brix_str_cbuf(t->token_scope, sizeof(t->token_scope),
+                             &conf->tpc_outbound_scope);
     }
     ngx_cpystrn((u_char *) t->dst_path, (u_char *) file->path,
                 sizeof(t->dst_path));

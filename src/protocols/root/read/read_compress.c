@@ -19,7 +19,7 @@
  * HOW:  Each request is an independent whole-range frame, so reads stay offset-
  *       addressable and resumable (re-reading the same offset reproduces the
  *       same plaintext, hence an equivalent frame).  The plaintext window is
- *       staged in ctx->read_scratch and the codec output in ctx->cmp_scratch —
+ *       staged in ctx->rd.read_scratch and the codec output in ctx->rd.cmp_scratch —
  *       both raw-alloc'd session-lifetime keep-slots (brix_get_pool_scratch /
  *       brix_release_read_buffer).  To stay event-loop friendly the VFS-core
  *       read is synchronous but clamped to BRIX_READ_CHUNK_MAX; a larger
@@ -49,7 +49,7 @@ brix_codec_max_out(size_t plain)
 /*
  * Compress `in_len` plaintext bytes into `out` (capacity *out_cap) as one finished
  * codec frame.  Returns the produced length, or (size_t)-1 on failure.  Grows the
- * caller's cmp_scratch via BRIX_GET_SCRATCH if the codec needs more room than
+ * caller's rd.cmp_scratch via BRIX_GET_SCRATCH if the codec needs more room than
  * the initial bound (defensive — the bound is sized so this never trips).
  */
 static size_t
@@ -63,7 +63,7 @@ brix_compress_frame(brix_ctx_t *ctx, ngx_connection_t *c,
 
     cap = brix_codec_max_out(in_len);
 
-    if (BRIX_GET_SCRATCH(ctx, c, cmp_scratch, cmp_scratch_size, cap) == NULL) {
+    if (BRIX_GET_SCRATCH(ctx, c, rd.cmp_scratch, rd.cmp_scratch_size, cap) == NULL) {
         return (size_t) -1;
     }
 
@@ -84,14 +84,14 @@ brix_compress_frame(brix_ctx_t *ctx, ngx_connection_t *c,
         size_t prev_out = out_pos;
 
         rc = brix_codec_step(s, in, in_len, &in_pos,
-                               ctx->cmp_scratch, ctx->cmp_scratch_size, &out_pos,
+                               ctx->rd.cmp_scratch, ctx->rd.cmp_scratch_size, &out_pos,
                                1 /* finish */);
 
         if (rc == BRIX_CODEC_END) {
             break;
         }
         if (rc != BRIX_CODEC_OK
-            || out_pos >= ctx->cmp_scratch_size
+            || out_pos >= ctx->rd.cmp_scratch_size
             || (in_pos == prev_in && out_pos == prev_out))
         {
             brix_codec_close(s);
@@ -154,7 +154,7 @@ brix_read_compressed(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     /* Stage the plaintext window. */
-    plain = BRIX_GET_SCRATCH(ctx, c, read_scratch, read_scratch_size,
+    plain = BRIX_GET_SCRATCH(ctx, c, rd.read_scratch, rd.read_scratch_size,
                                data_total);
     if (plain == NULL) {
         return NGX_ERROR;
@@ -185,7 +185,7 @@ brix_read_compressed(brix_ctx_t *ctx, ngx_connection_t *c,
         return brix_send_ok(ctx, c, NULL, 0);
     }
 
-    /* Compress the window into cmp_scratch as one self-contained frame. */
+    /* Compress the window into rd.cmp_scratch as one self-contained frame. */
     clen = brix_compress_frame(ctx, c, codec_id, plain, data_total);
     if (clen == (size_t) -1) {
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_READ, "READ",
@@ -196,7 +196,7 @@ brix_read_compressed(brix_ctx_t *ctx, ngx_connection_t *c,
     /* Accounting mirrors the plaintext read path: counters reflect PLAINTEXT
      * bytes served (what the client receives after inflate), not wire bytes. */
     ctx->files[idx].bytes_read += data_total;
-    ctx->session_bytes += data_total;
+    ctx->totals.bytes += data_total;
     brix_rl_charge_ctx(ctx, clen);   /* bandwidth: charge actual wire bytes */
 
     if (ctx->files[idx].dashboard_slot >= 0 &&
@@ -220,16 +220,16 @@ brix_read_compressed(brix_ctx_t *ctx, ngx_connection_t *c,
     }
     BRIX_OP_OK(ctx, BRIX_OP_READ);
 
-    /* Frame the compressed bytes as a single kXR_read response over cmp_scratch
+    /* Frame the compressed bytes as a single kXR_read response over rd.cmp_scratch
      * (a keep-slot, so brix_release_read_buffer leaves it for reuse). */
-    rsp_chain = brix_build_chunked_chain(ctx, c, ctx->cmp_scratch, clen);
+    rsp_chain = brix_build_chunked_chain(ctx, c, ctx->rd.cmp_scratch, clen);
     if (rsp_chain == NULL) {
         return NGX_ERROR;
     }
 
-    rc = brix_queue_response_chain(ctx, c, rsp_chain, ctx->cmp_scratch);
+    rc = brix_queue_response_chain(ctx, c, rsp_chain, ctx->rd.cmp_scratch);
     if (rc != NGX_OK || ctx->state != XRD_ST_SENDING) {
-        brix_release_read_buffer(ctx, c, ctx->cmp_scratch);
+        brix_release_read_buffer(ctx, c, ctx->rd.cmp_scratch);
     }
     return rc;
 }

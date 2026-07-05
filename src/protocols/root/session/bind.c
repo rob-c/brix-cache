@@ -43,7 +43,7 @@ brix_handle_bind(brix_ctx_t *ctx, ngx_connection_t *c,
 
     (void) conf;
 
-    xrdw_sessid_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    xrdw_sessid_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
 
     /*
      * The primary connection inserts its session registry entry at the point
@@ -51,8 +51,8 @@ brix_handle_bind(brix_ctx_t *ctx, ngx_connection_t *c,
      * auth=none, or successful kXR_auth for authenticated deployments.
      */
     if (!brix_session_lookup(req.sessid,
-                               ctx->dn, sizeof(ctx->dn),
-                               ctx->vo_list, sizeof(ctx->vo_list),
+                               ctx->login.dn, sizeof(ctx->login.dn),
+                               ctx->login.vo_list, sizeof(ctx->login.vo_list),
                                &token_auth))
     {
         brix_log_access(ctx, c, "BIND", "-", "-",
@@ -61,23 +61,23 @@ brix_handle_bind(brix_ctx_t *ctx, ngx_connection_t *c,
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "bind sessid not recognised");
     }
-    ctx->token_auth = (int) token_auth;
+    ctx->token.auth = (int) token_auth;
     if (ctx->identity != NULL) {
         if (token_auth) {
-            if (brix_identity_set_subject(ctx->identity, c->pool, ctx->dn,
+            if (brix_identity_set_subject(ctx->identity, c->pool, ctx->login.dn,
                                             BRIX_AUTHN_TOKEN) != NGX_OK
                 || brix_identity_set_cstr(c->pool, &ctx->identity->dn,
-                                            ctx->dn) != NGX_OK)
+                                            ctx->login.dn) != NGX_OK)
             {
                 return NGX_ERROR;
             }
-        } else if (brix_identity_set_dn(ctx->identity, c->pool, ctx->dn,
+        } else if (brix_identity_set_dn(ctx->identity, c->pool, ctx->login.dn,
                                           BRIX_AUTHN_GSI) != NGX_OK)
         {
             return NGX_ERROR;
         }
         if (brix_identity_set_vos_csv(ctx->identity, c->pool,
-                                        ctx->vo_list) != NGX_OK)
+                                        ctx->login.vo_list) != NGX_OK)
         {
             return NGX_ERROR;
         }
@@ -93,8 +93,8 @@ brix_handle_bind(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_memcpy(ctx->bound_sessid, req.sessid, BRIX_SESSION_ID_LEN);
     ctx->is_bound  = 1;
     ctx->pathid    = (int) pathid;
-    ctx->logged_in = 1;   /* secondary skips kXR_login */
-    ctx->auth_done = 1;   /* identity inherited from registry lookup above */
+    ctx->login.logged_in = 1;   /* secondary skips kXR_login */
+    ctx->login.auth_done = 1;   /* identity inherited from registry lookup above */
 
     ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: kXR_bind: pathid=%d sessid=%02xd%02xd...",
@@ -105,7 +105,7 @@ brix_handle_bind(brix_ctx_t *ctx, ngx_connection_t *c,
     total = XRD_RESPONSE_HDR_LEN + 1;
     BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
-    brix_build_resp_hdr(ctx->cur_streamid, kXR_ok, 1,
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok, 1,
                           (ServerResponseHdr *) buf);
     buf[XRD_RESPONSE_HDR_LEN] = pathid;
 

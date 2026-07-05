@@ -22,7 +22,7 @@ brix_handle_ping(brix_ctx_t *ctx, ngx_connection_t *c)
 ngx_int_t
 brix_handle_endsess(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    ClientEndsessRequest *req = (ClientEndsessRequest *) ctx->hdr_buf;
+    ClientEndsessRequest *req = (ClientEndsessRequest *) ctx->recv.hdr_buf;
 
     ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: kXR_endsess received");
@@ -43,7 +43,7 @@ brix_handle_endsess(brix_ctx_t *ctx, ngx_connection_t *c)
      * and open handles untouched. Only an endsess for THIS connection's own
      * session performs the full teardown + auth clear below.
      */
-    if (ngx_memcmp(req->sessid, ctx->sessid, BRIX_SESSION_ID_LEN) != 0) {
+    if (ngx_memcmp(req->sessid, ctx->login.sessid, BRIX_SESSION_ID_LEN) != 0) {
         brix_session_unregister(req->sessid);
         ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
                        "brix: kXR_endsess for a different session — "
@@ -91,8 +91,8 @@ brix_handle_endsess(brix_ctx_t *ctx, ngx_connection_t *c)
      * kXR_endsess, bypassing the session-end semantics (and, in GSI deployments,
      * bypassing proxy-certificate expiry that triggered the endsess).
      */
-    ctx->logged_in = 0;
-    ctx->auth_done = 0;
+    ctx->login.logged_in = 0;
+    ctx->login.auth_done = 0;
 
     return brix_send_ok(ctx, c, NULL, 0);
 }

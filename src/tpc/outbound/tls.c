@@ -21,6 +21,7 @@
  *   Gated by the caller on conf->tpc_outbound_tls (bootstrap.c). (phase-57 §F5) */
 
 #include "tpc/engine/tpc_internal.h"
+#include "core/compat/cstr.h"
 
 #include <string.h>
 #include <limits.h>
@@ -54,9 +55,8 @@ tpc_start_tls(brix_tpc_pull_t *t, int fd)
     if (t->conf->trusted_ca.len > 0 && t->conf->trusted_ca.len < PATH_MAX) {
         char cadir[PATH_MAX];
 
-        ngx_memcpy(cadir, t->conf->trusted_ca.data, t->conf->trusted_ca.len);
-        cadir[t->conf->trusted_ca.len] = '\0';
-        if (SSL_CTX_load_verify_locations(ctx, NULL, cadir) == 1) {
+        if (brix_str_cbuf(cadir, sizeof(cadir), &t->conf->trusted_ca) != NULL
+            && SSL_CTX_load_verify_locations(ctx, NULL, cadir) == 1) {
             SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
             verify_host = 1;
         } else {

@@ -46,11 +46,11 @@ brix_max_payload_for_request(uint16_t reqid)
 }
 
 /* brix_ensure_payload_buffer: allocate/resize payload buffer for incoming request data
- * WHAT: Ensures ctx->payload_buf has sufficient capacity (dlen + 1 bytes) and points ctx->payload to it. The extra byte is pre-zeroed as a C-string NUL terminator guarantee. Uses heap allocation (ngx_alloc), NOT pool-allocated, so the buffer can grow across multiple requests on the same connection without fragmenting the nginx pool. On resize: frees old buffer, allocates new one. Returns NGX_OK if capacity sufficient or successfully resized, NGX_ERROR on overflow check failure or allocation failure.
+ * WHAT: Ensures ctx->recv.payload_buf has sufficient capacity (dlen + 1 bytes) and points ctx->recv.payload to it. The extra byte is pre-zeroed as a C-string NUL terminator guarantee. Uses heap allocation (ngx_alloc), NOT pool-allocated, so the buffer can grow across multiple requests on the same connection without fragmenting the nginx pool. On resize: frees old buffer, allocates new one. Returns NGX_OK if capacity sufficient or successfully resized, NGX_ERROR on overflow check failure or allocation failure.
  *
- * WHY: Payload buffers must survive across multiple requests on a persistent TCP connection (pool-allocated buffers would fragment under repeated large allocations). Heap allocation (ngx_alloc) allows resizing without pool pressure and is freed explicitly when the connection closes via brix_on_disconnect(). The pre-zeroed NUL byte ensures ctx->payload always has a valid C-string terminator even for zero-length payloads.
+ * WHY: Payload buffers must survive across multiple requests on a persistent TCP connection (pool-allocated buffers would fragment under repeated large allocations). Heap allocation (ngx_alloc) allows resizing without pool pressure and is freed explicitly when the connection closes via brix_on_disconnect(). The pre-zeroed NUL byte ensures ctx->recv.payload always has a valid C-string terminator even for zero-length payloads.
  *
- * HOW: First checks if existing buffer has sufficient capacity (ctx->payload_buf_size >= need), reuses it and sets payload pointer. If insufficient, frees old buffer via ngx_free(), allocates new one via ngx_alloc(need), sets ctx->payload_buf/payload_buf_size/payload, pre-zeroes byte at position dlen. Returns NGX_OK or NGX_ERROR. */
+ * HOW: First checks if existing buffer has sufficient capacity (ctx->recv.payload_buf_size >= need), reuses it and sets payload pointer. If insufficient, frees old buffer via ngx_free(), allocates new one via ngx_alloc(need), sets ctx->recv.payload_buf/payload_buf_size/payload, pre-zeroes byte at position dlen. Returns NGX_OK or NGX_ERROR. */
 static ngx_int_t
 brix_ensure_payload_buffer(brix_ctx_t *ctx, ngx_connection_t *c,
     uint32_t dlen)
@@ -63,9 +63,9 @@ brix_ensure_payload_buffer(brix_ctx_t *ctx, ngx_connection_t *c,
     }
     need = (size_t) dlen + 1;
 
-    if (ctx->payload_buf != NULL && ctx->payload_buf_size >= need) {
-        ctx->payload = ctx->payload_buf;
-        ctx->payload[dlen] = '\0';
+    if (ctx->recv.payload_buf != NULL && ctx->recv.payload_buf_size >= need) {
+        ctx->recv.payload = ctx->recv.payload_buf;
+        ctx->recv.payload[dlen] = '\0';
         return NGX_OK;
     }
 
@@ -74,14 +74,14 @@ brix_ensure_payload_buffer(brix_ctx_t *ctx, ngx_connection_t *c,
         return NGX_ERROR;
     }
 
-    if (ctx->payload_buf != NULL) {
-        ngx_free(ctx->payload_buf);
+    if (ctx->recv.payload_buf != NULL) {
+        ngx_free(ctx->recv.payload_buf);
     }
 
-    ctx->payload_buf = buf;
-    ctx->payload_buf_size = need;
-    ctx->payload = buf;
-    ctx->payload[dlen] = '\0';
+    ctx->recv.payload_buf = buf;
+    ctx->recv.payload_buf_size = need;
+    ctx->recv.payload = buf;
+    ctx->recv.payload[dlen] = '\0';
 
     return NGX_OK;
 }
@@ -107,9 +107,9 @@ brix_grow_payload_buffer(brix_ctx_t *ctx, ngx_connection_t *c,
     }
     need = (size_t) dlen + 1;
 
-    if (ctx->payload_buf != NULL && ctx->payload_buf_size >= need) {
-        ctx->payload = ctx->payload_buf;
-        ctx->payload[dlen] = '\0';
+    if (ctx->recv.payload_buf != NULL && ctx->recv.payload_buf_size >= need) {
+        ctx->recv.payload = ctx->recv.payload_buf;
+        ctx->recv.payload[dlen] = '\0';
         return NGX_OK;
     }
 
@@ -118,15 +118,15 @@ brix_grow_payload_buffer(brix_ctx_t *ctx, ngx_connection_t *c,
         return NGX_ERROR;
     }
 
-    if (ctx->payload_buf != NULL) {
-        ngx_memcpy(buf, ctx->payload_buf, ctx->payload_pos);
-        ngx_free(ctx->payload_buf);
+    if (ctx->recv.payload_buf != NULL) {
+        ngx_memcpy(buf, ctx->recv.payload_buf, ctx->recv.payload_pos);
+        ngx_free(ctx->recv.payload_buf);
     }
 
-    ctx->payload_buf = buf;
-    ctx->payload_buf_size = need;
-    ctx->payload = buf;
-    ctx->payload[dlen] = '\0';
+    ctx->recv.payload_buf = buf;
+    ctx->recv.payload_buf_size = need;
+    ctx->recv.payload = buf;
+    ctx->recv.payload[dlen] = '\0';
 
     return NGX_OK;
 }
@@ -194,8 +194,8 @@ brix_recv_pre_loop(ngx_stream_session_t *s, ngx_connection_t *c,
          * timer armed outside the WAITING_CMS/FRM states handled above.  Attribute
          * it (pre-auth handshake vs in-flight PDU) and tear down via the single
          * disconnect funnel. */
-        ctx->read_deadline_armed = 0;
-        if (ctx->auth_done) {
+        ctx->deadline.read_armed = 0;
+        if (ctx->login.auth_done) {
             BRIX_SRV_METRIC_INC(ctx, read_pdu_timeouts_total);
         } else {
             BRIX_SRV_METRIC_INC(ctx, handshake_timeouts_total);
@@ -284,7 +284,7 @@ ngx_stream_brix_recv(ngx_event_t *rev)
         size_t  need;
         size_t  avail;
 
-        if (ctx->recv_deferred) {
+        if (ctx->out.recv_deferred) {
             /*
              * Phase 29 drain barrier: a non-pipelinable request was fully read
              * (header in cur_*, any payload in payload_buf) while pipelined reads
@@ -296,13 +296,13 @@ ngx_stream_brix_recv(ngx_event_t *rev)
              * follow a burst of pipelined writes: every pwrite has landed before
              * the handle is retired.
              */
-            if (ctx->out_count > 0 || ctx->wr_inflight > 0) {
+            if (ctx->out.count > 0 || ctx->out.wr_inflight > 0) {
                 if (ngx_handle_read_event(rev, 0) != NGX_OK) {
                     break;
                 }
                 return;
             }
-            ctx->recv_deferred = 0;
+            ctx->out.recv_deferred = 0;
             BRIX_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
             rx_pending = 0;
             rc = brix_dispatch(ctx, c, conf);
@@ -321,7 +321,7 @@ ngx_stream_brix_recv(ngx_event_t *rev)
                     return;
                 }
                 ctx->state = XRD_ST_REQ_HEADER;
-                ctx->hdr_pos = 0;
+                ctx->recv.hdr_pos = 0;
             }
             continue;
         }
@@ -338,11 +338,11 @@ ngx_stream_brix_recv(ngx_event_t *rev)
         }
 
         if (ctx->state == XRD_ST_HANDSHAKE) {
-            dest = ctx->hdr_buf + ctx->hdr_pos;
-            need = XRD_HANDSHAKE_LEN - ctx->hdr_pos;
+            dest = ctx->recv.hdr_buf + ctx->recv.hdr_pos;
+            need = XRD_HANDSHAKE_LEN - ctx->recv.hdr_pos;
 
         } else if (ctx->state == XRD_ST_REQ_HEADER) {
-            if (ctx->hdr_pos == 0) {
+            if (ctx->recv.hdr_pos == 0) {
                 /*
                  * Phase 29 pipelining backpressure: if pipeline_depth
                  * responses are already queued/draining (out_count) OR pwrites
@@ -351,12 +351,12 @@ ngx_stream_brix_recv(ngx_event_t *rev)
                  * event re-enters recv once the output queue drains; a write
                  * completion queues its ack (which schedules that write event) and
                  * also nudges the read side.  Bounding out_count + wr_inflight at
-                 * ctx->pipeline_depth caps BOTH the in-flight pwrites and the
+                 * ctx->out.pipeline_depth caps BOTH the in-flight pwrites and the
                  * queued acks, so the out_ring (pipeline_depth slots) can
                  * never overflow.  (Both counters are 0 here for the common serial
                  * read/write case, so this is a no-op there.)
                  */
-                if (ctx->out_count + ctx->wr_inflight >= ctx->pipeline_depth) {
+                if (ctx->out.count + ctx->out.wr_inflight >= ctx->out.pipeline_depth) {
                     ctx->state = XRD_ST_SENDING;
                     BRIX_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
                     return;
@@ -375,7 +375,7 @@ ngx_stream_brix_recv(ngx_event_t *rev)
                  * RAW heap (ngx_alloc/ngx_free, see src/aio/buffers.c), which
                  * makes the trim safe.
                  */
-                if (ctx->out_count == 0 && ctx->wr_inflight == 0) {
+                if (ctx->out.count == 0 && ctx->out.wr_inflight == 0) {
                     brix_trim_scratch(ctx, c);
 
                     /* Phase 31 W4: reconcile this connection's transfer-heap
@@ -421,17 +421,17 @@ ngx_stream_brix_recv(ngx_event_t *rev)
                     c->idle = brix_ctx_has_open_file(ctx) ? 0 : 1;
                 }
             }
-            dest = ctx->hdr_buf + ctx->hdr_pos;
-            need = XRD_REQUEST_HDR_LEN - ctx->hdr_pos;
+            dest = ctx->recv.hdr_buf + ctx->recv.hdr_pos;
+            need = XRD_REQUEST_HDR_LEN - ctx->recv.hdr_pos;
 
         } else {
             /* cur_body_extra is non-zero only for kXR_writev (segment data
              * streams after the dlen-framed descriptor block) and for
              * kXR_chkpoint/ckpXeq (the sub-request body streams after the
              * dlen-framed embedded sub-header). */
-            dest = ctx->payload + ctx->payload_pos;
-            need = (size_t) ctx->cur_dlen + ctx->cur_body_extra
-                   - ctx->payload_pos;
+            dest = ctx->recv.payload + ctx->recv.payload_pos;
+            need = (size_t) ctx->recv.cur_dlen + ctx->recv.cur_body_extra
+                   - ctx->recv.payload_pos;
         }
 
         if (need > 0) {
@@ -442,7 +442,7 @@ ngx_stream_brix_recv(ngx_event_t *rev)
                 ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,
                               "brix: recv AGAIN st=%d hdr_pos=%uz avail=%d"
                               " ready=%d active=%d",
-                              (int) ctx->state, ctx->hdr_pos,
+                              (int) ctx->state, ctx->recv.hdr_pos,
                               rev->available, (int) rev->ready,
                               (int) rev->active);
                 if (ngx_handle_read_event(rev, 0) != NGX_OK) {
@@ -474,9 +474,9 @@ ngx_stream_brix_recv(ngx_event_t *rev)
             rx_pending += avail;
 
             if (ctx->state == XRD_ST_HANDSHAKE) {
-                ctx->hdr_pos += avail;
+                ctx->recv.hdr_pos += avail;
 
-                if (ctx->hdr_pos >= 1 && ctx->hdr_buf[0] != 0) {
+                if (ctx->recv.hdr_pos >= 1 && ctx->recv.hdr_buf[0] != 0) {
                     /*
                      * Non-XRootD first byte (HTTP method letter / TLS 0x16; the
                      * XRootD client hello always begins with a zero streamid
@@ -487,22 +487,22 @@ ngx_stream_brix_recv(ngx_event_t *rev)
                      */
                     if (conf->http_handoff_addr != NULL
                         && brix_http_handoff_start(s, c, conf,
-                               ctx->hdr_buf, ctx->hdr_pos) == NGX_OK)
+                               ctx->recv.hdr_buf, ctx->recv.hdr_pos) == NGX_OK)
                     {
                         return;   /* the relay owns the connection now */
                     }
                     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
                                    "brix: non-XRootD client (first byte 0x%02xd)"
                                    " closing immediately",
-                                   (unsigned) ctx->hdr_buf[0]);
+                                   (unsigned) ctx->recv.hdr_buf[0]);
                     break;
                 }
 
             } else if (ctx->state == XRD_ST_REQ_HEADER) {
-                ctx->hdr_pos += avail;
+                ctx->recv.hdr_pos += avail;
 
             } else {
-                ctx->payload_pos += avail;
+                ctx->recv.payload_pos += avail;
             }
 
             if (avail < need) {
@@ -524,10 +524,10 @@ ngx_stream_brix_recv(ngx_event_t *rev)
                 break;
             }
             ctx->state = XRD_ST_REQ_HEADER;
-            ctx->hdr_pos = 0;
+            ctx->recv.hdr_pos = 0;
 
         } else if (ctx->state == XRD_ST_REQ_HEADER) {
-            ClientRequestHdr *hdr = (ClientRequestHdr *) ctx->hdr_buf;
+            ClientRequestHdr *hdr = (ClientRequestHdr *) ctx->recv.hdr_buf;
             uint32_t          max_pl;
 
             /*
@@ -540,48 +540,48 @@ ngx_stream_brix_recv(ngx_event_t *rev)
              * (its meaning is opcode-specific, e.g. fhandle+offset for kXR_read)
              * and is handed to dispatch untouched for the handler to interpret.
              */
-            ctx->cur_streamid[0] = hdr->streamid[0];
-            ctx->cur_streamid[1] = hdr->streamid[1];
-            ctx->cur_reqid = ntohs(hdr->requestid);
-            ngx_memcpy(ctx->cur_body, hdr->body, 16);
-            ctx->cur_dlen = (uint32_t) ntohl(hdr->dlen);
-            ctx->cur_body_extra = 0;
-            ctx->cur_body_extended = 0;
+            ctx->recv.cur_streamid[0] = hdr->streamid[0];
+            ctx->recv.cur_streamid[1] = hdr->streamid[1];
+            ctx->recv.cur_reqid = ntohs(hdr->requestid);
+            ngx_memcpy(ctx->recv.cur_body, hdr->body, 16);
+            ctx->recv.cur_dlen = (uint32_t) ntohl(hdr->dlen);
+            ctx->recv.cur_body_extra = 0;
+            ctx->recv.cur_body_extended = 0;
             BRIX_SRV_METRIC_INC(ctx, request_frames_total);
             BRIX_SRV_METRIC_ADD(ctx, request_payload_bytes_total,
-                                  ctx->cur_dlen);
+                                  ctx->recv.cur_dlen);
 
             ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,
                           "brix: req sid=[%02xd%02xd] reqid=%04xd dlen=%uz"
                           " avail=%d ready=%d",
-                          (int) ctx->cur_streamid[0],
-                          (int) ctx->cur_streamid[1],
-                          (int) ctx->cur_reqid, (size_t) ctx->cur_dlen,
+                          (int) ctx->recv.cur_streamid[0],
+                          (int) ctx->recv.cur_streamid[1],
+                          (int) ctx->recv.cur_reqid, (size_t) ctx->recv.cur_dlen,
                           c->read->available, (int) c->read->ready);
 
             /* dlen is untrusted client input — reject before any allocation. */
-            max_pl = brix_max_payload_for_request(ctx->cur_reqid);
-            if (ctx->cur_dlen > max_pl) {
+            max_pl = brix_max_payload_for_request(ctx->recv.cur_reqid);
+            if (ctx->recv.cur_dlen > max_pl) {
                 ngx_log_error(NGX_LOG_WARN, c->log, 0,
                               "brix: payload too large (%uz), closing",
-                              (size_t) ctx->cur_dlen);
+                              (size_t) ctx->recv.cur_dlen);
                 BRIX_SRV_METRIC_INC(ctx, oversized_payloads_total);
                 break;
             }
 
-            if (ctx->cur_dlen > 0) {
-                if (brix_ensure_payload_buffer(ctx, c, ctx->cur_dlen)
+            if (ctx->recv.cur_dlen > 0) {
+                if (brix_ensure_payload_buffer(ctx, c, ctx->recv.cur_dlen)
                     != NGX_OK)
                 {
                     break;
                 }
-                ctx->payload_pos = 0;
+                ctx->recv.payload_pos = 0;
                 ctx->state = XRD_ST_REQ_PAYLOAD;
-                ctx->hdr_pos = 0;
+                ctx->recv.hdr_pos = 0;
                 continue;
             }
 
-            ctx->payload = NULL;
+            ctx->recv.payload = NULL;
 
             /*
              * Phase 29 drain barrier (extended for write pipelining): kXR_read
@@ -591,11 +591,11 @@ ngx_stream_brix_recv(ngx_event_t *rev)
              * pwrite still references).  Defer it until both out_count and
              * wr_inflight drain; the recv loop re-dispatches it then.
              */
-            if ((ctx->out_count > 0 || ctx->wr_inflight > 0)
-                && ctx->cur_reqid != kXR_read
-                && ctx->cur_reqid != kXR_write)
+            if ((ctx->out.count > 0 || ctx->out.wr_inflight > 0)
+                && ctx->recv.cur_reqid != kXR_read
+                && ctx->recv.cur_reqid != kXR_write)
             {
-                ctx->recv_deferred = 1;
+                ctx->out.recv_deferred = 1;
                 ctx->state = XRD_ST_SENDING;
                 BRIX_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
                 return;
@@ -607,7 +607,7 @@ ngx_stream_brix_recv(ngx_event_t *rev)
              * memory/window path (TLS, non-regular) thus stays non-pipelinable
              * (its header/data live in the shared scratch buffers).
              */
-            ctx->resp_pipelinable = 0;
+            ctx->out.resp_pipelinable = 0;
 
             BRIX_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
             rx_pending = 0;
@@ -640,13 +640,13 @@ ngx_stream_brix_recv(ngx_event_t *rev)
              * bound.
              */
             if (ctx->state == XRD_ST_SENDING
-                && ctx->cur_reqid == kXR_read
-                && ctx->resp_pipelinable
-                && !ctx->rd_win_active
-                && ctx->out_count < ctx->pipeline_depth)
+                && ctx->recv.cur_reqid == kXR_read
+                && ctx->out.resp_pipelinable
+                && !ctx->rd.win_active
+                && ctx->out.count < ctx->out.pipeline_depth)
             {
                 ctx->state = XRD_ST_REQ_HEADER;
-                ctx->hdr_pos = 0;
+                ctx->recv.hdr_pos = 0;
             }
 
             if (ctx->state != XRD_ST_SENDING) {
@@ -656,7 +656,7 @@ ngx_stream_brix_recv(ngx_event_t *rev)
                 }
 
                 ctx->state = XRD_ST_REQ_HEADER;
-                ctx->hdr_pos = 0;
+                ctx->recv.hdr_pos = 0;
             }
 
         } else {
@@ -675,21 +675,21 @@ ngx_stream_brix_recv(ngx_event_t *rev)
              * brix_writev_body_extra caps descriptors + data at
              * BRIX_MAX_WRITE_PAYLOAD, so the grow below is bounded.
              */
-            if (ctx->cur_reqid == kXR_writev && !ctx->cur_body_extended) {
+            if (ctx->recv.cur_reqid == kXR_writev && !ctx->recv.cur_body_extended) {
                 uint32_t extra;
 
-                ctx->cur_body_extended = 2;
+                ctx->recv.cur_body_extended = 2;
 
-                if (brix_writev_body_extra(ctx->payload, ctx->cur_dlen,
+                if (brix_writev_body_extra(ctx->recv.payload, ctx->recv.cur_dlen,
                                              &extra) == NGX_OK
                     && extra > 0)
                 {
                     if (brix_grow_payload_buffer(ctx, c,
-                            ctx->cur_dlen + extra) != NGX_OK)
+                            ctx->recv.cur_dlen + extra) != NGX_OK)
                     {
                         break;
                     }
-                    ctx->cur_body_extra = extra;
+                    ctx->recv.cur_body_extra = extra;
                     continue;   /* keep receiving the streamed segment data */
                 }
             }
@@ -710,27 +710,27 @@ ngx_stream_brix_recv(ngx_event_t *rev)
              * trailing bytes make resync impossible).  Both stages are
              * bounded (BRIX_MAX_WRITE_PAYLOAD), so the grow is safe.
              */
-            if (ctx->cur_reqid == kXR_chkpoint
-                && ctx->cur_body[15] == kXR_ckpXeq
-                && ctx->cur_dlen == XRD_REQUEST_HDR_LEN
-                && ctx->cur_body_extended < 2)
+            if (ctx->recv.cur_reqid == kXR_chkpoint
+                && ctx->recv.cur_body[15] == kXR_ckpXeq
+                && ctx->recv.cur_dlen == XRD_REQUEST_HDR_LEN
+                && ctx->recv.cur_body_extended < 2)
             {
                 uint32_t extra = 0;
                 unsigned final = 1;
 
-                (void) brix_ckpxeq_body_extra(ctx->payload,
-                           ctx->cur_dlen + ctx->cur_body_extra,
+                (void) brix_ckpxeq_body_extra(ctx->recv.payload,
+                           ctx->recv.cur_dlen + ctx->recv.cur_body_extra,
                            &extra, &final);
-                ctx->cur_body_extended = final ? 2 : 1;
+                ctx->recv.cur_body_extended = final ? 2 : 1;
 
                 if (extra > 0) {
                     if (brix_grow_payload_buffer(ctx, c,
-                            ctx->cur_dlen + ctx->cur_body_extra + extra)
+                            ctx->recv.cur_dlen + ctx->recv.cur_body_extra + extra)
                         != NGX_OK)
                     {
                         break;
                     }
-                    ctx->cur_body_extra += extra;
+                    ctx->recv.cur_body_extra += extra;
                     continue;   /* keep receiving the streamed sub-body */
                 }
             }
@@ -743,21 +743,21 @@ ngx_stream_brix_recv(ngx_event_t *rev)
              * and the in-flight pwrites (wr_inflight) have drained — e.g. a
              * kXR_close must not retire a handle a pwrite is still writing.
              */
-            if ((ctx->out_count > 0 || ctx->wr_inflight > 0)
-                && ctx->cur_reqid != kXR_read
-                && ctx->cur_reqid != kXR_write)
+            if ((ctx->out.count > 0 || ctx->out.wr_inflight > 0)
+                && ctx->recv.cur_reqid != kXR_read
+                && ctx->recv.cur_reqid != kXR_write)
             {
-                ctx->recv_deferred = 1;
+                ctx->out.recv_deferred = 1;
                 ctx->state = XRD_ST_SENDING;
                 BRIX_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
                 return;
             }
 
             ctx->state = XRD_ST_REQ_HEADER;
-            ctx->hdr_pos = 0;
+            ctx->recv.hdr_pos = 0;
 
             /* Only the single-chunk sendfile read builder re-sets this. */
-            ctx->resp_pipelinable = 0;
+            ctx->out.resp_pipelinable = 0;
 
             BRIX_SRV_METRIC_ADD(ctx, wire_bytes_rx_total, rx_pending);
             rx_pending = 0;
@@ -777,9 +777,9 @@ ngx_stream_brix_recv(ngx_event_t *rev)
                  * completion callback queues the ack asynchronously and nudges the
                  * read side.  Every other AIO op (read, pgwrite, …) still suspends.
                  */
-                if (ctx->cur_reqid == kXR_write && ctx->wr_inflight > 0) {
+                if (ctx->recv.cur_reqid == kXR_write && ctx->out.wr_inflight > 0) {
                     ctx->state = XRD_ST_REQ_HEADER;
-                    ctx->hdr_pos = 0;
+                    ctx->recv.hdr_pos = 0;
                     continue;
                 }
                 if (ngx_handle_read_event(rev, 0) != NGX_OK) {
@@ -794,13 +794,13 @@ ngx_stream_brix_recv(ngx_event_t *rev)
              * next read's sendfile span queues behind this one.
              */
             if (ctx->state == XRD_ST_SENDING
-                && ctx->cur_reqid == kXR_read
-                && ctx->resp_pipelinable
-                && !ctx->rd_win_active
-                && ctx->out_count < ctx->pipeline_depth)
+                && ctx->recv.cur_reqid == kXR_read
+                && ctx->out.resp_pipelinable
+                && !ctx->rd.win_active
+                && ctx->out.count < ctx->out.pipeline_depth)
             {
                 ctx->state = XRD_ST_REQ_HEADER;
-                ctx->hdr_pos = 0;
+                ctx->recv.hdr_pos = 0;
                 continue;
             }
 

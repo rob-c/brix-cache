@@ -38,7 +38,7 @@ ngx_stream_brix_send(ngx_event_t *wev)
         /* Phase 39: the response-drain deadline fired — the consumer made no
          * progress for brix_send_timeout (slow / half-open reader).  Attribute
          * it and tear down via the single disconnect funnel. */
-        ctx->send_deadline_armed = 0;
+        ctx->deadline.send_armed = 0;
         BRIX_SRV_METRIC_INC(ctx, send_drain_timeouts_total);
         if (brix_defer_teardown_if_writing(ctx, c, NGX_STREAM_OK)) {
             return;
@@ -75,13 +75,13 @@ ngx_stream_brix_send(ngx_event_t *wev)
      * request.  The pump posts the next window (state XRD_ST_AIO) or finishes
      * and resumes the read side itself.
      */
-    if (ctx->rd_win_active) {
+    if (ctx->rd.win_active) {
         brix_read_window_pump(ctx, c, conf);
         return;
     }
 
     ctx->state = XRD_ST_REQ_HEADER;
-    ctx->hdr_pos = 0;
+    ctx->recv.hdr_pos = 0;
     ngx_log_debug(NGX_LOG_DEBUG_STREAM, c->log, 0,
                   "brix: send_done avail=%d ready=%d active=%d",
                   c->read->available, (int) c->read->ready,

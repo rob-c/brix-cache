@@ -55,14 +55,14 @@ rl_request_path(brix_ctx_t *ctx, char *buf, size_t bufsz)
     size_t n, i;
 
     buf[0] = '\0';
-    if (!rl_op_path_bearing(ctx->cur_reqid)
-        || ctx->payload == NULL || ctx->cur_dlen == 0)
+    if (!rl_op_path_bearing(ctx->recv.cur_reqid)
+        || ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0)
     {
         return;
     }
-    n = (ctx->cur_dlen < bufsz - 1) ? ctx->cur_dlen : bufsz - 1;
+    n = (ctx->recv.cur_dlen < bufsz - 1) ? ctx->recv.cur_dlen : bufsz - 1;
     for (i = 0; i < n; i++) {
-        u_char ch = ctx->payload[i];
+        u_char ch = ctx->recv.payload[i];
         if (ch == '\0' || ch == '?' || ch == '\n') { break; }
         buf[i] = (char) ch;
     }
@@ -83,12 +83,12 @@ brix_rl_stream_gate(brix_ctx_t *ctx, ngx_connection_t *c,
     if (conf->rl_rules == NULL || conf->rl_rules->nelts == 0) {
         return NGX_DECLINED;
     }
-    if (!rl_op_rate_limited(ctx->cur_reqid)) {
+    if (!rl_op_rate_limited(ctx->recv.cur_reqid)) {
         return NGX_DECLINED;
     }
 
     /* Reset any stale bandwidth charge target from the previous request. */
-    ctx->rl_bw_rule = NULL;
+    ctx->rl.bw_rule = NULL;
 
     rules = conf->rl_rules->elts;
 
@@ -118,17 +118,17 @@ brix_rl_stream_gate(brix_ctx_t *ctx, ngx_connection_t *c,
         cacheable = (rules[i].key_type != BRIX_RL_KEY_VOLUME
                      && i < BRIX_RL_RULE_CACHE_MAX);
 
-        if (cacheable && (ctx->rl_key_cache_valid & (1u << i))) {
-            key = ctx->rl_key_cache[i];
+        if (cacheable && (ctx->rl.key_cache_valid & (1u << i))) {
+            key = ctx->rl.key_cache[i];
         } else {
             rc = brix_rl_key_stream(&rules[i], ctx, path,
                                       key_str, sizeof(key_str));
             if (rc != NGX_OK) { continue; }   /* VOLUME prefix miss or error */
             key = key_str;
             if (cacheable) {
-                ngx_cpystrn((u_char *) ctx->rl_key_cache[i], (u_char *) key_str,
-                            sizeof(ctx->rl_key_cache[i]));
-                ctx->rl_key_cache_valid |= (1u << i);
+                ngx_cpystrn((u_char *) ctx->rl.key_cache[i], (u_char *) key_str,
+                            sizeof(ctx->rl.key_cache[i]));
+                ctx->rl.key_cache_valid |= (1u << i);
             }
         }
 
@@ -137,7 +137,7 @@ brix_rl_stream_gate(brix_ctx_t *ctx, ngx_connection_t *c,
                 BRIX_RL_METRIC_INC(rl_throttled_stream_total);
                 ngx_log_error(NGX_LOG_INFO, c->log, 0,
                     "xrootd rate limit: kXR_wait %uD for op 0x%04xd (key=%s)",
-                    wait_sec, (int) ctx->cur_reqid, key);
+                    wait_sec, (int) ctx->recv.cur_reqid, key);
                 return brix_send_wait(ctx, c, wait_sec);
             }
         }
@@ -151,9 +151,9 @@ brix_rl_stream_gate(brix_ctx_t *ctx, ngx_connection_t *c,
                 return brix_send_wait(ctx, c, wait_sec);
             }
             /* Remember the matched bandwidth rule for the post-send charge. */
-            ngx_cpystrn((u_char *) ctx->rl_bw_key, (u_char *) key,
-                        sizeof(ctx->rl_bw_key));
-            ctx->rl_bw_rule = &rules[i];
+            ngx_cpystrn((u_char *) ctx->rl.bw_key, (u_char *) key,
+                        sizeof(ctx->rl.bw_key));
+            ctx->rl.bw_rule = &rules[i];
         }
 
         /*
@@ -166,7 +166,7 @@ brix_rl_stream_gate(brix_ctx_t *ctx, ngx_connection_t *c,
          * number of concurrent connections per principal; over-cap → kXR_wait so
          * the client retries when a slot frees.
          */
-        if (rules[i].req_conc > 0 && ctx->rl_conc_rule == NULL) {
+        if (rules[i].req_conc > 0 && ctx->rl.conc_rule == NULL) {
             if (brix_rl_conc_acquire(&rules[i], key) == NGX_AGAIN) {
                 BRIX_RL_METRIC_INC(rl_throttled_stream_total);
                 ngx_log_error(NGX_LOG_INFO, c->log, 0,
@@ -174,9 +174,9 @@ brix_rl_stream_gate(brix_ctx_t *ctx, ngx_connection_t *c,
                     key);
                 return brix_send_wait(ctx, c, 1);
             }
-            ngx_cpystrn((u_char *) ctx->rl_conc_key, (u_char *) key,
-                        sizeof(ctx->rl_conc_key));
-            ctx->rl_conc_rule = &rules[i];
+            ngx_cpystrn((u_char *) ctx->rl.conc_key, (u_char *) key,
+                        sizeof(ctx->rl.conc_key));
+            ctx->rl.conc_rule = &rules[i];
         }
     }
 
@@ -186,19 +186,19 @@ brix_rl_stream_gate(brix_ctx_t *ctx, ngx_connection_t *c,
 void
 brix_rl_charge_ctx(brix_ctx_t *ctx, size_t nbytes)
 {
-    if (ctx->rl_bw_rule != NULL && ctx->rl_bw_key[0] != '\0') {
-        brix_rl_charge_bytes((brix_rl_rule_t *) ctx->rl_bw_rule,
-                               ctx->rl_bw_key, nbytes);
+    if (ctx->rl.bw_rule != NULL && ctx->rl.bw_key[0] != '\0') {
+        brix_rl_charge_bytes((brix_rl_rule_t *) ctx->rl.bw_rule,
+                               ctx->rl.bw_key, nbytes);
     }
 }
 
 void
 brix_rl_release_ctx(brix_ctx_t *ctx)
 {
-    if (ctx->rl_conc_rule != NULL) {
-        brix_rl_conc_release((brix_rl_rule_t *) ctx->rl_conc_rule,
-                               ctx->rl_conc_key);
-        ctx->rl_conc_rule = NULL;
-        ctx->rl_conc_key[0] = '\0';
+    if (ctx->rl.conc_rule != NULL) {
+        brix_rl_conc_release((brix_rl_rule_t *) ctx->rl.conc_rule,
+                               ctx->rl.conc_key);
+        ctx->rl.conc_rule = NULL;
+        ctx->rl.conc_key[0] = '\0';
     }
 }

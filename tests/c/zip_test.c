@@ -11,7 +11,7 @@
  * not-found and a corrupted (truncated/bit-flipped) archive.
  */
 
-#include "zip.h"
+#include "protocols/shared/zip.h"
 
 #include <fcntl.h>
 #include <stdio.h>

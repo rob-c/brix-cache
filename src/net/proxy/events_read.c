@@ -65,8 +65,8 @@ brix_proxy_read_handler(ngx_event_t *rev)
                     brix_proxy_abort(proxy, "proxy: read arm failed (hdr)");
                     return;
                 }
-                if (proxy->conf != NULL && proxy->conf->proxy_read_timeout > 0) {
-                    ngx_add_timer(rev, proxy->conf->proxy_read_timeout);
+                if (proxy->conf != NULL && proxy->conf->proxy.read_timeout > 0) {
+                    ngx_add_timer(rev, proxy->conf->proxy.read_timeout);
                 }
                 return;
             }
@@ -150,8 +150,8 @@ brix_proxy_read_handler(ngx_event_t *rev)
                     brix_proxy_abort(proxy, "proxy: read arm failed (body)");
                     return;
                 }
-                if (proxy->conf != NULL && proxy->conf->proxy_read_timeout > 0) {
-                    ngx_add_timer(rev, proxy->conf->proxy_read_timeout);
+                if (proxy->conf != NULL && proxy->conf->proxy.read_timeout > 0) {
+                    ngx_add_timer(rev, proxy->conf->proxy.read_timeout);
                 }
                 return;
             }

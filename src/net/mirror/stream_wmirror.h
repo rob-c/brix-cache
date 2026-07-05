@@ -42,7 +42,7 @@ void brix_stream_wmirror_on_open(brix_ctx_t *ctx, ngx_connection_t *c,
 /*
  * Observe a just-dispatched kXR_write / kXR_pgwrite / kXR_close for the
  * data-write mirror.  Called from dispatch.c after the primary handled the op
- * (the client handle index is in ctx->hdr_buf[4]).  primary_rc is the primary's
+ * (the client handle index is in ctx->recv.hdr_buf[4]).  primary_rc is the primary's
  * dispatch result — a failed primary op is not mirrored.  On close, if a complete
  * sequential write was accumulated, a detached shadow replay is launched.  No-op
  * when data-write mirroring is not configured/enabled.

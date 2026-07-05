@@ -440,20 +440,20 @@ brix_find_authdb_rule(const char *resolved_path, ngx_array_t *rules,
 
     if (ctx->identity != NULL) {
         return brix_find_authdb_rule_identity(resolved_path, rules,
-                                                ctx->identity, ctx->peer_ip,
+                                                ctx->identity, ctx->login.peer_ip,
                                                 needed_privs);
     }
 
     /* Legacy path: wrap the raw dn/vo_list strings in a transient identity.
      * Fields alias ctx storage (no ownership); safe for this synchronous call. */
     ngx_memzero(&fallback, sizeof(fallback));
-    fallback.dn.data = (u_char *) ctx->dn;
-    fallback.dn.len = strlen(ctx->dn);
-    fallback.vo_csv.data = (u_char *) ctx->vo_list;
-    fallback.vo_csv.len = strlen(ctx->vo_list);
+    fallback.dn.data = (u_char *) ctx->login.dn;
+    fallback.dn.len = strlen(ctx->login.dn);
+    fallback.vo_csv.data = (u_char *) ctx->login.vo_list;
+    fallback.vo_csv.len = strlen(ctx->login.vo_list);
 
     return brix_find_authdb_rule_identity(resolved_path, rules,
-                                            &fallback, ctx->peer_ip,
+                                            &fallback, ctx->login.peer_ip,
                                             needed_privs);
 }
 /* Authorize `identity` for needed_privs on resolved_path against the rules.
@@ -507,18 +507,18 @@ brix_check_authdb(brix_ctx_t *ctx, const char *resolved_path,
     if (ctx->identity != NULL) {
         return brix_check_authdb_identity(ctx->session->connection->log,
                                             conf->authdb_rules, ctx->identity,
-                                            ctx->peer_ip, resolved_path,
+                                            ctx->login.peer_ip, resolved_path,
                                             needed_privs);
     }
 
     ngx_memzero(&fallback, sizeof(fallback));
-    fallback.dn.data = (u_char *) ctx->dn;
-    fallback.dn.len = strlen(ctx->dn);
-    fallback.vo_csv.data = (u_char *) ctx->vo_list;
-    fallback.vo_csv.len = strlen(ctx->vo_list);
+    fallback.dn.data = (u_char *) ctx->login.dn;
+    fallback.dn.len = strlen(ctx->login.dn);
+    fallback.vo_csv.data = (u_char *) ctx->login.vo_list;
+    fallback.vo_csv.len = strlen(ctx->login.vo_list);
 
     return brix_check_authdb_identity(ctx->session->connection->log,
                                         conf->authdb_rules, &fallback,
-                                        ctx->peer_ip, resolved_path,
+                                        ctx->login.peer_ip, resolved_path,
                                         needed_privs);
 }

@@ -17,18 +17,18 @@ brix_conf_set_cms_manager(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     value = cf->args->elts;
     (void) cmd;
 
-    if (xcf->cms_addr != NULL) {
+    if (xcf->cms.addr != NULL) {
         return "is duplicate";
     }
 
-    if (brix_copy_conf_string(cf, &value[1], &xcf->cms_manager)
+    if (brix_copy_conf_string(cf, &value[1], &xcf->cms.manager)
         != NGX_CONF_OK)
     {
         return NGX_CONF_ERROR;
     }
 
     ngx_memzero(&url, sizeof(url));
-    url.url = xcf->cms_manager;
+    url.url = xcf->cms.manager;
     url.default_port = 0;
 
     if (ngx_parse_url(cf->pool, &url) != NGX_OK) {
@@ -67,10 +67,10 @@ brix_conf_set_cms_manager(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_memcpy(addr->sockaddr, url.addrs[0].sockaddr, url.addrs[0].socklen);
     addr->socklen = url.addrs[0].socklen;
     addr->name = url.addrs[0].name;
-    xcf->cms_addr = addr;
+    xcf->cms.addr = addr;
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "brix: CMS manager configured: %V", &xcf->cms_manager);
+        "brix: CMS manager configured: %V", &xcf->cms.manager);
 
     return NGX_CONF_OK;
 }

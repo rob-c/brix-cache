@@ -5,7 +5,7 @@
  * The table is slab-allocated (brix_shm_table_alloc) so it does not clobber the
  * slab-pool header — same contract as every other nginx-xrootd SHM zone (see
  * src/compat/shm_slots.c). Delivery rebuilds the real open response by replaying
- * brix_open_resolved_file() on the parked connection with ctx->stage_async_active
+ * brix_open_resolved_file() on the parked connection with ctx->prepare.stage_async_active
  * set, so the open-OK body (fhandle) is produced by the normal machinery and
  * emitted via kXR_attn(asynresp) on the saved streamid.
  */
@@ -223,11 +223,11 @@ stage_waiter_deliver_one(const stage_waiter_t *w)
         /* Replay the open: the file is now resident, so the normal machinery
          * allocates the fhandle and builds the open-OK body; the stage_async flag
          * makes the emit go out as kXR_attn(asynresp) on the saved streamid. */
-        ctx->stage_async_active = 1;
-        ctx->stage_async_streamid[0] = w->client_streamid[0];
-        ctx->stage_async_streamid[1] = w->client_streamid[1];
+        ctx->prepare.stage_async_active = 1;
+        ctx->prepare.stage_async_streamid[0] = w->client_streamid[0];
+        ctx->prepare.stage_async_streamid[1] = w->client_streamid[1];
         (void) brix_open_resolved_file(ctx, c, conf, rec.lfn, w->options, 0, 0, 0);
-        ctx->stage_async_active = 0;
+        ctx->prepare.stage_async_active = 0;
     } else {
         /* Recall failed (or the record vanished): deliver a hard error so the
          * client stops waiting. Body = errnum(4, big-endian) + message. */

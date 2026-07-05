@@ -300,8 +300,8 @@ cache_build_wt_stage(ngx_pool_t *pool, ngx_log_t *log,
     brix_sd_instance_t *store;
     brix_sd_instance_t *origin;
 
-    if (!conf->wt_enable
-        || (conf->wt_origin_host.len == 0 && conf->cache_origin_host.len == 0))
+    if (!conf->wt.enable
+        || (conf->wt.origin_host.len == 0 && conf->cache_origin_host.len == 0))
     {
         return;
     }
@@ -324,7 +324,7 @@ cache_build_wt_stage(ngx_pool_t *pool, ngx_log_t *log,
         brix_stage_policy_t pol;
 
         ngx_memzero(&pol, sizeof(pol));
-        pol.flush_mode = (conf->wt_mode == BRIX_WT_MODE_ASYNC)
+        pol.flush_mode = (conf->wt.mode == BRIX_WT_MODE_ASYNC)
                          ? BRIX_WT_MODE_ASYNC : BRIX_WT_MODE_SYNC;
         conf->cache_wt_stage_sd_inst = brix_sd_stage_create(origin, store, &pol,
             (const char *) conf->common.root_canon, log);

@@ -6,8 +6,8 @@
 ngx_str_t
 ngx_brix_cms_export_paths(ngx_stream_brix_srv_conf_t *conf)
 {
-    if (conf->cms_paths.len > 0) {
-        return conf->cms_paths;
+    if (conf->cms.paths.len > 0) {
+        return conf->cms.paths;
     }
 
     return conf->common.root;

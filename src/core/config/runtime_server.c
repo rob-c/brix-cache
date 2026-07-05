@@ -237,7 +237,7 @@ brix_config_prepare_server(ngx_conf_t *cf,
 
     /* Phase-4b: a GSI tap proxy must capture the client's delegated proxy to
      * present it upstream — auto-enable delegation receipt if the admin didn't. */
-    if (xcf->proxy_enable && xcf->proxy_auth == BRIX_PROXY_AUTH_GSI
+    if (xcf->proxy.enable && xcf->proxy.auth == BRIX_PROXY_AUTH_GSI
         && !xcf->tpc_delegate)
     {
         xcf->tpc_delegate = 1;
@@ -245,8 +245,8 @@ brix_config_prepare_server(ngx_conf_t *cf,
             "brix_tap_proxy_auth gsi: enabling GSI proxy delegation capture");
     }
 
-    if (!xcf->manager_mode && !xcf->supervisor
-        && xcf->manager_map == NULL && !xcf->proxy_enable) {
+    if (!xcf->manager_mode && !xcf->caps.supervisor
+        && xcf->manager_map == NULL && !xcf->proxy.enable) {
         brix_export_root_opts_t root_opts;
 
         /* A "posix:<path>" storage backend NAMES THE LOCAL EXPORT TREE — the fully
@@ -334,18 +334,18 @@ brix_config_prepare_server(ngx_conf_t *cf,
         /* §14 + C-3/C-5: the write-back flush authenticates to its wt_origin with a
          * credential too (ztn bearer). Resolve into cache_origin_bearer, which the
          * C-5 driver write-back already threads into its sd_xroot dest. */
-        if (xcf->wt_credential.len > 0) {
+        if (xcf->wt.credential.len > 0) {
             char                       cred_z[256];
             char                       bearer[4096];
             const brix_credential_t *cred;
 
-            ngx_cpystrn((u_char *) cred_z, xcf->wt_credential.data,
-                        ngx_min(xcf->wt_credential.len + 1, sizeof(cred_z)));
+            ngx_cpystrn((u_char *) cred_z, xcf->wt.credential.data,
+                        ngx_min(xcf->wt.credential.len + 1, sizeof(cred_z)));
             cred = brix_credential_lookup(cred_z);
             if (cred == NULL) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                     "brix_wt_credential: no brix_credential \"%V\"",
-                    &xcf->wt_credential);
+                    &xcf->wt.credential);
                 return NGX_ERROR;
             }
             if (brix_credential_bearer(cred, bearer, sizeof(bearer), cf->log)
@@ -403,7 +403,7 @@ brix_config_prepare_server(ngx_conf_t *cf,
         /* The read-through cache is read-only UNLESS write-through is enabled,
          * in which case write handles are accepted and mirrored to the origin
          * at kXR_sync/kXR_close (see src/cache/writethrough_flush.c). */
-        if (xcf->common.allow_write && !xcf->wt_enable) {
+        if (xcf->common.allow_write && !xcf->wt.enable) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "brix_cache is read-only and requires "
                 "brix_allow_write off (or enable brix_write_through)");
@@ -488,10 +488,10 @@ brix_config_prepare_server(ngx_conf_t *cf,
 
         /* Watermark reaper ordering: 0 < low < high < 1.0. Defaults already
          * satisfy this; an explicit pair that inverts it is a config error. */
-        if (xcf->cache_high_watermark == 0
-            || xcf->cache_high_watermark >= 1000000
-            || xcf->cache_low_watermark == 0
-            || xcf->cache_low_watermark >= xcf->cache_high_watermark)
+        if (xcf->reaper.high_watermark == 0
+            || xcf->reaper.high_watermark >= 1000000
+            || xcf->reaper.low_watermark == 0
+            || xcf->reaper.low_watermark >= xcf->reaper.high_watermark)
         {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "brix_cache_low_watermark must be greater than 0 and less "
@@ -561,33 +561,33 @@ brix_config_prepare_server(ngx_conf_t *cf,
             &xcf->access_log);
     }
 
-    if (xcf->proxy_enable
-        && xcf->proxy_audit_log.len > 0
-        && ngx_strcmp(xcf->proxy_audit_log.data, (u_char *) "off") != 0)
+    if (xcf->proxy.enable
+        && xcf->proxy.audit_log.len > 0
+        && ngx_strcmp(xcf->proxy.audit_log.data, (u_char *) "off") != 0)
     {
         /* nginx-managed handle; see the access-log note above. */
-        xcf->proxy_audit_log_file = ngx_conf_open_file(cf->cycle,
-                                                       &xcf->proxy_audit_log);
-        if (xcf->proxy_audit_log_file == NULL) {
+        xcf->proxy.audit_log_file = ngx_conf_open_file(cf->cycle,
+                                                       &xcf->proxy.audit_log);
+        if (xcf->proxy.audit_log_file == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "brix: cannot register proxy audit log \"%V\"",
-                &xcf->proxy_audit_log);
+                &xcf->proxy.audit_log);
             return NGX_ERROR;
         }
 
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
             "brix: proxy audit log \"%V\" registered",
-            &xcf->proxy_audit_log);
+            &xcf->proxy.audit_log);
     }
 
 #if (NGX_SSL)
-    if (xcf->proxy_enable && xcf->proxy_upstream_tls) {
-        xcf->proxy_tls_ctx = ngx_pcalloc(cf->pool, sizeof(ngx_ssl_t));
-        if (xcf->proxy_tls_ctx == NULL) {
+    if (xcf->proxy.enable && xcf->proxy.upstream_tls) {
+        xcf->proxy.tls_ctx = ngx_pcalloc(cf->pool, sizeof(ngx_ssl_t));
+        if (xcf->proxy.tls_ctx == NULL) {
             return NGX_ERROR;
         }
-        xcf->proxy_tls_ctx->log = cf->log;
-        if (ngx_ssl_create(xcf->proxy_tls_ctx,
+        xcf->proxy.tls_ctx->log = cf->log;
+        if (ngx_ssl_create(xcf->proxy.tls_ctx,
                            NGX_SSL_TLSv1_2 | NGX_SSL_TLSv1_3,
                            NULL) != NGX_OK)
         {
@@ -595,9 +595,9 @@ brix_config_prepare_server(ngx_conf_t *cf,
         }
 
         /* Peer certificate verification (optional; enabled by directive). */
-        if (xcf->proxy_upstream_tls_ca.len > 0) {
-            if (ngx_ssl_trusted_certificate(cf, xcf->proxy_tls_ctx,
-                                             &xcf->proxy_upstream_tls_ca,
+        if (xcf->proxy.upstream_tls_ca.len > 0) {
+            if (ngx_ssl_trusted_certificate(cf, xcf->proxy.tls_ctx,
+                                             &xcf->proxy.upstream_tls_ca,
                                              5 /* chain depth */)
                 != NGX_OK)
             {
@@ -606,7 +606,7 @@ brix_config_prepare_server(ngx_conf_t *cf,
             /* ngx_ssl_trusted_certificate sets SSL_VERIFY_PEER internally */
             ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
                 "brix: proxy upstream TLS CA loaded from \"%V\"",
-                &xcf->proxy_upstream_tls_ca);
+                &xcf->proxy.upstream_tls_ca);
         }
     }
 

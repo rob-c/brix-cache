@@ -35,7 +35,7 @@ void brix_tls_handshake_done(ngx_connection_t *c) {
     ngx_log_error(NGX_LOG_INFO, c->log, 0, "brix: kXR_ableTLS TLS handshake complete (%s)", SSL_get_cipher(c->ssl->connection));
     ctx->tls_pending = 0;
     ctx->state       = XRD_ST_REQ_HEADER;
-    ctx->hdr_pos     = 0;
+    ctx->recv.hdr_pos     = 0;
     c->read->handler  = ngx_stream_brix_recv;
     c->write->handler = ngx_stream_brix_send;
     ngx_stream_brix_recv(c->read);

@@ -51,17 +51,17 @@ brix_arm_read_deadline(ngx_connection_t *c, brix_ctx_t *ctx)
 {
     ngx_msec_t t;
 
-    if (ctx->read_deadline_armed) {
+    if (ctx->deadline.read_armed) {
         return;
     }
 
-    if (ctx->auth_done) {
-        if (ctx->state == XRD_ST_REQ_HEADER && ctx->hdr_pos == 0) {
+    if (ctx->login.auth_done) {
+        if (ctx->state == XRD_ST_REQ_HEADER && ctx->recv.hdr_pos == 0) {
             return;  /* idle between requests — allow keepalive */
         }
-        t = ctx->read_timeout_ms;
+        t = ctx->deadline.read_ms;
     } else {
-        t = ctx->handshake_timeout_ms;
+        t = ctx->deadline.handshake_ms;
     }
 
     if (t == 0) {
@@ -69,7 +69,7 @@ brix_arm_read_deadline(ngx_connection_t *c, brix_ctx_t *ctx)
     }
 
     ngx_add_timer(c->read, t);
-    ctx->read_deadline_armed = 1;
+    ctx->deadline.read_armed = 1;
 }
 
 /* Disarm the read deadline we armed (idempotent; never touches a timer we did not
@@ -77,13 +77,13 @@ brix_arm_read_deadline(ngx_connection_t *c, brix_ctx_t *ctx)
 static ngx_inline void
 brix_disarm_read_deadline(ngx_connection_t *c, brix_ctx_t *ctx)
 {
-    if (!ctx->read_deadline_armed) {
+    if (!ctx->deadline.read_armed) {
         return;
     }
     if (c->read->timer_set) {
         ngx_del_timer(c->read);
     }
-    ctx->read_deadline_armed = 0;
+    ctx->deadline.read_armed = 0;
 }
 
 /*
@@ -103,23 +103,23 @@ brix_disarm_read_deadline(ngx_connection_t *c, brix_ctx_t *ctx)
 static ngx_inline void
 brix_arm_send_deadline(ngx_connection_t *c, brix_ctx_t *ctx)
 {
-    if (ctx->send_timeout_ms == 0) {
+    if (ctx->deadline.send_ms == 0) {
         return;  /* deadline disabled */
     }
-    ngx_add_timer(c->write, ctx->send_timeout_ms);
-    ctx->send_deadline_armed = 1;
+    ngx_add_timer(c->write, ctx->deadline.send_ms);
+    ctx->deadline.send_armed = 1;
 }
 
 static ngx_inline void
 brix_disarm_send_deadline(ngx_connection_t *c, brix_ctx_t *ctx)
 {
-    if (!ctx->send_deadline_armed) {
+    if (!ctx->deadline.send_armed) {
         return;
     }
     if (c->write->timer_set) {
         ngx_del_timer(c->write);
     }
-    ctx->send_deadline_armed = 0;
+    ctx->deadline.send_armed = 0;
 }
 
 #endif /* NGX_BRIX_CONNECTION_DEADLINE_H */

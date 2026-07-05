@@ -181,7 +181,7 @@ brix_handle_pgread(brix_ctx_t *ctx, ngx_connection_t *c)
     char                          detail[64];
     ngx_int_t                     validate_rc;
 
-    xrdw_pgread_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    xrdw_pgread_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     idx = (int) (unsigned char) req.fhandle[0];
     offset = req.offset;
     rlen = (size_t) (uint32_t) req.rlen;
@@ -250,7 +250,7 @@ brix_handle_pgread(brix_ctx_t *ctx, ngx_connection_t *c)
          */
         scratch_size = rlen + n_pages_max * BRIX_PG_CKSZ;
 
-        scratch = BRIX_GET_SCRATCH(ctx, c, read_scratch, read_scratch_size,
+        scratch = BRIX_GET_SCRATCH(ctx, c, rd.read_scratch, rd.read_scratch_size,
                                      scratch_size);
         if (scratch == NULL) {
             return NGX_ERROR;
@@ -301,14 +301,14 @@ brix_handle_pgread(brix_ctx_t *ctx, ngx_connection_t *c)
             brix_pgread_aio_t *t;
             ngx_flag_t           posted;
 
-            task = ctx->pgread_aio_task;
+            task = ctx->rd.pgread_aio_task;
             if (task == NULL) {
                 task = ngx_thread_task_alloc(c->pool,
                                              sizeof(brix_pgread_aio_t));
                 if (task == NULL) {
                     return NGX_ERROR;
                 }
-                ctx->pgread_aio_task = task;
+                ctx->rd.pgread_aio_task = task;
             } else {
                 task->next = NULL;
                 task->event.complete = 0;
@@ -323,8 +323,8 @@ brix_handle_pgread(brix_ctx_t *ctx, ngx_connection_t *c)
             t->rlen = rlen;
             t->scratch = scratch;
             t->out_size = 0;
-            t->streamid[0] = ctx->cur_streamid[0];
-            t->streamid[1] = ctx->cur_streamid[1];
+            t->streamid[0] = ctx->recv.cur_streamid[0];
+            t->streamid[1] = ctx->recv.cur_streamid[1];
             t->obj = ctx->files[idx].sd_obj; /* Layer 3: driver obj (or zeroed) */
 
             brix_task_bind(task, brix_pgread_aio_thread, brix_pgread_aio_done);
@@ -372,7 +372,7 @@ brix_handle_pgread(brix_ctx_t *ctx, ngx_connection_t *c)
     }
 
     ctx->files[idx].bytes_read += rlen;
-    ctx->session_bytes += rlen;
+    ctx->totals.bytes += rlen;
     brix_rl_charge_ctx(ctx, rlen);  /* Phase 25 bandwidth */
 
     if (rconf->access_log_fd != NGX_INVALID_FILE) {

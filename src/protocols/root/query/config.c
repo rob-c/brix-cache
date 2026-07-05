@@ -117,7 +117,7 @@ brix_query_config(brix_ctx_t *ctx, ngx_connection_t *c,
      */
     tpc_capable = 1;
 
-    p = (ctx->payload && ctx->cur_dlen > 0) ? (const char *) ctx->payload : "";
+    p = (ctx->recv.payload && ctx->recv.cur_dlen > 0) ? (const char *) ctx->recv.payload : "";
 
     /*
      * Keys are whitespace-separated (see libXrdCl FileSystem::Query config,

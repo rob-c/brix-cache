@@ -31,7 +31,7 @@ cms_addr_is_loopback(struct sockaddr *sa)
     return 0;
 }
 
-/* ngx_brix_cms_arm_read_deadline — (re)arm c->read with conf->cms_read_timeout
+/* ngx_brix_cms_arm_read_deadline — (re)arm c->read with conf->cms.read_timeout
  * (WS1) so a black-holed/half-open manager is detected; ngx_add_timer replaces any
  * pending timer, so each call measures from now. On expiry the recv handler's
  * ev->timedout branch disconnects and retries. */
@@ -42,11 +42,11 @@ ngx_brix_cms_arm_read_deadline(ngx_brix_cms_ctx_t *ctx)
     ngx_connection_t  *c;
 
     c = ctx->connection;
-    if (c == NULL || ctx->conf->cms_read_timeout == 0 || ngx_exiting) {
+    if (c == NULL || ctx->conf->cms.read_timeout == 0 || ngx_exiting) {
         return;
     }
 
-    ngx_add_timer(c->read, ctx->conf->cms_read_timeout);
+    ngx_add_timer(c->read, ctx->conf->cms.read_timeout);
 }
 
 /* ngx_brix_cms_schedule — arm or replace the CMS heartbeat timer to fire after
@@ -108,7 +108,7 @@ ngx_brix_cms_schedule_retry(ngx_brix_cms_ctx_t *ctx)
         if ((ngx_msec_int_t) (ctx->fast_deadline - now) > 0) {
             ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                            "brix: CMS fast-retry to %V (attempt %ui)",
-                           &ctx->conf->cms_manager, ctx->connect_attempts);
+                           &ctx->conf->cms.manager, ctx->connect_attempts);
             ngx_brix_cms_schedule(ctx, ctx->fast_retry);
             return;
         }
@@ -122,12 +122,12 @@ ngx_brix_cms_schedule_retry(ngx_brix_cms_ctx_t *ctx)
             "the connection",
             "confirm cmsd is listening and that brix_cms_manager matches its "
             "host:port; this node stays OUT of the cluster until it connects",
-            &ctx->conf->cms_manager);
+            &ctx->conf->cms.manager);
     }
 
     /* Cap max backoff at 10× the heartbeat interval so a short cms_interval
      * (e.g. 2s for tests) also gives short reconnect windows. */
-    max_backoff = (ngx_msec_t) ctx->conf->cms_interval * 10000;
+    max_backoff = (ngx_msec_t) ctx->conf->cms.interval * 10000;
     if (max_backoff > NGX_BRIX_CMS_BACKOFF_MAX) {
         max_backoff = NGX_BRIX_CMS_BACKOFF_MAX;
     }
@@ -225,12 +225,12 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
         }
 
         ctx->logged_in = 1;
-        ctx->backoff = ngx_min((ngx_msec_t) ctx->conf->cms_interval * 1000,
+        ctx->backoff = ngx_min((ngx_msec_t) ctx->conf->cms.interval * 1000,
                                (ngx_msec_t) NGX_BRIX_CMS_BACKOFF_INITIAL);
 
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
                       "brix: CMS login sent to %V",
-                      &ctx->conf->cms_manager);
+                      &ctx->conf->cms.manager);
 
         /* First successful login of this boot: leave fast-retry mode (any future
          * reconnect is a real outage → backoff) and report the settle time. */
@@ -240,7 +240,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
             ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
                           "brix: CMS registered with %V after %uL ms "
                           "(%ui connect attempt(s), %s)",
-                          &ctx->conf->cms_manager,
+                          &ctx->conf->cms.manager,
                           (brix_phase_now_ns() - ctx->start_ns) / 1000000ull,
                           ctx->connect_attempts,
                           ctx->is_loopback ? "loopback" : "remote");
@@ -283,7 +283,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
         return;
     }
 
-    ngx_brix_cms_schedule(ctx, (ngx_msec_t) ctx->conf->cms_interval * 1000);
+    ngx_brix_cms_schedule(ctx, (ngx_msec_t) ctx->conf->cms.interval * 1000);
 
     ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ev->log, 0,
                    "brix: CMS write handler: heartbeat sent");
@@ -303,9 +303,9 @@ ngx_brix_cms_connect(ngx_brix_cms_ctx_t *ctx)
     ctx->connect_attempts++;
 
     ngx_memzero(&ctx->peer, sizeof(ctx->peer));
-    ctx->peer.sockaddr = ctx->conf->cms_addr->sockaddr;
-    ctx->peer.socklen = ctx->conf->cms_addr->socklen;
-    ctx->peer.name = &ctx->conf->cms_addr->name;
+    ctx->peer.sockaddr = ctx->conf->cms.addr->sockaddr;
+    ctx->peer.socklen = ctx->conf->cms.addr->socklen;
+    ctx->peer.name = &ctx->conf->cms.addr->name;
     ctx->peer.get = ngx_event_get_peer;
     ctx->peer.log = ctx->cycle->log;
     ctx->peer.log_error = NGX_ERROR_ERR;
@@ -319,7 +319,7 @@ ngx_brix_cms_connect(ngx_brix_cms_ctx_t *ctx)
             "confirm cmsd is listening and that brix_cms_manager matches "
             "its host:port; this node will keep retrying and stays OUT of the "
             "cluster until it connects",
-            &ctx->conf->cms_manager);
+            &ctx->conf->cms.manager);
         ngx_brix_cms_schedule_retry(ctx);
         return;
     }
@@ -339,8 +339,8 @@ ngx_brix_cms_connect(ngx_brix_cms_ctx_t *ctx)
      * dropped manager is torn down by the kernel even between event-loop
      * deadlines.  Best-effort; failures are non-fatal.
      */
-    brix_apply_tcp_deadpeer_opts(c->fd, ctx->conf->cms_tcp_keepalive,
-                                   ctx->conf->cms_tcp_user_timeout);
+    brix_apply_tcp_deadpeer_opts(c->fd, ctx->conf->cms.tcp_keepalive,
+                                   ctx->conf->cms.tcp_user_timeout);
 
     if (rc == NGX_AGAIN) {
         /*
@@ -349,8 +349,8 @@ ngx_brix_cms_connect(ngx_brix_cms_ctx_t *ctx)
          * path reconnects with backoff.  Falls back to the fixed connect timeout
          * if the knob is disabled (0).
          */
-        ngx_msec_t connect_tmo = ctx->conf->cms_send_timeout > 0
-                                 ? ctx->conf->cms_send_timeout
+        ngx_msec_t connect_tmo = ctx->conf->cms.send_timeout > 0
+                                 ? ctx->conf->cms.send_timeout
                                  : NGX_BRIX_CMS_CONNECT_TIMEOUT;
         ngx_add_timer(c->write, connect_tmo);
         return;
@@ -395,7 +395,7 @@ ngx_brix_cms_timer(ngx_event_t *ev)
         return;
     }
 
-    ngx_brix_cms_schedule(ctx, (ngx_msec_t) ctx->conf->cms_interval * 1000);
+    ngx_brix_cms_schedule(ctx, (ngx_msec_t) ctx->conf->cms.interval * 1000);
 }
 
 /* ngx_brix_cms_start — worker-init entry point (from config/process.c): allocate
@@ -408,7 +408,7 @@ ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
 {
     ngx_brix_cms_ctx_t  *ctx;
 
-    if (conf->cms_addr == NULL || conf->cms_ctx != NULL) {
+    if (conf->cms.addr == NULL || conf->cms.ctx != NULL) {
         return;
     }
 
@@ -421,7 +421,7 @@ ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
 
     ctx->cycle = cycle;
     ctx->conf = conf;
-    ctx->backoff = ngx_min((ngx_msec_t) conf->cms_interval * 1000,
+    ctx->backoff = ngx_min((ngx_msec_t) conf->cms.interval * 1000,
                            (ngx_msec_t) NGX_BRIX_CMS_BACKOFF_INITIAL);
     ctx->in_need = NGX_BRIX_CMS_HDR_LEN;
     ctx->start_ns = brix_phase_now_ns();
@@ -432,10 +432,10 @@ ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
      * an explicit directive overrides the locality default.  The fast-retry interval
      * is floored so a misconfigured "0" can never become a busy connect-storm.
      */
-    ctx->is_loopback = cms_addr_is_loopback(conf->cms_addr->sockaddr);
+    ctx->is_loopback = cms_addr_is_loopback(conf->cms.addr->sockaddr);
 
-    ctx->fast_retry = (conf->cms_connect_retry != NGX_CONF_UNSET_MSEC)
-                      ? conf->cms_connect_retry
+    ctx->fast_retry = (conf->cms.connect_retry != NGX_CONF_UNSET_MSEC)
+                      ? conf->cms.connect_retry
                       : (ctx->is_loopback ? NGX_BRIX_CMS_FASTRETRY_LOOPBACK
                                           : NGX_BRIX_CMS_FASTRETRY_REMOTE);
     if (ctx->fast_retry < NGX_BRIX_CMS_FASTRETRY_FLOOR) {
@@ -457,13 +457,13 @@ ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
      */
     ctx->timer.cancelable = 1;
 
-    conf->cms_ctx = ctx;
+    conf->cms.ctx = ctx;
 
     {
         /* First-connect delay: directive override, else the locality default
          * (0 for loopback — connect immediately; the fast-retry handles a miss). */
-        ngx_msec_t init_delay = (conf->cms_initial_delay != NGX_CONF_UNSET_MSEC)
-            ? conf->cms_initial_delay
+        ngx_msec_t init_delay = (conf->cms.initial_delay != NGX_CONF_UNSET_MSEC)
+            ? conf->cms.initial_delay
             : (ctx->is_loopback ? NGX_BRIX_CMS_INITDELAY_LOOPBACK
                                 : NGX_BRIX_CMS_INITDELAY_REMOTE);
         ngx_brix_cms_schedule(ctx, init_delay);
@@ -471,5 +471,5 @@ ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
 
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
                   "brix: CMS heartbeat starting for manager %V",
-                  &conf->cms_manager);
+                  &conf->cms.manager);
 }

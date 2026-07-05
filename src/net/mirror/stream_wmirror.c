@@ -573,7 +573,7 @@ wmir_gate(ngx_stream_brix_srv_conf_t *conf)
  * ignored.  HOW: lazily allocate the per-connection accumulator from the client
  * connection pool on first use; reset any prior open occupying this slot (handle
  * indices are reused across opens).  The payload is copied (own heap buffer)
- * because ctx->payload is transient and reused by later requests; an oversize
+ * because ctx->recv.payload is transient and reused by later requests; an oversize
  * open payload or OOM marks the slot aborted so it is never replayed.
  */
 void
@@ -596,15 +596,15 @@ brix_stream_wmirror_on_open(brix_ctx_t *ctx, ngx_connection_t *c,
     f = &wm->files[client_idx];
     wmir_file_reset(wm, f);                  /* drop any prior open on this slot */
 
-    ngx_memcpy(f->open_hdr, ctx->hdr_buf, 24);
-    if (ctx->cur_dlen > 0 && ctx->payload != NULL
-        && ctx->cur_dlen <= BRIX_WMIRROR_FILE_CAP)
+    ngx_memcpy(f->open_hdr, ctx->recv.hdr_buf, 24);
+    if (ctx->recv.cur_dlen > 0 && ctx->recv.payload != NULL
+        && ctx->recv.cur_dlen <= BRIX_WMIRROR_FILE_CAP)
     {
-        f->open_payload = ngx_alloc(ctx->cur_dlen, ngx_cycle->log);
+        f->open_payload = ngx_alloc(ctx->recv.cur_dlen, ngx_cycle->log);
         if (f->open_payload == NULL) { f->aborted = 1; }
         else {
-            ngx_memcpy(f->open_payload, ctx->payload, ctx->cur_dlen);
-            f->open_dlen = ctx->cur_dlen;
+            ngx_memcpy(f->open_payload, ctx->recv.payload, ctx->recv.cur_dlen);
+            f->open_dlen = ctx->recv.cur_dlen;
         }
     }
     f->active   = 1;
@@ -637,12 +637,12 @@ brix_stream_wmirror_observe(brix_ctx_t *ctx, ngx_connection_t *c,
     wm = ctx->wmirror;
     if (wm == NULL || !wmir_gate(conf)) { return; }
 
-    idx = (int) (unsigned char) ctx->hdr_buf[4];   /* fhandle byte 0 */
+    idx = (int) (unsigned char) ctx->recv.hdr_buf[4];   /* fhandle byte 0 */
     if (idx < 0 || idx >= BRIX_MAX_FILES) { return; }
     f = &wm->files[idx];
     if (!f->active) { return; }
 
-    switch (ctx->cur_reqid) {
+    switch (ctx->recv.cur_reqid) {
 
     case kXR_pgwrite:
         f->aborted = 1;        /* CRC-interleaved payload — not a plain write */
@@ -651,7 +651,7 @@ brix_stream_wmirror_observe(brix_ctx_t *ctx, ngx_connection_t *c,
     case kXR_write: {
         uint64_t off_be;
         off_t    off;
-        size_t   len = ctx->cur_dlen;
+        size_t   len = ctx->recv.cur_dlen;
         u_char  *ndata;
 
         if (f->aborted) { return; }
@@ -660,7 +660,7 @@ brix_stream_wmirror_observe(brix_ctx_t *ctx, ngx_connection_t *c,
         /* Write offset is an 8-byte big-endian field at header byte 8.  Only a
          * strictly contiguous stream (off == expected next offset) can collapse
          * into the single offset-0 replay write; a gap/seek aborts the file. */
-        ngx_memcpy(&off_be, ctx->hdr_buf + 8, 8);
+        ngx_memcpy(&off_be, ctx->recv.hdr_buf + 8, 8);
         off = (off_t) be64toh(off_be);
         if (off != f->next_off) { f->aborted = 1; return; }   /* non-sequential */
         if (len == 0) { return; }
@@ -683,7 +683,7 @@ brix_stream_wmirror_observe(brix_ctx_t *ctx, ngx_connection_t *c,
             ngx_memcpy(ndata, f->data, f->data_len);
             ngx_free(f->data);
         }
-        ngx_memcpy(ndata + f->data_len, ctx->payload, len);
+        ngx_memcpy(ndata + f->data_len, ctx->recv.payload, len);
         f->data = ndata;
         f->data_len += len;
         f->next_off += (off_t) len;        /* advance expected contiguous offset */

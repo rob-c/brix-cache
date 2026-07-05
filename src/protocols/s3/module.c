@@ -42,6 +42,7 @@
 #include "core/config/http_rootfd.h"
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
 #include "core/config/credential_block.h"   /* §14 brix_credential lookup/bearer */
+#include "core/config/tier_directives.h"    /* shared tier-grammar X-macro */
 #include "fs/vfs/vfs_backend_registry.h"   /* per-export backend registration */
 #include "core/compat/alloc_guard.h"
 
@@ -58,22 +59,7 @@ ngx_http_s3_create_loc_conf(ngx_conf_t *cf)
 
     BRIX_PCALLOC_OR_RETURN(c, cf->pool, sizeof(*c), NULL);
 
-    c->common.enable      = NGX_CONF_UNSET;
-    c->common.allow_write = NGX_CONF_UNSET;
-    c->common.read_only   = NGX_CONF_UNSET;
-    c->common.compress    = NGX_CONF_UNSET;   /* phase-42 W2 outbound GET */
-    c->common.ktls        = NGX_CONF_UNSET;   /* kTLS default ON (merge) */
-    brix_pmark_conf_init(&c->common.pmark);  /* SciTags packet marking */
-    /* phase-64 tier grammar scalars (str/array fields stay zeroed by pcalloc) */
-    c->common.stage_enable      = NGX_CONF_UNSET;
-    c->common.stage_flush_async = NGX_CONF_UNSET_UINT;
-    c->common.cache_max_object  = NGX_CONF_UNSET;
-    c->common.cache_evict_at    = NGX_CONF_UNSET_UINT;
-    c->common.cache_evict_to    = NGX_CONF_UNSET_UINT;
-    c->common.cache_meta_mode   = NGX_CONF_UNSET_UINT;
-    c->common.cache_batch_cinfo = NGX_CONF_UNSET_UINT;
-    c->common.cache_index_cache = NGX_CONF_UNSET_SIZE;
-    c->common.cache_slice_size  = NGX_CONF_UNSET_SIZE;
+    ngx_http_brix_shared_init(&c->common);
     c->allow_unsigned_session_token = NGX_CONF_UNSET;
     c->verify_chunk_signatures      = NGX_CONF_UNSET;
     c->list_cache                   = NGX_CONF_UNSET;
@@ -93,13 +79,12 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_http_s3_loc_conf_t *prev = parent;
     ngx_http_s3_loc_conf_t *conf = child;
 
-    ngx_conf_merge_value(conf->common.enable,      prev->common.enable,      0);
-    ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
-    ngx_conf_merge_value(conf->common.read_only,   prev->common.read_only,   0);
-    /* Hard read-only: force allow_write off so the S3 write-method gate rejects. */
-    brix_shared_apply_read_only(&conf->common, cf->log);
-    ngx_conf_merge_value(conf->common.compress,    prev->common.compress,    0);
-    ngx_conf_merge_value(conf->common.ktls,        prev->common.ktls,        1);
+    /* Shared common.* preamble (incl. hard read-only enforcement + pmark). */
+    if (ngx_http_brix_shared_merge(cf, &prev->common, &conf->common, "")
+        != NGX_CONF_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
     ngx_conf_merge_value(conf->allow_unsigned_session_token,
                          prev->allow_unsigned_session_token, 0);
     ngx_conf_merge_value(conf->verify_chunk_signatures,
@@ -113,50 +98,11 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_size_value(conf->zip_cd_max_bytes, prev->zip_cd_max_bytes,
                               16 * 1024 * 1024);
     brix_acc_http_merge_conf(&conf->acc, &prev->acc);
-    ngx_conf_merge_str_value(conf->common.root,             prev->common.root,             "");
     ngx_conf_merge_str_value(conf->cache_root,       prev->cache_root,       "");
     ngx_conf_merge_str_value(conf->bucket,           prev->bucket,           "");
     ngx_conf_merge_str_value(conf->access_key,       prev->access_key,       "");
     ngx_conf_merge_str_value(conf->secret_key,       prev->secret_key,       "");
     ngx_conf_merge_str_value(conf->region,           prev->region,           "us-east-1");
-    ngx_conf_merge_str_value(conf->common.thread_pool_name, prev->common.thread_pool_name, "");
-    ngx_conf_merge_str_value(conf->common.storage_backend,
-                             prev->common.storage_backend, "");
-    ngx_conf_merge_str_value(conf->common.storage_credential,
-                             prev->common.storage_credential, "");
-    /* phase-64 composable tier grammar */
-    ngx_conf_merge_str_value(conf->common.cache_store, prev->common.cache_store,
-                             "");
-    if (conf->common.cache_store_args == NULL) {
-        conf->common.cache_store_args = prev->common.cache_store_args;
-    }
-    ngx_conf_merge_value(conf->common.stage_enable, prev->common.stage_enable, 0);
-    ngx_conf_merge_str_value(conf->common.stage_store, prev->common.stage_store,
-                             "");
-    if (conf->common.stage_store_args == NULL) {
-        conf->common.stage_store_args = prev->common.stage_store_args;
-    }
-    ngx_conf_merge_uint_value(conf->common.stage_flush_async,
-                              prev->common.stage_flush_async, 0);
-    ngx_conf_merge_off_value(conf->common.cache_max_object,
-                             prev->common.cache_max_object, 0);
-    ngx_conf_merge_uint_value(conf->common.cache_evict_at,
-                              prev->common.cache_evict_at, 90);
-    ngx_conf_merge_uint_value(conf->common.cache_evict_to,
-                              prev->common.cache_evict_to, 80);
-    ngx_conf_merge_uint_value(conf->common.cache_meta_mode,
-                              prev->common.cache_meta_mode, 0);
-    ngx_conf_merge_uint_value(conf->common.cache_batch_cinfo,
-                              prev->common.cache_batch_cinfo, 2);
-    ngx_conf_merge_size_value(conf->common.cache_index_cache,
-                              prev->common.cache_index_cache, 0);
-    ngx_conf_merge_size_value(conf->common.cache_slice_size,
-                              prev->common.cache_slice_size, 0);
-    if (brix_pmark_conf_merge(cf, &prev->common.pmark, &conf->common.pmark)
-        != NGX_CONF_OK)
-    {
-        return NGX_CONF_ERROR;
-    }
 
     if (conf->common.enable) {
         brix_export_root_opts_t root_opts;
@@ -337,22 +283,6 @@ ngx_http_s3_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
  * Directives
  * */
 
-/* phase-64: brix_s3_stage_flush sync|async (0 = sync, 1 = async). */
-static ngx_conf_enum_t  brix_s3_stage_flush_enum[] = {
-    { ngx_string("sync"),  0 },
-    { ngx_string("async"), 1 },
-    { ngx_null_string,     0 }
-};
-
-/* phase-64: brix_s3_cache_meta map (BRIX_CMETA_* in cache/cstore.h). */
-static ngx_conf_enum_t  brix_s3_cache_meta_enum[] = {
-    { ngx_string("auto"),    0 },
-    { ngx_string("local"),   1 },
-    { ngx_string("xattr"),   2 },
-    { ngx_string("sidecar"), 3 },
-    { ngx_null_string,       0 }
-};
-
 static ngx_command_t ngx_http_s3_commands[] = {
 
     { ngx_string("brix_s3"),
@@ -400,66 +330,8 @@ static ngx_command_t ngx_http_s3_commands[] = {
       NULL },
 
     /* ---- phase-64 composable tier grammar mirrors (§4.4) ---- */
-    { ngx_string("brix_s3_cache_store"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1234,
-      brix_conf_set_store_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.cache_store),
-      (void *) offsetof(ngx_http_s3_loc_conf_t, common.cache_store_args) },
-    { ngx_string("brix_s3_stage"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.stage_enable),
-      NULL },
-    { ngx_string("brix_s3_stage_store"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1234,
-      brix_conf_set_store_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.stage_store),
-      (void *) offsetof(ngx_http_s3_loc_conf_t, common.stage_store_args) },
-    { ngx_string("brix_s3_stage_flush"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_enum_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.stage_flush_async),
-      brix_s3_stage_flush_enum },
-    { ngx_string("brix_s3_cache_max_object"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_off_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.cache_max_object),
-      NULL },
-    { ngx_string("brix_s3_cache_evict_at"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.cache_evict_at),
-      NULL },
-    { ngx_string("brix_s3_cache_evict_to"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.cache_evict_to),
-      NULL },
-    { ngx_string("brix_s3_cache_index_cache"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_size_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.cache_index_cache),
-      NULL },
-    { ngx_string("brix_s3_cache_meta"),    /* auto|local|xattr|sidecar */
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_enum_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.cache_meta_mode),
-      brix_s3_cache_meta_enum },
-    { ngx_string("brix_s3_cache_slice_size"),  /* <size> (0 = whole-file) */
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_size_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.cache_slice_size),
-      NULL },
+    BRIX_TIER_DIRECTIVES("brix_s3_", ngx_http_s3_loc_conf_t,
+                         NGX_HTTP_LOC_CONF, NGX_HTTP_LOC_CONF_OFFSET),
 
     { ngx_string("brix_s3_bucket"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,

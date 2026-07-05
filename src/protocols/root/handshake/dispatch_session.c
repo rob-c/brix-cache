@@ -2,7 +2,7 @@
 
 /*
  * brix_dispatch_session_opcode — phase 2 of request routing (from
- * handshake/dispatch.c): a switch on ctx->cur_reqid over the seven session
+ * handshake/dispatch.c): a switch on ctx->recv.cur_reqid over the seven session
  * lifecycle opcodes — kXR_protocol, kXR_login, kXR_auth, kXR_ping, kXR_set
  * (login-gated), kXR_endsess, kXR_bind — each delegating to its handler (defined
  * in its own module, documented there). These establish the session (protocol
@@ -16,7 +16,7 @@ ngx_int_t
 brix_dispatch_session_opcode(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
 {
-    switch (ctx->cur_reqid) {
+    switch (ctx->recv.cur_reqid) {
 
     case kXR_protocol:
         return brix_handle_protocol(ctx, c, conf);

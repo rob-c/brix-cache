@@ -25,6 +25,7 @@
 #include "protocols/shared/file_serve.h"
 #include "protocols/shared/http_cache_fill.h"
 #include "protocols/shared/http_serve_offload.h"
+#include "core/compat/cstr.h"
 
 #include <limits.h>
 
@@ -95,11 +96,9 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
     /* fs path = export root + uri; a "/" root (the pure-cache-node anchor)
      * contributes nothing so the path IS the uri. */
     if (root[0] == '/' && root[1] == '\0') {
-        if (r->uri.len >= sizeof(path)) {
+        if (brix_str_cbuf(path, sizeof(path), &r->uri) == NULL) {
             return NGX_HTTP_REQUEST_URI_TOO_LARGE;
         }
-        ngx_memcpy(path, r->uri.data, r->uri.len);
-        path[r->uri.len] = '\0';
     } else {
         size_t rn = ngx_strlen(root);
 

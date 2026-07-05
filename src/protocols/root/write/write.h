@@ -97,7 +97,7 @@ ngx_int_t brix_pgwrite_decode_payload(const u_char *payload,
  *
  * payload_to_free: if non-NULL, this buffer is freed by the done callback
  *   after the write completes (used when the payload has been detached from
- *   ctx->payload_buf).
+ *   ctx->recv.payload_buf).
  *
  * bad / bad_count: pgwrite CSE bad-page list (NULL/0 for plain kXR_write). When
  *   non-empty the done callback emits a CSE retransmit frame; the list is copied

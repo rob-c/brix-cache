@@ -23,7 +23,7 @@
 #include "core/ngx_brix_module.h"
 
 /*
- * kXR_open dispatch entry point. Parses ClientOpenRequest from ctx->hdr_buf,
+ * kXR_open dispatch entry point. Parses ClientOpenRequest from ctx->recv.hdr_buf,
  * derives read/write mode from option flags, strips CGI/opaque, detects TPC
  * roles, resolves+confines the path, runs VO ACL + token-scope auth gates, then
  * either redirects (manager_mode / manager_map / upstream), delegates to the

@@ -94,7 +94,7 @@
  * Output-queue depth (Phase 29 pipelining; runtime-configurable).
  *
  * The per-connection output ring (brix_ctx_t.out_ring) and read-buffer pool
- * (rd_pool) are heap-allocated at connection time to ctx->pipeline_depth — the
+ * (rd_pool) are heap-allocated at connection time to ctx->out.pipeline_depth — the
  * number of in-flight responses that may be outstanding before the recv loop
  * applies backpressure.  Each slot owns one in-flight response's send state
  * (flat-buffer tail, chain tail, reusable header/data/file chain structs), so a

@@ -206,7 +206,7 @@ brix_proxy_connect(brix_proxy_ctx_t *proxy,
     } else {
         /* GSI-as-user connections are per-user authenticated — never reuse a
          * pooled connection (it carries a different identity). */
-        uconn = (conf->proxy_auth == BRIX_PROXY_AUTH_GSI)
+        uconn = (conf->proxy.auth == BRIX_PROXY_AUTH_GSI)
                 ? NULL : brix_proxy_pool_get(proxy, conf, &pooled_idx);
         if (uconn != NULL) {
             proxy->conn         = uconn;
@@ -227,8 +227,8 @@ brix_proxy_connect(brix_proxy_ctx_t *proxy,
             return NGX_OK;
         }
 
-        if (conf->proxy_upstreams != NULL && conf->proxy_upstreams->nelts > 0) {
-            brix_proxy_upstream_t *ups = conf->proxy_upstreams->elts;
+        if (conf->proxy.upstreams != NULL && conf->proxy.upstreams->nelts > 0) {
+            brix_proxy_upstream_t *ups = conf->proxy.upstreams->elts;
             ngx_atomic_uint_t        idx, i;
 
             /* Select a healthy upstream.  If EVERY upstream is currently marked
@@ -236,15 +236,15 @@ brix_proxy_connect(brix_proxy_ctx_t *proxy,
              * to a known-dead endpoint — fail the connect so the caller returns a
              * clean error instead of hammering a dead upstream in a tight loop. */
             int found = 0;
-            idx = ngx_atomic_fetch_add(&proxy_upstream_rr, 1) % conf->proxy_upstreams->nelts;
+            idx = ngx_atomic_fetch_add(&proxy_upstream_rr, 1) % conf->proxy.upstreams->nelts;
             /* proxy_up_status is lazily allocated by the health-tracking path and
              * is NULL until a failure marks an upstream down (the mark_fail/is_down
              * accessors are all NULL-tolerant no-ops).  Treat a NULL table as
              * "every upstream healthy" so the round-robin pick stands — the same
              * semantics, without dereferencing a NULL array. */
             for (i = 0; proxy_up_status != NULL
-                        && i < conf->proxy_upstreams->nelts; i++) {
-                ngx_uint_t cur = (idx + i) % conf->proxy_upstreams->nelts;
+                        && i < conf->proxy.upstreams->nelts; i++) {
+                ngx_uint_t cur = (idx + i) % conf->proxy.upstreams->nelts;
                 if (!proxy_up_status[cur].down ||
                     ngx_time() - proxy_up_status[cur].checked >= BRIX_PROXY_FAIL_TIMEOUT)
                 {
@@ -261,7 +261,7 @@ brix_proxy_connect(brix_proxy_ctx_t *proxy,
                 ngx_log_error(NGX_LOG_ERR, client_conn->log, 0,
                               "xrootd proxy: all %ui upstream(s) down — "
                               "failing request",
-                              (ngx_uint_t) conf->proxy_upstreams->nelts);
+                              (ngx_uint_t) conf->proxy.upstreams->nelts);
                 return NGX_ERROR;
             }
 
@@ -269,15 +269,15 @@ brix_proxy_connect(brix_proxy_ctx_t *proxy,
             use_port = (ngx_int_t) ups[idx].port;
             proxy->upstream_idx = (int) idx;
         } else {
-            use_host = &conf->proxy_host;
-            use_port = conf->proxy_port;
+            use_host = &conf->proxy.host;
+            use_port = conf->proxy.port;
             proxy->upstream_idx = -1;
         }
     }
 
     /* GSI delegation: log in to the upstream AS THE USER in a thread (the blocking
      * in-process GSI client), then hand the authenticated fd to the relay. */
-    if (conf->proxy_auth == BRIX_PROXY_AUTH_GSI) {
+    if (conf->proxy.auth == BRIX_PROXY_AUTH_GSI) {
         return brix_proxy_gsi_connect_async(proxy, conf, use_host,
                                               (uint16_t) use_port);
     }
@@ -334,13 +334,13 @@ brix_proxy_connect(brix_proxy_ctx_t *proxy,
     {
         char upstream_user[9];
 
-        switch (conf->proxy_login_user) {
+        switch (conf->proxy.login_user) {
         case BRIX_PROXY_LOGIN_PASSTHROUGH:
             if (proxy->client_ctx != NULL
-                && proxy->client_ctx->login_user[0] != '\0')
+                && proxy->client_ctx->login.user[0] != '\0')
             {
                 ngx_cpystrn((u_char *) upstream_user,
-                            (u_char *) proxy->client_ctx->login_user,
+                            (u_char *) proxy->client_ctx->login.user,
                             sizeof(upstream_user));
             } else {
                 upstream_user[0] = '\0'; /* no client username → fall back to "xrd" */
@@ -348,7 +348,7 @@ brix_proxy_connect(brix_proxy_ctx_t *proxy,
             break;
         case BRIX_PROXY_LOGIN_FIXED:
             ngx_cpystrn((u_char *) upstream_user,
-                        (u_char *) conf->proxy_login_user_name,
+                        (u_char *) conf->proxy.login_user_name,
                         sizeof(upstream_user));
             break;
         default: /* BRIX_PROXY_LOGIN_ANONYMOUS */
@@ -401,15 +401,15 @@ brix_proxy_connect(brix_proxy_ctx_t *proxy,
     }
 
     /* Arm connect timeout: fires in write_handler as wev->timedout */
-    if (rc == -1 && conf->proxy_connect_timeout > 0) {
-        ngx_add_timer(uconn->write, conf->proxy_connect_timeout);
+    if (rc == -1 && conf->proxy.connect_timeout > 0) {
+        ngx_add_timer(uconn->write, conf->proxy.connect_timeout);
     }
 
     if (rc == 0) {
         /* Immediate connect (local loopback etc.) */
 #if (NGX_SSL)
-        if (conf->proxy_upstream_tls && conf->proxy_tls_ctx != NULL) {
-            if (ngx_ssl_create_connection(conf->proxy_tls_ctx, uconn,
+        if (conf->proxy.upstream_tls && conf->proxy.tls_ctx != NULL) {
+            if (ngx_ssl_create_connection(conf->proxy.tls_ctx, uconn,
                                           NGX_SSL_BUFFER | NGX_SSL_CLIENT)
                 != NGX_OK)
             {
@@ -420,9 +420,9 @@ brix_proxy_connect(brix_proxy_ctx_t *proxy,
             }
             /* SNI: prefer explicit name directive, fall back to configured host */
             {
-                const char *sni = (conf->proxy_upstream_tls_name.len > 0)
-                                  ? (const char *) conf->proxy_upstream_tls_name.data
-                                  : (const char *) conf->proxy_host.data;
+                const char *sni = (conf->proxy.upstream_tls_name.len > 0)
+                                  ? (const char *) conf->proxy.upstream_tls_name.data
+                                  : (const char *) conf->proxy.host.data;
                 SSL_set_tlsext_host_name(uconn->ssl->connection, sni);
             }
             uconn->ssl->handler = brix_proxy_tls_handshake_done;

@@ -20,6 +20,7 @@
 #include "fs/vfs/vfs.h"
 #include "auth/impersonate/lifecycle.h"
 #include "fs/path/path.h"
+#include "core/compat/cstr.h"
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -84,12 +85,10 @@ webdav_put_persist_checksums(ngx_http_request_t *r, const char *path)
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     if (conf->checksum_on_write.len == 0
-        || conf->checksum_on_write.len >= sizeof(algs))
+        || brix_str_cbuf(algs, sizeof(algs), &conf->checksum_on_write) == NULL)
     {
         return;
     }
-    ngx_memcpy(algs, conf->checksum_on_write.data, conf->checksum_on_write.len);
-    algs[conf->checksum_on_write.len] = '\0';
 
     /* Re-open the just-committed export file through the VFS (confined beneath
      * the export root, impersonation-aware) to compute its digests. */

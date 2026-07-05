@@ -28,6 +28,7 @@
 #include "auth/impersonate/lifecycle.h"
 #include "core/aio/uring.h"
 #include "fs/backend/sd.h"          /* SD registry: per-worker backend instance */
+#include "core/compat/cstr.h"       /* brix_str_cbuf */
 
 #if defined(__SANITIZE_ADDRESS__)   /* Phase 27 W6: explicit LSan check at exit */
 #include <sanitizer/lsan_interface.h>
@@ -284,22 +285,19 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
          */
         xcf->access_log_fd = xcf->access_log_file != NULL
                              ? xcf->access_log_file->fd : NGX_INVALID_FILE;
-        xcf->proxy_audit_log_fd = xcf->proxy_audit_log_file != NULL
-                             ? xcf->proxy_audit_log_file->fd : NGX_INVALID_FILE;
+        xcf->proxy.audit_log_fd = xcf->proxy.audit_log_file != NULL
+                             ? xcf->proxy.audit_log_file->fd : NGX_INVALID_FILE;
 
         /* Open this worker's own fds onto the composable stage request registry
          * that the migrated staging callers (prepare/tape_rest/open) record into.
          * Journal dir = the (tape) control dir; NULL-terminate for the C API. The
          * legacy FRM queue/scheduler/purge worker-init is retired — the recall is
          * driven by the sd_frm backend + the client poll model. */
-        if (xcf->frm.enable
-            && xcf->frm.control_dir.len > 0
-            && xcf->frm.control_dir.len < NGX_MAX_PATH)
-        {
+        if (xcf->frm.enable && xcf->frm.control_dir.len > 0) {
             char _jd[NGX_MAX_PATH];
-            ngx_memcpy(_jd, xcf->frm.control_dir.data, xcf->frm.control_dir.len);
-            _jd[xcf->frm.control_dir.len] = '\0';
-            (void) brix_stage_registry_init(_jd, cycle->log);
+            if (brix_str_cbuf(_jd, sizeof(_jd), &xcf->frm.control_dir) != NULL) {
+                (void) brix_stage_registry_init(_jd, cycle->log);
+            }
         }
 
         /* Phase 6 housekeeping: TTL-sweep abandoned upload-resume partials from
@@ -359,7 +357,7 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
             return NGX_ERROR;
         }
 
-        if (xcf->cms_addr != NULL) {
+        if (xcf->cms.addr != NULL) {
             ngx_brix_cms_start(cycle, xcf);
         }
 
@@ -390,19 +388,19 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
          * jitter on the first tick keeps the workers from all firing together. */
         if ((xcf->cache || xcf->common.cache_store.len > 0)
             && brix_cache_state_root(xcf) != NULL
-            && xcf->cache_high_watermark > 0
-            && xcf->cache_high_watermark < 1000000)
+            && xcf->reaper.high_watermark > 0
+            && xcf->reaper.high_watermark < 1000000)
         {
-            xcf->cache_watermark_timer =
+            xcf->reaper.timer =
                 ngx_pcalloc(cycle->pool, sizeof(ngx_event_t));
-            if (xcf->cache_watermark_timer == NULL) {
+            if (xcf->reaper.timer == NULL) {
                 return NGX_ERROR;
             }
-            xcf->cache_watermark_timer->handler =
+            xcf->reaper.timer->handler =
                 brix_cache_watermark_timer_handler;
-            xcf->cache_watermark_timer->data = xcf;
-            xcf->cache_watermark_timer->log  = cycle->log;
-            ngx_add_timer(xcf->cache_watermark_timer,
+            xcf->reaper.timer->data = xcf;
+            xcf->reaper.timer->log  = cycle->log;
+            ngx_add_timer(xcf->reaper.timer,
                           BRIX_CACHE_REAP_FIRST_MS
                           + (ngx_msec_t) (ngx_pid % 1000));
         }

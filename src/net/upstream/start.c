@@ -54,16 +54,16 @@ brix_upstream_start(brix_ctx_t *ctx, ngx_connection_t *c,
 
     /* Snapshot the opcode/streamid that triggered the open — these are replayed to the
      * backend verbatim after bootstrap so the server's reply matches the client's. */
-    up->req_opcode = ctx->cur_reqid;
-    up->req_streamid[0] = ctx->cur_streamid[0];
-    up->req_streamid[1] = ctx->cur_streamid[1];
+    up->req_opcode = ctx->recv.cur_reqid;
+    up->req_streamid[0] = ctx->recv.cur_streamid[0];
+    up->req_streamid[1] = ctx->recv.cur_streamid[1];
 
-    if (ctx->payload == NULL || ctx->cur_dlen == 0) {
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0) {
         brix_upstream_cleanup(up);
         return NGX_ERROR;
     }
 
-    if (!brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+    if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
                              up->req_path, sizeof(up->req_path), 1))
     {
         brix_upstream_cleanup(up);
@@ -73,15 +73,15 @@ brix_upstream_start(brix_ctx_t *ctx, ngx_connection_t *c,
     /* Preserve opcode-specific request fields straight off the wire header (network
      * byte order) so the replayed request to the backend is byte-identical to the
      * client's. Only locate/open carry options we must reproduce; open also carries mode. */
-    if (ctx->cur_reqid == kXR_locate) {
+    if (ctx->recv.cur_reqid == kXR_locate) {
         xrdw_locate_req_t lr;
 
-        xrdw_locate_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &lr);
+        xrdw_locate_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &lr);
         up->req_options = lr.options;
-    } else if (ctx->cur_reqid == kXR_open) {
+    } else if (ctx->recv.cur_reqid == kXR_open) {
         xrdw_open_req_t oreq;
 
-        xrdw_open_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &oreq);
+        xrdw_open_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &oreq);
         up->req_options = oreq.options;
         up->req_open_mode = oreq.mode;
     }

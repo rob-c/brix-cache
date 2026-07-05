@@ -19,7 +19,7 @@ ngx_stream_brix_handler(ngx_stream_session_t *s)
 
     ctx->session = s;
     ctx->state = XRD_ST_HANDSHAKE;
-    ctx->hdr_pos = 0;
+    ctx->recv.hdr_pos = 0;
     ctx->identity = brix_identity_alloc(c->pool);
     if (ctx->identity == NULL) {
         ngx_stream_finalize_session(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
@@ -42,11 +42,11 @@ ngx_stream_brix_handler(ngx_stream_session_t *s)
     }
     if (c->addr_text.len > 0) {
         size_t n = c->addr_text.len;
-        if (n >= sizeof(ctx->peer_ip)) {
-            n = sizeof(ctx->peer_ip) - 1;
+        if (n >= sizeof(ctx->login.peer_ip)) {
+            n = sizeof(ctx->login.peer_ip) - 1;
         }
-        ngx_memcpy(ctx->peer_ip, c->addr_text.data, n);
-        ctx->peer_ip[n] = '\0';
+        ngx_memcpy(ctx->login.peer_ip, c->addr_text.data, n);
+        ctx->login.peer_ip[n] = '\0';
     }
 
     /* Sentinel value: fd < 0 means the slot is free. */
@@ -64,7 +64,7 @@ ngx_stream_brix_handler(ngx_stream_session_t *s)
         parts[1] = (uint32_t) ngx_pid;
         parts[2] = (uint32_t) (uintptr_t) c;
         parts[3] = (uint32_t) ngx_random();
-        ngx_memcpy(ctx->sessid, parts, BRIX_SESSION_ID_LEN);
+        ngx_memcpy(ctx->login.sessid, parts, BRIX_SESSION_ID_LEN);
     }
 
     ngx_stream_set_ctx(s, ctx, ngx_stream_brix_module);
@@ -76,31 +76,31 @@ ngx_stream_brix_handler(ngx_stream_session_t *s)
 
         /* Phase 39: cache the merged network-fault deadlines so the hot
          * recv/park paths never do a srv_conf lookup.  All default 0 = off. */
-        ctx->read_timeout_ms      = mconf->read_timeout;
-        ctx->handshake_timeout_ms = mconf->handshake_timeout;
-        ctx->send_timeout_ms      = mconf->send_timeout;
+        ctx->deadline.read_ms      = mconf->read_timeout;
+        ctx->deadline.handshake_ms = mconf->handshake_timeout;
+        ctx->deadline.send_ms      = mconf->send_timeout;
 
         /*
          * Allocate the per-connection pipeline rings sized to the configured
          * depth (brix_pipeline_depth; merge-clamped to [MIN,MAX]).  A deeper
          * window absorbs more wire latency/jitter — a momentarily-slow drain no
          * longer empties the in-flight window and stalls the recv->send loop.
-         * ctx->pipeline_depth is set LAST, so it stays 0 (and the teardown loops
+         * ctx->out.pipeline_depth is set LAST, so it stays 0 (and the teardown loops
          * that iterate to pipeline_depth are no-ops) until both rings exist.
          */
         {
             ngx_uint_t depth = mconf->pipeline_depth;
 
-            ctx->out_ring = ngx_pcalloc(c->pool,
+            ctx->out.ring = ngx_pcalloc(c->pool,
                                         depth * sizeof(brix_resp_slot_t));
-            ctx->rd_pool  = ngx_pcalloc(c->pool,
+            ctx->rd.pool  = ngx_pcalloc(c->pool,
                                         depth * sizeof(brix_read_slot_t));
-            if (ctx->out_ring == NULL || ctx->rd_pool == NULL) {
+            if (ctx->out.ring == NULL || ctx->rd.pool == NULL) {
                 ngx_stream_finalize_session(s,
                     NGX_STREAM_INTERNAL_SERVER_ERROR);
                 return;
             }
-            ctx->pipeline_depth = depth;
+            ctx->out.pipeline_depth = depth;
         }
 
         /*
@@ -166,9 +166,9 @@ ngx_stream_brix_handler(ngx_stream_session_t *s)
                 }
 
                 /* Write per-upstream labels once (idempotent at first use). */
-                if (mconf->proxy_upstreams != NULL) {
-                    brix_proxy_upstream_t *ups = mconf->proxy_upstreams->elts;
-                    ngx_uint_t               nu  = mconf->proxy_upstreams->nelts;
+                if (mconf->proxy.upstreams != NULL) {
+                    brix_proxy_upstream_t *ups = mconf->proxy.upstreams->elts;
+                    ngx_uint_t               nu  = mconf->proxy.upstreams->nelts;
                     ngx_uint_t               ui;
 
                     if (nu > BRIX_PROXY_MAX_UPSTREAMS) {

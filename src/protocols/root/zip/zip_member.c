@@ -327,7 +327,7 @@ brix_zip_open_member(brix_ctx_t *ctx, ngx_connection_t *c,
     ctx->files[idx].open_time     = ngx_current_msec;
 
     if (!ctx->is_bound) {
-        brix_session_handle_publish(ctx->sessid, idx, &ctx->files[idx]);
+        brix_session_handle_publish(ctx->login.sessid, idx, &ctx->files[idx]);
     }
 
     /* Build the kXR_open reply: the 4-byte handle by default, the full body +
@@ -360,7 +360,7 @@ brix_zip_open_member(brix_ctx_t *ctx, ngx_connection_t *c,
             brix_free_fhandle(ctx, idx);
             return NGX_ERROR;
         }
-        brix_build_resp_hdr(ctx->cur_streamid, kXR_ok, (uint32_t) bodylen,
+        brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok, (uint32_t) bodylen,
                               (ServerResponseHdr *) buf);
         ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &body, hbytes);
         if (want_stat) {

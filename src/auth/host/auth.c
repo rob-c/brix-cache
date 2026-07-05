@@ -13,7 +13,7 @@
  *       reverse-resolves the peer's socket address to a hostname and checks it
  *       against the configured allowlist (brix_host_allow: exact hostnames or
  *       ".suffix" domain suffixes).  On a match the peer is authenticated AS that
- *       hostname (ctx->dn).
+ *       hostname (ctx->login.dn).
  *
  * WHY:  `host` is XRootD's weakest, oldest scheme — a hostname (or DNS, lacking
  *       DNSSEC) is spoofable, so it is for trusted closed networks only.  It is
@@ -88,8 +88,8 @@ brix_handle_host_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     char  safe_host[256 * 4];
 
     /* The credential merely tags the protocol; the identity is the socket's. */
-    if (ctx->payload == NULL || ctx->cur_dlen < 4
-        || ngx_strncmp(ctx->payload, "host", 4) != 0)
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen < 4
+        || ngx_strncmp(ctx->recv.payload, "host", 4) != 0)
     {
         brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_HOST, 0);
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "host",
@@ -116,21 +116,21 @@ brix_handle_host_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                           kXR_NotAuthorized, "host not authorized");
     }
 
-    ctx->auth_done = 1;
-    ctx->token_auth = 0;
-    ngx_cpystrn((u_char *) ctx->dn, (u_char *) host, sizeof(ctx->dn));
-    ctx->vo_list[0] = '\0';
-    ctx->primary_vo[0] = '\0';
+    ctx->login.auth_done = 1;
+    ctx->token.auth = 0;
+    ngx_cpystrn((u_char *) ctx->login.dn, (u_char *) host, sizeof(ctx->login.dn));
+    ctx->login.vo_list[0] = '\0';
+    ctx->login.primary_vo[0] = '\0';
 
     if (ctx->identity != NULL
-        && brix_identity_set_dn(ctx->identity, c->pool, ctx->dn,
+        && brix_identity_set_dn(ctx->identity, c->pool, ctx->login.dn,
                                   BRIX_AUTHN_HOST) != NGX_OK)
     {
         return brix_send_error(ctx, c, kXR_NoMemory,
                                  "identity allocation failed");
     }
 
-    brix_session_register(ctx->sessid, ctx->dn, ctx->vo_list, 0);
+    brix_session_register(ctx->login.sessid, ctx->login.dn, ctx->login.vo_list, 0);
 
     brix_sanitize_log_string(host, safe_host, sizeof(safe_host));
     ngx_log_error(NGX_LOG_INFO, c->log, 0,

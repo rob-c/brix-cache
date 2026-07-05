@@ -28,14 +28,14 @@ brix_budget_ctx_footprint(brix_ctx_t *ctx)
     size_t      total;
     ngx_uint_t  i;
 
-    total = ctx->read_scratch_size + ctx->read_hdr_scratch_size
-          + ctx->write_scratch_size + ctx->payload_buf_size
-          + ctx->cmp_scratch_size;   /* phase-42 W4 inline-read codec output buf */
+    total = ctx->rd.read_scratch_size + ctx->rd.read_hdr_scratch_size
+          + ctx->rd.write_scratch_size + ctx->recv.payload_buf_size
+          + ctx->rd.cmp_scratch_size;   /* phase-42 W4 inline-read codec output buf */
 
     /* Phase 32 WS3: include the concurrent-AIO read-pool buffers (several may be
      * in flight at once once read pipelining is enabled). */
-    for (i = 0; i < ctx->pipeline_depth; i++) {
-        total += ctx->rd_pool[i].size;
+    for (i = 0; i < ctx->out.pipeline_depth; i++) {
+        total += ctx->rd.pool[i].size;
     }
 
     return total;

@@ -33,6 +33,7 @@
 #include "srr.h"
 #include "core/compat/fs_usage.h"
 #include "core/ident.h"
+#include "core/compat/cstr.h"
 
 #include <jansson.h>
 #include <stdint.h>
@@ -204,13 +205,11 @@ ngx_http_brix_srr_build_json(ngx_http_request_t *r,
             /* statvfs(2) needs a NUL-terminated path; the configured path is an
              * operator-controlled string (not request input), so a direct stat
              * is safe — no confinement resolver needed here. */
-            pathz = ngx_pnalloc(r->pool, sh[i].path.len + 1);
+            pathz = (u_char *) brix_pstrdup_z(r->pool, &sh[i].path);
             if (pathz == NULL) {
                 json_decref(root);
                 return NGX_ERROR;
             }
-            ngx_memcpy(pathz, sh[i].path.data, sh[i].path.len);
-            pathz[sh[i].path.len] = '\0';
 
             if (brix_fs_usage_stat((const char *) pathz, &usage) == NGX_OK) {
                 total = usage.total_bytes;

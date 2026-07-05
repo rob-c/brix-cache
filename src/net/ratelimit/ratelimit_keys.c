@@ -47,16 +47,16 @@ brix_rl_key_stream(brix_rl_rule_t *rule, brix_ctx_t *ctx,
     switch (rule->key_type) {
 
     case BRIX_RL_KEY_VO:
-        if (ctx->primary_vo[0] == '\0') {
-            ngx_snprintf((u_char *) out, out_sz, "ip:%s%Z", ctx->peer_ip);
+        if (ctx->login.primary_vo[0] == '\0') {
+            ngx_snprintf((u_char *) out, out_sz, "ip:%s%Z", ctx->login.peer_ip);
         } else {
-            ngx_snprintf((u_char *) out, out_sz, "vo:%s%Z", ctx->primary_vo);
+            ngx_snprintf((u_char *) out, out_sz, "vo:%s%Z", ctx->login.primary_vo);
         }
         break;
 
     case BRIX_RL_KEY_ISSUER:
         if (ctx->identity == NULL || ctx->identity->issuer.len == 0) {
-            ngx_snprintf((u_char *) out, out_sz, "ip:%s%Z", ctx->peer_ip);
+            ngx_snprintf((u_char *) out, out_sz, "ip:%s%Z", ctx->login.peer_ip);
         } else {
             ngx_snprintf((u_char *) out, out_sz, "iss:%V%Z",
                          &ctx->identity->issuer);
@@ -64,14 +64,14 @@ brix_rl_key_stream(brix_rl_rule_t *rule, brix_ctx_t *ctx,
         break;
 
     case BRIX_RL_KEY_IP:
-        ngx_snprintf((u_char *) out, out_sz, "ip:%s%Z", ctx->peer_ip);
+        ngx_snprintf((u_char *) out, out_sz, "ip:%s%Z", ctx->login.peer_ip);
         break;
 
     case BRIX_RL_KEY_DN:
-        if (ctx->dn[0] == '\0') {
-            ngx_snprintf((u_char *) out, out_sz, "ip:%s%Z", ctx->peer_ip);
+        if (ctx->login.dn[0] == '\0') {
+            ngx_snprintf((u_char *) out, out_sz, "ip:%s%Z", ctx->login.peer_ip);
         } else {
-            rl_key_dn_hash((u_char *) ctx->dn, ngx_strlen(ctx->dn),
+            rl_key_dn_hash((u_char *) ctx->login.dn, ngx_strlen(ctx->login.dn),
                            out, out_sz);
         }
         break;

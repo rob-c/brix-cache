@@ -176,16 +176,16 @@ brix_handle_readv(brix_ctx_t *ctx, ngx_connection_t *c)
     size_t                          max_response_bytes;
     brix_readv_seg_desc_t        *segment_descs;
 
-    if (ctx->payload == NULL || ctx->cur_dlen == 0 ||
-        (ctx->cur_dlen % BRIX_READV_SEGSIZE) != 0)
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0 ||
+        (ctx->recv.cur_dlen % BRIX_READV_SEGSIZE) != 0)
     {
         BRIX_OP_ERR(ctx, BRIX_OP_READV);
         return brix_send_error(ctx, c, kXR_ArgInvalid,
                                  "malformed readv request");
     }
 
-    wire_segments = (readahead_list *) ctx->payload;
-    segment_count = ctx->cur_dlen / BRIX_READV_SEGSIZE;
+    wire_segments = (readahead_list *) ctx->recv.payload;
+    segment_count = ctx->recv.cur_dlen / BRIX_READV_SEGSIZE;
 
     /* Phase 27 W2/F1: explicit segment-count cap at the callsite (defense in
      * depth over the recv-layer payload cap). */
@@ -245,7 +245,7 @@ brix_handle_readv(brix_ctx_t *ctx, ngx_connection_t *c)
 
     /*
      * Phase 31 W4: kXR_readv assembles its whole response (up to
-     * BRIX_MAX_READV_TOTAL = 256 MiB) in read_scratch.  Admit it against the
+     * BRIX_MAX_READV_TOTAL = 256 MiB) in rd.read_scratch.  Admit it against the
      * SHM-global transfer budget so a burst of large readv requests cannot blow
      * the memory cap; over budget, defer with kXR_wait and let the client
      * re-issue.  (readv is not yet windowed like kXR_read — a single large readv
@@ -255,8 +255,8 @@ brix_handle_readv(brix_ctx_t *ctx, ngx_connection_t *c)
         return brix_send_wait(ctx, c, 1);
     }
 
-    response_buffer = BRIX_GET_SCRATCH(ctx, c, read_scratch,
-                                         read_scratch_size, max_response_bytes);
+    response_buffer = BRIX_GET_SCRATCH(ctx, c, rd.read_scratch,
+                                         rd.read_scratch_size, max_response_bytes);
     if (response_buffer == NULL) {
         return NGX_ERROR;
     }
@@ -324,7 +324,7 @@ brix_handle_readv(brix_ctx_t *ctx, ngx_connection_t *c)
             brix_readv_aio_t      *t;
             ngx_flag_t               posted;
 
-            task = ctx->readv_aio_task;
+            task = ctx->rd.readv_aio_task;
             if (task == NULL) {
                 task = ngx_thread_task_alloc(c->pool,
                                              sizeof(brix_readv_aio_t));
@@ -333,7 +333,7 @@ brix_handle_readv(brix_ctx_t *ctx, ngx_connection_t *c)
                     brix_release_read_buffer(ctx, c, response_buffer);
                     return NGX_ERROR;
                 }
-                ctx->readv_aio_task = task;
+                ctx->rd.readv_aio_task = task;
             } else {
                 task->next = NULL;
                 task->event.complete = 0;
@@ -348,8 +348,8 @@ brix_handle_readv(brix_ctx_t *ctx, ngx_connection_t *c)
             t->bytes_read_total = 0;
             t->response_bytes = 0;
             t->io_error = 0;
-            t->streamid[0] = ctx->cur_streamid[0];
-            t->streamid[1] = ctx->cur_streamid[1];
+            t->streamid[0] = ctx->recv.cur_streamid[0];
+            t->streamid[1] = ctx->recv.cur_streamid[1];
 
             brix_task_bind(task, brix_readv_aio_thread, brix_readv_aio_done);
 
@@ -407,7 +407,7 @@ brix_handle_readv(brix_ctx_t *ctx, ngx_connection_t *c)
                               bytes_read_total);
         }
         BRIX_OP_OK(ctx, BRIX_OP_READV);
-        ctx->session_bytes += bytes_read_total;
+        ctx->totals.bytes += bytes_read_total;
 
         rsp_chain = brix_build_chunked_chain(ctx, c, response_buffer,
                                                response_bytes);

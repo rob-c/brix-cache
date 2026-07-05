@@ -107,10 +107,10 @@ gsi_req_der_to_pem(const u_char *der, size_t der_len, size_t *pem_len)
 static int
 gsi_session_cipher(brix_ctx_t *ctx, brix_gsi_cipher_t *cipher)
 {
-    if (ctx->gsi_sess_keylen <= 0) {
+    if (ctx->gsi.sess_keylen <= 0) {
         return -1;
     }
-    if (!brix_gsi_cipher_lookup(ctx->gsi_sess_cipher, cipher)
+    if (!brix_gsi_cipher_lookup(ctx->gsi.sess_cipher, cipher)
         && !brix_gsi_cipher_lookup("aes-128-cbc", cipher)) {
         return -1;
     }
@@ -120,23 +120,23 @@ gsi_session_cipher(brix_ctx_t *ctx, brix_gsi_cipher_t *cipher)
 void
 brix_gsi_delegation_cleanup(brix_ctx_t *ctx)
 {
-    if (ctx->gsi_deleg_reqkey != NULL) {
-        EVP_PKEY_free(ctx->gsi_deleg_reqkey);
-        ctx->gsi_deleg_reqkey = NULL;
+    if (ctx->gsi.deleg_reqkey != NULL) {
+        EVP_PKEY_free(ctx->gsi.deleg_reqkey);
+        ctx->gsi.deleg_reqkey = NULL;
     }
-    if (ctx->gsi_deleg_chain_pem != NULL) {
-        free(ctx->gsi_deleg_chain_pem);
-        ctx->gsi_deleg_chain_pem = NULL;
-        ctx->gsi_deleg_chain_len = 0;
+    if (ctx->gsi.deleg_chain_pem != NULL) {
+        free(ctx->gsi.deleg_chain_pem);
+        ctx->gsi.deleg_chain_pem = NULL;
+        ctx->gsi.deleg_chain_len = 0;
     }
-    if (ctx->gsi_deleg_proxy_pem != NULL) {
-        free(ctx->gsi_deleg_proxy_pem);
-        ctx->gsi_deleg_proxy_pem = NULL;
-        ctx->gsi_deleg_proxy_len = 0;
+    if (ctx->gsi.deleg_proxy_pem != NULL) {
+        free(ctx->gsi.deleg_proxy_pem);
+        ctx->gsi.deleg_proxy_pem = NULL;
+        ctx->gsi.deleg_proxy_len = 0;
     }
-    OPENSSL_cleanse(ctx->gsi_sess_key, sizeof(ctx->gsi_sess_key));
-    ctx->gsi_sess_keylen = 0;
-    ctx->gsi_deleg_await = 0;
+    OPENSSL_cleanse(ctx->gsi.sess_key, sizeof(ctx->gsi.sess_key));
+    ctx->gsi.sess_keylen = 0;
+    ctx->gsi.deleg_await = 0;
 }
 
 /* Owned scratch for one begin_delegation; freed once (no goto). */
@@ -223,10 +223,10 @@ brix_gsi_begin_delegation(brix_ctx_t *ctx, ngx_connection_t *c,
      * with our public key and rejects the round otherwise ("random tag missing").
      * Add a fresh kXRS_rtag challenge for the client to sign in kXGC_sigpxy.
      */
-    if (ctx->gsi_deleg_client_rtag_len > 0 && conf->gsi_key != NULL) {
+    if (ctx->gsi.deleg_client_rtag_len > 0 && conf->gsi_key != NULL) {
         signed_rtag_len = brix_gsi_rsa_encrypt_private(
-            conf->gsi_key, ctx->gsi_deleg_client_rtag,
-            (size_t) ctx->gsi_deleg_client_rtag_len,
+            conf->gsi_key, ctx->gsi.deleg_client_rtag,
+            (size_t) ctx->gsi.deleg_client_rtag_len,
             signed_rtag, sizeof(signed_rtag));
     }
     if (signed_rtag_len == 0 || !brix_gsi_rand(new_rtag, sizeof(new_rtag))) {
@@ -245,8 +245,8 @@ brix_gsi_begin_delegation(brix_ctx_t *ctx, ngx_connection_t *c,
     if (b.inner.err) {
         return bdg_fail(&b);
     }
-    b.enc = brix_gsi_cipher_encrypt(&cipher, ctx->gsi_sess_key, b.inner.p,
-                                      b.inner.len, ctx->gsi_sess_use_iv,
+    b.enc = brix_gsi_cipher_encrypt(&cipher, ctx->gsi.sess_key, b.inner.p,
+                                      b.inner.len, ctx->gsi.sess_use_iv,
                                       &b.enc_len);
     if (b.enc == NULL) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
@@ -255,11 +255,11 @@ brix_gsi_begin_delegation(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     /* Outer kXGS_pxyreq = {kXRS_main(enc) + kXRS_cipher_alg + none}. */
-    calg_len = ngx_strlen(ctx->gsi_sess_cipher);
+    calg_len = ngx_strlen(ctx->gsi.sess_cipher);
     brix_gbuf_start(&b.outer, (uint32_t) kXGS_pxyreq);
     brix_gbuf_bucket(&b.outer, (uint32_t) kXRS_main, b.enc, b.enc_len);
     brix_gbuf_bucket(&b.outer, (uint32_t) kXRS_cipher_alg,
-                       ctx->gsi_sess_cipher, calg_len);
+                       ctx->gsi.sess_cipher, calg_len);
     brix_gbuf_end(&b.outer);
     if (b.outer.err) {
         return bdg_fail(&b);
@@ -272,16 +272,16 @@ brix_gsi_begin_delegation(brix_ctx_t *ctx, ngx_connection_t *c,
     if (buf == NULL) {
         return bdg_fail(&b);
     }
-    brix_build_resp_hdr(ctx->cur_streamid, kXR_authmore,
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_authmore,
                           (uint32_t) body_len, (ServerResponseHdr *) buf);
     p = buf + XRD_RESPONSE_HDR_LEN;
     ngx_memcpy(p, b.outer.p, body_len);
 
     /* Hand the request key + client chain to the connection for kXGC_sigpxy. */
-    ctx->gsi_deleg_reqkey    = b.reqkey;  b.reqkey = NULL;
-    ctx->gsi_deleg_chain_pem = b.chain_pem; b.chain_pem = NULL;
-    ctx->gsi_deleg_chain_len = b.chain_len;
-    ctx->gsi_deleg_await     = 1;
+    ctx->gsi.deleg_reqkey    = b.reqkey;  b.reqkey = NULL;
+    ctx->gsi.deleg_chain_pem = b.chain_pem; b.chain_pem = NULL;
+    ctx->gsi.deleg_chain_len = b.chain_len;
+    ctx->gsi.deleg_await     = 1;
 
     (void) bdg_fail(&b);   /* free the rest (req_der, enc, gbufs, leaf_pem) */
 
@@ -293,8 +293,8 @@ brix_gsi_begin_delegation(brix_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t
 brix_gsi_handle_sigpxy(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    const u_char        *payload = ctx->payload;
-    size_t               plen = ctx->cur_dlen;
+    const u_char        *payload = ctx->recv.payload;
+    size_t               plen = ctx->recv.cur_dlen;
     brix_gsi_cipher_t  cipher;
     const uint8_t       *enc = NULL, *signed_pem = NULL;
     size_t               enc_len = 0, signed_len = 0;
@@ -303,8 +303,8 @@ brix_gsi_handle_sigpxy(brix_ctx_t *ctx, ngx_connection_t *c)
     char                 err[160];
     ngx_int_t            rc = NGX_ERROR;
 
-    if (!ctx->gsi_deleg_await || ctx->gsi_deleg_reqkey == NULL
-        || ctx->gsi_deleg_chain_pem == NULL
+    if (!ctx->gsi.deleg_await || ctx->gsi.deleg_reqkey == NULL
+        || ctx->gsi.deleg_chain_pem == NULL
         || gsi_session_cipher(ctx, &cipher) != 0) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI kXGC_sigpxy: not awaiting delegation");
@@ -317,8 +317,8 @@ brix_gsi_handle_sigpxy(brix_ctx_t *ctx, ngx_connection_t *c)
                       "brix: GSI kXGC_sigpxy: kXRS_main missing");
         return NGX_ERROR;
     }
-    plain = brix_gsi_cipher_decrypt(&cipher, ctx->gsi_sess_key, enc, enc_len,
-                                      ctx->gsi_sess_use_iv, &plain_len);
+    plain = brix_gsi_cipher_decrypt(&cipher, ctx->gsi.sess_key, enc, enc_len,
+                                      ctx->gsi.sess_use_iv, &plain_len);
     if (plain == NULL) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "brix: GSI kXGC_sigpxy: main decrypt failed");
@@ -341,9 +341,9 @@ brix_gsi_handle_sigpxy(brix_ctx_t *ctx, ngx_connection_t *c)
         u_char *verify_out = NULL;
         size_t  verify_len = 0;
 
-        if (brix_gsi_assemble_proxy(signed_pem, signed_len, ctx->gsi_deleg_reqkey,
-                                      ctx->gsi_deleg_chain_pem,
-                                      ctx->gsi_deleg_chain_len, &verify_out,
+        if (brix_gsi_assemble_proxy(signed_pem, signed_len, ctx->gsi.deleg_reqkey,
+                                      ctx->gsi.deleg_chain_pem,
+                                      ctx->gsi.deleg_chain_len, &verify_out,
                                       &verify_len, err, sizeof(err)) != 0) {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
                           "brix: GSI kXGC_sigpxy: assemble proxy failed: %s", err);
@@ -366,7 +366,7 @@ brix_gsi_handle_sigpxy(brix_ctx_t *ctx, ngx_connection_t *c)
         size_t  total;
 
         if (kb == NULL
-            || PEM_write_bio_PrivateKey(kb, ctx->gsi_deleg_reqkey, NULL, NULL, 0,
+            || PEM_write_bio_PrivateKey(kb, ctx->gsi.deleg_reqkey, NULL, NULL, 0,
                                         NULL, NULL) != 1) {
             BIO_free(kb);
             free(plain);
@@ -375,7 +375,7 @@ brix_gsi_handle_sigpxy(brix_ctx_t *ctx, ngx_connection_t *c)
             return NGX_ERROR;
         }
         kl = BIO_get_mem_data(kb, &kd);
-        total = signed_len + ctx->gsi_deleg_chain_len + (size_t) kl;
+        total = signed_len + ctx->gsi.deleg_chain_len + (size_t) kl;
         cred = malloc(total + 1);
         if (cred == NULL) {
             BIO_free(kb);
@@ -385,28 +385,28 @@ brix_gsi_handle_sigpxy(brix_ctx_t *ctx, ngx_connection_t *c)
         /* Order: proxy cert + issuer chain + key — so a cert-reader stops cleanly
          * at the trailing key block while a key-reader skips the cert blocks. */
         ngx_memcpy(cred, signed_pem, signed_len);
-        ngx_memcpy(cred + signed_len, ctx->gsi_deleg_chain_pem,
-                   ctx->gsi_deleg_chain_len);
-        ngx_memcpy(cred + signed_len + ctx->gsi_deleg_chain_len, kd, (size_t) kl);
+        ngx_memcpy(cred + signed_len, ctx->gsi.deleg_chain_pem,
+                   ctx->gsi.deleg_chain_len);
+        ngx_memcpy(cred + signed_len + ctx->gsi.deleg_chain_len, kd, (size_t) kl);
         cred[total] = '\0';
         BIO_free(kb);
-        free(ctx->gsi_deleg_proxy_pem);
-        ctx->gsi_deleg_proxy_pem = cred;
-        ctx->gsi_deleg_proxy_len = total;
+        free(ctx->gsi.deleg_proxy_pem);
+        ctx->gsi.deleg_proxy_pem = cred;
+        ctx->gsi.deleg_proxy_len = total;
     }
     free(plain);
 
     ngx_log_error(NGX_LOG_INFO, c->log, 0,
                   "brix: GSI delegation: captured delegated proxy (%uz bytes) "
-                  "dn=\"%s\"", ctx->gsi_deleg_proxy_len, ctx->dn);
+                  "dn=\"%s\"", ctx->gsi.deleg_proxy_len, ctx->login.dn);
 
     /* The request key is consumed; the captured proxy credential remains for the
      * TPC pull. Clear the await flag + cleanse the session key. */
-    EVP_PKEY_free(ctx->gsi_deleg_reqkey);
-    ctx->gsi_deleg_reqkey = NULL;
-    ctx->gsi_deleg_await = 0;
-    OPENSSL_cleanse(ctx->gsi_sess_key, sizeof(ctx->gsi_sess_key));
-    ctx->gsi_sess_keylen = 0;
+    EVP_PKEY_free(ctx->gsi.deleg_reqkey);
+    ctx->gsi.deleg_reqkey = NULL;
+    ctx->gsi.deleg_await = 0;
+    OPENSSL_cleanse(ctx->gsi.sess_key, sizeof(ctx->gsi.sess_key));
+    ctx->gsi.sess_keylen = 0;
     rc = NGX_OK;
     return rc;
 }

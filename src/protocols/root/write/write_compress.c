@@ -19,7 +19,7 @@
  *
  * HOW:  Each kXR_write is an independent whole-frame, so writes stay offset-
  *       addressable (re-writing the same offset reproduces the same plaintext).
- *       The plaintext is produced into a fixed window (write_scratch) and
+ *       The plaintext is produced into a fixed window (rd.write_scratch) and
  *       written chunk-by-chunk at advancing offsets through the VFS core, so
  *       memory stays bounded regardless of the decompressed size.  A
  *       synchronous VFS write keeps the opt-in path simple; the default path
@@ -62,7 +62,7 @@ brix_write_compressed(brix_ctx_t *ctx, ngx_connection_t *c,
     rconf = ngx_stream_get_module_srv_conf(
                 (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
 
-    win = BRIX_GET_SCRATCH(ctx, c, write_scratch, write_scratch_size,
+    win = BRIX_GET_SCRATCH(ctx, c, rd.write_scratch, rd.write_scratch_size,
                              BRIX_WCMP_WINDOW);
     if (win == NULL) {
         return NGX_ERROR;
@@ -88,7 +88,7 @@ brix_write_compressed(brix_ctx_t *ctx, ngx_connection_t *c,
 
     for ( ;; ) {
         size_t            out_pos = 0, prev_in = in_pos;
-        brix_codec_rc_t rc = brix_codec_step(s, ctx->payload, wlen, &in_pos,
+        brix_codec_rc_t rc = brix_codec_step(s, ctx->recv.payload, wlen, &in_pos,
                                                  win, BRIX_WCMP_WINDOW,
                                                  &out_pos, 1 /* finish */);
         if (out_pos > 0) {
@@ -136,7 +136,7 @@ brix_write_compressed(brix_ctx_t *ctx, ngx_connection_t *c,
     /* Accounting: counters reflect PLAINTEXT bytes stored; bandwidth is charged
      * the actual wire (compressed) bytes received. */
     ctx->files[idx].bytes_written += produced;
-    ctx->session_bytes_written    += produced;
+    ctx->totals.bytes_written    += produced;
     brix_rl_charge_ctx(ctx, wlen);
 
     if (ctx->files[idx].dashboard_slot >= 0 &&

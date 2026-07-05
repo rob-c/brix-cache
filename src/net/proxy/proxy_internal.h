@@ -94,7 +94,7 @@ typedef struct {
     ngx_uint_t         auth_type;
     u_char             token_hash[16];   /* MD5 of bearer token for pooling */
     time_t             idle_since;
-    ngx_msec_t         keepalive_interval; /* snapshot of conf->proxy_keepalive_interval */
+    ngx_msec_t         keepalive_interval; /* snapshot of conf->proxy.keepalive_interval */
     ngx_event_t        ping_ev;            /* kXR_ping keepalive timer */
 } brix_proxy_pooled_conn_t;
 
@@ -159,7 +159,7 @@ struct brix_proxy_ctx_s {
     /* remaining upstream reconnect budget (decremented on each idle reconnect) */
     int       reconnect_left;
 
-    /* which entry in conf->proxy_upstreams was selected at connect time; -1 = legacy single */
+    /* which entry in conf->proxy.upstreams was selected at connect time; -1 = legacy single */
     int       upstream_idx;
 
     /* 1 if this connection was pulled from the pool and doesn't need bootstrap */
@@ -220,7 +220,7 @@ void brix_proxy_tap_init(brix_proxy_ctx_t *proxy, ngx_connection_t *c);
  * (reusing the blocking in-process GSI client with the client's delegated proxy),
  * then hand the authenticated fd to the async relay. Returns NGX_OK (login posted;
  * completes later) or NGX_ERROR. Requires a thread_pool + a captured delegated
- * proxy (ctx->gsi_deleg_proxy_pem). */
+ * proxy (ctx->gsi.deleg_proxy_pem). */
 ngx_int_t brix_proxy_gsi_connect_async(brix_proxy_ctx_t *proxy,
     ngx_stream_brix_srv_conf_t *conf, ngx_str_t *host, uint16_t port);
 
@@ -334,7 +334,7 @@ ngx_int_t brix_proxy_try_splice(brix_proxy_ctx_t *proxy);
 void      brix_proxy_splice_fallback_finish(brix_proxy_ctx_t *proxy);
 
 /* forward.c */
-/* Build the upstream request from the client's current frame (ctx->hdr_buf + payload),
+/* Build the upstream request from the client's current frame (ctx->recv.hdr_buf + payload),
  * applying fhandle translation, path rewriting, audit capture and kXR_wait-retry setup,
  * then send it. Allocates the request buffer (ngx_alloc, freed on send/cleanup) and may
  * pre-allocate a local fh for kXR_open. NGX_OK on send/queue; NGX_ERROR after the helper

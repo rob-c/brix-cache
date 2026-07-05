@@ -114,32 +114,13 @@ ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf)
 
     BRIX_PCALLOC_OR_RETURN(conf, cf->pool, sizeof(*conf), NULL);
 
-    conf->common.enable       = NGX_CONF_UNSET;
+    ngx_http_brix_shared_init(&conf->common);
     conf->verify_depth = NGX_CONF_UNSET_UINT;
     conf->auth         = NGX_CONF_UNSET_UINT;
     brix_acc_http_init_conf(&conf->acc);   /* XrdAcc engine (off by default) */
     conf->proxy_certs  = NGX_CONF_UNSET;
     conf->tape_rest    = NGX_CONF_UNSET;
     conf->upload_resume = NGX_CONF_UNSET;
-    conf->common.allow_write  = NGX_CONF_UNSET;
-    conf->common.read_only    = NGX_CONF_UNSET;
-    conf->common.compress     = NGX_CONF_UNSET;
-    conf->common.ktls         = NGX_CONF_UNSET;
-    conf->common.storage_staging = NGX_CONF_UNSET;
-    conf->common.pblock_block_size = NGX_CONF_UNSET_SIZE;
-    conf->common.storage_instance  = NULL;
-    /* common.storage_backend (ngx_str_t) left zeroed by pcalloc */
-    /* phase-64 tier grammar scalars (str/array fields stay zeroed by pcalloc) */
-    conf->common.stage_enable      = NGX_CONF_UNSET;
-    conf->common.stage_flush_async = NGX_CONF_UNSET_UINT;
-    conf->common.cache_max_object  = NGX_CONF_UNSET;
-    conf->common.cache_evict_at    = NGX_CONF_UNSET_UINT;
-    conf->common.cache_evict_to    = NGX_CONF_UNSET_UINT;
-    conf->common.cache_meta_mode   = NGX_CONF_UNSET_UINT;
-    conf->common.cache_batch_cinfo = NGX_CONF_UNSET_UINT;
-    conf->common.cache_index_cache = NGX_CONF_UNSET_SIZE;
-    conf->common.cache_slice_size  = NGX_CONF_UNSET_SIZE;
-    brix_pmark_conf_init(&conf->common.pmark);  /* SciTags packet marking */
     conf->ca_store     = NULL;
     conf->cors_origins = NULL;
     conf->cors_credentials = NGX_CONF_UNSET;
@@ -321,40 +302,13 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_http_brix_webdav_loc_conf_t *prev = parent;
     ngx_http_brix_webdav_loc_conf_t *conf = child;
 
-    ngx_conf_merge_value(conf->common.enable, prev->common.enable, 0);
-    ngx_conf_merge_str_value(conf->common.root, prev->common.root, "/");
-    ngx_conf_merge_str_value(conf->common.storage_backend,
-                             prev->common.storage_backend, "");
-    ngx_conf_merge_size_value(conf->common.pblock_block_size,
-                              prev->common.pblock_block_size, 0);
-    /* phase-64 composable tier grammar */
-    ngx_conf_merge_str_value(conf->common.cache_store, prev->common.cache_store,
-                             "");
-    if (conf->common.cache_store_args == NULL) {
-        conf->common.cache_store_args = prev->common.cache_store_args;
+    /* Shared common.* preamble (incl. hard read-only enforcement + pmark);
+     * WebDAV exports default to "/" (pure cache nodes serve the whole ns). */
+    if (ngx_http_brix_shared_merge(cf, &prev->common, &conf->common, "/")
+        != NGX_CONF_OK)
+    {
+        return NGX_CONF_ERROR;
     }
-    ngx_conf_merge_value(conf->common.stage_enable, prev->common.stage_enable, 0);
-    ngx_conf_merge_str_value(conf->common.stage_store, prev->common.stage_store,
-                             "");
-    if (conf->common.stage_store_args == NULL) {
-        conf->common.stage_store_args = prev->common.stage_store_args;
-    }
-    ngx_conf_merge_uint_value(conf->common.stage_flush_async,
-                              prev->common.stage_flush_async, 0);
-    ngx_conf_merge_off_value(conf->common.cache_max_object,
-                             prev->common.cache_max_object, 0);
-    ngx_conf_merge_uint_value(conf->common.cache_evict_at,
-                              prev->common.cache_evict_at, 90);
-    ngx_conf_merge_uint_value(conf->common.cache_evict_to,
-                              prev->common.cache_evict_to, 80);
-    ngx_conf_merge_uint_value(conf->common.cache_meta_mode,
-                              prev->common.cache_meta_mode, 0);
-    ngx_conf_merge_uint_value(conf->common.cache_batch_cinfo,
-                              prev->common.cache_batch_cinfo, 2);
-    ngx_conf_merge_size_value(conf->common.cache_index_cache,
-                              prev->common.cache_index_cache, 0);
-    ngx_conf_merge_size_value(conf->common.cache_slice_size,
-                              prev->common.cache_slice_size, 0);
     ngx_conf_merge_str_value(conf->cache_root, prev->cache_root, "");
     ngx_conf_merge_str_value(conf->vomsdir, prev->vomsdir, "");
     ngx_conf_merge_str_value(conf->tcp_congestion, prev->tcp_congestion, "");
@@ -372,20 +326,6 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
      * off to opt out. */
     ngx_conf_merge_value(conf->upload_resume, prev->upload_resume, 1);
     ngx_conf_merge_str_value(conf->upload_stage_dir, prev->upload_stage_dir, "");
-    ngx_conf_merge_value(conf->common.allow_write, prev->common.allow_write, 0);
-    ngx_conf_merge_value(conf->common.read_only, prev->common.read_only, 0);
-    ngx_conf_merge_value(conf->common.compress, prev->common.compress, 0);
-    ngx_conf_merge_value(conf->common.ktls, prev->common.ktls, 1);  /* kTLS default ON */
-    ngx_conf_merge_value(conf->common.storage_staging,
-                         prev->common.storage_staging, 0);
-    /* Hard read-only: force allow_write off after the merge so every WebDAV write-
-     * method gate rejects (before the VFS). */
-    brix_shared_apply_read_only(&conf->common, cf->log);
-    if (brix_pmark_conf_merge(cf, &prev->common.pmark, &conf->common.pmark)
-        != NGX_CONF_OK)
-    {
-        return NGX_CONF_ERROR;
-    }
     ngx_http_brix_webdav_tpc_merge_loc_conf(conf, prev);
     BRIX_MERGE_PTR(conf, prev, cors_origins);
     ngx_conf_merge_value(conf->cors_credentials, prev->cors_credentials, 0);

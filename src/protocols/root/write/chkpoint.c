@@ -238,7 +238,7 @@ brix_handle_chkpoint(brix_ctx_t *ctx, ngx_connection_t *c,
 
     (void) conf;
 
-    xrdw_chkpoint_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    xrdw_chkpoint_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     idx = (int)(unsigned char) req.fhandle[0];
 
     if (!brix_validate_write_handle(ctx, c, idx, "CHKPOINT",

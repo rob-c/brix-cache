@@ -177,7 +177,7 @@ brix_sss_send_authmore(brix_ctx_t *ctx, ngx_connection_t *c,
     total = XRD_RESPONSE_HDR_LEN + hdr_len + cipher_len;
     BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
 
-    brix_build_resp_hdr(ctx->cur_streamid, kXR_authmore,
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_authmore,
                           (uint32_t) (hdr_len + cipher_len),
                           (ServerResponseHdr *) buf);
     ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, hdr, hdr_len);

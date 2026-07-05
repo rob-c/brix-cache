@@ -3,7 +3,7 @@
 /*
  * brix_check_token_scope — enforce WLCG token scopes on a path operation.
  *
- * Only active when ctx->token_auth == 1 (bearer-token session).  GSI and
+ * Only active when ctx->token.auth == 1 (bearer-token session).  GSI and
  * anonymous sessions are not restricted by this function — the brix_allow_write
  * directive and VO ACL remain their access gate.
  *
@@ -19,7 +19,7 @@ ngx_int_t
 brix_check_token_scope(brix_ctx_t *ctx, const char *logical_path,
     int need_write)
 {
-    if (!ctx->token_auth) {
+    if (!ctx->token.auth) {
         return NGX_OK;
     }
 
@@ -29,20 +29,20 @@ brix_check_token_scope(brix_ctx_t *ctx, const char *logical_path,
     }
 
     if (need_write) {
-        return brix_token_check_write(ctx->token_scopes,
-                                        ctx->token_scope_count, logical_path)
+        return brix_token_check_write(ctx->token.scopes,
+                                        ctx->token.scope_count, logical_path)
                ? NGX_OK : NGX_ERROR;
     }
 
-    return brix_token_check_read(ctx->token_scopes,
-                                   ctx->token_scope_count, logical_path)
+    return brix_token_check_read(ctx->token.scopes,
+                                   ctx->token.scope_count, logical_path)
            ? NGX_OK : NGX_ERROR;
 }
 
 ngx_int_t
 brix_dispatch_require_login(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    if (!ctx->logged_in) {
+    if (!ctx->login.logged_in) {
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "login required");
     }
@@ -53,7 +53,7 @@ brix_dispatch_require_login(brix_ctx_t *ctx, ngx_connection_t *c)
 ngx_int_t
 brix_dispatch_require_auth(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    if (!ctx->logged_in || !ctx->auth_done) {
+    if (!ctx->login.logged_in || !ctx->login.auth_done) {
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "authentication required");
     }

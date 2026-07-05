@@ -67,8 +67,8 @@ brix_cns_emit_close(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
     if (conf->cns_mode != BRIX_CNS_EMIT || !ctx->files[idx].writable) {
         return;
     }
-    if (conf->cms_ctx == NULL || conf->cms_ctx->connection == NULL
-        || !conf->cms_ctx->logged_in)
+    if (conf->cms.ctx == NULL || conf->cms.ctx->connection == NULL
+        || !conf->cms.ctx->logged_in)
     {
         return;
     }
@@ -96,7 +96,7 @@ brix_cns_emit_close(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
     if (n == 0) {
         return;
     }
-    (void) brix_cms_send_frame(conf->cms_ctx->connection, 0, CMS_RR_CNS,
+    (void) brix_cms_send_frame(conf->cms.ctx->connection, 0, CMS_RR_CNS,
                                  CMS_MOD_RAW, buf, n);
 }
 
@@ -106,7 +106,7 @@ ngx_int_t brix_handle_close(brix_ctx_t *ctx, ngx_connection_t *c) {
     int idx;
     ngx_int_t rc;
 
-    xrdw_close_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+    xrdw_close_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     idx = (int)(unsigned char) req.fhandle[0];
 
     if (!brix_validate_file_handle(ctx, c, idx, "CLOSE",
@@ -204,7 +204,7 @@ ngx_int_t brix_handle_close(brix_ctx_t *ctx, ngx_connection_t *c) {
             brix_free_fhandle(ctx, idx);
             BRIX_OP_ERR(ctx, BRIX_OP_CLOSE);
             brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path,
-                               ctx->dn[0] ? ctx->dn : NULL, 0,
+                               ctx->login.dn[0] ? ctx->login.dn : NULL, 0,
                                BRIX_XFER_COMMIT_ERR, err, c->log);
             return brix_send_error(ctx, c, kXR_IOError,
                                      "staged commit failed");
@@ -226,7 +226,7 @@ ngx_int_t brix_handle_close(brix_ctx_t *ctx, ngx_connection_t *c) {
             size_t      n = (fstat(ctx->files[idx].fd, &sb) == 0
                              && S_ISREG(sb.st_mode)) ? (size_t) sb.st_size : 0;
             brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path,
-                               ctx->dn[0] ? ctx->dn : NULL, n,
+                               ctx->login.dn[0] ? ctx->login.dn : NULL, n,
                                BRIX_XFER_OK, 0, c->log);
         }
     }
@@ -261,14 +261,14 @@ ngx_int_t brix_handle_close(brix_ctx_t *ctx, ngx_connection_t *c) {
     brix_free_fhandle(ctx, idx);
 
     /* phase-59 W3a: release this user's throttle open-files slot. */
-    if (ctx->throttle_open_held > 0) {
+    if (ctx->throttle.open_held > 0) {
         ngx_stream_brix_srv_conf_t *tconf = ngx_stream_get_module_srv_conf(
             (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
-        if (tconf->throttle_zone != NULL) {
-            brix_throttle_open_dec(tconf->throttle_zone,
-                ctx->dn[0] ? ctx->dn : "anonymous");
+        if (tconf->throttle.zone != NULL) {
+            brix_throttle_open_dec(tconf->throttle.zone,
+                ctx->login.dn[0] ? ctx->login.dn : "anonymous");
         }
-        ctx->throttle_open_held--;
+        ctx->throttle.open_held--;
     }
 
     /* A failed SYNC write-through flush means the file did not reach the origin;

@@ -108,12 +108,12 @@ open_negotiate_compress_codec(brix_ctx_t *ctx,
 	const brix_codec_desc_t *d;
 
 	enabled = is_write ? conf->write_compress : conf->read_compress;
-	if (!enabled || ctx->payload == NULL || ctx->cur_dlen == 0)
+	if (!enabled || ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0)
 	{
 		return BRIX_CODEC_IDENTITY;
 	}
 
-	if (!open_extract_opaque(ctx->payload, ctx->cur_dlen,
+	if (!open_extract_opaque(ctx->recv.payload, ctx->recv.cur_dlen,
 	                         opaque, sizeof(opaque)))
 	{
 		return BRIX_CODEC_IDENTITY;
@@ -171,10 +171,10 @@ open_extract_zip_member(brix_ctx_t *ctx, char *out, size_t outsz)
 	const char *p, *val, *end;
 	size_t      vlen;
 
-	if (ctx->payload == NULL || ctx->cur_dlen == 0) {
+	if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0) {
 		return 0;
 	}
-	if (!open_extract_opaque(ctx->payload, ctx->cur_dlen, opaque, sizeof(opaque))) {
+	if (!open_extract_opaque(ctx->recv.payload, ctx->recv.cur_dlen, opaque, sizeof(opaque))) {
 		return 0;
 	}
 
@@ -231,12 +231,12 @@ brix_pmark_echo_timer(ngx_event_t *ev)
 {
     brix_ctx_t *ctx = ev->data;
 
-    if (ctx == NULL || ctx->destroyed || ctx->pmark_flow == NULL) {
+    if (ctx == NULL || ctx->destroyed || ctx->pmark.flow == NULL) {
         return;
     }
-    brix_pmark_flow_echo(ctx->pmark_flow, ev->log);
-    if (ctx->pmark_echo_ms > 0) {
-        ngx_add_timer(ev, ctx->pmark_echo_ms);
+    brix_pmark_flow_echo(ctx->pmark.flow, ev->log);
+    if (ctx->pmark.echo_ms > 0) {
+        ngx_add_timer(ev, ctx->pmark.echo_ms);
     }
 }
 
@@ -275,7 +275,7 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 	char               clean_path[PATH_MAX];  /* path with CGI query stripped */
 	int                is_write;
 
-	xrdw_open_req_unpack(((ClientRequestHdr *) ctx->hdr_buf)->body, &req);
+	xrdw_open_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
 	options   = req.options;
 	mode_bits = req.mode;
 
@@ -300,7 +300,7 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 		const char *svc;
 		size_t      svclen;
 
-		if (brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+		if (brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
 		                        ssi_path, sizeof(ssi_path), 1)
 		    && brix_ssi_match(conf, ssi_path, &svc, &svclen))
 		{
@@ -331,8 +331,8 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 		char                 opaque[BRIX_MAX_PATH + 1];
 		brix_tpc_params_t  tpc;
 
-		if (ctx->payload != NULL && ctx->cur_dlen > 0
-		    && open_extract_opaque(ctx->payload, ctx->cur_dlen,
+		if (ctx->recv.payload != NULL && ctx->recv.cur_dlen > 0
+		    && open_extract_opaque(ctx->recv.payload, ctx->recv.cur_dlen,
 		                           opaque, sizeof(opaque))
 		    && brix_tpc_parse_opaque(opaque, &tpc) == 0)
 		{
@@ -346,7 +346,7 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 				char tpc_full_path[PATH_MAX];
 				char tpc_clean[PATH_MAX];
 
-				if (!brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+				if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
 				                         tpc_clean, sizeof(tpc_clean), 1)) {
 					brix_log_access(ctx, c, "OPEN", "-", "tpc-pull",
 					                  0, kXR_ArgInvalid,
@@ -483,7 +483,7 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 						               tpc.key);
 					} else {
 						BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
-						                  ctx->payload ? (char *) ctx->payload : "-",
+						                  ctx->recv.payload ? (char *) ctx->recv.payload : "-",
 						                  "tpc-source", kXR_NotAuthorized,
 						                  "TPC authorization missing or expired");
 					}
@@ -503,7 +503,7 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 	 * the allow_write check applies only to local file serving. */
 	if (is_write && !conf->common.allow_write && !conf->manager_mode) {
 		brix_log_access(ctx, c, "OPEN",
-						  ctx->payload ? (char *) ctx->payload : "-", "wr",
+						  ctx->recv.payload ? (char *) ctx->recv.payload : "-", "wr",
 						  0, kXR_fsReadOnly, "read-only server", 0);
 		BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
 		return brix_send_error(ctx, c, kXR_fsReadOnly,
@@ -511,16 +511,16 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 	}
 
 	/* metadata_only without a manager_map: serve namespace only, no file I/O. */
-	if (conf->metadata_only && conf->manager_map == NULL) {
+	if (conf->caps.metadata_only && conf->manager_map == NULL) {
 		brix_log_access(ctx, c, "OPEN",
-						  ctx->payload ? (char *) ctx->payload : "-",
+						  ctx->recv.payload ? (char *) ctx->recv.payload : "-",
 						  is_write ? "wr" : "rd",
 						  0, kXR_Unsupported, "metadata-only server", 0);
 		return brix_send_error(ctx, c, kXR_Unsupported,
 								 "open not available on metadata-only server");
 	}
 
-	if (ctx->payload == NULL || ctx->cur_dlen == 0) {
+	if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0) {
 		BRIX_RETURN_ERR(ctx, c,
 						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 						  "OPEN", "-", is_write ? "wr" : "rd",
@@ -537,7 +537,7 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 	/* Strip XRootD CGI query string ("?oss.asize=N" etc.) from the path.
 	 * xrdcp and other clients append these for metadata; they are not part
 	 * of the filesystem path. */
-	if (!brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+	if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
 							 clean_path, sizeof(clean_path), 1)) {
 		BRIX_RETURN_ERR(ctx, c,
 						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
@@ -571,7 +571,7 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 		 * another redirect — otherwise it loops to the client redirect limit.
 		 * Writes are excluded: they create the file on the selected server. */
 		if (!is_write
-		    && brix_manager_tried_exhausted(ctx->payload, ctx->cur_dlen,
+		    && brix_manager_tried_exhausted(ctx->recv.payload, ctx->recv.cur_dlen,
 		                                      clean_path)) {
 			BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", clean_path,
 			                  "rd", kXR_NotFound,
@@ -579,7 +579,7 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 		}
 
 		/* Collapse-redir cache: serve reads from cache to skip CMS. */
-		if (!is_write && conf->collapse_redir
+		if (!is_write && conf->caps.collapse_redir
 		    && brix_redir_cache_lookup(clean_path, redir_host,
 		                                 sizeof(redir_host), &redir_port)) {
 			BRIX_RETURN_REDIR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
@@ -595,9 +595,9 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 		 * NotFound. */
 		if (brix_srv_select_or_blacklisted(clean_path, is_write, redir_host,
 		                      sizeof(redir_host), &redir_port)) {
-			if (!is_write && conf->collapse_redir) {
+			if (!is_write && conf->caps.collapse_redir) {
 				brix_redir_cache_insert(clean_path, redir_host, redir_port,
-				                          conf->collapse_redir_ttl);
+				                          conf->caps.collapse_redir_ttl);
 			}
 			BRIX_RETURN_REDIR(ctx, c,
 			                    is_write ? BRIX_OP_OPEN_WR
@@ -607,19 +607,19 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 		}
 
 		/* Registry miss — ask the CMS parent via kYR_locate. */
-		if (conf->cms_ctx != NULL) {
+		if (conf->cms.ctx != NULL) {
 			uint32_t  streamid;
 
-			streamid = ngx_brix_cms_next_streamid(conf->cms_ctx);
+			streamid = ngx_brix_cms_next_streamid(conf->cms.ctx);
 			if (brix_pending_insert(streamid, ngx_pid, c->fd,
 			                          c->number,
-			                          ctx->cur_streamid,
-			                          conf->cms_locate_timeout) == NGX_OK)
+			                          ctx->recv.cur_streamid,
+			                          conf->cms.locate_timeout) == NGX_OK)
 			{
 				ctx->cms_wait_streamid = streamid;
 				ctx->state = XRD_ST_WAITING_CMS;
-				ngx_add_timer(c->read, conf->cms_locate_timeout);
-				if (ngx_brix_cms_send_locate(conf->cms_ctx, streamid,
+				ngx_add_timer(c->read, conf->cms.locate_timeout);
+				if (ngx_brix_cms_send_locate(conf->cms.ctx, streamid,
 				                               clean_path) == NGX_OK)
 				{
 					return NGX_AGAIN;
@@ -736,7 +736,7 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 					char           _rq[BRIX_STAGE_REQID_LEN];
 					ngx_memzero(&_v, sizeof(_v));
 					_v.lfn        = full_path;
-					_v.requester_dn = (ctx->dn[0] != '\0') ? ctx->dn : NULL;
+					_v.requester_dn = (ctx->login.dn[0] != '\0') ? ctx->login.dn : NULL;
 					_v.tod_expire = (int64_t) ngx_time()
 					              + (int64_t) (conf->frm.stage_ttl / 1000);
 					(void) brix_stage_request_add(
@@ -750,7 +750,7 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 					 * the waiter table is full. */
 					if (conf->frm.async_recall
 					    && brix_stage_waiter_add(_rq, options,
-					                      ctx->cur_streamid, c->fd, c->number,
+					                      ctx->recv.cur_streamid, c->fd, c->number,
 					                      ngx_pid, conf->frm.stage_ttl) == NGX_OK)
 					{
 						brix_log_access(ctx, c, "OPEN", clean_path,
@@ -810,15 +810,15 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 	 * are intentionally not marked here.  Fail-open: a NULL result just means the
 	 * flow is not marked.  The client may override codes via a scitag.flow opaque.
 	 */
-	if (ctx->pmark_flow == NULL && conf->common.pmark.enable) {
+	if (ctx->pmark.flow == NULL && conf->common.pmark.enable) {
 		char        opq[BRIX_MAX_PATH + 1];
 		const char *cgi = NULL;
-		if (ctx->payload != NULL && ctx->cur_dlen > 0
-		    && open_extract_opaque(ctx->payload, ctx->cur_dlen, opq, sizeof(opq)))
+		if (ctx->recv.payload != NULL && ctx->recv.cur_dlen > 0
+		    && open_extract_opaque(ctx->recv.payload, ctx->recv.cur_dlen, opq, sizeof(opq)))
 		{
 			cgi = opq;
 		}
-		ctx->pmark_flow = brix_pmark_flow_begin(&conf->common.pmark, c->pool, c,
+		ctx->pmark.flow = brix_pmark_flow_begin(&conf->common.pmark, c->pool, c,
 			is_write,
 			ctx->identity ? brix_identity_vo_csv_cstr(ctx->identity) : "",
 			ctx->identity ? brix_identity_dn_cstr(ctx->identity) : "",
@@ -826,14 +826,14 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 
 		/* Arm the periodic "ongoing" firefly echo for this connection's flow
 		 * (phase-34), if configured.  Cancelled in brix_on_disconnect. */
-		if (ctx->pmark_flow != NULL && conf->common.pmark.echo > 0
-		    && !ctx->pmark_echo_ev.timer_set)
+		if (ctx->pmark.flow != NULL && conf->common.pmark.echo > 0
+		    && !ctx->pmark.echo_ev.timer_set)
 		{
-			ctx->pmark_echo_ms          = conf->common.pmark.echo;
-			ctx->pmark_echo_ev.handler  = brix_pmark_echo_timer;
-			ctx->pmark_echo_ev.data     = ctx;
-			ctx->pmark_echo_ev.log      = c->log;
-			ngx_add_timer(&ctx->pmark_echo_ev, ctx->pmark_echo_ms);
+			ctx->pmark.echo_ms          = conf->common.pmark.echo;
+			ctx->pmark.echo_ev.handler  = brix_pmark_echo_timer;
+			ctx->pmark.echo_ev.data     = ctx;
+			ctx->pmark.echo_ev.log      = c->log;
+			ngx_add_timer(&ctx->pmark.echo_ev, ctx->pmark.echo_ms);
 		}
 	}
 

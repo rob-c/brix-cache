@@ -48,18 +48,18 @@ brix_query_payload_equals(brix_ctx_t *ctx, const char *text)
 {
     size_t len, text_len;
 
-    if (ctx->payload == NULL) {
+    if (ctx->recv.payload == NULL) {
         return 0;
     }
 
-    len = ctx->cur_dlen;
-    if (len > 0 && ctx->payload[len - 1] == '\0') {
+    len = ctx->recv.cur_dlen;
+    if (len > 0 && ctx->recv.payload[len - 1] == '\0') {
         len--;
     }
 
     text_len = strlen(text);
     return (len == text_len
-            && ngx_memcmp(ctx->payload, text, text_len) == 0);
+            && ngx_memcmp(ctx->recv.payload, text, text_len) == 0);
 }
 
 /* brix_query_stats — kXR_QStats: XML server statistics (active/total
@@ -130,13 +130,13 @@ brix_query_xattr(brix_ctx_t *ctx, ngx_connection_t *c,
     char              ftype;
     char              facc;
 
-    if (ctx->cur_dlen == 0 || ctx->payload == NULL) {
+    if (ctx->recv.cur_dlen == 0 || ctx->recv.payload == NULL) {
         BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
         return brix_send_error(ctx, c, kXR_ArgMissing,
                                  "xattr: path required");
     }
 
-    if (!brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+    if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
                              pathbuf, sizeof(pathbuf), 1)) {
         BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
         return brix_send_error(ctx, c, kXR_ArgInvalid, "invalid path");
@@ -246,7 +246,7 @@ brix_query_visa(brix_ctx_t *ctx, ngx_connection_t *c,
 ngx_int_t
 brix_query_opaque(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    if (ctx->payload == NULL || ctx->cur_dlen == 0) {
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0) {
         return brix_query_arg_missing(ctx, c, "opaque",
                                         BRIX_OP_QUERY_OPAQUE);
     }
@@ -264,12 +264,12 @@ brix_query_opaquf(brix_ctx_t *ctx, ngx_connection_t *c,
     char pathbuf[BRIX_MAX_PATH + 1];
     char full_path[PATH_MAX];
 
-    if (ctx->payload == NULL || ctx->cur_dlen == 0) {
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0) {
         return brix_query_arg_missing(ctx, c, "opaquf",
                                         BRIX_OP_QUERY_OPAQUF);
     }
 
-    if (!brix_extract_path(c->log, ctx->payload, ctx->cur_dlen,
+    if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
                              pathbuf, sizeof(pathbuf), 1)) {
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_QUERY_OPAQUF, "QUERY", "-",
                           "opaquf", kXR_ArgInvalid, "invalid path");

@@ -4,6 +4,7 @@
 #include <string.h>
 #include "core/compat/alloc_guard.h"
 #include "core/compat/str_dup.h"
+#include "core/compat/cstr.h"
 
 /*
  *
@@ -22,9 +23,10 @@ brix_conf_set_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     value = cf->args->elts;
     (void) cmd;
 
-    BRIX_PNALLOC_OR_RETURN(addr_copy, cf->pool, value[1].len + 1, NGX_CONF_ERROR);
-    ngx_memcpy(addr_copy, value[1].data, value[1].len);
-    addr_copy[value[1].len] = '\0';
+    addr_copy = brix_pstrdup_z(cf->pool, &value[1]);
+    if (addr_copy == NULL) {
+        return NGX_CONF_ERROR;
+    }
 
     if (addr_copy[0] == '[') {
         /* IPv6 literal [addr]:port */

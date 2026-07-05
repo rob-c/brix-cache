@@ -94,7 +94,7 @@ pwd_send_credsreq(brix_ctx_t *ctx, ngx_connection_t *c, EVP_PKEY *srv)
         brix_gbuf_free(&g);
         return brix_send_error(ctx, c, kXR_NoMemory, "pwd: out of memory");
     }
-    brix_build_resp_hdr(ctx->cur_streamid, kXR_authmore,
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_authmore,
                           (uint32_t) g.len, (ServerResponseHdr *) buf);
     ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, g.p, g.len);
     brix_gbuf_free(&g);
@@ -121,11 +121,11 @@ pwd_round1(brix_ctx_t *ctx, ngx_connection_t *c,
 
     (void) conf;
 
-    if (brix_gsi_find_bucket(ctx->payload, ctx->cur_dlen,
+    if (brix_gsi_find_bucket(ctx->recv.payload, ctx->recv.cur_dlen,
                                (uint32_t) kXRS_puk, &puk, &puk_len) != 0
-        || brix_gsi_find_bucket(ctx->payload, ctx->cur_dlen,
+        || brix_gsi_find_bucket(ctx->recv.payload, ctx->recv.cur_dlen,
                                   (uint32_t) kXRS_user, &user, &user_len) != 0
-        || user_len == 0 || user_len >= sizeof(ctx->pwd_user))
+        || user_len == 0 || user_len >= sizeof(ctx->pwd.user))
     {
         brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_PWD, 0);
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "pwd",
@@ -143,7 +143,7 @@ pwd_round1(brix_ctx_t *ctx, ngx_connection_t *c,
         EVP_PKEY_free(peer);
         return brix_send_error(ctx, c, kXR_ServerError, "pwd: keygen failed");
     }
-    ok = brix_gsi_cipher_session_key(srv, peer, 0, ctx->pwd_session_key,
+    ok = brix_gsi_cipher_session_key(srv, peer, 0, ctx->pwd.session_key,
                                        BRIX_PWD_SESSION_KEYLEN);
     EVP_PKEY_free(peer);
     if (!ok) {
@@ -152,9 +152,9 @@ pwd_round1(brix_ctx_t *ctx, ngx_connection_t *c,
                                  "pwd: key agreement failed");
     }
 
-    ngx_memcpy(ctx->pwd_user, user, user_len);
-    ctx->pwd_user[user_len] = '\0';
-    ctx->pwd_round = 1;
+    ngx_memcpy(ctx->pwd.user, user, user_len);
+    ctx->pwd.user[user_len] = '\0';
+    ctx->pwd.round = 1;
 
     {
         ngx_int_t rc = pwd_send_credsreq(ctx, c, srv);
@@ -188,7 +188,7 @@ pwd_round2(brix_ctx_t *ctx, ngx_connection_t *c,
                           kXR_NotAuthorized, "pwd auth not configured");
     }
 
-    if (brix_gsi_find_bucket(ctx->payload, ctx->cur_dlen,
+    if (brix_gsi_find_bucket(ctx->recv.payload, ctx->recv.cur_dlen,
                                (uint32_t) kXRS_main, &main_blob, &main_len) != 0
         || !brix_gsi_cipher_lookup("aes-128-cbc", &cipher))
     {
@@ -197,9 +197,9 @@ pwd_round2(brix_ctx_t *ctx, ngx_connection_t *c,
                           kXR_NotAuthorized, "malformed pwd credential");
     }
 
-    plain = brix_gsi_cipher_decrypt(&cipher, ctx->pwd_session_key,
+    plain = brix_gsi_cipher_decrypt(&cipher, ctx->pwd.session_key,
                                       main_blob, main_len, 0, &plain_len);
-    OPENSSL_cleanse(ctx->pwd_session_key, sizeof(ctx->pwd_session_key));
+    OPENSSL_cleanse(ctx->pwd.session_key, sizeof(ctx->pwd.session_key));
     if (plain == NULL
         || brix_gsi_find_bucket(plain, plain_len, (uint32_t) kXRS_creds,
                                   &creds, &creds_len) != 0
@@ -218,7 +218,7 @@ pwd_round2(brix_ctx_t *ctx, ngx_connection_t *c,
     pwdpath[conf->pwd_file.len] = '\0';
 
     verified = 0;
-    if (brix_pwd_file_lookup(pwdpath, ctx->pwd_user, salt, &saltlen,
+    if (brix_pwd_file_lookup(pwdpath, ctx->pwd.user, salt, &saltlen,
                                hash, &hashlen) == NGX_OK)
     {
         verified = brix_pwd_verify(creds, creds_len, salt, saltlen,
@@ -237,24 +237,24 @@ pwd_round2(brix_ctx_t *ctx, ngx_connection_t *c,
                           kXR_NotAuthorized, "invalid password");
     }
 
-    ctx->auth_done = 1;
-    ctx->token_auth = 0;
-    ngx_cpystrn((u_char *) ctx->dn, (u_char *) ctx->pwd_user, sizeof(ctx->dn));
-    ctx->vo_list[0] = '\0';
-    ctx->primary_vo[0] = '\0';
+    ctx->login.auth_done = 1;
+    ctx->token.auth = 0;
+    ngx_cpystrn((u_char *) ctx->login.dn, (u_char *) ctx->pwd.user, sizeof(ctx->login.dn));
+    ctx->login.vo_list[0] = '\0';
+    ctx->login.primary_vo[0] = '\0';
 
     if (ctx->identity != NULL
-        && brix_identity_set_dn(ctx->identity, c->pool, ctx->dn,
+        && brix_identity_set_dn(ctx->identity, c->pool, ctx->login.dn,
                                   BRIX_AUTHN_PWD) != NGX_OK)
     {
         return brix_send_error(ctx, c, kXR_NoMemory,
                                  "identity allocation failed");
     }
 
-    brix_session_register(ctx->sessid, ctx->dn, ctx->vo_list, 0);
+    brix_session_register(ctx->login.sessid, ctx->login.dn, ctx->login.vo_list, 0);
 
     ngx_log_error(NGX_LOG_INFO, c->log, 0, "brix: pwd auth OK user=\"%s\"",
-                  ctx->dn);
+                  ctx->login.dn);
     brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_PWD, 1);
     BRIX_RETURN_OK(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "pwd", 0);
 }
@@ -263,15 +263,15 @@ ngx_int_t
 brix_handle_pwd_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
 {
-    if (ctx->payload == NULL || ctx->cur_dlen < 8
-        || ngx_strncmp(ctx->payload, "pwd", 4) != 0)
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen < 8
+        || ngx_strncmp(ctx->recv.payload, "pwd", 4) != 0)
     {
         brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_PWD, 0);
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "pwd",
                           kXR_NotAuthorized, "malformed pwd credential");
     }
 
-    if (ctx->pwd_round == 0) {
+    if (ctx->pwd.round == 0) {
         return pwd_round1(ctx, c, conf);
     }
     return pwd_round2(ctx, c, conf);

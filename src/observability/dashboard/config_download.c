@@ -35,6 +35,7 @@
 
 #include "dashboard_http.h"
 #include "core/http/http_headers.h"   /* brix_http_source_offer (AGPL sec.13) */
+#include "core/compat/cstr.h"         /* brix_str_cbuf */
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -487,11 +488,10 @@ dashboard_read_config_file(ngx_http_request_t *r, u_char **buf, size_t *len)
     ssize_t     n;
     size_t      got;
 
-    if (path.len == 0 || path.len >= sizeof(cpath)) {
+    if (path.len == 0
+        || brix_str_cbuf(cpath, sizeof(cpath), &path) == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    ngx_memcpy(cpath, path.data, path.len);
-    cpath[path.len] = '\0';
 
     fd = open(cpath, O_RDONLY | O_CLOEXEC);
     if (fd < 0) {

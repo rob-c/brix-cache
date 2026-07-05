@@ -24,7 +24,7 @@
 /* AIO (Async I/O) section
  * When nginx has a thread pool configured, writes are posted to background threads
  * so the main event loop doesn't block on disk I/O. The payload buffer is detached
- * from ctx->payload_buf and freed in the completion callback. This allows the main
+ * from ctx->recv.payload_buf and freed in the completion callback. This allows the main
  * thread to continue reading the next request header while write happens elsewhere. */
 
 /* Synchronous fallback section
@@ -36,7 +36,7 @@
  *
  * WHAT: Protocol-level kXR_write handler — validates write handle (must be open and writable), handles zero-length writes as valid no-ops, dispatches to AIO thread pool when configured (pwrite in worker thread with detached payload buffer), falls back to synchronous inline pwrite on main event loop. Tracks bytes written for access-log throughput calculation and PFC write-through dirty state tracking (wt_bytes_written + wt_dirty_offset for future close-time origin flush). Access-log detail format: "<offset>+<requested-bytes>".
  *
- * WHY: AIO dispatch detaches the payload buffer from ctx->payload_buf so the main thread can safely begin reading the next request header while write happens in a worker thread. PFC write-through dirty state tracking accumulates wt_bytes_written and wt_dirty_offset for future close-time origin propagation — mirroring XrdPfcFile::m_bytesWritten, m_dirtyOffset semantics. Short-write detection catches disk-full conditions before silently truncating client data. */
+ * WHY: AIO dispatch detaches the payload buffer from ctx->recv.payload_buf so the main thread can safely begin reading the next request header while write happens in a worker thread. PFC write-through dirty state tracking accumulates wt_bytes_written and wt_dirty_offset for future close-time origin propagation — mirroring XrdPfcFile::m_bytesWritten, m_dirtyOffset semantics. Short-write detection catches disk-full conditions before silently truncating client data. */
 
 #include "core/ngx_brix_module.h"
 #include "protocols/ssi/ssi.h"
@@ -50,10 +50,10 @@
  * Wire format (from ClientWriteRequest):
  *   fhandle[4]: open file handle (first byte is the slot index)
  *   offset:     big-endian int64 file position
- *   dlen:       payload byte count (ctx->cur_dlen, already received)
+ *   dlen:       payload byte count (ctx->recv.cur_dlen, already received)
  *
  * When a thread pool is configured, the pwrite is posted asynchronously and
- * the payload buffer is detached from ctx->payload_buf so the main thread can
+ * the payload buffer is detached from ctx->recv.payload_buf so the main thread can
  * safely begin reading the next request header.  The done callback frees the
  * detached buffer and sends the kXR_ok response.
  *
@@ -65,11 +65,11 @@
 ngx_int_t
 brix_handle_write(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-	const u_char *hdrbody = ((ClientRequestHdr *) ctx->hdr_buf)->body;
+	const u_char *hdrbody = ((ClientRequestHdr *) ctx->recv.hdr_buf)->body;
 	xrdw_write_req_t req;
 	int     idx;
 	int64_t offset;
-	size_t  wlen   = ctx->cur_dlen;
+	size_t  wlen   = ctx->recv.cur_dlen;
 
 	xrdw_write_req_unpack(hdrbody, &req);
 	idx    = (int)(unsigned char) req.fhandle[0];
@@ -129,25 +129,25 @@ brix_handle_write(brix_ctx_t *ctx, ngx_connection_t *c)
 	ngx_flag_t posted;
 
 	rc = brix_try_post_write_aio(ctx, c, idx, (off_t) offset,
-								   ctx->payload ? ctx->payload : (u_char *) "",
-								   wlen, offset, 0, ctx->payload, NULL, 0,
+								   ctx->recv.payload ? ctx->recv.payload : (u_char *) "",
+								   wlen, offset, 0, ctx->recv.payload, NULL, 0,
 								   "brix: thread_task_post failed, falling back to sync write",
 								   &posted);
 	if (rc != NGX_OK) {
 		return rc;
 	}
 	if (posted) {
-		ctx->payload = NULL;
-		ctx->payload_buf = NULL;
-		ctx->payload_buf_size = 0;
+		ctx->recv.payload = NULL;
+		ctx->recv.payload_buf = NULL;
+		ctx->recv.payload_buf_size = 0;
 		/*
 		 * Write pipelining: account this pwrite as in-flight.  The recv loop
 		 * (which sees state == XRD_ST_AIO on return) keeps receiving the next
 		 * write while this one runs, bounded by out_count + wr_inflight <
-		 * ctx->pipeline_depth.  brix_write_aio_done decrements wr_inflight and
+		 * ctx->out.pipeline_depth.  brix_write_aio_done decrements wr_inflight and
 		 * queues the ack asynchronously (no recv suspend).
 		 */
-		ctx->wr_inflight++;
+		ctx->out.wr_inflight++;
 		return NGX_OK;
 	}
 	} /* end NGX_THREADS block */
@@ -158,7 +158,7 @@ brix_handle_write(brix_ctx_t *ctx, ngx_connection_t *c)
 		brix_vfs_job_t job;
 
 		brix_vfs_job_write_init(&job, ctx->files[idx].fd, (off_t) offset,
-								  ctx->payload ? ctx->payload : (u_char *) "",
+								  ctx->recv.payload ? ctx->recv.payload : (u_char *) "",
 								  wlen);
 		job.csi = ctx->files[idx].csi;   /* phase-59 W2: update page tags */
 		brix_vfs_job_set_obj(&job, &ctx->files[idx].sd_obj);
@@ -186,7 +186,7 @@ brix_handle_write(brix_ctx_t *ctx, ngx_connection_t *c)
 	}
 
 	ctx->files[idx].bytes_written  += (size_t) nwritten;
-	ctx->session_bytes_written     += (size_t) nwritten;
+	ctx->totals.bytes_written     += (size_t) nwritten;
 	brix_rl_charge_ctx(ctx, (size_t) nwritten);  /* Phase 25 bandwidth */
 
 	if (ctx->files[idx].dashboard_slot >= 0 &&
@@ -224,4 +224,4 @@ brix_handle_write(brix_ctx_t *ctx, ngx_connection_t *c)
 					 ctx->files[idx].path, write_detail, (size_t) nwritten);
 }
 
-/* HOW: Extracts idx from req->fhandle[0], offset from be64toh(req->offset), wlen from ctx->cur_dlen. Validates write handle via brix_validate_write_handle() — returns early on failure. Zero-length writes return kXR_ok immediately as valid no-ops. NGX_THREADS block: calls brix_try_post_write_aio() with detached payload; if posted=1 sets ctx->payload=NULL and returns NGX_OK (completion callback sends response); if posted=0 falls through to sync write. Synchronous fallback: pwrite(fd, payload, wlen, offset) inline. Logs access detail "<offset>+<wlen>". On negative nwritten returns kXR_IOError; on short write (<wlen) returns kXR_IOError with "disk full?" message. Updates bytes_written counters (file+session). If wt_enabled updates wt_bytes_written and wt_dirty_offset for PFC write-through tracking. Returns BRIX_RETURN_OK. */
+/* HOW: Extracts idx from req->fhandle[0], offset from be64toh(req->offset), wlen from ctx->recv.cur_dlen. Validates write handle via brix_validate_write_handle() — returns early on failure. Zero-length writes return kXR_ok immediately as valid no-ops. NGX_THREADS block: calls brix_try_post_write_aio() with detached payload; if posted=1 sets ctx->recv.payload=NULL and returns NGX_OK (completion callback sends response); if posted=0 falls through to sync write. Synchronous fallback: pwrite(fd, payload, wlen, offset) inline. Logs access detail "<offset>+<wlen>". On negative nwritten returns kXR_IOError; on short write (<wlen) returns kXR_IOError with "disk full?" message. Updates bytes_written counters (file+session). If wt_enabled updates wt_bytes_written and wt_dirty_offset for PFC write-through tracking. Returns BRIX_RETURN_OK. */

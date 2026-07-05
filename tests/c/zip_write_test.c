@@ -28,7 +28,7 @@
  *   (4) empty-member: a 0-byte source fd stores and reads back as 0 bytes.
  */
 
-#include "zip.h"
+#include "protocols/shared/zip.h"
 
 #include <fcntl.h>
 #include <stdio.h>

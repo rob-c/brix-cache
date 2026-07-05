@@ -9,6 +9,7 @@
  */
 
 #include "net_target.h"
+#include "cstr.h"
 
 #include <netdb.h>
 #include <sys/socket.h>
@@ -347,13 +348,10 @@ brix_net_target_check_dns(const brix_net_target_t *target,
         return NGX_ERROR;
     }
 
-    if (target->host.len >= sizeof(host_buf)) {
+    if (brix_str_cbuf(host_buf, sizeof(host_buf), &target->host) == NULL) {
         snprintf(err, errsz, "target hostname too long");
         return NGX_ERROR;
     }
-
-    memcpy(host_buf, target->host.data, target->host.len);
-    host_buf[target->host.len] = '\0';
 
     /* Pick a default port when the URL omitted one: scheme "https" (len 5) or
      * a require_https policy implies the TLS port, otherwise the root:// port.
@@ -431,13 +429,12 @@ brix_net_target_check_dns_pin(const brix_net_target_t *target,
     }
     out_ip[0] = '\0';
 
-    if (target->host.len == 0 || target->host.len >= sizeof(host_buf)) {
+    if (target->host.len == 0
+        || brix_str_cbuf(host_buf, sizeof(host_buf), &target->host) == NULL)
+    {
         snprintf(err, errsz, "target host is empty or too long");
         return NGX_ERROR;
     }
-
-    memcpy(host_buf, target->host.data, target->host.len);
-    host_buf[target->host.len] = '\0';
 
     port = target->port;
     if (port == 0) {

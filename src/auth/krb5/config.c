@@ -31,16 +31,16 @@
 static const char *
 brix_krb5_error(ngx_stream_brix_srv_conf_t *xcf, krb5_error_code rc)
 {
-    return xcf->krb5_context != NULL
-           ? krb5_get_error_message(xcf->krb5_context, rc)
+    return xcf->krb5.context != NULL
+           ? krb5_get_error_message(xcf->krb5.context, rc)
            : NULL;
 }
 
 static void
 brix_krb5_free_error(ngx_stream_brix_srv_conf_t *xcf, const char *msg)
 {
-    if (xcf->krb5_context != NULL && msg != NULL) {
-        krb5_free_error_message(xcf->krb5_context, msg);
+    if (xcf->krb5.context != NULL && msg != NULL) {
+        krb5_free_error_message(xcf->krb5.context, msg);
     }
 }
 #endif
@@ -76,7 +76,7 @@ brix_configure_krb5_auth(ngx_conf_t *cf,
         return NGX_OK;
     }
 
-    if (xcf->krb5_principal.len == 0) {
+    if (xcf->krb5.principal.len == 0) {
         BRIX_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
             "brix: krb5 auth is enabled but no service principal is set",
             "brix_auth krb5 needs the service principal it presents to "
@@ -86,7 +86,7 @@ brix_configure_krb5_auth(ngx_conf_t *cf,
         return NGX_ERROR;
     }
 
-    rc = krb5_init_context(&xcf->krb5_context);
+    rc = krb5_init_context(&xcf->krb5.context);
     if (rc != 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                            "brix: krb5_init_context failed (%d)",
@@ -94,24 +94,24 @@ brix_configure_krb5_auth(ngx_conf_t *cf,
         return NGX_ERROR;
     }
 
-    rc = krb5_parse_name(xcf->krb5_context,
-                         (const char *) xcf->krb5_principal.data,
-                         &xcf->krb5_principal_obj);
+    rc = krb5_parse_name(xcf->krb5.context,
+                         (const char *) xcf->krb5.principal.data,
+                         &xcf->krb5.principal_obj);
     if (rc != 0) {
         kmsg = brix_krb5_error(xcf, rc);
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                            "brix: cannot parse krb5 principal \"%V\": %s",
-                           &xcf->krb5_principal, kmsg ? kmsg : "unknown");
+                           &xcf->krb5.principal, kmsg ? kmsg : "unknown");
         brix_krb5_free_error(xcf, kmsg);
         return NGX_ERROR;
     }
 
-    if (xcf->krb5_keytab.len > 0) {
-        rc = krb5_kt_resolve(xcf->krb5_context,
-                             (const char *) xcf->krb5_keytab.data,
-                             &xcf->krb5_keytab_obj);
+    if (xcf->krb5.keytab.len > 0) {
+        rc = krb5_kt_resolve(xcf->krb5.context,
+                             (const char *) xcf->krb5.keytab.data,
+                             &xcf->krb5.keytab_obj);
     } else {
-        rc = krb5_kt_default(xcf->krb5_context, &xcf->krb5_keytab_obj);
+        rc = krb5_kt_default(xcf->krb5.context, &xcf->krb5.keytab_obj);
     }
     if (rc != 0) {
         kmsg = brix_krb5_error(xcf, rc);
@@ -122,12 +122,12 @@ brix_configure_krb5_auth(ngx_conf_t *cf,
             "point brix_krb5_keytab at the service keytab and grant the "
             "nginx user read access (chmod 0400, correct owner); verify with "
             "klist -k",
-            &xcf->krb5_keytab, kmsg ? kmsg : "unknown");
+            &xcf->krb5.keytab, kmsg ? kmsg : "unknown");
         brix_krb5_free_error(xcf, kmsg);
         return NGX_ERROR;
     }
 
-    rc = krb5_kt_start_seq_get(xcf->krb5_context, xcf->krb5_keytab_obj,
+    rc = krb5_kt_start_seq_get(xcf->krb5.context, xcf->krb5.keytab_obj,
                                &cursor);
     if (rc != 0) {
         kmsg = brix_krb5_error(xcf, rc);
@@ -137,17 +137,17 @@ brix_configure_krb5_auth(ngx_conf_t *cf,
         brix_krb5_free_error(xcf, kmsg);
         return NGX_ERROR;
     }
-    (void) krb5_kt_end_seq_get(xcf->krb5_context, xcf->krb5_keytab_obj,
+    (void) krb5_kt_end_seq_get(xcf->krb5.context, xcf->krb5.keytab_obj,
                                &cursor);
 
-    if (krb5_kt_get_name(xcf->krb5_context, xcf->krb5_keytab_obj,
+    if (krb5_kt_get_name(xcf->krb5.context, xcf->krb5.keytab_obj,
                          kt_name, sizeof(kt_name)) != 0)
     {
         ngx_cpystrn((u_char *) kt_name, (u_char *) "(unknown)",
                     sizeof(kt_name));
     }
 
-    if (krb5_unparse_name(xcf->krb5_context, xcf->krb5_principal_obj,
+    if (krb5_unparse_name(xcf->krb5.context, xcf->krb5.principal_obj,
                           &principal) != 0)
     {
         principal = NULL;
@@ -157,11 +157,11 @@ brix_configure_krb5_auth(ngx_conf_t *cf,
                        "brix: krb5 auth configured - principal=%s "
                        "keytab=%s ip_check=%s",
                        principal != NULL ? principal
-                                         : (const char *) xcf->krb5_principal.data,
-                       kt_name, xcf->krb5_ip_check ? "on" : "off");
+                                         : (const char *) xcf->krb5.principal.data,
+                       kt_name, xcf->krb5.ip_check ? "on" : "off");
 
     if (principal != NULL) {
-        krb5_free_unparsed_name(xcf->krb5_context, principal);
+        krb5_free_unparsed_name(xcf->krb5.context, principal);
     }
 
     return NGX_OK;
