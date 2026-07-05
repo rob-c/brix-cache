@@ -16,6 +16,7 @@
 #endif
 #include "fs/overlay.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -216,6 +217,181 @@ int brix_overlay_whiteout_set(const brix_overlay *ov, const char *rel) {
     int rc = (fd < 0 && errno != EEXIST) ? -errno : 0;
     if (fd >= 0) close(fd);
     close(parent);
+    return rc;
+}
+
+/* Open the upper directory `rel_dir` itself ("" = the upper root). Returns a
+ * dirfd (caller closes) or -errno. */
+static int ov_open_dir(const brix_overlay *ov, const char *rel_dir) {
+    if (rel_dir[0] == '\0')
+        return openat(ov->upper_fd, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    char leaf[OV_NAME_MAX];
+    int  parent = ov_walk_parent(ov, rel_dir, leaf, sizeof(leaf));
+    if (parent < 0) return parent;
+    int fd = openat(parent, leaf, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    int rc = fd < 0 ? -errno : fd;
+    close(parent);
+    return rc;
+}
+
+int brix_overlay_mkdirs(const brix_overlay *ov, const char *rel_dir,
+                        mode_t (*mode_fn)(void *ud, const char *rel_dir),
+                        void *ud) {
+    if (rel_dir[0] == '\0') return 0;            /* the upper root exists */
+
+    char leaf[OV_NAME_MAX];
+    int  parent = ov_walk_parent_mk(ov, rel_dir, leaf, sizeof(leaf), 1, mode_fn, ud);
+    if (parent < 0) return parent;
+
+    mode_t m = mode_fn ? mode_fn(ud, rel_dir) : 0755;
+    int    rc = 0;
+    if (mkdirat(parent, leaf, m) != 0 && errno != EEXIST) rc = -errno;
+
+    struct stat st;                              /* an existing non-dir leaf is an error */
+    if (rc == 0 && fstatat(parent, leaf, &st, AT_SYMLINK_NOFOLLOW) == 0
+        && !S_ISDIR(st.st_mode))
+        rc = -ENOTDIR;
+    close(parent);
+    return rc;
+}
+
+int brix_overlay_open(const brix_overlay *ov, const char *rel,
+                      int oflags, mode_t mode) {
+    char leaf[OV_NAME_MAX];
+    int  parent = ov_walk_parent(ov, rel, leaf, sizeof(leaf));
+    if (parent < 0) return parent;
+    int fd = openat(parent, leaf, oflags | O_NOFOLLOW | O_CLOEXEC, mode);
+    int rc = fd < 0 ? -errno : fd;
+    close(parent);
+    return rc;
+}
+
+int brix_overlay_mkdir(const brix_overlay *ov, const char *rel, mode_t mode) {
+    char leaf[OV_NAME_MAX];
+    int  parent = ov_walk_parent(ov, rel, leaf, sizeof(leaf));
+    if (parent < 0) return parent;
+    int rc = mkdirat(parent, leaf, mode) != 0 ? -errno : 0;
+    close(parent);
+    return rc;
+}
+
+int brix_overlay_set_opaque(const brix_overlay *ov, const char *rel_dir) {
+    int dir = ov_open_dir(ov, rel_dir);
+    if (dir < 0) return dir;
+    int fd = openat(dir, BRIX_OV_OPQ_NAME, O_WRONLY | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0644);
+    int rc = (fd < 0 && errno != EEXIST) ? -errno : 0;
+    if (fd >= 0) close(fd);
+    close(dir);
+    return rc;
+}
+
+int brix_overlay_unlink_upper(const brix_overlay *ov, const char *rel) {
+    char leaf[OV_NAME_MAX];
+    int  parent = ov_walk_parent(ov, rel, leaf, sizeof(leaf));
+    if (parent < 0) return parent;
+    int rc = unlinkat(parent, leaf, 0) != 0 ? -errno : 0;
+    close(parent);
+    return rc;
+}
+
+/* Unlink every overlay marker inside dirfd; a real entry → -ENOTEMPTY. */
+static int ov_clear_markers(int dirfd) {
+    int lfd = openat(dirfd, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (lfd < 0) return -errno;
+    DIR *d = fdopendir(lfd);                     /* owns lfd from here */
+    if (d == NULL) { int e = errno; close(lfd); return -e; }
+
+    int            rc = 0;
+    struct dirent *e;
+    while (rc == 0 && (e = readdir(d)) != NULL) {
+        if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
+        if (!brix_ov_name_reserved(e->d_name)) { rc = -ENOTEMPTY; break; }
+        if (unlinkat(dirfd, e->d_name, 0) != 0) { rc = -errno; break; }
+    }
+    closedir(d);
+    return rc;
+}
+
+int brix_overlay_rmdir_upper(const brix_overlay *ov, const char *rel) {
+    int dir = ov_open_dir(ov, rel);
+    if (dir < 0) return dir;
+    int rc = ov_clear_markers(dir);
+    close(dir);
+    if (rc != 0) return rc;
+
+    char leaf[OV_NAME_MAX];
+    int  parent = ov_walk_parent(ov, rel, leaf, sizeof(leaf));
+    if (parent < 0) return parent;
+    rc = unlinkat(parent, leaf, AT_REMOVEDIR) != 0 ? -errno : 0;
+    close(parent);
+    return rc;
+}
+
+int brix_overlay_rename_upper(const brix_overlay *ov, const char *from,
+                              const char *to) {
+    char fleaf[OV_NAME_MAX], tleaf[OV_NAME_MAX];
+    int  fparent = ov_walk_parent(ov, from, fleaf, sizeof(fleaf));
+    if (fparent < 0) return fparent;
+    int tparent = ov_walk_parent(ov, to, tleaf, sizeof(tleaf));
+    if (tparent < 0) { close(fparent); return tparent; }
+    int rc = renameat(fparent, fleaf, tparent, tleaf) != 0 ? -errno : 0;
+    close(fparent);
+    close(tparent);
+    return rc;
+}
+
+int brix_overlay_symlink(const brix_overlay *ov, const char *target,
+                         const char *rel) {
+    char leaf[OV_NAME_MAX];
+    int  parent = ov_walk_parent(ov, rel, leaf, sizeof(leaf));
+    if (parent < 0) return parent;
+    int rc = symlinkat(target, parent, leaf) != 0 ? -errno : 0;
+    close(parent);
+    return rc;
+}
+
+int brix_overlay_readlink(const brix_overlay *ov, const char *rel,
+                          char *buf, size_t n) {
+    char leaf[OV_NAME_MAX];
+    int  parent = ov_walk_parent(ov, rel, leaf, sizeof(leaf));
+    if (parent < 0) return parent;
+    ssize_t len = readlinkat(parent, leaf, buf, n);
+    close(parent);
+    if (len < 0) return -errno;
+    if ((size_t) len >= n) return -ENAMETOOLONG;
+    buf[len] = '\0';
+    return 0;
+}
+
+int brix_overlay_chmod(const brix_overlay *ov, const char *rel, mode_t mode) {
+    char leaf[OV_NAME_MAX];
+    int  parent = ov_walk_parent(ov, rel, leaf, sizeof(leaf));
+    if (parent < 0) return parent;
+
+    struct stat st;
+    int rc = 0;
+    if (fstatat(parent, leaf, &st, AT_SYMLINK_NOFOLLOW) != 0) rc = -errno;
+    else if (S_ISLNK(st.st_mode)) rc = -EOPNOTSUPP;   /* mode on a link is meaningless */
+    else if (fchmodat(parent, leaf, mode, 0) != 0) rc = -errno;
+    close(parent);
+    return rc;
+}
+
+int brix_overlay_utimens(const brix_overlay *ov, const char *rel,
+                         const struct timespec tv[2]) {
+    char leaf[OV_NAME_MAX];
+    int  parent = ov_walk_parent(ov, rel, leaf, sizeof(leaf));
+    if (parent < 0) return parent;
+    int rc = utimensat(parent, leaf, tv, AT_SYMLINK_NOFOLLOW) != 0 ? -errno : 0;
+    close(parent);
+    return rc;
+}
+
+int brix_overlay_truncate(const brix_overlay *ov, const char *rel, off_t len) {
+    int fd = brix_overlay_open(ov, rel, O_WRONLY, 0);
+    if (fd < 0) return fd;
+    int rc = ftruncate(fd, len) != 0 ? -errno : 0;
+    close(fd);
     return rc;
 }
 

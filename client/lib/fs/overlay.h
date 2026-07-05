@@ -70,4 +70,44 @@ int brix_overlay_whiteout(const brix_overlay *ov, const char *rel);
 int brix_overlay_whiteout_set(const brix_overlay *ov, const char *rel);
 int brix_overlay_whiteout_clear(const brix_overlay *ov, const char *rel);
 
+/* ---- upper-tree mutations (all O_NOFOLLOW-walked, 0 / -errno) ------------ */
+
+/* Ensure the upper dir chain `rel_dir` exists. `mode_fn(ud, prefix)` supplies
+ * the mode of each newly created level (the FUSE layer mirrors lower dir
+ * modes with it); NULL → 0755. */
+int brix_overlay_mkdirs(const brix_overlay *ov, const char *rel_dir,
+                        mode_t (*mode_fn)(void *ud, const char *rel_dir),
+                        void *ud);
+
+/* openat the upper leaf with `oflags|O_NOFOLLOW` (parents are NOT created —
+ * call mkdirs first). Returns fd >= 0 or -errno. */
+int brix_overlay_open(const brix_overlay *ov, const char *rel,
+                      int oflags, mode_t mode);
+
+int brix_overlay_mkdir(const brix_overlay *ov, const char *rel, mode_t mode);
+
+/* Drop the ".brix.opq" marker inside existing upper dir `rel_dir` (a deleted
+ * lower dir was re-created: stop merging the lower listing). */
+int brix_overlay_set_opaque(const brix_overlay *ov, const char *rel_dir);
+
+int brix_overlay_unlink_upper(const brix_overlay *ov, const char *rel);
+
+/* Remove upper dir `rel`, first clearing any marker files inside it; a real
+ * (non-marker) entry inside → -ENOTEMPTY. */
+int brix_overlay_rmdir_upper(const brix_overlay *ov, const char *rel);
+
+int brix_overlay_rename_upper(const brix_overlay *ov, const char *from,
+                              const char *to);
+
+int brix_overlay_symlink(const brix_overlay *ov, const char *target,
+                         const char *rel);
+int brix_overlay_readlink(const brix_overlay *ov, const char *rel,
+                          char *buf, size_t n);
+
+/* chmod refuses symlink leaves (-EOPNOTSUPP); utimens never follows. */
+int brix_overlay_chmod(const brix_overlay *ov, const char *rel, mode_t mode);
+int brix_overlay_utimens(const brix_overlay *ov, const char *rel,
+                         const struct timespec tv[2]);
+int brix_overlay_truncate(const brix_overlay *ov, const char *rel, off_t len);
+
 #endif /* XRDC_OVERLAY_H */
