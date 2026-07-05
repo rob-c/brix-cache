@@ -1,0 +1,27 @@
+suite: test-runner tiers
+templates:
+  - templates/job.yaml
+release:
+  name: brix-fleet
+tests:
+  - it: fast tier selects non-slow non-serial and writes junit to the results PVC
+    set:
+      testRunner:
+        tier: fast
+        junit: true
+      results:
+        pvc: brix-fleet-results
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'not slow and not serial'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "junitxml=/results/fast.xml"
+      - contains:
+          path: spec.template.spec.volumes
+          any: true
+          content:
+            name: results
+            persistentVolumeClaim:
+              claimName: brix-fleet-results

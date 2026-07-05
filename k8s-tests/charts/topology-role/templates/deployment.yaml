@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "topology-role.fullname" . }}
+  labels:
+    {{- include "brix-common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ .Values.role.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "brix-common.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: {{ .Values.role.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "brix-common.labels" . | nindent 8 }}
+        app.kubernetes.io/component: {{ .Values.role.name }}
+    spec:
+      {{- include "brix-common.nodePinning" . | nindent 6 }}
+      {{- $sg := and .Values.role.startGate .Values.role.startGate.enabled }}
+      {{- $auth := .Values.role.auth }}
+      {{- if or $sg (and $auth $auth.crlUrl) (and $auth $auth.jwksUrl) }}
+      initContainers:
+        {{- if $sg }}
+        - name: start-gate
+          image: "{{ .Values.role.image.repository }}:{{ .Values.role.image.tag }}"
+          imagePullPolicy: {{ .Values.role.image.pullPolicy | default "Never" }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              sleep {{ .Values.role.startGate.waitSeconds | default 5 }}
+        {{- end }}
+        {{- if and $auth $auth.crlUrl }}
+        - name: crl-init
+          image: brix-authority:dev
+          imagePullPolicy: Never
+          command: ["/bin/sh", "-c"]
+          args: ["curl -fsS {{ $auth.crlUrl }} -o /etc/brix/crl/crl.pem"]
+          volumeMounts:
+            - { name: crl, mountPath: /etc/brix/crl }
+        {{- end }}
+        {{- if and $auth $auth.jwksUrl }}
+        - name: jwks-init
+          image: brix-authority:dev
+          imagePullPolicy: Never
+          command: ["/bin/sh", "-c"]
+          args: ["curl -fsS {{ $auth.jwksUrl }} -o /etc/brix/jwks/jwks.json"]
+          volumeMounts:
+            - { name: jwks, mountPath: /etc/brix/jwks }
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: {{ .Values.role.name }}
+          image: "{{ .Values.role.image.repository }}:{{ .Values.role.image.tag }}"
+          imagePullPolicy: {{ .Values.role.image.pullPolicy | default "Never" }}
+          env:
+            - { name: NGINX_CONF, value: /etc/brix/nginx.conf }
+          ports:
+            {{- range .Values.role.ports }}
+            - { name: {{ .name }}, containerPort: {{ .port }} }
+            {{- end }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/brix }
+            - { name: data,   mountPath: {{ .Values.role.data.root }} }
+            {{- if $auth }}
+            {{- if $auth.caBundle }}
+            - { name: cacerts, mountPath: /etc/grid-security/certificates, readOnly: true }
+            {{- end }}
+            {{- if $auth.hostCertSecret }}
+            - { name: hostpki, mountPath: /etc/grid-security, readOnly: true }
+            {{- end }}
+            {{- if $auth.crlUrl }}
+            - { name: crl, mountPath: /etc/brix/crl }
+            {{- end }}
+            {{- if $auth.jwksUrl }}
+            - { name: jwks, mountPath: /etc/brix/jwks }
+            {{- end }}
+            {{- if $auth.vomsdir }}
+            - { name: vomsdir, mountPath: /etc/grid-security/vomsdir, readOnly: true }
+            {{- end }}
+            {{- end }}
+          resources: {{- toYaml .Values.role.resources | nindent 12 }}
+        {{- if and $auth $auth.crlUrl }}
+        - {{ include "brix-common.fetchSidecar" (dict "name" "crl-refresh" "url" $auth.crlUrl "dest" "/etc/brix/crl/crl.pem" "interval" 30 "volumeName" "crl") | nindent 10 | trim }}
+        {{- end }}
+        {{- if and $auth $auth.jwksUrl }}
+        - {{ include "brix-common.fetchSidecar" (dict "name" "jwks-refresh" "url" $auth.jwksUrl "dest" "/etc/brix/jwks/jwks.json" "interval" 15 "volumeName" "jwks") | nindent 10 | trim }}
+        {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "topology-role.fullname" . }}-conf
+        - name: data
+          emptyDir: {}
+        {{- if $auth }}
+        {{- if $auth.caBundle }}
+        - name: cacerts
+          configMap:
+            name: {{ $auth.caBundle }}
+        {{- end }}
+        {{- if $auth.hostCertSecret }}
+        - name: hostpki
+          secret:
+            secretName: {{ $auth.hostCertSecret }}
+            items:
+              - { key: hostcert.pem, path: hostcert.pem }
+              - { key: hostkey.pem,  path: hostkey.pem }
+        {{- end }}
+        {{- if $auth.crlUrl }}
+        - { name: crl, emptyDir: {} }
+        {{- end }}
+        {{- if $auth.jwksUrl }}
+        - { name: jwks, emptyDir: {} }
+        {{- end }}
+        {{- if $auth.vomsdir }}
+        - name: vomsdir
+          configMap:
+            name: {{ $auth.vomsdir }}
+        {{- end }}
+        {{- end }}

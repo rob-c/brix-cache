@@ -1,0 +1,6 @@
+dependencies:
+- name: brix-common
+  repository: file://../brix-common
+  version: 0.1.0
+digest: sha256:c3efe203eb7f74dcb6d944e1322a442bd71736ab5408d1a89f1e744e9f8f82e0
+generated: "2026-07-04T20:03:41.626251637+01:00"

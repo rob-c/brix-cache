@@ -1,0 +1,47 @@
+suite: service + isolation policies
+release:
+  name: rel
+tests:
+  - it: exposes the smoke port on a Service
+    templates:
+      - templates/service.yaml
+    set:
+      service.port: 8080
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.ports[0].port
+          value: 8080
+      - equal:
+          path: spec.selector["app.kubernetes.io/name"]
+          value: smoke
+  - it: allows only in-lab ingress via NetworkPolicy
+    templates:
+      - templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/part-of"]
+          value: brix-test-lab
+  - it: renders no NetworkPolicy when disabled
+    templates:
+      - templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: caps namespace resources when quota is enabled
+    templates:
+      - templates/resourcequota.yaml
+    set:
+      resourceQuota.enabled: true
+    asserts:
+      - isKind:
+          of: ResourceQuota
+      - isNotEmpty:
+          path: spec.hard["limits.cpu"]

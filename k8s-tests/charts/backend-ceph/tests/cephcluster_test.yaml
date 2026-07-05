@@ -1,0 +1,30 @@
+suite: ceph cluster CRs
+templates:
+  - templates/cephcluster.yaml
+release:
+  name: brix-ceph
+tests:
+  - it: creates a single-mon CephCluster
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: kind
+          value: CephCluster
+      - equal:
+          path: spec.mon.count
+          value: 1
+  - it: creates the xrdtest RADOS pool
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: kind
+          value: CephBlockPool
+      - equal:
+          path: metadata.name
+          value: xrdtest
+  - it: creates the CephFS filesystem
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: kind
+          value: CephFilesystem

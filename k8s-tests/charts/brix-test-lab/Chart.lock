@@ -1,0 +1,24 @@
+dependencies:
+- name: smoke
+  repository: file://../smoke
+  version: 0.1.0
+- name: auth-authority
+  repository: file://../auth-authority
+  version: 0.1.0
+- name: chaos-mesh
+  repository: file://../chaos-mesh
+  version: 0.1.0
+- name: main-fleet
+  repository: file://../main-fleet
+  version: 0.1.0
+- name: cms-mesh
+  repository: file://../cms-mesh
+  version: 0.1.0
+- name: backend-ceph
+  repository: file://../backend-ceph
+  version: 0.1.0
+- name: fuse-client
+  repository: file://../fuse-client
+  version: 0.1.0
+digest: sha256:219e8e14cd48b4d8d2dc3438d276c55d5c95bef03714d4b031bcc835655ffb63
+generated: "2026-07-04T20:04:45.220505868+01:00"

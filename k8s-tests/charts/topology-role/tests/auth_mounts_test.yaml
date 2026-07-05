@@ -1,0 +1,37 @@
+suite: role auth mounts
+templates:
+  - templates/deployment.yaml
+release:
+  name: brix-fleet
+tests:
+  - it: mounts CA bundle and adds a CRL fetch sidecar when configured
+    set:
+      role:
+        name: gsi
+        ports: [{ name: xrootd, port: 11095 }]
+        auth:
+          caBundle: brix-fleet-ca-bundle
+          hostCertSecret: brix-fleet-pki
+          crlUrl: http://brix-fleet-grid-ca:8080/crl/test-user.crl.pem
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          any: true
+          content:
+            name: cacerts
+            configMap:
+              name: brix-fleet-ca-bundle
+      - matchRegex:
+          path: spec.template.spec.containers[1].args[0]
+          pattern: "curl .*grid-ca:8080/crl.*/etc/brix/crl/crl.pem"
+  - it: adds a JWKS fetch sidecar when configured
+    set:
+      role:
+        name: token
+        ports: [{ name: xrootd, port: 11097 }]
+        auth:
+          jwksUrl: http://brix-fleet-token-issuer:8080/certs/jwks.json
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[1].args[0]
+          pattern: "token-issuer:8080/certs/jwks.json"

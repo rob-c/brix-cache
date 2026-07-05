@@ -1,0 +1,11 @@
+apiVersion: v2
+name: main-fleet
+description: Multi-auth single-role nginx-xrootd fleet (anon/gsi/token/metrics)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - { name: topology-role, version: 0.1.0, repository: file://../topology-role, alias: anon,    condition: anon.enabled }
+  - { name: topology-role, version: 0.1.0, repository: file://../topology-role, alias: gsi,     condition: gsi.enabled }
+  - { name: topology-role, version: 0.1.0, repository: file://../topology-role, alias: token,   condition: token.enabled }
+  - { name: topology-role, version: 0.1.0, repository: file://../topology-role, alias: metrics, condition: metrics.enabled }

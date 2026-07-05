@@ -1,0 +1,25 @@
+suite: test-runner job
+templates:
+  - templates/job.yaml
+release:
+  name: brix-chaos
+tests:
+  - it: runs the configured pytest selection with the wired env
+    set:
+      testRunner:
+        selection: tests/test_chaos_mesh.py
+        env:
+          TEST_SERVER_HOST: brix-chaos-chaos-tier1
+          TEST_CHAOS_TIER1_PORT: "1094"
+    asserts:
+      - isKind:
+          of: Job
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "pytest tests/test_chaos_mesh.py"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          any: true
+          content:
+            name: TEST_CHAOS_TIER1_PORT
+            value: "1094"

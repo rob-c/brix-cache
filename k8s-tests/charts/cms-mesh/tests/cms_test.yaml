@@ -1,0 +1,11 @@
+suite: cms mesh wiring
+templates:
+  - charts/ds/templates/configmap.yaml
+release:
+  name: brix-cms
+tests:
+  - it: ds registers to the manager Service DNS
+    asserts:
+      - matchRegex:
+          path: data["nginx.conf"]
+          pattern: "brix_cms_manager brix-cms-manager:1096"

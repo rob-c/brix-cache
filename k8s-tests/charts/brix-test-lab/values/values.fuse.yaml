@@ -1,0 +1,11 @@
+# fuse profile — anon fleet + a privileged xrootdfs (FUSE) client pod.
+main-fleet:
+  enabled: true
+  anon: { enabled: true }
+  gsi: { enabled: false }
+  token: { enabled: false }
+  metrics: { enabled: false }
+fuse-client:
+  enabled: true
+smoke:
+  enabled: false

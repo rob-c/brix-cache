@@ -1,0 +1,7 @@
+tests/userns/e2e_redteam.py	26739
+tests/test_brix_performance_conformance.py	1847
+tests/test_privilege_escalation.py	1368
+tests/test_manager_mode.py	1006
+tests/test_conf_sequences.py	929
+tests/test_dropin_byte_for_byte.py	917
+tests/test_cms_wire_pup_conformance.py	898

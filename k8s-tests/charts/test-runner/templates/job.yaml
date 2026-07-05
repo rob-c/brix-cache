@@ -1,0 +1,65 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-test-runner
+  labels:
+    {{- include "brix-common.labels" . | nindent 4 }}
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        {{- include "brix-common.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- if .Values.serviceAccount }}
+      serviceAccountName: {{ .Values.serviceAccount }}
+      {{- end }}
+      containers:
+        - name: pytest
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "Never" }}
+          workingDir: /opt/brix
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+              {{- $marker := "" }}
+              {{- if eq .Values.testRunner.tier "fast" }}{{ $marker = "not slow and not serial" }}{{- end }}
+              {{- if eq .Values.testRunner.tier "pr" }}{{ $marker = "not slow" }}{{- end }}
+              {{- if eq .Values.testRunner.tier "nightly" }}{{ $marker = "slow" }}{{- end }}
+              {{- if eq .Values.testRunner.tier "custom" }}{{ $marker = .Values.testRunner.marker }}{{- end }}
+              mkdir -p "${TEST_ROOT:-/tmp/tr}/data"
+              {{- if .Values.clientPki.enabled }}
+              PKI_SRC=/auth/pki JWKS_SRC=/auth/jwks/jwks.json bash /opt/brix/client-pki-init.sh
+              {{- end }}
+              pytest {{ .Values.testRunner.selection }}{{ if $marker }} -m "{{ $marker }}"{{ end }}{{ if .Values.testRunner.junit }} --junitxml=/results/{{ .Values.testRunner.tier }}.xml{{ end }} {{ .Values.testRunner.extraArgs }}
+          env:
+            {{- range $k, $v := .Values.testRunner.env }}
+            - { name: {{ $k }}, value: {{ $v | quote }} }
+            {{- end }}
+          {{- if or .Values.results.pvc .Values.clientPki.enabled }}
+          volumeMounts:
+            {{- if .Values.results.pvc }}
+            - { name: results, mountPath: /results }
+            {{- end }}
+            {{- if .Values.clientPki.enabled }}
+            - { name: auth-pki,  mountPath: /auth/pki,  readOnly: true }
+            - { name: auth-jwks, mountPath: /auth/jwks, readOnly: true }
+            {{- end }}
+          {{- end }}
+      {{- if or .Values.results.pvc .Values.clientPki.enabled }}
+      volumes:
+        {{- if .Values.results.pvc }}
+        - name: results
+          persistentVolumeClaim:
+            claimName: {{ .Values.results.pvc }}
+        {{- end }}
+        {{- if .Values.clientPki.enabled }}
+        - name: auth-pki
+          secret:
+            secretName: {{ .Values.clientPki.pkiSecret }}
+        - name: auth-jwks
+          configMap:
+            name: {{ .Values.clientPki.jwksConfigMap }}
+        {{- end }}
+      {{- end }}

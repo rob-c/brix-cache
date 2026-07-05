@@ -1,0 +1,11 @@
+suite: chaos mesh topology
+templates:
+  - charts/chaos-tier2/templates/configmap.yaml
+release:
+  name: brix-chaos
+tests:
+  - it: tier2 is wired to tier3 by DNS
+    asserts:
+      - matchRegex:
+          path: data["nginx.conf"]
+          pattern: "root://brix-chaos-chaos-tier3:1094"

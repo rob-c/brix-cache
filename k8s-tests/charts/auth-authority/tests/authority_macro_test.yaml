@@ -1,0 +1,29 @@
+suite: authority macro
+templates:
+  - templates/probe.yaml
+release:
+  name: rel
+tests:
+  - it: renders a Deployment and a Service named for the authority
+    set:
+      renderProbe: true
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: rel-grid-ca
+  - it: service targets the authority port
+    set:
+      renderProbe: true
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.ports[0].port
+          value: 8080
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: grid-ca

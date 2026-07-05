@@ -1,0 +1,75 @@
+scenarios:
+  # Read-only gate: anon reads allowed, writes rejected (no brix_allow_write).
+  readonly:
+    configKey: readonly
+    ports: [{ name: xrootd, port: 11102 }]
+    check: write-rejected
+    tests: tests/test_readonly.py
+  # GSI + CRL over HTTP (consumes the authority plane).
+  crl:
+    configKey: crl
+    ports: [{ name: xrootd, port: 11104 }]
+    auth: { caBundle: CA_BUNDLE, hostCertSecret: PKI_SECRET, crlUrl: CRL_URL }
+    tests: tests/test_crl.py
+  # VO ACL enforcement (GSI + VOMS).
+  vo-acl:
+    configKey: vo_acl
+    ports: [{ name: xrootd, port: 11103 }]
+    auth: { caBundle: CA_BUNDLE, hostCertSecret: PKI_SECRET, vomsdir: VOMSDIR_CM }
+    tests: tests/test_vo_acl.py
+  # XRootD security-level negotiation.
+  security-level-standard:
+    configKey: security_level_standard
+    ports: [{ name: xrootd, port: 11191 }]
+    tests: tests/test_security_level.py
+  security-level-pedantic:
+    configKey: security_level_pedantic
+    ports: [{ name: xrootd, port: 11192 }]
+    tests: tests/test_security_level.py
+  # S3 presigned URLs.
+  s3-presigned:
+    configKey: s3_presigned
+    ports: [{ name: http, port: 11183 }]
+    tests: tests/test_s3_presigned.py
+  # WebDAV TPC SSRF guard (default policy).
+  tpc-ssrf-default:
+    configKey: tpc_ssrf_default
+    ports: [{ name: http, port: 11180 }]
+    tests: tests/test_tpc_ssrf.py
+  # GSI + VOMS WebDAV.
+  webdav-voms:
+    configKey: webdav_voms
+    ports: [{ name: https, port: 18458 }]
+    auth: { caBundle: CA_BUNDLE, hostCertSecret: PKI_SECRET, vomsdir: VOMSDIR_CM }
+    tests: tests/test_webdav_voms.py
+  xrdhttp-digest:
+    configKey: xrdhttp_digest
+    ports: [{ name: http, port: 12988 }]
+  s3-mpu:
+    configKey: s3_mpu
+    ports: [{ name: http, port: 22017 }]
+  s3-presigned-sts:
+    configKey: s3_presigned_sts
+    ports: [{ name: http, port: 11184 }]
+  tpc-ssrf-allow-local:
+    configKey: tpc_ssrf_allow_local
+    ports: [{ name: http, port: 11181 }]
+  tpc-ssrf-deny-private:
+    configKey: tpc_ssrf_deny_private
+    ports: [{ name: http, port: 11182 }]
+  webdav-dellock:
+    configKey: webdav_dellock
+    ports: [{ name: https, port: 13210 }]
+  webdav-unlock-ownership:
+    configKey: webdav_unlock_ownership
+    ports: [{ name: https, port: 22014 }]
+  root-tpc:
+    configKey: root_tpc
+    ports: [{ name: xrootd, port: 11110 }]
+  ipv6-stream:
+    configKey: ipv6_stream
+    ports: [{ name: xrootd, port: 11240 }]
+
+# Backfill: the remaining dedicated fleets from tests/lib/dedicated.sh each become
+# one entry here once their config is imported via tools/import-config.sh
+# (mechanical; upstream/cms-dependent configs need manual port/upstream wiring).

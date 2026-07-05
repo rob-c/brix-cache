@@ -1,0 +1,14 @@
+{{- if .Values.renderProbe }}
+{{ include "auth-authority.deploymentService" (dict "root" . "name" "grid-ca" "port" 8080 "image" .Values.image) }}
+{{- end }}
+{{- if .Values.renderFetchProbe }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fetch-probe
+spec:
+  containers:
+    - {{ include "brix-common.fetchSidecar" (dict "name" "crl-refresh" "url" "http://rel-grid-ca:8080/crl/test-user.crl.pem" "dest" "/shared/crl.pem" "interval" 30 "volumeName" "shared") | nindent 6 | trim }}
+  volumes:
+    - { name: shared, emptyDir: {} }
+{{- end }}

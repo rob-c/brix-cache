@@ -1,0 +1,69 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-bootstrap
+  labels:
+    {{- include "brix-common.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        {{- include "brix-common.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Release.Name }}-bootstrap
+      restartPolicy: Never
+      containers:
+        - name: provision
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "Never" }}
+          env:
+            - { name: TEST_ROOT, value: /work }
+            - { name: TOKEN_DIR, value: /work/tokens }
+            - { name: NS,  value: "{{ .Release.Namespace }}" }
+            - { name: REL, value: "{{ .Release.Name }}" }
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              cd /opt/brix
+              mkdir -p /work "$TOKEN_DIR"
+              # x509 CA + host/user certs + proxy + CRL + vomsdir (writes $TEST_ROOT/pki)
+              python3 -c 'import sys; sys.path.insert(0,"tests"); from pki_helpers import blitz_test_pki; blitz_test_pki()'
+              # token signing authority (signing_key.pem + jwks.json)
+              python3 utils/make_token.py init "$TOKEN_DIR"
+              PKI=/work/pki
+              # webdav's brix_webdav_cadir validates client proxy certs against a
+              # CA *directory* keyed by the OpenSSL subject hash (<hash>.0), unlike
+              # root://'s single brix_trusted_ca file. blitz_test_pki already runs
+              # c_rehash, but leaves <hash>.0 as SYMLINKs to ca.pem — and
+              # `kubectl create configmap --from-file=<dir>` SKIPS symlinks, so the
+              # published ca-bundle would omit them and GSI-WebDAV would reject
+              # valid proxies ("unable to get local issuer certificate") -> 403.
+              # Materialize every symlink in the CA dir as a real file so the
+              # ConfigMap carries the hashed names.
+              find "$PKI/ca" -type l | while read -r link; do
+                cp --remove-destination "$(readlink -f "$link")" "$link"
+              done
+              # private material -> Secret
+              kubectl create secret generic "$REL-pki" -n "$NS" \
+                --from-file=ca.pem="$PKI/ca/ca.pem" \
+                --from-file=hostcert.pem="$PKI/server/hostcert.pem" \
+                --from-file=hostkey.pem="$PKI/server/hostkey.pem" \
+                --from-file=usercert.pem="$PKI/user/usercert.pem" \
+                --from-file=userkey.pem="$PKI/user/userkey.pem" \
+                --from-file=signing_key.pem="$TOKEN_DIR/signing_key.pem" \
+                --dry-run=client -o yaml | kubectl apply -f -
+              # public material -> ConfigMaps
+              kubectl create configmap "$REL-ca-bundle" -n "$NS" --from-file="$PKI/ca/" --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create configmap "$REL-crl" -n "$NS" --from-file=test-user.crl.pem="$PKI/ca/test-user.crl.pem" --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create configmap "$REL-jwks" -n "$NS" --from-file=jwks.json="$TOKEN_DIR/jwks.json" --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create configmap "$REL-vomsdir" -n "$NS" --from-file="$PKI/vomsdir/" --dry-run=client -o yaml | kubectl apply -f - || true
+              echo "bootstrap complete"
+          volumeMounts:
+            - { name: work, mountPath: /work }
+      volumes:
+        - { name: work, emptyDir: {} }

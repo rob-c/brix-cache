@@ -1,0 +1,5 @@
+apiVersion: v2
+name: client-rbac
+description: ServiceAccount + read RBAC so the client pod can exec into service pods
+type: application
+version: 0.1.0

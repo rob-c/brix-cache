@@ -1,0 +1,22 @@
+suite: node pinning toggle
+templates:
+  - templates/deployment.yaml
+release:
+  name: rel
+tests:
+  - it: adds no affinity when pinning is off (portable default)
+    set:
+      nodePinning.mode: off
+    asserts:
+      - isNull:
+          path: spec.template.spec.affinity
+  - it: pins one lab pod per node when mode is role
+    set:
+      nodePinning.mode: role
+    asserts:
+      - equal:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: kubernetes.io/hostname
+      - equal:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchLabels["app.kubernetes.io/part-of"]
+          value: brix-test-lab

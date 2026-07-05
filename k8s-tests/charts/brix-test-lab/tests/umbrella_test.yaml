@@ -1,0 +1,19 @@
+suite: umbrella profile gating
+templates:
+  - charts/smoke/templates/deployment.yaml
+release:
+  name: brix-dev
+tests:
+  - it: renders the smoke subchart when enabled
+    set:
+      smoke.enabled: true
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: brix-dev-smoke
+  # NOTE: the "disabled" case cannot be unit-tested here — helm-unittest cannot
+  # select a template that a Chart.yaml `condition` has removed from the render
+  # ("not exists or not selected"). The disabled behaviour is verified instead by
+  # `helm template` producing no smoke Deployment (see the plan's Task 6 Step 4).

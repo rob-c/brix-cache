@@ -1,0 +1,45 @@
+# valgrind.supp — Valgrind Memcheck suppressions for the nginx-xrootd harness.
+#
+# NATIVE VALGRIND SYNTAX — this is NOT the ASan/LSan `leak:<substr>` format used
+# in tests/lsan.supp. The two files are not interchangeable.
+#
+# RULE (same as lsan.supp): suppress ONLY benign nginx-core-startup / library
+# one-time residuals. NEVER suppress a leak whose stack contains a module frame
+# (brix_*, ngx_http_brix_*, ngx_stream_brix_*, or any src/<module>/ file).
+# Suppressions match from the TOP of the stack, so deliberately list the full
+# distinctive frame chain — do NOT write a blanket `obj:*/libcrypto.so*` leak
+# rule: it would also hide a real module leak that merely allocates via OpenSSL
+# (exactly how the Phase 27 JWKS EVP_PKEY leak presented).
+#
+# We run with `--show-leak-kinds=definite,indirect`, so library "still reachable"
+# globals never appear and need no suppression here. Regenerate additions with
+# `valgrind --gen-suppressions=all` and hand-trim to the benign set.
+
+# nginx core: one-time copy of the environment block at startup (nginx.c).
+{
+   nginx-core-ngx_set_environment
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:ngx_alloc
+   fun:ngx_set_environment
+}
+
+# glibc/pthread allocator thread-local arena bookkeeping reported as "possibly
+# lost" at exit. Matched by the libc/ld frame chain only — never by module code.
+{
+   libc-pthread-threadlocal-possible
+   Memcheck:Leak
+   match-leak-kinds: possible
+   ...
+   fun:_dl_allocate_tls
+   ...
+}
+{
+   libc-allocate-specific-possible
+   Memcheck:Leak
+   match-leak-kinds: possible
+   ...
+   fun:allocate_dtv
+   ...
+}

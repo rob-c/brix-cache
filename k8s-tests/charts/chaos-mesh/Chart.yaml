@@ -1,0 +1,12 @@
+apiVersion: v2
+name: chaos-mesh
+description: Chaos-mesh 5-role topology (tier1/2/3 + CMS discovery pair)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - { name: topology-role, version: 0.1.0, repository: file://../topology-role, alias: chaos-tier3 }
+  - { name: topology-role, version: 0.1.0, repository: file://../topology-role, alias: chaos-tier2 }
+  - { name: topology-role, version: 0.1.0, repository: file://../topology-role, alias: chaos-tier1 }
+  - { name: topology-role, version: 0.1.0, repository: file://../topology-role, alias: chaos-discovery-redir }
+  - { name: topology-role, version: 0.1.0, repository: file://../topology-role, alias: chaos-discovery-ds }

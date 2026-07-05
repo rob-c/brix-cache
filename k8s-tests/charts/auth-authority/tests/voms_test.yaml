@@ -1,0 +1,20 @@
+suite: voms service
+templates:
+  - templates/voms-service.yaml
+release:
+  name: rel
+tests:
+  - it: renders voms authority when enabled
+    set:
+      services.voms: true
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.name
+          value: rel-voms
+  - it: absent when disabled
+    set:
+      services.voms: false
+    asserts:
+      - hasDocuments:
+          count: 0

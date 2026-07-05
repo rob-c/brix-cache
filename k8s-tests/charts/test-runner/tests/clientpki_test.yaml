@@ -1,0 +1,35 @@
+suite: test-runner client-PKI mount
+templates:
+  - templates/job.yaml
+release:
+  name: brix-suite
+tests:
+  - it: mounts the auth Secret + JWKS ConfigMap and runs the client-PKI init
+    set:
+      clientPki:
+        enabled: true
+        pkiSecret: auth-pki
+        jwksConfigMap: auth-jwks
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          any: true
+          content:
+            name: auth-pki
+            secret:
+              secretName: auth-pki
+      - contains:
+          path: spec.template.spec.volumes
+          any: true
+          content:
+            name: auth-jwks
+            configMap:
+              name: auth-jwks
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "client-pki-init.sh"
+  - it: no client-PKI init in the args when disabled
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "client-pki-init.sh"

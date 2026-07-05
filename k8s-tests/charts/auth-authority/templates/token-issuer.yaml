@@ -1,0 +1,10 @@
+{{- if .Values.services.token }}
+{{ include "auth-authority.deploymentService" (dict
+    "root" .
+    "name" "token-issuer"
+    "port" 8080
+    "image" .Values.image
+    "mounts" (list (dict "name" "jwks" "mountPath" "/srv/dist/certs"))
+    "volumes" (list (dict "name" "jwks" "configMap" (dict "name" (printf "%s-jwks" .Release.Name))))
+  ) }}
+{{- end }}

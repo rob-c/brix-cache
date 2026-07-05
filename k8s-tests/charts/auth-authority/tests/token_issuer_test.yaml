@@ -1,0 +1,26 @@
+suite: token issuer
+templates:
+  - templates/token-issuer.yaml
+release:
+  name: rel
+tests:
+  - it: serves jwks from the jwks configmap when token enabled
+    set:
+      services.token: true
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.name
+          value: rel-token-issuer
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: jwks
+            configMap:
+              name: rel-jwks
+  - it: absent when token disabled
+    set:
+      services.token: false
+    asserts:
+      - hasDocuments:
+          count: 0

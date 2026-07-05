@@ -1,0 +1,32 @@
+suite: topology role render
+release:
+  name: brix-chaos
+tests:
+  - it: names the Deployment <release>-<role>
+    template: templates/deployment.yaml
+    set:
+      role:
+        name: chaos-tier3
+        image: { repository: brix-server, tag: dev }
+        ports: [{ name: xrootd, port: 1094 }]
+    asserts:
+      - equal:
+          path: metadata.name
+          value: brix-chaos-chaos-tier3
+  - it: service is named and selects the component on the role port
+    template: templates/service.yaml
+    set:
+      role:
+        name: chaos-tier3
+        image: { repository: brix-server, tag: dev }
+        ports: [{ name: xrootd, port: 1094 }]
+    asserts:
+      - equal:
+          path: metadata.name
+          value: brix-chaos-chaos-tier3
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: chaos-tier3
+      - equal:
+          path: spec.ports[0].port
+          value: 1094

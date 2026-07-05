@@ -1,0 +1,13 @@
+# fleet profile — the always-on multi-auth fleet consuming the authority plane.
+# Install as release "brix-fleet" (the auth Service names in main-fleet assume it).
+auth-authority:
+  enabled: true
+  services:
+    ca: true
+    token: true
+    voms: true
+    krb5: false
+main-fleet:
+  enabled: true
+smoke:
+  enabled: false

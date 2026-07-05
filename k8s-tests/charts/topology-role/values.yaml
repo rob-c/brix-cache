@@ -1,0 +1,12 @@
+role:
+  name: role
+  image: { repository: brix-server, tag: dev, pullPolicy: Never }
+  configKey: ""
+  ports: []
+  upstreams: []
+  data: { root: /data/xrootd }
+  nodePinning: { mode: off }
+  startGate: { enabled: false, waitSeconds: 5 }
+  resources:
+    requests: { cpu: 50m, memory: 96Mi }
+    limits:   { cpu: "1", memory: 512Mi }

@@ -1,0 +1,15 @@
+image:
+  repository: brix-smoke
+  tag: dev
+  pullPolicy: Never
+service:
+  port: 8080
+nodePinning:
+  mode: off        # off | role
+resources:
+  requests: { cpu: 25m, memory: 32Mi }
+  limits:   { cpu: 100m, memory: 64Mi }
+networkPolicy:
+  enabled: true
+resourceQuota:
+  enabled: false

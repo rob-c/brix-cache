@@ -1,0 +1,15 @@
+image: { repository: brix-authority, tag: dev, pullPolicy: Never }
+kdcImage: { repository: brix-krb5-kdc, tag: dev, pullPolicy: Never }
+realm: NGINX.TEST
+issuer: https://test.example.com
+audience: nginx-xrootd
+# Per-authority enable map (kept as `services` so the umbrella condition can
+# own the top-level `enabled` key without colliding).
+services:
+  ca: true
+  token: true
+  voms: true
+  krb5: true
+# Test-only render toggles (never true in a real install).
+renderProbe: false
+renderFetchProbe: false

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "topology-role.fullname" . }}
+  labels:
+    {{- include "brix-common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ .Values.role.name }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "brix-common.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ .Values.role.name }}
+  ports:
+    {{- range .Values.role.ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .port }}
+      protocol: TCP
+    {{- end }}

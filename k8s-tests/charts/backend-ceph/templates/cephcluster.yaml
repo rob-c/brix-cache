@@ -1,0 +1,53 @@
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
+metadata:
+  name: {{ .Release.Name }}-ceph
+  labels:
+    {{- include "brix-common.labels" . | nindent 4 }}
+spec:
+  cephVersion:
+    image: {{ .Values.ceph.image }}
+  dataDirHostPath: {{ .Values.ceph.dataDirHostPath }}
+  mon:
+    count: {{ .Values.ceph.monCount }}
+    allowMultiplePerNode: true
+  mgr:
+    count: 1
+  dashboard:
+    enabled: false
+  storage:
+    useAllNodes: true
+    useAllDevices: false
+    directories:
+      - path: {{ .Values.ceph.dataDirHostPath }}/osd
+---
+apiVersion: ceph.rook.io/v1
+kind: CephBlockPool
+metadata:
+  name: {{ .Values.ceph.pool }}
+  labels:
+    {{- include "brix-common.labels" . | nindent 4 }}
+spec:
+  failureDomain: osd
+  replicated:
+    size: 1
+    requireSafeReplicaSize: false
+---
+apiVersion: ceph.rook.io/v1
+kind: CephFilesystem
+metadata:
+  name: {{ .Values.ceph.filesystem }}
+  labels:
+    {{- include "brix-common.labels" . | nindent 4 }}
+spec:
+  metadataPool:
+    replicated:
+      size: 1
+      requireSafeReplicaSize: false
+  dataPools:
+    - replicated:
+        size: 1
+        requireSafeReplicaSize: false
+  metadataServer:
+    activeCount: 1
+    activeStandby: false

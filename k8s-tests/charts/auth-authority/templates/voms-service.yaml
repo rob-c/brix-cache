@@ -1,0 +1,10 @@
+{{- if .Values.services.voms }}
+{{ include "auth-authority.deploymentService" (dict
+    "root" .
+    "name" "voms"
+    "port" 8080
+    "image" .Values.image
+    "mounts" (list (dict "name" "vomsdir" "mountPath" "/srv/dist/voms"))
+    "volumes" (list (dict "name" "vomsdir" "configMap" (dict "name" (printf "%s-vomsdir" .Release.Name))))
+  ) }}
+{{- end }}

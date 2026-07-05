@@ -1,0 +1,10 @@
+apiVersion: v2
+name: fuse-client
+description: Privileged pod that builds + runs xrootdfs (FUSE) against the fleet
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: brix-common
+    version: 0.1.0
+    repository: file://../brix-common
