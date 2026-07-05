@@ -47,12 +47,13 @@ extern int brixcvmfs_rw;                         /* 1 = mount with the rw table
 
 /* Prepare <mnt>/.brixwrites (or `writes_override`) BEFORE fuse_main hides the
  * mountpoint, and bind the overlay to it. 0 / -1 (message already printed). */
-int brixcvmfs_setup_rw(const char *mnt, const char *writes_override);
-void brixcvmfs_teardown_rw(void);
+int brixcvmfs_setup_rw(const char *mnt, const char *writes_override)
+    __attribute__((weak));
+void brixcvmfs_teardown_rw(void) __attribute__((weak));
 
-extern const struct fuse_operations brixcvmfs_rw_ops;
+extern const struct fuse_operations brixcvmfs_rw_ops __attribute__((weak));
 
 /* brixMount driver entry: `cvmfs-rw` (sets brixcvmfs_rw, delegates). */
-int brixcvmfs_rw_main(int argc, char **argv);
+int brixcvmfs_rw_main(int argc, char **argv) __attribute__((weak));
 
 #endif /* BRIXCVMFS_INTERNAL_H */
