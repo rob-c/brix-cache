@@ -38,11 +38,12 @@ MANIFEST=${CONFIG_RENAME_MANIFEST:-"$ROOT/.config_rename_manifest.txt"}
 #   the precise sed -E expression. grep over-matching is harmless — the sed's own
 #   word boundaries do the exact selection. NUL-safe for odd paths; tolerant of
 #   "no match" under `set -e`.
+#   docs/superpowers/ is sweep-exempt: the rename spec/plan intentionally carry old names.
 sed_all() {
     local expr="$1" pat="$2"
     local -a files=()
     mapfile -d '' -t files < <(
-        grep -rlZE -e "$pat" "${TARGETS[@]/#/$ROOT/}" 2>/dev/null || true)
+        grep -rlZE --exclude-dir=superpowers -e "$pat" "${TARGETS[@]/#/$ROOT/}" 2>/dev/null || true)
     [ "${#files[@]}" -eq 0 ] && return 0
     sed -i -E "$expr" "${files[@]}"
     printf '%s\n' "${files[@]}" >> "$MANIFEST"
