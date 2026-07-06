@@ -440,7 +440,7 @@ section_tail_follow() {
   # --- error: missing path exits nonzero quickly (before the timeout) ---
   timeout 3 "$BIN/xrdfs" "$URL" tail -f "${BASE}-missing" >/dev/null 2>/dev/null
   RC=$?
-  check "tail -f missing: nonzero exit" '[ "$RC" -ne 0 ]'
+  check "tail -f missing: fast nonzero exit" '[ "$RC" -ne 0 ] && [ "$RC" -ne 124 ]'
 
   # --- truncation resilience: stderr notice + process outlives the truncation ---
   local CAP2="$WORK/tailf2.cap"
