@@ -1,0 +1,112 @@
+.TH BRIXMOUNT 1 "2026-07-06" "brix client" "User Commands"
+.SH NAME
+brixMount \- hardened FUSE mount for CVMFS, EOS, XRootD and S3 backends
+.SH SYNOPSIS
+.B brixMount
+\fITYPE\fR \fIENDPOINT\fR \fIMOUNTDIR\fR [\fIfuse-opts\fR]
+.br
+.B brixMount
+\fB\-\-overlay\-list\fR \fIMOUNTDIR\fR
+.br
+.B brixMount
+\fB\-\-overlay\-reset\fR \fIMOUNTDIR\fR
+.SH DESCRIPTION
+.B brixMount
+is a single hardened front-end for mounting remote filesystems via FUSE3.
+It dispatches to the correct driver based on \fITYPE\fR while exposing a
+uniform brand and resilience story ("battle-tested against bad/evil networks").
+.PP
+All drivers share the same reconnect and resilience core from
+.BR libbrix .
+.SH TYPES
+.TP
+.B cvmfs
+Mount a read-only CVMFS repository.
+\fIENDPOINT\fR is the repository name (e.g. \fBatlas.cern.ch\fR).
+.TP
+.B cvmfs\-rw
+Mount a CVMFS repository with a local writable overlay (union mount semantics).
+Local modifications are tracked; use \fB\-\-overlay\-list\fR to inspect and
+\fB\-\-overlay\-reset\fR to discard them.
+.TP
+.B eos
+Mount an EOS namespace via XRootDFS-brix.
+\fIENDPOINT\fR is a \fBroot://\fR URL (e.g. \fBroot://eoslhcb.cern.ch\fR).
+.TP
+.B root
+Mount an XRootD namespace via XRootDFS-brix using an unencrypted
+\fBroot://\fR connection.
+.TP
+.B roots
+Mount an XRootD namespace via XRootDFS-brix using an encrypted
+\fBroots://\fR (TLS) connection.
+.SH OPTIONS
+.TP
+.B \-\-overlay\-list \fIMOUNTDIR\fR
+List local changes in a \fBcvmfs\-rw\fR overlay at \fIMOUNTDIR\fR.
+.TP
+.B \-\-overlay\-reset \fIMOUNTDIR\fR
+Discard all local changes in a \fBcvmfs\-rw\fR overlay at \fIMOUNTDIR\fR.
+.TP
+.B \-h ", " \-\-help
+Print a short usage summary.
+.TP
+.B \-\-version
+Print version and exit.
+.PP
+Any remaining arguments after \fIMOUNTDIR\fR are passed to the underlying
+FUSE driver (e.g. \fB\-f\fR for foreground, \fB\-d\fR for debug,
+\fB\-o allow_other\fR).
+.SH EXAMPLES
+.nf
+# Mount the ATLAS CVMFS repository
+brixMount cvmfs atlas.cern.ch ~/atlas-cvmfs/
+
+# Mount with a local writable overlay
+brixMount cvmfs-rw atlas.cern.ch ~/atlas-overlay/
+brixMount --overlay-list ~/atlas-overlay/   # inspect changes
+brixMount --overlay-reset ~/atlas-overlay/  # discard changes
+
+# Mount an EOS namespace
+brixMount eos root://eoslhcb.cern.ch ~/eos/
+
+# Mount an XRootD server with TLS, in the foreground for debugging
+brixMount roots store.example:1094 /mnt/xrd -f
+.fi
+.SH ENVIRONMENT
+.TP
+.B BRIXCVMFS_SERVER
+Override the CVMFS Stratum-1 server URL for the \fBcvmfs\fR and \fBcvmfs\-rw\fR drivers.
+.TP
+.B BRIXCVMFS_PUBKEY
+Path to the repository public key for signature verification.
+.TP
+.B BRIXCVMFS_CACHE
+Override the CVMFS cache directory path.
+.TP
+.B BRIXCVMFS_TMP
+Override the CVMFS temporary directory.
+.TP
+.B BRIXCVMFS_ETC
+Override the CVMFS configuration directory.
+.TP
+.B BEARER_TOKEN
+Bearer token for HTTP(S) / WebDAV endpoints.
+.TP
+.B X509_USER_PROXY
+GSI proxy certificate path.
+.TP
+.B XRDRC
+Path to configuration file (default \fI~/.xrdrc\fR).
+.SH FILES
+.TP
+.I ~/.xrdrc
+Per-user configuration file: endpoint aliases and default credentials.
+See
+.BR brix\-env (7).
+.SH SEE ALSO
+.BR xrootdfs (1),
+.BR xrdfs (1),
+.BR xrdcp (1),
+.BR fusermount3 (1),
+.BR brix\-env (7)

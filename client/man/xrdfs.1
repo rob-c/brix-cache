@@ -1,0 +1,194 @@
+.TH XRDFS 1 "2026-07-06" "brix client" "User Commands"
+.SH NAME
+xrdfs \- interactive and scriptable XRootD filesystem client
+.SH SYNOPSIS
+.B xrdfs
+[\fIOPTS\fR] \fIHOST\fR[\fI:PORT\fR] | \fIroot\fR[\fIs\fR]\fI://host[:port]\fR | \fIhttp\fR[\fIs\fR]\fI://host/path\fR | \fIdav\fR[\fIs\fR]\fI://host/path\fR
+[\fICOMMAND\fR [\fIARGS\fR]]
+.SH DESCRIPTION
+.B xrdfs
+provides a complete filesystem client for XRootD servers.
+With no command it drops into an interactive shell (root:// only).
+With a command it runs that command and exits.
+.PP
+HTTP(S)/WebDAV endpoints support read-only metadata operations: \fBls\fR and \fBstat\fR.
+.SH OPTIONS
+.TP
+.B \-\-tls
+Require in-protocol TLS (implied by \fBroots://\fR).
+.TP
+.B \-\-notlsok
+Permit cleartext if the server offers no TLS.
+.TP
+.B \-\-noverifyhost
+Do not verify the server certificate hostname.
+.TP
+.BI \-\-auth " gsi|ztn|krb5|sss|unix"
+Force a specific authentication protocol (root:// only).
+.TP
+.BR \-\-token " \fITOK\fR" ", " \-T " \fITOK\fR"
+Bearer token for http(s)/WebDAV authentication (or \fB$BEARER_TOKEN\fR).
+.TP
+.B \-\-version
+Print version and exit.
+.SH COMMANDS
+Each command accepts \fB\-\-help\fR to print its one-line synopsis.
+In the interactive shell, \fBcd\fR, \fBpwd\fR, \fBhelp\fR, and \fBexit\fR are also available.
+.TP
+.B stat [-j] \fIPATH\fR
+Print file or directory metadata. \fB\-j\fR emits JSON.
+.TP
+.B ls [-l] [-R] [-h] [-j] [\fIPATH\fR]
+List a directory. \fB\-l\fR long, \fB\-R\fR recursive, \fB\-h\fR human-readable sizes,
+\fB\-j\fR JSON output.
+.TP
+.B du [-h] [-j] \fIPATH\fR...
+Recursive disk-usage summary. \fB\-h\fR human-readable, \fB\-j\fR JSON.
+.TP
+.B df [-h] [\fIPATH\fR]
+Disk space and \fBoss.*\fR quota space. \fB\-h\fR human-readable.
+.TP
+.B tree [-d] [-L \fIN\fR] [\fIPATH\fR]
+ASCII tree view. \fB\-d\fR directories only, \fB\-L\fR max depth.
+.TP
+.B find \fIPATH\fR [-name \fIGLOB\fR] [-type f|d] [-size +\fIN\fR|-\fIN\fR]
+Search a subtree.
+.TP
+.B mkdir [-p] [-m \fIMODE\fR] \fIPATH\fR
+Create a directory. \fB\-p\fR create parents, \fB\-m\fR octal mode.
+.TP
+.B rm [-r] [-v] \fIPATH\fR
+Remove a file or, with \fB\-r\fR, a directory tree. \fB\-v\fR verbose.
+.TP
+.B rmdir \fIPATH\fR
+Remove an empty directory.
+.TP
+.B mv \fISRC\fR \fIDST\fR
+Rename or move a file.
+.TP
+.B chmod [-R] \fIPATH\fR \fIOCTAL\fR
+Change permissions. \fB\-R\fR recursive.
+.TP
+.B touch [-c] [-a] [-m] [-t \fISTAMP\fR] \fIPATH\fR
+Update timestamps; \fB\-c\fR do not create.
+.TP
+.B ln [-s] [-f] \fITARGET\fR \fILINKPATH\fR
+Create a hard or symbolic (\fB\-s\fR) link.
+.TP
+.B readlink \fIPATH\fR
+Print the target of a symbolic link.
+.TP
+.B truncate \fIPATH\fR \fISIZE\fR
+Truncate a file to \fISIZE\fR bytes.
+.TP
+.B cat [-z \fICODEC\fR] \fIPATH\fR
+Print file contents to stdout.
+\fB\-z\fR decompresses on the fly using the named codec
+(\fBgzip\fR, \fBzstd\fR, \fBbr\fR, \fBxz\fR, \fBbzip2\fR, \fBdeflate\fR).
+.TP
+.B head [-c \fIBYTES\fR] [-n \fILINES\fR] \fIPATH\fR
+Print the first bytes or lines of a file.
+.TP
+.B tail [-c \fIBYTES\fR] [-n \fILINES\fR] [-f] \fIPATH\fR
+Print the last bytes or lines. \fB\-f\fR follows appends (polls).
+.TP
+.B wc [-c] [-l] [-w] \fIPATH\fR
+Count bytes, lines, and words.
+.TP
+.B grep [-i] [-n] \fIPATTERN\fR \fIPATH\fR
+Search for a pattern. \fB\-i\fR case-insensitive, \fB\-n\fR show line numbers.
+.TP
+.B hexdump [-n \fIBYTES\fR] \fIPATH\fR
+Hex dump a file (or its first \fIN\fR bytes).
+.TP
+.B dd [if=]\fIPATH\fR [bs=\fIN\fR] [skip=\fIN\fR] [count=\fIN\fR] [rate=\fIR\fR]
+Copy a file with optional rate limiting.
+.TP
+.B upload [bs=\fIN\fR] [rate=\fIR\fR] [-f] [\-\-io\-uring on|off|auto] \fILOCALFILE\fR|\fB\-\fR \fIREMOTE\fR
+Upload a local file or stdin to a remote path.
+\fB\-f\fR overwrites; \fB\-\-io\-uring\fR selects the local I/O backend.
+.TP
+.B download [bs=\fIN\fR] [rate=\fIR\fR] [-f] [\-\-io\-uring on|off|auto] \fIREMOTE\fR [\fILOCALFILE\fR|\fB\-\fR]
+Download a remote file to a local path or stdout.
+.TP
+.B cmp \fIPATH1\fR \fIPATH2\fR
+Compare two remote files byte-by-byte.
+.TP
+.B cksum [-a \fIALGO\fR] \fIPATH\fR
+Compute a server-side checksum.
+.TP
+.B xattr ls|get|set|rm \fIPATH\fR [\fINAME\fR [\fIVALUE\fR]]
+Manage extended attributes via kXR_fattr.
+.TP
+.B readv \fIPATH\fR \fIOFF\fR \fILEN\fR...
+Scatter-gather read.
+.TP
+.B writev \fIPATH\fR \fIOFF\fR \fIHEXDATA\fR...
+Scatter-gather write.
+.TP
+.B locate \fIPATH\fR
+Resolve all replica locations.
+.TP
+.B query config|space|checksum|stats [\fIARGS\fR]
+Send a \fBkXR_query\fR request.
+.TP
+.B statvfs [\fIPATH\fR]
+Retrieve filesystem statistics.
+.TP
+.B prepare [-s|-w|-c|-f|-e] \fIPATH\fR...
+Send a \fBkXR_prepare\fR request: \fB\-s\fR stage, \fB\-w\fR write-mode,
+\fB\-c\fR cancel, \fB\-f\fR fresh, \fB\-e\fR evict.
+.TP
+.B stage [\-\-wait[=\fISECS\fR]] \fIPATH\fR...
+Stage files from tape, optionally waiting until online.
+.TP
+.B evict \fIPATH\fR...
+Evict files from the cache tier.
+.TP
+.B explain
+Print connection, authentication, and TLS facts for the current session.
+.SH EXAMPLES
+.nf
+# List a remote directory
+xrdfs root://store.example:1094 ls -l /atlas/run42/
+
+# Remove a directory tree
+xrdfs root://store.example:1094 rm -r /tmp/scratch/
+
+# Follow-tail an active log file
+xrdfs root://store.example:1094 tail -f /logs/worker.log
+
+# Interactive shell
+xrdfs root://store.example:1094
+.fi
+.SH ENVIRONMENT
+.TP
+.B XRDC_CONNECT_TIMEOUT_MS
+Connect and protocol bring-up timeout in milliseconds.
+.TP
+.B XRDC_IO_TIMEOUT_MS
+Per-operation I/O timeout in milliseconds.
+.TP
+.B XRDC_MAX_STALL_MS
+Reconnect patience window in milliseconds.
+.TP
+.B XRDRC
+Path to the configuration file (default \fI~/.xrdrc\fR).
+.TP
+.B BEARER_TOKEN
+Default WebDAV/HTTP bearer token (same as \fB\-T\fR).
+.TP
+.B X509_USER_PROXY
+GSI proxy certificate path.
+.SH FILES
+.TP
+.I ~/.xrdrc
+Per-user configuration file defining endpoint aliases and default credentials.
+See
+.BR brix\-env (7).
+.SH SEE ALSO
+.BR xrdcp (1),
+.BR xrddiag (1),
+.BR xrdcksum (1),
+.BR xrd (1),
+.BR brix\-env (7)

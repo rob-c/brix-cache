@@ -1,0 +1,214 @@
+.TH XRDCP 1 "2026-07-06" "brix client" "User Commands"
+.SH NAME
+xrdcp \- copy files between local, root://, WebDAV/HTTP and S3 endpoints
+.SH SYNOPSIS
+.B xrdcp
+[\fIOPTIONS\fR] \fISRC\fR... \fIDST\fR
+.SH DESCRIPTION
+.B xrdcp
+copies files and directory trees between local paths, \fBroot://\fR /
+\fBroots://\fR servers, WebDAV/HTTP(S) endpoints and S3 buckets, with
+resilient transfers (reconnect + resume), checksum verification,
+third-party copy, parallel jobs and streams, sync/mirror semantics and
+resumable batch manifests.
+.PP
+\fISRC\fR and \fIDST\fR may be a \fBroot://host[:port]//path\fR URL,
+a web URL (\fBdavs://\fR, \fBhttp(s)://\fR, \fBdav://\fR,
+\fBs3://\fR, \fBs3s://\fR), a local path, or \fB\-\fR (stdin/stdout).
+Web-to-web copies relay through a local temporary file.
+Multiple sources, a glob, or \fB\-\-from\fR imply that \fIDST\fR is a directory.
+.SH OPTIONS
+.TP
+.B \-f
+Overwrite an existing destination.
+.TP
+.B \-r
+Recursively copy a tree (root/davs/http/s3 <-> local, or web<->web).
+.TP
+.B \-P
+Persist-on-successful-close (upload).
+.TP
+.B \-s
+Silent: suppress all non-error output.
+.TP
+.BR \-v ", " \-d
+Verbose / debug output.
+.TP
+.BI \-\-from " FILE"
+Read sources from a manifest (one per line; \fB\-\fR reads from stdin).
+.TP
+.BI \-\-journal " PATH"
+Record completed transfers to \fIPATH\fR; skip already-completed entries on the next run.
+.TP
+.B \-\-resume
+Shorthand for \fB\-\-journal\fR \fI<manifest>.journal\fR (requires \fB\-\-from\fR).
+.TP
+.BI \-\-retry " N"
+Retry each failed transfer up to \fIN\fR times with exponential back-off; 0 = fail fast.
+.TP
+.B \-\-no\-retry
+Disable transport resilience: fail immediately on the first fault.
+.TP
+.BI \-\-max\-stall " MS"
+Reconnect/resume patience window in milliseconds (0 = fail fast).
+Also settable via \fBXRDC_MAX_STALL_MS\fR.
+.TP
+.B \-\-auto\-refresh
+Proactively renew an expired or near-expiry token (via oidc-agent) or GSI proxy
+before transferring.
+.TP
+.BI \-\-oidc\-account " NAME"
+oidc-agent account for \fB\-\-auto\-refresh\fR (or \fB$OIDC_ACCOUNT\fR).
+.TP
+.BR \-j ", " \-\-jobs " \fIN\fR"
+Copy up to \fIN\fR files concurrently (batch mode).
+.TP
+.B \-\-sync
+Skip transfers whose destination already has the same size (or mtime/checksum
+per \fB\-\-sync\-check\fR).
+.TP
+.BI \-\-sync\-check " MODE"
+Comparison method for \fB\-\-sync\fR: \fBsize\fR (default), \fBmtime\fR, or
+\fBcksum\fR[:\fIalgo\fR].
+.TP
+.BR \-n ", " \-\-dry\-run
+Print what would be transferred or deleted; move no bytes.
+.TP
+.BI \-\-exclude " PAT"
+Skip files matching this fnmatch pattern (repeatable).
+.TP
+.BI \-\-include " PAT"
+Only transfer files matching this fnmatch pattern (repeatable).
+.TP
+.B \-\-delete
+With \fB\-r \-\-sync\fR: delete destination entries that are absent from the source.
+.TP
+.B \-\-remove\-source
+Delete each source file after its transfer succeeds (local and root:// sources only).
+.TP
+.B \-\-progress
+Show a transfer progress bar with ETA (enabled automatically on a TTY for single-file copies).
+.TP
+.B \-\-verify
+After each transfer, verify the checksum against the server (root:// only).
+.TP
+.B \-\-tls
+Require in-protocol TLS (implied by \fBroots://\fR).
+.TP
+.B \-\-notlsok
+Permit cleartext if the server offers no TLS (root:// only).
+.TP
+.B \-\-noverifyhost
+Skip TLS hostname verification (certificate chain validation stays on).
+.TP
+.BI \-\-auth " PROTO"
+Force an authentication protocol: \fBgsi\fR | \fBztn\fR | \fBkrb5\fR |
+\fBsss\fR | \fBunix\fR.
+.TP
+.B \-\-pgrw
+Use paged I/O (\fBkXR_pgread\fR/\fBkXR_pgwrite\fR) with per-page CRC32c integrity.
+.TP
+.BI \-\-cksum " TYPE" [: source | :print | : VALUE ]
+Verify a checksum after transfer.
+\fITYPE\fR is \fBadler32\fR, \fBcrc32c\fR, or \fBmd5\fR.
+.TP
+.BI \-\-compress " CODEC"
+Enable root:// inline compression on download (read) and upload (write).
+\fICODEC\fR: \fBgzip\fR | \fBdeflate\fR | \fBzstd\fR | \fBbr\fR |
+\fBxz\fR | \fBbzip2\fR.
+Server opt-in; silently ignored if the server does not support it.
+.TP
+.B \-\-zip
+Store the local source as a STORE member of the destination ZIP archive
+(overwrites the archive).
+.TP
+.B \-\-zip\-append
+Like \fB\-\-zip\fR but append to an existing archive.
+.TP
+.BR \-S ", " \-\-streams " \fIN\fR"
+Open N\-1 secondary \fBkXR_bind\fR data streams.
+.TP
+.B \-\-tpc " first\|only\|delegate"
+Server-side third-party copy (remote to remote).
+.TP
+.BR \-T ", " \-\-token " \fIJWT\fR"
+WebDAV/HTTP bearer token (or \fB$BEARER_TOKEN\fR).
+.TP
+.BI \-\-s3\-access " KEY"
+S3 SigV4 access key ID (or \fB$AWS_ACCESS_KEY_ID\fR).
+.TP
+.BI \-\-s3\-secret " KEY"
+S3 SigV4 secret key (or \fB$AWS_SECRET_ACCESS_KEY\fR).
+.TP
+.BI \-\-s3\-region " REGION"
+S3 SigV4 region (or \fB$AWS_DEFAULT_REGION\fR; default \fBus\-east\-1\fR).
+.TP
+.BR \-\-wire\-trace [= N ]
+Decode every frame to stderr; \fIN\fR>=2 adds a hex dump.
+.TP
+.B \-\-timing
+Print per-opcode round-trip time at the end.
+.TP
+.BR \-V ", " \-\-version
+Print version and exit.
+.TP
+.BR \-h ", " \-\-help
+Print this help.
+.SH EXAMPLES
+.nf
+# Recursive mirror with deletion of stale destination entries
+xrdcp -r --sync --delete root://se//data/run42/ /scratch/run42/
+
+# Batch transfer from a manifest, resuming a previous interrupted run
+xrdcp --from list.txt --resume -j 8 root://se//dest/
+
+# Single-file download with checksum verification
+xrdcp --verify root://store.example:1094//atlas/file.root /tmp/
+.fi
+.SH ENVIRONMENT
+.TP
+.B XRDC_CONNECT_TIMEOUT_MS
+Connect and protocol bring-up timeout in milliseconds.
+.TP
+.B XRDC_IO_TIMEOUT_MS
+Per-operation I/O timeout in milliseconds once a session is established.
+.TP
+.B XRDC_MAX_STALL_MS
+Reconnect/resume patience window (same as \fB\-\-max\-stall\fR).
+.TP
+.B XRDC_IO_URING
+Default io_uring mode for local-disk I/O: \fBon\fR | \fBoff\fR | \fBauto\fR (default \fBauto\fR).
+.TP
+.B XRDRC
+Path to the configuration file (default \fI~/.xrdrc\fR).
+.TP
+.B BEARER_TOKEN
+Default WebDAV/HTTP bearer token (same as \fB\-T\fR).
+.TP
+.B X509_USER_PROXY
+GSI proxy certificate path (used by \fB\-\-auth gsi\fR and \fB\-\-auto\-refresh\fR).
+.TP
+.B OIDC_ACCOUNT
+Default oidc-agent account for \fB\-\-auto\-refresh\fR.
+.TP
+.B AWS_ACCESS_KEY_ID
+S3 access key (same as \fB\-\-s3\-access\fR).
+.TP
+.B AWS_SECRET_ACCESS_KEY
+S3 secret key (same as \fB\-\-s3\-secret\fR).
+.TP
+.B AWS_DEFAULT_REGION
+S3 region (same as \fB\-\-s3\-region\fR).
+.SH FILES
+.TP
+.I ~/.xrdrc
+Per-user configuration file defining endpoint aliases and default credentials.
+See
+.BR brix\-env (7).
+.SH EXIT STATUS
+0 on full success; non-zero if any transfer failed.
+.SH SEE ALSO
+.BR xrdfs (1),
+.BR xrdcksum (1),
+.BR xrddiag (1),
+.BR brix\-env (7)
