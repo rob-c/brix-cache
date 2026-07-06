@@ -21,6 +21,8 @@
 
 int brix_xrdckverify_main(int argc, char **argv);
 int brix_xrdcinfo_main(int argc, char **argv);
+int brix_xrdcktree_main(int argc, char **argv);
+int brix_xrdckcheck_main(int argc, char **argv);
 
 typedef struct {
     const char *name;        /* argv[0] basename / subcommand         */
@@ -67,6 +69,12 @@ dispatch(const char *name, int argc, char **argv)
     if (strcmp(name, "xrdcinfo") == 0 || strcmp(name, "info") == 0) {
         return brix_xrdcinfo_main(argc, argv);
     }
+    if (strcmp(name, "xrdcktree") == 0 || strcmp(name, "tree") == 0) {
+        return brix_xrdcktree_main(argc, argv);
+    }
+    if (strcmp(name, "xrdckcheck") == 0 || strcmp(name, "check") == 0) {
+        return brix_xrdckcheck_main(argc, argv);
+    }
     return -1;
 }
 
@@ -87,7 +95,8 @@ main(int argc, char **argv)
         }
     }
     fprintf(stderr,
-        "usage: xrdcksum <crc32c|crc64|adler32|verify|info> [args...]\n"
+        "usage: xrdcksum <crc32c|crc64|adler32|verify|info|tree|check> "
+        "[args...]\n"
         "       (or invoke via the xrdcrc32c/xrdcrc64/xrdadler32/"
         "xrdckverify/xrdcinfo symlinks)\n");
     return 50;

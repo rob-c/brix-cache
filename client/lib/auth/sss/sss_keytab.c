@@ -11,6 +11,7 @@
 #include "core/compat/sss_bf.h"       /* shared Blowfish-CFB64 (libxrdproto) */
 #include "core/compat/hex.h"          /* shared hex encode/from_char (libxrdproto) */
 #include "auth/sss/sss_keytab_kernel.h" /* shared keytab line grammar + mode check */
+#include "core/config/envalias.h"     /* alias resolver (WS-1) */
 
 #include <ctype.h>
 #include <errno.h>
@@ -63,12 +64,19 @@ brix_sss_bf32_encrypt(const uint8_t *key, size_t key_len,
 void
 brix_sss_keytab_default(char *out, size_t outsz)
 {
-    const char *env = getenv("XrdSecSSSKT");
+    /*
+     * WHAT: resolve the SSS keytab path from the canonical alias chain.
+     * WHY:  XrdSecSSSKT vs XrdSecsssKT differ only by case; the resolver
+     *       emits a TTY note if both are set with different values (WS-1).
+     * HOW:  brix_env_resolve walks the chain in precedence order; legacy
+     *       names remain accepted forever (C2 compat).
+     */
+    static const char *const keytab_chain[] = {
+        "XRDC_SSS_KEYTAB", "XrdSecSSSKT", "XrdSecsssKT", NULL
+    };
+    const char *env  = brix_env_resolve(keytab_chain, NULL);
     const char *home;
 
-    if (env == NULL || env[0] == '\0') {
-        env = getenv("XrdSecsssKT");
-    }
     if (env != NULL && env[0] != '\0') {
         snprintf(out, outsz, "%s", env);
         return;
