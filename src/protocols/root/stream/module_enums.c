@@ -8,7 +8,24 @@
 #include "core/ngx_brix_module.h"
 #include "net/cms/cns.h"               /* §6 CNS mode enum */
 #include "net/manager/health_check.h"  /* BRIX_HC_TYPE_* */
+#include "auth/crypto/store_policy.h"  /* BRIX_SP_MODE_*, BRIX_CRL_MODE_* */
 #include "module_enums.h"
+
+/* [brix_signing_policy on|off|require] — Globus signing_policy enforcement. */
+ngx_conf_enum_t brix_signing_policy_modes[] = {
+    { ngx_string("off"),     BRIX_SP_MODE_OFF     },
+    { ngx_string("on"),      BRIX_SP_MODE_ON      },
+    { ngx_string("require"), BRIX_SP_MODE_REQUIRE },
+    { ngx_null_string,       0                      }
+};
+
+/* [brix_crl_mode off|try|require] — CRL revocation strictness. */
+ngx_conf_enum_t brix_crl_modes[] = {
+    { ngx_string("off"),     BRIX_CRL_MODE_OFF     },
+    { ngx_string("try"),     BRIX_CRL_MODE_TRY     },
+    { ngx_string("require"), BRIX_CRL_MODE_REQUIRE },
+    { ngx_null_string,       0                       }
+};
 
 /* §6 brix_cns mode values. */
 ngx_conf_enum_t brix_cns_modes[] = {

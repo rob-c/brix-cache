@@ -138,6 +138,11 @@ typedef struct {
                                      skips the (possibly large/slow) CRL re-parse
                                      when an unchanged regular-file CRL would just
                                      reproduce the same store. 0 = not yet loaded */
+    ngx_uint_t  signing_policy_mode; /* [brix_signing_policy on|off|require]
+                                     BRIX_SP_MODE_*; default ON (enforce when a
+                                     <hash>.signing_policy file is present) */
+    ngx_uint_t  crl_mode;         /* [brix_crl_mode off|try|require]
+                                     BRIX_CRL_MODE_*; default TRY */
 
     /* ---- VO access-control lists ---- */
     ngx_array_t  *vo_rules;     /* brix_vo_rule_t[] from brix_require_vo */
