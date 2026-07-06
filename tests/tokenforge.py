@@ -287,7 +287,79 @@ def build_manifest(out_dir):
     m.add("SIG-09", {"m": "generate_bad_signature"}, "root", "reject",
           "tampered signature fails verify", "RFC7515 §5.2")
 
-    # ... all families appended by their respective test tasks ...
+    # CLM family — temporal, structural, and size checks; root:// only.
+    # Ground truth: src/auth/token/validate.c
+    #   - token_len > 8192       → reject (line 220)
+    #   - now > exp + BRIX_TOKEN_CLOCK_SKEW_SECS (30)  → reject (line 389)
+    #   - now < nbf (no skew on nbf)                   → reject (line 398)
+    #   - missing/string exp: json_get_int64 leaves exp=0 → treated as expired
+    m.add("CLM-01", {"m": "temporal", "args": [-3600]}, "root", "reject",
+          "expired 1h beyond 30s skew", "RFC7519 §4.1.4, tunables.h skew=30")
+    m.add("CLM-02", {"m": "temporal", "args": [-20]}, "root", "accept",
+          "expired 20s but within current 30s skew (locks pre-Task-6 behavior)",
+          "RFC7519 §4.1.4, tunables.h skew=30")
+    m.add("CLM-03", {"m": "missing_exp"}, "root", "reject",
+          "missing exp → json_get_int64 leaves exp=0 → treated as expired",
+          "RFC7519 §4.1.4")
+    m.add("CLM-04", {"m": "exp_string"}, "root", "reject",
+          "string-typed exp is not an integer → parse fail → exp=0 → expired",
+          "RFC7519 §4.1.4")
+    m.add("CLM-05", {"m": "oversized", "args": [9000]}, "root", "reject",
+          "token_len>8192 rejected at size check before any parsing",
+          "validate.c line 220")
+    m.add("CLM-06", {"m": "malformed_json"}, "root", "reject",
+          "malformed JSON payload fails jansson parse", "RFC7515 §7.2")
+    m.add("CLM-07", {"m": "not_a_jwt"}, "root", "reject",
+          "not a compact JWS (no dots) → structural reject", "RFC7515 §3.1")
+    m.add("CLM-08", {"m": "temporal", "args": [3600, 120]}, "root", "reject",
+          "nbf 120s in future; nbf has no skew tolerance (validate.c line 398)",
+          "RFC7519 §4.1.5")
+    m.add("CLM-09", {"m": "generate"}, "root", "accept",
+          "valid token baseline — all temporal checks pass",
+          "RFC7519 §4.1.4-5")
+
+    # AUD family — audience claim: scalar vs array membership; root:// only.
+    # Ground truth: json_string_or_array_contains (src/auth/token/json.c line 165)
+    #   iterates ALL array elements → position-independent membership test.
+    m.add("AUD-01", {"m": "aud_value", "args": ["nginx-xrootd"]},
+          "root", "accept",
+          "scalar aud match against expected nginx-xrootd",
+          "RFC7519 §4.1.3")
+    m.add("AUD-02", {"m": "aud_value", "args": ["wrong-aud"]},
+          "root", "reject",
+          "scalar aud mismatch — nginx-xrootd not present",
+          "RFC7519 §4.1.3")
+    m.add("AUD-03", {"m": "aud_value", "args": [["nginx-xrootd", "other"]]},
+          "root", "accept",
+          "array aud — expected nginx-xrootd is first element",
+          "RFC7519 §4.1.3, json_string_or_array_contains")
+    m.add("AUD-04", {"m": "aud_value", "args": [["other", "nginx-xrootd"]]},
+          "root", "accept",
+          "array aud — expected nginx-xrootd is last element (position-independent)",
+          "RFC7519 §4.1.3, json_string_or_array_contains")
+    m.add("AUD-05", {"m": "aud_value", "args": [["a", "b"]]},
+          "root", "reject",
+          "array aud without expected nginx-xrootd — membership fails",
+          "RFC7519 §4.1.3")
+    m.add("AUD-06", {"m": "aud_value", "args": [[]]},
+          "root", "reject",
+          "empty array aud — membership check finds nothing",
+          "RFC7519 §4.1.3")
+
+    # VER family — wlcg.ver claim: advisory, not enforced; root:// only.
+    # Ground truth: wlcg.ver is NOT read anywhere in src/auth/token/validate.c;
+    #   the claim is emitted by pelican_register.c but never validated — advisory.
+    m.add("VER-01", {"m": "generate"}, "root", "accept",
+          "wlcg.ver=1.0 present — standard valid token baseline",
+          "WLCG Token Profile §2.1")
+    m.add("VER-02", {"m": "wlcg_ver", "args": [None]}, "root", "accept",
+          "wlcg.ver absent is advisory, not fatal (not read by validate.c)",
+          "WLCG Token Profile §2.1 advisory")
+    m.add("VER-03", {"m": "wlcg_ver", "args": ["2.0"]}, "root", "accept",
+          "unknown wlcg.ver advisory, not fatal — validate.c ignores the claim",
+          "WLCG Token Profile §2.1 advisory")
+
+    # ... further families appended by their respective test tasks ...
 
     manifest_path = os.path.join(out_dir, "token_manifest.json")
     m.write(manifest_path)
