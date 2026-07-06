@@ -59,7 +59,10 @@ brix_cache_ensure_parent(const char *path)
     }
 
     *slash = '\0';
-    return brix_mkdir_recursive(parent, 0755);
+    /* 0700: the cache tree is svc-owned and never client-listable; a mapped
+     * low-priv uid must not be able to traverse/enumerate another user's cached
+     * paths on a shared filesystem. */
+    return brix_mkdir_recursive(parent, 0700);
 }
 
 /* brix_cache_file_ready — three-state readiness for the open-or-fill decision:

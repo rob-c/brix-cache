@@ -144,8 +144,14 @@ brix_xmeta_path_save(const char *path, const brix_xmeta_t *xm)
         return BRIX_XMETA_ERR;
     }
 
+    /* SECURITY: the metadata sidecar (cache .cinfo residency bitmap / CSI record)
+     * is created and read AS THE WORKER (server-managed sidecar, see meta.c
+     * vfs-seam-allow; CSI verify is a backend op). 0600 (not 0644) so it cannot
+     * leak cache residency / integrity metadata to a mapped low-priv uid on a
+     * shared filesystem. Safe: with impersonation=map the master is root and
+     * reads any-owner sidecar; without impersonation the worker owns and reads it. */
     fd = open(sc, O_WRONLY | O_CREAT | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW,
-              0644);
+              0600);
     if (fd < 0) {
         free(buf);
         return BRIX_XMETA_ERR;
@@ -204,7 +210,7 @@ brix_xmeta_path_lock(const char *path)
             return -1;
         }
         fd = open(sc, O_RDWR | O_CREAT | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW,
-                  0644);
+                  0600);   /* worker-owned lock sidecar; 0600 (see path_save) */
         if (fd < 0) {
             return -1;
         }

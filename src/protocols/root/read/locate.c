@@ -163,6 +163,19 @@ brix_handle_locate(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (!is_wildcard) {
         struct stat _st;
+        char        full_path[PATH_MAX];
+
+        /* SECURITY: authorize BEFORE probing existence so a denied principal
+         * gets an identical kXR_NotAuthorized whether or not the path exists —
+         * no namespace-existence oracle (mirrors the statx.c ordering). The gate
+         * keys off the identity + logical path, independent of on-disk existence. */
+        brix_beneath_full_path(conf->common.root_canon, reqpath_buf,
+                                 full_path, sizeof(full_path));
+        if (brix_auth_gate(ctx, c, BRIX_OP_LOCATE, "LOCATE",
+                             reqpath_buf, full_path, conf,
+                             BRIX_AUTH_READ, 0) != NGX_OK) {
+            return ctx->write_rc;
+        }
 
         if (brix_stat_beneath(conf->rootfd, reqpath_buf, &_st) != 0) {
             if (conf->upstream_host.len > 0) {
@@ -174,17 +187,6 @@ brix_handle_locate(brix_ctx_t *ctx, ngx_connection_t *c,
 
             BRIX_RETURN_ERR(ctx, c, BRIX_OP_LOCATE, "LOCATE",
                               reqpath_buf, "-", kXR_NotFound, "file not found");
-        }
-
-        {
-            char full_path[PATH_MAX];
-            brix_beneath_full_path(conf->common.root_canon, reqpath_buf,
-                                     full_path, sizeof(full_path));
-            if (brix_auth_gate(ctx, c, BRIX_OP_LOCATE, "LOCATE",
-                                 reqpath_buf, full_path, conf,
-                                 BRIX_AUTH_READ, 0) != NGX_OK) {
-                return ctx->write_rc;
-            }
         }
     }
 

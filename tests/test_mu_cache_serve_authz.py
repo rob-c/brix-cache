@@ -140,6 +140,22 @@ def test_cache_hit_denied_to_out_of_group_principal(noimp_env):
     v_alice2 = measure_root(url, _PATH, "read", principal=alice)
     assert v_alice2.decision == "ALLOW", f"authorized alice regressed: {v_alice2}"
 
+    # 5. Physical exposure: the on-disk cache artifacts are svc-owned and must not be
+    #    world/group-readable — a mapped low-priv uid must not read another user's cached
+    #    bytes or residency metadata by direct filesystem access.
+    if resident:
+        import stat as _stat
+        cache_file = os.path.join(ports.MU.CACHE_ROOT, _REL)
+        fmode = _stat.S_IMODE(os.stat(cache_file).st_mode)
+        assert fmode & 0o077 == 0, f"cache file is group/other-readable: {oct(fmode)} (leak)"
+        subdir_mode = _stat.S_IMODE(os.stat(os.path.dirname(cache_file)).st_mode)
+        assert subdir_mode & 0o077 == 0, f"cache subdir is group/other-accessible: {oct(subdir_mode)}"
+        for _root, _dirs, _files in os.walk(ports.MU.CACHE_ROOT):
+            for _f in _files:
+                if _f.endswith(".cinfo"):
+                    cm = _stat.S_IMODE(os.stat(os.path.join(_root, _f)).st_mode)
+                    assert cm & 0o077 == 0, f".cinfo sidecar is group/other-readable: {oct(cm)}"
+
     if not resident:
         pytest.skip("cache did not populate for a local-posix origin; the gate still enforced "
                     "on the miss path — HIT-path proof needs a remote origin (privileged fleet)")
