@@ -85,6 +85,7 @@ With \fB\-r \-\-sync\fR: delete destination entries that are absent from the sou
 .TP
 .B \-\-remove\-source
 Delete each source file after its transfer succeeds (local and root:// sources only).
+With \fB\-\-sync\fR, files that are already up\-to\-date (skipped) are \fInot\fR removed.
 .TP
 .BR \-N ", " \-\-no\-progress
 Suppress the progress bar even when stderr is a TTY.
@@ -118,7 +119,7 @@ Use paged I/O (\fBkXR_pgread\fR/\fBkXR_pgwrite\fR) with per-page CRC32c integrit
 Local-disk overlap ring: \fBon\fR | \fBoff\fR | \fBauto\fR (default \fBauto\fR).
 Overrides \fBXRDC_IO_URING\fR.  Also accepted as \fB\-\-io\-uring=\fImode\fR.
 .TP
-.BI \-\-cksum " TYPE" [: source | :print | : VALUE ]
+.BI \-\-cksum " TYPE[:source|:print|:VALUE]"
 Verify a checksum after transfer.
 \fITYPE\fR is \fBadler32\fR, \fBcrc32c\fR, or \fBmd5\fR.
 .TP

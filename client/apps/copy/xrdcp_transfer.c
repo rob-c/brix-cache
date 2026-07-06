@@ -201,24 +201,48 @@ sync_cksum_equal(const char *src, const char *dst, const char *algo,
  * Sync: skip only when both endpoints stat as regular files AND the configured
  * comparison (size / mtime / cksum via o->sync_cmp) says they match.  Any
  * undeterminable side (web, missing, error) falls through to the copy — the
- * data-loss rule: a sync that silently skips on error loses updates. */
+ * data-loss rule: a sync that silently skips on error loses updates.
+ *
+ * Meta-cache: for the recursive path the filter guard calls entry_meta(src)
+ * to classify the source type; the result is stored in src_meta / src_sz /
+ * src_mt so the sync block never issues a second stat on the same source.
+ * For the non-recursive path, src's meta is deferred until the sync block
+ * needs it, avoiding an extra stat on every single-file copy. */
 int
 transfer_one(const char *src, const char *dst, const brix_copy_opts *o,
              const brix_opts *co, int retries, int sync_mode, brix_status *st)
 {
     char      base[XRDC_NAME_MAX];
-    long long tmp, tmpm;
+    long long src_sz = 0, src_mt = 0;
+    int       src_meta = -2;   /* -2 = not yet fetched; -1 = not a reg file; 0 = reg file */
 
     path_basename(src, base, sizeof(base));
-    if ((!o->recursive || entry_meta(src, co, &tmp, &tmpm) == 0)
-        && !brix_copy_filter_match(o, base)) {
-        return 1;                               /* filtered — like a skip */
+    /* Filter guard: for non-recursive, always apply the basename filter; for
+     * recursive, entry_meta classifies the source (regular file vs. directory
+     * or web URL).  Cache the result in src_meta so the sync block below can
+     * reuse it without a second round-trip to the server. */
+    if (o->recursive) {
+        src_meta = entry_meta(src, co, &src_sz, &src_mt);
+        if (src_meta == 0 && !brix_copy_filter_match(o, base)) {
+            return 1;                               /* filtered — like a skip */
+        }
+    } else {
+        if (!brix_copy_filter_match(o, base)) {
+            return 1;                               /* filtered — like a skip */
+        }
     }
     if (sync_mode || o->sync) {
-        long long ssz = 0, smt = 0, dsz = 0, dmt = 0;
-        if (entry_meta(src, co, &ssz, &smt) == 0
+        long long dsz = 0, dmt = 0;
+        /* Fetch src meta on demand for the non-recursive path (not yet
+         * classified by the filter guard above); reuse the cached result
+         * for the recursive path.  Any failure returns -1 → falls through
+         * to the copy (data-loss rule: never skip on an undeterminable side). */
+        if (src_meta == -2) {
+            src_meta = entry_meta(src, co, &src_sz, &src_mt);
+        }
+        if (src_meta == 0
             && entry_meta(dst, co, &dsz, &dmt) == 0
-            && brix_sync_should_skip(o->sync_cmp, ssz, smt, dsz, dmt)) {
+            && brix_sync_should_skip(o->sync_cmp, src_sz, src_mt, dsz, dmt)) {
             if (o->sync_cmp != XRDC_SYNC_CKSUM
                 || sync_cksum_equal(src, dst,
                        o->sync_cksum_algo ? o->sync_cksum_algo : "adler32", co)) {
