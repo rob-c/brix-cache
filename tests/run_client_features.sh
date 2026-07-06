@@ -657,6 +657,7 @@ section_xrdfs_uring() {
   # crash and the download must still succeed.
   "$BIN/xrdfs" "$URL" download --io-uring bogus /tmp/cfeat-uring-$$ "$WORK/dl_bogus.dat" 2>/dev/null
   check "download --io-uring bogus: exit 0 (treated as auto)" '[ "$?" -eq 0 ]'
+  check "download --io-uring bogus: byte-exact" 'cmp -s "$WORK/uring_seed.dat" "$WORK/dl_bogus.dat"'
 
   # --io-uring on: either succeeds (kernel has uring support) or exits non-zero with no
   # partial/corrupt output file left at the final path (vfs_posix ON+unavailable contract).
@@ -666,9 +667,9 @@ section_xrdfs_uring() {
   if [ "$ON_RC" -eq 0 ]; then
     check "download --io-uring on: success → byte-exact" 'cmp -s "$WORK/uring_seed.dat" "$WORK/dl_on.dat"'
   else
-    # Clean failure: the final output path must not exist or be empty (no partial write).
+    # Clean failure: the final output path must not exist (no partial write).
     check "download --io-uring on: clean fail → no partial output" \
-      '[ ! -s "$WORK/dl_on.dat" ]'
+      '[ ! -f "$WORK/dl_on.dat" ]'
   fi
 
   # upload --io-uring off: must succeed and the round-trip content must match.
