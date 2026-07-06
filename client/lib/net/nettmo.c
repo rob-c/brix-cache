@@ -41,8 +41,19 @@
 static atomic_int g_connect_ms = 0;
 static atomic_int g_io_ms       = 0;
 
+/*
+ * resolve_ms — layered timeout resolver for connect and io timeouts.
+ *
+ * WHAT: Resolves `slot` once: setter (already in slot) > env var > xrdrc
+ *       [defaults] > compiled default. Caches the result back in `slot`
+ *       so the resolution is a single atomic load on every subsequent call.
+ * WHY:  Connect and io timeouts should be consistent across all sessions in
+ *       a process, and the resolution order must be deterministic.
+ * HOW:  Checks the cached slot first (set by an earlier call or by a CLI
+ *       setter via brix_tmo_set_*), then falls through env → xrdrc → dflt.
+ */
 static int
-resolve_ms(atomic_int *slot, const char *env, int dflt)
+resolve_ms(atomic_int *slot, const char *env, const char *xrdrc_key, int dflt)
 {
     int v = atomic_load_explicit(slot, memory_order_relaxed);
     if (v > 0) {
@@ -50,22 +61,31 @@ resolve_ms(atomic_int *slot, const char *env, int dflt)
     }
     const char *e = getenv(env);
     int parsed = (e != NULL && e[0] != '\0') ? atoi(e) : 0;
-    v = (parsed > 0) ? parsed : dflt;
-    atomic_store_explicit(slot, v, memory_order_relaxed);
-    return v;
+    if (parsed > 0) {
+        atomic_store_explicit(slot, parsed, memory_order_relaxed);
+        return parsed;
+    }
+    int xv;
+    if (brix_xrdrc_default_ms(xrdrc_key, &xv)) {
+        atomic_store_explicit(slot, xv, memory_order_relaxed);
+        return xv;
+    }
+    atomic_store_explicit(slot, dflt, memory_order_relaxed);
+    return dflt;
 }
 
 int
 brix_tmo_connect_ms(void)
 {
     return resolve_ms(&g_connect_ms, "XRDC_CONNECT_TIMEOUT_MS",
-                      XRDC_TMO_CONNECT_DEFAULT_MS);
+                      "connect_timeout_ms", XRDC_TMO_CONNECT_DEFAULT_MS);
 }
 
 int
 brix_tmo_io_ms(void)
 {
-    return resolve_ms(&g_io_ms, "XRDC_IO_TIMEOUT_MS", XRDC_TMO_IO_DEFAULT_MS);
+    return resolve_ms(&g_io_ms, "XRDC_IO_TIMEOUT_MS",
+                      "io_timeout_ms", XRDC_TMO_IO_DEFAULT_MS);
 }
 
 void
@@ -110,6 +130,17 @@ brix_backoff_delay_ms(unsigned attempt, uint64_t *seed)
  * the backoff sleep dominates recovery latency; lowering it (e.g. =1) maximises
  * throughput under heavy reset-style loss at the cost of a tighter retry loop
  * against a genuinely-down peer. Read once and cached. */
+/*
+ * backoff_base_ms — resolve the transport-fault backoff base once and cache it.
+ *
+ * WHAT: Returns the number of milliseconds to use as the backoff base for
+ *       transport-fault retries. Resolution order: env XRDC_BACKOFF_BASE_MS >
+ *       xrdrc [defaults] backoff_base_ms > compiled default (25 ms).
+ * WHY:  On a lossy link the default may be tuned site-wide via .xrdrc without
+ *       requiring every operator to set an env var in their shell profile.
+ * HOW:  Uses a sentinel-initialized atomic (−1 = not yet resolved) so the
+ *       resolution happens only once per process lifetime.
+ */
 static unsigned
 backoff_base_ms(void)
 {
@@ -117,7 +148,13 @@ backoff_base_ms(void)
     int v = atomic_load_explicit(&cached, memory_order_relaxed);
     if (v < 0) {
         const char *e = getenv("XRDC_BACKOFF_BASE_MS");
-        long parsed = (e != NULL && *e != '\0') ? strtol(e, NULL, 10) : 25;
+        long parsed;
+        if (e != NULL && *e != '\0') {
+            parsed = strtol(e, NULL, 10);
+        } else {
+            int xv;
+            parsed = brix_xrdrc_default_ms("backoff_base_ms", &xv) ? (long) xv : 25L;
+        }
         if (parsed < 0) {
             parsed = 0;
         }

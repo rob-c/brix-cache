@@ -285,9 +285,9 @@ brix_webfile_size(const brix_webfile *wf)
 
 
 /* Resilience window (ms) for HTTP reads: $XRDC_MAX_STALL_MS when set (>0 widens,
- * <=0 disables = fail fast), else the library default — the SAME window the
- * root:// data path uses, so an HTTP download rides out packet loss the same way
- * instead of dying on the first sever. */
+ * <=0 disables = fail fast), else the xrdrc [defaults] max_stall_ms, else the
+ * library default — the SAME window the root:// data path uses, so an HTTP
+ * download rides out packet loss the same way instead of dying on the first sever. */
 int
 webfile_window_ms(void)
 {
@@ -296,6 +296,7 @@ webfile_window_ms(void)
         int v = atoi(e);
         return (v > 0) ? v : 0;
     }
+    { int xv; if (brix_xrdrc_default_ms("max_stall_ms", &xv)) { return xv; } }
     return XRDC_DEFAULT_MAX_STALL_MS;
 }
 

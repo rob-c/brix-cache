@@ -41,6 +41,14 @@ static xrdrc_alias g_aliases[XRDRC_MAX_ALIASES];
 static int         g_nalias = 0;
 static int         g_loaded = 0;
 
+/* Parsed [defaults] keys — 0 means "not set". Only positive integers are stored;
+ * negative/garbage values are intentionally ignored so they cannot silently become
+ * giant unsigned timeouts in the callers. */
+static int g_def_connect_ms = 0;
+static int g_def_io_ms      = 0;
+static int g_def_stall_ms   = 0;
+static int g_def_backoff_ms = 0;
+
 /* Trim trailing whitespace/newline in place. */
 static void
 rstrip(char *s)
@@ -62,7 +70,8 @@ xrdrc_load(void)
      * routinely exceed 2 KB, and the token field is 8 KB; a smaller line buffer
      * would silently truncate the credential. */
     char        line[8192 + 256];
-    int         cur = -1;
+    int         cur = -1;       /* current [alias N] index, or -1 */
+    int         in_defaults = 0; /* 1 while parsing the [defaults] section */
 
     g_loaded = 1;
     if (p != NULL && p[0] != '\0') {
@@ -87,7 +96,10 @@ xrdrc_load(void)
         }
         if (*s == '[') {
             cur = -1;
-            if (strncmp(s, "[alias ", 7) == 0) {
+            in_defaults = 0;
+            if (strcmp(s, "[defaults]") == 0) {
+                in_defaults = 1;
+            } else if (strncmp(s, "[alias ", 7) == 0) {
                 char *nm = s + 7;
                 char *rb = strchr(nm, ']');
                 if (rb != NULL) { *rb = '\0'; }
@@ -100,28 +112,46 @@ xrdrc_load(void)
             }
             continue;
         }
-        if (cur >= 0) {
-            char *eq = strchr(s, '=');
-            if (eq != NULL) {
-                char *k = s, *v = eq + 1, *ke = eq;
-                *eq = '\0';
-                while (ke > k && (ke[-1] == ' ' || ke[-1] == '\t')) { *--ke = '\0'; }
-                while (*v == ' ' || *v == '\t') { v++; }
-                if (strcmp(k, "url") == 0) {
-                    snprintf(g_aliases[cur].url, sizeof(g_aliases[cur].url), "%s", v);
-                } else if (strcmp(k, "token") == 0) {
-                    snprintf(g_aliases[cur].token, sizeof(g_aliases[cur].token), "%s", v);
-                } else if (strcmp(k, "token_file") == 0 || strcmp(k, "bearer_token_file") == 0) {
-                    snprintf(g_aliases[cur].token_file, sizeof(g_aliases[cur].token_file), "%s", v);
-                } else if (strcmp(k, "s3_access") == 0) {
-                    snprintf(g_aliases[cur].s3_access, sizeof(g_aliases[cur].s3_access), "%s", v);
-                } else if (strcmp(k, "s3_secret") == 0) {
-                    snprintf(g_aliases[cur].s3_secret, sizeof(g_aliases[cur].s3_secret), "%s", v);
-                } else if (strcmp(k, "s3_region") == 0) {
-                    snprintf(g_aliases[cur].s3_region, sizeof(g_aliases[cur].s3_region), "%s", v);
-                } else if (strcmp(k, "proxy") == 0) {
-                    snprintf(g_aliases[cur].proxy, sizeof(g_aliases[cur].proxy), "%s", v);
-                }
+        /* key = value lines */
+        char *eq = strchr(s, '=');
+        if (eq == NULL) {
+            continue;
+        }
+        char *k = s, *v = eq + 1, *ke = eq;
+        *eq = '\0';
+        while (ke > k && (ke[-1] == ' ' || ke[-1] == '\t')) { *--ke = '\0'; }
+        while (*v == ' ' || *v == '\t') { v++; }
+
+        if (in_defaults) {
+            /* Parse positive integers only — negative/non-numeric are silently
+             * ignored so they cannot become giant unsigned timeouts. */
+            char  *end;
+            long   n = strtol(v, &end, 10);
+            int    valid = (*v != '\0' && *end == '\0' && n > 0);
+            if (strcmp(k, "connect_timeout_ms") == 0) {
+                if (valid) { g_def_connect_ms = (int) n; }
+            } else if (strcmp(k, "io_timeout_ms") == 0) {
+                if (valid) { g_def_io_ms = (int) n; }
+            } else if (strcmp(k, "max_stall_ms") == 0) {
+                if (valid) { g_def_stall_ms = (int) n; }
+            } else if (strcmp(k, "backoff_base_ms") == 0) {
+                if (valid) { g_def_backoff_ms = (int) n; }
+            }
+        } else if (cur >= 0) {
+            if (strcmp(k, "url") == 0) {
+                snprintf(g_aliases[cur].url, sizeof(g_aliases[cur].url), "%s", v);
+            } else if (strcmp(k, "token") == 0) {
+                snprintf(g_aliases[cur].token, sizeof(g_aliases[cur].token), "%s", v);
+            } else if (strcmp(k, "token_file") == 0 || strcmp(k, "bearer_token_file") == 0) {
+                snprintf(g_aliases[cur].token_file, sizeof(g_aliases[cur].token_file), "%s", v);
+            } else if (strcmp(k, "s3_access") == 0) {
+                snprintf(g_aliases[cur].s3_access, sizeof(g_aliases[cur].s3_access), "%s", v);
+            } else if (strcmp(k, "s3_secret") == 0) {
+                snprintf(g_aliases[cur].s3_secret, sizeof(g_aliases[cur].s3_secret), "%s", v);
+            } else if (strcmp(k, "s3_region") == 0) {
+                snprintf(g_aliases[cur].s3_region, sizeof(g_aliases[cur].s3_region), "%s", v);
+            } else if (strcmp(k, "proxy") == 0) {
+                snprintf(g_aliases[cur].proxy, sizeof(g_aliases[cur].proxy), "%s", v);
             }
         }
     }
@@ -229,6 +259,45 @@ brix_alias_lookup(const char *name, brix_alias_info *info)
             }
             return 1;
         }
+    }
+    return 0;
+}
+
+/*
+ * brix_xrdrc_default_ms — look up a [defaults] timeout key from ~/.xrdrc.
+ *
+ * WHAT: Returns 1 and sets *out_ms when the [defaults] section of the user's
+ *       .xrdrc file carries `key` with a valid positive integer; returns 0
+ *       otherwise (key absent, value non-numeric, or value <= 0).
+ * WHY:  Allows users and operators to tune network timeouts once in ~/.xrdrc
+ *       rather than through environment variables in every shell profile.
+ *       Sits below the env-var layer so $XRDC_* and CLI flags always win.
+ * HOW:  Ensures the file is loaded via the same lazy-load gate the alias
+ *       lookups use, then maps `key` to one of the four parsed static ints.
+ *       Negative and non-numeric values are intentionally rejected at parse
+ *       time so they are never stored and can never be returned here.
+ */
+int
+brix_xrdrc_default_ms(const char *key, int *out_ms)
+{
+    if (!g_loaded) {
+        xrdrc_load();
+    }
+    if (strcmp(key, "connect_timeout_ms") == 0 && g_def_connect_ms > 0) {
+        *out_ms = g_def_connect_ms;
+        return 1;
+    }
+    if (strcmp(key, "io_timeout_ms") == 0 && g_def_io_ms > 0) {
+        *out_ms = g_def_io_ms;
+        return 1;
+    }
+    if (strcmp(key, "max_stall_ms") == 0 && g_def_stall_ms > 0) {
+        *out_ms = g_def_stall_ms;
+        return 1;
+    }
+    if (strcmp(key, "backoff_base_ms") == 0 && g_def_backoff_ms > 0) {
+        *out_ms = g_def_backoff_ms;
+        return 1;
     }
     return 0;
 }

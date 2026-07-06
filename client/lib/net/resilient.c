@@ -56,6 +56,7 @@ opts_window_ms(const brix_opts *o)
         int v = atoi(e);
         return (v > 0) ? v : 0;
     }
+    { int xv; if (brix_xrdrc_default_ms("max_stall_ms", &xv)) { return xv; } }
     return XRDC_DEFAULT_MAX_STALL_MS;
 }
 
