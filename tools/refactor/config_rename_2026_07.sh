@@ -43,7 +43,9 @@ sed_all() {
     local expr="$1" pat="$2"
     local -a files=()
     mapfile -d '' -t files < <(
-        grep -rlZE --exclude-dir=superpowers -e "$pat" "${TARGETS[@]/#/$ROOT/}" 2>/dev/null || true)
+        grep -rlZE --exclude-dir=superpowers \
+            --exclude='migration-unified-grammar.md' \
+            -e "$pat" "${TARGETS[@]/#/$ROOT/}" 2>/dev/null || true)
     [ "${#files[@]}" -eq 0 ] && return 0
     sed -i -E "$expr" "${files[@]}"
     printf '%s\n' "${files[@]}" >> "$MANIFEST"

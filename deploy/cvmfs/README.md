@@ -33,26 +33,51 @@ owns the volume). Watermarks: evict at 85 %, hard-stop admission at 95 %
 (`brix_cache_evict_at` grammar mirrors the other protocols' tier
 directives — see docs/03-configuration).
 
-## Reference configuration (proxy mode)
+## Reference configuration
+
+### Minimal (three directives)
+
+```nginx
+worker_processes auto;
+thread_pool default threads=16 max_queue=65536;
+events { worker_connections 4096; }
+
+http {
+    server {
+        listen 3128;
+        location / {
+            brix_cvmfs on;
+            brix_cache_store posix:/srv/cvmfs-cache;
+            brix_cvmfs_upstream_allow cvmfs-stratum-one.cern.ch
+                                      cvmfs-s1fnal.opensciencegrid.org
+                                      cvmfs-stratum-one.ihep.ac.cn;
+        }
+    }
+    server {   # metrics + health, firewalled to the monitoring host
+        listen 9100;
+        location /metrics { brix_metrics on; }
+        location /healthz  { brix_health on; }
+    }
+}
+```
+
+All remaining knobs are at their production-grade defaults — see the table below.
+
+### Production additions (full runbook config)
 
 ```nginx
 worker_processes auto;
 error_log /var/log/nginx-xrootd/error.log warn;
-thread_pool default threads=16;
+thread_pool default threads=16 max_queue=65536;
 events { worker_connections 4096; }
 http {
-    # canonical cvmfs access-log format: one glance answers "what class,
-    # was it a hit, which Stratum-1" per request; cache=fill lines ARE the
-    # WAN traffic.
+    # One-glance access log: class=hit/fill/reject, which Stratum-1 was used
     log_format cvmfs '$remote_addr [$time_local] "$request" $status '
                      '$body_bytes_sent $request_time '
                      'class=$cvmfs_class cache=$cvmfs_cache origin=$cvmfs_origin';
     access_log /var/log/nginx-xrootd/cvmfs_access.log cvmfs;
 
-    # --- connection durability: keep every WN connection alive ------------
-    # Kernel keepalive (60s idle, 10s probes, 6 tries) keeps NAT/firewall
-    # state warm and lets the CACHE detect dead peers — the client never
-    # experiences an unexplained close and never marks this proxy bad.
+    # Keep every WN connection alive — prevents spurious proxy-failure marks
     keepalive_timeout  3600s;
     keepalive_requests 1000000;
     send_timeout          300s;
@@ -62,54 +87,59 @@ http {
     server {
         listen 3128 so_keepalive=60s:10s:6 backlog=2048;
         location / {
-            brix_cache_store posix:/srv/cvmfs-cache;
-            brix_cache_verify cvmfs-cas;
             brix_cvmfs on;
-            brix_cvmfs_manifest_ttl 61;
-            brix_cvmfs_negative_ttl 10;
+            brix_cache_store posix:/srv/cvmfs-cache;
             brix_cvmfs_quarantine_dir /srv/cvmfs-quarantine;
 
-            # --- never-drop semantics -----------------------------------
-            # Hold a request up to 25s while retrying the Stratum-1s with
-            # backoff; on expiry answer 504+Retry-After on the kept-alive
-            # connection (the client's retry coalesces on the running fill).
-            # MUST stay below the WN's CVMFS_TIMEOUT (see client tuning).
-            brix_cvmfs_client_hold   25;
-            brix_cvmfs_fill_max_life 300;
-
-            # --- upstream selection: static | geo | rtt ------------------
-            # rtt = probe connect latency every 60s, prefer the fastest;
-            # geo = rank by great-circle distance from 'here';
-            # static = the order of the origin list.
-            brix_cvmfs_origin_select rtt;
-            brix_cvmfs_rtt_interval  60;
-            # geo alternative:
+            # geo alternative to default rtt selection:
             #   brix_cvmfs_origin_select geo;
             #   brix_cvmfs_here 55.95:-3.19;   # this cache (Edinburgh)
             #   brix_cvmfs_origin_coords cvmfs-stratum-one.cern.ch 46.23:6.05;
             #   brix_cvmfs_origin_coords cvmfs-s1fnal.opensciencegrid.org 41.85:-88.31;
 
-            # every Stratum-1 host your experiments use — nothing else is proxied:
-            brix_cvmfs_upstream_allow cvmfs-stratum-one.cern.ch;
-            brix_cvmfs_upstream_allow cvmfs-s1fnal.opensciencegrid.org;
-            brix_cvmfs_upstream_allow cvmfs-stratum-one.ihep.ac.cn;
-            brix_cvmfs_upstream_max 8;
+            brix_cvmfs_upstream_allow cvmfs-stratum-one.cern.ch
+                                      cvmfs-s1fnal.opensciencegrid.org
+                                      cvmfs-stratum-one.ihep.ac.cn;
         }
     }
     server {   # metrics + health, firewalled to the monitoring host
         listen 9100;
         location /metrics { brix_metrics on; }
-        location /healthz { brix_health on; }
+        location /healthz  { brix_health on; }
     }
 }
 ```
 
-Reverse mode (optional second listener): same location shape plus
-`brix_storage_backend "http://s1a|http://s1b";` (pipe-separated,
-`CVMFS_SERVER_URL` order; reads fail over by measured health, writes and
-the passthroughs use the first) and clients use
-`CVMFS_SERVER_URL=http://cache:8000/cvmfs/@fqrn@` with
-`CVMFS_HTTP_PROXY=DIRECT`.
+### Default values (what the minimal config already gives you)
+
+| Directive | Default | Why it is a good default |
+|---|---|---|
+| `brix_cache_verify` | `cvmfs-cas` | Every fill is verified against its SHA-1 content address; corrupted transfers are quarantined rather than cached |
+| `brix_cvmfs_origin_select` | `rtt` | Probes connect latency every 60 s and routes fills to the fastest responding Stratum-1 |
+| `brix_cvmfs_manifest_ttl` | `61 s` | Slightly above the CVMFS client's default recheck interval to avoid redundant upstream round-trips |
+| `brix_cvmfs_negative_ttl` | `10 s` | Absent-object answers cached briefly to reduce upstream pressure from scanner clients |
+| `brix_cvmfs_client_hold` | `25 s` | Holds the client connection while retrying origins; must be below `CVMFS_TIMEOUT` on the WN |
+| `brix_cvmfs_fill_max_life` | `300 s` | Fill is abandoned and restarted if no bytes arrive within 5 minutes |
+| `brix_cvmfs_upstream_max` | `8` | Maximum concurrent fill connections to any one Stratum-1 |
+| `brix_cvmfs_origin_connect_timeout` | `2 s` | Per-attempt TCP connect timeout |
+| `brix_cvmfs_origin_stall_timeout` | `4 s` | Seconds at the low-speed threshold before a stall is declared |
+| `brix_cvmfs_rtt_interval` | `60 s` | RTT probe cadence |
+| `brix_cache_evict_at` | `90 %` | Begin eviction when the cache volume reaches 90% |
+| `brix_cache_evict_to` | `80 %` | Eviction target (unlink oldest files until volume drops to 80%) |
+
+### Reverse mode
+
+Point `brix_storage_backend` at your Stratum-1 origin set instead of using an
+upstream allow-list. Clients configure `CVMFS_SERVER_URL` to point at this cache
+with `CVMFS_HTTP_PROXY=DIRECT`.
+
+```nginx
+location / {
+    brix_cvmfs on;
+    brix_cache_store posix:/srv/cvmfs-cache;
+    brix_storage_backend "http://s1a.example.org:8000|http://s1b.example.org:8000";
+}
+```
 
 ## Client configuration
 
