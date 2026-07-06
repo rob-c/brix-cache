@@ -172,6 +172,9 @@ def make_ca(dn: str, *, key_bits: int = 2048, not_after_days: int = 3650,
             path_length: int | None = None, digest=None,
             key_type: str = "rsa", curve: str = "P-256",
             digest_name: str = "sha256") -> Cert:
+    if digest_name in ("sha1", "md5") and key_type == "rsa":
+        return _make_ca_openssl(dn, key_bits=key_bits, digest_name=digest_name,
+                                not_after_days=not_after_days)
     key = _make_key(key_type, bits=key_bits, curve=curve)
     digest = digest or _digest(digest_name)
     b = (
@@ -197,6 +200,60 @@ def make_ca(dn: str, *, key_bits: int = 2048, not_after_days: int = 3650,
     return Cert(b.sign(key, digest), key)
 
 
+def _make_eec_openssl(issuer: Cert, dn: str, *, key_bits: int,
+                      digest_name: str, not_after_days: int,
+                      not_before_days: int, ca_true: bool = False) -> Cert:
+    """Build a leaf (or intermediate CA if ca_true) via the openssl CLI for
+    parameters the cryptography signer refuses (MD5/SHA-1 signatures, sub-1024-
+    bit keys).  Loads the result back into a Cert for the normal cred path."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        (td / "ca.pem").write_bytes(issuer.pem)
+        (td / "ca.key").write_bytes(issuer.key_pem)
+        subprocess.run(["openssl", "genrsa", "-out", str(td / "leaf.key"),
+                        str(key_bits)], check=True, capture_output=True)
+        subprocess.run(["openssl", "req", "-new", "-key", str(td / "leaf.key"),
+                        "-subj", dn, "-out", str(td / "leaf.csr")],
+                       check=True, capture_output=True)
+        cmd = ["openssl", "x509", "-req", "-in", str(td / "leaf.csr"),
+               "-CA", str(td / "ca.pem"), "-CAkey", str(td / "ca.key"),
+               "-CAcreateserial", f"-{digest_name}", "-days", "3650",
+               "-out", str(td / "leaf.pem")]
+        if ca_true:
+            ext = td / "ext.cnf"
+            ext.write_text("basicConstraints=critical,CA:TRUE\n"
+                           "keyUsage=critical,keyCertSign,cRLSign\n")
+            cmd += ["-extfile", str(ext)]
+        subprocess.run(cmd, check=True, capture_output=True)
+        cert = x509.load_pem_x509_certificate((td / "leaf.pem").read_bytes())
+        key = serialization.load_pem_private_key(
+            (td / "leaf.key").read_bytes(), password=None)
+    return Cert(cert, key)
+
+
+def _make_ca_openssl(dn: str, *, key_bits: int, digest_name: str,
+                     not_after_days: int) -> Cert:
+    """Self-signed CA via openssl for a weak digest cryptography won't sign."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        subprocess.run(["openssl", "genrsa", "-out", str(td / "ca.key"),
+                        str(key_bits)], check=True, capture_output=True)
+        subprocess.run(
+            ["openssl", "req", "-x509", "-new", "-key", str(td / "ca.key"),
+             "-subj", dn, f"-{digest_name}", "-days", str(max(not_after_days, 1)),
+             "-out", str(td / "ca.pem"),
+             "-addext", "basicConstraints=critical,CA:TRUE",
+             "-addext", "keyUsage=critical,keyCertSign,cRLSign",
+             "-addext", "subjectKeyIdentifier=hash"],
+            check=True, capture_output=True)
+        cert = x509.load_pem_x509_certificate((td / "ca.pem").read_bytes())
+        key = serialization.load_pem_private_key(
+            (td / "ca.key").read_bytes(), password=None)
+    return Cert(cert, key)
+
+
 def make_eec(issuer: Cert, dn=None, *, subject_name=None, key_bits: int = 2048,
              not_after_days: int = 3650, not_before_days: int = -1,
              ca_true: bool = False, keycert_sign: bool = False,
@@ -212,6 +269,17 @@ def make_eec(issuer: Cert, dn=None, *, subject_name=None, key_bits: int = 2048,
     encodings). extra_ext is a list of (x509.ExtensionType, critical) OR
     (ObjectIdentifier, der_bytes, critical) tuples.
     """
+    # cryptography's signer rejects MD5/SHA-1 and sub-1024-bit RSA; for those
+    # weak-crypto conformance cases fall back to the openssl CLI.
+    if (digest_name in ("sha1", "md5") or (key_type == "rsa" and key_bits < 1024)) \
+            and subject_name is None and eku is None and extra_ext is None \
+            and name_constraints is None:
+        return _make_eec_openssl(issuer, dn, key_bits=key_bits,
+                                 digest_name=digest_name,
+                                 not_after_days=not_after_days,
+                                 not_before_days=not_before_days,
+                                 ca_true=ca_true)
+
     key = _make_key(key_type, bits=key_bits, curve=curve)
     digest = digest or _digest(digest_name)
     subj = subject_name if subject_name is not None else _name(dn)

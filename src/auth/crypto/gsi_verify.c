@@ -106,6 +106,44 @@ brix_gsi_enforce_signing_policy(X509_STORE_CTX *vctx, ngx_log_t *log)
 }
 
 /*
+ * WHAT: hold every cert in the verified chain to the per-cert conformance
+ *       policy, reject invalid proxyCertInfo, and (client_purpose) reject a
+ *       leaf that is not usable for client authentication.
+ * HOW:  delegate to the ngx-free brix_cert_policy_violation / brix_proxy_pci_ok
+ *       / brix_leaf_purpose_violation; log and map to NGX_OK/NGX_ERROR.
+ */
+static ngx_int_t
+brix_gsi_enforce_cert_policy(X509_STORE_CTX *vctx, X509 *leaf, ngx_log_t *log,
+                             int client_purpose)
+{
+    STACK_OF(X509) *chain = X509_STORE_CTX_get0_chain(vctx);
+    int             n, i;
+
+    n = chain ? sk_X509_num(chain) : 0;
+    for (i = 0; i < n; i++) {
+        if (brix_cert_policy_violation(sk_X509_value(chain, i))) {
+            ngx_log_error(NGX_LOG_WARN, log, 0,
+                "brix: GSI cert rejected: weak key/algorithm, malformed serial, "
+                "or invalid DN in the chain (RFC 5280 / IGTF profile)");
+            return NGX_ERROR;
+        }
+    }
+    if (!brix_proxy_pci_ok(chain)) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "brix: GSI proxy rejected: proxyCertInfo not critical or unknown "
+            "policy language (RFC 3820 §3.1/§3.2)");
+        return NGX_ERROR;
+    }
+    if (client_purpose && brix_leaf_purpose_violation(leaf)) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "brix: client cert rejected: extendedKeyUsage lacks clientAuth or "
+            "keyUsage lacks digitalSignature (RFC 5280 §4.2.1.12/§4.2.1.3)");
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/*
  * WHAT: Verify an x.509 proxy certificate chain against a CA trust store.
  *
  * HOW (step by step):
@@ -125,7 +163,8 @@ ngx_int_t
 brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
     X509 *leaf, STACK_OF(X509) *untrusted,
     ngx_uint_t verify_depth,
-    brix_gsi_verify_result_t *res)
+    brix_gsi_verify_result_t *res,
+    int client_purpose)
 {
     X509_STORE_CTX *vctx;
     char           *dn_str;
@@ -147,7 +186,11 @@ brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
         return NGX_ERROR;
     }
 
-    X509_STORE_CTX_set_flags(vctx, X509_V_FLAG_ALLOW_PROXY_CERTS);
+    /* RFC 3820 proxy chains are accepted only on the GSI path; the WebDAV/TLS
+     * client-cert path (client_purpose) does not accept proxies. */
+    if (!client_purpose) {
+        X509_STORE_CTX_set_flags(vctx, X509_V_FLAG_ALLOW_PROXY_CERTS);
+    }
 
     if (verify_depth > 0) {
         X509_STORE_CTX_set_depth(vctx, (int) verify_depth);
@@ -172,7 +215,9 @@ brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
     }
 
     if (brix_gsi_enforce_signing_policy(vctx, log) != NGX_OK
-        || brix_gsi_enforce_proxy_monotonicity(vctx, log) != NGX_OK)
+        || brix_gsi_enforce_proxy_monotonicity(vctx, log) != NGX_OK
+        || brix_gsi_enforce_cert_policy(vctx, leaf, log, client_purpose)
+           != NGX_OK)
     {
         X509_STORE_CTX_free(vctx);
         return NGX_ERROR;

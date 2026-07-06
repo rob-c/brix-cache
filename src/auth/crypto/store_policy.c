@@ -6,6 +6,8 @@
  */
 #include "auth/crypto/store_policy.h"
 
+#include <openssl/bn.h>
+#include <openssl/evp.h>
 #include <openssl/objects.h>
 #include <openssl/x509v3.h>
 
@@ -372,6 +374,162 @@ brix_proxy_chain_ok(STACK_OF(X509) *chain)
     return 1;
 }
 
+/* -- per-cert conformance policy ------------------------------------------ */
+
+/* Recognised RFC 3820 / Globus proxy policy-language OIDs. */
+static const char *BRIX_PX_OID_IMPERSONATION = "1.3.6.1.5.5.7.21.1";
+static const char *BRIX_PX_OID_INDEPENDENT   = "1.3.6.1.5.5.7.21.2";
+/* BRIX_PX_LIMITED_OID (Globus limited) is defined above. */
+
+static int
+brix_dn_has_control_bytes(X509_NAME *nm)
+{
+    int i, n = X509_NAME_entry_count(nm);
+    for (i = 0; i < n; i++) {
+        X509_NAME_ENTRY     *e = X509_NAME_get_entry(nm, i);
+        ASN1_STRING         *v = X509_NAME_ENTRY_get_data(e);
+        const unsigned char *s = ASN1_STRING_get0_data(v);
+        int                  len = ASN1_STRING_length(v);
+        int                  j;
+        for (j = 0; j < len; j++) {
+            if (s[j] < 0x20 || s[j] == 0x7f) {
+                return 1;   /* embedded control or NUL byte */
+            }
+        }
+    }
+    return 0;
+}
+
+int
+brix_cert_policy_violation(X509 *cert)
+{
+    EVP_PKEY *pk;
+    int       is_proxy = (X509_get_extension_flags(cert) & EXFLAG_PROXY) != 0;
+
+    /* Key strength (IGTF: RSA >= 2048, EC >= 256). */
+    pk = X509_get0_pubkey(cert);
+    if (pk != NULL) {
+        int id = EVP_PKEY_base_id(pk);
+        int bits = EVP_PKEY_bits(pk);
+        if ((id == EVP_PKEY_RSA || id == EVP_PKEY_RSA2 || id == EVP_PKEY_DSA)
+            && bits < 2048) {
+            return 1;
+        }
+        if (id == EVP_PKEY_EC && bits < 256) {
+            return 1;
+        }
+    }
+
+    /* Signature algorithm: reject MD5 and SHA-1 based signatures. */
+    {
+        int sig_nid = X509_get_signature_nid(cert);
+        int md_nid = NID_undef, pk_nid = NID_undef;
+        if (OBJ_find_sigid_algs(sig_nid, &md_nid, &pk_nid)) {
+            if (md_nid == NID_md5 || md_nid == NID_sha1 || md_nid == NID_md2
+                || md_nid == NID_md4) {
+                return 1;
+            }
+        }
+    }
+
+    /* Serial number: positive and <= 20 octets (RFC 5280 §4.1.2.2).  Proxies
+     * are exempt from the ceiling — grid proxies use large derived serials. */
+    {
+        const ASN1_INTEGER *sn = X509_get0_serialNumber(cert);
+        BIGNUM             *bn = ASN1_INTEGER_to_BN(sn, NULL);
+        if (bn != NULL) {
+            int bad = BN_is_zero(bn) || BN_is_negative(bn)
+                      || (!is_proxy && BN_num_bytes(bn) > 20);
+            BN_free(bn);
+            if (bad) {
+                return 1;
+            }
+        }
+    }
+
+    /* DN sanity: no embedded control/NUL bytes (RFC 5280 §4.1.2.6). */
+    if (brix_dn_has_control_bytes(X509_get_subject_name(cert))
+        || brix_dn_has_control_bytes(X509_get_issuer_name(cert))) {
+        return 1;
+    }
+
+    return 0;
+}
+
+int
+brix_leaf_purpose_violation(X509 *leaf)
+{
+    /* extendedKeyUsage: if present, must allow client auth. */
+    EXTENDED_KEY_USAGE *eku = X509_get_ext_d2i(leaf, NID_ext_key_usage, NULL,
+                                               NULL);
+    if (eku != NULL) {
+        int i, ok = 0;
+        for (i = 0; i < sk_ASN1_OBJECT_num(eku); i++) {
+            int nid = OBJ_obj2nid(sk_ASN1_OBJECT_value(eku, i));
+            if (nid == NID_client_auth || nid == NID_anyExtendedKeyUsage) {
+                ok = 1;
+                break;
+            }
+        }
+        sk_ASN1_OBJECT_pop_free(eku, ASN1_OBJECT_free);
+        if (!ok) {
+            return 1;
+        }
+    }
+
+    /* keyUsage: if present, must assert digitalSignature (RSA/ECDSA client
+     * auth) OR keyAgreement (fixed-ECDH client auth). */
+    {
+        uint32_t flags = X509_get_key_usage(leaf);   /* UINT32_MAX if absent */
+        if (flags != UINT32_MAX
+            && !(flags & (KU_DIGITAL_SIGNATURE | KU_KEY_AGREEMENT))) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int
+brix_proxy_pci_ok(STACK_OF(X509) *chain)
+{
+    int n, i;
+
+    if (chain == NULL) {
+        return 1;
+    }
+    n = sk_X509_num(chain);
+    for (i = 0; i < n; i++) {
+        X509 *cert = sk_X509_value(chain, i);
+        int   loc = X509_get_ext_by_NID(cert, NID_proxyCertInfo, -1);
+        X509_EXTENSION *ext;
+        PROXY_CERT_INFO_EXTENSION *pci;
+        char oid[128];
+        int  ok_oid;
+
+        if (loc < 0) {
+            continue;   /* no proxyCertInfo — legacy/EEC handled elsewhere */
+        }
+        ext = X509_get_ext(cert, loc);
+        if (!X509_EXTENSION_get_critical(ext)) {
+            return 0;   /* proxyCertInfo present but not critical (RFC 3820 §3.1) */
+        }
+        pci = X509_get_ext_d2i(cert, NID_proxyCertInfo, NULL, NULL);
+        if (pci == NULL) {
+            return 0;   /* malformed proxyCertInfo */
+        }
+        oid[0] = '\0';
+        OBJ_obj2txt(oid, sizeof(oid), pci->proxyPolicy->policyLanguage, 1);
+        PROXY_CERT_INFO_EXTENSION_free(pci);
+        ok_oid = (strcmp(oid, BRIX_PX_OID_IMPERSONATION) == 0)
+                 || (strcmp(oid, BRIX_PX_OID_INDEPENDENT) == 0)
+                 || (strcmp(oid, BRIX_PX_LIMITED_OID) == 0);
+        if (!ok_oid) {
+            return 0;   /* unrecognised proxy policy language (RFC 3820 §3.2) */
+        }
+    }
+    return 1;
+}
+
 /* -- store configuration (shared by production + oracle) ------------------ */
 
 /*
@@ -398,9 +556,16 @@ brix_sp_proxy_check_issued(X509_STORE_CTX *ctx, X509 *subject, X509 *issuer)
     if (rv == X509_V_OK) {
         return 1;
     }
-    if ((X509_get_extension_flags(subject) & EXFLAG_PROXY)
-        && (rv == X509_V_ERR_AKID_SKID_MISMATCH
-            || rv == X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH))
+    /*
+     * The authorityKeyIdentifier is advisory (RFC 5280 §4.2.1.1): a mismatch
+     * must not prevent selecting a name-matching issuer.  Accept the AKID/SKID
+     * and AKID issuer-serial objections for ANY subject (not just proxies) —
+     * the issuer's signature over the subject is still verified afterwards by
+     * X509_verify_cert, so this relaxes issuer *selection*, never trust.  This
+     * also covers delegated grid proxies whose copied AKID points at the CA.
+     */
+    if (rv == X509_V_ERR_AKID_SKID_MISMATCH
+        || rv == X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH)
     {
         return 1;
     }
@@ -441,9 +606,9 @@ brix_store_configure(X509_STORE *store, const char *cadir,
     if (extra_flags != 0) {
         X509_STORE_set_flags(store, extra_flags);
     }
-    if (extra_flags & X509_V_FLAG_ALLOW_PROXY_CERTS) {
-        X509_STORE_set_check_issued(store, brix_sp_proxy_check_issued);
-    }
+    /* AKID is advisory: tolerate an AKID mismatch when selecting a name-matching
+     * issuer on every store (webdav and GSI); the signature is still verified. */
+    X509_STORE_set_check_issued(store, brix_sp_proxy_check_issued);
 
     if (crl_mode == BRIX_CRL_MODE_REQUIRE
         || (crl_mode == BRIX_CRL_MODE_TRY && crl_count > 0))

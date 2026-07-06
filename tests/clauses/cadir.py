@@ -299,10 +299,13 @@ _add("IGTF store (bundle)",
 
 
 def _bundle_wrong_chain(ctx):
-    ca_a = ctx.ca(to_bundle=True)
-    ca_b = ctx.ca(to_bundle=True)
+    # The true issuer ca_a is NOT in the bundle; only ca_b is trusted, so the
+    # EEC has no trusted issuer and must be rejected.  (Placing ca_a too would
+    # make it a trust anchor and the EEC would correctly verify.)
+    ca_a = ctx.ca(place=False)
+    ctx.ca(to_bundle=True)                # ca_b: the only trusted bundle CA
     eec = make_eec(ca_a, leaf_dn(ctx))
-    return ctx.cred([eec, ca_b], eec)     # wrong CA presented in the chain
+    return ctx.cred([eec, ca_a], eec)
 
 
 _add("RFC5280 §6.1",
@@ -392,10 +395,13 @@ _add("RFC5280 §6.1",
 
 
 def _wrong_ca_in_chain(ctx):
-    ca_a = ctx.ca()
-    ca_b = ctx.ca()
+    # ca_a signs the EEC but is NOT placed in the store; only the unrelated ca_b
+    # is a trust anchor.  The EEC's real issuer is untrusted → reject.  (If ca_a
+    # were placed it would be trusted and the EEC would correctly verify.)
+    ca_a = ctx.ca(place=False)
+    ctx.ca()                            # ca_b: an unrelated trust anchor
     eec = make_eec(ca_a, leaf_dn(ctx))
-    return ctx.cred([eec, ca_b], eec)   # A signed the EEC but B is presented
+    return ctx.cred([eec, ca_a], eec)
 
 
 _add("RFC5280 §6.1",

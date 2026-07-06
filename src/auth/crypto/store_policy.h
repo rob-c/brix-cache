@@ -106,6 +106,35 @@ typedef enum { BRIX_PX_NONE, BRIX_PX_FULL, BRIX_PX_LIMITED } brix_px_kind_t;
 brix_px_kind_t brix_px_classify(X509 *cert);
 
 /*
+ * Per-certificate WLCG/IGTF conformance policy applied to every cert in a
+ * verified chain: minimum key strength (RSA >= 2048, EC >= 256), no weak
+ * signature algorithm (MD5/SHA-1), a well-formed serial number (positive,
+ * <= 20 octets, RFC 5280 §4.1.2.2), and no embedded control/NUL bytes in the
+ * subject/issuer DN (RFC 5280 §4.1.2.6).  Returns 1 when the cert violates
+ * policy, 0 when it is clean.  Proxy certificates are exempt from the serial
+ * ceiling (grid proxies routinely use large timestamp-derived serials).
+ */
+int brix_cert_policy_violation(X509 *cert);
+
+/*
+ * Leaf end-entity purpose check for client authentication: if the leaf carries
+ * an extendedKeyUsage it must include clientAuth or anyExtendedKeyUsage
+ * (RFC 5280 §4.2.1.12; absent EKU = any purpose = ok), and if it carries a
+ * keyUsage it must assert digitalSignature (§4.2.1.3).  Returns 1 on violation,
+ * 0 when the leaf is usable as a client credential.  Applied only to the leaf,
+ * and only on the WebDAV/TLS client-cert path (not to GSI proxy leaves).
+ */
+int brix_leaf_purpose_violation(X509 *leaf);
+
+/*
+ * Reject a proxy chain that carries an invalid proxyCertInfo: a proxy-shaped
+ * cert (subject = issuer + one CN) whose proxyCertInfo is non-critical, absent
+ * where required, or uses an unrecognised policy-language OID.  Returns 1 if
+ * the chain is acceptable, 0 on an invalid-proxy violation.
+ */
+int brix_proxy_pci_ok(STACK_OF(X509) *chain);
+
+/*
  * Enforce that no full proxy is issued beneath a limited proxy (RFC 3820 §3.8).
  * chain is the verified chain leaf..root (as X509_STORE_CTX_get0_chain yields).
  * Returns 1 when the delegation is monotonic, 0 on an escalation.

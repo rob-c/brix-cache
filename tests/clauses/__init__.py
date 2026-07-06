@@ -28,3 +28,7 @@ def _load():
 
 
 ALL_CLAUSES = _load()
+
+# Apply the deliberate expected-verdict corrections (auditable divergence table).
+from clauses import _decisions   # noqa: E402
+_decisions.apply(ALL_CLAUSES)

@@ -37,6 +37,15 @@ typedef struct {
  *   untrusted    — STACK_OF(X509) of intermediate certs, or NULL if none
  *   verify_depth — maximum proxy chain depth (0 = use OpenSSL default)
  *   res          — caller-allocated output; res->dn_buf set on NGX_OK
+ *   client_purpose — 1 for the WebDAV/TLS client-cert path: proxy chains are
+ *                  NOT accepted and the leaf must be usable for client auth
+ *                  (clientAuth/anyEKU + digitalSignature/keyAgreement).  0 for
+ *                  the root:// GSI path: RFC 3820 proxy chains are accepted.
+ *
+ * In both modes every cert in the verified chain is held to the per-cert
+ * conformance policy (key strength, no MD5/SHA-1, well-formed serial, no
+ * control bytes in the DN) and any proxyCertInfo must be critical with a
+ * recognised policy OID.
  *
  * Returns NGX_OK when the chain is valid; res->dn_buf is then
  * NUL-terminated and holds the subject DN of the verified leaf.
@@ -50,6 +59,7 @@ ngx_int_t brix_gsi_verify_chain(ngx_log_t         *log,
                                    X509              *leaf,
                                    STACK_OF(X509)    *untrusted,
                                    ngx_uint_t         verify_depth,
-                                   brix_gsi_verify_result_t *res);
+                                   brix_gsi_verify_result_t *res,
+                                   int                client_purpose);
 
 #endif /* BRIX_CRYPTO_GSI_VERIFY_H */
