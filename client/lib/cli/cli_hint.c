@@ -12,18 +12,21 @@
  *       Callers own the "hint: " / "note: " prefix; this module prints verbatim
  *       so there is no sanitization here — callers pass pre-sanitized strings.
  *       brix_hint_sanitize_url() sanitizes a URL string for safe terminal output
- *       (replaces control bytes with '?' and caps at 128 bytes).
+ *       (escapes control / non-printable bytes as \xNN, caps input at 128 bytes).
  */
 #include "cli/cli_hint.h"
 #include "brix.h"           /* brix_url, brix_status, XRDC_EAUTH */
 
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-/* Maximum URL length accepted by brix_hint_sanitize_url (spec WS-7). */
+/* Maximum URL INPUT bytes considered by brix_hint_sanitize_url (spec WS-7).
+ * Worst case every input byte escapes to "\xNN" (4 output bytes), so callers
+ * size the output buffer HINT_URL_MAX*4 + 1. */
 #define HINT_URL_MAX 128
 
 /* Maximum distinct keys tracked by brix_cli_hint_once per process. */
@@ -127,46 +130,76 @@ void
 brix_hint_sanitize_url(const char *url_str, char *out, size_t outsz)
 {
     /*
-     * WHAT: copy url_str into out, replacing control bytes with '?' and
-     *       hard-capping at HINT_URL_MAX bytes (+ NUL).
+     * WHAT: copy up to HINT_URL_MAX input bytes of url_str into out, escaping
+     *       every byte < 0x20 or > 0x7e as "\xNN" (lowercase hex).
      * WHY:  spec WS-7 / WS-3: URLs in hint output must not carry terminal
      *       escape sequences (a hostile URL like "root://\x1b[31m…" could
      *       inject ANSI escapes into the terminal if printed verbatim).
-     * HOW:  copy byte-by-byte; any byte < 0x20 or >= 0x7f becomes '?'; stop
-     *       at HINT_URL_MAX or NUL, whichever comes first.
+     *       Escaping (rather than replacing) keeps the hostile bytes visible
+     *       to the user in a safe, greppable form.
+     * HOW:  byte-by-byte copy; printable ASCII (0x20–0x7e) passes through,
+     *       everything else emits 4 bytes "\xNN".  Stops at HINT_URL_MAX input
+     *       bytes, NUL, or when out has no room for the next token.  Callers
+     *       size out for the worst case: HINT_URL_MAX*4 + 1.
      */
-    size_t limit;
-    size_t i;
+    static const char hexdig[] = "0123456789abcdef";
+    size_t            i;
+    size_t            o = 0;
 
     if (out == NULL || outsz == 0) {
         return;
     }
-    limit = (outsz - 1) < HINT_URL_MAX ? (outsz - 1) : HINT_URL_MAX;
+    out[0] = '\0';
     if (url_str == NULL) {
-        out[0] = '\0';
         return;
     }
-    for (i = 0; i < limit && url_str[i] != '\0'; i++) {
+    for (i = 0; i < HINT_URL_MAX && url_str[i] != '\0'; i++) {
         unsigned char c = (unsigned char) url_str[i];
-        out[i] = (c < 0x20 || c >= 0x7f) ? '?' : (char) c;
+
+        if (c < 0x20 || c > 0x7e) {
+            if (o + 4 >= outsz) {
+                break;      /* no room for a full \xNN token + NUL */
+            }
+            out[o++] = '\\';
+            out[o++] = 'x';
+            out[o++] = hexdig[c >> 4];
+            out[o++] = hexdig[c & 0x0f];
+        } else {
+            if (o + 1 >= outsz) {
+                break;      /* no room for the byte + NUL */
+            }
+            out[o++] = (char) c;
+        }
     }
-    out[i] = '\0';
+    out[o] = '\0';
 }
 
 void
-brix_hint_url_double_slash(const brix_url *url)
+brix_hint_url_double_slash(const brix_status *st, const brix_url *url)
 {
     /*
-     * WHAT: emit the double-slash convention hint once per process when the
-     *       parsed URL had a single slash between authority and path.
+     * WHAT: emit the double-slash convention hint once per process when a
+     *       NOT-FOUND-class failure occurred on a URL that had a single slash
+     *       between authority and path.
      * WHY:  spec WS-3: users who type root://host/path instead of
      *       root://host//path see a not-found error with no indication of the
      *       conventional double-slash requirement; this hint fixes that gap.
-     * HOW:  check url->single_slash_path (set by url.c when collapse did NOT
-     *       fire); emit via brix_cli_hint_once so it fires at most once per
-     *       process across repeated failures (e.g. multi-file batches).
+     *       Gating on not-found matters: an auth failure or I/O error on a
+     *       single-slash URL is NOT caused by the missing slash, so hinting
+     *       there would mislead.
+     * HOW:  require url->single_slash_path (set by url.c when collapse did
+     *       NOT fire) AND a not-found-class status: kXR_NotFound covers both
+     *       the wire error and HTTP-404-mapped failures (webfile.c maps 404 →
+     *       kXR_NotFound); sys_errno==ENOENT covers locally-mapped misses.
+     *       Emit via brix_cli_hint_once so it fires at most once per process.
      */
-    if (url == NULL || !url->single_slash_path) {
+    int not_found;
+
+    if (st == NULL || url == NULL || !url->single_slash_path) {
+        return;
+    }
+    not_found = (st->kxr == kXR_NotFound || st->sys_errno == ENOENT);
+    if (!not_found) {
         return;
     }
     brix_cli_hint_once("url-double-slash",
@@ -180,14 +213,17 @@ brix_hint_doctor_referral(const brix_status *st, const char *url_str)
     /*
      * WHAT: emit a "diagnose with: xrddiag check <url>" hint once per process
      *       when a failure is auth-class (kXR_NotAuthorized / kXR_AuthFailed /
-     *       XRDC_EAUTH).
+     *       XRDC_EAUTH — all three live in the st->kxr field: the local
+     *       XRDC_E* sentinels are negative precisely so they can share the
+     *       field with the positive kXR_* wire codes).
      * WHY:  spec WS-7: auth failures are rarely self-diagnosable from the
      *       error message alone; xrddiag check exercises the full credential
      *       + auth handshake and reports the root cause.
-     * HOW:  check st->kxr for auth codes; sanitize url_str before printing;
-     *       use brix_cli_hint_once("doctor") to suppress repeats.
+     * HOW:  check st->kxr for auth codes; sanitize url_str (control bytes →
+     *       \xNN, 128-byte input cap) before printing; use
+     *       brix_cli_hint_once("doctor") to suppress repeats.
      */
-    char safe_url[HINT_URL_MAX + 1];
+    char safe_url[HINT_URL_MAX * 4 + 1];
     int  is_auth;
 
     if (st == NULL) {
