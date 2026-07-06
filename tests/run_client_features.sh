@@ -313,18 +313,20 @@ section_journal() {
 section_xrdfs_rm() {
   echo "== xrdfs rm -r =="
 
-  # Error: missing path must exit 50.
-  "$BIN/xrdfs" "$URL" rm 2>/dev/null
-  check "rm: no path exits 50" '[ "$?" -eq 50 ]'
-
-  # Security: rm -r / must exit 50 without a fleet (path guard fires before connect).
-  "$BIN/xrdfs" "$URL" rm -r / 2>/dev/null
-  check "rm -r /: exits 50 (export root guard)" '[ "$?" -eq 50 ]'
-
   if ! have_fleet; then
     echo "  SKIP fleet rm -r tests (no fleet at $URL)"
     return
   fi
+
+  # xrdfs one-shot connects before dispatch — exit-50 validation needs a live server
+  # Error: missing path must exit 50.
+  "$BIN/xrdfs" "$URL" rm 2>/dev/null
+  check "rm: no path exits 50" '[ "$?" -eq 50 ]'
+
+  # xrdfs one-shot connects before dispatch — exit-50 validation needs a live server
+  # Security: rm -r / must exit 50 (export root guard).
+  "$BIN/xrdfs" "$URL" rm -r / 2>/dev/null
+  check "rm -r /: exits 50 (export root guard)" '[ "$?" -eq 50 ]'
 
   local BASE="/tmp/cfeat-$$-rm"
 
@@ -414,17 +416,16 @@ section_xrdfs_json() {
 }
 
 section_cat_compress() {
-  echo "== cat -z (codec validation, always) =="
-
-  # Security: codec with injection chars must exit 50 without a fleet.
-  "$BIN/xrdfs" "$URL" cat -z 'gz&evil=1' /some/path 2>/dev/null
-  check "cat -z bad codec: exits 50" '[ "$?" -eq 50 ]'
-
-  echo "== cat -z (fleet) =="
+  echo "== cat -z (codec validation) =="
   if ! have_fleet; then
-    echo "  SKIP cat -z fleet tests (no fleet at $URL)"
+    echo "  SKIP cat -z tests (no fleet at $URL)"
     return
   fi
+
+  # xrdfs one-shot connects before dispatch — exit-50 validation needs a live server
+  # Security: codec with injection chars must exit 50.
+  "$BIN/xrdfs" "$URL" cat -z 'gz&evil=1' /some/path 2>/dev/null
+  check "cat -z bad codec: exits 50" '[ "$?" -eq 50 ]'
 
   local FPATH="/tmp/cfeat-$$-catz"
   # Seed a small file with known content.
