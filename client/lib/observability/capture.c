@@ -136,11 +136,20 @@ static uint32_t rd_u32(FILE *fp) {
     return (a << 24) | (b << 16) | (c << 8) | d;
 }
 
+/*
+ * brix_capture_replay — decode a .xrdcap file offline and print a human-readable log.
+ *
+ * WHAT: reads the magic header then a stream of M/F records, printing each to out.
+ * WHY:  offline decode lets engineers inspect captured sessions without a live server.
+ * HOW:  each inner read is bounds-checked; a premature EOF or corrupt record sets
+ *       truncated=1 so the caller gets a clean error rather than silent partial output.
+ *       This matters for the security test case: a truncated file must exit nonzero.
+ */
 int
 brix_capture_replay(const char *path, int verbose, FILE *out, brix_status *st)
 {
     FILE *fp = fopen(path, "rb");
-    int   type, frames = 0, metas = 0;
+    int   type, frames = 0, metas = 0, truncated = 0;
 
     if (fp == NULL) {
         brix_status_set(st, XRDC_EUSAGE, 0, "cannot open %s", path);
@@ -157,11 +166,18 @@ brix_capture_replay(const char *path, int verbose, FILE *out, brix_status *st)
             char     key[256];
             uint16_t vl;
             char    *val;
-            if (kl < 0 || fread(key, 1, (size_t) kl, fp) != (size_t) kl) { break; }
+            if (kl < 0 || fread(key, 1, (size_t) kl, fp) != (size_t) kl) {
+                truncated = 1;
+                break;
+            }
             key[kl] = '\0';
             vl = rd_u16(fp);
             val = (char *) malloc((size_t) vl + 1);
-            if (val == NULL || fread(val, 1, vl, fp) != vl) { free(val); break; }
+            if (val == NULL || fread(val, 1, vl, fp) != vl) {
+                free(val);
+                truncated = 1;
+                break;
+            }
             val[vl] = '\0';
             fprintf(out, "  %-10s %s\n", key, val);
             free(val);
@@ -172,9 +188,16 @@ brix_capture_replay(const char *path, int verbose, FILE *out, brix_status *st)
             uint16_t code = rd_u16(fp);
             uint32_t wlen = rd_u32(fp);
             uint8_t *w;
-            if (dir == EOF || isreq == EOF || wlen > XRDCAP_WIRE_MAX) { break; }
+            if (dir == EOF || isreq == EOF || wlen > XRDCAP_WIRE_MAX) {
+                truncated = 1;
+                break;
+            }
             w = (uint8_t *) malloc(wlen ? wlen : 1);
-            if (w == NULL || fread(w, 1, wlen, fp) != wlen) { free(w); break; }
+            if (w == NULL || fread(w, 1, wlen, fp) != wlen) {
+                free(w);
+                truncated = 1;
+                break;
+            }
             fprintf(out, "%c sid=%u %-14s wire=%u\n", dir, sid,
                     isreq ? brix_reqid_name(code) : brix_status_name(code), wlen);
             if (verbose >= 1) {
@@ -187,11 +210,16 @@ brix_capture_replay(const char *path, int verbose, FILE *out, brix_status *st)
             free(w);
             frames++;
         } else {
+            truncated = 1;   /* unknown record type = corrupted or truncated at boundary */
             break;
         }
     }
     fclose(fp);
     fprintf(out, "(%d frame(s), %d metadata record(s))\n", frames, metas);
+    if (truncated) {
+        brix_status_set(st, XRDC_EPROTO, 0, "%s: truncated or corrupted capture", path);
+        return -1;
+    }
     return 0;
 }
 

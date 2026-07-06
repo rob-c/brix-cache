@@ -3,6 +3,7 @@
  * Phase-38 split of xrddiag.c; behavior-identical.
  */
 #include "diag_internal.h"
+#include "cli/jsonout.h"
 
 
 /* Choose a remote regular file to operate on: if the URL carried an explicit
@@ -55,6 +56,15 @@ resolve_target(brix_conn *c, const brix_url *u, char *target, size_t tsz,
 
 /* topology — locate + redirect-loop convergence (+ optional /cluster) */
 
+/*
+ * do_topology — probe cluster topology at a live endpoint.
+ *
+ * WHAT: connects, runs kXR_locate + a redirect-convergence probe, then outputs
+ *       a human-readable report or (--json) a single JSON object.
+ * WHY:  JSON mode gives monitoring tools a structured, parseable topology snapshot.
+ * HOW:  probe outcomes accumulate in locals; human path is guarded by !a->json;
+ *       JSON emitted once at end — never partial, never on early connect error.
+ */
 int
 do_topology(const diag_args *a)
 {
@@ -63,6 +73,9 @@ do_topology(const diag_args *a)
     brix_status st;
     char        loc[4096];
     const char *qpath;
+    /* JSON-mode accumulators */
+    int  js_locate_ok = 0, js_redirect_ok = 0, js_fails = 0;
+    char js_locate_result[4096] = "";
 
     brix_status_clear(&st);
     if (brix_endpoint_parse(a->url, &u, &st) != 0) {
@@ -75,12 +88,21 @@ do_topology(const diag_args *a)
     }
 
     qpath = (u.path[0] != '\0') ? u.path : "/";
-    printf("Topology of %s:%d\n", u.host, u.port);
+    if (!a->json) {
+        printf("Topology of %s:%d\n", u.host, u.port);
+    }
 
     if (brix_locate(&c, qpath, loc, sizeof(loc), &st) == 0) {
-        probe("locate", loc[0] != '\0', "%s -> %s", qpath, loc[0] ? loc : "(empty)");
+        js_locate_ok = (loc[0] != '\0');
+        snprintf(js_locate_result, sizeof(js_locate_result), "%s", loc[0] ? loc : "");
+        if (!js_locate_ok) { js_fails++; }
+        if (!a->json) {
+            probe("locate", loc[0] != '\0', "%s -> %s", qpath, loc[0] ? loc : "(empty)");
+        }
     } else {
-        probe("locate", 0, "%s", st.msg);
+        js_locate_ok = 0;
+        js_fails++;
+        if (!a->json) { probe("locate", 0, "%s", st.msg); }
     }
 
     /* redirect-loop convergence: a nonexistent path must resolve to NotFound,
@@ -90,30 +112,50 @@ do_topology(const diag_args *a)
         brix_status   nst;
         int           rc;
         brix_status_clear(&nst);
-        rc = brix_stat(&c, "/nonexistent-xrddiag-probe-path", &s, &nst);
-        probe("redirect-convergence", rc != 0 && nst.kxr == kXR_NotFound,
-              "nonexistent path -> %s", rc != 0 ? brix_kxr_name(nst.kxr) : "SERVED?!");
+        rc               = brix_stat(&c, "/nonexistent-xrddiag-probe-path", &s, &nst);
+        js_redirect_ok   = (rc != 0 && nst.kxr == kXR_NotFound);
+        if (!js_redirect_ok) { js_fails++; }
+        if (!a->json) {
+            probe("redirect-convergence", js_redirect_ok,
+                  "nonexistent path -> %s", rc != 0 ? brix_kxr_name(nst.kxr) : "SERVED?!");
+        }
     }
 
-    if (a->cluster_url != NULL) {
-        brix_url    cu;
-        brix_status cst;
-        char       *body = malloc(1u << 20);
-        int         http = 0;
-        brix_status_clear(&cst);
-        if (body != NULL && brix_endpoint_parse(a->cluster_url, &cu, &cst) == 0 &&
-            brix_http_get(cu.host, cu.port, cu.path[0] ? cu.path : "/", 5000,
-                          &http, body, 1u << 20, NULL, &cst) == 0) {
-            printf("  /cluster (HTTP %d):\n%s\n", http, body);
+    if (!a->json) {
+        if (a->cluster_url != NULL) {
+            brix_url    cu;
+            brix_status cst;
+            char       *body = malloc(1u << 20);
+            int         http = 0;
+            brix_status_clear(&cst);
+            if (body != NULL && brix_endpoint_parse(a->cluster_url, &cu, &cst) == 0 &&
+                brix_http_get(cu.host, cu.port, cu.path[0] ? cu.path : "/", 5000,
+                              &http, body, 1u << 20, NULL, &cst) == 0) {
+                printf("  /cluster (HTTP %d):\n%s\n", http, body);
+            } else {
+                note("cluster-json", "unavailable: %s", cst.msg);
+            }
+            free(body);
         } else {
-            note("cluster-json", "unavailable: %s", cst.msg);
+            note("cluster-json", "pass --cluster-url http://host:port/brix/api/v1/cluster");
         }
-        free(body);
-    } else {
-        note("cluster-json", "pass --cluster-url http://host:port/brix/api/v1/cluster");
     }
 
     brix_close(&c);
+
+    if (a->json) {
+        printf("{");
+        brix_json_kv_str(stdout,  "url",                    a->url,           1);
+        brix_json_kv_str(stdout,  "host",                   u.host,           1);
+        brix_json_kv_ll(stdout,   "port",          (long long) u.port,        1);
+        brix_json_kv_bool(stdout, "locate_ok",              js_locate_ok,     1);
+        brix_json_kv_str(stdout,  "locate_result",          js_locate_result, 1);
+        brix_json_kv_bool(stdout, "redirect_convergence_ok", js_redirect_ok,  1);
+        brix_json_kv_ll(stdout,   "failures",      (long long) js_fails,      0);
+        printf("}\n");
+        return js_fails ? 1 : 0;
+    }
+
     return g_fails ? 1 : 0;
 }
 

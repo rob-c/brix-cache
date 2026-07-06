@@ -571,6 +571,66 @@ section_cksum_tree() {
   "$BIN/xrdfs" "$URL" rm -r "$RDIR" >/dev/null 2>&1 || true
 }
 
+section_diag_json() {
+  echo "== xrddiag --json =="
+
+  # --- Replay fixture tests (no fleet needed: pure file decode) ---
+
+  # Build a valid .xrdcap fixture with one M record + one F record.
+  # Layout from capture.c:
+  #   magic  : b"XRDCAP1\n"
+  #   M record: 'M' klen:1 key[klen] vlen:2BE val[vlen]
+  #   F record: 'F' dir:1 isreq:1 sid:2BE code:2BE wirelen:4BE wire[wirelen]
+  python3 - "$WORK/fix.xrdcap" <<'EOF'
+import struct, sys
+with open(sys.argv[1], 'wb') as f:
+    f.write(b"XRDCAP1\n")
+    k, v = b"tool", b"fixture"
+    f.write(b"M" + bytes([len(k)]) + k + struct.pack(">H", len(v)) + v)
+    wire = bytes(24)   # one zeroed 24-byte request header
+    f.write(b"F" + b">" + b"\x01" + struct.pack(">HHI", 1, 3000, len(wire)) + wire)
+EOF
+  "$BIN/xrddiag" replay "$WORK/fix.xrdcap" >/dev/null 2>/dev/null
+  check "replay: valid fixture decodes (exit 0)" '[ "$?" -eq 0 ]'
+
+  # Truncated fixture: write magic + a partial F record (4 bytes, missing the rest).
+  # Must exit nonzero cleanly — not crash, not silently succeed.
+  python3 - "$WORK/trunc.xrdcap" <<'EOF'
+import sys
+with open(sys.argv[1], 'wb') as f:
+    f.write(b"XRDCAP1\n")
+    f.write(b"F" + b">" + b"\x01" + b"\x00")   # dir + isreq + 1 byte of 2-byte sid
+EOF
+  "$BIN/xrddiag" replay "$WORK/trunc.xrdcap" >/dev/null 2>/dev/null
+  check "replay: truncated fixture exits nonzero" '[ "$?" -ne 0 ]'
+
+  # --- check --json with unreachable endpoint (no fleet needed) ---
+  OUT=$("$BIN/xrddiag" check --json "root://localhost:1" 2>/dev/null)
+  RC=$?
+  check "check --json unreachable: nonzero exit" '[ "$RC" -ne 0 ]'
+  check "check --json unreachable: no stdout on error" \
+    '[ -z "$(printf "%s" "$OUT" | tr -d "[:space:]")" ]'
+
+  # --- Fleet-gated checks ---
+  echo "== xrddiag --json (fleet) =="
+  if ! have_fleet; then
+    echo "  SKIP xrddiag fleet JSON tests (no fleet at $URL)"
+    return
+  fi
+
+  OUT=$("$BIN/xrddiag" check --json "$URL" 2>/dev/null)
+  check "check --json fleet: valid JSON" \
+    'echo "$OUT" | python3 -c "import sys,json; json.load(sys.stdin)"'
+  check "check --json fleet: has connect_ok field" \
+    'echo "$OUT" | python3 -c "import sys,json; d=json.load(sys.stdin); assert \"connect_ok\" in d"'
+
+  OUT=$("$BIN/xrddiag" topology --json "$URL" 2>/dev/null)
+  check "topology --json fleet: valid JSON" \
+    'echo "$OUT" | python3 -c "import sys,json; json.load(sys.stdin)"'
+  check "topology --json fleet: has host + port fields" \
+    'echo "$OUT" | python3 -c "import sys,json; d=json.load(sys.stdin); assert \"host\" in d and \"port\" in d"'
+}
+
 main() {
   section_dryrun_filters
   section_sync_modes
@@ -582,6 +642,7 @@ main() {
   section_tail_follow
   section_cat_compress
   section_cksum_tree
+  section_diag_json
   echo "client-features: $PASS pass, $FAIL fail"
   [ "$FAIL" -eq 0 ]
 }
