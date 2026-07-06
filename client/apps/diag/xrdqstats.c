@@ -42,6 +42,12 @@ brix_qstats_main(int argc, char **argv)
             infotype = kXR_Qconfig; args = argv[++i];
         } else if (strcmp(argv[i], "-s") == 0 && i + 1 < argc) {
             infotype = kXR_Qspace; args = argv[++i];
+        } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            /* Recognise -h/--help at any position (not just argv[1]). */
+            printf("usage: %s [-c config-key | -s path] host[:port]\n"
+                   BRIX_USAGE_FOOTER("xrdqstats"),
+                   argv[0]);
+            return 0;
         } else {
             endpoint = argv[i];
         }

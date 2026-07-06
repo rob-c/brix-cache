@@ -297,6 +297,11 @@ void brix_cred_store_free(struct brix_cred_store *s);
  * <p>), advancing *i past any value. Returns 1 if it recognised the flag (caller
  * should `continue`), 0 if not (caller handles its own flags). */
 int  brix_opts_parse_arg(brix_opts *o, int argc, char **argv, int *i);
+/* Strict CLI parse for the --io-uring mode string.
+ * Accepts "on" / "off" / "auto" and returns XRDC_IO_URING_{ON,OFF,AUTO}.
+ * NULL, empty, or any other value returns -1 — the caller must print a usage
+ * error and exit 50.  (The env-var path stays lenient and falls back to AUTO.) */
+int  brix_cli_parse_io_uring(const char *s);
 /* endpoint_parse → connect with the standard "prog: <msg>" / "prog: connect:
  * <msg>" stderr on failure. Returns 0 (connected, c live) or a process exit code
  * (XRDC_EXIT_USAGE on parse error, brix_shellcode(st) on connect failure). */

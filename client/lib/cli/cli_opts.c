@@ -22,6 +22,7 @@
  *       identical to the inline ladders).
  */
 #include "brix.h"
+#include "brix_ops.h"
 #include "core/version.h"
 
 #include <stdlib.h>
@@ -108,4 +109,28 @@ brix_opts_parse_arg(brix_opts *o, int argc, char **argv, int *i)
         return 1;
     }
     return 0;
+}
+
+
+/*
+ * brix_cli_parse_io_uring — strict CLI parse for the --io-uring mode flag.
+ *
+ * WHAT: Map "on" / "off" / "auto" to XRDC_IO_URING_{ON,OFF,AUTO}; anything
+ *       else (including NULL and empty string) returns -1.
+ * WHY:  CLI flags must reject unknown values immediately with a usage error so
+ *       the user gets clear feedback.  The env-var path (XRDC_IO_URING) stays
+ *       lenient — it silently falls back to AUTO because env vars are often set
+ *       system-wide and must survive software upgrades without breaking callers.
+ *       Only the explicit CLI flag is strict.
+ * HOW:  Three strcmp checks; anything not matching returns -1 so the caller can
+ *       print a tailored "invalid mode 'bogus' (use on|off|auto)" and exit 50.
+ */
+int
+brix_cli_parse_io_uring(const char *s)
+{
+    if (s == NULL || s[0] == '\0') { return -1; }
+    if (strcmp(s, "on")   == 0)    { return XRDC_IO_URING_ON;   }
+    if (strcmp(s, "off")  == 0)    { return XRDC_IO_URING_OFF;  }
+    if (strcmp(s, "auto") == 0)    { return XRDC_IO_URING_AUTO; }
+    return -1;
 }

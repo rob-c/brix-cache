@@ -118,6 +118,7 @@ Use paged I/O (\fBkXR_pgread\fR/\fBkXR_pgwrite\fR) with per-page CRC32c integrit
 .BI \-\-io\-uring " MODE"
 Local-disk overlap ring: \fBon\fR | \fBoff\fR | \fBauto\fR (default \fBauto\fR).
 Overrides \fBXRDC_IO_URING\fR.  Also accepted as \fB\-\-io\-uring=\fImode\fR.
+Any value other than \fBon\fR, \fBoff\fR, or \fBauto\fR is a usage error (exit 50).
 .TP
 .BI \-\-cksum " TYPE[:source|:print|:VALUE]"
 Verify a checksum after transfer.
