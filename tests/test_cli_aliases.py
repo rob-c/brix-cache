@@ -260,10 +260,6 @@ def test_rm_verbose_alias_live():
 #     work stream will update them; tests here ensure coverage fires on merge).
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(
-    reason="WS-2: long-alias names not yet in xrdfs.c COMMANDS help strings",
-    strict=False,
-)
 @pytest.mark.parametrize("sub,alias", [
     ("ls",    "--human"),
     ("du",    "--human"),
