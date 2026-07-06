@@ -11,24 +11,29 @@ Run: sudo -E env PYTHONPATH=tests pytest tests/test_mu_cross_protocol.py -v
 """
 import pytest
 
-from mu_authz_lib import cache_state
+from mu_authz_lib import cache_state, corpus
 from mu_authz_lib.oracle import Cell, authoritative, leak_report, measure
 
 # (fill_proto, serve_proto): fill via one, serve via the other.
 _PAIRS = [("root", "webdav"), ("root", "s3"), ("webdav", "root"), ("webdav", "s3"),
           ("s3", "root"), ("s3", "webdav")]
-_DENIED = ["carol", "bob"]
+# A representative spread of cms objects (S3 buckets on "cms"; atlas objects are not S3-served).
+_OBJS = [o for o in corpus.CORPUS if o.vo == "cms"]
+
+_CELLS = [(o.path, fp, sp, subj)
+          for o in _OBJS
+          for subj in corpus.denied_for(o) if subj in ("carol", "bob")
+          for (fp, sp) in _PAIRS]
 
 
 @pytest.mark.leak
 @pytest.mark.privileged
-@pytest.mark.parametrize("fill_proto,serve_proto", _PAIRS,
-                         ids=[f"{a}-to-{b}" for a, b in _PAIRS])
-@pytest.mark.parametrize("subject", _DENIED)
-def test_fill_one_protocol_serve_another(mu_fleet, cast, fill_proto, serve_proto, subject):
+@pytest.mark.parametrize("path,fill_proto,serve_proto,subject", _CELLS,
+                         ids=[f"{pa[1:].replace('/','_')}-{fp}2{sp}-{s}"
+                              for pa, fp, sp, s in _CELLS])
+def test_fill_one_protocol_serve_another(mu_fleet, cast, path, fill_proto, serve_proto, subject):
     """Filling the shared cache via `fill_proto` must not let `serve_proto` serve a denied
     subject bytes their own (serve-protocol) authz would refuse."""
-    path = "/cms/secret.dat"
     rel = path.lstrip("/")
     truth = authoritative(serve_proto, path, "read", cast[subject])
     cache_state.force_cold(rel)
