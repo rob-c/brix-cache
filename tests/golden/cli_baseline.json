@@ -12,6 +12,7 @@
       "jsonout_unit",
       "mpxstats",
       "relsafe_unit",
+      "suggest_unit",
       "vfs_block_unit",
       "vfs_posix_unit",
       "wait41",
@@ -31,11 +32,12 @@
       "xrdmapc",
       "xrdprep",
       "xrdqstats",
+      "xrdrc_defaults_unit",
       "xrdsssadmin",
       "xrdstorascan",
       "xrootdfs"
     ],
-    "fleet_captured": false
+    "fleet_captured": true
   },
   "noarg:aio_waitresp": {
     "exit": 2,
@@ -92,6 +94,11 @@
     "stdout_sha": "c4b77a32486ed4243fedbb7c9f3fd004cd7e12ba5bc99e7a17a68b2764774102",
     "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
+  "noarg:suggest_unit": {
+    "exit": 0,
+    "stdout_sha": "3e288e7e01d5de8c95e9486b225458c8dba6bca44126bd385a06fd7613a126eb",
+    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
   "noarg:vfs_block_unit": {
     "exit": 0,
     "stdout_sha": "37be45c7df31924b47e3d76007585c1060897db94fe32780a92f4f33a06e5a37",
@@ -140,7 +147,7 @@
   "noarg:xrdcp": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "c35c69124a7f7c3a89c3e773ef9ae63f5daea8f2976d76817133844cc36ab4f4"
+    "stderr_sha": "ded80ed7ad2f5c94e06d49fb584878178787b13406ce4e1c0a533353d14d6acf"
   },
   "noarg:xrdcrc32c": {
     "exit": 50,
@@ -187,6 +194,11 @@
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "stderr_sha": "b41633683ccfeabc84f55501d7370d76c64aa84d18fde0567b71515dfd03218a"
   },
+  "noarg:xrdrc_defaults_unit": {
+    "exit": 0,
+    "stdout_sha": "6a958e669362245fa04b14ac5ff45ef31888368890bb0247cfe62d3ade9d92a1",
+    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
   "noarg:xrdsssadmin": {
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -203,12 +215,18 @@
     "stderr_sha": "d3005191324a712dafc3ead26dec5ee5bfb94848cf790c2127b9b65e7f9964e1"
   },
   "fleet:xrdfs_ls_root": {
-    "skipped": "fleet_down"
+    "exit": 0,
+    "stdout_sha": "1785cbdfcace2004c0d21cbc262071adf07ca0cd61f14fe5c66e737103025f3f",
+    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "fleet:xrdcp_missing": {
-    "skipped": "fleet_down"
+    "exit": 54,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "9b539652410874ed5bed803c89f0f880dfffe41bb85235542c0be9f752667a7f"
   },
   "fleet:xrdfs_staat": {
-    "skipped": "fleet_down"
+    "exit": 50,
+    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha": "4ee2e6c7a62ea87649cdd26e2e47dd25824bb0b0b31c89873ed89e7ea3aa7fbc"
   }
 }
