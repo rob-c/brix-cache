@@ -227,13 +227,33 @@ class Manifest:
         self.rows = []
 
     def add(self, case_id, mint_recipe, protocol, expected,
-            expected_reason, spec_ref):
+            expected_reason, spec_ref, path=None, write=False):
+        """Append a manifest row.
+
+        Args:
+            case_id:         Unique case identifier string (e.g. "SCP-W01").
+            mint_recipe:     Dict describing how to mint the token (keys: "m",
+                             optionally "args" / "kwargs").
+            protocol:        One of "root", "webdav", "s3".
+            expected:        "accept" or "reject".
+            expected_reason: Human-readable rationale for the verdict.
+            spec_ref:        Spec section or RFC reference.
+            path:            XRootD/WebDAV path to probe; defaults to
+                             "/test.txt" at assertion time when None.
+            write:           If True, probe via a write operation rather than
+                             read.  Stored in the row for assert_verdict().
+        """
         assert expected in ("accept", "reject")
-        self.rows.append({
+        row = {
             "case_id": case_id, "mint_recipe": mint_recipe,
             "protocol": protocol, "expected": expected,
             "expected_reason": expected_reason, "spec_ref": spec_ref,
-        })
+        }
+        if path is not None:
+            row["path"] = path
+        if write:
+            row["write"] = write
+        self.rows.append(row)
 
     def write(self, path):
         with open(path, "w") as fh:
@@ -360,6 +380,72 @@ def build_manifest(out_dir):
           "WLCG Token Profile §2.1 advisory")
 
     # ... further families appended by their respective test tasks ...
+
+    # SCP family — scope-enforcement and path-traversal defense; root:// only.
+    # Ground truth: src/auth/token/scopes.c (brix_token_check_scope),
+    #   src/protocols/root/path/op_path.c (brix_op_path_forbidden_component),
+    #   src/protocols/root/read/stat.c (brix_reject_dotdot_path called BEFORE scope).
+    # Rules:
+    #   - storage.stage maps to read permission.
+    #   - scope path prefix /data does NOT cover /database (no boundary crossing).
+    #   - scope path "" (empty after the colon) defaults to root "/".
+    #   - paths with ".." components → kXR_ArgInvalid BEFORE scope check (§3.5).
+    #   - a token that auth-passes but has no scope covering the path → kXR_NotAuthorized.
+    m.add("SCP-W01",
+          {"m": "scope", "args": ["storage.read:/atlas"]},
+          "root", "accept",
+          "in-scope read: storage.read:/atlas covers /atlas/ok.txt",
+          "WLCG Token Profile §4, scopes.c",
+          path="/atlas/ok.txt")
+    m.add("SCP-W02",
+          {"m": "scope", "args": ["storage.read:/atlas"]},
+          "root", "reject",
+          "out-of-scope read: storage.read:/atlas does not cover /cms/ok.txt",
+          "WLCG Token Profile §4, scopes.c",
+          path="/cms/ok.txt")
+    m.add("SCP-W03",
+          {"m": "scope", "args": ["storage.read:/data"]},
+          "root", "reject",
+          "/data prefix must not cover /database (boundary: /data != /database)",
+          "WLCG Token Profile §4 path-prefix rules",
+          path="/database/ok.txt")
+    m.add("SCP-W04",
+          {"m": "scope", "args": ["storage.read:/atlas"]},
+          "root", "reject",
+          "TRAVERSAL: dot-dot escape must not reach /cms (§3.5 — "
+          "brix_reject_dotdot_path fires before scope check)",
+          "spec §3.5, op_path.c brix_reject_dotdot_path",
+          path="/atlas/../cms/ok.txt")
+    m.add("SCP-W05",
+          {"m": "scope", "args": ["storage.read:/"]},
+          "root", "accept",
+          "root scope storage.read:/ covers all paths including /test.txt",
+          "WLCG Token Profile §4",
+          path="/test.txt")
+    m.add("SCP-W06",
+          {"m": "no_scope"},
+          "root", "reject",
+          "authenticated but scope claim absent — no grant covers any path",
+          "WLCG Token Profile §4, scopes.c",
+          path="/test.txt")
+    m.add("SCP-W07",
+          {"m": "scope", "args": ["storage.stage:/atlas"]},
+          "root", "accept",
+          "storage.stage grants read permission per WLCG token profile",
+          "WLCG Token Profile §4, scopes.c storage.stage→read alias",
+          path="/atlas/ok.txt")
+    m.add("SCP-W08",
+          {"m": "scope", "args": ["storage.write:/atlas"]},
+          "root", "reject",
+          "write-only scope storage.write:/atlas does not grant read",
+          "WLCG Token Profile §4, scopes.c",
+          path="/atlas/ok.txt")
+    m.add("SCP-W09",
+          {"m": "scope", "args": ["storage.read:"]},
+          "root", "accept",
+          "empty path after colon defaults to root scope / — covers /test.txt",
+          "WLCG Token Profile §4, scopes.c empty-path-defaults-to-root",
+          path="/test.txt")
 
     manifest_path = os.path.join(out_dir, "token_manifest.json")
     m.write(manifest_path)

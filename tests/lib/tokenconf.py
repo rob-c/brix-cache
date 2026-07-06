@@ -370,12 +370,14 @@ def assert_verdict(case_row, protocol):
         ValueError:     for an unrecognised protocol name.
     """
     token = mint(case_row)
+    path = case_row.get("path", "/test.txt")
+    write = case_row.get("write", False)
     if protocol == "root":
-        observed = root_ztn(token)
+        observed = root_ztn(token, path, write)
     elif protocol == "webdav":
-        observed = webdav_bearer(token)
+        observed = webdav_bearer(token, path, write)
     elif protocol == "s3":
-        observed = s3_bearer(token)
+        observed = s3_bearer(token, path.lstrip("/"), write)
     else:
         raise ValueError(f"unknown protocol: {protocol!r}")
 
