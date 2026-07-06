@@ -82,6 +82,12 @@ Use \fB\-\-algo\fR for crc32c, zcrc32, or crc64nvme manifests.
 Prints \fBOK\fR or \fBFAILED\fR for each entry.
 Exit: 0 all OK, 1 any mismatch, 2 errors (parse/I/O);
 2 (errors) takes precedence over 1 (mismatch) when both occur.
+.SH URLS
+.TP
+.BR root [ s ]:// host [: port ]// path
+Native XRootD endpoint; default port 1094.
+\fBroots://\fR enables in-protocol TLS.
+An alias in \fI~/.xrdrc\fR may replace the \fIhost[:port]\fR component.
 .SH EXAMPLES
 .nf
 # Compute a CRC32c checksum
@@ -110,6 +116,27 @@ Per-operation I/O timeout.
 Per-user configuration file.
 See
 .BR brix\-env (7).
+.SH EXIT STATUS
+For the
+.B verify
+subcommand (and the
+.BR xrdckverify
+symlink): 0 checksum matches, 1 mismatch, 2 no recorded checksum found, 3 I/O or
+protocol error.
+.PP
+For
+.BR tree :
+0 clean, 2 any per-file error.
+.PP
+For
+.BR check :
+0 all entries OK, 1 any mismatch, 2 parse or I/O error
+(2 takes precedence over 1 when both occur).
+.PP
+For the hash-only subcommands
+.RB ( crc32c ", " crc64 ", " adler32 ", " info ):
+0 on success, non-zero on error.
+50 on a usage error; 51 on out of memory.
 .SH SEE ALSO
 .BR xrdcp (1),
 .BR xrdfs (1),

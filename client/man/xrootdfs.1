@@ -221,6 +221,54 @@ out not to work after all (for example a wire error briefly tripped the downgrad
 on a host that is really IPv6-only), the next connect reverts to dual-stack so
 the mount still comes back up. An IPv6-only host therefore never stays
 downgraded, and a healthy IPv6 host never trips it.
+.SH URLS
+.TP
+.BR root [ s ]:// host [: port ][/ base ]
+Native XRootD endpoint; default port 1094.
+\fBroots://\fR enables in-protocol TLS.
+An optional \fI/base\fR path roots the mount at that subtree.
+An alias in \fI~/.xrdrc\fR may replace the \fIhost[:port]\fR component.
+.TP
+.BR https:// " | " http:// " | " davs:// " | " dav:// host [: port ][/ base ]
+Read-only HTTP/WebDAV mount.
+TLS enabled for \fBhttps://\fR and \fBdavs://\fR.
+.SH ENVIRONMENT
+Variables tagged \fB(EXPANDED)\fR are extensions specific to this project's native
+clients; they have no effect on a vanilla upstream XRootD client.
+.TP
+.BR XRDC_CONNECT_TIMEOUT_MS " (EXPANDED)"
+Cap on the connect + handshake phase in milliseconds (default 15000).
+Overridden by \fB\-\-connect\-timeout\fR.
+.TP
+.BR XRDC_IO_TIMEOUT_MS " (EXPANDED)"
+Steady-state per-operation read/write cap in milliseconds (default 30000).
+Overridden by \fB\-\-io\-timeout\fR.
+.TP
+.BR XRDC_NO_IPV6_FALLBACK " (EXPANDED)"
+Set to \fB1\fR to disable the automatic IPv4-downgrade on a broken IPv6 path.
+See the
+.B NETWORK
+section for details.
+.TP
+.B BEARER_TOKEN
+HTTP/WebDAV bearer token (same as \fB\-\-token\fR).
+.TP
+.B X509_USER_PROXY
+GSI proxy certificate path for \fB\-\-auth gsi\fR.
+.TP
+.B XRDRC
+Path to the configuration file (default \fI~/.xrdrc\fR).
+See
+.BR brix\-env (7).
+.SH FILES
+.TP
+.I ~/.xrdrc
+Per-user configuration: endpoint aliases and default credentials.
+See
+.BR brix\-env (7).
+.SH EXIT STATUS
+0 on success.
+2 on a usage error or if the FUSE driver fails to mount.
 .SH SEE ALSO
 .BR xrd (1),
 .BR xrdcp (1),

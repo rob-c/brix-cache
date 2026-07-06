@@ -106,6 +106,22 @@ Timeout for each individual probe step.
 .TP
 .B \-\-version
 Print version and exit.
+.SH URLS
+.TP
+.BR root [ s ]:// host [: port ]// path
+Native XRootD endpoint; default port 1094.
+\fBroots://\fR enables in-protocol TLS.
+An alias in \fI~/.xrdrc\fR may replace the \fIhost[:port]\fR component.
+.TP
+.BR https:// " | " http:// " | " davs:// " | " dav:// host [: port ]/ path
+WebDAV/HTTP endpoint.
+TLS enabled for \fBhttps://\fR and \fBdavs://\fR.
+.TP
+.BR s3:// " | " s3s:// host [: port ]/ bucket / key
+S3 SigV4 endpoint; \fBs3s://\fR enables TLS.
+.TP
+.BR cms:// host [: port ]
+CMS redirector endpoint for topology probes.
 .SH EXAMPLES
 .nf
 # Full automated diagnosis of a server
@@ -151,6 +167,12 @@ Path to configuration file (default \fI~/.xrdrc\fR).
 Per-user configuration: endpoint aliases and default credentials.
 See
 .BR brix\-env (7).
+.SH EXIT STATUS
+0 on success.
+1 if any probe step fails (topology, remote-doctor, probe-robustness).
+50 on a usage error.
+51 on out of memory.
+Non-zero (the underlying XRootD error code) on a connect or protocol error.
 .SH SEE ALSO
 .BR xrdcp (1),
 .BR xrdfs (1),

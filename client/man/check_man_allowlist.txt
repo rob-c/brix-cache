@@ -1,0 +1,23 @@
+# check_man_allowlist.txt — flags intentionally excluded from the man-page drift check.
+#
+# Format: one entry per line.
+#   TOOL FLAG     — exempt FLAG for the named tool only
+#   * FLAG        — exempt FLAG globally (all tools)
+#
+# Entries here suppress FAIL output from check_man.sh for the listed (tool, flag) pair.
+# Add entries only when a flag is genuinely intentional to omit from the page (e.g. because
+# it is documented at a higher level, or is an internal/testing-only flag).
+
+# --help and --version are implicit conventions not documented verbatim in every page.
+* --help
+* --version
+
+# xrd: --stats/--wire appear only in `xrd inventory --help` / `xrd verify --help`
+# subcommands; xrd.1 documents these as positional sub-verb forms without a flag section.
+xrd --stats
+xrd --wire
+
+# xrootdfs: --compress and --lazy-streams are newer options not yet promoted to the
+# CONNECTION/CACHE OPTIONS sections of xrootdfs.1 (tracked for a follow-up).
+xrootdfs --compress
+xrootdfs --lazy-streams

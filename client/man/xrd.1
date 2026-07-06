@@ -257,9 +257,28 @@ handshake; the client then reconnects (with backoff) rather than hanging.
 .BR XRDC_IO_TIMEOUT_MS " (EXPANDED)"
 Cap in milliseconds on each steady-state read/write once a session is established
 (default 30000).
+.SH URLS
+Most subcommands accept a full \fBroot\fR[\fBs\fR]\fB://\fIhost\fR[\fI:port\fR]\fB//\fIpath\fR URL
+or a bare \fIhost\fR[\fI:port\fR] plus a separate \fIpath\fR argument.
+The double slash (\fB//\fR) separates the server endpoint from the server-side path.
+Default port is 1094.
+\fBroots://\fR enables in-protocol TLS.
+An alias defined in \fI~/.xrdrc\fR may replace the full \fIhost[:port]\fR component.
+.PP
+WebDAV/HTTP endpoints (\fBhttps://\fR, \fBhttp://\fR, \fBdavs://\fR, \fBdav://\fR) use
+single-slash path syntax: \fBhttps://\fIhost\fR[\fI:port\fR]\fI/path\fR.
+.PP
+S3 endpoints use \fBs3://\fR or \fBs3s://\fR (TLS): \fBs3://\fIhost\fR[\fI:port\fR]\fB/\fIbucket\fB/\fIkey\fR.
+.SH FILES
+.TP
+.I ~/.xrdrc
+Per-user configuration: endpoint aliases and default credentials.
+See
+.BR brix\-env (7).
 .SH EXIT STATUS
 0 on success; the underlying XRootD shell code on a protocol error; 50 on a
-usage error; 51 on out of memory.
+usage error; 51 on out of memory; 127 if the underlying tool binary cannot be
+executed.
 .SH NOTES
 \fBchown\fR/\fBchgrp\fR are intentionally absent \(em \fBxrd\fR never mutates
 ownership. The link, \fBreadlink\fR, and \fBtouch\fR-time verbs require the

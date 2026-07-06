@@ -168,6 +168,24 @@ Print version and exit.
 .TP
 .BR \-h ", " \-\-help
 Print this help.
+.SH URLS
+.TP
+.BR root [ s ]:// host [: port ]// path
+Native XRootD protocol; default port 1094.
+The double slash separates the connect endpoint from the server-side path.
+\fBroots://\fR enables in-protocol TLS (same as \fB\-\-tls\fR).
+An alias in \fI~/.xrdrc\fR may replace the \fIhost[:port]\fR component.
+.TP
+.BR davs:// " | " dav:// " | " https:// " | " http:// host [: port ]/ path
+WebDAV/HTTP endpoint.
+\fBdavs://\fR and \fBhttps://\fR enable TLS;
+\fBdav://\fR and \fBhttp://\fR are cleartext.
+.TP
+.BR s3:// " | " s3s:// host [: port ]/ bucket / key
+S3 SigV4 endpoint.
+\fBs3s://\fR enables TLS.
+Credentials from \fB\-\-s3\-access\fR / \fBAWS_ACCESS_KEY_ID\fR and
+\fB\-\-s3\-secret\fR / \fBAWS_SECRET_ACCESS_KEY\fR.
 .SH EXAMPLES
 .nf
 # Recursive mirror with deletion of stale destination entries

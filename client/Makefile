@@ -199,7 +199,7 @@ xrdprep_OBJS      := apps/prep/xrdprep.o
 ALL_OBJS := $(LIB_OBJS) $(foreach b,$(BINS),$($(b)_OBJS))
 DEPS     := $(ALL_OBJS:.o=.d)
 
-.PHONY: all proto clean lib install install-bin example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount
+.PHONY: all proto clean lib install install-bin install-man install-completions example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount
 all: $(BIN_EXES) $(LINK_EXES) $(OPT_BINS) $(OPT_EXES)
 
 # Keep intermediates (apps/*.o, lib/*.o built via the chained pattern rules). Without
@@ -435,6 +435,26 @@ install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES)
 	done
 
 # ---------------------------------------------------------------------------
+# Install man pages only (DESTDIR-aware; includes the .so link pages).
+# Separate from install-bin so packaging can split docs from binaries.
+install-man:
+	install -d $(DESTDIR)$(PREFIX)/share/man/man1 \
+	           $(DESTDIR)$(PREFIX)/share/man/man7
+	for m in man/*.1; do install -m644 $$m $(DESTDIR)$(PREFIX)/share/man/man1/; done
+	for m in man/*.7; do install -m644 $$m $(DESTDIR)$(PREFIX)/share/man/man7/; done
+
+# Install shell completions (bash + zsh) only (DESTDIR-aware).
+install-completions:
+	install -d $(DESTDIR)$(PREFIX)/share/bash-completion/completions \
+	           $(DESTDIR)$(PREFIX)/share/zsh/site-functions
+	for n in xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin brixMount xrdstorascan; do \
+		install -m644 completions/brix-tools.bash \
+			$(DESTDIR)$(PREFIX)/share/bash-completion/completions/$$n; \
+	done
+	install -m644 completions/_brix-client \
+		$(DESTDIR)$(PREFIX)/share/zsh/site-functions/_brix-client
+
+# ---------------------------------------------------------------------------
 # `make test` — build + run every self-contained C unit test under tests/c/.
 # vfs_s3_smoke is excluded (needs an external S3 endpoint; run it manually).
 # Each test is a standalone main() linking the client lib + libxrdproto, the
@@ -460,6 +480,10 @@ test: $(CLIENT_LIB) proto | $(BINDIR)
 	    $$lib $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/$$t; \
 	  $(BINDIR)/$$t; \
 	done; echo "client unit tests: ALL PASS"
+	@echo "== man page guard"
+	@bash man/check_man.sh
+	@echo "== completions guard"
+	@bash completions/check_completions.sh
 
 # Build the sample consumer against the INSTALLED library via pkg-config.
 example-test:
