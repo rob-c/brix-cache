@@ -239,6 +239,13 @@
       offsetof(ngx_stream_brix_srv_conf_t, token_jwks_refresh_interval),
       NULL },
 
+    { ngx_string("brix_token_clock_skew"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, token_clock_skew),
+      NULL },
+
     { ngx_string("brix_token_issuer"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,

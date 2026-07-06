@@ -171,6 +171,7 @@ brix_token_validate(ngx_log_t *log,
     const brix_jwks_key_t *keys, int key_count,
     const char *expected_issuer, const char *expected_audience,
     const u_char *macaroon_secret, size_t secret_len,
+    int clock_skew,
     brix_token_claims_t *claims)
 {
     xrdjwt_seg  seg[3];
@@ -386,12 +387,12 @@ brix_token_validate(ngx_log_t *log,
     /* Apply a clock-skew window so that tokens from systems whose clock differs
      * from ours by a few seconds are not spuriously rejected.  The skew widens
      * the acceptance window on both sides without permanently extending validity. */
-    if (now > (time_t) claims->exp + BRIX_TOKEN_CLOCK_SKEW_SECS)
+    if (now > (time_t) claims->exp + clock_skew)
     {
         ngx_log_error(NGX_LOG_WARN, log, 0,
                       "brix_token: token expired at %L (now=%L skew=%d)",
                       (long long) claims->exp, (long long) now,
-                      BRIX_TOKEN_CLOCK_SKEW_SECS);
+                      clock_skew);
         return -1;
     }
 
@@ -462,6 +463,7 @@ brix_token_validate_registry_authn(ngx_log_t *log,
     const char *token, size_t token_len,
     const brix_token_registry_t *reg,
     const u_char *macaroon_secret, size_t secret_len,
+    int clock_skew,
     brix_token_claims_t *claims, const brix_token_issuer_t **out_issuer)
 {
     char                          iss[256];
@@ -493,7 +495,7 @@ brix_token_validate_registry_authn(ngx_log_t *log,
     if (brix_token_validate(log, token, token_len,
             is->jwks_key_count ? is->jwks_keys : NULL, is->jwks_key_count,
             is->issuer, expected_aud, macaroon_secret, secret_len,
-            claims) != 0)
+            clock_skew, claims) != 0)
     {
         return -1;
     }
@@ -584,6 +586,7 @@ brix_token_validate_registry(ngx_log_t *log,
     const brix_token_registry_t *reg, const char *req_path,
     brix_token_op_e op,
     const u_char *macaroon_secret, size_t secret_len,
+    int clock_skew,
     brix_token_claims_t *claims, int *out_issuer_bucket)
 {
     const brix_token_issuer_t *is;
@@ -591,7 +594,7 @@ brix_token_validate_registry(ngx_log_t *log,
     *out_issuer_bucket = -1;
 
     if (brix_token_validate_registry_authn(log, token, token_len, reg,
-            macaroon_secret, secret_len, claims, &is) != 0)
+            macaroon_secret, secret_len, clock_skew, claims, &is) != 0)
     {
         return -1;
     }

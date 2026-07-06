@@ -259,13 +259,15 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
         rc = brix_token_validate_registry(r->connection->log, token,
                 token_len, conf->token_registry, pathz,
                 webdav_token_op_class(r),
-                slen > 0 ? secret : NULL, (size_t) slen, &claims, &bucket);
+                slen > 0 ? secret : NULL, (size_t) slen,
+                (int) conf->token_clock_skew, &claims, &bucket);
     } else {
         rc = brix_token_validate(r->connection->log, token, token_len,
                                    conf->jwks_keys, conf->jwks_key_count,
                                    (const char *) conf->token_issuer.data,
                                    (const char *) conf->token_audience.data,
                                    slen > 0 ? secret : NULL, (size_t) slen,
+                                   (int) conf->token_clock_skew,
                                    &claims);
     }
 
@@ -287,6 +289,7 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
                                        (const char *) conf->token_issuer.data,
                                        (const char *) conf->token_audience.data,
                                        old_secret, (size_t) old_slen,
+                                       (int) conf->token_clock_skew,
                                        &claims);
             if (rc == 0) {
                 ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,

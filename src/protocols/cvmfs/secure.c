@@ -18,6 +18,7 @@
 #include "cvmfs.h"
 #include "auth/token/issuer_registry.h"
 #include "core/compat/cstr.h"
+#include "core/types/tunables.h"
 
 #include <limits.h>
 
@@ -84,7 +85,7 @@ scvmfs_check_bearer(ngx_http_request_t *r,
     if (brix_token_validate_registry(r->connection->log, token, token_len,
             (const brix_token_registry_t *) lcf->scvmfs_registry,
             uri_path, BRIX_TOKEN_OP_READ,
-            NULL, 0, &claims, &bucket) != 0)
+            NULL, 0, BRIX_TOKEN_CLOCK_SKEW_SECS, &claims, &bucket) != 0)
     {
         return NGX_HTTP_UNAUTHORIZED;      /* invalid/expired/out-of-scope */
     }

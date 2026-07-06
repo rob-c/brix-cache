@@ -357,7 +357,14 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_webdav_loc_conf_t, token_audience),
       NULL },
- 
+
+    { ngx_string("brix_webdav_token_clock_skew"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_webdav_loc_conf_t, token_clock_skew),
+      NULL },
+
     { ngx_string("brix_webdav_macaroon_secret"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
