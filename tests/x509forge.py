@@ -276,7 +276,7 @@ def make_proxy(parent: Cert, *, kind: str = "rfc3820", path_len: int | None = No
 
 
 def make_crl(ca: Cert, *, revoked: list[Cert] | None = None,
-             next_update_days: int = 30, this_update_days: int = -1,
+             next_update_days: int = 3650, this_update_days: int = -1,
              signer: Cert | None = None) -> bytes:
     """A CRL for ca.  signer overrides the issuer key (for wrong-signer tests)."""
     revoked = revoked or []
