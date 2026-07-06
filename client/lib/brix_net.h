@@ -426,6 +426,20 @@ int brix_alias_lookup(const char *name, brix_alias_info *info);
  * brix_url (default port 1094, scheme XRDC_SCHEME_ROOT/ROOTS). Shared by xrdfs and
  * every tool so the endpoint grammar lives in one place. 0 / -1 (st set). */
 int brix_endpoint_parse(const char *ep, brix_url *out, brix_status *st);
+/*
+ * brix_xrdrc_default_ms — read a timeout key from the [defaults] section of ~/.xrdrc.
+ *
+ * WHAT: Returns 1 and sets *out_ms to the parsed value when the [defaults] section
+ *       of the user's .xrdrc file carries `key` with a valid positive integer.
+ *       Returns 0 when the key is absent, the value is non-numeric, or the value
+ *       is <= 0. Supported keys: "connect_timeout_ms", "io_timeout_ms",
+ *       "max_stall_ms", "backoff_base_ms".
+ * WHY:  Sits in the resolution order below env vars and CLI setters, above the
+ *       compiled default: CLI setter > env var > this > compiled default.
+ * HOW:  Loads ~/.xrdrc lazily via the same gate as brix_alias_resolve, then looks
+ *       up the matching static slot. Invalid / negative values are never stored.
+ */
+int brix_xrdrc_default_ms(const char *key, int *out_ms);
 
 /* ---- status.c ---- */
 void        brix_status_clear(brix_status *st);

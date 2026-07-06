@@ -308,8 +308,8 @@ write_all_fd(int fd, const char *buf, size_t n, brix_status *st)
 
 
 /* Resilience window (ms) for HTTP downloads: $XRDC_MAX_STALL_MS when set (>0
- * widens, <=0 disables = fail fast), else the library default — the SAME window
- * the root:// data path uses. */
+ * widens, <=0 disables = fail fast), else the xrdrc [defaults] max_stall_ms,
+ * else the library default — the SAME window the root:// data path uses. */
 int
 httpx_window_ms(void)
 {
@@ -318,5 +318,6 @@ httpx_window_ms(void)
         int v = atoi(e);
         return (v > 0) ? v : 0;
     }
+    { int xv; if (brix_xrdrc_default_ms("max_stall_ms", &xv)) { return xv; } }
     return XRDC_DEFAULT_MAX_STALL_MS;
 }
