@@ -514,7 +514,7 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         char          logical[PATH_MAX];
         u_char       *end;
 
-        end = ngx_snprintf((u_char *) logical, sizeof(logical) - 1,
+        end = ngx_snprintf((u_char *) logical, sizeof(logical),
                            "/%s%Z", (const char *) key);
         (void) end;
 

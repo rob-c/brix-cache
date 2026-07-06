@@ -121,6 +121,13 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_str_value(conf->token_audience, prev->token_audience, "");
     ngx_conf_merge_value(conf->token_clock_skew, prev->token_clock_skew, 60);
 
+    if (conf->token_enable && conf->token_jwks.len == 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_s3_token: brix_s3_token_jwks is required when "
+            "brix_s3_token is on");
+        return NGX_CONF_ERROR;
+    }
+
     if (conf->token_enable && conf->token_jwks.len > 0) {
         int key_rc;
 

@@ -28,8 +28,8 @@
 
 #include <string.h>
 
-/* get_header() is declared extern in auth_sigv4_verify.c; redeclare it here
- * rather than adding a new shared header for a single static helper — the
+/* get_header() is defined (non-static) in auth_sigv4_parse.c; declared extern
+ * here rather than adding a new shared header for a single helper — the
  * function has external linkage at the object-file level and the linker resolves
  * it within the same module. */
 extern ngx_str_t get_header(ngx_http_request_t *r, const char *name);
