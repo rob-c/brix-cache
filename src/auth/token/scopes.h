@@ -21,6 +21,15 @@ typedef struct {
 } brix_token_scope_t;
 #endif
 
+/* WHAT: Test whether scope_path covers request_path using prefix + boundary rules.
+* WHY: Prevents "/data" from matching "/database" — callers (check_read/check_write and issuer_registry.c)
+*      reuse this single boundary-checked implementation rather than duplicating the prefix logic.
+* HOW: Returns 1 if scope "/" (root), or scope_path is a proper prefix of request_path where the
+*      next char is '/' or NUL; returns 0 otherwise.
+*/
+int brix_token_scope_path_matches(const char *scope_path,
+    const char *request_path);
+
 /* WHAT: Parse space-separated WLCG "permission:path" scope claim into structured brix_token_scope_t entries.
 * WHY: WLCG tokens encode authorization as space-separated scope claims (e.g., "storage.read:/atlas/reco"). This extracts permission and path components for downstream access control decisions.
 * HOW: Tokenizes input on spaces → splits each entry on ":" separator → copies path component with default "/" if empty → sets read/write/create/modify flags via exact-length memcmp. Returns count of parsed scope entries written to scopes[].
