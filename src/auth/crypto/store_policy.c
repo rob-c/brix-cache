@@ -6,11 +6,15 @@
  */
 #include "auth/crypto/store_policy.h"
 
+#include <openssl/objects.h>
+#include <openssl/x509v3.h>
+
 #include <dirent.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -293,6 +297,79 @@ brix_sp_table_check(const brix_sp_table_t *t, brix_sp_mode_t mode,
 
     brix_x509_oneline(X509_get_subject_name(subject), subj_dn, sizeof(subj_dn));
     return brix_sp_subject_allowed(e->policy, ca_dn, subj_dn) ? 1 : 0;
+}
+
+/* -- proxy classification + monotonicity ---------------------------------- */
+
+/* Globus limited-proxy policy language OID: 1.3.6.1.4.1.3536.1.1.1.9. */
+static const char *BRIX_PX_LIMITED_OID = "1.3.6.1.4.1.3536.1.1.1.9";
+
+brix_px_kind_t
+brix_px_classify(X509 *cert)
+{
+    PROXY_CERT_INFO_EXTENSION *pci;
+    brix_px_kind_t             kind = BRIX_PX_NONE;
+
+    if (X509_get_extension_flags(cert) & EXFLAG_PROXY) {
+        kind = BRIX_PX_FULL;
+        pci = X509_get_ext_d2i(cert, NID_proxyCertInfo, NULL, NULL);
+        if (pci != NULL) {
+            char oid[128];
+            int  n = OBJ_obj2txt(oid, sizeof(oid),
+                                 pci->proxyPolicy->policyLanguage, 1);
+            if (n > 0 && strcmp(oid, BRIX_PX_LIMITED_OID) == 0) {
+                kind = BRIX_PX_LIMITED;
+            }
+            PROXY_CERT_INFO_EXTENSION_free(pci);
+        }
+        return kind;
+    }
+
+    /* Legacy Globus proxy: last RDN is CN=proxy or CN=limited proxy. */
+    {
+        X509_NAME *nm = X509_get_subject_name(cert);
+        int        last = X509_NAME_entry_count(nm) - 1;
+        if (last >= 0) {
+            X509_NAME_ENTRY     *e = X509_NAME_get_entry(nm, last);
+            ASN1_STRING         *v = X509_NAME_ENTRY_get_data(e);
+            const unsigned char *s = ASN1_STRING_get0_data(v);
+            int                  len = ASN1_STRING_length(v);
+            if (len == (int) sizeof("limited proxy") - 1
+                && strncasecmp((const char *) s, "limited proxy", len) == 0)
+            {
+                return BRIX_PX_LIMITED;
+            }
+            if (len == (int) sizeof("proxy") - 1
+                && strncasecmp((const char *) s, "proxy", len) == 0)
+            {
+                return BRIX_PX_FULL;
+            }
+        }
+    }
+    return BRIX_PX_NONE;
+}
+
+int
+brix_proxy_chain_ok(STACK_OF(X509) *chain)
+{
+    int n, i;
+    int seen_limited = 0;
+
+    if (chain == NULL) {
+        return 1;
+    }
+
+    n = sk_X509_num(chain);
+    for (i = n - 1; i >= 0; i--) {   /* root .. leaf */
+        brix_px_kind_t kind = brix_px_classify(sk_X509_value(chain, i));
+
+        if (kind == BRIX_PX_LIMITED) {
+            seen_limited = 1;
+        } else if (kind == BRIX_PX_FULL && seen_limited) {
+            return 0;   /* full proxy beneath a limited one — escalation */
+        }
+    }
+    return 1;
 }
 
 /* -- X509_STORE ex_data glue ---------------------------------------------- */
