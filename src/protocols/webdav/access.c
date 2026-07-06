@@ -112,33 +112,12 @@ webdav_is_write_method(ngx_http_request_t *r)
     return (op && (op->flags & BRIX_PROTO_OP_WRITE));
 }
 
-/* Returns the method name string for token scope check, or NULL if the method
- * does not require a write-scope token claim (LOCK, UNLOCK). */
-static const char *
-webdav_scope_method_name(ngx_http_request_t *r)
-{
-    const brix_http_operation_t *op;
-
-    op = brix_http_operation_find(r, brix_webdav_operations,
-                                    brix_webdav_operations_count);
-
-    if (op && (op->flags & BRIX_PROTO_OP_WRITE)) {
-        if (ngx_strcmp(op->name, "LOCK") == 0
-            || ngx_strcmp(op->name, "UNLOCK") == 0)
-            return NULL;
-
-        return op->name;
-    }
-
-    return NULL;
-}
 
 ngx_int_t
 ngx_http_brix_webdav_access_handler(ngx_http_request_t *r)
 {
     ngx_http_brix_webdav_loc_conf_t *conf;
     ngx_int_t                          auth_rc, rc;
-    const char                        *scope_method;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     if (!conf->common.enable) {
@@ -252,19 +231,23 @@ ngx_http_brix_webdav_access_handler(ngx_http_request_t *r)
         return webdav_metrics_return(r, NGX_HTTP_FORBIDDEN);
     }
 
-    /* Token scope check (read AND write).  OPTIONS is a capability query
-     * (CORS preflight), not a data access, so it is exempt.  For write methods
-     * webdav_scope_method_name() returns the canonical name; for read methods
-     * fall back to the raw method name from the request line. */
+    /* Token scope check (read AND write).  Exempt OPTIONS (capability query /
+     * CORS preflight) and LOCK/UNLOCK (advisory locks do not require a scope
+     * claim — preserves the pre-existing exemption).  op->name is a static,
+     * null-terminated string, so it is safe to log (no wire-origin overread). */
     if (r->method != NGX_HTTP_OPTIONS) {
-        scope_method = (webdav_scope_method_name(r) != NULL)
-                       ? webdav_scope_method_name(r)
-                       : (const char *) (r->method_name.data
-                                         ? r->method_name.data
-                                         : (u_char *) "GET");
-        rc = webdav_check_token_scope(r, scope_method);
-        if (rc != NGX_OK) {
-            return webdav_metrics_return(r, rc);
+        const brix_http_operation_t *op =
+            brix_http_operation_find(r, brix_webdav_operations,
+                                       brix_webdav_operations_count);
+        int is_lock = (op != NULL
+                       && (ngx_strcmp(op->name, "LOCK") == 0
+                           || ngx_strcmp(op->name, "UNLOCK") == 0));
+        if (!is_lock) {
+            const char *mname = (op != NULL) ? op->name : "GET";
+            rc = webdav_check_token_scope(r, mname);
+            if (rc != NGX_OK) {
+                return webdav_metrics_return(r, rc);
+            }
         }
     }
 
