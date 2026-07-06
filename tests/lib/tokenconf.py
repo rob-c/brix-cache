@@ -291,28 +291,30 @@ def root_ztn(token, path="/test.txt", write=False, port=None):
         return "reject"
 
 
-def webdav_bearer(token, path="/test.txt", write=False):
-    """Probe NGINX_WEBDAV_PORT (8443) via HTTPS with Authorization: Bearer.
+def webdav_bearer(token, path="/test.txt", write=False, port=None):
+    """Probe a WebDAV HTTPS port via Authorization: Bearer.
 
     WHAT: Issues GET (or PUT for write=True) and maps the HTTP status to a
           verdict string.
     WHY:  HTTP status provides a clean accept/reject/notfound signal.  "notfound"
           is distinct from "reject" so callers can differentiate optional-mode
           fall-through (authenticated but file absent) from auth rejection.
-    HOW:  verify=False because the test PKI uses a self-signed CA.  The WebDAV
-          port is currently optional-auth (anon-serve): bad tokens may still
-          receive a 200/206 here until the enforcing port is wired in Task 11.
+    HOW:  verify=False because the test PKI uses a self-signed CA.  The default
+          port is NGINX_WEBDAV_PORT (8443, optional-auth); pass
+          NGINX_WEBDAV_TOKEN_PORT (8446) to target the enforcing port.
 
     Args:
         token: JWT string.
         path:  URL path component (must start with /).
         write: If True, issue PUT instead of GET.
+        port:  Target port (default: NGINX_WEBDAV_PORT).
 
     Returns:
         "accept", "reject", or "notfound".
     """
     ensure_conformance_data()
-    url = f"https://{SERVER_HOST}:{NGINX_WEBDAV_PORT}{path}"
+    target = port if port is not None else NGINX_WEBDAV_PORT
+    url = f"https://{SERVER_HOST}:{target}{path}"
     headers = {"Authorization": f"Bearer {token}"}
     try:
         if write:
