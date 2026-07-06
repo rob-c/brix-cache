@@ -330,6 +330,7 @@ HTTP and token-adjacent helpers.
 
 | Area | Shared helper | Callers now using it |
 |------|---------------|----------------------|
+| Unified HTTP storage config | `src/core/config/http_common.c` (`ngx_http_brix_common_module`) + `src/core/config/shared_conf.h` | All brix HTTP locations inherit `brix_export`, `brix_storage_backend`, `brix_allow_write`, `brix_thread_pool`, and the full `brix_cache_*`/`brix_stage*` tier family; protocol-specific spellings removed |
 | Blocking writes | `src/core/compat/io.c` | WebDAV PUT/COPY spooled writes, S3 PUT body writes |
 | HTTP status classes | `src/observability/metrics/http_common.h` | WebDAV metrics, S3 metrics |
 | GSI verification core | `src/auth/crypto/gsi_verify.c` | stream GSI auth, WebDAV client-cert auth |

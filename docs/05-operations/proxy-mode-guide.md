@@ -221,7 +221,7 @@ they can be reused immediately.
 
 | Directive | Context | Default | Description |
 |---|---|---|---|
-| `brix_proxy on\|off` | `server` | `off` | Enable proxy mode for this server block. Requires `xrootd on`. |
+| `brix_proxy on\|off` | `server` | `off` | Enable proxy mode for this server block. Requires `brix_root on`. |
 | `brix_proxy_upstream host[:port] [auth]` | `server` | — | Upstream XRootD server. Port defaults to 1094. Accepts hostnames, IPv4, and IPv6 literals. May appear multiple times; connections are distributed round-robin. Optional `auth` argument overrides the server-level `brix_proxy_auth` for this upstream only: `anonymous`, `forward`, `sss`, or `sss:<keyname>`. Required when `brix_proxy on`. |
 | `brix_proxy_upstream_tls on\|off` | `server` | `off` | Wrap the outbound upstream connection in TLS. |
 | `brix_proxy_upstream_tls_ca <path>` | `server` | — | PEM CA bundle to verify the upstream TLS certificate. Enables `SSL_VERIFY_PEER`. |

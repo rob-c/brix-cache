@@ -860,13 +860,13 @@ many clients: that is `CVMFS_TIMEOUT` set shorter than the fill latency.
 | `brix_cvmfs on\|off` | off | makes the location a dedicated CVMFS endpoint |
 | `brix_storage_backend "http://s1a[\|http://s1b…]"` | — | ordered Stratum-1 origin set (pipe = `CVMFS_SERVER_URL` syntax); first is the write side, reads fail over by health |
 | `brix_cache_store posix:<dir>` | — | the cache tier's physical store |
-| `brix_cache_verify off\|cvmfs-cas` | off | CAS verify-on-fill (§4.1) |
+| `brix_cache_verify off\|cvmfs-cas` | **cvmfs-cas** | CAS verify-on-fill (§4.1) |
 | `brix_cvmfs_quarantine_dir <dir>` | "" (unlink) | where verify-mismatch parts land |
 | `brix_cvmfs_manifest_ttl <sec>` | 61 | MANIFEST-class TTL (§4.2) |
 | `brix_cvmfs_negative_ttl <sec>` | 10 | per-worker 404 memo TTL (§4.3) |
 | `brix_cvmfs_upstream_allow <host>…` | unset | proxy-mode authority allowlist (unset = proxy mode off) |
 | `brix_cvmfs_upstream_max <n>` | 8 | max distinct proxy-mode upstreams per worker (cap 16) |
-| `brix_cvmfs_origin_select static\|geo\|rtt` | static | origin selection policy (§5.5) |
+| `brix_cvmfs_origin_select static\|geo\|rtt` | **rtt** | origin selection policy (§5.5) |
 | `brix_cvmfs_origin_coords <host[:port]> <lat>:<lon>` | — | one origin's coordinates (geo; one per origin, `nginx -t` enforced) |
 | `brix_cvmfs_here <lat>:<lon>` | — | this cache's coordinates (geo) |
 | `brix_cvmfs_rtt_interval <sec>` | 60 | RTT probe period (first probe < 500 ms after worker start) |

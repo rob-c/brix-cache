@@ -118,7 +118,7 @@ storage. Squid-in-accelerator-mode, Varnish, and XCache are all this shape.
 | Transparent root:// relay + tap | `brix_transparent_proxy host:port` | **Transparent relay** (reverse topology, nothing terminated) | **No** — auth travels end-to-end | Operator config (single target) | `src/protocols/root/relay/`, `src/net/tap/` |
 | Single-port HTTP handoff | `brix_http_handoff host:port` | **Transparent relay** (local mux) | No (the WebDAV listener it splices to does its own auth) | Operator config (local WebDAV port) | `src/protocols/root/handoff/` |
 | WebDAV perimeter proxy | `webdav_proxy_handler` machinery (directives currently disabled; `brix_webdav_proxy_certs` that remains is GSI *auth*, not proxying) | **Reverse** (terminating, HTTP) | **Yes** (TLS + WLCG token / GSI) | Operator config (static/dynamic backend pool) | `src/protocols/webdav/proxy*.c` |
-| Read-through cache (all protocols) | `brix_storage_backend <origin-url>` + `brix_cache_store <dir>` (and the `brix_webdav_*`/`brix_s3_*`/`brix_cvmfs_*` per-protocol spellings) | **Caching reverse proxy** | **Yes** (normal protocol auth) | Operator config (origin URL; root://, http(s)://, pelican://, S3) | `src/fs/cache/`, `src/fs/cache/origin/`, `src/fs/backend/xroot/` |
+| Read-through cache (all protocols) | `brix_storage_backend <origin-url>` + `brix_cache_store <dir>` (unified — valid at all brix HTTP locations; set once at server or http level and inherited) | **Caching reverse proxy** | **Yes** (normal protocol auth) | Operator config (origin URL; root://, http(s)://, pelican://, S3) | `src/fs/cache/`, `src/fs/cache/origin/`, `src/fs/backend/xroot/` |
 | CVMFS site cache — reverse mode | `brix_cvmfs on` + `brix_storage_backend http://stratum1/cvmfs/<repo>` + `brix_cache_store` | **Caching reverse proxy** | N/A (CVMFS data is content-addressed + signed; anonymous GET) | Operator config (Stratum-1 set, failover) | `src/protocols/cvmfs/` |
 | CVMFS site cache — proxy mode (T14) | absolute-URI listener + `brix_cvmfs_upstream_allow`, `brix_cvmfs_upstream_max` | **FORWARD proxy** (allowlisted) — the only one in the tree | N/A (same CVMFS trust model) | **Client** (`CVMFS_HTTP_PROXY` absolute-URI), constrained by the allowlist | `src/protocols/cvmfs/` (phase-68 T14; ctx plumbing landed, request/upstream registry in progress) |
 | Traffic mirroring / shadow replay | `brix_mirror_url`, `brix_stream_mirror_url`, `brix_mirror_*` | **Reverse-shaped fan-out**, out-of-band (fire-and-forget; client never sees the shadow) | Primary request's auth applies; credentials stripped/replaced toward the shadow | Operator config (≤4 shadow targets) | `src/net/mirror/` |
@@ -286,9 +286,10 @@ runtime add/remove/drain.
 `src/fs/cache/origin/` (pluggable origin transports) +
 `src/fs/backend/xroot/` (root:// origin as a storage driver). Configured by
 composing `brix_storage_backend <origin-url>` (where the bytes come from)
-with `brix_cache_store <dir>` (where they land) — per-protocol spellings
-`brix_webdav_*`, `brix_s3_*`, `brix_cvmfs_*` exist over the same
-shared tier struct.
+with `brix_cache_store <dir>` (where they land). Both are unified bare
+directives valid at all brix HTTP locations (WebDAV, S3, cvmfs) — set
+once at server or http level and inherited; the old per-protocol spellings
+(`brix_webdav_cache_store`, `brix_s3_storage_backend`, etc.) no longer exist.
 
 This is the shape XCache / Squid-accelerator / Varnish occupy: a **reverse
 proxy that owns local storage**. The client speaks any front protocol

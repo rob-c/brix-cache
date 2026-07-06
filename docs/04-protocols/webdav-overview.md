@@ -16,7 +16,7 @@ same nginx instance as the stream module or on its own.
 - [Authentication](#authentication)
 - [HTTP methods](#http-methods)
 - [HTTP Third-Party Copy (TPC)](#http-third-party-copy-tpc)
-- [Upstream proxy mode](#upstream-proxy-mode)
+- [Upstream proxy mode (removed)](#upstream-proxy-mode-removed)
 - [CORS](#cors)
 - [WebDAV locks](#webdav-locks)
 - [Configuration reference](#configuration-reference)
@@ -34,11 +34,8 @@ same nginx instance as the stream module or on its own.
                         │       │                                  │
                         │       ├─ cert OK / token OK / anon       │
                         │       │                                  │
-                        │       ├─► local filesystem (POSIX)       │
-                        │       │       GET, PUT, PROPFIND, …      │
-                        │       │                                  │
-                        │       └─► upstream HTTP(S) proxy         │
-                        │               (brix_webdav_proxy on)   │
+                        │       └─► local filesystem (POSIX)       │
+                        │               GET, PUT, PROPFIND, …      │
                         └─────────────────────────────────────────┘
 ```
 
@@ -50,15 +47,13 @@ same nginx instance as the stream module or on its own.
   DELETE, MKCOL, PROPFIND, PROPPATCH, COPY, MOVE, LOCK, and UNLOCK
 - Handles HTTP-TPC (server-to-server copy) used by `xrdcp davs://src davs://dst`
 - Adds CORS response headers for browser WebDAV clients
-- Can forward all requests to a backend HTTP/HTTPS server after the auth gate
-  (proxy mode — see [Upstream proxy mode](#upstream-proxy-mode))
 
 **What it is not:**
 
 - It does not speak the XRootD binary protocol. For `root://` use the
-  stream module (`xrootd` directive in the `stream {}` block).
-- It is not a generic nginx reverse proxy. Its upstream proxy mode is
-  purpose-built for the WebDAV auth-termination pattern.
+  stream module (`brix_root on` in the `stream {}` block).
+- It is not a generic nginx reverse proxy. For plain HTTP relaying, use
+  nginx's stock `proxy_pass`.
 
 ---
 
@@ -299,117 +294,14 @@ brix_webdav_tpc_token_scope         storage.read;
 
 ---
 
-## Upstream proxy mode
+## Upstream proxy mode (removed)
 
-Proxy mode lets nginx act as an authenticating gateway in front of any HTTP/HTTPS
-WebDAV backend. Nginx terminates TLS and WLCG auth at the perimeter; the backend
-runs plain HTTP with no auth of its own.
-
-```text
-  client (xrdcp / curl / rclone)
-      │  davs://public.example.org/dav/…
-      │  TLS + WLCG token
-      ▼
-  ┌─────────────────────────────────────────┐
-  │  nginx (public, port 443)               │
-  │                                         │
-  │  1. Terminate TLS                       │
-  │  2. Verify WLCG bearer token            │
-  │  3. Strip / rewrite Authorization       │
-  │  4. Rewrite Destination header          │
-  └──────────────────┬──────────────────────┘
-                     │ plain HTTP
-                     ▼
-  ┌─────────────────────────────────────────┐
-  │  xrootd WebDAV (internal, port 1094)    │
-  │  no TLS, no auth, trusted network only  │
-  └─────────────────────────────────────────┘
-```
-
-### Minimal proxy config
-
-```nginx
-server {
-    listen 443 ssl;
-    ssl_certificate     /etc/grid-security/hostcert.pem;
-    ssl_certificate_key /etc/grid-security/hostkey.pem;
-    ssl_verify_client   optional_no_ca;
-    ssl_verify_depth    10;
-
-    location /dav/ {
-        brix_webdav       on;
-        brix_export  /data/store;   # still used for auth path checks
-        brix_webdav_auth  required;
-        brix_webdav_cadir /etc/grid-security/certificates;
-        brix_webdav_token_jwks     /etc/brix/issuer.jwks;
-        brix_webdav_token_issuer   https://token.example.org;
-        brix_webdav_token_audience https://se.example.org;
-
-        # Enable proxy mode
-        brix_webdav_proxy          on;
-        brix_webdav_proxy_upstream http://brix-backend.internal:1094;
-        brix_webdav_proxy_auth     anonymous;   # strip Authorization (default)
-    }
-}
-```
-
-### Auth forwarding policies
-
-`brix_webdav_proxy_auth` controls what nginx puts in the `Authorization`
-header of the forwarded request.
-
-| Policy | Forwarded Authorization |
-|---|---|
-| `anonymous` | Stripped — no `Authorization` header sent to backend (default) |
-| `forward` | Client's original `Authorization` header forwarded unchanged |
-| `token <value>` | Replaced with `Bearer <value>` (static service credential) |
-
-Example — inject a static service token:
-
-```nginx
-brix_webdav_proxy_auth token eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...;
-```
-
-> **Note:** the token value is placed in nginx.conf in plaintext. Protect the
-> configuration file with appropriate file permissions (readable by root only).
-
-### HTTPS upstream
-
-The upstream URL can be `https://`. When it is, nginx opens a TLS connection to
-the backend but does **not** verify the backend's server certificate. This is
-intentional for internal-network backends where the trust is established by
-network topology rather than PKI.
-
-```nginx
-brix_webdav_proxy_upstream https://brix-backend.internal:2094;
-```
-
-### Destination header rewriting
-
-For `COPY` and `MOVE`, the WebDAV `Destination` header contains an absolute URL
-pointing at the public nginx address. The proxy rewrites it to point at the
-upstream base URL before forwarding:
-
-```text
-  Destination: https://public.example.org/dav/new-name
-          ──►  http://brix-backend.internal:1094/dav/new-name
-```
-
-This rewrite is automatic and requires no additional configuration.
-
-### Timeout tuning
-
-```nginx
-brix_webdav_proxy_connect_timeout 10s;
-brix_webdav_proxy_send_timeout    60s;
-brix_webdav_proxy_read_timeout    120s;
-```
-
-All three default to 60 seconds. For large file uploads, increase
-`brix_webdav_proxy_send_timeout` and `brix_webdav_proxy_read_timeout`.
-
-> **Note:** these are nginx msec-slot values; you can use suffix notation
-> (`10s`, `2m`, `500ms`) or plain milliseconds.
+The dedicated WebDAV reverse-proxy directives (`brix_webdav_proxy*`) were
+removed after the relay path to stock XrdHttp backends proved unstable. To
+put a TLS/auth perimeter in front of storage, serve WebDAV directly at the
+edge (`brix_webdav on` + `brix_export`, optionally `brix_storage_backend`
+for a remote origin) — see docs/02-concepts/deployment-modes.md Mode 3. For
+plain HTTP relaying without brix semantics, nginx's stock `proxy_pass` works.
 
 ---
 
@@ -821,94 +713,6 @@ Context: `location`
 
 ---
 
-### Proxy directives
-
-#### `brix_webdav_proxy`
-
-```nginx
-brix_webdav_proxy on | off;
-```
-
-Enable upstream proxy mode. When `on`, all requests are forwarded to
-`brix_webdav_proxy_upstream` after the auth gate. Default: `off`.
-
-Context: `location`
-
----
-
-#### `brix_webdav_proxy_upstream`
-
-```nginx
-brix_webdav_proxy_upstream http://host:port;
-brix_webdav_proxy_upstream https://host:port;
-```
-
-URL of the backend WebDAV server. Required when `brix_webdav_proxy on`.
-Supports both `http://` and `https://` schemes. The upstream address is
-resolved once at startup.
-
-Context: `location`
-
----
-
-#### `brix_webdav_proxy_auth`
-
-```nginx
-brix_webdav_proxy_auth anonymous;
-brix_webdav_proxy_auth forward;
-brix_webdav_proxy_auth token <bearer-value>;
-```
-
-Authorization header policy for forwarded requests. Default: `anonymous`.
-
-| Value | Effect |
-|---|---|
-| `anonymous` | `Authorization` header stripped before forwarding |
-| `forward` | Client's `Authorization` header forwarded unchanged |
-| `token <value>` | `Authorization: Bearer <value>` injected |
-
-Context: `location`
-
----
-
-#### `brix_webdav_proxy_connect_timeout`
-
-```nginx
-brix_webdav_proxy_connect_timeout 10s;
-```
-
-Timeout for establishing the TCP (or TLS) connection to the upstream.
-Default: `60s`.
-
-Context: `location`
-
----
-
-#### `brix_webdav_proxy_send_timeout`
-
-```nginx
-brix_webdav_proxy_send_timeout 60s;
-```
-
-Timeout for sending the request (headers + body) to the upstream. Default: `60s`.
-
-Context: `location`
-
----
-
-#### `brix_webdav_proxy_read_timeout`
-
-```nginx
-brix_webdav_proxy_read_timeout 120s;
-```
-
-Timeout for reading the response from the upstream. Default: `60s`. Increase
-this for slow backends or large responses.
-
-Context: `location`
-
----
-
 ## Troubleshooting
 
 ### "auth optional/required needs brix_webdav_cadir or brix_webdav_cafile"
@@ -933,16 +737,6 @@ supported directly — set a cadir that points at your issuer's CA.
 The nginx worker process must be able to read (and, for writes, write) the
 `brix_export` directory. Check filesystem permissions and that the
 nginx worker user (typically `nginx` or `www-data`) has appropriate access.
-
-### Proxy mode returns 502 Bad Gateway
-
-1. Confirm the upstream is running and listening on the configured address and
-   port.
-2. Check firewall rules between nginx and the backend.
-3. Look for the upstream address in the nginx error log:
-   `brix_webdav_proxy: upstream ... -> ... (ssl=0)` is logged at `notice`
-   level during startup.
-4. Increase `brix_webdav_proxy_read_timeout` if the backend is slow.
 
 ### TPC transfer hangs or times out
 

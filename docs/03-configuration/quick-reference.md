@@ -179,8 +179,8 @@ here exactly as they do to WebDAV/S3. Only cvmfs-specific knobs are listed below
 | `brix_cvmfs on\|off` | `location` | `off` | Activate cvmfs handler (one protocol per location) |
 | `brix_cache_store posix:<path>` | `location` | required | Local XFS cache directory |
 | `brix_cache_verify off\|cvmfs-cas` | `location` | **`cvmfs-cas`** | Verify fills against SHA-1 CAS address (cvmfs default; quarantines corrupt objects) |
-| `brix_cache_evict_at <pct>` | `location` | `90` | Begin eviction at this volume % |
-| `brix_cache_evict_to <pct>` | `location` | `80` | Eviction target % |
+| `brix_cache_evict_at <pct>` | `location` | `90` | Accepted and validated; occupancy-based eviction is not yet wired — capacity-planning placeholder |
+| `brix_cache_evict_to <pct>` | `location` | `80` | Accepted and validated; occupancy-based eviction is not yet wired — capacity-planning placeholder |
 | `brix_cvmfs_upstream_allow <host> …` | `location` | required | Stratum-1 hostname(s) the cache may fetch from |
 | `brix_cvmfs_manifest_ttl <sec>` | `location` | `61` | Manifest revalidation interval |
 | `brix_cvmfs_negative_ttl <sec>` | `location` | `10` | Missing-object answer cache lifetime |

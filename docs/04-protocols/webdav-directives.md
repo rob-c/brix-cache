@@ -10,7 +10,7 @@ The directives cluster into five families. Most deployments only need the first:
 
 ```text
   brix_webdav_*
-  ├─ CORE ........ on · root · allow_write · thread_pool
+  ├─ CORE ........ on · export · allow_write · thread_pool
   │                  └─ activate the handler, set the export, gate writes
   ├─ AUTH ........ auth(none|optional|required)
   │                ├─ cert:  cadir · cafile · crl · proxy_certs · verify_depth

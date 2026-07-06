@@ -1728,21 +1728,21 @@ stream {
         listen 1094;
 &#32;
         brix_root on;
-        brix_proxy on;
+        brix_tap_proxy on;
 &#32;
         # Client-facing token authentication and scope enforcement.
-        brix_proxy_auth token;
+        brix_tap_proxy_auth token;
         brix_auth token;
         brix_token_jwks /etc/tokens/storage-jwks.json;
         brix_token_issuer https://idp.example.com;
         brix_token_audience my-storage;
 &#32;
         # Backend is an internal anonymous XRootD data server.
-        brix_proxy_upstream legacy-origin.internal.example.org:1094;
-        brix_proxy_login_user edge-token-gateway;
+        brix_tap_proxy_upstream legacy-origin.internal.example.org:1094;
+        brix_tap_proxy_login_user edge-token-gateway;
 &#32;
         # Audit the security-domain bridge.
-        brix_proxy_audit_log /var/log/nginx/root_proxy_audit.json;
+        brix_tap_proxy_audit_log /var/log/nginx/root_proxy_audit.json;
 &#32;
         # The backend owns storage; the edge does not need a local root.
         brix_export /srv/brix/export;
@@ -1821,20 +1821,11 @@ http {
             brix_webdav_auth required;
             brix_webdav_cadir /etc/grid-security/certificates;
 &#32;
-            # Proxy accepted requests to an HTTP(S) origin pool.
-            brix_webdav_proxy on;
-            brix_webdav_proxy_dynamic on;
-            brix_webdav_proxy_upstream https://be1.example.org:8443;
-            brix_webdav_proxy_upstream https://be2.example.org:8443;
-            brix_webdav_proxy_max_fails 3;
-            brix_webdav_proxy_fail_timeout 30s;
-            brix_webdav_proxy_connect_timeout 5s;
-            brix_webdav_proxy_send_timeout 60s;
-            brix_webdav_proxy_read_timeout 300s;
-&#32;
-            # Forward the client authorization header only when the
-            # backend is in the same trust domain.
-            brix_webdav_proxy_auth forward;
+            # NOTE: the dedicated WebDAV reverse-proxy directives
+            # (brix_webdav_proxy*) were removed. The edge serves WebDAV
+            # directly from shared or remote storage; for plain HTTP
+            # relaying to an origin pool use nginx stock proxy_pass
+            # with an upstream{} block instead.
         }
 &#32;
         location /brix/ {

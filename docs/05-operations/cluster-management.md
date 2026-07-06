@@ -247,7 +247,7 @@ stream {
 nginx -c tests/nginx-redirector.conf    # brix_manager_mode on :1094, cms :1213
 
 # 2. Start data server (CMS client connects to redirector on startup)
-nginx -c tests/nginx-dataserver.conf    # xrootd on :1095, cms_manager redirector:1213
+nginx -c tests/nginx-dataserver.conf    # brix_root on :1095, cms_manager redirector:1213
 
 # 3. Client hits redirector — should receive kXR_redirect to data server
 xrdcp root://localhost:1094//data/file.txt /tmp/out.txt
