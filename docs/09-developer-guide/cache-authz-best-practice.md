@@ -130,6 +130,67 @@ evaluation, TTL-bounded so a revoked grant cannot outlive the window.
 
 ---
 
+## 4a. Physical exposure of cache/staging artifacts (hardened)
+
+The protocol gate (§2) governs the *served* path, but the on-disk cache/staging artifacts are a
+service-owned tree that aggregates many users' bytes. If those files are world/group-readable,
+a mapped low-privilege uid (under `brix_impersonation map`, users land on real system uids) can
+read another user's cached bytes — or the `.cinfo` residency bitmap, size, and mtime — by
+**direct filesystem access**, bypassing the gate entirely. This matters most on shared
+filesystems / login nodes.
+
+**Landed hardening:** all cache/stage artifacts are created `0600` (files) / `0700` (dirs),
+owner-writable but with no group/other bits. The decisive site is the cache tier
+(`sd_cache.c`): the physical store file previously inherited the origin's group/other bits
+(`snap.mode & 0777` → `0644`); it is now forced `0600`. This is safe because cache files are
+created *and served as the worker* (never through the impersonation VFS), and the **client-facing
+mode is decoupled** — it rides in the `.cinfo` record and is served by `sd_cache_stat()`, so
+tightening the physical mode does not change what a client sees in `stat`. The `.cinfo` sidecar
+and the `cstore`/`fetch`/`xmeta` fill paths are likewise `0600`/`0700`.
+
+**Developer rule:** cache/stage store artifacts (`src/fs/cache/`, `src/fs/meta/` sidecars,
+`src/fs/backend/cache/`) must be created `0600`/`0700`. Do **not** propagate the origin's
+group/other permission bits onto the physical cache file — carry the client-facing mode in
+`.cinfo` instead. Namespace file/dir modes (`origin_write.c`, `op_table.c`, `mkdir.c`, `mv.c`)
+are the *served* file's real perms and must **not** be forced to `0600`.
+
+## 4b. Existence oracles (hardened; one open item)
+
+A metadata op must authorize **before** it probes on-disk existence, or a denied principal
+distinguishes "absent" (`kXR_NotFound`) from "present-but-denied" (`kXR_NotAuthorized`) — a
+namespace-existence oracle. `statx`, `stat`, `cksum`, and `fattr` already gate-before-stat;
+`locate` was fixed to match. **Open item (separate reviewed change):** the read-*open* path
+(`open_request.c`) and the `manager_mode` redirect still probe/redirect before the gate, leaking
+existence for the open path. Aligning them touches the upstream-fallback / zip / residency
+interplay, so it is tracked as its own change, not part of the cache-hardening rounds.
+
+## 4c. Follow-up: WebDAV native authdb + VO-ACL read parity
+
+**Status: documented, not yet landed — a reviewed feature change.** WebDAV's access-phase gate
+(`access.c`) enforces the xrdacc engine and token scope, but **not** native `authdb` (per-DN) or
+VO-ACL (per-VO) rules for reads. Token-scope (the primary WLCG mechanism) and xrdacc *are*
+enforced, so WebDAV is not unauthenticated — but a deployment that expresses per-user/per-group
+authz via native `authdb`/`require_vo` (as `root://` does) has no WebDAV equivalent. Because the
+access-phase gate runs before the content handler, closing this also covers a cached WebDAV GET.
+
+This is **cache-independent** (hit/miss/direct share the one access-phase gate — no cache
+differential) and is a genuine multi-file feature, so it ships as its own reviewed change:
+
+1. Add `ngx_array_t *authdb_rules;` and `ngx_array_t *vo_rules;` to
+   `ngx_http_brix_webdav_loc_conf_t` (`webdav.h`).
+2. Directives `brix_webdav_authdb <file>` (reuse `brix_parse_authdb`, `authdb.c:53`) and
+   `brix_webdav_require_vo <vo> [<path>]` (mirror `brix_conf_set_require_vo`, `policy.c:46`),
+   pushing into those arrays.
+3. Merge parent→loc (`config.c`) and finalize deferred realpaths at startup
+   (`brix_finalize_authdb_rules`, `brix_finalize_vo_rules`, `acl.c`).
+4. Gate in `access.c`, after the token-scope block, before `return NGX_OK`, for non-write
+   methods, using the **already-present** identity (`webdav.h:327` `mctx->identity`, populated
+   with DN + VOs by `auth_cert.c`/`auth_token.c`) and the verified helpers
+   `brix_check_authdb_identity` + `brix_check_vo_acl_identity` → `NGX_HTTP_FORBIDDEN` on deny.
+5. Security-negative test: a GET/HEAD/PROPFIND by a denied VO/authdb principal returns 403,
+   including when the object is already cache-resident; parity cross-check that the same authdb
+   file yields the same decision on `root://` and WebDAV.
+
 ## 5. cvmfs is public by design
 
 `cvmfs://` / `scvmfs://` is a public content-distribution cache. Its content is
