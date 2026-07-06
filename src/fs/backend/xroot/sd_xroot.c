@@ -552,9 +552,13 @@ brix_sd_xroot_create_origin(const char *host, int port, int tls,
          * file, with proxy certs allowed (GSI). Failure leaves gsi_store NULL ⇒ the
          * handshake then refuses rather than trusting an unverifiable origin. */
         is_dir = (stat(is->ca_dir, &ca_st) == 0 && S_ISDIR(ca_st.st_mode));
+        /* Outbound cache→origin client: keep the pre-existing trust behaviour
+         * (no signing_policy namespace enforcement, best-effort CRL) so this
+         * change does not alter which origins a cache node will talk to. */
         synth->gsi_store = brix_build_ca_store(log,
             is_dir ? is->ca_dir : NULL, is_dir ? NULL : is->ca_dir, NULL,
-            X509_V_FLAG_ALLOW_PROXY_CERTS, &crl_count);
+            X509_V_FLAG_ALLOW_PROXY_CERTS, &crl_count,
+            BRIX_SP_MODE_OFF, BRIX_CRL_MODE_TRY);
         if (synth->gsi_store == NULL) {
             ngx_log_error(NGX_LOG_ERR, log, 0,
                 "brix: gsi origin CA store build failed for \"%s\" — GSI to this "

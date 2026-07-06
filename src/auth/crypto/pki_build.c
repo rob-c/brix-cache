@@ -10,6 +10,7 @@
  */
 
 #include "pki_build.h"
+#include "auth/crypto/store_policy.h"
 
 #include <openssl/pem.h>
 #include <openssl/x509_vfy.h>
@@ -182,13 +183,82 @@ pki_load_crls(X509_STORE *store, const char *path, ngx_log_t *log)
     return total;
 }
 
+/*
+ * WHAT: bridge the ngx-free signing_policy loader's log callback to the nginx
+ *       log.  WHY: signing_policy.c/store_policy.c carry no ngx symbol, so they
+ *       emit via this shim.  HOW: map BRIX_SP_LOG_* to an ngx level and write.
+ */
+static void
+brix_pki_sp_log(void *log, int level, const char *msg)
+{
+    ngx_uint_t lvl = (level == BRIX_SP_LOG_WARN) ? NGX_LOG_WARN : NGX_LOG_INFO;
+    ngx_log_error(lvl, (ngx_log_t *) log, 0, "brix_pki: %s", msg);
+}
+
+/*
+ * WHAT: verify callback used only in BRIX_CRL_MODE_TRY.  WHY: "try" means check
+ *       revocation where a CRL exists but tolerate a CA that simply has none;
+ *       a stale (expired) CRL is evidence of neglect, not absence, so it stays
+ *       fatal.  HOW: downgrade the single "no CRL available" error to success
+ *       and let every other verdict (including CRL_HAS_EXPIRED and the actual
+ *       revocation error) stand.
+ */
+static int
+brix_crl_try_verify_cb(int ok, X509_STORE_CTX *ctx)
+{
+    if (ok) {
+        return 1;
+    }
+    if (X509_STORE_CTX_get_error(ctx) == X509_V_ERR_UNABLE_TO_GET_CRL) {
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * Attach the compiled signing_policy table (from cadir) and both modes to the
+ * store.  On BRIX_SP_MODE_REQUIRE with no directory to search, this is a
+ * configuration error: returns -1 so the caller frees the store and fails.
+ * Returns 0 on success.
+ */
+static int
+brix_attach_signing_policy(X509_STORE *store, const char *cadir,
+                           ngx_log_t *log, brix_sp_mode_t sp_mode, int crl_mode)
+{
+    brix_sp_table_t *table;
+
+    if (cadir == NULL && sp_mode == BRIX_SP_MODE_REQUIRE) {
+        ngx_log_error(NGX_LOG_EMERG, log, 0,
+            "brix_pki: signing_policy \"require\" needs a hashed CA directory, "
+            "not a bundle file");
+        return -1;
+    }
+
+    table = brix_sp_table_build(cadir, log, brix_pki_sp_log);
+    if (table == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, 0,
+                      "brix_pki: signing_policy table allocation failed");
+        return -1;
+    }
+
+    if (!brix_store_policy_attach(store, table, sp_mode, crl_mode)) {
+        brix_sp_table_free(table);
+        ngx_log_error(NGX_LOG_ERR, log, 0,
+                      "brix_pki: could not attach signing_policy to store");
+        return -1;
+    }
+    return 0;
+}
+
 X509_STORE *
 brix_build_ca_store(ngx_log_t *log,
                        const char *cadir,
                        const char *cafile,
                        const char *crl_path,
                        unsigned long extra_flags,
-                       int *crl_count_out)
+                       int *crl_count_out,
+                       brix_sp_mode_t sp_mode,
+                       int crl_mode)
 {
     X509_STORE *store;
 
@@ -244,16 +314,35 @@ brix_build_ca_store(ngx_log_t *log,
             return NULL;
         }
 
-        if (crl_count > 0) {
+        /*
+         * CRL verify flags are gated on crl_mode:
+         *   OFF     — never set them; CRLs still load for the /healthz audit.
+         *   TRY     — set them when a CRL is present, and install the
+         *             UNABLE_TO_GET_CRL downgrade so CAs without a CRL pass.
+         *   REQUIRE — set them unconditionally so a missing CRL for ANY CA is
+         *             fatal; no downgrade.
+         */
+        if (crl_mode == BRIX_CRL_MODE_REQUIRE
+            || (crl_mode == BRIX_CRL_MODE_TRY && crl_count > 0))
+        {
             X509_STORE_set_flags(store,
                                  X509_V_FLAG_CRL_CHECK |
                                  X509_V_FLAG_CRL_CHECK_ALL |
                                  X509_V_FLAG_USE_DELTAS);
         }
 
+        if (crl_mode == BRIX_CRL_MODE_TRY) {
+            X509_STORE_set_verify_cb(store, brix_crl_try_verify_cb);
+        }
+
         if (crl_count_out != NULL) {
             *crl_count_out = crl_count;
         }
+    }
+
+    if (brix_attach_signing_policy(store, cadir, log, sp_mode, crl_mode) != 0) {
+        X509_STORE_free(store);
+        return NULL;
     }
 
     return store;
