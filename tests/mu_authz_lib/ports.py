@@ -1,0 +1,49 @@
+"""MU fleet ports and directory layout.
+
+Overridable via TEST_MU_* env vars, matching the tests/settings.py convention
+(int() + literal default). The fleet is a set of PAIRED servers per protocol:
+a cache-OFF `direct` server (the authoritative oracle) and a cache-ON `cache`
+server (the read cache + stage path under test).
+"""
+import os
+
+
+def _p(name: str, default: int) -> int:
+    return int(os.environ.get(name, str(default)))
+
+
+class MU:
+    HOST = os.environ.get("TEST_MU_HOST", "127.0.0.1")
+
+    # Paired direct (cache-off, oracle) + cache (cache-on) servers per protocol.
+    ROOT_DIRECT   = _p("TEST_MU_ROOT_DIRECT",   12100)
+    ROOT_CACHE    = _p("TEST_MU_ROOT_CACHE",    12101)
+    WEBDAV_DIRECT = _p("TEST_MU_WEBDAV_DIRECT", 12102)
+    WEBDAV_CACHE  = _p("TEST_MU_WEBDAV_CACHE",  12103)
+    S3_DIRECT     = _p("TEST_MU_S3_DIRECT",     12104)
+    S3_CACHE      = _p("TEST_MU_S3_CACHE",      12105)
+    CVMFS_CACHE   = _p("TEST_MU_CVMFS_CACHE",   12106)
+
+    # Directory layout (kept out of the shared /tmp/xrd-test fleet roots).
+    MU_ROOT    = os.environ.get("TEST_MU_ROOT", "/tmp/xrd-test/mu")
+    PKI_DIR    = os.environ.get("TEST_MU_PKI_DIR", "/tmp/xrd-test/pki")
+    CA_DIR     = os.path.join(PKI_DIR, "ca")
+    TOKENS_DIR = os.path.join(MU_ROOT, "tokens")
+    DATA_ROOT  = os.path.join(MU_ROOT, "data")     # the export origin
+    CACHE_ROOT = os.path.join(MU_ROOT, "cache")    # read-cache store
+    STATE_ROOT = os.path.join(MU_ROOT, "state")
+    GRIDMAP    = os.path.join(MU_ROOT, "gridmap")
+    AUTHDB     = os.path.join(MU_ROOT, "authdb")
+    VOMSDIR    = os.path.join(MU_ROOT, "vomsdir")
+    CONFIG_DIR = os.path.join(MU_ROOT, "conf")
+    LOG_DIR    = os.path.join(MU_ROOT, "logs")
+
+    @classmethod
+    def all_ports(cls) -> "list[int]":
+        return [cls.ROOT_DIRECT, cls.ROOT_CACHE, cls.WEBDAV_DIRECT, cls.WEBDAV_CACHE,
+                cls.S3_DIRECT, cls.S3_CACHE, cls.CVMFS_CACHE]
+
+    @classmethod
+    def enforcing_ports(cls) -> "list[int]":
+        """The cache servers that MUST enforce per-user authz (excludes cvmfs)."""
+        return [cls.ROOT_CACHE, cls.WEBDAV_CACHE, cls.S3_CACHE]
