@@ -138,16 +138,32 @@ signing_policy_ok(X509_STORE_CTX *ctx)
     return 1;
 }
 
-/* Full verdict for one case: build store, verify, post-checks. */
+/* Every cert in the verified chain must pass the per-cert conformance policy. */
 static int
-verdict_accept(const group_cfg_t *g, const char *cred_path)
+chain_policy_ok(STACK_OF(X509) *chain)
+{
+    int i, n = chain ? sk_X509_num(chain) : 0;
+    for (i = 0; i < n; i++) {
+        if (brix_cert_policy_violation(sk_X509_value(chain, i))) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* Full verdict for one case: build store, verify, post-checks.  davs cases use
+ * webdav flags (no proxy certs); c-oracle cases use GSI flags (allow proxy),
+ * so the oracle matches each surface's production configuration. */
+static int
+verdict_accept(const group_cfg_t *g, const char *cred_path, const char *surface)
 {
     char cadir[4096], bundle[4096];
     snprintf(cadir, sizeof(cadir), "%s/shared/ca", FIX);
     snprintf(bundle, sizeof(bundle), "%s/shared/bundle.pem", FIX);
 
     X509_STORE     *store = X509_STORE_new();
-    unsigned long   flags = X509_V_FLAG_ALLOW_PROXY_CERTS;
+    unsigned long   flags = (strcmp(surface, "davs") == 0)
+                            ? 0UL : X509_V_FLAG_ALLOW_PROXY_CERTS;
     int             crl_count = 0;
     STACK_OF(X509) *chain;
     X509_STORE_CTX *ctx;
@@ -179,15 +195,26 @@ verdict_accept(const group_cfg_t *g, const char *cred_path)
     {
         X509           *leaf = sk_X509_value(chain, 0);
         STACK_OF(X509) *untrusted = sk_X509_new_null();
+        STACK_OF(X509) *vchain;
         int             i;
         for (i = 1; i < sk_X509_num(chain); i++) {
             sk_X509_push(untrusted, sk_X509_value(chain, i));
         }
         X509_STORE_CTX_init(ctx, store, leaf, untrusted);
+        X509_STORE_CTX_set_depth(ctx, 10);
+        /* davs = webdav over TLS: nginx's ssl_verify_client applies the OpenSSL
+         * SSL_CLIENT purpose at the TLS layer before brix ever sees the cert.
+         * Replicate that here so the oracle matches the wire exactly. */
+        if (strcmp(surface, "davs") == 0) {
+            X509_STORE_CTX_set_purpose(ctx, X509_PURPOSE_SSL_CLIENT);
+        }
         ok = X509_verify_cert(ctx);
+        vchain = X509_STORE_CTX_get0_chain(ctx);
         accept = ok
                  && signing_policy_ok(ctx)
-                 && brix_proxy_chain_ok(X509_STORE_CTX_get0_chain(ctx));
+                 && brix_proxy_chain_ok(vchain)
+                 && brix_proxy_pci_ok(vchain)
+                 && chain_policy_ok(vchain);
         sk_X509_free(untrusted);
     }
 
@@ -242,7 +269,7 @@ main(int argc, char **argv)
         char credpath[4096];
         snprintf(credpath, sizeof(credpath), "%s/creds/%s", FIX, cred);
 
-        int v = verdict_accept(g, credpath);
+        int v = verdict_accept(g, credpath, surface);
         int want_accept = (strcmp(expected, "accept") == 0);
         int got_accept = (v == 1);
         checks++;

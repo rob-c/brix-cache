@@ -477,7 +477,9 @@ webdav_verify_proxy_cert(ngx_http_request_t *r,
 
     if (brix_gsi_verify_chain(r->connection->log, conf->ca_store,
                                  leaf, chain, conf->verify_depth,
-                                 &verify_res) != NGX_OK)
+                                 &verify_res,
+                                 1 /* WebDAV: client-purpose, no proxies */)
+        != NGX_OK)
     {
         /* brix_gsi_verify_chain already logged the specific error */
         webdav_free_verify_resources(NULL, leaf);

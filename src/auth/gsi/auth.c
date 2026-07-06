@@ -297,7 +297,8 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
         }
 
         gsi_rc = brix_gsi_verify_chain(c->log, conf->gsi_store,
-                                          leaf, untrusted, 0, &verify_res);
+                                          leaf, untrusted, 0, &verify_res,
+                                          0 /* GSI: accept RFC 3820 proxies */);
 
         if (untrusted) {
             sk_X509_free(untrusted);
