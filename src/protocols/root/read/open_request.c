@@ -655,10 +655,23 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 			                               options, mode_bits);
 		}
 
-		/* Read opens: verify the file exists within root using kernel confinement,
-		 * then build the absolute path string for auth checks. */
+		/* Read opens: build the absolute path, then authorize BEFORE probing
+		 * existence.  A denied principal must never distinguish kXR_NotFound
+		 * (absent) from kXR_NotAuthorized (present-but-denied) — a namespace
+		 * existence oracle — and must not be forwarded upstream on a miss, which
+		 * would leak existence just the same.  The gate keys off (identity,
+		 * logical path) and has no dependency on the probe result, so running it
+		 * first is behavior-identical for every authorized principal (mirrors the
+		 * statx.c / locate.c ordering). */
 		brix_beneath_full_path(conf->common.root_canon, clean_path,
 		                          full_path, sizeof(full_path));
+
+		if (brix_auth_gate(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
+							  clean_path, full_path, conf,
+							  BRIX_AUTH_READ, 0) != NGX_OK) {
+			return ctx->write_rc;
+		}
+
 		{
 			int _exists, _is_dir;
 
@@ -680,12 +693,6 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 								  clean_path, "rd", kXR_isDirectory,
 								  "is a directory");
 			}
-		}
-
-		if (brix_auth_gate(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
-							  clean_path, full_path, conf,
-							  BRIX_AUTH_READ, 0) != NGX_OK) {
-			return ctx->write_rc;
 		}
 
 		/* Phase-57 W2: ZIP member access.  The archive existence check and READ

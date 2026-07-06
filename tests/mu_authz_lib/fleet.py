@@ -28,6 +28,7 @@ def _base_subst() -> dict:
         "{CACHE_NOIMP_PORT}": str(ports.MU.CACHE_NOIMP),
         "{ORIGIN_NOIMP_PORT}": str(ports.MU.ORIGIN_NOIMP),
         "{WEBDAV_AUTHZ_PORT}": str(ports.MU.WEBDAV_AUTHZ),
+        "{DIRECT_AUTHZ_PORT}": str(ports.MU.DIRECT_AUTHZ),
         "{BIND_HOST}": ports.MU.HOST,
         "{DATA_DIR}": ports.MU.DATA_ROOT,
         "{CACHE_DIR}": ports.MU.CACHE_ROOT,
