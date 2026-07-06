@@ -22,6 +22,7 @@
 #include "observability/metrics/unified.h"
 #include "auth/authz/acc/acc.h"
 #include "fs/path/path.h"   /* brix_check_authdb_identity, brix_check_vo_acl_identity */
+#include "webdav_tpc.h"     /* webdav_tpc_find_header — COPY PULL/PUSH direction */
 
 /* Map a WebDAV HTTP method to the XrdAcc operation it requires. */
 static brix_acc_op_t
@@ -34,7 +35,15 @@ webdav_method_aop(ngx_http_request_t *r)
     case NGX_HTTP_DELETE:    return BRIX_AOP_DELETE;
     case NGX_HTTP_MKCOL:     return BRIX_AOP_MKDIR;
     case NGX_HTTP_MOVE:      return BRIX_AOP_RENAME;
-    case NGX_HTTP_COPY:      return BRIX_AOP_READ;     /* source read */
+    case NGX_HTTP_COPY:
+        /* A TPC PULL (Source: header present) WRITES r->uri (the local
+         * destination), so it must be authorized as a CREATE — otherwise a
+         * read-only principal could pull remote data onto a path it may not
+         * write. A PUSH / plain intra-server COPY reads r->uri (the source). */
+        if (webdav_tpc_find_header(r, "Source", sizeof("Source") - 1) != NULL) {
+            return BRIX_AOP_CREATE;
+        }
+        return BRIX_AOP_READ;
     case NGX_HTTP_PROPFIND:  return BRIX_AOP_READDIR;
     case NGX_HTTP_PROPPATCH: return BRIX_AOP_UPDATE;
     case NGX_HTTP_LOCK:
