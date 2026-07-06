@@ -81,6 +81,21 @@ def seed_service_only(cast):
     return "/cms/service-only.dat"
 
 
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """Print the cross-user LEAK LEDGER: every leak-marked failure with its node id (spec §10).
+    This is the deliverable that answers 'is per-user access correctly cached?' with evidence."""
+    failed = terminalreporter.stats.get("failed", [])
+    leaks = [r for r in failed if any(m == "leak" for m in getattr(r, "keywords", {}))]
+    if not leaks:
+        return
+    terminalreporter.write_sep("=", "CROSS-USER LEAK LEDGER (fail-loudly, spec §10)")
+    for rep in leaks:
+        terminalreporter.write_line(f"  LEAK  {rep.nodeid}")
+    terminalreporter.write_line(
+        f"  {len(leaks)} cross-user leak(s) — each is a cache/stage serve whose verdict "
+        f"diverges from the direct oracle.")
+
+
 @pytest.fixture
 def revoke(cast):
     """Revoke a principal's access by `what` ∈ {token, gridmap} and reload the fleet."""
