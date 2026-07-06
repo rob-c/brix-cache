@@ -34,8 +34,8 @@ graph TB
     end
     
     subgraph nginx["nginx process"]
-        stream[stream {} block<br/>XRootD protocol]
-        http[http {} block]
+        stream["stream {} block<br/>XRootD protocol"]
+        http["http {} block"]
         
         subgraph httpLayers["HTTP layer"]
             webdav[WebDAV handler]
@@ -94,7 +94,7 @@ graph TD
     B -->|Yes| C[Mode 1: Standalone Server]
     B -->|No| D{Add TLS/auth/metrics<br/>in front of an existing XRootD service?}
     D -->|Yes| E[Mode 2: Transparent Proxy]
-    D -->|No| F{Expose WebDAV through HTTPS perimeter?<br/>(WLCG token auth, browser access)}
+    D -->|No| F{"Expose WebDAV through HTTPS perimeter?<br/>(WLCG token auth, browser access)"}
     F -->|Yes| G[Mode 3: WebDAV Perimeter Proxy]
     F -->|No| H[Use multiple modes<br/>in the same nginx instance]
 
@@ -168,11 +168,11 @@ All three modes run inside a single nginx instance. Details: [Deployment Modes](
 ```mermaid
 graph TD
     A[What clients will connect?] --> B{Native XRootD<br/>xrdcp/xrdfs?}
-    B -->|Yes| C{Do you have grid certificates?<br/>(GSI/x509 proxy certs)}
+    B -->|Yes| C{"Do you have grid certificates?<br/>(GSI/x509 proxy certs)"}
     C -->|Yes| D[GSI Authentication]
     C -->|No| E{Do you use WLCG/JWT tokens?}
     E -->|Yes| F[JWT Token Auth]
-    E -->|No| G{Shared secret system?<br/>(SSS)}
+    E -->|No| G{"Shared secret system?<br/>(SSS)"}
     G -->|Yes| H[SSS Authentication]
     G -->|No| I[Anonymous Access]
 
