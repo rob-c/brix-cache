@@ -52,6 +52,10 @@ start_all_dedicated() {
     if [[ ! -f "${main_tokens_dir}/signing_key.pem" ]]; then
         python3 utils/make_token.py init "${main_tokens_dir}" >/dev/null
     fi
+    # Generate multi-key JWKS (jwks_multi.json) and scitokens.cfg for the
+    # multi-key and registry dedicated nginx instances.  Tolerates failure so a
+    # missing cryptography dep does not abort the whole fleet.
+    python3 tests/tokenforge.py fleet-artifacts "${main_tokens_dir}" >/dev/null 2>&1 || true
     python3 utils/make_token.py gen "${main_tokens_dir}" \
         --sub "nginx-bridge" \
         --scope "storage.read:/ storage.modify:/" \
@@ -110,6 +114,10 @@ start_all_dedicated() {
     start_dedicated_nginx "vo-acl" "nginx_vo_acl.conf" "${VO_PORT:-11103}"
     start_dedicated_nginx "manager" "nginx_manager.conf" "${MANAGER_PORT:-11101}"
     start_dedicated_nginx "token-strict" "nginx_token_strict.conf" "${NGINX_TOKEN_STRICT_PORT:-11119}"
+    # WLCG token conformance: multi-key JWKS, multi-issuer registry, enforcing WebDAV.
+    start_dedicated_nginx "token-multikey" "nginx_token_multikey.conf" "${NGINX_TOKEN_MULTIKEY_PORT:-11250}"
+    start_dedicated_nginx "token-registry" "nginx_token_registry.conf" "${NGINX_TOKEN_REGISTRY_PORT:-11251}"
+    start_dedicated_nginx "webdav-token" "nginx_webdav_token.conf" "${NGINX_WEBDAV_TOKEN_PORT:-8446}"
 
     # --- Migrated dedicated instances (formerly self-provisioned by the test) ---
     # Each replaces a test fixture that used to spawn+teardown its own nginx; the
