@@ -7,7 +7,7 @@
 > `v:10400`, `sha1:md5`) using an LHCb VOMS proxy — plus the regression guards
 > that keep it working and the xcache/TPC fronting scenarios.
 >
-> Companion deep-dive: [`../10-reference/comparison/brix-implementations.md`](../10-reference/comparison/brix-implementations.md).
+> Companion deep-dive: [`../10-reference/comparison/xrootd-implementations.md`](../10-reference/comparison/xrootd-implementations.md).
 > Guard tests: `tests/test_gsi_interop_guards.py`, `tests/c/gsi_interop_test.c`.
 
 ---

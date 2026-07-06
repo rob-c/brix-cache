@@ -17,7 +17,7 @@ facts from the companion documents rather than re-deriving them:
 
 - [`../conformance-findings.md`](../conformance-findings.md) — 22 fixed wire divergences vs. the spec + stock tools.
 - [`../gohep-interop-findings.md`](../gohep-interop-findings.md) — three bugs an independent Go client exposed.
-- [`../brix-implementations.md`](../brix-implementations.md) — the five-implementation code-level comparison.
+- [`../xrootd-implementations.md`](../xrootd-implementations.md) — the five-implementation code-level comparison.
 
 ---
 
@@ -46,7 +46,7 @@ The protocol is **defined** by `XProtocol/XProtocol.hh` and **served** by
    `Process()` (`XrdXrootdProtocol.cc:368`) drives a **continuation** state
    machine — a partial socket read stashes state and reschedules via the `Resume`
    member-function pointer rather than blocking (`XrdXrootdProtocol.hh:589`,
-   confirmed in [`../brix-implementations.md`](../brix-implementations.md) §1).
+   confirmed in [`../xrootd-implementations.md`](../xrootd-implementations.md) §1).
 2. Before login, only `kXR_protocol`, `kXR_login`, and `kXR_bind` are accepted —
    a strict pre-login gate (`XrdXrootdProtocol.cc:472-474, 515`).
 3. After login, `Process2()` dispatches the full opcode set through a deliberately
@@ -73,7 +73,7 @@ protocol.
 
 The module registers as an `NGX_STREAM_MODULE` and runs the protocol **on nginx's
 event loop**, single-threaded per worker — the only event-loop reimplementation in
-the field ([`../brix-implementations.md`](../brix-implementations.md) §1). The
+the field ([`../xrootd-implementations.md`](../xrootd-implementations.md) §1). The
 recv path is a byte-accumulating state machine
 (`HANDSHAKE(20B) → REQ_HEADER(24B) → REQ_PAYLOAD(dlen) → dispatch`) with suspend
 states that return to the loop immediately; blocking work (file I/O, DH keygen) is
@@ -121,7 +121,7 @@ throughout):
   `XRD_RESPONSE_HDR_LEN 8` (`opcodes.h:31`).
 - **`streamid` is opaque** — echoed as raw bytes, never byte-swapped, on both
   sides (confirmed for all five implementations in
-  [`../brix-implementations.md`](../brix-implementations.md) §2).
+  [`../xrootd-implementations.md`](../xrootd-implementations.md) §2).
 - Response status codes agree: `kXR_ok=0`, `kXR_oksofar=4000`, `kXR_attn=4001`,
   `kXR_authmore=4002`, `kXR_error=4003`, `kXR_redirect=4004`, `kXR_wait=4005`,
   `kXR_waitresp=4006`, `kXR_status=4007` (official `XResponseType`,
@@ -140,7 +140,7 @@ The client sends `struct ClientInitHandShake` = five 32-bit words
 - **Official validation is loose**: the real gate is "first three words zero,
   fourth word == 4" with the magic word historical
   (`XrdXrootdProtocol.cc:311-325`, per
-  [`../brix-implementations.md`](../brix-implementations.md) §3).
+  [`../xrootd-implementations.md`](../xrootd-implementations.md) §3).
 - **BriX-Cache validates `fourth==4 && fifth==ROOTD_PQ(2012)`**
   (`src/protocols/root/handshake/client_hello.c:66`, `ROOTD_PQ` defined `opcodes.h`). Slightly
   stricter than the reference (it also requires the magic), but a conformant
@@ -197,7 +197,7 @@ The server reply (`ServerResponseBody_Protocol`, `XProtocol.hh:1233-1237`) is
   rejected. When offering, it sets `ctx->tls_pending=1` so the connection upgrades
   via `ngx_ssl_create_connection` after the reply. This matches the reference's
   `kXR_ableTLS/wantTLS ↔ haveTLS/gotoTLS/tlsLogin` model
-  ([`../brix-implementations.md`](../brix-implementations.md) §3 table).
+  ([`../xrootd-implementations.md`](../xrootd-implementations.md) §3 table).
 - **SecurityInfo trailer**: when the client sets `kXR_secreqs`, the server appends
   a trailer (`protocol.c:94-200`): a 4-byte SecurityInfo header, one 8-byte entry
   per enabled auth plugin (sss/ztn/gsi order), and a
@@ -219,7 +219,7 @@ version in the low 6 bits — `XLoginCapVer`/`XLoginVersion`, `XProtocol.hh:404-
 
 - Parses username/PID from the 8-byte field; **rejects non-printable usernames**
   (`login.c:82`), which is stricter than the reference but defensible
-  ([`../brix-implementations.md`](../brix-implementations.md) §4).
+  ([`../xrootd-implementations.md`](../xrootd-implementations.md) §4).
 - Generates a 16-byte `sessid` and sets `logged_in=1` (the session id is *not*
   crypto-grade, noted in source).
 - **Anonymous nuance**: when `conf->auth == BRIX_AUTH_NONE`, login completes in
@@ -242,7 +242,7 @@ handler is `brix_handle_auth` in `src/auth/gsi/auth.c`, which drives GSI / token
 SSS / krb5 to completion (multi-round via `kXR_authmore`), then sets
 `auth_done=1`. The crypto details (GSI buckets, DH, IV/`#ivlen`, digest
 negotiation) are out of scope here and covered in
-[`../brix-implementations.md`](../brix-implementations.md) §5; the *framing*
+[`../xrootd-implementations.md`](../xrootd-implementations.md) §5; the *framing*
 (`credtype`, `kXR_authmore` rounds) agrees.
 
 ---
@@ -368,7 +368,7 @@ relevant to wire framing/semantics (cross-referenced in the opcode table above):
 
 - **Reported version**: both advertise `0x520` (5.2.0). (For context, go-hep is
   frozen at 3.1 and dCache at 5.0 — see
-  [`../brix-implementations.md`](../brix-implementations.md) §3.)
+  [`../xrootd-implementations.md`](../xrootd-implementations.md) §3.)
 - **Handshake strictness**: the reference accepts any fifth word; we require the
   `2012` magic (`client_hello.c:66`). Interoperable for conformant clients.
 - **Username strictness**: we reject non-printable usernames at login; the
@@ -425,7 +425,7 @@ vendor extensions, which require this project's own client.
 - **Beyond the reference**: paged I/O (`pgread`/`pgwrite` + `kXR_status` +
   per-page CRC32c) and `readv` — features only this module and the C++ reference
   implement among the reimplementations
-  ([`../brix-implementations.md`](../brix-implementations.md) §6) — plus four
+  ([`../xrootd-implementations.md`](../xrootd-implementations.md) §6) — plus four
   opt-in vendor POSIX extension opcodes.
 
 **Bottom line:** on the `root://` binary wire protocol, BriX-Cache is a
@@ -474,4 +474,4 @@ explicitly opt-in vendor superset and one dead-opcode gap.
 **Companion comparison docs** (verified facts reused here):
 [`../conformance-findings.md`](../conformance-findings.md),
 [`../gohep-interop-findings.md`](../gohep-interop-findings.md),
-[`../brix-implementations.md`](../brix-implementations.md).
+[`../xrootd-implementations.md`](../xrootd-implementations.md).

@@ -1,7 +1,7 @@
 # XRootD Concepts (deep dive)
 
 > ⚠️ **Reference tier — advanced.** Assumes familiarity with:
-> - [XRootD Basics](../02-concepts/brix-basics.md) *(read first, 10 min)*
+> - [XRootD Basics](../02-concepts/xrootd-basics.md) *(read first, 10 min)*
 > - Basic understanding of TCP sessions and file I/O
 >
 > If you just want to set up a server, stop reading after [Configuration Reference](../03-configuration/config-reference.md).

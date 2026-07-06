@@ -3,7 +3,7 @@
 Every XRootD operation the module handles — command-line examples, Python client snippets, and the constraints you'll hit in production.
 
 If you want the higher-level "what does `xrdcp` usually do to the server?" view,
-see [xrdcp-interactions.md](../04-protocols/brix-client-interaction.md). If you want the design
+see [xrdcp-interactions.md](../04-protocols/xrootd-client-interaction.md). If you want the design
 trade-offs behind some of the odd-looking behavior, see [quirks.md](../10-reference/quirks.md).
 
 ---

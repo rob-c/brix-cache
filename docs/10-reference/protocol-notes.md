@@ -4,7 +4,7 @@
 >
 > **Skip if:** You just want to use or operate this module. The getting-started guides don't need this information.
 >
-> Prerequisites: [XRootD Basics](../02-concepts/brix-basics.md), reading C source code comfortably.
+> Prerequisites: [XRootD Basics](../02-concepts/xrootd-basics.md), reading C source code comfortably.
 
 Non-obvious wire protocol behaviour discovered by reverse-engineering the XRootD C++ source. None of these are in the specification — they were found by running the client against the server and reading the source when something didn't work.
 

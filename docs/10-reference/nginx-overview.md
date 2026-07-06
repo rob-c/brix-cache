@@ -2,7 +2,7 @@
 
 > ⚠️ **Reference tier — contributor-focused.** nginx architecture decisions that shape how the module is structured. Useful when adding features or debugging; not needed to operate a server.
 >
-> Prerequisites: [XRootD Basics](../02-concepts/brix-basics.md), basic understanding of C programming.
+> Prerequisites: [XRootD Basics](../02-concepts/xrootd-basics.md), basic understanding of C programming.
 
 The nginx architecture decisions that shape how this module is structured — and, critically, what nginx provides for free that any standalone server (including the official XRootD daemon) must implement from scratch.
 
