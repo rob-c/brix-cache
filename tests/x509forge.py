@@ -367,6 +367,7 @@ class Scenario:
     ca_dir: Path
     credentials: dict[str, Path] = field(default_factory=dict)
     manifest: list[dict] = field(default_factory=list)
+    objects: dict = field(default_factory=dict)   # in-memory Certs (CA, EECs)
 
     def write_credential(self, name: str, chain: list[Cert],
                          key_of: Cert) -> Path:
@@ -581,9 +582,23 @@ def _crl_revoked_eec(root: Path) -> Scenario:
     write_hashed_ca_dir(sc.ca_dir, ca, crls={"r0": crl})
     sc.write_credential("good", [good, ca], good)
     sc.write_credential("revoked", [bad, ca], bad)
+    sc.objects.update(ca=ca, good=good, revoked=bad)
     sc.add_manifest("good", "accept", reason="not revoked", spec_ref="RFC 5280")
     sc.add_manifest("revoked", "reject", reason="serial on CRL", spec_ref="RFC 5280")
     return sc.finalize()
+
+
+def rewrite_crl(sc: Scenario, *, revoked_names: list[str]) -> None:
+    """Re-sign the scenario's .r0 CRL, revoking the named in-memory certs.
+
+    Requires the builder to have stashed the CA (and any revoked certs) in
+    sc.objects.  Used by hot-reload/un-revocation tests.
+    """
+    ca = sc.objects["ca"]
+    revoked = [sc.objects[n] for n in revoked_names]
+    pem = make_crl(ca, revoked=revoked)
+    for r0 in sc.ca_dir.glob("*.r0"):
+        r0.write_bytes(pem)
 
 
 def _crl_expired(root: Path) -> Scenario:
