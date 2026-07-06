@@ -288,6 +288,14 @@ brix_token_validate(ngx_log_t *log,
     json_get_string((char *) hdr_json, (size_t) hdr_len, "kid", kid,
                     sizeof(kid));
 
+    /* RFC 7515 §4.1.11: we implement no `crit` extension parameters, so any
+     * token asserting critical headers we do not understand MUST be rejected. */
+    if (json_has_member((char *) hdr_json, (size_t) hdr_len, "crit")) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+                      "brix_token: JWS 'crit' header not supported — rejecting");
+        return -1;
+    }
+
     sig_len = b64url_decode(seg[2].p, sig_b64_len, sig_bin, sizeof(sig_bin));
     if (sig_len < 0) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
@@ -389,11 +397,19 @@ brix_token_validate(ngx_log_t *log,
         }
     }
 
-    if (expected_audience != NULL && expected_audience[0]) {
+    if (expected_audience != NULL && expected_audience[0] != '\0') {
         /* Accept the expected audience whether "aud" is a single string or an
-         * array of strings containing it (RFC 7519 §4.1.3). */
-        if (!json_string_or_array_contains((char *) pay_json, (size_t) pay_len,
-                                           "aud", expected_audience)) {
+         * array of strings containing it (RFC 7519 §4.1.3).  Also accept the
+         * WLCG-profile wildcard audience (rules 104/105): a token whose aud is
+         * 'https://wlcg.cern.ch/jwt/v1/any' MUST be accepted by any WLCG
+         * endpoint regardless of its locally configured audience. */
+        int aud_ok =
+            json_string_or_array_contains((char *) pay_json, (size_t) pay_len,
+                                          "aud", expected_audience)
+            || json_string_or_array_contains((char *) pay_json, (size_t) pay_len,
+                                          "aud",
+                                          "https://wlcg.cern.ch/jwt/v1/any");
+        if (!aud_ok) {
             char safe_aud[512];
             token_sanitize_for_log(claims->aud, safe_aud, sizeof(safe_aud));
             ngx_log_error(NGX_LOG_WARN, log, 0,
@@ -408,14 +424,29 @@ brix_token_validate(ngx_log_t *log,
 
     /* Apply a clock-skew window so that tokens from systems whose clock differs
      * from ours by a few seconds are not spuriously rejected.  The skew widens
-     * the acceptance window on both sides without permanently extending validity. */
-    if (now > (time_t) claims->exp + clock_skew)
+     * the acceptance window on both sides without permanently extending validity.
+     *
+     * Guard against int64 overflow: json_get_int64() clamps a far-future NumericDate
+     * (e.g. 99999999999999999999) to INT64_MAX, so claims->exp + clock_skew can
+     * overflow.  Use saturating addition — if the sum would overflow, the expiry is
+     * effectively infinite and the token is always valid. */
     {
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "brix_token: token expired at %L (now=%L skew=%d)",
-                      (long long) claims->exp, (long long) now,
-                      clock_skew);
-        return -1;
+        int64_t  exp_limit;
+
+        if (clock_skew > 0
+            && claims->exp > (int64_t) INT64_MAX - (int64_t) clock_skew)
+        {
+            exp_limit = INT64_MAX;   /* saturate: far-future, never expired */
+        } else {
+            exp_limit = claims->exp + (int64_t) clock_skew;
+        }
+        if (now > (time_t) exp_limit) {
+            ngx_log_error(NGX_LOG_WARN, log, 0,
+                          "brix_token: token expired at %L (now=%L skew=%d)",
+                          (long long) claims->exp, (long long) now,
+                          clock_skew);
+            return -1;
+        }
     }
 
     if (claims->nbf > 0 && now < (time_t) claims->nbf)
