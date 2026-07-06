@@ -148,6 +148,11 @@ section_mirror_delete() {
   "$BIN/xrdcp" --sync --delete "$WORK/src/a.root" "$WORK/dst/" 2>/dev/null
   check "--delete without -r exits 50" '[ "$?" -eq 50 ]'
 
+  # Error case (no fleet, validated pre-transfer): --delete (mirror) and
+  # --remove-source (move) are contradictory — together they destroy both trees.
+  "$BIN/xrdcp" -r --sync --delete --remove-source "$WORK/src/" "$WORK/dst/" 2>/dev/null
+  check "--delete + --remove-source exits 50" '[ "$?" -eq 50 ]'
+
   echo "== mirror delete (fleet) =="
   if ! have_fleet; then
     echo "  SKIP fleet mirror-delete tests (no fleet at $URL)"
@@ -541,6 +546,28 @@ section_cksum_tree() {
   "$BIN/xrdcksum" check "$T/algo_manifest" "$T/src" --algo crc32c
   check "check --algo crc32c: exit 0 on clean tree" '[ "$?" -eq 0 ]'
 
+  # security-negative: a file whose NAME embeds a newline must be skipped (not
+  # written as a forged extra manifest line); the run warns + exits 2 and the
+  # emitted manifest still parses cleanly line-by-line.
+  local NL="$WORK/cknl"
+  mkdir -p "$NL/src"
+  printf 'ok\n' > "$NL/src/good.dat"
+  # Build a filename containing a literal newline: "evil\n<forged hex>  hack".
+  local BADNAME
+  BADNAME="$(printf 'evil\n0000  hack')"
+  printf 'x\n' > "$NL/src/$BADNAME" 2>/dev/null || true
+  if [ -e "$NL/src/$BADNAME" ]; then
+    "$BIN/xrdcksum" tree "$NL/src" -o "$NL/manifest" 2>/dev/null
+    check "tree: newline-name run exits 2" '[ "$?" -eq 2 ]'
+    check "tree: forged name not in manifest" \
+      '! grep -q "hack" "$NL/manifest"'
+    # Every manifest line must still match the "<hex>  <rel>" record shape.
+    check "tree: manifest parses cleanly line-by-line" \
+      '! grep -qvE "^[0-9a-f]+  " "$NL/manifest"'
+  else
+    echo "  SKIP newline-name test (filesystem rejected the name)"
+  fi
+
   # Fleet-gated: remote tree output matches local manifest of identical content.
   echo "== xrdcksum tree (fleet, remote) =="
   if ! have_fleet; then
@@ -566,6 +593,14 @@ section_cksum_tree() {
   sort "$T/local_manifest"  > "$T/local_sorted"
   check "fleet tree: remote manifest matches local" \
     'cmp -s "$T/remote_sorted" "$T/local_sorted"'
+
+  # Trailing-slash root: `tree root://.../dir/` must produce the SAME manifest
+  # as the no-slash form (the root prefix strip must ignore trailing slashes).
+  "$BIN/xrdcksum" tree "${URL}//${RDIR}/" -o "$T/remote_slash_manifest"
+  check "fleet tree: trailing-slash root exits 0" '[ "$?" -eq 0 ]'
+  sort "$T/remote_slash_manifest" > "$T/remote_slash_sorted"
+  check "fleet tree: trailing slash == no slash" \
+    'cmp -s "$T/remote_slash_sorted" "$T/remote_sorted"'
 
   # Cleanup remote scratch.
   "$BIN/xrdfs" "$URL" rm -r "$RDIR" >/dev/null 2>&1 || true
@@ -603,6 +638,20 @@ with open(sys.argv[1], 'wb') as f:
 EOF
   "$BIN/xrddiag" replay "$WORK/trunc.xrdcap" >/dev/null 2>/dev/null
   check "replay: truncated fixture exits nonzero" '[ "$?" -ne 0 ]'
+
+  # M-record truncation: magic + 'M' + a klen byte claiming more key bytes than
+  # remain.  The reader (shared by replay + playback) must fread-skip the record
+  # body and detect the short read, exiting nonzero — NOT silently succeed via an
+  # fseek-past-EOF.  (The playback path re-issues over a live server; without a
+  # fleet only the shared decode is exercised here.)
+  python3 - "$WORK/mtrunc.xrdcap" <<'EOF'
+import sys
+with open(sys.argv[1], 'wb') as f:
+    f.write(b"XRDCAP1\n")
+    f.write(b"M" + bytes([16]) + b"key")   # klen=16 but only 3 key bytes follow
+EOF
+  "$BIN/xrddiag" replay "$WORK/mtrunc.xrdcap" >/dev/null 2>/dev/null
+  check "replay: M-record-truncated fixture exits nonzero" '[ "$?" -ne 0 ]'
 
   # --- check --json with unreachable endpoint (no fleet needed) ---
   OUT=$("$BIN/xrddiag" check --json "root://localhost:1" 2>/dev/null)
