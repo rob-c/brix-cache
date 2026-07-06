@@ -57,21 +57,33 @@ def write_jwks(path, entries):
         json.dump({"keys": keys}, fh, indent=2)
 
 
+# Confirmed INI keys (issuer_registry.c reg_kv(), verified 2026-07-06):
+#   Section:  [Issuer <name>]  (strncasecmp prefix "Issuer ", len 7)
+#   Keys:     issuer, base_path, restricted_path, audience / audience_json,
+#             jwks_file, authorization_strategy, map_subject, username_claim,
+#             groups_claim, default_user, name_mapfile, onmissing, enabled
+#   base_path/restricted_path values: reg_add_list() splits on " ," so a
+#     comma-separated list on ONE line is correct — no need to repeat the key.
+#   Strategy key: "authorization_strategy" (line 162) NOT "authz_strategy".
+#   [Global] only accepts: audience / audience_json.
 def write_scitokens_cfg(path, issuers):
     """issuers: list of dicts {name, issuer, audience, base_paths,
     restricted_paths, jwks_path, strategy}. Emits the INI the C registry
-    parser (issuer_registry.c) reads."""
+    parser (src/auth/token/issuer_registry.c) reads."""
     lines = ["[Global]", "audience = nginx-xrootd", ""]
     for it in issuers:
         lines.append(f"[Issuer {it['name']}]")
         lines.append(f"issuer = {it['issuer']}")
         lines.append(f"audience = {it.get('audience', 'nginx-xrootd')}")
+        # reg_add_list() splits on " ," so comma-separated on one line is fine.
         lines.append("base_path = " + ", ".join(it.get("base_paths", ["/"])))
         if it.get("restricted_paths"):
             lines.append("restricted_path = " +
                          ", ".join(it["restricted_paths"]))
         lines.append(f"jwks_file = {it['jwks_path']}")
-        lines.append(f"authz_strategy = {it.get('strategy', 'capability')}")
+        # Real key is "authorization_strategy" (issuer_registry.c:162).
+        lines.append(
+            f"authorization_strategy = {it.get('strategy', 'capability')}")
         lines.append("")
     with open(path, "w") as fh:
         fh.write("\n".join(lines))
@@ -226,3 +238,55 @@ class Manifest:
     def write(self, path):
         with open(path, "w") as fh:
             json.dump({"cases": self.rows}, fh, indent=2, sort_keys=True)
+
+
+def build_manifest(out_dir):
+    """Mint the core representative manifest cases and write token_manifest.json.
+
+    WHAT: Creates out_dir, initialises a TokenForge (generating keys on first
+          run), and appends the SIG-family seed rows so the manifest file is
+          always valid.  Later family tasks append their own rows by calling
+          build_manifest() and extending the result, or by inserting m.add()
+          calls between the seed rows and the write() call.
+    WHY:  Provides a self-contained entrypoint so CI and the pytest harness can
+          confirm the manifest round-trips without needing the full test suite.
+    HOW:  Constructs TokenForge → Manifest → writes JSON; returns the manifest
+          path so callers can open it directly.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    f = TokenForge(out_dir)
+    if not os.path.exists(f.key_path):
+        f.init_keys()
+    m = Manifest()
+
+    # SIG family — representative rows (full family added by Task 8)
+    m.add("SIG-01", {"m": "alg_none"}, "all", "reject",
+          "alg=none blocked before verify", "spec §2, RFC8725")
+    m.add("SIG-02", {"m": "alg_hs256_confusion"}, "all", "reject",
+          "HS256-with-RSA-pubkey confusion", "spec §2, RFC8725")
+    m.add("SIG-03", {"m": "alg_lowercase"}, "all", "reject",
+          "alg is case-sensitive", "RFC7515 §4.1.1")
+
+    # ... all families appended by their respective test tasks ...
+
+    manifest_path = os.path.join(out_dir, "token_manifest.json")
+    m.write(manifest_path)
+    return manifest_path
+
+
+if __name__ == "__main__":
+    import argparse
+
+    ap = argparse.ArgumentParser(
+        description="WLCG token conformance fixture forge CLI")
+    sub = ap.add_subparsers(dest="cmd")
+    manifest_p = sub.add_parser("manifest",
+                                 help="Build token_manifest.json in out_dir")
+    manifest_p.add_argument("out_dir",
+                             help="Directory to write fixtures into")
+    args = ap.parse_args()
+
+    if args.cmd == "manifest":
+        print(build_manifest(args.out_dir))
+    else:
+        ap.print_help()
