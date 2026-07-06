@@ -415,7 +415,7 @@ section_xrdfs_json() {
   # stat -j: valid JSON with is_dir key
   OUT=$("$BIN/xrdfs" "$URL" stat -j "${BASE}/sample.txt" 2>/dev/null)
   check "stat -j: valid JSON with is_dir" \
-    'echo "$OUT" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d[\"is_dir\"] in (True,False)"'
+    'echo "$OUT" | python3 -c "import sys,json,re; d=json.load(sys.stdin); assert d[\"is_dir\"] in (True,False); assert \"mode\" not in d or re.match(r\"^0[0-7]{3}$\", d[\"mode\"])"'
 
   # ls -j: valid JSON array
   OUT=$("$BIN/xrdfs" "$URL" ls -j "$BASE" 2>/dev/null)

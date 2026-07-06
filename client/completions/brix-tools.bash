@@ -37,7 +37,8 @@ _xrdfs() {
   if [[ "$cur" == -* ]]; then
     local sub="${COMP_WORDS[2]}"
     case "$sub" in
-      ls|du|df) COMPREPLY=($(compgen -W "$conn_opts --human --json" -- "$cur")) ;;
+      ls|du)    COMPREPLY=($(compgen -W "$conn_opts --human --json" -- "$cur")) ;;
+      df)       COMPREPLY=($(compgen -W "$conn_opts --human" -- "$cur")) ;;
       tree)     COMPREPLY=($(compgen -W "$conn_opts --dirs-only --depth" -- "$cur")) ;;
       rm)       COMPREPLY=($(compgen -W "$conn_opts --verbose -r" -- "$cur")) ;;
       touch)    COMPREPLY=($(compgen -W "$conn_opts --timestamp" -- "$cur")) ;;
