@@ -276,15 +276,34 @@ tail_start_for_lines(brix_conn *c, const char *path, int64_t size, long nlines,
 }
 
 
-/* tail -f follow loop: after the initial dump, poll the file size every `interval`
- * seconds and stream any growth, until SIGINT. On truncation, resync to the new EOF.
- * 0 (clean / interrupted) / -1 (stat or read error, st set). */
+/* WHAT: follow mode for tail (-f): after the initial dump, poll the file size every
+ *       `interval` seconds and stream appended bytes until SIGINT.
+ * WHY:  one long-lived brix_rfile rides out connection severs (reconnect+reopen+resume)
+ *       transparently — the resilient-handle showcase.  Re-opening per poll would add
+ *       per-round open/close RTT and forfeit the automatic reconnect benefit.
+ * HOW:  open brix_rfile once; brix_stat once per poll; new bytes brix_rfile_pread
+ *       through the handle; a shrink (truncate/rotate) emits a stderr notice and resets
+ *       to the new EOF.  SIGINT handler sets tail_stop for a clean exit.
+ * Returns 0 (clean / interrupted) / -1 (stat or read error, st set). */
 int
 tail_follow(brix_conn *c, const char *path, int64_t from, double interval,
             brix_status *st)
 {
+    brix_rfile       rf;
+    uint8_t         *buf;
     int64_t          off = from;
     struct sigaction sa, old;
+    int              rc = 0;
+
+    if (brix_rfile_open_read(c, path, NULL, 0, -1, &rf, st) != 0) {
+        return -1;
+    }
+    buf = (uint8_t *) malloc(1 << 20);
+    if (buf == NULL) {
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
+        brix_rfile_close(&rf, st);
+        return -1;
+    }
 
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = tail_sigint;
@@ -295,26 +314,50 @@ tail_follow(brix_conn *c, const char *path, int64_t from, double interval,
         struct timespec ts;
         brix_status_clear(st);
         if (brix_stat(c, path, &si, st) != 0) {
-            sigaction(SIGINT, &old, NULL);
-            return -1;
+            rc = -1;
+            break;
         }
-        if (si.size > off) {
-            if (stream_file(c, path, NULL, off, si.size - off, st) != 0) {
-                sigaction(SIGINT, &old, NULL);
-                return -1;
+        if ((int64_t) si.size < off) {
+            fprintf(stderr, "xrdfs: tail: %s truncated, following new end\n", path);
+            off = (int64_t) si.size;
+        }
+        while (off < (int64_t) si.size) {
+            size_t  want = (size_t) ((si.size - off) < (1 << 20)
+                                     ? (si.size - off) : (1 << 20));
+            ssize_t n = brix_rfile_pread(&rf, off, buf, want, st);
+            if (n < 0)  { rc = -1; break; }
+            if (n == 0) {
+                /* Soft EOF: the underlying file was replaced (server unlinked the
+                 * inode our handle tracks).  Reopen to bind to the new inode, then
+                 * break to re-poll the size before attempting further reads. */
+                brix_status tw;
+                brix_status_clear(&tw);
+                brix_rfile_close(&rf, &tw);
+                brix_status_clear(st);
+                if (brix_rfile_open_read(c, path, NULL, 0, -1, &rf, st) != 0) {
+                    rc = -1;
+                }
+                break;
             }
-            fflush(stdout);
-            off = si.size;
-        } else if (si.size < off) {
-            off = si.size;   /* truncated → resync */
+            fwrite(buf, 1, (size_t) n, stdout);
+            off += n;
         }
+        fflush(stdout);
+        if (rc != 0) { break; }
         if (tail_stop) { break; }
         ts.tv_sec  = (time_t) interval;
         ts.tv_nsec = (long) ((interval - (double) ts.tv_sec) * 1e9);
         nanosleep(&ts, NULL);
     }
+
     sigaction(SIGINT, &old, NULL);
-    return 0;
+    free(buf);
+    {
+        brix_status tw;
+        brix_status_clear(&tw);
+        brix_rfile_close(&rf, &tw);
+    }
+    return rc;
 }
 
 

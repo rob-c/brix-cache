@@ -415,6 +415,50 @@ section_xrdfs_json() {
     '[ -z "$(printf "%s" "$OUT" | tr -d "[:space:]")" ]'
 }
 
+section_tail_follow() {
+  echo "== tail -f (follow mode) =="
+  if ! have_fleet; then
+    echo "  SKIP tail -f tests (no fleet at $URL)"
+    return
+  fi
+
+  local BASE="/tmp/cfeat-$$-tailf"
+  local CAP="$WORK/tailf.cap"
+  local ERR="$WORK/tailf.err"
+  local RC
+
+  # --- success: initial content + appended bytes reach stdout ---
+  printf 'line1\nline2\n' | "$BIN/xrdcp" - "${URL}//${BASE}" >/dev/null 2>&1
+  timeout 5 "$BIN/xrdfs" "$URL" tail -f "$BASE" >"$CAP" 2>"$ERR" &
+  local FPID=$!
+  sleep 1
+  # Grow the file: upload a longer version so size strictly increases.
+  printf 'line1\nline2\nline3_appended\n' | "$BIN/xrdcp" -f - "${URL}//${BASE}" >/dev/null 2>&1
+  wait "$FPID" 2>/dev/null || true
+  check "tail -f: appended line appears in output" 'grep -q "line3_appended" "$CAP"'
+
+  # --- error: missing path exits nonzero quickly (before the timeout) ---
+  timeout 3 "$BIN/xrdfs" "$URL" tail -f "${BASE}-missing" >/dev/null 2>/dev/null
+  RC=$?
+  check "tail -f missing: nonzero exit" '[ "$RC" -ne 0 ]'
+
+  # --- truncation resilience: stderr notice + process outlives the truncation ---
+  local CAP2="$WORK/tailf2.cap"
+  local ERR2="$WORK/tailf2.err"
+  printf 'aaa\nbbb\nccc\n' | "$BIN/xrdcp" -f - "${URL}//${BASE}" >/dev/null 2>&1
+  timeout 5 "$BIN/xrdfs" "$URL" tail -f "$BASE" >"$CAP2" 2>"$ERR2" &
+  local FPID2=$!
+  sleep 1
+  # Truncate: replace with a shorter file.
+  printf 'x\n' | "$BIN/xrdcp" -f - "${URL}//${BASE}" >/dev/null 2>&1
+  wait "$FPID2" 2>/dev/null; RC=$?
+  check "tail -f truncation: stderr notice" 'grep -q "truncated" "$ERR2"'
+  check "tail -f truncation: process ran to timeout (exit 124)" '[ "$RC" -eq 124 ]'
+
+  # Cleanup
+  "$BIN/xrdfs" "$URL" rm "$BASE" >/dev/null 2>&1 || true
+}
+
 section_cat_compress() {
   echo "== cat -z (codec validation) =="
   if ! have_fleet; then
@@ -453,6 +497,7 @@ main() {
   section_journal
   section_xrdfs_rm
   section_xrdfs_json
+  section_tail_follow
   section_cat_compress
   echo "client-features: $PASS pass, $FAIL fail"
   [ "$FAIL" -eq 0 ]
