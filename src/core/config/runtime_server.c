@@ -454,7 +454,7 @@ brix_config_prepare_server(ngx_conf_t *cf,
              * on` cache fills from the export's REMOTE storage backend. */
             if (xcf->cache_root.len == 0 || !remote_source) {
                 ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "brix_cache on requires brix_cache_root and a remote "
+                    "brix_cache on requires brix_cache_export and a remote "
                     "brix_storage_backend (root://host:port); the retired "
                     "brix_cache_origin model is the tier grammar now "
                     "(brix_storage_backend + brix_cache_store)");
@@ -462,7 +462,7 @@ brix_config_prepare_server(ngx_conf_t *cf,
             }
         }
 
-        if (brix_validate_path(cf, "brix_cache_root",
+        if (brix_validate_path(cf, "brix_cache_export",
                                  &xcf->cache_root,
                                  BRIX_PATH_DIRECTORY,
                                  R_OK | W_OK | X_OK)
