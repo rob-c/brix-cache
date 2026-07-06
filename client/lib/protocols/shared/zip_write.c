@@ -108,7 +108,7 @@ brix_zip_writer_add_fd(brix_zip_writer *w, const char *name, int fd)
 
     /* Pass 1: CRC-32 over the whole file (STORE: comp == uncomp == size). */
     for (pos = 0; (uint64_t) pos < size; ) {
-        ssize_t n = pread(fd, buf, sizeof(buf), pos);
+        ssize_t n = pread(fd, buf, sizeof(buf), pos); /* vfs-seam-allow: local zip-archive assembly, not export data */
         if (n < 0) {
             if (errno == EINTR) { continue; }
             return XRDC_ZIP_EIO;
@@ -161,7 +161,7 @@ brix_zip_writer_add_fd(brix_zip_writer *w, const char *name, int fd)
     /* File data (STORE: verbatim) */    for (pos = 0; (uint64_t) pos < size; ) {
         size_t want = (size - (uint64_t) pos < sizeof(buf))
                       ? (size_t) (size - (uint64_t) pos) : sizeof(buf);
-        ssize_t n = pread(fd, buf, want, pos);
+        ssize_t n = pread(fd, buf, want, pos); /* vfs-seam-allow: local zip-archive assembly, not export data */
         if (n < 0) {
             if (errno == EINTR) { continue; }
             w->err = XRDC_ZIP_EIO;

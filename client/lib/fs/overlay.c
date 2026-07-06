@@ -427,7 +427,7 @@ static int ov_copyup_stream(int fd, const char *rel, uint64_t size,
         rc = read_lower(ud, rel, off, want, buf, &got);
         if (rc == 0 && got == 0) rc = -EIO;         /* premature EOF */
         for (size_t done = 0; rc == 0 && done < got; ) {
-            ssize_t w = pwrite(fd, buf + done, got - done, (off_t) (off + done));
+            ssize_t w = pwrite(fd, buf + done, got - done, (off_t) (off + done)); /* vfs-seam-allow: copy-up write to upper writable overlay layer, not export data */
             if (w < 0) rc = -errno;
             else done += (size_t) w;
         }

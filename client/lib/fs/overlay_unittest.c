@@ -280,7 +280,7 @@ static void test_copyup(void) {
 
     int fd = brix_overlay_open(&f.ov, "sw/pkg/big.bin", O_RDONLY, 0);
     unsigned char b[3];
-    CHECK(fd >= 0 && pread(fd, b, 3, 2u * 1024u * 1024u + 1u) == 3
+    CHECK(fd >= 0 && pread(fd, b, 3, 2u * 1024u * 1024u + 1u) == 3 /* vfs-seam-allow: unit-test spot-check on local overlay fixture file, not export data */
           && b[0] == (unsigned char) (((2u * 1024u * 1024u + 1u) * 7) & 0xff),
           "byte spot-check past 2 MiB");
     if (fd >= 0) close(fd);
