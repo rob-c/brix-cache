@@ -22,7 +22,7 @@ const xrdfs_cmd COMMANDS[] = {
     { "ln",       do_ln,       "ln [-s] [-f] <target> <linkpath>" },
     { "readlink", do_readlink, "readlink <path>" },
     { "truncate", do_truncate, "truncate <path> <size>" },
-    { "cat",      do_cat,      "cat <path>" },
+    { "cat",      do_cat,      "cat [-z codec] <path>" },
     { "head",     do_head,     "head [-c BYTES] [-n LINES] <path>" },
     { "tail",     do_tail,     "tail [-c BYTES] [-n LINES] [-f] <path>" },
     { "wc",       do_wc,       "wc [-c] [-l] [-w] <path>" },

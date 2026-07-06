@@ -413,6 +413,37 @@ section_xrdfs_json() {
     '[ -z "$(printf "%s" "$OUT" | tr -d "[:space:]")" ]'
 }
 
+section_cat_compress() {
+  echo "== cat -z (codec validation, always) =="
+
+  # Security: codec with injection chars must exit 50 without a fleet.
+  "$BIN/xrdfs" "$URL" cat -z 'gz&evil=1' /some/path 2>/dev/null
+  check "cat -z bad codec: exits 50" '[ "$?" -eq 50 ]'
+
+  echo "== cat -z (fleet) =="
+  if ! have_fleet; then
+    echo "  SKIP cat -z fleet tests (no fleet at $URL)"
+    return
+  fi
+
+  local FPATH="/tmp/cfeat-$$-catz"
+  # Seed a small file with known content.
+  printf 'hello compress\n' | "$BIN/xrdcp" - "${URL}//${FPATH}" >/dev/null 2>&1
+
+  # Transparency contract: cat -z gzip must produce the same bytes as cat
+  # (server either negotiates compression and inflates, or ignores the request).
+  PLAIN=$("$BIN/xrdfs" "$URL" cat "$FPATH" 2>/dev/null)
+  COMPR=$("$BIN/xrdfs" "$URL" cat -z gzip "$FPATH" 2>/dev/null)
+  check "cat -z gzip: byte-identical to plain cat" '[ "$PLAIN" = "$COMPR" ]'
+
+  # Error path: missing file must exit nonzero.
+  "$BIN/xrdfs" "$URL" cat -z gzip "/tmp/cfeat-$$-catz-nosuchfile" >/dev/null 2>&1
+  check "cat -z gzip missing: nonzero exit" '[ "$?" -ne 0 ]'
+
+  # Cleanup.
+  "$BIN/xrdfs" "$URL" rm "$FPATH" >/dev/null 2>&1 || true
+}
+
 main() {
   section_dryrun_filters
   section_sync_modes
@@ -421,6 +452,7 @@ main() {
   section_journal
   section_xrdfs_rm
   section_xrdfs_json
+  section_cat_compress
   echo "client-features: $PASS pass, $FAIL fail"
   [ "$FAIL" -eq 0 ]
 }
