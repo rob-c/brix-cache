@@ -899,6 +899,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/crypto/pki_load.c \
     $ngx_addon_dir/src/auth/crypto/pki_check.c \
     $ngx_addon_dir/src/auth/crypto/gsi_verify.c \
+    $ngx_addon_dir/src/auth/crypto/signing_policy.c \
+    $ngx_addon_dir/src/auth/crypto/store_policy.c \
     $ngx_addon_dir/src/auth/crypto/ocsp.c \
     $ngx_addon_dir/src/auth/gsi/pki.c \
     $ngx_addon_dir/src/protocols/webdav/pki.c \
