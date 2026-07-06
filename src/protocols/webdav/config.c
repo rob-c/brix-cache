@@ -399,10 +399,10 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
         {
             brix_export_root_opts_t root_opts;
 
-            /* posix:<path> backend → the local export tree (composable brix_root). */
+            /* posix:<path> backend → the local export tree (composable brix_export). */
             brix_storage_backend_posix_root(&conf->common);
 
-            root_opts.directive_name = "brix_webdav_root";
+            root_opts.directive_name = "brix_export";
             root_opts.allow_write    = conf->common.allow_write
                                      && !brix_storage_backend_is_remote(&conf->common);
             root_opts.required       = 1;

@@ -20,16 +20,16 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/w/export" "$PFX/w/logs" "$PFX/w/stage
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root; brix_auth none; brix_allow_write on; brix_upload_resume off; } }
+stream { server { listen 127.0.0.1:${OPORT}; brix_root on; brix_export $PFX/o/root; brix_auth none; brix_allow_write on; brix_upload_resume off; } }
 EOF
 cat > "$PFX/w/nginx.conf" <<EOF
 daemon on; error_log $PFX/w/logs/e.log info; pid $PFX/w/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 http { client_max_body_size 50m; server { listen 127.0.0.1:${WPORT}; location / {
-  brix_webdav on; brix_webdav_root $PFX/w/export; brix_webdav_auth none;
-  brix_webdav_allow_write on;
-  brix_webdav_storage_backend root://127.0.0.1:${OPORT};
+  brix_webdav on; brix_export $PFX/w/export; brix_webdav_auth none;
+  brix_allow_write on;
+  brix_storage_backend root://127.0.0.1:${OPORT};
   brix_webdav_storage_staging on;
 } } }
 EOF

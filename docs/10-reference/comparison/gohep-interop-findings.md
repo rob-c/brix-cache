@@ -66,7 +66,7 @@ client** at `security_level ≥ 2` (which would have hit the identical desync).
 
 **Symptom (go-hep through a static-map redirector):**
 `xrootd: error 3007: Bad file descriptor` on `ls`/`cp` (the redirector answered
-the stat locally — it has no `brix_root` — instead of redirecting).
+the stat locally — it has no `brix_export` — instead of redirecting).
 
 **Root cause:** only `open` (`src/protocols/root/read/open_request.c`) and `locate`
 (`src/protocols/root/read/locate.c`) consulted `brix_find_manager_map()`. `stat`

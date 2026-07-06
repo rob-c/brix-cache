@@ -26,7 +26,7 @@ events { worker_connections 128; }
 http { access_log off; server {
     listen 127.0.0.1:$CPORT;
     location / {
-        brix_cvmfs_cache_store posix:$PFX/cache;
+        brix_cache_store posix:$PFX/cache;
         brix_cvmfs on;
         brix_cvmfs_upstream_allow 127.0.0.1;
         brix_cvmfs_upstream_max 4;
@@ -77,7 +77,7 @@ http {
     listen 127.0.0.1:$CPORT2;
     access_log $PFX2/logs/a.log cvt;
     location / {
-        brix_cvmfs_cache_store posix:$PFX2/cache;
+        brix_cache_store posix:$PFX2/cache;
         brix_cvmfs on;
         brix_cvmfs_upstream_allow bogus.example.org 127.0.0.1 also-bogus.example.org;
         brix_cvmfs_upstream_max 4;

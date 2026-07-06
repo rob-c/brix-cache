@@ -102,8 +102,8 @@ The default. Any client can connect and provide any username — no certificate 
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /data/public;
+        brix_root on;
+        brix_export /data/public;
         # brix_auth none;  ← this is the default, no need to write it
     }
 }
@@ -135,9 +135,9 @@ On the **client**:
 stream {
     server {
         listen 1095;
-        xrootd on;
+        brix_root on;
         brix_auth gsi;
-        brix_root /data/store;
+        brix_export /data/store;
         brix_certificate     /etc/grid-security/hostcert.pem;
         brix_certificate_key /etc/grid-security/hostkey.pem;
         brix_trusted_ca      /etc/grid-security/ca.pem;
@@ -215,17 +215,17 @@ stream {
     # Public read-only
     server {
         listen 1094;
-        xrootd on;
-        brix_root /data/public;
+        brix_root on;
+        brix_export /data/public;
     }
 
     # Authenticated read-write
     server {
         listen 1095;
-        xrootd on;
+        brix_root on;
         brix_auth gsi;
         brix_allow_write on;
-        brix_root /data/restricted;
+        brix_export /data/restricted;
         brix_certificate     /etc/grid-security/hostcert.pem;
         brix_certificate_key /etc/grid-security/hostkey.pem;
         brix_trusted_ca      /etc/grid-security/ca.pem;
@@ -259,9 +259,9 @@ On the **client**:
 stream {
     server {
         listen 1094;
-        xrootd on;
+        brix_root on;
         brix_auth token;
-        brix_root /data/store;
+        brix_export /data/store;
         brix_allow_write on;
         brix_token_jwks     /etc/tokens/jwks.json;
         brix_token_issuer   "https://idp.example.com";
@@ -333,9 +333,9 @@ A server can accept either GSI proxy certificates or bearer tokens. The module i
 stream {
     server {
         listen 1094;
-        xrootd on;
+        brix_root on;
         brix_auth both;
-        brix_root /data;
+        brix_export /data;
 
         # GSI settings
         brix_certificate     /etc/grid-security/hostcert.pem;

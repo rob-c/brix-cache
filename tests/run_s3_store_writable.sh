@@ -15,7 +15,7 @@ cat > "$PFX/a/nginx.conf" <<E2
 daemon on; error_log $PFX/a/logs/e.log info; pid $PFX/a/nginx.pid;
 events { worker_connections 64; }
 http { server { listen 127.0.0.1:${APORT};
-  location / { brix_s3 on; brix_s3_root $PFX/a/s3root; brix_s3_bucket xrdstage; brix_s3_allow_write on; } } }
+  location / { brix_s3 on; brix_export $PFX/a/s3root; brix_s3_bucket xrdstage; brix_allow_write on; } } }
 E2
 cat > "$PFX/b/nginx.conf" <<E2
 daemon on; error_log $PFX/b/logs/e.log info; pid $PFX/b/nginx.pid;
@@ -23,8 +23,8 @@ thread_pool default threads=2;
 events { worker_connections 64; }
 http { client_body_temp_path $PFX/b/tmp; server { listen 127.0.0.1:${BPORT};
   location / { dav_methods PUT DELETE;
-    brix_webdav on; brix_webdav_root $PFX/b/backend; brix_webdav_auth none; brix_webdav_allow_write on;
-    brix_webdav_stage on; brix_webdav_stage_store s3://127.0.0.1:${APORT}/xrdstage; brix_webdav_stage_flush sync; } } }
+    brix_webdav on; brix_export $PFX/b/backend; brix_webdav_auth none; brix_allow_write on;
+    brix_stage on; brix_stage_store s3://127.0.0.1:${APORT}/xrdstage; brix_stage_flush sync; } } }
 E2
 head -c 400000 /dev/urandom > "$PFX/src.bin"; SHA=$(sha256sum "$PFX/src.bin"|cut -d' ' -f1)
 "$NGINX" -p "$PFX/a" -c "$PFX/a/nginx.conf" 2>"$PFX/a/err" || { echo "A fail"; cat "$PFX/a/err"; exit 2; }

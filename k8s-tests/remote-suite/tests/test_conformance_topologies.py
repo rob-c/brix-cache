@@ -121,7 +121,7 @@ def _stream(port, inner):
 def _build_proxy():
     """One transparent proxy hop in front of the DATA_ROOT nginx (ANON)."""
     conf = _write_conf("proxy", _stream(PROXY_PORT,
-        f"        xrootd on; brix_auth none;\n"
+        f"        brix_root on; brix_auth none;\n"
         f"        brix_tap_proxy on; brix_tap_proxy_upstream {HOST}:{ANON}; brix_tap_proxy_auth anonymous;"))
     _start(conf)
     return f"root://{H}:{PROXY_PORT}", [conf]
@@ -130,10 +130,10 @@ def _build_proxy():
 def _build_mesh():
     """Two stacked proxy hops: hop2 -> hop1 -> ANON (nginx->nginx->nginx)."""
     c1 = _write_conf("mesh1", _stream(MESH_HOP1_PORT,
-        f"        xrootd on; brix_auth none;\n"
+        f"        brix_root on; brix_auth none;\n"
         f"        brix_tap_proxy on; brix_tap_proxy_upstream {HOST}:{ANON}; brix_tap_proxy_auth anonymous;"))
     c2 = _write_conf("mesh2", _stream(MESH_HOP2_PORT,
-        f"        xrootd on; brix_auth none;\n"
+        f"        brix_root on; brix_auth none;\n"
         f"        brix_tap_proxy on; brix_tap_proxy_upstream {HOST}:{MESH_HOP1_PORT}; brix_tap_proxy_auth anonymous;"))
     _start(c1)
     _start(c2)
@@ -145,12 +145,12 @@ def _build_cluster():
     redir = _write_conf("clu_redir",
         "stream {\n"
         f"    server {{\n        listen 0.0.0.0:{CLU_REDIR_PORT};\n"
-        "        xrootd on; brix_auth none; brix_manager_mode on;\n"
+        "        brix_root on; brix_auth none; brix_manager_mode on;\n"
         "    }\n"
         f"    server {{\n        listen 0.0.0.0:{CLU_CMS_PORT};\n"
         "        brix_cms_server on;\n    }\n}")
     ds = _write_conf("clu_ds", _stream(CLU_DS_PORT,
-        f"        xrootd on; brix_storage_backend posix:{DATA_ROOT}; brix_auth none;\n"
+        f"        brix_root on; brix_storage_backend posix:{DATA_ROOT}; brix_auth none;\n"
         f"        brix_allow_write on;\n"
         f"        brix_cms_manager {HOST}:{CLU_CMS_PORT};\n"
         f"        brix_cms_paths /;\n"
@@ -172,7 +172,7 @@ def _build_mirror(port=MIRROR_PORT, name="mirror"):
     and the official server export the same DATA_ROOT directory, so writes made
     through the front are visible to the official server for read-back."""
     conf = _write_conf(name, _stream(port,
-        f"        xrootd on; brix_storage_backend posix:{DATA_ROOT}; brix_auth none;\n"
+        f"        brix_root on; brix_storage_backend posix:{DATA_ROOT}; brix_auth none;\n"
         f"        brix_allow_write on;\n"
         f"        brix_stream_mirror_url {HOST}:{REF_BRIX_PORT};\n"
         # Mirror the full read-path opcode set INCLUDING query/Qcksum.  The

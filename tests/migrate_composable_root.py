@@ -3,9 +3,9 @@
 migrate_composable_root.py — rewrite legacy export-root directives to the phase-64
 composable storage-backend grammar in test configs / scripts.
 
-  brix_root        <path>  ->  brix_storage_backend        posix:<path>
-  brix_webdav_root <path>  ->  brix_webdav_storage_backend posix:<path>
-  brix_s3_root     <path>  ->  brix_s3_storage_backend     posix:<path>
+  brix_export        <path>  ->  brix_storage_backend        posix:<path>
+  brix_export <path>  ->  brix_storage_backend posix:<path>
+  brix_export     <path>  ->  brix_storage_backend     posix:<path>
 
 A `posix:<path>` storage backend is a verified drop-in for the legacy root (the
 brix_storage_backend_posix_root helper rewrites common->root to <path>); this holds
@@ -29,12 +29,12 @@ import re
 import sys
 
 # the root directive (optional proto infix) + ws + value + ';' — matched ANYWHERE on a
-# line, so a one-liner `stream { server { ...; brix_root X; ... } }` is handled too.
+# line, so a one-liner `stream { server { ...; brix_export X; ... } }` is handled too.
 ROOT_TOKEN = re.compile(
     r'\bxrootd(?P<proto>_webdav|_s3)?_root(?P<ws>\s+)(?P<val>\S+?)(?P<semi>\s*;)'
 )
 # A file that carries ANY composable backend or cache/stage tier ("Group B") is one
-# whose remaining brix_root lines are namespace ANCHORS beside a remote backend (or
+# whose remaining brix_export lines are namespace ANCHORS beside a remote backend (or
 # cache-materialisation dirs). A naive posix: swap there would duplicate a
 # storage_backend within the block or break cache semantics — and reliable block
 # detection is unsafe because the embedded heredoc/f-string configs use ${VAR} / {PH}

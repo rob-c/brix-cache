@@ -68,8 +68,8 @@ BriX-Cache *is* the XRootD server. It directly serves files from your local file
 stream {
     server {
         listen 1094;          # XRootD default port
-        xrootd on;            # Enable the module
-        brix_root /data;    # Root directory to serve
+        brix_root on;            # Enable the module
+        brix_export /data;    # Root directory to serve
         brix_allow_write on;# Allow writes (optional)
         
         # Authentication options:
@@ -119,7 +119,7 @@ BriX-Cache sits **in front of** an existing XRootD server. Clients connect to ng
 stream {
     server {
         listen 1094;
-        xrootd on;
+        brix_root on;
         brix_proxy on;                    # Enable proxy mode
         brix_proxy_upstream ceph-xrootd:1094;  # Backend address
         
@@ -211,14 +211,14 @@ stream {
     # Standalone server serving local files
     server {
         listen 1094;
-        xrootd on;
-        brix_root /data/local-store;
+        brix_root on;
+        brix_export /data/local-store;
     }
     
     # Proxy for backend storage
     server {
         listen 1095;
-        xrootd on;
+        brix_root on;
         brix_proxy on;
         brix_proxy_upstream ceph-xrootd:1094;
     }
@@ -240,7 +240,7 @@ http {
         listen 9000;
         location / {
             brix_s3 on;
-            brix_s3_root /data/s3-bucket;
+            brix_export /data/s3-bucket;
         }
     }
 }

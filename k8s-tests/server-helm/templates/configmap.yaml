@@ -15,7 +15,7 @@ data:
       {{- range $i := until ($.Values.server.nodeCount | int) }}
       server {
         listen {{ $.Values.ports.xrootd }};
-        xrootd on;
+        brix_root on;
         xrootd_root {{ $.Values.data.root }};
         xrootd_allow_write {{ $.Values.auth.allowWrite }};
 

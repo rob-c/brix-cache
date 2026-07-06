@@ -4,7 +4,7 @@
 
 **Goal:** One guessable directive grammar across root://, WebDAV, S3, and cvmfs — per-protocol enables plus a unified bare storage directive set (`brix_export`, `brix_cache_store`, `brix_stage`, …) owned by a new HTTP common module — with a production-grade 3-line cvmfs site cache, loud config errors for unsupported combinations, and matching docs.
 
-**Architecture:** A new `ngx_http_brix_common_module` registers the unified storage/namespace directives exactly once for the HTTP plane, storing them in an `ngx_http_brix_shared_conf_t` it owns; webdav/s3/cvmfs copy the merged values into their embedded `common` structs at `merge_loc_conf` time (module emission order in `./config` guarantees the common module merges first). The stream plane already uses the bare names and only renames its enable (`xrootd`→`brix_root`) and export path (`brix_root`→`brix_export`). Old names are hard-renamed — no aliases.
+**Architecture:** A new `ngx_http_brix_common_module` registers the unified storage/namespace directives exactly once for the HTTP plane, storing them in an `ngx_http_brix_shared_conf_t` it owns; webdav/s3/cvmfs copy the merged values into their embedded `common` structs at `merge_loc_conf` time (module emission order in `./config` guarantees the common module merges first). The stream plane already uses the bare names and only renames its enable (`xrootd`→`brix_export`) and export path (`brix_export`→`brix_export`). Old names are hard-renamed — no aliases.
 
 **Tech Stack:** nginx module C (no goto, functional/modular per `docs/09-developer-guide/coding-standards.md`), bash test harnesses, pytest fleet.
 
@@ -741,11 +741,11 @@ Guard placement: this block must only run when this location is a cvmfs location
 One atomic commit: old names cease to exist in the binary AND every in-repo config/doc moves to the new names. Build + `nginx -t` + suites are the oracle.
 
 **Files:**
-- Modify: `src/protocols/root/stream/module.c:71` (`"xrootd"` → `"brix_root"`), `:81` (`"brix_root"` → `"brix_export"`)
-- Modify: `src/protocols/root/stream/directives_cache.inc:15` (`"brix_cache_root"` → `"brix_cache_export"`)
-- Modify: `src/protocols/webdav/module.c` + `src/protocols/webdav/directives_storage.inc` (DELETE: `brix_webdav_root`, `brix_webdav_allow_write`, `brix_webdav_compress`, and every per-proto duplicate of a unified directive — enumerate by inventory below; DELETE the `BRIX_TIER_DIRECTIVES("brix_webdav_", …)` expansion)
-- Modify: `src/protocols/s3/module.c` (DELETE: `brix_s3_root`, `brix_s3_allow_write`, `brix_s3_read_only`, `brix_s3_compress`, `brix_s3_storage_backend`, `brix_s3_storage_credential`, `brix_s3_thread_pool`; DELETE `BRIX_TIER_DIRECTIVES("brix_s3_", …)` at `:333`)
-- Modify: `src/protocols/cvmfs/directives_core.inc` (DELETE: `brix_cvmfs_cache_store` `:94`, `brix_cvmfs_thread_pool` `:102`, `brix_cvmfs_storage_backend` `:87`, `brix_cache_verify` `:29` — all now owned by the common module)
+- Modify: `src/protocols/root/stream/module.c:71` (`"xrootd"` → `"brix_export"`), `:81` (`"brix_export"` → `"brix_export"`)
+- Modify: `src/protocols/root/stream/directives_cache.inc:15` (`"brix_cache_export"` → `"brix_cache_export"`)
+- Modify: `src/protocols/webdav/module.c` + `src/protocols/webdav/directives_storage.inc` (DELETE: `brix_export`, `brix_allow_write`, `brix_compress`, and every per-proto duplicate of a unified directive — enumerate by inventory below; DELETE the `BRIX_TIER_DIRECTIVES("brix_webdav_", …)` expansion)
+- Modify: `src/protocols/s3/module.c` (DELETE: `brix_export`, `brix_allow_write`, `brix_read_only`, `brix_compress`, `brix_storage_backend`, `brix_storage_credential`, `brix_thread_pool`; DELETE `BRIX_TIER_DIRECTIVES("brix_s3_", …)` at `:333`)
+- Modify: `src/protocols/cvmfs/directives_core.inc` (DELETE: `brix_cache_store` `:94`, `brix_thread_pool` `:102`, `brix_storage_backend` `:87`, `brix_cache_verify` `:29` — all now owned by the common module)
 - Modify: `src/protocols/cvmfs/module.c:459` and `src/core/config/runtime_server.c:257` (`root_opts.directive_name` strings → `"brix_export"`)
 - Create: `tools/refactor/config_rename_2026_07.sh` (the migration script — kept in-repo like `tools/refactor/p66_apply.py`)
 - Modify (mechanical, via the script): `tests/configs/*.conf` (59), `tests/*.sh` heredocs (17 cvmfs + others), `tests/**/*.py` config fixtures, `k8s-tests/` (286 files), `deploy/`, `docs/`, `site/` (1 occurrence — surgical, respect uncommitted edits)
@@ -768,12 +768,12 @@ For each name, decide by rule: **is it a per-proto spelling of a unified directi
 #!/usr/bin/env bash
 # One-shot migration to the unified brix config grammar (2026-07-05 spec).
 # Ordering is load-bearing:
-#   1. brix_cache_root        -> brix_cache_export   (before any brix_root pass)
+#   1. brix_cache_export        -> brix_cache_export   (before any brix_export pass)
 #   2. per-proto tier + preamble names -> bare names (longest names first)
-#   3. brix_webdav_root/brix_s3_root   -> brix_export
-#   4. brix_root <path>        -> brix_export        (all remaining brix_root
+#   3. brix_export/brix_export   -> brix_export
+#   4. brix_export <path>        -> brix_export        (all remaining brix_export
 #      tokens are the stream path directive at this point)
-#   5. directive-position `xrootd on|off;` -> brix_root on|off;
+#   5. directive-position `xrootd on|off;` -> brix_export on|off;
 #      (LAST, so it cannot collide with step 4; restricted to directive
 #      syntax so prose about "xrootd" is untouched)
 set -euo pipefail
@@ -786,7 +786,7 @@ sed_all() { # sed_all <sed-expr>
 }
 
 # 1. legacy stream cache export
-sed_all 's/\bbrix_cache_root\b/brix_cache_export/g' 'brix_cache_root'
+sed_all 's/\bbrix_cache_root\b/brix_cache_export/g' 'brix_cache_export'
 
 # 2. tier + preamble de-prefixing (exact names only — never wildcard)
 for p in webdav s3 cvmfs; do
@@ -799,11 +799,11 @@ for p in webdav s3 cvmfs; do
 done
 
 # 3. per-proto roots -> brix_export
-sed_all 's/\bbrix_webdav_root\b/brix_export/g' 'brix_webdav_root'
-sed_all 's/\bbrix_s3_root\b/brix_export/g'     'brix_s3_root'
+sed_all 's/\bbrix_webdav_root\b/brix_export/g' 'brix_export'
+sed_all 's/\bbrix_s3_root\b/brix_export/g'     'brix_export'
 
 # 4. stream path directive -> brix_export
-sed_all 's/\bbrix_root\b/brix_export/g' 'brix_root'
+sed_all 's/\bbrix_root\b/brix_export/g' 'brix_export'
 
 # 5. stream enable (directive position only)
 sed_all 's/^([[:space:]]*)xrootd([[:space:]]+(on|off)[[:space:]]*;)/\1brix_root\2/' \
@@ -812,7 +812,7 @@ sed_all 's/^([[:space:]]*)xrootd([[:space:]]+(on|off)[[:space:]]*;)/\1brix_root\
 echo "done — review with: git diff --stat"
 ```
 
-**Caveats for the implementer:** step 2's loop must NOT rename names that are NOT per-proto duplicates — cross-check each `brix_${p}_${d}` against the Step-1 delete-list before running; drop loop entries that don't exist as directives (e.g. if `brix_webdav_storage_credential` was never a directive, the sed is a harmless no-op, but confirm no FIELD or doc heading uses the token in another sense). `grep` here is ugrep — if `\b` misbehaves, use `-E` POSIX classes as written and verify on one file first.
+**Caveats for the implementer:** step 2's loop must NOT rename names that are NOT per-proto duplicates — cross-check each `brix_${p}_${d}` against the Step-1 delete-list before running; drop loop entries that don't exist as directives (e.g. if `brix_storage_credential` was never a directive, the sed is a harmless no-op, but confirm no FIELD or doc heading uses the token in another sense). `grep` here is ugrep — if `\b` misbehaves, use `-E` POSIX classes as written and verify on one file first.
 
 - [ ] **Step 3: Apply the C-side renames/deletions** (files listed above, Edit tool, exact `ngx_string` entries + the two `directive_name` message strings). Do NOT delete the underlying struct fields — only the `ngx_command_t` entries.
 
@@ -846,9 +846,9 @@ Expected: fleet restart clean; --pr gate at its usual pass rate (load-flaky fami
 git add -u && git add tools/refactor/config_rename_2026_07.sh
 git commit -m "feat(config)!: hard-rename to unified brix grammar
 
-xrootd->brix_root, brix_root/brix_webdav_root/brix_s3_root->brix_export,
+xrootd->brix_export, brix_export/brix_export/brix_export->brix_export,
 per-proto tier+preamble directives -> bare unified names (common module),
-brix_cache_root->brix_cache_export. No aliases. All in-repo configs and
+brix_cache_export->brix_cache_export. No aliases. All in-repo configs and
 docs migrated via tools/refactor/config_rename_2026_07.sh.
 Deleted per-proto directives: <paste Step-1 delete-list>"
 ```
@@ -877,7 +877,7 @@ Deleted per-proto directives: <paste Step-1 delete-list>"
 - [ ] **Step 6: Verify docs contain no stale names:**
 
 ```bash
-grep -rn 'brix_webdav_root\|brix_s3_root\|brix_cvmfs_cache_store\|brix_webdav_cache_store\|brix_s3_cache_store' docs/ deploy/ && echo STALE || echo CLEAN
+grep -rn 'brix_export\|brix_export\|brix_cache_store\|brix_cache_store\|brix_cache_store' docs/ deploy/ && echo STALE || echo CLEAN
 ```
 Expected: CLEAN (migration-table file legitimately contains old names — allowlist it in the grep or name them in backticks with a `<!-- old-names-ok -->` marker and exclude that file).
 

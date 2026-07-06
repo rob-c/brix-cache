@@ -795,7 +795,7 @@ http {
 stream {
     server {
         listen 1094;
-        xrootd on;
+        brix_root on;
         xrootd_cache_root /data/cache;
         xrootd_cache_slice 128m;
         xrootd_cache_slice_prefetch 1;

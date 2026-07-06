@@ -48,8 +48,8 @@ No configuration needed for basic confinement — it's always enabled. However, 
 
 | Directive | Value | Notes |
 |---|---|---|
-| `brix_root` | Absolute path only | Must be an absolute path like `/data/storage`. Relative paths bypass confinement. |
-| `brix_webdav_root` | Absolute path only | Same constraint for WebDAV operations. |
+| `brix_export` | Absolute path only | Must be an absolute path like `/data/storage`. Relative paths bypass confinement. |
+| `brix_export` | Absolute path only | Same constraint for WebDAV operations. |
 
 ### What it protects
 
@@ -80,8 +80,8 @@ This is a **server-wide write gate** — independent of token scopes or authenti
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /data;
+        brix_root on;
+        brix_export /data;
         
         # CRITICAL: Disable by default unless you need writes!
         # brix_allow_write on;   ← Enable only when required
@@ -151,7 +151,7 @@ http {
         
         location / {
             brix_webdav      on;
-            brix_webdav_root /data;
+            brix_export /data;
             
             # Path to CA certificates for verification
             brix_webdav_cadir /etc/grid-security/certificates;
@@ -205,8 +205,8 @@ TLS is established immediately after the TCP handshake — before any protocol n
 stream {
     server {
         listen 1095 ssl;           # Different port from plaintext
-        xrootd on;
-        brix_root /data;
+        brix_root on;
+        brix_export /data;
         
         # TLS configuration for roots:// mode
         ssl_certificate     /etc/ssl/xrdcert.pem;
@@ -225,8 +225,8 @@ The connection starts as raw TCP, then negotiates TLS through XRootD protocol op
 stream {
     server {
         listen 1094;               # Same port as plaintext
-        xrootd on;
-        brix_root /data;
+        brix_root on;
+        brix_export /data;
         brix_tls on;             ← Enable in-protocol TLS upgrade
         
         ssl_certificate     /etc/ssl/xrdcert.pem;

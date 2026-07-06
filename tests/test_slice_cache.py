@@ -70,12 +70,12 @@ class TestSliceConfig:
             stream {{
                 server {{
                     listen 21794;
-                    xrootd on;
-                    brix_root {tmp_path};
+                    brix_root on;
+                    brix_export {tmp_path};
                     brix_auth none;
                     brix_storage_backend root://{HOST}:1095;
                     brix_cache_store posix:{cache};
-                    brix_cache_root /;
+                    brix_cache_export /;
                     brix_cache_slice_size {slice_value};
                 }}
             }}
@@ -294,8 +294,8 @@ def xcache(tmp_path_factory):
         f"error_log {base}/logs/origin.log info;\n"
         "stream {\n  server {\n"
         f"    listen 127.0.0.1:{origin_port};\n"
-        "    xrootd on;\n"
-        f"    brix_root {origin_data};\n"
+        "    brix_root on;\n"
+        f"    brix_export {origin_data};\n"
         "    brix_auth none;\n  }\n}\n")
     cache_cfg = head + (
         f"pid {base}/logs/cache.pid;\n"
@@ -303,12 +303,12 @@ def xcache(tmp_path_factory):
         "thread_pool default threads=4 max_queue=4096;\n"
         "stream {\n  server {\n"
         f"    listen 127.0.0.1:{cache_port};\n"
-        "    xrootd on;\n"
-        f"    brix_root {export};\n"
+        "    brix_root on;\n"
+        f"    brix_export {export};\n"
         "    brix_auth none;\n"
         f"    brix_storage_backend root://127.0.0.1:{origin_port};\n"
         f"    brix_cache_store posix:{cache_root};\n"
-        "    brix_cache_root /;\n"
+        "    brix_cache_export /;\n"
         "    brix_cache_slice_size 1m;\n  }\n}\n")
 
     origin = _start(base, "origin.conf", origin_cfg, origin_port)

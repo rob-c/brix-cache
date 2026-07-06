@@ -130,7 +130,7 @@ BriX-Cache file and entry function.
 
 | Method | RFC class | Official XrdHttp | Our handler | Notes |
 |---|---|---|---|---|
-| `GET` | class 1 | `rtGET`; ranges via `XrdHttpReadRangeHandler`; ETag (`addETagHeader`, `inode-dev`); chunked TE; no compression | `src/protocols/webdav/get.c` → `webdav_handle_get()` | Single + multi-range (`multipart/byteranges`); `If-Modified-Since` → 304; optional response compression via `brix_webdav_compress`; TLS=memory-backed buffers, cleartext=sendfile |
+| `GET` | class 1 | `rtGET`; ranges via `XrdHttpReadRangeHandler`; ETag (`addETagHeader`, `inode-dev`); chunked TE; no compression | `src/protocols/webdav/get.c` → `webdav_handle_get()` | Single + multi-range (`multipart/byteranges`); `If-Modified-Since` → 304; optional response compression via `brix_compress`; TLS=memory-backed buffers, cleartext=sendfile |
 | `HEAD` | class 1 | `rtHEAD` | `src/protocols/webdav/methods_basic.c` → `webdav_handle_head()` | Stat via `webdav_resolve_stat()`; `Content-Length`, `Last-Modified`, optional `ETag`; `Content-Type` `httpd/unix-directory` for dirs |
 | `PUT` | class 1 | `rtPUT` | `src/protocols/webdav/put.c` → `webdav_handle_put_body()` | Async body read; lock check **before** body read; staged temp file + atomic rename; thread-pool offload |
 | `DELETE` | class 1 | `rtDELETE` | `src/protocols/webdav/namespace.c` → `webdav_handle_delete()` | Recursive delete; on collections checks child locks via `webdav_check_locks_tree()` |
@@ -354,8 +354,8 @@ server {
 
     location / {
         brix_webdav              on;
-        brix_webdav_root         /data/export;
-        brix_webdav_allow_write  on;          # PUT/DELETE/MKCOL/MOVE/COPY/LOCK
+        brix_export         /data/export;
+        brix_allow_write  on;          # PUT/DELETE/MKCOL/MOVE/COPY/LOCK
         brix_webdav_auth         required;
         brix_webdav_cadir        /etc/grid-security/certificates;
         brix_webdav_proxy_certs  on;          # accept VOMS/GSI proxy chains
@@ -393,12 +393,12 @@ server {
 
     location / {
         brix_s3             on;
-        brix_s3_root        /data/export;
+        brix_export        /data/export;
         brix_s3_bucket      mybucket;
         brix_s3_access_key  AKIAEXAMPLE;
         brix_s3_secret_key  <secret>;
         brix_s3_region      us-east-1;
-        brix_s3_allow_write on;
+        brix_allow_write on;
         brix_s3_list_cache  on;
         brix_s3_max_keys    1000;
     }

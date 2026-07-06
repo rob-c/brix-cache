@@ -74,7 +74,7 @@ server {
 
     location /dav/ {
         brix_webdav      on;
-        brix_webdav_root /data/store;
+        brix_export /data/store;
         brix_webdav_auth none;
     }
 }
@@ -94,7 +94,7 @@ server {
 
     location /dav/ {
         brix_webdav       on;
-        brix_webdav_root  /data/store;
+        brix_export  /data/store;
         brix_webdav_auth  required;
         brix_webdav_cadir /etc/grid-security/certificates;
         brix_webdav_crl   /etc/grid-security/certificates;
@@ -104,7 +104,7 @@ server {
         brix_webdav_token_issuer   https://token.example.org;
         brix_webdav_token_audience https://se.example.org;
 
-        brix_webdav_allow_write on;
+        brix_allow_write on;
     }
 }
 ```
@@ -126,12 +126,12 @@ server {
 
     location /dav/ {
         brix_webdav        on;
-        brix_webdav_root   /data/store;
+        brix_export   /data/store;
         brix_webdav_auth   required;
         brix_webdav_proxy_certs on;           # accept RFC 3820 proxy certs
         brix_webdav_cadir  /etc/grid-security/certificates;
         brix_webdav_crl    /etc/grid-security/certificates;
-        brix_webdav_allow_write on;
+        brix_allow_write on;
     }
 }
 ```
@@ -208,7 +208,7 @@ All three of `brix_webdav_token_jwks`, `brix_webdav_token_issuer`, and
 ## HTTP methods
 
 The module implements the full set of WebDAV methods. Write methods require
-`brix_webdav_allow_write on` and, when using bearer tokens, an appropriate
+`brix_allow_write on` and, when using bearer tokens, an appropriate
 write scope in the token.
 
 | Method | Description |
@@ -230,7 +230,7 @@ write scope in the token.
 > multi-range. The fd cache (16 slots per connection) avoids repeated
 > `open()`/`fstat()` for PROPFIND+GET pairs on the same resource.
 
-> **Thread pool for PUT:** if `brix_webdav_thread_pool` names a thread pool
+> **Thread pool for PUT:** if `brix_thread_pool` names a thread pool
 > configured with nginx's `thread_pool` directive, large PUT bodies are written
 > from a worker thread, keeping the event loop unblocked.
 
@@ -256,15 +256,15 @@ source.
   local filesystem
 ```
 
-Enable TPC with `brix_webdav_tpc on`. You also need `brix_webdav_allow_write on`.
+Enable TPC with `brix_webdav_tpc on`. You also need `brix_allow_write on`.
 
 ```nginx
 location /dav/ {
     brix_webdav           on;
-    brix_webdav_root      /data/store;
+    brix_export      /data/store;
     brix_webdav_auth      required;
     brix_webdav_cadir     /etc/grid-security/certificates;
-    brix_webdav_allow_write on;
+    brix_allow_write on;
     brix_webdav_tpc       on;
 
     # curl binary used to perform the pull
@@ -338,7 +338,7 @@ server {
 
     location /dav/ {
         brix_webdav       on;
-        brix_webdav_root  /data/store;   # still used for auth path checks
+        brix_export  /data/store;   # still used for auth path checks
         brix_webdav_auth  required;
         brix_webdav_cadir /etc/grid-security/certificates;
         brix_webdav_token_jwks     /etc/brix/issuer.jwks;
@@ -478,10 +478,10 @@ Context: `location`
 
 ---
 
-#### `brix_webdav_root`
+#### `brix_export`
 
 ```nginx
-brix_webdav_root /path/to/export;
+brix_export /path/to/export;
 ```
 
 Filesystem directory to expose. All WebDAV operations are confined to this
@@ -510,10 +510,10 @@ Context: `location`
 
 ---
 
-#### `brix_webdav_allow_write`
+#### `brix_allow_write`
 
 ```nginx
-brix_webdav_allow_write on | off;
+brix_allow_write on | off;
 ```
 
 Enable write methods: PUT, DELETE, MKCOL, COPY, MOVE. Default: `off`.
@@ -671,10 +671,10 @@ Context: `main`, `server`, `location`
 
 ---
 
-#### `brix_webdav_thread_pool`
+#### `brix_thread_pool`
 
 ```nginx
-brix_webdav_thread_pool default;
+brix_thread_pool default;
 ```
 
 Name of an nginx `thread_pool` to use for asynchronous PUT body writes. When
@@ -686,7 +686,7 @@ stalls. Requires nginx to be compiled with `--with-threads`.
 thread_pool default threads=4 max_queue=65536;
 
 # In location {}:
-brix_webdav_thread_pool default;
+brix_thread_pool default;
 ```
 
 Context: `location`
@@ -702,7 +702,7 @@ brix_webdav_tpc on | off;
 ```
 
 Enable HTTP Third-Party Copy. Default: `off`. Also requires
-`brix_webdav_allow_write on`.
+`brix_allow_write on`.
 
 Context: `location`
 
@@ -931,7 +931,7 @@ supported directly — set a cadir that points at your issuer's CA.
 ### "brix_webdav: root path ... is not accessible"
 
 The nginx worker process must be able to read (and, for writes, write) the
-`brix_webdav_root` directory. Check filesystem permissions and that the
+`brix_export` directory. Check filesystem permissions and that the
 nginx worker user (typically `nginx` or `www-data`) has appropriate access.
 
 ### Proxy mode returns 502 Bad Gateway

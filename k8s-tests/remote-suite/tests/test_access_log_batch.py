@@ -37,7 +37,7 @@ def _alog_conf(tmp_path, port, data, logfile):
     stream {{
         server {{
             listen {BIND_HOST}:{port};
-            xrootd on;
+            brix_root on;
             brix_storage_backend posix:{data};
             brix_auth none;
             brix_access_log {logfile};

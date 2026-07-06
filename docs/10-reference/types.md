@@ -240,7 +240,7 @@ Key fields:
 
 | Field | Directive | What it controls |
 |---|---|---|
-| `root` | `brix_root` | Filesystem root; all client paths are restricted to this tree |
+| `root` | `brix_export` | Filesystem root; all client paths are restricted to this tree |
 | `auth` | `brix_auth` | Authentication mode (`BRIX_AUTH_NONE/GSI/TOKEN/BOTH/SSS`) |
 | `allow_write` | `brix_allow_write` | Gates all mutation opcodes |
 | `upstream_host` / `upstream_port` | `brix_upstream` | Redirector for kXR_locate |

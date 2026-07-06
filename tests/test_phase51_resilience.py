@@ -50,7 +50,7 @@ events { worker_connections 64; }
 stream {
     server {
         listen 127.0.0.1:19951;
-        xrootd on; brix_storage_backend posix:@DIR@; brix_auth none;
+        brix_root on; brix_storage_backend posix:@DIR@; brix_auth none;
         brix_gsi_max_inflight_handshakes 128;
     }
     server {
@@ -61,7 +61,7 @@ stream {
     }
     server {
         listen 127.0.0.1:19953;
-        xrootd on; brix_storage_backend posix:@DIR@; brix_auth none;
+        brix_root on; brix_storage_backend posix:@DIR@; brix_auth none;
         brix_manager_mode on;
     }
 }
@@ -81,7 +81,7 @@ events { worker_connections 64; }
 stream {
     server {
         listen 127.0.0.1:19954;
-        xrootd on; brix_storage_backend posix:@DIR@; brix_auth none;
+        brix_root on; brix_storage_backend posix:@DIR@; brix_auth none;
         brix_gsi_max_inflight_handshakes 0;
     }
     server {

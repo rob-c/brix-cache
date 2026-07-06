@@ -305,7 +305,7 @@ events { worker_connections 1024; }
 stream {
     server {
         listen %s:%d;
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:%s;
         brix_auth none;
         brix_allow_write on;

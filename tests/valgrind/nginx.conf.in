@@ -61,10 +61,10 @@ http {
             dav_methods           DELETE MKCOL;
 
             brix_webdav         on;
-            brix_webdav_storage_backend    posix:{WORK}/data;
+            brix_storage_backend    posix:{WORK}/data;
             brix_webdav_cadir   {CA_DIR};
             brix_webdav_auth    required;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
 
             brix_webdav_token_jwks     {TOKEN_DIR}/jwks.json;
             brix_webdav_token_issuer   "https://test.example.com";
@@ -98,10 +98,10 @@ http {
             dav_methods           DELETE MKCOL;
 
             brix_webdav         on;
-            brix_webdav_storage_backend    posix:{WORK}/data;
+            brix_storage_backend    posix:{WORK}/data;
             brix_webdav_auth    optional;
             brix_webdav_cafile  {CA_CERT};
-            brix_webdav_allow_write on;
+            brix_allow_write on;
 
             brix_webdav_cors_origin      https://debug.example.test;
             brix_webdav_cors_credentials on;
@@ -129,9 +129,9 @@ http {
 
         location / {
             brix_s3           on;
-            brix_s3_storage_backend      posix:{WORK}/data;
+            brix_storage_backend      posix:{WORK}/data;
             brix_s3_bucket    testbucket;
-            brix_s3_allow_write on;
+            brix_allow_write on;
             brix_s3_max_keys  1000;
         }
     }

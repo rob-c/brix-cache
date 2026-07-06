@@ -9,7 +9,7 @@ The most-used directives on one page. Start here when you know what you want to 
 | Directive | Context | Default | Required? |
 |---|---|---|---|
 | `xrootd on\|off` | `server` (stream) | `off` | Yes |
-| `brix_root <path>` | `server` | `/` | Recommended |
+| `brix_export <path>` | `server` | `/` | Recommended |
 | `brix_allow_write on\|off` | `server` | `off` | No |
 | `brix_auth none\|gsi\|token\|both` | `server` | `none` | No |
 | `brix_frm on\|off` | `server` | `off` | Enable the FRM durable tape-staging queue behind `kXR_prepare`/`kXR_QPrep` (`src/fs/xfer/` stage engine) |
@@ -51,13 +51,13 @@ The most-used directives on one page. Start here when you know what you want to 
 | `brix_manager_map /prefix host:port` | `server` | — | No |
 | `brix_upstream host:port` | `server` | — | No |
 | `brix_cache on\|off` | `server` | `off` | No |
-| `brix_cache_root <path>` | `server` | — | If `brix_cache on` |
+| `brix_cache_export <path>` | `server` | — | If `brix_cache on` |
 | `brix_cache_origin host:port` | `server` | — | If `brix_cache on` |
 | `brix_cache_origin_tls on\|off` | `server` | `off` | No |
 | `brix_cache_lock_timeout <time>` | `server` | `300s` | No |
 | `brix_cache_eviction_threshold <ratio\|percent>` | `server` | `0.9` | No |
 | `brix_cms_manager host:port` | `server` | — | No |
-| `brix_cms_paths <string>` | `server` | `brix_root` | No |
+| `brix_cms_paths <string>` | `server` | `brix_export` | No |
 | `brix_cms_interval <time>` | `server` | `30s` | No |
 | `brix_manager_mode on\|off` | `server` | `off` | No |
 | `brix_cms_server on\|off` | `server` | `off` | No |
@@ -87,12 +87,12 @@ The WebDAV module (`ngx_http_brix_webdav_module`) handles `davs://` clients in n
 | Directive | Context | Default | Notes |
 |---|---|---|---|
 | `brix_webdav on\|off` | `location` | `off` | Activates WebDAV handler |
-| `brix_webdav_root <path>` | `location` | `/` | Filesystem root for clients |
+| `brix_export <path>` | `location` | `/` | Filesystem root for clients |
 | `brix_webdav_auth none\|optional\|required` | `location` | `optional` | Proxy-cert or bearer-token auth policy |
 | `brix_webdav_cadir <path>` | `location` | — | Hashed CA directory |
 | `brix_webdav_cafile <path>` | `location` | — | Single CA PEM file |
 | `brix_webdav_crl <path>` | `location` | — | PEM CRL file for proxy-cert revocation checks |
-| `brix_webdav_allow_write on\|off` | `location` | `off` | Enable PUT/DELETE/MKCOL and TPC COPY writes |
+| `brix_allow_write on\|off` | `location` | `off` | Enable PUT/DELETE/MKCOL and TPC COPY writes |
 | `brix_webdav_tpc on\|off` | `location` | `off` | Enable HTTP-TPC COPY pull support |
 | `brix_webdav_tpc_curl <path>` | `location` | `/usr/bin/curl` | External curl helper for TPC pulls |
 | `brix_webdav_tpc_cert <path>` | `location` | — | X.509 cert/proxy used for outbound TPC source fetches |
@@ -109,7 +109,7 @@ The WebDAV module (`ngx_http_brix_webdav_module`) handles `davs://` clients in n
 | `brix_webdav_token_jwks <path>` | `location` | — | JWKS for Bearer tokens |
 | `brix_webdav_token_issuer <string>` | `location` | — | Expected token issuer |
 | `brix_webdav_token_audience <string>` | `location` | — | Expected token audience |
-| `brix_webdav_thread_pool <name>` | `location` | `default` | nginx thread pool for async WebDAV file I/O |
+| `brix_thread_pool <name>` | `location` | `default` | nginx thread pool for async WebDAV file I/O |
 | `brix_webdav_cors_origin <origin\|*>` | `location` | — | Enable CORS for one exact origin; repeat for more origins |
 | `brix_webdav_cors_credentials on\|off` | `location` | `off` | Add credentialed CORS response headers |
 | `brix_webdav_cors_max_age <seconds>` | `location` | `86400` | CORS preflight cache duration |
@@ -135,12 +135,12 @@ for XrdClS3-style clients, not a full AWS S3 implementation.
 | Directive | Context | Default | Notes |
 |---|---|---|---|
 | `brix_s3 on\|off` | `location` | `off` | Activates the S3-compatible handler for this location |
-| `brix_s3_root <path>` | `location` | `""` | Required when enabled; canonicalized during config merge |
+| `brix_export <path>` | `location` | `""` | Required when enabled; canonicalized during config merge |
 | `brix_s3_bucket <name>` | `location` | `""` | Optional path-style bucket name to strip from request URIs |
 | `brix_s3_access_key <key>` | `location` | `""` | Enables SigV4 auth when set; empty means anonymous access |
 | `brix_s3_secret_key <secret>` | `location` | `""` | Secret used to verify SigV4 requests |
 | `brix_s3_region <name>` | `location` | `us-east-1` | Region string expected in the SigV4 credential scope |
-| `brix_s3_allow_write on\|off` | `location` | `off` | Enables PUT and DELETE |
+| `brix_allow_write on\|off` | `location` | `off` | Enables PUT and DELETE |
 | `brix_s3_max_keys <n>` | `location` | `1000` | Maximum ListObjectsV2 keys returned per response page |
 
 Example:
@@ -152,9 +152,9 @@ http {
 
         location / {
             brix_s3 on;
-            brix_s3_root /data/store;
+            brix_export /data/store;
             brix_s3_bucket testbucket;
-            brix_s3_allow_write on;
+            brix_allow_write on;
         }
     }
 }

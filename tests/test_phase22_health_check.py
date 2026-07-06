@@ -104,7 +104,7 @@ def test_all_directives_parse(tmp_path):
     stream {{
         server {{
             listen {BIND_HOST}:{_P_DIRECTIVES};
-            xrootd on;
+            brix_root on;
             brix_storage_backend posix:/tmp/xrd-test/data;
             brix_auth none;
             brix_health_check on;
@@ -125,7 +125,7 @@ def test_bad_type_rejected(tmp_path):
     stream {{
         server {{
             listen {BIND_HOST}:{_P_BADTYPE};
-            xrootd on;
+            brix_root on;
             brix_storage_backend posix:/tmp/xrd-test/data;
             brix_auth none;
             brix_health_check_type bogus;
@@ -147,7 +147,7 @@ def test_disabled_by_default_no_timer_log(tmp_path):
     stream {{
         server {{
             listen {BIND_HOST}:{_P_DISABLED};
-            xrootd on;
+            brix_root on;
             brix_storage_backend posix:/tmp/xrd-test/data;
             brix_auth none;
         }}
@@ -191,7 +191,7 @@ def test_enabled_starts_manager(tmp_path):
     stream {{
         server {{
             listen {BIND_HOST}:{_P_ENABLED};
-            xrootd on;
+            brix_root on;
             brix_storage_backend posix:/tmp/xrd-test/data;
             brix_auth none;
             brix_health_check on;
@@ -280,7 +280,7 @@ def hc_cluster(tmp_path):
         # Manager (redirector) with active health checks enabled.
         server {{
             listen {BIND_HOST}:{MGR_PORT};
-            xrootd on;
+            brix_root on;
             brix_auth none;
             brix_manager_mode on;
             brix_health_check on;
@@ -295,7 +295,7 @@ def hc_cluster(tmp_path):
         # Live data server that registers itself via loopback CMS.
         server {{
             listen {BIND_HOST}:{DS_PORT};
-            xrootd on;
+            brix_root on;
             brix_auth none;
             brix_storage_backend posix:{data};
             brix_cms_manager {HOST}:{CMS_PORT};

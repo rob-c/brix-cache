@@ -189,7 +189,7 @@ def dest(tmp_path):
         "thread_pool default threads=4 max_queue=65536;\n"
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
-        f"    listen 127.0.0.1:{DST};\n    xrootd on;\n"
+        f"    listen 127.0.0.1:{DST};\n    brix_root on;\n"
         f"    brix_storage_backend posix:{ddata};\n    brix_auth none;\n"
         "    brix_allow_write on;\n"
         "    brix_tpc_allow_local on;\n    brix_tpc_allow_private on;\n"

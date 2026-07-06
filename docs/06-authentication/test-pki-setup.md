@@ -642,8 +642,8 @@ For reference, the VO-enforced server block uses these directives:
 stream {
     server {
         listen 11096;
-        xrootd on;
-        brix_root /tmp/xrd-test/data;
+        brix_root on;
+        brix_export /tmp/xrd-test/data;
         brix_auth gsi;
         brix_allow_write on;
 
@@ -689,8 +689,8 @@ python3 utils/make_crl.py /tmp/xrd-test/pki
 stream {
     server {
         listen 11100;
-        xrootd on;
-        brix_root /tmp/xrd-test/data;
+        brix_root on;
+        brix_export /tmp/xrd-test/data;
         brix_auth gsi;
         brix_certificate     /tmp/xrd-test/pki/server/hostcert.pem;
         brix_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
@@ -710,7 +710,7 @@ http {
 
         location / {
             brix_webdav         on;
-            brix_webdav_root    /tmp/xrd-test/data;
+            brix_export    /tmp/xrd-test/data;
             brix_webdav_cafile  /tmp/xrd-test/pki/ca/ca.pem;
             brix_webdav_crl     /tmp/xrd-test/pki/ca/test-user.crl.pem;
             brix_webdav_auth    required;

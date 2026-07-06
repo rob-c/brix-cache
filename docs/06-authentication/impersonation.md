@@ -77,14 +77,14 @@ is one identity broker per nginx instance.
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /export/data;
+        brix_root on;
+        brix_export /export/data;
 
         # --- impersonation ---
         brix_impersonation        map;
         brix_impersonation_socket /run/brix/impersonate.sock;  # default shown
         brix_impersonation_export /export/data;     # broker confinement root
-                                                      # (defaults to brix_root)
+                                                      # (defaults to brix_export)
         brix_gridmap              /etc/grid-security/grid-mapfile;  # DN -> user
         brix_idmap_default_user   nobody;           # squash unmapped (else deny)
         brix_idmap_min_uid        1000;             # refuse uid < this (and 0)
@@ -103,7 +103,7 @@ sets the unprivileged worker account, e.g. `user xrootd;`.
 | `brix_impersonation off\|single\|map` | all | the posture (default `off`) |
 | `brix_impersonation_user <name>` | `single` | the single account everything squashes to |
 | `brix_impersonation_socket <path>` | `map` | broker `AF_UNIX` socket (default `/var/run/brix/impersonate.sock`) |
-| `brix_impersonation_export <path>` | `map` | the broker's confinement root (defaults to the first data server's `brix_root`) |
+| `brix_impersonation_export <path>` | `map` | the broker's confinement root (defaults to the first data server's `brix_export`) |
 | `brix_gridmap <file>` | `map` | grid-mapfile: `"<DN>" localuser` lines (optional) |
 | `brix_idmap_default_user <name>` | `map` | squash account for unmapped principals; **omit to deny** |
 | `brix_idmap_min_uid <N>` | `map` | reserved-uid floor; resolved uids below `N` (and uid 0) are denied (default 1000, hard-clamped to ≥1000) |

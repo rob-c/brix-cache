@@ -31,10 +31,10 @@ http {
         location / {
             dav_methods PUT DELETE MKCOL MOVE COPY;
             brix_webdav on;
-            brix_webdav_root $PFX/root;
+            brix_export $PFX/root;
             brix_webdav_auth none;
-            brix_webdav_allow_write on;
-            brix_webdav_storage_backend  pblock;
+            brix_allow_write on;
+            brix_storage_backend  pblock;
             brix_webdav_pblock_block_size 1m;
         }
     }

@@ -63,10 +63,10 @@ stream {
         listen 1094;
 &#32;
         # Enable the native XRootD stream protocol.
-        xrootd on;
+        brix_root on;
 &#32;
         # Map client path "/" to this local directory.
-        brix_root /srv/brix/export;
+        brix_export /srv/brix/export;
 &#32;
         # Explicitly document anonymous access.
         # This is also the module default.
@@ -142,13 +142,13 @@ http {
             brix_webdav on;
 &#32;
             # Map URL path "/" to this local directory.
-            brix_webdav_root /srv/brix/export;
+            brix_export /srv/brix/export;
 &#32;
             # Explicit anonymous HTTP/WebDAV access.
             brix_webdav_auth none;
 &#32;
             # Allow PUT, DELETE, MKCOL, and writable COPY paths.
-            brix_webdav_allow_write on;
+            brix_allow_write on;
         }
     }
 }
@@ -210,8 +210,8 @@ stream {
         # bearer token through the XRootD ztn security protocol.
         listen 1094;
 &#32;
-        xrootd on;
-        brix_root /srv/brix/export;
+        brix_root on;
+        brix_export /srv/brix/export;
 &#32;
         # Require a valid bearer token for every native XRootD session.
         brix_auth token;
@@ -307,8 +307,8 @@ stream {
         # Clients use root://host.example.org:1094//path.
         listen 1094;
 &#32;
-        xrootd on;
-        brix_root /srv/brix/export;
+        brix_root on;
+        brix_export /srv/brix/export;
 &#32;
         # Anonymous native XRootD access.
         brix_auth none;
@@ -327,11 +327,11 @@ http {
 &#32;
         location / {
             brix_webdav on;
-            brix_webdav_root /srv/brix/export;
+            brix_export /srv/brix/export;
 &#32;
             # Anonymous HTTP/WebDAV access.
             brix_webdav_auth none;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
         }
     }
 }
@@ -392,8 +392,8 @@ stream {
         # Clients use root://host.example.org:1094//path.
         listen 1094;
 &#32;
-        xrootd on;
-        brix_root /srv/brix/export;
+        brix_root on;
+        brix_export /srv/brix/export;
 &#32;
         # Anonymous root:// access; packet marking is accounting only.
         brix_auth none;
@@ -517,8 +517,8 @@ stream {
         # Clients use root://host.example.org:1094//path.
         listen 1094;
 &#32;
-        xrootd on;
-        brix_root /srv/brix/export;
+        brix_root on;
+        brix_export /srv/brix/export;
 &#32;
         # Require GSI during the native XRootD login/auth flow.
         brix_auth gsi;
@@ -613,8 +613,8 @@ stream {
     server {
         listen 1094;
 &#32;
-        xrootd on;
-        brix_root /srv/brix/export;
+        brix_root on;
+        brix_export /srv/brix/export;
         brix_auth gsi;
         brix_allow_write on;
 &#32;
@@ -719,8 +719,8 @@ stream {
         # Clients use root://host.example.org:1094//path.
         listen 1094;
 &#32;
-        xrootd on;
-        brix_root /srv/brix/export;
+        brix_root on;
+        brix_export /srv/brix/export;
 &#32;
         # Accept either GSI or ztn bearer-token authentication.
         brix_auth both;
@@ -839,7 +839,7 @@ http {
 &#32;
         location / {
             brix_webdav on;
-            brix_webdav_root /srv/brix/export;
+            brix_export /srv/brix/export;
 &#32;
             # Require a valid TLS client proxy certificate.
             brix_webdav_auth required;
@@ -848,7 +848,7 @@ http {
             brix_webdav_cadir /etc/grid-security/certificates;
 &#32;
             # Allow writes only after authentication succeeds.
-            brix_webdav_allow_write on;
+            brix_allow_write on;
         }
     }
 }
@@ -941,10 +941,10 @@ http {
 &#32;
         location / {
             brix_webdav on;
-            brix_webdav_root /srv/brix/export;
+            brix_export /srv/brix/export;
             brix_webdav_auth required;
             brix_webdav_cadir /etc/grid-security/certificates;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
 &#32;
             # WebDAV authorization still matches the authenticated DN.
             # The grid-mapfile above controls the local user for I/O.
@@ -1044,7 +1044,7 @@ stream {
         # Clients use root://cache.example.org:1094//path.
         listen 1094;
 &#32;
-        xrootd on;
+        brix_root on;
 &#32;
         # Anonymous clients are allowed to read through the cache.
         brix_auth none;
@@ -1053,12 +1053,12 @@ stream {
         brix_allow_write off;
 &#32;
         # Namespace root used for path handling. In cache mode, hits are
-        # served from brix_cache_root below.
-        brix_root /srv/brix/cache;
+        # served from brix_cache_export below.
+        brix_export /srv/brix/cache;
 &#32;
         # Enable read-through cache fills.
         brix_cache on;
-        brix_cache_root /srv/brix/cache;
+        brix_cache_export /srv/brix/cache;
 &#32;
         # Origin data server. Use roots:// here if the origin requires TLS.
         brix_cache_origin root://origin.example.org:1094;
@@ -1154,7 +1154,7 @@ stream {
         # Clients use root://cache.example.org:1094//path.
         listen 1094;
 &#32;
-        xrootd on;
+        brix_root on;
 &#32;
         # Require client-side GSI before serving cache reads.
         brix_auth gsi;
@@ -1165,11 +1165,11 @@ stream {
         # Cache mode is read-only; writes must stay disabled.
         brix_allow_write off;
 &#32;
-        brix_root /srv/brix/cache;
+        brix_export /srv/brix/cache;
 &#32;
         # Enable read-through cache fills.
         brix_cache on;
-        brix_cache_root /srv/brix/cache;
+        brix_cache_export /srv/brix/cache;
 &#32;
         # Origin data server. Use roots:// if the origin requires TLS.
         brix_cache_origin root://origin.example.org:1094;
@@ -1260,7 +1260,7 @@ stream {
         # Clients use root://cache.example.org:1094//eos/lhcb/...
         listen 1094;
 &#32;
-        xrootd on;
+        brix_root on;
 &#32;
         # Client-facing GSI authentication.
         brix_auth gsi;
@@ -1277,11 +1277,11 @@ stream {
 &#32;
         # XCache is client read-only. Cache fills write internally.
         brix_allow_write off;
-        brix_root /srv/brix/cache;
+        brix_export /srv/brix/cache;
 &#32;
         # Read-through cache storage.
         brix_cache on;
-        brix_cache_root /srv/brix/cache;
+        brix_cache_export /srv/brix/cache;
 &#32;
         # CERN EOS root:// door. Replace eoslhcb.cern.ch and /eos/lhcb
         # policy below with the experiment's EOS endpoint and namespace.
@@ -1405,8 +1405,8 @@ stream {
         # Native XRootD clients use root://edge.example.org:1094//path.
         listen 1094;
 &#32;
-        xrootd on;
-        brix_root /srv/brix/export;
+        brix_root on;
+        brix_export /srv/brix/export;
         brix_auth none;
         brix_allow_write on;
         brix_thread_pool storage_io;
@@ -1421,10 +1421,10 @@ http {
 &#32;
         location / {
             brix_webdav on;
-            brix_webdav_root /srv/brix/export;
+            brix_export /srv/brix/export;
             brix_webdav_auth none;
-            brix_webdav_allow_write on;
-            brix_webdav_thread_pool storage_io;
+            brix_allow_write on;
+            brix_thread_pool storage_io;
         }
     }
 &#32;
@@ -1435,15 +1435,15 @@ http {
 &#32;
         location / {
             brix_s3 on;
-            brix_s3_root /srv/brix/export;
+            brix_export /srv/brix/export;
             brix_s3_bucket data-bucket;
 &#32;
             # Anonymous S3 is deliberate for this example. Add SigV4 keys
             # through local config management when authenticated S3 is needed.
-            brix_s3_allow_write on;
+            brix_allow_write on;
             brix_s3_list_cache on;
             brix_s3_list_cache_ttl 30s;
-            brix_s3_thread_pool storage_io;
+            brix_thread_pool storage_io;
         }
     }
 &#32;
@@ -1518,8 +1518,8 @@ events {
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /srv/brix/export;
+        brix_root on;
+        brix_export /srv/brix/export;
         brix_auth none;
         brix_thread_pool default;
         brix_access_log /var/log/nginx/root_access.json;
@@ -1627,8 +1627,8 @@ http {
 &#32;
         location / {
             brix_webdav on;
-            brix_webdav_root /srv/brix/export;
-            brix_webdav_allow_write on;
+            brix_export /srv/brix/export;
+            brix_allow_write on;
 &#32;
             # Accept either a verified proxy cert or an anonymous request
             # that carries a valid bearer token.
@@ -1659,7 +1659,7 @@ http {
             brix_webdav_tpc_allow_local off;
             brix_webdav_tpc_allow_private on;
 &#32;
-            brix_webdav_thread_pool tpc_io;
+            brix_thread_pool tpc_io;
         }
     }
 }
@@ -1727,7 +1727,7 @@ stream {
         # Public token-protected root:// endpoint.
         listen 1094;
 &#32;
-        xrootd on;
+        brix_root on;
         brix_proxy on;
 &#32;
         # Client-facing token authentication and scope enforcement.
@@ -1745,7 +1745,7 @@ stream {
         brix_proxy_audit_log /var/log/nginx/root_proxy_audit.json;
 &#32;
         # The backend owns storage; the edge does not need a local root.
-        brix_root /srv/brix/export;
+        brix_export /srv/brix/export;
         brix_allow_write off;
     }
 }
@@ -1815,7 +1815,7 @@ http {
 &#32;
         location / {
             brix_webdav on;
-            brix_webdav_root /srv/brix/export;
+            brix_export /srv/brix/export;
 &#32;
             # Authenticate clients at the edge.
             brix_webdav_auth required;
@@ -1908,8 +1908,8 @@ stream {
 &#32;
     server {
         listen 1094;
-        xrootd on;
-        brix_root /srv/brix/export;
+        brix_root on;
+        brix_export /srv/brix/export;
         brix_auth gsi;
         brix_certificate     /etc/grid-security/hostcert.pem;
         brix_certificate_key /etc/grid-security/hostkey.pem;
@@ -1933,7 +1933,7 @@ http {
 &#32;
         location / {
             brix_webdav on;
-            brix_webdav_root /srv/brix/export;
+            brix_export /srv/brix/export;
             brix_webdav_auth required;
             brix_webdav_cadir /etc/grid-security/certificates;
 &#32;
@@ -2002,8 +2002,8 @@ events {
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /srv/brix/export;
+        brix_root on;
+        brix_export /srv/brix/export;
         brix_auth none;
 &#32;
         # Shadow read-path operations to a separate validation server.
@@ -2074,7 +2074,7 @@ http {
 &#32;
         location / {
             brix_webdav on;
-            brix_webdav_root /srv/brix/export;
+            brix_export /srv/brix/export;
             brix_webdav_auth optional;
             brix_webdav_cadir /etc/grid-security/certificates;
 &#32;
@@ -2145,8 +2145,8 @@ events {
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /srv/brix/export;
+        brix_root on;
+        brix_export /srv/brix/export;
         brix_auth gsi;
         brix_certificate     /etc/grid-security/hostcert.pem;
         brix_certificate_key /etc/grid-security/hostkey.pem;
@@ -2180,7 +2180,7 @@ http {
 &#32;
         location / {
             brix_webdav on;
-            brix_webdav_root /srv/brix/export;
+            brix_export /srv/brix/export;
             brix_webdav_auth required;
             brix_webdav_cadir /etc/grid-security/certificates;
 &#32;
@@ -2249,8 +2249,8 @@ events {
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /srv/brix/export;
+        brix_root on;
+        brix_export /srv/brix/export;
         brix_auth token;
         brix_token_jwks /etc/tokens/storage-jwks.json;
         brix_token_issuer https://idp.example.com;
@@ -2259,7 +2259,7 @@ stream {
 &#32;
         # Read-through fills for cold files.
         brix_cache on;
-        brix_cache_root /srv/brix/cache;
+        brix_cache_export /srv/brix/cache;
         brix_cache_origin root://origin.example.org:1094;
         brix_cache_lock_timeout 300s;
         brix_cache_eviction_threshold 90%;
@@ -2351,10 +2351,10 @@ http {
 &#32;
         location / {
             brix_webdav on;
-            brix_webdav_root /srv/brix/export;
+            brix_export /srv/brix/export;
             brix_webdav_auth optional;
             brix_webdav_cadir /etc/grid-security/certificates;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
 &#32;
             # Explicit browser origins. Avoid "*" when credentials are used.
             brix_webdav_cors_origin https://notebooks.example.org;
@@ -2373,7 +2373,7 @@ http {
             brix_webdav_open_file_cache_errors off;
             brix_webdav_open_file_cache_events on;
 &#32;
-            brix_webdav_thread_pool webdav_io;
+            brix_thread_pool webdav_io;
         }
     }
 }

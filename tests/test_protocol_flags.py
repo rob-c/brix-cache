@@ -5,8 +5,8 @@ Verifies that the kXR_protocol response advertises the correct ServerProtocolBod
 bitmask for each server role.  Uses raw sockets — no PyXRootD dependency.
 
 Servers under test:
-  plain data server  — NGINX_ANON_PORT (11094)  brix_root only
-  cache server       — CACHE_ONLY_PORT  (11200)  brix_cache_root configured
+  plain data server  — NGINX_ANON_PORT (11094)  brix_export only
+  cache server       — CACHE_ONLY_PORT  (11200)  brix_cache_export configured
   proxy server       — PROXY_NGINX_PORT (11193)  brix_proxy on
 
 Flag bit layout (XProtocol.hh, ServerProtocolBody.flags uint32 big-endian):
@@ -142,7 +142,7 @@ class TestAlwaysOnFlags:
 
 @pytest.mark.requires_local_server
 class TestCacheFlag:
-    """kXR_attrCache (0x80) is set only when brix_cache_root is configured."""
+    """kXR_attrCache (0x80) is set only when brix_cache_export is configured."""
 
     def test_cache_flag_set_for_cache_server(self):
         flags = _get_protocol_flags(SERVER_HOST, CACHE_ONLY_PORT)

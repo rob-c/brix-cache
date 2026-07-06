@@ -2,7 +2,7 @@
 #
 # run_remote_backend_webdav.sh — Phase 3: the generic SD staged-write seam over a
 # remote root:// backend. A WebDAV (HTTP) export whose PRIMARY storage is a remote
-# root:// server (`brix_webdav_storage_backend root://O`). A WebDAV PUT runs
+# root:// server (`brix_storage_backend root://O`). A WebDAV PUT runs
 # through brix_vfs_staged_* → sd_xroot.staged_open/write/commit, streaming the
 # body straight to the origin (transparent write-through); GET reads it back.
 #
@@ -26,7 +26,7 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/w/export" "$PFX/w/logs"
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root;
+stream { server { listen 127.0.0.1:${OPORT}; brix_root on; brix_export $PFX/o/root;
     brix_auth none; brix_allow_write on; brix_upload_resume off; } }
 EOF
 
@@ -40,10 +40,10 @@ http {
         listen 127.0.0.1:${WPORT};
         location / {
             brix_webdav              on;
-            brix_webdav_root         $PFX/w/export;
+            brix_export         $PFX/w/export;
             brix_webdav_auth         none;
-            brix_webdav_allow_write  on;
-            brix_webdav_storage_backend root://127.0.0.1:${OPORT};
+            brix_allow_write  on;
+            brix_storage_backend root://127.0.0.1:${OPORT};
         }
     }
 }

@@ -396,7 +396,7 @@ protocol config lifecycles:
   `ngx_http_brix_shared_merge_with_root()` with root default `/`.
 - WebDAV/XrdHttp calls the same shared init/merge path with root default `/`.
 - S3 calls `ngx_http_brix_shared_init()` and `ngx_http_brix_shared_merge()`
-  with the empty-root default expected by `brix_s3_root`.
+  with the empty-root default expected by `brix_export`.
 
 This removes duplicated enable/root/allow-write/thread-pool merge logic and
 also fixes stream thread-pool name inheritance through the same shared preamble

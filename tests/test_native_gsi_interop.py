@@ -204,7 +204,7 @@ def _spawn_nginx_gsi(gsi_server, port, signed_dh=None, tag="nginx_gsi"):
             "stream {\n"
             "  server {\n"
             f"    listen {port};\n"
-            "    xrootd on;\n"
+            "    brix_root on;\n"
             f"    brix_storage_backend posix:{gsi_server['data']};\n"
             "    brix_auth gsi;\n"
             + sdh +

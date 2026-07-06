@@ -292,7 +292,7 @@ static ngx_conf_enum_t brix_tier_cache_meta_enum[] = {
 
 - [ ] **Step 3:** Add `$ngx_addon_dir/src/core/config/tier_directives.h` to the header dep list in the repo-root `./config` (find where `shared_conf.h` is listed; add adjacent). Then `cd /tmp/nginx-1.28.3 && ./configure <same flags as CLAUDE.md BUILD section> --add-module=/home/rcurrie/HEP-x/nginx-xrootd && make -j$(nproc)`. If the full rebuild trips -Werror on unrelated uncommitted WIP, fix ONLY trivial format-string issues in files this plan touches; otherwise report and stop.
 
-- [ ] **Step 4: Parity check + tests.** `objs/nginx -t` against a conf exercising both prefixes (add `brix_s3_cache_evict_at 85;` and `brix_webdav_cache_evict_at 85;` to a scratch copy of the test conf, run `nginx -t`, then remove). Run `PYTHONPATH=tests pytest tests/ -k "tier or cache_store or stage" -v --tb=short`. Also the config-coverage guard: `tools/ci/check_config_coverage.sh` must stay green.
+- [ ] **Step 4: Parity check + tests.** `objs/nginx -t` against a conf exercising both prefixes (add `brix_cache_evict_at 85;` and `brix_cache_evict_at 85;` to a scratch copy of the test conf, run `nginx -t`, then remove). Run `PYTHONPATH=tests pytest tests/ -k "tier or cache_store or stage" -v --tb=short`. Also the config-coverage guard: `tools/ci/check_config_coverage.sh` must stay green.
 
 - [ ] **Step 5: SKIP commit.**
 

@@ -234,7 +234,7 @@ def vo_nginx():
     _make_voms_proxy("atlas", "/atlas/Role=NULL/Capability=NULL", PROXY_ATLAS)
 
     # ---- Test data directories
-    # The VO ACL server is a DEDICATED instance whose brix_root is
+    # The VO ACL server is a DEDICATED instance whose brix_export is
     # ${TEST_ROOT}/data-vo-acl (start_dedicated_nginx names it data-<instance>),
     # NOT the shared DATA_ROOT.  Seed the per-VO dirs in the server's actual root
     # so `stat /cms` finds them — otherwise it returns kXR_NotFound (rc 54) even

@@ -25,13 +25,13 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/p/logs"
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OPORT}; xrootd on; brix_storage_backend posix:$PFX/o/root;
+stream { server { listen 127.0.0.1:${OPORT}; brix_root on; brix_storage_backend posix:$PFX/o/root;
     brix_auth none; brix_allow_write on; brix_upload_resume off; } }
 EOF
 cat > "$PFX/p/nginx.conf" <<EOF
 daemon on; error_log $PFX/p/logs/e.log info; pid $PFX/p/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${PPORT}; xrootd on; brix_auth none;
+stream { server { listen 127.0.0.1:${PPORT}; brix_root on; brix_auth none;
     brix_tap_proxy on; brix_tap_proxy_upstream 127.0.0.1:${OPORT}; brix_tap_proxy_auth anonymous; } }
 EOF
 

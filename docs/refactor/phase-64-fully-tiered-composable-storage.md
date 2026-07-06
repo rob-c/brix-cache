@@ -269,7 +269,7 @@ in-process rados serve inline, blocking-but-completing).
 xrootd_credential grid { x509_proxy /etc/grid-security/x509up; ca_dir /etc/grid-security/certificates; tls on; }
 
 stream { server {
-    listen 1094; xrootd on; xrootd_root /export;
+    listen 1094; brix_root on; xrootd_root /export;
 
     xrootd_storage_backend tape://mss.example credential=grid;   # nearline backend
     xrootd_cache  on;  xrootd_cache_store  pblock:/disk/cache;    # REQUIRED for tape (P4)

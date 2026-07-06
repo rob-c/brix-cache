@@ -94,7 +94,7 @@ Add these templates under `tests/configs/`.
 stream {
     server {
         listen 127.0.0.1:{PORT};
-        xrootd on;
+        brix_root on;
         xrootd_root {DATA_DIR};
         xrootd_auth none;
         xrootd_allow_write on;
@@ -109,7 +109,7 @@ stream {
 stream {
     server {
         listen [::1]:{PORT} ipv6only=on;
-        xrootd on;
+        brix_root on;
         xrootd_root {DATA_DIR};
         xrootd_auth none;
         xrootd_allow_write on;
@@ -133,7 +133,7 @@ stream {
 stream {
     server {
         listen 127.0.0.1:{MANAGER_V4_PORT};
-        xrootd on;
+        brix_root on;
         xrootd_root {DATA_DIR};
         xrootd_auth none;
         xrootd_manager on;
@@ -144,7 +144,7 @@ stream {
 
     server {
         listen [::1]:{MANAGER_V6_PORT} ipv6only=on;
-        xrootd on;
+        brix_root on;
         xrootd_root {DATA_DIR};
         xrootd_auth none;
         xrootd_manager on;

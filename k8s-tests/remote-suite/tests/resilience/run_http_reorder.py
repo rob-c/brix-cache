@@ -85,8 +85,8 @@ http {{
   fastcgi_temp_path {tmp}/ft; uwsgi_temp_path {tmp}/ut; scgi_temp_path {tmp}/st;
   server {{
     listen 127.0.0.1:{port};
-    location / {{ brix_webdav on; brix_webdav_storage_backend posix:{data};
-      brix_webdav_auth none; brix_webdav_allow_write on; }}
+    location / {{ brix_webdav on; brix_storage_backend posix:{data};
+      brix_webdav_auth none; brix_allow_write on; }}
   }}
 }}""")
     env = dict(os.environ)

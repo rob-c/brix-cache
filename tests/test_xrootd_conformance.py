@@ -166,7 +166,7 @@ def server(tmp_path_factory):
         "thread_pool default threads=2 max_queue=4096;\n"
         "events { worker_connections 64; }\n"
         "stream { server {\n"
-        f"  listen {BIND}:{PORT};\n  xrootd on;\n  brix_storage_backend posix:{data};\n"
+        f"  listen {BIND}:{PORT};\n  brix_root on;\n  brix_storage_backend posix:{data};\n"
         "  brix_auth none;\n  brix_allow_write on;\n} }\n")
     # nginx sets SO_REUSEADDR on its listener, so a precheck bind (which would
     # trip on TIME_WAIT after a prior run) is counter-productive; just start and

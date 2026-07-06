@@ -111,7 +111,7 @@ events {{ worker_connections 256; }}
 stream {{
     server {{
         listen {self.listen};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{prefix}/data;
         brix_auth none;
         brix_cms_manager 127.0.0.1:{mgr_port};

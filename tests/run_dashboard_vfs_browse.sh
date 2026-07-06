@@ -28,9 +28,9 @@ http {
         listen 127.0.0.1:$P_DAV;
         location / {
             brix_webdav on;
-            brix_webdav_root $PFX/posix_root;
+            brix_export $PFX/posix_root;
             brix_webdav_auth none;
-            brix_webdav_storage_backend posix;
+            brix_storage_backend posix;
         }
     }
     server {   # pblock export (logical ns in sqlite, bytes in packed blobs)
@@ -38,10 +38,10 @@ http {
         location / {
             dav_methods PUT;
             brix_webdav on;
-            brix_webdav_root $PFX/pblock_root;
+            brix_export $PFX/pblock_root;
             brix_webdav_auth none;
-            brix_webdav_allow_write on;
-            brix_webdav_storage_backend pblock;
+            brix_allow_write on;
+            brix_storage_backend pblock;
         }
     }
     server {   # dashboard WITH the VFS browser

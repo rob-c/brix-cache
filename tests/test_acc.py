@@ -76,7 +76,7 @@ events {{ worker_connections 64; }}
 stream {{
     server {{
         listen {url_host(BIND_HOST)}:{ACC_PORT};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{ROOT}/data;
         brix_auth none;
         brix_allow_write on;
@@ -218,9 +218,9 @@ def webdav_server():
         pytest.skip("nginx binary unavailable")
     conf = _start_http(
         f"            brix_webdav on;\n"
-        f"            brix_webdav_storage_backend posix:{HTTP_ROOT}/data;\n"
+        f"            brix_storage_backend posix:{HTTP_ROOT}/data;\n"
         f"            brix_webdav_auth none;\n"
-        f"            brix_webdav_allow_write on;")
+        f"            brix_allow_write on;")
     yield f"http://{url_host(HOST)}:{HTTP_PORT}"
     _stop_http(conf)
 
@@ -231,7 +231,7 @@ def s3_server():
         pytest.skip("nginx binary unavailable")
     conf = _start_http(
         f"            brix_s3 on;\n"
-        f"            brix_s3_storage_backend posix:{HTTP_ROOT}/data;")
+        f"            brix_storage_backend posix:{HTTP_ROOT}/data;")
     yield f"http://{url_host(HOST)}:{HTTP_PORT}"
     _stop_http(conf)
 

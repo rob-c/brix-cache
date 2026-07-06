@@ -68,7 +68,7 @@ brix_ssi_service_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
  */
 ngx_command_t ngx_stream_brix_commands[] = {
 
-    { ngx_string("xrootd"),
+    { ngx_string("brix_root"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       /* Custom setter because enabling the module also installs the handler. */
       ngx_stream_brix_enable,
@@ -78,7 +78,7 @@ ngx_command_t ngx_stream_brix_commands[] = {
       NULL },
 
     /* Filesystem/export settings used by nearly every request handler. */
-    { ngx_string("brix_root"),
+    { ngx_string("brix_export"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       /* Single string argument copied into srv_conf->common.root. */
       ngx_conf_set_str_slot,
@@ -87,7 +87,7 @@ ngx_command_t ngx_stream_brix_commands[] = {
       NULL },
 
     /* Selects the storage backend for this export: "posix" (default) or
-     * "pblock" (block-based, rooted at brix_root; needs the sqlite build). */
+     * "pblock" (block-based, rooted at brix_export; needs the sqlite build). */
     { ngx_string("brix_storage_backend"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,

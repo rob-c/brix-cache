@@ -118,9 +118,9 @@ http {{
             brix_guard_profile xrdhttp;
             brix_guard_audit_log {audits['dav']};
             brix_webdav on;
-            brix_webdav_storage_backend posix:{dav_root};
+            brix_storage_backend posix:{dav_root};
             brix_webdav_auth none;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
         }}
     }}
     server {{
@@ -130,7 +130,7 @@ http {{
             brix_guard_profile xrdhttp;
             brix_guard_audit_log {audits['s3']};
             brix_s3 on;
-            brix_s3_storage_backend posix:{s3_root};
+            brix_storage_backend posix:{s3_root};
             brix_s3_access_key GUARDTESTKEY;
             brix_s3_secret_key guard-test-secret;
         }}
@@ -145,8 +145,8 @@ http {{
 stream {{
     server {{
         listen {BIND_HOST}:{ports['xrd']};
-        xrootd on;
-        brix_root {xrd_root};
+        brix_root on;
+        brix_export {xrd_root};
         brix_auth none;
     }}
     server {{

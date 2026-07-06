@@ -87,7 +87,7 @@ events {{ worker_connections 256; }}
 stream {{
     server {{
         listen {HOST}:{PORT};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{dataroot};
         brix_handshake_timeout {HANDSHAKE_TIMEOUT_MS}ms;
         brix_read_timeout {READ_TIMEOUT_MS}ms;

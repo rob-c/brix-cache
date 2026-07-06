@@ -98,7 +98,7 @@ error_log {root}/error.log info;
 events {{ worker_connections 256; }}
 thread_pool default threads=4 max_queue=65536;
 stream {{
-    server {{ listen {BIND_HOST}:{rport}; xrootd on; brix_root {data};
+    server {{ listen {BIND_HOST}:{rport}; brix_root on; brix_export {data};
              brix_auth none; brix_allow_write on;
              brix_upload_resume on; }}
 }}
@@ -112,8 +112,8 @@ http {{
     scgi_temp_path {root}/scgi_tmp;
     server {{
         listen {BIND_HOST}:{hport};
-        location / {{ brix_webdav on; brix_webdav_root {data};
-                     brix_webdav_auth none; brix_webdav_allow_write on;
+        location / {{ brix_webdav on; brix_export {data};
+                     brix_webdav_auth none; brix_allow_write on;
                      brix_webdav_upload_resume on; }}
     }}
 }}
@@ -314,7 +314,7 @@ error_log {root}/error.log info;
 events {{ worker_connections 256; }}
 thread_pool default threads=4 max_queue=65536;
 stream {{
-    server {{ listen {BIND_HOST}:{rport}; xrootd on; brix_root {data};
+    server {{ listen {BIND_HOST}:{rport}; brix_root on; brix_export {data};
              brix_auth none; brix_allow_write on;
              brix_stage_dir {stage}; }}
 }}
@@ -384,7 +384,7 @@ pid {root}/nginx.pid;
 error_log {root}/error.log info;
 events {{ worker_connections 64; }}
 stream {{
-    server {{ listen {BIND_HOST}:{rport}; xrootd on; brix_root {data};
+    server {{ listen {BIND_HOST}:{rport}; brix_root on; brix_export {data};
              brix_auth none; brix_allow_write on; brix_stage_dir {stage}; }}
 }}
 """)

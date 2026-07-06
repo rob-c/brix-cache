@@ -78,7 +78,7 @@ events {{ worker_connections 64; }}
 stream {{
     server {{
         listen {BIND_HOST}:{stream_port};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{data};
         brix_auth none;
         brix_allow_write on;
@@ -99,9 +99,9 @@ http {{
         listen {BIND_HOST}:{http_port};
         location / {{
             brix_webdav on;
-            brix_webdav_storage_backend posix:{data};
+            brix_storage_backend posix:{data};
             brix_webdav_auth none;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
             brix_webdav_tape_rest on;
         }}
     }}

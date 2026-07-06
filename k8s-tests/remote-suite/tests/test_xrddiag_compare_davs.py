@@ -72,7 +72,7 @@ events {{ worker_connections 256; }}
 stream {{
     server {{
         listen {BIND_HOST}:{rport};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{dataR};
         brix_auth none;
     }}
@@ -86,11 +86,11 @@ http {{
     scgi_temp_path {root}/tmp;
     server {{
         listen {BIND_HOST}:{ok_port};
-        location / {{ root {dataR}; brix_webdav on; brix_webdav_storage_backend posix:{dataR}; brix_webdav_auth none; }}
+        location / {{ root {dataR}; brix_webdav on; brix_storage_backend posix:{dataR}; brix_webdav_auth none; }}
     }}
     server {{
         listen {BIND_HOST}:{bad_port};
-        location / {{ root {dataB}; brix_webdav on; brix_webdav_storage_backend posix:{dataB}; brix_webdav_auth none; }}
+        location / {{ root {dataB}; brix_webdav on; brix_storage_backend posix:{dataB}; brix_webdav_auth none; }}
     }}
 }}
 """)

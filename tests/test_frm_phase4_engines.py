@@ -100,7 +100,7 @@ events {{ worker_connections 64; }}
 stream {{
   server {{
     listen {BIND_HOST}:{port};
-    xrootd on; brix_storage_backend posix:{data}; brix_auth none;
+    brix_root on; brix_storage_backend posix:{data}; brix_auth none;
     brix_frm on; brix_frm_queue_path {d}/frm.queue;
     brix_frm_copycmd {copycmd};
     brix_frm_residency_cmd {oracle};
@@ -172,7 +172,7 @@ events {{ worker_connections 64; }}
 stream {{
   server {{
     listen {BIND_HOST}:{port};
-    xrootd on; brix_storage_backend posix:{data}; brix_auth none;
+    brix_root on; brix_storage_backend posix:{data}; brix_auth none;
     brix_frm on; brix_frm_queue_path {d}/frm.queue;
     brix_frm_copycmd {copycmd};
   }}
@@ -183,8 +183,8 @@ http {{
     listen {BIND_HOST}:{mport};
     location = /metrics {{ brix_metrics on; }}
     location / {{
-      brix_webdav on; brix_webdav_storage_backend posix:{data}; brix_webdav_auth none;
-      brix_webdav_allow_write on; brix_webdav_tape_rest on;
+      brix_webdav on; brix_storage_backend posix:{data}; brix_webdav_auth none;
+      brix_allow_write on; brix_webdav_tape_rest on;
     }}
   }}
 }}

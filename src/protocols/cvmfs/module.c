@@ -819,16 +819,9 @@ ngx_http_brix_cvmfs_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
  * Directives
  */
 
-/* brix_cache_verify (HTTP form): the composed tier verifies fills against a
- * digest. Only the self-verifying cvmfs-cas mode is meaningful on the HTTP
- * plane today (best-effort/require need an origin-digest hook the sd_http
- * fill does not have). The stream plane registers its own directive of the
- * same name — different block types, no conflict. */
-static ngx_conf_enum_t  brix_cvmfs_verify_enum[] = {
-    { ngx_string("off"),       BRIX_CACHE_VERIFY_OFF },
-    { ngx_string("cvmfs-cas"), BRIX_CACHE_VERIFY_CVMFS_CAS },
-    { ngx_null_string, 0 }
-};
+/* brix_cache_verify (HTTP form) is now owned by ngx_http_brix_common_module,
+ * which registers the identical off|cvmfs-cas enum; this module adopts the
+ * merged value via brix_http_common_adopt(). */
 
 static ngx_conf_enum_t  brix_scvmfs_authz_enum[] = {
     { ngx_string("none"),   BRIX_SCVMFS_AUTHZ_NONE },

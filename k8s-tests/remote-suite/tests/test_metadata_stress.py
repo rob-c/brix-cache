@@ -123,7 +123,7 @@ def _stream_conf(tmp_path, data, port, rl_rule=""):
         {extra}
         server {{
             listen {BIND_HOST}:{port};
-            xrootd on;
+            brix_root on;
             brix_storage_backend posix:{data};
             brix_auth none;
             brix_allow_write on;
@@ -145,7 +145,7 @@ def _http_conf(tmp_path, data, port, rl_rule=""):
             listen {BIND_HOST}:{port};
             location / {{
                 brix_webdav on;
-                brix_webdav_storage_backend posix:{data};
+                brix_storage_backend posix:{data};
                 brix_webdav_auth none;
                 {rl_rule}
             }}
@@ -161,7 +161,7 @@ def _mesh_redirector_conf(tmp_path, port, ds_port, rl_rule=""):
         {extra}
         server {{
             listen {BIND_HOST}:{port};
-            xrootd on;
+            brix_root on;
             brix_manager_map /dir {HOST}:{ds_port};
             brix_manager_map / {HOST}:{ds_port};
             {rl_rule}

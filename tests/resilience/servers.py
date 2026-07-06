@@ -165,7 +165,7 @@ events {{ worker_connections 1024; }}
 stream {{
     server {{
         listen 127.0.0.1:{port};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{data};
         brix_auth gsi;
         brix_allow_write on;
@@ -235,7 +235,7 @@ events {{ worker_connections 1024; }}
 stream {{
     server {{
         listen 127.0.0.1:{port};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{data};
         brix_auth none;
         brix_allow_write on;

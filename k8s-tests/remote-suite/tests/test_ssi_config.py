@@ -34,7 +34,7 @@ def _write_config(base, extra_ssi):
             f"pid {base}/ssi.pid;\nerror_log {base}/err.log info;\n"
             "events { worker_connections 64; }\n"
             "stream { server {\n"
-            f"  listen {BIND_HOST}:{port};\n  xrootd on;\n"
+            f"  listen {BIND_HOST}:{port};\n  brix_root on;\n"
             f"  brix_storage_backend posix:{data};\n"
             "  brix_auth none;\n  brix_allow_write on;\n  brix_ssi on;\n"
             f"{extra_ssi}"

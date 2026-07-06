@@ -54,7 +54,7 @@ The rename correctly kept `test_xrootd_performance_conformance.py`'s filename (i
 
 ## 3. The bug cluster the suite surfaced — the storage-driver path was a second, under-tested implementation
 
-This is the headline finding. The VFS storage plane routes `proto → VFS → SD driver` (`src/fs/backend/`). There are effectively **two open/read/write code paths**: the direct POSIX path (plain `brix_root` export) and the **driver path** (`brix_storage_backend posix:…`, `brix_open_resolved_via_driver`). The direct path was battle-tested; the driver path had been exercised for *basic* reads (which survive via `sendfile` reading the fd directly) but **not** for buffered reads, bound reads, integrity-checked reads, clones, or checkpoints. Every one of those was broken, and each looked like a different unrelated failure.
+This is the headline finding. The VFS storage plane routes `proto → VFS → SD driver` (`src/fs/backend/`). There are effectively **two open/read/write code paths**: the direct POSIX path (plain `brix_export` export) and the **driver path** (`brix_storage_backend posix:…`, `brix_open_resolved_via_driver`). The direct path was battle-tested; the driver path had been exercised for *basic* reads (which survive via `sendfile` reading the fd directly) but **not** for buffered reads, bound reads, integrity-checked reads, clones, or checkpoints. Every one of those was broken, and each looked like a different unrelated failure.
 
 All were proven **pre-existing** (not rebrand-caused) by rebuilding the pre-rename commit `37b97c4` in a git worktree and reproducing identically.
 

@@ -66,9 +66,9 @@ http {{
         listen {BIND_HOST}:{port};
         location / {{
             brix_webdav on;
-            brix_webdav_storage_backend posix:{data};
+            brix_storage_backend posix:{data};
             brix_webdav_auth none;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
             {extra}
         }}
     }}

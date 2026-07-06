@@ -12,7 +12,7 @@ Every HTTP method the WebDAV module handles, what RFC it follows, and any nginx-
 | `PUT` | Upload; body is written to a staging temp file and **atomically renamed onto the target** on completion (an interrupted PUT never leaves a half-written object). Returns 201 on create, 204 on overwrite |
 | `DELETE` | Removes files and empty directories |
 | `MKCOL` | Creates a directory; trailing slash in URL is accepted |
-| `COPY` | Server-side local copy (RFC 4918 §9.8) when `brix_webdav_allow_write on`; HTTP-TPC pull (`Source:` header) or push (`Destination: https://…` header) when `brix_webdav_tpc on` |
+| `COPY` | Server-side local copy (RFC 4918 §9.8) when `brix_allow_write on`; HTTP-TPC pull (`Source:` header) or push (`Destination: https://…` header) when `brix_webdav_tpc on` |
 | `PROPFIND` | `Depth: 0` for stat, `Depth: 1` for directory listing; returns `207 Multi-Status` XML |
 | `LOCK` | Acquire or refresh an exclusive write lock for a resource |
 | `UNLOCK` | Release a previously held exclusive write lock |

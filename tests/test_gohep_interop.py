@@ -160,7 +160,7 @@ def servers(tmp_path_factory):
     anon_cfg.write_text(common.replace("PIDNAME", "anon").replace("ERRNAME", "anon") +
                         "stream { server {\n"
                         f"  listen {BIND}:{anon_port};\n"
-                        "  xrootd on;\n"
+                        "  brix_root on;\n"
                         f"  brix_storage_backend posix:{data};\n"
                         "  brix_auth none;\n"
                         "} }\n")
@@ -169,7 +169,7 @@ def servers(tmp_path_factory):
     ds_cfg.write_text(common.replace("PIDNAME", "ds").replace("ERRNAME", "ds") +
                       "stream { server {\n"
                       f"  listen {BIND}:{ds_port};\n"
-                      "  xrootd on;\n"
+                      "  brix_root on;\n"
                       f"  brix_storage_backend posix:{data};\n"
                       "  brix_auth none;\n"
                       "} }\n")
@@ -177,7 +177,7 @@ def servers(tmp_path_factory):
     rdr_cfg.write_text(common.replace("PIDNAME", "rdr").replace("ERRNAME", "rdr") +
                        "stream { server {\n"
                        f"  listen {BIND}:{rdr_port};\n"
-                       "  xrootd on;\n"
+                       "  brix_root on;\n"
                        "  brix_manager_mode on;\n"
                        f"  brix_manager_map / {BIND}:{ds_port};\n"
                        "  brix_auth none;\n"

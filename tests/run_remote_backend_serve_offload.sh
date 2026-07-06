@@ -14,15 +14,15 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/b/export" "$PFX/b/tmp" "$PFX/b/logs"
 cat > "$PFX/o/nginx.conf" <<E2
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root; brix_auth none; } }
+stream { server { listen 127.0.0.1:${OPORT}; brix_root on; brix_export $PFX/o/root; brix_auth none; } }
 E2
 cat > "$PFX/b/nginx.conf" <<E2
 daemon on; error_log $PFX/b/logs/e.log info; pid $PFX/b/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 http { client_body_temp_path $PFX/b/tmp; server { listen 127.0.0.1:${BPORT};
-  location / { brix_webdav on; brix_webdav_root $PFX/b/export; brix_webdav_auth none;
-    brix_webdav_storage_backend root://127.0.0.1:${OPORT}; } } }
+  location / { brix_webdav on; brix_export $PFX/b/export; brix_webdav_auth none;
+    brix_storage_backend root://127.0.0.1:${OPORT}; } } }
 E2
 head -c 500000  /dev/urandom > "$PFX/o/root/small.bin"
 head -c 2600000 /dev/urandom > "$PFX/o/root/big.bin"

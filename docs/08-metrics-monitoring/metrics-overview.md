@@ -136,7 +136,7 @@ See [extended-metrics.md](./extended-metrics.md) for WebDAV and S3 IP-version co
 
 ### `brix_cache_occupancy_ratio`
 
-Current `statvfs()` filesystem occupancy ratio for `brix_cache_root`.
+Current `statvfs()` filesystem occupancy ratio for `brix_cache_export`.
 
 Labels: `port`, `auth`
 
@@ -200,7 +200,7 @@ brix_cache_eviction_errors_total{port="1094",auth="anon"} 1
 
 Cache files removed by the stale-dirty reaper, broken down by **why** via the
 `reason` label. The reaper scans the unified cache-state root
-(`brix_cache_state_root`, defaulting to `brix_cache_root`), shared by the
+(`brix_cache_state_root`, defaulting to `brix_cache_export`), shared by the
 **read-through and write-through caches**, so this counter covers both. Unlike the
 eviction counters (gated on the read-through cache being enabled) it is reported
 for **any active server with a cache-state root** — the same `in_use`-only gate as
@@ -392,7 +392,7 @@ brix_bytes_rx_total{port="1094",auth="anon"} 12582912
 # HELP brix_bytes_tx_total Bytes sent to clients (read data).
 # TYPE brix_bytes_tx_total counter
 brix_bytes_tx_total{port="1094",auth="anon"} 4194304
-# HELP brix_cache_occupancy_ratio Filesystem occupancy ratio for brix_cache_root.
+# HELP brix_cache_occupancy_ratio Filesystem occupancy ratio for brix_cache_export.
 # TYPE brix_cache_occupancy_ratio gauge
 brix_cache_occupancy_ratio{port="1094",auth="anon"} 0.734218
 # HELP brix_cache_eviction_threshold_ratio Configured cache eviction high-water occupancy ratio.
@@ -403,7 +403,7 @@ brix_cache_eviction_threshold_ratio{port="1094",auth="anon"} 0.900000
 brix_cache_bytes{port="1094",auth="anon",state="total"} 214748364800
 brix_cache_bytes{port="1094",auth="anon",state="used"} 157672816640
 brix_cache_bytes{port="1094",auth="anon",state="available"} 57075548160
-# HELP brix_cache_evictions_total Files evicted from brix_cache_root.
+# HELP brix_cache_evictions_total Files evicted from brix_cache_export.
 # TYPE brix_cache_evictions_total counter
 brix_cache_evictions_total{port="1094",auth="anon"} 17
 # HELP brix_cache_evicted_bytes_total Bytes reclaimed by cache eviction.

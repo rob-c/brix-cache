@@ -614,7 +614,7 @@ class TestReadOnlyServer:
 # ===========================================================================
 
 class TestReadSideSymlinkEscape:
-    """Read-only operations must not follow symlinks outside brix_root."""
+    """Read-only operations must not follow symlinks outside brix_export."""
 
     @pytest.fixture(autouse=True)
     def _setup_symlinks(self):
@@ -678,7 +678,7 @@ class TestReadSideSymlinkEscape:
 
 class TestWriteSideSymlinkEscape:
     """Mutating ops (open-create, mkdir, rm, truncate, mv-destination) must not
-    follow a symlink out of brix_root.  This is the write-side partner to
+    follow a symlink out of brix_export.  This is the write-side partner to
     TestReadSideSymlinkEscape and a direct regression guard for the openat2
     RESOLVE_BENEATH parent-confinement that the *at() syscall family
     (mkdirat/unlinkat/renameat) needs: a symlink in an INTERMEDIATE component

@@ -64,9 +64,9 @@ http {{
         server_name localhost;
         location / {{
             brix_s3             on;
-            brix_s3_storage_backend        posix:{data_dir};
+            brix_storage_backend        posix:{data_dir};
             brix_s3_bucket      {BUCKET};
-            brix_s3_allow_write on;
+            brix_allow_write on;
         }}
     }}
 }}

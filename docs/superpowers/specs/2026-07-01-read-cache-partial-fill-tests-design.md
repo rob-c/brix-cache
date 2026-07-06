@@ -94,7 +94,7 @@ Shared fixtures/helpers, modeled on `tests/test_cache_write_through.py`
   `CacheNode(cache_port, cache_store_dir, backend_handle)`. Config skeleton:
   ```
   stream { server {
-      listen 127.0.0.1:<CACHE_PORT>; xrootd on; xrootd_auth none;
+      listen 127.0.0.1:<CACHE_PORT>; brix_root on; xrootd_auth none;
       xrootd_cache on;
       xrootd_cache_store posix:<STORE>;   xrootd_cache_root /;
       xrootd_cache_meta  local;           # force the .cinfo sidecar (inspectable)

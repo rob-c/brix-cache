@@ -36,7 +36,7 @@ http {
 
         location / {
             brix_cvmfs on;
-            brix_cvmfs_cache_store posix:/var/cache/cvmfs;   # <-- cached data
+            brix_cache_store posix:/var/cache/cvmfs;   # <-- cached data
             brix_cache_verify cvmfs-cas;                     # verify on fill
 
             # Security allowlist: which Stratum-1 authorities a client may name
@@ -59,7 +59,7 @@ http {
             #    always gets 200 from the host it chose and never wanders. The
             #    "|"-list is the ranked failover order; @ORIGINS@ is rendered
             #    from $ORIGINS (default: the allowlist hosts on :8000).
-            brix_cvmfs_storage_backend "@ORIGINS@";
+            brix_storage_backend "@ORIGINS@";
             brix_cvmfs_unified_origin on;
 
             # 2. Answer the geo API ourselves, RTT-ranked from this cache's
@@ -103,7 +103,7 @@ http {
             # Make the cached CVMFS data browsable in the dashboard's "Files"
             # tab (admin-auth only; kernel-confined to this root via openat2
             # RESOLVE_BENEATH). This is the SAME directory the :3128 cache
-            # writes to (brix_cvmfs_cache_store), so an operator sees the
+            # writes to (brix_cache_store), so an operator sees the
             # actual on-disk cache contents. It is a content-addressed store:
             # entries are hash-sharded (e.g. /ab/cdef…), not /cvmfs logical
             # paths. entrypoint.sh pre-creates + chowns it to nobody, so this

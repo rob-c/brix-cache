@@ -245,7 +245,7 @@ cat > "$PFX/nginx.conf" <<EOF
 daemon off; error_log $PFX/e.log info; pid $PFX/pid;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:11939; xrootd on; xrootd_auth none;
+    listen 127.0.0.1:11939; brix_root on; xrootd_auth none;
     xrootd_storage_backend root://127.0.0.1:11940;
     xrootd_cache_store posix:$PFX/cache; xrootd_cache_root /;
     xrootd_cache_origin_family $1;
@@ -436,7 +436,7 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/n/cache" "$PFX/n/logs"
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OP}; xrootd on; xrootd_root $PFX/o/root; xrootd_auth none; } }
+stream { server { listen 127.0.0.1:${OP}; brix_root on; xrootd_root $PFX/o/root; xrootd_auth none; } }
 EOF
 
 node_conf() {  # $1 = family token
@@ -445,7 +445,7 @@ daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${NP}; xrootd on; xrootd_auth none;
+    listen 127.0.0.1:${NP}; brix_root on; xrootd_auth none;
     xrootd_storage_backend root://127.0.0.1:${OP};
     xrootd_cache_store posix:$PFX/n/cache; xrootd_cache_root /;
     xrootd_cache_origin_family $1;

@@ -64,7 +64,7 @@ WebDAV paths:
 Relevant directives:
 
 - `brix_thread_pool`
-- `brix_webdav_thread_pool`
+- `brix_thread_pool`
 
 ### Why It Helps
 

@@ -401,8 +401,8 @@ root:// is **opt-in and off by default**:
 
 Toggles are stream directives `brix_read_compress` / `brix_write_compress`
 (both default off, `stream/module.c:556-572`), advertised via Qconfig
-`cmpread`/`cmpwrite`, with per-protocol siblings `brix_webdav_compress` and
-`brix_s3_compress`. Because this is an extension, a stock XRootD client will
+`cmpread`/`cmpwrite`, with per-protocol siblings `brix_compress` and
+`brix_compress`. Because this is an extension, a stock XRootD client will
 simply never request it; interoperability is unaffected.
 
 ## Performance characteristics
@@ -449,7 +449,7 @@ What an operator turns, and what an end user observes:
 | Concern | Directive (BriX-Cache) | Default | Official analogue |
 |---|---|---|---|
 | Thread pool (stream) | `brix_thread_pool` (resolves an nginx `thread_pool`) | `"default"` | `xrd.sched mint/maxt/avlt/idle` |
-| Thread pool (WebDAV/S3) | `brix_webdav_thread_pool` / `brix_s3_thread_pool` | — | (same scheduler) |
+| Thread pool (WebDAV/S3) | `brix_thread_pool` / `brix_thread_pool` | — | (same scheduler) |
 | io_uring backend | `brix_io_uring off\|on\|auto` | `auto` | n/a (POSIX AIO only) |
 | io_uring queue depth | `brix_io_uring_queue_depth` | 256 | n/a |
 | io_uring kill-switch | `brix_io_uring_panic_file` | "" | n/a |

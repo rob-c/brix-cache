@@ -78,12 +78,12 @@ http {{
         listen {BIND_HOST}:{PORT};
         location / {{
             brix_s3 on;
-            brix_s3_storage_backend posix:{data};
+            brix_storage_backend posix:{data};
             brix_s3_bucket {BUCKET};
             brix_s3_access_key {ACCESS_KEY};
             brix_s3_secret_key {SECRET_KEY};
             brix_s3_region {REGION};
-            brix_s3_allow_write on;
+            brix_allow_write on;
         }}
     }}
 }}

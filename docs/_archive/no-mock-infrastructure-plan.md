@@ -79,7 +79,7 @@ events { worker_connections 32; }
 stream {
     server {
         listen {BIND_HOST}:{PORT};
-        xrootd on;
+        brix_root on;
         xrootd_root      {DATA_DIR};
         xrootd_auth      none;
         xrootd_manager_mode on;
@@ -188,7 +188,7 @@ events { worker_connections 32; }
 stream {
     server {
         listen {BIND_HOST}:{PORT};
-        xrootd on;
+        brix_root on;
         xrootd_root           {DATA_DIR};
         xrootd_auth           token;
         xrootd_token_jwks     {JWKS_FILE};
@@ -311,7 +311,7 @@ events { worker_connections 16; }
 stream {
     server {
         listen {BIND_HOST}:{PORT};
-        xrootd on;
+        brix_root on;
         xrootd_root         {DATA_DIR};
         xrootd_auth         none;
         xrootd_allow_write  on;

@@ -104,8 +104,8 @@ thread_pool default threads=8 max_queue=512;
 stream {
     server {
         listen 127.0.0.1:${PORT};
-        xrootd on;
-        brix_root            $PFX/root;
+        brix_root on;
+        brix_export            $PFX/root;
         brix_auth            gsi;
         brix_certificate     $SERVER_CERT;
         brix_certificate_key $SERVER_KEY;

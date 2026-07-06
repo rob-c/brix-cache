@@ -26,7 +26,7 @@
  *   ngx_http_s3_merge_loc_conf(): parent→child merge using ngx_conf_merge_value for flags/ints,
  *     ngx_conf_merge_str_value for strings. Defaults: enable=0, allow_write=0, allow_unsigned_session_token=0,
  *     max_keys=1000, root="", bucket="", access_key="", secret_key="", region="us-east-1". When conf->common.enable is true,
- *     calls brix_prepare_export_root() with directive_name="brix_s3_root", allow_write from config,
+ *     calls brix_prepare_export_root() with directive_name="brix_export", allow_write from config,
  *     required=0 (root not mandatory), canon_size=sizeof(conf->common.root_canon). Returns NGX_CONF_ERROR on failure.
  *   ngx_http_s3_set(): parses the "brix_s3" flag via ngx_conf_set_flag_slot(), then retrieves the
  *     core location conf and sets clcf->handler = ngx_http_s3_handler — this is what routes all S3 requests.
@@ -42,7 +42,6 @@
 #include "core/config/http_rootfd.h"
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
 #include "core/config/credential_block.h"   /* §14 brix_credential lookup/bearer */
-#include "core/config/tier_directives.h"    /* shared tier-grammar X-macro */
 #include "core/config/http_common.h"        /* unified brix_* directive adoption */
 #include "fs/vfs/vfs_backend_registry.h"   /* per-export backend registration */
 #include "core/compat/alloc_guard.h"
@@ -113,10 +112,10 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     if (conf->common.enable) {
         brix_export_root_opts_t root_opts;
 
-        /* posix:<path> backend → the local export tree (composable brix_root). */
+        /* posix:<path> backend → the local export tree (composable brix_export). */
         brix_storage_backend_posix_root(&conf->common);
 
-        root_opts.directive_name = "brix_s3_root";
+        root_opts.directive_name = "brix_export";
         root_opts.allow_write    = conf->common.allow_write
                                  && !brix_storage_backend_is_remote(&conf->common);
         root_opts.required       = 0;
@@ -298,46 +297,15 @@ static ngx_command_t ngx_http_s3_commands[] = {
       offsetof(ngx_http_s3_loc_conf_t, common.enable),
       NULL },
 
-    /* phase-42 W2: opt-in outbound GetObject compression (Accept-Encoding
-     * negotiated, off by default).  Plain flag — no export-root side effects. */
-    { ngx_string("brix_s3_compress"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.compress),
-      NULL },
-
     /* The XrdAcc directives (brix_authdb / _format / _audit) are registered by
      * the WebDAV module with shared setters that populate the S3 loc-conf too,
      * so they are intentionally NOT redeclared here (a duplicate would conflict). */
 
-    { ngx_string("brix_s3_root"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.root),
-      NULL },
-
-    /* Composable storage backend for this S3 export (phase-63): "root://host:port",
-     * "http://host/base", or a driver name ("pblock"); default POSIX. */
-    { ngx_string("brix_s3_storage_backend"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.storage_backend),
-      NULL },
-
-    /* Names the brix_credential block (§14) the source backend authenticates with. */
-    { ngx_string("brix_s3_storage_credential"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.storage_credential),
-      NULL },
-
-    /* ---- phase-64 composable tier grammar mirrors (§4.4) ---- */
-    BRIX_TIER_DIRECTIVES("brix_s3_", ngx_http_s3_loc_conf_t,
-                         NGX_HTTP_LOC_CONF, NGX_HTTP_LOC_CONF_OFFSET),
+    /* Export root, storage backend/credential, outbound compression and the
+     * composable tier grammar (brix_export, brix_storage_backend,
+     * brix_storage_credential, brix_compress, brix_cache_*, brix_stage*) are
+     * owned by the shared ngx_http_brix_common_module; this protocol adopts
+     * them via brix_http_common_adopt(). */
 
     { ngx_string("brix_s3_bucket"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
@@ -374,18 +342,7 @@ static ngx_command_t ngx_http_s3_commands[] = {
       offsetof(ngx_http_s3_loc_conf_t, region),
       NULL },
 
-    { ngx_string("brix_s3_allow_write"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.allow_write),
-      NULL },
-    { ngx_string("brix_s3_read_only"),     /* hard read-only (overrides allow_write) */
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.read_only),
-      NULL },
+    /* brix_allow_write / brix_read_only are owned by ngx_http_brix_common_module. */
 
     { ngx_string("brix_s3_allow_unsigned_session_token"),
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
@@ -445,12 +402,7 @@ static ngx_command_t ngx_http_s3_commands[] = {
       offsetof(ngx_http_s3_loc_conf_t, mpu_max_age),
       NULL },
 
-    { ngx_string("brix_s3_thread_pool"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.thread_pool_name),
-      NULL },
+    /* brix_thread_pool is owned by ngx_http_brix_common_module. */
 
     /* SciTags packet marking (src/pmark/) — see phase-34 doc */    { ngx_string("brix_pmark"),
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,

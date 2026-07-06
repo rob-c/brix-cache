@@ -20,7 +20,7 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/n/cache" "$PFX/n/logs"
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OP}; xrootd on; brix_root $PFX/o/root; brix_auth none; } }
+stream { server { listen 127.0.0.1:${OP}; brix_root on; brix_export $PFX/o/root; brix_auth none; } }
 EOF
 
 node_conf() {  # $1 = family token
@@ -29,9 +29,9 @@ daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${NP}; xrootd on; brix_auth none;
+    listen 127.0.0.1:${NP}; brix_root on; brix_auth none;
     brix_storage_backend root://127.0.0.1:${OP};
-    brix_cache_store posix:$PFX/n/cache; brix_cache_root /;
+    brix_cache_store posix:$PFX/n/cache; brix_cache_export /;
     brix_cache_origin_family $1;
 } }
 EOF

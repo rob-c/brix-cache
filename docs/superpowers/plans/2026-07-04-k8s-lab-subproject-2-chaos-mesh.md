@@ -385,11 +385,11 @@ thread_pool default threads=4 max_queue=65536;
 stream {
   server {
     listen {{ (index .Values.role.ports 0).port }};
-    xrootd on;
+    brix_root on;
     brix_auth none;
     brix_storage_backend root://{{ .Release.Name }}-{{ (index .Values.role.upstreams 0).service }}:{{ (index .Values.role.upstreams 0).port }};
     brix_cache_store     posix:{{ .Values.role.data.root }}/cache;
-    brix_cache_root      /;
+    brix_cache_export      /;
   }
 }
 ```
@@ -401,7 +401,7 @@ events { worker_connections 256; }
 stream {
   server {
     listen {{ (index .Values.role.ports 0).port }};
-    xrootd on;
+    brix_root on;
     brix_auth none;
     brix_tap_proxy on;
     brix_tap_proxy_upstream {{ .Release.Name }}-{{ (index .Values.role.upstreams 0).service }}:{{ (index .Values.role.upstreams 0).port }};
@@ -417,7 +417,7 @@ events { worker_connections 512; }
 stream {
   server {
     listen {{ (index .Values.role.ports 0).port }};
-    xrootd on;
+    brix_root on;
     brix_storage_backend posix:{{ .Values.role.data.root }};
     brix_auth none;
     brix_allow_write on;
@@ -430,7 +430,7 @@ worker_processes 1;
 error_log /var/log/brix/error.log debug;
 events { worker_connections 128; }
 stream {
-  server { listen {{ (index .Values.role.ports 0).port }}; xrootd on; brix_auth none; brix_manager_mode on; }
+  server { listen {{ (index .Values.role.ports 0).port }}; brix_root on; brix_auth none; brix_manager_mode on; }
   server { listen {{ (index .Values.role.ports 1).port }}; brix_cms_server on; }
 }
 ```
@@ -442,7 +442,7 @@ events { worker_connections 128; }
 stream {
   server {
     listen {{ (index .Values.role.ports 0).port }};
-    xrootd on;
+    brix_root on;
     brix_storage_backend posix:{{ .Values.role.data.root }};
     brix_auth none;
     brix_allow_write on;

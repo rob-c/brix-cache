@@ -619,7 +619,7 @@ def _front_conf(name, front_port, upstream_port, extra=""):
             f"stream {{\n"
             f"    server {{\n"
             f"        listen {BIND_HOST}:{front_port};\n"
-            f"        xrootd on;\n"
+            f"        brix_root on;\n"
             f"        brix_auth none;\n"
             f"        brix_tap_proxy on;\n"
             f"        brix_tap_proxy_upstream {HOST}:{upstream_port};\n"

@@ -29,8 +29,8 @@ http {
     server {
         listen 127.0.0.1:$CPORT so_keepalive=60s:10s:6 backlog=2048;
         location /cvmfs/ {
-            brix_cvmfs_storage_backend http://127.0.0.1:$MPORT;
-            brix_cvmfs_cache_store posix:$PFX/cache;
+            brix_storage_backend http://127.0.0.1:$MPORT;
+            brix_cache_store posix:$PFX/cache;
             brix_cvmfs on;
         }
         location / { return 403; }
@@ -38,8 +38,8 @@ http {
     server {   # negative control: same handler, NO so_keepalive
         listen 127.0.0.1:$NPORT;
         location /cvmfs/ {
-            brix_cvmfs_storage_backend http://127.0.0.1:$MPORT;
-            brix_cvmfs_cache_store posix:$PFX/cache;
+            brix_storage_backend http://127.0.0.1:$MPORT;
+            brix_cache_store posix:$PFX/cache;
             brix_cvmfs on;
         }
     }

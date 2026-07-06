@@ -2644,7 +2644,7 @@ Below 5.6, every side falls back entirely (thread-pool server / classic client) 
 # stream { server { ... } } — XRootD storage endpoint
 thread_pool default threads=32 max_queue=65536;   # fallback tier; always present
 
-xrootd on;
+brix_root on;
 xrootd_thread_pool default;
 
 xrootd_io_uring              auto;     # enable iff the worker's kernel/seccomp allow

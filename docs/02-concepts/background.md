@@ -110,7 +110,7 @@ XRootD client (xrdcp, ROOT, Python)
         ▼
 ┌──────────────────────────────────────────┐
 │ nginx                                    │
-│  stream { xrootd on; brix_root /data; }│
+│  stream { brix_root on; brix_export /data; }│
 │  (this module drives the XRootD protocol)│
 └──────────────────┬───────────────────────┘
                    │  POSIX open/read/write/stat/readdir

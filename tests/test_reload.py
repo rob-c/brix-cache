@@ -111,7 +111,7 @@ events {{ worker_connections 64; }}
 stream {{
     server {{
         listen {self.stream_port};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{self.data};
         brix_auth none;
         brix_allow_write {allow_write};

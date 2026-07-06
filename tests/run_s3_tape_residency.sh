@@ -30,9 +30,9 @@ daemon on; error_log $PFX/logs/e.log info; pid $PFX/nginx.pid;
 env BRIX_FRM_STAGECMD=$PFX/stagecmd.sh;
 events { worker_connections 64; }
 http { server { listen 127.0.0.1:${PORT};
-  location / { brix_s3 on; brix_s3_root $PFX/s3root; brix_s3_bucket xrdtape;
-    brix_s3_storage_backend tape://exec${PFX}/online;
-    brix_s3_cache_store posix:${PFX}/cache; } } }
+  location / { brix_s3 on; brix_export $PFX/s3root; brix_s3_bucket xrdtape;
+    brix_storage_backend tape://exec${PFX}/online;
+    brix_cache_store posix:${PFX}/cache; } } }
 E2
 # A plain POSIX s3 export — the non-regression control: an export with NO nearline
 # tier must classify ONLINE (the seam's default) and serve normally, NOT false-trip
@@ -41,7 +41,7 @@ cat > "$PFX/plain.conf" <<E2
 daemon on; error_log $PFX/logs/p.log info; pid $PFX/plain.pid;
 events { worker_connections 64; }
 http { server { listen 127.0.0.1:${PPORT};
-  location / { brix_s3 on; brix_s3_root $PFX/plain; brix_s3_bucket xrdplain; } } }
+  location / { brix_s3 on; brix_export $PFX/plain; brix_s3_bucket xrdplain; } } }
 E2
 # f.bin: offline (on tape only, the stagecmd's domain).
 head -c 320000 /dev/urandom > "$PFX/realtape/f.bin"

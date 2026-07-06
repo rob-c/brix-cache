@@ -130,7 +130,7 @@ def _front_conf(name, port, data_dir, upstream_port, opcode_line=""):
             f"stream {{\n"
             f"    server {{\n"
             f"        listen 0.0.0.0:{port};\n"
-            f"        xrootd on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
+            f"        brix_root on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
             f"        brix_allow_write on;\n"
             f"        brix_stream_mirror_url {HOST}:{upstream_port};\n"
             f"{extra}"

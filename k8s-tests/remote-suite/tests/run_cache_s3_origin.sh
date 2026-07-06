@@ -39,12 +39,12 @@ http {
         listen 127.0.0.1:${S3_PORT};
         location / {
             brix_s3            on;
-            brix_s3_root       $PFX/s3root;
+            brix_export       $PFX/s3root;
             brix_s3_bucket     testbucket;
             brix_s3_access_key ${AKID};
             brix_s3_secret_key ${SECRET};
             brix_s3_region     us-east-1;
-            brix_s3_allow_write on;
+            brix_allow_write on;
         }
     }
 }
@@ -60,12 +60,12 @@ stream {
     }
     server {
         listen 127.0.0.1:${NODE_PORT};
-        xrootd on;
-        brix_root $PFX/export;
+        brix_root on;
+        brix_export $PFX/export;
         brix_auth none;
         brix_storage_backend    s3://127.0.0.1:${S3_PORT}/testbucket;
         brix_storage_credential s3origin;
-        brix_cache_store posix:$PFX/cache; brix_cache_root /;
+        brix_cache_store posix:$PFX/cache; brix_cache_export /;
     }
 }
 EOF

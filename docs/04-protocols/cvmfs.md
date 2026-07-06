@@ -127,7 +127,7 @@ produced — no second URL parser exists.
 ### 3.1 Reverse mode — `CVMFS_SERVER_URL=http://cache:PORT/cvmfs/@fqrn@`
 
 Requests arrive origin-form (`GET /cvmfs/repo/data/ab/cd… HTTP/1.1`); the
-location's `brix_cvmfs_storage_backend` names the Stratum-1 set.
+location's `brix_storage_backend` names the Stratum-1 set.
 
 ```mermaid
 sequenceDiagram
@@ -253,7 +253,7 @@ still a distinct single-endpoint fetch backend — so a client naming a *slow*
 origin still stalls on that origin (its own cross-server failover, and a
 separate detached fill per server it tries). `brix_cvmfs_unified_origin on`
 goes further: it serves **every** client-named authority from the location's ONE
-`brix_cvmfs_storage_backend` — which must be a `|`-separated multi-endpoint
+`brix_storage_backend` — which must be a `|`-separated multi-endpoint
 http origin set (the ranked, near-first Stratum-1s this cache actually fetches
 from). The client's named host is still allowlist-checked
 (`brix_cvmfs_upstream_allow`) for abuse control, but is **not** the fetch
@@ -343,7 +343,7 @@ machinery, bottom-up. All of it lives in `src/fs/backend/http/sd_http.c`
 
 ### 5.1 The endpoint set
 
-`brix_cvmfs_storage_backend "http://s1a|http://s1b|http://s1c"` — the
+`brix_storage_backend "http://s1a|http://s1b|http://s1c"` — the
 pipe syntax deliberately mirrors `CVMFS_SERVER_URL`. Each endpoint carries:
 
 ```c
@@ -858,8 +858,8 @@ many clients: that is `CVMFS_TIMEOUT` set shorter than the fill latency.
 | Directive | Default | Meaning |
 |---|---|---|
 | `brix_cvmfs on\|off` | off | makes the location a dedicated CVMFS endpoint |
-| `brix_cvmfs_storage_backend "http://s1a[\|http://s1b…]"` | — | ordered Stratum-1 origin set (pipe = `CVMFS_SERVER_URL` syntax); first is the write side, reads fail over by health |
-| `brix_cvmfs_cache_store posix:<dir>` | — | the cache tier's physical store |
+| `brix_storage_backend "http://s1a[\|http://s1b…]"` | — | ordered Stratum-1 origin set (pipe = `CVMFS_SERVER_URL` syntax); first is the write side, reads fail over by health |
+| `brix_cache_store posix:<dir>` | — | the cache tier's physical store |
 | `brix_cache_verify off\|cvmfs-cas` | off | CAS verify-on-fill (§4.1) |
 | `brix_cvmfs_quarantine_dir <dir>` | "" (unlink) | where verify-mismatch parts land |
 | `brix_cvmfs_manifest_ttl <sec>` | 61 | MANIFEST-class TTL (§4.2) |
@@ -876,14 +876,14 @@ many clients: that is `CVMFS_TIMEOUT` set shorter than the fill latency.
 | `brix_cvmfs_origin_attempt_timeout <sec>` | 0 (off) | per-attempt total cap: abandon a slow connect+transfer after this long and retry on a fresh connection — size it so a few tries fit inside the client's `CVMFS_TIMEOUT` (§5.6a) |
 | `brix_cvmfs_fill_retry_policy failover\|force-primary` | failover | retry target on origin trouble (§5.6a) |
 | `brix_cvmfs_shared_cache on\|off` | off | proxy mode: share ONE cache across all upstreams so a client's cross-Stratum-1 failover is a hit, not a cold fill (§3.4) |
-| `brix_cvmfs_unified_origin on\|off` | off | proxy mode: serve EVERY client-named Stratum-1 from the one multi-endpoint `brix_cvmfs_storage_backend` (ranked failover + shared cache), hiding a dead origin so the client never marks the proxy bad or wanders (§3.5) |
+| `brix_cvmfs_unified_origin on\|off` | off | proxy mode: serve EVERY client-named Stratum-1 from the one multi-endpoint `brix_storage_backend` (ranked failover + shared cache), hiding a dead origin so the client never marks the proxy bad or wanders (§3.5) |
 | `brix_cvmfs_client_hold <sec>` | 25 | never-drop hold; MUST stay below the WN's `CVMFS_TIMEOUT` |
 | `brix_cvmfs_fill_max_life <sec>` | 300 | detached-fill retry budget |
 | `brix_cvmfs_geo_answer off\|rtt` | off | answer the geo API locally, RTT-ranked, vs. relay upstream (§3.3) |
 | `brix_cvmfs_geo_cache_ttl <sec>` | 60 | per-worker geo RTT cache TTL (§3.3) |
 | `brix_cvmfs_geo_max_servers <n>` | 16 | geo-answer probed-list cap (§3.3) |
 | `brix_cvmfs_trace on\|off` | off | promote the file/upstream trace lines from DEBUG to INFO (see "Per-request trace logging") |
-| `brix_cvmfs_thread_pool <name>` | default | async fill/relay pool |
+| `brix_thread_pool <name>` | default | async fill/relay pool |
 | `brix_scvmfs on\|off` | off | EXPERIMENTAL secure preamble (§8; needs `listen … ssl`) |
 | `brix_scvmfs_authz none\|bearer` | none | scvmfs client authz mode |
 

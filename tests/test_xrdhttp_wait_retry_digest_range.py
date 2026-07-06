@@ -5,7 +5,7 @@ RFC-7233 byte-range serving.
 
 This suite drives a DEDICATED, fleet-managed cleartext (no-TLS) HTTP WebDAV
 nginx — a single worker over an isolated, writable data root
-(`brix_webdav_allow_write on;`) with a deliberately tight per-IP
+(`brix_allow_write on;`) with a deliberately tight per-IP
 `brix_rate_limit_zone` / `brix_rate_limit_rule` so the throttle path can be
 driven deterministically.  The instance is started once by
 `manage_test_servers.sh start-all` (config `tests/configs/nginx_xrdhttp_digest.conf`,
@@ -464,7 +464,7 @@ def test_proppatch_client_compatible_status(server):
 # ---------------------------------------------------------------------------
 
 def test_put_then_get_byte_exact(server):
-    """A file written via PUT (allowed by brix_webdav_allow_write on) must read
+    """A file written via PUT (allowed by brix_allow_write on) must read
     back byte-for-byte via GET, and its on-disk content must match too."""
     _sleep_off_throttle()
     name = "roundtrip_xhw.bin"

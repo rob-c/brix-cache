@@ -323,7 +323,7 @@ The CMS tests must be rewritten to observe behavior through the cluster layer, n
    stream {
        server {
            listen 127.0.0.1:{PORT};
-           xrootd on;
+           brix_root on;
            xrootd_auth none;
            xrootd_proxy on;
            xrootd_proxy_upstream 127.0.0.1:{UPSTREAM_PORT};

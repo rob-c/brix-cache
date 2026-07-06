@@ -50,7 +50,7 @@ daemon on; error_log $d/logs/e.log info; pid $d/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${port}; xrootd on; brix_auth none;
+    listen 127.0.0.1:${port}; brix_root on; brix_auth none;
     brix_storage_backend posix:$d/root;
     brix_allow_write on; brix_upload_resume off;
     brix_write_through on; brix_wt_mode sync; brix_wt_origin 127.0.0.1:1;

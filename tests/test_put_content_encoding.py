@@ -82,18 +82,18 @@ http {{
         listen {BIND_HOST}:{WEBDAV_PORT};
         location / {{
             brix_webdav on;
-            brix_webdav_storage_backend posix:{wroot};
+            brix_storage_backend posix:{wroot};
             brix_webdav_auth none;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
         }}
     }}
     server {{
         listen {BIND_HOST}:{S3_PORT};
         location / {{
             brix_s3 on;
-            brix_s3_storage_backend posix:{sroot};
+            brix_storage_backend posix:{sroot};
             brix_s3_bucket {BUCKET};
-            brix_s3_allow_write on;
+            brix_allow_write on;
         }}
     }}
 }}

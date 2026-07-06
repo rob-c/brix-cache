@@ -37,9 +37,9 @@ daemon on; error_log $PFX/b/logs/e.log info; pid $PFX/b/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${BPORT}; xrootd on; brix_auth none;
+    listen 127.0.0.1:${BPORT}; brix_root on; brix_auth none;
     brix_storage_backend http://127.0.0.1:${HPORT};
-    brix_cache_store posix:$PFX/b/cache; brix_cache_root /;
+    brix_cache_store posix:$PFX/b/cache; brix_cache_export /;
 } }
 EOF
 

@@ -33,7 +33,7 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" \
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${ORIGIN_PORT}; xrootd on; brix_storage_backend posix:$PFX/o/root;
+stream { server { listen 127.0.0.1:${ORIGIN_PORT}; brix_root on; brix_storage_backend posix:$PFX/o/root;
     brix_auth none; brix_allow_write on; brix_upload_resume off; } }
 EOF
 
@@ -45,7 +45,7 @@ stream {
     # W: pblock PRIMARY + write-through mirror to the origin (sd_stage Option A).
     server {
         listen 127.0.0.1:${NODE_PORT};
-        xrootd on;
+        brix_root on;
         brix_auth none;
         brix_allow_write on;
         brix_upload_resume off;
@@ -59,12 +59,12 @@ stream {
     # R: tier read cache — the origin is the storage backend, cached locally.
     server {
         listen 127.0.0.1:${READ_PORT};
-        xrootd on;
+        brix_root on;
         brix_auth none;
-        brix_root $PFX/n/rroot;
+        brix_export $PFX/n/rroot;
         brix_storage_backend root://127.0.0.1:${ORIGIN_PORT};
         brix_cache_store posix:$PFX/n/cache;
-        brix_cache_root /;
+        brix_cache_export /;
     }
 }
 EOF

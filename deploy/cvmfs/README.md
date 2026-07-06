@@ -30,7 +30,7 @@ failover ordering. Keep Squid installed but idle until the pilot completes.
 
 Store on XFS, dedicated filesystem (eviction watermarks assume the cache
 owns the volume). Watermarks: evict at 85 %, hard-stop admission at 95 %
-(`brix_cvmfs_cache_evict_at` grammar mirrors the other protocols' tier
+(`brix_cache_evict_at` grammar mirrors the other protocols' tier
 directives — see docs/03-configuration).
 
 ## Reference configuration (proxy mode)
@@ -62,7 +62,7 @@ http {
     server {
         listen 3128 so_keepalive=60s:10s:6 backlog=2048;
         location / {
-            brix_cvmfs_cache_store posix:/srv/cvmfs-cache;
+            brix_cache_store posix:/srv/cvmfs-cache;
             brix_cache_verify cvmfs-cas;
             brix_cvmfs on;
             brix_cvmfs_manifest_ttl 61;
@@ -105,7 +105,7 @@ http {
 ```
 
 Reverse mode (optional second listener): same location shape plus
-`brix_cvmfs_storage_backend "http://s1a|http://s1b";` (pipe-separated,
+`brix_storage_backend "http://s1a|http://s1b";` (pipe-separated,
 `CVMFS_SERVER_URL` order; reads fail over by measured health, writes and
 the passthroughs use the first) and clients use
 `CVMFS_SERVER_URL=http://cache:8000/cvmfs/@fqrn@` with
@@ -267,7 +267,7 @@ and client IPs.
 | `refresh_pattern /data/ …` | built-in (CAS objects cached forever) |
 | `refresh_pattern .cvmfspublished …` | `brix_cvmfs_manifest_ttl` |
 | `acl cvmfs_dst dstdomain …` + `http_access` | `brix_cvmfs_upstream_allow` |
-| `cache_dir ufs … ` | `brix_cvmfs_cache_store posix:…` + watermarks |
+| `cache_dir ufs … ` | `brix_cache_store posix:…` + watermarks |
 | `negative_ttl` | `brix_cvmfs_negative_ttl` |
 | `cache_peer` parent ordering | `brix_cvmfs_origin_select static\|geo\|rtt` |
 | `connect_retries` / `retry_on_error` | `brix_cvmfs_client_hold` (hold + endpoint-walking backoff, then 504-keepalive) |

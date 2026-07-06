@@ -246,7 +246,7 @@ events {{ worker_connections 256; }}
 stream {{
     server {{
         listen {BIND_HOST}:{port};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{data};
         brix_auth none;
     }}
@@ -334,7 +334,7 @@ events {{ worker_connections 256; }}
 stream {{
     server {{
         listen {BIND_HOST}:{port};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{data};
         brix_auth none;
         brix_allow_write on;

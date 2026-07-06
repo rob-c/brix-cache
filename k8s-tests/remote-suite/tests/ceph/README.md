@@ -223,13 +223,13 @@ tests/ceph/run_py_migrate.sh
 # stream (root://) — storage_backend is stream-only; the WebDAV face shares the
 # binding via the global registry keyed on the same export root.
 stream { server { listen 1094;
-    xrootd on; brix_root /export; brix_auth none; brix_allow_write on;
+    brix_root on; brix_export /export; brix_auth none; brix_allow_write on;
     brix_upload_resume off;
     brix_storage_backend ceph:xrdtest;          # ceph:<pool>[@<conf>][?<key_prefix>]
 } }
 http { server { listen 8080;
-    location / { brix_webdav on; brix_webdav_root /export;
-                 brix_webdav_auth none; brix_webdav_allow_write on; } } }
+    location / { brix_webdav on; brix_export /export;
+                 brix_webdav_auth none; brix_allow_write on; } } }
 ```
 
 `conf` defaults to `/etc/ceph/ceph.conf`. The export root (`/export`) is just a

@@ -674,7 +674,7 @@ pieces make that real for pblock (and any non-POSIX driver).
    CONFIG TIME (master process, parsing nginx.conf)
    ┌────────────────────────────────────────────────────────────────┐
    │  location /  {                                                  │
-   │     brix_webdav_storage_backend     pblock;                   │
+   │     brix_storage_backend     pblock;                   │
    │     brix_webdav_pblock_block_size   128m;                     │
    │  }                                                              │
    │  (stream: brix_storage_backend / brix_pblock_block_size)    │

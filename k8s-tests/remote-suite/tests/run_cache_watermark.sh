@@ -66,8 +66,8 @@ daemon on; error_log $d/logs/e.log info; pid $d/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${port}; xrootd on; brix_auth none;
-    brix_storage_backend root://127.0.0.1:1; brix_cache_store posix:$d/cache; brix_cache_root /;
+    listen 127.0.0.1:${port}; brix_root on; brix_auth none;
+    brix_storage_backend root://127.0.0.1:1; brix_cache_store posix:$d/cache; brix_cache_export /;
     brix_cache_high_watermark ${high}%;
     brix_cache_low_watermark  ${low}%;
     brix_cache_reap_interval 1;

@@ -1197,7 +1197,7 @@ stream {{
     brix_idmap_forbidden_groups "docker,sudo,wheel";
     server {{
         listen 127.0.0.1:{sport};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{data};
         brix_allow_write on;
         brix_auth token;
@@ -1219,10 +1219,10 @@ http {{
         listen 127.0.0.1:{hport};
         location / {{
             brix_webdav         on;
-            brix_webdav_storage_backend    posix:{data};
+            brix_storage_backend    posix:{data};
             brix_webdav_auth    required;
             brix_webdav_cadir   {cadir};
-            brix_webdav_allow_write on;
+            brix_allow_write on;
             brix_webdav_token_jwks     {jwks_path};
             brix_webdav_token_issuer   "{ISSUER}";
             brix_webdav_token_audience "{AUDIENCE}";
@@ -1232,12 +1232,12 @@ http {{
         listen 127.0.0.1:{s3port};
         location / {{
             brix_s3             on;
-            brix_s3_storage_backend        posix:{data};
+            brix_storage_backend        posix:{data};
             brix_s3_bucket      {S3_BUCKET};
             brix_s3_access_key  alice;
             brix_s3_secret_key  {S3_SECRET};
             brix_s3_region      {S3_REGION};
-            brix_s3_allow_write on;
+            brix_allow_write on;
         }}
     }}
 }}
@@ -27773,7 +27773,7 @@ def run_compression_impersonation(key, data, port, s3port):
     GET response compression): a GET with Accept-Encoding: gzip either returns an HONEST
     Content-Encoding that decompresses (in Python) to the EXACT stored bytes, or — when
     the directive is OFF in this harness (the generated nginx.conf sets no
-    brix_webdav_compress / brix_s3_compress, so this path is currently UNREACHABLE)
+    brix_compress / brix_compress, so this path is currently UNREACHABLE)
     — identity byte-exact; EITHER way a cross-tenant GET of bob's 0600 file with
     Accept-Encoding: gzip is DAC-DENIED with NO secret in the body (compressed or plain),
     because the compress read path dup()s an fd already DAC-checked at open under the

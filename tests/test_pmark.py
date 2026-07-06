@@ -79,7 +79,7 @@ def _write_conf(tmp_path, extra_loc):
         f"    listen {BIND_HOST}:{HTTP_PORT};\n"
         "    location / {\n"
         "      brix_webdav on;\n"
-        f"      brix_webdav_storage_backend posix:{root};\n"
+        f"      brix_storage_backend posix:{root};\n"
         "      brix_webdav_auth none;\n"
         "      brix_pmark on;\n"
         "      brix_pmark_http_plain on;\n"

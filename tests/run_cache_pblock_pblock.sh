@@ -38,7 +38,7 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" \
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${ORIGIN_PORT}; xrootd on; brix_root $PFX/o/root;
+stream { server { listen 127.0.0.1:${ORIGIN_PORT}; brix_root on; brix_export $PFX/o/root;
     brix_auth none; brix_allow_write on; brix_upload_resume off; } }
 EOF
 
@@ -49,14 +49,14 @@ thread_pool default threads=2;
 stream {
     server {
         listen 127.0.0.1:${NODE_PORT};
-        xrootd on;
-        brix_root $PFX/n/root;
+        brix_root on;
+        brix_export $PFX/n/root;
         brix_auth none;
         brix_allow_write on;
         brix_upload_resume off;
         brix_storage_backend root://127.0.0.1:${ORIGIN_PORT};
         brix_cache_store pblock:$PFX/n/cacheB block_size=1m;
-        brix_cache_root  /;
+        brix_cache_export  /;
         brix_stage on;
         brix_stage_store pblock:$PFX/n/stageC block_size=1m;
         brix_stage_flush sync;

@@ -14,17 +14,17 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/b/export" "$PFX/b/cache" "$PFX/b/logs
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OPORT}; xrootd on; brix_auth none; brix_storage_backend posix:$PFX/o/root; brix_allow_write on; } }
+stream { server { listen 127.0.0.1:${OPORT}; brix_root on; brix_auth none; brix_storage_backend posix:$PFX/o/root; brix_allow_write on; } }
 EOF
 cat > "$PFX/b/nginx.conf" <<EOF
 daemon on; error_log $PFX/b/logs/e.log info; pid $PFX/b/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${BPORT}; xrootd on; brix_auth none;
+    listen 127.0.0.1:${BPORT}; brix_root on; brix_auth none;
     brix_storage_backend root://127.0.0.1:${OPORT};   # the origin
     brix_cache_store posix:$PFX/b/cache;              # physical FSAL
-    brix_cache_root /;                                 # advertised root
+    brix_cache_export /;                                 # advertised root
 } }
 EOF
 # seed two files DIRECTLY on the origin O

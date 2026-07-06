@@ -4,7 +4,6 @@
  */
 #include "webdav_module_internal.h"
 #include "core/config/credential_block.h"   /* §14 brix_credential block directive */
-#include "core/config/tier_directives.h"    /* shared tier-grammar X-macro */
 
 ngx_conf_enum_t  webdav_auth_values[] = {
     { ngx_string("none"),     WEBDAV_AUTH_NONE     },
@@ -156,18 +155,7 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       offsetof(ngx_http_brix_webdav_loc_conf_t, proxy_certs),
       NULL },
 
-    { ngx_string("brix_webdav_allow_write"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, common.allow_write),
-      NULL },
-    { ngx_string("brix_webdav_read_only"),    /* hard read-only (overrides allow_write) */
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, common.read_only),
-      NULL },
+    /* brix_allow_write / brix_read_only are owned by ngx_http_brix_common_module. */
 
     { ngx_string("brix_webdav_upload_resume"),
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
@@ -183,13 +171,8 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       offsetof(ngx_http_brix_webdav_loc_conf_t, upload_stage_dir),
       NULL },
 
-    /* phase-42: opt-in outbound GET response compression (Accept-Encoding). */
-    { ngx_string("brix_webdav_compress"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, common.compress),
-      NULL },
+    /* phase-42 outbound GET compression (brix_compress) is owned by
+     * ngx_http_brix_common_module. */
 
     { ngx_string("brix_webdav_tpc"),
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
@@ -360,12 +343,7 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       offsetof(ngx_http_brix_webdav_loc_conf_t, token_macaroon_secret_old),
       NULL },
 
-    { ngx_string("brix_webdav_thread_pool"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, common.thread_pool_name),
-      NULL },
+    /* brix_thread_pool is owned by ngx_http_brix_common_module. */
 
     { ngx_string("brix_webdav_cors_origin"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,

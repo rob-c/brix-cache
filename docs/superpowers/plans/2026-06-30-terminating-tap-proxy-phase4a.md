@@ -233,13 +233,13 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/n/logs"
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OP}; xrootd on; xrootd_root $PFX/o/root; xrootd_auth none; } }
+stream { server { listen 127.0.0.1:${OP}; brix_root on; xrootd_root $PFX/o/root; xrootd_auth none; } }
 EOF
 cat > "$PFX/n/nginx.conf" <<EOF
 daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/pid;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${PP}; xrootd on; xrootd_auth none;
+    listen 127.0.0.1:${PP}; brix_root on; xrootd_auth none;
     xrootd_tap_proxy on;
     xrootd_tap_proxy_upstream 127.0.0.1:${OP};
     xrootd_tap_proxy_auth anonymous;

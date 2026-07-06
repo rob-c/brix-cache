@@ -4,7 +4,7 @@
 **Status:** Approved (Rob), pending implementation
 **Motivation:** A new sysadmin deploying a cvmfs site cache today faces 41+ directives across
 three inconsistent naming families (`xrootd on` vs `brix_webdav on`; bare stream tier names vs
-per-proto HTTP tier names; `brix_root` vs `brix_webdav_root` vs implicit `/`), silently-ignored
+per-proto HTTP tier names; `brix_export` vs `brix_export` vs implicit `/`), silently-ignored
 tier directives on cvmfs, and examples that restate defaults. Target: one guessable grammar,
 a production-grade 3-line cvmfs config, wrong configs that fail loudly at `nginx -t`, and docs
 that match.
@@ -21,14 +21,14 @@ that match.
    `origin_select` → `rtt` by default.
 5. **Stream protocol name:** `root` (the `root://` scheme is the identity HEP admins know).
 6. **Tier grammar:** unified bare names (`brix_cache_store`, `brix_stage`, …) shared by all
-   protocols — NOT the phase-64 per-proto expansion (`brix_webdav_cache_store`, …).
+   protocols — NOT the phase-64 per-proto expansion (`brix_cache_store`, …).
 7. **One protocol per location, one per port** — enforced at config load.
 
 ## 1. One grammar, four protocols
 
 ### Grammar rules
 
-- **`brix_<proto> on;`** — per-protocol enable: `brix_root`, `brix_webdav`, `brix_s3`,
+- **`brix_<proto> on;`** — per-protocol enable: `brix_export`, `brix_webdav`, `brix_s3`,
   `brix_cvmfs`. The only remaining per-proto directive families are genuinely
   protocol-specific behavior (`brix_cvmfs_manifest_ttl`, `brix_cvmfs_upstream_allow`,
   `brix_s3_*` auth, `brix_scvmfs_*`, …).
@@ -48,16 +48,16 @@ that match.
 
 | Today | Becomes |
 |---|---|
-| `xrootd on` (stream enable) | `brix_root on` |
-| `brix_root <path>` (stream export path) | `brix_export` |
-| `brix_webdav_root`, `brix_s3_root` | `brix_export` |
+| `xrootd on` (stream enable) | `brix_export on` |
+| `brix_export <path>` (stream export path) | `brix_export` |
+| `brix_export`, `brix_export` | `brix_export` |
 | (cvmfs: no root directive, implicit `/`) | `brix_export`, optional, default `/` under cvmfs |
-| `brix_webdav_cache_store` + full webdav tier set | `brix_cache_store` + unified set |
-| `brix_s3_cache_store` + full s3 tier set | `brix_cache_store` + unified set |
-| `brix_cvmfs_cache_store`, `brix_cvmfs_thread_pool` | `brix_cache_store`, `brix_thread_pool` |
-| `brix_cvmfs_storage_backend` | `brix_storage_backend` |
+| `brix_cache_store` + full webdav tier set | `brix_cache_store` + unified set |
+| `brix_cache_store` + full s3 tier set | `brix_cache_store` + unified set |
+| `brix_cache_store`, `brix_thread_pool` | `brix_cache_store`, `brix_thread_pool` |
+| `brix_storage_backend` | `brix_storage_backend` |
 | stream tier `brix_cache_store`, `brix_stage`, … | **unchanged** (already the target names) |
-| legacy stream `brix_cache_*` engine directives (~26) | **unchanged names**, documented stream-only — EXCEPT `brix_cache_root` → `brix_cache_export` (it is the advertised logical root; matches export vocabulary) |
+| legacy stream `brix_cache_*` engine directives (~26) | **unchanged names**, documented stream-only — EXCEPT `brix_cache_export` → `brix_cache_export` (it is the advertised logical root; matches export vocabulary) |
 | `brix_cache_verify` (registered only in cvmfs table today) | same name, becomes a unified directive |
 
 The implementation plan carries the exhaustive old→new list; the same table is published in

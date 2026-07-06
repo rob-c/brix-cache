@@ -181,7 +181,7 @@ body.flags = htonl(kXR_isServer
 | (conf->cache_root.len > 0 || conf->cache_origin_host.len > 0 ? kXR_attrCache : 0)
 ```
 
-**Test**: Start the cache-mode test server (must have `brix_cache_root` set) and assert the protocol flag is present. Assert it is absent from a plain data server config.
+**Test**: Start the cache-mode test server (must have `brix_cache_export` set) and assert the protocol flag is present. Assert it is absent from a plain data server config.
 
 ---
 

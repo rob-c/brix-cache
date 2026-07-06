@@ -83,7 +83,7 @@ def pwd_server(tmp_path_factory):
         "stream {\n"
         "    server {\n"
         f"        listen 127.0.0.1:{P_PWD};\n"
-        "        xrootd on;\n"
+        "        brix_root on;\n"
         f"        brix_storage_backend posix:{data};\n"
         "        brix_auth pwd;\n"
         f"        brix_pwd_file {pwdfile};\n"

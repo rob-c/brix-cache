@@ -110,7 +110,7 @@ def test_multi_url_proxy_directive_parses(tmp_path):
             listen {BIND_HOST}:{_CFG_LISTEN_1};
             location / {{
                 brix_webdav on;
-                brix_webdav_storage_backend posix:{DATA_DIR};
+                brix_storage_backend posix:{DATA_DIR};
                 brix_webdav_auth none;
                 brix_webdav_proxy on;
                 brix_webdav_proxy_upstream http://{HOST}:{_CFG_UPSTREAM_1}
@@ -133,7 +133,7 @@ def test_bad_scheme_rejected(tmp_path):
             listen {BIND_HOST}:{_CFG_LISTEN_2};
             location / {{
                 brix_webdav on;
-                brix_webdav_storage_backend posix:{DATA_DIR};
+                brix_storage_backend posix:{DATA_DIR};
                 brix_webdav_auth none;
                 brix_webdav_proxy on;
                 brix_webdav_proxy_upstream ftp://{HOST}:{_CFG_UPSTREAM_1};
@@ -221,7 +221,7 @@ def proxy_with_two_origins(tmp_path):
             listen {BIND_HOST}:{proxy_port};
             location / {{
                 brix_webdav on;
-                brix_webdav_storage_backend posix:{DATA_DIR};
+                brix_storage_backend posix:{DATA_DIR};
                 brix_webdav_auth none;
                 brix_webdav_proxy on;
                 brix_webdav_proxy_auth anonymous;
@@ -309,7 +309,7 @@ def webdav_server(tmp_path):
             location / {{
                 root {data};
                 brix_webdav on;
-                brix_webdav_storage_backend posix:{data};
+                brix_storage_backend posix:{data};
                 brix_webdav_auth none;
             }}
         }}
@@ -418,7 +418,7 @@ def introspect_server(tmp_path):
             location / {{
                 root {data};
                 brix_webdav on;
-                brix_webdav_storage_backend posix:{data};
+                brix_storage_backend posix:{data};
                 brix_webdav_auth none;
                 brix_webdav_token_introspect_loc /_introspect;
                 brix_webdav_token_introspect_fail_open off;

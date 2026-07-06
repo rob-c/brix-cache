@@ -663,7 +663,7 @@ thread_pool default threads=8 max_queue=512;
 stream {
     server {
         listen 127.0.0.1:${PORT};
-        xrootd on;
+        brix_root on;
         xrootd_root            $PFX/root;
         xrootd_auth            gsi;
         xrootd_certificate     $PFX/conf/host.crt;

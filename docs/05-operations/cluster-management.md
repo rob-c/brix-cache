@@ -192,8 +192,8 @@ stream {
     # XRootD protocol port — clients connect here
     server {
         listen 1094;
-        xrootd on;
-        brix_root /dev/null;     # redirector has no local storage
+        brix_root on;
+        brix_export /dev/null;     # redirector has no local storage
         brix_manager_mode on;    # enables registry-based kXR_redirect
     }
 }
@@ -204,8 +204,8 @@ stream {
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /data;
+        brix_root on;
+        brix_export /data;
         brix_cms_manager redirector.example.org:1213;  # existing directive
     }
 }

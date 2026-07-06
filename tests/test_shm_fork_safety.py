@@ -158,7 +158,7 @@ stream {
     # plain local origin: registers the unconditional stream zones + frm_index
     server {
         listen __H__:__ROOT__;
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:__DATA__;
         brix_auth none;
         brix_allow_write on;
@@ -177,7 +177,7 @@ stream {
     # manager/redirector role: registers the redir-collapse cache zone
     server {
         listen __H__:__MGR__;
-        xrootd on;
+        brix_root on;
         brix_auth none;
         brix_manager_mode on;
         brix_collapse_redir on;
@@ -201,14 +201,14 @@ http {
 
         location /dav/ {
             brix_webdav on;
-            brix_webdav_storage_backend posix:__DATA__;
+            brix_storage_backend posix:__DATA__;
             brix_webdav_auth none;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
         }
 
         location /s3/ {
             brix_s3 on;
-            brix_s3_storage_backend posix:__DATA__;
+            brix_storage_backend posix:__DATA__;
             brix_s3_region us-east-1;
             brix_s3_access_key testkey;
             brix_s3_secret_key testsecret;
@@ -237,7 +237,7 @@ stream {
     access_log off;
     server {
         listen __H__:__ROOT__;
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:__DATA__;
         brix_auth none;
         brix_allow_write on;

@@ -117,8 +117,8 @@ events {
 stream {
     server {
         listen 1094;           # standard XRootD port
-        xrootd on;
-        brix_root /data;     # serve files from /data
+        brix_root on;
+        brix_export /data;     # serve files from /data
         brix_allow_write on; # allow uploads
         brix_access_log /var/log/nginx/brix_access.log;
     }
@@ -224,8 +224,8 @@ events {
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /data;
+        brix_root on;
+        brix_export /data;
         brix_allow_write on;
     }
 }
@@ -239,8 +239,8 @@ http {
 
         location / {
             brix_webdav             on;
-            brix_webdav_root        /data;    # same backing storage
-            brix_webdav_allow_write on;
+            brix_export        /data;    # same backing storage
+            brix_allow_write on;
         }
     }
 }
@@ -293,7 +293,7 @@ http {
 
         location / {
             brix_s3          on;
-            brix_s3_root     /data;       # same backing storage
+            brix_export     /data;       # same backing storage
             brix_s3_bucket   mybucket;    # bucket name clients will use
             # brix_s3_access_key  mykey;  # optional SigV4 auth
             # brix_s3_secret_key  mysecret;
@@ -433,7 +433,7 @@ Check the nginx error log. The most common cause is a firewall blocking port 109
 The upload landed in the right place but the filesystem is full.
 
 **`xrdcp` prints "Permission denied":**
-Either the nginx worker process does not have read/write permission to `brix_root`, or `brix_allow_write` is not set to `on`.
+Either the nginx worker process does not have read/write permission to `brix_export`, or `brix_allow_write` is not set to `on`.
 
 **`xrdcp` exits with status 1 and no useful message:**
 Run with `--debug` for verbose output:
@@ -448,7 +448,7 @@ Add `thread_pool default threads=4 max_queue=65536;` at the top level of `nginx.
 
 **WebDAV `curl -k https://localhost:8443//file` returns 403:**
 Either `brix_webdav_auth` is set to `required` and no certificate/token was provided,
-or `brix_webdav_allow_write` is off and the client tried a write operation.
+or `brix_allow_write` is off and the client tried a write operation.
 Check the nginx error log: `tail -f /usr/local/nginx/logs/error.log`.
 
 **WebDAV `xrdcp davs://` fails with SSL handshake error:**

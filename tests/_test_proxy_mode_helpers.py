@@ -108,7 +108,7 @@ stream {{
         listen """
     + BIND_HOST
     + """:{PORT};
-        xrootd on;
+        brix_root on;
         brix_auth none;
         brix_tap_proxy on;
         brix_tap_proxy_upstream """

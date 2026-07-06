@@ -34,7 +34,7 @@ Activates the WebDAV content handler for this location.
 
 ---
 
-### `brix_webdav_root <path>`
+### `brix_export <path>`
 
 **Context:** `location` · **Default:** `/`
 
@@ -80,7 +80,7 @@ PEM CRL file used when verifying proxy-certificate chains. When configured, Open
 
 ---
 
-### `brix_webdav_allow_write on|off`
+### `brix_allow_write on|off`
 
 **Context:** `location` · **Default:** `off`
 
@@ -220,7 +220,7 @@ Expected JWT `aud` claim.
 
 ---
 
-### `brix_webdav_thread_pool <name>`
+### `brix_thread_pool <name>`
 
 **Context:** `location` · **Default:** `default`
 
@@ -236,8 +236,8 @@ server {
 
     location / {
         brix_webdav on;
-        brix_webdav_root /data;
-        brix_webdav_thread_pool webdav_io;
+        brix_export /data;
+        brix_thread_pool webdav_io;
     }
 }
 ```
@@ -257,7 +257,7 @@ handshake.
 ```nginx
 location / {
     brix_webdav on;
-    brix_webdav_root /data;
+    brix_export /data;
 
     brix_webdav_cors_origin https://monitoring.example.com;
     brix_webdav_cors_origin https://debug.example.org;
@@ -333,7 +333,7 @@ Because lock state is stored as an xattr on each resource (see `brix_webdav_lock
 ```nginx
 location / {
     brix_webdav      on;
-    brix_webdav_root /data;
+    brix_export /data;
     brix_webdav_lock_startup_sweep on;   # clear stale locks on restart
 }
 ```

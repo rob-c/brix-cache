@@ -101,7 +101,7 @@ events { worker_connections 1024; }
 stream {
   server {
     listen {{ (index .Values.role.ports 0).port }};
-    xrootd on;
+    brix_root on;
     brix_storage_backend posix:{{ .Values.role.data.root }};
     brix_auth none;
     brix_allow_write on;
@@ -115,7 +115,7 @@ events { worker_connections 1024; }
 stream {
   server {
     listen {{ (index .Values.role.ports 0).port }};
-    xrootd on;
+    brix_root on;
     brix_storage_backend posix:{{ .Values.role.data.root }};
     brix_auth gsi;
     brix_certificate     /etc/grid-security/hostcert.pem;
@@ -132,7 +132,7 @@ events { worker_connections 1024; }
 stream {
   server {
     listen {{ (index .Values.role.ports 0).port }};
-    xrootd on;
+    brix_root on;
     brix_storage_backend posix:{{ .Values.role.data.root }};
     brix_auth token;
     brix_token_jwks     /etc/brix/jwks/jwks.json;

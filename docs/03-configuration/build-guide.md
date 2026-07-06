@@ -298,8 +298,8 @@ stream {
     # Anonymous server (port 11094)
     server {
         listen 11094;
-        xrootd on;
-        brix_root /tmp/xrd-test/data;
+        brix_root on;
+        brix_export /tmp/xrd-test/data;
         brix_auth none;
         brix_allow_write on;
         brix_access_log /tmp/xrd-test/logs/brix_access_anon.log;
@@ -308,8 +308,8 @@ stream {
     # GSI/x509 server (port 11095)
     server {
         listen 11095;
-        xrootd on;
-        brix_root /tmp/xrd-test/data;
+        brix_root on;
+        brix_export /tmp/xrd-test/data;
         brix_auth gsi;
         brix_allow_write on;
         brix_certificate     /tmp/xrd-test/pki/server/hostcert.pem;
@@ -321,8 +321,8 @@ stream {
     # JWT/WLCG bearer-token server (port 11099)
     server {
         listen 11099;
-        xrootd on;
-        brix_root /tmp/xrd-test/data;
+        brix_root on;
+        brix_export /tmp/xrd-test/data;
         brix_auth token;
         brix_allow_write on;
         brix_token_jwks     /tmp/xrd-test/tokens/jwks.json;
@@ -358,10 +358,10 @@ http {
         client_max_body_size 1g;
         location / {
             brix_webdav         on;
-            brix_webdav_root    /tmp/xrd-test/data;
+            brix_export    /tmp/xrd-test/data;
             brix_webdav_cadir   /tmp/xrd-test/pki/ca;
             brix_webdav_auth    optional;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
             brix_webdav_token_jwks     /tmp/xrd-test/tokens/jwks.json;
             brix_webdav_token_issuer   "https://test.example.com";
             brix_webdav_token_audience "nginx-xrootd";

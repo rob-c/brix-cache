@@ -20,7 +20,7 @@ daemon on; error_log $PFX/logs/e.log info; pid $PFX/nginx.pid;
 env BRIX_FRM_STUB_RECALL_DELAY_MS=1200;
 thread_pool default threads=2;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${BPORT}; xrootd on; brix_root $PFX/export; brix_auth none;
+stream { server { listen 127.0.0.1:${BPORT}; brix_root on; brix_export $PFX/export; brix_auth none;
     brix_storage_backend tape://stub${PFX}/tape;
     brix_cache_store posix:${PFX}/cache; } }
 E2

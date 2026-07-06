@@ -406,7 +406,7 @@ class TestPrepareStageCommand:
     """Verify brix_prepare_command is invoked on kXR_stage requests.
 
     Uses pre-started dedicated servers (launched by manage_test_servers.sh):
-      - prepare-command  (PREPARE_CMD_PORT):  brix_root=PREPARE_CMD_DATA_DIR,
+      - prepare-command  (PREPARE_CMD_PORT):  brix_export=PREPARE_CMD_DATA_DIR,
         brix_prepare_command set to a hook that appends paths to PREPARE_CMD_LOG.
       - prepare-nocmd    (PREPARE_NOCMD_PORT): same xrootd config without
         brix_prepare_command.

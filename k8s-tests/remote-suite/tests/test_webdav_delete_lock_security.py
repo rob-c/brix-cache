@@ -6,7 +6,7 @@ Protocol-conformance + security tests for the WebDAV namespace/lock surface
 (DELETE, LOCK/UNLOCK, MKCOL) and for HTTP header-injection hardening (CRLF in
 the Destination header and in custom headers).  The suite runs against a
 dedicated, write-enabled HTTP WebDAV nginx (brix_webdav on +
-brix_webdav_allow_write on + brix_webdav_auth none) pre-started by
+brix_allow_write on + brix_webdav_auth none) pre-started by
 manage_test_servers.sh start-all (the "webdav-dellock" instance, serving
 WEBDAV_DELLOCK_DATA_ROOT), so it never touches the shared test fleet and skips
 cleanly when that instance is down.  The server and this test share the local
@@ -69,7 +69,7 @@ def _reachable(host, port, timeout=3.0):
 def webdav_server():
     """Connect to the dedicated WRITABLE HTTP WebDAV nginx pre-started by
     manage_test_servers.sh start-all (the "webdav-dellock" instance,
-    brix_webdav_allow_write on + brix_webdav_auth none, serving
+    brix_allow_write on + brix_webdav_auth none, serving
     WEBDAV_DELLOCK_DATA_ROOT).  Skips cleanly if that instance is not running.
     The server and this test share the local filesystem, so files seeded into
     the data root are visible to the server and the server's writes are visible

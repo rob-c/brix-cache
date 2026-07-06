@@ -30,7 +30,7 @@ mkdir -p "$PFX/logs" "$PFX/cache" "$PFX/data"   # posix: export root must exist 
 mkconf() { cat > "$PFX/t.conf" <<EOF
 daemon on; error_log $PFX/logs/e.log info; pid $PFX/t.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${PORT}; xrootd on; brix_auth none; $1 } }
+stream { server { listen 127.0.0.1:${PORT}; brix_root on; brix_auth none; $1 } }
 EOF
 }
 parse_ok() {  # desc, directives
@@ -58,7 +58,7 @@ parse_ok "s3://host:port/bucket" "brix_storage_backend s3://127.0.0.1:9000/mybuc
 parse_ok "s3://host/bucket"      "brix_storage_backend s3://s3.example.com/data;"
 parse_ok "rados://pool/ns"       "brix_storage_backend rados://mypool/myns;"
 parse_ok "rados://pool"          "brix_storage_backend rados://mypool;"
-parse_ok "frm://+cache (tape alias)" "brix_storage_backend frm://stub/$PFX/tape; brix_cache_store posix:$PFX/cache; brix_cache_root /;"
+parse_ok "frm://+cache (tape alias)" "brix_storage_backend frm://stub/$PFX/tape; brix_cache_store posix:$PFX/cache; brix_cache_export /;"
 
 echo "== negative: malformed / bare scheme is an error, not a POSIX fallback =="
 parse_no "bare s3://"            "brix_storage_backend s3://;"            "needs|host|bucket"
@@ -67,20 +67,20 @@ parse_no "bare rados://"         "brix_storage_backend rados://;"         "needs
 parse_no "rados:/// empty pool"  "brix_storage_backend rados:///ns;"      "needs|pool"
 parse_no "frm:// without cache"  "brix_storage_backend frm://stub/$PFX/tape;" "nearline|cache_store|recall"
 
-# ---- data plane: posix:// serves bytes (no brix_root; helper rewrites root) ----
+# ---- data plane: posix:// serves bytes (no brix_export; helper rewrites root) ----
 echo "== data plane: posix:// storage_backend serves byte-exact =="
 mkdir -p "$PFX/data"
 head -c 200000 /dev/urandom > "$PFX/data/blob.bin"
 cat > "$PFX/p.conf" <<EOF
 daemon on; error_log $PFX/logs/p.log info; pid $PFX/p.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${PORT}; xrootd on; brix_auth none; brix_storage_backend posix://$PFX/data; } }
+stream { server { listen 127.0.0.1:${PORT}; brix_root on; brix_auth none; brix_storage_backend posix://$PFX/data; } }
 EOF
 if [ -x "$XRDCP" ]; then
     "$NGINX" -p "$PFX" -c "$PFX/p.conf" 2>"$PFX/p.err" || { bad "posix:// node start"; cat "$PFX/p.err"; }
     sleep 1
     "$XRDCP" "root://127.0.0.1:${PORT}//blob.bin" "$PFX/got.bin" -f >"$PFX/cp.err" 2>&1 \
-        && cmp -s "$PFX/data/blob.bin" "$PFX/got.bin" && ok "posix:// GET byte-exact (no brix_root)" \
+        && cmp -s "$PFX/data/blob.bin" "$PFX/got.bin" && ok "posix:// GET byte-exact (no brix_export)" \
         || { bad "posix:// GET"; tail -4 "$PFX/cp.err"; tail -6 "$PFX/logs/p.log"; }
     [ -f "$PFX/p.pid" ] && kill "$(cat "$PFX/p.pid")" 2>/dev/null; sleep 1
 else
@@ -96,7 +96,7 @@ daemon on; error_log $PFX/flogs/e.log info; pid $PFX/f.pid;
 env BRIX_FRM_STUB_RECALL_DELAY_MS=800;
 thread_pool default threads=2;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${PORT}; xrootd on; brix_root $PFX/fexport; brix_auth none;
+stream { server { listen 127.0.0.1:${PORT}; brix_root on; brix_export $PFX/fexport; brix_auth none;
     brix_storage_backend frm://stub${PFX}/tape;
     brix_cache_store posix:${PFX}/fcache; } }
 EOF

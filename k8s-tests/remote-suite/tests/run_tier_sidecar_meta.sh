@@ -3,7 +3,7 @@
 # run_tier_sidecar_meta.sh — phase-64 SP2 SIDECAR cinfo mode: on a store with no
 # usable xattr surface the cinfo record is kept as a co-located "<key>.xrdcinfo"
 # OBJECT on the store (a staged PUT), not a user.xrd.cinfo xattr. Forced here via
-# `brix_webdav_cache_meta sidecar` over a REMOTE root:// store. The proof is the
+# `brix_cache_meta sidecar` over a REMOTE root:// store. The proof is the
 # same G3 property as XATTR mode: a warm hit survives a cache-node restart with the
 # origin DOWN, because the object bytes AND its cinfo sidecar object both live on
 # the remote store.
@@ -35,13 +35,13 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/s/root" "$PFX/s/logs" \
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log error; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root; brix_auth none; } }
+stream { server { listen 127.0.0.1:${OPORT}; brix_root on; brix_export $PFX/o/root; brix_auth none; } }
 EOF
 
 cat > "$PFX/s/nginx.conf" <<EOF
 daemon on; error_log $PFX/s/logs/e.log error; pid $PFX/s/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${SPORT}; xrootd on; brix_root $PFX/s/root; brix_auth none; brix_allow_write on; } }
+stream { server { listen 127.0.0.1:${SPORT}; brix_root on; brix_export $PFX/s/root; brix_auth none; brix_allow_write on; } }
 EOF
 
 cat > "$PFX/b/nginx.conf" <<EOF
@@ -54,11 +54,11 @@ http {
         listen 127.0.0.1:${BPORT};
         location / {
             brix_webdav on;
-            brix_webdav_root $PFX/b/export;
+            brix_export $PFX/b/export;
             brix_webdav_auth none;
-            brix_webdav_storage_backend root://127.0.0.1:${OPORT};
-            brix_webdav_cache_store root://127.0.0.1:${SPORT};
-            brix_webdav_cache_meta sidecar;
+            brix_storage_backend root://127.0.0.1:${OPORT};
+            brix_cache_store root://127.0.0.1:${SPORT};
+            brix_cache_meta sidecar;
         }
     }
 }

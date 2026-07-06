@@ -398,7 +398,7 @@ def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
         origin_conf = (
             f"daemon on; error_log {base}/olog.log info; pid {base}/o.pid;\n"
             f"events {{ worker_connections 64; }}\n"
-            f"stream {{ server {{ listen {HOST}:{backend_port}; xrootd on;\n"
+            f"stream {{ server {{ listen {HOST}:{backend_port}; brix_root on;\n"
             f"  xrootd_storage_backend {obk}; xrootd_auth none;\n"
             f"  xrootd_allow_write on; xrootd_upload_resume off; }} }}\n")
         procs["origin"] = _start_nginx(base + "/o", origin_conf, "o")
@@ -418,7 +418,7 @@ def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
         f"daemon on; error_log {base}/clog.log info; pid {base}/c.pid;\n"
         f"events {{ worker_connections 64; }}\n"
         f"stream {{ server {{\n"
-        f"    listen {HOST}:{cache_port}; xrootd on; xrootd_auth none;\n"
+        f"    listen {HOST}:{cache_port}; brix_root on; xrootd_auth none;\n"
         f"    xrootd_cache on;\n"
         f"    xrootd_cache_store posix:{store}; xrootd_cache_root /;\n"
         f"{cache_backend}"

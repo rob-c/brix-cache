@@ -296,8 +296,8 @@ authenticate to the remote source (pull) or destination (push).
 ```nginx
 location / {
     brix_webdav              on;
-    brix_webdav_root         /data;
-    brix_webdav_allow_write  on;
+    brix_export         /data;
+    brix_allow_write  on;
     brix_webdav_tpc          on;
 
     # OAuth2/OIDC token delegation for TPC
@@ -385,7 +385,7 @@ rules. Operational caveats are documented below.
 - Privilege flags: `r` (read + lookup), `l` (lookup only), `w`/`a` (update/append), `d` (delete), `m` (mkdir), `k` (admin)
 - Longest-prefix matching on resolved (absolute) paths — ties go to the later rule in file order
 - Opt-in model: no authdb configured → all paths pass; authdb configured → deny unless an explicit allow rule matches
-- Path resolution via `brix_finalize_authdb_rules()` — normalizes rule paths relative to `brix_root` at config time
+- Path resolution via `brix_finalize_authdb_rules()` — normalizes rule paths relative to `brix_export` at config time
 - Enforced in all core operation handlers before `brix_check_vo_acl()`:
 
 | Handler | Priv checked |
@@ -471,7 +471,7 @@ what is missing. Items are grouped by feature area.
 - **curl subprocess is blocking:** `tpc_curl.c` forks and waits via
   `waitpid(2)`. While the thread pool keeps the nginx worker responsive, each
   in-flight TPC transfer consumes one thread-pool thread. The pool can be
-  exhausted under heavy concurrency; `brix_webdav_thread_pool` sizing must
+  exhausted under heavy concurrency; `brix_thread_pool` sizing must
   account for this.
 
 ### Native root:// TPC rendezvous (item 2), cache origin, and upstream connections

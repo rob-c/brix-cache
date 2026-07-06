@@ -55,8 +55,8 @@ http { access_log off; server {
     ssl_certificate     $PFX/crt.pem;
     ssl_certificate_key $PFX/key.pem;
     location /cvmfs/ {
-        brix_cvmfs_storage_backend http://127.0.0.1:$MPORT;
-        brix_cvmfs_cache_store posix:$PFX/cache;
+        brix_storage_backend http://127.0.0.1:$MPORT;
+        brix_cache_store posix:$PFX/cache;
         brix_cvmfs on;
         brix_scvmfs on;
         brix_scvmfs_authz $1;

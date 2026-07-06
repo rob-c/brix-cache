@@ -114,7 +114,7 @@ def test_kv_directives_parse(tmp_path):
         brix_kv_zone rl   2m key=256 val=16;
         server {{
             listen {BIND_HOST}:{free_port()};
-            xrootd on;
+            brix_root on;
             brix_storage_backend posix:{DATA_DIR};
             brix_auth none;
             brix_session_slots 4096;
@@ -135,7 +135,7 @@ def test_token_cache_rejects_undersized_zone(tmp_path):
         brix_kv_zone tkn 1m key=32 val=16;
         server {{
             listen {BIND_HOST}:{free_port()};
-            xrootd on;
+            brix_root on;
             brix_storage_backend posix:{DATA_DIR};
             brix_auth none;
             brix_token_cache zone=tkn;
@@ -152,7 +152,7 @@ def test_unknown_zone_is_rejected(tmp_path):
     stream {{
         server {{
             listen {BIND_HOST}:{free_port()};
-            xrootd on;
+            brix_root on;
             brix_storage_backend posix:{DATA_DIR};
             brix_auth none;
             brix_auth_cache zone=does_not_exist;
@@ -170,7 +170,7 @@ def test_rate_limit_requires_rate_and_burst(tmp_path):
         brix_kv_zone rl 2m key=256 val=16;
         server {{
             listen {BIND_HOST}:{free_port()};
-            xrootd on;
+            brix_root on;
             brix_storage_backend posix:{DATA_DIR};
             brix_auth none;
             brix_rate_limit zone=rl;
@@ -226,7 +226,7 @@ def rate_limited_server(tmp_path):
             listen {BIND_HOST}:{WEBDAV_PORT};
             location / {{
                 brix_webdav      on;
-                brix_webdav_storage_backend posix:{DATA_DIR};
+                brix_storage_backend posix:{DATA_DIR};
                 brix_webdav_auth none;
                 brix_rate_limit  zone=h_rl rate=1r/s burst=2 key=ip;
             }}

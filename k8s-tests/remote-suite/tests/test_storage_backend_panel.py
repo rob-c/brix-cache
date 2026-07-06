@@ -82,14 +82,14 @@ http {{
         location /metrics {{ brix_metrics on; }}
         location / {{
             brix_webdav on;
-            brix_webdav_root {data};
+            brix_export {data};
             brix_webdav_auth none;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
         }}
         location /remote/ {{
             brix_webdav on;
-            brix_webdav_root {remote_ns};
-            brix_webdav_storage_backend root://127.0.0.1:1;
+            brix_export {remote_ns};
+            brix_storage_backend root://127.0.0.1:1;
             brix_webdav_auth none;
         }}
     }}
