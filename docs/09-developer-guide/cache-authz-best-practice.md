@@ -154,15 +154,20 @@ group/other permission bits onto the physical cache file — carry the client-fa
 `.cinfo` instead. Namespace file/dir modes (`origin_write.c`, `op_table.c`, `mkdir.c`, `mv.c`)
 are the *served* file's real perms and must **not** be forced to `0600`.
 
-## 4b. Existence oracles (hardened; one open item)
+## 4b. Existence oracles (hardened)
 
 A metadata op must authorize **before** it probes on-disk existence, or a denied principal
 distinguishes "absent" (`kXR_NotFound`) from "present-but-denied" (`kXR_NotAuthorized`) — a
-namespace-existence oracle. `statx`, `stat`, `cksum`, and `fattr` already gate-before-stat;
-`locate` was fixed to match. **Open item (separate reviewed change):** the read-*open* path
-(`open_request.c`) and the `manager_mode` redirect still probe/redirect before the gate, leaking
-existence for the open path. Aligning them touches the upstream-fallback / zip / residency
-interplay, so it is tracked as its own change, not part of the cache-hardening rounds.
+namespace-existence oracle. All read/metadata ops now gate-before-probe: `statx`, `stat`,
+`cksum`, `fattr`, `locate`, and the read-**open** path (`open_request.c` — the gate now runs
+before `brix_open_read_probe`, so a denied principal is refused, and is *not* forwarded
+upstream, before existence is checked). The `manager_map` redirect that precedes auth is a
+**config-prefix routing decision** (it matches configured path prefixes, not on-disk file
+existence), so it does not leak per-file existence and needs no change.
+
+**Developer rule:** any new path/metadata op authorizes against (identity, logical path)
+*before* touching the filesystem for existence/type. The gate has no dependency on the probe
+result, so it is always safe to run first.
 
 ## 4c. WebDAV native authdb + VO-ACL read parity (LANDED)
 
@@ -183,12 +188,14 @@ empty rule sets), so existing deployments are unaffected; writes keep their `all
 xrdacc + token-scope gates. Verified by `tests/test_mu_webdav_authz.py` (a reader is served
 under a granted subtree but 403'd outside it, for GET/HEAD/PROPFIND).
 
-> **Deployment note — VO ACL over WebDAV needs VOMS extraction.** `brix_webdav_require_vo` is
-> wired identically to authdb, but it depends on the VOMS VO being extracted from the client
-> proxy. Over the nginx-TLS WebDAV path the VO is not always extracted (the identity shows
-> `vos="-"`), unlike the `root://` GSI handshake — so a `require_vo` rule can over-deny there.
-> Prefer `brix_webdav_authdb` (per-DN/path) for WebDAV per-user authorization until WebDAV VOMS
-> extraction is closed (tracked separately).
+**VO ACL over WebDAV (VOMS extraction — fixed).** `brix_webdav_require_vo` enforces VOMS VO
+membership, which is now extracted correctly over the nginx-TLS WebDAV path. Two bugs were
+closed: (1) `brix_voms_init` ran only from the stream postconfig, so a WebDAV-only deployment
+(no `stream{}` block) never loaded libvomsapi and `brix_voms_available()` was false — WebDAV
+now loads it when a location sets `brix_webdav_vomsdir`; (2) the per-TLS auth cache stores only
+the DN, so cached follow-up requests dropped the VO — VOMS is now re-derived on both the
+cache-hit and cache-miss auth paths. Verified: a VO=cms proxy is served and a VO=atlas proxy is
+403'd under a `require_vo` rule (`test_mu_webdav_authz.py`).
 
 ## 5. cvmfs is public by design
 
