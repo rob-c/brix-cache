@@ -21,6 +21,7 @@
 #include "brix.h"
 #include "core/compat/crypto.h"
 #include "core/compat/host_split.h"   /* shared host:port parse (libxrdproto) */
+#include "core/version.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -155,13 +156,21 @@ do_map(const char *url, const brix_opts *co, int verify)
 }
 
 static void
-usage(void)
+usage_fp(FILE *out)
 {
-    fprintf(stderr,
+    fprintf(out,
         "usage: xrdmapc [opts] root[s]://host[:port][//path] [--verify]\n"
         "  lists the data servers holding <path> (default /), with r/w + space.\n"
         "  --verify        probe each holder; flag GHOST (advertised, not serving)\n"
-        "  opts: --tls --notlsok --noverifyhost --auth <gsi|ztn|krb5|sss|unix>\n");
+        "  opts: --tls --notlsok --noverifyhost --auth <gsi|ztn|krb5|sss|unix>\n"
+        "        --version  print version and exit\n"
+        BRIX_USAGE_FOOTER("xrdmapc"));
+}
+
+static void
+usage(void)
+{
+    usage_fp(stderr);
 }
 
 int
@@ -177,10 +186,15 @@ main(int argc, char **argv)
     for (i = 1; i < argc; i++) {
         const char *a = argv[i];
         if (a[0] == '-' && a[1] != '\0' && strcmp(a, "-") != 0) {
-            if (strcmp(a, "--verify") == 0)            { verify = 1; }
-            else if (brix_opts_parse_arg(&co, argc, argv, &i)) { /* common conn flag */ }
-            else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) { usage(); return 0; }
-            else { fprintf(stderr, "xrdmapc: unknown option '%s'\n", a); usage(); return 50; }
+            if (strcmp(a, "--verify") == 0) {
+                verify = 1;
+            } else {
+                int pr = brix_opts_parse_arg(&co, argc, argv, &i);
+                if (pr == 2) { usage_fp(stdout); return 0; }  /* --help */
+                if (pr)      { /* common conn flag, already handled */ }
+                else if (strcmp(a, "-h") == 0) { usage(); return 0; }  /* C1 */
+                else { fprintf(stderr, "xrdmapc: unknown option '%s'\n", a); usage(); return 50; }
+            }
         } else if (url == NULL) {
             url = a;
         } else {

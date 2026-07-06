@@ -14,19 +14,28 @@
  */
 #include "brix.h"
 #include "core/compat/crypto.h"
+#include "core/version.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 static void
-usage(void)
+usage_fp(FILE *out)
 {
-    fprintf(stderr,
+    fprintf(out,
         "usage: xrdgsitest [opts] root[s]://host[:port]\n"
         "  forces GSI auth and reports whether the handshake authenticated.\n"
         "  opts: --tls --notlsok --noverifyhost\n"
-        "  uses $X509_USER_PROXY / $X509_CERT_DIR as usual.\n");
+        "        --version  print version and exit\n"
+        "  uses $X509_USER_PROXY / $X509_CERT_DIR as usual.\n"
+        BRIX_USAGE_FOOTER("xrdgsitest"));
+}
+
+static void
+usage(void)
+{
+    usage_fp(stderr);
 }
 
 int
@@ -47,8 +56,12 @@ main(int argc, char **argv)
     for (i = 1; i < argc; i++) {
         const char *a = argv[i];
         if (a[0] == '-' && a[1] != '\0' && strcmp(a, "-") != 0) {
-            if (brix_opts_parse_arg(&o, argc, argv, &i)) { continue; }
-            if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) { usage(); return 0; }
+            {
+                int pr = brix_opts_parse_arg(&o, argc, argv, &i);
+                if (pr == 2) { usage_fp(stdout); return 0; }  /* --help */
+                if (pr)      { continue; }
+            }
+            if (strcmp(a, "-h") == 0) { usage(); return 0; }  /* C1 */
             else { fprintf(stderr, "xrdgsitest: unknown option '%s'\n", a); usage(); return 50; }
         } else if (url == NULL) {
             url = a;

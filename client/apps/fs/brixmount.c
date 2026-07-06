@@ -16,6 +16,7 @@
  *       cvmfs-only build still links).
  */
 #include "cvmfs/client/client.h"   /* not required, keeps include-path uniform */
+#include "core/version.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -43,6 +44,7 @@ static void brixmount_usage(FILE *out, const brix_driver_t *drv, size_t n) {
     for (size_t i = 0; i < n; i++)
         fprintf(out, "  %-8s %s%s\n", drv[i].type, drv[i].brand,
                 drv[i].fn ? "" : "  (unavailable in this build)");
+    fprintf(out, BRIX_USAGE_FOOTER("brixMount"));
 }
 
 /* Route the overlay maintenance subcommands to the injected cores (injection
@@ -114,6 +116,21 @@ int brix_overlay_cli_list(const char *mountdir, FILE *out);
 int brix_overlay_cli_reset(const char *mountdir);
 
 int main(int argc, char **argv) {
+    /* --help / --version before any dispatch. */
+    if (argc >= 2 && strcmp(argv[1], "--version") == 0) {
+        printf("brixMount (BriX-Cache client) %s\n", brix_client_version());
+        return 0;
+    }
+    if (argc >= 2 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) {
+        /* drivers table not yet built — print without the type list. */
+        fprintf(stdout,
+            "brixMount — a hardened, iron-clad FUSE mount, battle-tested against bad/evil networks\n"
+            "usage: brixMount <type> <endpoint> <mountdir> [fuse-opts]\n"
+            "  types: cvmfs  cvmfs-rw  eos  root  roots\n"
+            BRIX_USAGE_FOOTER("brixMount"));
+        return 0;
+    }
+
     int orc = brixmount_overlay_route(argc, argv,
                                       brix_overlay_cli_list, brix_overlay_cli_reset);
     if (orc >= 0) return orc;

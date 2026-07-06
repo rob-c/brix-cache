@@ -8,6 +8,7 @@
  */
 #include "brix.h"
 #include "core/compat/crypto.h"
+#include "core/version.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -21,6 +22,20 @@ brix_qstats_main(int argc, char **argv)
     char        reply[4096];
     const char *endpoint = NULL, *args = "";
     int         infotype = kXR_QStats, i;
+
+    /* --help / --version before main loop. */
+    if (argc >= 2) {
+        if (strcmp(argv[1], "--version") == 0) {
+            printf("%s (BriX-Cache client) %s\n", argv[0], brix_client_version());
+            return 0;
+        }
+        if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
+            printf("usage: %s [-c config-key | -s path] host[:port]\n"
+                   BRIX_USAGE_FOOTER("xrdqstats"),
+                   argv[0]);
+            return 0;
+        }
+    }
 
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-c") == 0 && i + 1 < argc) {

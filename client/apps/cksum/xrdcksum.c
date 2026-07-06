@@ -15,6 +15,7 @@
  *       thin wrappers did; verify/info call the renamed tool mains.
  */
 #include "brix.h"
+#include "core/version.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -89,6 +90,19 @@ main(int argc, char **argv)
     }
     /* bare `xrdcksum <sub> …`: shift so the personality sees its own name */
     if (argc >= 2) {
+        if (strcmp(argv[1], "--version") == 0) {
+            printf("xrdcksum (BriX-Cache client) %s\n", brix_client_version());
+            return 0;
+        }
+        if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
+            printf("usage: xrdcksum <crc32c|crc64|adler32|verify|info|tree|check> "
+                   "[args...]\n"
+                   "       (or invoke via the xrdcrc32c/xrdcrc64/xrdadler32/"
+                   "xrdckverify/xrdcinfo symlinks)\n"
+                   "       <sub> --help  prints per-subcommand usage\n"
+                   BRIX_USAGE_FOOTER("xrdcksum"));
+            return 0;
+        }
         rc = dispatch(argv[1], argc - 1, argv + 1);
         if (rc >= 0) {
             return rc;

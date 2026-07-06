@@ -19,6 +19,7 @@
  */
 #include "brix.h"
 #include "core/compat/crypto.h"
+#include "core/version.h"
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -31,6 +32,20 @@ brix_cli_cksum_main(const char *prog, const char *algo_name,
 {
     brix_status st;
     char        hex[129];
+
+    /* --help / --version before using arg as a path. */
+    if (arg != NULL) {
+        if (strcmp(arg, "--version") == 0) {
+            printf("%s (BriX-Cache client) %s\n", prog, brix_client_version());
+            return 0;
+        }
+        if (strcmp(arg, "--help") == 0 || strcmp(arg, "-h") == 0) {
+            printf("usage: %s <local-path | root://host[:port]//path>\n"
+                   BRIX_USAGE_FOOTER("%s"),
+                   prog, prog);
+            return 0;
+        }
+    }
 
     if (arg == NULL) {
         fprintf(stderr, "usage: %s <local-path | root://host[:port]//path>\n",

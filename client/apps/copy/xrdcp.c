@@ -3,11 +3,18 @@
  * Phase-38 split of xrdcp.c; behavior-identical.
  */
 #include "xrdcp_internal.h"
+#include "core/version.h"
 
-void
-usage(void)
+/*
+ * usage_fp — print usage text to the given stream.
+ * WHY: --help (spec WS-2) prints usage to stdout; no-arg / unknown-option
+ *      errors still go to stderr.  A FILE* parameter keeps both paths
+ *      sharing one text definition.
+ */
+static void
+usage_fp(FILE *out)
 {
-    fprintf(stderr,
+    fprintf(out,
         "usage: xrdcp [opts] <src>... <dst>\n"
         "  src/dst is root://host[:port]//path, a web URL, a local path, or '-'\n"
         "  web schemes (GET/PUT): davs:// http(s):// dav:// s3:// s3s://\n"
@@ -58,8 +65,15 @@ usage(void)
         "  --s3-region <r>    S3 SigV4 region (or $AWS_DEFAULT_REGION; default us-east-1)\n"
         "  --wire-trace[=N]  decode every frame to stderr (N>=2 adds a hexdump)\n"
         "  --timing       print per-opcode RTT at the end\n"
-        "  -V             print version and exit\n"
-        "  -h             this help\n");
+        "  -V, --version  print version and exit\n"
+        "  -h, --help     this help\n"
+        BRIX_USAGE_FOOTER("xrdcp"));
+}
+
+void
+usage(void)
+{
+    usage_fp(stderr);
 }
 
 
@@ -371,7 +385,11 @@ main(int argc, char **argv)
         const char *a = argv[i];
         if (a[0] == '-' && a[1] != '\0' && strcmp(a, "-") != 0) {
             int oi = (int) i;   /* shared parser uses int*; bridge from size_t */
-            if (brix_opts_parse_arg(&conn, argc, argv, &oi)) { i = (size_t) oi; continue; }
+            {
+                int pr = brix_opts_parse_arg(&conn, argc, argv, &oi);
+                if (pr == 2) { usage_fp(stdout); return 0; }  /* --help */
+                if (pr)      { i = (size_t) oi; continue; }
+            }
             if (strcmp(a, "-f") == 0)       { opts.force = 1; }
             else if (strcmp(a, "-r") == 0 || strcmp(a, "-R") == 0) { opts.recursive = 1; }
             else if (strcmp(a, "-P") == 0)  { opts.posc = 1; }
@@ -452,8 +470,13 @@ main(int argc, char **argv)
             else if (strcmp(a, "--s3-access") == 0 && i + 1 < (size_t) argc) { opts.s3_access = argv[++i]; }
             else if (strcmp(a, "--s3-secret") == 0 && i + 1 < (size_t) argc) { opts.s3_secret = argv[++i]; }
             else if (strcmp(a, "--s3-region") == 0 && i + 1 < (size_t) argc) { opts.s3_region = argv[++i]; }
-            else if (strcmp(a, "-V") == 0)  { printf("xrdcp (native, phase-37)\n"); return 0; }
-            else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) { usage(); return 0; }
+            else if (strcmp(a, "-V") == 0)  {
+                /* -V is xrdcp's legacy version flag; --version is handled by the
+                 * shared parser above (exits inside brix_opts_parse_arg). */
+                printf("xrdcp (BriX-Cache client) %s\n", brix_client_version());
+                return 0;
+            }
+            else if (strcmp(a, "-h") == 0) { usage(); return 0; }  /* -h → stderr (C1) */
             else {
                 fprintf(stderr, "xrdcp: unknown option '%s'\n", a);
                 usage();

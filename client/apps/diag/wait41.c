@@ -10,6 +10,7 @@
  */
 #include "brix.h"
 #include "core/compat/crypto.h"
+#include "core/version.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +27,20 @@ brix_wait41_main(int argc, char **argv)
     const char *endpoint = NULL;
     int         timeout_s = 60, full = 0, i;
     time_t      deadline;
+
+    /* --help / --version before main loop. */
+    if (argc >= 2) {
+        if (strcmp(argv[1], "--version") == 0) {
+            printf("%s (BriX-Cache client) %s\n", argv[0], brix_client_version());
+            return 0;
+        }
+        if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
+            printf("usage: %s [--timeout S] [--full] host[:port]\n"
+                   BRIX_USAGE_FOOTER("wait41"),
+                   argv[0]);
+            return 0;
+        }
+    }
 
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--timeout") == 0 && i + 1 < argc) {

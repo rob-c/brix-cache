@@ -9,6 +9,7 @@
  */
 #include "brix.h"
 #include "core/compat/crypto.h"
+#include "core/version.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,13 +30,20 @@ parse_valid(const char *s)
 }
 
 static void
-usage(void)
+usage_fp(FILE *out)
 {
-    fprintf(stderr,
+    fprintf(out,
         "usage: xrdgsiproxy <init|info|destroy> [opts]\n"
         "  init    [-valid H[:M]] [-cert FILE] [-key FILE] [-out FILE] [-bits N]\n"
         "  info    [-file FILE]\n"
-        "  destroy [-file FILE]\n");
+        "  destroy [-file FILE]\n"
+        BRIX_USAGE_FOOTER("xrdgsiproxy"));
+}
+
+static void
+usage(void)
+{
+    usage_fp(stderr);
 }
 
 int
@@ -47,6 +55,16 @@ main(int argc, char **argv)
 
     if (argc < 2) { usage(); return 50; }
     cmd = argv[1];
+
+    /* --help / --version as the first argument. */
+    if (strcmp(cmd, "--version") == 0) {
+        printf("xrdgsiproxy (BriX-Cache client) %s\n", brix_client_version());
+        return 0;
+    }
+    if (strcmp(cmd, "--help") == 0 || strcmp(cmd, "-h") == 0) {
+        usage_fp(stdout);
+        return 0;
+    }
     brix_crypto_init();
     brix_status_clear(&st);
 

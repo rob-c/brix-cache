@@ -11,6 +11,8 @@
  *       followed by "XCX1" TLV sections (STATE/DIGEST/BLOCKCRC/ORIGIN).
  */
 
+#include "core/version.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -263,6 +265,21 @@ brix_xrdcinfo_main(int argc, char **argv)
     uint8_t    *buf = NULL;
     ssize_t     n;
     int         rc;
+
+    /* xrdcinfo does not include brix.h — bring in version.h directly. */
+    if (argc >= 2) {
+        if (strcmp(argv[1], "--version") == 0) {
+            /* version.h included at file top (see include block below) */
+            printf("xrdcinfo (BriX-Cache client) %s\n", brix_client_version());
+            return 0;
+        }
+        if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
+            printf("usage: xrdcinfo [--xattr] <path>\n"
+                   "  dump a proxy-cache .cinfo / xmeta xattr as JSON\n"
+                   BRIX_USAGE_FOOTER("xrdcinfo"));
+            return 0;
+        }
+    }
 
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--xattr") == 0) {
