@@ -46,10 +46,11 @@ def _ensure_server_cert(base: Path) -> tuple[Path, Path]:
 
 
 class WlcgInstance:
-    def __init__(self, prefix, ca_dir, *, signing_policy="on", crl="",
-                 crl_mode="try"):
+    def __init__(self, prefix, ca_dir=None, *, cafile=None, signing_policy="on",
+                 crl="", crl_mode="try"):
         self.prefix = Path(prefix)
-        self.ca_dir = Path(ca_dir)
+        self.ca_dir = Path(ca_dir) if ca_dir else None
+        self.cafile = Path(cafile) if cafile else None
         self.signing_policy = signing_policy
         self.crl = crl
         self.crl_mode = crl_mode
@@ -69,6 +70,10 @@ class WlcgInstance:
     def render(self):
         crl_line = (f"            brix_webdav_crl {self.crl};\n"
                     if self.crl else "")
+        if self.cafile is not None:
+            ca_line = f"            brix_webdav_cafile   {self.cafile};\n"
+        else:
+            ca_line = f"            brix_webdav_cadir    {self.ca_dir};\n"
         return f"""\
 worker_processes 1;
 daemon on;
@@ -94,8 +99,7 @@ http {{
         location / {{
             brix_webdav          on;
             brix_storage_backend posix:{self.data};
-            brix_webdav_cadir    {self.ca_dir};
-            brix_webdav_signing_policy {self.signing_policy};
+{ca_line}            brix_webdav_signing_policy {self.signing_policy};
             brix_webdav_crl_mode {self.crl_mode};
 {crl_line}            brix_webdav_auth     required;
         }}
@@ -168,5 +172,9 @@ http {{
              f"https://127.0.0.1:{self.davs_port}/"],
             capture_output=True, text=True)
         code = r.stdout.strip() or "000"
-        accepted = code not in ("401", "403", "000", "495", "496")
+        # PROPFIND on the (existing) export root yields 2xx (207 Multi-Status)
+        # exactly when the credential was admitted; any 4xx/5xx — 400 (chain
+        # build failed), 401/403 (auth/policy reject), 495/496 (TLS cert
+        # errors) — means the certificate was not accepted.
+        accepted = code.startswith("2")
         return accepted, code

@@ -625,7 +625,25 @@ def _cad_md5_only(root: Path) -> Scenario:
     eec = make_eec(ca, "/DC=test/DC=xrootd/CN=Alice")
     write_hashed_ca_dir(sc.ca_dir, ca, links="old")
     sc.write_credential("eec", [eec, ca], eec)
-    sc.add_manifest("eec", "accept", reason="CA reachable via legacy MD5 hash link",
+    # FINDING: modern OpenSSL X509_STORE_load_path looks CAs up by the NEW
+    # (SHA-1 canonical) subject hash.  A CA dir carrying ONLY the legacy MD5
+    # hash link is therefore not found and the chain fails to build.  WLCG/IGTF
+    # distributions always ship BOTH links, so this is a corner-case gap, not a
+    # normal deployment — recorded rather than "fixed" (it is OpenSSL policy).
+    sc.add_manifest("eec", "reject",
+                    reason="MD5-only hash link: CA not found by OpenSSL new-hash lookup",
+                    spec_ref="CA-dir / OpenSSL hash")
+    return sc.finalize()
+
+
+def _cad_sha1_only(root: Path) -> Scenario:
+    sc = _scenario(root, "cad_sha1_only")
+    ca = make_ca(CA_DN)
+    eec = make_eec(ca, "/DC=test/DC=xrootd/CN=Alice")
+    write_hashed_ca_dir(sc.ca_dir, ca, links="new")
+    sc.write_credential("eec", [eec, ca], eec)
+    sc.add_manifest("eec", "accept",
+                    reason="CA reachable via canonical SHA-1 hash link",
                     spec_ref="CA-dir")
     return sc.finalize()
 
@@ -656,6 +674,7 @@ _BUILDERS = {
     "crl_revoked_eec": _crl_revoked_eec,
     "crl_expired": _crl_expired,
     "cad_md5_only": _cad_md5_only,
+    "cad_sha1_only": _cad_sha1_only,
     "cad_expired_ca": _cad_expired_ca,
 }
 
