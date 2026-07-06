@@ -405,6 +405,20 @@ def pytest_configure(config):
         "requires_local_server: test writes directly to the server filesystem "
         "and cannot run against a remote server (skipped when TEST_SERVER_HOST is set)",
     )
+    config.addinivalue_line(
+        "markers",
+        "leak: multi-user cross-user leak — encodes the correct cache-transparency "
+        "invariant and fails red until the underlying code is fixed (see "
+        "docs/superpowers/specs/2026-07-06-multiuser-permission-conformance-design.md)",
+    )
+    config.addinivalue_line(
+        "markers",
+        "privileged: requires root (real accounts + setfsuid impersonation)",
+    )
+
+
+# Load the multi-user permission conformance fixtures (mu_fleet, cast, apply_policy, ...).
+pytest_plugins = ["conftest_mu"]
 
 
 # Module-name substrings that identify the multi-minute "slow" families: the
