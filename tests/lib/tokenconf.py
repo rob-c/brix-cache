@@ -22,6 +22,7 @@ import urllib3
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from settings import (
+    DATA_ROOT,
     NGINX_TOKEN_PORT,
     NGINX_TOKEN_STRICT_PORT,
     NGINX_WEBDAV_PORT,
@@ -35,6 +36,28 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Protocols the conformance suite covers.
 PROTOCOLS = ["root", "webdav", "s3"]
+
+# Data files the "accept" conformance cases stat/GET. A fleet restart
+# (start-all) regenerates the export root and would otherwise wipe these, so
+# every wire probe re-provisions them idempotently — the suite is robust to a
+# fleet restart mid-run. Kept tiny; created only if missing.
+_CONFORMANCE_FILES = {
+    "test.txt": b"hello from nginx-xrootd\n",
+    "atlas/ok.txt": b"atlasfile\n",
+    "cms/ok.txt": b"cmsfile\n",
+    "database/ok.txt": b"dbfile\n",
+}
+
+
+def ensure_conformance_data():
+    """Create the fixture files the accept-cases depend on, if absent."""
+    for rel, body in _CONFORMANCE_FILES.items():
+        path = os.path.join(DATA_ROOT, rel)
+        if os.path.exists(path):
+            continue
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as fh:
+            fh.write(body)
 
 # ---------------------------------------------------------------------------
 # XRootD wire constants
@@ -248,6 +271,7 @@ def root_ztn(token, path="/test.txt", write=False, port=None):
     Returns:
         "accept" or "reject".
     """
+    ensure_conformance_data()
     target_port = port if port is not None else NGINX_TOKEN_PORT
     try:
         sock = _raw_handshake(SERVER_HOST, target_port)
@@ -287,6 +311,7 @@ def webdav_bearer(token, path="/test.txt", write=False):
     Returns:
         "accept", "reject", or "notfound".
     """
+    ensure_conformance_data()
     url = f"https://{SERVER_HOST}:{NGINX_WEBDAV_PORT}{path}"
     headers = {"Authorization": f"Bearer {token}"}
     try:
@@ -327,6 +352,7 @@ def s3_bearer(token, key="test.txt", write=False):
     Returns:
         "accept", "reject", or "notfound".
     """
+    ensure_conformance_data()
     url = f"http://{SERVER_HOST}:{NGINX_S3_PORT}/{key}"
     headers = {"Authorization": f"Bearer {token}"}
     try:
