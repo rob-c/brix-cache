@@ -112,15 +112,20 @@ brix_open_credfile(const char *path, int secret, brix_status *st)
  * WHY:  server dirlists, manifests, and archives are untrusted inputs; a
  *       "../" component or absolute path must never place files outside the
  *       destination root (moved here from apps/copy so every consumer shares
- *       one guard).
- * HOW:  flag absolute paths and any exact ".." path component. */
+ *       one guard).  NULL is treated as unsafe (fail-closed): a caller that
+ *       cannot produce a path has no safe join target.
+ * HOW:  reject NULL (fail-closed), absolute paths, and any exact ".."
+ *       component.  Empty string is safe (degenerate, but not escaping). */
 int
 brix_rel_is_unsafe(const char *rel)
 {
     size_t len;
 
-    if (rel == NULL || rel[0] == '/') {
-        return rel != NULL;
+    if (rel == NULL) {
+        return 1;   /* fail-closed: no path at all is not a safe path */
+    }
+    if (rel[0] == '/') {
+        return 1;
     }
     len = strlen(rel);
     if (strcmp(rel, "..") == 0

@@ -39,7 +39,15 @@ done_append(brix_journal *j, const char *s)
 }
 
 /* Load existing "ok <src>" lines; malformed/oversized lines are skipped
- * (a corrupt journal must degrade to "recopy", never to a crash). 0/-1. */
+ * (a corrupt journal must degrade to "recopy", never to a crash). 0/-1.
+ *
+ * WHAT: read the append-only journal file and rebuild the in-memory done set.
+ * WHY:  a fgets buffer of JOURNAL_LINE_MAX holds at most JOURNAL_LINE_MAX-1
+ *       chars; a line whose content fills that exactly has its '\n' buffered in
+ *       the NEXT call — the old guard (`line[len-1] != '\n' && !feof`) hit this
+ *       case and incorrectly skipped a valid entry.  The correct test is whether
+ *       the buffer was exhausted: exactly JOURNAL_LINE_MAX-1 bytes and no '\n'.
+ * HOW:  exhaustion = len == sizeof(line)-1 && line[len-1] != '\n'; drain + skip. */
 static int
 journal_load(brix_journal *j, const char *path)
 {
@@ -51,7 +59,7 @@ journal_load(brix_journal *j, const char *path)
     }
     while (fgets(line, sizeof(line), f) != NULL) {
         size_t len = strlen(line);
-        if (len > 0 && line[len - 1] != '\n' && !feof(f)) {
+        if (len == sizeof(line) - 1 && line[len - 1] != '\n') {
             int ch;                                   /* oversized: drain + skip */
             while ((ch = fgetc(f)) != EOF && ch != '\n') { }
             continue;
@@ -90,7 +98,7 @@ brix_journal_open(const char *path, brix_status *st)
     }
     j->fp = fopen(path, "a");
     if (j->fp == NULL) {
-        brix_status_set(st, XRDC_ESOCK, errno, "journal: cannot open %s: %s",
+        brix_status_set(st, XRDC_EIO, errno, "journal: cannot open %s: %s",
                         path, strerror(errno));
         brix_journal_close(j);
         return NULL;
@@ -113,8 +121,17 @@ brix_journal_mark(brix_journal *j, const char *src)
 {
     int rc;
 
+    /* WHAT: validate `src` before appending "ok <src>\n" to the journal.
+     * WHY:  the line "ok <src>\n" is strlen(src)+4 chars; journal_load uses
+     *       fgets(line, JOURNAL_LINE_MAX, f) which reads at most JOURNAL_LINE_MAX-1
+     *       chars.  A line of exactly JOURNAL_LINE_MAX chars (strlen(src)+4 ==
+     *       JOURNAL_LINE_MAX) would have its '\n' left in the stream and be seen
+     *       as an oversized line on reload — losing the entry silently.  We
+     *       therefore reject anything that reaches that boundary: max src length
+     *       is JOURNAL_LINE_MAX-5 chars (line = JOURNAL_LINE_MAX-1 chars + '\n').
+     * HOW:  strict >= JOURNAL_LINE_MAX (vs the former >), consistent with load(). */
     if (j == NULL || j->fp == NULL || src == NULL || src[0] == '\0'
-        || strpbrk(src, "\n\r") != NULL || strlen(src) + 4 > JOURNAL_LINE_MAX) {
+        || strpbrk(src, "\n\r") != NULL || strlen(src) + 4 >= JOURNAL_LINE_MAX) {
         return -1;   /* newline injection would forge entries — refuse */
     }
     pthread_mutex_lock(&j->lock);
