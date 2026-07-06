@@ -85,13 +85,13 @@ def run_pty(cmd, env=None, timeout=TIMEOUT_S):
     Args:
         cmd:     Sequence of str — the command and its arguments (argv).
         env:     Mapping or None.  None inherits the caller's environment.
-        timeout: Seconds before the child is killed and TimeoutError raised.
+        timeout: Seconds before the child is killed and subprocess.TimeoutExpired raised.
 
     Returns:
         (exit_code: int, stdout: bytes, stderr: bytes)
 
     Raises:
-        TimeoutError: if the child does not exit within *timeout* seconds.
+        subprocess.TimeoutExpired: if the child does not exit within *timeout* seconds.
     """
     master_fd, slave_fd = _pty.openpty()
     slave_closed = False
@@ -116,9 +116,7 @@ def run_pty(cmd, env=None, timeout=TIMEOUT_S):
             if remaining <= 0:
                 proc.kill()
                 proc.wait()
-                raise TimeoutError(
-                    f"run_pty: {cmd[0]!r} exceeded {timeout}s timeout"
-                )
+                raise subprocess.TimeoutExpired(cmd, timeout)
             ready, _, _ = select.select([master_fd], [], [], min(remaining, 0.5))
             if ready:
                 try:
@@ -136,7 +134,7 @@ def run_pty(cmd, env=None, timeout=TIMEOUT_S):
                     _drain_master(master_fd, stderr_chunks)
                     break
 
-        stdout_bytes, _ = proc.communicate(timeout=5)
+        stdout_bytes, _ = proc.communicate(timeout=max(1, deadline - time.monotonic()))
         return proc.returncode, stdout_bytes, b"".join(stderr_chunks)
 
     finally:
