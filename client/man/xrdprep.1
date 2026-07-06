@@ -3,7 +3,8 @@
 xrdprep \- send kXR_prepare requests to an XRootD server
 .SH SYNOPSIS
 .B xrdprep
-[\fB\-s\fR|\fB\-c\fR|\fB\-w\fR|\fB\-f\fR|\fB\-e\fR] [\fB\-p\fR \fIPRTY\fR]
+[\fB\-s\fR|\fB\-\-stage\fR|\fB\-c\fR|\fB\-\-cancel\fR|\fB\-w\fR|\fB\-\-wmode\fR|\fB\-f\fR|\fB\-\-fresh\fR|\fB\-e\fR|\fB\-\-evict\fR]
+[\fB\-p\fR|\fB\-\-priority\fR \fIPRTY\fR]
 \fIHOST\fR[\fI:PORT\fR] \fIPATH\fR...
 .SH DESCRIPTION
 .B xrdprep
@@ -19,22 +20,22 @@ By default (no flag) the request is a stage request.
 Multiple paths may be specified; each is sent in a single prepare request.
 .SH OPTIONS
 .TP
-.B \-s
+.BR \-s ", " \-\-stage
 Stage: request that the file be brought online from tape (default).
 .TP
-.B \-c
+.BR \-c ", " \-\-cancel
 Cancel: cancel a pending stage request.
 .TP
-.B \-w
+.BR \-w ", " \-\-wmode
 Write-mode: hint that the file will be opened for writing.
 .TP
-.B \-f
+.BR \-f ", " \-\-fresh
 Fresh: invalidate any cached copy and fetch a fresh one.
 .TP
-.B \-e
+.BR \-e ", " \-\-evict
 Evict: release the disk-cache copy.
 .TP
-.BI \-p " PRTY"
+.BR \-p ", " \-\-priority " \fIPRTY\fR"
 Priority 0\-3 (default 0; higher = more urgent).
 .SH EXAMPLES
 .nf

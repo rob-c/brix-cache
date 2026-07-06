@@ -34,9 +34,10 @@ usage_fp(FILE *out)
 {
     fprintf(out,
         "usage: xrdgsiproxy <init|info|destroy> [opts]\n"
-        "  init    [-valid H[:M]] [-cert FILE] [-key FILE] [-out FILE] [-bits N]\n"
-        "  info    [-file FILE]\n"
-        "  destroy [-file FILE]\n"
+        "  init    [-valid/--valid H[:M]] [-cert/--cert FILE] [-key/--key FILE]\n"
+        "          [-out/--out FILE] [-bits/--bits N]\n"
+        "  info    [-file/--file FILE]\n"
+        "  destroy [-file/--file FILE]\n"
         BRIX_USAGE_FOOTER("xrdgsiproxy"));
 }
 
@@ -72,11 +73,16 @@ main(int argc, char **argv)
         brix_proxy_opts o;
         memset(&o, 0, sizeof(o));
         for (i = 2; i < argc; i++) {
-            if (strcmp(argv[i], "-valid") == 0 && i + 1 < argc) { o.valid_hours = parse_valid(argv[++i]); }
-            else if (strcmp(argv[i], "-cert") == 0 && i + 1 < argc) { o.user_cert = argv[++i]; }
-            else if (strcmp(argv[i], "-key") == 0 && i + 1 < argc)  { o.user_key = argv[++i]; }
-            else if (strcmp(argv[i], "-out") == 0 && i + 1 < argc)  { o.out_path = argv[++i]; }
-            else if (strcmp(argv[i], "-bits") == 0 && i + 1 < argc) { o.bits = atoi(argv[++i]); }
+            if ((strcmp(argv[i], "-valid") == 0 || strcmp(argv[i], "--valid") == 0)
+                && i + 1 < argc) { o.valid_hours = parse_valid(argv[++i]); }
+            else if ((strcmp(argv[i], "-cert") == 0 || strcmp(argv[i], "--cert") == 0)
+                     && i + 1 < argc) { o.user_cert = argv[++i]; }
+            else if ((strcmp(argv[i], "-key") == 0 || strcmp(argv[i], "--key") == 0)
+                     && i + 1 < argc)  { o.user_key = argv[++i]; }
+            else if ((strcmp(argv[i], "-out") == 0 || strcmp(argv[i], "--out") == 0)
+                     && i + 1 < argc)  { o.out_path = argv[++i]; }
+            else if ((strcmp(argv[i], "-bits") == 0 || strcmp(argv[i], "--bits") == 0)
+                     && i + 1 < argc) { o.bits = atoi(argv[++i]); }
             else { usage(); return 50; }
         }
         rc = brix_proxy_create(&o, &st);
@@ -91,7 +97,8 @@ main(int argc, char **argv)
         const char *file = NULL;
         int         is_info = (strcmp(cmd, "info") == 0);
         for (i = 2; i < argc; i++) {
-            if (strcmp(argv[i], "-file") == 0 && i + 1 < argc) { file = argv[++i]; }
+            if ((strcmp(argv[i], "-file") == 0 || strcmp(argv[i], "--file") == 0)
+                && i + 1 < argc) { file = argv[++i]; }
             else { usage(); return 50; }
         }
         rc = is_info ? brix_proxy_info(file, stdout, &st)

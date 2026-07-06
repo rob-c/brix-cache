@@ -147,7 +147,7 @@
   "noarg:xrdcp": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "ded80ed7ad2f5c94e06d49fb584878178787b13406ce4e1c0a533353d14d6acf"
+    "stderr_sha": "19bfaf6dd48a8c1ba92ddf02bf12f181085d8a1c80663cf260203fc85cfc67a1"
   },
   "noarg:xrdcrc32c": {
     "exit": 50,
@@ -162,7 +162,7 @@
   "noarg:xrddiag": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "80cc26ccb07d9cd36def004b527883b06cfc113df8ad683c91ae43fd43b5acc9"
+    "stderr_sha": "050f32bc14e2165afe2c270aa73d0f3a3e96d2f47bcdedfc026ade59874c775d"
   },
   "noarg:xrdfs": {
     "exit": 50,
@@ -172,7 +172,7 @@
   "noarg:xrdgsiproxy": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "7a322bb494e2a75306292ed0673dbd90b2c98f25dc600eb0055ca86baf332544"
+    "stderr_sha": "29eef86c21892fb0e1b3525bac654d40669ed3b3afc8a46afac10c8ccb8dfad9"
   },
   "noarg:xrdgsitest": {
     "exit": 50,
@@ -202,7 +202,7 @@
   "noarg:xrdsssadmin": {
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "982e60f15dcb67785f4427596f0abfb76b7459867440422189aa9afae4a74de1"
+    "stderr_sha": "74e43ec7b762229c0dd7b0a87caeb51cb38a6d0b0219865aabaa0491c2ace2fc"
   },
   "noarg:xrdstorascan": {
     "exit": 64,

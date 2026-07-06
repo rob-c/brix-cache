@@ -3,13 +3,13 @@
 xrdgsiproxy \- create, inspect and destroy GSI proxy certificates
 .SH SYNOPSIS
 .B xrdgsiproxy
-\fBinit\fR [\-valid \fIH\fR[:\fIM\fR]] [\-cert \fIFILE\fR] [\-key \fIFILE\fR] [\-out \fIFILE\fR] [\-bits \fIN\fR]
+\fBinit\fR [\-valid/\-\-valid \fIH\fR[:\fIM\fR]] [\-cert/\-\-cert \fIFILE\fR] [\-key/\-\-key \fIFILE\fR] [\-out/\-\-out \fIFILE\fR] [\-bits/\-\-bits \fIN\fR]
 .br
 .B xrdgsiproxy
-\fBinfo\fR [\-file \fIFILE\fR]
+\fBinfo\fR [\-file/\-\-file \fIFILE\fR]
 .br
 .B xrdgsiproxy
-\fBdestroy\fR [\-file \fIFILE\fR]
+\fBdestroy\fR [\-file/\-\-file \fIFILE\fR]
 .SH DESCRIPTION
 .B xrdgsiproxy
 manages GSI (Grid Security Infrastructure) proxy certificates used for
@@ -24,22 +24,22 @@ The \fBdestroy\fR subcommand removes the proxy file.
 Create a new proxy certificate.
 .RS
 .TP
-.BI \-valid " H\fR[\fR:\fIM\fR]"
+.BI \-valid " H\fR[\fR:\fIM\fR]\fR (also \fB\-\-valid\fR)"
 Proxy validity in hours (and optionally minutes). Default: 12 hours.
 .TP
-.BI \-cert " FILE"
+.BI \-cert " FILE\fR (also \fB\-\-cert\fR)"
 User certificate file (default: \fI~/.globus/usercert.pem\fR or
 \fB$X509_USER_CERT\fR).
 .TP
-.BI \-key " FILE"
+.BI \-key " FILE\fR (also \fB\-\-key\fR)"
 User private key file (default: \fI~/.globus/userkey.pem\fR or
 \fB$X509_USER_KEY\fR).
 .TP
-.BI \-out " FILE"
+.BI \-out " FILE\fR (also \fB\-\-out\fR)"
 Write proxy to \fIFILE\fR (default: \fB$X509_USER_PROXY\fR or
 \fI/tmp/x509up_u\fR\fIUID\fR).
 .TP
-.BI \-bits " N"
+.BI \-bits " N\fR (also \fB\-\-bits\fR)"
 RSA key size in bits (default: 2048).
 .RE
 .TP
@@ -47,7 +47,7 @@ RSA key size in bits (default: 2048).
 Print the subject, issuer, and remaining validity of the proxy.
 .RS
 .TP
-.BI \-file " FILE"
+.BI \-file " FILE\fR (also \fB\-\-file\fR)"
 Proxy file to inspect (default: \fB$X509_USER_PROXY\fR).
 .RE
 .TP
@@ -55,7 +55,7 @@ Proxy file to inspect (default: \fB$X509_USER_PROXY\fR).
 Remove the proxy file.
 .RS
 .TP
-.BI \-file " FILE"
+.BI \-file " FILE\fR (also \fB\-\-file\fR)"
 Proxy file to remove (default: \fB$X509_USER_PROXY\fR).
 .RE
 .SH EXAMPLES
