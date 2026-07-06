@@ -41,20 +41,14 @@ def _data():
 
 
 @pytest.mark.tokenconf
-@pytest.mark.xfail(strict=True,
-                   reason="DIVERGENCE rule 2: RFC 7519 §2 states fractional seconds "
-                          "are permitted in NumericDate; json_get_int64() refuses "
-                          "json_real so float exp is treated as 0 (expired) → "
-                          "actual=reject; RFC-correct=accept")
 def test_ndt01_numericdate_fractional_accepted():
     """exp as a fractional NumericDate (now+3600.5) — MUST accept (rule 2).
 
     WHY:  RFC 7519 §2 / rule 2 — NumericDate is "a JSON numeric value
           representing the number of seconds"; fractional seconds are explicitly
-          permitted and MUST be accepted.  The implementation uses
-          json_get_int64() which refuses JSON float (json_real) values → exp
-          falls back to 0 → token treated as expired.
-    DIVERGENCE: actual=reject; RFC-correct=accept.
+          permitted and MUST be accepted.  json_get_int64() now falls back to
+          json_real handling, truncating the fractional part to integer seconds.
+    FIXED: json_get_int64 json_real branch added to json.c.
     """
     assert root_ztn(_f().numericdate_fractional(), "/test.txt", port=PORT) == "accept"
 
@@ -72,19 +66,14 @@ def test_ndt02_numericdate_negative_accepted():
 
 
 @pytest.mark.tokenconf
-@pytest.mark.xfail(strict=True,
-                   reason="DIVERGENCE rule 3: RFC 7519 §2 requires huge NumericDate "
-                          "values to be accepted (far-future exp); json_integer_value() "
-                          "overflows int64 wrapping 99999999999999999999 to a negative "
-                          "or past value → actual=reject; RFC-correct=accept")
 def test_ndt03_numericdate_huge_accepted():
     """exp as a huge integer (99999999999999999999) — MUST accept (rule 3).
 
     WHY:  RFC 7519 §2 / rule 3 — a very large NumericDate represents a far-future
-          expiry and MUST be accepted.  The Jansson json_integer_value() call
-          wraps 99999999999999999999 at the int64 boundary, landing the value
-          in the past → treated as expired.
-    DIVERGENCE: actual=reject; RFC-correct=accept.
+          expiry and MUST be accepted.  Jansson promotes values beyond int64 range
+          to json_real; json_get_int64() now accepts json_real (truncating via
+          cast), allowing far-future expiry tokens to validate correctly.
+    FIXED: json_get_int64 json_real branch added to json.c.
     """
     assert root_ztn(_f().numericdate_huge(), "/test.txt", port=PORT) == "accept"
 

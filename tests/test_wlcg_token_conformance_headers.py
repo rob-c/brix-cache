@@ -46,75 +46,65 @@ def _data():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.tokenconf
-@pytest.mark.xfail(strict=True,
-                   reason="DIVERGENCE rule 36: RFC 7515 §4.1.11 MUST reject unknown "
-                          "crit extension; validator ignores crit → actual=accept")
 def test_hdr01_crit_unknown_rejects():
     """crit lists an unrecognised extension — MUST reject (RFC 7515 §4.1.11, rule 36).
 
     WHY:  An unrecognised critical header parameter MUST cause the JWS to be
-          rejected by a conformant processor.  The implementation ignores crit
-          entirely, so the token is accepted instead.
-    DIVERGENCE: actual=accept; RFC-correct=reject.
+          rejected by a conformant processor.  The implementation now checks for
+          the presence of any `crit` header and rejects immediately, since we
+          implement no `crit` extension parameters.
+    FIXED: json_has_member("crit") check added to validate.c.
     """
     assert root_ztn(_f().crit_unknown(), "/test.txt", port=PORT) == "reject"
 
 
 @pytest.mark.tokenconf
-@pytest.mark.xfail(strict=True,
-                   reason="DIVERGENCE rule 37: RFC 7515 §4.1.11 MUST reject empty "
-                          "crit array; validator ignores crit → actual=accept")
 def test_hdr02_crit_empty_rejects():
     """crit is an empty array [] — MUST reject (rule 37).
 
     WHY:  The crit array MUST NOT be empty per RFC 7515 §4.1.11; an empty
-          array is a structural error.  The implementation accepts it.
-    DIVERGENCE: actual=accept; RFC-correct=reject.
+          array is a structural error.  The implementation now rejects any
+          token carrying a `crit` member (we implement no extensions).
+    FIXED: json_has_member("crit") check added to validate.c.
     """
     assert root_ztn(_f().crit_empty(), "/test.txt", port=PORT) == "reject"
 
 
 @pytest.mark.tokenconf
-@pytest.mark.xfail(strict=True,
-                   reason="DIVERGENCE rule 37: RFC 7515 §4.1.11 MUST reject non-array "
-                          "crit value (string); validator ignores crit → actual=accept")
 def test_hdr03_crit_non_array_rejects():
     """crit is a string rather than an array — MUST reject (rule 37).
 
     WHY:  RFC 7515 §4.1.11 requires crit to be a JSON array; a scalar value
-          is a type violation that a conformant processor must reject.
-    DIVERGENCE: actual=accept; RFC-correct=reject.
+          is a type violation that a conformant processor must reject.  The
+          implementation now rejects any token whose header contains a `crit`
+          member (regardless of its value type).
+    FIXED: json_has_member("crit") check added to validate.c.
     """
     assert root_ztn(_f().crit_non_array(), "/test.txt", port=PORT) == "reject"
 
 
 @pytest.mark.tokenconf
-@pytest.mark.xfail(strict=True,
-                   reason="DIVERGENCE rule 38: RFC 7515 §4.1.11 MUST reject crit "
-                          "listing a registered JWS param ('alg'); validator ignores "
-                          "crit → actual=accept")
 def test_hdr04_crit_lists_alg_rejects():
     """crit lists 'alg', a registered JWS parameter — MUST reject (rule 38).
 
     WHY:  The crit array MUST NOT include header parameters whose semantics are
           defined in the JWS/JWA specifications.  Listing 'alg' is a structural
-          violation.
-    DIVERGENCE: actual=accept; RFC-correct=reject.
+          violation.  The implementation now rejects any token carrying a `crit`
+          member.
+    FIXED: json_has_member("crit") check added to validate.c.
     """
     assert root_ztn(_f().crit_lists_alg(), "/test.txt", port=PORT) == "reject"
 
 
 @pytest.mark.tokenconf
-@pytest.mark.xfail(strict=True,
-                   reason="DIVERGENCE rule 37: RFC 7515 §4.1.11 MUST reject crit "
-                          "naming a member absent from the header; validator ignores "
-                          "crit → actual=accept")
 def test_hdr05_crit_missing_name_rejects():
     """crit lists 'kid' but the header has no kid member — MUST reject (rule 37).
 
     WHY:  Every name in the crit array MUST also appear as a header parameter;
-          a named-but-absent parameter is a structural error.
-    DIVERGENCE: actual=accept; RFC-correct=reject.
+          a named-but-absent parameter is a structural error.  The implementation
+          now rejects any token carrying a `crit` member (we implement no
+          extension parameters).
+    FIXED: json_has_member("crit") check added to validate.c.
     """
     assert root_ztn(_f().crit_missing_name(), "/test.txt", port=PORT) == "reject"
 

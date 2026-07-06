@@ -52,25 +52,15 @@ def _data():
 
 
 @pytest.mark.tokenconf
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "DIVERGENCE rules 104/105: WLCG profile §3 requires that the special "
-        "audience 'https://wlcg.cern.ch/jwt/v1/any' be accepted by any WLCG "
-        "endpoint regardless of its configured audience; our implementation "
-        "performs exact-match only → actual=reject. "
-        "FIX CANDIDATE: add wildcard-aud branch in src/auth/token/validate.c "
-        "audience check."
-    ),
-)
 def test_wlcg_01_aud_wildcard_accept():
     """aud = WLCG wildcard URI — MUST accept (rules 104/105).
 
     WHY:  WLCG Token Profile §3 / rules 104/105 — the audience value
           'https://wlcg.cern.ch/jwt/v1/any' is a WLCG-wide wildcard; every
           conformant WLCG endpoint MUST accept it regardless of locally
-          configured audience.
-    DIVERGENCE: actual=reject (exact-match implementation); RFC-correct=accept.
+          configured audience.  The audience check now OR-ins a wildcard check
+          against the WLCG wildcard URI after the configured-audience check.
+    FIXED: wildcard-aud branch added to validate.c audience check.
     """
     tok = _f().aud_wildcard()
     assert root_ztn(tok, "/test.txt", port=PORT) == "accept"

@@ -28,6 +28,11 @@ int json_string_or_array_contains(const char *json, size_t json_len,
  * containing needle; 0 otherwise. RFC 7519 §4.1.3 allows the JWT "aud" claim to
  * be either form, so the audience check must accept both. Comparison is exact
  * (no truncation). */
+int json_has_member(const char *json, size_t json_len, const char *key);
+/* Returns 1 if the JSON object has a member named `key`, else 0.
+ * Used by the JWS `crit` header check: RFC 7515 §4.1.11 requires that any
+ * token carrying a `crit` header be rejected by a processor that does not
+ * implement the listed extension parameters. */
 /* Return the string name of the active JSON parsing backend ("jansson"). Used
  * for logging, metrics labels, and conditional behaviour across backends. */
 const char *json_backend_name(void);
