@@ -193,8 +193,10 @@ ngx_int_t brix_handle_close(brix_ctx_t *ctx, ngx_connection_t *c) {
         /* Commit the staged temp onto the final path: fsync + atomic rename on
          * the same filesystem, or copy-then-rename when the staging device
          * (brix_stage_dir) differs from the storage (cross-device EXDEV). */
+        /* final_mode 0: the root:// POSC temp is driver-created with the client's
+         * create mode already, so leave it as-is (rename preserves it). */
         if (brix_commit_staged(ctx->files[idx].fd, temp_path, final_path,
-                                 c->log) != NGX_OK) {
+                                 0, c->log) != NGX_OK) {
             int err = errno;
             ngx_log_error(NGX_LOG_ERR, c->log, err,
                           "brix: staged commit \"%s\" -> \"%s\" failed",

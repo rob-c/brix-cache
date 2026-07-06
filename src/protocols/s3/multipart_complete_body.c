@@ -90,8 +90,12 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
     *http_status_out = NGX_HTTP_INTERNAL_SERVER_ERROR;
     crc64_b64_out[0] = '\0';
 
+    /* SECURITY: the multipart-assembly temp is later renamed onto the object.
+     * S3 objects are gateway-owned (SigV4, no per-user DAC impersonation) and
+     * every other S3 write path publishes 0600, so 0600 both closes the
+     * part-concatenation exposure window and matches the S3 final-object mode. */
     final_fd = brix_vfs_open_fd(log, root_canon, final_tmp,
-                                 O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                                 O_WRONLY | O_CREAT | O_TRUNC, 0600);
     if (final_fd < 0) {
         brix_log_safe_path(log, NGX_LOG_ERR, errno,
                              "s3 complete_mpu: open(\"%s\") failed", final_tmp);

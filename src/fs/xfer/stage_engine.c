@@ -214,7 +214,11 @@ stage_engine_move(brix_sd_instance_t *src, const char *src_key,
         mode = (mode_t) (snap.mode & 0777);
     }
     if (mode == 0) {
-        mode = 0644;
+        /* SECURITY: unknown source provenance → a PRIVATE tier artifact (0600),
+         * not world-readable. Real source modes flow through snap.mode above and
+         * are preserved; this is only the fallback when the driver reports no
+         * mode, consistent with the 0600/0700 physical-cache convention. */
+        mode = 0600;
     }
 
     ds = dst->driver->staged_open(dst, dst_key, mode, &oerr);
