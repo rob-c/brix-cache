@@ -36,14 +36,16 @@ Each command accepts \fB\-\-help\fR to print its one-line synopsis.
 In the interactive shell, \fBcd\fR, \fBpwd\fR, \fBhelp\fR, and \fBexit\fR are also available.
 .TP
 .B stat [-j] \fIPATH\fR
-Print file or directory metadata. \fB\-j\fR emits JSON.
+Print file or directory metadata. \fB\-j\fR emits a single-line JSON object.
+The \fBmode\fR field is an octal string (e.g. \fB"0755"\fR).
 .TP
 .B ls [-l] [-R] [-h, --human] [-j] [\fIPATH\fR]
 List a directory. \fB\-l\fR long, \fB\-R\fR recursive,
 \fB\-h\fR, \fB\-\-human\fR human-readable sizes, \fB\-j\fR JSON output.
 .TP
 .B du [-h, --human] [-j] \fIPATH\fR...
-Recursive disk-usage summary. \fB\-h\fR, \fB\-\-human\fR human-readable, \fB\-j\fR JSON.
+Recursive disk-usage summary. \fB\-h\fR, \fB\-\-human\fR human-readable,
+\fB\-j\fR JSON. JSON output is always a top-level array (single path → array of 1).
 .TP
 .B df [-h, --human] [\fIPATH\fR]
 Disk space and \fBoss.*\fR quota space. \fB\-h\fR, \fB\-\-human\fR human-readable.
@@ -119,9 +121,11 @@ Copy a file with optional rate limiting.
 .B upload [bs=\fIN\fR] [rate=\fIR\fR] [-f] [\-\-io\-uring on|off|auto] \fILOCALFILE\fR|\fB\-\fR \fIREMOTE\fR
 Upload a local file or stdin to a remote path.
 \fB\-f\fR overwrites; \fB\-\-io\-uring\fR selects the local I/O backend.
+Unknown mode values are a hard error (exit 50); use \fBon\fR, \fBoff\fR, or \fBauto\fR.
 .TP
 .B download [bs=\fIN\fR] [rate=\fIR\fR] [-f] [\-\-io\-uring on|off|auto] \fIREMOTE\fR [\fILOCALFILE\fR|\fB\-\fR]
 Download a remote file to a local path or stdout.
+Unknown \fB\-\-io\-uring\fR mode values are a hard error (exit 50).
 .TP
 .B cmp \fIPATH1\fR \fIPATH2\fR
 Compare two remote files byte-by-byte.

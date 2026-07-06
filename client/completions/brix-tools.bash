@@ -30,23 +30,28 @@ _xrdcp() {
 }
 
 _xrdfs() {
-  local sub="${COMP_WORDS[2]}"
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  local conn_opts="--tls --notlsok --noverifyhost --auth -T --token --version"
+  # Connection-level flags: complete whenever the current word starts with '-',
+  # regardless of position (options can appear before the endpoint or subcommand).
+  if [[ "$cur" == -* ]]; then
+    local sub="${COMP_WORDS[2]}"
+    case "$sub" in
+      ls|du|df) COMPREPLY=($(compgen -W "$conn_opts --human --json" -- "$cur")) ;;
+      tree)     COMPREPLY=($(compgen -W "$conn_opts --dirs-only --depth" -- "$cur")) ;;
+      rm)       COMPREPLY=($(compgen -W "$conn_opts --verbose -r" -- "$cur")) ;;
+      touch)    COMPREPLY=($(compgen -W "$conn_opts --timestamp" -- "$cur")) ;;
+      upload|download) COMPREPLY=($(compgen -W "$conn_opts --io-uring" -- "$cur")) ;;
+      *)        COMPREPLY=($(compgen -W "$conn_opts" -- "$cur")) ;;
+    esac
+    return
+  fi
   if [[ $COMP_CWORD -eq 2 ]]; then
     COMPREPLY=($(compgen -W "stat ls du df tree find mkdir rm rmdir mv chmod
       touch ln readlink truncate cat head tail wc grep hexdump dd upload
       download cmp cksum xattr readv writev locate query statvfs prepare
-      stage evict explain" -- "${COMP_WORDS[COMP_CWORD]}"))
+      stage evict explain" -- "$cur"))
     return
-  fi
-  if [[ $COMP_CWORD -gt 2 ]]; then
-    local global_opts="--tls --notlsok --noverifyhost --auth --token --version"
-    case "$sub" in
-      ls|du|df) _brix_opts_filter "--human $global_opts" ;;
-      tree)     _brix_opts_filter "--dirs-only --depth $global_opts" ;;
-      rm)       _brix_opts_filter "--verbose -r $global_opts" ;;
-      touch)    _brix_opts_filter "--timestamp $global_opts" ;;
-      *)        _brix_opts_filter "$global_opts" ;;
-    esac
   fi
 }
 

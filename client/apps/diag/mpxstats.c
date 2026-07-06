@@ -146,6 +146,9 @@ brix_mpxstats_main(int argc, char **argv)
         } else if (strcmp(a, "-h") == 0) {
             /* -h keeps the legacy stderr path (C1); footer now included. */
             return usage_fp(stderr, 0);
+        } else if (strcmp(a, "--help") == 0) {
+            /* Recognise --help at any position (not just argv[1]). */
+            return usage_fp(stdout, 0);
         } else if (host == NULL) {
             host = a;
         }

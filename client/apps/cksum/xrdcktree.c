@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>   /* strcasecmp */
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -444,21 +445,6 @@ usage_check(const char *prog, int rc)
     return rc;
 }
 
-/* strcasecmp_hex — case-insensitive comparison of two NUL-terminated hex
- * strings; returns 0 when equal, nonzero otherwise. */
-static int
-strcasecmp_hex(const char *a, const char *b)
-{
-    while (*a && *b) {
-        if (tolower((unsigned char) *a) != tolower((unsigned char) *b)) {
-            return 1;
-        }
-        a++;
-        b++;
-    }
-    return (*a != '\0' || *b != '\0') ? 1 : 0;
-}
-
 /*
  * brix_xrdckcheck_main — xrdcksum check: manifest verification.
  *
@@ -468,11 +454,13 @@ strcasecmp_hex(const char *a, const char *b)
  *       a single run covers the whole tree with one output line per file.
  * HOW:  Parse args; for each manifest line call brix_ckmf_parse_line (malformed →
  *       stderr + errors++). With --algo NAME, use it for both compute and query;
- *       without --algo, infer the algorithm from the hex length (adler32=8,
- *       crc32c=8, zcrc32=8, crc64=16, md5=32). For local root: open each rel
- *       path under root, call brix_cksum_fd.  For remote root: open one connection,
- *       reuse it across all files, call brix_query_cksum.  Compare case-insensitively;
- *       print OK/FAILED.  Exit 0 all-OK, 1 any mismatch, 2 on any parse/I/O error.
+ *       without --algo, infer the algorithm from the hex length: adler32=8 hex
+ *       chars, crc64=16, md5=32.  Note: crc32c and zcrc32 also produce 8 hex
+ *       chars and are indistinguishable by length alone — they require --algo.
+ *       For local root: open each rel path under root, call brix_cksum_fd.
+ *       For remote root: open one connection, reuse it across all files, call
+ *       brix_query_cksum.  Compare case-insensitively; print OK/FAILED.
+ *       Exit 0 all-OK, 1 any mismatch, 2 on any parse/I/O error.
  */
 int
 brix_xrdckcheck_main(int argc, char **argv)
@@ -637,7 +625,7 @@ brix_xrdckcheck_main(int argc, char **argv)
             }
         }
 
-        if (strcasecmp_hex(hex, got) == 0) {
+        if (strcasecmp(hex, got) == 0) {
             printf("OK %s\n", rel);
         } else {
             printf("FAILED %s\n", rel);

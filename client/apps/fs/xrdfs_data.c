@@ -3,6 +3,7 @@
  * Phase-38 split of xrdfs.c; behavior-identical.
  */
 #include "xrdfs_internal.h"
+#include "brix_ops.h"              /* brix_cli_parse_io_uring */
 #include "fs/vfs.h"   /* local endpoint I/O routes through the shared SD driver */
 
 
@@ -311,8 +312,12 @@ tail_follow(brix_conn *c, const char *path, int64_t from, double interval,
 
     buf = (uint8_t *) malloc(1 << 20);
     if (buf == NULL) {
+        /* Use a throwaway status for the close so the OOM message in st is
+         * not clobbered by close's own error path (tail -f OOM clobber fix). */
+        brix_status tw;
+        brix_status_clear(&tw);
         brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
-        brix_rfile_close(&rf, st);
+        brix_rfile_close(&rf, &tw);
         rf_open = 0;
         return -1;
     }
@@ -899,15 +904,22 @@ do_upload(brix_conn *c, const char *cwd, int argc, char **argv)
         } else if (strcmp(argv[i], "-f") == 0) {
             force = 1;
         } else if (strncmp(argv[i], "--io-uring=", 11) == 0) {
-            const char *m = argv[i] + 11;
-            io_uring_mode = (strcmp(m, "on")  == 0) ? XRDC_IO_URING_ON
-                          : (strcmp(m, "off") == 0) ? XRDC_IO_URING_OFF
-                                                    : XRDC_IO_URING_AUTO;
+            int v = brix_cli_parse_io_uring(argv[i] + 11);
+            if (v < 0) {
+                fprintf(stderr, "xrdfs: upload: --io-uring: invalid mode '%s' "
+                        "(use on|off|auto)\n", argv[i] + 11);
+                return 50;
+            }
+            io_uring_mode = v;
         } else if (strcmp(argv[i], "--io-uring") == 0 && i + 1 < argc) {
             const char *m = argv[++i];
-            io_uring_mode = (strcmp(m, "on")  == 0) ? XRDC_IO_URING_ON
-                          : (strcmp(m, "off") == 0) ? XRDC_IO_URING_OFF
-                                                    : XRDC_IO_URING_AUTO;
+            int v = brix_cli_parse_io_uring(m);
+            if (v < 0) {
+                fprintf(stderr, "xrdfs: upload: --io-uring: invalid mode '%s' "
+                        "(use on|off|auto)\n", m);
+                return 50;
+            }
+            io_uring_mode = v;
         } else if (local == NULL)  { local = argv[i]; }
         else if (remote == NULL)   { remote = argv[i]; }
     }
@@ -1014,15 +1026,22 @@ do_download(brix_conn *c, const char *cwd, int argc, char **argv)
         } else if (strcmp(argv[i], "-f") == 0) {
             force = 1;
         } else if (strncmp(argv[i], "--io-uring=", 11) == 0) {
-            const char *m = argv[i] + 11;
-            io_uring_mode = (strcmp(m, "on")  == 0) ? XRDC_IO_URING_ON
-                          : (strcmp(m, "off") == 0) ? XRDC_IO_URING_OFF
-                                                    : XRDC_IO_URING_AUTO;
+            int v = brix_cli_parse_io_uring(argv[i] + 11);
+            if (v < 0) {
+                fprintf(stderr, "xrdfs: download: --io-uring: invalid mode '%s' "
+                        "(use on|off|auto)\n", argv[i] + 11);
+                return 50;
+            }
+            io_uring_mode = v;
         } else if (strcmp(argv[i], "--io-uring") == 0 && i + 1 < argc) {
             const char *m = argv[++i];
-            io_uring_mode = (strcmp(m, "on")  == 0) ? XRDC_IO_URING_ON
-                          : (strcmp(m, "off") == 0) ? XRDC_IO_URING_OFF
-                                                    : XRDC_IO_URING_AUTO;
+            int v = brix_cli_parse_io_uring(m);
+            if (v < 0) {
+                fprintf(stderr, "xrdfs: download: --io-uring: invalid mode '%s' "
+                        "(use on|off|auto)\n", m);
+                return 50;
+            }
+            io_uring_mode = v;
         } else if (remote == NULL) { remote = argv[i]; }
         else if (local == NULL)    { local = argv[i]; }
     }

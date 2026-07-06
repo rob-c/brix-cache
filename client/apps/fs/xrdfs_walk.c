@@ -81,7 +81,10 @@ chmod_recursive(brix_conn *c, const char *path, int mode, int *failures,
 /* WHAT: print one du result in human-readable or JSON format.
  * WHY:  deduplicates the output logic shared by the multi-path and
  *       default-path branches of do_du.
- * HOW:  JSON emits a single-line object; human mode delegates to fmt_size. */
+ * HOW:  JSON emits a single-line object WITHOUT a trailing newline; the caller
+ *       (do_du) owns array framing and item separators so the combined output
+ *       is always a top-level JSON array (single path → array of 1).  Human
+ *       mode delegates to fmt_size and includes its own newline. */
 static void
 du_print(const char *path, const du_acc *a, int human, int json)
 {
@@ -91,7 +94,7 @@ du_print(const char *path, const du_acc *a, int human, int json)
         brix_json_kv_ll(stdout,  "bytes", (long long) a->bytes, 1);
         brix_json_kv_ll(stdout,  "files", (long long) a->files, 1);
         brix_json_kv_ll(stdout,  "dirs",  (long long) a->dirs,  0);
-        fputs("}\n", stdout);
+        fputc('}', stdout);   /* caller handles array separators + trailing newline */
     } else {
         char sz[32];
         fmt_size(a->bytes, sz, sizeof(sz), human);
@@ -118,17 +121,23 @@ du_visit(const char *full, const brix_dirent *e, int depth, void *u)
 
 /* WHAT: du [-h] [-j] <path>... — recursive total size + file/dir counts.
  * WHY:  -j enables JSON output for scripting; -h humanizes byte counts.
- * HOW:  flags are scanned first; each positional arg drives a walk_dir pass.
- *       du_print handles the final format choice in one place. */
+ *       JSON output is always a top-level array so parsers can handle both
+ *       single-path (array of 1) and multi-path invocations uniformly.
+ * HOW:  flags are scanned first; if json, print "[" before any items.
+ *       Each positional arg drives a walk_dir pass; du_print emits the object
+ *       body (no trailing newline in JSON mode); do_du emits the comma-newline
+ *       separator between items and the closing "]\n" at the end. */
 int
 do_du(brix_conn *c, const char *cwd, int argc, char **argv)
 {
     int human = 0, json = 0, i, rc = 0, any = 0;
+    int jfirst = 1;   /* tracks first JSON item for array framing */
 
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--human") == 0)      { human = 1; }
         else if (strcmp(argv[i], "-j") == 0 || strcmp(argv[i], "--json") == 0) { json  = 1; }
     }
+    if (json) { fputs("[\n", stdout); }
     for (i = 1; i < argc; i++) {
         char        path[XRDC_PATH_MAX];
         brix_status st;
@@ -142,7 +151,9 @@ do_du(brix_conn *c, const char *cwd, int argc, char **argv)
             rc = brix_shellcode(&st);
             continue;
         }
+        if (json && !jfirst) { fputs(",\n", stdout); }
         du_print(path, &a, human, json);
+        if (json) { jfirst = 0; }
     }
     if (!any) {
         char        path[XRDC_PATH_MAX];
@@ -152,10 +163,14 @@ do_du(brix_conn *c, const char *cwd, int argc, char **argv)
         brix_status_clear(&st);
         if (walk_dir(c, path, 0, du_visit, &a, &st) != 0) {
             fprintf(stderr, "xrdfs: du %s: %s\n", path, st.msg);
+            if (json) { fputs("\n]\n", stdout); }
             return brix_shellcode(&st);
         }
+        if (json && !jfirst) { fputs(",\n", stdout); }
         du_print(path, &a, human, json);
+        if (json) { jfirst = 0; }
     }
+    if (json) { fputs("\n]\n", stdout); }
     return rc;
 }
 

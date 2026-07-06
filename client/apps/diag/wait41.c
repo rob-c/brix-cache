@@ -47,6 +47,12 @@ brix_wait41_main(int argc, char **argv)
             timeout_s = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--full") == 0) {
             full = 1;
+        } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            /* Recognise -h/--help at any position (not just argv[1]). */
+            printf("usage: %s [--timeout S] [--full] host[:port]\n"
+                   BRIX_USAGE_FOOTER("wait41"),
+                   argv[0]);
+            return 0;
         } else {
             endpoint = argv[i];
         }

@@ -117,9 +117,14 @@ json_statinfo(const char *path, const brix_statinfo *si)
     brix_json_kv_bool(stdout, "is_dir", (si->flags & kXR_isDir) != 0,
                       si->have_ext);
     if (si->have_ext) {
-        brix_json_kv_ll(stdout,  "mode",  (long long) (si->mode & 07777), 1);
-        brix_json_kv_str(stdout, "owner", si->owner,                      1);
-        brix_json_kv_str(stdout, "group", si->group,                      0);
+        /* mode as a leading-zero octal string ("0755") rather than a decimal
+         * integer: octal is the conventional POSIX representation and avoids
+         * ambiguity (493 vs "0755").  Consumers compare strings, not integers. */
+        char modebuf[8];
+        snprintf(modebuf, sizeof(modebuf), "0%03o", si->mode & 07777);
+        brix_json_kv_str(stdout, "mode",  modebuf,                       1);
+        brix_json_kv_str(stdout, "owner", si->owner,                     1);
+        brix_json_kv_str(stdout, "group", si->group,                     0);
     }
     fputs("}\n", stdout);
 }

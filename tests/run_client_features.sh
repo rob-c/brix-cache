@@ -422,10 +422,10 @@ section_xrdfs_json() {
   check "ls -j: valid JSON array" \
     'echo "$OUT" | python3 -c "import sys,json; arr=json.load(sys.stdin); assert isinstance(arr, list)"'
 
-  # du -j: valid JSON object with expected keys
+  # du -j: valid JSON array (single path → array of 1) with expected keys
   OUT=$("$BIN/xrdfs" "$URL" du -j "$BASE" 2>/dev/null)
-  check "du -j: valid JSON with bytes/files/dirs" \
-    'echo "$OUT" | python3 -c "import sys,json; d=json.load(sys.stdin); assert \"bytes\" in d and \"files\" in d and \"dirs\" in d"'
+  check "du -j: valid JSON array with bytes/files/dirs" \
+    'echo "$OUT" | python3 -c "import sys,json; arr=json.load(sys.stdin); assert isinstance(arr,list) and len(arr)>0 and \"bytes\" in arr[0] and \"files\" in arr[0] and \"dirs\" in arr[0]"'
 
   # security: upload a file whose name contains a double-quote, then verify ls -j
   # is still valid JSON (hostile names must not escape the array or break parsers).
@@ -729,11 +729,9 @@ section_xrdfs_uring() {
   check "download --io-uring auto: exit 0"     '[ "$?" -eq 0 ]'
   check "download --io-uring auto: byte-exact" 'cmp -s "$WORK/dl_off.dat" "$WORK/dl_auto.dat"'
 
-  # --io-uring bogus: treated as auto (falls through to XRDC_IO_URING_AUTO); must not
-  # crash and the download must still succeed.
+  # --io-uring bogus: strict CLI parse rejects unknown mode with exit 50.
   "$BIN/xrdfs" "$URL" download --io-uring bogus /tmp/cfeat-uring-$$ "$WORK/dl_bogus.dat" 2>/dev/null
-  check "download --io-uring bogus: exit 0 (treated as auto)" '[ "$?" -eq 0 ]'
-  check "download --io-uring bogus: byte-exact" 'cmp -s "$WORK/uring_seed.dat" "$WORK/dl_bogus.dat"'
+  check "download --io-uring bogus: exits 50" '[ "$?" -eq 50 ]'
 
   # --io-uring on: either succeeds (kernel has uring support) or exits non-zero with no
   # partial/corrupt output file left at the final path (vfs_posix ON+unavailable contract).

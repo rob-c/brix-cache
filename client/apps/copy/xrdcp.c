@@ -456,16 +456,25 @@ main(int argc, char **argv)
                 else       { opts.no_retry = 1; }   /* 0/negative ⇒ fail fast */
             }
             else if (strncmp(a, "--io-uring=", 11) == 0) {
-                const char *m = a + 11;
-                opts.io_uring = (strcmp(m, "on") == 0)  ? XRDC_IO_URING_ON
-                              : (strcmp(m, "off") == 0) ? XRDC_IO_URING_OFF
-                                                        : XRDC_IO_URING_AUTO;
+                int v = brix_cli_parse_io_uring(a + 11);
+                if (v < 0) {
+                    fprintf(stderr, "xrdcp: --io-uring: invalid mode '%s' (use on|off|auto)\n",
+                            a + 11);
+                    usage();
+                    return 50;
+                }
+                opts.io_uring = v;
             }
             else if (strcmp(a, "--io-uring") == 0 && i + 1 < (size_t) argc) {
                 const char *m = argv[++i];
-                opts.io_uring = (strcmp(m, "on") == 0)  ? XRDC_IO_URING_ON
-                              : (strcmp(m, "off") == 0) ? XRDC_IO_URING_OFF
-                                                        : XRDC_IO_URING_AUTO;
+                int v = brix_cli_parse_io_uring(m);
+                if (v < 0) {
+                    fprintf(stderr, "xrdcp: --io-uring: invalid mode '%s' (use on|off|auto)\n",
+                            m);
+                    usage();
+                    return 50;
+                }
+                opts.io_uring = v;
             }
             else if (strcmp(a, "--tpc") == 0 && i + 1 < (size_t) argc) {
                 const char *m = argv[++i];
