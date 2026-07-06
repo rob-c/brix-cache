@@ -15,6 +15,7 @@ import json
 import os
 import socket
 import struct
+from urllib.parse import quote
 
 import requests
 import urllib3
@@ -26,6 +27,7 @@ from settings import (
     NGINX_TOKEN_PORT,
     NGINX_TOKEN_STRICT_PORT,
     NGINX_WEBDAV_PORT,
+    NGINX_WEBDAV_TOKEN_PORT,
     NGINX_S3_PORT,
     NGINX_S3_TOKEN_PORT,
     SERVER_HOST,
@@ -332,6 +334,53 @@ def webdav_bearer(token, path="/test.txt", write=False, port=None):
         if code == 404:
             return "notfound"
         # Treat any other 2xx as accept, any other 4xx/5xx as reject.
+        return "accept" if 200 <= code < 300 else "reject"
+    except requests.RequestException:
+        return "reject"
+
+
+def webdav_query_token(token, path="/test.txt", param="authz",
+                       port=NGINX_WEBDAV_TOKEN_PORT, prefix="Bearer "):
+    """Probe a WebDAV HTTPS port via query-parameter token transport.
+
+    WHAT: Issues GET with the token embedded in the URL query string rather
+          than in the Authorization header.  The server's brix_http_query_token
+          directive (default ON) extracts the token from ?authz= or
+          ?access_token= and validates it identically to the header path.
+    WHY:  WLCG token profile allows both transport modes; this helper lets
+          conformance tests verify that query-param delivery is accepted (or
+          rejected) as expected without writing bespoke URL construction in
+          every test body.
+    HOW:  quote(prefix+token) URL-encodes the value so the space in "Bearer "
+          becomes %20 and any special characters in the token are safe.
+          Verdict mapping mirrors webdav_bearer: 200/206→accept, 401/403→reject,
+          404→notfound, other 2xx→accept, other 4xx/5xx→reject.
+
+    Args:
+        token:  JWT string.
+        path:   URL path component (must start with /).
+        param:  Query parameter name ("authz" or "access_token").
+        port:   Target port (default: NGINX_WEBDAV_TOKEN_PORT = 8446).
+        prefix: String prepended to the token in the query value; use
+                "Bearer " for header-like encoding, "" for a raw JWT.
+
+    Returns:
+        "accept", "reject", or "notfound".
+    """
+    ensure_conformance_data()
+    url = (
+        f"https://{SERVER_HOST}:{port}{path}"
+        f"?{param}={quote(prefix + token)}"
+    )
+    try:
+        resp = requests.get(url, verify=False, timeout=5)
+        code = resp.status_code
+        if code in (200, 206):
+            return "accept"
+        if code in (401, 403):
+            return "reject"
+        if code == 404:
+            return "notfound"
         return "accept" if 200 <= code < 300 else "reject"
     except requests.RequestException:
         return "reject"
