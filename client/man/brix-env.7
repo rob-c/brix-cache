@@ -1,0 +1,208 @@
+.TH BRIX-ENV 7 "2026" "nginx-xrootd" "BriX Client Environment"
+.SH NAME
+brix\-env \- environment variables recognised by the BriX client tools
+.SH DESCRIPTION
+The BriX client tools (xrdcp, xrdfs, xrddiag, xrdcksum, xrdprep, brixMount,
+and friends) honour the variables listed in this page.
+.PP
+\fBAlias chains.\fR
+Some concepts have both a canonical \fBXRDC_*\fR name and one or more legacy
+\fBXrdSec*\fR names for backwards compatibility.
+The canonical name always takes precedence.
+When two names in the same chain are set to \fIdifferent\fR values and stderr
+is an interactive terminal, the tools emit exactly one note line naming both
+variables and the winner; no note is emitted to non-interactive stderr (pipes,
+cron jobs, redirected output).
+Set \fBBRIX_NO_HINTS\fR to suppress all such notes.
+.PP
+\fBSecret safety.\fR
+Divergence notes print only variable \fInames\fR, never values.
+.SH CREDENTIAL VARIABLES
+.TP
+.B XRDC_SSS_KEYTAB
+.TQ
+.B XrdSecSSSKT
+.TQ
+.B XrdSecsssKT
+Path to the SSS keytab file.
+Canonical: \fBXRDC_SSS_KEYTAB\fR (highest precedence); legacy aliases are
+\fBXrdSecSSSKT\fR and \fBXrdSecsssKT\fR (differ only by case of "sss").
+Default: \fI~/.xrd/sss.keytab\fR.
+Consumers: all tools that use SSS authentication.
+.TP
+.B XRDC_PWD
+.TQ
+.B XrdSecCREDS
+Password credential for the \fBpwd\fR auth module.
+\fBXRDC_PWD\fR is a literal plaintext password (canonical, highest precedence).
+\fBXrdSecCREDS\fR is the stock hex-encoded blob with layout
+\fI"&pwd"\ex00<4-byte-prefix><password>\fR.
+Both remain accepted forever.
+Default: none (password auth disabled when unset).
+Consumers: \fBxrdcp\fR, \fBxrdfs\fR, and any tool that connects to a pwd-secured server.
+.TP
+.B XRDC_PWD_USER
+Username for \fBpwd\fR authentication.
+No legacy alias.
+Falls back to \fBUSER\fR when unset.
+Consumers: same as \fBXRDC_PWD\fR above.
+.TP
+.B BEARER_TOKEN
+Standard bearer (SciToken/WLCG) token value as a literal string.
+No alias added (ecosystem convention, not ours to fork).
+Default: none.
+Consumers: \fBxrdcp\fR, \fBxrdfs\fR, \fBxrddiag\fR, \fBxrootdfs\fR.
+.TP
+.B BEARER_TOKEN_FILE
+Path to a file containing a bearer token.
+No alias added (ecosystem convention).
+Default: none.
+Consumers: same as \fBBEARER_TOKEN\fR.
+.TP
+.B X509_USER_PROXY
+Path to a GSI proxy certificate.
+No alias added (standard VOMS/GSI ecosystem variable).
+Default: \fI/tmp/x509up_u<UID>\fR.
+Consumers: all tools that use GSI authentication.
+.TP
+.B X509_USER_CERT
+Path to the user GSI certificate.
+No alias added.
+Default: \fI~/.globus/usercert.pem\fR.
+Consumers: \fBxrdgsiproxy\fR, \fBxrdgsitest\fR, GSI auth.
+.TP
+.B X509_USER_KEY
+Path to the user GSI private key.
+No alias added.
+Default: \fI~/.globus/userkey.pem\fR.
+Consumers: same as \fBX509_USER_CERT\fR.
+.TP
+.B KRB5CCNAME
+Kerberos 5 credential cache name.
+No alias added (standard MIT/Heimdal variable).
+Default: inherited from Kerberos runtime.
+Consumers: tools built with \fBBRIX_HAVE_KRB5\fR (Kerberos optional dep).
+.TP
+.B AWS_ACCESS_KEY_ID
+.TQ
+.B AWS_SECRET_ACCESS_KEY
+.TQ
+.B AWS_SESSION_TOKEN
+S3/SigV4 credentials.
+No aliases added (AWS ecosystem convention).
+Default: none.
+Consumers: S3 protocol path (xrdcp to s3:// endpoints, xrdstorascan).
+.SH TUNING VARIABLES
+These are canonical \fBXRDC_*\fR names with no legacy aliases.
+.TP
+.B XRDC_MAX_STALL_MS
+Maximum milliseconds to wait for a stalled read before declaring the
+connection dead (integer).
+Default: 30000 (30 s).
+Consumers: all tools that use the root:// connection layer.
+.TP
+.B XRDC_IO_URING
+Set to \fB1\fR to enable the io_uring async I/O engine when the build
+includes \fBliburing\fR support.
+Default: \fB0\fR (disabled; epoll/pread path used).
+Consumers: xrdcp, xrdfs, and the library's AIO layer.
+.TP
+.B XRDC_IO_URING_LOOP
+Maximum number of io_uring completions to process per event loop tick.
+Default: \fB64\fR.
+Consumers: same as \fBXRDC_IO_URING\fR.
+.TP
+.B XRDC_NO_IPV6_FALLBACK
+Set to \fB1\fR to disable the automatic IPv4 fallback when an IPv6 connect
+fails.
+Default: \fB0\fR (fallback enabled).
+Consumers: all tools that resolve hostnames.
+.TP
+.B XRDC_BACKOFF_BASE_MS
+Base retry backoff in milliseconds (doubles on each retry).
+Default: \fB500\fR.
+Consumers: resilient connection layer.
+.TP
+.B XRDC_GSI_VERSION
+Override the GSI protocol version advertised during the handshake.
+Default: determined by the server's capability flags.
+Consumers: GSI authentication.
+.TP
+.B XRDC_GSI_DELEGATE
+Set to \fB1\fR to request GSI proxy delegation during the handshake.
+Default: \fB0\fR.
+Consumers: GSI authentication (xrdcp, xrdfs, xrdgsitest).
+.SH TOOL-SPECIFIC VARIABLES
+.TP
+.B XRDSTORASCAN_PASSWORD
+Dashboard password for \fBxrdstorascan\fR's reporting endpoint.
+No alias.
+Default: none.
+Consumers: \fBxrdstorascan\fR only.
+.TP
+.B OIDC_ACCOUNT
+OIDC account name for token refresh.
+No alias.
+Default: none.
+Consumers: \fBxrddiag\fR token-refresh subcommand.
+.TP
+.B XRDRC
+Override path for the \fI~/.xrdrc\fR endpoint-alias file.
+No alias.
+Default: \fI~/.xrdrc\fR.
+Consumers: all tools (alias resolution at startup).
+.TP
+.B BRIX_VMP
+Override the virtual mount point advertised by the brixMount FUSE driver.
+No alias.
+Default: determined from the mount target directory.
+Consumers: \fBbrixMount\fR, \fBxrootdfs\fR.
+.TP
+.B BRIXCVMFS_CACHE_DIR
+Override the directory used for the CVMFS chunk cache.
+No alias.
+Default: \fI~/.cache/brixcvmfs\fR (or \fBTMPDIR\fR/\fBbrixcvmfs\fR when
+\fI~/.cache\fR is not writable).
+Consumers: \fBbrixMount cvmfs\fR, \fBbrixMount cvmfs-rw\fR.
+.TP
+.B BRIXCVMFS_CACHE_SIZE_MB
+Maximum size of the CVMFS chunk cache in MiB.
+No alias.
+Default: \fB4096\fR.
+Consumers: \fBbrixMount cvmfs\fR, \fBbrixMount cvmfs-rw\fR.
+.TP
+.B BRIXCVMFS_REPOS
+Colon-separated list of CVMFS repository names to pre-populate at mount time.
+No alias.
+Default: none (repositories are discovered on access).
+Consumers: \fBbrixMount cvmfs\fR.
+.TP
+.B TMPDIR
+Standard POSIX temporary directory.
+No alias.
+Used by tools that create staging areas or credential temporary files.
+Default: \fI/tmp\fR.
+.SH HINT SUPPRESSION
+.TP
+.B BRIX_NO_HINTS
+Set to any value other than \fB0\fR to suppress all TTY-gated hints and notes.
+Set to \fB0\fR or leave unset to enable hints on interactive terminals.
+This variable is checked once per process at startup; changing it mid-process
+has no effect.
+.SH FILES
+.TP
+.I ~/.xrdrc
+Endpoint alias file; override with \fBXRDRC\fR.
+.TP
+.I ~/.xrd/sss.keytab
+Default SSS keytab location; override with \fBXRDC_SSS_KEYTAB\fR.
+.TP
+.I /tmp/x509up_u<UID>
+Default GSI proxy location; override with \fBX509_USER_PROXY\fR.
+.SH SEE ALSO
+.BR xrd (1),
+.BR xrdcp (1),
+.BR xrdfs (1),
+.BR xrddiag (1),
+.BR xrdgsiproxy (1),
+.BR brixMount (1)
