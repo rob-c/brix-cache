@@ -19,6 +19,7 @@
  */
 #include "sec.h"
 #include "auth/gsi/gsi_core.h"     /* shared DH + cipher + bucket kernels (-I src) */
+#include "core/config/envalias.h"  /* alias resolver (WS-1) */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,11 +41,23 @@ static EVP_PKEY *g_pwd_key;             /* our DH keypair                       
 static uint8_t   g_pwd_pass[256];       /* the plaintext password (round 2)     */
 static size_t    g_pwd_pass_len;
 
+/* Alias chain for the password credential (WS-1, canonical first). */
+static const char *const pwd_chain[] = { "XRDC_PWD", "XrdSecCREDS", NULL };
+
 static int
 pwd_have(brix_conn *c)
 {
+    /*
+     * WHAT: check whether a password credential is available.
+     * WHY:  the auth dispatch calls this before attempting the pwd handshake;
+     *       using brix_env_resolve keeps chain precedence consistent with the
+     *       loader below.
+     * HOW:  resolve the chain; any non-empty value counts as "have password".
+     */
+    const char *v;
     (void) c;
-    return getenv("XRDC_PWD") != NULL || getenv("XrdSecCREDS") != NULL;
+    v = brix_env_resolve(pwd_chain, NULL);
+    return v != NULL && v[0] != '\0';
 }
 
 /* Hex-decode in place into out (cap bytes); returns bytes or -1. */
@@ -67,17 +80,30 @@ pwd_unhex(const char *hex, uint8_t *out, size_t cap)
 }
 
 /*
- * Resolve the plaintext password into g_pwd_pass.  Priority: XRDC_PWD (literal),
- * else the stock XrdSecCREDS hex blob ("&pwd""\0"<4-byte pfx><password>).
+ * Resolve the plaintext password into g_pwd_pass.  Priority: XRDC_PWD
+ * (literal, highest precedence), then XrdSecCREDS hex blob
+ * ("&pwd""\0"<4-byte pfx><password>).  Uses brix_env_resolve so legacy
+ * environments (XrdSecCREDS only) behave identically and a TTY note fires
+ * when both are set to different values.
  * Returns 0 on success, -1 if none usable.
  */
 static int
 pwd_load_password(void)
 {
-    const char *p = getenv("XRDC_PWD");
+    const char *which = NULL;
+    const char *p     = brix_env_resolve(pwd_chain, &which);
     const char *creds;
 
-    if (p != NULL && p[0] != '\0') {
+    /*
+     * WHAT: dispatch by which name won so literal vs hex-blob handling is
+     *       correct regardless of which env var the user set.
+     * WHY:  XRDC_PWD stores the plaintext literal; XrdSecCREDS stores a hex-
+     *       encoded blob with a fixed header — they need different decoders.
+     * HOW:  check which name matched; if canonical (XRDC_PWD) treat as literal;
+     *       otherwise treat as XrdSecCREDS blob.
+     */
+    if (p != NULL && p[0] != '\0' && which != NULL
+        && strcmp(which, "XRDC_PWD") == 0) {
         size_t l = strlen(p);
         if (l > sizeof(g_pwd_pass)) {
             l = sizeof(g_pwd_pass);
@@ -87,8 +113,10 @@ pwd_load_password(void)
         return 0;
     }
 
-    creds = getenv("XrdSecCREDS");
-    if (creds != NULL && creds[0] != '\0') {
+    /* Reaching here means XRDC_PWD was not set (or empty); use the blob path
+     * with whatever value the resolver returned (XrdSecCREDS or nothing). */
+    creds = (p != NULL && p[0] != '\0') ? p : NULL;
+    if (creds != NULL) {
         uint8_t  raw[512];
         int      n = pwd_unhex(creds, raw, sizeof(raw));
         uint8_t *pwd;

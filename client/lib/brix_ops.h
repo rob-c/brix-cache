@@ -190,6 +190,16 @@ ssize_t brix_rfile_pread (brix_rfile *rf, int64_t off, void *buf, size_t len, br
 int     brix_rfile_pwrite(brix_rfile *rf, int64_t off, const void *buf, size_t len, brix_status *st);
 int     brix_rfile_close (brix_rfile *rf, brix_status *st);
 
+/* ---- cksum_manifest.c ---- */
+/* Parse one line of the sha256sum-style tree-audit manifest: "<hex>  <rel>\n".
+ * Two spaces separate the hex digest from the relative path; the trailing newline
+ * (or CRLF) is stripped.  Returns 0 on success with hex[hexsz] and rel[relsz]
+ * filled (NUL-terminated); returns -1 when the line is malformed (no double-space
+ * separator, non-hex digest chars, empty rel, oversized fields) or when the rel
+ * path is unsafe (brix_rel_is_unsafe: absolute or contains ".."). */
+int brix_ckmf_parse_line(const char *line, char *hex, size_t hexsz,
+                         char *rel, size_t relsz);
+
 /* ---- checksum.c ---- */
 typedef enum {
     XRDC_CK_ADLER32 = 0,

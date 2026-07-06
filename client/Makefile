@@ -98,7 +98,7 @@ LDLIBS := -lssl -lcrypto -lz $(KRB5_LIBS) $(CODEC_LIBS) $(URING_LIBS)
 # the single source of truth for the build; every .c must be listed (no wildcards).
 LIB_SRCS   := \
   lib/core/aio/aio.c lib/core/aio/aio_buffers.c lib/core/aio/aio_conn.c lib/core/aio/aio_engine.c lib/core/aio/aio_io.c lib/core/aio/aio_mgr.c lib/core/aio/uring.c \
-  lib/core/config/xrdrc.c \
+  lib/core/config/xrdrc.c lib/core/config/envalias.c \
   lib/core/types/status.c lib/core/types/units.c \
   lib/net/conn.c lib/net/netdiag.c lib/net/netpref.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/url.c \
   ../shared/net/proxy_env.c ../shared/net/proxy_connect.c \
@@ -112,10 +112,10 @@ LIB_SRCS   := \
   lib/protocols/root/frame.c lib/protocols/root/ops_ext.c lib/protocols/root/ops_file.c lib/protocols/root/ops_file_pg.c lib/protocols/root/ops_file_rw.c lib/protocols/root/ops_fs.c lib/protocols/root/ops_meta.c \
   lib/protocols/http/http.c lib/protocols/http/http_download.c lib/protocols/http/http_req.c lib/protocols/http/http_upload.c lib/protocols/http/webfile.c lib/protocols/http/webfile_io.c lib/protocols/http/weblist.c \
   lib/protocols/s3/s3.c \
-  lib/protocols/shared/checksum.c lib/protocols/shared/cks_verify.c lib/protocols/shared/zip.c lib/protocols/shared/zip_write.c \
+  lib/protocols/shared/checksum.c lib/protocols/shared/cks_verify.c lib/protocols/shared/cksum_manifest.c lib/protocols/shared/zip.c lib/protocols/shared/zip_write.c \
   lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_filter.c lib/xfer/copy_local.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_remote.c lib/xfer/copy_zip.c \
   lib/posix/fuse_ops.c lib/posix/posix_map.c \
-  lib/cli/cli_cksum.c lib/cli/cli_conn.c lib/cli/cli_cred.c lib/cli/cli_opts.c lib/cli/jsonout.c lib/cli/xferjournal.c \
+  lib/cli/cli_cksum.c lib/cli/cli_conn.c lib/cli/cli_cred.c lib/cli/cli_hint.c lib/cli/cli_opts.c lib/cli/jsonout.c lib/cli/xferjournal.c \
   lib/observability/capture.c lib/observability/trace.c \
   lib/observability/metabench/metabench.c lib/observability/metabench/metabench_run.c
 LIB_OBJS   := $(LIB_SRCS:.c=.o)
@@ -183,7 +183,7 @@ xrddiag_OBJS      := apps/diag/xrddiag.o apps/diag/diag_check.o apps/diag/diag_b
                      apps/diag/xrdqstats.o apps/diag/wait41.o apps/diag/mpxstats.o
 xrdstorascan_OBJS := apps/scan/xrdstorascan.o apps/scan/storascan_core.o
 xrdstorascan_LDLIBS := -lm
-xrdcksum_OBJS     := apps/cksum/xrdcksum.o apps/cksum/xrdckverify.o apps/cksum/xrdcinfo.o
+xrdcksum_OBJS     := apps/cksum/xrdcksum.o apps/cksum/xrdckverify.o apps/cksum/xrdcinfo.o apps/cksum/xrdcktree.o
 xrdgsiproxy_OBJS  := apps/auth/xrdgsiproxy.o
 xrdgsitest_OBJS   := apps/auth/xrdgsitest.o
 xrdsssadmin_OBJS  := apps/auth/xrdsssadmin.o
@@ -426,10 +426,10 @@ install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES)
 # vfs_s3_smoke is excluded (needs an external S3 endpoint; run it manually).
 # Each test is a standalone main() linking the client lib + libxrdproto, the
 # same recipe as the Build+run comment in each test's header.
-CLIENT_UNIT_TESTS := cli_cred_unit cred_unit cred_store_unit vfs_posix_unit vfs_block_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit
+CLIENT_UNIT_TESTS := cli_cred_unit cred_unit cred_store_unit vfs_posix_unit vfs_block_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit ckmanifest_unit envalias_unit
 # The tests predate the phase-69 bucket reshuffle and include bucket-local
 # headers bare ("cred.h"); add the bucket dirs rather than churning the tests.
-TEST_INC := -Ilib/auth/cred -Ilib/auth/sss -Ilib/fs -Ilib/cli -Ilib/core/types -Ilib/net
+TEST_INC := -Ilib/auth/cred -Ilib/auth/sss -Ilib/fs -Ilib/cli -Ilib/core/types -Ilib/core/config -Ilib/net
 # The cred-handler and vfs-backend registries are weak-symbol accessors: a
 # plain static-archive link would not extract their defining objects (weak
 # refs do not force member extraction; the registry would see NULL slots), so

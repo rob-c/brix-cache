@@ -489,6 +489,78 @@ section_cat_compress() {
   "$BIN/xrdfs" "$URL" rm "$FPATH" >/dev/null 2>&1 || true
 }
 
+section_cksum_tree() {
+  echo "== xrdcksum tree + check (local) =="
+  local T="$WORK/ckst"
+  mkdir -p "$T/src/sub" "$T/out"
+
+  # Seed a 3-file tree with known content.
+  printf 'alpha\n'   > "$T/src/a.dat"
+  printf 'bravo\n'   > "$T/src/sub/b.dat"
+  printf 'charlie\n' > "$T/src/sub/c.dat"
+
+  # tree: produces a 3-line manifest.
+  "$BIN/xrdcksum" tree "$T/src" -o "$T/manifest"
+  check "tree: exit 0 on clean local tree" '[ "$?" -eq 0 ]'
+  check "tree: manifest has 3 lines"       '[ "$(wc -l < "$T/manifest")" -eq 3 ]'
+  # All lines must match the two-space format "<hex>  <rel>".
+  check "tree: each line has two-space separator" \
+    'grep -qE "^[0-9a-f]+  [^/]" "$T/manifest"'
+
+  # check: all-OK exits 0.
+  "$BIN/xrdcksum" check "$T/manifest" "$T/src"
+  check "check: exit 0 when all match" '[ "$?" -eq 0 ]'
+
+  # check: tamper one file → exit 1 and FAILED names the rel path.
+  printf 'TAMPERED\n' > "$T/src/a.dat"
+  local out
+  out=$("$BIN/xrdcksum" check "$T/manifest" "$T/src" 2>/dev/null)
+  local rc=$?
+  check "check: exit 1 on mismatch"         '[ '"$rc"' -eq 1 ]'
+  check "check: FAILED line names the file"  'echo "$out" | grep -q "^FAILED a.dat"'
+  check "check: two OK lines for untampered" '[ "$(echo "$out" | grep -c "^OK ")" -eq 2 ]'
+
+  # security-negative: inject an escaping rel path → malformed, exit 2, no file outside tree touched.
+  local GUARD_FILE="$T/guard_$$"
+  printf 'canary' > "$GUARD_FILE"
+  # Build a manifest with a path-escape line appended.
+  cp "$T/manifest" "$T/bad_manifest"
+  printf '03e51f2a  ../../guard_%d\n' "$$" >> "$T/bad_manifest"
+  "$BIN/xrdcksum" check "$T/bad_manifest" "$T/src" 2>/dev/null
+  check "check: exit 2 on malformed manifest line" '[ "$?" -eq 2 ]'
+  check "security: escape line rejected, guard file untouched" \
+    '[ "$(cat "$GUARD_FILE")" = "canary" ]'
+
+  # Fleet-gated: remote tree output matches local manifest of identical content.
+  echo "== xrdcksum tree (fleet, remote) =="
+  if ! have_fleet; then
+    echo "  SKIP remote tree tests (no fleet at $URL)"
+    return
+  fi
+
+  local RDIR="/tmp/cfeat-$$-cktree"
+  # Upload the original (pre-tamper) 3-file tree to the fleet.
+  mkdir -p "$T/orig/sub"
+  printf 'alpha\n'   > "$T/orig/a.dat"
+  printf 'bravo\n'   > "$T/orig/sub/b.dat"
+  printf 'charlie\n' > "$T/orig/sub/c.dat"
+  "$BIN/xrdcp" -r "$T/orig/" "${URL}//${RDIR}/" >/dev/null 2>&1
+  check "fleet tree: upload succeeded" '[ "$?" -eq 0 ]'
+
+  # Generate remote manifest and local manifest, sort both, compare.
+  "$BIN/xrdcksum" tree "${URL}//${RDIR}" -o "$T/remote_manifest"
+  check "fleet tree: remote tree exits 0" '[ "$?" -eq 0 ]'
+
+  "$BIN/xrdcksum" tree "$T/orig" -o "$T/local_manifest"
+  sort "$T/remote_manifest" > "$T/remote_sorted"
+  sort "$T/local_manifest"  > "$T/local_sorted"
+  check "fleet tree: remote manifest matches local" \
+    'cmp -s "$T/remote_sorted" "$T/local_sorted"'
+
+  # Cleanup remote scratch.
+  "$BIN/xrdfs" "$URL" rm -r "$RDIR" >/dev/null 2>&1 || true
+}
+
 main() {
   section_dryrun_filters
   section_sync_modes
@@ -499,6 +571,7 @@ main() {
   section_xrdfs_json
   section_tail_follow
   section_cat_compress
+  section_cksum_tree
   echo "client-features: $PASS pass, $FAIL fail"
   [ "$FAIL" -eq 0 ]
 }
