@@ -104,6 +104,22 @@ report(const char *source)
     printf("(%d metric name(s), %ld series)\n", g_n, total);
 }
 
+/*
+ * usage_fp — print mpxstats usage to the given stream.
+ * WHY: --help goes to stdout (WS-2); -h keeps the legacy stderr path (C1).
+ *      Both now include the footer. Returns rc so callers can write
+ *      `return usage_fp(stderr, 0)`.
+ */
+static int
+usage_fp(FILE *out, int rc)
+{
+    fprintf(out,
+        "usage: mpxstats [host | -] [--metrics-port N]\n"
+        "  no host (or '-') reads a /metrics blob from stdin\n"
+        BRIX_USAGE_FOOTER("mpxstats"));
+    return rc;
+}
+
 /* Real main; dispatched from xrddiag (multi-call, see xrddiag.c). */
 int
 brix_mpxstats_main(int argc, char **argv)
@@ -119,10 +135,7 @@ brix_mpxstats_main(int argc, char **argv)
             return 0;
         }
         if (strcmp(argv[1], "--help") == 0) {
-            printf("usage: mpxstats [host | -] [--metrics-port N]\n"
-                   "  no host (or '-') reads a /metrics blob from stdin\n"
-                   BRIX_USAGE_FOOTER("mpxstats"));
-            return 0;
+            return usage_fp(stdout, 0);
         }
     }
 
@@ -131,10 +144,8 @@ brix_mpxstats_main(int argc, char **argv)
         if (strcmp(a, "--metrics-port") == 0 && i + 1 < argc) {
             metrics_port = atoi(argv[++i]);
         } else if (strcmp(a, "-h") == 0) {
-            /* -h keeps existing stderr path (C1). */
-            fprintf(stderr, "usage: mpxstats [host | -] [--metrics-port N]\n"
-                            "  no host (or '-') reads a /metrics blob from stdin\n");
-            return 0;
+            /* -h keeps the legacy stderr path (C1); footer now included. */
+            return usage_fp(stderr, 0);
         } else if (host == NULL) {
             host = a;
         }

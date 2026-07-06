@@ -109,6 +109,16 @@ def test_version_no_sensitive_data(tool):
         )
 
 
+@pytest.mark.parametrize("tool", ["xrdcp", "xrdfs", "xrddiag", "wait41"])
+def test_help_extra_arg_exits_0(tool):
+    """--help with a trailing extra arg exits 0 (help fires before remaining
+    args are parsed) and writes non-empty text to stdout.  Confirmed against
+    current binaries: all four exit 0 with usage on stdout."""
+    rc, out, _err = _run(tool, "--help", "extra")
+    assert rc == 0, f"{tool} --help extra exited {rc} (current behavior)"
+    assert out.strip(), f"{tool} --help extra produced empty stdout"
+
+
 def test_xrdcp_help_stdout_golden():
     """xrdcp --help writes to stdout (not stderr) and contains key flags."""
     rc, out, err = _run("xrdcp", "--help")
