@@ -38,12 +38,26 @@ def _rsa_jwk(pub, kid):
 
 
 def _ec_jwk(pub, kid):
+    """Build an EC JWK entry for pub, supporting P-256, P-384, and P-521.
+
+    WHAT: Serialises an EC public key into a JSON Web Key dict.
+    WHY:  write_jwks handles RSA and EC uniformly; EC entry parameters vary
+          (coordinate byte size, crv name, alg label) per curve.
+    HOW:  Map curve.name to (coord_size_bytes, crv_name, alg_name); encode x/y
+          as fixed-width big-endian base64url per RFC 7518 §6.2.1.2.
+    """
+    _CURVE_PARAMS = {
+        "secp256r1": (32, "P-256",  "ES256"),
+        "secp384r1": (48, "P-384",  "ES384"),
+        "secp521r1": (66, "P-521",  "ES512"),
+    }
+    size, crv_name, alg_name = _CURVE_PARAMS.get(
+        pub.curve.name, (32, "P-256", "ES256"))
     nums = pub.public_numbers()
-    size = 32  # P-256
     def b(i):
         return _b64url(i.to_bytes(size, "big"))
-    return {"kty": "EC", "kid": kid, "use": "sig", "alg": "ES256",
-            "crv": "P-256", "x": b(nums.x), "y": b(nums.y)}
+    return {"kty": "EC", "kid": kid, "use": "sig", "alg": alg_name,
+            "crv": crv_name, "x": b(nums.x), "y": b(nums.y)}
 
 
 def write_jwks(path, entries):
@@ -273,12 +287,170 @@ class TokenForge(TokenIssuer):
             self._ec_key = key
         return self._ec_key
 
+    @property
+    def weak_rsa_key(self):
+        """Lazily load or create {token_dir}/signing_key_weak_rsa.pem (RSA-1024, kid weak-rsa).
+
+        WHY: Rule 50 — undersized RSA key (< 2048-bit) must be rejected by a
+             conformant verifier either by key-size policy or by not including
+             the weak-rsa kid in the served JWKS.
+        """
+        if hasattr(self, "_weak_rsa_key"):
+            return self._weak_rsa_key
+        path = os.path.join(self.token_dir, "signing_key_weak_rsa.pem")
+        if os.path.exists(path):
+            with open(path, "rb") as fh:
+                self._weak_rsa_key = serialization.load_pem_private_key(
+                    fh.read(), password=None)
+        else:
+            os.makedirs(self.token_dir, exist_ok=True)
+            key = rsa.generate_private_key(public_exponent=65537, key_size=1024)
+            pem = key.private_bytes(serialization.Encoding.PEM,
+                                    serialization.PrivateFormat.TraditionalOpenSSL,
+                                    serialization.NoEncryption())
+            tmp = path + f".tmp.{os.getpid()}"
+            try:
+                with open(tmp, "wb") as fh:
+                    fh.write(pem)
+                os.chmod(tmp, 0o400)
+                os.replace(tmp, path)
+            finally:
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+            self._weak_rsa_key = key
+        return self._weak_rsa_key
+
+    @property
+    def ec_p384_key(self):
+        """Lazily load or create {token_dir}/signing_key_ec_p384.pem (EC SECP384R1, kid ec-p384).
+
+        WHY: Rule 48 / es256_wrong_curve — provides a P-384 key used both as a
+             valid ES384 signer and as the mismatch key for the curve-confusion
+             mint method.
+        """
+        if hasattr(self, "_ec_p384_key"):
+            return self._ec_p384_key
+        path = os.path.join(self.token_dir, "signing_key_ec_p384.pem")
+        if os.path.exists(path):
+            with open(path, "rb") as fh:
+                self._ec_p384_key = serialization.load_pem_private_key(
+                    fh.read(), password=None)
+        else:
+            os.makedirs(self.token_dir, exist_ok=True)
+            key = ec.generate_private_key(ec.SECP384R1())
+            pem = key.private_bytes(serialization.Encoding.PEM,
+                                    serialization.PrivateFormat.TraditionalOpenSSL,
+                                    serialization.NoEncryption())
+            tmp = path + f".tmp.{os.getpid()}"
+            try:
+                with open(tmp, "wb") as fh:
+                    fh.write(pem)
+                os.chmod(tmp, 0o400)
+                os.replace(tmp, path)
+            finally:
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+            self._ec_p384_key = key
+        return self._ec_p384_key
+
+    @property
+    def ec_p521_key(self):
+        """Lazily load or create {token_dir}/signing_key_ec_p521.pem (EC SECP521R1, kid ec-p521).
+
+        WHY: ES512 algorithm requires a P-521 key; this property provides it for
+             the es512() mint method and the ALG-family JWKS.
+        """
+        if hasattr(self, "_ec_p521_key"):
+            return self._ec_p521_key
+        path = os.path.join(self.token_dir, "signing_key_ec_p521.pem")
+        if os.path.exists(path):
+            with open(path, "rb") as fh:
+                self._ec_p521_key = serialization.load_pem_private_key(
+                    fh.read(), password=None)
+        else:
+            os.makedirs(self.token_dir, exist_ok=True)
+            key = ec.generate_private_key(ec.SECP521R1())
+            pem = key.private_bytes(serialization.Encoding.PEM,
+                                    serialization.PrivateFormat.TraditionalOpenSSL,
+                                    serialization.NoEncryption())
+            tmp = path + f".tmp.{os.getpid()}"
+            try:
+                with open(tmp, "wb") as fh:
+                    fh.write(pem)
+                os.chmod(tmp, 0o400)
+                os.replace(tmp, path)
+            finally:
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+            self._ec_p521_key = key
+        return self._ec_p521_key
+
     # --- signing helper: RSA-sign an arbitrary (header, payload) ------
     def _sign_with_header(self, header, payload, key=None):
         """RS256-sign header+payload.  key defaults to self.private_key."""
         k = key if key is not None else self.private_key
         signing_input = (_seg(header) + "." + _seg(payload)).encode("ascii")
         sig = k.sign(signing_input, padding.PKCS1v15(), hashes.SHA256())
+        return signing_input.decode("ascii") + "." + _b64url(sig)
+
+    # --- generic signing helper for the ALG family --------------------
+    def _sign_generic(self, alg, key, payload=None, header_extra=None, kid=None):
+        """Build and sign a compact JWS using any JWA algorithm family.
+
+        WHAT: Constructs header={alg,typ="JWT"[,kid][,...header_extra]} +
+              payload (defaults to _base_claims()), signs the
+              base64url(header).base64url(payload) input, and returns the
+              compact serialisation.
+        WHY:  Mint methods for PS/ES384-512/HS variants share all mechanics
+              except the hash/padding selection; this helper centralises that
+              dispatch so each public method is a one-liner.
+        HOW:  Dispatch by alg.upper():
+              RS256/384/512  → PKCS1v15 + SHA-{256,384,512}
+              PS256/384/512  → PSS(MGF1(SHA-N), MAX_LENGTH) + SHA-N
+              ES256/384/512  → ECDSA(SHA-N) → DER decoded → P1363 R‖S
+                               with fixed coord widths 32/48/66 bytes.
+              HS256/384/512  → HMAC-SHA-N (key must be bytes).
+              Unknown alg    → falls back to PKCS1v15+SHA256 (label mismatch
+                               tests like alg_variant/alg_unsupported).
+        """
+        hdr = {"alg": alg, "typ": "JWT"}
+        if kid is not None:
+            hdr["kid"] = kid
+        if header_extra:
+            hdr.update(header_extra)
+        if payload is None:
+            payload = self._base_claims()
+        signing_input = (_seg(hdr) + "." + _seg(payload)).encode("ascii")
+
+        alg_key = alg.upper()
+
+        if alg_key in ("RS256", "RS384", "RS512"):
+            _hash = {"RS256": hashes.SHA256, "RS384": hashes.SHA384,
+                     "RS512": hashes.SHA512}[alg_key]
+            sig = key.sign(signing_input, padding.PKCS1v15(), _hash())
+        elif alg_key in ("PS256", "PS384", "PS512"):
+            _hash = {"PS256": hashes.SHA256, "PS384": hashes.SHA384,
+                     "PS512": hashes.SHA512}[alg_key]
+            sig = key.sign(signing_input,
+                           padding.PSS(mgf=padding.MGF1(_hash()),
+                                       salt_length=padding.PSS.MAX_LENGTH),
+                           _hash())
+        elif alg_key in ("ES256", "ES384", "ES512"):
+            _hash = {"ES256": hashes.SHA256, "ES384": hashes.SHA384,
+                     "ES512": hashes.SHA512}[alg_key]
+            _sz   = {"ES256": 32, "ES384": 48, "ES512": 66}[alg_key]
+            der = key.sign(signing_input, ec.ECDSA(_hash()))
+            r, s = decode_dss_signature(der)
+            sig = r.to_bytes(_sz, "big") + s.to_bytes(_sz, "big")
+        elif alg_key in ("HS256", "HS384", "HS512"):
+            _hash_fn = {"HS256": hashlib.sha256, "HS384": hashlib.sha384,
+                        "HS512": hashlib.sha512}[alg_key]
+            sig = hmac.new(key, signing_input, _hash_fn).digest()
+        else:
+            # Unknown alg label: RSA PKCS1v15+SHA256 so the structure is valid
+            # but the header alg string is a deliberate mismatch.
+            sig = key.sign(signing_input, padding.PKCS1v15(), hashes.SHA256())
+
         return signing_input.decode("ascii") + "." + _b64url(sig)
 
     # --- ES256 signing helper (P1363 encoding, not DER) ----------------
@@ -338,6 +510,119 @@ class TokenForge(TokenIssuer):
         h = {"alg": "RS256", "typ": "JWT", "kid": kid}
         return self._sign_with_header(h, self._base_claims())
 
+    # --- ALG-family mint methods (RFC 7518 §3, RFC 8725 §2.2, rules 43–56) ---
+
+    def rs384(self):
+        """Valid RS384 token signed by the main RSA key (kid test-key-1)."""
+        return self._sign_generic("RS384", self.private_key, kid="test-key-1")
+
+    def rs512(self):
+        """Valid RS512 token signed by the main RSA key (kid test-key-1)."""
+        return self._sign_generic("RS512", self.private_key, kid="test-key-1")
+
+    def ps256(self):
+        """Valid PS256 (RSA-PSS SHA-256) token signed by the main RSA key."""
+        return self._sign_generic("PS256", self.private_key, kid="test-key-1")
+
+    def ps384(self):
+        """Valid PS384 (RSA-PSS SHA-384) token signed by the main RSA key."""
+        return self._sign_generic("PS384", self.private_key, kid="test-key-1")
+
+    def ps512(self):
+        """Valid PS512 (RSA-PSS SHA-512) token signed by the main RSA key."""
+        return self._sign_generic("PS512", self.private_key, kid="test-key-1")
+
+    def es384(self):
+        """Valid ES384 token signed by the P-384 key (kid ec-p384).
+
+        ACCEPT when the verifying JWKS includes ec-p384; REJECT when the server
+        does not list PS/ES384 as an accepted algorithm (config-dependent).
+        """
+        return self._sign_generic("ES384", self.ec_p384_key, kid="ec-p384")
+
+    def es512(self):
+        """Valid ES512 token signed by the P-521 key (kid ec-p521).
+
+        ACCEPT when the verifying JWKS includes ec-p521; REJECT when the server
+        restricts accepted algorithms to RS256/ES256 only.
+        """
+        return self._sign_generic("ES512", self.ec_p521_key, kid="ec-p521")
+
+    def es256_wrong_curve(self):
+        """ES256 header but signed with the P-384 key — curve/alg mismatch (rule 48).
+
+        WHAT: Header declares alg=ES256 (implying P-256 with SHA-256) but the
+              signing key is P-384.  Signature uses actual ES384 mechanics
+              (SHA-384, 96-byte P1363 R‖S) so the token is structurally valid.
+        WHY:  A conformant verifier resolves kid=ec-p384 to a P-384 key and must
+              reject because the header alg (ES256) contradicts the key's curve.
+        HOW:  Build the header with alg=ES256, sign with P-384/SHA-384 so r,s
+              are 48-byte quantities; the resulting signature is 96 bytes rather
+              than the 64 bytes ES256 mandates — a correct verifier will detect
+              the mismatch.
+        """
+        hdr = {"alg": "ES256", "typ": "JWT", "kid": "ec-p384"}
+        payload = self._base_claims()
+        signing_input = (_seg(hdr) + "." + _seg(payload)).encode("ascii")
+        der = self.ec_p384_key.sign(signing_input, ec.ECDSA(hashes.SHA384()))
+        r, s = decode_dss_signature(der)
+        sig = r.to_bytes(48, "big") + s.to_bytes(48, "big")
+        return signing_input.decode("ascii") + "." + _b64url(sig)
+
+    def hs256_weak_secret(self):
+        """HS256 signed with the low-entropy secret b'secret' (rules 51/65).
+
+        Two independent grounds for rejection: (1) the server is asymmetric-only
+        so no HS key is configured; (2) the secret is 6 bytes, far below the
+        minimum entropy threshold mandated by RFC 8725 §2.2 rule 51/65.
+        """
+        hdr = {"alg": "HS256", "typ": "JWT", "kid": "hs-weak"}
+        payload = self._base_claims()
+        signing_input = (_seg(hdr) + "." + _seg(payload)).encode("ascii")
+        sig = hmac.new(b"secret", signing_input, hashlib.sha256).digest()
+        return signing_input.decode("ascii") + "." + _b64url(sig)
+
+    def alg_variant(self, variant):
+        """RS256-signed token whose header alg field is the given variant string.
+
+        WHAT: Returns a validly RS256-signed compact JWS with alg=variant in the
+              header instead of the canonical "RS256".
+        WHY:  Rule 54 — alg comparison is case-sensitive and whitespace-exact;
+              "Rs256", "rs256", "RS256 " etc. must all be rejected.
+        HOW:  Uses _sign_with_header (PKCS1v15+SHA256) so the cryptographic
+              signature is valid; only the header label is wrong.
+        """
+        hdr = {"alg": variant, "typ": "JWT", "kid": self.DEFAULT_KID}
+        return self._sign_with_header(hdr, self._base_claims())
+
+    def none_with_sig(self):
+        """alg=none header with a NON-empty signature segment (rule 55 must reject).
+
+        WHAT: Constructs a three-segment compact JWS where the header declares
+              alg=none but the third segment contains a non-empty bogus value.
+        WHY:  RFC 7518 §3.6 and rule 55 — alg=none tokens must have an empty
+              signature segment; a non-empty segment is a protocol violation and
+              must cause rejection regardless of what the bytes contain.
+        """
+        hdr = {"alg": "none", "typ": "JWT"}
+        payload = self._base_claims()
+        bogus_sig = _b64url(b"\xde\xad\xbe\xef" * 8)  # 32 non-empty bytes
+        return _seg(hdr) + "." + _seg(payload) + "." + bogus_sig
+
+    def weak_rsa_signed(self):
+        """RS256-signed with the 1024-bit weak RSA key (kid weak-rsa, rule 50).
+
+        WHAT: A syntactically valid RS256 token whose signing key is only 1024
+              bits rather than the RFC 8725 §2.2 minimum of 2048 bits.
+        WHY:  A conformant server should reject this either because (a) it
+              enforces a minimum key size policy, or (b) it only trusts keys
+              listed in the JWKS and weak-rsa is deliberately absent from
+              jwks_alg.json.
+        """
+        hdr = {"alg": "RS256", "typ": "JWT", "kid": "weak-rsa"}
+        return self._sign_with_header(hdr, self._base_claims(),
+                                      key=self.weak_rsa_key)
+
 
 def fleet_artifacts(token_dir):
     """Ensure multi-key JWKS and scitokens.cfg for the managed test fleet.
@@ -383,6 +668,31 @@ def fleet_artifacts(token_dir):
             "jwks_path":  main_jwks,
             "strategy":   "capability",
         },
+    ])
+
+
+def alg_jwks(token_dir):
+    """Write {token_dir}/jwks_alg.json for the ALG-family's ACCEPT cases.
+
+    WHAT: Materialises ec_p384_key and ec_p521_key (side-effect: persists them to
+          disk), then writes a JWKS containing the three keys that the ALG-family
+          ACCEPT tests verify against: main RSA (test-key-1), P-384 (ec-p384),
+          P-521 (ec-p521).
+    WHY:  The ALG-family nginx port serves this JWKS so rs384/rs512/ps*/es384/es512
+          ACCEPT cases validate correctly, while weak_rsa_signed and es256_wrong_curve
+          REJECT because their kids (weak-rsa, ec-p384 signed as ES256) are either
+          absent or curve-mismatched.
+    HOW:  Creates a TokenForge, initialises the main key if needed, accesses the
+          three ACCEPT-case keys, delegates to write_jwks.
+    """
+    os.makedirs(token_dir, exist_ok=True)
+    f = TokenForge(token_dir)
+    if not os.path.exists(f.key_path):
+        f.init_keys()
+    write_jwks(os.path.join(token_dir, "jwks_alg.json"), [
+        (f.private_key.public_key(),   "test-key-1"),
+        (f.ec_p384_key.public_key(),   "ec-p384"),
+        (f.ec_p521_key.public_key(),   "ec-p521"),
     ])
 
 
