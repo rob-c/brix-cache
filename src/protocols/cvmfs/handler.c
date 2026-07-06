@@ -120,7 +120,7 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
     if (vctx.sd == NULL) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
             "cvmfs: no storage backend registered for \"%s\" - check "
-            "brix_cvmfs_storage_backend", root);
+            "brix_storage_backend", root);
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     key = brix_vfs_export_relative(&vctx, path);

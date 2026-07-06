@@ -289,6 +289,9 @@ http {
             # --- non-default: geo-based origin selection ---
             # Default is rtt (probe connect latency, prefer fastest).
             # Switch to geo when RTT probes are unreliable (e.g. firewalled).
+            # geo ranking requires the origins as a storage backend (not just
+            # an allow-list): replace brix_cvmfs_upstream_allow with:
+            # brix_storage_backend "http://cvmfs-stratum-one.cern.ch:8000|http://cvmfs-s1fnal.opensciencegrid.org:8000|http://cvmfs-stratum-one.ihep.ac.cn:8000";
             # brix_cvmfs_origin_select geo;
             # brix_cvmfs_here 55.95:-3.19;   # this cache (Edinburgh)
             # brix_cvmfs_origin_coords cvmfs-stratum-one.cern.ch 46.23:6.05;
