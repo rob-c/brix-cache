@@ -336,18 +336,32 @@ brix_cred_diagnose(int want_write, const char *prefix, FILE *out)
  * status carries an auth/authz wire error — so an ordinary ENOENT/EIO failure
  * does not trigger credential noise.  Indented under the primary error line.
  * Also fires the doctor-referral hint (spec WS-7) so users know that
- * `xrddiag check <endpoint>` can walk through the auth handshake for them.
+ * `xrddiag check <endpoint>` can walk through the auth handshake for them —
+ * with the endpoint string when the caller has one (url_str, nullable).
+ *
+ * This _url variant is the canonical implementation; the historical
+ * brix_cred_hint_for_status signature delegates with url_str=NULL so its
+ * many existing call sites keep working unchanged.  brix_hint_doctor_referral
+ * self-gates on the auth class (incl. the local XRDC_EAUTH sentinel, which is
+ * broader than the wire-code gate used for the credential diagnosis) and
+ * dedupes via brix_cli_hint_once("doctor").
  */
 void
-brix_cred_hint_for_status(const brix_status *st, int want_write, FILE *out)
+brix_cred_hint_for_status_url(const brix_status *st, int want_write, FILE *out,
+                              const char *url_str)
 {
     if (st == NULL || out == NULL) {
         return;
     }
-    if (st->kxr != kXR_NotAuthorized && st->kxr != kXR_AuthFailed) {
-        return;
+    if (st->kxr == kXR_NotAuthorized || st->kxr == kXR_AuthFailed) {
+        (void) brix_cred_diagnose(want_write, "  hint: ", out);
     }
-    (void) brix_cred_diagnose(want_write, "  hint: ", out);
-    /* Spec WS-7: after the credential hint, offer the xrddiag referral. */
-    brix_hint_doctor_referral(st, NULL);
+    /* Spec WS-7: offer the xrddiag referral (self-gated on auth class). */
+    brix_hint_doctor_referral(st, url_str);
+}
+
+void
+brix_cred_hint_for_status(const brix_status *st, int want_write, FILE *out)
+{
+    brix_cred_hint_for_status_url(st, want_write, out, NULL);
 }

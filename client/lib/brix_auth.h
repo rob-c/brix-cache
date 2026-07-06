@@ -49,9 +49,14 @@ void brix_token_meta_get(const char *jwt, brix_token_meta *m);
  * bare "permission denied".
  * brix_cred_hint_for_status calls it (with an indented hint prefix) only when
  * `st` carries an auth/authz wire error (kXR_NotAuthorized / kXR_AuthFailed),
- * for one-line use at an app's error-reporting site. */
+ * for one-line use at an app's error-reporting site.
+ * The _url variant additionally fires the WS-7 doctor-referral hint with the
+ * given endpoint string (nullable; sanitized before printing); the plain
+ * variant delegates with url_str=NULL. */
 int  brix_cred_diagnose(int want_write, const char *prefix, FILE *out);
 void brix_cred_hint_for_status(const brix_status *st, int want_write, FILE *out);
+void brix_cred_hint_for_status_url(const brix_status *st, int want_write,
+                                   FILE *out, const char *url_str);
 
 /* Phase 40 (b): proactively (re)acquire a stale credential before a transfer —
  * a bearer token via the local oidc-agent (`oidc-token <account>`; account from

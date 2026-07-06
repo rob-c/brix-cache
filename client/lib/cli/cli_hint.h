@@ -42,14 +42,16 @@ void brix_cli_hint_once(const char *key, const char *fmt, ...)
 
 /* --- WS-3/WS-7 canned hint helpers ---------------------------------------- */
 
-/* Sanitize url_str into out[outsz]: replace control bytes (< 0x20, >= 0x7f)
- * with '?' and cap at 128 bytes.  Safe to print to a terminal.  out[0]='\0'
- * on NULL url_str or empty outsz. */
+/* Sanitize url_str into out[outsz]: escape control / non-printable bytes
+ * (< 0x20 or > 0x7e) as "\xNN" (lowercase hex); consider at most 128 input
+ * bytes.  Worst case output is 128*4 bytes, so size out at 128*4+1 = 513.
+ * out[0]='\0' on NULL url_str or empty outsz. */
 void brix_hint_sanitize_url(const char *url_str, char *out, size_t outsz);
 
-/* Emit the double-slash URL hint (spec WS-3) once per process when url has
- * single_slash_path set.  No-op when url is NULL or the bit is clear. */
-void brix_hint_url_double_slash(const brix_url *url);
+/* Emit the double-slash URL hint (spec WS-3) once per process when st is a
+ * not-found-class failure (kXR_NotFound / sys_errno==ENOENT) AND url has
+ * single_slash_path set.  No-op otherwise (NULL args included). */
+void brix_hint_url_double_slash(const brix_status *st, const brix_url *url);
 
 /* Emit a "diagnose with: xrddiag check <url_str>" hint (spec WS-7) once per
  * process when st carries an auth-class failure.  url_str is sanitized before
