@@ -9,6 +9,7 @@
  */
 
 #include "webdav.h"
+#include "auth/crypto/store_policy.h"      /* BRIX_SP_MODE_*, BRIX_CRL_MODE_* defaults */
 #include "core/compat/integrity_info.h"   /* §8.x checksum xattr write format */
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
 #include "auth/token/issuer_registry.h"   /* phase-59 W1 multi-issuer registry */
@@ -117,6 +118,8 @@ ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf)
 
     ngx_http_brix_shared_init(&conf->common);
     conf->verify_depth = NGX_CONF_UNSET_UINT;
+    conf->signing_policy_mode = NGX_CONF_UNSET_UINT;
+    conf->crl_mode     = NGX_CONF_UNSET_UINT;
     conf->auth         = NGX_CONF_UNSET_UINT;
     brix_acc_http_init_conf(&conf->acc);   /* XrdAcc engine (off by default) */
     conf->proxy_certs  = NGX_CONF_UNSET;
@@ -322,6 +325,9 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_str_value(conf->cadir, prev->cadir, "");
     ngx_conf_merge_str_value(conf->cafile, prev->cafile, "");
     ngx_conf_merge_str_value(conf->crl, prev->crl, "");
+    ngx_conf_merge_uint_value(conf->signing_policy_mode,
+                              prev->signing_policy_mode, BRIX_SP_MODE_ON);
+    ngx_conf_merge_uint_value(conf->crl_mode, prev->crl_mode, BRIX_CRL_MODE_TRY);
     ngx_conf_merge_uint_value(conf->verify_depth, prev->verify_depth, 10);
     ngx_conf_merge_uint_value(conf->auth, prev->auth,
                               WEBDAV_AUTH_OPTIONAL);

@@ -50,5 +50,7 @@ webdav_build_ca_store(ngx_log_t *log,
         crl = crl_buf;
     }
 
-    return brix_build_ca_store(log, cadir, cafile, crl, 0, crl_count_out);
+    return brix_build_ca_store(log, cadir, cafile, crl, 0, crl_count_out,
+                               (brix_sp_mode_t) conf->signing_policy_mode,
+                               (int) conf->crl_mode);
 }
