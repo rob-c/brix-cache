@@ -496,14 +496,14 @@ Add `tests/configs/nginx_shared_ipv6.conf` with:
 stream {
     server {
         listen [::]:{ANON_PORT};      # dual-stack on Linux
-        xrootd on;
-        brix_root {DATA_DIR};
+        brix_root on;
+        brix_export {DATA_DIR};
         brix_auth none;
     }
     server {
         listen [::]:{GSI_PORT};
-        xrootd on;
-        brix_root {DATA_DIR};
+        brix_root on;
+        brix_export {DATA_DIR};
         brix_auth gsi;
         # ... certs ...
     }

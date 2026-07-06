@@ -68,7 +68,7 @@ def _spawn(base, port, allow):
         "stream {\n"
         "    server {\n"
         f"        listen 127.0.0.1:{port};\n"
-        "        xrootd on;\n"
+        "        brix_root on;\n"
         f"        brix_storage_backend posix:{data};\n"
         "        brix_auth host;\n"
         f"        brix_host_allow {allow};\n"

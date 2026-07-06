@@ -657,8 +657,8 @@ close remains fail-open while logging WT errors.
 | 4 | `src/core/aio/`, `src/protocols/root/write/*.c` | ✅ Dirty tracking for write, pgwrite, writev, truncate |
 | 5 | `src/fs/cache/writethrough_flush.c`, `src/protocols/root/read/close.c`, `src/protocols/root/write/sync.c` | ✅ Close/sync origin flush |
 
-**Remaining limitations:** the origin path must resolve under `brix_root` or
-`brix_cache_root`, the origin must be a direct data server (redirect-following
+**Remaining limitations:** the origin path must resolve under `brix_export` or
+`brix_cache_export`, the origin must be a direct data server (redirect-following
 is not implemented in the cache origin client), and cache/write-through origin
 authentication is narrower than the native TPC outbound path. Cache-origin TLS
 can be configured, but cache/write-through origin login is still anonymous and

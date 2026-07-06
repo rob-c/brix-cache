@@ -189,7 +189,7 @@ def cms_server():
     body = (
         f"    server {{\n"
         f"        listen 0.0.0.0:{port};\n"
-        f"        xrootd on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
+        f"        brix_root on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
         f"        brix_manager_mode on;\n"
         f"        brix_cms_server on;\n"
         f"        brix_cms_server_interval 1;\n"
@@ -445,7 +445,7 @@ def silent_manager_node():
     body = (
         f"    server {{\n"
         f"        listen 0.0.0.0:{node_port};\n"
-        f"        xrootd on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
+        f"        brix_root on; brix_storage_backend posix:{data_dir}; brix_auth none;\n"
         f"        brix_listen_port {node_port};\n"
         f"        brix_cms_manager {H}:{mgr_port};\n"
         f"        brix_cms_paths /;\n"

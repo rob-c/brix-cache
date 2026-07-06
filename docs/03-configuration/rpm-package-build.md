@@ -240,8 +240,8 @@ stream {
     # ── Port 1094: anonymous access (no credentials required) ──────────────
     server {
         listen 1094;
-        xrootd on;
-        brix_root /srv/brix/data;
+        brix_root on;
+        brix_export /srv/brix/data;
         brix_thread_pool brix_pool;
         brix_access_log /var/log/nginx/brix_anon.log;
     }
@@ -249,10 +249,10 @@ stream {
     # ── Port 1095: GSI / x509 proxy-certificate authentication ─────────────
     server {
         listen 1095;
-        xrootd on;
+        brix_root on;
         brix_auth gsi;
         brix_allow_write on;
-        brix_root /srv/brix/data;
+        brix_export /srv/brix/data;
         brix_thread_pool brix_pool;
 
         # Server identity presented to clients during the GSI DH exchange

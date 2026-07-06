@@ -2,7 +2,7 @@
 Phase-42 W2 — outbound (GET) response compression.
 
 Self-contained: this test launches its OWN minimal plain-HTTP nginx instance with
-`brix_webdav_compress on` (using the project nginx binary), so it exercises
+`brix_compress on` (using the project nginx binary), so it exercises
 outbound compression without depending on the shared test harness's config (where
 enabling compression globally would make every GET chunked and break unrelated
 Content-Length assertions).
@@ -61,10 +61,10 @@ http {{
             root {data_dir};
             dav_methods DELETE MKCOL;
             brix_webdav on;
-            brix_webdav_storage_backend posix:{data_dir};
+            brix_storage_backend posix:{data_dir};
             brix_webdav_auth none;
-            brix_webdav_allow_write on;
-            brix_webdav_compress on;
+            brix_allow_write on;
+            brix_compress on;
         }}
     }}
 }}

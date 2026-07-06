@@ -93,10 +93,10 @@ http {
 
         location / {
             brix_webdav         on;
-            brix_webdav_root    /data;
+            brix_export    /data;
             brix_webdav_cadir   /etc/grid-security/certificates;
             brix_webdav_auth    optional;    # or: none | required
-            brix_webdav_allow_write on;
+            brix_allow_write on;
 
             # Optional HTTP-TPC pull support (COPY with a Source header)
             brix_webdav_tpc       on;

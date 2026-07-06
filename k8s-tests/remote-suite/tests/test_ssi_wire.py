@@ -157,7 +157,7 @@ def ssi_server():
             f"stream {{\n"
             f"    server {{\n"
             f"        listen 0.0.0.0:{SSI_PORT};\n"
-            f"        xrootd on; brix_storage_backend posix:{data}; brix_auth none;\n"
+            f"        brix_root on; brix_storage_backend posix:{data}; brix_auth none;\n"
             f"        brix_allow_write on;\n"
             f"        brix_ssi on;\n"
             f"        brix_ssi_service cta;\n"

@@ -29,9 +29,9 @@ env BRIX_FRM_STAGECMD=$PFX/stagecmd.sh;
 thread_pool default threads=2;
 events { worker_connections 64; }
 http { client_body_temp_path $PFX/tmp; server { listen 127.0.0.1:${BPORT};
-  location / { brix_webdav on; brix_webdav_root $PFX/export; brix_webdav_auth none;
-    brix_webdav_storage_backend tape://exec${PFX}/online;
-    brix_webdav_cache_store posix:${PFX}/cache; } } }
+  location / { brix_webdav on; brix_export $PFX/export; brix_webdav_auth none;
+    brix_storage_backend tape://exec${PFX}/online;
+    brix_cache_store posix:${PFX}/cache; } } }
 E2
 # Seed an offline object on the REAL tape (the stagecmd's domain), keyed "f.bin"
 head -c 480000 /dev/urandom > "$PFX/realtape/f.bin"; SHA=$(sha256sum "$PFX/realtape/f.bin"|cut -d' ' -f1)

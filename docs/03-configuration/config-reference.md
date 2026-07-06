@@ -9,9 +9,9 @@ paths and permissions up front and fails fast with `emerg` log messages if
 required inputs are missing or unreadable.
 
 Examples of checks performed:
-- stream: `brix_root`, `brix_cache_root`, `brix_certificate`, `brix_certificate_key`, `brix_trusted_ca`, `brix_crl`, `brix_token_jwks`, `brix_vomsdir`, `brix_voms_cert_dir`
-- webdav: `brix_webdav_root`, `brix_webdav_cadir`, `brix_webdav_cafile`, `brix_webdav_crl`, `brix_webdav_token_jwks`, and HTTP-TPC paths (`brix_webdav_tpc_*`) when enabled
-- s3: `brix_s3_root`
+- stream: `brix_export`, `brix_cache_export`, `brix_certificate`, `brix_certificate_key`, `brix_trusted_ca`, `brix_crl`, `brix_token_jwks`, `brix_vomsdir`, `brix_voms_cert_dir`
+- webdav: `brix_export`, `brix_webdav_cadir`, `brix_webdav_cafile`, `brix_webdav_crl`, `brix_webdav_token_jwks`, and HTTP-TPC paths (`brix_webdav_tpc_*`) when enabled
+- s3: `brix_export`
 
 This avoids silent runtime failures deep in auth or request handling and gives
 operators a precise startup error tied to the directive/path that is invalid.

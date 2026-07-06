@@ -40,7 +40,7 @@ events {{ worker_connections 1024; }}
 stream {{
     server {{
         listen 127.0.0.1:{port};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{data};
         brix_readv_segment_size 16m;
         brix_access_log {logs}/access.log;

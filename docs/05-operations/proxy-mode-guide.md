@@ -50,7 +50,7 @@ stream {
     server {
         listen 1094;
 
-        xrootd on;
+        brix_root on;
         brix_auth none;          # client auth: anonymous
 
         brix_proxy on;
@@ -74,7 +74,7 @@ stream {
         ssl_certificate_key /etc/grid-security/hostkey.pem;
         ssl_protocols       TLSv1.2 TLSv1.3;
 
-        xrootd on;
+        brix_root on;
         brix_auth token;
         brix_token_jwks   /etc/brix/jwks.json;
 

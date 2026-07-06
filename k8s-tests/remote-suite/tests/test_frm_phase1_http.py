@@ -81,7 +81,7 @@ events {{ worker_connections 64; }}
 stream {{
     server {{
         listen {BIND_HOST}:{STREAM_PORT};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{data};
         brix_auth none;
         brix_frm on;
@@ -101,13 +101,13 @@ http {{
         location = /metrics {{ brix_metrics on; }}
         location /tapebucket/ {{
             brix_s3 on;
-            brix_s3_storage_backend posix:{data};
+            brix_storage_backend posix:{data};
             brix_s3_bucket tapebucket;
             brix_s3_region us-east-1;
         }}
         location / {{
             brix_webdav on;
-            brix_webdav_storage_backend posix:{data};
+            brix_storage_backend posix:{data};
             brix_webdav_auth none;
         }}
     }}

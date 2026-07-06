@@ -80,10 +80,10 @@ http {{
         listen {BIND_HOST}:{PORT};
         location / {{
             brix_webdav on;
-            brix_webdav_storage_backend posix:{data};
+            brix_storage_backend posix:{data};
             brix_webdav_auth required;
             brix_webdav_cadir {d}/cadir;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
             brix_webdav_macaroon_secret {SECRET_HEX};
         }}
     }}

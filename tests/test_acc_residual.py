@@ -161,7 +161,7 @@ stream {{
     brix_kv_zone authz 1m key=32 val=8;
     server {{
         listen {BIND_HOST}:{self.port};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{self.root}/data;
         brix_auth none;
         brix_allow_write on;
@@ -431,9 +431,9 @@ http {{
         listen {BIND_HOST}:{self.port};
         location / {{
             brix_webdav on;
-            brix_webdav_storage_backend posix:{self.root}/data;
+            brix_storage_backend posix:{self.root}/data;
             brix_webdav_auth none;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
             brix_authdb_format xrdacc;
             brix_authdb {self.authdb_path};
             brix_authdb_audit all;

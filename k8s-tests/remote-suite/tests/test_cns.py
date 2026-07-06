@@ -109,7 +109,7 @@ worker_processes 1; daemon off; master_process off;
 error_log {mgr_log}/error.log info; pid {mgr_log}/nginx.pid;
 events {{ worker_connections 64; }}
 stream {{
-  server {{ listen {BIND_HOST}:{mgr_port}; xrootd on; brix_auth none;
+  server {{ listen {BIND_HOST}:{mgr_port}; brix_root on; brix_auth none;
            brix_manager_mode on; brix_cns collect; }}
   server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on; }}
 }}
@@ -119,7 +119,7 @@ worker_processes 1; daemon off; master_process off;
 error_log {ds_log}/error.log info; pid {ds_log}/nginx.pid;
 events {{ worker_connections 64; }}
 stream {{
-  server {{ listen {BIND_HOST}:{ds_port}; xrootd on; brix_storage_backend posix:{data};
+  server {{ listen {BIND_HOST}:{ds_port}; brix_root on; brix_storage_backend posix:{data};
            brix_auth none; brix_allow_write on; brix_cns emit;
            brix_cms_manager {BIND_HOST}:{cms_port}; brix_cms_paths /;
            brix_cms_interval 1; brix_listen_port {ds_port}; }}

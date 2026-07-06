@@ -97,7 +97,7 @@ events {{ worker_connections 256; }}
 stream {{
     server {{
         listen {url_host(BIND_HOST)}:{port};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{data};
         brix_auth krb5;
         brix_krb5_principal {KRB5_SERVICE_PRINCIPAL};

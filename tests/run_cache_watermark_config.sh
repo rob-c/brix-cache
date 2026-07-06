@@ -23,9 +23,9 @@ daemon off; error_log $PFX/logs/e.log info; pid $PFX/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:11620; xrootd on; brix_auth none;
+    listen 127.0.0.1:11620; brix_root on; brix_auth none;
     brix_storage_backend root://127.0.0.1:1;
-    brix_cache on; brix_cache_root $PFX/cache; ${3:-}
+    brix_cache on; brix_cache_export $PFX/cache; ${3:-}
     $1 $2
 } }
 EOF
@@ -59,7 +59,7 @@ daemon off; error_log $PFX/logs/e.log info; pid $PFX/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:11621; xrootd on; brix_auth none;
+    listen 127.0.0.1:11621; brix_root on; brix_auth none;
     brix_storage_backend posix:$PFX/root;
     brix_allow_write on; brix_write_through on; brix_wt_origin 127.0.0.1:1;
     $1

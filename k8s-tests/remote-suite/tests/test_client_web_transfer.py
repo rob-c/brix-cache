@@ -106,9 +106,9 @@ http {{
         client_max_body_size 64m;
         location / {{
             brix_webdav on;
-            brix_webdav_storage_backend posix:{dav_data};
+            brix_storage_backend posix:{dav_data};
             brix_webdav_auth none;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
         }}
     }}
     server {{
@@ -116,12 +116,12 @@ http {{
         client_max_body_size 64m;
         location / {{
             brix_s3 on;
-            brix_s3_storage_backend posix:{s3_data};
+            brix_storage_backend posix:{s3_data};
             brix_s3_bucket testbucket;
             brix_s3_access_key {S3_AK};
             brix_s3_secret_key {S3_SK};
             brix_s3_region us-east-1;
-            brix_s3_allow_write on;
+            brix_allow_write on;
         }}
     }}
 }}

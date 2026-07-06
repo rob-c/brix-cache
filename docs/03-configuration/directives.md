@@ -14,8 +14,8 @@ Reference for the most commonly-used `brix_*` directives — name, context, type
 stream {
     server {
         listen 1094;
-        xrootd on;       # ← this activates the module
-        brix_root /data;
+        brix_root on;       # ← this activates the module
+        brix_export /data;
     }
 }
 ```
@@ -24,14 +24,14 @@ Without `xrootd on`, nginx ignores all other `brix_*` directives in the block.
 
 ---
 
-### `brix_root <path>`
+### `brix_export <path>`
 
 **Default:** `/`
 
 The filesystem directory that clients see as their root (`/`). Every path a client requests is resolved relative to this directory. Paths that try to escape using `..` or symlinks are rejected.
 
 ```nginx
-brix_root /data/store;   # clients see /data/store as "/"
+brix_export /data/store;   # clients see /data/store as "/"
 ```
 
 A client requesting `/mc/sample.root` gets `/data/store/mc/sample.root` on disk.
@@ -124,8 +124,8 @@ encrypted from the first byte. Full details: [tls.md](tls-config.md).
 ```nginx
 server {
     listen 1095;
-    xrootd on;
-    brix_root /data;
+    brix_root on;
+    brix_export /data;
     brix_auth gsi;
     brix_certificate     /etc/grid-security/hostcert.pem;
     brix_certificate_key /etc/grid-security/hostkey.pem;
@@ -399,8 +399,8 @@ thread_pool brix_io threads=8 max_queue=65536;
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /data;
+        brix_root on;
+        brix_export /data;
         brix_thread_pool brix_io;
     }
 }
@@ -519,7 +519,7 @@ brix_upstream redirector.example.org:1094;
 
 **Default:** `off`
 
-Enables read-through cache mode for native `root://` opens. In this mode, read opens are served from `brix_cache_root`. If the requested file is missing, nginx fetches the whole file from `brix_cache_origin` into a temporary part file, atomically renames it into place, and then opens the cached copy for the client.
+Enables read-through cache mode for native `root://` opens. In this mode, read opens are served from `brix_cache_export`. If the requested file is missing, nginx fetches the whole file from `brix_cache_origin` into a temporary part file, atomically renames it into place, and then opens the cached copy for the client.
 
 Cache mode is currently direct-mode and defaults to read-only:
 - A working nginx thread pool is required.
@@ -563,10 +563,10 @@ thread_pool brix_cache_io threads=8 max_queue=65536;
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /data;                # namespace used for ACL matching
+        brix_root on;
+        brix_export /data;                # namespace used for ACL matching
         brix_cache on;
-        brix_cache_root /var/cache/brix;
+        brix_cache_export /var/cache/brix;
         brix_cache_origin origin.example.org:1094;
         brix_cache_eviction_threshold 0.9;
         brix_thread_pool brix_cache_io;
@@ -602,12 +602,12 @@ of them are treated as local-only writes.
 
 ---
 
-### `brix_cache_root <path>`
+### `brix_cache_export <path>`
 
-Local directory used to store cached files. Client paths map directly under this directory, so a request for `/store/a.root` becomes `/var/cache/brix/store/a.root` when `brix_cache_root /var/cache/brix;` is configured. The directory must exist and be readable, writable, and searchable by nginx at startup.
+Local directory used to store cached files. Client paths map directly under this directory, so a request for `/store/a.root` becomes `/var/cache/brix/store/a.root` when `brix_cache_export /var/cache/brix;` is configured. The directory must exist and be readable, writable, and searchable by nginx at startup.
 
 ```nginx
-brix_cache_root /var/cache/brix;
+brix_cache_export /var/cache/brix;
 ```
 
 ---
@@ -654,7 +654,7 @@ brix_cache_lock_timeout 120s;
 
 **Default:** `0.9`
 
-High-water filesystem occupancy threshold for cache eviction. When a cache fill sees `brix_cache_root` above this ratio, one worker takes a cache-wide eviction lock and unlinks the oldest regular cached files until occupancy drops back to the threshold or no candidates remain.
+High-water filesystem occupancy threshold for cache eviction. When a cache fill sees `brix_cache_export` above this ratio, one worker takes a cache-wide eviction lock and unlinks the oldest regular cached files until occupancy drops back to the threshold or no candidates remain.
 
 The value may be written as a ratio (`0.85`) or a percent (`85` or `85%`). Temporary part files, fill lock files, the eviction lock, files on a different filesystem, and the file currently being filled are skipped.
 
@@ -677,7 +677,7 @@ brix_cms_interval 30s;
 
 ### `brix_cms_paths <string>`
 
-**Default:** `brix_root`
+**Default:** `brix_export`
 
 Path string advertised in the CMS login packet. Use this when the exported CMS
 namespace differs from the local filesystem root.
@@ -708,8 +708,8 @@ stream {
     }
     server {
         listen 1094;
-        xrootd on;
-        brix_root /dev/null;      # redirector has no local storage
+        brix_root on;
+        brix_export /dev/null;      # redirector has no local storage
         brix_manager_mode on;
     }
 }
@@ -780,8 +780,8 @@ reads. While trusting, `brix_csi_require` is not enforced on read opens.
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /zpool/data;      # ZFS: checksummed end-to-end already
+        brix_root on;
+        brix_export /zpool/data;      # ZFS: checksummed end-to-end already
         brix_csi on;                # keep recording block CRCs on write
         brix_csi_trust_fs on;       # but don't re-verify reads
     }

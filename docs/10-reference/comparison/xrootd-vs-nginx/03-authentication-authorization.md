@@ -564,8 +564,8 @@ File conventions: CA dir `/etc/grid-security/certificates`, CRLs `*.r0`, authdb
 stream {
   server {
     listen 1094;
-    xrootd on;
-    brix_root /export;
+    brix_root on;
+    brix_export /export;
 
     brix_auth both;                       # none|gsi|token|both|sss|unix|krb5|host|pwd
     brix_security_level standard;

@@ -74,7 +74,7 @@ pid {root}/nginx.pid;
 error_log {root}/error.log info;
 events {{ worker_connections 64; }}
 stream {{
-    server {{ listen {BIND_HOST}:{port}; xrootd on; brix_storage_backend posix:{data};
+    server {{ listen {BIND_HOST}:{port}; brix_root on; brix_storage_backend posix:{data};
              brix_auth none; brix_allow_write on; }}
 }}
 """)

@@ -21,10 +21,10 @@ http {
     server {
         listen 127.0.0.1:${WPORT};
         location / {
-            brix_webdav on; brix_webdav_root $PFX/export; brix_webdav_auth none;
-            brix_webdav_allow_write on;
-            brix_webdav_storage_backend    root://127.0.0.1:19999;
-            brix_webdav_storage_credential origin;
+            brix_webdav on; brix_export $PFX/export; brix_webdav_auth none;
+            brix_allow_write on;
+            brix_storage_backend    root://127.0.0.1:19999;
+            brix_storage_credential origin;
             brix_webdav_storage_staging    on;
         }
         location /metrics { brix_metrics on; }

@@ -160,7 +160,7 @@ service's mount namespace.  nginx reads (never writes) its configuration and
 TLS certificates from `/etc`; those paths only need read access.
 
 `ProtectHome=true` blocks access to `/home`, `/root`, and `/run/user`.  If the
-export root (`brix_root`, `brix_webdav_root`, `brix_s3_root`) or stage
+export root (`brix_export`, `brix_export`, `brix_export`) or stage
 dir lives under `/home`, add it to `ReadWritePaths` and either change
 `ProtectHome` to `read-only` (read access to the rest of `/home`) or `false`
 (no restriction).
@@ -329,7 +329,7 @@ tool counts against the score).
 
 - [ ] Edit `/etc/nginx/nginx-xrootd.conf`; set `pid /run/nginx-xrootd.pid;` at
   the top level so the PID file matches `PIDFile=` in the unit.
-- [ ] Set `ReadWritePaths` to cover the actual export root (`brix_root`),
+- [ ] Set `ReadWritePaths` to cover the actual export root (`brix_export`),
   log directory, and stage directory for this deployment.
 - [ ] If the export root is under `/home`, adjust `ProtectHome=` accordingly.
 

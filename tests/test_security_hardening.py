@@ -144,7 +144,7 @@ def test_mkdir_with_mkpath_rejects_symlink_escape():
         try:
             status, _ = fs.mkdir(f"/{link_name}/nested", MkDirFlags.MAKEPATH)
             assert not status.ok, "mkpath should reject symlink escape outside root"
-            assert not os.path.exists(escaped), "server created a directory outside brix_root"
+            assert not os.path.exists(escaped), "server created a directory outside brix_export"
         finally:
             _unlink_if_exists(link_path)
 

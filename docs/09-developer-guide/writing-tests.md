@@ -101,8 +101,8 @@ events {{ worker_connections 128; }}
 stream {{
     server {{
         listen 127.0.0.1:{PORT};
-        xrootd on;
-        brix_root {DATA_DIR};
+        brix_root on;
+        brix_export {DATA_DIR};
         brix_auth gsi;
         brix_certificate     {SERVER_CERT};
         brix_certificate_key {SERVER_KEY};

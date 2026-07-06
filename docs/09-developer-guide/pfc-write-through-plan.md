@@ -45,8 +45,8 @@ thread_pool brix_cache_io threads=8 max_queue=65536;
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /data;
+        brix_root on;
+        brix_export /data;
         brix_thread_pool brix_cache_io;
 
         brix_write_through on;

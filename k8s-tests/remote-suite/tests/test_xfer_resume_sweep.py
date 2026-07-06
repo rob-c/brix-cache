@@ -49,8 +49,8 @@ events {{ worker_connections 64; }}
 stream {{
     server {{
         listen {BIND_HOST}:{PORT};
-        xrootd on;
-        brix_root {d}/data;
+        brix_root on;
+        brix_export {d}/data;
         brix_auth none;
         brix_allow_write on;
         brix_stage_dir {stage};

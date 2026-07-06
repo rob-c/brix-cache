@@ -48,8 +48,8 @@ events { worker_connections 64; }
 stream {
     server {
         listen 127.0.0.1:${PORT};
-        xrootd on;
-        brix_root $PFX/root;
+        brix_root on;
+        brix_export $PFX/root;
         brix_auth none;
         brix_cache_state_root  $PFX/state;
         brix_cache_dirty_max_age 1;

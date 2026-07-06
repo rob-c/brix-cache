@@ -463,7 +463,7 @@ def _nginx_conf(data_dir):
             f"stream {{\n"
             f"    server {{\n"
             f"        listen 0.0.0.0:{NGINX_PORT};\n"
-            f"        xrootd on;\n"
+            f"        brix_root on;\n"
             f"        brix_storage_backend posix:{data_dir};\n"
             f"        brix_auth none;\n"
             f"        brix_allow_write on;\n"

@@ -12,7 +12,7 @@
       offsetof(ngx_stream_brix_srv_conf_t, cache),
       NULL },
 
-    { ngx_string("brix_cache_root"),
+    { ngx_string("brix_cache_export"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,

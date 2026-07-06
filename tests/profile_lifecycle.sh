@@ -135,13 +135,13 @@ events { worker_connections 1024; }
 stream {
     server {
         listen $PORT_ANON;
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:$PREFIX/data;
         brix_auth none;
     }
     server {
         listen $PORT_GSI;
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:$PREFIX/data;
         brix_auth gsi;
         brix_certificate     $PREFIX/conf/host.crt;

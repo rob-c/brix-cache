@@ -415,8 +415,8 @@ nginx's own `src/core|event|http` are never edited.
 Runtime configuration is **nginx config**, not a separate `xrootd.cfg`. Directives
 live inside nginx `stream { server { … } }` (for `root://`) and `http { server {
 location { … } } }` (for WebDAV/S3/metrics) blocks. The directive table is
-`ngx_stream_brix_commands[]` (`src/protocols/root/stream/module.c`): `xrootd on;` enables the
-handler, `brix_root`, `brix_auth`, `brix_allow_write`, `brix_tls`,
+`ngx_stream_brix_commands[]` (`src/protocols/root/stream/module.c`): `brix_root on;` enables the
+handler, `brix_export`, `brix_auth`, `brix_allow_write`, `brix_tls`,
 `brix_token_jwks`, `brix_manager_mode`, `brix_frm`, etc. Almost every
 directive is `NGX_STREAM_SRV_CONF` (per-server, stored at an `offsetof` into
 `ngx_stream_brix_srv_conf_t`); a few SHM-zone directives

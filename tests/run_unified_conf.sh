@@ -85,8 +85,8 @@ server { listen 127.0.0.1:18498;
 # root (required: the pure-cache-node "/" auto-default requires a running VFS
 # registry) + an http backend + a cache store.
 CV="brix_cvmfs on; brix_export $PFX/data;
-    brix_cvmfs_storage_backend http://127.0.0.1:1;
-    brix_cvmfs_cache_store posix:$PFX/cache;"
+    brix_storage_backend http://127.0.0.1:1;
+    brix_cache_store posix:$PFX/cache;"
 
 # brix_stage on alone is caught by the existing tier check ("requires
 # brix_stage_store"); use both together to specifically test the cvmfs
@@ -117,8 +117,8 @@ server { listen 127.0.0.1:18499; location / { $CV
 t "cvmfs pure cache node without brix_export accepted" 0 "
 server { listen 127.0.0.1:18499; location / {
   brix_cvmfs on;
-  brix_cvmfs_storage_backend http://127.0.0.1:1;
-  brix_cvmfs_cache_store posix:$PFX/cache; } }"
+  brix_storage_backend http://127.0.0.1:1;
+  brix_cache_store posix:$PFX/cache; } }"
 
 echo "unified_conf: $pass passed, $fail failed"; rm -rf "$PFX"
 [ $fail -eq 0 ]

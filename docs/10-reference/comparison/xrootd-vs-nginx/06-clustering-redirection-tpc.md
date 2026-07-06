@@ -601,7 +601,7 @@ to a data server. PSS proxying is a separate `ofs.osslib libXrdPss` +
 stream {
     server {
         listen 1094;
-        xrootd on;
+        brix_root on;
         brix_manager_mode on;        # redirect, do not serve locally
         brix_cms_server on;          # accept CMS registrations from data nodes
         brix_cms_server_allow 10.0.0.0/8;          # CIDR trust gate
@@ -620,8 +620,8 @@ stream {
 stream {
     server {
         listen 1095;
-        xrootd on;
-        brix_root /data/export;
+        brix_root on;
+        brix_export /data/export;
         brix_listen_port 1095;       # advertised in the CMS login (must match)
         brix_cms_manager mgr.example.org:1094;
         brix_tpc_keys on;            # enable native destination-pull TPC
@@ -633,7 +633,7 @@ stream {
 
 A **sub-manager** in a meta tree sets both `brix_cms_server on` (to leaves
 below) and `brix_cms_manager <meta>:<port>` (up to the meta). A redirector
-needs **no** `brix_root` (memory: validation skips it in manager mode; data
+needs **no** `brix_export` (memory: validation skips it in manager mode; data
 servers on non-default ports **must** set `brix_listen_port`).
 
 Transparent proxy and mirror are separate `server {}` modes:
@@ -642,7 +642,7 @@ Transparent proxy and mirror are separate `server {}` modes:
 # Transparent root:// proxy in front of a backend cluster:
 server {
     listen 1196;
-    xrootd on;
+    brix_root on;
     brix_proxy on;
     brix_proxy_upstream backend.example.org:1094 forward;  # forward client ztn
     brix_proxy_upstream_tls on;
@@ -653,8 +653,8 @@ server {
 # Shadow a new backend for migration validation (isolated namespace!):
 server {
     listen 1094;
-    xrootd on;
-    brix_root /data/export;
+    brix_root on;
+    brix_export /data/export;
     brix_stream_mirror_url newbackend.example.org:1094;
     brix_mirror_sample 10;            # 10% of traffic
     # brix_mirror_writes on;          # ONLY with an isolated shadow store

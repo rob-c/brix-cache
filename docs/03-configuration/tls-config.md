@@ -127,8 +127,8 @@ With:
 stream {
     server {
         listen 1095;
-        xrootd on;
-        brix_root /data;
+        brix_root on;
+        brix_export /data;
 
         brix_auth gsi;
         brix_certificate     /etc/grid-security/hostcert.pem;
@@ -183,8 +183,8 @@ You can also terminate TLS before the XRootD protocol starts at all:
 stream {
     server {
         listen 1097 ssl;
-        xrootd on;
-        brix_root /data;
+        brix_root on;
+        brix_export /data;
 
         brix_auth gsi;
         brix_certificate     /etc/grid-security/hostcert.pem;
@@ -258,7 +258,7 @@ http {
 
         location / {
             brix_webdav         on;
-            brix_webdav_root    /data;
+            brix_export    /data;
             brix_webdav_cadir   /etc/grid-security/certificates;
             brix_webdav_auth    required;
         }

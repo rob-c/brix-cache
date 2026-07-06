@@ -90,10 +90,10 @@ http {{
         listen {BIND_HOST}:{port};
         location / {{
             brix_webdav on;
-            brix_webdav_storage_backend posix:{d}/data;
+            brix_storage_backend posix:{d}/data;
             brix_webdav_auth optional;
             brix_webdav_cadir {d}/cadir;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
             brix_webdav_token_jwks {iss.jwks_path};
             brix_webdav_token_issuer {iss.issuer};
             brix_webdav_token_audience {iss.audience};

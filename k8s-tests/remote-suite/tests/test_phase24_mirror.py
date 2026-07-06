@@ -143,7 +143,7 @@ def test_http_mirror_directives_parse(tmp_path):
             listen {BIND_HOST}:21940;
             location / {{
                 brix_webdav on;
-                brix_webdav_storage_backend posix:{data};
+                brix_storage_backend posix:{data};
                 brix_webdav_auth none;
                 brix_mirror_url     http://{HOST}:21999;
                 brix_mirror_url     https://{HOST}:21998;
@@ -166,7 +166,7 @@ def test_http_mirror_bad_scheme_rejected(tmp_path):
             listen {BIND_HOST}:21941;
             location / {{
                 brix_webdav on;
-                brix_webdav_storage_backend posix:{data};
+                brix_storage_backend posix:{data};
                 brix_webdav_auth none;
                 brix_mirror_url ftp://{HOST}:21999;
             }}
@@ -182,7 +182,7 @@ def test_stream_mirror_directives_parse(tmp_path):
     stream {{
         server {{
             listen {BIND_HOST}:21942;
-            xrootd on;
+            brix_root on;
             brix_storage_backend posix:/tmp/xrd-test/data;
             brix_auth none;
             brix_stream_mirror_url {HOST}:21943;
@@ -202,7 +202,7 @@ def test_stream_mirror_bad_opcode_rejected(tmp_path):
     stream {{
         server {{
             listen {BIND_HOST}:21944;
-            xrootd on;
+            brix_root on;
             brix_storage_backend posix:/tmp/xrd-test/data;
             brix_auth none;
             brix_stream_mirror_url {HOST}:21943;
@@ -225,7 +225,7 @@ def test_stream_mirror_write_opcodes_and_gate_parse(tmp_path):
     stream {{
         server {{
             listen {BIND_HOST}:21945;
-            xrootd on;
+            brix_root on;
             brix_storage_backend posix:/tmp/xrd-test/data;
             brix_auth none;
             brix_stream_mirror_url {HOST}:21943;
@@ -389,7 +389,7 @@ def http_mirror_server(tmp_path):
             listen {BIND_HOST}:{primary_port};
             location / {{
                 brix_webdav on;
-                brix_webdav_storage_backend posix:{data};
+                brix_storage_backend posix:{data};
                 brix_webdav_auth none;
                 brix_mirror_url     http://{HOST}:{shadow_port};
                 brix_mirror_methods GET HEAD;
@@ -451,7 +451,7 @@ def test_shadow_failure_transparent(tmp_path):
             listen {BIND_HOST}:{primary_port};
             location / {{
                 brix_webdav on;
-                brix_webdav_storage_backend posix:{data};
+                brix_storage_backend posix:{data};
                 brix_webdav_auth none;
                 brix_mirror_url     http://{HOST}:{dead_shadow};
                 brix_mirror_methods GET;
@@ -498,7 +498,7 @@ def test_sample_zero_mirrors_nothing(tmp_path):
             listen {BIND_HOST}:{primary_port};
             location / {{
                 brix_webdav on;
-                brix_webdav_storage_backend posix:{data};
+                brix_storage_backend posix:{data};
                 brix_webdav_auth none;
                 brix_mirror_url     http://{HOST}:{shadow_port};
                 brix_mirror_methods GET;
@@ -610,13 +610,13 @@ def _start_stream_pair(tmp_path, primary_port, shadow_port, metrics_port,
     stream {{
         server {{
             listen {BIND_HOST}:{shadow_port};
-            xrootd on;
+            brix_root on;
             brix_storage_backend posix:{sdata};
             brix_auth none;
         }}
         server {{
             listen {BIND_HOST}:{primary_port};
-            xrootd on;
+            brix_root on;
             brix_storage_backend posix:{pdata};
             brix_auth none;
             brix_stream_mirror_url {HOST}:{shadow_port};
@@ -747,9 +747,9 @@ def _start_http_writes_primary(tmp_path, primary_port, shadow_port,
             listen {BIND_HOST}:{primary_port};
             location / {{
                 brix_webdav on;
-                brix_webdav_storage_backend posix:{data};
+                brix_storage_backend posix:{data};
                 brix_webdav_auth none;
-                brix_webdav_allow_write on;
+                brix_allow_write on;
                 brix_mirror_url     http://{HOST}:{shadow_port};
                 brix_mirror_methods {methods};
                 brix_mirror_writes  {writes};

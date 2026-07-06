@@ -24,7 +24,7 @@ We apply a **liberal security policy** to testing. Any modification that touches
 - Data-exposing logic (read/write handlers)
 
 is considered **security-sensitive**. These changes require mandatory negative tests, including:
-- **Traversal attempts**: Trying to escape `brix_root` via `..` or symlinks.
+- **Traversal attempts**: Trying to escape `brix_export` via `..` or symlinks.
 - **Missing/Invalid Auth**: Verifying that requests fail without credentials or with expired/revoked tokens.
 - **Wrong Scopes**: Verifying that tokens with `storage.read` cannot perform `storage.write`.
 - **Malformed Input**: Verifying that truncated or garbage protocol frames do not cause worker crashes or memory leaks.

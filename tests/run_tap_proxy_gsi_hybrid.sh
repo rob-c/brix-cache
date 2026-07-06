@@ -70,7 +70,7 @@ cat > "$PFX/n.conf" <<EOF
 daemon on; error_log $PFX/n/e.log info; pid $PFX/n.pid;
 thread_pool default threads=4;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:$PP; xrootd on;
+stream { server { listen 127.0.0.1:$PP; brix_root on;
   brix_auth gsi; brix_gsi_signed_dh require; brix_tpc_delegate on;
   brix_certificate $SC; brix_certificate_key $SK; brix_trusted_ca $CA;
   brix_tap_proxy on; brix_tap_proxy_upstream 127.0.0.1:$XO; brix_tap_proxy_auth gsi; } }

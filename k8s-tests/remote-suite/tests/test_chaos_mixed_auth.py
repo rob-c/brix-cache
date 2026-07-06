@@ -281,8 +281,8 @@ worker_processes 1; error_log {logf} info; pid {pidf};
 events {{ worker_connections 128; }}
 stream {{ server {{
     listen {BIND_HOST}:{port};
-    xrootd on;
-    brix_root {gsi_data};
+    brix_root on;
+    brix_export {gsi_data};
     brix_auth gsi;
     brix_certificate     {SERVER_CERT};
     brix_certificate_key {SERVER_KEY};
@@ -296,8 +296,8 @@ worker_processes 1; error_log {logf} info; pid {pidf};
 events {{ worker_connections 128; }}
 stream {{ server {{
     listen {BIND_HOST}:{port};
-    xrootd on;
-    brix_root {sss_data};
+    brix_root on;
+    brix_export {sss_data};
     brix_auth sss;
     brix_sss_keytab {kt};
 }} }}
@@ -314,15 +314,15 @@ stream {{
 brix_credential chaosgsi {{ x509_proxy {proxy_pem}; ca_dir {CA_DIR}; }}
 server {{
     listen {BIND_HOST}:{port};
-    xrootd on;
-    brix_root {d}/data;
+    brix_root on;
+    brix_export {d}/data;
     brix_auth none;
     brix_allow_write off;
     brix_thread_pool chaos_cache;
     brix_storage_backend root://{BIND_HOST}:{gsi_origin.port};
     brix_storage_credential chaosgsi;
     brix_cache_store posix:{d}/cache;
-    brix_cache_root /;
+    brix_cache_export /;
 }} }}
 """)
 
@@ -332,7 +332,7 @@ worker_processes 1; error_log {logf} info; pid {pidf};
 events {{ worker_connections 128; }}
 stream {{ server {{
     listen {BIND_HOST}:{port};
-    xrootd on;
+    brix_root on;
     brix_auth none;
     brix_tap_proxy on;
     brix_tap_proxy_auth sss;
@@ -347,7 +347,7 @@ worker_processes 1; error_log {logf} info; pid {pidf};
 events {{ worker_connections 128; }}
 stream {{ server {{
     listen {BIND_HOST}:{port};
-    xrootd on;
+    brix_root on;
     brix_auth none;
     brix_tap_proxy on;
     brix_tap_proxy_auth sss;

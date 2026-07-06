@@ -117,8 +117,8 @@ curl -sk --cert /tmp/x509up_u$(id -u) --key /tmp/x509up_u$(id -u) \
 ```nginx
 location / {
     brix_webdav              on;
-    brix_webdav_root         /data;
-    brix_webdav_allow_write  on;
+    brix_export         /data;
+    brix_allow_write  on;
     brix_webdav_tpc          on;
 
     # OAuth2/OIDC token delegation for TPC
@@ -172,14 +172,14 @@ Set `X509_CERT_DIR` to your CA hash directory if the proxy's issuer CA is not in
 
 ## Relationship to the native XRootD protocol
 
-The WebDAV and native `root://` modules are independent; you can run both on the same nginx instance. They share the same `brix_root` / `brix_webdav_root` filesystem path if you want clients to access the same data via either protocol:
+The WebDAV and native `root://` modules are independent; you can run both on the same nginx instance. They share the same `brix_export` / `brix_export` filesystem path if you want clients to access the same data via either protocol:
 
 ```nginx
 stream {
     server {
         listen 1095;
-        xrootd on;
-        brix_root /data;
+        brix_root on;
+        brix_export /data;
         brix_auth gsi;
         # ... GSI cert directives ...
     }
@@ -191,7 +191,7 @@ http {
         # ... TLS directives ...
         location / {
             brix_webdav      on;
-            brix_webdav_root /data;   # same data directory
+            brix_export /data;   # same data directory
             brix_webdav_auth optional;
         }
     }

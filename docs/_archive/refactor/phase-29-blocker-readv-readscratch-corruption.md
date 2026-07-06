@@ -171,7 +171,7 @@ reproduced on the original `main`-branch code after fully reverting Phase 1.
 
 ```nginx
 # stream server: anon, cleartext
-server { listen 12950; xrootd on; xrootd_root /tmp/rv; xrootd_auth none; xrootd_allow_write on; }
+server { listen 12950; brix_root on; xrootd_root /tmp/rv; xrootd_auth none; xrootd_allow_write on; }
 ```
 ```python
 from XRootD import client

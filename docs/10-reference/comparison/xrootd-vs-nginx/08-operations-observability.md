@@ -174,7 +174,7 @@ reload.
 | Operator knob | Official XRootD directive | BriX-Cache directive | Notes |
 |---|---|---|---|
 | Listen port | `xrd.port <n>` (or `-p`) | `listen` in `server{}` + `brix_listen_port` | nginx port is the `listen` line; module advertises via `brix_listen_port` |
-| Export / namespace root | `all.export <path>` / `oss.localroot` | `brix_root <path>` | Confinement root |
+| Export / namespace root | `all.export <path>` / `oss.localroot` | `brix_export <path>` | Confinement root |
 | Read-only / write gate | `xrootd.export … r/w` flags | `brix_allow_write on\|off` | Global write gate (checked before token scope) |
 | TLS cert / key | `xrd.tls <cert> <key>` | `brix_certificate` / `brix_certificate_key` (+ nginx `ssl_*`) | |
 | Trusted CAs / CRL | `sec.xtrace` + GSI CA dirs | `brix_trusted_ca`, `brix_crl`, `brix_crl_reload` | |

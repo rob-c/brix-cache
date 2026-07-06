@@ -21,8 +21,8 @@ thread_pool default threads=2;
 events { worker_connections 64; }
 http { client_body_temp_path $PFX/tmp; server { listen 127.0.0.1:${BPORT};
   location / { dav_methods PUT DELETE;
-    brix_webdav on; brix_webdav_root $PFX/backend; brix_webdav_auth none; brix_webdav_allow_write on;
-    brix_webdav_stage on; brix_webdav_stage_store posix:$PFX/stage; brix_webdav_stage_flush async; } } }
+    brix_webdav on; brix_export $PFX/backend; brix_webdav_auth none; brix_allow_write on;
+    brix_stage on; brix_stage_store posix:$PFX/stage; brix_stage_flush async; } } }
 E2
 head -c 350000 /dev/urandom > "$PFX/src.bin"; SHA=$(sha256sum "$PFX/src.bin"|cut -d' ' -f1)
 setsid "$NGINX" -p "$PFX" -c "$PFX/nginx.conf" 2>"$PFX/start.err" || { echo "START FAIL"; cat "$PFX/start.err"; exit 2; }

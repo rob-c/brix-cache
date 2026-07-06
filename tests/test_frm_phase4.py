@@ -46,7 +46,7 @@ events {{ worker_connections 64; }}
 stream {{
     server {{
         listen {BIND_HOST}:{PORT};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{data};
         brix_auth none;
         brix_frm on;

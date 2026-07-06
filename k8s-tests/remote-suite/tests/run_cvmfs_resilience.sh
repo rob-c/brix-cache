@@ -32,8 +32,8 @@ http {
     server {
         listen 127.0.0.1:$CPORT;
         location /cvmfs/ {
-            brix_cvmfs_storage_backend http://127.0.0.1:$MPORT;
-            brix_cvmfs_cache_store posix:$PFX/cache;
+            brix_storage_backend http://127.0.0.1:$MPORT;
+            brix_cache_store posix:$PFX/cache;
             brix_cvmfs on;
             brix_cvmfs_manifest_ttl 1;
             # Part A: fast-fail a stuck origin, force the primary through.

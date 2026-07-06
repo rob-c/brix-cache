@@ -116,7 +116,7 @@ def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
         export = os.path.join(base, "export")
         for d in (origin_root, cache_dir, export):
             os.makedirs(d, exist_ok=True)
-        # posix origin uses brix_root (the proven run_root_slice_fill.sh config);
+        # posix origin uses brix_export (the proven run_root_slice_fill.sh config);
         # pblock origin uses the pblock backend + write capability (its seed goes
         # in via xrdcp).
         if origin_backend == "pblock":
@@ -124,11 +124,11 @@ def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
                       f" brix_auth none;\n"
                       f"  brix_allow_write on; brix_upload_resume off;\n")
         else:
-            obline = f"  brix_root {origin_root}; brix_auth none;\n"
+            obline = f"  brix_export {origin_root}; brix_auth none;\n"
         origin_conf = (
             f"daemon on; error_log {base}/o/olog.log error; pid {base}/o/o.pid;\n"
             f"events {{ worker_connections 64; }}\n"
-            f"stream {{ server {{ listen {HOST}:{backend_port}; xrootd on;\n"
+            f"stream {{ server {{ listen {HOST}:{backend_port}; brix_root on;\n"
             f"{obline}}} }}\n")
         procs["origin"] = _start_nginx(base + "/o", origin_conf, "o")
         _wait_port(backend_port)
@@ -137,11 +137,11 @@ def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
             f"daemon on; error_log {base}/c/clog.log info; pid {base}/c/c.pid;\n"
             f"{tp}events {{ worker_connections 64; }}\n"
             f"stream {{ server {{\n"
-            f"    listen {HOST}:{cache_port}; xrootd on; brix_auth none;\n"
-            f"    brix_root {export};\n"
+            f"    listen {HOST}:{cache_port}; brix_root on; brix_auth none;\n"
+            f"    brix_export {export};\n"
             f"    brix_storage_backend root://{HOST}:{backend_port};\n"
             f"    brix_cache_store posix:{cache_dir};\n"
-            f"    brix_cache_root /;\n"
+            f"    brix_cache_export /;\n"
             + _opt(f"    brix_cache_slice_size {slice_size};", slice_size)
             + _opt(f"    brix_cache_max_object {max_file_size};", max_file_size)
             + _opt(f"    brix_cache_deny_prefix {deny_prefix};", deny_prefix)
@@ -170,10 +170,10 @@ def make_cache_node(backend, *, tmp, slice_size=None, max_file_size=None,
         f"daemon on; error_log {base}/c/clog.log info; pid {base}/c/c.pid;\n"
         f"{tp}events {{ worker_connections 64; }}\n"
         f"stream {{ server {{\n"
-        f"    listen {HOST}:{cache_port}; xrootd on; brix_auth none;\n"
+        f"    listen {HOST}:{cache_port}; brix_root on; brix_auth none;\n"
         f"    brix_allow_write on; brix_upload_resume off;\n"
         f"    brix_storage_backend {drv};\n"
-        f"    brix_cache_store posix:{store}; brix_cache_root /;\n"
+        f"    brix_cache_store posix:{store}; brix_cache_export /;\n"
         + _opt(f"    brix_cache_slice_size {slice_size};", slice_size)
         + _opt(f"    brix_cache_max_object {max_object};", max_object)
         + _opt(f"    brix_cache_deny_prefix {deny_prefix};", deny_prefix)

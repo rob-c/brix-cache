@@ -26,12 +26,8 @@
       offsetof(ngx_http_brix_cvmfs_loc_conf_t, scvmfs_token_issuers),
       NULL },
 
-    { ngx_string("brix_cache_verify"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_enum_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, common.cache_verify_mode),
-      brix_cvmfs_verify_enum },
+    /* brix_cache_verify is owned by ngx_http_brix_common_module (same
+     * off|cvmfs-cas enum); this protocol adopts it via brix_http_common_adopt(). */
 
     { ngx_string("brix_cvmfs"),
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
@@ -82,26 +78,7 @@
       offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.trace),
       NULL },
 
-    /* ---- per-protocol tier directives over the shared preamble ---- */
-
-    { ngx_string("brix_cvmfs_storage_backend"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, common.storage_backend),
-      NULL },
-
-    { ngx_string("brix_cvmfs_cache_store"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1234,
-      brix_conf_set_store_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, common.cache_store),
-      (void *) offsetof(ngx_http_brix_cvmfs_loc_conf_t,
-                        common.cache_store_args) },
-
-    { ngx_string("brix_cvmfs_thread_pool"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_cvmfs_loc_conf_t, common.thread_pool_name),
-      NULL },
+    /* ---- per-protocol tier directives over the shared preamble ----
+     * brix_storage_backend, brix_cache_store and brix_thread_pool are owned by
+     * ngx_http_brix_common_module; this protocol adopts them via
+     * brix_http_common_adopt(). */

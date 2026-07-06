@@ -185,7 +185,7 @@ http {{
   scgi_temp_path {prefix}/tmp;
   brix_rate_limit_zone zone=conc:1m;
   server {{ listen 28312;
-    location / {{ brix_webdav on; brix_webdav_storage_backend posix:{prefix}/data;
+    location / {{ brix_webdav on; brix_storage_backend posix:{prefix}/data;
       brix_webdav_auth optional; brix_webdav_cafile {ca};
       {extra} }} }} }}
 """

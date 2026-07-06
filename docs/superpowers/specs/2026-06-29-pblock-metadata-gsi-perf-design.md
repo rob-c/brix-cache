@@ -51,7 +51,7 @@ or the nginx binary is absent), matching the `run_pblock_*.sh` family.
 stream {
   server {
     listen 127.0.0.1:11498;
-    xrootd on;
+    brix_root on;
     xrootd_root            $PFX/root;
     xrootd_auth            gsi;
     xrootd_certificate     $PFX/conf/host.crt;

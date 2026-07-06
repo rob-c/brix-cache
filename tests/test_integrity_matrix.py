@@ -419,7 +419,7 @@ events {{}}
 stream {{
     server {{
         listen 0.0.0.0:{MIRROR_SINK_PORT};
-        xrootd on; brix_storage_backend posix:{sink_data}; brix_auth none;
+        brix_root on; brix_storage_backend posix:{sink_data}; brix_auth none;
         brix_allow_write on;
     }}
 }}
@@ -432,7 +432,7 @@ events {{}}
 stream {{
     server {{
         listen 0.0.0.0:{MIRROR_FRONT_PORT};
-        xrootd on; brix_storage_backend posix:{data}; brix_auth none;
+        brix_root on; brix_storage_backend posix:{data}; brix_auth none;
         brix_allow_write on;
         brix_stream_mirror_url {H}:{MIRROR_SINK_PORT};
         brix_mirror_opcodes open read readv stat;
@@ -620,13 +620,13 @@ def proxy_chain():
     data = os.path.join(_PROXY_DIR, "data")
     confs = {
         "storage": (PROXY_STORAGE_PORT, f"""\
-        xrootd on; brix_storage_backend posix:{data}; brix_auth none;
+        brix_root on; brix_storage_backend posix:{data}; brix_auth none;
         brix_allow_write on;"""),
         "hop1": (PROXY_HOP1_PORT, f"""\
-        xrootd on; brix_auth none;
+        brix_root on; brix_auth none;
         brix_proxy on; brix_proxy_upstream {HOST}:{PROXY_STORAGE_PORT};"""),
         "hop2": (PROXY_HOP2_PORT, f"""\
-        xrootd on; brix_auth none;
+        brix_root on; brix_auth none;
         brix_proxy on; brix_proxy_upstream {HOST}:{PROXY_HOP1_PORT};"""),
     }
     os.makedirs(data, exist_ok=True)

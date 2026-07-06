@@ -36,8 +36,8 @@ events { worker_connections 128; }
 http { access_log off; server {
     listen 127.0.0.1:$CPORT;
     location /cvmfs/ {
-        brix_cvmfs_storage_backend "http://127.0.0.1:$RAL|http://127.0.0.1:$CERN";
-        brix_cvmfs_cache_store posix:$PFX/cache;
+        brix_storage_backend "http://127.0.0.1:$RAL|http://127.0.0.1:$CERN";
+        brix_cache_store posix:$PFX/cache;
         brix_cvmfs_origin_select geo;
         brix_cvmfs_here 51.57:-1.31;
         brix_cvmfs_origin_coords 127.0.0.1:$RAL  51.57:-1.31;

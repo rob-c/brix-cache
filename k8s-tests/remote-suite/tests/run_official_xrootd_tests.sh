@@ -29,7 +29,7 @@ NGINX_ANON_PORT="${NGINX_ANON_PORT:-11094}"
 NGINX_GSI_PORT="${NGINX_GSI_PORT:-11095}"
 # Local scratch for reference files
 LOCALDIR="${LOCALDIR:-/tmp/xrd-official-tests}"
-# The brix_root configured in nginx — remote paths are relative to this
+# The brix_export configured in nginx — remote paths are relative to this
 BRIX_ROOT="${BRIX_ROOT:-/tmp/xrd-test/data}"
 
 # Colours

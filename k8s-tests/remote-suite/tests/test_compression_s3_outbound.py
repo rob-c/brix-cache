@@ -1,7 +1,7 @@
 """
 Phase-42 W2 — outbound (GET) response compression on the S3 surface.
 
-Exercises the `brix_s3_compress` directive added this phase (without it, S3
+Exercises the `brix_compress` directive added this phase (without it, S3
 GetObject compression is dead config).  Self-contained: launches its OWN minimal
 S3 nginx (anonymous, allow_write, compress on) using the project binary, so it
 doesn't perturb the shared harness (where global compression would make every GET
@@ -60,10 +60,10 @@ http {{
         server_name localhost;
         location / {{
             brix_s3            on;
-            brix_s3_storage_backend       posix:{data_dir};
+            brix_storage_backend       posix:{data_dir};
             brix_s3_bucket     {BUCKET};
-            brix_s3_allow_write on;
-            brix_s3_compress   on;
+            brix_allow_write on;
+            brix_compress   on;
         }}
     }}
 }}

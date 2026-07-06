@@ -115,13 +115,13 @@ events {{ worker_connections 1024; }}
 stream {{
     server {{
         listen {self.port_anon};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{self.prefix}/data;
         brix_auth none;
     }}
     server {{
         listen {self.port_gsi};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{self.prefix}/data;
         brix_auth gsi;
         brix_certificate     {self.prefix}/conf/host.crt;

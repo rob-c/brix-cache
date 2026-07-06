@@ -346,7 +346,7 @@ events { worker_connections 1024; }
 stream {
     server {
         listen %s:%d;
-        xrootd on; brix_storage_backend posix:%s; brix_auth none; brix_allow_write on;
+        brix_root on; brix_storage_backend posix:%s; brix_auth none; brix_allow_write on;
         brix_thread_pool aiopool; brix_memory_budget 6m;
     }
 }
@@ -357,10 +357,10 @@ http {
     server {
         listen %s:%d;
         location = /metrics { brix_metrics on; }
-        location /s3b/ { brix_s3 on; brix_s3_storage_backend posix:%s; brix_s3_bucket s3b;
+        location /s3b/ { brix_s3 on; brix_storage_backend posix:%s; brix_s3_bucket s3b;
                          brix_s3_region us-east-1; }
-        location / { brix_webdav on; brix_webdav_storage_backend posix:%s; brix_webdav_auth none;
-                     brix_webdav_allow_write on; }
+        location / { brix_webdav on; brix_storage_backend posix:%s; brix_webdav_auth none;
+                     brix_allow_write on; }
     }
 }
 """ % (prefix, prefix, BIND_HOST, root_port, datadir,

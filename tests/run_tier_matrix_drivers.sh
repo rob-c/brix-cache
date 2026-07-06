@@ -48,7 +48,7 @@ test_stage_store() {
         cat > "$d/s.conf" <<EOF
 daemon on; $USERLINE error_log $d/slogs/e.log error; pid $d/s.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${ps}; xrootd on; brix_root $d/sroot;
+stream { server { listen 127.0.0.1:${ps}; brix_root on; brix_export $d/sroot;
     brix_auth none; brix_allow_write on; } }
 EOF
         "$NGINX" -p "$d" -c "$d/s.conf" 2>"$d/serr" \
@@ -61,10 +61,10 @@ thread_pool default threads=2;
 events { worker_connections 64; }
 http { client_body_temp_path $d/tmp; server { listen 127.0.0.1:${pb};
   location / { dav_methods PUT DELETE;
-    brix_webdav on; brix_webdav_root $d/backend; brix_webdav_auth none;
-    brix_webdav_allow_write on;
-    brix_webdav_stage on; brix_webdav_stage_store $url;
-    brix_webdav_stage_flush sync; } } }
+    brix_webdav on; brix_export $d/backend; brix_webdav_auth none;
+    brix_allow_write on;
+    brix_stage on; brix_stage_store $url;
+    brix_stage_flush sync; } } }
 EOF
     "$NGINX" -p "$d" -c "$d/b.conf" 2>"$d/berr" \
         || { bad "$drv: node failed to start"; cat "$d/berr"; RESULT[$drv]=FAIL; return; }

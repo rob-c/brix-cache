@@ -34,8 +34,8 @@ http {
     server {
         listen 127.0.0.1:$CPORT;
         location /cvmfs/ {
-            brix_cvmfs_storage_backend http://127.0.0.1:$MPORT;
-            brix_cvmfs_cache_store posix:$PFX/cache;
+            brix_storage_backend http://127.0.0.1:$MPORT;
+            brix_cache_store posix:$PFX/cache;
             brix_cvmfs on;
             brix_cvmfs_negative_ttl 30;
             brix_cvmfs_client_hold 2;      # short hold => hold-expired fires fast

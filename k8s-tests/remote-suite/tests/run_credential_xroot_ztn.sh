@@ -28,7 +28,7 @@ cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root;
+    listen 127.0.0.1:${OPORT}; brix_root on; brix_export $PFX/o/root;
     brix_auth token;
     brix_token_jwks     $PFX/tok/jwks.json;
     brix_token_issuer   https://test.example.com;
@@ -44,10 +44,10 @@ events { worker_connections 64; }
 stream {
     brix_credential origin { token_file $PFX/token.jwt; }
     server {
-        listen 127.0.0.1:${BPORT}; xrootd on; brix_root $PFX/b/export; brix_auth none;
+        listen 127.0.0.1:${BPORT}; brix_root on; brix_export $PFX/b/export; brix_auth none;
         brix_storage_backend root://127.0.0.1:${OPORT};
         brix_storage_credential origin;
-        brix_cache on; brix_cache_root $PFX/b/cache;
+        brix_cache on; brix_cache_export $PFX/b/cache;
     }
 }
 EOF
@@ -57,9 +57,9 @@ daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${NPORT}; xrootd on; brix_root $PFX/n/export; brix_auth none;
+    listen 127.0.0.1:${NPORT}; brix_root on; brix_export $PFX/n/export; brix_auth none;
     brix_storage_backend root://127.0.0.1:${OPORT};
-    brix_cache on; brix_cache_root $PFX/n/cache;
+    brix_cache on; brix_cache_export $PFX/n/cache;
 } }
 EOF
 

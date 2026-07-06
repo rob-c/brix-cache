@@ -163,7 +163,7 @@ def gsi_tpc(tmp_path_factory):
         "stream {\n"
         "  server {\n"
         f"    listen 127.0.0.1:{dst_port};\n"
-        "    xrootd on;\n"
+        "    brix_root on;\n"
         f"    brix_storage_backend posix:{dst_data};\n"
         "    brix_auth none;\n"
         "    brix_allow_write on;\n"

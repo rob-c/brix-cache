@@ -108,7 +108,7 @@ def gsi_nginx(tmp_path_factory):
         f"error_log {base}/src-err.log info;\npid {base}/src.pid;\n"
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
-        f"    listen {SRC};\n    xrootd on;\n"   # all interfaces: GSI cert CN=fqdn
+        f"    listen {SRC};\n    brix_root on;\n"   # all interfaces: GSI cert CN=fqdn
         f"    brix_storage_backend posix:{sdata};\n    brix_auth gsi;\n"
         f"    brix_certificate {srv / 'hostcert.pem'};\n"
         f"    brix_certificate_key {srv / 'hostkey.pem'};\n"
@@ -122,7 +122,7 @@ def gsi_nginx(tmp_path_factory):
         "thread_pool default threads=4 max_queue=65536;\n"
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
-        f"    listen 127.0.0.1:{DST};\n    xrootd on;\n"
+        f"    listen 127.0.0.1:{DST};\n    brix_root on;\n"
         f"    brix_storage_backend posix:{ddata};\n    brix_auth none;\n"
         "    brix_allow_write on;\n"
         "    brix_tpc_allow_local on;\n    brix_tpc_allow_private on;\n"

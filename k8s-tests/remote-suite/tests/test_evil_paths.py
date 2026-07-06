@@ -626,7 +626,7 @@ events {{ worker_connections 64; }}
 stream {{
     server {{
         listen {data_port};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{DATA_ROOT};
         brix_allow_write on;
         brix_cms_manager {url_host(HOST)}:{mgr_port};

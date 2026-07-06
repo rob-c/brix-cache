@@ -40,7 +40,7 @@ cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/pid;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${OP}; xrootd on; brix_root $PFX/o/root;
+    listen 127.0.0.1:${OP}; brix_root on; brix_export $PFX/o/root;
     brix_auth gsi;
     brix_certificate     $SERVER_CERT;
     brix_certificate_key $SERVER_KEY;
@@ -54,7 +54,7 @@ daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/pid;
 thread_pool default threads=4;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:${PP}; xrootd on;
+    listen 127.0.0.1:${PP}; brix_root on;
     brix_auth gsi;
     brix_gsi_signed_dh require;
     brix_tpc_delegate on;

@@ -12,7 +12,7 @@ data:
     stream {
       server {
         listen 1094;
-        xrootd on;
+        brix_root on;
         xrootd_root /data/xrootd;
         xrootd_allow_write off;
       }

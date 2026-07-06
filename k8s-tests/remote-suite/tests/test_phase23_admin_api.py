@@ -170,7 +170,7 @@ def test_proxy_dynamic_directive_parses(tmp_path):
             listen {BIND_HOST}:{_P_DYNAMIC};
             location / {{
                 brix_webdav on;
-                brix_webdav_storage_backend posix:{data};
+                brix_storage_backend posix:{data};
                 brix_webdav_auth none;
                 brix_webdav_proxy on;
                 brix_webdav_proxy_dynamic on;
@@ -270,7 +270,7 @@ def admin_server(tmp_path):
             listen {BIND_HOST}:{port};
             location /dav/ {{
                 brix_webdav on;
-                brix_webdav_storage_backend posix:{data};
+                brix_storage_backend posix:{data};
                 brix_webdav_auth none;
             }}
             location /brix/ {{

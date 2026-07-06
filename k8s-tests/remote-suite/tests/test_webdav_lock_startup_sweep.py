@@ -76,7 +76,7 @@ http {{
         listen {SWEEP_PORT};
         location / {{
             brix_webdav on;
-            brix_webdav_storage_backend posix:{root};
+            brix_storage_backend posix:{root};
             brix_webdav_auth none;
             brix_webdav_lock_startup_sweep {sweep};
         }}

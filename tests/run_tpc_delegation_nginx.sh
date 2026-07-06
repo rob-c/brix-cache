@@ -46,7 +46,7 @@ head -c 400000 /dev/urandom > "$PFX/src/root/f.bin"
 cat > "$PFX/src.conf" <<EOF
 daemon on; error_log $PFX/src/logs/e.log info; pid $PFX/src.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:$SRCP; xrootd on; brix_root $PFX/src/root;
+stream { server { listen 127.0.0.1:$SRCP; brix_root on; brix_export $PFX/src/root;
   brix_auth gsi; brix_certificate $SC; brix_certificate_key $SK; brix_trusted_ca $CA; } }
 EOF
 # nginx DEST — GSI fileserver + delegation-capturing TPC pull
@@ -54,7 +54,7 @@ cat > "$PFX/dst.conf" <<EOF
 daemon on; error_log $PFX/dst/logs/e.log info; pid $PFX/dst.pid;
 thread_pool default threads=4;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:$DSTP; xrootd on; brix_root $PFX/dst/root;
+stream { server { listen 127.0.0.1:$DSTP; brix_root on; brix_export $PFX/dst/root;
   brix_auth gsi; brix_gsi_signed_dh require; brix_allow_write on;
   brix_tpc_allow_local on; brix_tpc_allow_private on; brix_tpc_delegate on;
   brix_certificate $SC; brix_certificate_key $SK; brix_trusted_ca $CA; } }

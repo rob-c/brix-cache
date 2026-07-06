@@ -87,8 +87,8 @@ events {{ worker_connections 64; }}
 stream {{
     server {{
         listen 127.0.0.1:{sport};
-        xrootd on;
-        brix_root {root};
+        brix_root on;
+        brix_export {root};
         brix_auth none;
         brix_cache_state_root {state};
         brix_cache_dirty_max_age 1;

@@ -180,7 +180,7 @@ VOMS VO-based path ACL. CMS proxy admitted to `/cms/`, denied `/atlas/`. Atlas p
 Authorization boundary tests:
 
 - **Read-only server** (`TestReadOnlyServer`) — `brix_allow_write off` blocks all mutating opcodes while reads continue.
-- **Symlink escape** (`TestReadSideSymlinkEscape`) — stat/open/dirlist reject symlinks pointing outside `brix_root`.
+- **Symlink escape** (`TestReadSideSymlinkEscape`) — stat/open/dirlist reject symlinks pointing outside `brix_export`.
 - **Pre-auth rejection** (`TestPreAuthRejection`) — nine opcodes rejected before login; ping and protocol allowed.
 - **Unknown opcodes** — `kXR_Unsupported` before and after login.
 - **Handle misuse** — truncate on read-only handle, write to read-only handle, operations on invalid handles, use-after-close.

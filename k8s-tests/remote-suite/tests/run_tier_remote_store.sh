@@ -40,14 +40,14 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/s/root" "$PFX/s/logs" \
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log info; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root; brix_auth none; } }
+stream { server { listen 127.0.0.1:${OPORT}; brix_root on; brix_export $PFX/o/root; brix_auth none; } }
 EOF
 
 # S — writable store node holding cached objects + their cinfo xattrs.
 cat > "$PFX/s/nginx.conf" <<EOF
 daemon on; error_log $PFX/s/logs/e.log info; pid $PFX/s/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${SPORT}; xrootd on; brix_root $PFX/s/root; brix_auth none; brix_allow_write on; } }
+stream { server { listen 127.0.0.1:${SPORT}; brix_root on; brix_export $PFX/s/root; brix_auth none; brix_allow_write on; } }
 EOF
 
 # B — WebDAV cache node: remote source + remote store, NO local cache_root.
@@ -61,10 +61,10 @@ http {
         listen 127.0.0.1:${BPORT};
         location / {
             brix_webdav on;
-            brix_webdav_root $PFX/b/export;
+            brix_export $PFX/b/export;
             brix_webdav_auth none;
-            brix_webdav_storage_backend root://127.0.0.1:${OPORT};
-            brix_webdav_cache_store root://127.0.0.1:${SPORT};
+            brix_storage_backend root://127.0.0.1:${OPORT};
+            brix_cache_store root://127.0.0.1:${SPORT};
         }
     }
 }

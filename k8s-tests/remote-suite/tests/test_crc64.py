@@ -107,7 +107,7 @@ events {{ worker_connections 128; }}
 stream {{
     server {{
         listen {BIND_HOST}:{root_port};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{data};
         brix_auth none;
         brix_allow_write on;
@@ -121,18 +121,18 @@ http {{
         listen {BIND_HOST}:{s3_port};
         location / {{
             brix_s3 on;
-            brix_s3_storage_backend posix:{data};
+            brix_storage_backend posix:{data};
             brix_s3_bucket testbucket;
-            brix_s3_allow_write on;
+            brix_allow_write on;
         }}
     }}
     server {{
         listen {BIND_HOST}:{dav_port};
         location / {{
             brix_webdav on;
-            brix_webdav_storage_backend posix:{data};
+            brix_storage_backend posix:{data};
             brix_webdav_auth none;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
         }}
     }}
 }}

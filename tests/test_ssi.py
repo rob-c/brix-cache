@@ -101,7 +101,7 @@ def _start(tmp_path_factory, ssi_on):
         "thread_pool default threads=2 max_queue=4096;\n"
         "events { worker_connections 64; }\n"
         "stream { server {\n"
-        f"  listen {BIND_HOST}:{port};\n  xrootd on;\n  brix_storage_backend posix:{data};\n"
+        f"  listen {BIND_HOST}:{port};\n  brix_root on;\n  brix_storage_backend posix:{data};\n"
         "  brix_auth none;\n  brix_allow_write on;\n"
         f"{ssi}"
         f"  brix_access_log {base}/ssi-access.log;\n}} }}\n"

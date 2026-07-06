@@ -391,8 +391,8 @@ An nginx configuration section that handles **raw TCP connections** (any protoco
 stream {
     server {
         listen 1094;
-        xrootd on;              # enable our module
-        brix_root /data;      # serve files from this directory
+        brix_root on;              # enable our module
+        brix_export /data;      # serve files from this directory
     }
 }
 ```

@@ -235,7 +235,7 @@ Omitting `O_EXCL` for `kXR_new` alone silently truncates existing files instead 
 
 The path resolver normally calls `realpath(3)` on the parent directory to canonicalize it and check for `..` escape attempts. For a recursive `mkdir -p a/b/c`, neither `a/` nor `a/b/` exists yet, so `realpath` fails with `ENOENT` and the mkdir is rejected before any directory is created.
 
-The fix: when `kXR_mkdirpath` is set (or `kXR_mkpath` on open), use a resolver that scans the path for `..` components rather than calling `realpath`. The `brix_root` directory is always trusted; any relative path with no `..` components is safe.
+The fix: when `kXR_mkdirpath` is set (or `kXR_mkpath` on open), use a resolver that scans the path for `..` components rather than calling `realpath`. The `brix_export` directory is always trusted; any relative path with no `..` components is safe.
 
 ---
 

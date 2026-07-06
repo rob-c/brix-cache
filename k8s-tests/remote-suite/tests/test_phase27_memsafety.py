@@ -186,7 +186,7 @@ def _spawn_stream(tmp_path, port):
             f"pid {tmp_path}/logs/nginx.pid;\n"
             "events { worker_connections 64; }\n"
             "stream {\n"
-            f"  server {{ listen {BIND_HOST}:{port}; xrootd on;"
+            f"  server {{ listen {BIND_HOST}:{port}; brix_root on;"
             f" brix_storage_backend posix:{data}; brix_auth none; }}\n"
             "}\ndaemon off;\nmaster_process off;\n")
     cp = tmp_path / "nginx.conf"

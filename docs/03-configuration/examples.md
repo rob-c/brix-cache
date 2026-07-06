@@ -17,8 +17,8 @@ events { worker_connections 1024; }
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /data/public;
+        brix_root on;
+        brix_export /data/public;
     }
 }
 ```
@@ -34,8 +34,8 @@ events { worker_connections 1024; }
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /data/upload;
+        brix_root on;
+        brix_export /data/upload;
         brix_allow_write on;
         brix_access_log /var/log/nginx/brix_access.log;
     }
@@ -53,10 +53,10 @@ events { worker_connections 4096; }
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /;
+        brix_root on;
+        brix_export /;
         brix_cache on;
-        brix_cache_root /srv/xcache;
+        brix_cache_export /srv/xcache;
         brix_cache_origin root://origin.example.org:1094;
         brix_cache_lock_timeout 300s;
         brix_cache_eviction_threshold 90%;
@@ -71,7 +71,7 @@ Requests for `/store/...` are opened from `/srv/xcache/store/...` if present. A 
 ```text
   client ── root://cache//store/a.root ──▶ ┌─────────────────────────┐
                                            │  nginx-xrootd (XCache)   │
-                                           │  brix_cache_root       │
+                                           │  brix_cache_export       │
                                            └───────────┬─────────────┘
                   ┌────────────────────────────────────┴───────────┐
                   ▼ HIT: /srv/xcache/store/a.root exists            ▼ MISS
@@ -99,10 +99,10 @@ events { worker_connections 1024; }
 stream {
     server {
         listen 1095;
-        xrootd on;
+        brix_root on;
         brix_auth          gsi;
         brix_allow_write   on;
-        brix_root          /ceph/store;
+        brix_export          /ceph/store;
 
         brix_certificate     /etc/grid-security/hostcert.pem;
         brix_certificate_key /etc/grid-security/hostkey.pem;
@@ -141,8 +141,8 @@ events { worker_connections 1024; }
 stream {
     server {
         listen 1096;
-        xrootd on;
-        brix_root /data/token;
+        brix_root on;
+        brix_export /data/token;
         brix_auth token;
         brix_allow_write on;
 
@@ -169,12 +169,12 @@ opened. `brix_allow_write` remains an additional server-wide write gate, and
 
 ```text
                         ┌──────────────────────────────────────┐
-   anonymous reader ──▶ │ :1094  brix_root /data/public      │ read-only
+   anonymous reader ──▶ │ :1094  brix_export /data/public      │ read-only
                         │        (no auth, no write)            │
                         ├──────────────────────────────────────┤
    GSI cert holder  ──▶ │ :1095  brix_auth gsi                │ read-write
                         │        brix_allow_write on          │ (cert + CA)
-                        │        brix_root /data/upload       │
+                        │        brix_export /data/upload       │
                         ├──────────────────────────────────────┤
    Prometheus       ──▶ │ :9100  http /metrics                  │ scrape
                         └──────────────────────────────────────┘
@@ -191,18 +191,18 @@ stream {
     # Public read-only endpoint
     server {
         listen 1094;
-        xrootd on;
-        brix_root /data/public;
+        brix_root on;
+        brix_export /data/public;
         brix_access_log /var/log/nginx/brix_public.log;
     }
 
     # Authenticated read-write endpoint
     server {
         listen 1095;
-        xrootd on;
+        brix_root on;
         brix_auth gsi;
         brix_allow_write on;
-        brix_root /data/upload;
+        brix_export /data/upload;
         brix_certificate     /etc/grid-security/hostcert.pem;
         brix_certificate_key /etc/grid-security/hostkey.pem;
         brix_trusted_ca      /etc/grid-security/ca.pem;

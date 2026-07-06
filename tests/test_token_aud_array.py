@@ -79,10 +79,10 @@ http {{
         listen {BIND_HOST}:{PORT};
         location / {{
             brix_webdav on;
-            brix_webdav_storage_backend posix:{data};
+            brix_storage_backend posix:{data};
             brix_webdav_auth required;
             brix_webdav_cadir {d}/cadir;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
             brix_webdav_token_jwks {issuer.jwks_path};
             brix_webdav_token_issuer "{issuer.issuer}";
             brix_webdav_token_audience "{AUDIENCE}";

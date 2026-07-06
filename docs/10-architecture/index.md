@@ -85,8 +85,8 @@ requests enter through nginx HTTP and land under `src/protocols/webdav/`.
 
 | URL | nginx block | Main state object | Main source directories |
 |---|---|---|---|
-| `root://host//path` | `stream { server { xrootd on; } }` | `brix_ctx_t` | `connection/`, `handshake/`, `session/`, `read/`, `write/` |
-| `roots://host//path` | `stream { listen ... ssl; xrootd on; }` or native TLS upgrade | `brix_ctx_t` plus `c->ssl` | same native path, with TLS in `connection/tls.c` |
+| `root://host//path` | `stream { server { brix_root on; } }` | `brix_ctx_t` | `connection/`, `handshake/`, `session/`, `read/`, `write/` |
+| `roots://host//path` | `stream { listen ... ssl; brix_root on; }` or native TLS upgrade | `brix_ctx_t` plus `c->ssl` | same native path, with TLS in `connection/tls.c` |
 | `http://host/path` | `http { location { brix_webdav on; } }` | `ngx_http_brix_webdav_req_ctx_t` | `webdav/` |
 | `https://host/path` | `http { listen ... ssl; location { brix_webdav on; } }` | `ngx_http_brix_webdav_req_ctx_t` plus `r->connection->ssl` | `webdav/`, plus nginx HTTP SSL |
 | `davs://host/path` | XRootD client WebDAV mode over HTTPS; same nginx block as `https://` WebDAV | `ngx_http_brix_webdav_req_ctx_t` plus `r->connection->ssl` | `webdav/`, plus nginx HTTP SSL |

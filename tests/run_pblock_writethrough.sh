@@ -33,7 +33,7 @@ events { worker_connections 64; }
 stream {
     server {
         listen 127.0.0.1:${ORIGIN_PORT};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:$PFX/o/root;
         brix_auth none;
         brix_allow_write on;
@@ -52,7 +52,7 @@ thread_pool default threads=2;
 stream {
     server {
         listen 127.0.0.1:${PRIMARY_PORT};
-        xrootd on;
+        brix_root on;
         brix_auth none;
         brix_allow_write on;
         brix_upload_resume off;

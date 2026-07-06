@@ -135,8 +135,8 @@ The `e` value `"AQAB"` is the base64url encoding of 65537, the standard RSA publ
 stream {
     server {
         listen 11099;
-        xrootd on;
-        brix_root /tmp/xrd-test/data;
+        brix_root on;
+        brix_export /tmp/xrd-test/data;
         brix_auth token;
         brix_allow_write on;
 
@@ -171,9 +171,9 @@ http {
 
         location / {
             brix_webdav         on;
-            brix_webdav_root    /tmp/xrd-test/data;
+            brix_export    /tmp/xrd-test/data;
             brix_webdav_auth    optional;  # use required to reject anonymous fallback
-            brix_webdav_allow_write on;
+            brix_allow_write on;
 
             brix_webdav_token_jwks     /tmp/xrd-test/tokens/jwks.json;
             brix_webdav_token_issuer   "https://test.example.com";
@@ -191,9 +191,9 @@ If you want to accept either GSI proxy certificates or bearer tokens on a single
 stream {
     server {
         listen 1094;
-        xrootd on;
+        brix_root on;
         brix_auth both;    # accept GSI or token credentials
-        brix_root /data;
+        brix_export /data;
 
         # GSI settings
         brix_certificate     /etc/grid-security/hostcert.pem;
@@ -443,8 +443,8 @@ Use separate listeners if you need a read-only token-authenticated stream endpoi
 stream {
     server {
         listen 11099;
-        xrootd on;
-        brix_root /tmp/xrd-test/data;
+        brix_root on;
+        brix_export /tmp/xrd-test/data;
         brix_auth token;
         # brix_allow_write is off by default
         brix_token_jwks     /tmp/xrd-test/tokens/jwks.json;
@@ -746,7 +746,7 @@ python3 utils/inspect_token.py "$BEARER_TOKEN" | grep scope
 # Should include: "storage.write:/"
 ```
 
-Also verify that the server has `brix_webdav_allow_write on`.
+Also verify that the server has `brix_allow_write on`.
 
 For the native stream protocol, write/create scopes are enforced when the path
 is resolved for a write open or namespace mutation. If a native stream upload is

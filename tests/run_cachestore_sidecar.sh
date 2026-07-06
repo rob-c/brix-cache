@@ -24,7 +24,7 @@ test_cachestore() {
 daemon on; error_log $d/sa/logs/e.log info; pid $d/sa/nginx.pid;
 events { worker_connections 64; }
 http { server { listen 127.0.0.1:${sport};
-  location / { brix_s3 on; brix_s3_root $d/sa/store; brix_s3_bucket xrdcache; brix_s3_allow_write on; } } }
+  location / { brix_s3 on; brix_export $d/sa/store; brix_s3_bucket xrdcache; brix_allow_write on; } } }
 E2
         local url="s3://127.0.0.1:${sport}/xrdcache"
     else
@@ -32,7 +32,7 @@ E2
 daemon on; error_log $d/sa/logs/e.log info; pid $d/sa/nginx.pid;
 events { worker_connections 64; }
 http { client_body_temp_path $d/sa/tmp; server { listen 127.0.0.1:${sport};
-  location / { dav_methods PUT DELETE; brix_webdav on; brix_webdav_root $d/sa/store; brix_webdav_auth none; brix_webdav_allow_write on; } } }
+  location / { dav_methods PUT DELETE; brix_webdav on; brix_export $d/sa/store; brix_webdav_auth none; brix_allow_write on; } } }
 E2
         local url="http://127.0.0.1:${sport}"
     fi
@@ -41,8 +41,8 @@ daemon on; error_log $d/b/logs/e.log info; pid $d/b/nginx.pid;
 thread_pool default threads=2;
 events { worker_connections 64; }
 http { client_body_temp_path $d/b/tmp; server { listen 127.0.0.1:${bport};
-  location / { brix_webdav on; brix_webdav_root $d/b/backend; brix_webdav_auth none;
-    brix_webdav_cache_store $url; } } }
+  location / { brix_webdav on; brix_export $d/b/backend; brix_webdav_auth none;
+    brix_cache_store $url; } } }
 E2
     head -c 450000 /dev/urandom > "$d/b/backend/f.bin"; local sha=$(sha256sum "$d/b/backend/f.bin"|cut -d' ' -f1)
     "$NGINX" -p "$d/sa" -c "$d/sa.conf" 2>"$d/saerr" || { bad "$label store server failed"; cat "$d/saerr"; return; }

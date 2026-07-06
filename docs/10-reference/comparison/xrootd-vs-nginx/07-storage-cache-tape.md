@@ -96,7 +96,7 @@ process with a **unified VFS** and **no plugin ABI**:
   metric + access-log line, and returns a handle or buffer chain. Confinement,
   page-CRC, cache integration, and write-through are implemented **once** here.
 - **`src/fs/path/` — confinement and the namespace boundary.** The export root is a
-  **single local directory** (`brix_root`). Every client path is confined with
+  **single local directory** (`brix_export`). Every client path is confined with
   Linux `openat2(2)` + `RESOLVE_BENEATH | RESOLVE_NO_MAGICLINKS`
   (`src/fs/path/beneath.c`), anchored to a per-worker `O_PATH` "rootfd". This is a
   *kernel-enforced* boundary, not a string prefix (see the next section). Auth/ACL
@@ -155,7 +155,7 @@ call:
 
 This module exposes exactly **one local POSIX export** per server block:
 
-- **`brix_root <dir>`** is the export root. It is canonicalised once at startup
+- **`brix_export <dir>`** is the export root. It is canonicalised once at startup
   (`realpath(3)` in `src/fs/path/canonical.c`) and a per-worker `O_PATH` rootfd is
   opened on it.
 - Confinement is **kernel-enforced**, not string-based: every client-path syscall
@@ -171,7 +171,7 @@ This module exposes exactly **one local POSIX export** per server block:
   syscalls do not themselves honour `RESOLVE_BENEATH`
   (SECURITY note, `src/fs/path/beneath.c`).
 - There is **no named-space / partition model** and **no N2N plugin**. The cache
-  uses a second directory tree (`brix_cache_root`) but that is a distinct
+  uses a second directory tree (`brix_cache_export`) but that is a distinct
   feature, not a space-token system.
 - Recursive parent creation exists (`src/fs/path/mkdir.c`,
   `brix_mkdir_recursive_beneath`) and is used where the operation calls for it.
@@ -465,7 +465,7 @@ such here.
 
 | Concern | Official XRootD | BriX-Cache |
 |---|---|---|
-| Export base path | `oss.localroot <path>` (string prefix) | `brix_root <dir>` (kernel-confined export root) |
+| Export base path | `oss.localroot <path>` (string prefix) | `brix_export <dir>` (kernel-confined export root) |
 | Confinement | none from `localroot`; symlinks followed | `openat2(RESOLVE_BENEATH)` per syscall (`src/fs/path/beneath.c`) |
 | LFN→PFN mapping | `oss.namelib <lib>` (N2N plugin) | none (lexical path only) |
 | Named spaces / partitions | `oss.space <name> <path> ...` | none |
@@ -476,7 +476,7 @@ such here.
 | Concern | Official XRootD | BriX-Cache |
 |---|---|---|
 | Cache plugin / enable | `pfc.osslib`, cache plugin load | `brix_cache on` |
-| Cache disk tree | OSS data space | `brix_cache_root <dir>` |
+| Cache disk tree | OSS data space | `brix_cache_export <dir>` |
 | Remote origin | `pss.origin root://host:port` | `brix_cache_origin root://host:port` (+ `_tls`, `_cadir`, `_proxy`, `_client`) |
 | Fetch granularity | `pfc.blocksize`, block vs full-file | whole-file or `brix_cache_slice` (slice mode) |
 | Prefetch | `pfc.prefetch <N>` | none (request-driven fill only) |

@@ -186,7 +186,7 @@ def redirector(tmp_path):
         f"error_log {tmp_path}/err.log info;\npid {tmp_path}/nginx.pid;\n"
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
-        f"    listen {HOST}:{NGINX_PORT};\n    xrootd on;\n"
+        f"    listen {HOST}:{NGINX_PORT};\n    brix_root on;\n"
         f"    brix_storage_backend posix:{data};\n"
         f"    brix_upstream {HOST}:{origin.port};\n"
         f"    brix_upstream_token_file {token};\n  }}\n}}\n")

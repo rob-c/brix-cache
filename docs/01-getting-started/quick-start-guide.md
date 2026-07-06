@@ -149,16 +149,16 @@ stream {
     # Anonymous XRootD (no auth) — port 11094
     server {
         listen 11094;
-        xrootd on;
-        brix_root /tmp/xrd-test/data;
+        brix_root on;
+        brix_export /tmp/xrd-test/data;
         brix_access_log /tmp/xrd-test/logs/brix_access_anon.log;
     }
 
     # GSI auth (x509 proxy certificate) — port 11095
     server {
         listen 11095;
-        xrootd on;
-        brix_root /tmp/xrd-test/data;
+        brix_root on;
+        brix_export /tmp/xrd-test/data;
         brix_certificate     /tmp/xrd-test/pki/server/hostcert.pem;
         brix_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
         brix_trusted_ca      /tmp/xrd-test/pki/ca/ca.pem;
@@ -168,8 +168,8 @@ stream {
     # GSI + TLS (encrypted channel with proxy cert) — port 11096
     server {
         listen 11096 ssl;
-        xrootd on;
-        brix_root /tmp/xrd-test/data;
+        brix_root on;
+        brix_export /tmp/xrd-test/data;
         brix_certificate     /tmp/xrd-test/pki/server/hostcert.pem;
         brix_certificate_key /tmp/xrd-test/pki/server/hostkey.pem;
         brix_trusted_ca      /tmp/xrd-test/pki/ca/ca.pem;
@@ -181,8 +181,8 @@ stream {
     # JWT token auth — port 11097
     server {
         listen 11097;
-        xrootd on;
-        brix_root /tmp/xrd-test/data;
+        brix_root on;
+        brix_export /tmp/xrd-test/data;
         brix_auth token;
         brix_allow_write on;
         brix_token_jwks     /tmp/xrd-test/tokens/jwks.json;
@@ -203,9 +203,9 @@ http {
 
         location / {
             brix_webdav         on;
-            brix_webdav_root    /tmp/xrd-test/data;
+            brix_export    /tmp/xrd-test/data;
             brix_webdav_auth    optional;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
 
             brix_webdav_token_jwks     /tmp/xrd-test/tokens/jwks.json;
             brix_webdav_token_issuer   "https://test.example.com";
@@ -220,7 +220,7 @@ http {
 
         location / {
             brix_s3         on;
-            brix_s3_root    /tmp/xrd-test/s3-data;
+            brix_export    /tmp/xrd-test/s3-data;
             brix_s3_bucket  test-bucket;
         }
     }
@@ -389,7 +389,7 @@ curl http://localhost:9001/test-bucket/
 | `xrdcp` says "authentication failure" on GSI port | Ensure `X509_USER_PROXY` points to a valid proxy cert within its lifetime; check it was signed by the CA at `/tmp/xrd-test/pki/ca/ca.pem` |
 | curl returns 401/403 on HTTPS | Token missing or expired; use `--scope "storage.read:/"` for GET, `"storage.write:/"` for PUT. Check token expiry with `utils/inspect_token.py` |
 | nginx won't start | Verify all cert/key paths exist and JWKS file exists (`python3 utils/make_token.py init /tmp/xrd-test/tokens`) |
-| Write denied even with valid token | Server must have `brix_allow_write on` (stream) or `brix_webdav_allow_write on` (WebDAV); token scope must include `storage.write:PATH` |
+| Write denied even with valid token | Server must have `brix_allow_write on` (stream) or `brix_allow_write on` (WebDAV); token scope must include `storage.write:PATH` |
 | Metrics endpoint empty | Port 9100 must be listening; check `ss -tlnp \| grep 9100` |
 
 ---

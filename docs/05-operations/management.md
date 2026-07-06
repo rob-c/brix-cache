@@ -126,7 +126,7 @@ walks are bounded by `brix_ckscan_depth` (default 32) and
 
 #### Space (`QueryCode.SPACE`)
 
-Returns disk space statistics for the `brix_root` filesystem in `oss.*` format.
+Returns disk space statistics for the `brix_export` filesystem in `oss.*` format.
 
 ```bash
 xrdfs localhost:1094 spaceinfo /
@@ -223,7 +223,7 @@ status, result = fs.get_xattr("/store/mc/sample.root", ["checksum"])
 
 `kXR_prepare` is accepted as a local-storage staging hint. The module parses
 the official newline-separated path payload, validates each path under
-`brix_root`, applies authdb, VO ACL, and token-scope checks, and returns
+`brix_export`, applies authdb, VO ACL, and token-scope checks, and returns
 success when all requested files are already online.
 
 With `brix_frm on`, `kXR_prepare` creates a durable FRM stage request and

@@ -100,21 +100,21 @@ def relays(tmp_path_factory):
     origin_conf = _write_conf(origin, f"""
     server {{
         listen {BIND_HOST}:{origin_port};
-        xrootd on;
-        brix_root {export};
+        brix_root on;
+        brix_export {export};
         brix_auth none;
     }}""")
     guarded_conf = _write_conf(guarded, f"""
     server {{
         listen {BIND_HOST}:{guarded_port};
-        xrootd on;
+        brix_root on;
         brix_transparent_proxy {BIND_HOST}:{origin_port};
         brix_guard_stream on;
     }}""")
     unguarded_conf = _write_conf(unguarded, f"""
     server {{
         listen {BIND_HOST}:{unguarded_port};
-        xrootd on;
+        brix_root on;
         brix_transparent_proxy {BIND_HOST}:{origin_port};
     }}""")
 

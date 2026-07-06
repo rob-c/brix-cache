@@ -806,7 +806,7 @@ stream {
 
     server {
         listen 1094;
-        xrootd on;
+        brix_root on;
 
         xrootd_rate_limit zone=rl_stream key=vo rate=500r/s burst=800;
         xrootd_rate_limit zone=rl_stream key=ip rate=50r/s burst=100 nodelay;

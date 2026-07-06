@@ -15,9 +15,9 @@ cat > "$PFX/nginx.conf" <<EOF
 daemon off; error_log $PFX/e.log info; pid $PFX/pid;
 events { worker_connections 64; }
 stream { server {
-    listen 127.0.0.1:11939; xrootd on; brix_auth none;
+    listen 127.0.0.1:11939; brix_root on; brix_auth none;
     brix_storage_backend root://127.0.0.1:11940;
-    brix_cache_store posix:$PFX/cache; brix_cache_root /;
+    brix_cache_store posix:$PFX/cache; brix_cache_export /;
     brix_cache_origin_family $1;
 } }
 EOF

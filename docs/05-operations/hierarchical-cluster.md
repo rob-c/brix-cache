@@ -509,8 +509,8 @@ stream {
     }
     server {
         listen 2094;
-        xrootd on;
-        brix_root /dev/null;
+        brix_root on;
+        brix_export /dev/null;
         brix_manager_mode on;
         brix_registry_slots 256;
     }
@@ -524,8 +524,8 @@ stream {
     }
     server {
         listen 1094;
-        xrootd on;
-        brix_root /dev/null;
+        brix_root on;
+        brix_export /dev/null;
         brix_manager_mode on;
         brix_cms_manager meta-manager.example.org:2213;
         brix_cms_locate_timeout 5s;
@@ -537,8 +537,8 @@ stream {
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /data;
+        brix_root on;
+        brix_export /data;
         brix_cms_manager sub-manager.example.org:1213;
         brix_cms_paths /data;
     }
@@ -768,7 +768,7 @@ bootstraps an upstream proxy connection to the CMS-nominated host:port.
 stream {
     server {
         listen 1094;
-        xrootd on;
+        brix_root on;
         brix_manager_mode on;
         brix_cms_manager parent.example.org:1213;
         brix_cms_response proxy;   # NEW: proxy instead of redirect

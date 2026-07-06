@@ -234,7 +234,7 @@ events { worker_connections 1024; }
 stream {
   server {
     listen {{ (index .Values.role.ports 0).port }};
-    xrootd on;
+    brix_root on;
     brix_storage_backend ceph:{{ .Values.role.data.pool | default "xrdtest" }};
     brix_auth none;
     brix_allow_write on;

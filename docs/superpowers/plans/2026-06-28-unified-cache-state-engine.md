@@ -665,7 +665,7 @@ Set `NGX_CONF_UNSET` equivalents in the `create_srv_conf` if that file zero-init
 
 ```bash
 cd /tmp/nginx-1.28.3 && make -j$(nproc) 2>&1 | tail -2
-printf 'events{}\nstream{server{listen 127.0.0.1:12931; xrootd on; xrootd_root /tmp; xrootd_auth none;\n  xrootd_cache on; xrootd_cache_root /tmp/xc; xrootd_cache_state_root /tmp/xcs;\n  xrootd_cache_dirty_max_age 3600; xrootd_cache_deny_prefix /no/; xrootd_cache_allow_prefix /yes/; }}\n' > /tmp/cfgtest.conf
+printf 'events{}\nstream{server{listen 127.0.0.1:12931; brix_root on; xrootd_root /tmp; xrootd_auth none;\n  xrootd_cache on; xrootd_cache_root /tmp/xc; xrootd_cache_state_root /tmp/xcs;\n  xrootd_cache_dirty_max_age 3600; xrootd_cache_deny_prefix /no/; xrootd_cache_allow_prefix /yes/; }}\n' > /tmp/cfgtest.conf
 /tmp/nginx-1.28.3/objs/nginx -t -c /tmp/cfgtest.conf 2>&1 | tail -3
 ```
 Expected: `configuration file /tmp/cfgtest.conf test is successful`.
@@ -982,7 +982,7 @@ def _spawn_cache_nginx(tmp, port, extra):
     conf.write_text(f"""
 daemon on; error_log {logs}/error.log info; pid {tmp}/nginx.pid;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen 127.0.0.1:{port}; xrootd on; xrootd_root {root};
+stream {{ server {{ listen 127.0.0.1:{port}; brix_root on; xrootd_root {root};
   xrootd_auth none; xrootd_allow_write on;
   xrootd_cache on; xrootd_cache_root {cache};
   {extra} }} }}

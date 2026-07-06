@@ -42,8 +42,8 @@ events { worker_connections 64; }
 stream {
     server {
         listen 127.0.0.1:${RPORT};
-        xrootd on;
-        brix_root /export;
+        brix_root on;
+        brix_export /export;
         brix_auth none;
         brix_allow_write on;
         brix_upload_resume off;
@@ -63,9 +63,9 @@ http {
         listen 127.0.0.1:${HPORT};
         location / {
             brix_webdav on;
-            brix_webdav_root /export;
+            brix_export /export;
             brix_webdav_auth none;
-            brix_webdav_allow_write on;
+            brix_allow_write on;
         }
     }
 }

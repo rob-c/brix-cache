@@ -235,8 +235,8 @@ def _s3_origin_server(listen_port, root, bucket):
         f"    server {{\n"
         f"        listen {BIND_HOST}:{listen_port};\n"
         f"        location / {{\n"
-        f"            brix_s3 on; brix_s3_storage_backend posix:{root};\n"
-        f"            brix_s3_bucket {bucket}; brix_s3_allow_write on;\n"
+        f"            brix_s3 on; brix_storage_backend posix:{root};\n"
+        f"            brix_s3_bucket {bucket}; brix_allow_write on;\n"
         f"            brix_s3_max_keys 1000;\n"
         f"        }}\n"
         f"    }}\n"
@@ -259,8 +259,8 @@ def _webdav_origin_server(listen_port, root, cert, key, tls=True):
         f"        server_name localhost;\n"
         f"{ssl_lines}"
         f"        location / {{\n"
-        f"            brix_webdav on; brix_webdav_storage_backend posix:{root};\n"
-        f"            brix_webdav_auth none; brix_webdav_allow_write on;\n"
+        f"            brix_webdav on; brix_storage_backend posix:{root};\n"
+        f"            brix_webdav_auth none; brix_allow_write on;\n"
         f"        }}\n"
         f"    }}\n"
     )
@@ -282,8 +282,8 @@ def _webdav_proxy_server(listen_port, root, upstream_url, cert, key):
         f"        server_name localhost;\n"
         f"        ssl_certificate {cert};\n        ssl_certificate_key {key};\n"
         f"        location / {{\n"
-        f"            brix_webdav on; brix_webdav_storage_backend posix:{root};\n"
-        f"            brix_webdav_auth none; brix_webdav_allow_write on;\n"
+        f"            brix_webdav on; brix_storage_backend posix:{root};\n"
+        f"            brix_webdav_auth none; brix_allow_write on;\n"
         f"        }}\n"
         f"    }}\n"
     )
@@ -297,7 +297,7 @@ def cfg_node_a(data_port, cms_port, s3_front_upstream, tmpbase, cert, key,
         "worker_processes 1;\nerror_log {ERR} debug;\npid {PID};\n"
         "events { worker_connections 128; }\n"
         "stream {\n"
-        f"    server {{ listen {BIND_HOST}:{data_port}; xrootd on; brix_auth none;"
+        f"    server {{ listen {BIND_HOST}:{data_port}; brix_root on; brix_auth none;"
         f" brix_manager_mode on; }}\n"
         f"    server {{ listen {BIND_HOST}:{cms_port}; brix_cms_server on; }}\n"
         "}\n"
@@ -321,7 +321,7 @@ def cfg_node_b(data_port, cms_mgr, paths, upstream, s3_upstream, tmpbase,
         "stream {\n"
         f"    server {{\n"
         f"        listen {BIND_HOST}:{data_port};\n"
-        f"        xrootd on; brix_auth none;\n"
+        f"        brix_root on; brix_auth none;\n"
         f"        brix_allow_write on;\n"
         f"        brix_tap_proxy on;\n"
         f"        brix_tap_proxy_upstream {BIND_HOST}:{upstream};\n"
@@ -345,7 +345,7 @@ def cfg_node_f(data_port, root, cms_mgr, paths, tmpbase, cert, key):
     S3 object-store origin over the same store (http).
 
     The S3 handler strips the (single) bucket name and writes keys directly under
-    brix_s3_root, so the S3 root is <store>/mesh (== the root:// export's
+    brix_export, so the S3 root is <store>/mesh (== the root:// export's
     on-disk dir): an S3 PUT of key K -> <store>/mesh/K == root:// "/mesh/K"."""
     s3_root = root + EXPORT       # EXPORT begins with '/', root has no trailing /
     return (
@@ -354,7 +354,7 @@ def cfg_node_f(data_port, root, cms_mgr, paths, tmpbase, cert, key):
         "stream {\n"
         f"    server {{\n"
         f"        listen {BIND_HOST}:{data_port};\n"
-        f"        xrootd on; brix_storage_backend posix:{root}; brix_auth none;\n"
+        f"        brix_root on; brix_storage_backend posix:{root}; brix_auth none;\n"
         f"        brix_allow_write on;\n"
         f"        brix_cms_manager {cms_mgr}; brix_cms_paths {paths};\n"
         f"        brix_cms_interval 2; brix_listen_port {data_port};\n"

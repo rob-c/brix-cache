@@ -30,7 +30,7 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/c/export" "$PFX/c/cache" "$PFX/c/logs
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log error; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root; brix_auth none; } }
+stream { server { listen 127.0.0.1:${OPORT}; brix_root on; brix_export $PFX/o/root; brix_auth none; } }
 EOF
 
 # Legacy slice-cache node: brix_cache_origin + brix_cache_slice (>= 1 MiB).
@@ -41,11 +41,11 @@ events { worker_connections 64; }
 stream {
     server {
         listen 127.0.0.1:${CPORT};
-        xrootd on;
-        brix_root $PFX/c/export;
+        brix_root on;
+        brix_export $PFX/c/export;
         brix_auth none;
         brix_storage_backend root://127.0.0.1:${OPORT};
-        brix_cache_store posix:$PFX/c/cache; brix_cache_root /;
+        brix_cache_store posix:$PFX/c/cache; brix_cache_export /;
         brix_cache_slice_size 1m;
     }
 }

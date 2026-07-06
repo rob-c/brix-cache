@@ -61,9 +61,9 @@ http {{
         listen {PORT};
         location / {{
             brix_s3                on;
-            brix_s3_storage_backend           posix:{data};
+            brix_storage_backend           posix:{data};
             brix_s3_bucket         {BUCKET};
-            brix_s3_allow_write    on;
+            brix_allow_write    on;
             brix_s3_max_keys       1000;
             brix_s3_list_cache     on;
             brix_s3_list_cache_ttl {TTL_SECONDS}s;

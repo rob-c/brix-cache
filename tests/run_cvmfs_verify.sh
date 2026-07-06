@@ -27,8 +27,8 @@ http { access_log off; server {
     listen 127.0.0.1:$CPORT;
     location /metrics { brix_metrics on; }
     location /cvmfs/ {
-        brix_cvmfs_storage_backend http://127.0.0.1:$MPORT;
-        brix_cvmfs_cache_store posix:$PFX/cache;
+        brix_storage_backend http://127.0.0.1:$MPORT;
+        brix_cache_store posix:$PFX/cache;
         brix_cache_verify $1;
         brix_cvmfs on;
         brix_cvmfs_quarantine_dir $PFX/quarantine;
@@ -48,8 +48,8 @@ http { access_log off; server {
     listen 127.0.0.1:$CPORT;
     location /metrics { brix_metrics on; }
     location /cvmfs/ {
-        brix_cvmfs_storage_backend http://127.0.0.1:$MPORT;
-        brix_cvmfs_cache_store posix:$PFX/cache;
+        brix_storage_backend http://127.0.0.1:$MPORT;
+        brix_cache_store posix:$PFX/cache;
         brix_cvmfs on;
         brix_cvmfs_quarantine_dir $PFX/quarantine;
     }

@@ -206,7 +206,7 @@ This means authentication succeeded but authorization failed. Check:
 ### "File not found" — Valid auth but missing file
 
 1. Check that the path doesn't have typos (XRootD uses double slash `//` before the path)
-2. Verify the file exists in the configured `brix_root` directory
+2. Verify the file exists in the configured `brix_export` directory
 3. Check for path traversal protections (BriX-Cache won't serve files outside the root)
 
 ### "Slow transfers" — Performance issues

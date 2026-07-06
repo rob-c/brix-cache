@@ -7,7 +7,7 @@ by ``manage_test_servers.sh start-all``
 (``start_dedicated_nginx "ipv6-webdav" "nginx_ipv6_webdav.conf" "${IPV6_WEBDAV_PORT}"``),
 serving ``IPV6_WEBDAV_DATA_ROOT`` as an anonymous, writable WebDAV root
 (``tests/configs/nginx_ipv6_webdav.conf``: ``listen [::1]:{PORT};`` +
-``brix_webdav on; brix_webdav_auth none; brix_webdav_allow_write on;``).
+``brix_webdav on; brix_webdav_auth none; brix_allow_write on;``).
 
 The Python ``requests`` / ``http.client`` stack handles the ``[::1]`` bracket
 form correctly (unlike the PyXRootD root:// client, which mishandles

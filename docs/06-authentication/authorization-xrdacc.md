@@ -20,8 +20,8 @@ The module ships **two** authorization-database engines, selected per server by
 ```nginx
 server {
     listen 1094;
-    xrootd on;
-    brix_root /export;
+    brix_root on;
+    brix_export /export;
     brix_auth token;                 # or gsi / none (anon `u *` rules)
     brix_authdb_format xrdacc;        # <-- select the XrdAcc engine
     brix_authdb /etc/brix/authdb;   # a stock XRootD authdb file

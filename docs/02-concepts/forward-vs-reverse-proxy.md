@@ -119,7 +119,7 @@ storage. Squid-in-accelerator-mode, Varnish, and XCache are all this shape.
 | Single-port HTTP handoff | `brix_http_handoff host:port` | **Transparent relay** (local mux) | No (the WebDAV listener it splices to does its own auth) | Operator config (local WebDAV port) | `src/protocols/root/handoff/` |
 | WebDAV perimeter proxy | `webdav_proxy_handler` machinery (directives currently disabled; `brix_webdav_proxy_certs` that remains is GSI *auth*, not proxying) | **Reverse** (terminating, HTTP) | **Yes** (TLS + WLCG token / GSI) | Operator config (static/dynamic backend pool) | `src/protocols/webdav/proxy*.c` |
 | Read-through cache (all protocols) | `brix_storage_backend <origin-url>` + `brix_cache_store <dir>` (and the `brix_webdav_*`/`brix_s3_*`/`brix_cvmfs_*` per-protocol spellings) | **Caching reverse proxy** | **Yes** (normal protocol auth) | Operator config (origin URL; root://, http(s)://, pelican://, S3) | `src/fs/cache/`, `src/fs/cache/origin/`, `src/fs/backend/xroot/` |
-| CVMFS site cache — reverse mode | `brix_cvmfs on` + `brix_cvmfs_storage_backend http://stratum1/cvmfs/<repo>` + `brix_cvmfs_cache_store` | **Caching reverse proxy** | N/A (CVMFS data is content-addressed + signed; anonymous GET) | Operator config (Stratum-1 set, failover) | `src/protocols/cvmfs/` |
+| CVMFS site cache — reverse mode | `brix_cvmfs on` + `brix_storage_backend http://stratum1/cvmfs/<repo>` + `brix_cache_store` | **Caching reverse proxy** | N/A (CVMFS data is content-addressed + signed; anonymous GET) | Operator config (Stratum-1 set, failover) | `src/protocols/cvmfs/` |
 | CVMFS site cache — proxy mode (T14) | absolute-URI listener + `brix_cvmfs_upstream_allow`, `brix_cvmfs_upstream_max` | **FORWARD proxy** (allowlisted) — the only one in the tree | N/A (same CVMFS trust model) | **Client** (`CVMFS_HTTP_PROXY` absolute-URI), constrained by the allowlist | `src/protocols/cvmfs/` (phase-68 T14; ctx plumbing landed, request/upstream registry in progress) |
 | Traffic mirroring / shadow replay | `brix_mirror_url`, `brix_stream_mirror_url`, `brix_mirror_*` | **Reverse-shaped fan-out**, out-of-band (fire-and-forget; client never sees the shadow) | Primary request's auth applies; credentials stripped/replaced toward the shadow | Operator config (≤4 shadow targets) | `src/net/mirror/` |
 | Third-party copy (TPC) | root:// native TPC, WebDAV `COPY` + `Source:`/`TransferHeader*` | **Forward-flavoured fetch** (server acts as a client toward a *client-named* source) | Yes (the TPC request itself) | **Client** (names the remote source/destination URL in the request) | `src/tpc/`, `src/protocols/webdav/tpc*.c` |
@@ -322,7 +322,7 @@ coalesce onto one fill.
 
   Reverse because: the client NEVER names the origin — brix_storage_backend
   does. The cache may even hide the origin's existence entirely (pure cache
-  node: brix_root optional, namespace served from the cache).
+  node: brix_export optional, namespace served from the cache).
 ```
 
 ### 3.6 CVMFS site cache — reverse mode (`cvmfs://` protocol plane)
@@ -335,7 +335,7 @@ client auth to be safe — but it must not become a generic open endpoint.
 
 In **reverse mode** (implemented) the node is a drop-in Squid/Varnish
 replacement for a Tier-2 site: the CVMFS clients' `CVMFS_SERVER_URL` points
-at this node, and `brix_cvmfs_storage_backend http://stratum1/cvmfs/<repo>`
+at this node, and `brix_storage_backend http://stratum1/cvmfs/<repo>`
 names the Stratum-1 set. A dedicated content handler (never the WebDAV
 dispatch) gates every request: GET/HEAD only, a pure-C URL classifier
 accepts exactly the CVMFS traffic shapes and 403s everything else (one

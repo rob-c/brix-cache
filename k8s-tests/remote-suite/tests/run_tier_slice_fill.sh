@@ -8,7 +8,7 @@
 # different range fills more blocks; a full read completes the object.
 #
 # Topology: origin O (root://) → WebDAV cache node B with a LOCAL posix cache
-# store and brix_webdav_cache_slice_size set.
+# store and brix_cache_slice_size set.
 #
 # Usage: tests/run_tier_slice_fill.sh [nginx-binary]
 set -u
@@ -32,7 +32,7 @@ mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/b/export" "$PFX/b/cache" "$PFX/b/tmp"
 cat > "$PFX/o/nginx.conf" <<EOF
 daemon on; error_log $PFX/o/logs/e.log error; pid $PFX/o/nginx.pid;
 events { worker_connections 64; }
-stream { server { listen 127.0.0.1:${OPORT}; xrootd on; brix_root $PFX/o/root; brix_auth none; } }
+stream { server { listen 127.0.0.1:${OPORT}; brix_root on; brix_export $PFX/o/root; brix_auth none; } }
 EOF
 
 cat > "$PFX/b/nginx.conf" <<EOF
@@ -45,11 +45,11 @@ http {
         listen 127.0.0.1:${BPORT};
         location / {
             brix_webdav on;
-            brix_webdav_root $PFX/b/export;
+            brix_export $PFX/b/export;
             brix_webdav_auth none;
-            brix_webdav_storage_backend root://127.0.0.1:${OPORT};
-            brix_webdav_cache_store posix:$PFX/b/cache;
-            brix_webdav_cache_slice_size ${BLK};
+            brix_storage_backend root://127.0.0.1:${OPORT};
+            brix_cache_store posix:$PFX/b/cache;
+            brix_cache_slice_size ${BLK};
         }
     }
 }

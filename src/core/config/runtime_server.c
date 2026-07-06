@@ -250,11 +250,11 @@ brix_config_prepare_server(ngx_conf_t *cf,
         brix_export_root_opts_t root_opts;
 
         /* A "posix:<path>" storage backend NAMES THE LOCAL EXPORT TREE — the fully
-         * composable replacement for brix_root. Anchor the export root at <path>
+         * composable replacement for brix_export. Anchor the export root at <path>
          * and clear the backend so the default POSIX driver serves it directly. */
         brix_storage_backend_posix_root(&xcf->common);
 
-        root_opts.directive_name = "brix_root";
+        root_opts.directive_name = "brix_export";
         root_opts.allow_write    = xcf->common.allow_write
                                  && !brix_storage_backend_is_remote(&xcf->common);
         /* A pure cache node needs no local export tree: brix_cache_store is the

@@ -582,7 +582,7 @@ def save_json(suites: list[Suite], path: str, target: str):
 def _cleanup_write_files() -> None:
     """Delete load_write_* upload targets from the server data dir.
 
-    Both nginx (brix_root) and native xrootd (oss.localroot) write into
+    Both nginx (brix_export) and native xrootd (oss.localroot) write into
     DATA_DIR, so the uploaded large files accumulate there.  Called after each
     write concurrency level to bound peak disk use to one level's worth
     (concurrency × file size) instead of the whole sweep's."""

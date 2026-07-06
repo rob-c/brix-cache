@@ -204,7 +204,7 @@ events { worker_connections 64; }
 stream {
   server {
     listen {{ (index .Values.role.ports 0).port }};
-    xrootd on;
+    brix_root on;
     brix_storage_backend posix:{{ .Values.role.data.root }};
     brix_auth gsi;
     brix_allow_write on;
@@ -223,11 +223,11 @@ http {
     brix_webdav_proxy_certs on;
     location / {
       brix_webdav on;
-      brix_webdav_storage_backend posix:{{ .Values.role.data.root }};
+      brix_storage_backend posix:{{ .Values.role.data.root }};
       brix_webdav_cafile /etc/grid-security/certificates/ca.pem;
       brix_webdav_crl    /etc/brix/crl/crl.pem;
       brix_webdav_auth   required;
-      brix_webdav_allow_write on;
+      brix_allow_write on;
     }
   }
 }

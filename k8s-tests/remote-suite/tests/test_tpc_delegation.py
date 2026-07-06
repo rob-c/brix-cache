@@ -169,7 +169,7 @@ def gate(tmp_path_factory):
         "thread_pool default threads=4 max_queue=65536;\n"
         "events { worker_connections 64; }\n"
         "stream {\n  server {\n"
-        f"    listen {DST_PORT};\n    xrootd on;\n"
+        f"    listen {DST_PORT};\n    brix_root on;\n"
         f"    brix_storage_backend posix:{base / 'dstdata'};\n    brix_auth gsi;\n"
         "    brix_allow_write on;\n"
         "    brix_tpc_allow_local on;\n    brix_tpc_allow_private on;\n"

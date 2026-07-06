@@ -44,7 +44,7 @@ Examples
 stream {
     server {
         listen 127.0.0.1:11094;
-        xrootd on;
+        brix_root on;
         brix_manager_map /maps backend.example.org:54321;
         brix_manager_map /maps/prefix backend2.example.org:12345;
     }

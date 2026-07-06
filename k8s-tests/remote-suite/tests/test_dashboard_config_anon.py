@@ -70,7 +70,7 @@ events {{ worker_connections 256; }}
 stream {{
     server {{
         listen {BIND_HOST}:{root_port};
-        xrootd on;
+        brix_root on;
         brix_storage_backend posix:{data};
         brix_auth none;
         brix_allow_write on;
@@ -93,7 +93,7 @@ http {{
         location / {{
             root {data};
             brix_webdav on;
-            brix_webdav_storage_backend posix:{data};
+            brix_storage_backend posix:{data};
             brix_webdav_auth none;
             brix_webdav_macaroon_secret {MACAROON_HEX};
             set $planted_leak "{SET_SECRET}";

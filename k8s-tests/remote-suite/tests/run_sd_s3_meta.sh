@@ -34,9 +34,9 @@ http {
         listen 127.0.0.1:${PORT};
         location / {
             brix_s3             on;
-            brix_s3_storage_backend        posix:$PFX/s3root;
+            brix_storage_backend        posix:$PFX/s3root;
             brix_s3_bucket      testbucket;
-            brix_s3_allow_write on;
+            brix_allow_write on;
         }
     }
 }

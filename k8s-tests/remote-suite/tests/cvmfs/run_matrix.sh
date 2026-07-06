@@ -34,8 +34,8 @@ http { access_log off;
     server {
     listen 127.0.0.1:$CPORT so_keepalive=60s:10s:6 backlog=2048;
     location /cvmfs/ {
-        brix_cvmfs_storage_backend http://$NIP:$MPORT;
-        brix_cvmfs_cache_store posix:$w/cache;
+        brix_storage_backend http://$NIP:$MPORT;
+        brix_cache_store posix:$w/cache;
         brix_cache_verify cvmfs-cas;
         brix_cvmfs on;
         brix_cvmfs_client_hold 25;
@@ -58,7 +58,7 @@ http { access_log off;
     server {
     listen 127.0.0.1:$PPORT so_keepalive=60s:10s:6 backlog=2048;
     location / {
-        brix_cvmfs_cache_store posix:$w/cache;
+        brix_cache_store posix:$w/cache;
         brix_cache_verify cvmfs-cas;
         brix_cvmfs on;
         brix_cvmfs_client_hold 25;
