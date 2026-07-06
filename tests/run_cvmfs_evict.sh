@@ -21,8 +21,9 @@
 #                 evicts a cached object + its cinfo — exercised via the write
 #                 plane (WebDAV DELETE / overwrite), the form sanctioned in the
 #                 task brief (modelled on run_tier_remote_evict.sh). The cache
-#                 location carries the unified brix_cache_evict_at/evict_to so the
-#                 directives are live on the exercised path.
+#                 location carries brix_cache_evict_at/evict_to for config-parse
+#                 validation; those thresholds have no occupancy consumer yet
+#                 (parsed and validated here, occupancy-based eviction not wired).
 #
 # Occupancy-timer eviction itself is covered by tests/run_cache_watermark.sh
 # (stream plane, df-relative thresholds).
@@ -127,6 +128,12 @@ if command -v getfattr >/dev/null 2>&1; then
     has_cinfo_xattr "$PFX/s/root/e.bin" && ok "cinfo present on cached object" || bad "cinfo missing on cached object"
 fi
 
+# cache a manifest-analogue alongside e.bin — it must survive eviction of e.bin
+printf 'D 0001\nN atlas.cern.ch\nC abc123\n' > "$PFX/o/root/.cvmfspublished"
+code=$(curl -s -o /tmp/cev_man.got -w '%{http_code}' "$U/.cvmfspublished")
+[ "$code" = 200 ] && ok "manifest cold GET (fills cache store)" || bad "manifest cold GET failed ($code)"
+[ -f "$PFX/s/root/.cvmfspublished" ] && ok "manifest cached on store S" || bad "manifest not cached on S"
+
 # DELETE evicts the object + cinfo from the cache store (real eviction)
 code=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$U/e.bin")
 { [ "$code" = 204 ] || [ "$code" = 200 ]; } && ok "DELETE accepted ($code)" || bad "DELETE status=$code"
@@ -134,6 +141,12 @@ sleep 0.3
 [ ! -f "$PFX/s/root/e.bin" ] \
     && ok "object EVICTED from the cache store (bytes + cinfo gone)" \
     || bad "object left on the cache store after eviction"
+
+# manifest-survival: evicting e.bin must not disturb .cvmfspublished in the store
+# (probe-count machinery not available here; asserting store-file presence only)
+[ -f "$PFX/s/root/.cvmfspublished" ] \
+    && ok "manifest survives eviction of unrelated object (store-file-presence)" \
+    || bad "manifest evicted alongside e.bin — store-level protection broken"
 
 # a fresh GET after eviction is a clean MISS that re-fills — no stale state
 head -c 300000 /dev/urandom > "$PFX/o/root/e.bin"

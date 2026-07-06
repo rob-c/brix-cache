@@ -297,9 +297,9 @@ http {
             # brix_cvmfs_origin_coords cvmfs-stratum-one.cern.ch 46.23:6.05;
             # brix_cvmfs_origin_coords cvmfs-s1fnal.opensciencegrid.org 41.85:-88.31;
 
-            # --- non-default: raise eviction watermarks ---
+            # --- non-default: eviction watermarks (parsed/validated; occupancy-based
+            #     eviction not yet wired — these are capacity-planning placeholders) ---
             # Defaults are evict_at=90 evict_to=80 (percent of volume).
-            # Lower evict_at to keep more headroom on a busy cache.
             brix_cache_evict_at 85;          # default: 90
             brix_cache_evict_to 70;          # default: 80
 
