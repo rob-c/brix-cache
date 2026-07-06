@@ -12,16 +12,18 @@ _xrdcp() {
   local opts="-f -r -P -s -v -d -n -j -S -T -V -h --from --retry --no-retry
     --max-stall --auto-refresh --oidc-account --jobs --sync --sync-check
     --delete --dry-run --exclude --include --remove-source --journal --resume
-    --progress --verify --tls --notlsok --noverifyhost --auth --pgrw --cksum
-    --compress --zip --zip-append --streams --tpc --token
-    --s3-access --s3-secret --s3-region --wire-trace --timing"
+    --progress --verify --tls --notlsok --noverifyhost --auth --proxy --pgrw
+    --io-uring --cksum --compress --zip --zip-append --streams --tpc
+    --tpc-token-mode --token --s3-access --s3-secret --s3-region
+    --wire-trace --timing"
   _brix_opts_filter "$opts" && return
   local prev="${COMP_WORDS[COMP_CWORD-1]}"
   case "$prev" in
     --sync-check) COMPREPLY=($(compgen -W "size mtime cksum" -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
     --tpc)        COMPREPLY=($(compgen -W "first only delegate" -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
     --auth)       COMPREPLY=($(compgen -W "gsi ztn krb5 sss unix" -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
-    --from|--journal) COMPREPLY=($(compgen -f -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
+    --io-uring)   COMPREPLY=($(compgen -W "on off auto" -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
+    --from|--journal|--proxy) COMPREPLY=($(compgen -f -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
   esac
   COMPREPLY=($(compgen -f -- "${COMP_WORDS[COMP_CWORD]}"))
 }
@@ -43,7 +45,8 @@ _xrddiag() {
       -- "${COMP_WORDS[COMP_CWORD]}"))
     return
   fi
-  _brix_opts_filter "--json --interval --count --prometheus --sweep --davs
+  _brix_opts_filter "--tls --notlsok --noverifyhost --auth --wire-trace --timing
+    --version --json --interval --count --prometheus --sweep --davs
     --cluster-url --probe-timeout --playback -S"
 }
 
