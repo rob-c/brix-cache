@@ -21,6 +21,7 @@
 #include "webdav.h"
 #include "observability/metrics/unified.h"
 #include "auth/authz/acc/acc.h"
+#include "fs/path/path.h"   /* brix_check_authdb_identity, brix_check_vo_acl_identity */
 
 /* Map a WebDAV HTTP method to the XrdAcc operation it requires. */
 static brix_acc_op_t
@@ -229,6 +230,42 @@ ngx_http_brix_webdav_access_handler(ngx_http_request_t *r)
 
     /* XrdAcc engine (when brix_authdb_format xrdacc) */    if (webdav_acc_check(r, conf) != NGX_OK) {
         return webdav_metrics_return(r, NGX_HTTP_FORBIDDEN);
+    }
+
+    /* Native authdb + VO ACL read parity with root://.  READ methods
+     * (GET/HEAD/PROPFIND) are gated by the SAME per-DN/VO rules root:// enforces,
+     * so a WebDAV read — which may serve CACHED bytes — is authorized identically
+     * to a cache miss.  Runs only when brix_webdav_authdb / brix_webdav_require_vo
+     * are configured (the check helpers return NGX_OK for empty rule sets, so
+     * existing deployments are unaffected).  Write methods keep their allow_write +
+     * xrdacc + token-scope gates above.  Skips OPTIONS (CORS preflight). */
+    if (!webdav_is_write_method(r) && r->method != NGX_HTTP_OPTIONS
+        && (conf->authdb_rules != NULL || conf->vo_rules != NULL))
+    {
+        ngx_http_brix_webdav_req_ctx_t *actx =
+            ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+        const brix_identity_t *aid = (actx != NULL) ? actx->identity : NULL;
+        char        resolved[PATH_MAX];
+        char        peer[NGX_SOCKADDR_STRLEN];
+        size_t      pn;
+        ngx_int_t   pr;
+
+        pr = ngx_http_brix_webdav_resolve_path(r, conf->common.root_canon,
+                                                 resolved, sizeof(resolved));
+        if (pr != NGX_OK) {
+            return webdav_metrics_return(r, pr);
+        }
+        pn = ngx_min(r->connection->addr_text.len, sizeof(peer) - 1);
+        ngx_memcpy(peer, r->connection->addr_text.data, pn);
+        peer[pn] = '\0';
+
+        if (brix_check_authdb_identity(r->connection->log, conf->authdb_rules,
+                aid, peer, resolved, BRIX_AUTH_READ) != NGX_OK
+            || brix_check_vo_acl_identity(r->connection->log, resolved,
+                conf->vo_rules, aid) != NGX_OK)
+        {
+            return webdav_metrics_return(r, NGX_HTTP_FORBIDDEN);
+        }
     }
 
     /* Token scope check (read AND write).  Exempt OPTIONS (capability query /
