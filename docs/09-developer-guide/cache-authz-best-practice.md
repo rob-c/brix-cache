@@ -220,12 +220,21 @@ The server's own sidecar/temp I/O uses the confined-open primitives (`brix_open_
 `brix_staged_open`) directly and never passes through these client checkpoints, so hiding the
 names from clients does not impede the cache/staging machinery.
 
+**Structural guarantee — enforced at config time (hard).** Beyond the runtime name filter,
+`brix_assert_dir_outside_export()` ([`src/core/config/export_guard.h`](../../src/core/config/export_guard.h))
+**rejects the config** (`nginx -t` and startup both fail) if a service tree that holds sidecars is
+at or beneath an export root — the effective cache/state tree and `brix_stage_dir` for root://,
+`brix_webdav_cache_root`/`brix_webdav_stage_dir` for WebDAV, `brix_s3_cache_root` for S3. Paths
+are canonicalized (realpath) before the at-or-beneath test. This is a deploy-blocking error, not
+a warning: an operator cannot ship a topology that depends on the runtime filter as its only line
+of defence. (A pure cache node advertising export `/` — the whole namespace mapped to a remote
+origin — is exempt: it has no local export tree to leak into and relies on the runtime filter.)
+
 **Developer rule:** the reserved suffixes/infixes are load-bearing — a new client-facing
 enumeration or direct-access path MUST call `brix_is_internal_name()` (skip on listing, NotFound
 on direct access). Add any new internal artifact naming to that one predicate, never open-code a
-suffix check. Operators should still place `brix_cache_store` / `brix_cache_state_root` /
-`brix_upload_stage_dir` **outside** every export (defence in depth); the runtime filter holds the
-invisibility guarantee even when they don't.
+suffix check. A new configurable service-tree directory must be run through
+`brix_assert_dir_outside_export()` at config finalize (once its canonical path is resolved).
 
 ## 4b. Existence oracles (hardened)
 
