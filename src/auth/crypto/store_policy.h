@@ -65,6 +65,24 @@ int brix_sp_table_check(const brix_sp_table_t *t, brix_sp_mode_t mode,
 int brix_store_policy_attach(X509_STORE *store, brix_sp_table_t *table,
                              brix_sp_mode_t sp_mode, int crl_mode);
 
+/*
+ * WHAT: apply the full production trust-store configuration to a store that has
+ *       already had its CA certs and CRLs loaded — extra_flags, the proxy
+ *       check_issued override (only when X509_V_FLAG_ALLOW_PROXY_CERTS is set),
+ *       crl_mode-gated CRL flags + the TRY-mode UNABLE_TO_GET_CRL downgrade, and
+ *       the signing_policy table build+attach.
+ * WHY:  centralising the flag/callback/policy setup means the production path
+ *       (pki_build.c) and the C conformance oracle configure a store
+ *       identically — the oracle tests the real decision logic, not a copy.
+ * HOW:  ngx-free; logging via the caller-supplied log_fn.  Returns 0 on
+ *       success, -1 on the require+bundle configuration error (cadir NULL with
+ *       BRIX_SP_MODE_REQUIRE).  On -1 the caller frees the store.
+ */
+int brix_store_configure(X509_STORE *store, const char *cadir,
+                         unsigned long extra_flags, int crl_count,
+                         brix_sp_mode_t sp_mode, int crl_mode,
+                         void *log, brix_sp_log_fn log_fn);
+
 /* Fetch what was attached, resolved from a verification context's store. */
 brix_sp_table_t *brix_store_policy_table(X509_STORE_CTX *ctx);
 brix_sp_mode_t   brix_store_policy_mode(X509_STORE_CTX *ctx);

@@ -372,6 +372,107 @@ brix_proxy_chain_ok(STACK_OF(X509) *chain)
     return 1;
 }
 
+/* -- store configuration (shared by production + oracle) ------------------ */
+
+/*
+ * WHAT: check_issued override accepting a name-matching issuer for an RFC 3820
+ *       proxy subject even when its authorityKeyIdentifier does not match the
+ *       issuer's subjectKeyIdentifier.
+ * WHY:  xrdgsiproxy/voms-proxy-init copy the EEC's own AKID into the delegated
+ *       proxy, so OpenSSL's default check_issued rejects the signing EEC as the
+ *       proxy's issuer (AKID_SKID_MISMATCH) and reports "unable to get local
+ *       issuer".  The reference XRootD chain selects issuers by subject name +
+ *       signature; match that.
+ * HOW:  defer to X509_check_issued; on the AKID objections, accept when the
+ *       subject is a recognised proxy (EXFLAG_PROXY).  The RSA signature is
+ *       still verified afterwards, so this relaxes selection, not trust.
+ */
+static int
+brix_sp_proxy_check_issued(X509_STORE_CTX *ctx, X509 *subject, X509 *issuer)
+{
+    int rv;
+
+    (void) ctx;
+
+    rv = X509_check_issued(issuer, subject);
+    if (rv == X509_V_OK) {
+        return 1;
+    }
+    if ((X509_get_extension_flags(subject) & EXFLAG_PROXY)
+        && (rv == X509_V_ERR_AKID_SKID_MISMATCH
+            || rv == X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH))
+    {
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * WHAT: verify callback used only in BRIX_CRL_MODE_TRY.
+ * WHY:  "try" checks revocation where a CRL exists but tolerates a CA that has
+ *       none; a stale (expired) CRL stays fatal (staleness is evidence).
+ * HOW:  downgrade only X509_V_ERR_UNABLE_TO_GET_CRL to success; every other
+ *       verdict (CRL_HAS_EXPIRED, CERT_REVOKED, ...) stands.
+ */
+static int
+brix_crl_try_verify_cb(int ok, X509_STORE_CTX *ctx)
+{
+    if (ok) {
+        return 1;
+    }
+    if (X509_STORE_CTX_get_error(ctx) == X509_V_ERR_UNABLE_TO_GET_CRL) {
+        return 1;
+    }
+    return 0;
+}
+
+int
+brix_store_configure(X509_STORE *store, const char *cadir,
+                     unsigned long extra_flags, int crl_count,
+                     brix_sp_mode_t sp_mode, int crl_mode,
+                     void *log, brix_sp_log_fn log_fn)
+{
+    brix_sp_table_t *table;
+
+    if (store == NULL) {
+        return -1;
+    }
+
+    if (extra_flags != 0) {
+        X509_STORE_set_flags(store, extra_flags);
+    }
+    if (extra_flags & X509_V_FLAG_ALLOW_PROXY_CERTS) {
+        X509_STORE_set_check_issued(store, brix_sp_proxy_check_issued);
+    }
+
+    if (crl_mode == BRIX_CRL_MODE_REQUIRE
+        || (crl_mode == BRIX_CRL_MODE_TRY && crl_count > 0))
+    {
+        X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK
+            | X509_V_FLAG_CRL_CHECK_ALL | X509_V_FLAG_USE_DELTAS);
+    }
+    if (crl_mode == BRIX_CRL_MODE_TRY) {
+        X509_STORE_set_verify_cb(store, brix_crl_try_verify_cb);
+    }
+
+    if (cadir == NULL && sp_mode == BRIX_SP_MODE_REQUIRE) {
+        sp_log(log, log_fn, BRIX_SP_LOG_WARN,
+               "signing_policy: \"require\" needs a hashed CA directory, not a "
+               "bundle file");
+        return -1;
+    }
+
+    table = brix_sp_table_build(cadir, log, log_fn);
+    if (table == NULL) {
+        return -1;
+    }
+    if (!brix_store_policy_attach(store, table, sp_mode, crl_mode)) {
+        brix_sp_table_free(table);
+        return -1;
+    }
+    return 0;
+}
+
 /* -- X509_STORE ex_data glue ---------------------------------------------- */
 
 /*
