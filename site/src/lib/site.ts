@@ -77,4 +77,5 @@ export const AUDIENCES: NavItem[] = [
 export const PRODUCT_PAGES: NavItem[] = [
   { label: 'brixMount', href: '/brixmount' },
   { label: 'Tools', href: '/tools' },
+  { label: 'Evidence', href: '/evidence' },
 ];
