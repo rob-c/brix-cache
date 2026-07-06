@@ -10,28 +10,26 @@ HOW:  Each test mints a token via TokenForge and calls webdav_bearer(...,
       port=WD) which issues an HTTPS GET against port 8446.  Verdicts:
         200/206 → "accept", 401/403 → "reject", 404 → "notfound".
 
-Parity findings (2026-07-06):
+Parity findings (2026-07-06, all 10 PASS after scope-enforcement fix):
   PASS  WD-01: valid token           → accept    (correct)
   PASS  WD-02: alg=none              → reject    (correct)
   PASS  WD-03: HS256-confusion       → reject    (correct)
   PASS  WD-04: expired               → reject    (correct)
   PASS  WD-05: wrong audience        → reject    (correct)
   PASS  WD-06: wrong issuer          → reject    (correct)
-  XFAIL WD-07: out-of-scope path     → ACCEPT    (BUG — scope not enforced)
+  PASS  WD-07: out-of-scope path     → reject    (fixed — scope enforced)
   PASS  WD-08: in-scope path         → accept    (correct)
-  XFAIL WD-09: traversal (§3.5)      → ACCEPT    (BUG — scope not enforced;
+  PASS  WD-09: traversal (§3.5)      → reject    (fixed — scope enforced;
                client + nginx both normalise /atlas/../cms → /cms before the
                handler sees the path, so brix_reject_dotdot_path is not
                exercised on WebDAV; the server-level defence is nginx URL
-               normalisation, but scope must still reject /cms for an
-               /atlas-scoped token)
-  XFAIL WD-10: missing scope         → ACCEPT    (BUG — scope not enforced)
+               normalisation; scope check on normalised /cms rejects correctly)
+  PASS  WD-10: missing scope         → reject    (fixed — scope enforced)
 
-Root cause of WD-07/09/10: WebDAV auth_token.c validates signature, expiry,
-audience and issuer but does NOT call brix_token_check_scope(token, path).
-root:// port 11097 correctly gates on scope via src/auth/token/scopes.c.
-Fix: call brix_token_check_scope after token verification in the WebDAV
-request handler.
+Fix (2026-07-06): webdav_check_token_scope() (renamed from
+webdav_check_token_write_scope) now gates both read and write methods.
+access.c calls it for every non-OPTIONS request.  root:// port 11097 and
+WebDAV port 8446 now apply the same WLCG token scope rules.
 """
 
 import os
@@ -175,20 +173,6 @@ def test_wd_06_wrong_issuer_reject():
     assert webdav_bearer(tok, "/test.txt", port=WD) == "reject"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "BUG (WebDAV scope enforcement asymmetry): "
-        "storage.read:/atlas token ACCEPTS /cms/ok.txt on port 8446 (returns 200). "
-        "root:// port 11097 correctly rejects the same case via "
-        "brix_token_check_scope (src/auth/token/scopes.c). "
-        "WebDAV auth_token.c validates sig/exp/aud/iss but does NOT call "
-        "brix_token_check_scope(token, path), so any authenticated token "
-        "regardless of scope can access any path. "
-        "Fix: call brix_token_check_scope after token verification in the "
-        "WebDAV request handler. Spec ref: WLCG Token Profile §4."
-    ),
-)
 @pytest.mark.tokenconf
 def test_wd_07_out_of_scope_reject():
     """WD-07: storage.read:/atlas token must NOT access /cms/ok.txt → reject.
@@ -214,25 +198,6 @@ def test_wd_08_in_scope_accept():
     assert webdav_bearer(tok, "/atlas/ok.txt", port=WD) == "accept"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "BUG (WebDAV traversal + scope enforcement gap): "
-        "storage.read:/atlas token ACCEPTS /cms/ok.txt reached via "
-        "/atlas/../cms/ok.txt (returns 200). "
-        "TRAVERSAL NOTE: the requests HTTP library normalises "
-        "/atlas/../cms/ok.txt → /cms/ok.txt before sending; nginx also "
-        "normalises the URL before the handler sees it, so "
-        "brix_reject_dotdot_path (root:// binary-protocol defence) is not "
-        "exercised on WebDAV. The server-level HTTP traversal defence is "
-        "nginx URL normalisation. "
-        "The test is still REJECT because an /atlas-scoped token must not "
-        "serve /cms regardless of how the path was specified. "
-        "Root cause: same WebDAV scope-enforcement gap as WD-07 — "
-        "brix_token_check_scope is not called on the WebDAV path. "
-        "Spec ref: WLCG Token Profile §3.5 + §4."
-    ),
-)
 @pytest.mark.tokenconf
 def test_wd_09_traversal_reject():
     """WD-09: §3.5 traversal — /atlas/../cms/ok.txt with /atlas-scoped token → reject.
@@ -252,18 +217,6 @@ def test_wd_09_traversal_reject():
     assert webdav_bearer(tok, "/atlas/../cms/ok.txt", port=WD) == "reject"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "BUG (WebDAV scope enforcement asymmetry): "
-        "token with no scope claim ACCEPTS /test.txt on port 8446 (returns 200). "
-        "root:// port 11097 correctly rejects no-scope tokens via scopes.c. "
-        "WebDAV does not gate access on scope presence: a token that passes "
-        "sig/exp/aud/iss checks but carries no scope claim grants full access. "
-        "Fix: require a scope claim covering the request path. "
-        "Spec ref: WLCG Token Profile §4."
-    ),
-)
 @pytest.mark.tokenconf
 def test_wd_10_missing_scope_reject():
     """WD-10: authenticated token with no scope claim → reject.

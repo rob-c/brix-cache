@@ -28,13 +28,14 @@ webdav_token_op_class(ngx_http_request_t *r)
 }
 
 /*
- * webdav_check_token_write_scope — enforce WLCG/SciToken write scope for
- * WebDAV mutating methods (PUT, DELETE, MKCOL, MOVE).
+ * webdav_check_token_scope — enforce WLCG/SciToken read or write scope for
+ * any WebDAV data-access method (GET, HEAD, PROPFIND, PUT, DELETE, MKCOL, …).
  *
  * If the request was authenticated via a bearer token (rctx->token_auth == 1),
- * checks whether the token's write scope covers the request URI path.
+ * checks whether the token's scope covers the request URI path for the
+ * operation class (read vs write) derived from the HTTP method.
  * Returns NGX_OK if the scope check passes or if auth was not token-based.
- * Returns NGX_HTTP_FORBIDDEN if the token lacks write scope for the URI.
+ * Returns NGX_HTTP_FORBIDDEN if the token lacks scope for the URI.
  *
  * NOTE: scope is checked against the raw decoded URI path, not the filesystem
  * path — the path-prefix invariant is enforced by the scope matching code in
@@ -42,17 +43,35 @@ webdav_token_op_class(ngx_http_request_t *r)
  */
 /*
  *
- * WHAT: Enforces WLCG/SciToken write scope authorization for WebDAV mutating methods (PUT, DELETE, MKCOL, MOVE). Checks whether the authenticated bearer token's write scopes cover the request URI path before allowing any file modification operation. Returns NGX_OK if the scope check passes or if authentication was not via token (e.g., GSI cert auth has no equivalent scope concept). Returns NGX_HTTP_FORBIDDEN when the token lacks sufficient write permissions for the target resource.
+ * WHAT: Enforces WLCG/SciToken read or write scope authorization for WebDAV
+ * data-access methods.  Derives the required op class (read vs write) from the
+ * HTTP method via webdav_token_op_class(), then checks whether the
+ * authenticated bearer token's scopes cover the request URI path.  Returns
+ * NGX_OK if the scope check passes or if authentication was not token-based
+ * (e.g., GSI cert auth has no equivalent scope concept).  Returns
+ * NGX_HTTP_FORBIDDEN when the token lacks sufficient permission for the URI.
  *
- * WHY: WLCG/SciToken grants fine-grained path-based access rights rather than binary allow/deny. A token might grant read-only access to /data/atlas but write access to /data/cms — this function prevents cross-VO file mutation by ensuring only tokens with matching scope prefixes can execute mutating operations. The raw URI path check (not filesystem path) is intentional because scope granularity must match the client-facing namespace, not the underlying storage layout.
+ * WHY: WLCG/SciToken grants fine-grained path-based access rights rather than
+ * binary allow/deny.  A token might grant read-only access to /data/atlas but
+ * write access to /data/cms — this function prevents both cross-VO file reads
+ * and cross-VO file mutation by enforcing scope on every data-access method,
+ * not just writes.  The raw URI path check (not filesystem path) is intentional
+ * because scope granularity must match the client-facing namespace, not the
+ * underlying storage layout.
  *
- * HOW: Retrieves request context and verifies token_auth flag is set; copies r->uri into a null-terminated buffer for scope checking; calls brix_token_check_write() with the extracted scopes to verify the URI path is covered by at least one write scope prefix; logs warning and returns 403 if no matching scope found. */
+ * HOW: Retrieves request context and verifies token_auth flag is set; derives
+ * need_write from webdav_token_op_class(); copies r->uri into a
+ * null-terminated buffer for scope checking; calls either
+ * brix_token_check_write() or brix_token_check_read() (or the identity
+ * wrapper) to verify the URI path is covered by a matching scope prefix; logs
+ * warning and returns 403 if no matching scope found. */
 ngx_int_t
-webdav_check_token_write_scope(ngx_http_request_t *r, const char *method_name)
+webdav_check_token_scope(ngx_http_request_t *r, const char *method_name)
 {
     ngx_http_brix_webdav_req_ctx_t *rctx;
     char                              uri_path[WEBDAV_MAX_PATH];
     size_t                            ulen;
+    int                               need_write;
 
     rctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (rctx == NULL || !rctx->token_auth) {
@@ -64,22 +83,26 @@ webdav_check_token_write_scope(ngx_http_request_t *r, const char *method_name)
     ngx_memcpy(uri_path, r->uri.data, ulen);
     uri_path[ulen] = '\0';
 
+    need_write = (webdav_token_op_class(r) == BRIX_TOKEN_OP_WRITE);
+
     if (rctx->identity != NULL) {
-        if (brix_identity_check_token_scope(rctx->identity, uri_path, 1)
-            == NGX_OK)
+        if (brix_identity_check_token_scope(rctx->identity, uri_path,
+                                              need_write) == NGX_OK)
         {
             return NGX_OK;
         }
-    } else if (brix_token_check_write(rctx->token_scopes,
-                                        rctx->token_scope_count,
-                                        uri_path))
+    } else if (need_write
+               ? brix_token_check_write(rctx->token_scopes,
+                                          rctx->token_scope_count, uri_path)
+               : brix_token_check_read(rctx->token_scopes,
+                                         rctx->token_scope_count, uri_path))
     {
         return NGX_OK;
     }
 
     ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                  "brix_webdav: token scope denies %s write to \"%s\"",
-                  method_name, uri_path);
+                  "brix_webdav: token scope denies %s %s to \"%s\"",
+                  method_name, need_write ? "write" : "read", uri_path);
 
     return NGX_HTTP_FORBIDDEN;
 }

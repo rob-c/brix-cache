@@ -252,9 +252,17 @@ ngx_http_brix_webdav_access_handler(ngx_http_request_t *r)
         return webdav_metrics_return(r, NGX_HTTP_FORBIDDEN);
     }
 
-    /* Token scope check */    scope_method = webdav_scope_method_name(r);
-    if (scope_method != NULL) {
-        rc = webdav_check_token_write_scope(r, scope_method);
+    /* Token scope check (read AND write).  OPTIONS is a capability query
+     * (CORS preflight), not a data access, so it is exempt.  For write methods
+     * webdav_scope_method_name() returns the canonical name; for read methods
+     * fall back to the raw method name from the request line. */
+    if (r->method != NGX_HTTP_OPTIONS) {
+        scope_method = (webdav_scope_method_name(r) != NULL)
+                       ? webdav_scope_method_name(r)
+                       : (const char *) (r->method_name.data
+                                         ? r->method_name.data
+                                         : (u_char *) "GET");
+        rc = webdav_check_token_scope(r, scope_method);
         if (rc != NGX_OK) {
             return webdav_metrics_return(r, rc);
         }
