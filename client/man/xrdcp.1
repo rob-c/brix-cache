@@ -105,8 +105,15 @@ Skip TLS hostname verification (certificate chain validation stays on).
 Force an authentication protocol: \fBgsi\fR | \fBztn\fR | \fBkrb5\fR |
 \fBsss\fR | \fBunix\fR.
 .TP
+.BI \-\-proxy " PATH"
+Use \fIPATH\fR as the X.509 proxy certificate, overriding \fBX509_USER_PROXY\fR.
+.TP
 .B \-\-pgrw
 Use paged I/O (\fBkXR_pgread\fR/\fBkXR_pgwrite\fR) with per-page CRC32c integrity.
+.TP
+.BI \-\-io\-uring " MODE"
+Local-disk overlap ring: \fBon\fR | \fBoff\fR | \fBauto\fR (default \fBauto\fR).
+Overrides \fBXRDC_IO_URING\fR.  Also accepted as \fB\-\-io\-uring=\fImode\fR.
 .TP
 .BI \-\-cksum " TYPE" [: source | :print | : VALUE ]
 Verify a checksum after transfer.
@@ -130,6 +137,10 @@ Open N\-1 secondary \fBkXR_bind\fR data streams.
 .TP
 .B \-\-tpc " first\|only\|delegate"
 Server-side third-party copy (remote to remote).
+.TP
+.BI \-\-tpc\-token\-mode " MODE"
+Bearer-token forwarding mode for \fB\-\-tpc\fR: passed as \fBtpc.token_mode\fR
+in the opaque query string (nginx-xrootd extension; silently ignored by other servers).
 .TP
 .BR \-T ", " \-\-token " \fIJWT\fR"
 WebDAV/HTTP bearer token (or \fB$BEARER_TOKEN\fR).
