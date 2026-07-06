@@ -146,6 +146,8 @@ typedef struct {
     ngx_str_t      cadir;           /* directory of trusted CA PEM files */
     ngx_str_t      cafile;          /* single trusted CA bundle PEM file */
     ngx_str_t      crl;             /* directory of CRL PEM files */
+    ngx_uint_t     signing_policy_mode; /* [brix_webdav_signing_policy] BRIX_SP_MODE_* */
+    ngx_uint_t     crl_mode;        /* [brix_webdav_crl_mode] BRIX_CRL_MODE_* */
     ngx_uint_t     verify_depth;    /* max proxy chain depth for VOMS proxies;
                                      * RFC 3820 §4 recommends <= 3 for WLCG */
     ngx_uint_t     auth;            /* webdav_auth_t: NONE/OPTIONAL/REQUIRED */
