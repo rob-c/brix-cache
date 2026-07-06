@@ -188,7 +188,11 @@ section_mirror_delete() {
   check "--dry-run --delete: phantom file unchanged" \
     '"$BIN/xrdfs" "$URL" stat "/tmp/cfeat-$$-mddst3/phantom.root" >/dev/null 2>&1'
 
-  # TODO(Task 10): clean scratch dirs with xrdfs rm -r once recursive delete is implemented
+  # Best-effort cleanup of scratch dirs created above.
+  "$BIN/xrdfs" "$URL" rm -r "/tmp/cfeat-$$-mdsrc"  >/dev/null 2>&1 || true
+  "$BIN/xrdfs" "$URL" rm -r "/tmp/cfeat-$$-mddst"  >/dev/null 2>&1 || true
+  "$BIN/xrdfs" "$URL" rm -r "/tmp/cfeat-$$-mddst2" >/dev/null 2>&1 || true
+  "$BIN/xrdfs" "$URL" rm -r "/tmp/cfeat-$$-mddst3" >/dev/null 2>&1 || true
 }
 
 section_remove_source() {
@@ -306,12 +310,70 @@ section_journal() {
     'echo "$OUT" | grep -q "0 copied, 4 skipped, 0 failed"'
 }
 
+section_xrdfs_rm() {
+  echo "== xrdfs rm -r =="
+
+  # Error: missing path must exit 50.
+  "$BIN/xrdfs" "$URL" rm 2>/dev/null
+  check "rm: no path exits 50" '[ "$?" -eq 50 ]'
+
+  # Security: rm -r / must exit 50 without a fleet (path guard fires before connect).
+  "$BIN/xrdfs" "$URL" rm -r / 2>/dev/null
+  check "rm -r /: exits 50 (export root guard)" '[ "$?" -eq 50 ]'
+
+  if ! have_fleet; then
+    echo "  SKIP fleet rm -r tests (no fleet at $URL)"
+    return
+  fi
+
+  local BASE="/tmp/cfeat-$$-rm"
+
+  # Build tree: BASE/a  BASE/sub/b
+  "$BIN/xrdfs" "$URL" mkdir -p "${BASE}/sub" >/dev/null 2>&1
+  printf 'hello\n' | "$BIN/xrdcp" - "${URL}//${BASE}/a"      >/dev/null 2>&1
+  printf 'world\n' | "$BIN/xrdcp" - "${URL}//${BASE}/sub/b"  >/dev/null 2>&1
+
+  # rm -r on a tree: succeeds and the root is gone.
+  "$BIN/xrdfs" "$URL" rm -r "$BASE" >/dev/null 2>&1
+  check "rm -r tree: exit 0" '[ "$?" -eq 0 ]'
+  "$BIN/xrdfs" "$URL" stat "$BASE" >/dev/null 2>&1
+  check "rm -r tree: root is gone" '[ "$?" -ne 0 ]'
+
+  # Security: rm -r / must exit 50 even with a live fleet.
+  "$BIN/xrdfs" "$URL" rm -r / 2>/dev/null
+  check "rm -r /: fleet live, still exits 50" '[ "$?" -eq 50 ]'
+  "$BIN/xrdfs" "$URL" stat / >/dev/null 2>&1
+  check "rm -r /: root still accessible" '[ "$?" -eq 0 ]'
+
+  # Error: missing path must exit nonzero.
+  "$BIN/xrdfs" "$URL" rm -r "/tmp/cfeat-$$-rm-no-such" >/dev/null 2>&1
+  check "rm -r missing: nonzero" '[ "$?" -ne 0 ]'
+
+  # rm -r on a plain file deletes it.
+  local FBASE="/tmp/cfeat-$$-rmf"
+  printf 'data\n' | "$BIN/xrdcp" - "${URL}//${FBASE}" >/dev/null 2>&1
+  "$BIN/xrdfs" "$URL" rm -r "$FBASE" >/dev/null 2>&1
+  check "rm -r plain file: exit 0" '[ "$?" -eq 0 ]'
+  "$BIN/xrdfs" "$URL" stat "$FBASE" >/dev/null 2>&1
+  check "rm -r plain file: gone" '[ "$?" -ne 0 ]'
+
+  # rm -r -v prints "removed" lines.
+  local VBASE="/tmp/cfeat-$$-rmv"
+  "$BIN/xrdfs" "$URL" mkdir -p "${VBASE}/d" >/dev/null 2>&1
+  printf 'v\n' | "$BIN/xrdcp" - "${URL}//${VBASE}/d/f" >/dev/null 2>&1
+  VOUT=$("$BIN/xrdfs" "$URL" rm -r -v "$VBASE" 2>/dev/null)
+  check "rm -r -v: exit 0" '[ "$?" -eq 0 ]'
+  check "rm -r -v: prints removed lines" \
+    'echo "$VOUT" | grep -q "^removed "'
+}
+
 main() {
   section_dryrun_filters
   section_sync_modes
   section_mirror_delete
   section_remove_source
   section_journal
+  section_xrdfs_rm
   echo "client-features: $PASS pass, $FAIL fail"
   [ "$FAIL" -eq 0 ]
 }
