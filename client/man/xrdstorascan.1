@@ -1,0 +1,94 @@
+.TH XRDSTORASCAN 1 "2026-07-06" "brix client" "User Commands"
+.SH NAME
+xrdstorascan \- storage verification, benchmarking and server-side scan tool
+.SH SYNOPSIS
+.B xrdstorascan
+\fIMODE\fR \fIURL\fR [\fIOPTIONS\fR]
+.SH DESCRIPTION
+.B xrdstorascan
+provides end-to-end storage integrity verification and throughput benchmarking
+against XRootD/brix gateways.
+.PP
+The \fBverify\fR and \fBbench\fR modes operate directly against the gateway's
+XRootD protocol.
+The \fBdump\fR, \fBfill\fR, and \fBcompare\fR modes use the server-side
+\fB/brix/api/v1/scan\fR admin HTTP endpoint to drive bulk subtree operations;
+the URL for these must be the \fBhttp(s)://\fR dashboard base.
+.SH MODES
+.TP
+.B verify \fIURL\fR [\-\-algo \fINAME\fR] [\-q]
+End-to-end verify one file: download it, recompute the checksum, and compare
+to the server's recorded value.
+\fB\-\-algo\fR selects the algorithm (default: \fBadler32\fR).
+\fB\-q\fR suppresses output on success.
+Exit: 0 match, 1 mismatch, 2 no recorded checksum, 3 error.
+.TP
+.B bench \fIURL\fR [\-\-op read] [\-\-block \fISZ\fR[,\fISZ\fR...]] [\-\-parallel \fIN\fR[,\fIN\fR...]] [\-\-duration \fIS\fR | \-\-count \fIN\fR] [\-\-pattern seq|random] [\-\-json]
+Throughput and latency sweep against the gateway.
+\fISZ\fR accepts K/M/G suffix.
+Defaults: \fB\-\-block 1M,4M \-\-parallel 1,8 \-\-duration 5 \-\-pattern seq\fR.
+.TP
+.B dump \fIDASHBOARD-URL\fR [\-\-path \fIP\fR] [\-\-algo \fIA\fR] [\-\-password \fIPW\fR] [\-\-insecure] [\-\-json|\-\-summary]
+Dump recorded checksums-at-rest across a subtree via the admin API.
+Authentication via \fB\-\-password\fR or \fB$XRDSTORASCAN_PASSWORD\fR.
+.TP
+.B fill \fIDASHBOARD-URL\fR [\-\-path \fIP\fR] [\-\-algo \fIA\fR] [\-\-password \fIPW\fR] [\-\-insecure] [\-\-json|\-\-summary]
+Back-fill missing checksums-at-rest across a subtree.
+.TP
+.B compare \fIDASHBOARD-URL\fR [\-\-path \fIP\fR] [\-\-algo \fIA\fR] [\-\-password \fIPW\fR] [\-\-insecure] [\-\-json|\-\-summary]
+Verify all checksums-at-rest across a subtree; exit 1 if any mismatch (bit-rot) is found.
+.SH OPTIONS
+.TP
+.BI \-\-algo " NAME"
+Checksum algorithm: \fBadler32\fR (default), \fBcrc32c\fR, \fBcrc64\fR, \fBmd5\fR.
+.TP
+.BI \-\-path " P"
+Limit the scan to the given path prefix.
+.TP
+.BI \-\-password " PW"
+Dashboard admin password (or \fB$XRDSTORASCAN_PASSWORD\fR).
+.TP
+.B \-\-insecure
+Skip TLS certificate verification for the dashboard HTTPS endpoint.
+.TP
+.B \-\-json
+Machine-readable JSON output.
+.TP
+.B \-\-summary
+Print a one-line summary only.
+.SH EXAMPLES
+.nf
+# Verify a single file
+xrdstorascan verify root://store.example:1094//atlas/file.root
+
+# Throughput benchmark at multiple block sizes
+xrdstorascan bench root://store.example:1094//large.dat \
+    --block 1M,4M,16M --parallel 1,4,8 --duration 10
+
+# Back-fill checksums server-side
+xrdstorascan fill https://store.example:9100 --path /atlas/run42/
+.fi
+.SH ENVIRONMENT
+.TP
+.B XRDSTORASCAN_PASSWORD
+Dashboard admin password for server-side scan modes.
+.TP
+.B XRDC_CONNECT_TIMEOUT_MS
+Connect timeout in milliseconds.
+.TP
+.B XRDC_IO_TIMEOUT_MS
+Per-operation I/O timeout.
+.TP
+.B XRDRC
+Path to configuration file (default \fI~/.xrdrc\fR).
+.SH FILES
+.TP
+.I ~/.xrdrc
+Per-user configuration file.
+See
+.BR brix\-env (7).
+.SH SEE ALSO
+.BR xrdcksum (1),
+.BR xrdfs (1),
+.BR xrdcp (1),
+.BR brix\-env (7)

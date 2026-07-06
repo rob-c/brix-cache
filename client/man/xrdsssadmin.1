@@ -1,0 +1,97 @@
+.TH XRDSSSADMIN 1 "2026-07-06" "brix client" "User Commands"
+.SH NAME
+xrdsssadmin \- manage XRootD SSS (Simple Shared Secret) keytabs
+.SH SYNOPSIS
+.B xrdsssadmin
+[\fB\-k\fR \fIKEYTAB\fR]
+.B add
+[\fIOPTS\fR]
+.br
+.B xrdsssadmin
+[\fB\-k\fR \fIKEYTAB\fR]
+.B install
+[\fIOPTS\fR]
+.br
+.B xrdsssadmin
+[\fB\-k\fR \fIKEYTAB\fR]
+.B list
+.br
+.B xrdsssadmin
+[\fB\-k\fR \fIKEYTAB\fR]
+.B del
+.B \-\-id
+\fIN\fR
+.SH DESCRIPTION
+.B xrdsssadmin
+manages SSS keytabs used by the XRootD \fBsss\fR authentication protocol.
+Each keytab entry contains a random shared secret plus metadata (user, group, name,
+lifetime) that the server uses to authorise connections presenting that key.
+.PP
+The \fB\-k\fR option selects the keytab file; the default is
+\fB$XrdSecSSSKT\fR, then \fB$XrdSecsssKT\fR, then \fI~/.xrd/sss.keytab\fR.
+.SH COMMANDS
+.TP
+.B add
+Mint a new random key and append it to the keytab.
+.TP
+.B install
+Identical to \fBadd\fR; creates the keytab file if it does not exist.
+.TP
+.B list
+Print all keytab entries with their IDs and metadata.
+.TP
+.B del \-\-id \fIN\fR
+Delete the entry with wire ID \fIN\fR.
+.SH ADD/INSTALL OPTIONS
+.TP
+.BI \-\-user " U"
+Bind the key to user \fIU\fR (default: \fBanybody\fR).
+.TP
+.BI \-\-group " G"
+Bind the key to group \fIG\fR (default: \fBanygroup\fR).
+.TP
+.BI \-\-name " NM"
+Logical key name (default: the local hostname).
+.TP
+.BI \-\-id " N"
+Wire ID to assign (default: max existing ID + 1).
+.TP
+.BI \-\-lifetime " DAYS"
+Key lifetime in days.
+.TP
+.BI \-\-keylen " BYTES"
+Random key length in bytes (default: 32).
+.SH EXAMPLES
+.nf
+# Create a new keytab and add a key bound to a specific user
+xrdsssadmin -k /etc/xrd/sss.keytab install --user atlas --group atlas
+
+# List all entries
+xrdsssadmin -k /etc/xrd/sss.keytab list
+
+# Delete entry 3
+xrdsssadmin -k /etc/xrd/sss.keytab del --id 3
+.fi
+.SH ENVIRONMENT
+.TP
+.B XrdSecSSSKT
+Default keytab path (checked first).
+.TP
+.B XrdSecsssKT
+Default keytab path (checked second).
+.TP
+.B XRDRC
+Path to configuration file (default \fI~/.xrdrc\fR).
+.SH FILES
+.TP
+.I ~/.xrd/sss.keytab
+Default keytab file.
+.TP
+.I ~/.xrdrc
+Per-user configuration file.
+See
+.BR brix\-env (7).
+.SH SEE ALSO
+.BR xrdcp (1),
+.BR xrdfs (1),
+.BR brix\-env (7)

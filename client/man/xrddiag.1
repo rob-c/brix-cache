@@ -1,0 +1,154 @@
+.TH XRDDIAG 1 "2026-07-06" "brix client" "User Commands"
+.SH NAME
+xrddiag \- XRootD / WebDAV / S3 diagnostics and health probes
+.SH SYNOPSIS
+.B xrddiag
+\fISUBCOMMAND\fR [\fIOPTS\fR] \fIURL\fR [...]
+.SH DESCRIPTION
+.B xrddiag
+provides a battery of active diagnostics against XRootD (root[s]://),
+WebDAV/HTTP(S) (http://, https://, dav://, davs://), S3 (s3://, s3s://),
+and CMS (cms://) storage endpoints.
+Each subcommand targets a specific concern: correctness, throughput, topology,
+health, comparison, security, or tape/tape-REST workflows.
+.PP
+A session can be captured for later offline analysis or replay:
+.RS
+xrdcp/xrdfs \-\-capture \fIFILE.xrdcap\fR ...
+.RE
+.SH SUBCOMMANDS
+.TP
+.B check \fIURL\fR
+Protocol-correctness probes: connect, authenticate, stat, open, read, checksum.
+.TP
+.B bench \fIURL\fR [\-S \fIN\fR] [\-\-sweep]
+Timed download benchmark, single vs. multi-stream.
+\fB\-S\fR sets the number of parallel streams; \fB\-\-sweep\fR sweeps 1..N to find the knee.
+.TP
+.B metabench \fIURL\fR [\-S \fIN\fR] [\-\-count \fIN\fR]
+Concurrent metadata storm: stat/ls/open operations, reporting ops/sec and p50/p95/p99 latency.
+.TP
+.B topology \fIURL\fR [\-\-cluster\-url \fIURL\fR]
+Locate + redirect convergence: shows all replicas and redirector chains.
+.TP
+.B status \fIURL\fR [\-\-metrics\-port \fIN\fR]
+Pull \fB/metrics\fR from the Prometheus endpoint and summarise service health.
+.TP
+.B watch \fIURL\fR [\fIURL2\fR...] [\-\-interval \fIS\fR] [\-\-count \fIN\fR] [\-\-prometheus[=\fIPATH\fR]] [\-\-json]
+Continuous health and SLA probe (connect + read + locate) against one or more endpoints.
+Ctrl-C to stop.
+.TP
+.B compare \fIURLa\fR \-\-vs\-reference \fIURLb\fR
+Root-vs-root size, listing, and md5 comparison.
+.TP
+.B compare \fIROOT-URL//PATH\fR \-\-davs \fIHOST\fR[\fI:PORT\fR]
+Cross-protocol oracle: compare root:// against WebDAV.
+.TP
+.B probe\-robustness \fIURL\fR \-\-i\-am\-authorized
+Adversarial reject auditor: tests that the server correctly rejects bad credentials,
+forged tokens, and out-of-scope requests.
+.TP
+.B replay \fIFILE.xrdcap\fR [\-\-playback \fIURL\fR]
+Decode a captured session to stdout, or re-issue its requests against \fIURL\fR.
+.TP
+.B srr \fIHTTP[S]-URL\fR
+Fetch and display a WLCG Storage Resource Report.
+.TP
+.B tape \fIHTTP[S]-URL//PATH\fR
+Drive the WLCG/FRM Tape REST interface: stage a file and poll until online.
+.TP
+.B qstats [\-c \fIKEY\fR | \-s \fIPATH\fR] \fIHOST\fR[\fI:PORT\fR]
+Send \fBkXR_query\fR stats/config/space and display the result.
+.TP
+.B wait41 [\-\-timeout \fIS\fR] [\-\-full] \fIHOST\fR[\fI:PORT\fR]
+Wait until the server is ready (kXR_protocol response received).
+\fB\-\-full\fR also waits for auth and namespace readiness.
+.TP
+.B mpxstats [\fIHOST\fR | \-] [\-\-metrics\-port \fIN\fR]
+Subscribe to the multiplexed mpxstats feed (\fB\-\fR reads from stdin).
+.TP
+.B remote\-doctor \fIURL\fR [\fIURL2\fR...] [\-\-json] [\-\-allow\-write] [\-\-auth\-suite] [\-\-no\-verify\-tls]
+Actively diagnose server problems across all protocol stages: connect, TLS, auth,
+request, ranges, checksum, listing, redirect.
+\fB\-\-allow\-write\fR adds write and stage probes.
+\fB\-\-auth\-suite\fR adds an auth/permissions battery: anon-bypass, forged/expired-token
+rejection, scope enforcement.
+\fB\-\-no\-verify\-tls\fR skips certificate chain verification (for self-signed endpoints).
+Each URL's scheme selects its own probe battery (root[s]://, http://, https://,
+davs://|dav://, s3://|s3s://, cms://).
+.SH OPTIONS
+The following options apply globally to all subcommands:
+.TP
+.B \-\-tls
+Require in-protocol TLS.
+.TP
+.B \-\-notlsok
+Permit cleartext.
+.TP
+.B \-\-noverifyhost
+Skip TLS hostname verification.
+.TP
+.BI \-\-auth " gsi|ztn|unix"
+Force an authentication protocol.
+.TP
+.BR \-\-wire\-trace [= N ]
+Decode every frame to stderr; \fIN\fR>=2 adds a hex dump.
+.TP
+.B \-\-timing
+Print per-opcode RTT at the end.
+.TP
+.BI \-\-probe\-timeout " MS"
+Timeout for each individual probe step.
+.TP
+.B \-\-version
+Print version and exit.
+.SH EXAMPLES
+.nf
+# Full automated diagnosis of a server
+xrddiag remote-doctor root://store.example:1094 --allow-write
+
+# Throughput sweep to find the stream-count knee
+xrddiag bench root://store.example:1094//bigfile.dat -S 16 --sweep
+
+# Replay a previously captured session
+xrddiag replay session.xrdcap
+
+# Continuous health watch at 30-second intervals
+xrddiag watch root://a:1094 root://b:1094 --interval 30 --json
+.fi
+.SH ENVIRONMENT
+.TP
+.B BEARER_TOKEN
+Bearer token for HTTP(S)/WebDAV probes.
+.TP
+.B X509_USER_PROXY
+GSI proxy certificate path.
+.TP
+.B AWS_ACCESS_KEY_ID
+S3 access key for S3 protocol probes.
+.TP
+.B AWS_SECRET_ACCESS_KEY
+S3 secret key.
+.TP
+.B AWS_DEFAULT_REGION
+S3 region.
+.TP
+.B XRDC_CONNECT_TIMEOUT_MS
+Connect timeout in milliseconds.
+.TP
+.B XRDC_IO_TIMEOUT_MS
+Per-operation I/O timeout.
+.TP
+.B XRDRC
+Path to configuration file (default \fI~/.xrdrc\fR).
+.SH FILES
+.TP
+.I ~/.xrdrc
+Per-user configuration: endpoint aliases and default credentials.
+See
+.BR brix\-env (7).
+.SH SEE ALSO
+.BR xrdcp (1),
+.BR xrdfs (1),
+.BR xrdcksum (1),
+.BR brix\-env (7)

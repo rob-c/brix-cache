@@ -418,14 +418,14 @@ install: lib
 	install -m644 $(SRC)/protocol/codec/*.h $(DESTDIR)$(INCLUDEDIR)/brix/xrdproto/protocol/codec/
 	install -m644 libbrix.pc $(DESTDIR)$(PKGCONFDIR)/
 
-# Install the CLI binaries + the xrootdfs man page (build them first).
+# Install the CLI binaries + all man pages (build them first).
 install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES)
 	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/share/man/man1
 	install -m755 $(BIN_EXES) $(DESTDIR)$(PREFIX)/bin/
 	for l in $(CKSUM_LINKS); do ln -sf xrdcksum $(DESTDIR)$(PREFIX)/bin/$$l; done
 	for l in $(DIAG_LINKS); do ln -sf xrddiag $(DESTDIR)$(PREFIX)/bin/$$l; done
 	[ -f $(BINDIR)/xrootdfs ] && install -m755 $(BINDIR)/xrootdfs $(DESTDIR)$(PREFIX)/bin/ || true
-	[ -f man/xrootdfs.1 ] && install -m644 man/xrootdfs.1 $(DESTDIR)$(PREFIX)/share/man/man1/ || true
+	for m in man/*.1; do install -m644 $$m $(DESTDIR)$(PREFIX)/share/man/man1/; done
 
 # ---------------------------------------------------------------------------
 # `make test` — build + run every self-contained C unit test under tests/c/.

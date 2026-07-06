@@ -1,0 +1,72 @@
+.TH XRDPREP 1 "2026-07-06" "brix client" "User Commands"
+.SH NAME
+xrdprep \- send kXR_prepare requests to an XRootD server
+.SH SYNOPSIS
+.B xrdprep
+[\fB\-s\fR|\fB\-c\fR|\fB\-w\fR|\fB\-f\fR|\fB\-e\fR] [\fB\-p\fR \fIPRTY\fR]
+\fIHOST\fR[\fI:PORT\fR] \fIPATH\fR...
+.SH DESCRIPTION
+.B xrdprep
+sends \fBkXR_prepare\fR requests to an XRootD server.
+This is the low-level prepare interface; for a higher-level workflow consider
+.BR xrdfs (1)
+.B prepare
+or
+.BR xrdfs (1)
+.BR stage .
+.PP
+By default (no flag) the request is a stage request.
+Multiple paths may be specified; each is sent in a single prepare request.
+.SH OPTIONS
+.TP
+.B \-s
+Stage: request that the file be brought online from tape (default).
+.TP
+.B \-c
+Cancel: cancel a pending stage request.
+.TP
+.B \-w
+Write-mode: hint that the file will be opened for writing.
+.TP
+.B \-f
+Fresh: invalidate any cached copy and fetch a fresh one.
+.TP
+.B \-e
+Evict: release the disk-cache copy.
+.TP
+.BI \-p " PRTY"
+Priority 0\-3 (default 0; higher = more urgent).
+.SH EXAMPLES
+.nf
+# Stage a file from tape at high priority
+xrdprep -s -p 3 store.example:1094 /tape/run42/file.root
+
+# Evict a file from cache
+xrdprep -e store.example:1094 /cache/tmp/bigfile.root
+
+# Cancel a pending stage
+xrdprep -c store.example:1094 /tape/run42/file.root
+.fi
+.SH ENVIRONMENT
+.TP
+.B XRDC_CONNECT_TIMEOUT_MS
+Connect timeout in milliseconds.
+.TP
+.B XRDC_IO_TIMEOUT_MS
+Per-operation I/O timeout.
+.TP
+.B XRDRC
+Path to configuration file (default \fI~/.xrdrc\fR).
+.TP
+.B X509_USER_PROXY
+GSI proxy certificate path.
+.SH FILES
+.TP
+.I ~/.xrdrc
+Per-user configuration file.
+See
+.BR brix\-env (7).
+.SH SEE ALSO
+.BR xrdfs (1),
+.BR xrdcp (1),
+.BR brix\-env (7)

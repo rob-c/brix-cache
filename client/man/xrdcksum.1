@@ -1,0 +1,116 @@
+.TH XRDCKSUM 1 "2026-07-06" "brix client" "User Commands"
+.SH NAME
+xrdcksum \- compute, verify and manage file checksums for XRootD and local storage
+.SH SYNOPSIS
+.B xrdcksum
+\fISUBCOMMAND\fR [\fIARGS\fR]
+.br
+.B xrdcrc32c
+\fIPATH\fR
+.br
+.B xrdcrc64
+\fIPATH\fR
+.br
+.B xrdadler32
+\fIPATH\fR
+.br
+.B xrdckverify
+[\-\-cache|\-\-storage|\-\-auto] [\-\-algo \fINAME\fR] [\-q] \fIFILE\fR
+.br
+.B xrdcinfo
+[\-\-xattr] \fIPATH\fR
+.SH DESCRIPTION
+.B xrdcksum
+computes, verifies and manages checksums for files stored locally or on
+XRootD (root://) servers.
+It is also invocable through convenience symlinks:
+.BR xrdcrc32c ,
+.BR xrdcrc64 ,
+.BR xrdadler32 ,
+.BR xrdckverify ,
+and
+.BR xrdcinfo .
+.PP
+Pass \fB\-\-help\fR to any subcommand for its per-command usage.
+.SH SUBCOMMANDS
+.TP
+.B crc32c \fIPATH\fR
+Compute the CRC32c checksum of a local file or root:// path.
+Also invocable as
+.BR xrdcrc32c .
+.TP
+.B crc64 \fIPATH\fR
+Compute the CRC-64/XZ checksum.
+Also invocable as
+.BR xrdcrc64 .
+.TP
+.B adler32 \fIPATH\fR
+Compute the Adler-32 checksum.
+Also invocable as
+.BR xrdadler32 .
+.TP
+.B verify [\-\-cache|\-\-storage|\-\-auto] [\-\-algo \fINAME\fR] [\-q] \fIFILE\fR
+Verify a local file against its recorded checksum.
+\fB\-\-storage\fR reads the \fBuser.XrdCks.\fR\fIalg\fR xattr and \fI<file>.cks\fR sidecar.
+\fB\-\-cache\fR reads the proxy-cache \fI<file>.cinfo\fR / \fI<file>.meta\fR digest.
+\fB\-\-auto\fR (default) consults both.
+\fB\-\-algo\fR restricts verification to one algorithm
+(\fBadler32\fR, \fBcrc32c\fR, \fBcrc64\fR, \fBcrc64nvme\fR, \fBmd5\fR).
+\fB\-q\fR is quiet: prints only on mismatch or error.
+Exit: 0 OK, 1 mismatch, 2 no recorded checksum, 3 error.
+Also invocable as
+.BR xrdckverify .
+.TP
+.B info [\-\-xattr] \fIPATH\fR
+Dump a proxy-cache \fI.cinfo\fR or xmeta xattr as JSON.
+Also invocable as
+.BR xrdcinfo .
+.TP
+.B tree \fIROOT\fR [\-\-algo \fINAME\fR] [\-o \fIFILE\fR]
+Produce a sha256sum-style checksum manifest for all regular files under a
+local directory or a root:// tree.
+\fB\-\-algo\fR selects the digest (default: \fBadler32\fR).
+\fB\-o\fR writes the manifest to \fIFILE\fR instead of stdout.
+Exit: 0 clean, 2 any per-file errors.
+.TP
+.B check \fIMANIFEST\fR \fIROOT\fR [\-\-algo \fINAME\fR]
+Verify every file listed in a tree manifest against its stored digest.
+\fIROOT\fR is a local directory or root:// URL that was checksummed.
+Without \fB\-\-algo\fR, algorithms are inferred from digest length:
+adler32 (8 hex), crc64 (16 hex), md5 (32 hex).
+Use \fB\-\-algo\fR for crc32c, zcrc32, or crc64nvme manifests.
+Prints \fBOK\fR or \fBFAILED\fR for each entry.
+Exit: 0 all OK, 1 any mismatch, 2 errors.
+.SH EXAMPLES
+.nf
+# Compute a CRC32c checksum
+xrdcksum crc32c root://store.example:1094//data/file.root
+
+# Build a manifest of a remote tree and verify it
+xrdcksum tree root://store.example:1094//atlas/ -o atlas.manifest
+xrdcksum check atlas.manifest root://store.example:1094//atlas/
+
+# Verify a cached file against its stored checksum
+xrdcksum verify --auto /cache/data/file.root
+.fi
+.SH ENVIRONMENT
+.TP
+.B XRDRC
+Path to configuration file (default \fI~/.xrdrc\fR).
+.TP
+.B XRDC_CONNECT_TIMEOUT_MS
+Connect timeout in milliseconds.
+.TP
+.B XRDC_IO_TIMEOUT_MS
+Per-operation I/O timeout.
+.SH FILES
+.TP
+.I ~/.xrdrc
+Per-user configuration file.
+See
+.BR brix\-env (7).
+.SH SEE ALSO
+.BR xrdcp (1),
+.BR xrdfs (1),
+.BR xrddiag (1),
+.BR brix\-env (7)
