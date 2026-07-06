@@ -279,6 +279,60 @@ webdav_store_tls_auth_cache(ngx_http_request_t *r, SSL *ssl,
     return NGX_OK;
 }
 
+/*
+ * WHAT: Extract VOMS VO attributes from the peer cert chain and record them on
+ *   the request identity.  Fetches its own leaf/chain from the live SSL object,
+ *   so it runs on BOTH the cache-HIT and cache-MISS auth paths without a
+ *   caller-held certificate.
+ * WHY: VOMS VO membership is NOT stored in the per-TLS auth cache (that cache
+ *   holds only the DN), so it must be re-derived on every request.  Without this,
+ *   the first request on a TLS session set `vos` correctly but every cached
+ *   follow-up silently dropped the VO data (vos="-"), so VO-based authorization
+ *   over-denied.  Non-fatal: an absent VOMS extension is normal for plain grid
+ *   proxies (brix_extract_voms_info returns NGX_DECLINED).
+ */
+static ngx_int_t
+webdav_extract_and_set_voms_identity(ngx_http_request_t *r,
+                                     ngx_http_brix_webdav_loc_conf_t *conf,
+                                     ngx_http_brix_webdav_req_ctx_t *ctx,
+                                     SSL *ssl)
+{
+    X509            *leaf;
+    STACK_OF(X509)  *chain;
+    char             primary_vo[256] = "";
+    char             vo_list[1024]   = "";
+    ngx_int_t        rc = NGX_OK;
+
+    if (conf->vomsdir.len == 0 || conf->voms_cert_dir.len == 0
+        || !brix_voms_available())
+    {
+        return NGX_OK;
+    }
+
+    leaf = SSL_get_peer_certificate(ssl);   /* owned ref → X509_free below */
+    if (leaf == NULL) {
+        return NGX_OK;
+    }
+    chain = SSL_get_peer_cert_chain(ssl);   /* borrowed — do NOT free */
+
+    (void) brix_extract_voms_info(r->connection->log, leaf, chain,
+                                    &conf->vomsdir, &conf->voms_cert_dir,
+                                    primary_vo, sizeof(primary_vo),
+                                    vo_list, sizeof(vo_list));
+
+    if (ctx->identity != NULL && vo_list[0] != '\0'
+        && brix_identity_set_vos_csv(ctx->identity, r->pool, vo_list) != NGX_OK)
+    {
+        rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
+    } else if (primary_vo[0] != '\0') {
+        ngx_log_error(NGX_LOG_DEBUG, r->connection->log, 0,
+                      "brix_webdav: VOMS primary_vo=\"%s\"", primary_vo);
+    }
+
+    X509_free(leaf);
+    return rc;
+}
+
 static ngx_int_t
 webdav_try_cached_tls_auth(ngx_http_request_t *r, SSL *ssl,
                            ngx_http_brix_webdav_loc_conf_t *conf,
@@ -295,6 +349,12 @@ webdav_try_cached_tls_auth(ngx_http_request_t *r, SSL *ssl,
             {
                 return NGX_HTTP_INTERNAL_SERVER_ERROR;
             }
+            /* VOMS VOs are not cached — re-derive per request (else vos="-"). */
+            if (webdav_extract_and_set_voms_identity(r, conf, ctx, ssl)
+                != NGX_OK)
+            {
+                return NGX_HTTP_INTERNAL_SERVER_ERROR;
+            }
             webdav_log_auth_cache_reuse(r, cache, "connection");
             return NGX_OK;
         }
@@ -307,6 +367,12 @@ webdav_try_cached_tls_auth(ngx_http_request_t *r, SSL *ssl,
                 sess, webdav_ssl_session_auth_cache_index);
             if (webdav_cache_matches(cache, conf)) {
                 if (webdav_mark_req_verified(r, ctx, cache->dn, "tls-session")
+                    != NGX_OK)
+                {
+                    return NGX_HTTP_INTERNAL_SERVER_ERROR;
+                }
+                /* VOMS VOs are not cached — re-derive per request (else vos="-"). */
+                if (webdav_extract_and_set_voms_identity(r, conf, ctx, ssl)
                     != NGX_OK)
                 {
                     return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -384,32 +450,11 @@ webdav_finish_verified_cert(ngx_http_request_t *r,
                       source, dn_log);
     }
 
-    /* Optional VOMS VO extraction — non-fatal; NGX_DECLINED means no VOMS
-     * attributes in the proxy cert, which is normal for plain grid proxies. */
-    if (conf->vomsdir.len > 0 && conf->voms_cert_dir.len > 0
-        && brix_voms_available())
-    {
-        STACK_OF(X509) *chain = SSL_get_peer_cert_chain(ssl);
-        char primary_vo[256] = "";
-        char vo_list[1024]   = "";
-
-        (void) brix_extract_voms_info(r->connection->log, leaf, chain,
-                                        &conf->vomsdir, &conf->voms_cert_dir,
-                                        primary_vo, sizeof(primary_vo),
-                                        vo_list, sizeof(vo_list));
-        if (ctx->identity != NULL && vo_list[0] != '\0'
-            && brix_identity_set_vos_csv(ctx->identity, r->pool, vo_list)
-               != NGX_OK)
-        {
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-        if (primary_vo[0] != '\0') {
-            ngx_log_error(NGX_LOG_DEBUG, r->connection->log, 0,
-                          "brix_webdav: VOMS primary_vo=\"%s\"", primary_vo);
-        }
-    }
-
-    return NGX_OK;
+    /* Optional VOMS VO extraction (non-fatal; NGX_DECLINED = no VOMS ext, normal
+     * for plain grid proxies). Shared with the cache-hit paths so cached and
+     * fresh requests derive the same VO data. `leaf` above is the caller's ref;
+     * the helper fetches its own independent ref and frees it. */
+    return webdav_extract_and_set_voms_identity(r, conf, ctx, ssl);
 }
 
 ngx_int_t
