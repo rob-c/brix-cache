@@ -502,6 +502,18 @@ main(int argc, char **argv)
         opts.force = 1;
     }
     opts.sync = sync_mode;   /* recursive walkers read o->sync (+ sync_cmp/algo) */
+    /* --delete (mirror: make the destination match the source) and
+     * --remove-source (move: delete each source once its transfer succeeds) are
+     * contradictory.  Run together they destroy BOTH trees: on an upload the
+     * per-file source unlink runs before the mirror-delete pass, which then sees
+     * the now-missing local files and purges the freshly-uploaded remote copies.
+     * Reject the pair before any bytes (or unlinks) move. */
+    if (opts.sync_delete && opts.remove_source) {
+        fprintf(stderr, "xrdcp: --delete and --remove-source are contradictory "
+                        "(mirror vs move)\n");
+        str_free(pos, npos); str_free(excl, nexcl); str_free(incl, nincl);
+        return 50;
+    }
     /* --delete requires -r and --sync: without a recursive pass there is no
      * listing to diff against; without --sync the extra-deletion semantics are
      * ill-defined (we might delete a destination the caller wanted to keep). */

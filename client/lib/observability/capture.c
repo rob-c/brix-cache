@@ -129,6 +129,32 @@ read_magic(FILE *fp, brix_status *st)
     return 0;
 }
 
+/*
+ * skip_bytes — consume and discard `n` bytes from fp, detecting truncation.
+ *
+ * WHAT: reads n bytes into a scratch buffer, returning 0 when all n bytes were
+ *       present or -1 when fewer remain (a truncated/corrupt record).
+ * WHY:  fseek(SEEK_CUR) past EOF SUCCEEDS on a regular file, so seeking over a
+ *       record body cannot distinguish a complete record from one truncated
+ *       mid-body — the skip silently accepts a short file.  An fread-based skip
+ *       surfaces the short read exactly as the replay path's body reads do, so a
+ *       mid-record truncation fails cleanly instead of passing as valid.
+ * HOW:  loop reading up to a fixed scratch buffer until n bytes are consumed or
+ *       fread returns short. */
+static int
+skip_bytes(FILE *fp, size_t n)
+{
+    char buf[512];
+    while (n > 0) {
+        size_t want = (n < sizeof(buf)) ? n : sizeof(buf);
+        if (fread(buf, 1, want, fp) != want) {
+            return -1;
+        }
+        n -= want;
+    }
+    return 0;
+}
+
 static uint16_t rd_u16(FILE *fp) { int a = fgetc(fp), b = fgetc(fp); return ((uint16_t)(uint8_t)a << 8) | (uint16_t)(uint8_t)b; }
 static uint32_t rd_u32(FILE *fp) {
     uint32_t a = (uint32_t) fgetc(fp), b = (uint32_t) fgetc(fp);
@@ -261,9 +287,11 @@ brix_capture_playback(const char *path, const char *url, const brix_opts *co,
             int kl = fgetc(fp);
             uint16_t vl;
             if (kl < 0) { truncated = 1; break; }
-            if (fseek(fp, kl, SEEK_CUR) != 0) { truncated = 1; break; }
+            /* fread-based skip (not fseek): a mid-M truncation must fail, and
+             * fseek past EOF succeeds on a regular file. */
+            if (skip_bytes(fp, (size_t) kl) != 0) { truncated = 1; break; }
             vl = rd_u16(fp);
-            if (fseek(fp, vl, SEEK_CUR) != 0) { truncated = 1; break; }
+            if (skip_bytes(fp, vl) != 0) { truncated = 1; break; }
             continue;
         }
         if (type != 'F') {

@@ -91,6 +91,21 @@ rel_join(const char *prefix, const char *name, char *out, size_t outsz)
     return (n > 0 && (size_t) n < outsz) ? 0 : -1;
 }
 
+/* rel_has_newline — detect a manifest-forgeable name.
+ *
+ * WHAT: Return 1 if `rel` contains a '\n' or '\r', 0 otherwise.
+ * WHY:  The manifest format is one "<hex>  <rel>\n" record per line, parsed
+ *       line-by-line on the check side.  A file whose name embeds a newline (or
+ *       CR) would forge an extra record — smuggling a second "<hex>  <path>"
+ *       into the manifest and corrupting the whole verification.  Such names are
+ *       skipped-and-warned (counted as an error) rather than written.
+ * HOW:  Linear scan for the two line-terminator bytes. */
+static int
+rel_has_newline(const char *rel)
+{
+    return strchr(rel, '\n') != NULL || strchr(rel, '\r') != NULL;
+}
+
 /* ---- xrdcksum tree (local walk) ---- */
 
 /* tree_ctx — shared state threaded through the recursive local walk. */
@@ -140,6 +155,7 @@ walk_local_tree(const char *lpath, const char *rel, tree_ctx *ctx)
             || rel_join(rel, de->d_name, relc, sizeof(relc)) != 0) {
             fprintf(stderr,
                     "xrdcksum tree: path too long under %s\n", lpath);
+            (*ctx->errors)++;   /* a skipped file is an error, not clean output */
             closedir(d);
             return -1;
         }
@@ -176,6 +192,14 @@ walk_local_tree(const char *lpath, const char *rel, tree_ctx *ctx)
                 continue;
             }
             close(fd);
+            /* Refuse to emit a record for a newline/CR-bearing name: it would
+             * forge an extra manifest line.  Skip-and-warn (counted). */
+            if (rel_has_newline(relc)) {
+                fprintf(stderr, "xrdcksum tree: %s: name contains newline/CR, "
+                        "skipping\n", lc);
+                (*ctx->errors)++;
+                continue;
+            }
             fprintf(ctx->out, "%s  %s\n", hex, relc);
         }
         /* other file types (block/char/fifo/socket) are silently skipped */
@@ -230,6 +254,15 @@ remote_tree_visitor(const char *path, const brix_dirent *e, int depth,
         return 0;
     }
     rel = path + ctx->root_path_len + 1;
+
+    /* A newline/CR in the derived rel would forge an extra manifest line — skip
+     * it and count the error rather than corrupt the manifest. */
+    if (rel_has_newline(rel)) {
+        fprintf(stderr, "xrdcksum tree: %s: name contains newline/CR, skipping\n",
+                path);
+        (*ctx->errors)++;
+        return 0;
+    }
 
     brix_status_clear(&st);
     if (brix_query_cksum(ctx->c, path, ctx->algo_name,
@@ -332,7 +365,11 @@ brix_xrdcktree_main(int argc, char **argv)
         ctx.algo_name = algo_str;
         ctx.algo      = algo;
         ctx.errors    = &errors;
-        (void) walk_local_tree(root, "", &ctx);
+        /* A structural failure (root opendir / path overflow) returns nonzero
+         * and must land in the exit code — a partial manifest is not clean. */
+        if (walk_local_tree(root, "", &ctx) != 0 && errors == 0) {
+            errors++;
+        }
     } else {
         /* Remote root:// tree walk. */
         brix_url  u;
@@ -361,7 +398,14 @@ brix_xrdcktree_main(int argc, char **argv)
         ctx.out          = out;
         ctx.algo_name    = algo_str;
         ctx.root_path    = u.path;
-        ctx.root_path_len = strlen(u.path);
+        /* Strip trailing slashes so `tree root://h//dir/` yields the same rel
+         * prefixes as `.../dir`; a bare "/" export root collapses to a
+         * zero-length prefix (rel = full path + 1), keeping that case working. */
+        {
+            size_t rlen = strlen(u.path);
+            while (rlen > 0 && u.path[rlen - 1] == '/') { rlen--; }
+            ctx.root_path_len = rlen;
+        }
         ctx.errors       = &errors;
 
         wrc = brix_tree_walk(&c, u.path, remote_tree_visitor, &ctx, &st);

@@ -201,7 +201,13 @@ mirror_delete_local(const char *lpath, const brix_dirent *ents, size_t nents,
  *       deleted.
  * HOW:  brix_dirlist(rpath) for the remote snapshot; for each remote entry,
  *       lstat the local counterpart; if absent AND filter passes → dry-run
- *       print or delete (brix_rmtree for dirs, brix_rm for files). */
+ *       print or delete (brix_rmtree for dirs, brix_rm for files).
+ * GUARD: this pass treats the LOCAL tree as authoritative, so it MUST NOT run
+ *       alongside --remove-source (which deletes each local source after upload):
+ *       the sources would already be gone here and every uploaded remote copy
+ *       would be purged.  xrdcp rejects that flag combination at parse time
+ *       (see the --delete/--remove-source guard in main), so this function is
+ *       only ever reached with the local tree intact. */
 static void
 mirror_delete_remote(brix_conn *c, const char *rpath, const char *lpath,
                      const char *rel, const brix_copy_opts *o)
