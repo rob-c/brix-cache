@@ -178,6 +178,19 @@ cmd_verify(int argc, char **argv)
     int             rc;
     storascan_cks_status verdict;
 
+    /* --help as the first subcommand arg → print this subcommand's usage
+     * to stdout and exit cleanly (WS-2); avoids falling through to the
+     * unknown-option path which exits 64 to stderr. */
+    if (argc >= 1 && strcmp(argv[0], "--help") == 0) {
+        printf("usage: xrdstorascan verify <url> [--algo NAME] [-q]\n"
+               "    End-to-end verify ONE file: download it, recompute the\n"
+               "    checksum, compare to the server's recorded value.\n"
+               "    (--algo default adler32)\n"
+               "    exit: 0 match, 1 mismatch, 2 no recorded checksum, 3 error\n"
+               BRIX_USAGE_FOOTER("xrdstorascan"));
+        return SX_OK;
+    }
+
     for (i = 0; i < argc; i++) {
         const char *a = argv[i];
         if (strcmp(a, "--algo") == 0 && i + 1 < argc) {
@@ -500,6 +513,19 @@ cmd_bench(int argc, char **argv)
     brix_conn   c;
     brix_status st;
     brix_statinfo sti;
+
+    /* --help as the first subcommand arg → print bench usage to stdout
+     * and exit cleanly (WS-2). */
+    if (argc >= 1 && strcmp(argv[0], "--help") == 0) {
+        printf("usage: xrdstorascan bench <url> [--op read]\n"
+               "                         [--block SZ[,SZ...]] [--parallel N[,N...]]\n"
+               "                         [--duration S | --count N]\n"
+               "                         [--pattern seq|random] [--json]\n"
+               "    Throughput/latency sweep against the gateway. SZ accepts K/M/G.\n"
+               "    defaults: --block 1M,4M --parallel 1,8 --duration 5 --pattern seq\n"
+               BRIX_USAGE_FOOTER("xrdstorascan"));
+        return SX_OK;
+    }
 
     for (i = 0; i < argc; i++) {
         const char *a = argv[i];
@@ -840,6 +866,18 @@ cmd_scan(const char *mode, int argc, char **argv)
     brix_http_resp resp;
     brix_status    st;
     long           mismatch;
+
+    /* --help as the first subcommand arg → print this mode's usage to stdout
+     * and exit cleanly (WS-2). */
+    if (argc >= 1 && strcmp(argv[0], "--help") == 0) {
+        printf("usage: xrdstorascan %s <dashboard-url> [--path P] [--algo A]\n"
+               "                    [--password PW] [--insecure] [--json|--summary]\n"
+               "    Server-side scan over the /brix/api/v1/scan admin endpoint.\n"
+               "    auth via --password or $XRDSTORASCAN_PASSWORD\n"
+               BRIX_USAGE_FOOTER("xrdstorascan"),
+               mode);
+        return SX_OK;
+    }
 
     for (i = 0; i < argc; i++) {
         const char *a = argv[i];
