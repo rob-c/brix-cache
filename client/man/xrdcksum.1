@@ -80,7 +80,8 @@ Without \fB\-\-algo\fR, algorithms are inferred from digest length:
 adler32 (8 hex), crc64 (16 hex), md5 (32 hex).
 Use \fB\-\-algo\fR for crc32c, zcrc32, or crc64nvme manifests.
 Prints \fBOK\fR or \fBFAILED\fR for each entry.
-Exit: 0 all OK, 1 any mismatch, 2 errors.
+Exit: 0 all OK, 1 any mismatch, 2 errors (parse/I/O);
+2 (errors) takes precedence over 1 (mismatch) when both occur.
 .SH EXAMPLES
 .nf
 # Compute a CRC32c checksum

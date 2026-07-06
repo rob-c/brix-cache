@@ -438,7 +438,8 @@ usage_check(const char *prog, int rc)
         "  Without --algo, digests are assumed: adler32 (8 hex), crc64 (16 hex),\n"
         "  md5 (32 hex); use --algo for crc32c, zcrc32, crc64nvme manifests.\n"
         "  For each line prints 'OK <rel>' or 'FAILED <rel>'.\n"
-        "  exit: 0 all OK, 1 any mismatch, 2 errors (parse/I/O)\n",
+        "  exit: 0 all OK, 1 any mismatch, 2 errors (parse/I/O); 2 (errors)\n"
+        "        takes precedence over 1 (mismatch) when both occur\n",
         prog);
     return rc;
 }
