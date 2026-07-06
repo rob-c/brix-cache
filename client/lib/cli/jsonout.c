@@ -4,7 +4,9 @@
 void
 brix_json_escape(FILE *out, const char *s)
 {
-    const unsigned char *p = (const unsigned char *) s;
+    const unsigned char *p;
+    if (s == NULL) { return; }   /* NULL → empty string via brix_json_fputs */
+    p = (const unsigned char *) s;
     for (; *p != '\0'; p++) {
         switch (*p) {
         case '"':  fputs("\\\"", out); break;

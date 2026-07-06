@@ -5,15 +5,28 @@
 #include "xrdfs_internal.h"
 
 
+/* WHAT: stat [-j] <path> — print file metadata in human or JSON format.
+ * WHY:  -j enables machine-readable output for scripting and pipeline use.
+ * HOW:  flags are parsed first; the path argument is whatever is left.
+ *       On error no output goes to stdout so partial JSON is never emitted. */
 int
 do_stat(brix_conn *c, const char *cwd, int argc, char **argv)
 {
     brix_status   st;
     brix_statinfo si;
     char          path[XRDC_PATH_MAX];
+    const char   *arg = NULL;
+    int           json = 0, i;
 
-    if (argc < 2) { fprintf(stderr, "usage: stat <path>\n"); return 50; }
-    build_path(cwd, argv[1], path, sizeof(path));
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-j") == 0 || strcmp(argv[i], "--json") == 0) {
+            json = 1;
+        } else {
+            arg = argv[i];
+        }
+    }
+    if (arg == NULL) { fprintf(stderr, "usage: stat [-j] <path>\n"); return 50; }
+    build_path(cwd, arg, path, sizeof(path));
 
     brix_status_clear(&st);
     if (brix_stat(c, path, &si, &st) != 0) {
@@ -21,7 +34,7 @@ do_stat(brix_conn *c, const char *cwd, int argc, char **argv)
         brix_cred_hint_for_status(&st, 0, stderr);   /* Phase 40 (c) */
         return brix_shellcode(&st);
     }
-    print_statinfo(path, &si);
+    if (json) { json_statinfo(path, &si); } else { print_statinfo(path, &si); }
     return 0;
 }
 
@@ -81,25 +94,89 @@ ls_print_dir(brix_conn *c, const char *path, int want_long, int recursive,
 }
 
 
+/* WHAT: flat JSON array of one directory's entries for ls -j.
+ * WHY:  brix_dirlist returns all entries at once, so no partial output can
+ *       reach stdout on error — the array is complete or nothing is emitted.
+ * HOW:  forces want_stat=1; entries with no stat data emit -1 sentinel values.
+ *       Name strings go through brix_json_kv_str so embedded quotes and control
+ *       bytes are safely escaped (security requirement). */
+static int
+ls_json_dir(brix_conn *c, const char *path, brix_status *st)
+{
+    brix_dirent *ents = NULL;
+    size_t       n = 0, k;
+    char         prefix[XRDC_PATH_MAX + 2];
+    size_t       plen;
+    const char  *sep;
+    int          first = 1;
+
+    if (brix_dirlist(c, path, 1 /*want_stat*/, &ents, &n, st) != 0) {
+        return -1;
+    }
+    plen = strlen(path);
+    sep  = (plen > 0 && path[plen - 1] == '/') ? "" : "/";
+    snprintf(prefix, sizeof(prefix), "%s%s", path, sep);
+
+    fputc('[', stdout);
+    for (k = 0; k < n; k++) {
+        char fullname[XRDC_PATH_MAX];
+        int  is_dir = ents[k].have_stat && (ents[k].st.flags & kXR_isDir);
+
+        if ((size_t) snprintf(fullname, sizeof(fullname), "%s%s",
+                              prefix, ents[k].name) >= sizeof(fullname)) {
+            continue;   /* skip overlong paths rather than truncating silently */
+        }
+        if (!first) { fputc(',', stdout); }
+        first = 0;
+
+        fputc('{', stdout);
+        brix_json_kv_str(stdout, "name",   fullname,                                  1);
+        brix_json_kv_ll(stdout,  "size",
+                        ents[k].have_stat ? (long long) ents[k].st.size  : -1LL,      1);
+        brix_json_kv_ll(stdout,  "mtime",
+                        ents[k].have_stat ? (long long) ents[k].st.mtime : -1LL,      1);
+        brix_json_kv_bool(stdout, "is_dir", is_dir,                                   0);
+        fputc('}', stdout);
+    }
+    fputs("]\n", stdout);
+    free(ents);
+    return 0;
+}
+
+
+/* WHAT: ls [-l] [-R] [-h] [-j] [path] — list directory entries.
+ * WHY:  -j enables machine-readable JSON output for scripting.
+ * HOW:  -j dispatches to ls_json_dir (flat array, safe escaping);
+ *       all other flag combinations go through the existing ls_print_dir path. */
 int
 do_ls(brix_conn *c, const char *cwd, int argc, char **argv)
 {
     brix_status st;
     char        path[XRDC_PATH_MAX];
     const char *arg = NULL;
-    int         want_long = 0, recursive = 0, human = 0, i;
+    int         want_long = 0, recursive = 0, human = 0, json = 0, i;
 
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-l") == 0)      { want_long = 1; }
         else if (strcmp(argv[i], "-R") == 0) { recursive = 1; }
         else if (strcmp(argv[i], "-h") == 0) { human = 1; }
-        else if (strcmp(argv[i], "-lR") == 0 || strcmp(argv[i], "-Rl") == 0) {
+        else if (strcmp(argv[i], "-j") == 0 || strcmp(argv[i], "--json") == 0) {
+            json = 1;
+        } else if (strcmp(argv[i], "-lR") == 0 || strcmp(argv[i], "-Rl") == 0) {
             want_long = 1; recursive = 1;
         } else { arg = argv[i]; }
     }
     build_path(cwd, arg != NULL ? arg : ".", path, sizeof(path));
 
     brix_status_clear(&st);
+    if (json) {
+        if (ls_json_dir(c, path, &st) != 0) {
+            fprintf(stderr, "xrdfs: ls %s: %s\n", path, st.msg);
+            brix_cred_hint_for_status(&st, 0, stderr);
+            return brix_shellcode(&st);
+        }
+        return 0;
+    }
     if (ls_print_dir(c, path, want_long, recursive, human, &st) != 0) {
         fprintf(stderr, "xrdfs: ls %s: %s\n", path, st.msg);
         brix_cred_hint_for_status(&st, 0, stderr);   /* Phase 40 (c) */

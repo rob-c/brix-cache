@@ -100,6 +100,31 @@ print_statinfo(const char *path, const brix_statinfo *si)
 }
 
 
+/* WHAT: emit one stat result as a single-line JSON object for xrdfs stat -j.
+ * WHY:  separates JSON formatting from command logic; JSON path is cleanly
+ *       isolated so any change to the wire fields is confined here.
+ * HOW:  jsonout helpers handle all string escaping so hostile path components
+ *       (quotes, control bytes) cannot produce malformed JSON.  Extended fields
+ *       (mode/owner/group) are guarded by have_ext to match the human output. */
+void
+json_statinfo(const char *path, const brix_statinfo *si)
+{
+    fputc('{', stdout);
+    brix_json_kv_str(stdout, "path",   path,                           1);
+    brix_json_kv_ll(stdout,  "size",   (long long) si->size,           1);
+    brix_json_kv_ll(stdout,  "mtime",  (long long) si->mtime,          1);
+    brix_json_kv_ll(stdout,  "flags",  (long long) si->flags,          1);
+    brix_json_kv_bool(stdout, "is_dir", (si->flags & kXR_isDir) != 0,
+                      si->have_ext);
+    if (si->have_ext) {
+        brix_json_kv_ll(stdout,  "mode",  (long long) (si->mode & 07777), 1);
+        brix_json_kv_str(stdout, "owner", si->owner,                      1);
+        brix_json_kv_str(stdout, "group", si->group,                      0);
+    }
+    fputs("}\n", stdout);
+}
+
+
 /* parse_chmod_mode — accept the stock xrdfs 9-char symbolic form ("rwxr-xr-x",
  * XrdClFS.cc ConvertMode) AND an octal absolute mode ("755") as a local
  * extension. Returns the permission bits, or -1 on a malformed mode. The stock

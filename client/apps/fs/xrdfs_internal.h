@@ -6,7 +6,8 @@
 #define BRIX_XRDFS_INTERNAL_H
 
 #include "brix.h"
-#include "core/compat/crypto.h"   
+#include "cli/jsonout.h"
+#include "core/compat/crypto.h"
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>     
@@ -77,6 +78,7 @@ void build_path(const char *cwd, const char *arg, char *out, size_t outsz);
 void flags_to_str(int f, char *out, size_t sz);
 void print_stat_time(const char *label, long epoch);
 void print_statinfo(const char *path, const brix_statinfo *si);
+void json_statinfo(const char *path, const brix_statinfo *si);
 
 /* xrdfs_meta.c */
 int do_stat(brix_conn *c, const char *cwd, int argc, char **argv);
