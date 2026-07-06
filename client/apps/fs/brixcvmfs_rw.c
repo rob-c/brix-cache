@@ -222,7 +222,7 @@ static int rw_mknod(const char *path, mode_t mode, dev_t dev) {
 static int rw_read(const char *path, char *buf, size_t size, off_t off,
                    struct fuse_file_info *fi) {
     if (fi != NULL && fi->fh != 0) {
-        ssize_t n = pread((int) fi->fh - 1, buf, size, off);
+        ssize_t n = pread((int) fi->fh - 1, buf, size, off); /* vfs-seam-allow: FUSE rw_read on local writable CVMFS overlay fd, not export VFS object */
         return n < 0 ? -errno : (int) n;
     }
     return brixcvmfs_op_read(path, buf, size, off, fi);
@@ -232,7 +232,7 @@ static int rw_write(const char *path, const char *buf, size_t size, off_t off,
                     struct fuse_file_info *fi) {
     (void) path;
     if (fi == NULL || fi->fh == 0) return -EBADF;
-    ssize_t n = pwrite((int) fi->fh - 1, buf, size, off);
+    ssize_t n = pwrite((int) fi->fh - 1, buf, size, off); /* vfs-seam-allow: FUSE rw_write on local writable CVMFS overlay fd, not export VFS object */
     return n < 0 ? -errno : (int) n;
 }
 

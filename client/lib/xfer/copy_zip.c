@@ -168,7 +168,7 @@ int
 zipw_local_write(void *cx, const void *d, size_t n)
 {
     zipw_local_sink *s = cx;
-    ssize_t          w = pwrite(s->fd, d, n, (off_t) s->off);
+    ssize_t          w = pwrite(s->fd, d, n, (off_t) s->off); /* vfs-seam-allow: local zip-archive assembly, not export data */
     if (w < 0 || (size_t) w != n) {
         return -1;
     }
@@ -192,7 +192,7 @@ zipw_remote_write(void *cx, const void *d, size_t n)
 ssize_t
 zipw_local_pread(void *cx, uint64_t off, void *buf, size_t len)
 {
-    return pread(*(int *) cx, buf, len, (off_t) off);
+    return pread(*(int *) cx, buf, len, (off_t) off); /* vfs-seam-allow: local zip-archive assembly, not export data */
 }
 
 
