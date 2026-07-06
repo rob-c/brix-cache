@@ -164,32 +164,31 @@ namespace-existence oracle. `statx`, `stat`, `cksum`, and `fattr` already gate-b
 existence for the open path. Aligning them touches the upstream-fallback / zip / residency
 interplay, so it is tracked as its own change, not part of the cache-hardening rounds.
 
-## 4c. Follow-up: WebDAV native authdb + VO-ACL read parity
+## 4c. WebDAV native authdb + VO-ACL read parity (LANDED)
 
-**Status: documented, not yet landed — a reviewed feature change.** WebDAV's access-phase gate
-(`access.c`) enforces the xrdacc engine and token scope, but **not** native `authdb` (per-DN) or
-VO-ACL (per-VO) rules for reads. Token-scope (the primary WLCG mechanism) and xrdacc *are*
-enforced, so WebDAV is not unauthenticated — but a deployment that expresses per-user/per-group
-authz via native `authdb`/`require_vo` (as `root://` does) has no WebDAV equivalent. Because the
-access-phase gate runs before the content handler, closing this also covers a cached WebDAV GET.
+WebDAV's access-phase gate (`access.c`) enforced the xrdacc engine and token scope, but **not**
+native `authdb` (per-DN/VO/host) or VO-ACL rules for reads — so a deployment expressing per-user
+authz via native `authdb`/`require_vo` (as `root://` does) had no WebDAV equivalent, and a
+cached WebDAV GET (the access-phase gate fronts the content handler for hit/miss/direct alike)
+was ungated by those mechanisms.
 
-This is **cache-independent** (hit/miss/direct share the one access-phase gate — no cache
-differential) and is a genuine multi-file feature, so it ships as its own reviewed change:
+**Landed.** Two directives — `brix_webdav_authdb <file>` and `brix_webdav_require_vo <path>
+<vo>` — populate two loc-conf arrays (reusing the stream parsers `brix_parse_authdb` /
+`brix_normalize_policy_path`, finalized under the export root at startup with
+`brix_finalize_{authdb,vo}_rules`). The access-phase read gate runs
+`brix_check_authdb_identity` + `brix_check_vo_acl_identity` — the **same helpers `root://`
+uses** — against the resolved path and the already-populated request identity, for
+non-write/non-OPTIONS methods. It is a no-op unless configured (the helpers return `NGX_OK` on
+empty rule sets), so existing deployments are unaffected; writes keep their `allow_write` +
+xrdacc + token-scope gates. Verified by `tests/test_mu_webdav_authz.py` (a reader is served
+under a granted subtree but 403'd outside it, for GET/HEAD/PROPFIND).
 
-1. Add `ngx_array_t *authdb_rules;` and `ngx_array_t *vo_rules;` to
-   `ngx_http_brix_webdav_loc_conf_t` (`webdav.h`).
-2. Directives `brix_webdav_authdb <file>` (reuse `brix_parse_authdb`, `authdb.c:53`) and
-   `brix_webdav_require_vo <vo> [<path>]` (mirror `brix_conf_set_require_vo`, `policy.c:46`),
-   pushing into those arrays.
-3. Merge parent→loc (`config.c`) and finalize deferred realpaths at startup
-   (`brix_finalize_authdb_rules`, `brix_finalize_vo_rules`, `acl.c`).
-4. Gate in `access.c`, after the token-scope block, before `return NGX_OK`, for non-write
-   methods, using the **already-present** identity (`webdav.h:327` `mctx->identity`, populated
-   with DN + VOs by `auth_cert.c`/`auth_token.c`) and the verified helpers
-   `brix_check_authdb_identity` + `brix_check_vo_acl_identity` → `NGX_HTTP_FORBIDDEN` on deny.
-5. Security-negative test: a GET/HEAD/PROPFIND by a denied VO/authdb principal returns 403,
-   including when the object is already cache-resident; parity cross-check that the same authdb
-   file yields the same decision on `root://` and WebDAV.
+> **Deployment note — VO ACL over WebDAV needs VOMS extraction.** `brix_webdav_require_vo` is
+> wired identically to authdb, but it depends on the VOMS VO being extracted from the client
+> proxy. Over the nginx-TLS WebDAV path the VO is not always extracted (the identity shows
+> `vos="-"`), unlike the `root://` GSI handshake — so a `require_vo` rule can over-deny there.
+> Prefer `brix_webdav_authdb` (per-DN/path) for WebDAV per-user authorization until WebDAV VOMS
+> extraction is closed (tracked separately).
 
 ## 5. cvmfs is public by design
 
