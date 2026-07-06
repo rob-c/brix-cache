@@ -30,6 +30,8 @@ http { access_log off; server {
         brix_cache_store posix:$PFX/cache;
         brix_cvmfs on;
         brix_cvmfs_client_hold 3;
+        # pin static: this suite asserts configured-order failover; rtt is the default since ed6cac4
+        brix_cvmfs_origin_select static;
     }
 } }
 EOF
