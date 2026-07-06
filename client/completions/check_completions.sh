@@ -48,6 +48,10 @@ check_security() {
 
     # Rule 2: no backtick that contains user-supplied completion state
     # Dangerous pattern: `cmd $cur` or `cmd ${COMP_WORDS...}` or `cmd $COMP_CWORD`
+    # NOTE: $(...) command substitution is NOT caught by this rule (only backticks are,
+    # per spec). The one legit $(...) use with compgen is safe: it expands the word
+    # list (not $cur), so injection requires the user to supply a malicious word,
+    # which is prevented by the compgen builtin itself.
     if grep -En '`[^`]*(\$cur|\$\{?COMP_WORDS|\$\{?COMP_CWORD)[^`]*`' \
             "$_file" >/dev/null 2>&1; then
         printf 'FAIL [%s] contains backtick-on-current-word (injection risk)\n' \

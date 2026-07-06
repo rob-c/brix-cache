@@ -419,7 +419,7 @@ install: lib
 	install -m644 libbrix.pc $(DESTDIR)$(PKGCONFDIR)/
 
 # Install the CLI binaries + all man pages (build them first).
-install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES)
+install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES) install-completions
 	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/share/man/man1 \
 	           $(DESTDIR)$(PREFIX)/share/man/man7
 	install -m755 $(BIN_EXES) $(DESTDIR)$(PREFIX)/bin/
@@ -428,11 +428,6 @@ install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES)
 	[ -f $(BINDIR)/xrootdfs ] && install -m755 $(BINDIR)/xrootdfs $(DESTDIR)$(PREFIX)/bin/ || true
 	for m in man/*.1; do install -m644 $$m $(DESTDIR)$(PREFIX)/share/man/man1/; done
 	for m in man/*.7; do install -m644 $$m $(DESTDIR)$(PREFIX)/share/man/man7/; done
-	install -d $(DESTDIR)$(PREFIX)/share/bash-completion/completions
-	for n in xrdcp xrdfs xrddiag xrdcksum xrd; do \
-		install -m644 completions/brix-tools.bash \
-			$(DESTDIR)$(PREFIX)/share/bash-completion/completions/$$n; \
-	done
 
 # ---------------------------------------------------------------------------
 # Install man pages only (DESTDIR-aware; includes the .so link pages).
