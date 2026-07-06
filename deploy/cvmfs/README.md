@@ -28,10 +28,11 @@ failover ordering. Keep Squid installed but idle until the pilot completes.
 | ≤ 2000 cores | 1–2 TB | 16 GB | threads=16 |
 | larger | 2–4 TB | 32 GB | threads=32 |
 
-Store on XFS, dedicated filesystem (eviction watermarks assume the cache
-owns the volume). Watermarks: evict at 85 %, hard-stop admission at 95 %
-(`brix_cache_evict_at` grammar mirrors the other protocols' tier
-directives — see docs/03-configuration).
+Store on XFS, dedicated filesystem (the cache engine owns the volume and
+evicts cached objects on DELETE/overwrite). For capacity planning, provision
+the volume so the working set fits comfortably below 80–90 % full;
+`brix_cache_evict_at`/`brix_cache_evict_to` are accepted as placeholders for
+future occupancy-based eviction (not yet wired — see docs/03-configuration).
 
 ## Reference configuration
 
@@ -127,8 +128,8 @@ http {
 | `brix_cvmfs_origin_connect_timeout` | `2 s` | Per-attempt TCP connect timeout |
 | `brix_cvmfs_origin_stall_timeout` | `4 s` | Seconds at the low-speed threshold before a stall is declared |
 | `brix_cvmfs_rtt_interval` | `60 s` | RTT probe cadence |
-| `brix_cache_evict_at` | `90 %` | Begin eviction when the cache volume reaches 90% |
-| `brix_cache_evict_to` | `80 %` | Eviction target (unlink oldest files until volume drops to 80%) |
+| `brix_cache_evict_at` | `90 %` | Accepted and validated; occupancy-based eviction not yet wired (roadmap). |
+| `brix_cache_evict_to` | `80 %` | Accepted and validated; occupancy-based eviction not yet wired (roadmap). |
 
 ### Reverse mode
 

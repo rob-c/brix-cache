@@ -993,7 +993,7 @@ See the unified grammar section at the top of this page for the complete list.
 |---|---|---|
 | `brix_cache_store posix:<path>` | required | Local cache directory (XFS recommended; the cache engine owns the volume) |
 | `brix_cache_verify off\|cvmfs-cas` | **`cvmfs-cas`** for cvmfs (other protocols: `off`) | Verify every fill against its SHA-1 content address; quarantines corrupt objects |
-| `brix_cache_evict_at <pct>` | `90` | Begin eviction when the cache volume reaches this percent full |
-| `brix_cache_evict_to <pct>` | `80` | Eviction target: unlink oldest files until the volume drops to this percent |
+| `brix_cache_evict_at <pct>` | `90` | Accepted and validated; occupancy-based eviction is not yet wired to this threshold — cache growth is currently bounded by `brix_cache_max_object` and DELETE/overwrite eviction. Roadmap item. |
+| `brix_cache_evict_to <pct>` | `80` | Accepted and validated; occupancy-based eviction is not yet wired to this threshold — cache growth is currently bounded by `brix_cache_max_object` and DELETE/overwrite eviction. Roadmap item. |
 | `brix_storage_backend <url>` | unset | Reverse-proxy origin(s) — pipe-separated `http://` URL list for failover; use instead of `brix_cvmfs_upstream_allow` in reverse mode |
 | `brix_thread_pool <name>` | `default` | nginx thread pool for fill I/O |
