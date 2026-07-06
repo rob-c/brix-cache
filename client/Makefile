@@ -426,6 +426,11 @@ install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES)
 	for l in $(DIAG_LINKS); do ln -sf xrddiag $(DESTDIR)$(PREFIX)/bin/$$l; done
 	[ -f $(BINDIR)/xrootdfs ] && install -m755 $(BINDIR)/xrootdfs $(DESTDIR)$(PREFIX)/bin/ || true
 	for m in man/*.1; do install -m644 $$m $(DESTDIR)$(PREFIX)/share/man/man1/; done
+	install -d $(DESTDIR)$(PREFIX)/share/bash-completion/completions
+	for n in xrdcp xrdfs xrddiag xrdcksum xrd; do \
+		install -m644 completions/brix-tools.bash \
+			$(DESTDIR)$(PREFIX)/share/bash-completion/completions/$$n; \
+	done
 
 # ---------------------------------------------------------------------------
 # `make test` — build + run every self-contained C unit test under tests/c/.
