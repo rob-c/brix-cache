@@ -46,6 +46,29 @@ def _write_authdb(policy: Policy) -> str:
     return ports.MU.AUTHDB
 
 
+def render_corpus_policy(cast) -> dict:
+    """Render backends for the whole CORPUS: one authdb grant per (allowed principal, object),
+    VO rules for each subtree, and the full gridmap. A single consistent policy for every
+    object the families exercise."""
+    from . import corpus
+    grid = write_gridmap(cast)
+    lines = ["# MU authdb — corpus grants"]
+    for obj in corpus.CORPUS:
+        for who in obj.allow:
+            lines.append(f"id brixtest_{who} {obj.path} rl")
+    with open(ports.MU.AUTHDB, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    vo = os.path.join(ports.MU.MU_ROOT, "vo.rules")
+    with open(vo, "w") as f:
+        f.write("/cms cms\n/atlas atlas\n")
+    s3 = os.path.join(ports.MU.MU_ROOT, "s3keys")
+    with open(s3, "w") as f:
+        for p in cast.values():
+            if p.name != "squashed" and p.s3_key:
+                f.write(f"{p.s3_key} {p.s3_secret} brixtest_{p.name}\n")
+    return {"gridmap": grid, "authdb": ports.MU.AUTHDB, "vo": vo, "s3keys": s3}
+
+
 def render_policy(policy: Policy, cast) -> dict:
     grid = write_gridmap(cast)
     authdb = _write_authdb(policy)

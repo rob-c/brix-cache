@@ -9,11 +9,7 @@ import os
 
 import pytest
 
-from mu_authz_lib import accounts, fleet, policy, ports, principals
-
-_DEFAULT_POLICY = policy.Policy(
-    path="/cms/secret.dat", allow=["alice", "svc"], deny=["bob", "carol", "mallory"],
-    vo="cms", scope_prefix="storage.read:/cms")
+from mu_authz_lib import accounts, corpus, fleet, policy, ports, principals
 
 
 @pytest.fixture(scope="session")
@@ -22,17 +18,17 @@ def cast():
 
 
 def _seed_export(cast_map) -> None:
-    """Create /cms/secret.dat readable only by svc+alice (mode 0640, owned by svc)."""
-    d = os.path.join(ports.MU.DATA_ROOT, "cms")
-    os.makedirs(d, exist_ok=True)
-    f = os.path.join(d, "secret.dat")
-    with open(f, "wb") as fh:
-        fh.write(b"S" * 65536)
-    try:
-        os.chown(f, cast_map["svc"].uid, cast_map["svc"].uid)
-        os.chmod(f, 0o640)
-    except PermissionError:
-        pass  # non-privileged collection/dev; the privileged fleet does this for real
+    """Create every CORPUS object with its declared owner uid + mode."""
+    for obj in corpus.CORPUS:
+        full = os.path.join(ports.MU.DATA_ROOT, obj.path.lstrip("/"))
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, "wb") as fh:
+            fh.write(b"S" * 65536)
+        try:
+            os.chown(full, cast_map[obj.owner].uid, cast_map[obj.owner].uid)
+            os.chmod(full, obj.mode)
+        except PermissionError:
+            pass  # non-privileged dev; the privileged fleet does this for real
 
 
 @pytest.fixture(scope="session")
@@ -43,7 +39,7 @@ def mu_fleet(cast):
                     "tests/run_multiuser_authz.sh under sudo")
     accounts.sweep_leftover()
     accounts.provision(cast)
-    backends = policy.render_policy(_DEFAULT_POLICY, cast)
+    backends = policy.render_corpus_policy(cast)
     _seed_export(cast)
     fleet.render_configs(backends)
     fleet.start()
@@ -65,20 +61,6 @@ def apply_policy(cast):
         fleet.start()
         fleet.wait_listening(20)
     return _apply
-
-
-@pytest.fixture
-def seed_service_only(cast):
-    """Create /cms/service-only.dat readable ONLY by the service identity (mode 0600, svc)."""
-    d = os.path.join(ports.MU.DATA_ROOT, "cms")
-    os.makedirs(d, exist_ok=True)
-    f = os.path.join(d, "service-only.dat")
-    with open(f, "wb") as fh:
-        fh.write(b"X" * 65536)
-    if os.geteuid() == 0:
-        os.chown(f, cast["svc"].uid, cast["svc"].uid)
-        os.chmod(f, 0o600)
-    return "/cms/service-only.dat"
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
