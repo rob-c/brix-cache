@@ -9,7 +9,7 @@ export function url(path = '/'): string {
   return `${base}${clean}`;
 }
 
-export const REPO_URL = 'https://github.com/rob-c/nginx-xrootd';
+export const REPO_URL = 'https://github.com/rob-c/brix-cache';
 export const DOCS_URL = `${REPO_URL}/blob/main/docs/index.md`;
 export const LICENSE = 'AGPL-3.0-only';
 

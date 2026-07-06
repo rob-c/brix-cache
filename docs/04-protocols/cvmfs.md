@@ -156,7 +156,7 @@ sequenceDiagram
         N-->>C2: 502 (kept-alive)
     end
     C1->>N: GET same object (later)
-    N-->>C1: 200 from cache_store (hit; origin idle)
+    N-->>C1: 200 from cache_store (hit, origin idle)
 ```
 
 ### 3.2 Forward-proxy mode — `CVMFS_HTTP_PROXY=http://cache:3128`

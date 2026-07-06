@@ -414,7 +414,7 @@ Here are the most useful docs, organized by what you might want to do:
 - **Protocol quirks and design trade-offs** — [reference/quirks.md](../10-reference/quirks.md)
 
 ### For developers (deep dive)
-- **XRootD protocol concepts** — [reference/brix-concepts.md](../10-reference/brix-concepts-deep.md)
+- **XRootD protocol concepts** — [reference/brix-concepts.md](../10-reference/xrootd-concepts-deep.md)
 - **nginx internals** — [reference/nginx/internals.md](../10-reference/nginx-internals.md)
 - **Handler function reference** — [reference/handler-reference.md](../10-reference/handler-reference.md)
 
@@ -478,7 +478,7 @@ Now that you have a working server, choose your path:
 
 | Goal | Read This |
 |---|---|
-| Understand the concepts better | [XRootD Basics](../02-concepts/brix-basics.md) |
+| Understand the concepts better | [XRootD Basics](../02-concepts/xrootd-basics.md) |
 | Set up authentication for production | [Authentication Overview](../06-authentication/auth-overview.md) + [TLS Configuration](../03-configuration/tls-config.md) |
 | Run behind a proxy or in a cluster | [Proxy Mode Guide](../05-operations/proxy-mode-guide.md) |
 | Monitor and observe your server | [Monitoring Guide](../08-metrics-monitoring/monitoring-guide.md) |

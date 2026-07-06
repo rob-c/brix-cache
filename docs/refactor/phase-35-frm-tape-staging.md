@@ -1,7 +1,8 @@
 # B2 — Real FRM / Tape MSS Staging: Historical Implementation Plan
 
-**Status:** Historical plan / as-built reference. The `src/frm/` subsystem now
-exists; use [`../../src/frm/README.md`](../../src/frm/README.md) and
+**Status:** Historical plan / as-built reference. The FRM subsystem now lives at
+[`src/fs/backend/frm/`](../../src/fs/backend/frm/) (see
+[`src/fs/backend/README.md`](../../src/fs/backend/README.md)); use that and
 [`../05-operations/operation-status.md`](../05-operations/operation-status.md)
 for current behavior.
 

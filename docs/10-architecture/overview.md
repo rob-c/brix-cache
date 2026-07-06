@@ -43,8 +43,8 @@ graph TB
     end
     
     subgraph nginx["nginx process"]
-        stream[stream {} block<br/>XRootD protocol]
-        http[http {} block]
+        stream["stream {} block<br/>XRootD protocol"]
+        http["http {} block"]
         
         subgraph httpLayers["HTTP layer"]
             webdav[WebDAV handler<br/>GET, PUT, COPY, MOVE]
@@ -302,4 +302,4 @@ For the complete operation-to-file mapping, see [AGENTS.md](../../AGENTS.md).
 - **[What Is This Project?](../01-getting-started/what-is-this.md)** — Plain English explanation of what this module does
 - **[Deployment Modes](../02-concepts/deployment-modes.md)** — Which deployment pattern fits your needs
 - **[Architecture Deep Dive](../09-developer-guide/architecture-overview.md)** — Code paths, state machines, internals
-- **[XRootD Basics](../02-concepts/brix-basics.md)** — Understanding the XRootD protocol before diving into BriX-Cache
+- **[XRootD Basics](../02-concepts/xrootd-basics.md)** — Understanding the XRootD protocol before diving into BriX-Cache

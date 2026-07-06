@@ -18,7 +18,7 @@ Source roots:
 For the wire-protocol-level comparison, see
 [02-rootd-protocol.md](./02-rootd-protocol.md); for the multi-implementation
 survey see
-[../brix-implementations.md](../brix-implementations.md); for the
+[../xrootd-implementations.md](../xrootd-implementations.md); for the
 feature-by-feature parity matrix see
 [../../source-verified-xrootd-comparison.md](../../source-verified-xrootd-comparison.md).
 

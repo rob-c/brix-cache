@@ -31,7 +31,7 @@ Physicists at CERN, SLAC, and Fermilab move petabytes of collision data using tw
 
 **Prefer pictures?** The [Architecture Overview](docs/10-architecture/overview.md) has Mermaid diagrams showing every request path.
 
-New to XRootD or grid security? [What Is This Project](docs/01-getting-started/what-is-this.md) answers all the "wait, what?" questions, and [XRootD Basics](docs/02-concepts/brix-basics.md) fills in the physics context.
+New to XRootD or grid security? [What Is This Project](docs/01-getting-started/what-is-this.md) answers all the "wait, what?" questions, and [XRootD Basics](docs/02-concepts/xrootd-basics.md) fills in the physics context.
 
 > 📖 **40 minutes from zero to running server:**
 > 1. [Before You Start](docs/01-getting-started/before-you-start.md) — Servers, ports, protocols demystified (5 min)
@@ -593,16 +593,16 @@ Docs are organized as a learning path — newcomers follow 01 → 02 → … and
 | Section | Purpose | Main Document |
 |---|---|---|
 | **01 — Getting Started** | Installation, setup, verification | [Quick Install](docs/01-getting-started/quick-install.md), [What Is This Project](docs/01-getting-started/what-is-this.md) |
-| **02 — Concepts** | Domain knowledge for newcomers | [XRootD Basics](docs/02-concepts/brix-basics.md), [Deployment Modes](docs/02-concepts/deployment-modes.md) |
+| **02 — Concepts** | Domain knowledge for newcomers | [XRootD Basics](docs/02-concepts/xrootd-basics.md), [Deployment Modes](docs/02-concepts/deployment-modes.md) |
 | **03 — Configuration** | Build, config reference, TLS | [Config Reference](docs/03-configuration/config-reference.md), [TLS Config](docs/03-configuration/tls-config.md), [Build Guide](docs/03-configuration/build-guide.md) |
-| **04 — Protocols** | Protocol-specific guides | [WebDAV Overview](docs/04-protocols/webdav-overview.md), [XRootD Client Interaction](docs/04-protocols/brix-client-interaction.md), [Native Client Tools](docs/04-protocols/native-client-tools.md) |
+| **04 — Protocols** | Protocol-specific guides | [WebDAV Overview](docs/04-protocols/webdav-overview.md), [XRootD Client Interaction](docs/04-protocols/xrootd-client-interaction.md), [Native Client Tools](docs/04-protocols/native-client-tools.md) |
 | **05 — Operations** | Production operations, proxy mode, clusters | [Operations Guide](docs/05-operations/operations-guide.md), [Proxy Mode Guide](docs/05-operations/proxy-mode-guide.md), [Cluster Management](docs/05-operations/cluster-management.md) |
 | **06 — Authentication** | Auth setup and PKI | [Auth Overview](docs/06-authentication/auth-overview.md), [PKI Config](docs/06-authentication/pki-config.md), [Test PKI Setup](docs/06-authentication/test-pki-setup.md) |
 | **07 — Security** | Hardening and security model | [Security Hardening Guide](docs/07-security/hardening-guide.md) |
 | **08 — Metrics & Monitoring** | Prometheus metrics, HTTPS dashboard, access logging | [Monitoring Guide](docs/08-metrics-monitoring/monitoring-guide.md), [Dashboard Feature Ideas](docs/08-metrics-monitoring/dashboard-feature-ideas.md) |
 | **09 — Developer Guide** | Contributing, testing, development workflow | [Dev Workflow](docs/09-developer-guide/dev-workflow.md), [Testing Runbook](docs/09-developer-guide/testing-runbook.md), [Feature Roadmap](docs/09-developer-guide/feature-roadmap.md), [Contributing](docs/09-developer-guide/contributing.md) |
 | **Architecture** | Architecture diagrams, data-path traces, plane-by-plane design | [Architecture Overview](docs/10-architecture/overview.md), [Request Lifecycle](docs/10-architecture/index.md) |
-| **Reference** | Deep technical reference (advanced) | [XRootD Concepts Deep](docs/10-reference/brix-concepts-deep.md), [Protocol Notes](docs/10-reference/protocol-notes.md), [Quirks & Compromises](docs/10-reference/quirks.md) |
+| **Reference** | Deep technical reference (advanced) | [XRootD Concepts Deep](docs/10-reference/xrootd-concepts-deep.md), [Protocol Notes](docs/10-reference/protocol-notes.md), [Quirks & Compromises](docs/10-reference/quirks.md) |
 
 Start at [docs/index.md](docs/index.md) for a guided path based on your experience level.
 

@@ -2,7 +2,7 @@
 
 > ⚠️ **Reference tier — advanced.** Internal nginx C implementation details. Only useful if you're contributing to the module or debugging deep issues. Running a server? Skip this entirely.
 >
-> Prerequisites: [XRootD Basics](../02-concepts/brix-basics.md), basic understanding of C and event-driven programming.
+> Prerequisites: [XRootD Basics](../02-concepts/xrootd-basics.md), basic understanding of C and event-driven programming.
 
 [← nginx concepts overview](nginx-overview.md)
 

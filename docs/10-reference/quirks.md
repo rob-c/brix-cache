@@ -4,7 +4,7 @@
 >
 > **Skip if:** You just want to use or operate this module. These are implementation details, not operational concerns.
 >
-> Prerequisites: [XRootD Basics](../02-concepts/brix-basics.md), reading C source code comfortably.
+> Prerequisites: [XRootD Basics](../02-concepts/xrootd-basics.md), reading C source code comfortably.
 
 Higher-level quirks and compromises in the native XRootD and WebDAV modules — the places where design trade-offs forced non-obvious choices.
 
@@ -163,7 +163,7 @@ So the implementation intentionally does not try to collapse the two worlds into
 one internal abstraction. They share storage and auth concepts, but they are
 still different protocol surfaces.
 
-See [xrdcp-interactions.md](../04-protocols/brix-client-interaction.md).
+See [xrdcp-interactions.md](../04-protocols/xrootd-client-interaction.md).
 
 ---
 
@@ -639,7 +639,7 @@ JSON. A few things to know:
 ## Related docs
 
 - [protocol-notes.md](protocol-notes.md) - low-level wire quirks
-- [xrdcp-interactions.md](../04-protocols/brix-client-interaction.md) - end-to-end client flow
+- [xrdcp-interactions.md](../04-protocols/xrootd-client-interaction.md) - end-to-end client flow
 - [optimizations.md](../09-developer-guide/optimizations.md) - performance-driven implementation choices
 - [tls.md](../03-configuration/tls-config.md) - auth and transport layering
 - [development.md](../09-developer-guide/dev-workflow.md) - source layout and workflow

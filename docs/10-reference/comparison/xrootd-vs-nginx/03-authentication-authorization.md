@@ -340,7 +340,7 @@ scopes.
   byte-interop with stock XrdSecpwd is follow-on (our-client ↔ our-server is
   verified); run under TLS. Directive: `brix_pwd_file`. (The other reference
   gap docs — [source-verified comparison](../../source-verified-xrootd-comparison.md),
-  [feature matrix](../../brix-feature-matrix.md),
+  [feature matrix](../../xrootd-feature-matrix.md),
   [gaps-vs-xrootd](../../gaps-vs-xrootd.md) — have been reconciled to show `pwd`
   as implemented.)
 
@@ -681,7 +681,7 @@ keytab from `xrdsssadmin` format. See
 
 **Note on existing docs:** the reference gap docs (the
 [source-verified comparison](../../source-verified-xrootd-comparison.md),
-[feature matrix](../../brix-feature-matrix.md), and
+[feature matrix](../../xrootd-feature-matrix.md), and
 [gaps-vs-xrootd](../../gaps-vs-xrootd.md)) originally recorded `pwd` and `host`
 as *Missing*; they have now been reconciled to reflect the 2026-06 Phase-52
 additions of `src/auth/pwd/` and `src/auth/host/`. The XrdAcc port remains *Partial* — the

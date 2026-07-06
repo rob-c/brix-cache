@@ -180,8 +180,8 @@ graph TB
     end
     
     subgraph nginx["nginx process"]
-        stream[stream {} block<br/>XRootD protocol]
-        http[http {} block]
+        stream["stream {} block<br/>XRootD protocol"]
+        http["http {} block"]
         
         subgraph httpLayers["HTTP layer"]
             webdav[WebDAV handler]

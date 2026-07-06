@@ -421,10 +421,10 @@ The module logs GSI errors at `[error]` level and diagnostic notices at
 | Goal | Where to look |
 |---|---|
 | TLS-encrypted `root://` (protect file data in transit) | [docs/03-configuration/tls-config.md](docs/03-configuration/tls-config.md) — `xrootd_tls on` or `roots://` |
-| WebDAV (`davs://`) over HTTPS | [docs/webdav/](docs/webdav/) |
+| WebDAV (`davs://`) over HTTPS | [docs/04-protocols/](docs/04-protocols/) |
 | Token (JWT/WLCG bearer) authentication | [docs/06-authentication/auth-overview.md](docs/06-authentication/auth-overview.md) §Token |
 | VO / FQAN ACLs with VOMS | [docs/06-authentication/auth-overview.md](docs/06-authentication/auth-overview.md) §VOMS, `xrootd_require_vo` |
 | S3-compatible endpoint | [docs/03-configuration/directives.md](docs/03-configuration/directives.md) `xrootd_s3` |
 | Prometheus metrics | [docs/08-metrics-monitoring/monitoring-guide.md](docs/08-metrics-monitoring/monitoring-guide.md) |
 | CRL checking | [docs/03-configuration/directives.md](docs/03-configuration/directives.md) `xrootd_crl` |
-| Production PKI (real IGTF/grid CA) | [docs/pki/](docs/pki/) |
+| Production PKI (real IGTF/grid CA) | [docs/06-authentication/](docs/06-authentication/) |
