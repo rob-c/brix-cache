@@ -44,6 +44,7 @@
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
 #include "core/config/credential_block.h"   /* §14 brix_credential lookup/bearer */
 #include "core/config/http_common.h"        /* unified brix_* directive adoption */
+#include "core/config/export_guard.h"       /* brix_assert_dir_outside_export (hard guard) */
 #include "fs/vfs/vfs_backend_registry.h"   /* per-export backend registration */
 #include "core/compat/alloc_guard.h"
 
@@ -246,6 +247,14 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
             {
                 return NGX_CONF_ERROR;
             }
+        }
+
+        /* HARD config guard: the read-through cache root must live OUTSIDE the
+         * export, or cache sidecars would be exposed in the client namespace. */
+        if (brix_assert_dir_outside_export(cf, "brix_s3_cache_root",
+                conf->common.root_canon, conf->cache_root_canon) != NGX_OK)
+        {
+            return NGX_CONF_ERROR;
         }
     }
 

@@ -10,6 +10,8 @@
 #include "fs/vfs/vfs_backend_registry.h"   /* per-export backend registration */
 #include "fs/path/path.h"                 /* brix_mkdir_recursive (pblock:// init) */
 #include "fs/tier/tier.h"              /* phase-64 tier parse + cache/stage register */
+#include "fs/cache/cache_internal.h"   /* brix_cache_state_root (effective sidecar tree) */
+#include "core/config/export_guard.h"  /* brix_assert_dir_outside_export (hard guard) */
 
 /* Directive setter for a tier store-URL directive: arg[1] = the store URL (into the
  * ngx_str_t at cmd->offset); args[2..] = trailing credential=/block_size= params
@@ -395,6 +397,19 @@ brix_config_prepare_server(ngx_conf_t *cf,
         /* Phase-64: register the composable cache/stage tiers (sd_cache / sd_stage
          * decorators composed over the backend, per worker). */
         if (brix_tier_register_stores(cf, &xcf->common) != NGX_OK) {
+            return NGX_ERROR;
+        }
+
+        /* HARD config guard: the effective cache/state sidecar tree (folds
+         * cache_state_root / cache_store cstore / cache_root) and the upload
+         * stage dir must live OUTSIDE the export — otherwise .cinfo/.meta
+         * sidecars and upload temps would sit in the client-visible namespace.
+         * A nesting is a deploy-blocking error, not a warning. */
+        if (brix_assert_dir_outside_export(cf, "cache state/sidecar tree",
+                xcf->common.root_canon, brix_cache_state_root(xcf)) != NGX_OK
+            || brix_assert_dir_outside_export(cf, "brix_stage_dir",
+                xcf->common.root_canon, xcf->upload_stage_dir_canon) != NGX_OK)
+        {
             return NGX_ERROR;
         }
     }

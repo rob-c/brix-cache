@@ -20,6 +20,7 @@
 #include "core/config/root_prepare.h"
 #include "core/config/http_rootfd.h"
 #include "core/config/http_common.h"      /* unified brix_* directive adoption */
+#include "core/config/export_guard.h"     /* brix_assert_dir_outside_export (hard guard) */
 #include "core/compat/staged_file.h"
 #include "fs/backend/sd.h"           /* SD registry: lazy per-worker instance */
 #include "fs/vfs/vfs_backend_registry.h" /* per-export backend config + resolve */
@@ -553,6 +554,15 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
             brix_stage_dir_register(conf->upload_stage_dir_canon);
         }
 
+        /* HARD config guard: the upload stage dir must live OUTSIDE the export,
+         * or upload temps would be exposed in the client namespace. A nesting is
+         * a deploy-blocking error. (cache_root is checked below, once resolved.) */
+        if (brix_assert_dir_outside_export(cf, "brix_webdav_stage_dir",
+                conf->common.root_canon, conf->upload_stage_dir_canon) != NGX_OK)
+        {
+            return NGX_CONF_ERROR;
+        }
+
         /*
          * Optional startup lock sweep: when brix_webdav_lock_startup_sweep is
          * on, clear every persisted lock xattr under the freshly-resolved
@@ -579,6 +589,13 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
             cache_opts.canon_size     = sizeof(conf->cache_root_canon);
             if (brix_prepare_export_root(cf, &conf->cache_root, &cache_opts,
                                            conf->cache_root_canon) != NGX_CONF_OK)
+            {
+                return NGX_CONF_ERROR;
+            }
+            /* HARD guard: the read-through cache root must be OUTSIDE the export
+             * or cache sidecars would land in the client namespace. */
+            if (brix_assert_dir_outside_export(cf, "brix_webdav_cache_root",
+                    conf->common.root_canon, conf->cache_root_canon) != NGX_OK)
             {
                 return NGX_CONF_ERROR;
             }
