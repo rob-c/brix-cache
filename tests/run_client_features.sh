@@ -521,7 +521,7 @@ section_cksum_tree() {
   check "check: two OK lines for untampered" '[ "$(echo "$out" | grep -c "^OK ")" -eq 2 ]'
 
   # security-negative: inject an escaping rel path → malformed, exit 2, no file outside tree touched.
-  local GUARD_FILE="$T/guard_$$"
+  local GUARD_FILE="$WORK/guard_$$"
   printf 'canary' > "$GUARD_FILE"
   # Build a manifest with a path-escape line appended.
   cp "$T/manifest" "$T/bad_manifest"
@@ -530,6 +530,16 @@ section_cksum_tree() {
   check "check: exit 2 on malformed manifest line" '[ "$?" -eq 2 ]'
   check "security: escape line rejected, guard file untouched" \
     '[ "$(cat "$GUARD_FILE")" = "canary" ]'
+
+  # e2e --algo: generate manifest with crc32c, verify with same algo.
+  # (Restore the original content; the tamper test above broke a.dat)
+  printf 'alpha\n' > "$T/src/a.dat"
+  "$BIN/xrdcksum" tree "$T/src" --algo crc32c -o "$T/algo_manifest"
+  check "tree --algo crc32c: exit 0" '[ "$?" -eq 0 ]'
+  check "tree --algo crc32c: manifest has 3 lines" \
+    '[ "$(wc -l < "$T/algo_manifest")" -eq 3 ]'
+  "$BIN/xrdcksum" check "$T/algo_manifest" "$T/src" --algo crc32c
+  check "check --algo crc32c: exit 0 on clean tree" '[ "$?" -eq 0 ]'
 
   # Fleet-gated: remote tree output matches local manifest of identical content.
   echo "== xrdcksum tree (fleet, remote) =="
