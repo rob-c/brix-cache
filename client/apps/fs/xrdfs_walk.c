@@ -78,6 +78,28 @@ chmod_recursive(brix_conn *c, const char *path, int mode, int *failures,
 
 /* du */
 
+/* WHAT: print one du result in human-readable or JSON format.
+ * WHY:  deduplicates the output logic shared by the multi-path and
+ *       default-path branches of do_du.
+ * HOW:  JSON emits a single-line object; human mode delegates to fmt_size. */
+static void
+du_print(const char *path, const du_acc *a, int human, int json)
+{
+    if (json) {
+        fputc('{', stdout);
+        brix_json_kv_str(stdout, "path",  path,                 1);
+        brix_json_kv_ll(stdout,  "bytes", (long long) a->bytes, 1);
+        brix_json_kv_ll(stdout,  "files", (long long) a->files, 1);
+        brix_json_kv_ll(stdout,  "dirs",  (long long) a->dirs,  0);
+        fputs("}\n", stdout);
+    } else {
+        char sz[32];
+        fmt_size(a->bytes, sz, sizeof(sz), human);
+        printf("%-10s %s  (%ld files, %ld dirs)\n", sz, path, a->files, a->dirs);
+    }
+}
+
+
 int
 du_visit(const char *full, const brix_dirent *e, int depth, void *u)
 {
@@ -94,17 +116,21 @@ du_visit(const char *full, const brix_dirent *e, int depth, void *u)
 }
 
 
-/* du [-h] <path>... — recursive total size + file/dir counts per argument. */
+/* WHAT: du [-h] [-j] <path>... — recursive total size + file/dir counts.
+ * WHY:  -j enables JSON output for scripting; -h humanizes byte counts.
+ * HOW:  flags are scanned first; each positional arg drives a walk_dir pass.
+ *       du_print handles the final format choice in one place. */
 int
 do_du(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    int human = 0, i, rc = 0, any = 0;
+    int human = 0, json = 0, i, rc = 0, any = 0;
 
     for (i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-h") == 0) { human = 1; }
+        if (strcmp(argv[i], "-h") == 0)                                        { human = 1; }
+        else if (strcmp(argv[i], "-j") == 0 || strcmp(argv[i], "--json") == 0) { json  = 1; }
     }
     for (i = 1; i < argc; i++) {
-        char        path[XRDC_PATH_MAX], sz[32];
+        char        path[XRDC_PATH_MAX];
         brix_status st;
         du_acc      a = { 0, 0, 0 };
         if (argv[i][0] == '-') { continue; }
@@ -116,11 +142,10 @@ do_du(brix_conn *c, const char *cwd, int argc, char **argv)
             rc = brix_shellcode(&st);
             continue;
         }
-        fmt_size(a.bytes, sz, sizeof(sz), human);
-        printf("%-10s %s  (%ld files, %ld dirs)\n", sz, path, a.files, a.dirs);
+        du_print(path, &a, human, json);
     }
     if (!any) {
-        char        path[XRDC_PATH_MAX], sz[32];
+        char        path[XRDC_PATH_MAX];
         brix_status st;
         du_acc      a = { 0, 0, 0 };
         build_path(cwd, ".", path, sizeof(path));
@@ -129,8 +154,7 @@ do_du(brix_conn *c, const char *cwd, int argc, char **argv)
             fprintf(stderr, "xrdfs: du %s: %s\n", path, st.msg);
             return brix_shellcode(&st);
         }
-        fmt_size(a.bytes, sz, sizeof(sz), human);
-        printf("%-10s %s  (%ld files, %ld dirs)\n", sz, path, a.files, a.dirs);
+        du_print(path, &a, human, json);
     }
     return rc;
 }

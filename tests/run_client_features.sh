@@ -367,6 +367,48 @@ section_xrdfs_rm() {
     'echo "$VOUT" | grep -q "^removed "'
 }
 
+section_xrdfs_json() {
+  echo "== xrdfs --json (fleet) =="
+  if ! have_fleet; then
+    echo "  SKIP xrdfs json tests (no fleet at $URL)"
+    return
+  fi
+
+  local BASE="/tmp/cfeat-$$-json"
+  "$BIN/xrdfs" "$URL" mkdir -p "$BASE" >/dev/null 2>&1
+  printf 'hello\n' | "$BIN/xrdcp" - "${URL}//${BASE}/sample.txt" >/dev/null 2>&1
+
+  # stat -j: valid JSON with is_dir key
+  OUT=$("$BIN/xrdfs" "$URL" stat -j "${BASE}/sample.txt" 2>/dev/null)
+  check "stat -j: valid JSON with is_dir" \
+    'echo "$OUT" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d[\"is_dir\"] in (True,False)"'
+
+  # ls -j: valid JSON array
+  OUT=$("$BIN/xrdfs" "$URL" ls -j "$BASE" 2>/dev/null)
+  check "ls -j: valid JSON array" \
+    'echo "$OUT" | python3 -c "import sys,json; arr=json.load(sys.stdin); assert isinstance(arr, list)"'
+
+  # du -j: valid JSON object with expected keys
+  OUT=$("$BIN/xrdfs" "$URL" du -j "$BASE" 2>/dev/null)
+  check "du -j: valid JSON with bytes/files/dirs" \
+    'echo "$OUT" | python3 -c "import sys,json; d=json.load(sys.stdin); assert \"bytes\" in d and \"files\" in d and \"dirs\" in d"'
+
+  # security: upload a file whose name contains a double-quote, then verify ls -j
+  # is still valid JSON (hostile names must not escape the array or break parsers).
+  local WEIRD="${BASE}/we\"ird.txt"
+  printf 'weird\n' | "$BIN/xrdcp" - "${URL}//${WEIRD}" >/dev/null 2>&1 || true
+  OUT=$("$BIN/xrdfs" "$URL" ls -j "$BASE" 2>/dev/null)
+  check "ls -j: hostile filename (double-quote) produces valid JSON" \
+    'echo "$OUT" | python3 -c "import sys,json; json.load(sys.stdin)"'
+
+  # error path: stat -j on a missing path must exit nonzero AND produce no JSON on stdout
+  OUT=$("$BIN/xrdfs" "$URL" stat -j "${BASE}/no-such-file" 2>/dev/null)
+  RC=$?
+  check "stat -j missing: nonzero exit" '[ "$RC" -ne 0 ]'
+  check "stat -j missing: no output on stdout" \
+    '[ -z "$(printf "%s" "$OUT" | tr -d "[:space:]")" ]'
+}
+
 main() {
   section_dryrun_filters
   section_sync_modes
@@ -374,6 +416,7 @@ main() {
   section_remove_source
   section_journal
   section_xrdfs_rm
+  section_xrdfs_json
   echo "client-features: $PASS pass, $FAIL fail"
   [ "$FAIL" -eq 0 ]
 }

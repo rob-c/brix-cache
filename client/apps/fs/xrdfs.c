@@ -7,9 +7,9 @@
 volatile sig_atomic_t tail_stop = 0;
 
 const xrdfs_cmd COMMANDS[] = {
-    { "stat",     do_stat,     "stat <path>" },
-    { "ls",       do_ls,       "ls [-l] [-R] [-h] [path]" },
-    { "du",       do_du,       "du [-h] <path>...  (recursive size)" },
+    { "stat",     do_stat,     "stat [-j] <path>" },
+    { "ls",       do_ls,       "ls [-l] [-R] [-h] [-j] [path]" },
+    { "du",       do_du,       "du [-h] [-j] <path>...  (recursive size)" },
     { "df",       do_df,       "df [-h] [path]  (disk space, oss.* Qspace)" },
     { "tree",     do_tree,     "tree [-d] [-L N] [path]" },
     { "find",     do_find,     "find <path> [-name GLOB] [-type f|d] [-size +N|-N]" },
