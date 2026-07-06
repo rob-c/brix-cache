@@ -1,17 +1,16 @@
-"""No-root verification of FIX 3 — WebDAV native authdb read-authorization parity.
+"""No-root verification of WebDAV native authorization read parity (FIX 3 + VOMS follow-up).
 
-WebDAV GET/HEAD/PROPFIND previously enforced only xrdacc + token scope; native authdb (the
-per-path/per-identity mechanism root:// uses) was skipped for reads, so a reader could obtain
-data — including from the cache (the access-phase gate fronts a cached GET). This test stands
-up a WebDAV server with `brix_webdav_authdb` (no impersonation — the gate is a worker-level
-decision) and proves the native-authdb read gate now enforces: with `u * /cms rl` (grant the
-/cms subtree only), an authenticated reader is served under /cms (200) but REFUSED elsewhere
-(403), for GET, HEAD, and PROPFIND alike.
+WebDAV GET/HEAD/PROPFIND now enforce native authdb (per-DN/VO/host) AND VO-ACL for reads — the
+mechanisms root:// uses — including on a cached GET (the access-phase gate fronts the content
+handler). This test stands up a WebDAV server (no impersonation — the gate is a worker-level
+decision) and proves both:
 
-(Path-scoped authdb is used rather than VO ACL because the VOMS VO is not extracted over the
-nginx-TLS WebDAV path here — a separate limitation from the authorization gate this verifies;
-`brix_webdav_require_vo` is wired the same way for deployments where VOMS extraction is
-available.)
+  * authdb path scoping — with `u * /cms rl` + `u * /restricted rl`, an authenticated reader is
+    served under those subtrees but REFUSED elsewhere (/private) with 403.
+  * VO ACL — with `require_vo /restricted cms`, a VO=cms proxy reads /restricted but a VO=atlas
+    proxy is refused 403. This exercises the VOMS VO extraction fix: WebDAV now (a) loads
+    libvomsapi even in a WebDAV-only deployment and (b) re-derives the VO on cached TLS
+    connections, so the identity carries its VOs (previously vos="-").
 
 Run: PYTHONPATH=tests pytest tests/test_mu_webdav_authz.py -v   (no root needed)
 """
@@ -28,8 +27,6 @@ from mu_authz_lib.adapters import measure_webdav
 
 _PORT = ports.MU.WEBDAV_AUTHZ
 _URL = f"https://{ports.MU.HOST}:{_PORT}"
-_GRANTED = "/cms/secret.dat"       # under the granted subtree
-_DENIED = "/private/secret.dat"    # outside it — must be refused
 
 
 def _port_open(p):
@@ -47,14 +44,15 @@ def _port_open(p):
 @pytest.fixture(scope="module")
 def webdav_authz_env():
     principals.build_cast()
-    for sub in ("cms", "private"):
+    for sub in ("cms", "restricted", "private"):
         d = os.path.join(ports.MU.DATA_ROOT, sub)
         os.makedirs(d, exist_ok=True)
         with open(os.path.join(d, "secret.dat"), "wb") as f:
             f.write(b"S" * 4096)
     os.makedirs(ports.MU.MU_ROOT, exist_ok=True)
     with open(ports.MU.AUTHDB, "w") as f:
-        f.write("u * /cms rl\n")            # any authenticated user may read /cms; nothing else
+        # authdb grants any authenticated reader on /cms and /restricted; nothing else.
+        f.write("u * /cms rl\nu * /restricted rl\n")
     for dd in (ports.MU.CONFIG_DIR, ports.MU.LOG_DIR, os.path.join(ports.MU.LOG_DIR, "nginx_tmp")):
         os.makedirs(dd, exist_ok=True)
 
@@ -85,24 +83,37 @@ def webdav_authz_env():
             pass
 
 
-def _proxy(name):
+def _proxy(name, vo=None):
     cert = os.path.join(ports.MU.PKI_DIR, "user", f"{name}_usercert.pem")
     key = os.path.join(ports.MU.PKI_DIR, "user", f"{name}_userkey.pem")
-    proxy = creds.gen_gsi_proxy(cert, key, f"wdauthz_{name}")
+    proxy = (creds.gen_voms_proxy(cert, key, f"wdauthz_{name}_{vo}", vo) if vo
+             else creds.gen_gsi_proxy(cert, key, f"wdauthz_{name}"))
     return SimpleNamespace(name=name, proxy=proxy, token="", s3_key="", s3_secret="")
 
 
 @pytest.mark.parametrize("op", ["read", "stat", "list"])
-def test_webdav_read_enforces_native_authdb(webdav_authz_env, op):
-    """An authenticated reader is served under the granted /cms subtree but REFUSED (403)
-    outside it — for GET, HEAD, and PROPFIND. This is the native-authdb read gate (FIX 3)
-    that the pre-fix WebDAV read path lacked."""
+def test_webdav_authdb_path_scoping(webdav_authz_env, op):
+    """Native authdb read gate: an authenticated reader is served under a granted subtree
+    (/cms) but REFUSED outside it (/private) — for GET, HEAD, and PROPFIND."""
     url = webdav_authz_env
     alice = _proxy("alice")
 
-    v_granted = measure_webdav(url, _GRANTED, op, principal=alice)
-    assert v_granted.decision == "ALLOW", f"{op} under granted /cms must be served: {v_granted}"
+    assert measure_webdav(url, "/cms/secret.dat", op, principal=alice).decision == "ALLOW", \
+        f"{op} under granted /cms must be served"
+    denied = measure_webdav(url, "/private/secret.dat", op, principal=alice)
+    assert denied.decision == "DENY", f"LEAK: {op} of ungranted /private was served: {denied}"
 
-    v_denied = measure_webdav(url, _DENIED, op, principal=alice)
-    assert v_denied.decision == "DENY", (
-        f"LEAK: {op} of {_DENIED} (no authdb grant) was served: {v_denied}")
+
+@pytest.mark.parametrize("op", ["read", "stat", "list"])
+def test_webdav_vo_acl_read(webdav_authz_env, op):
+    """VO ACL read gate (VOMS extraction fix): on /restricted (require_vo cms), a VO=cms
+    reader is served but a VO=atlas reader is refused 403 — for GET, HEAD, and PROPFIND."""
+    url = webdav_authz_env
+    alice = _proxy("alice", vo="cms")     # VO cms — admitted by require_vo /restricted cms
+    bob = _proxy("bob", vo="atlas")       # VO atlas — refused
+
+    assert measure_webdav(url, "/restricted/secret.dat", op, principal=alice).decision == "ALLOW", \
+        f"{op} by VO=cms on /restricted must be served (VOMS extracted)"
+    denied = measure_webdav(url, "/restricted/secret.dat", op, principal=bob)
+    assert denied.decision == "DENY", (
+        f"LEAK: out-of-VO bob (atlas) was served a {op} of /restricted: {denied}")

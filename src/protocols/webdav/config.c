@@ -435,6 +435,16 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
             brix_tmp_reap_register(conf->common.root_canon);
         }
 
+        /* Load libvomsapi if this WebDAV location extracts VOMS VOs. A
+         * WebDAV-only deployment (no stream{} block) would otherwise never load
+         * it — brix_voms_init runs only from the stream postconfig for root://,
+         * leaving brix_voms_available() false so VOMS extraction (auth_cert.c)
+         * silently returns no VOs. Idempotent + graceful when the library is
+         * absent. */
+        if (conf->vomsdir.len > 0) {
+            (void) brix_voms_init(cf->log);
+        }
+
         /* Finalize native authz rule paths (realpath under the export root) now
          * that the root is prepared — mirrors the stream side. nginx -t rejects a
          * rule whose path cannot be resolved. */
