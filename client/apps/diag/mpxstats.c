@@ -15,6 +15,7 @@
  * Clean-room: parse-only; no protocol core, no XrdCl.
  */
 #include "brix.h"
+#include "core/version.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -111,11 +112,26 @@ brix_mpxstats_main(int argc, char **argv)
     int         metrics_port = 9100;
     int         i;
 
+    /* --help / --version before main loop. */
+    if (argc >= 2) {
+        if (strcmp(argv[1], "--version") == 0) {
+            printf("%s (BriX-Cache client) %s\n", argv[0], brix_client_version());
+            return 0;
+        }
+        if (strcmp(argv[1], "--help") == 0) {
+            printf("usage: mpxstats [host | -] [--metrics-port N]\n"
+                   "  no host (or '-') reads a /metrics blob from stdin\n"
+                   BRIX_USAGE_FOOTER("mpxstats"));
+            return 0;
+        }
+    }
+
     for (i = 1; i < argc; i++) {
         const char *a = argv[i];
         if (strcmp(a, "--metrics-port") == 0 && i + 1 < argc) {
             metrics_port = atoi(argv[++i]);
-        } else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) {
+        } else if (strcmp(a, "-h") == 0) {
+            /* -h keeps existing stderr path (C1). */
             fprintf(stderr, "usage: mpxstats [host | -] [--metrics-port N]\n"
                             "  no host (or '-') reads a /metrics blob from stdin\n");
             return 0;

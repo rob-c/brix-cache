@@ -4,6 +4,7 @@
  */
 #include "diag_internal.h"
 #include "cli/jsonout.h"
+#include "core/version.h"
 
 int g_fails;
 
@@ -501,10 +502,14 @@ js_count(const char *json, const char *key)
 }
 
 
-void
-usage(void)
+/*
+ * usage_fp — print xrddiag usage to the given stream.
+ * WHY: --help (WS-2) goes to stdout; no-arg / unknown-subcommand goes to stderr.
+ */
+static void
+usage_fp(FILE *out)
 {
-    fprintf(stderr,
+    fprintf(out,
         "usage: xrddiag <subcommand> [opts] <url> [...]\n"
         "  subcommands:\n"
         "    check    <url>                        protocol-correctness probes\n"
@@ -535,7 +540,15 @@ usage(void)
         "  url: host[:port] or <scheme>://host[:port][/path]\n"
         "  capture a session with: xrdcp/xrdfs --capture <file.xrdcap> ...\n"
         "  opts: --tls --notlsok --noverifyhost --auth <gsi|ztn|unix>\n"
-        "        --wire-trace[=N] --timing --probe-timeout <ms>\n");
+        "        --wire-trace[=N] --timing --probe-timeout <ms>\n"
+        "        --version  print version and exit\n"
+        BRIX_USAGE_FOOTER("xrddiag"));
+}
+
+void
+usage(void)
+{
+    usage_fp(stderr);
 }
 
 
@@ -568,8 +581,16 @@ main(int argc, char **argv)
         return 50;
     }
     sub = argv[1];
-    if (strcmp(sub, "-h") == 0 || strcmp(sub, "--help") == 0) {
-        usage();
+    if (strcmp(sub, "--version") == 0) {
+        printf("xrddiag (BriX-Cache client) %s\n", brix_client_version());
+        return 0;
+    }
+    if (strcmp(sub, "-h") == 0) {
+        usage();            /* -h → stderr (C1 — keep existing behavior) */
+        return 0;
+    }
+    if (strcmp(sub, "--help") == 0) {
+        usage_fp(stdout);   /* --help → stdout (WS-2) */
         return 0;
     }
 
@@ -582,7 +603,11 @@ main(int argc, char **argv)
     for (i = 2; i < argc; i++) {
         const char *p = argv[i];
         if (p[0] == '-' && p[1] != '\0' && strcmp(p, "-") != 0) {
-            if (brix_opts_parse_arg(&a.conn, argc, argv, &i)) { continue; }
+            {
+                int pr = brix_opts_parse_arg(&a.conn, argc, argv, &i);
+                if (pr == 2) { usage_fp(stdout); return 0; }  /* --help */
+                if (pr)      { continue; }
+            }
             if ((strcmp(p, "-S") == 0 || strcmp(p, "--streams") == 0) && i + 1 < argc) { a.streams = atoi(argv[++i]); }
             else if (strcmp(p, "--vs-reference") == 0 && i + 1 < argc) { a.ref_url = argv[++i]; }
             else if (strcmp(p, "--metrics-port") == 0 && i + 1 < argc) { a.metrics_port = atoi(argv[++i]); }

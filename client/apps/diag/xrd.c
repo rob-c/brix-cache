@@ -3,6 +3,7 @@
  * Phase-38 split of xrd.c; behavior-identical.
  */
 #include "xrd_internal.h"
+#include "core/version.h"
 
 const char *FS_VERBS[] = {
     "ls", "stat", "mkdir", "rm", "rmdir", "mv", "chmod", "touch", "ln", "readlink",
@@ -28,10 +29,14 @@ is_fs_verb(const char *s)
 }
 
 
-void
-usage(void)
+/*
+ * usage_fp — print xrd usage to the given stream.
+ * WHY: --help (WS-2) goes to stdout; no-arg / unknown-command goes to stderr.
+ */
+static void
+usage_fp(FILE *out)
 {
-    fprintf(stderr,
+    fprintf(out,
         "usage: xrd <command> [args]\n"
         "  the unified XRootD/WLCG toolkit front-end (~/.xrdrc aliases work everywhere)\n\n"
         "  transfer:\n"
@@ -70,7 +75,14 @@ usage(void)
         "    xrd mount [--legacy] <endpoint> <mountpoint> [fuse-opts]   mount via xrootdfs (--legacy: simple driver)\n"
         "    xrd mount | xrd mounts            list active XRootD FUSE mounts\n"
         "    xrd unmount [-z] <mountpoint>     unmount (fusermount3/fusermount/umount)\n\n"
-        "    xrd version | help\n");
+        "    xrd version | help\n"
+        BRIX_USAGE_FOOTER("xrd"));
+}
+
+void
+usage(void)
+{
+    usage_fp(stderr);
 }
 
 
@@ -131,15 +143,23 @@ main(int argc, char **argv)
 {
     const char *cmd;
 
-    if (argc < 2 || strcmp(argv[1], "help") == 0 || strcmp(argv[1], "-h") == 0
-        || strcmp(argv[1], "--help") == 0) {
+    if (argc < 2) {
         usage();
-        return (argc < 2) ? 50 : 0;
+        return 50;
     }
     cmd = argv[1];
 
-    if (strcmp(cmd, "version") == 0 || strcmp(cmd, "-V") == 0) {
-        printf("xrd (native XRootD toolkit, phase-37)\n");
+    if (strcmp(cmd, "--version") == 0 || strcmp(cmd, "version") == 0
+        || strcmp(cmd, "-V") == 0) {
+        printf("xrd (BriX-Cache client) %s\n", brix_client_version());
+        return 0;
+    }
+    if (strcmp(cmd, "-h") == 0) {
+        usage();           /* -h → stderr (C1) */
+        return 0;
+    }
+    if (strcmp(cmd, "--help") == 0 || strcmp(cmd, "help") == 0) {
+        usage_fp(stdout);  /* --help/help → stdout (WS-2) */
         return 0;
     }
 

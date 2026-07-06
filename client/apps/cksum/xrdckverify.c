@@ -14,14 +14,15 @@
  *       algorithm · 3 I/O or access error.
  */
 #include "brix.h"
+#include "core/version.h"
 
 #include <stdio.h>
 #include <string.h>
 
 static int
-usage(const char *prog, int rc)
+usage_fp(FILE *out, const char *prog, int rc)
 {
-    fprintf(stderr,
+    fprintf(out,
         "usage: %s [--cache|--storage|--auto] [--algo <name>] [-q] <file>\n"
         "  Verify a local file against its recorded checksum.\n"
         "    --storage  read the user.XrdCks.<alg> xattr (+ <file>.cks sidecar)\n"
@@ -30,9 +31,16 @@ usage(const char *prog, int rc)
         "    --algo N   verify only algorithm N (adler32, crc32c, crc64, "
         "crc64nvme, md5)\n"
         "    -q         quiet: print only on mismatch or error\n"
-        "  exit: 0 ok, 1 mismatch, 2 no recorded checksum, 3 error\n",
+        "  exit: 0 ok, 1 mismatch, 2 no recorded checksum, 3 error\n"
+        BRIX_USAGE_FOOTER("xrdckverify"),
         prog);
     return rc;
+}
+
+static int
+usage(const char *prog, int rc)
+{
+    return usage_fp(stderr, prog, rc);
 }
 
 /* Real main; dispatched from the xrdcksum multi-call binary (xrdcksum.c). */
@@ -47,6 +55,16 @@ brix_xrdckverify_main(int argc, char **argv)
     brix_ckv_report rep;
     brix_ckv_result r;
     brix_status     st;
+
+    if (argc >= 2) {
+        if (strcmp(argv[1], "--version") == 0) {
+            printf("%s (BriX-Cache client) %s\n", argv[0], brix_client_version());
+            return 0;
+        }
+        if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
+            return usage_fp(stdout, argv[0], 0);
+        }
+    }
 
     for (i = 1; i < argc; i++) {
         const char *a = argv[i];

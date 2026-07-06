@@ -3,6 +3,7 @@
  * Phase-38 split of xrdfs.c; behavior-identical.
  */
 #include "xrdfs_internal.h"
+#include "core/version.h"
 
 volatile sig_atomic_t tail_stop = 0;
 
@@ -117,6 +118,12 @@ dispatch(brix_conn *c, char *cwd, size_t cwdsz, int ntok, char **tok, int *quit)
         fprintf(stderr, "xrdfs: unknown command '%s'\n", tok[0]);
         return 50;
     }
+    /* <cmd> --help: print the one-line synopsis for this command. */
+    if (ntok >= 2 && strcmp(tok[1], "--help") == 0) {
+        printf("usage: xrdfs <endpoint> %s\n", cmd->help);
+        printf(BRIX_USAGE_FOOTER("xrdfs"));
+        return 0;
+    }
     return cmd->fn(c, cwd, ntok, tok);
 }
 
@@ -174,22 +181,35 @@ repl(brix_conn *c, const char *host, int port)
 
 /* main                                                                */
 
-void
-usage(void)
+/*
+ * usage_fp — print xrdfs usage to the given stream.
+ * WHY: --help (WS-2) goes to stdout; no-arg / parse-error goes to stderr.
+ */
+static void
+usage_fp(FILE *out)
 {
-    fprintf(stderr,
+    fprintf(out,
         "usage: xrdfs [opts] host[:port]|root[s]://host[:port]|http[s]|dav[s]://host/path [command [args]]\n"
         "  with no command, drops into an interactive shell (root:// only).\n"
         "  opts:\n"
         "    --tls --notlsok --noverifyhost   in-protocol TLS controls\n"
         "    --auth <gsi|ztn|krb5|sss|unix>   force an auth protocol (root://)\n"
         "    --token TOK | -T TOK             bearer token for http(s)/WebDAV ($BEARER_TOKEN)\n"
+        "    --version                         print version and exit\n"
         "  http(s)/WebDAV endpoints support read-only metadata: ls, stat\n"
         "  commands (root://):\n"
         "    stat ls du df tree find mkdir rm rmdir mv chmod touch ln readlink\n"
         "    truncate cat head tail wc grep hexdump dd upload download cmp cksum\n"
         "    xattr readv writev locate query statvfs prepare stage evict explain\n"
-        "      (cd/pwd/help/exit in the shell)\n");
+        "      (cd/pwd/help/exit in the shell)\n"
+        "    (<cmd> --help prints per-command usage)\n"
+        BRIX_USAGE_FOOTER("xrdfs"));
+}
+
+void
+usage(void)
+{
+    usage_fp(stderr);
 }
 
 
@@ -226,8 +246,16 @@ main(int argc, char **argv)
         if (strcmp(argv[argi], "--timing") == 0)          { opts.timing = 1; argi++; continue; }
         if (strcmp(argv[argi], "--redirect-trace") == 0)  { opts.redir_trace = 1; argi++; continue; }
         if (strcmp(argv[argi], "--capture") == 0 && argi + 1 < argc) { opts.capture = argv[argi + 1]; argi += 2; continue; }
-        if (strcmp(argv[argi], "-h") == 0 || strcmp(argv[argi], "--help") == 0) {
-            usage();
+        if (strcmp(argv[argi], "--version") == 0) {
+            printf("xrdfs (BriX-Cache client) %s\n", brix_client_version());
+            return 0;
+        }
+        if (strcmp(argv[argi], "--help") == 0) {
+            usage_fp(stdout);    /* --help → stdout (WS-2) */
+            return 0;
+        }
+        if (strcmp(argv[argi], "-h") == 0) {
+            usage();             /* -h keeps existing stderr behavior (C1) */
             return 0;
         }
         break;

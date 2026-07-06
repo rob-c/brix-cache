@@ -3,6 +3,7 @@
  * Phase-38 split of xrootdfs.c; behavior-identical.
  */
 #include "xrootdfs_internal.h"
+#include "core/version.h"
 
 brix_pool *g_pool;
 
@@ -199,10 +200,10 @@ xfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
 
 /* main                                                                */
 
-void
-usage(void)
+static void
+usage_fp(FILE *out)
 {
-    fprintf(stderr,
+    fprintf(out,
         "usage: xrootdfs [opts] <endpoint> <mountpoint> [fuse-opts]\n"
         "  endpoint:   root[s]://host[:port][/base]      (binary XRootD; read-write)\n"
         "              http|https|dav|davs://host[:port][/base]\n"
@@ -212,6 +213,7 @@ usage(void)
         "              --noverifyhost    skip TLS server-cert check (self-signed beds)\n"
         "  conn-opts:  --tls --notlsok --noverifyhost --auth <gsi|ztn|unix>\n"
         "              --max-conns N    metadata connection pool size (default 8)\n"
+        "              --version        print version and exit\n"
         "  resilience: --streams N      async data connections (default 4)\n"
         "              --lazy-streams   open 1 stream at mount, the rest on first\n"
         "                               I/O (lowest mount latency; first read warms up)\n"
@@ -232,7 +234,14 @@ usage(void)
         "  fuse-opts:  -f -d -s -o <opt>  (e.g. -o ro -o allow_other)\n"
         "  notes: open files survive a connection drop / server restart transparently\n"
         "         (reopen + resume at the same offset, byte-exact). utimens/chown are\n"
-        "         no-ops (no XRootD wire op); symlinks are unsupported.\n");
+        "         no-ops (no XRootD wire op); symlinks are unsupported.\n"
+        BRIX_USAGE_FOOTER("xrootdfs"));
+}
+
+void
+usage(void)
+{
+    usage_fp(stderr);
 }
 
 
@@ -246,6 +255,16 @@ xrootdfs_aio_main(int argc, char **argv)
     char       *fuse_argv[64];
     int         fuse_argc = 0;
     int         i, rc;
+
+    /* Check --version / --help before the argc < 3 guard so they work standalone. */
+    if (argc >= 2) {
+        if (strcmp(argv[1], "--version") == 0) {
+            printf("xrootdfs (BriX-Cache client) %s\n", brix_client_version());
+            return 0;
+        }
+        if (strcmp(argv[1], "--help") == 0) { usage_fp(stdout); return 0; }
+        if (strcmp(argv[1], "-h") == 0)     { usage();          return 0; }
+    }
 
     if (argc < 3) {
         usage();
@@ -317,7 +336,12 @@ xrootdfs_aio_main(int argc, char **argv)
                 snprintf(g_compress, sizeof(g_compress), "%s", argv[++i]);
             }
             else if (strcmp(a, "--token") == 0 && i + 1 < argc) { g_bearer = argv[++i]; }
-            else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) { usage(); return 0; }
+            else if (strcmp(a, "--version") == 0) {
+                printf("xrootdfs (BriX-Cache client) %s\n", brix_client_version());
+                return 0;
+            }
+            else if (strcmp(a, "--help") == 0) { usage_fp(stdout); return 0; }  /* WS-2 */
+            else if (strcmp(a, "-h") == 0) { usage(); return 0; }              /* C1 */
             else if (fuse_argc < 61) { fuse_argv[fuse_argc++] = argv[i]; }  /* fuse opt */
         } else if (endpoint == NULL) {
             endpoint = a;

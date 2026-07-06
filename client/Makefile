@@ -87,6 +87,12 @@ endif
 # protocol core (libxrdproto), so dual-build headers (e.g. compat/error_mapping.h)
 # resolve to their ngx-free variants exactly as the libxrdproto build does.
 ALL_CFLAGS := -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -pthread -Ilib -I$(SRC) -I../shared -DXRDPROTO_NO_NGX -MMD -MP $(KRB5_CFLAGS) $(URING_CFLAGS) $(CFLAGS)
+# Inject the build-time version tag when set (overrides the "dev" fallback in
+# client/lib/core/version.h).  Quote escaping: the outer \" are consumed by
+# make, leaving the inner \' pair intact for the C preprocessor.
+ifneq ($(BRIX_CLIENT_VERSION),)
+ALL_CFLAGS += -DBRIX_CLIENT_VERSION=\"$(BRIX_CLIENT_VERSION)\"
+endif
 
 # OpenSSL: libssl (in-protocol TLS) + libcrypto (GSI/sigver + libxrdproto kernels +
 # md5). zlib (-lz): adler32 for --cksum (the algorithm xrdcp historically uses).

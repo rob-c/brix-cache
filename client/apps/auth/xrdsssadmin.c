@@ -15,6 +15,7 @@
  */
 #include "brix.h"
 #include "auth/sss/sss_keytab.h"
+#include "core/version.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,9 +26,9 @@
 #include <openssl/rand.h>
 
 static void
-usage(void)
+usage_fp(FILE *out)
 {
-    fprintf(stderr,
+    fprintf(out,
         "usage: xrdsssadmin [-k keytab] <command> [opts]\n"
         "  commands:\n"
         "    add        mint a new random key and append it\n"
@@ -38,7 +39,15 @@ usage(void)
         "    --user U   (default: anybody)   --group G  (default: anygroup)\n"
         "    --name NM  (default: <host>)    --id N     (default: max+1)\n"
         "    --lifetime DAYS                 --keylen BYTES (default 32)\n"
-        "  -k defaults to $XrdSecSSSKT / $XrdSecsssKT / ~/.xrd/sss.keytab\n");
+        "  -k defaults to $XrdSecSSSKT / $XrdSecsssKT / ~/.xrd/sss.keytab\n"
+        "  --version  print version and exit\n"
+        BRIX_USAGE_FOOTER("xrdsssadmin"));
+}
+
+static void
+usage(void)
+{
+    usage_fp(stderr);
 }
 
 /* Load the keytab, tolerating a not-yet-existing file (treated as empty). */
@@ -202,6 +211,18 @@ main(int argc, char **argv)
     int         lifetime_days = 0, keylen = 32;
     int         i;
 
+    /* --help / --version before loop (not on shared parser). */
+    if (argc >= 2) {
+        if (strcmp(argv[1], "--version") == 0) {
+            printf("xrdsssadmin (BriX-Cache client) %s\n", brix_client_version());
+            return 0;
+        }
+        if (strcmp(argv[1], "--help") == 0) {
+            usage_fp(stdout);
+            return 0;
+        }
+    }
+
     for (i = 1; i < argc; i++) {
         const char *a = argv[i];
         if (strcmp(a, "-k") == 0 && i + 1 < argc)            { keytab = argv[++i]; }
@@ -211,7 +232,7 @@ main(int argc, char **argv)
         else if (strcmp(a, "--id") == 0 && i + 1 < argc)     { id = strtoll(argv[++i], NULL, 10); }
         else if (strcmp(a, "--lifetime") == 0 && i + 1 < argc) { lifetime_days = atoi(argv[++i]); }
         else if (strcmp(a, "--keylen") == 0 && i + 1 < argc) { keylen = atoi(argv[++i]); }
-        else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) { usage(); return 0; }
+        else if (strcmp(a, "-h") == 0)                       { usage(); return 0; }  /* C1 */
         else if (a[0] != '-' && cmd == NULL)                 { cmd = a; }
         else { fprintf(stderr, "xrdsssadmin: unexpected arg '%s'\n", a); usage(); return 2; }
     }

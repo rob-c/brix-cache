@@ -9,6 +9,7 @@
  */
 #include "brix.h"
 #include "core/compat/crypto.h"
+#include "core/version.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +26,22 @@ main(int argc, char **argv)
     const char  *endpoint = NULL;
     const char  *paths[XRDPREP_MAX_PATHS];
     int          options = 0, optionX = 0, prty = 0, np = 0, i;
+
+    /* --help / --version before the main loop (not on shared parser). */
+    if (argc >= 2) {
+        if (strcmp(argv[1], "--version") == 0) {
+            printf("xrdprep (BriX-Cache client) %s\n", brix_client_version());
+            return 0;
+        }
+        if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
+            printf("usage: %s [-s|-c|-w|-f|-e] [-p prty] host[:port] <path>...\n"
+                   "  -s stage  -c cancel  -w write-mode  -f fresh  -e evict\n"
+                   "  -p <prty>  priority 0-3 (default 0)\n"
+                   BRIX_USAGE_FOOTER("xrdprep"),
+                   argv[0]);
+            return 0;
+        }
+    }
 
     for (i = 1; i < argc; i++) {
         const char *a = argv[i];

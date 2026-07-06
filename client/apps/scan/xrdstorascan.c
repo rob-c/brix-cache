@@ -21,6 +21,7 @@
 #include "brix.h"
 #include "brix_net.h"
 #include "brix_ops.h"
+#include "core/version.h"
 
 #include <pthread.h>
 #include <stdio.h>
@@ -41,10 +42,15 @@
 #define SX_ERROR     3
 #define SX_USAGE     64
 
+/*
+ * usage_fp — print xrdstorascan usage to the given stream.
+ * WHY: --help (WS-2) must go to stdout; no-arg / unknown-mode goes to stderr.
+ *      Returns rc so callers can write `return usage_fp(stderr, SX_USAGE)`.
+ */
 static int
-usage(int rc)
+usage_fp(FILE *out, int rc)
 {
-    fprintf(stderr,
+    fprintf(out,
         "usage: xrdstorascan <mode> <url> [options]\n"
         "\n"
         "  verify <url> [--algo NAME] [-q]\n"
@@ -64,8 +70,15 @@ usage(int rc)
         "      http(s):// dashboard base; auth via --password or $XRDSTORASCAN_PASSWORD.\n"
         "      verify/compare exit 1 when a mismatch (bit-rot) is found.\n"
         "\n"
-        "  (inspect / inventory / drift / health require later server phases.)\n");
+        "  (inspect / inventory / drift / health require later server phases.)\n"
+        BRIX_USAGE_FOOTER("xrdstorascan"));
     return rc;
+}
+
+static int
+usage(int rc)
+{
+    return usage_fp(stderr, rc);
 }
 
 /* ---- shared ---------------------------------------------------------------- */
@@ -931,8 +944,15 @@ main(int argc, char **argv)
     {
         return cmd_scan(argv[1], argc - 2, argv + 2);
     }
-    if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
-        return usage(SX_OK);
+    if (strcmp(argv[1], "--version") == 0) {
+        printf("xrdstorascan (BriX-Cache client) %s\n", brix_client_version());
+        return SX_OK;
+    }
+    if (strcmp(argv[1], "--help") == 0) {
+        return usage_fp(stdout, SX_OK);    /* --help → stdout (WS-2) */
+    }
+    if (strcmp(argv[1], "-h") == 0) {
+        return usage(SX_OK);               /* -h → stderr (C1) */
     }
     fprintf(stderr, "xrdstorascan: unknown mode '%s'\n", argv[1]);
     return usage(SX_USAGE);

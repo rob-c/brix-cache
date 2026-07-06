@@ -3,10 +3,12 @@
     "binaries": [
       "aio_waitresp",
       "brixMount",
+      "ckmanifest_unit",
       "cli_cred_unit",
       "copy_filter_unit",
       "cred_store_unit",
       "cred_unit",
+      "envalias_unit",
       "jsonout_unit",
       "mpxstats",
       "relsafe_unit",
@@ -33,7 +35,7 @@
       "xrdstorascan",
       "xrootdfs"
     ],
-    "fleet_captured": true
+    "fleet_captured": false
   },
   "noarg:aio_waitresp": {
     "exit": 2,
@@ -43,7 +45,12 @@
   "noarg:brixMount": {
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "9354ddc582adc80f538404010e2edc853932094a42bcd28c1930776ef0693819"
+    "stderr_sha": "073fb0aa448817d02eed5712859d43403fd5fa184cb05dec3550bfdb61472008"
+  },
+  "noarg:ckmanifest_unit": {
+    "exit": 0,
+    "stdout_sha": "7e2d655e02ab3964fa29ebd4c536f52403b76e5f58032cd51d6685c4e5a3b5a6",
+    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "noarg:cli_cred_unit": {
     "exit": 0,
@@ -63,6 +70,11 @@
   "noarg:cred_unit": {
     "exit": 0,
     "stdout_sha": "c6578b2fc42c42438088f6c34132000dd8bb55fdbd6d4cd72ee287c561028066",
+    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "noarg:envalias_unit": {
+    "exit": 0,
+    "stdout_sha": "f6539804f3fa219498335f26aef4235c160cb60eae225c208ec1410e3a42f3d9",
     "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "noarg:jsonout_unit": {
@@ -103,7 +115,7 @@
   "noarg:xrd": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "f85e342323b85ab45138e0a9f1429ed1a47e88f3f743494402b26b652b252368"
+    "stderr_sha": "6b31b5a282696d66903125c75ce3ec68292704f75de99e75e9b1f6ebba7a2e62"
   },
   "noarg:xrdadler32": {
     "exit": 50,
@@ -118,17 +130,17 @@
   "noarg:xrdcksum": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "9adbdeb1e4945fbcf1125de1df69a1411fe86a483f30c589d07ddb32c62838b3"
+    "stderr_sha": "369cdd195cfc2b373bf2ff2eade4ba31714c9632d0a17b5a3d47a8a345f19641"
   },
   "noarg:xrdckverify": {
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "ec0626cd0d27e72ef989d8fe650bbfacee2761bf2ca79a33ba429653d2af050a"
+    "stderr_sha": "19a97a6d4aaf05fb2c649b5ea466fc79176fbaddd12f824097a426b5be0f3c85"
   },
   "noarg:xrdcp": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "5135fdc8eb394ae2dc79ad9307c865cb7f4cdc2abf4580f9c6dfa39cc7a14407"
+    "stderr_sha": "c35c69124a7f7c3a89c3e773ef9ae63f5daea8f2976d76817133844cc36ab4f4"
   },
   "noarg:xrdcrc32c": {
     "exit": 50,
@@ -143,27 +155,27 @@
   "noarg:xrddiag": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "80bbdb462def2ba5f9bc9802d35d7bca12bc3ee2cf8ceb2eb27f9ca4270aba15"
+    "stderr_sha": "80cc26ccb07d9cd36def004b527883b06cfc113df8ad683c91ae43fd43b5acc9"
   },
   "noarg:xrdfs": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "dcf7f4d79ebe73e2c06c654dcacffbf6877bb7b3881685b91f098ac1abbb3853"
+    "stderr_sha": "cc7de9dcaa26305354f2a26b9d1afc613f841d398f7bf3dbe575565047269487"
   },
   "noarg:xrdgsiproxy": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "94118c1cd5be760ee8bbeed921beb1301b9c37e4b79e61f5c8f4279296c52a43"
+    "stderr_sha": "7a322bb494e2a75306292ed0673dbd90b2c98f25dc600eb0055ca86baf332544"
   },
   "noarg:xrdgsitest": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "d7047aeedb98e15b9741e68f3d75ebec8d54c247e7681a65e424283eabb81f7a"
+    "stderr_sha": "81ef6e11e902a74fc526c3244d5542422d38933b6f46210f1ce54c4b8ef02387"
   },
   "noarg:xrdmapc": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "10585aeddde229b9c9d1f4c4d43f93be1213d9536579fb028af3d2af26840bc3"
+    "stderr_sha": "c807766171a5e4a5d380dfeea0d2dff44abf4215d336c928c208645d71fb977b"
   },
   "noarg:xrdprep": {
     "exit": 50,
@@ -178,31 +190,25 @@
   "noarg:xrdsssadmin": {
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "90b144048ad63aff518eacc13d74180c0610b5c733ed3a652415a3c55328e1b1"
+    "stderr_sha": "982e60f15dcb67785f4427596f0abfb76b7459867440422189aa9afae4a74de1"
   },
   "noarg:xrdstorascan": {
     "exit": 64,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "b7a026484c2166f9cbc65c0f3a0f28e302617064681a0c2152c65ea9a95ac232"
+    "stderr_sha": "cde1d99f3435b4cffcb4596b9b9519c2644bd8642b59ed0e6096669a7552b63e"
   },
   "noarg:xrootdfs": {
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "df3f25eb9be6ca6a24f71e99898f1cd7a768f6dc7ea00f48fc7925c8fa7f02fe"
+    "stderr_sha": "d3005191324a712dafc3ead26dec5ee5bfb94848cf790c2127b9b65e7f9964e1"
   },
   "fleet:xrdfs_ls_root": {
-    "exit": 0,
-    "stdout_sha": "1785cbdfcace2004c0d21cbc262071adf07ca0cd61f14fe5c66e737103025f3f",
-    "stderr_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    "skipped": "fleet_down"
   },
   "fleet:xrdcp_missing": {
-    "exit": 54,
-    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "9b539652410874ed5bed803c89f0f880dfffe41bb85235542c0be9f752667a7f"
+    "skipped": "fleet_down"
   },
   "fleet:xrdfs_staat": {
-    "exit": 50,
-    "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "4ee2e6c7a62ea87649cdd26e2e47dd25824bb0b0b31c89873ed89e7ea3aa7fbc"
+    "skipped": "fleet_down"
   }
 }
