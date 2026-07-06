@@ -39,7 +39,8 @@ usage_fp(FILE *out)
         "    --user U   (default: anybody)   --group G  (default: anygroup)\n"
         "    --name NM  (default: <host>)    --id N     (default: max+1)\n"
         "    --lifetime DAYS                 --keylen BYTES (default 32)\n"
-        "  -k, --keytab defaults to $XrdSecSSSKT / $XrdSecsssKT / ~/.xrd/sss.keytab\n"
+        "  -k, --keytab defaults to $XRDC_SSS_KEYTAB / $XrdSecSSSKT / $XrdSecsssKT /\n"
+        "               ~/.xrd/sss.keytab\n"
         "  --version  print version and exit\n"
         BRIX_USAGE_FOOTER("xrdsssadmin"));
 }

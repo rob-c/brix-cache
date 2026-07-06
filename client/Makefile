@@ -442,7 +442,7 @@ install-man:
 install-completions:
 	install -d $(DESTDIR)$(PREFIX)/share/bash-completion/completions \
 	           $(DESTDIR)$(PREFIX)/share/zsh/site-functions
-	for n in xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin brixMount xrdstorascan; do \
+	for n in xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin brixMount xrdstorascan xrootdfs; do \
 		install -m644 completions/brix-tools.bash \
 			$(DESTDIR)$(PREFIX)/share/bash-completion/completions/$$n; \
 	done

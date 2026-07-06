@@ -16,6 +16,19 @@ A session can be captured for later offline analysis or replay:
 .RS
 xrdcp/xrdfs \-\-capture \fIFILE.xrdcap\fR ...
 .RE
+.SH PERSONALITIES
+Three subcommands are also installed as multi\-call personalities:
+invoking
+.BR wait41 (1),
+.BR mpxstats (1),
+or
+.BR xrdqstats (1)
+runs the
+.BR wait41 ,
+.B mpxstats
+or
+.B qstats
+subcommand directly (the binary dispatches on its invocation name).
 .SH SUBCOMMANDS
 .TP
 .B check \fIURL\fR [\-\-json]

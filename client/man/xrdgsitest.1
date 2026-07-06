@@ -1,0 +1,49 @@
+.TH XRDGSITEST 1 "2026-07-06" "brix client" "User Commands"
+.SH NAME
+xrdgsitest \- probe GSI authentication against an XRootD endpoint
+.SH SYNOPSIS
+.B xrdgsitest
+[\fIOPTS\fR] \fBroot\fR[\fBs\fR]\fB://\fR\fIhost\fR[\fI:port\fR]
+.SH DESCRIPTION
+.B xrdgsitest
+forces GSI authentication and reports whether the handshake authenticated
+successfully against the given XRootD endpoint.
+It exits 0 on success, non-zero on any failure.
+.SH OPTIONS
+.TP
+.B \-\-tls
+Require in-protocol TLS.
+.TP
+.B \-\-notlsok
+Permit cleartext if the server offers no TLS.
+.TP
+.B \-\-noverifyhost
+Skip TLS hostname verification (certificate chain check remains on).
+.TP
+.B \-\-version
+Print version and exit.
+.SH ENVIRONMENT
+.TP
+.B X509_USER_PROXY
+Path to the GSI proxy certificate.
+.TP
+.B X509_CERT_DIR
+Directory containing trusted CA certificates.
+.TP
+.B XRDRC
+Path to configuration file (default \fI~/.xrdrc\fR).
+.SH FILES
+.TP
+.I ~/.xrdrc
+Per-user configuration: endpoint aliases and default credentials.
+See
+.BR brix\-env (7).
+.SH EXIT STATUS
+0 on successful GSI authentication.
+50 on a usage error.
+51 on a socket/connect/timeout error.
+53 on an authentication failure.
+.SH SEE ALSO
+.BR xrdcp (1),
+.BR xrdgsiproxy (1),
+.BR brix\-env (7)

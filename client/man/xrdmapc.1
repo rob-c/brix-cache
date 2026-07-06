@@ -1,0 +1,59 @@
+.TH XRDMAPC 1 "2026-07-06" "brix client" "User Commands"
+.SH NAME
+xrdmapc \- list XRootD data-server holders for a path
+.SH SYNOPSIS
+.B xrdmapc
+[\fIOPTS\fR] \fBroot\fR[\fBs\fR]\fB://\fR\fIhost\fR[\fI:port\fR][\fI//path\fR] [\fB\-\-verify\fR]
+.SH DESCRIPTION
+.B xrdmapc
+lists the data servers that hold \fIpath\fR (default \fB/\fR), reporting
+read/write capability and available space for each.
+It uses the XRootD locate protocol to discover all replica holders.
+.PP
+With \fB\-\-verify\fR, each advertised holder is probed for actual
+responsiveness; holders that are advertised but not serving are
+flagged as GHOST.
+.SH OPTIONS
+.TP
+.B \-\-verify
+Probe each holder; flag GHOST for advertised but non-responding servers.
+.TP
+.B \-\-tls
+Require in-protocol TLS.
+.TP
+.B \-\-notlsok
+Permit cleartext if the server offers no TLS.
+.TP
+.B \-\-noverifyhost
+Skip TLS hostname verification (certificate chain check remains on).
+.TP
+.BI \-\-auth " gsi|ztn|krb5|sss|unix"
+Force an authentication protocol.
+.TP
+.B \-\-version
+Print version and exit.
+.SH ENVIRONMENT
+.TP
+.B X509_USER_PROXY
+GSI proxy certificate path.
+.TP
+.B BEARER_TOKEN
+Bearer token for ZTN/WLCG token authentication.
+.TP
+.B XRDRC
+Path to configuration file (default \fI~/.xrdrc\fR).
+.SH FILES
+.TP
+.I ~/.xrdrc
+Per-user configuration: endpoint aliases and default credentials.
+See
+.BR brix\-env (7).
+.SH EXIT STATUS
+0 on success.
+50 on a usage error.
+51 on a socket/connect/timeout error.
+53 on an authentication failure.
+.SH SEE ALSO
+.BR xrdfs (1),
+.BR xrddiag (1),
+.BR brix\-env (7)
