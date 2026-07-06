@@ -5,7 +5,12 @@
  *       need one careful implementation (depth-capped, overflow-checked,
  *       refuses the export root).
  * HOW:  brix_dirlist(want_stat=1); recurse into dirs first, brix_rm files,
- *       brix_rmdir self last. BRIX_RMTREE_DRYRUN reports without deleting. */
+ *       brix_rmdir self last. BRIX_RMTREE_DRYRUN reports without deleting.
+ * NOTE: the dirlist stat carries no lstat/symlink bit, so a directory symlink
+ *       the server reports with kXR_isDir is DESCENDED and its contents removed
+ *       (it diverges from POSIX `rm -r`, which unlinks the link itself). A
+ *       correct fix needs an lstat-over-wire probe (backlog); documented here,
+ *       at the descent site, in do_rm, and in man/xrdfs.1 rm. */
 #include "brix.h"
 #include "brix_ops.h"
 #include <stdio.h>
@@ -44,6 +49,10 @@ rmtree_depth(brix_conn *c, const char *path, int depth, unsigned flags,
             rc = -1;
             break;
         }
+        /* kXR_isDir from a dirlist stat does not distinguish a real directory
+         * from a symlink TO a directory (no lstat over the wire), so a symlinked
+         * directory is descended and its contents are removed — see the file
+         * header NOTE. A POSIX-faithful fix needs an lstat probe (backlog). */
         if (ents[i].have_stat && (ents[i].st.flags & kXR_isDir)) {
             rc = rmtree_depth(c, full, depth + 1, flags, report, u, st);
         } else {

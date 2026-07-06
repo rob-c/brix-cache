@@ -420,12 +420,14 @@ install: lib
 
 # Install the CLI binaries + all man pages (build them first).
 install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES)
-	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/share/man/man1
+	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/share/man/man1 \
+	           $(DESTDIR)$(PREFIX)/share/man/man7
 	install -m755 $(BIN_EXES) $(DESTDIR)$(PREFIX)/bin/
 	for l in $(CKSUM_LINKS); do ln -sf xrdcksum $(DESTDIR)$(PREFIX)/bin/$$l; done
 	for l in $(DIAG_LINKS); do ln -sf xrddiag $(DESTDIR)$(PREFIX)/bin/$$l; done
 	[ -f $(BINDIR)/xrootdfs ] && install -m755 $(BINDIR)/xrootdfs $(DESTDIR)$(PREFIX)/bin/ || true
 	for m in man/*.1; do install -m644 $$m $(DESTDIR)$(PREFIX)/share/man/man1/; done
+	for m in man/*.7; do install -m644 $$m $(DESTDIR)$(PREFIX)/share/man/man7/; done
 	install -d $(DESTDIR)$(PREFIX)/share/bash-completion/completions
 	for n in xrdcp xrdfs xrddiag xrdcksum xrd; do \
 		install -m644 completions/brix-tools.bash \

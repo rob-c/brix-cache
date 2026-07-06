@@ -514,10 +514,10 @@ usage_fp(FILE *out)
     fprintf(out,
         "usage: xrddiag <subcommand> [opts] <url> [...]\n"
         "  subcommands:\n"
-        "    check    <url>                        protocol-correctness probes\n"
+        "    check    <url> [--json]               protocol-correctness probes\n"
         "    bench    <url> [-S N] [--sweep]       timed download (single vs streams; knee)\n"
         "    metabench <url> [-S N] [--count N]   concurrent metadata storm: ops/sec + p50/p95/p99\n"
-        "    topology <url> [--cluster-url URL]    locate + redirect convergence\n"
+        "    topology <url> [--cluster-url URL] [--json]  locate + redirect convergence\n"
         "    status   <url> [--metrics-port N]     pull /metrics and summarise\n"
         "    watch    <url> [url2...] [--interval S] [--count N] [--prometheus[=PATH]] [--json]\n"
         "                       continuous health/SLA probe (connect+read+locate); Ctrl-C to stop\n"

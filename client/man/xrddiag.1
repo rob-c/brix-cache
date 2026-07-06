@@ -18,8 +18,10 @@ xrdcp/xrdfs \-\-capture \fIFILE.xrdcap\fR ...
 .RE
 .SH SUBCOMMANDS
 .TP
-.B check \fIURL\fR
+.B check \fIURL\fR [\-\-json]
 Protocol-correctness probes: connect, authenticate, stat, open, read, checksum.
+\fB\-\-json\fR emits a single JSON object (nothing on stdout on a connect error);
+the exit code is unchanged.
 .TP
 .B bench \fIURL\fR [\-S \fIN\fR] [\-\-sweep]
 Timed download benchmark, single vs. multi-stream.
@@ -28,8 +30,10 @@ Timed download benchmark, single vs. multi-stream.
 .B metabench \fIURL\fR [\-S \fIN\fR] [\-\-count \fIN\fR]
 Concurrent metadata storm: stat/ls/open operations, reporting ops/sec and p50/p95/p99 latency.
 .TP
-.B topology \fIURL\fR [\-\-cluster\-url \fIURL\fR]
+.B topology \fIURL\fR [\-\-cluster\-url \fIURL\fR] [\-\-json]
 Locate + redirect convergence: shows all replicas and redirector chains.
+\fB\-\-json\fR emits a top-level JSON array of nodes; the probe outcomes still
+drive the exit code (0 on success, 1 on any probe failure).
 .TP
 .B status \fIURL\fR [\-\-metrics\-port \fIN\fR]
 Pull \fB/metrics\fR from the Prometheus endpoint and summarise service health.
