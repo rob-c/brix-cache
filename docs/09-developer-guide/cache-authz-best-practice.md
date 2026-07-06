@@ -154,6 +154,40 @@ group/other permission bits onto the physical cache file — carry the client-fa
 `.cinfo` instead. Namespace file/dir modes (`origin_write.c`, `op_table.c`, `mkdir.c`, `mv.c`)
 are the *served* file's real perms and must **not** be forced to `0600`.
 
+## 4d. In-flight upload/staging temps — stage-private, publish-intended (hardened)
+
+The write-side analog of §4a: an upload is written to a **temp** file that is later atomically
+`rename`d onto the namespace object. Those temps were world-readable (`0644`), so under
+`brix_impersonation map` a peer mapped uid could read another user's **in-progress** upload by
+direct FS access — most acute for the resumable-PUT partial, which persists across requests and
+restarts.
+
+The subtlety: **`rename` preserves the temp's mode, so the temp mode becomes the final served
+mode.** Forcing the temp to `0600` would therefore ship every object `0600` and break VO-shared
+impersonated reads. The pattern is **stage-private, publish-intended**: write the temp `0600`
+(private during the upload), then `fchmod(fd, final_mode)` on the still-open fd immediately
+before the commit `rename`, restoring the client's intended mode. Landed in the staging
+primitive (`brix_staged_file_t.final_mode`, `staged_file.c`), so it covers WebDAV PUT (main +
+resume), S3 PUT, and chkpoint through one chokepoint; the fd-based `brix_commit_staged` takes a
+`final_mode` param (`0` = leave-as-is, e.g. root:// POSC temps that the sd driver already
+creates with the client's mode). The S3 multipart-assembly temp and the tier-staging
+unknown-provenance fallback were likewise moved to `0600`.
+
+**Developer rule:** any temp that will be `rename`d onto a namespace path must be created
+`0600` and have its client-intended mode restored (`fchmod`) just before the commit — never
+create the temp at the final mode. New stagers must go through `brix_staged_open` /
+`brix_staged_open_resume` (which set `final_mode` for you), not open the temp directly.
+
+## 4e. TPC (third-party copy) direction
+
+A WebDAV `COPY` is authorized on `r->uri`, but the operation's *direction* determines whether
+`r->uri` is read or written: a **PULL** (`Source:` header) writes `r->uri` (the local
+destination), a **PUSH** / plain intra-server `COPY` reads it. The op mapping now returns
+`BRIX_AOP_CREATE` for a PULL and `BRIX_AOP_READ` otherwise, so a read-only principal cannot
+pull remote data onto a path it may not write. **Developer rule:** when an HTTP method's
+read/write direction depends on a header (COPY/MOVE with Source/Destination), branch the
+authorization op on that header — do not assume a fixed direction.
+
 ## 4b. Existence oracles (hardened)
 
 A metadata op must authorize **before** it probes on-disk existence, or a denied principal
