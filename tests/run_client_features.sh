@@ -432,9 +432,9 @@ section_cat_compress() {
 
   # Transparency contract: cat -z gzip must produce the same bytes as cat
   # (server either negotiates compression and inflates, or ignores the request).
-  PLAIN=$("$BIN/xrdfs" "$URL" cat "$FPATH" 2>/dev/null)
-  COMPR=$("$BIN/xrdfs" "$URL" cat -z gzip "$FPATH" 2>/dev/null)
-  check "cat -z gzip: byte-identical to plain cat" '[ "$PLAIN" = "$COMPR" ]'
+  "$BIN/xrdfs" "$URL" cat "$FPATH" > "$WORK/catz.plain" 2>/dev/null
+  "$BIN/xrdfs" "$URL" cat -z gzip "$FPATH" > "$WORK/catz.compr" 2>/dev/null
+  check "cat -z gzip: byte-identical to plain cat" 'cmp -s "$WORK/catz.plain" "$WORK/catz.compr"'
 
   # Error path: missing file must exit nonzero.
   "$BIN/xrdfs" "$URL" cat -z gzip "/tmp/cfeat-$$-catz-nosuchfile" >/dev/null 2>&1
