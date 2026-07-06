@@ -397,9 +397,13 @@ section_xrdfs_json() {
   # is still valid JSON (hostile names must not escape the array or break parsers).
   local WEIRD="${BASE}/we\"ird.txt"
   printf 'weird\n' | "$BIN/xrdcp" - "${URL}//${WEIRD}" >/dev/null 2>&1 || true
-  OUT=$("$BIN/xrdfs" "$URL" ls -j "$BASE" 2>/dev/null)
-  check "ls -j: hostile filename (double-quote) produces valid JSON" \
-    'echo "$OUT" | python3 -c "import sys,json; json.load(sys.stdin)"'
+  if "$BIN/xrdfs" "$URL" stat "${WEIRD}" >/dev/null 2>&1; then
+    OUT=$("$BIN/xrdfs" "$URL" ls -j "$BASE" 2>/dev/null)
+    check "ls -j: hostile filename (double-quote) produces valid JSON" \
+      'echo "$OUT" | python3 -c "import sys,json; json.load(sys.stdin)"'
+  else
+    echo "  skip: server rejects quote-in-name; hostile-name JSON check not exercisable"
+  fi
 
   # error path: stat -j on a missing path must exit nonzero AND produce no JSON on stdout
   OUT=$("$BIN/xrdfs" "$URL" stat -j "${BASE}/no-such-file" 2>/dev/null)

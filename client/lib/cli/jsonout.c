@@ -5,7 +5,7 @@ void
 brix_json_escape(FILE *out, const char *s)
 {
     const unsigned char *p;
-    if (s == NULL) { return; }   /* NULL → empty string via brix_json_fputs */
+    if (s == NULL) { return; }   /* NULL input: emit nothing; brix_json_fputs's surrounding quotes yield "" */
     p = (const unsigned char *) s;
     for (; *p != '\0'; p++) {
         switch (*p) {
