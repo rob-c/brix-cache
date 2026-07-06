@@ -449,6 +449,19 @@ def _sp_wrong_ca_block(root: Path) -> Scenario:
     return sc.finalize()
 
 
+def _sp_no_policy(root: Path) -> Scenario:
+    """CA with normal (both) hash links but NO signing_policy file."""
+    sc = _scenario(root, "sp_no_policy")
+    ca = make_ca(CA_DN)
+    eec = make_eec(ca, "/DC=test/DC=xrootd/CN=Alice")
+    write_hashed_ca_dir(sc.ca_dir, ca)   # no policy_text
+    sc.write_credential("eec", [eec, ca], eec)
+    # ON: absent policy -> pass-through accept.  REQUIRE: absent -> reject.
+    sc.add_manifest("eec", "accept", reason="no policy file present (ON pass-through)",
+                    spec_ref="signing_policy §3.1")
+    return sc.finalize()
+
+
 def _sp_proxy_cn_exempt(root: Path) -> Scenario:
     sc = _scenario(root, "sp_proxy_cn_exempt")
     ca = make_ca(CA_DN)
@@ -620,6 +633,7 @@ _BUILDERS = {
     "sp_in_namespace": _sp_in_namespace,
     "sp_out_of_namespace": _sp_out_of_namespace,
     "sp_wrong_ca_block": _sp_wrong_ca_block,
+    "sp_no_policy": _sp_no_policy,
     "sp_proxy_cn_exempt": _sp_proxy_cn_exempt,
     "px_rfc3820_ok": _px_rfc3820_ok,
     "px_limited_to_full": _px_limited_to_full,
