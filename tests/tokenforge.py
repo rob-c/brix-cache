@@ -259,13 +259,33 @@ def build_manifest(out_dir):
         f.init_keys()
     m = Manifest()
 
-    # SIG family — representative rows (full family added by Task 8)
-    m.add("SIG-01", {"m": "alg_none"}, "all", "reject",
-          "alg=none blocked before verify", "spec §2, RFC8725")
-    m.add("SIG-02", {"m": "alg_hs256_confusion"}, "all", "reject",
-          "HS256-with-RSA-pubkey confusion", "spec §2, RFC8725")
-    m.add("SIG-03", {"m": "alg_lowercase"}, "all", "reject",
-          "alg is case-sensitive", "RFC7515 §4.1.1")
+    # SIG family — root:// only.
+    # WebDAV port 8443 is optional-auth (cannot enforce reject), and S3 port
+    # 9001 has no token path, so these cases run on root:// exclusively.
+    #
+    # DEFERRED (need a JWKS-varied port — added with the multi-key-JWKS port task):
+    #   SIG-10..14: kid selection (hit/miss), no_kid multi-key fallback,
+    #   wrong-kid multi-key reject, ES256 accept.
+    m.add("SIG-01", {"m": "alg_none"}, "root", "reject",
+          "alg=none blocked before verify (RFC8725)", "spec §2, RFC8725")
+    m.add("SIG-02", {"m": "alg_hs256_confusion"}, "root", "reject",
+          "HS256-signed-with-RSA-pubkey confusion", "spec §2, RFC8725")
+    m.add("SIG-03", {"m": "alg_lowercase"}, "root", "reject",
+          "alg is case-sensitive; rs256 != RS256", "RFC7515 §4.1.1")
+    m.add("SIG-04", {"m": "alg_unsupported", "args": ["RS384"]}, "root", "reject",
+          "RS384 not in {RS256,ES256}", "spec §2")
+    m.add("SIG-05", {"m": "alg_unsupported", "args": ["PS256"]}, "root", "reject",
+          "PS256 not accepted", "spec §2")
+    m.add("SIG-06", {"m": "generate"}, "root", "accept",
+          "valid RS256 token", "spec §2")
+    m.add("SIG-07",
+          {"m": "for_issuer", "args": ["https://evil.example.com"]},
+          "root", "reject",
+          "wrong issuer, validly signed", "spec §3.1")
+    m.add("SIG-08", {"m": "truncated_sig"}, "root", "reject",
+          "truncated signature fails verify", "RFC7515 §5.2")
+    m.add("SIG-09", {"m": "generate_bad_signature"}, "root", "reject",
+          "tampered signature fails verify", "RFC7515 §5.2")
 
     # ... all families appended by their respective test tasks ...
 
