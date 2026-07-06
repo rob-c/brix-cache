@@ -44,6 +44,33 @@ main(void)
     CHECK(!safe("caf\xc3\xa9"),   "VMS-12 non-ASCII (UTF-8) rejected");
     CHECK(!safe("cms\x7f"),       "VMS-13 DEL byte rejected");
 
+    /* Boundary bytes around the reject predicate (<=' ', >=0x7f, ',/\\'). */
+    CHECK(!safe("\x1f"),          "VMS-14 0x1F (just below space) rejected");
+    CHECK(!safe(" "),             "VMS-15 0x20 space rejected");
+    CHECK(safe("!"),              "VMS-16 0x21 '!' accepted (printable)");
+    CHECK(safe("a+b"),            "VMS-17 '+' accepted (printable, not special)");
+    CHECK(safe("~"),              "VMS-18 0x7E '~' accepted (last printable)");
+    CHECK(!safe("\x80"),          "VMS-19 0x80 (high bit) rejected");
+    CHECK(!safe("\xff"),          "VMS-20 0xFF rejected");
+
+    /* Allowed structural chars a real FQAN component may carry. */
+    CHECK(safe("cms:prod"),       "VMS-21 colon accepted");
+    CHECK(safe("Role=NULL"),      "VMS-22 equals accepted");
+    CHECK(safe("cms_ops"),        "VMS-23 underscore accepted");
+    CHECK(safe("VO-2026.01"),     "VMS-24 hyphen+dot accepted");
+
+    /* Injection vectors that must be rejected. */
+    CHECK(!safe("cms\r"),         "VMS-25 carriage return rejected");
+    CHECK(!safe("a,b,c"),         "VMS-26 multi-comma rejected");
+    CHECK(!safe("../etc"),        "VMS-27 path traversal (slash) rejected");
+    CHECK(!safe("a\\b\\c"),       "VMS-28 multi-backslash rejected");
+    CHECK(!safe("x\x0b"),         "VMS-29 vertical tab rejected");
+    CHECK(!safe("x\x0c"),         "VMS-30 form feed rejected");
+
+    /* A comma anywhere in an otherwise-valid token is fatal (list encoding). */
+    CHECK(!safe("atlas,"),        "VMS-31 trailing comma rejected");
+    CHECK(safe("atlasproduction"), "VMS-32 long plain token accepted");
+
     printf("\n%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }
