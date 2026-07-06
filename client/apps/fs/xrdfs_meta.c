@@ -226,10 +226,9 @@ rm_report(const char *path, int is_dir, void *u)
  * WHY:  rmdir only takes empty dirs; users cleaning a tree need one command.
  * HOW:  -r stats the target; directories go through brix_rmtree (post-order,
  *       depth-capped). The resolved export root "/" is always refused.
- * NOTE: the server's dirlist stat lacks an lstat/symlink bit, so a symlinked
- *       directory reported as a directory is DESCENDED and its contents removed
- *       (unlike POSIX `rm -r`, which unlinks the link). Documented in
- *       man/xrdfs.1 rm and lib/fs/rmtree.c; an lstat-probe fix is backlog. */
+ *       brix_rmtree probes each kXR_isDir entry with brix_lstat before
+ *       descending: directory symlinks (kXR_other) are unlinked, not descended,
+ *       matching POSIX `rm -r` semantics. */
 int
 do_rm(brix_conn *c, const char *cwd, int argc, char **argv)
 {

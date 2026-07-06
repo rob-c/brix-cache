@@ -373,7 +373,9 @@ int brix_rmtree(brix_conn *c, const char *path, unsigned flags,
 
 /* ---- path.c (path helpers) ---- */
 /* 1 if a relative path would escape the directory it is joined under (absolute
- * path or contains a ".." component). Used to guard server-supplied paths. */
+ * path or contains a ".." component).  NULL returns 1 (fail-closed — a missing
+ * path has no safe join target).  Empty string returns 0 (degenerate but not
+ * escaping).  Used to guard server-supplied paths from dirlists/manifests. */
 int brix_rel_is_unsafe(const char *rel);
 
 /* ---- ops_ext.c — vendor POSIX-completeness ops (kXR_setattr/symlink/readlink/

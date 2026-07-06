@@ -372,6 +372,33 @@ section_xrdfs_rm() {
   check "rm -r -v: exit 0" '[ "$?" -eq 0 ]'
   check "rm -r -v: prints removed lines" \
     'echo "$VOUT" | grep -q "^removed "'
+
+  # Symlink guard: rm -r must remove the LINK, not the target's contents.
+  # Setup: dir A with a file, dir D containing a symlink B→A.
+  # After rm -r D: D and B are gone, A and its file survive.
+  local SBASE="/tmp/cfeat-$$-rmsym"
+  local SA="${SBASE}/A"
+  local SD="${SBASE}/D"
+  "$BIN/xrdfs" "$URL" mkdir -p "$SA" >/dev/null 2>&1
+  "$BIN/xrdfs" "$URL" mkdir -p "$SD" >/dev/null 2>&1
+  printf 'precious\n' | "$BIN/xrdcp" - "${URL}//${SA}/file.txt" >/dev/null 2>&1
+  # Try to create a symlink D/B→A.  Vendor ext (kXR_symlink) may be unsupported.
+  SYMLINK_OUT=$("$BIN/xrdfs" "$URL" ln -s "$SA" "${SD}/B" 2>&1)
+  SYMLINK_RC=$?
+  if [ "$SYMLINK_RC" -eq 0 ]; then
+    # Symlink created: rm -r D should succeed and leave A/file.txt intact.
+    "$BIN/xrdfs" "$URL" rm -r "$SD" >/dev/null 2>&1
+    check "rm -r dir-with-symlink: exit 0" '[ "$?" -eq 0 ]'
+    "$BIN/xrdfs" "$URL" stat "$SD" >/dev/null 2>&1
+    check "rm -r dir-with-symlink: D gone" '[ "$?" -ne 0 ]'
+    "$BIN/xrdfs" "$URL" stat "${SA}/file.txt" >/dev/null 2>&1
+    check "rm -r dir-with-symlink: A/file.txt intact" '[ "$?" -eq 0 ]'
+    # Cleanup A.
+    "$BIN/xrdfs" "$URL" rm -r "$SA" >/dev/null 2>&1 || true
+  else
+    echo "  SKIP symlink rm test (server does not support ln -s: $SYMLINK_OUT)"
+  fi
+  "$BIN/xrdfs" "$URL" rm -r "$SBASE" >/dev/null 2>&1 || true
 }
 
 section_xrdfs_json() {
