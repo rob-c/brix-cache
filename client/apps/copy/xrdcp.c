@@ -701,6 +701,14 @@ main(int argc, char **argv)
             }
             if (has_dir) {
                 size_t bad = 0;
+                /* --delete mirrors a listing back onto the destination, which the
+                 * web (davs/http/s3) upload path does not implement.  Warn once
+                 * so the caller is not misled into thinking stale remote objects
+                 * were pruned; the flag is otherwise ignored here. */
+                if (opts.sync_delete) {
+                    fprintf(stderr, "xrdcp: --delete is not supported for web "
+                                    "destinations (ignored)\n");
+                }
                 for (i = 0; i < nexp; i++) {
                     if (is_local_dir(exp[i])) {
                         if (recursive_web_upload(exp[i], dst, &opts, &conn, retries) != 0) {

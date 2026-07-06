@@ -261,6 +261,7 @@ do_rm(brix_conn *c, const char *cwd, int argc, char **argv)
         }
         if (brix_stat(c, path, &si, &st) != 0) {
             fprintf(stderr, "xrdfs: rm %s: %s\n", path, st.msg);
+            brix_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
             return brix_shellcode(&st);
         }
         if (si.flags & kXR_isDir) {
