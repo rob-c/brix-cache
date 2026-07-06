@@ -106,6 +106,38 @@ into [`../10-reference/wlcg-x509-differential-findings.md`](../10-reference/wlcg
 Regenerate that report by re-running the differential; review it like a golden
 file.
 
+## The scaled clause-indexed suite (500+ cases)
+
+A second, much larger suite indexes every case to a specific normative clause
+(RFC 5280 / RFC 3820 / RFC 5755 / IGTF / Globus EACL).  It is driven by the
+same forge, now table-driven: each `tests/clauses/<family>.py` registers
+`Clause` rows (families CHN/PXY/SPL/CRL/CAD/DNE ≈ 530 rows), aggregated in
+`tests/clauses/__init__.py` as `ALL_CLAUSES` and materialised by
+`x509forge.build_all()` into one big multi-CA directory + a manifest.
+
+```bash
+# C oracle — replays the whole manifest through the REAL trust cores
+# (signing_policy.c + store_policy.c via brix_store_configure), fast bulk check
+bash tests/c/run_x509_oracle.sh                    # ~558 checks, 0 failures
+
+# Live davs wire — every davs case against the fixed ConformanceFleet
+# (one server per config-group on the shared CA dir, stood up once)
+BRIX_X509_MATRIX=/tmp/x509matrix \
+  PYTHONPATH=tests python3 -c "import clauses,x509forge,pathlib; \
+  x509forge.build_all(pathlib.Path('/tmp/x509matrix'), clauses.ALL_CLAUSES)"
+BRIX_X509_MATRIX=/tmp/x509matrix pytest tests/test_wlcg_conformance_matrix.py
+
+# Matrix differential vs stock XRootD (XrdHttp) — records divergences
+TEST_X509_DIFF=1 tests/run_x509_matrix_differential.sh
+```
+
+The oracle replicates the exact store configuration production uses (including
+nginx's TLS-layer `SSL_CLIENT` purpose), so **oracle verdict == live wire
+verdict == manifest** for every case.  Deliberate verdict corrections (places
+our behaviour is stricter, more conservative, or a documented limitation) live
+in one auditable register, `tests/clauses/_decisions.py`, which is cited by the
+[source-level conformance write-up](../10-reference/conformance/README.md).
+
 ## Scope notes
 
 - **davs:// is the e2e surface.** WebDAV x509 auth exercises the exact shared
