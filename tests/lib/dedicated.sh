@@ -109,6 +109,7 @@ start_all_dedicated() {
     start_dedicated_nginx "readonly" "nginx_readonly.conf" "${READONLY_PORT:-11102}"
     start_dedicated_nginx "vo-acl" "nginx_vo_acl.conf" "${VO_PORT:-11103}"
     start_dedicated_nginx "manager" "nginx_manager.conf" "${MANAGER_PORT:-11101}"
+    start_dedicated_nginx "token-strict" "nginx_token_strict.conf" "${NGINX_TOKEN_STRICT_PORT:-11119}"
 
     # --- Migrated dedicated instances (formerly self-provisioned by the test) ---
     # Each replaces a test fixture that used to spawn+teardown its own nginx; the

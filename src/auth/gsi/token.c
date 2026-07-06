@@ -117,6 +117,7 @@ brix_handle_token_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     } else if (via_registry) {
         rc = brix_token_validate_registry_authn(c->log, token, token_len,
                 conf->token_registry, slen > 0 ? secret : NULL, (size_t) slen,
+                (int) conf->token_clock_skew,
                 &claims, &reg_issuer);
     } else {
         rc = brix_token_validate(c->log, token, token_len,
@@ -124,6 +125,7 @@ brix_handle_token_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                                    (const char *) conf->token_issuer.data,
                                    (const char *) conf->token_audience.data,
                                    slen > 0 ? secret : NULL, (size_t) slen,
+                                   (int) conf->token_clock_skew,
                                    &claims);
     }
 
@@ -145,6 +147,7 @@ brix_handle_token_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                                        (const char *) conf->token_issuer.data,
                                        (const char *) conf->token_audience.data,
                                        old_secret, (size_t) old_slen,
+                                       (int) conf->token_clock_skew,
                                        &claims);
             if (rc == 0) {
                 ngx_log_error(NGX_LOG_INFO, c->log, 0,

@@ -221,6 +221,9 @@ typedef struct {
     ngx_str_t   token_jwks;      /* [brix_token_jwks /etc/xrd/jwks.json] */
     ngx_str_t   token_issuer;    /* [brix_token_issuer https://cilogon.org] */
     ngx_str_t   token_audience;  /* [brix_token_audience https://storage.example.org] */
+    ngx_int_t   token_clock_skew; /* [brix_token_clock_skew 30] seconds of exp grace;
+                                     NGX_CONF_UNSET = inherit/default
+                                     (BRIX_TOKEN_CLOCK_SKEW_SECS); max 300 */
     ngx_str_t   token_config;    /* [brix_token_config /etc/xrd/scitokens.cfg]
                                     multi-issuer registry (phase-59 W1); when set
                                     it overrides the single-issuer fields above */

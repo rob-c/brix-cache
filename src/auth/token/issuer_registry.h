@@ -109,6 +109,7 @@ int brix_token_validate_registry(ngx_log_t *log,
     const brix_token_registry_t *reg, const char *req_path,
     brix_token_op_e op,
     const u_char *macaroon_secret, size_t secret_len,
+    int clock_skew,
     brix_token_claims_t *claims, int *out_issuer_bucket);
 
 /*
@@ -120,6 +121,7 @@ int brix_token_validate_registry_authn(ngx_log_t *log,
     const char *token, size_t token_len,
     const brix_token_registry_t *reg,
     const u_char *macaroon_secret, size_t secret_len,
+    int clock_skew,
     brix_token_claims_t *claims, const brix_token_issuer_t **out_issuer);
 
 /*

@@ -23,6 +23,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from settings import (
     NGINX_TOKEN_PORT,
+    NGINX_TOKEN_STRICT_PORT,
     NGINX_WEBDAV_PORT,
     NGINX_S3_PORT,
     SERVER_HOST,
@@ -223,7 +224,7 @@ def mint(case_row):
 # Protocol clients
 # ---------------------------------------------------------------------------
 
-def root_ztn(token, path="/test.txt", write=False):
+def root_ztn(token, path="/test.txt", write=False, port=None):
     """Probe NGINX_TOKEN_PORT (11097) via a raw root:// ztn auth sequence.
 
     WHAT: Runs handshake→protocol→login→auth-ztn→stat and maps the outcome to
@@ -242,12 +243,14 @@ def root_ztn(token, path="/test.txt", write=False):
         path:  XRootD path to probe via kXR_stat.
         write: API stub — maps to read-stat for now; write verdict via kXR_open
                will be added in a later task.
+        port:  Override the target port (default: NGINX_TOKEN_PORT).
 
     Returns:
         "accept" or "reject".
     """
+    target_port = port if port is not None else NGINX_TOKEN_PORT
     try:
-        sock = _raw_handshake(SERVER_HOST, NGINX_TOKEN_PORT)
+        sock = _raw_handshake(SERVER_HOST, target_port)
         try:
             _send_protocol(sock)
             status, _ = _send_login(sock)

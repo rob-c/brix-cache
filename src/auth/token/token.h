@@ -135,6 +135,7 @@ int brix_token_validate(ngx_log_t *log,
                           const char *expected_issuer,
                           const char *expected_audience,
                           const u_char *macaroon_secret, size_t secret_len,
+                          int clock_skew,
                           brix_token_claims_t *claims);
 
 /* ------------------------------------------------------------------ */

@@ -120,6 +120,10 @@ NGINX_GSI_PORT = int(os.environ.get("TEST_NGINX_GSI_PORT", "11095"))
 NGINX_GSI_TLS_PORT = int(os.environ.get("TEST_NGINX_GSI_TLS_PORT", "11096"))
 NGINX_TOKEN_PORT = int(os.environ.get("TEST_NGINX_TOKEN_PORT", "11097"))
 
+# Strict zero-skew token port — dedicated nginx instance with brix_token_clock_skew 0,
+# proving that the configurable skew correctly enforces exact expiry (no grace window).
+NGINX_TOKEN_STRICT_PORT = int(os.environ.get("TEST_NGINX_TOKEN_STRICT_PORT", "11119"))
+
 # Kerberos 5 (krb5) auth tier — a DEDICATED nginx instance (not part of the
 # shared instance) so an invalid keytab/principal or a krb5-less binary can only
 # break this tier, never the anon/gsi/token blocks.  Provisioned + gated by

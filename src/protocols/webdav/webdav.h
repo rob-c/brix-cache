@@ -199,6 +199,9 @@ typedef struct {
     ngx_str_t      token_jwks;      /* path to JWKS file for RS256 validation */
     ngx_str_t      token_issuer;    /* required "iss" claim; "" to skip check */
     ngx_str_t      token_audience;  /* required "aud" claim; "" to skip check */
+    ngx_int_t      token_clock_skew; /* [brix_webdav_token_clock_skew 30] seconds of
+                                        exp grace; NGX_CONF_UNSET = inherit/default
+                                        (BRIX_TOKEN_CLOCK_SKEW_SECS); max 300 */
     ngx_str_t      token_config;    /* [brix_webdav_token_config <scitokens.cfg>]
                                        multi-issuer registry (phase-59 W1) */
     void          *token_registry;  /* brix_token_registry_t* or NULL */

@@ -133,6 +133,7 @@ ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->lock_startup_sweep = NGX_CONF_UNSET;
     conf->zip_access = NGX_CONF_UNSET;
     conf->http_query_token = NGX_CONF_UNSET;
+    conf->token_clock_skew = NGX_CONF_UNSET;
     conf->macaroon_max_validity = NGX_CONF_UNSET;
     conf->dig_enable = NGX_CONF_UNSET;
     conf->dig_exports = NGX_CONF_UNSET_PTR;
@@ -394,6 +395,13 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_str_value(conf->token_jwks, prev->token_jwks, "");
     ngx_conf_merge_str_value(conf->token_issuer, prev->token_issuer, "");
     ngx_conf_merge_str_value(conf->token_audience, prev->token_audience, "");
+    ngx_conf_merge_value(conf->token_clock_skew, prev->token_clock_skew,
+                         BRIX_TOKEN_CLOCK_SKEW_SECS);
+    if (conf->token_clock_skew < 0 || conf->token_clock_skew > 300) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_webdav_token_clock_skew must be >= 0 and <= 300");
+        return NGX_CONF_ERROR;
+    }
     ngx_conf_merge_str_value(conf->token_config, prev->token_config, "");
     ngx_conf_merge_ptr_value(conf->token_registry, prev->token_registry, NULL);
     ngx_conf_merge_str_value(conf->token_macaroon_secret,

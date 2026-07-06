@@ -151,6 +151,7 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->jwks_mtime                 = 0;
     conf->token_jwks_refresh_interval = NGX_CONF_UNSET_MSEC;
     conf->jwks_timer                  = NULL;
+    conf->token_clock_skew            = NGX_CONF_UNSET;
     conf->sss_lifetime      = NGX_CONF_UNSET;
     conf->sss_keys          = NULL;
     brix_krb5_conf_init(&conf->krb5);
@@ -310,6 +311,13 @@ brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
                               NGX_CONF_UNSET_MSEC);
     ngx_conf_merge_str_value(conf->token_issuer,    prev->token_issuer,    "");
     ngx_conf_merge_str_value(conf->token_audience,  prev->token_audience,  "");
+    ngx_conf_merge_value(conf->token_clock_skew,    prev->token_clock_skew,
+                         BRIX_TOKEN_CLOCK_SKEW_SECS);
+    if (conf->token_clock_skew < 0 || conf->token_clock_skew > 300) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_token_clock_skew must be >= 0 and <= 300");
+        return NGX_CONF_ERROR;
+    }
     ngx_conf_merge_str_value(conf->token_config,    prev->token_config,    "");
     ngx_conf_merge_ptr_value(conf->token_registry,  prev->token_registry,  NULL);
     ngx_conf_merge_str_value(conf->throttle.zone_name,
