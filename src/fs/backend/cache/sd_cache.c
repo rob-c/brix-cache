@@ -81,18 +81,19 @@ sd_cache_fill(sd_cache_inst_state *st, const char *key)
     if (so->driver->fstat != NULL) {
         (void) so->driver->fstat(so, &snap);
     }
-    /* The cache STORE object must stay owner-writable: in XATTR meta_mode the
-     * cinfo record lives as a user.xrd.cinfo xattr ON this object, and Linux
-     * refuses to set/update a user.* xattr on a non-writable inode — so a
-     * read-only (e.g. 0444) source mode would block cinfo persistence entirely
-     * (the remote-store restart-survival path, G3). The physical store mode is a
-     * cache-implementation detail; force owner rw and keep the rest of the source
-     * bits. (Client-facing mode fidelity for a read-only source is a follow-up:
-     * carry the mode in the cinfo record and serve that.) */
-    fmode = ((mode_t) (snap.mode & 0777)) | S_IRUSR | S_IWUSR;
-    if (fmode == 0) {
-        fmode = 0644;                   /* backend reported none - sane default */
-    }
+    /* SECURITY + correctness: the physical cache-store object is a svc-owned
+     * artifact that aggregates MANY users' bytes under one tree. Per-user
+     * authorization is enforced at the protocol gate (open_cache.c), and the
+     * CLIENT-FACING mode is carried in the cinfo record and served by
+     * sd_cache_stat() — decoupled from this physical mode. So force 0600:
+     *   - owner rw is REQUIRED (XATTR meta_mode stores user.xrd.cinfo ON this
+     *     object; Linux refuses user.* xattrs on a non-writable inode — a
+     *     read-only 0444 source would otherwise block cinfo persistence, G3);
+     *   - NO group/other bits, so a mapped low-priv uid cannot read another
+     *     user's cached bytes by direct filesystem access (the source mode's
+     *     0644 previously leaked here). snap.mode still reaches clients via the
+     *     cinfo record (ci.mode below, served by sd_cache_stat). */
+    fmode = S_IRUSR | S_IWUSR;          /* 0600 — svc-owned cache artifact */
 
     if (!sd_cache_admit(&st->policy, key, snap.size)) {
         so->driver->close(so);
@@ -357,12 +358,14 @@ sd_cache_partial_open(brix_sd_instance_t *inst, sd_cache_inst_state *st,
         return NULL;
     }
     bs = (uint32_t) st->policy.slice_size;
-    /* Force owner rw: the partial object is re-opened O_RDWR for every incremental
-     * block fill, so a read-only (0444) source mode would make the SECOND open fail
-     * EACCES and silently fall back to a whole-file fill (§6.5 sparse lost). The
-     * origin perms are carried in the cinfo and served back (see the READ hit). */
+    /* Force owner rw ONLY (0600): the partial object is re-opened O_RDWR for every
+     * incremental block fill (a read-only 0444 source would EACCES the second open
+     * and silently fall back to a whole-file fill, §6.5). SECURITY: no group/other
+     * bits — this svc-owned cache artifact must not be directly readable by a mapped
+     * low-priv uid. The origin perms are carried in the cinfo and served back to
+     * clients (see sd_cache_stat / the READ hit), decoupled from this physical mode. */
     fd = brix_cstore_partial_open(&st->cstore, key,
-                                   ((mode_t) (snap.mode & 0777)) | S_IRUSR | S_IWUSR,
+                                   (mode_t) (S_IRUSR | S_IWUSR),
                                    snap.size, cpath, sizeof(cpath));
     if (fd < 0) {
         if (err_out != NULL) { *err_out = errno ? errno : EIO; }

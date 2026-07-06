@@ -52,7 +52,10 @@ xmeta_sidecar_write(brix_sd_instance_t *store, const char *key,
         errno = ENAMETOOLONG;
         return NGX_ERROR;
     }
-    st = store->driver->staged_open(store, ck, 0644, &err);
+    /* SECURITY: the "<key>.cinfo" sidecar leaks cache residency (block-present
+     * bitmap), size and mtime. 0600 (not 0644) so a mapped low-priv uid cannot
+     * read another user's cache metadata from the svc-owned store. */
+    st = store->driver->staged_open(store, ck, 0600, &err);
     if (st == NULL) {
         errno = err ? err : EIO;
         return NGX_ERROR;

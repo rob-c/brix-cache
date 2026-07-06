@@ -207,7 +207,12 @@ brix_cache_fill_from_source(brix_cache_fill_t *t,
         }
     }
 
-    staged = cache_inst->driver->staged_open(cache_inst, key, 0644, &e);
+    /* SECURITY: cache-store files hold many users' bytes under one service-owned
+     * tree and are created + served AS THE WORKER (open_resolved_file.c from_cache
+     * branch, not the impersonation VFS). 0600 (not 0644) so a mapped low-priv uid
+     * cannot read another user's cached bytes by direct filesystem access; the
+     * per-user protocol gate (open_cache.c) already fronts the served path. */
+    staged = cache_inst->driver->staged_open(cache_inst, key, 0600, &e);
     if (staged == NULL) {
         source->driver->close(src);
         if (src->heap_shell) { free(src); }

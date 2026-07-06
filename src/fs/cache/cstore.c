@@ -116,7 +116,7 @@ cstore_make_parents(brix_cstore_t *cs, const char *key)
     for (i = 1; i < n; i++) {                   /* skip the leading '/' */
         if (path[i] == '/') {
             path[i] = '\0';
-            (void) cs->store->driver->mkdir(cs->store, path, 0755);  /* EEXIST ok */
+            (void) cs->store->driver->mkdir(cs->store, path, 0700);  /* EEXIST ok; 0700: svc-owned cache tree, not world-listable */
             path[i] = '/';
         }
     }
@@ -242,7 +242,7 @@ brix_cstore_partial_open(brix_cstore_t *cs, const char *key, mode_t mode,
         return -1;
     }
     cstore_make_parents(cs, key);
-    fd = open(path, O_RDWR | O_CREAT | O_CLOEXEC, mode ? mode : 0644);
+    fd = open(path, O_RDWR | O_CREAT | O_CLOEXEC, mode ? mode : 0600);  /* svc-owned cache file; 0600 default */
     if (fd < 0) {
         return -1;
     }
