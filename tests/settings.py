@@ -119,6 +119,9 @@ NGINX_ANON_RESUME_OFF_PORT = int(
 NGINX_GSI_PORT = int(os.environ.get("TEST_NGINX_GSI_PORT", "11095"))
 NGINX_GSI_TLS_PORT = int(os.environ.get("TEST_NGINX_GSI_TLS_PORT", "11096"))
 NGINX_TOKEN_PORT = int(os.environ.get("TEST_NGINX_TOKEN_PORT", "11097"))
+# Strict-mode (enforcing) root:// token port — brix_token_enforce on, no
+# anonymous fallback.  Used by conformance family tests (Task-10+).
+NGINX_TOKEN_STRICT_PORT = int(os.environ.get("TEST_NGINX_TOKEN_STRICT_PORT", "11119"))
 
 # Strict zero-skew token port — dedicated nginx instance with brix_token_clock_skew 0,
 # proving that the configurable skew correctly enforces exact expiry (no grace window).
@@ -157,6 +160,9 @@ NGINX_WEBDAV_GSI_TLS_PORT = int(
 )
 NGINX_HTTP_WEBDAV_PORT = int(os.environ.get("TEST_NGINX_HTTP_WEBDAV_PORT", "8080"))
 NGINX_S3_PORT = int(os.environ.get("TEST_NGINX_S3_PORT", "9001"))
+# Enforcing WLCG bearer-token S3 port — brix_s3_token on, rejects requests that
+# carry neither a valid Bearer JWT nor SigV4 credentials (INVARIANT §6).
+NGINX_S3_TOKEN_PORT = int(os.environ.get("TEST_NGINX_S3_TOKEN_PORT", "9002"))
 S3_BUCKET = os.environ.get("TEST_S3_BUCKET", "testbucket")
 
 MANAGER_PORT = int(os.environ.get("TEST_MANAGER_PORT", "11101"))

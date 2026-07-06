@@ -99,6 +99,20 @@ typedef struct {
 
     /* ---- XrdAcc authorization engine (off by default) ---- */
     brix_acc_http_t  acc;    /* settings + per-worker state */
+
+    /* ---- WLCG bearer-token authentication (off by default) ----
+     * When brix_s3_token on, the auth gate in s3_verify_sigv4 intercepts Bearer
+     * Authorization headers before SigV4; the two modes are mutually exclusive
+     * per request (INVARIANT §6).  token_enable=1 makes the port enforcing: a
+     * request that carries neither Bearer nor SigV4 credentials is rejected with
+     * 403 AccessDenied rather than passing anonymously. */
+    ngx_flag_t       token_enable;                /* brix_s3_token on|off           */
+    ngx_str_t        token_jwks;                  /* path to JWKS public-key file    */
+    ngx_str_t        token_issuer;                /* expected "iss" claim            */
+    ngx_str_t        token_audience;              /* expected "aud" claim            */
+    ngx_int_t        token_clock_skew;            /* exp/nbf grace period in seconds */
+    brix_jwks_key_t  jwks_keys[BRIX_MAX_JWKS_KEYS]; /* loaded at config time        */
+    int              jwks_key_count;              /* valid keys in jwks_keys[]       */
 } ngx_http_s3_loc_conf_t;
 
 typedef struct {
@@ -335,6 +349,8 @@ void s3_metrics_finalize_request_method(ngx_http_request_t *r,
  * Verify the AWS Signature Version 4 Authorization header.
  * Returns NGX_OK on success, NGX_HTTP_FORBIDDEN on failure.
  * If cf->access_key.len == 0, always returns NGX_OK (anonymous).
+ * When cf->token_enable is set, Bearer tokens are intercepted before SigV4
+ * (INVARIANT §6: the two auth schemes are mutually exclusive per request).
  */
 ngx_int_t s3_verify_sigv4(ngx_http_request_t *r,
                            ngx_http_s3_loc_conf_t *cf,

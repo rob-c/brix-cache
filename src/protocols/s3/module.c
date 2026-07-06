@@ -38,6 +38,7 @@
 
 #include "s3.h"
 #include "auth/authz/acc/acc.h"            /* XrdAcc engine directives + enum tables */
+#include "auth/token/token.h"              /* brix_jwks_load, brix_jwks_register_cleanup */
 #include "core/config/root_prepare.h"
 #include "core/config/http_rootfd.h"
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
@@ -69,6 +70,10 @@ ngx_http_s3_create_loc_conf(ngx_conf_t *cf)
     c->zip_access  = NGX_CONF_UNSET;
     c->zip_cd_max_bytes = NGX_CONF_UNSET_SIZE;
     brix_acc_http_init_conf(&c->acc);   /* XrdAcc engine (off by default) */
+
+    /* WLCG bearer-token auth — off by default; str fields zeroed by pcalloc. */
+    c->token_enable     = NGX_CONF_UNSET;
+    c->token_clock_skew = NGX_CONF_UNSET;
 
     return c;
 }
@@ -108,6 +113,34 @@ ngx_http_s3_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_str_value(conf->access_key,       prev->access_key,       "");
     ngx_conf_merge_str_value(conf->secret_key,       prev->secret_key,       "");
     ngx_conf_merge_str_value(conf->region,           prev->region,           "us-east-1");
+
+    /* WLCG bearer-token auth merge */
+    ngx_conf_merge_value(conf->token_enable, prev->token_enable, 0);
+    ngx_conf_merge_str_value(conf->token_jwks,     prev->token_jwks,     "");
+    ngx_conf_merge_str_value(conf->token_issuer,   prev->token_issuer,   "");
+    ngx_conf_merge_str_value(conf->token_audience, prev->token_audience, "");
+    ngx_conf_merge_value(conf->token_clock_skew, prev->token_clock_skew, 60);
+
+    if (conf->token_enable && conf->token_jwks.len > 0) {
+        int key_rc;
+
+        key_rc = brix_jwks_load(cf->log,
+                                  (const char *) conf->token_jwks.data,
+                                  conf->jwks_keys, BRIX_MAX_JWKS_KEYS);
+        if (key_rc <= 0) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                               "brix_s3_token_jwks: no usable keys in \"%V\"",
+                               &conf->token_jwks);
+            return NGX_CONF_ERROR;
+        }
+        conf->jwks_key_count = key_rc;
+
+        if (brix_jwks_register_cleanup(cf->pool, conf->jwks_keys,
+                                         &conf->jwks_key_count) != NGX_OK)
+        {
+            return NGX_CONF_ERROR;
+        }
+    }
 
     if (conf->common.enable) {
         brix_export_root_opts_t root_opts;
@@ -453,6 +486,47 @@ static ngx_command_t ngx_http_s3_commands[] = {
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE3 | NGX_CONF_TAKE4,
       brix_pmark_set_map_activity,
       NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },
+
+    /* WLCG bearer-token authentication (off by default).
+     * brix_s3_token on — enable enforcing JWT mode; requires brix_s3_token_jwks.
+     * brix_s3_token_jwks — path to a JWKS JSON file with RSA/EC public keys.
+     * brix_s3_token_issuer — expected "iss" claim value.
+     * brix_s3_token_audience — expected "aud" claim value.
+     * brix_s3_token_clock_skew — grace period in seconds for exp/nbf (default 60). */
+    { ngx_string("brix_s3_token"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, token_enable),
+      NULL },
+
+    { ngx_string("brix_s3_token_jwks"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, token_jwks),
+      NULL },
+
+    { ngx_string("brix_s3_token_issuer"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, token_issuer),
+      NULL },
+
+    { ngx_string("brix_s3_token_audience"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, token_audience),
+      NULL },
+
+    { ngx_string("brix_s3_token_clock_skew"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_s3_loc_conf_t, token_clock_skew),
+      NULL },
 
     ngx_null_command
 };

@@ -210,6 +210,8 @@ start_all_dedicated() {
     start_dedicated_nginx "tpc-ssrf-deny-private" "nginx_tpc_ssrf_deny_private.conf" "${TPC_SSRF_DENY_PRIVATE_PORT:-11182}"
     start_dedicated_nginx "s3-presigned" "nginx_s3_presigned.conf" "${S3_PRESIGNED_PORT:-11183}"
     start_dedicated_nginx "s3-presigned-sts" "nginx_s3_presigned_sts.conf" "${S3_PRESIGNED_STS_PORT:-11184}"
+    # Enforcing WLCG bearer-token S3 port (brix_s3_token on, INVARIANT §6).
+    start_dedicated_nginx "s3-token" "nginx_s3_token.conf" "${NGINX_S3_TOKEN_PORT:-9002}"
     start_dedicated_nginx "security-level-standard" "nginx_security_level_standard.conf" "${SECURITY_LEVEL_STANDARD_PORT:-11191}"
     start_dedicated_nginx "security-level-pedantic" "nginx_security_level_pedantic.conf" "${SECURITY_LEVEL_PEDANTIC_PORT:-11192}"
 

@@ -1,4 +1,5 @@
 #include "s3.h"
+#include "auth_bearer.h"
 #include "s3_auth_internal.h"
 #include "core/compat/hex.h"
 #include "core/compat/crypto.h"
@@ -378,6 +379,49 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     time_t             request_time;
     int                parse_rc;
     int                key_ok;        /* W5: deferred access-key match flag */
+
+    /*
+     * WLCG bearer-token intercept (INVARIANT §6: SigV4 and Bearer are mutually
+     * exclusive per request — never blend the auth logic).
+     *
+     * When brix_s3_token is enabled, detect and validate Bearer tokens BEFORE
+     * the SigV4 / anonymous path.  A request that carries BOTH schemes is
+     * rejected immediately (400 InvalidRequest) — that is a client error, not
+     * an auth failure.  A request that carries only a Bearer token is validated
+     * and returns; the SigV4 path is not entered.  A request that carries
+     * neither, while token_enable is set, falls through to the SigV4 check
+     * (which will reject it as "Missing Authorization" if access_key is set,
+     * or as "AccessDenied: bearer token required" below if it is not).
+     */
+    if (cf->token_enable) {
+        ngx_str_t authz       = get_header(r, "authorization");
+        int       has_bearer  = s3_bearer_present(r);
+        int       has_sigv4   = (authz.len >= 4
+                                 && ngx_strncasecmp(authz.data,
+                                                    (u_char *) "AWS4", 4) == 0);
+
+        if (has_bearer && has_sigv4) {
+            s3_record_auth_result(BRIX_S3_AUTH_MALFORMED);
+            return s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST,
+                                     "InvalidRequest",
+                                     "both Bearer and SigV4 credentials present");
+        }
+
+        if (has_bearer) {
+            return s3_verify_bearer(r, cf, identity);
+        }
+
+        /* Enforcing token-only mode: no Bearer, no SigV4 — reject. */
+        if (!has_sigv4) {
+            s3_record_auth_result(BRIX_S3_AUTH_MISSING);
+            return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
+                                     "AccessDenied",
+                                     "bearer token required");
+        }
+
+        /* SigV4 credentials were presented: fall through to verify them if
+         * an access_key is configured, or to the anonymous path if not. */
+    }
 
     /* Anonymous mode */
     if (cf->access_key.len == 0) {

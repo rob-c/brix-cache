@@ -27,6 +27,7 @@ from settings import (
     NGINX_TOKEN_STRICT_PORT,
     NGINX_WEBDAV_PORT,
     NGINX_S3_PORT,
+    NGINX_S3_TOKEN_PORT,
     SERVER_HOST,
     TOKENS_DIR,
 )
@@ -336,26 +337,31 @@ def webdav_bearer(token, path="/test.txt", write=False, port=None):
         return "reject"
 
 
-def s3_bearer(token, key="test.txt", write=False):
-    """Probe NGINX_S3_PORT (9001) via HTTP with Authorization: Bearer.
+def s3_bearer(token, key="test.txt", write=False, port=None):
+    """Probe an S3 port via HTTP with Authorization: Bearer.
 
     WHAT: Issues GET (or PUT for write=True) and maps the HTTP status to a
           verdict string.
-    WHY:  S3 is non-enforcing until Task 10; the helper API is protocol-
-          consistent today and will honour enforcement once the dedicated port
-          is wired in.
+    WHY:  When port is not specified, targets NGINX_S3_PORT (9001, anon/SigV4
+          mode — non-enforcing).  To target the enforcing bearer-token port,
+          pass NGINX_S3_TOKEN_PORT (9002) as port.  This matches the WebDAV
+          helper's port-override API so conformance test bodies are uniform
+          across all three protocols.
     HOW:  Plain HTTP (no TLS) because the test S3 endpoint does not use TLS.
 
     Args:
         token: JWT string.
         key:   S3 object key (no leading slash).
         write: If True, issue PUT instead of GET.
+        port:  Target port (default: NGINX_S3_PORT=9001; use
+               NGINX_S3_TOKEN_PORT=9002 for the enforcing port).
 
     Returns:
         "accept", "reject", or "notfound".
     """
     ensure_conformance_data()
-    url = f"http://{SERVER_HOST}:{NGINX_S3_PORT}/{key}"
+    target = port if port is not None else NGINX_S3_PORT
+    url = f"http://{SERVER_HOST}:{target}/{key}"
     headers = {"Authorization": f"Bearer {token}"}
     try:
         if write:
