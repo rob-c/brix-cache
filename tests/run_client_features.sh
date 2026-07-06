@@ -631,6 +631,57 @@ EOF
     'echo "$OUT" | python3 -c "import sys,json; arr=json.load(sys.stdin); assert not arr or \"node\" in arr[0]"'
 }
 
+section_xrdfs_uring() {
+  echo "== xrdfs download/upload --io-uring (fleet) =="
+  if ! have_fleet; then
+    echo "  SKIP xrdfs uring tests (no fleet at $URL)"
+    return
+  fi
+
+  # Seed: upload a small file to the fleet with a known pattern.
+  local RFILE="${URL}//tmp/cfeat-uring-$$"
+  printf 'xrdfs-uring-test-data-1234567890\n' >"$WORK/uring_seed.dat"
+  "$BIN/xrdfs" "$URL" upload "$WORK/uring_seed.dat" /tmp/cfeat-uring-$$ 2>/dev/null
+
+  # --io-uring off: download must succeed and content must match the seed.
+  "$BIN/xrdfs" "$URL" download --io-uring off /tmp/cfeat-uring-$$ "$WORK/dl_off.dat" 2>/dev/null
+  check "download --io-uring off: exit 0"      '[ "$?" -eq 0 ]'
+  check "download --io-uring off: byte-exact"  'cmp -s "$WORK/uring_seed.dat" "$WORK/dl_off.dat"'
+
+  # --io-uring auto: download must succeed and be byte-identical to the off result.
+  "$BIN/xrdfs" "$URL" download --io-uring auto /tmp/cfeat-uring-$$ "$WORK/dl_auto.dat" 2>/dev/null
+  check "download --io-uring auto: exit 0"     '[ "$?" -eq 0 ]'
+  check "download --io-uring auto: byte-exact" 'cmp -s "$WORK/dl_off.dat" "$WORK/dl_auto.dat"'
+
+  # --io-uring bogus: treated as auto (falls through to XRDC_IO_URING_AUTO); must not
+  # crash and the download must still succeed.
+  "$BIN/xrdfs" "$URL" download --io-uring bogus /tmp/cfeat-uring-$$ "$WORK/dl_bogus.dat" 2>/dev/null
+  check "download --io-uring bogus: exit 0 (treated as auto)" '[ "$?" -eq 0 ]'
+
+  # --io-uring on: either succeeds (kernel has uring support) or exits non-zero with no
+  # partial/corrupt output file left at the final path (vfs_posix ON+unavailable contract).
+  rm -f "$WORK/dl_on.dat"
+  "$BIN/xrdfs" "$URL" download --io-uring on /tmp/cfeat-uring-$$ "$WORK/dl_on.dat" 2>/dev/null
+  local ON_RC=$?
+  if [ "$ON_RC" -eq 0 ]; then
+    check "download --io-uring on: success → byte-exact" 'cmp -s "$WORK/uring_seed.dat" "$WORK/dl_on.dat"'
+  else
+    # Clean failure: the final output path must not exist or be empty (no partial write).
+    check "download --io-uring on: clean fail → no partial output" \
+      '[ ! -s "$WORK/dl_on.dat" ]'
+  fi
+
+  # upload --io-uring off: must succeed and the round-trip content must match.
+  "$BIN/xrdfs" "$URL" upload --io-uring off "$WORK/uring_seed.dat" /tmp/cfeat-uring-up-$$ 2>/dev/null
+  check "upload --io-uring off: exit 0" '[ "$?" -eq 0 ]'
+  "$BIN/xrdfs" "$URL" download /tmp/cfeat-uring-up-$$ "$WORK/up_rt.dat" 2>/dev/null
+  check "upload --io-uring off: round-trip byte-exact" 'cmp -s "$WORK/uring_seed.dat" "$WORK/up_rt.dat"'
+
+  # Cleanup remote scratch files.
+  "$BIN/xrdfs" "$URL" rm /tmp/cfeat-uring-$$    2>/dev/null || true
+  "$BIN/xrdfs" "$URL" rm /tmp/cfeat-uring-up-$$ 2>/dev/null || true
+}
+
 main() {
   section_dryrun_filters
   section_sync_modes
@@ -643,6 +694,7 @@ main() {
   section_cat_compress
   section_cksum_tree
   section_diag_json
+  section_xrdfs_uring
   echo "client-features: $PASS pass, $FAIL fail"
   [ "$FAIL" -eq 0 ]
 }

@@ -837,9 +837,15 @@ do_dd(brix_conn *c, const char *cwd, int argc, char **argv)
 }
 
 
-/* upload [bs=BYTES] [rate=BYTES/s] [-f] <localfile|-> <remote-path> — write a local
- * file (or stdin "-") to a remote path, optionally rate-limited. Without -f the remote
- * must not already exist (kXR_new); -f truncates/overwrites. bs defaults to 1 MiB. */
+/* upload [bs=BYTES] [rate=BYTES/s] [-f] [--io-uring on|off|auto] <localfile|-> <remote>
+ * WHAT: write a local file (or stdin "-") to a remote path, optionally rate-limited.
+ * WHY:  named local sources are opened through the VFS (shared SD driver), so --io-uring
+ *       controls the kernel io_uring read path for the local source file; stdin is a raw
+ *       pipe and does not benefit from io_uring (the flag is accepted but silently ignored
+ *       for stdin to keep the interface uniform).
+ * HOW:  parse --io-uring before the vfs open; pass the mode in vopts so vfs_posix can
+ *       engage or suppress the uring ring accordingly.  Without -f the remote must not
+ *       already exist (kXR_new); -f truncates/overwrites.  bs defaults to 1 MiB. */
 int
 do_upload(brix_conn *c, const char *cwd, int argc, char **argv)
 {
@@ -849,8 +855,9 @@ do_upload(brix_conn *c, const char *cwd, int argc, char **argv)
     int64_t         bs = 1 << 20, off = 0;
     double          rate = 0.0;
     int             force = 0, i, rc = 0, is_stdin;
-    int             fd = -1;          /* stdin (raw fd 0) endpoint only */
-    brix_vfs_file  *svf = NULL;       /* local-file source through the VFS */
+    int             fd = -1;                        /* stdin (raw fd 0) endpoint only */
+    int             io_uring_mode = XRDC_IO_URING_AUTO;
+    brix_vfs_file  *svf = NULL;                     /* local-file source through the VFS */
     brix_rfile      f;
     uint8_t        *buf;
     struct timespec start;
@@ -867,22 +874,36 @@ do_upload(brix_conn *c, const char *cwd, int argc, char **argv)
             rate = (double) r;
         } else if (strcmp(argv[i], "-f") == 0) {
             force = 1;
+        } else if (strncmp(argv[i], "--io-uring=", 11) == 0) {
+            const char *m = argv[i] + 11;
+            io_uring_mode = (strcmp(m, "on")  == 0) ? XRDC_IO_URING_ON
+                          : (strcmp(m, "off") == 0) ? XRDC_IO_URING_OFF
+                                                    : XRDC_IO_URING_AUTO;
+        } else if (strcmp(argv[i], "--io-uring") == 0 && i + 1 < argc) {
+            const char *m = argv[++i];
+            io_uring_mode = (strcmp(m, "on")  == 0) ? XRDC_IO_URING_ON
+                          : (strcmp(m, "off") == 0) ? XRDC_IO_URING_OFF
+                                                    : XRDC_IO_URING_AUTO;
         } else if (local == NULL)  { local = argv[i]; }
         else if (remote == NULL)   { remote = argv[i]; }
     }
     if (local == NULL || remote == NULL) {
-        fprintf(stderr, "usage: upload [bs=N] [rate=R] [-f] <localfile|-> <remote>\n");
+        fprintf(stderr,
+                "usage: upload [bs=N] [rate=R] [-f] [--io-uring on|off|auto]"
+                " <localfile|-> <remote>\n");
         return 50;
     }
 
     /* stdin "-" is a pipe (raw fd 0); a named local file is opened through the
-     * VFS so its bytes route through the shared SD driver, read by offset. */
+     * VFS so its bytes route through the shared SD driver, read by offset.
+     * --io-uring is forwarded through vopts; for stdin it is parsed but unused
+     * because the raw-pipe path never calls brix_vfs_open. */
     is_stdin = (strcmp(local, "-") == 0);
     if (is_stdin) {
         fd = 0;
     } else {
         brix_vfs_open_opts vopts;
-        vopts.io_uring = 0; vopts.expected_size = -1; vopts.cred = NULL;
+        vopts.io_uring = io_uring_mode; vopts.expected_size = -1; vopts.cred = NULL;
         brix_status_clear(&st);
         if (brix_vfs_open(local, XRDC_VFS_READ, &vopts, &svf, &st) != 0) {
             fprintf(stderr, "xrdfs: upload: %s: %s\n", local, st.msg);
@@ -931,11 +952,15 @@ do_upload(brix_conn *c, const char *cwd, int argc, char **argv)
 }
 
 
-/* download [bs=BYTES] [rate=BYTES/s] [-f] <remote> [localfile|-] — read a remote file
- * to a local file (or stdout "-"), optionally rate-limited. The local destination
- * defaults to the remote basename in the current directory (like `get`). Without -f an
- * existing local file is not overwritten (O_EXCL). The rate-limit counterpart to
- * `upload`; for windowed/stdout reads use `dd`. */
+/* download [bs=BYTES] [rate=BYTES/s] [-f] [--io-uring on|off|auto] <remote> [localfile|-]
+ * WHAT: read a remote file to a local file (or stdout "-"), optionally rate-limited.
+ * WHY:  named local destinations are written through the VFS (shared SD driver), so
+ *       --io-uring controls the kernel io_uring write path for the local destination file;
+ *       stdout is a raw pipe and does not benefit from io_uring (flag accepted, ignored).
+ * HOW:  parse --io-uring before the vfs open; pass the mode in vopts.  The local
+ *       destination defaults to the remote basename in the current directory (like `get`).
+ *       Without -f an existing local file is not overwritten (O_EXCL).  The rate-limit
+ *       counterpart to `upload`; for windowed/stdout reads use `dd`. */
 int
 do_download(brix_conn *c, const char *cwd, int argc, char **argv)
 {
@@ -945,8 +970,9 @@ do_download(brix_conn *c, const char *cwd, int argc, char **argv)
     int64_t         bs = 1 << 20, off = 0;
     double          rate = 0.0;
     int             force = 0, i, rc = 0, is_stdout;
-    int             fd = -1;          /* stdout (raw fd 1) endpoint only */
-    brix_vfs_file  *dvf = NULL;       /* local-file destination through the VFS */
+    int             fd = -1;                        /* stdout (raw fd 1) endpoint only */
+    int             io_uring_mode = XRDC_IO_URING_AUTO;
+    brix_vfs_file  *dvf = NULL;                     /* local-file destination through the VFS */
     brix_rfile      f;
     uint8_t        *buf;
     struct timespec start;
@@ -963,11 +989,23 @@ do_download(brix_conn *c, const char *cwd, int argc, char **argv)
             rate = (double) r;
         } else if (strcmp(argv[i], "-f") == 0) {
             force = 1;
+        } else if (strncmp(argv[i], "--io-uring=", 11) == 0) {
+            const char *m = argv[i] + 11;
+            io_uring_mode = (strcmp(m, "on")  == 0) ? XRDC_IO_URING_ON
+                          : (strcmp(m, "off") == 0) ? XRDC_IO_URING_OFF
+                                                    : XRDC_IO_URING_AUTO;
+        } else if (strcmp(argv[i], "--io-uring") == 0 && i + 1 < argc) {
+            const char *m = argv[++i];
+            io_uring_mode = (strcmp(m, "on")  == 0) ? XRDC_IO_URING_ON
+                          : (strcmp(m, "off") == 0) ? XRDC_IO_URING_OFF
+                                                    : XRDC_IO_URING_AUTO;
         } else if (remote == NULL) { remote = argv[i]; }
         else if (local == NULL)    { local = argv[i]; }
     }
     if (remote == NULL) {
-        fprintf(stderr, "usage: download [bs=N] [rate=R] [-f] <remote> [localfile|-]\n");
+        fprintf(stderr,
+                "usage: download [bs=N] [rate=R] [-f] [--io-uring on|off|auto]"
+                " <remote> [localfile|-]\n");
         return 50;
     }
     build_path(cwd, remote, rpath, sizeof(rpath));
@@ -984,13 +1022,15 @@ do_download(brix_conn *c, const char *cwd, int argc, char **argv)
 
     /* stdout "-" is a pipe (raw fd 1); a named local file is written through the
      * VFS — atomic temp+rename commit, FORCE (-f) overwrites, else the existing
-     * destination is refused (the same no-overwrite guard as the old O_EXCL). */
+     * destination is refused (the same no-overwrite guard as the old O_EXCL).
+     * --io-uring is forwarded through vopts; for stdout it is parsed but unused
+     * because the raw-pipe path never calls brix_vfs_open. */
     is_stdout = (strcmp(local, "-") == 0);
     if (is_stdout) {
         fd = 1;
     } else {
         brix_vfs_open_opts vopts;
-        vopts.io_uring = 0; vopts.expected_size = -1; vopts.cred = NULL;
+        vopts.io_uring = io_uring_mode; vopts.expected_size = -1; vopts.cred = NULL;
         brix_status_clear(&st);
         if (brix_vfs_open(local, XRDC_VFS_WRITE | (force ? XRDC_VFS_FORCE : 0),
                           &vopts, &dvf, &st) != 0) {
