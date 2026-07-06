@@ -37,6 +37,8 @@ The most-used directives on one page. Start here when you know what you want to 
 | `brix_trusted_ca <path>` | `server` | — | If `auth gsi` or `auth both` |
 | `brix_crl <path>` | `server` | — | No |
 | `brix_crl_reload <seconds>` | `server` | `0` | No |
+| `brix_signing_policy on\|off\|require` | `server` | `on` | No — enforce `<hash>.signing_policy` namespace ([WLCG CA conformance](../09-developer-guide/wlcg-ca-conformance.md)) |
+| `brix_crl_mode off\|try\|require` | `server` | `try` | No — CRL strictness; `require` restores "CRL required for all CAs" |
 | `brix_vomsdir <path>` | `server` | — | If `require_vo` |
 | `brix_voms_cert_dir <path>` | `server` | — | If `require_vo` |
 | `brix_require_vo <path> <vo>` | `server` | — | No |
@@ -92,6 +94,8 @@ The WebDAV module (`ngx_http_brix_webdav_module`) handles `davs://` clients in n
 | `brix_webdav_cadir <path>` | `location` | — | Hashed CA directory |
 | `brix_webdav_cafile <path>` | `location` | — | Single CA PEM file |
 | `brix_webdav_crl <path>` | `location` | — | PEM CRL file for proxy-cert revocation checks |
+| `brix_webdav_signing_policy on\|off\|require` | `location` | `on` | Enforce `<hash>.signing_policy` namespace ([WLCG CA conformance](../09-developer-guide/wlcg-ca-conformance.md)) |
+| `brix_webdav_crl_mode off\|try\|require` | `location` | `try` | CRL strictness |
 | `brix_allow_write on\|off` | `location` | `off` | Enable PUT/DELETE/MKCOL and TPC COPY writes |
 | `brix_webdav_tpc on\|off` | `location` | `off` | Enable HTTP-TPC COPY pull support |
 | `brix_webdav_tpc_curl <path>` | `location` | `/usr/bin/curl` | External curl helper for TPC pulls |
