@@ -60,21 +60,39 @@ cmd_suggest_no_match(void)
 static void
 cmd_double_slash(void)
 {
-    brix_url url;
+    /*
+     * Positive case: single_slash_path=1 + kXR_NotFound → hint fires.
+     * WHY:  verifies both the status gate (not-found class) and the URL bit
+     *       together, matching the production path in brix_hint_url_double_slash.
+     */
+    brix_url    url;
+    brix_status st;
     memset(&url, 0, sizeof(url));
-    url.scheme           = XRDC_SCHEME_ROOT;
-    url.single_slash_path = 1;   /* simulate single-slash URL */
-    brix_hint_url_double_slash(&url);
+    memset(&st,  0, sizeof(st));
+    url.scheme            = XRDC_SCHEME_ROOT;
+    url.single_slash_path = 1;    /* simulate single-slash URL */
+    st.kxr                = kXR_NotFound;
+    brix_hint_url_double_slash(&st, &url);
 }
 
 static void
 cmd_double_slash_off(void)
 {
-    brix_url url;
+    /*
+     * Negative case: single_slash_path=1 but auth-class status → hint must NOT fire.
+     * WHY:  spec WS-3 gates on not-found class; an auth failure on a single-slash URL
+     *       is NOT caused by the missing slash, so hinting there would mislead.
+     *       Testing kXR_NotAuthorized with the bit set verifies the status gate is
+     *       the active guard here (not the bit).
+     */
+    brix_url    url;
+    brix_status st;
     memset(&url, 0, sizeof(url));
+    memset(&st,  0, sizeof(st));
     url.scheme            = XRDC_SCHEME_ROOT;
-    url.single_slash_path = 0;   /* double-slash URL: bit clear */
-    brix_hint_url_double_slash(&url);
+    url.single_slash_path = 1;    /* bit set — but auth class must suppress hint */
+    st.kxr                = kXR_NotAuthorized;
+    brix_hint_url_double_slash(&st, &url);
 }
 
 static void

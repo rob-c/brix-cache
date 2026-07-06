@@ -7,6 +7,7 @@
 
 #include "brix.h"
 #include "cli/jsonout.h"
+#include "cli/cli_hint.h"   /* brix_hint_url_double_slash, brix_cred_hint_for_status_url */
 #include "core/compat/crypto.h"
 #include <ctype.h>
 #include <errno.h>
@@ -22,6 +23,40 @@
 #include <unistd.h>    
 #define XRDFS_MAXTOK 64
 
+/*
+ * WHAT: emit credential + WS-3 double-slash hints at xrdfs root:// error sites.
+ * WHY:  consolidates the three-step hint sequence (cred hint + doctor referral +
+ *       double-slash) into one call so every root:// op error site is covered
+ *       without repeating the URL construction logic.  Replaces every standalone
+ *       brix_cred_hint_for_status(&st, ..., stderr) call in the xrdfs handlers.
+ * HOW:  constructs a host[:port] endpoint string from c->host/c->port for the
+ *       doctor-referral hint (WS-7); builds a minimal brix_url snapshot carrying
+ *       c->single_slash_path for the double-slash hint (WS-3).  Both hints are
+ *       TTY-gated and fire at most once per process (brix_cli_hint_once).
+ */
+static inline void
+xrdfs_op_hints(const brix_status *st, int want_write, const brix_conn *c)
+{
+    char     epbuf[300];   /* host(256) + ':' + port digits + NUL */
+    brix_url snap;
+
+    /* Build a host:port endpoint string for the doctor-referral hint (WS-7). */
+    if (c->port > 0) {
+        snprintf(epbuf, sizeof(epbuf), "%s:%d", c->host, c->port);
+    } else {
+        snprintf(epbuf, sizeof(epbuf), "%s", c->host);
+    }
+    brix_cred_hint_for_status_url(st, want_write, stderr, epbuf);
+
+    /* Build a minimal URL snapshot for the double-slash hint (WS-3). */
+    memset(&snap, 0, sizeof(snap));
+    snap.scheme            = XRDC_SCHEME_ROOT;
+    snprintf(snap.host, sizeof(snap.host), "%s", c->host);
+    snap.port              = c->port;
+    snap.single_slash_path = c->single_slash_path;
+    brix_hint_url_double_slash(st, &snap);
+}
+
 typedef struct {
     const brix_weburl *u;
     const char        *base;     /* URL path component, trailing '/' trimmed */
@@ -29,6 +64,19 @@ typedef struct {
     int                verify;   /* verify the TLS server chain (https/davs) */
     const char        *ca_dir;   /* CA hash dir for verification (or NULL) */
 } web_ctx;
+
+/*
+ * WHAT: emit credential + doctor-referral hints at xrdfs WebDAV error sites.
+ * WHY:  WebDAV endpoints carry the hostname in web_ctx->u->host; WS-3 double-slash
+ *       hint is N/A for WebDAV (no double-slash path convention).
+ * HOW:  passes w->u->host as the doctor-referral endpoint (WS-7).
+ */
+static inline void
+xrdfs_web_hints(const brix_status *st, int want_write, const web_ctx *w)
+{
+    brix_cred_hint_for_status_url(st, want_write, stderr, w->u->host);
+    /* double-slash hint not applicable to WebDAV endpoints */
+}
 
 extern volatile sig_atomic_t tail_stop;
 #define XRDFS_DD_MAXBS (256LL << 20)   /* cap a single block buffer at 256 MiB */

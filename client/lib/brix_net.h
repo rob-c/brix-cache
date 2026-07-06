@@ -124,6 +124,11 @@ typedef struct {
      * target can fall back to the manager for a fresh server selection. */
     char      home_host[256];
     int       home_port;
+    /* WS-3: set when the connection URL had a single '/' between authority and
+     * path (root://host/path rather than root://host//path).  Propagated from
+     * brix_url.single_slash_path at connect time so per-op error reporters can
+     * fire the double-slash hint via brix_hint_url_double_slash. */
+    unsigned  single_slash_path : 1;
 
     /* --- diagnostics (§15) --- */
     brix_diag diag;              /* wire-trace / timing state (off unless armed) */

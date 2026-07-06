@@ -7,6 +7,7 @@
 
 #include "brix.h"
 #include "cli/xferjournal.h"
+#include "cli/cli_hint.h"   /* brix_hint_url_double_slash, brix_cred_hint_for_status_url */
 #include "core/compat/crypto.h"
 #include <dirent.h>
 #include <errno.h>

@@ -661,8 +661,17 @@ main(int argc, char **argv)
                 } else if (copy_one_with_retry(exp[i], dst, &opts, &conn, retries, &st) != 0) {
                     bad++;
                     fprintf(stderr, "xrdcp: %s: %s\n", exp[i], st.msg);
-                    brix_cred_hint_for_status(&st, is_root_url(dst)
-                                              || brix_is_web_url(dst), stderr);
+                    brix_cred_hint_for_status_url(&st, is_root_url(dst)
+                                                  || brix_is_web_url(dst),
+                                                  stderr, exp[i]);   /* WS-7 */
+                    {   /* WS-3: double-slash hint on single-slash root:// source */
+                        brix_url    u_src;
+                        brix_status ps;
+                        brix_status_clear(&ps);
+                        if (brix_url_parse(exp[i], &u_src, &ps) == 0) {
+                            brix_hint_url_double_slash(&st, &u_src);
+                        }
+                    }
                 }
             }
             brix_cred_store_free(cred_store);
@@ -732,8 +741,17 @@ main(int argc, char **argv)
             fprintf(stderr, "xrdcp: %s up-to-date, skipped\n", dst);
         } else if (one < 0 && !opts.silent) {
             fprintf(stderr, "xrdcp: %s\n", st.msg);
-            brix_cred_hint_for_status(&st, is_root_url(dst)
-                                      || brix_is_web_url(dst), stderr);
+            brix_cred_hint_for_status_url(&st, is_root_url(dst)
+                                          || brix_is_web_url(dst),
+                                          stderr, exp[0]);   /* WS-7 */
+            {   /* WS-3: double-slash hint on single-slash root:// source */
+                brix_url    u_src;
+                brix_status ps;
+                brix_status_clear(&ps);
+                if (brix_url_parse(exp[0], &u_src, &ps) == 0) {
+                    brix_hint_url_double_slash(&st, &u_src);
+                }
+            }
         }
         rc = (one >= 0) ? 0 : brix_shellcode(&st);
     } else {
@@ -786,8 +804,17 @@ main(int argc, char **argv)
                 } else {
                     fail++;
                     fprintf(stderr, "xrdcp: %s: %s\n", exp[i], st.msg);
-                    brix_cred_hint_for_status(&st, is_root_url(dst)
-                                              || brix_is_web_url(dst), stderr);
+                    brix_cred_hint_for_status_url(&st, is_root_url(dst)
+                                                  || brix_is_web_url(dst),
+                                                  stderr, exp[i]);   /* WS-7 */
+                    {   /* WS-3: double-slash hint on single-slash root:// source */
+                        brix_url    u_src;
+                        brix_status ps;
+                        brix_status_clear(&ps);
+                        if (brix_url_parse(exp[i], &u_src, &ps) == 0) {
+                            brix_hint_url_double_slash(&st, &u_src);
+                        }
+                    }
                 }
             }
         }
