@@ -733,19 +733,6 @@ main(int argc, char **argv)
             }
         }
     }
-    /* Open the completion journal when requested.  Journal writes are serialized
-     * internally so both the sequential and parallel batch paths share one handle. */
-    if (journal_path != NULL) {
-        brix_status_clear(&st);
-        jrn = brix_journal_open(journal_path, &st);
-        if (jrn == NULL) {
-            fprintf(stderr, "xrdcp: %s\n", st.msg);
-            brix_cred_store_free(cred_store);
-            str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
-            str_free(excl, nexcl); str_free(incl, nincl);
-            return 51;
-        }
-    }
     if (nexp == 1 && from == NULL) {
         /* Classic single copy — dst may be a file, directory, or '-'. */
         char       label[XRDC_NAME_MAX];
@@ -787,11 +774,27 @@ main(int argc, char **argv)
         if (dest_is_dir(dst, &conn) != 1) {
             fprintf(stderr, "xrdcp: destination must be an existing directory for "
                             "multi-source copy: %s\n", dst);
-            brix_journal_close(jrn);
+            brix_journal_close(jrn);   /* jrn is NULL here; close is a no-op */
             brix_cred_store_free(cred_store);
             str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
             str_free(excl, nexcl); str_free(incl, nincl);
             return 50;
+        }
+        /* Open the completion journal for the batch path only.  A journal on a
+         * single-file copy is meaningless (no resumable item list), and a
+         * dry-run completes nothing so opening the file would create an empty
+         * journal and mislead subsequent runs.  Journal writes are serialized
+         * internally so both the sequential and parallel paths share one handle. */
+        if (journal_path != NULL && !opts.dry_run) {
+            brix_status_clear(&st);
+            jrn = brix_journal_open(journal_path, &st);
+            if (jrn == NULL) {
+                fprintf(stderr, "xrdcp: %s\n", st.msg);
+                brix_cred_store_free(cred_store);
+                str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
+                str_free(excl, nexcl); str_free(incl, nincl);
+                return 51;
+            }
         }
         if (jobs > (int) nexp) { jobs = (int) nexp; }
         if (jobs > 1) {

@@ -183,9 +183,21 @@ mirror_delete_local(const char *lpath, const brix_dirent *ents, size_t nents,
         }
         if (o->dry_run) {
             printf("[dry-run] delete %s\n", lchild);
-        } else if (local_rmtree(lchild) != 0) {
-            fprintf(stderr, "xrdcp: --delete: cannot remove %s: %s\n",
-                    lchild, strerror(errno));
+        } else {
+            /* lstat first: for regular files (and symlinks) use unlink directly
+             * rather than the full recursive rmtree; local_rmtree is only
+             * needed for directories.  lstat avoids following a symlink that
+             * might point outside the tree. */
+            struct stat csb;
+            if (lstat(lchild, &csb) == 0 && S_ISDIR(csb.st_mode)) {
+                if (local_rmtree(lchild) != 0) {
+                    fprintf(stderr, "xrdcp: --delete: cannot remove %s: %s\n",
+                            lchild, strerror(errno));
+                }
+            } else if (unlink(lchild) != 0) {
+                fprintf(stderr, "xrdcp: --delete: cannot remove %s: %s\n",
+                        lchild, strerror(errno));
+            }
         }
     }
     closedir(d);
@@ -302,7 +314,9 @@ mirror_delete_remote(brix_conn *c, const char *rpath, const char *lpath,
  *       both the full relative path and its basename, so pattern semantics are
  *       consistent at any depth.
  * HOW:  skip mkdir in dry-run mode; build relc for each entry; apply filter
- *       then dry-run guard before calling copy_one_r2l; recurse with relc. */
+ *       then sync-skip then dry-run guard before calling copy_one_r2l; recurse
+ *       with relc.  The sync-skip runs before the dry-run print so that
+ *       `-r --sync --dry-run` only lists files that would actually be copied. */
 int
 copy_tree_download(brix_conn *c, const char *rpath, const char *lpath,
                    const char *rel, const brix_copy_opts *o, brix_status *st)
@@ -366,15 +380,13 @@ copy_tree_download(brix_conn *c, const char *rpath, const char *lpath,
             if (!brix_copy_filter_match(o, relc)) {
                 continue;
             }
-            if (o->dry_run) {
-                printf("[dry-run] copy %s -> %s\n", rc, lc);
-                continue;
-            }
             /* --sync: skip an up-to-date destination.  Only when the remote
              * side has trustworthy dirlist stat data (no kXR_other — a
              * symlink's listed size is the link-target-path length, not the
              * served bytes) AND the local side stats as a regular file; any
-             * undeterminable side falls through to the copy (data-loss rule). */
+             * undeterminable side falls through to the copy (data-loss rule).
+             * Runs before the dry-run print so -r --sync --dry-run only lists
+             * files that would actually be transferred. */
             if (o->sync && ents[i].have_stat && !(ents[i].st.flags & kXR_other)) {
                 struct stat sb;
                 if (stat(lc, &sb) == 0 && S_ISREG(sb.st_mode)
@@ -387,6 +399,10 @@ copy_tree_download(brix_conn *c, const char *rpath, const char *lpath,
                         || sync_cksum_match(c, rc, lc, o))) {
                     continue;   /* up-to-date — skip */
                 }
+            }
+            if (o->dry_run) {
+                printf("[dry-run] copy %s -> %s\n", rc, lc);
+                continue;
             }
             if (copy_one_r2l(c, rc, lc, expected, st) != 0) {
                 free(ents);
@@ -418,7 +434,9 @@ copy_tree_download(brix_conn *c, const char *rpath, const char *lpath,
  * WHY:  same rel-threading rationale as copy_tree_download — filter patterns
  *       must see the full relative path so they behave consistently at depth.
  * HOW:  skip brix_mkdir in dry-run mode; build relc from de->d_name; apply
- *       filter then dry-run guard before copy_one_l2r; recurse with relc. */
+ *       filter then sync-skip then dry-run guard before copy_one_l2r; recurse
+ *       with relc.  Sync runs before dry-run so -r --sync --dry-run only lists
+ *       files that would actually be transferred. */
 int
 copy_tree_upload(brix_conn *c, const char *lpath, const char *rpath,
                  const char *rel, const brix_copy_opts *o, brix_status *st)
@@ -483,13 +501,11 @@ copy_tree_upload(brix_conn *c, const char *lpath, const char *rpath,
             if (!brix_copy_filter_match(o, relc)) {
                 continue;
             }
-            if (o->dry_run) {
-                printf("[dry-run] copy %s -> %s\n", lc, rc);
-                continue;
-            }
             /* --sync: skip an up-to-date remote destination.  A failed remote
              * stat (missing file, error) or a directory in the way falls
-             * through to the copy — never skip on an undeterminable compare. */
+             * through to the copy — never skip on an undeterminable compare.
+             * Runs before the dry-run print so -r --sync --dry-run only lists
+             * files that would actually be transferred. */
             if (o->sync) {
                 brix_statinfo si;
                 brix_status   sst;
@@ -504,6 +520,10 @@ copy_tree_upload(brix_conn *c, const char *lpath, const char *rpath,
                         || sync_cksum_match(c, rc, lc, o))) {
                     continue;   /* up-to-date — skip */
                 }
+            }
+            if (o->dry_run) {
+                printf("[dry-run] copy %s -> %s\n", lc, rc);
+                continue;
             }
             if (copy_one_l2r(c, lc, rc, o, st) != 0) {
                 closedir(d);
