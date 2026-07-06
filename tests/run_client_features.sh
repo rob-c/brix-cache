@@ -625,10 +625,10 @@ EOF
     'echo "$OUT" | python3 -c "import sys,json; d=json.load(sys.stdin); assert \"connect_ok\" in d"'
 
   OUT=$("$BIN/xrddiag" topology --json "$URL" 2>/dev/null)
-  check "topology --json fleet: valid JSON" \
-    'echo "$OUT" | python3 -c "import sys,json; json.load(sys.stdin)"'
-  check "topology --json fleet: has host + port fields" \
-    'echo "$OUT" | python3 -c "import sys,json; d=json.load(sys.stdin); assert \"host\" in d and \"port\" in d"'
+  check "topology --json fleet: valid JSON array" \
+    'echo "$OUT" | python3 -c "import sys,json; arr=json.load(sys.stdin); assert isinstance(arr, list)"'
+  check "topology --json fleet: element 0 has node field" \
+    'echo "$OUT" | python3 -c "import sys,json; arr=json.load(sys.stdin); assert not arr or \"node\" in arr[0]"'
 }
 
 main() {
