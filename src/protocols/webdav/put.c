@@ -335,7 +335,7 @@ webdav_put_ranged_resume(ngx_http_request_t *r,
                                              r->connection->log);
         }
         crc = brix_commit_staged(staged.fd, staged.tmp_path, path,
-                                   r->connection->log);
+                                   staged.final_mode, r->connection->log);
         if (staged.fd != NGX_INVALID_FILE) {
             ngx_close_file(staged.fd);
             staged.fd = NGX_INVALID_FILE;

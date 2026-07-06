@@ -29,6 +29,9 @@ typedef struct {
     ngx_fd_t   fd;
     ngx_flag_t active;
     char       tmp_path[PATH_MAX];
+    mode_t     final_mode;   /* intended mode to publish at commit; the temp is
+                              * kept 0600 during the write so a peer mapped uid
+                              * cannot read an in-progress upload. */
 } brix_staged_file_t;
 
 /* brix_staged_open() — See staged_file.c for WHAT/WHY/HOW. */
@@ -45,9 +48,12 @@ ngx_int_t brix_staged_open_resume(ngx_log_t *log, const char *root_canon,
 /* brix_commit_staged() — atomically publish a staged file onto its final path,
  * across filesystems (rename fast-path; copy+rename on EXDEV for a fast-cache
  * stage dir on a different device than the storage).  fd = open staged fd (for
- * the durability fsync) or NGX_INVALID_FILE.  See staged_file.c. */
+ * the durability fsync) or NGX_INVALID_FILE.  final_mode = the mode to publish
+ * on the committed object (the temp is written 0600); pass 0 to leave the temp's
+ * current mode untouched (callers whose temp already carries the intended mode).
+ * See staged_file.c. */
 ngx_int_t brix_commit_staged(ngx_fd_t fd, const char *stage_path,
-    const char *final_path, ngx_log_t *log);
+    const char *final_path, mode_t final_mode, ngx_log_t *log);
 /* --- upload stage-out tracking (durable pending-commit markers + reaper) --- */
 
 /* Register a (canonicalized) stage dir so the reaper sweeps it.  Called at config

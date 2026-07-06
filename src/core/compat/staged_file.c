@@ -72,6 +72,10 @@ brix_staged_open(ngx_log_t *log, const char *root_canon,
 
     ngx_memzero(staged, sizeof(*staged));
     staged->fd = NGX_INVALID_FILE;
+    /* SECURITY: the temp is created PRIVATE (0600) so another mapped uid on a
+     * shared filesystem cannot read an in-progress upload; the caller's intended
+     * final mode is restored at commit (staged_commit_internal). */
+    staged->final_mode = mode;
 
     if (attempts == 0) {
         attempts = 16;
@@ -101,7 +105,7 @@ brix_staged_open(ngx_log_t *log, const char *root_canon,
         }
 
         staged->fd = brix_open_beneath(rootfd, rel,
-                                         open_flags | O_CREAT | O_EXCL, mode);
+                                         open_flags | O_CREAT | O_EXCL, 0600);
         if (staged->fd != NGX_INVALID_FILE) {
             staged->active = 1;
             close(rootfd);
@@ -151,6 +155,10 @@ brix_staged_open_resume(ngx_log_t *log, const char *root_canon,
     }
     ngx_memzero(staged, sizeof(*staged));
     staged->fd = NGX_INVALID_FILE;
+    /* SECURITY: the resume partial is created PRIVATE (0600) and stays private
+     * across requests/restarts (it persists between range chunks); the intended
+     * final mode is restored at commit. */
+    staged->final_mode = mode;
     if (cur_size != NULL) {
         *cur_size = 0;
     }
@@ -168,7 +176,7 @@ brix_staged_open_resume(ngx_log_t *log, const char *root_canon,
          * basename is a server-generated hash inside the operator-trusted stage
          * dir, so a direct O_NOFOLLOW open is safe; commit moves it to storage. */
         fd = open(staged->tmp_path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC,
-                  mode);
+                  0600);
         if (fd == NGX_INVALID_FILE) {
             return NGX_ERROR;
         }
@@ -184,7 +192,7 @@ brix_staged_open_resume(ngx_log_t *log, const char *root_canon,
             return NGX_ERROR;
         }
         /* O_CREAT but NOT O_EXCL / O_TRUNC: create-or-resume, preserving bytes. */
-        fd = brix_open_beneath(rootfd, rel, O_RDWR | O_CREAT, mode);
+        fd = brix_open_beneath(rootfd, rel, O_RDWR | O_CREAT, 0600);
         close(rootfd);
         if (fd == NGX_INVALID_FILE) {
             return NGX_ERROR;
@@ -358,7 +366,7 @@ commit_staged_to_backend(ngx_fd_t fd, const char *stage_path,
  */
 ngx_int_t
 brix_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path,
-                     ngx_log_t *log)
+                     mode_t final_mode, ngx_log_t *log)
 {
     char         tmp[PATH_MAX];
     int          rfd, dfd, e;
@@ -369,6 +377,16 @@ brix_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path,
         brix_sd_posix_wrap(&sobj, fd);   /* durability flush via the backend */
         if (sobj.driver->fsync(&sobj) != NGX_OK) {
             return NGX_ERROR;   /* not durable — do not publish */
+        }
+        /* SECURITY: publish the caller's intended mode on the still-open fd
+         * before any commit path reads it. The temp may have been written 0600
+         * (private); each downstream path — driver upload (fstats stage_path),
+         * same-FS rename (preserves the fd mode), cross-device copy (fstat at
+         * :411) — then derives the final object's mode from this. final_mode==0
+         * means "leave the temp's current mode as-is" (e.g. root:// POSC temps,
+         * which already carry the client's create mode). */
+        if (final_mode != 0) {
+            (void) fchmod(fd, final_mode);
         }
     }
 
@@ -582,7 +600,9 @@ brix_stage_reap_dir(const char *stage_dir, ngx_log_t *log)
             (void) unlink(marker);
             continue;
         }
-        if (brix_commit_staged(NGX_INVALID_FILE, partial, final, log)
+        /* Crash-recovery: no open fd, so final_mode is unused (fchmod is
+         * fd-guarded); the recovered partial keeps its on-disk mode. */
+        if (brix_commit_staged(NGX_INVALID_FILE, partial, final, 0, log)
             == NGX_OK)
         {
             (void) unlink(marker);
@@ -684,6 +704,12 @@ staged_commit_internal(ngx_log_t *log, const char *root_canon,
             errno = e;
             return NGX_ERROR;
         }
+        /* SECURITY: restore the caller's intended mode on the OPEN fd just before
+         * the rename publishes it. The temp was written 0600 (private); rename
+         * preserves the fd's mode, so the committed namespace object carries its
+         * client-intended bits (e.g. 0644) with no world-readable in-flight
+         * window. */
+        (void) fchmod(staged->fd, staged->final_mode);
         ngx_close_file(staged->fd);
         staged->fd = NGX_INVALID_FILE;
     }
