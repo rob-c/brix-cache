@@ -202,7 +202,7 @@
   "noarg:xrdsssadmin": {
     "exit": 2,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "74e43ec7b762229c0dd7b0a87caeb51cb38a6d0b0219865aabaa0491c2ace2fc"
+    "stderr_sha": "99c6cedba61acf8031c75e7dfc749989e675a3b05f486830b8611b18badccf72"
   },
   "noarg:xrdstorascan": {
     "exit": 64,

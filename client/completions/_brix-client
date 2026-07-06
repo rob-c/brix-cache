@@ -1,4 +1,4 @@
-#compdef xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin brixMount xrdstorascan xrdcrc32c xrdcrc64 xrdadler32 xrdckverify xrdcinfo
+#compdef xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin brixMount xrdstorascan xrdcrc32c xrdcrc64 xrdadler32 xrdckverify xrdcinfo xrootdfs
 
 # _brix-client — zsh completion for the brix client CLI suite.
 #
@@ -27,6 +27,7 @@ _brix-client() {
     (xrdsssadmin)                        _brix_xrdsssadmin ;;
     (brixMount)                          _brix_brixMount ;;
     (xrdstorascan)                       _brix_xrdstorascan ;;
+    (xrootdfs)                           _brix_xrootdfs ;;
     esac
 }
 
@@ -586,6 +587,40 @@ _brix_xrdstorascan() {
     (*)
         _arguments "${_common_opts[@]}" ': :' ;;
     esac
+}
+
+# ---------------------------------------------------------------------------
+# xrootdfs
+# ---------------------------------------------------------------------------
+_brix_xrootdfs() {
+    _arguments \
+        '--token=[bearer token for http(s) endpoints (or $BEARER_TOKEN)]:token' \
+        '--tls[require in-protocol TLS]' \
+        '--notlsok[permit cleartext]' \
+        '--noverifyhost[skip TLS server-cert check (self-signed beds)]' \
+        '--auth=[authentication protocol]:proto:(gsi ztn unix)' \
+        '--max-conns=[metadata connection pool size (default 8)]:n' \
+        '--version[print version and exit]' \
+        '--streams=[async data connections (default 4)]:n' \
+        '--lazy-streams[open 1 stream at mount, the rest on first I/O]' \
+        '--max-stall=[reconnect patience for a dropped link in ms]:ms' \
+        '--keepalive=[heartbeat after this idle time in ms]:ms' \
+        '--max-retries=[transient-error retries (default 5)]:n' \
+        '--connect-timeout=[cap on connect+handshake+login in ms]:ms' \
+        '--io-timeout=[steady-state read/write cap in ms]:ms' \
+        '--attr-timeout=[attribute cache timeout in seconds]:s' \
+        '--entry-timeout=[directory entry cache timeout in seconds]:s' \
+        '--kernel-cache[enable kernel page cache]' \
+        '--compress=[inline read compression codec]:codec:(gzip deflate zstd br xz bzip2)' \
+        '--readahead=[per-handle read-ahead bytes (default 1048576)]:n' \
+        '--writeback=[per-handle write-back bytes (default 1048576)]:n' \
+        '--xattr[enable extended attributes (kXR_fattr)]' \
+        '-f[run in foreground]' \
+        '-d[debug mode]' \
+        '-s[single-threaded FUSE loop]' \
+        '-o+[FUSE option (e.g. ro, allow_other)]:opt' \
+        ': :' \
+        '*: :_files -/'
 }
 
 _brix-client "$@"

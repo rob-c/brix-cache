@@ -28,13 +28,14 @@ Each keytab entry contains a random shared secret plus metadata (user, group, na
 lifetime) that the server uses to authorise connections presenting that key.
 .PP
 The \fB\-k\fR/\fB\-\-keytab\fR option selects the keytab file; the default is
-\fB$XrdSecSSSKT\fR, then \fB$XrdSecsssKT\fR, then \fI~/.xrd/sss.keytab\fR.
+\fB$XRDC_SSS_KEYTAB\fR, then \fB$XrdSecSSSKT\fR, then \fB$XrdSecsssKT\fR, then
+\fI~/.xrd/sss.keytab\fR.
 .SH OPTIONS
 .TP
 .BR \-k ", " \-\-keytab " \fIKEYTAB\fR"
 Path to the SSS keytab file.
-Defaults to \fB$XrdSecSSSKT\fR, then \fB$XrdSecsssKT\fR, then
-\fI~/.xrd/sss.keytab\fR.
+Defaults to \fB$XRDC_SSS_KEYTAB\fR, then \fB$XrdSecSSSKT\fR, then
+\fB$XrdSecsssKT\fR, then \fI~/.xrd/sss.keytab\fR.
 .SH COMMANDS
 .TP
 .B add
@@ -80,11 +81,14 @@ xrdsssadmin -k /etc/xrd/sss.keytab del --id 3
 .fi
 .SH ENVIRONMENT
 .TP
+.B XRDC_SSS_KEYTAB
+Default keytab path (checked first; brix\-native variable).
+.TP
 .B XrdSecSSSKT
-Default keytab path (checked first).
+Default keytab path (checked second).
 .TP
 .B XrdSecsssKT
-Default keytab path (checked second).
+Default keytab path (checked third).
 .TP
 .B XRDRC
 Path to configuration file (default \fI~/.xrdrc\fR).

@@ -358,7 +358,7 @@ main(int argc, char **argv)
     const char    *from = NULL, *dst = NULL, *oidc_account = NULL;
     const char    *proxy = NULL;          /* --proxy: explicit X.509 proxy path override */
     const char    *journal_path = NULL;   /* --journal <path> or derived from --resume */
-    int            retries = 0, jobs = 1, sync_mode = 0, force_progress = 0, verify = 0, rc = 0, oom = 0;
+    int            retries = 0, jobs = 1, sync_mode = 0, force_progress = 0, no_progress = 0, verify = 0, rc = 0, oom = 0;
     int            auto_refresh = 0;   /* Phase 40 (b): --auto-refresh */
     int            resume = 0;         /* --resume: derive journal path from --from */
     /* C1: credential store built from CLI values after arg parsing; INERT until C2
@@ -403,7 +403,7 @@ main(int argc, char **argv)
                 opts.verbose = 1;
             }
             else if (strcmp(a, "-N") == 0 || strcmp(a, "--no-progress") == 0) {
-                /* suppress the progress bar (C1: same no-op as legacy -N) */
+                no_progress = 1;   /* suppress TTY auto-enable; --progress wins */
             }
             else if (strcmp(a, "--from") == 0 && i + 1 < (size_t) argc) { from = argv[++i]; }
             else if (strcmp(a, "--journal") == 0 && i + 1 < (size_t) argc) { journal_path = argv[++i]; }
@@ -751,9 +751,10 @@ main(int argc, char **argv)
         char       label[XRDC_NAME_MAX];
         xrdcp_prog ps;
         int        one;
-        /* Show a progress bar when asked (--progress) or on an interactive stderr,
-         * but never to a piped stdout transfer ('-') and never when silent. */
-        if ((force_progress || isatty(STDERR_FILENO)) && !opts.silent
+        /* Show a progress bar when asked (--progress) or on an interactive stderr
+         * (unless -N/--no-progress), but never to a piped stdout transfer ('-')
+         * and never when silent.  --progress wins over -N. */
+        if ((force_progress || (isatty(STDERR_FILENO) && !no_progress)) && !opts.silent
             && !(exp[0][0] == '-' && exp[0][1] == '\0')) {
             path_basename(exp[0], label, sizeof(label));
             ps.label = (label[0] != '\0') ? label : "transfer";

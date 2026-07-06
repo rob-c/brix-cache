@@ -115,6 +115,43 @@ _xrdsssadmin() {
     --keylen --help --version"
 }
 
+_xrootdfs() {
+  _brix_opts_filter "--token --noverifyhost --tls --notlsok --auth --max-conns
+    --version --streams --lazy-streams --max-stall --keepalive --max-retries
+    --connect-timeout --io-timeout --attr-timeout --entry-timeout --kernel-cache
+    --compress --readahead --writeback --xattr -f -d -s -o" && return
+  local prev="${COMP_WORDS[COMP_CWORD-1]}"
+  case "$prev" in
+    --auth)     COMPREPLY=($(compgen -W "gsi ztn unix" -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
+    --compress) COMPREPLY=($(compgen -W "gzip deflate zstd br xz bzip2" -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
+  esac
+  COMPREPLY=($(compgen -d -- "${COMP_WORDS[COMP_CWORD]}"))
+}
+
+_brixmount() {
+  if [[ $COMP_CWORD -eq 1 ]]; then
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    if [[ "$cur" == -* ]]; then
+      COMPREPLY=($(compgen -W "--overlay-list --overlay-reset --version" -- "$cur"))
+    else
+      COMPREPLY=($(compgen -W "cvmfs cvmfs-rw eos root roots" -- "$cur"))
+    fi
+    return
+  fi
+  _brix_opts_filter "--overlay-list --overlay-reset --version" && return
+  COMPREPLY=($(compgen -d -- "${COMP_WORDS[COMP_CWORD]}"))
+}
+
+_xrdstorascan() {
+  if [[ $COMP_CWORD -eq 1 ]]; then
+    COMPREPLY=($(compgen -W "verify bench dump fill compare" \
+      -- "${COMP_WORDS[COMP_CWORD]}"))
+    return
+  fi
+  _brix_opts_filter "--algo --op --block --parallel --duration --count --pattern
+    --json --summary --path --password --insecure -q"
+}
+
 complete -F _xrdcp xrdcp
 complete -F _xrdfs xrdfs
 complete -F _xrddiag xrddiag
@@ -123,3 +160,6 @@ complete -F _xrd xrd
 complete -F _xrdprep xrdprep
 complete -F _xrdgsiproxy xrdgsiproxy
 complete -F _xrdsssadmin xrdsssadmin
+complete -F _xrootdfs xrootdfs
+complete -F _brixmount brixMount
+complete -F _xrdstorascan xrdstorascan

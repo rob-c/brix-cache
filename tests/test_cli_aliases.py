@@ -256,8 +256,6 @@ def test_rm_verbose_alias_live():
 # ---------------------------------------------------------------------------
 # 3b. EQUIVALENCE: xrdfs subcommand --help mentions long aliases (WS-2)
 #     Fleet-gated: xrdfs subcommand --help requires a live connection.
-#     xfail: help strings in xrdfs.c COMMANDS table not yet updated (WS-2
-#     work stream will update them; tests here ensure coverage fires on merge).
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("sub,alias", [
