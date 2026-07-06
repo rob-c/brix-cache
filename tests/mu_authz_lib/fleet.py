@@ -9,10 +9,11 @@ import socket
 import subprocess
 import time
 
-from . import ports
+from . import creds, ports
 
 NGINX = os.environ.get("TEST_MU_NGINX", "/tmp/nginx-1.28.3/objs/nginx")
 _CFG_SRC = os.path.join(os.path.dirname(__file__), "..", "configs", "multiuser")
+_svc_s3 = creds.s3_key_for("svc")
 
 
 def _base_subst() -> dict:
@@ -34,12 +35,16 @@ def _base_subst() -> dict:
         "{CERT}": os.path.join(ports.MU.PKI_DIR, "server", "hostcert.pem"),
         "{KEY}": os.path.join(ports.MU.PKI_DIR, "server", "hostkey.pem"),
         "{JWKS}": os.path.join(ports.MU.TOKENS_DIR, "jwks.json"),
+        "{S3_SVC_KEY}": _svc_s3[0],
+        "{S3_SVC_SECRET}": _svc_s3[1],
+        "{TMP_DIR}": os.path.join(ports.MU.LOG_DIR, "nginx_tmp"),
     }
 
 
 def render_configs(backends: dict) -> None:
     """Substitute placeholders into every configs/multiuser/*.conf and validate with nginx -t."""
-    for d in (ports.MU.CONFIG_DIR, ports.MU.LOG_DIR, ports.MU.DATA_ROOT, ports.MU.CACHE_ROOT):
+    for d in (ports.MU.CONFIG_DIR, ports.MU.LOG_DIR, ports.MU.DATA_ROOT, ports.MU.CACHE_ROOT,
+              os.path.join(ports.MU.LOG_DIR, "nginx_tmp")):
         os.makedirs(d, exist_ok=True)
     subst = _base_subst()
     subst.update({"{GRIDMAP}": backends.get("gridmap", ""),
@@ -52,7 +57,9 @@ def render_configs(backends: dict) -> None:
             text = text.replace(k, v)
         dst = os.path.join(ports.MU.CONFIG_DIR, os.path.basename(src))
         open(dst, "w").write(text)
-        r = subprocess.run([NGINX, "-t", "-c", dst], capture_output=True, text=True)
+        pid = os.path.join(ports.MU.MU_ROOT, "nginx_t.pid")
+        r = subprocess.run([NGINX, "-t", "-c", dst, "-g", f"pid {pid};"],
+                           capture_output=True, text=True)
         if r.returncode != 0:
             raise AssertionError(f"nginx -t failed for {dst}:\n{r.stderr}")
 
