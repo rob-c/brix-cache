@@ -914,7 +914,7 @@ do_upload(brix_conn *c, const char *cwd, int argc, char **argv)
     brix_status_clear(&st);
     if (brix_rfile_open_write(c, rpath, force ? 1 : 0, 0, 0, -1, &f, &st) != 0) {
         fprintf(stderr, "xrdfs: upload %s: %s\n", rpath, st.msg);
-        brix_cred_hint_for_status(&st, 1, stderr);
+        xrdfs_op_hints(&st, 1, c);   /* WS-3/WS-7 */
         if (svf != NULL) { brix_vfs_close(svf); }
         return brix_shellcode(&st);
     }

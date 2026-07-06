@@ -103,7 +103,7 @@ web_ls(const web_ctx *w, const char *cwd, int argc, char **argv)
     brix_status_clear(&st);
     if (web_ls_print_dir(w, path, want_long, recursive, human, &st) != 0) {
         fprintf(stderr, "xrdfs: ls %s: %s\n", path, st.msg);
-        brix_cred_hint_for_status(&st, 0, stderr);
+        xrdfs_web_hints(&st, 0, w);   /* WS-7 doctor referral */
         return brix_shellcode(&st);
     }
     return 0;
@@ -122,7 +122,7 @@ web_stat(const web_ctx *w, const char *cwd, int argc, char **argv)
     brix_status_clear(&st);
     if (brix_web_stat(w->u, path, w->bearer, w->verify, w->ca_dir, &si, &st) != 0) {
         fprintf(stderr, "xrdfs: stat %s: %s\n", path, st.msg);
-        brix_cred_hint_for_status(&st, 0, stderr);
+        xrdfs_web_hints(&st, 0, w);   /* WS-7 doctor referral */
         return brix_shellcode(&st);
     }
     print_statinfo(path, &si);

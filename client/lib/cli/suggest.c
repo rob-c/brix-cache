@@ -18,10 +18,14 @@
 /* Maximum bytes of arg to consider (spec WS-7: "caps… at 64 bytes"). */
 #define SUGGEST_ARG_MAX 64
 
-/* Maximum candidate length this function handles; longer candidates are skipped
- * (they cannot be within distance 2 of a ≤64-byte arg without the candidate
- * itself also being short). */
-#define SUGGEST_CAND_MAX 128
+/* Maximum candidate length this function handles; equal to SUGGEST_ARG_MAX so
+ * the fixed-size DP table d[SUGGEST_ARG_MAX+1][SUGGEST_ARG_MAX+1] can hold
+ * both dimensions without overflow.  A 65-char candidate CAN be DL-distance 1
+ * from a 64-char arg (a single insertion), but since dl_distance rejects any
+ * blen > SUGGEST_ARG_MAX via its own overflow guard, those calls would just
+ * return the sentinel — so we skip them early here instead.  Equal caps give
+ * the tightest early-exit bound consistent with the DP table size. */
+#define SUGGEST_CAND_MAX SUGGEST_ARG_MAX
 
 /*
  * WHAT: compute the Damerau-Levenshtein distance between two strings.

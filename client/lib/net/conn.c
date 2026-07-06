@@ -435,6 +435,9 @@ brix_connect(brix_conn *c, const brix_url *u, const brix_opts *o, brix_status *s
      * at connect; brix_reconnect deliberately does NOT touch it. */
     snprintf(c->home_host, sizeof(c->home_host), "%s", u->host);
     c->home_port = u->port;
+    /* WS-3: carry the single-slash flag forward so per-op error sites can fire
+     * the double-slash hint without re-parsing the original URL. */
+    c->single_slash_path = u->single_slash_path;
     c->tls_strict = (u->scheme == XRDC_SCHEME_ROOTS);
     c->want_tls = c->tls_strict || c->opts.want_tls;
 
@@ -485,6 +488,7 @@ brix_connect_no_login(brix_conn *c, const brix_url *u, const brix_opts *o,
     c->port = u->port;
     snprintf(c->home_host, sizeof(c->home_host), "%s", u->host);
     c->home_port = u->port;
+    c->single_slash_path = u->single_slash_path;   /* WS-3: propagate for hint */
     c->tls_strict = (u->scheme == XRDC_SCHEME_ROOTS);
     /* TLS per the scheme: roots:// negotiates TLS (cert presented); a plain root://
      * server that does not mandate TLS stays cleartext (then there is simply no cert,

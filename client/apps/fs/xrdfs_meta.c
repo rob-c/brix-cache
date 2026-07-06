@@ -31,7 +31,7 @@ do_stat(brix_conn *c, const char *cwd, int argc, char **argv)
     brix_status_clear(&st);
     if (brix_stat(c, path, &si, &st) != 0) {
         fprintf(stderr, "xrdfs: stat %s: %s\n", path, st.msg);
-        brix_cred_hint_for_status(&st, 0, stderr);   /* Phase 40 (c) */
+        xrdfs_op_hints(&st, 0, c);   /* WS-3/WS-7 */
         return brix_shellcode(&st);
     }
     if (json) { json_statinfo(path, &si); } else { print_statinfo(path, &si); }
@@ -172,14 +172,14 @@ do_ls(brix_conn *c, const char *cwd, int argc, char **argv)
     if (json) {
         if (ls_json_dir(c, path, &st) != 0) {
             fprintf(stderr, "xrdfs: ls %s: %s\n", path, st.msg);
-            brix_cred_hint_for_status(&st, 0, stderr);
+            xrdfs_op_hints(&st, 0, c);   /* WS-3/WS-7 */
             return brix_shellcode(&st);
         }
         return 0;
     }
     if (ls_print_dir(c, path, want_long, recursive, human, &st) != 0) {
         fprintf(stderr, "xrdfs: ls %s: %s\n", path, st.msg);
-        brix_cred_hint_for_status(&st, 0, stderr);   /* Phase 40 (c) */
+        xrdfs_op_hints(&st, 0, c);   /* WS-3/WS-7 */
         return brix_shellcode(&st);
     }
     return 0;
@@ -206,7 +206,7 @@ do_mkdir(brix_conn *c, const char *cwd, int argc, char **argv)
     brix_status_clear(&st);
     if (brix_mkdir(c, path, mode, parents, &st) != 0) {
         fprintf(stderr, "xrdfs: mkdir %s: %s\n", path, st.msg);
-        brix_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
+        xrdfs_op_hints(&st, 1, c);   /* WS-3/WS-7 */
         return brix_shellcode(&st);
     }
     return 0;
@@ -263,7 +263,7 @@ do_rm(brix_conn *c, const char *cwd, int argc, char **argv)
             if (brix_rmtree(c, path, 0, verbose ? rm_report : NULL, NULL,
                             &st) != 0) {
                 fprintf(stderr, "xrdfs: rm -r %s: %s\n", path, st.msg);
-                brix_cred_hint_for_status(&st, 1, stderr);
+                xrdfs_op_hints(&st, 1, c);   /* WS-3/WS-7 */
                 return brix_shellcode(&st);
             }
             return 0;
@@ -272,7 +272,7 @@ do_rm(brix_conn *c, const char *cwd, int argc, char **argv)
     }
     if (brix_rm(c, path, &st) != 0) {
         fprintf(stderr, "xrdfs: rm %s: %s\n", path, st.msg);
-        brix_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
+        xrdfs_op_hints(&st, 1, c);   /* WS-3/WS-7 */
         return brix_shellcode(&st);
     }
     return 0;
@@ -290,7 +290,7 @@ do_rmdir(brix_conn *c, const char *cwd, int argc, char **argv)
     brix_status_clear(&st);
     if (brix_rmdir(c, path, &st) != 0) {
         fprintf(stderr, "xrdfs: rmdir %s: %s\n", path, st.msg);
-        brix_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
+        xrdfs_op_hints(&st, 1, c);   /* WS-3/WS-7 */
         return brix_shellcode(&st);
     }
     return 0;
@@ -309,7 +309,7 @@ do_mv(brix_conn *c, const char *cwd, int argc, char **argv)
     brix_status_clear(&st);
     if (brix_mv(c, src, dst, &st) != 0) {
         fprintf(stderr, "xrdfs: mv: %s\n", st.msg);
-        brix_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
+        xrdfs_op_hints(&st, 1, c);   /* WS-3/WS-7 */
         return brix_shellcode(&st);
     }
     return 0;
@@ -348,7 +348,7 @@ do_chmod(brix_conn *c, const char *cwd, int argc, char **argv)
     brix_status_clear(&st);
     if (brix_chmod(c, path, mode, &st) != 0) {
         fprintf(stderr, "xrdfs: chmod %s: %s\n", path, st.msg);
-        brix_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
+        xrdfs_op_hints(&st, 1, c);   /* WS-3/WS-7 */
         return brix_shellcode(&st);
     }
     if (recursive) {
@@ -378,7 +378,7 @@ do_truncate(brix_conn *c, const char *cwd, int argc, char **argv)
     brix_status_clear(&st);
     if (brix_truncate(c, path, (int64_t) size, &st) != 0) {
         fprintf(stderr, "xrdfs: truncate %s: %s\n", path, st.msg);
-        brix_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */
+        xrdfs_op_hints(&st, 1, c);   /* WS-3/WS-7 */
         return brix_shellcode(&st);
     }
     return 0;
@@ -530,7 +530,7 @@ do_touch(brix_conn *c, const char *cwd, int argc, char **argv)
     if (brix_setattr(c, path, 1 /*set_times*/, times, 0 /*set_owner*/,
                      (uint32_t) -1, (uint32_t) -1, &st) != 0) {
         fprintf(stderr, "xrdfs: touch %s: %s\n", path, st.msg);
-        brix_cred_hint_for_status(&st, 1, stderr);
+        xrdfs_op_hints(&st, 1, c);   /* WS-3/WS-7 */
         return brix_shellcode(&st);
     }
     return 0;
@@ -570,7 +570,7 @@ do_ln(brix_conn *c, const char *cwd, int argc, char **argv)
     if (symbolic) {
         if (brix_symlink(c, target, linkpath, &st) != 0) {   /* target verbatim */
             fprintf(stderr, "xrdfs: ln -s %s %s: %s\n", target, linkpath, st.msg);
-            brix_cred_hint_for_status(&st, 1, stderr);
+            xrdfs_op_hints(&st, 1, c);   /* WS-3/WS-7 */
             return brix_shellcode(&st);
         }
         return 0;
@@ -578,7 +578,7 @@ do_ln(brix_conn *c, const char *cwd, int argc, char **argv)
     build_path(cwd, target, oldpath, sizeof(oldpath));   /* hard link: both confined */
     if (brix_link(c, oldpath, linkpath, &st) != 0) {
         fprintf(stderr, "xrdfs: ln %s %s: %s\n", oldpath, linkpath, st.msg);
-        brix_cred_hint_for_status(&st, 1, stderr);
+        xrdfs_op_hints(&st, 1, c);   /* WS-3/WS-7 */
         return brix_shellcode(&st);
     }
     return 0;
