@@ -30,6 +30,7 @@ def _base_subst() -> dict:
         "{WEBDAV_AUTHZ_PORT}": str(ports.MU.WEBDAV_AUTHZ),
         "{DIRECT_AUTHZ_PORT}": str(ports.MU.DIRECT_AUTHZ),
         "{WEBDAV_STAGE_PORT}": str(ports.MU.WEBDAV_STAGE),
+        "{SIDECAR_ROOT_PORT}": str(ports.MU.SIDECAR_ROOT),
         "{BIND_HOST}": ports.MU.HOST,
         "{DATA_DIR}": ports.MU.DATA_ROOT,
         "{CACHE_DIR}": ports.MU.CACHE_ROOT,

@@ -12,6 +12,7 @@
 #include "net/manager/registry.h"
 #include "protocols/root/protocol/dirlist_fmt.h"   /* shared dstat lead-in sentinel */
 #include "fs/vfs/vfs.h"                 /* directory listing via the VFS seam */
+#include "fs/path/reserved_names.h"     /* brix_is_internal_name — hide sidecars */
 #include "dcksm.h"
 
 #include <spawn.h>
@@ -248,6 +249,12 @@ brix_handle_dirlist(brix_ctx_t *ctx, ngx_connection_t *c,
             if (ngx_strncmp(name, ".nginx-xrootd",
                             sizeof(".nginx-xrootd") - 1) == 0)
             {
+                continue;
+            }
+
+            /* Hide internal metadata/staging artifacts (cache sidecars, stage
+             * markers, in-flight upload temps) — never enumerable to a client. */
+            if (brix_is_internal_name(name)) {
                 continue;
             }
 

@@ -6,6 +6,7 @@
 #include "stat.h"
 #include "core/ngx_brix_module.h"
 #include "fs/path/beneath.h"
+#include "fs/path/reserved_names.h"   /* brix_is_internal_name — hide sidecars */
 #include "core/compat/alloc_guard.h"
 
 #include <stdlib.h>   /* realpath */
@@ -86,6 +87,13 @@ brix_handle_statx(brix_ctx_t *ctx, ngx_connection_t *c,
         }
 
         n_paths++;
+
+        /* Internal artifacts (sidecars, upload temps) are invisible → report as
+         * absent, same as a stat miss. */
+        if (brix_is_internal_name(reqpath_buf)) {
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_STATX, "STATX", reqpath_buf, "-",
+                              kXR_NotFound, "file not found");
+        }
 
         /* Resolve and stat the path. */
         brix_beneath_full_path(conf->common.root_canon, reqpath_buf,

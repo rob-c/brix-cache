@@ -33,6 +33,7 @@
 #include "core/compat/fs_walk.h"
 #include "fs/vfs/vfs.h"   /* confined walk via vfs_opendir_quiet/readdir_kind/probe */
 #include "fs/path/path.h"   /* brix_dirlist_access_ok (impersonation list gate) */
+#include "fs/path/reserved_names.h"   /* brix_is_internal_name — hide sidecars */
 #include <errno.h>
 #include <stdlib.h>
 
@@ -248,6 +249,11 @@ s3_walk(ngx_log_t  *log,           /* request log (for the access gate)   */
         } else {           /* kind == 2: regular file */
             /* Skip directory sentinel */
             if (strcmp(dname, S3_DIR_SENTINEL) == 0) {
+                continue;
+            }
+            /* Hide internal metadata/staging artifacts (sidecars, upload temps)
+             * — never listable as an S3 object key. */
+            if (brix_is_internal_name(dname)) {
                 continue;
             }
             /* Filter by prefix */

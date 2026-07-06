@@ -188,6 +188,45 @@ pull remote data onto a path it may not write. **Developer rule:** when an HTTP 
 read/write direction depends on a header (COPY/MOVE with Source/Destination), branch the
 authorization op on that header — do not assume a fixed direction.
 
+## 4f. Internal metadata/staging artifacts are never client-visible (hardened)
+
+The cache/staging plane writes on-disk artifacts that are not part of the client namespace:
+cache sidecars (`.cinfo` / `.xrdcinfo` / `.meta` — block-present bitmap + origin metadata), the
+stage-out crash-recovery marker (`.commit`), and in-flight upload temps (`…​.xrd-tmp.…` atomic
+writes, `…​.xrdresume.…` resumable-PUT partials). Some of these sit **inside the export
+namespace**: the upload temps do so by default (no separate stage dir → adjacent to the target
+file), and the cache sidecars do if the cache/state tree is misconfigured under an export.
+Their contents (a residency bitmap, origin metadata), sizes, mtimes — and even their existence
+(which leaks residency / in-progress-upload activity) — must never reach a client.
+
+**Landed hardening.** One predicate, `brix_is_internal_name()`
+([`src/fs/path/reserved_names.h`](../../src/fs/path/reserved_names.h)), defines the reserved set
+exactly once and gates **every** client-facing checkpoint:
+- **Enumeration skips them** — root:// `kXR_dirlist` (`dirlist/handler.c`), WebDAV
+  `PROPFIND`/`SEARCH` (`propfind_walk.c`, `search.c` — note a sidecar like `f.dat.cinfo` is *not*
+  a dotfile, so the pre-existing `name[0]=='.'` filter missed it), and S3 `ListObjects`
+  (`list_walk.c`).
+- **Direct access by name is answered as absent** — root:// `open`/`stat`/`statx` return
+  `kXR_NotFound`; WebDAV + S3 return `404` via the shared URI resolver (`brix_http_resolve_path`,
+  which both protocols route client URIs through). `404`/`NotFound` (not `403`) so an internal
+  name is indistinguishable from a genuinely missing path, and the block covers *create* too (a
+  `PUT`/write-open onto a reserved name is refused, so a client cannot plant a file that collides
+  with the cache's own sidecar naming).
+- The inline xmeta xattr (`user.xrd.cinfo`) is already unreachable: root:// `fattr` isolates the
+  client namespace to `user.U.*` (and its list keeps only `user.U.*`), and WebDAV dead-props use
+  their own key — a client cannot name `user.xrd.*`.
+
+The server's own sidecar/temp I/O uses the confined-open primitives (`brix_open_beneath`,
+`brix_staged_open`) directly and never passes through these client checkpoints, so hiding the
+names from clients does not impede the cache/staging machinery.
+
+**Developer rule:** the reserved suffixes/infixes are load-bearing — a new client-facing
+enumeration or direct-access path MUST call `brix_is_internal_name()` (skip on listing, NotFound
+on direct access). Add any new internal artifact naming to that one predicate, never open-code a
+suffix check. Operators should still place `brix_cache_store` / `brix_cache_state_root` /
+`brix_upload_stage_dir` **outside** every export (defence in depth); the runtime filter holds the
+invisibility guarantee even when they don't.
+
 ## 4b. Existence oracles (hardened)
 
 A metadata op must authorize **before** it probes on-disk existence, or a denied principal

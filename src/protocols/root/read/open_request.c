@@ -7,6 +7,7 @@
 #include "fs/xfer/stage_request_registry.h"
 #include "fs/xfer/stage_waiter.h"
 #include "fs/vfs/vfs.h"                   /* brix_vfs_residency (sd_frm seam) */
+#include "fs/path/reserved_names.h"       /* brix_is_internal_name — hide sidecars */
 #include "protocols/root/session/registry.h"
 #include "net/cms/cms_internal.h"
 #include "core/compat/codec_core.h"
@@ -559,6 +560,17 @@ brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c,
 						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 						  "OPEN", clean_path, is_write ? "wr" : "rd",
 						  kXR_ArgInvalid, "path exceeds maximum depth");
+	}
+
+	/* Internal metadata/staging artifacts are invisible: a client may neither
+	 * read one (its bytes/metadata) nor create one (a write open that would
+	 * collide with the cache's own sidecar naming). Answer as absent so an
+	 * internal name is indistinguishable from a genuinely missing path. */
+	if (brix_is_internal_name(clean_path)) {
+		BRIX_RETURN_ERR(ctx, c,
+						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
+						  "OPEN", clean_path, is_write ? "wr" : "rd",
+						  kXR_NotFound, "file not found");
 	}
 
 	/* Dynamic manager mode: redirect to best registered server. */

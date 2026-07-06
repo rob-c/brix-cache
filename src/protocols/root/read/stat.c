@@ -2,6 +2,7 @@
 #include "stat.h"
 #include "net/cms/cns.h"            /* §6 CNS inventory stat answer */
 #include "fs/vfs/vfs.h"            /* path stat via the VFS seam */
+#include "fs/path/reserved_names.h"   /* brix_is_internal_name — hide sidecars */
 #include "protocols/root/path/op_path.h"
 #include "net/manager/registry.h"
 #include "net/manager/pending.h"
@@ -139,6 +140,12 @@ ngx_int_t brix_handle_stat(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix
          * would silently collapse an in-tree "..", so the guard is explicit. */
         if (brix_reject_dotdot_path(ctx, c, BRIX_OP_STAT, "STAT", reqpath)) {
             return ctx->write_rc;
+        }
+        /* Internal artifacts (sidecars, upload temps) are invisible → report as
+         * absent, never leaking their size/mtime/existence. */
+        if (brix_is_internal_name(reqpath)) {
+            BRIX_RETURN_ERR(ctx, c, BRIX_OP_STAT, "STAT", reqpath, "-",
+                              kXR_NotFound, "file not found");
         }
         /* Static manager_map: an explicit prefix→backend redirect (mirrors the
          * open/locate paths) so a static-map redirector also serves stat — stock

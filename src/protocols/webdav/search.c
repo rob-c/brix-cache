@@ -10,6 +10,7 @@
 #include "auth/impersonate/lifecycle.h"
 #include "fs/path/path.h"
 #include "fs/vfs/vfs.h"   /* confined walk via vfs_opendir_quiet/readdir_kind/probe */
+#include "fs/path/reserved_names.h"   /* brix_is_internal_name — hide sidecars */
 #include "core/compat/fs_walk.h"
 #include "core/http/http_body.h"
 #include "core/http/http_xml.h"
@@ -258,6 +259,9 @@ webdav_search_walk(ngx_http_request_t *r, ngx_chain_t **head,
 
         if (dname[0] == '.') {
             continue;   /* skip hidden files (search never lists dotfiles) */
+        }
+        if (brix_is_internal_name(dname)) {
+            continue;   /* hide internal sidecars / upload temps (not dotfiles) */
         }
 
         if (brix_fs_join_path(dir_path, dname, child_path,
