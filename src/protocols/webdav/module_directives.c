@@ -3,6 +3,81 @@
  * Phase-38 split of module.c; behavior-identical.
  */
 #include "webdav_module_internal.h"
+#include "fs/path/path.h"        /* brix_parse_authdb, brix_normalize_policy_path, rule types */
+#include "core/config/config.h"  /* brix_copy_conf_string */
+
+/*
+ * brix_webdav_authdb <file> — parse a native u/g/p authorization-rule file into
+ * conf->authdb_rules. Enforced for READ methods in the access phase (webdav_access),
+ * giving WebDAV per-DN/per-VO/per-host read authorization at parity with root://.
+ * Reuses the stream authdb parser; the same file format works for both protocols.
+ */
+char *
+webdav_conf_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_http_brix_webdav_loc_conf_t *wlcf = conf;
+    ngx_str_t                         *value;
+
+    (void) cmd;
+    value = cf->args->elts;   /* value[1] = authdb file path */
+
+    if (wlcf->authdb_rules == NGX_CONF_UNSET_PTR || wlcf->authdb_rules == NULL) {
+        wlcf->authdb_rules = ngx_array_create(cf->pool, 4,
+                                              sizeof(brix_authdb_rule_t));
+        if (wlcf->authdb_rules == NULL) {
+            return NGX_CONF_ERROR;
+        }
+    }
+
+    if (brix_parse_authdb(cf, &value[1], wlcf->authdb_rules) != NGX_OK) {
+        return NGX_CONF_ERROR;
+    }
+
+    return NGX_CONF_OK;
+}
+
+
+/*
+ * brix_webdav_require_vo <path> <vo> — append a VO ACL rule (mirrors the stream
+ * brix_require_vo). The rule path is normalized here; the realpath is finalized at
+ * startup (brix_finalize_vo_rules, from merge_loc_conf).
+ */
+char *
+webdav_conf_require_vo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_http_brix_webdav_loc_conf_t *wlcf = conf;
+    ngx_str_t                         *value;
+    brix_vo_rule_t                   *rule;
+
+    (void) cmd;
+    value = cf->args->elts;   /* value[1] = path, value[2] = vo */
+
+    if (wlcf->vo_rules == NGX_CONF_UNSET_PTR || wlcf->vo_rules == NULL) {
+        wlcf->vo_rules = ngx_array_create(cf->pool, 2, sizeof(brix_vo_rule_t));
+        if (wlcf->vo_rules == NULL) {
+            return NGX_CONF_ERROR;
+        }
+    }
+
+    rule = ngx_array_push(wlcf->vo_rules);
+    if (rule == NULL) {
+        return NGX_CONF_ERROR;
+    }
+    ngx_memzero(rule, sizeof(*rule));
+
+    if (brix_normalize_policy_path(cf->pool, &value[1], &rule->path) != NGX_OK) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_webdav_require_vo: invalid path \"%V\"", &value[1]);
+        return NGX_CONF_ERROR;
+    }
+
+    if (brix_copy_conf_string(cf, &value[2], &rule->vo) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+
+    return NGX_CONF_OK;
+}
+
 
 char *
 webdav_conf_add_cors_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)

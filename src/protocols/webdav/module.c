@@ -142,6 +142,22 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       offsetof(ngx_http_brix_webdav_loc_conf_t, cafile),
       NULL },
 
+    /* Native authorization (read parity with root://): per-DN/VO/host authdb +
+     * VO ACL, enforced for READ methods in the access phase (covers cached GET). */
+    { ngx_string("brix_webdav_authdb"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      webdav_conf_authdb,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("brix_webdav_require_vo"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE2,
+      webdav_conf_require_vo,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
     { ngx_string("brix_webdav_crl"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,

@@ -16,6 +16,7 @@
 #include "proxy_internal.h"
 #include "net/mirror/http_mirror.h"
 #include "core/config/config.h"
+#include "fs/path/path.h"                  /* brix_finalize_{authdb,vo}_rules */
 #include "core/config/root_prepare.h"
 #include "core/config/http_rootfd.h"
 #include "core/config/http_common.h"      /* unified brix_* directive adoption */
@@ -137,6 +138,8 @@ ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->macaroon_max_validity = NGX_CONF_UNSET;
     conf->dig_enable = NGX_CONF_UNSET;
     conf->dig_exports = NGX_CONF_UNSET_PTR;
+    conf->authdb_rules = NGX_CONF_UNSET_PTR;   /* created on first brix_webdav_authdb */
+    conf->vo_rules = NGX_CONF_UNSET_PTR;       /* created on first brix_webdav_require_vo */
     conf->checksum_xattr_format = NGX_CONF_UNSET_UINT;
     conf->zip_cd_max_bytes = NGX_CONF_UNSET_SIZE;
     conf->open_file_cache = NGX_CONF_UNSET_PTR;
@@ -325,6 +328,8 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_str_value(conf->voms_cert_dir, prev->voms_cert_dir, "");
     ngx_conf_merge_str_value(conf->cadir, prev->cadir, "");
     ngx_conf_merge_str_value(conf->cafile, prev->cafile, "");
+    ngx_conf_merge_ptr_value(conf->authdb_rules, prev->authdb_rules, NULL);
+    ngx_conf_merge_ptr_value(conf->vo_rules, prev->vo_rules, NULL);
     ngx_conf_merge_str_value(conf->crl, prev->crl, "");
     ngx_conf_merge_uint_value(conf->signing_policy_mode,
                               prev->signing_policy_mode, BRIX_SP_MODE_ON);
@@ -428,6 +433,28 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
             }
             /* SP4: reap interrupted NON-staged direct-write temps under this root. */
             brix_tmp_reap_register(conf->common.root_canon);
+        }
+
+        /* Finalize native authz rule paths (realpath under the export root) now
+         * that the root is prepared — mirrors the stream side. nginx -t rejects a
+         * rule whose path cannot be resolved. */
+        if (conf->authdb_rules != NULL
+            && brix_finalize_authdb_rules(cf->log, &conf->common.root,
+                                            conf->authdb_rules) != NGX_OK)
+        {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_webdav_authdb: failed to finalize rules for root \"%V\"",
+                &conf->common.root);
+            return NGX_CONF_ERROR;
+        }
+        if (conf->vo_rules != NULL
+            && brix_finalize_vo_rules(cf->log, &conf->common.root,
+                                        conf->vo_rules) != NGX_OK)
+        {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_webdav_require_vo: failed to finalize rules for root \"%V\"",
+                &conf->common.root);
+            return NGX_CONF_ERROR;
         }
 
         /* Register the export's selected storage backend so every VFS op resolves

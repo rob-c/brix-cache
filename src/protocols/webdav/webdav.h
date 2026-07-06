@@ -304,6 +304,12 @@ typedef struct {
     /* ---- XrdAcc authorization engine (off by default) ---- */
     brix_acc_http_t         acc;               /* settings + per-worker state */
 
+    /* ---- Native authorization (read parity with root://) ----
+     * Enforced for READ methods in the access phase (webdav_access), so a
+     * cached GET is gated the same as a miss. Empty => not configured (no-op). */
+    ngx_array_t            *authdb_rules;      /* [brix_webdav_authdb <file>] u/g/p rules   */
+    ngx_array_t            *vo_rules;          /* [brix_webdav_require_vo <path> <vo>] VO ACL */
+
     /* Per-socket TCP congestion control (e.g. "bbr") applied to the HTTP
      * connection before the GET body is served; empty = kernel default.  The
      * sender's CC governs download throughput, and BBR ignores the spurious loss
@@ -433,6 +439,12 @@ ngx_int_t webdav_introspect_access_handler(ngx_http_request_t *r);
  * named SHM kv zone into conf->revoke_kv. */
 char     *webdav_conf_revoke_cache(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
+
+/* Directive setters for native WebDAV authorization (read parity with root://).
+ * brix_webdav_authdb <file> parses a u/g/p rule file into conf->authdb_rules;
+ * brix_webdav_require_vo <path> <vo> appends a VO ACL rule to conf->vo_rules. */
+char     *webdav_conf_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+char     *webdav_conf_require_vo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 /* Operation Registry (operation_table.c) */
 extern const brix_http_operation_t brix_webdav_operations[];
