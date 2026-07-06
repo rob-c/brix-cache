@@ -896,9 +896,14 @@ def build_all(root: Path, clauses: list) -> Path:
     (root / "creds").mkdir(parents=True, exist_ok=True)
 
     rows = []
+    errors = []
     for c in clauses:
         ctx = ForgeCtx(root, c)
-        cred = c.build(ctx)
+        try:
+            cred = c.build(ctx)
+        except Exception as exc:                      # noqa: BLE001
+            errors.append((c.id, f"{type(exc).__name__}: {exc}"))
+            continue
         rows.append(dict(id=c.id, clause=c.clause, title=c.title, cred=cred or "",
                          expected=c.expected, surface=c.surface, group=c.group,
                          reason=c.reason))
@@ -908,7 +913,24 @@ def build_all(root: Path, clauses: list) -> Path:
     tsv = "\n".join("\t".join([r["id"], r["cred"], r["expected"], r["surface"],
                                r["group"]]) for r in rows)
     (root / "manifest.tsv").write_text(tsv + "\n", encoding="utf-8")
+    if errors:
+        (root / "build_errors.tsv").write_text(
+            "\n".join(f"{i}\t{e}" for i, e in errors) + "\n", encoding="utf-8")
     return root
+
+
+def build_report(root: Path, clauses: list) -> dict:
+    """build_all + a summary dict {materialized, errors:[(id,msg)]}."""
+    build_all(root, clauses)
+    errs = []
+    ef = Path(root) / "build_errors.tsv"
+    if ef.exists():
+        for line in ef.read_text().splitlines():
+            if "\t" in line:
+                i, m = line.split("\t", 1)
+                errs.append((i, m))
+    n = len(json.loads((Path(root) / "manifest.json").read_text()))
+    return {"materialized": n, "errors": errs}
 
 
 if __name__ == "__main__":   # manual: python3 tests/x509forge.py /tmp/x509conf
