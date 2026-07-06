@@ -10,6 +10,7 @@
  */
 
 #include "config.h"
+#include "auth/crypto/store_policy.h"   /* BRIX_SP_MODE_*, BRIX_CRL_MODE_* defaults */
 #include "core/compat/af_policy.h"      /* BRIX_AF_AUTO default for origin family */
 #include "fs/cache/verify.h"          /* brix_cache_verify_mode_e default */
 #include "net/ratelimit/ratelimit.h"   /* phase-59 W3a: throttle zone lookup */
@@ -66,6 +67,8 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->gsi_cert_pem_len = 0;
     conf->gsi_ca_hash  = 0;
     conf->gsi_signed_dh = NGX_CONF_UNSET_UINT;
+    conf->signing_policy_mode = NGX_CONF_UNSET_UINT;
+    conf->crl_mode     = NGX_CONF_UNSET_UINT;
     conf->gsi_max_inflight = NGX_CONF_UNSET;
     conf->vo_rules     = NULL;
     conf->group_rules  = NULL;
@@ -297,6 +300,9 @@ brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_str_value(conf->voms_cert_dir,   prev->voms_cert_dir,   "");
     ngx_conf_merge_str_value(conf->crl,             prev->crl,             "");
     ngx_conf_merge_value(conf->crl_reload,    prev->crl_reload,      0);
+    ngx_conf_merge_uint_value(conf->signing_policy_mode,
+                              prev->signing_policy_mode, BRIX_SP_MODE_ON);
+    ngx_conf_merge_uint_value(conf->crl_mode, prev->crl_mode, BRIX_CRL_MODE_TRY);
     ngx_conf_merge_str_value(conf->access_log,      prev->access_log,      "");
     ngx_conf_merge_str_value(conf->token_jwks,      prev->token_jwks,      "");
     ngx_conf_merge_msec_value(conf->token_jwks_refresh_interval,

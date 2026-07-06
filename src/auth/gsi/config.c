@@ -36,7 +36,9 @@ brix_rebuild_gsi_store(ngx_stream_brix_srv_conf_t *xcf, ngx_log_t *log)
                                    xcf->crl.len > 0
                                        ? (char *) xcf->crl.data : NULL,
                                    X509_V_FLAG_ALLOW_PROXY_CERTS,
-                                   &crl_count);
+                                   &crl_count,
+                                   (brix_sp_mode_t) xcf->signing_policy_mode,
+                                   (int) xcf->crl_mode);
     if (store == NULL) {
         return NGX_ERROR;
     }

@@ -111,6 +111,26 @@
       offsetof(ngx_stream_brix_srv_conf_t, crl_reload),
       NULL },
 
+    /* Globus signing_policy enforcement: on (default) | off | require.  When a
+     * <hash>.signing_policy file sits beside a trusted CA it restricts which
+     * subject DNs that CA may sign (WLCG/IGTF namespace rule). */
+    { ngx_string("brix_signing_policy"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, signing_policy_mode),
+      brix_signing_policy_modes },
+
+    /* CRL strictness: try (default) | off | require.  "try" checks revocation
+     * where a CRL exists but tolerates a CA that has none; "require" makes a
+     * missing/expired CRL fatal. */
+    { ngx_string("brix_crl_mode"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, crl_mode),
+      brix_crl_modes },
+
     { ngx_string("brix_require_vo"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE2,
       brix_conf_set_require_vo,

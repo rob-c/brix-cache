@@ -17,5 +17,7 @@ extern ngx_conf_enum_t brix_hc_types[];
 extern ngx_conf_enum_t brix_security_levels[];
 extern ngx_conf_enum_t brix_signed_dh_modes[];
 extern ngx_conf_enum_t brix_io_uring_modes[];
+extern ngx_conf_enum_t brix_signing_policy_modes[];
+extern ngx_conf_enum_t brix_crl_modes[];
 
 #endif /* BRIX_STREAM_MODULE_ENUMS_H */
