@@ -31,8 +31,8 @@ def _base_subst() -> dict:
         "{VOMSDIR}": ports.MU.VOMSDIR,
         "{CA_DIR}": ports.MU.CA_DIR,
         "{CA}": os.path.join(ports.MU.CA_DIR, "ca.pem"),
-        "{CERT}": os.path.join(ports.MU.PKI_DIR, "server", "server.pem"),
-        "{KEY}": os.path.join(ports.MU.PKI_DIR, "server", "server.key"),
+        "{CERT}": os.path.join(ports.MU.PKI_DIR, "server", "hostcert.pem"),
+        "{KEY}": os.path.join(ports.MU.PKI_DIR, "server", "hostkey.pem"),
         "{JWKS}": os.path.join(ports.MU.TOKENS_DIR, "jwks.json"),
     }
 
