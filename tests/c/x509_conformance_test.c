@@ -250,6 +250,56 @@ test_crl_store(void)
     X509_STORE_free(store);
 }
 
+/* --- proxy classification + monotonicity (PX) ---------------------------- */
+
+/* Load every PEM cert from a credential file into a leaf-first STACK. */
+static STACK_OF(X509) *
+load_chain(const char *path)
+{
+    FILE           *fp = fopen(path, "r");
+    STACK_OF(X509) *sk = sk_X509_new_null();
+    X509           *c;
+    if (fp == NULL) {
+        return sk;
+    }
+    while ((c = PEM_read_X509(fp, NULL, NULL, NULL)) != NULL) {
+        sk_X509_push(sk, c);
+    }
+    fclose(fp);
+    return sk;
+}
+
+static void
+test_proxy_monotonicity(void)
+{
+    printf("PX proxy monotonicity:\n");
+
+    /* px_rfc3820_ok: proxy_full over EEC — no limited anywhere → ok. */
+    {
+        STACK_OF(X509) *sk = load_chain(path_of("px_rfc3820_ok", "proxy_full.pem"));
+        CHECK(sk_X509_num(sk) >= 2, "PX-C01 rfc3820 chain loads");
+        CHECK(brix_px_classify(sk_X509_value(sk, 0)) == BRIX_PX_FULL,
+              "PX-C02 leaf classified FULL proxy");
+        CHECK(brix_proxy_chain_ok(sk) == 1, "PX-C03 full-over-EEC is monotonic");
+        sk_X509_pop_free(sk, X509_free);
+    }
+
+    /* px_limited_to_full: full proxy issued beneath a limited one → escalation. */
+    {
+        STACK_OF(X509) *sk = load_chain(path_of("px_limited_to_full", "escalated.pem"));
+        int found_limited = 0, i;
+        for (i = 0; i < sk_X509_num(sk); i++) {
+            if (brix_px_classify(sk_X509_value(sk, i)) == BRIX_PX_LIMITED) {
+                found_limited = 1;
+            }
+        }
+        CHECK(found_limited, "PX-C04 limited proxy present in chain");
+        CHECK(brix_proxy_chain_ok(sk) == 0,
+              "PX-C05 full-beneath-limited rejected (RFC 3820 §3.8)");
+        sk_X509_pop_free(sk, X509_free);
+    }
+}
+
 int
 main(void)
 {
@@ -263,6 +313,7 @@ main(void)
     test_store_attach();
     test_chain_building();
     test_crl_store();
+    test_proxy_monotonicity();
 
     printf("\n%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;

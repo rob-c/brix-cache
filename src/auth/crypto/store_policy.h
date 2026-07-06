@@ -77,4 +77,21 @@ int              brix_store_crl_mode(X509_STORE_CTX *ctx);
  */
 char *brix_x509_oneline(X509_NAME *name, char *buf, size_t buflen);
 
+/*
+ * RFC 3820 proxy classification + delegation monotonicity (ngx-free).
+ *   NONE    — not a proxy
+ *   FULL    — RFC 3820 impersonation/independent proxy, or legacy CN=proxy
+ *   LIMITED — Globus limited-policy OID, or legacy CN=limited proxy
+ */
+typedef enum { BRIX_PX_NONE, BRIX_PX_FULL, BRIX_PX_LIMITED } brix_px_kind_t;
+
+brix_px_kind_t brix_px_classify(X509 *cert);
+
+/*
+ * Enforce that no full proxy is issued beneath a limited proxy (RFC 3820 §3.8).
+ * chain is the verified chain leaf..root (as X509_STORE_CTX_get0_chain yields).
+ * Returns 1 when the delegation is monotonic, 0 on an escalation.
+ */
+int brix_proxy_chain_ok(STACK_OF(X509) *chain);
+
 #endif /* BRIX_CRYPTO_STORE_POLICY_H */
