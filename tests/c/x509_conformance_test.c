@@ -159,6 +159,28 @@ test_store_attach(void)
     X509_STORE_free(store);   /* frees the attached table via ex_data free cb */
 }
 
+/* --- shared store-config helper (SC) -------------------------------------- */
+
+static void
+test_store_configure(void)
+{
+    printf("store configure (shared helper):\n");
+    X509_STORE *store = X509_STORE_new();
+    /* require + no cadir (bundle) must fail. */
+    CHECK(brix_store_configure(store, NULL, 0, 0,
+              BRIX_SP_MODE_REQUIRE, BRIX_CRL_MODE_OFF, NULL, NULL) == -1,
+          "SC-01 require+bundle rejected");
+    X509_STORE_free(store);
+
+    store = X509_STORE_new();
+    X509_STORE_load_path(store, path_of("sp_in_namespace", "ca"));
+    CHECK(brix_store_configure(store, path_of("sp_in_namespace", "ca"),
+              X509_V_FLAG_ALLOW_PROXY_CERTS, 0,
+              BRIX_SP_MODE_ON, BRIX_CRL_MODE_TRY, NULL, NULL) == 0,
+          "SC-02 configure ok on a real CA dir");
+    X509_STORE_free(store);
+}
+
 /* --- chain building (CHN) ------------------------------------------------- */
 
 static int
@@ -311,6 +333,7 @@ main(void)
 
     test_signing_policy_decisions();
     test_store_attach();
+    test_store_configure();
     test_chain_building();
     test_crl_store();
     test_proxy_monotonicity();

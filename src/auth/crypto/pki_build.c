@@ -24,55 +24,6 @@
 #include <sys/stat.h>
 
 /*
- * WHAT: check_issued override that accepts a name-matching issuer for an
- *       RFC 3820 proxy subject even when the proxy's authorityKeyIdentifier
- *       does not match the issuer's subjectKeyIdentifier.
- *
- * WHY:  xrdgsiproxy / voms-proxy-init copy the end-entity certificate's own
- *       authorityKeyIdentifier into the delegated proxy, so the proxy's AKID
- *       points at the issuing CA rather than at the signing EEC.  OpenSSL's
- *       default check_issued then rejects the EEC as the proxy's issuer with
- *       X509_V_ERR_AKID_SKID_MISMATCH and X509_verify_cert reports "unable to
- *       get local issuer certificate" — even though the EEC really did sign the
- *       proxy.  This only bites once the EEC carries a subjectKeyIdentifier
- *       (every real IGTF/grid certificate does; OpenSSL 3.x also adds one by
- *       default), so real grid proxies fail while a SKID-less test cert passed.
- *       The reference XRootD server (XrdCryptosslX509Chain) selects issuers by
- *       subject name + signature and ignores the AKID hint, so those proxies
- *       authenticate there but not here.  Match that behaviour.
- *
- * HOW:  Defer to the default X509_check_issued.  On success, accept.  For a
- *       proxy subject whose only objection is an AKID/SKID (or AKID issuer-
- *       serial) mismatch, accept the name-matching issuer.  The proxy's RSA
- *       signature is still verified by X509_verify_cert afterwards, so this
- *       relaxes issuer *selection*, never signature trust; it is scoped to
- *       certificates OpenSSL has recognised as proxies (EXFLAG_PROXY, set only
- *       under X509_V_FLAG_ALLOW_PROXY_CERTS with a valid proxyCertInfo) and is
- *       installed only on stores built for proxy verification.
- */
-static int
-pki_proxy_check_issued(X509_STORE_CTX *ctx, X509 *subject, X509 *issuer)
-{
-    int rv;
-
-    (void) ctx;
-
-    rv = X509_check_issued(issuer, subject);
-    if (rv == X509_V_OK) {
-        return 1;
-    }
-
-    if ((X509_get_extension_flags(subject) & EXFLAG_PROXY)
-        && (rv == X509_V_ERR_AKID_SKID_MISMATCH
-            || rv == X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH))
-    {
-        return 1;
-    }
-
-    return 0;
-}
-
-/*
  * Load all PEM-encoded CRLs from a single file into the store.
  * Returns the number of CRLs added, or -1 if the file cannot be opened.
  */
@@ -195,61 +146,6 @@ brix_pki_sp_log(void *log, int level, const char *msg)
     ngx_log_error(lvl, (ngx_log_t *) log, 0, "brix_pki: %s", msg);
 }
 
-/*
- * WHAT: verify callback used only in BRIX_CRL_MODE_TRY.  WHY: "try" means check
- *       revocation where a CRL exists but tolerate a CA that simply has none;
- *       a stale (expired) CRL is evidence of neglect, not absence, so it stays
- *       fatal.  HOW: downgrade the single "no CRL available" error to success
- *       and let every other verdict (including CRL_HAS_EXPIRED and the actual
- *       revocation error) stand.
- */
-static int
-brix_crl_try_verify_cb(int ok, X509_STORE_CTX *ctx)
-{
-    if (ok) {
-        return 1;
-    }
-    if (X509_STORE_CTX_get_error(ctx) == X509_V_ERR_UNABLE_TO_GET_CRL) {
-        return 1;
-    }
-    return 0;
-}
-
-/*
- * Attach the compiled signing_policy table (from cadir) and both modes to the
- * store.  On BRIX_SP_MODE_REQUIRE with no directory to search, this is a
- * configuration error: returns -1 so the caller frees the store and fails.
- * Returns 0 on success.
- */
-static int
-brix_attach_signing_policy(X509_STORE *store, const char *cadir,
-                           ngx_log_t *log, brix_sp_mode_t sp_mode, int crl_mode)
-{
-    brix_sp_table_t *table;
-
-    if (cadir == NULL && sp_mode == BRIX_SP_MODE_REQUIRE) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
-            "brix_pki: signing_policy \"require\" needs a hashed CA directory, "
-            "not a bundle file");
-        return -1;
-    }
-
-    table = brix_sp_table_build(cadir, log, brix_pki_sp_log);
-    if (table == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "brix_pki: signing_policy table allocation failed");
-        return -1;
-    }
-
-    if (!brix_store_policy_attach(store, table, sp_mode, crl_mode)) {
-        brix_sp_table_free(table);
-        ngx_log_error(NGX_LOG_ERR, log, 0,
-                      "brix_pki: could not attach signing_policy to store");
-        return -1;
-    }
-    return 0;
-}
-
 X509_STORE *
 brix_build_ca_store(ngx_log_t *log,
                        const char *cadir,
@@ -273,21 +169,6 @@ brix_build_ca_store(ngx_log_t *log,
         return NULL;
     }
 
-    if (extra_flags != 0) {
-        X509_STORE_set_flags(store, extra_flags);
-    }
-
-    /*
-     * Proxy-verification stores (GSI): tolerate the AKID/SKID mismatch that
-     * real xrdgsiproxy/voms-proxy-init delegated proxies carry so the signing
-     * EEC is accepted as the proxy's issuer (see pki_proxy_check_issued).  Not
-     * installed on plain client-certificate stores (webdav passes flags 0),
-     * which keep OpenSSL's strict default issuer selection.
-     */
-    if (extra_flags & X509_V_FLAG_ALLOW_PROXY_CERTS) {
-        X509_STORE_set_check_issued(store, pki_proxy_check_issued);
-    }
-
     if (cadir != NULL) {
         if (!X509_STORE_load_path(store, cadir)) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
@@ -307,42 +188,32 @@ brix_build_ca_store(ngx_log_t *log,
         X509_STORE_set_default_paths(store);
     }
 
-    if (crl_path != NULL) {
-        int crl_count = pki_load_crls(store, crl_path, log);
-        if (crl_count < 0) {
-            X509_STORE_free(store);
-            return NULL;
+    {
+        int crl_count = 0;
+
+        if (crl_path != NULL) {
+            crl_count = pki_load_crls(store, crl_path, log);
+            if (crl_count < 0) {
+                X509_STORE_free(store);
+                return NULL;
+            }
         }
 
         /*
-         * CRL verify flags are gated on crl_mode:
-         *   OFF     — never set them; CRLs still load for the /healthz audit.
-         *   TRY     — set them when a CRL is present, and install the
-         *             UNABLE_TO_GET_CRL downgrade so CAs without a CRL pass.
-         *   REQUIRE — set them unconditionally so a missing CRL for ANY CA is
-         *             fatal; no downgrade.
+         * All flag/callback/signing_policy setup is centralised in
+         * brix_store_configure so the C conformance oracle configures a store
+         * identically to this production path.
          */
-        if (crl_mode == BRIX_CRL_MODE_REQUIRE
-            || (crl_mode == BRIX_CRL_MODE_TRY && crl_count > 0))
+        if (brix_store_configure(store, cadir, extra_flags, crl_count,
+                                 sp_mode, crl_mode, log, brix_pki_sp_log) != 0)
         {
-            X509_STORE_set_flags(store,
-                                 X509_V_FLAG_CRL_CHECK |
-                                 X509_V_FLAG_CRL_CHECK_ALL |
-                                 X509_V_FLAG_USE_DELTAS);
-        }
-
-        if (crl_mode == BRIX_CRL_MODE_TRY) {
-            X509_STORE_set_verify_cb(store, brix_crl_try_verify_cb);
+            X509_STORE_free(store);
+            return NULL;
         }
 
         if (crl_count_out != NULL) {
             *crl_count_out = crl_count;
         }
-    }
-
-    if (brix_attach_signing_policy(store, cadir, log, sp_mode, crl_mode) != 0) {
-        X509_STORE_free(store);
-        return NULL;
     }
 
     return store;
