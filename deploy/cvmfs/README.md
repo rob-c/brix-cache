@@ -92,6 +92,9 @@ http {
             brix_cvmfs_quarantine_dir /srv/cvmfs-quarantine;
 
             # geo alternative to default rtt selection:
+            #   geo ranking requires the origins as a storage backend (not
+            #   just an allow-list); replace brix_cvmfs_upstream_allow with:
+            #   brix_storage_backend "http://cvmfs-stratum-one.cern.ch:8000|http://cvmfs-s1fnal.opensciencegrid.org:8000";
             #   brix_cvmfs_origin_select geo;
             #   brix_cvmfs_here 55.95:-3.19;   # this cache (Edinburgh)
             #   brix_cvmfs_origin_coords cvmfs-stratum-one.cern.ch 46.23:6.05;

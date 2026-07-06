@@ -220,7 +220,7 @@ cvmfs_geo_rank_config(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
     if (n == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_cvmfs_origin_select geo requires an http(s) "
-            "brix_cvmfs_storage_backend");
+            "brix_storage_backend");
         return NGX_CONF_ERROR;
     }
     for (idx = n; idx < SD_HTTP_EP_MAX; idx++) {
@@ -469,7 +469,7 @@ ngx_http_brix_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
                                (u_char *) "http", 4) != 0))
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_cvmfs_unified_origin on requires brix_cvmfs_storage_backend "
+            "brix_cvmfs_unified_origin on requires brix_storage_backend "
             "to name an http(s) origin set, e.g. "
             "\"http://s1a:8000|http://s1b:8000|http://s1c:8000\" (the '|'-list "
             "is the ranked failover set that hides a dead Stratum-1)");
