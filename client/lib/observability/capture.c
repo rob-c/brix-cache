@@ -129,7 +129,7 @@ read_magic(FILE *fp, brix_status *st)
     return 0;
 }
 
-static uint16_t rd_u16(FILE *fp) { int a = fgetc(fp), b = fgetc(fp); return (uint16_t) ((a << 8) | (b & 0xff)); }
+static uint16_t rd_u16(FILE *fp) { int a = fgetc(fp), b = fgetc(fp); return ((uint16_t)(uint8_t)a << 8) | (uint16_t)(uint8_t)b; }
 static uint32_t rd_u32(FILE *fp) {
     uint32_t a = (uint32_t) fgetc(fp), b = (uint32_t) fgetc(fp);
     uint32_t c = (uint32_t) fgetc(fp), d = (uint32_t) fgetc(fp);
@@ -239,7 +239,7 @@ brix_capture_playback(const char *path, const char *url, const brix_opts *co,
     FILE     *fp;
     brix_url  u;
     brix_conn c;
-    int       type, issued = 0, ok = 0;
+    int       type, issued = 0, ok = 0, truncated = 0;
 
     fp = fopen(path, "rb");
     if (fp == NULL) {
@@ -260,13 +260,14 @@ brix_capture_playback(const char *path, const char *url, const brix_opts *co,
         if (type == 'M') {                       /* skip metadata */
             int kl = fgetc(fp);
             uint16_t vl;
-            if (kl < 0) { break; }
-            if (fseek(fp, kl, SEEK_CUR) != 0) { break; }
+            if (kl < 0) { truncated = 1; break; }
+            if (fseek(fp, kl, SEEK_CUR) != 0) { truncated = 1; break; }
             vl = rd_u16(fp);
-            if (fseek(fp, vl, SEEK_CUR) != 0) { break; }
+            if (fseek(fp, vl, SEEK_CUR) != 0) { truncated = 1; break; }
             continue;
         }
         if (type != 'F') {
+            truncated = 1;
             break;
         }
         {
@@ -276,9 +277,9 @@ brix_capture_playback(const char *path, const char *url, const brix_opts *co,
             uint32_t wlen = rd_u32(fp);
             uint8_t *w;
             (void) sid;
-            if (dir == EOF || wlen > XRDCAP_WIRE_MAX) { break; }
+            if (dir == EOF || wlen > XRDCAP_WIRE_MAX) { truncated = 1; break; }
             w = (uint8_t *) malloc(wlen ? wlen : 1);
-            if (w == NULL || fread(w, 1, wlen, fp) != wlen) { free(w); break; }
+            if (w == NULL || fread(w, 1, wlen, fp) != wlen) { free(w); truncated = 1; break; }
             /* Replay only client REQUEST frames that are real operations. */
             if (isreq == 1 && dir == '>' && wlen >= 24 && !is_session_op(code)) {
                 brix_status rst;
@@ -302,5 +303,9 @@ brix_capture_playback(const char *path, const char *url, const brix_opts *co,
     fclose(fp);
     brix_close(&c);
     fprintf(out, "(%d request(s) re-issued, %d ok)\n", issued, ok);
+    if (truncated) {
+        brix_status_set(st, XRDC_EPROTO, 0, "truncated or corrupted capture");
+        return -1;
+    }
     return 0;
 }

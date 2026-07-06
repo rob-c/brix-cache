@@ -144,15 +144,30 @@ do_topology(const diag_args *a)
     brix_close(&c);
 
     if (a->json) {
-        printf("{");
-        brix_json_kv_str(stdout,  "url",                    a->url,           1);
-        brix_json_kv_str(stdout,  "host",                   u.host,           1);
-        brix_json_kv_ll(stdout,   "port",          (long long) u.port,        1);
-        brix_json_kv_bool(stdout, "locate_ok",              js_locate_ok,     1);
-        brix_json_kv_str(stdout,  "locate_result",          js_locate_result, 1);
-        brix_json_kv_bool(stdout, "redirect_convergence_ok", js_redirect_ok,  1);
-        brix_json_kv_ll(stdout,   "failures",      (long long) js_fails,      0);
-        printf("}\n");
+        /* Emit an array of nodes extracted from the locate-result blob.
+         *
+         * WHAT: splits the raw locate-result string on whitespace, one element
+         *       per token: [{"node":"<token>"}, ...].
+         * WHY:  the human branch prints a single raw blob (not per-node lines),
+         *       so splitting on whitespace is the minimal faithful translation.
+         *       Top-level must be an array so JSON consumers can iterate nodes
+         *       without knowing the blob grammar.
+         * HOW:  strtok on a stack copy; empty locate → []. */
+        char        lbuf[4096];
+        char       *tok;
+        const char *sep = "";
+        printf("[");
+        if (js_locate_ok && js_locate_result[0] != '\0') {
+            snprintf(lbuf, sizeof(lbuf), "%s", js_locate_result);
+            for (tok = strtok(lbuf, " \t\r\n"); tok != NULL;
+                 tok = strtok(NULL, " \t\r\n")) {
+                printf("%s{", sep);
+                brix_json_kv_str(stdout, "node", tok, 0);
+                printf("}");
+                sep = ",";
+            }
+        }
+        printf("]\n");
         return js_fails ? 1 : 0;
     }
 
