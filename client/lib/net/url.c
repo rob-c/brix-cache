@@ -87,10 +87,15 @@ parse_remote(const char *s, const char *after_scheme, brix_scheme scheme,
     }
 
     /* slash points at the start of the path. XRootD uses "//" between authority
-     * and the absolute path, so collapse a leading "//" to one "/". */
+     * and the absolute path, so collapse a leading "//" to one "/".
+     * When the path starts with exactly one '/' (no collapse), record the bit
+     * so callers can hint the user about the double-slash convention (spec WS-3).
+     * The parse RESULT is identical in both forms — C1 is preserved. */
     path = slash;
     if (path[0] == '/' && path[1] == '/') {
         path++;
+    } else if (path[0] == '/') {
+        out->single_slash_path = 1;   /* single slash: no collapse fired */
     }
     {
         size_t pl = strlen(path);

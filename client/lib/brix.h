@@ -88,6 +88,8 @@ typedef struct {
     int         port;
     char        user[64];
     char        path[XRDC_PATH_MAX];   /* absolute for root://, local path otherwise */
+    unsigned    single_slash_path : 1; /* set when path came from a single '/' (not '//');
+                                        * spec WS-3: detection bit for the double-slash hint */
 } brix_url;
 
 /* Web endpoints carried over HTTP (WebDAV + S3) — the non-root transfer surface.

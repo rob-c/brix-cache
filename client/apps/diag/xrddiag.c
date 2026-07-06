@@ -5,6 +5,8 @@
 #include "diag_internal.h"
 #include "cli/jsonout.h"
 #include "core/version.h"
+#include "cli/suggest.h"    /* brix_suggest(): did-you-mean at unknown-subcommand sites */
+#include "cli/cli_hint.h"   /* brix_cli_hint(): TTY-gated hint output */
 
 int g_fails;
 
@@ -666,7 +668,24 @@ main(int argc, char **argv)
     if (strcmp(sub, "srr") == 0)           { return do_srr(&a); }
     if (strcmp(sub, "tape") == 0)          { return do_tape(&a); }
 
-    fprintf(stderr, "xrddiag: unknown subcommand '%s'\n", sub);
+    {
+        /*
+         * WHAT: emit a did-you-mean hint for unrecognised xrddiag subcommands.
+         * WHY:  spec WS-7: every unknown-command site must suggest a close match
+         *       for interactive users (TTY-gated, pipeline-silent per C3).
+         * HOW:  static NULL-terminated table of all xrddiag subcommands.
+         */
+        static const char *const XRDDIAG_CMDS[] = {
+            "remote-doctor", "watch", "check", "bench", "metabench",
+            "topology", "status", "compare", "probe-robustness", "replay",
+            "srr", "tape", "qstats", "wait41", "mpxstats", NULL
+        };
+        const char *suggestion = brix_suggest(sub, XRDDIAG_CMDS);
+        fprintf(stderr, "xrddiag: unknown subcommand '%s'\n", sub);
+        if (suggestion != NULL) {
+            brix_cli_hint("hint: did you mean '%s'?\n", suggestion);
+        }
+    }
     usage();
     return 50;
 }

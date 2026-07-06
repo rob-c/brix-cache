@@ -21,6 +21,7 @@
 #include "auth/token/b64url.h"   /* shared base64url decode + JWS splitter (libxrdproto) */
 #include "auth/token/scopes.h"   /* shared WLCG scope parser (libxrdproto) */
 #include "core/compat/json_min.h" /* shared dependency-free JSON value extractor */
+#include "cli/cli_hint.h"        /* brix_hint_doctor_referral(): spec WS-7 doctor hint */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -334,6 +335,8 @@ brix_cred_diagnose(int want_write, const char *prefix, FILE *out)
  * Print a credential hint at an app's error-reporting site, but only when the
  * status carries an auth/authz wire error — so an ordinary ENOENT/EIO failure
  * does not trigger credential noise.  Indented under the primary error line.
+ * Also fires the doctor-referral hint (spec WS-7) so users know that
+ * `xrddiag check <endpoint>` can walk through the auth handshake for them.
  */
 void
 brix_cred_hint_for_status(const brix_status *st, int want_write, FILE *out)
@@ -345,4 +348,6 @@ brix_cred_hint_for_status(const brix_status *st, int want_write, FILE *out)
         return;
     }
     (void) brix_cred_diagnose(want_write, "  hint: ", out);
+    /* Spec WS-7: after the credential hint, offer the xrddiag referral. */
+    brix_hint_doctor_referral(st, NULL);
 }

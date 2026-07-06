@@ -16,6 +16,8 @@
  */
 #include "brix.h"
 #include "core/version.h"
+#include "cli/suggest.h"    /* brix_suggest(): did-you-mean at unknown-subcommand sites */
+#include "cli/cli_hint.h"   /* brix_cli_hint(): TTY-gated hint output */
 
 #include <stdio.h>
 #include <string.h>
@@ -108,10 +110,30 @@ main(int argc, char **argv)
             return rc;
         }
     }
-    fprintf(stderr,
-        "usage: xrdcksum <crc32c|crc64|adler32|verify|info|tree|check> "
-        "[args...]\n"
-        "       (or invoke via the xrdcrc32c/xrdcrc64/xrdadler32/"
-        "xrdckverify/xrdcinfo symlinks)\n");
+    {
+        /*
+         * WHAT: emit a did-you-mean hint when argv[1] is not a recognised
+         *       xrdcksum subcommand or symlink name.
+         * WHY:  spec WS-7: every unknown-command site must suggest a close match
+         *       for interactive users (TTY-gated, pipeline-silent per C3).
+         * HOW:  static NULL-terminated table of all accepted subcommand and
+         *       busybox-symlink spellings; pass to brix_suggest().
+         */
+        static const char *const CKSUM_CMDS[] = {
+            "crc32c", "crc64", "adler32", "verify", "info", "tree", "check",
+            "xrdcrc32c", "xrdcrc64", "xrdadler32", "xrdckverify", "xrdcinfo",
+            NULL
+        };
+        const char *arg      = (argc > 1) ? argv[1] : NULL;
+        const char *suggestion = brix_suggest(arg, CKSUM_CMDS);
+        fprintf(stderr,
+            "usage: xrdcksum <crc32c|crc64|adler32|verify|info|tree|check> "
+            "[args...]\n"
+            "       (or invoke via the xrdcrc32c/xrdcrc64/xrdadler32/"
+            "xrdckverify/xrdcinfo symlinks)\n");
+        if (suggestion != NULL && arg != NULL) {
+            brix_cli_hint("hint: did you mean '%s'?\n", suggestion);
+        }
+    }
     return 50;
 }
