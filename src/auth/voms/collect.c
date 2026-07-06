@@ -1,4 +1,5 @@
 #include "voms_internal.h"
+#include "auth/voms/vo_token.h"
 
 #include <string.h>
 
@@ -17,26 +18,11 @@
  * manual NUL termination for subsequent appends. Caller must ensure vo_list_sz
  * and primary_vo_sz are sufficient (typically 256 bytes). */
 
+/* Thin ngx-typed wrapper over the shared ngx-free predicate (vo_token.h). */
 static ngx_flag_t
 brix_vo_token_safe(const char *vo, size_t vo_len)
 {
-    size_t i;
-
-    if (vo == NULL || vo_len == 0) {
-        return 0;
-    }
-
-    for (i = 0; i < vo_len; i++) {
-        u_char ch = (u_char) vo[i];
-
-        if (ch <= ' ' || ch >= 0x7f || ch == ',' || ch == '/'
-            || ch == '\\')
-        {
-            return 0;
-        }
-    }
-
-    return 1;
+    return brix_vo_token_is_safe(vo, vo_len) ? 1 : 0;
 }
 
 static ngx_flag_t
