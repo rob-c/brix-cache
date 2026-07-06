@@ -72,7 +72,7 @@ brix_export_stream_cache_metrics(metrics_writer_t *mw,
     /* OCCUPANCY RATIO gauge: live used/total, scaled from ppm to a 0..1 ratio. */
     mw_printf(mw,
         "# HELP brix_cache_occupancy_ratio "
-            "Filesystem occupancy ratio for brix_cache_root.\n"
+            "Filesystem occupancy ratio for brix_cache_export.\n"
         "# TYPE brix_cache_occupancy_ratio gauge\n");
     for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
         uint64_t   total, used, available;
@@ -145,7 +145,7 @@ brix_export_stream_cache_metrics(metrics_writer_t *mw,
      * Each is a monotonic SHM counter read atomically (fetch_add 0 == load). */
     mw_printf(mw,
         "# HELP brix_cache_evictions_total "
-            "Files evicted from brix_cache_root.\n"
+            "Files evicted from brix_cache_export.\n"
         "# TYPE brix_cache_evictions_total counter\n");
     for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
         srv = &shm->servers[i];

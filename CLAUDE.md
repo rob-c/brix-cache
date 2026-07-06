@@ -81,6 +81,7 @@ Full mapping: [docs/refactor/phase-66-map.tsv](docs/refactor/phase-66-map.tsv).
 ### HTTP (`src/protocols/webdav/` prefix unless noted)
 | Keyword | Files |
 |---|---|
+| unified config / storage directives | `src/core/config/http_common.c` (bare `brix_export`/`brix_storage_backend`/`brix_cache_store`/`brix_cache_evict_*`/`brix_cache_verify` — shared by webdav/s3/cvmfs), `src/protocols/shared/proto_exclusive.c` (one brix protocol per location+port) |
 | routing / proxy | `dispatch.c`, `proxy.c`, `postconfig.c` |
 | methods (GET/PUT/etc) | `get.c`, `put.c`, `namespace.c`, `move.c`, `copy.c`, `propfind.c`, `lock.c` |
 | auth / tpc | `auth_cert.c`, `auth_token.c`, `tpc.c`, `tpc_curl.c`, `tpc_cred.c`, `tpc_headers.c` |
@@ -213,7 +214,7 @@ tests/manage_test_servers.sh start|restart|stop
 **New XRootD opcode:** `src/protocols/root/<sub>/op.c` → register `protocols/root/handshake/dispatch_<type>.c` → constants `protocols/root/protocol/opcodes.h`/`wire.h` → add to `./config` → `./configure`+`make` → 3 tests
 **New metric:** enum `metrics.h` → field `metrics_internal.h` → export `src/observability/metrics/<sub>.c` → `BRIX_<TYPE>_METRIC_INC(slot)` at callsite
 **New protocol:** ONE row in `src/core/types/proto_list.h` (append-only!) → unified enum+labels, dashboard ids+names+JSON buckets all generate; then follow the checklist in that header (SHM family, totals glue, vfs proto, zone-ensure for HTTP-only, docs, tests)
-**New config directive:** field `src/core/config/config.h` (`NGX_CONF_UNSET`) → `ngx_command_t` `src/core/config/directives.c` → merge in `merge_*_conf()` — no `./configure` unless new top-level block
+**New config directive:** field `src/core/config/config.h` (`NGX_CONF_UNSET`) → `ngx_command_t` `src/core/config/directives.c` → merge in `merge_*_conf()` — no `./configure` unless new top-level block. Unified storage names (`brix_export`/`brix_storage_backend`/`brix_cache_store`/`brix_cache_evict_*`/`brix_cache_verify`) are owned ONCE in the HTTP common module (`src/core/config/http_common.c`, field on `common.*`); add a new shared name there, not per-protocol.
 
 ---
 
