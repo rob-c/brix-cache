@@ -75,6 +75,7 @@ origin_status_errno(uint16_t status, const u_char *body, uint32_t dlen)
     case kXR_NotFound:      return ENOENT;
     case kXR_NotAuthorized: return EACCES;
     case kXR_isDirectory:   return EISDIR;
+    case kXR_ItExists:      return ENOTEMPTY; /* kXR_rmdir on a non-empty directory */
     default:                return EIO;
     }
 }
@@ -147,6 +148,42 @@ brix_cache_origin_rm(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
     }
     ngx_memzero(body, sizeof(body));            /* kXR_rm params are reserved */
     rc = origin_request(t, oc, kXR_rm, body, path, pl, &status, &rbody,
+                        &dlen, 256);
+    if (rc != 0) {
+        errno = EIO;
+        return -1;
+    }
+    if (status != kXR_ok) {
+        errno = origin_status_errno(status, rbody, dlen);
+        free(rbody);
+        return -1;
+    }
+    free(rbody);
+    return 0;
+}
+
+/* brix_cache_origin_rmdir — kXR_rmdir <path> on the origin (remove an empty
+ * directory). The rmdir request has the same wire shape as kXR_rm: the 16-byte
+ * body is reserved/zero; the path is the payload. Returns 0, or -1 with errno
+ * set. Non-empty directory is surfaced as ENOTEMPTY (origin sends kXR_ItExists
+ * in the kXR_error body for this case); ENOENT when the path is already gone. */
+int
+brix_cache_origin_rmdir(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
+    const char *path)
+{
+    uint8_t   body[XRDW_BODY_LEN];
+    size_t    pl = (path != NULL) ? strlen(path) : 0;
+    uint16_t  status;
+    uint32_t  dlen;
+    u_char   *rbody = NULL;
+    int       rc;
+
+    if (pl == 0 || pl > 0x7fff) {
+        errno = EINVAL;
+        return -1;
+    }
+    ngx_memzero(body, sizeof(body));         /* kXR_rmdir params are reserved */
+    rc = origin_request(t, oc, kXR_rmdir, body, path, pl, &status, &rbody,
                         &dlen, 256);
     if (rc != 0) {
         errno = EIO;

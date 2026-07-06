@@ -194,10 +194,12 @@ sd_xroot_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
     return rc == 0 ? NGX_OK : NGX_ERROR;
 }
 
-/* Delete a file on the remote node (kXR_rm). Required so a remote xroot node can
- * serve as a cache_store (cstore eviction) or a stage_store (post-flush reclaim of
- * the staged copy). Only regular files are removed; is_dir is refused (no
- * kXR_rmdir path over the wire yet). Returns NGX_OK / NGX_ERROR (errno set). */
+/* Delete a file or empty directory on the remote node. Required so a remote
+ * xroot node can serve as a cache_store (cstore eviction) or a stage_store
+ * (post-flush reclaim). Files use kXR_rm; directories use kXR_rmdir (the two
+ * opcodes share the same wire shape: reserved 16-byte body + path payload).
+ * Returns NGX_OK / NGX_ERROR (errno set — ENOTEMPTY if the directory is not
+ * empty, ENOENT if the path is already gone). */
 ngx_int_t
 sd_xroot_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
 {
@@ -206,12 +208,9 @@ sd_xroot_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
     brix_cache_fill_t        *t;
     int                         rc, e = 0;
 
-    if (is_dir) {
-        errno = ENOSYS;                 /* directory removal over the wire: TODO */
-        return NGX_ERROR;
-    }
     if (sd_xroot_session(is->conf, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
-    rc = brix_cache_origin_rm(t, &oc, path);
+    rc = is_dir ? brix_cache_origin_rmdir(t, &oc, path)
+                : brix_cache_origin_rm(t, &oc, path);
     e = errno;
     brix_cache_origin_close(&oc);
     free(t);
