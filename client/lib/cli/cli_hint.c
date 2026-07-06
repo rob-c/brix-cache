@@ -85,8 +85,10 @@ brix_cli_hint_once(const char *key, const char *fmt, ...)
      * WHY:  hints fired inside loops (e.g. per-file divergence warnings) would
      *       flood an interactive session; once-per-key suppresses duplicates.
      * HOW:  fixed 16-slot static table of seen key pointers/strings.  strcmp
-     *       match so string-literal and heap keys both work.  Beyond 16 distinct
-     *       keys the entry is silently dropped (resource-bounded, no malloc).
+     *       match so string-literal and heap keys both work.  When the table
+     *       is full (16 distinct keys seen), new keys are silently dropped
+     *       (resource-bounded, no malloc): spec WS-1 contract is to emit at
+     *       most once per distinct key among the first 16 keys.
      */
     static const char *seen[HINT_ONCE_MAX];
     static int         seen_count = 0;
@@ -105,6 +107,8 @@ brix_cli_hint_once(const char *key, const char *fmt, ...)
     /* Register the key (silently drop if table is full). */
     if (seen_count < HINT_ONCE_MAX) {
         seen[seen_count++] = key;
+    } else {
+        return;  /* table full: drop new keys silently (spec WS-1 contract) */
     }
     va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);

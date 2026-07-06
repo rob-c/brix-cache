@@ -219,6 +219,33 @@ class TestHintAbsentOnPipe:
 
 
 # ---------------------------------------------------------------------------
+# table-full test
+# ---------------------------------------------------------------------------
+
+class TestHintTableFull:
+    """When 16+ distinct keys are used, new keys beyond 16 are silently dropped."""
+
+    def test_hint_table_full_drops_17th_key(self, probe_binary):
+        """WHAT: 17th distinct key to brix_cli_hint_once produces no output.
+        WHY:  spec WS-1: hints are resource-bounded at 16 distinct keys per
+              process; beyond that, new keys are silently dropped (no hint).
+        HOW:  run_pty calls the probe's hint_table_full command, which calls
+              brix_cli_hint_once 17 times with distinct keys. Count the output
+              lines: only 16 should appear; the 17th is dropped.
+        """
+        rc, _stdout, stderr = run_pty(
+            [str(probe_binary), "hint_table_full"], env=_base_env(), timeout=10
+        )
+        assert rc == 0, f"probe exited {rc}"
+        stderr_text = stderr.decode("utf-8", errors="replace")
+        hint_lines = [l for l in stderr_text.splitlines() if l.startswith("hint_")]
+        assert len(hint_lines) == 16, (
+            f"expected exactly 16 hint lines (keys 0-15), got {len(hint_lines)}:\n"
+            f"{stderr_text}"
+        )
+
+
+# ---------------------------------------------------------------------------
 # security-negative test
 # ---------------------------------------------------------------------------
 
