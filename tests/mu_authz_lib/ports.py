@@ -28,6 +28,8 @@ class MU:
     CACHE_NOIMP   = _p("TEST_MU_CACHE_NOIMP",   12110)
     ORIGIN_NOIMP  = _p("TEST_MU_ORIGIN_NOIMP",  12111)
     WEBDAV_AUTHZ  = _p("TEST_MU_WEBDAV_AUTHZ",  12120)
+    # Direct (non-cache) GSI+authdb root:// node — verifies the read-open existence oracle fix.
+    DIRECT_AUTHZ  = _p("TEST_MU_DIRECT_AUTHZ",  12130)
 
     # Directory layout (kept out of the shared /tmp/xrd-test fleet roots).
     MU_ROOT    = os.environ.get("TEST_MU_ROOT", "/tmp/xrd-test/mu")
