@@ -170,8 +170,13 @@ See
 .SH EXIT STATUS
 0 on success.
 1 if any probe step fails (topology, remote-doctor, probe-robustness).
-50 on a usage error.
-51 on out of memory.
+50 on a usage error (EUSAGE).
+51 on socket/connect/timeout error (ESOCK), permanent name-resolution failure (ERESOLVE),
+or data corruption (EINTEGRITY, I/O-error class).
+52 on redirect loop/budget exhausted (EREDIRECT) or malformed server frame (EPROTO).
+53 on authentication failure (EAUTH; several error classes share this code with syscall
+errors like EPERM, EACCES when running against native XRootD).
+54 on unsupported feature (EUNSUPPORTED) or generic server error.
 Non-zero (the underlying XRootD error code) on a connect or protocol error.
 .SH SEE ALSO
 .BR xrdcp (1),
