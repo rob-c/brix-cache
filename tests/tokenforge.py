@@ -6,6 +6,8 @@ share one verdict source. See docs/superpowers/specs/2026-07-06-wlcg-token-
 conformance-design.md.
 """
 import base64
+import hashlib
+import hmac
 import json
 import os
 import time
@@ -24,6 +26,55 @@ def _b64url(raw: bytes) -> str:
 
 def _seg(obj) -> str:
     return _b64url(json.dumps(obj, separators=(",", ":")).encode("utf-8"))
+
+
+def _rsa_jwk(pub, kid):
+    nums = pub.public_numbers()
+    def b(i):
+        return _b64url(i.to_bytes((i.bit_length() + 7) // 8, "big"))
+    return {"kty": "RSA", "kid": kid, "use": "sig", "alg": "RS256",
+            "n": b(nums.n), "e": b(nums.e)}
+
+
+def _ec_jwk(pub, kid):
+    nums = pub.public_numbers()
+    size = 32  # P-256
+    def b(i):
+        return _b64url(i.to_bytes(size, "big"))
+    return {"kty": "EC", "kid": kid, "use": "sig", "alg": "ES256",
+            "crv": "P-256", "x": b(nums.x), "y": b(nums.y)}
+
+
+def write_jwks(path, entries):
+    """entries: list of (public_key, kid)."""
+    keys = []
+    for pub, kid in entries:
+        if isinstance(pub, ec.EllipticCurvePublicKey):
+            keys.append(_ec_jwk(pub, kid))
+        else:
+            keys.append(_rsa_jwk(pub, kid))
+    with open(path, "w") as fh:
+        json.dump({"keys": keys}, fh, indent=2)
+
+
+def write_scitokens_cfg(path, issuers):
+    """issuers: list of dicts {name, issuer, audience, base_paths,
+    restricted_paths, jwks_path, strategy}. Emits the INI the C registry
+    parser (issuer_registry.c) reads."""
+    lines = ["[Global]", "audience = nginx-xrootd", ""]
+    for it in issuers:
+        lines.append(f"[Issuer {it['name']}]")
+        lines.append(f"issuer = {it['issuer']}")
+        lines.append(f"audience = {it.get('audience', 'nginx-xrootd')}")
+        lines.append("base_path = " + ", ".join(it.get("base_paths", ["/"])))
+        if it.get("restricted_paths"):
+            lines.append("restricted_path = " +
+                         ", ".join(it["restricted_paths"]))
+        lines.append(f"jwks_file = {it['jwks_path']}")
+        lines.append(f"authz_strategy = {it.get('strategy', 'capability')}")
+        lines.append("")
+    with open(path, "w") as fh:
+        fh.write("\n".join(lines))
 
 
 class TokenForge(TokenIssuer):
@@ -47,10 +98,9 @@ class TokenForge(TokenIssuer):
     def alg_hs256_confusion(self):
         # Sign with HMAC keyed on the RSA *public* key PEM — the classic
         # confusion attack. A correct verifier rejects because alg!=RS256/ES256.
-        import hmac, hashlib
         h = {"alg": "HS256", "typ": "JWT", "kid": self.DEFAULT_KID}
         signing_input = (_seg(h) + "." + _seg(self._base_claims())).encode()
-        pub_pem = self._key.public_key().public_bytes(
+        pub_pem = self.private_key.public_key().public_bytes(
             serialization.Encoding.PEM,
             serialization.PublicFormat.SubjectPublicKeyInfo)
         sig = hmac.new(pub_pem, signing_input, hashlib.sha256).digest()
@@ -148,14 +198,14 @@ class TokenForge(TokenIssuer):
 
     def for_issuer(self, issuer, kid=None):
         h = {"alg": "RS256", "typ": "JWT"}
-        if kid:
+        if kid is not None:
             h["kid"] = kid
         return self._sign_with_header(h, self._base_claims(iss=issuer))
 
     # --- signing helper: RSA-sign an arbitrary (header, payload) ------
     def _sign_with_header(self, header, payload):
         signing_input = (_seg(header) + "." + _seg(payload)).encode("ascii")
-        sig = self._key.sign(signing_input, padding.PKCS1v15(),
+        sig = self.private_key.sign(signing_input, padding.PKCS1v15(),
                              hashes.SHA256())
         return signing_input.decode("ascii") + "." + _b64url(sig)
 
