@@ -75,7 +75,7 @@ origin_status_errno(uint16_t status, const u_char *body, uint32_t dlen)
     case kXR_NotFound:      return ENOENT;
     case kXR_NotAuthorized: return EACCES;
     case kXR_isDirectory:   return EISDIR;
-    case kXR_ItExists:      return ENOTEMPTY; /* kXR_rmdir on a non-empty directory */
+    case kXR_ItExists:      return ENOTEMPTY; /* non-empty dir: kXR_rmdir, or kXR_mv onto one */
     default:                return EIO;
     }
 }
