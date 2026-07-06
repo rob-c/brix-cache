@@ -119,10 +119,6 @@ NGINX_ANON_RESUME_OFF_PORT = int(
 NGINX_GSI_PORT = int(os.environ.get("TEST_NGINX_GSI_PORT", "11095"))
 NGINX_GSI_TLS_PORT = int(os.environ.get("TEST_NGINX_GSI_TLS_PORT", "11096"))
 NGINX_TOKEN_PORT = int(os.environ.get("TEST_NGINX_TOKEN_PORT", "11097"))
-# Strict-mode (enforcing) root:// token port — brix_token_enforce on, no
-# anonymous fallback.  Used by conformance family tests (Task-10+).
-NGINX_TOKEN_STRICT_PORT = int(os.environ.get("TEST_NGINX_TOKEN_STRICT_PORT", "11119"))
-
 # Strict zero-skew token port — dedicated nginx instance with brix_token_clock_skew 0,
 # proving that the configurable skew correctly enforces exact expiry (no grace window).
 NGINX_TOKEN_STRICT_PORT = int(os.environ.get("TEST_NGINX_TOKEN_STRICT_PORT", "11119"))
