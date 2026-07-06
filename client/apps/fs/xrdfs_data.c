@@ -59,6 +59,21 @@ stream_file(brix_conn *c, const char *path, const char *opaque,
 }
 
 
+/* cat [-z codec] <path> — stream a remote file to stdout with optional compression.
+ *
+ * WHAT: Stream remote file contents to stdout. Returns 0 on success, nonzero exit code
+ * on error (e.g. missing file, invalid codec). With -z, requests server-side inline
+ * compression; output is identical whether compression was negotiated or ignored.
+ *
+ * WHY: Transparency contract with the server — the -z flag is an opt-in request that
+ * the server may decline. Clients must handle both compressed and plaintext responses
+ * interchangeably, ensuring the output is byte-identical after decompression.
+ *
+ * HOW: (1) Parse arguments for -z <codec> flag and target path. (2) Validate codec
+ * (reject empty, >16 chars, or injection chars &?=). (3) Encode codec as opaque
+ * "xrootd.compress=<codec>". (4) Forward to stream_file() with the opaque key;
+ * decompression is transparent in brix_file_read().
+ */
 int
 do_cat(brix_conn *c, const char *cwd, int argc, char **argv)
 {
@@ -87,7 +102,7 @@ do_cat(brix_conn *c, const char *cwd, int argc, char **argv)
      * server without support ignores the request and streams plaintext.
      * Guard: reject codec strings that could inject opaque key=value pairs. */
     if (codec != NULL) {
-        if (strlen(codec) > 16 || strpbrk(codec, "&?=") != NULL) {
+        if (codec[0] == '\0' || strlen(codec) > 16 || strpbrk(codec, "&?=") != NULL) {
             fprintf(stderr, "xrdfs: cat: invalid codec '%s'\n", codec);
             return 50;
         }
