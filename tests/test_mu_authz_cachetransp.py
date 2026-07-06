@@ -5,9 +5,10 @@ The cache-transparency invariant: for principal B, the cache server's verdict on
 bytes a privileged filler (svc) placed in the cache, so a cache HIT that ALLOWs — or denies
 for a weaker tier — where the cold path DENIES is a cross-user leak.
 
-Predicted RED against current main: the root cached-read path runs only the VO ACL
-(open_cache.c:26), skipping the authdb + token-scope tiers the direct path enforces. carol
-(same VO as the filler, NO authdb grant) is the sharpest probe.
+REGRESSION test (the cache-transparency fix has LANDED): open_cache.c now runs the full
+three-tier gate on the cached-read path, identical to the direct path. These cells must stay
+GREEN — a failure means the weaker/absent hit-path re-auth has been reintroduced. carol (same
+VO as the filler, NO authdb grant) is the sharpest probe.
 
 Run: sudo -E env PYTHONPATH=tests pytest tests/test_mu_authz_cachetransp.py -v
 """
