@@ -126,7 +126,7 @@ do_du(brix_conn *c, const char *cwd, int argc, char **argv)
     int human = 0, json = 0, i, rc = 0, any = 0;
 
     for (i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-h") == 0)                                        { human = 1; }
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--human") == 0)      { human = 1; }
         else if (strcmp(argv[i], "-j") == 0 || strcmp(argv[i], "--json") == 0) { json  = 1; }
     }
     for (i = 1; i < argc; i++) {
@@ -278,9 +278,12 @@ do_tree(brix_conn *c, const char *cwd, int argc, char **argv)
     int         i;
 
     for (i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-d") == 0) { o.dirs_only = 1; }
-        else if (strcmp(argv[i], "-L") == 0 && i + 1 < argc) { o.maxdepth = atoi(argv[++i]); }
-        else if (argv[i][0] != '-') { start = argv[i]; }
+        if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--dirs-only") == 0) {
+            o.dirs_only = 1;
+        } else if ((strcmp(argv[i], "-L") == 0 || strcmp(argv[i], "--depth") == 0)
+                   && i + 1 < argc) {
+            o.maxdepth = atoi(argv[++i]);
+        } else if (argv[i][0] != '-') { start = argv[i]; }
     }
     build_path(cwd, start, path, sizeof(path));
     printf("%s\n", path);

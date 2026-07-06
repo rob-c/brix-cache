@@ -35,8 +35,12 @@ main(int argc, char **argv)
         }
         if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
             printf("usage: %s [-s|-c|-w|-f|-e] [-p prty] host[:port] <path>...\n"
-                   "  -s stage  -c cancel  -w write-mode  -f fresh  -e evict\n"
-                   "  -p <prty>  priority 0-3 (default 0)\n"
+                   "  -s, --stage     request tape staging\n"
+                   "  -c, --cancel    cancel a pending stage\n"
+                   "  -w, --wmode     write-mode hint\n"
+                   "  -f, --fresh     invalidate cached copy\n"
+                   "  -e, --evict     evict from disk cache\n"
+                   "  -p, --priority <prty>  priority 0-3 (default 0)\n"
                    BRIX_USAGE_FOOTER("xrdprep"),
                    argv[0]);
             return 0;
@@ -45,12 +49,14 @@ main(int argc, char **argv)
 
     for (i = 1; i < argc; i++) {
         const char *a = argv[i];
-        if (strcmp(a, "-s") == 0)      { options |= kXR_stage; }
-        else if (strcmp(a, "-c") == 0) { options |= kXR_cancel; }
-        else if (strcmp(a, "-w") == 0) { options |= kXR_wmode; }
-        else if (strcmp(a, "-f") == 0) { options |= kXR_fresh; }
-        else if (strcmp(a, "-e") == 0) { optionX |= kXR_evict; }
-        else if (strcmp(a, "-p") == 0 && i + 1 < argc) { prty = atoi(argv[++i]); }
+        if (strcmp(a, "-s") == 0 || strcmp(a, "--stage") == 0)        { options |= kXR_stage; }
+        else if (strcmp(a, "-c") == 0 || strcmp(a, "--cancel") == 0) { options |= kXR_cancel; }
+        else if (strcmp(a, "-w") == 0 || strcmp(a, "--wmode") == 0)  { options |= kXR_wmode; }
+        else if (strcmp(a, "-f") == 0 || strcmp(a, "--fresh") == 0)  { options |= kXR_fresh; }
+        else if (strcmp(a, "-e") == 0 || strcmp(a, "--evict") == 0)  { optionX |= kXR_evict; }
+        else if ((strcmp(a, "-p") == 0 || strcmp(a, "--priority") == 0) && i + 1 < argc) {
+            prty = atoi(argv[++i]);
+        }
         else if (endpoint == NULL)     { endpoint = a; }
         else if (np < XRDPREP_MAX_PATHS) { paths[np++] = a; }
     }

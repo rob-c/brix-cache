@@ -159,7 +159,7 @@ do_ls(brix_conn *c, const char *cwd, int argc, char **argv)
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-l") == 0)      { want_long = 1; }
         else if (strcmp(argv[i], "-R") == 0) { recursive = 1; }
-        else if (strcmp(argv[i], "-h") == 0) { human = 1; }
+        else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--human") == 0) { human = 1; }
         else if (strcmp(argv[i], "-j") == 0 || strcmp(argv[i], "--json") == 0) {
             json = 1;
         } else if (strcmp(argv[i], "-lR") == 0 || strcmp(argv[i], "-Rl") == 0) {
@@ -241,14 +241,14 @@ do_rm(brix_conn *c, const char *cwd, int argc, char **argv)
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "-R") == 0) {
             recursive = 1;
-        } else if (strcmp(argv[i], "-v") == 0) {
+        } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) {
             verbose = 1;
         } else {
             arg = argv[i];
         }
     }
     if (arg == NULL) {
-        fprintf(stderr, "usage: rm [-r] [-v] <path>\n");
+        fprintf(stderr, "usage: rm [-r] [-v, --verbose] <path>\n");
         return 50;
     }
     build_path(cwd, arg, path, sizeof(path));
@@ -439,7 +439,7 @@ do_df(brix_conn *c, const char *cwd, int argc, char **argv)
     const char *arg = NULL;
 
     for (i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-h") == 0) { human = 1; }
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--human") == 0) { human = 1; }
         else { arg = argv[i]; }
     }
     build_path(cwd, arg != NULL ? arg : "/", path, sizeof(path));
@@ -489,9 +489,10 @@ do_touch(brix_conn *c, const char *cwd, int argc, char **argv)
         if (strcmp(argv[i], "-c") == 0)      { no_create = 1; }
         else if (strcmp(argv[i], "-a") == 0) { do_atime = 1; }
         else if (strcmp(argv[i], "-m") == 0) { do_mtime = 1; }
-        else if (strcmp(argv[i], "-t") == 0 && i + 1 < argc) {
+        else if ((strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--timestamp") == 0)
+                 && i + 1 < argc) {
             if (touch_parse_time(argv[++i], &tspec) != 0) {
-                fprintf(stderr, "xrdfs: touch: bad -t timestamp '%s' "
+                fprintf(stderr, "xrdfs: touch: bad -t/--timestamp value '%s' "
                                 "(want [[CC]YY]MMDDhhmm[.ss])\n", argv[i]);
                 return 50;
             }
@@ -499,7 +500,7 @@ do_touch(brix_conn *c, const char *cwd, int argc, char **argv)
         } else { arg = argv[i]; }
     }
     if (arg == NULL) {
-        fprintf(stderr, "usage: touch [-c] [-a] [-m] [-t STAMP] <path>\n");
+        fprintf(stderr, "usage: touch [-c] [-a] [-m] [-t/--timestamp STAMP] <path>\n");
         return 50;
     }
     if (!do_atime && !do_mtime) { do_atime = do_mtime = 1; }   /* default: both */

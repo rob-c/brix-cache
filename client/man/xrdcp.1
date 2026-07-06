@@ -25,13 +25,13 @@ Overwrite an existing destination.
 .B \-r
 Recursively copy a tree (root/davs/http/s3 <-> local, or web<->web).
 .TP
-.B \-P
+.BR \-P ", " \-\-posc
 Persist-on-successful-close (upload).
 .TP
 .B \-s
 Silent: suppress all non-error output.
 .TP
-.BR \-v ", " \-d
+.BR \-v ", " \-d ", " \-\-verbose ", " \-\-debug
 Verbose / debug output.
 .TP
 .BI \-\-from " FILE"
@@ -85,6 +85,9 @@ With \fB\-r \-\-sync\fR: delete destination entries that are absent from the sou
 .TP
 .B \-\-remove\-source
 Delete each source file after its transfer succeeds (local and root:// sources only).
+.TP
+.BR \-N ", " \-\-no\-progress
+Suppress the progress bar even when stderr is a TTY.
 .TP
 .B \-\-progress
 Show a transfer progress bar with ETA (enabled automatically on a TTY for single-file copies).

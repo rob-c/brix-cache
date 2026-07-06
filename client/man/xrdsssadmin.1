@@ -3,21 +3,21 @@
 xrdsssadmin \- manage XRootD SSS (Simple Shared Secret) keytabs
 .SH SYNOPSIS
 .B xrdsssadmin
-[\fB\-k\fR \fIKEYTAB\fR]
+[\fB\-k\fR|\fB\-\-keytab\fR \fIKEYTAB\fR]
 .B add
 [\fIOPTS\fR]
 .br
 .B xrdsssadmin
-[\fB\-k\fR \fIKEYTAB\fR]
+[\fB\-k\fR|\fB\-\-keytab\fR \fIKEYTAB\fR]
 .B install
 [\fIOPTS\fR]
 .br
 .B xrdsssadmin
-[\fB\-k\fR \fIKEYTAB\fR]
+[\fB\-k\fR|\fB\-\-keytab\fR \fIKEYTAB\fR]
 .B list
 .br
 .B xrdsssadmin
-[\fB\-k\fR \fIKEYTAB\fR]
+[\fB\-k\fR|\fB\-\-keytab\fR \fIKEYTAB\fR]
 .B del
 .B \-\-id
 \fIN\fR
@@ -27,8 +27,14 @@ manages SSS keytabs used by the XRootD \fBsss\fR authentication protocol.
 Each keytab entry contains a random shared secret plus metadata (user, group, name,
 lifetime) that the server uses to authorise connections presenting that key.
 .PP
-The \fB\-k\fR option selects the keytab file; the default is
+The \fB\-k\fR/\fB\-\-keytab\fR option selects the keytab file; the default is
 \fB$XrdSecSSSKT\fR, then \fB$XrdSecsssKT\fR, then \fI~/.xrd/sss.keytab\fR.
+.SH OPTIONS
+.TP
+.BR \-k ", " \-\-keytab " \fIKEYTAB\fR"
+Path to the SSS keytab file.
+Defaults to \fB$XrdSecSSSKT\fR, then \fB$XrdSecsssKT\fR, then
+\fI~/.xrd/sss.keytab\fR.
 .SH COMMANDS
 .TP
 .B add

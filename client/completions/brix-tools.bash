@@ -9,7 +9,8 @@ _brix_opts_filter() {  # complete only when the current word starts with '-'
 }
 
 _xrdcp() {
-  local opts="-f -r -P -s -v -d -n -j -S -T -V -h --from --retry --no-retry
+  local opts="-f -r -P --posc -s -v -d --verbose --debug -N --no-progress
+    -n -j -S -T -V -h --from --retry --no-retry
     --max-stall --auto-refresh --oidc-account --jobs --sync --sync-check
     --delete --dry-run --exclude --include --remove-source --journal --resume
     --progress --verify --tls --notlsok --noverifyhost --auth --proxy --pgrw
@@ -77,8 +78,36 @@ _xrd() {
   fi
 }
 
+_xrdprep() {
+  _brix_opts_filter "-s --stage -c --cancel -w --wmode -f --fresh -e --evict
+    -p --priority -h --help --version"
+}
+
+_xrdgsiproxy() {
+  if [[ $COMP_CWORD -eq 1 ]]; then
+    COMPREPLY=($(compgen -W "init info destroy --help --version" \
+      -- "${COMP_WORDS[COMP_CWORD]}"))
+    return
+  fi
+  _brix_opts_filter "-valid --valid -cert --cert -key --key -out --out
+    -bits --bits -file --file --help --version"
+}
+
+_xrdsssadmin() {
+  if [[ $COMP_CWORD -eq 1 ]]; then
+    COMPREPLY=($(compgen -W "add install list del --help --version" \
+      -- "${COMP_WORDS[COMP_CWORD]}"))
+    return
+  fi
+  _brix_opts_filter "-k --keytab --user --group --name --id --lifetime
+    --keylen --help --version"
+}
+
 complete -F _xrdcp xrdcp
 complete -F _xrdfs xrdfs
 complete -F _xrddiag xrddiag
 complete -F _xrdcksum xrdcksum
 complete -F _xrd xrd
+complete -F _xrdprep xrdprep
+complete -F _xrdgsiproxy xrdgsiproxy
+complete -F _xrdsssadmin xrdsssadmin

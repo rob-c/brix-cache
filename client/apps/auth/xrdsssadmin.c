@@ -29,7 +29,7 @@ static void
 usage_fp(FILE *out)
 {
     fprintf(out,
-        "usage: xrdsssadmin [-k keytab] <command> [opts]\n"
+        "usage: xrdsssadmin [-k/--keytab keytab] <command> [opts]\n"
         "  commands:\n"
         "    add        mint a new random key and append it\n"
         "    install    same as add (creates the keytab if absent)\n"
@@ -39,7 +39,7 @@ usage_fp(FILE *out)
         "    --user U   (default: anybody)   --group G  (default: anygroup)\n"
         "    --name NM  (default: <host>)    --id N     (default: max+1)\n"
         "    --lifetime DAYS                 --keylen BYTES (default 32)\n"
-        "  -k defaults to $XrdSecSSSKT / $XrdSecsssKT / ~/.xrd/sss.keytab\n"
+        "  -k, --keytab defaults to $XrdSecSSSKT / $XrdSecsssKT / ~/.xrd/sss.keytab\n"
         "  --version  print version and exit\n"
         BRIX_USAGE_FOOTER("xrdsssadmin"));
 }
@@ -225,7 +225,7 @@ main(int argc, char **argv)
 
     for (i = 1; i < argc; i++) {
         const char *a = argv[i];
-        if (strcmp(a, "-k") == 0 && i + 1 < argc)            { keytab = argv[++i]; }
+        if ((strcmp(a, "-k") == 0 || strcmp(a, "--keytab") == 0) && i + 1 < argc) { keytab = argv[++i]; }
         else if (strcmp(a, "--user") == 0 && i + 1 < argc)   { user = argv[++i]; }
         else if (strcmp(a, "--group") == 0 && i + 1 < argc)  { group = argv[++i]; }
         else if (strcmp(a, "--name") == 0 && i + 1 < argc)   { name = argv[++i]; }

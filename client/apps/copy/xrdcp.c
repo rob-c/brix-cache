@@ -22,9 +22,10 @@ usage_fp(FILE *out)
         "  multiple sources / a glob / --from <file> => <dst> is a directory\n"
         "  -f             overwrite an existing destination\n"
         "  -r             recursively copy a tree (root/davs/http/s3 <-> local, or web<->web)\n"
-        "  -P             persist-on-successful-close (upload)\n"
+        "  -P, --posc     persist-on-successful-close (upload)\n"
         "  -s             silent\n"
-        "  -v, -d         verbose / debug\n"
+        "  -v, -d, --verbose, --debug  verbose / debug\n"
+        "  -N, --no-progress  suppress the progress bar even on a TTY\n"
         "  --from <file>  read sources from a manifest (one per line; '-'=stdin)\n"
         "  --journal <p>  record completed transfers; skip them on the next run\n"
         "  --resume       shorthand: --journal <manifest>.journal (needs --from)\n"
@@ -395,10 +396,15 @@ main(int argc, char **argv)
             }
             if (strcmp(a, "-f") == 0)       { opts.force = 1; }
             else if (strcmp(a, "-r") == 0 || strcmp(a, "-R") == 0) { opts.recursive = 1; }
-            else if (strcmp(a, "-P") == 0)  { opts.posc = 1; }
+            else if (strcmp(a, "-P") == 0 || strcmp(a, "--posc") == 0) { opts.posc = 1; }
             else if (strcmp(a, "-s") == 0)  { opts.silent = 1; }
-            else if (strcmp(a, "-v") == 0 || strcmp(a, "-d") == 0) { opts.verbose = 1; }
-            else if (strcmp(a, "-N") == 0)  { /* no progress bar — already none */ }
+            else if (strcmp(a, "-v") == 0 || strcmp(a, "-d") == 0
+                     || strcmp(a, "--verbose") == 0 || strcmp(a, "--debug") == 0) {
+                opts.verbose = 1;
+            }
+            else if (strcmp(a, "-N") == 0 || strcmp(a, "--no-progress") == 0) {
+                /* suppress the progress bar (C1: same no-op as legacy -N) */
+            }
             else if (strcmp(a, "--from") == 0 && i + 1 < (size_t) argc) { from = argv[++i]; }
             else if (strcmp(a, "--journal") == 0 && i + 1 < (size_t) argc) { journal_path = argv[++i]; }
             else if (strcmp(a, "--resume") == 0) { resume = 1; }
