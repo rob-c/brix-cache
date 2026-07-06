@@ -297,67 +297,22 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01HoHKtMqVkR3mhMCWyNLMfQ"
 ```
 
-### Task 2: JWKS/registry writers + manifest generation entrypoint
+### Task 2: Manifest generation entrypoint + INI-key verification
+
+> NOTE (plan amendment, post-Task-1 review): `write_jwks`, `write_scitokens_cfg`, `_rsa_jwk`, and `_ec_jwk` were ALREADY added to `tests/tokenforge.py` in Task 1 (commit 6883728) to resolve the interface seam. Task 2 is now ONLY the manifest builder + verifying the scitokens INI keys against the real C parser (and fixing the emitter if they differ).
 
 **Files:**
 - Modify: `tests/tokenforge.py`
 
 **Interfaces:**
-- Produces: module-level `def build_manifest(out_dir) -> str` that mints the full case set, writes any server-side artifacts (multi-key JWKS `jwks_multi.json`, EC JWKS `jwks_ec.json`, `scitokens.cfg`), and writes `token_manifest.json`; returns its path. Also `def write_jwks(path, entries)` and `def write_scitokens_cfg(path, issuers)`.
+- Consumes: `TokenForge`, `Manifest`, `write_jwks`, `write_scitokens_cfg` (all already in `tokenforge.py` from Task 1).
+- Produces: module-level `def build_manifest(out_dir) -> str` that mints the full case set and writes `token_manifest.json`; returns its path. A `__main__` `manifest <out_dir>` subcommand.
 
-- [ ] **Step 1: Add JWKS + scitokens writers and the manifest builder to `tokenforge.py`**
+- [ ] **Step 1: Verify the scitokens INI keys against the real parser and fix the emitter if wrong.**
 
-```python
-def _rsa_jwk(pub, kid):
-    nums = pub.public_numbers()
-    def b(i):
-        return _b64url(i.to_bytes((i.bit_length() + 7) // 8, "big"))
-    return {"kty": "RSA", "kid": kid, "use": "sig", "alg": "RS256",
-            "n": b(nums.n), "e": b(nums.e)}
+Run: `grep -nE '"(issuer|audience|base_path|restricted_path|jwks|authz|strategy)' src/auth/token/issuer_registry.c src/auth/token/ini.c`
 
-
-def _ec_jwk(pub, kid):
-    nums = pub.public_numbers()
-    size = 32  # P-256
-    def b(i):
-        return _b64url(i.to_bytes(size, "big"))
-    return {"kty": "EC", "kid": kid, "use": "sig", "alg": "ES256",
-            "crv": "P-256", "x": b(nums.x), "y": b(nums.y)}
-
-
-def write_jwks(path, entries):
-    """entries: list of (public_key, kid)."""
-    keys = []
-    for pub, kid in entries:
-        if isinstance(pub, ec.EllipticCurvePublicKey):
-            keys.append(_ec_jwk(pub, kid))
-        else:
-            keys.append(_rsa_jwk(pub, kid))
-    with open(path, "w") as fh:
-        json.dump({"keys": keys}, fh, indent=2)
-
-
-def write_scitokens_cfg(path, issuers):
-    """issuers: list of dicts {name, issuer, audience, base_paths,
-    restricted_paths, jwks_path, strategy}. Emits the INI the C registry
-    parser (issuer_registry.c) reads."""
-    lines = ["[Global]", "audience = nginx-xrootd", ""]
-    for it in issuers:
-        lines.append(f"[Issuer {it['name']}]")
-        lines.append(f"issuer = {it['issuer']}")
-        lines.append(f"audience = {it.get('audience', 'nginx-xrootd')}")
-        lines.append("base_path = " + ", ".join(it.get("base_paths", ["/"])))
-        if it.get("restricted_paths"):
-            lines.append("restricted_path = " +
-                         ", ".join(it["restricted_paths"]))
-        lines.append(f"jwks_file = {it['jwks_path']}")
-        lines.append(f"authz_strategy = {it.get('strategy', 'capability')}")
-        lines.append("")
-    with open(path, "w") as fh:
-        fh.write("\n".join(lines))
-```
-
-> NOTE: the exact INI keys (`base_path`/`base_paths`, `jwks_file`/`jwks_path`, `authz_strategy`) MUST match `src/auth/token/ini.c` / `issuer_registry.c`. Before running, grep the parser for the accepted keys and adjust: `grep -nE '"(issuer|audience|base_path|restricted_path|jwks|authz|strategy)' src/auth/token/issuer_registry.c src/auth/token/ini.c`. Fix the emitter to the real keys — this is the one place a wrong string silently disables the registry.
+The `write_scitokens_cfg` emitter (already in `tokenforge.py`) uses keys `issuer`, `audience`, `base_path`, `restricted_path`, `jwks_file`, `authz_strategy` and section header `[Issuer <name>]`. Compare against what the C parser actually accepts and **edit the emitter in `tokenforge.py` to the real keys** if any differ. This is the one place a wrong string silently disables the registry — treat a mismatch as a required fix, and record the confirmed keys in a comment above `write_scitokens_cfg`.
 
 - [ ] **Step 2: Add `build_manifest()`** — enumerate every case ID with its recipe. (Full list below; abbreviated here — the implementer copies each family's case rows from the family test tasks, which own the canonical list.)
 
