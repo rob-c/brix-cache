@@ -8,7 +8,7 @@ The most-used directives on one page. Start here when you know what you want to 
 
 | Directive | Context | Default | Required? |
 |---|---|---|---|
-| `xrootd on\|off` | `server` (stream) | `off` | Yes |
+| `brix_root on\|off` | `server` (stream) | `off` | Yes |
 | `brix_export <path>` | `server` | `/` | Recommended |
 | `brix_allow_write on\|off` | `server` | `off` | No |
 | `brix_auth none\|gsi\|token\|both` | `server` | `none` | No |
@@ -159,3 +159,73 @@ http {
     }
 }
 ```
+
+---
+
+## CVMFS site-cache directives
+
+The CVMFS module (`ngx_http_brix_cvmfs_module`) turns a location into a
+Squid-replacement CVMFS forward-proxy or reverse-proxy site cache. The cache is
+read-only; `brix_allow_write`, `brix_stage`, and `brix_cache_slice_size` are
+rejected with a config error in a cvmfs location.
+
+Unified storage directives (`brix_cache_store`, `brix_cache_verify`, …) apply
+here exactly as they do to WebDAV/S3. Only cvmfs-specific knobs are listed below.
+
+### Core
+
+| Directive | Context | Default | Notes |
+|---|---|---|---|
+| `brix_cvmfs on\|off` | `location` | `off` | Activate cvmfs handler (one protocol per location) |
+| `brix_cache_store posix:<path>` | `location` | required | Local XFS cache directory |
+| `brix_cache_verify off\|cvmfs-cas` | `location` | **`cvmfs-cas`** | Verify fills against SHA-1 CAS address (cvmfs default; quarantines corrupt objects) |
+| `brix_cache_evict_at <pct>` | `location` | `90` | Begin eviction at this volume % |
+| `brix_cache_evict_to <pct>` | `location` | `80` | Eviction target % |
+| `brix_cvmfs_upstream_allow <host> …` | `location` | required | Stratum-1 hostname(s) the cache may fetch from |
+| `brix_cvmfs_manifest_ttl <sec>` | `location` | `61` | Manifest revalidation interval |
+| `brix_cvmfs_negative_ttl <sec>` | `location` | `10` | Missing-object answer cache lifetime |
+| `brix_cvmfs_quarantine_dir <path>` | `location` | unset | Directory for CAS verify failures |
+| `brix_cvmfs_trace on\|off` | `location` | `off` | Promote upstream-request lines to INFO |
+
+### Fill policy and hold
+
+| Directive | Context | Default | Notes |
+|---|---|---|---|
+| `brix_cvmfs_client_hold <sec>` | `location` | `25` | Max time to hold a client while retrying origins |
+| `brix_cvmfs_fill_max_life <sec>` | `location` | `300` | Max fill lifetime before restart |
+| `brix_cvmfs_upstream_max <n>` | `location` | `8` | Max concurrent fill connections per origin |
+| `brix_cvmfs_fill_retry_policy failover\|force-primary` | `location` | `failover` | Stall retry strategy |
+| `brix_cvmfs_origin_reuse_conn on\|off` | `location` | `on` | Reuse HTTP keep-alive connections to origins |
+
+### Origin selection
+
+| Directive | Context | Default | Notes |
+|---|---|---|---|
+| `brix_cvmfs_origin_select static\|geo\|rtt` | `location` | `rtt` | Origin ranking strategy |
+| `brix_cvmfs_rtt_interval <sec>` | `location` | `60` | RTT probe interval (rtt mode) |
+| `brix_cvmfs_here <lat>:<lon>` | `location` | — | This cache's location (geo mode, required) |
+| `brix_cvmfs_origin_coords <host> <lat>:<lon>` | `location` | — | Stratum-1 coordinates (geo mode, repeat per origin) |
+
+### Upstream stall detection
+
+| Directive | Context | Default | Notes |
+|---|---|---|---|
+| `brix_cvmfs_origin_connect_timeout <sec>` | `location` | `2` | TCP connect timeout per attempt |
+| `brix_cvmfs_origin_stall_timeout <sec>` | `location` | `4` | Idle-stall timeout (seconds at low-speed threshold) |
+| `brix_cvmfs_origin_stall_bytes <n>` | `location` | `1` | Low-speed threshold (bytes/s) |
+
+### Server-side geo answering
+
+| Directive | Context | Default | Notes |
+|---|---|---|---|
+| `brix_cvmfs_geo_answer off\|rtt` | `location` | `off` | Answer CVMFS geo-API requests using RTT rankings |
+| `brix_cvmfs_geo_cache_ttl <sec>` | `location` | `60` | Geo-answer cache TTL |
+| `brix_cvmfs_geo_max_servers <n>` | `location` | `16` | Max servers returned per geo-answer response |
+
+### Secure cvmfs (EXPERIMENTAL)
+
+| Directive | Context | Default | Notes |
+|---|---|---|---|
+| `brix_scvmfs on\|off` | `location` | `off` | Require TLS + bearer auth on this cvmfs location |
+| `brix_scvmfs_authz none\|bearer` | `location` | `none` | `bearer` gates on WLCG/SciTokens read scope |
+| `brix_scvmfs_token_issuers <path>` | `location` | — | SciTokens config for `bearer` mode |

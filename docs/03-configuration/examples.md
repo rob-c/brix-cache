@@ -222,3 +222,128 @@ http {
 ```
 
 ---
+
+### CVMFS site cache — minimal (forward-proxy mode)
+
+Three directives are sufficient for a production-grade CVMFS site cache. All
+other knobs are at their tested defaults: manifest TTL 61 s, negative TTL 10 s,
+client hold 25 s, fill max-life 300 s, up to 8 concurrent fills per origin, CAS
+verify on, RTT-based origin selection, eviction at 90% → target 80%.
+
+```nginx
+worker_processes auto;
+thread_pool default threads=16 max_queue=65536;
+events { worker_connections 4096; }
+
+http {
+    server {
+        listen 3128;
+        location / {
+            brix_cvmfs on;
+            brix_cache_store posix:/srv/cvmfs-cache;
+            brix_cvmfs_upstream_allow cvmfs-stratum-one.cern.ch
+                                      cvmfs-s1fnal.opensciencegrid.org;
+        }
+    }
+}
+```
+
+On the worker nodes:
+
+```
+CVMFS_HTTP_PROXY="http://cache.site:3128"
+CVMFS_TIMEOUT=30      # must exceed brix_cvmfs_client_hold (25s default)
+```
+
+### CVMFS site cache — tuned production (forward-proxy mode)
+
+Show only the non-default knobs, each with a comment stating what the default
+already does and why you would change it.
+
+```nginx
+worker_processes auto;
+thread_pool default threads=16 max_queue=65536;
+events { worker_connections 4096; }
+
+http {
+    log_format cvmfs '$remote_addr [$time_local] "$request" $status '
+                     '$body_bytes_sent $request_time '
+                     'class=$cvmfs_class cache=$cvmfs_cache origin=$cvmfs_origin';
+    access_log /var/log/nginx/cvmfs_access.log cvmfs;
+
+    # Keep WN connections alive — prevents spurious proxy-failure marks
+    keepalive_timeout  3600s;
+    keepalive_requests 1000000;
+
+    server {
+        listen 3128 so_keepalive=60s:10s:6 backlog=2048;
+        location / {
+            brix_cvmfs on;
+            brix_cache_store posix:/srv/cvmfs-cache;
+
+            # --- non-default: turn verify off for testing only ---
+            # Default is cvmfs-cas (verify every fill against SHA-1).
+            # Only disable if you are debugging fill performance.
+            # brix_cache_verify off;
+
+            # --- non-default: geo-based origin selection ---
+            # Default is rtt (probe connect latency, prefer fastest).
+            # Switch to geo when RTT probes are unreliable (e.g. firewalled).
+            # brix_cvmfs_origin_select geo;
+            # brix_cvmfs_here 55.95:-3.19;   # this cache (Edinburgh)
+            # brix_cvmfs_origin_coords cvmfs-stratum-one.cern.ch 46.23:6.05;
+            # brix_cvmfs_origin_coords cvmfs-s1fnal.opensciencegrid.org 41.85:-88.31;
+
+            # --- non-default: raise eviction watermarks ---
+            # Defaults are evict_at=90 evict_to=80 (percent of volume).
+            # Lower evict_at to keep more headroom on a busy cache.
+            brix_cache_evict_at 85;          # default: 90
+            brix_cache_evict_to 70;          # default: 80
+
+            # Quarantine directory for CAS verify failures (evidence, not cache)
+            brix_cvmfs_quarantine_dir /srv/cvmfs-quarantine;
+
+            # All Stratum-1 hosts your experiments use
+            brix_cvmfs_upstream_allow cvmfs-stratum-one.cern.ch
+                                      cvmfs-s1fnal.opensciencegrid.org
+                                      cvmfs-stratum-one.ihep.ac.cn;
+        }
+    }
+
+    server {
+        listen 9100;
+        location /metrics { brix_metrics on; }
+        location /healthz  { brix_health on; }
+    }
+}
+```
+
+### CVMFS site cache — reverse-proxy mode
+
+In reverse mode the cache acts as an HTTP origin for CVMFS clients (they point
+`CVMFS_SERVER_URL` directly at the cache, not at Stratum-1s). Replace the
+`upstream_allow` allowlist with a pipe-separated `brix_storage_backend` origin
+set; the cache handles failover internally.
+
+```nginx
+http {
+    server {
+        listen 8000;
+        location / {
+            brix_cvmfs on;
+            brix_cache_store posix:/srv/cvmfs-cache;
+            brix_storage_backend "http://s1a.example.org:8000|http://s1b.example.org:8000";
+        }
+    }
+}
+```
+
+Worker-node CVMFS configuration for reverse mode:
+
+```
+CVMFS_SERVER_URL="http://cache.site:8000/cvmfs/@fqrn@"
+CVMFS_HTTP_PROXY=DIRECT
+CVMFS_TIMEOUT=30
+```
+
+---

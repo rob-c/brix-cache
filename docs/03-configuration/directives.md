@@ -6,9 +6,32 @@ Reference for the most commonly-used `brix_*` directives — name, context, type
 
 ## Directives
 
-### `xrootd on|off`
+## Unified storage grammar
 
-**Required.** Enables the XRootD protocol handler for this server block.
+Three rules cover all four protocols (`brix_root`, `brix_webdav`, `brix_s3`, `brix_cvmfs`):
+
+- **`brix_<proto> on;`** — per-location enable. One directive activates the protocol handler.
+  Only one protocol may be enabled per location or per port.
+- **Unified storage directives** — registered once by `ngx_http_brix_common_module` (HTTP
+  plane) and by the stream module (stream plane); valid at `http|server|location` (or
+  stream `main|server`); merged main→srv→loc so a `server{}` block can configure storage
+  once and every brix location inherits it: `brix_export`, `brix_storage_backend`,
+  `brix_cache_store`, `brix_cache_verify`, `brix_cache_max_object`, `brix_cache_evict_at`,
+  `brix_cache_evict_to`, `brix_cache_index_cache`, `brix_cache_meta`,
+  `brix_cache_slice_size`, `brix_stage`, `brix_stage_store`, `brix_stage_flush`,
+  `brix_thread_pool`.
+- **Bare `brix_*` cross-protocol directives** — work identically across all protocols:
+  `brix_allow_write`, `brix_read_only`, `brix_compress`, `brix_ktls`, `brix_metrics`,
+  `brix_health`, `brix_credential`.
+
+The only remaining per-protocol directive families are behavior specific to one protocol
+(`brix_cvmfs_*`, `brix_scvmfs_*`, `brix_s3_*` auth, `brix_webdav_*` TPC/auth/CORS, …).
+
+---
+
+### `brix_root on|off`
+
+**Required (stream).** Enables the XRootD (`root://`) protocol handler for this server block.
 
 ```nginx
 stream {
@@ -20,7 +43,7 @@ stream {
 }
 ```
 
-Without `xrootd on`, nginx ignores all other `brix_*` directives in the block.
+Without `brix_root on`, nginx ignores all other `brix_*` directives in the block.
 
 ---
 
@@ -878,3 +901,99 @@ Idle keepalive interval for upstream connections.
 
 Strips a leading prefix from open/path requests, then prepends `add` (for
 example `brix_proxy_path_rewrite /brix /data`).
+
+---
+
+## CVMFS site-cache directives
+
+These directives configure the `cvmfs://` protocol handler
+(`ngx_http_brix_cvmfs_module`), which turns an nginx location into a
+Squid-replacement CVMFS forward-proxy or reverse-proxy site cache. The cache is
+read-only by construction — `brix_allow_write`, `brix_stage`, and
+`brix_cache_slice_size` are rejected with a config error under a cvmfs location.
+
+Unified storage directives (`brix_cache_store`, `brix_cache_verify`,
+`brix_cache_evict_at`, `brix_cache_evict_to`, `brix_storage_backend`,
+`brix_thread_pool`, …) apply to cvmfs locations exactly as they do to WebDAV and
+S3. The tables below cover the cvmfs-specific knobs only.
+
+### Core enable and manifest/negative cache
+
+| Directive | Args | Default | Purpose |
+|---|---|---|---|
+| `brix_cvmfs on\|off` | flag | `off` | Activate the cvmfs handler for this location (one protocol per location) |
+| `brix_cvmfs_manifest_ttl <sec>` | seconds | `61` | How long `.cvmfspublished` manifests are held before revalidation |
+| `brix_cvmfs_negative_ttl <sec>` | seconds | `10` | How long a known-missing object answer is cached |
+| `brix_cvmfs_quarantine_dir <path>` | path | unset | Directory for CAS-verify failures; each quarantined file is evidence of a corrupt transfer |
+| `brix_cvmfs_trace on\|off` | flag | `off` | Promote upstream-request lines to INFO in the error log (process-wide) |
+
+### Upstream allow-list and fill policy
+
+| Directive | Args | Default | Purpose |
+|---|---|---|---|
+| `brix_cvmfs_upstream_allow <host> …` | 1+ hosts | required | Stratum-1 hostname(s) this cache is allowed to fetch from; multi-host and multi-directive both work |
+| `brix_cvmfs_upstream_max <n>` | integer | `8` | Maximum concurrent fill connections to any single upstream endpoint |
+| `brix_cvmfs_client_hold <sec>` | seconds | `25` | Maximum time a waiting client is held while the cache retries origins before returning `504 Retry-After` |
+| `brix_cvmfs_fill_max_life <sec>` | seconds | `300` | Maximum lifetime of a single fill; fill is abandoned and a fresh one started after this |
+
+### Origin selection
+
+| Directive | Args | Default | Purpose |
+|---|---|---|---|
+| `brix_cvmfs_origin_select static\|geo\|rtt` | enum | `rtt` | Strategy for ordering origins: `rtt` probes connect latency every `rtt_interval` and prefers the fastest; `geo` ranks by great-circle distance from `brix_cvmfs_here`; `static` uses declaration order |
+| `brix_cvmfs_rtt_interval <sec>` | seconds | `60` | How often RTT probes run (only when `origin_select rtt`) |
+| `brix_cvmfs_here <lat>:<lon>` | lat:lon | required for `geo` | Geographic coordinates of this cache node (e.g. `55.95:-3.19`) |
+| `brix_cvmfs_origin_coords <host[:port]> <lat>:<lon>` | host lat:lon | required for `geo` | Coordinates of one Stratum-1; repeat for each origin |
+
+`brix_cvmfs_origin_select geo` without `brix_cvmfs_here` is a config error. A `brix_cvmfs_origin_coords` entry not matched to a configured origin is also a config error.
+
+### Upstream stall detection
+
+| Directive | Args | Default | Purpose |
+|---|---|---|---|
+| `brix_cvmfs_origin_connect_timeout <sec>` | seconds | `2` | TCP connect timeout per upstream attempt |
+| `brix_cvmfs_origin_stall_timeout <sec>` | seconds | `4` | Seconds at the low-speed threshold before the connection is declared stalled |
+| `brix_cvmfs_origin_stall_bytes <n>` | bytes | `1` | Low-speed threshold in bytes/second used with `origin_stall_timeout` |
+| `brix_cvmfs_origin_attempt_timeout <sec>` | seconds | `0` (off) | Hard per-attempt time ceiling; `0` disables |
+| `brix_cvmfs_origin_reuse_conn on\|off` | flag | `on` | Reuse HTTP keep-alive connections to origins |
+| `brix_cvmfs_fill_retry_policy failover\|force-primary` | enum | `failover` | After a stall: `failover` tries the next endpoint; `force-primary` retries the ranked-first endpoint |
+| `brix_cvmfs_shared_cache on\|off` | flag | `off` | Allow multiple cache processes to share the same cache directory |
+| `brix_cvmfs_unified_origin on\|off` | flag | `off` | Serve every proxy request (including repository endpoints) from a single configured `brix_storage_backend` http(s) origin set |
+
+### Server-side geo answering
+
+These directives configure nginx's response to CVMFS geo-API requests
+(`/cvmfs/<fqrn>/api/v1.0/geo/…`), so that clients rank Stratum-1s by distance
+from this cache rather than making their own geo queries.
+
+| Directive | Args | Default | Purpose |
+|---|---|---|---|
+| `brix_cvmfs_geo_answer off\|rtt` | enum | `off` | `rtt` answers geo requests using RTT-derived rankings; `off` passes them upstream |
+| `brix_cvmfs_geo_cache_ttl <sec>` | seconds | `60` | How long geo-answer results are cached |
+| `brix_cvmfs_geo_max_servers <n>` | integer | `16` | Maximum servers returned in one geo-answer response |
+
+### Secure cvmfs (scvmfs, EXPERIMENTAL)
+
+`brix_scvmfs on` layers TLS and bearer-token authorization on top of a cvmfs
+location. Requires `brix_cvmfs on` in the same location and a TLS listener
+(`listen … ssl` with certificates). Plain HTTP is refused.
+
+| Directive | Args | Default | Purpose |
+|---|---|---|---|
+| `brix_scvmfs on\|off` | flag | `off` | Enable secure cvmfs on this location |
+| `brix_scvmfs_authz none\|bearer` | enum | `none` | `bearer` gates clients on a WLCG/SciTokens read scope |
+| `brix_scvmfs_token_issuers <path>` | path | required for `bearer` | SciTokens configuration file listing trusted issuers |
+
+### Cache storage knobs (unified — apply to cvmfs)
+
+These are the unified storage directives most commonly tuned for a cvmfs site cache.
+See the unified grammar section at the top of this page for the complete list.
+
+| Directive | Default | Purpose |
+|---|---|---|
+| `brix_cache_store posix:<path>` | required | Local cache directory (XFS recommended; the cache engine owns the volume) |
+| `brix_cache_verify off\|cvmfs-cas` | **`cvmfs-cas`** for cvmfs (other protocols: `off`) | Verify every fill against its SHA-1 content address; quarantines corrupt objects |
+| `brix_cache_evict_at <pct>` | `90` | Begin eviction when the cache volume reaches this percent full |
+| `brix_cache_evict_to <pct>` | `80` | Eviction target: unlink oldest files until the volume drops to this percent |
+| `brix_storage_backend <url>` | unset | Reverse-proxy origin(s) — pipe-separated `http://` URL list for failover; use instead of `brix_cvmfs_upstream_allow` in reverse mode |
+| `brix_thread_pool <name>` | `default` | nginx thread pool for fill I/O |
