@@ -1271,6 +1271,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/s3/module.c \
                  $ngx_addon_dir/src/protocols/s3/auth_sigv4_canonical.c \
                  $ngx_addon_dir/src/protocols/s3/auth_sigv4_parse.c \
                  $ngx_addon_dir/src/protocols/s3/auth_sigv4_verify.c \
+                 $ngx_addon_dir/src/protocols/s3/auth_bearer.c \
                  $ngx_addon_dir/src/protocols/s3/multipart_helpers.c \
                  $ngx_addon_dir/src/protocols/s3/multipart_initiate.c \
                  $ngx_addon_dir/src/protocols/s3/multipart_abort.c \
@@ -1284,6 +1285,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/s3/module.c \
                  $ngx_addon_dir/src/protocols/s3/operation_table.c"
 ngx_module_deps="$ngx_addon_dir/src/protocols/s3/s3.h \
                  $ngx_addon_dir/src/protocols/s3/s3_handlers.h \
+                 $ngx_addon_dir/src/protocols/s3/auth_bearer.h \
                  $ngx_addon_dir/src/protocols/s3/aws_chunked.h \
                  $ngx_addon_dir/src/protocols/s3/tagging.h \
                  $ngx_addon_dir/src/fs/vfs/vfs.h \

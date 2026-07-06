@@ -496,6 +496,38 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         }
     }
 
+    /*
+     * WLCG bearer-token scope enforcement.
+     *
+     * When a request was authenticated via a bearer token, verify that the
+     * token's scope covers the requested path and operation BEFORE dispatching
+     * to any sub-handler.  Non-token requests (SigV4, anonymous) are allowed
+     * unconditionally by brix_identity_check_token_scope (scopes only apply to
+     * token auth).  Empty keys (bucket-level ops, list) map to logical path "/".
+     */
+    if (s3ctx->identity != NULL
+        && (s3ctx->identity->auth_method & BRIX_AUTHN_TOKEN))
+    {
+        brix_acc_op_t aop        = s3_method_aop(r);
+        int           need_write = (aop == BRIX_AOP_CREATE
+                                    || aop == BRIX_AOP_DELETE);
+        char          logical[PATH_MAX];
+        u_char       *end;
+
+        end = ngx_snprintf((u_char *) logical, sizeof(logical) - 1,
+                           "/%s%Z", (const char *) key);
+        (void) end;
+
+        if (brix_identity_check_token_scope(s3ctx->identity, logical, need_write)
+            != NGX_OK)
+        {
+            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_ACCESS_DENIED]);
+            return s3_metrics_return_method(r, method_slot,
+                s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
+                                  "token scope does not cover this object"));
+        }
+    }
+
     if (is_list_request) {
         return s3_metrics_return_method(r, method_slot, s3_handle_list(r, cf));
     }
