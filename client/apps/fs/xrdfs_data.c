@@ -283,7 +283,9 @@ tail_start_for_lines(brix_conn *c, const char *path, int64_t size, long nlines,
  *       per-round open/close RTT and forfeit the automatic reconnect benefit.
  * HOW:  open brix_rfile once; brix_stat once per poll; new bytes brix_rfile_pread
  *       through the handle; a shrink (truncate/rotate) emits a stderr notice and resets
- *       to the new EOF.  SIGINT handler sets tail_stop for a clean exit.
+ *       to the new EOF; a soft EOF (pread returns 0) means the file was replaced
+ *       (delete+create) — close the stale handle and reopen to bind the new inode.
+ *       SIGINT handler sets tail_stop for a clean exit.
  * Returns 0 (clean / interrupted) / -1 (stat or read error, st set). */
 int
 tail_follow(brix_conn *c, const char *path, int64_t from, double interval,
@@ -294,14 +296,18 @@ tail_follow(brix_conn *c, const char *path, int64_t from, double interval,
     int64_t          off = from;
     struct sigaction sa, old;
     int              rc = 0;
+    int              rf_open = 0;   /* 1 iff rf holds an open, unclosed handle */
 
     if (brix_rfile_open_read(c, path, NULL, 0, -1, &rf, st) != 0) {
         return -1;
     }
+    rf_open = 1;
+
     buf = (uint8_t *) malloc(1 << 20);
     if (buf == NULL) {
         brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
         brix_rfile_close(&rf, st);
+        rf_open = 0;
         return -1;
     }
 
@@ -328,14 +334,17 @@ tail_follow(brix_conn *c, const char *path, int64_t from, double interval,
             if (n < 0)  { rc = -1; break; }
             if (n == 0) {
                 /* Soft EOF: the underlying file was replaced (server unlinked the
-                 * inode our handle tracks).  Reopen to bind to the new inode, then
-                 * break to re-poll the size before attempting further reads. */
+                 * inode our handle tracks).  Close the stale handle, reopen to bind
+                 * to the new inode, then break to re-poll the size before reading. */
                 brix_status tw;
                 brix_status_clear(&tw);
                 brix_rfile_close(&rf, &tw);
+                rf_open = 0;
                 brix_status_clear(st);
                 if (brix_rfile_open_read(c, path, NULL, 0, -1, &rf, st) != 0) {
                     rc = -1;
+                } else {
+                    rf_open = 1;
                 }
                 break;
             }
@@ -352,7 +361,7 @@ tail_follow(brix_conn *c, const char *path, int64_t from, double interval,
 
     sigaction(SIGINT, &old, NULL);
     free(buf);
-    {
+    if (rf_open) {
         brix_status tw;
         brix_status_clear(&tw);
         brix_rfile_close(&rf, &tw);
