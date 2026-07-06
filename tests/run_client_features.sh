@@ -16,6 +16,27 @@ trap 'rm -rf "$WORK"' EXIT
 PASS=0; FAIL=0
 ok()   { PASS=$((PASS+1)); echo "  ok: $1"; }
 bad()  { FAIL=$((FAIL+1)); echo "  FAIL: $1"; }
+#
+# check() CONTRACT — $? IS FRAGILE
+#
+# check() evaluates its second argument via `eval`.  Any assertion that
+# inspects $? REQUIRES the command under test to be on the IMMEDIATELY
+# PRECEDING line — no blank lines, comments, assignments, or any other
+# statement between the tested command and the check() call, because any
+# intervening statement resets $?.
+#
+#   CORRECT:
+#     "$BIN/xrdcp" ... >/dev/null 2>&1
+#     check "label" '[ "$?" -eq 0 ]'
+#
+#   BROKEN (spurious line clobbers $?):
+#     "$BIN/xrdcp" ... >/dev/null 2>&1
+#     # even a comment here resets $? to 0 in some shells
+#     check "label" '[ "$?" -eq 0 ]'
+#
+# Where a check captures the exit code first (RC=$?), the capture IS the
+# immediately-preceding statement and the pattern is safe — leave those alone.
+#
 check(){ if eval "$2"; then ok "$1"; else bad "$1"; fi; }
 have_fleet() { "$BIN/wait41" "$URL" 2>/dev/null >/dev/null; }
 
@@ -65,6 +86,10 @@ section_dryrun_filters() {
   "$BIN/xrdcp" -r -s --dry-run "$WORK/src/" "${URL}//${DRYUP_RPATH}/" 2>/dev/null
   check "dry-run upload: remote dir not created" \
     '! "$BIN/xrdfs" "$URL" stat "$DRYUP_RPATH" >/dev/null 2>&1'
+
+  # Best-effort cleanup of remote scratch dirs created by the fleet portion above.
+  "$BIN/xrdfs" "$URL" rm -r "/tmp/cfeat-$$-src"   >/dev/null 2>&1 || true
+  "$BIN/xrdfs" "$URL" rm -r "/tmp/cfeat-$$-dryup" >/dev/null 2>&1 || true
 }
 
 section_sync_modes() {
@@ -135,6 +160,10 @@ section_sync_modes() {
   check "fleet -r --sync (size): stale tree file kept" '[ "$(cat "$S/out/f")" = "BBBB" ]'
   "$BIN/xrdcp" -r -s --sync-check cksum "${URL}/${RT}/" "$S/out" 2>/dev/null
   check "fleet -r --sync-check cksum: stale tree file recopied" '[ "$(cat "$S/out/f")" = "AAAA" ]'
+
+  # Best-effort cleanup of remote scratch paths created by the fleet portion above.
+  "$BIN/xrdfs" "$URL" rm    "/tmp/cfeat-$$-sync"    >/dev/null 2>&1 || true
+  "$BIN/xrdfs" "$URL" rm -r "/tmp/cfeat-$$-synctree" >/dev/null 2>&1 || true
 }
 
 section_mirror_delete() {
@@ -260,6 +289,9 @@ section_remove_source() {
     '"$BIN/xrdfs" "$URL" stat "${RSBASE}/rmvtree/f1.txt" >/dev/null 2>&1'
   check "-r --remove-source: no spurious warning" \
     '! echo "$RMVERR" | grep -q "could not remove source"'
+
+  # Best-effort cleanup of the remote scratch tree created by the fleet portion above.
+  "$BIN/xrdfs" "$URL" rm -r "$RSBASE" >/dev/null 2>&1 || true
 }
 
 section_journal() {
@@ -313,6 +345,9 @@ section_journal() {
   OUT=$("$BIN/xrdcp" --from "$J/manifest.txt" --journal "$J/j.journal" "$RDST/" 2>&1)
   check "journal (c): 0 copied, 4 skipped (corrupt line tolerated)" \
     'echo "$OUT" | grep -q "0 copied, 4 skipped, 0 failed"'
+
+  # Best-effort cleanup of the remote scratch dir created by the fleet portion above.
+  "$BIN/xrdfs" "$URL" rm -r "$JBASE" >/dev/null 2>&1 || true
 }
 
 section_xrdfs_rm() {
