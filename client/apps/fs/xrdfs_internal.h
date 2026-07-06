@@ -106,7 +106,7 @@ int do_chmod(brix_conn *c, const char *cwd, int argc, char **argv);
 int do_truncate(brix_conn *c, const char *cwd, int argc, char **argv);
 
 /* xrdfs_data.c */
-int stream_file(brix_conn *c, const char *path, int64_t start, int64_t limit, brix_status *st);
+int stream_file(brix_conn *c, const char *path, const char *opaque, int64_t start, int64_t limit, brix_status *st);
 int do_cat(brix_conn *c, const char *cwd, int argc, char **argv);
 int head_lines(brix_conn *c, const char *path, long nlines, brix_status *st);
 int do_head(brix_conn *c, const char *cwd, int argc, char **argv);

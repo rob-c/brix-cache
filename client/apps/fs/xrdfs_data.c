@@ -8,10 +8,11 @@
 
 /* cat / tail / head share an open-read + stream-to-stdout core. tail seeks the tail
  * window via stat size. `limit` caps the number of bytes streamed from `start`
- * (< 0 = stream to EOF); head passes a positive cap, cat/tail pass -1. */
+ * (< 0 = stream to EOF); head passes a positive cap, cat/tail pass -1.
+ * `opaque` is forwarded verbatim to brix_rfile_open_read (NULL = plain open). */
 int
-stream_file(brix_conn *c, const char *path, int64_t start, int64_t limit,
-            brix_status *st)
+stream_file(brix_conn *c, const char *path, const char *opaque,
+            int64_t start, int64_t limit, brix_status *st)
 {
     brix_rfile rf;
     uint8_t  *buf;
@@ -21,7 +22,7 @@ stream_file(brix_conn *c, const char *path, int64_t start, int64_t limit,
 
     /* Resilient read: rides out a mid-stream sever (reconnect + reopen + resume
      * at offset) within the connection's stall window — xrootdfs parity. */
-    if (brix_rfile_open_read(c, path, NULL, 0, -1, &rf, st) != 0) {
+    if (brix_rfile_open_read(c, path, opaque, 0, -1, &rf, st) != 0) {
         return -1;
     }
     buf = (uint8_t *) malloc(1 << 20);
@@ -63,11 +64,40 @@ do_cat(brix_conn *c, const char *cwd, int argc, char **argv)
 {
     brix_status st;
     char        path[XRDC_PATH_MAX];
+    const char *codec  = NULL;
+    const char *arg    = NULL;
+    const char *opaque = NULL;
+    char        opq[80];
+    int         i;
 
-    if (argc < 2) { fprintf(stderr, "usage: cat <path>\n"); return 50; }
-    build_path(cwd, argv[1], path, sizeof(path));
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-z") == 0 && i + 1 < argc) {
+            codec = argv[++i];
+        } else {
+            arg = argv[i];
+        }
+    }
+    if (arg == NULL) {
+        fprintf(stderr, "usage: cat [-z codec] <path>\n");
+        return 50;
+    }
+
+    /* -z <codec>: ask the server for inline read compression (gzip|deflate|
+     * zstd|br|xz|bzip2). Transparent: brix_file_read inflates each frame; a
+     * server without support ignores the request and streams plaintext.
+     * Guard: reject codec strings that could inject opaque key=value pairs. */
+    if (codec != NULL) {
+        if (strlen(codec) > 16 || strpbrk(codec, "&?=") != NULL) {
+            fprintf(stderr, "xrdfs: cat: invalid codec '%s'\n", codec);
+            return 50;
+        }
+        snprintf(opq, sizeof(opq), "xrootd.compress=%s", codec);
+        opaque = opq;
+    }
+
+    build_path(cwd, arg, path, sizeof(path));
     brix_status_clear(&st);
-    if (stream_file(c, path, 0, -1, &st) != 0) {
+    if (stream_file(c, path, opaque, 0, -1, &st) != 0) {
         fprintf(stderr, "xrdfs: cat %s: %s\n", path, st.msg);
         return brix_shellcode(&st);
     }
@@ -153,7 +183,7 @@ do_head(brix_conn *c, const char *cwd, int argc, char **argv)
     brix_status_clear(&st);
 
     if (nbytes >= 0) {
-        if (stream_file(c, path, 0, (int64_t) nbytes, &st) != 0) {
+        if (stream_file(c, path, NULL, 0, (int64_t) nbytes, &st) != 0) {
             fprintf(stderr, "xrdfs: head %s: %s\n", path, st.msg);
             return brix_shellcode(&st);
         }
@@ -254,7 +284,7 @@ tail_follow(brix_conn *c, const char *path, int64_t from, double interval,
             return -1;
         }
         if (si.size > off) {
-            if (stream_file(c, path, off, si.size - off, st) != 0) {
+            if (stream_file(c, path, NULL, off, si.size - off, st) != 0) {
                 sigaction(SIGINT, &old, NULL);
                 return -1;
             }
@@ -315,7 +345,7 @@ do_tail(brix_conn *c, const char *cwd, int argc, char **argv)
         fprintf(stderr, "xrdfs: tail %s: %s\n", path, st.msg);
         return brix_shellcode(&st);
     }
-    if (stream_file(c, path, start, -1, &st) != 0) {
+    if (stream_file(c, path, NULL, start, -1, &st) != 0) {
         fprintf(stderr, "xrdfs: tail %s: %s\n", path, st.msg);
         return brix_shellcode(&st);
     }
