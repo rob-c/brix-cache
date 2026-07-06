@@ -507,3 +507,10 @@ IPV6_UPSTREAM_PORT = int(os.environ.get("TEST_IPV6_UPSTREAM_PORT", "11245"))  # 
 IPV6_UPSTREAM_DATA_ROOT = os.path.join(TEST_ROOT, "data-ipv6-upstream")
 IPV6_PROXY_PORT = int(os.environ.get("TEST_IPV6_PROXY_PORT", "11246"))        # webdav proxy -> [::1] upstream
 IPV6_PROXY_DATA_ROOT = os.path.join(TEST_ROOT, "data-ipv6-proxy")
+
+# ---------------------------------------------------------------------------
+# WLCG token conformance: multi-key, multi-issuer registry, enforcing WebDAV
+# ---------------------------------------------------------------------------
+NGINX_TOKEN_MULTIKEY_PORT = int(os.environ.get("TEST_NGINX_TOKEN_MULTIKEY_PORT", "11250"))
+NGINX_TOKEN_REGISTRY_PORT = int(os.environ.get("TEST_NGINX_TOKEN_REGISTRY_PORT", "11251"))
+NGINX_WEBDAV_TOKEN_PORT   = int(os.environ.get("TEST_NGINX_WEBDAV_TOKEN_PORT",   "8446"))

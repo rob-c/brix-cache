@@ -13,6 +13,7 @@ import os
 import time
 
 from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 from cryptography.hazmat.primitives import hashes, serialization
 
 import sys
@@ -214,12 +215,175 @@ class TokenForge(TokenIssuer):
             h["kid"] = kid
         return self._sign_with_header(h, self._base_claims(iss=issuer))
 
+    # --- key management: lazy load-or-create persisted secondary keys -----
+
+    @property
+    def second_rsa_key(self):
+        """Lazily load or create {token_dir}/signing_key_2.pem (RSA-2048, kid test-key-2)."""
+        if hasattr(self, "_second_rsa_key"):
+            return self._second_rsa_key
+        path = os.path.join(self.token_dir, "signing_key_2.pem")
+        if os.path.exists(path):
+            with open(path, "rb") as fh:
+                self._second_rsa_key = serialization.load_pem_private_key(
+                    fh.read(), password=None)
+        else:
+            os.makedirs(self.token_dir, exist_ok=True)
+            key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+            pem = key.private_bytes(serialization.Encoding.PEM,
+                                    serialization.PrivateFormat.TraditionalOpenSSL,
+                                    serialization.NoEncryption())
+            tmp = path + f".tmp.{os.getpid()}"
+            try:
+                with open(tmp, "wb") as fh:
+                    fh.write(pem)
+                os.chmod(tmp, 0o400)
+                os.replace(tmp, path)
+            finally:
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+            self._second_rsa_key = key
+        return self._second_rsa_key
+
+    @property
+    def ec_key(self):
+        """Lazily load or create {token_dir}/signing_key_ec.pem (EC SECP256R1, kid ec-key-1)."""
+        if hasattr(self, "_ec_key"):
+            return self._ec_key
+        path = os.path.join(self.token_dir, "signing_key_ec.pem")
+        if os.path.exists(path):
+            with open(path, "rb") as fh:
+                self._ec_key = serialization.load_pem_private_key(
+                    fh.read(), password=None)
+        else:
+            os.makedirs(self.token_dir, exist_ok=True)
+            key = ec.generate_private_key(ec.SECP256R1())
+            pem = key.private_bytes(serialization.Encoding.PEM,
+                                    serialization.PrivateFormat.TraditionalOpenSSL,
+                                    serialization.NoEncryption())
+            tmp = path + f".tmp.{os.getpid()}"
+            try:
+                with open(tmp, "wb") as fh:
+                    fh.write(pem)
+                os.chmod(tmp, 0o400)
+                os.replace(tmp, path)
+            finally:
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+            self._ec_key = key
+        return self._ec_key
+
     # --- signing helper: RSA-sign an arbitrary (header, payload) ------
-    def _sign_with_header(self, header, payload):
+    def _sign_with_header(self, header, payload, key=None):
+        """RS256-sign header+payload.  key defaults to self.private_key."""
+        k = key if key is not None else self.private_key
         signing_input = (_seg(header) + "." + _seg(payload)).encode("ascii")
-        sig = self.private_key.sign(signing_input, padding.PKCS1v15(),
-                             hashes.SHA256())
+        sig = k.sign(signing_input, padding.PKCS1v15(), hashes.SHA256())
         return signing_input.decode("ascii") + "." + _b64url(sig)
+
+    # --- ES256 signing helper (P1363 encoding, not DER) ----------------
+    def _sign_es256(self, header, payload):
+        """ES256-sign header+payload using the persisted EC key.
+
+        WHAT: Produces a compact JWS with an ES256 signature in IEEE P1363
+              format (R||S concatenation, 64 bytes for P-256).
+        WHY:  cryptography's ec.ECDSA returns DER; JWT/JWS requires P1363.
+        HOW:  Sign → decode DER (r, s) via decode_dss_signature →
+              r.to_bytes(32) + s.to_bytes(32) → base64url.
+        """
+        signing_input = (_seg(header) + "." + _seg(payload)).encode("ascii")
+        der = self.ec_key.sign(signing_input, ec.ECDSA(hashes.SHA256()))
+        r, s = decode_dss_signature(der)
+        sig = r.to_bytes(32, "big") + s.to_bytes(32, "big")
+        return signing_input.decode("ascii") + "." + _b64url(sig)
+
+    # --- multi-key / EC signing methods --------------------------------
+
+    def es256(self):
+        """Valid ES256 token signed by the persisted EC key (kid=ec-key-1)."""
+        h = {"alg": "ES256", "typ": "JWT", "kid": "ec-key-1"}
+        return self._sign_es256(h, self._base_claims())
+
+    def es256_bad_sig(self):
+        """ES256 token with one bit flipped in the signature (verify must fail)."""
+        tok = self.es256()
+        h, p, s = tok.split(".")
+        # Pad to 4-byte boundary for standard b64decode, then corrupt byte 0.
+        raw = bytearray(base64.urlsafe_b64decode(s + "=="))
+        raw[0] ^= 0x01
+        return h + "." + p + "." + _b64url(bytes(raw))
+
+    def signed_by_key2(self, kid="test-key-2"):
+        """RS256 token signed by second_rsa_key; header carries kid test-key-2."""
+        h = {"alg": "RS256", "typ": "JWT", "kid": kid}
+        return self._sign_with_header(h, self._base_claims(),
+                                      key=self.second_rsa_key)
+
+    def no_kid_key2(self):
+        """RS256 signed by second_rsa_key with NO kid in header.
+
+        Used to test rotation-fallback: a kid-less token signed by a non-first
+        key — the verifier must either try all keys or reject cleanly.
+        """
+        h = {"alg": "RS256", "typ": "JWT"}
+        return self._sign_with_header(h, self._base_claims(),
+                                      key=self.second_rsa_key)
+
+    def wrong_kid_multikey(self, kid="does-not-exist"):
+        """RS256 signed by the MAIN key but header kid names an absent key.
+
+        Used to assert that a kid that resolves to nothing in the JWKS causes
+        a reject even though the signature would verify against the main key.
+        """
+        h = {"alg": "RS256", "typ": "JWT", "kid": kid}
+        return self._sign_with_header(h, self._base_claims())
+
+
+def fleet_artifacts(token_dir):
+    """Ensure multi-key JWKS and scitokens.cfg for the managed test fleet.
+
+    WHAT: Materialises the secondary RSA and EC keys, then writes:
+          - jwks_multi.json  — three-key JWKS (main RSA + key-2 RSA + EC).
+          - scitokens.cfg    — two-issuer registry (atlas + cms), each using
+                              the MAIN jwks.json so forge-minted tokens verify.
+    WHY:  Called once per start-all so the multikey and registry dedicated nginx
+          instances have fresh artifacts that survive key rotation (main key
+          re-created by TokenIssuer.init_keys on a clean tree).
+    HOW:  TokenForge lazy-creates the secondary keys on first access; write_jwks
+          and write_scitokens_cfg handle serialisation.
+    """
+    os.makedirs(token_dir, exist_ok=True)
+    f = TokenForge(token_dir)
+    if not os.path.exists(f.key_path):
+        f.init_keys()
+    # Materialise the secondary keys (side-effect: persists them to disk).
+    second_pub = f.second_rsa_key.public_key()
+    ec_pub = f.ec_key.public_key()
+    main_pub = f.private_key.public_key()
+
+    write_jwks(os.path.join(token_dir, "jwks_multi.json"), [
+        (main_pub,   "test-key-1"),
+        (second_pub, "test-key-2"),
+        (ec_pub,     "ec-key-1"),
+    ])
+
+    main_jwks = os.path.join(token_dir, "jwks.json")
+    write_scitokens_cfg(os.path.join(token_dir, "scitokens.cfg"), [
+        {
+            "name":       "atlas",
+            "issuer":     "https://atlas.example.com",
+            "base_paths": ["/atlas"],
+            "jwks_path":  main_jwks,
+            "strategy":   "capability",
+        },
+        {
+            "name":       "cms",
+            "issuer":     "https://cms.example.com",
+            "base_paths": ["/cms"],
+            "jwks_path":  main_jwks,
+            "strategy":   "capability",
+        },
+    ])
 
 
 class Manifest:
@@ -462,9 +626,16 @@ if __name__ == "__main__":
                                  help="Build token_manifest.json in out_dir")
     manifest_p.add_argument("out_dir",
                              help="Directory to write fixtures into")
+    fleet_p = sub.add_parser(
+        "fleet-artifacts",
+        help="Write jwks_multi.json and scitokens.cfg into token_dir")
+    fleet_p.add_argument("token_dir",
+                         help="Directory to write fleet artifacts into")
     args = ap.parse_args()
 
     if args.cmd == "manifest":
         print(build_manifest(args.out_dir))
+    elif args.cmd == "fleet-artifacts":
+        fleet_artifacts(args.token_dir)
     else:
         ap.print_help()
