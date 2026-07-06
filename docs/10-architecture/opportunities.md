@@ -49,15 +49,15 @@ See [cross-protocol-unification.md](cross-protocol-unification.md) for the full 
 
 ## A: Shared code gaps across protocols
 
-### 1. Config directives — separate structs, overlapping fields
+### 1. Config directives — unified storage grammar ✅ Done (2026-07-05)
 
-| Area | Stream (`src/core/config/server_conf.c`) | WebDAV (`src/protocols/webdav/config.c`) | S3 (`src/protocols/s3/module.c`) |
-|------|-------------------------------------|-------------------------------|------------------------|
-| Merge calls | ~60 `ngx_conf_merge_*` macros | ~30 macros + array inheritance + CA store + JWKS loading | 9 directives, no `merge_loc_conf` (single-location config) |
-| Shared fields | `root`, `allow_write`, `cadir/cafile/crl`, `token_jwks/token_issuer/token_audience`, `verify_depth` | Same fields but **different sentinel values**, different defaults, separate struct members | Minimal overlap — S3 has its own `bucket_name`, `sigv4` config |
-| Auth enum | `BRIX_AUTH_ANON / GSI / TOKEN / SSS` (stream-specific) | `WEBDAV_AUTH_NONE / CERT / Bearer_TOKEN` (HTTP-specific) | No auth enum — relies on token or SigV4 directly |
+The per-protocol config duplication for storage and namespace directives has been resolved in two layers:
 
-**Opportunity:** Create a shared config preamble struct (`src/core/config/shared_conf.h`) with common fields and sentinel values, then each protocol struct embeds it. Reduces merge boilerplate from ~90 total calls to ~30 shared + per-protocol-specific.
+**Layer 1 — Shared config preamble struct** (`src/core/config/shared_conf.h`): All three protocol config structs embed `ngx_http_brix_shared_conf_t` at the top, providing shared `enable`/`root`/`root_canon`/`allow_write`/`thread_pool` fields with unified init and merge helpers (`ngx_http_brix_shared_init()`, `ngx_http_brix_shared_merge()`). This reduces merge boilerplate across all three layers.
+
+**Layer 2 — Unified HTTP common module** (`src/core/config/http_common.c`, `ngx_http_brix_common_module`): All brix HTTP storage and namespace directives (`brix_export`, `brix_storage_backend`, `brix_storage_credential`, `brix_allow_write`, `brix_read_only`, `brix_compress`, `brix_thread_pool`, `brix_cache_verify`, and the full `brix_cache_*` / `brix_stage*` tier family) are registered once by this module and inherited http→server→location by all brix HTTP locations. The old per-protocol spellings (`brix_webdav_root`, `brix_s3_root`, `brix_webdav_allow_write`, etc.) are gone.
+
+The remaining per-protocol config is genuinely protocol-specific: WebDAV TPC/auth/CORS, S3 bucket/SigV4, cvmfs upstream/manifest tuning.
 
 ### 2. CA store construction — duplicated X509_STORE builds
 
@@ -273,7 +273,7 @@ Stream uses CRC32c via `src/core/compat/crc32c.c`. S3 uses MD5 for multipart ETa
 
 | Priority | Area | Impact | Effort | Notes |
 |----------|------|--------|--------|-------|
-| **P0** | Config shared preamble (`src/core/config/shared_conf.h`) | ~60 merge calls → ~30 | Low | Same fields, different structs. Embed common struct in each protocol config. |
+| ~~**P0**~~ ✅ Done | Config shared preamble + unified HTTP common module (`src/core/config/shared_conf.h`, `http_common.c`) | ~60 merge calls → ~30; per-protocol storage directives eliminated | Done | `ngx_http_brix_shared_conf_t` embedded in all three protocol structs; `ngx_http_brix_common_module` registers all shared HTTP storage directives. |
 | **P0** | CA store builder (`src/auth/crypto/pki_build.c`) | Eliminates duplicated X509_STORE build | Medium | Both protocols read same files, use same OpenSSL APIs. |
 | **P1** | HTTP header helpers audit → compat layer adoption | Reduces inline header assembly across S3/WebDAV | Low | `src/core/http/http_headers.c` already exists. Just replace callsites. |
 | **P1** | Request body handler (`src/core/http/http_body.c`) expansion | Unifies WebDAV PUT/S3 PUT body reading | Medium | Both use same nginx callback pattern with different wrappers. |

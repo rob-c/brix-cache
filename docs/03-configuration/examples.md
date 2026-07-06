@@ -223,6 +223,75 @@ http {
 
 ---
 
+### WebDAV read-write with server-level storage inheritance
+
+Unified storage directives (`brix_export`, `brix_allow_write`, `brix_thread_pool`, …) are
+registered once by `ngx_http_brix_common_module` and merge from `http` → `server` → `location`.
+Setting them once at `server {}` level is the idiomatic form when all locations under a virtual
+host share the same storage root:
+
+```nginx
+worker_processes auto;
+thread_pool webdav_io threads=8 max_queue=65536;
+
+events { worker_connections 1024; }
+
+http {
+    server {
+        listen 8443 ssl;
+        ssl_certificate     /etc/grid-security/hostcert.pem;
+        ssl_certificate_key /etc/grid-security/hostkey.pem;
+        ssl_verify_client   optional_no_ca;
+        ssl_verify_depth    10;
+
+        # Server-level storage — inherited by all brix locations below.
+        brix_export      /data/store;
+        brix_allow_write on;
+        brix_thread_pool webdav_io;
+
+        # Proxy certs accepted server-wide (patches the SSL_CTX once).
+        brix_webdav_proxy_certs on;
+
+        # ATLAS sub-tree: token-authenticated
+        location /atlas/ {
+            brix_webdav on;
+            brix_webdav_auth          required;
+            brix_webdav_cadir         /etc/grid-security/certificates;
+            brix_webdav_token_jwks    /etc/tokens/atlas.jwks;
+            brix_webdav_token_issuer  https://idp.atlas.cern.ch;
+            brix_webdav_token_audience https://se.example.org;
+        }
+
+        # CMS sub-tree: same storage root, different token issuer
+        location /cms/ {
+            brix_webdav on;
+            brix_webdav_auth          required;
+            brix_webdav_cadir         /etc/grid-security/certificates;
+            brix_webdav_token_jwks    /etc/tokens/cms.jwks;
+            brix_webdav_token_issuer  https://idp.cms.cern.ch;
+            brix_webdav_token_audience https://se.example.org;
+        }
+    }
+
+    server {
+        listen 9100;
+        location /metrics { brix_metrics on; }
+        location /healthz  { brix_health on; }
+    }
+}
+```
+
+Both `location /atlas/` and `location /cms/` inherit `brix_export /data/store`,
+`brix_allow_write on`, and `brix_thread_pool webdav_io` from the enclosing `server {}`.
+Only the per-location authentication policy (`brix_webdav_token_jwks`, `brix_webdav_token_issuer`,
+`brix_webdav_token_audience`) differs between them.
+
+Note: `brix_webdav` and `brix_s3` on the **same listen port** is a config error — each port
+may carry at most one brix protocol family. Use separate `server {}` blocks on distinct ports to
+combine WebDAV and S3.
+
+---
+
 ### CVMFS site cache — minimal (forward-proxy mode)
 
 Three directives are sufficient for a production-grade CVMFS site cache. All

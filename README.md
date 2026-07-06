@@ -249,8 +249,8 @@ events { worker_connections 1024; }
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_root /data;
+        brix_root on;
+        brix_export /data;
         brix_allow_write on;
     }
 }
@@ -263,6 +263,7 @@ http {
         ssl_certificate_key /etc/grid-security/hostkey.pem;
         ssl_verify_client   optional_no_ca;
         brix_webdav_proxy_certs on;
+        brix_export /data;                 # inherited by all brix locations below
         location /brix/ {
             brix_dashboard on;
             brix_dashboard_password "change-me";
@@ -270,7 +271,6 @@ http {
         }
         location / {
             brix_webdav      on;
-            brix_webdav_root /data;
             brix_webdav_cadir /etc/grid-security/certificates;
         }
     }
@@ -295,9 +295,9 @@ Slide BriX-Cache in front of any existing XRootD server and immediately gain TLS
 stream {
     server {
         listen 1094;
-        xrootd on;
-        brix_proxy on;
-        brix_proxy_upstream ceph-xrootd.site.example:1094;
+        brix_root on;
+        brix_tap_proxy on;
+        brix_tap_proxy_upstream ceph-xrootd.site.example:1094;
     }
 }
 ```

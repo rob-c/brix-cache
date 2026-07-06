@@ -160,7 +160,7 @@ service's mount namespace.  nginx reads (never writes) its configuration and
 TLS certificates from `/etc`; those paths only need read access.
 
 `ProtectHome=true` blocks access to `/home`, `/root`, and `/run/user`.  If the
-export root (`brix_export`, `brix_export`, `brix_export`) or stage
+export root (`brix_export`) or stage
 dir lives under `/home`, add it to `ReadWritePaths` and either change
 `ProtectHome` to `read-only` (read access to the rest of `/home`) or `false`
 (no restriction).

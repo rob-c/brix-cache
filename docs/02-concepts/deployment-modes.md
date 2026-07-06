@@ -120,8 +120,8 @@ stream {
     server {
         listen 1094;
         brix_root on;
-        brix_proxy on;                    # Enable proxy mode
-        brix_proxy_upstream ceph-xrootd:1094;  # Backend address
+        brix_tap_proxy on;                        # Enable proxy mode
+        brix_tap_proxy_upstream ceph-xrootd:1094; # Backend address
         
         # Auth options at the edge:
         brix_auth token;                  # JWT tokens instead of GSI
@@ -172,24 +172,35 @@ BriX-Cache terminates **HTTPS** and enforces **WLCG JWT bearer token authenticat
 
 ### Configuration example
 
+> **Status:** the dedicated WebDAV reverse-proxy directives (`brix_webdav_proxy*`)
+> were removed (the relay path to stock XrdHttp backends was unstable). To put a
+> TLS/auth perimeter in front of your storage today, run the WebDAV server
+> directly at the edge over the shared storage (or a remote storage backend):
+
 ```nginx
 http {
     server {
         listen 8443 ssl;              # HTTPS port
-        
+
         ssl_certificate     /etc/ssl/hostcert.pem;
         ssl_certificate_key /etc/ssl/hostkey.pem;
-        
+
         location / {
-            brix_webdav_proxy on;                   # Enable proxy mode
-            brix_webdav_proxy_upstream http://internal-dav:8080;
-            
-            # Auth enforcement at the perimeter:
-            brix_webdav_auth required;                # Require valid token/cert
+            brix_webdav on;                        # Serve WebDAV at the edge
+            brix_export /data;                     # shared/mounted storage
+            # or fill from a remote origin instead of a mount:
+            # brix_storage_backend root://internal-xrootd:1094;
+
+            # Auth enforcement at the perimeter (needs a CA to validate against):
+            brix_webdav_auth required;             # Require valid token/cert
+            brix_webdav_cafile /etc/ssl/ca.pem;    # CA bundle for client certs
         }
     }
 }
 ```
+
+For plain HTTP relaying without brix semantics, nginx's stock `proxy_pass`
+also works in front of any WebDAV backend.
 
 ### Pros and Cons
 
@@ -219,19 +230,19 @@ stream {
     server {
         listen 1095;
         brix_root on;
-        brix_proxy on;
-        brix_proxy_upstream ceph-xrootd:1094;
+        brix_tap_proxy on;
+        brix_tap_proxy_upstream ceph-xrootd:1094;
     }
 }
 
-# HTTP block — Mode 3 (WebDAV proxy) + S3 endpoint
+# HTTP block — Mode 3 (WebDAV at the perimeter) + S3 endpoint
 http {
-    # WebDAV perimeter proxy
+    # WebDAV served directly at the edge
     server {
         listen 8443 ssl;
         location / {
-            brix_webdav_proxy on;
-            brix_webdav_proxy_upstream http://internal-dav:8080;
+            brix_webdav on;
+            brix_export /data/local-store;
         }
     }
     

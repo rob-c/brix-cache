@@ -154,6 +154,16 @@ contributor does not have to read your code to understand what the file does.
 
 New directives let operators configure your feature in `nginx.conf`.
 
+> **Which module owns the directive?** This section covers stream-protocol
+> directives that belong on `ngx_stream_brix_srv_conf_t`. For directives that
+> are meaningful across **all brix HTTP locations** (storage root, backend,
+> write gate, cache, stage, thread pool), add them to
+> `src/core/config/http_common.c` (`ngx_http_brix_common_module`) instead —
+> they are then automatically inherited by WebDAV, S3, and cvmfs locations
+> without any per-protocol wiring. Genuinely protocol-specific HTTP directives
+> (WebDAV TPC/auth/CORS, S3 bucket/SigV4 config, cvmfs upstream tuning) stay
+> in their respective module files.
+
 ### Step 1 — Add the config field
 
 Add a typed field to `ngx_stream_brix_srv_conf_t` in

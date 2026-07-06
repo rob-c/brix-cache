@@ -172,7 +172,7 @@ Set `X509_CERT_DIR` to your CA hash directory if the proxy's issuer CA is not in
 
 ## Relationship to the native XRootD protocol
 
-The WebDAV and native `root://` modules are independent; you can run both on the same nginx instance. They share the same `brix_export` / `brix_export` filesystem path if you want clients to access the same data via either protocol:
+The WebDAV and native `root://` modules are independent; you can run both on the same nginx instance. They share the same `brix_export` filesystem path if you want clients to access the same data via either protocol:
 
 ```nginx
 stream {

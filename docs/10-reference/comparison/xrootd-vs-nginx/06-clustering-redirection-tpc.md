@@ -513,12 +513,12 @@ Capabilities (`src/net/proxy/`, memory: proxy enhancements / phase 2-3):
 
 ### Module WebDAV proxy and `src/net/upstream/`
 
-For completeness, two more outbound paths exist (see also the HTTP comparison
-page): `src/protocols/webdav/proxy.c` (`brix_webdav_proxy`) forwards WebDAV/HTTP to a
-backend HTTP(S) origin using nginx's `ngx_http_upstream_t` (auth modes
-anonymous/forward/static-token, Destination rewrite for COPY/MOVE); and
-`src/net/upstream/` (described under [Redirection](#confirming-with-the-data-server-srcupstream))
+For completeness, one more outbound path exists (see also the HTTP comparison
+page): `src/net/upstream/` (described under [Redirection](#confirming-with-the-data-server-srcupstream))
 is the narrow redirector-confirmation client, **not** a transparent proxy.
+The dedicated WebDAV reverse-proxy (`brix_webdav_proxy`, `src/protocols/webdav/proxy.c`)
+was removed after the relay path to stock XrdHttp backends proved unstable — those
+directives are no longer available.
 
 ## Traffic mirroring (nginx-forward)
 
