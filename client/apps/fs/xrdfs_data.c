@@ -285,6 +285,10 @@ tail_start_for_lines(brix_conn *c, const char *path, int64_t size, long nlines,
  *       through the handle; a shrink (truncate/rotate) emits a stderr notice and resets
  *       to the new EOF; a soft EOF (pread returns 0) means the file was replaced
  *       (delete+create) — close the stale handle and reopen to bind the new inode.
+ *       A retryable per-poll brix_stat failure (transient sever) does NOT end
+ *       follow mode: it best-effort reconnects and keeps polling within the
+ *       resilience window (brix_resilient_window_ms), giving up only once the
+ *       window is exhausted; a hard failure (e.g. ENOENT after deletion) exits.
  *       SIGINT handler sets tail_stop for a clean exit.
  * Returns 0 (clean / interrupted) / -1 (stat or read error, st set). */
 int
@@ -297,6 +301,8 @@ tail_follow(brix_conn *c, const char *path, int64_t from, double interval,
     struct sigaction sa, old;
     int              rc = 0;
     int              rf_open = 0;   /* 1 iff rf holds an open, unclosed handle */
+    int              window_ms = brix_resilient_window_ms(c);   /* stat-retry patience */
+    uint64_t         stall_deadline = 0;   /* armed on the first retryable stat failure */
 
     if (brix_rfile_open_read(c, path, NULL, 0, -1, &rf, st) != 0) {
         return -1;
@@ -318,11 +324,31 @@ tail_follow(brix_conn *c, const char *path, int64_t from, double interval,
     while (!tail_stop) {
         brix_statinfo   si;
         struct timespec ts;
+        ts.tv_sec  = (time_t) interval;
+        ts.tv_nsec = (long) ((interval - (double) ts.tv_sec) * 1e9);
         brix_status_clear(st);
         if (brix_stat(c, path, &si, st) != 0) {
+            /* A transient sever (retryable) during follow must NOT end the
+             * session: ride it out within the resilience window, mirroring
+             * brix_rfile_pread.  A hard failure (e.g. the file was deleted →
+             * ENOENT, not retryable) is definitive and exits follow mode. */
+            if (window_ms > 0 && brix_status_retryable(st)) {
+                uint64_t now = brix_mono_ns();
+                if (stall_deadline == 0) {
+                    stall_deadline = now + (uint64_t) window_ms * 1000000ULL;
+                }
+                if (now < stall_deadline) {
+                    brix_status rc_st;   /* best-effort reconnect; keep st = the stat error */
+                    brix_status_clear(&rc_st);
+                    (void) brix_reconnect_home(c, &rc_st);
+                    nanosleep(&ts, NULL);
+                    continue;
+                }
+            }
             rc = -1;
             break;
         }
+        stall_deadline = 0;   /* a healthy poll resets the patience window */
         if ((int64_t) si.size < off) {
             fprintf(stderr, "xrdfs: tail: %s truncated, following new end\n", path);
             off = (int64_t) si.size;
@@ -354,8 +380,6 @@ tail_follow(brix_conn *c, const char *path, int64_t from, double interval,
         fflush(stdout);
         if (rc != 0) { break; }
         if (tail_stop) { break; }
-        ts.tv_sec  = (time_t) interval;
-        ts.tv_nsec = (long) ((interval - (double) ts.tv_sec) * 1e9);
         nanosleep(&ts, NULL);
     }
 

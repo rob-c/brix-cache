@@ -102,25 +102,30 @@ Default: 30000 (30 s).
 Consumers: all tools that use the root:// connection layer.
 .TP
 .B XRDC_IO_URING
-Set to \fB1\fR to enable the io_uring async I/O engine when the build
-includes \fBliburing\fR support.
-Default: \fB0\fR (disabled; epoll/pread path used).
+Selects the local-disk io_uring overlap engine: \fBon\fR, \fBoff\fR, or
+\fBauto\fR.
+Overridden per-invocation by \fB\-\-io\-uring\fR.
+Default: \fBauto\fR (engage io_uring when the build includes \fBliburing\fR
+support and the runtime probe passes; otherwise the epoll/pread path).
 Consumers: xrdcp, xrdfs, and the library's AIO layer.
 .TP
 .B XRDC_IO_URING_LOOP
-Maximum number of io_uring completions to process per event loop tick.
-Default: \fB64\fR.
+Set to \fBon\fR (or \fB1\fR) to use the experimental io_uring loop-readiness
+engine instead of epoll; any other value keeps epoll.
+Requires \fBliburing\fR support plus a runtime probe, and silently falls back to
+epoll when the ring is unavailable.
+Default: \fBoff\fR.
 Consumers: same as \fBXRDC_IO_URING\fR.
 .TP
 .B XRDC_NO_IPV6_FALLBACK
-Set to \fB1\fR to disable the automatic IPv4 fallback when an IPv6 connect
-fails.
-Default: \fB0\fR (fallback enabled).
+Set to any value to disable the automatic IPv4 fallback when an IPv6 connect
+fails (presence-gated: the value is not inspected).
+Default: unset (fallback enabled).
 Consumers: all tools that resolve hostnames.
 .TP
 .B XRDC_BACKOFF_BASE_MS
 Base retry backoff in milliseconds (doubles on each retry).
-Default: \fB500\fR.
+Default: \fB25\fR.
 Consumers: resilient connection layer.
 .TP
 .B XRDC_GSI_VERSION
@@ -129,8 +134,9 @@ Default: determined by the server's capability flags.
 Consumers: GSI authentication.
 .TP
 .B XRDC_GSI_DELEGATE
-Set to \fB1\fR to request GSI proxy delegation during the handshake.
-Default: \fB0\fR.
+Set to any value to request GSI proxy delegation during the handshake
+(presence-gated: the value is not inspected).
+Default: unset (no delegation).
 Consumers: GSI authentication (xrdcp, xrdfs, xrdgsitest).
 .SH TOOL-SPECIFIC VARIABLES
 .TP
@@ -153,29 +159,12 @@ Default: \fI~/.xrdrc\fR.
 Consumers: all tools (alias resolution at startup).
 .TP
 .B BRIX_VMP
-Override the virtual mount point advertised by the brixMount FUSE driver.
+Virtual mount-point spec for the \fBlibbrixposix_preload\fR LD_PRELOAD shim,
+in the form \fI<local-prefix>=root://host[:port][/base]\fR: any path under
+\fI<local-prefix>\fR is served transparently from the named XRootD endpoint.
 No alias.
-Default: determined from the mount target directory.
-Consumers: \fBbrixMount\fR, \fBxrootdfs\fR.
-.TP
-.B BRIXCVMFS_CACHE_DIR
-Override the directory used for the CVMFS chunk cache.
-No alias.
-Default: \fI~/.cache/brixcvmfs\fR (or \fBTMPDIR\fR/\fBbrixcvmfs\fR when
-\fI~/.cache\fR is not writable).
-Consumers: \fBbrixMount cvmfs\fR, \fBbrixMount cvmfs-rw\fR.
-.TP
-.B BRIXCVMFS_CACHE_SIZE_MB
-Maximum size of the CVMFS chunk cache in MiB.
-No alias.
-Default: \fB4096\fR.
-Consumers: \fBbrixMount cvmfs\fR, \fBbrixMount cvmfs-rw\fR.
-.TP
-.B BRIXCVMFS_REPOS
-Colon-separated list of CVMFS repository names to pre-populate at mount time.
-No alias.
-Default: none (repositories are discovered on access).
-Consumers: \fBbrixMount cvmfs\fR.
+Default: none (the shim is inert when unset).
+Consumers: \fBlibbrixposix_preload.so\fR.
 .TP
 .B TMPDIR
 Standard POSIX temporary directory.

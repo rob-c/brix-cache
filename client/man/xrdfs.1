@@ -59,6 +59,12 @@ Create a directory. \fB\-p\fR create parents, \fB\-m\fR octal mode.
 .TP
 .B rm [-r] [-v] \fIPATH\fR
 Remove a file or, with \fB\-r\fR, a directory tree. \fB\-v\fR verbose.
+Note: because the server's directory listing carries no
+.BR lstat (2)
+information, symlinked directories on the server are descended and their
+contents removed (this differs from POSIX
+.BR rm (1)
+\fB\-r\fR, which removes the link itself).
 .TP
 .B rmdir \fIPATH\fR
 Remove an empty directory.
