@@ -18,8 +18,13 @@ verdict_cached(P, X, op, proto)  ==  verdict_cold(P, X, op, proto)
 The cache-OFF **direct** server is the authoritative oracle (it always runs the full
 three-tier gate: authdb → VO ACL → token scope). Every cache/stage server MUST reach the
 identical `Verdict(decision, reason, tier)`. A cache hit that ALLOWs — or denies for a
-*weaker tier* — where the cold path DENIES is a cross-user leak. The suite is **bug-hunt /
-fail-loudly**: leak cells encode the correct invariant and fail red until the code is fixed.
+*weaker tier* — where the cold path DENIES is a cross-user leak.
+
+> **Status:** the cache-transparency fix has LANDED (`open_cache.c` runs the full gate;
+> `prepare.c` gates the `noerrs`+absent branch). The leak-marked families below are now
+> **regression tests**: they must stay green. A failure means the leak has been reintroduced.
+> See [Cache Authorization — Conformance & Best Practice](cache-authz-best-practice.md) for the
+> enforcement architecture and configuration guidance.
 
 ## Running it
 
@@ -41,17 +46,18 @@ tests/c/run_mu_unit.sh                              # idmap collapse guards (no 
 
 ## Family map
 
-| Family | File | Threat | Expected |
+| Family | File | Threat | Expected (post-fix) |
 |---|---|---|---|
-| F1 | `test_mu_authz_cachetransp.py` | cross-user cache-hit re-auth | **leak (red)** |
-| F2 | `test_mu_cvmfs_public.py` | cvmfs public-by-design guardrails | pass |
-| F3 | `test_mu_stage_laundering.py` | service-cred stage laundering | **leak (red)** |
-| F4 | `test_mu_prepare_authz.py` | prepare/stage noerrs bypass | **leak (red)** |
-| F5 | `test_mu_cross_protocol.py` | cross-protocol poisoning + S3 scope | **leak (red)** |
-| F6 | `test_mu_impersonation_e2e.py` + `c/idmap_collapse_test.c` | uid collapse + setfsuid ownership | mixed |
-| F7 | `test_mu_decision_cache.py` | decision-cache identity isolation | pass |
-| F8 | `test_mu_revocation.py` | revocation after fill | **leak (red)** |
-| F9 | `test_mu_writeback_attr.py` | write-back attribution + S3 parity | mixed |
+| F1 | `test_mu_authz_cachetransp.py` | cross-user cache-hit re-auth | green (regression) |
+| F2 | `test_mu_cvmfs_public.py` | cvmfs public-by-design guardrails | green |
+| F3 | `test_mu_stage_laundering.py` | service-cred stage laundering | green (regression) |
+| F4 | `test_mu_prepare_authz.py` | prepare/stage noerrs bypass | green (regression) |
+| F5 | `test_mu_cross_protocol.py` | cross-protocol poisoning + S3 scope | green (regression); S3 single-key noted |
+| F6 | `test_mu_impersonation_e2e.py` + `c/idmap_collapse_test.c` | uid collapse + setfsuid ownership | green |
+| F7 | `test_mu_decision_cache.py` | decision-cache identity isolation | green |
+| F8 | `test_mu_revocation.py` | revocation after fill | green (regression) |
+| F9 | `test_mu_writeback_attr.py` | write-back attribution + S3 parity | green (regression); S3 single-key noted |
+| — | `test_mu_cache_serve_authz.py` | no-root cache-HIT enforcement smoke | green |
 
 ## The harness
 
@@ -63,11 +69,10 @@ tests/c/run_mu_unit.sh                              # idmap collapse guards (no 
 
 ## Reading the result
 
-A green run of `-m "not leak"` plus a red `-m leak` ledger is the expected state. The ledger
-lists each cross-user leak with its node id; fixing the underlying code (making the cached
-path run the same gate as the direct path) flips that cell green — it becomes a passing
-regression test. The whole point is that the suite is the evidence, not an assertion of what
-the author expected.
+Post-fix, the expected state is **all green** — including `-m leak`, which now runs the
+regression tests for the closed leaks. If a `-m leak` cell fails, the leak ledger prints it
+with its node id: a cache/stage serve whose verdict diverged from the origin oracle, i.e. the
+leak has been reintroduced. Treat any red `leak` cell as a release blocker.
 
 ## Known limitations (surfaced by the suite)
 
