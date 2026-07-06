@@ -25,6 +25,8 @@ def _base_subst() -> dict:
         "{S3_DIRECT_PORT}": str(ports.MU.S3_DIRECT),
         "{S3_CACHE_PORT}": str(ports.MU.S3_CACHE),
         "{CVMFS_CACHE_PORT}": str(ports.MU.CVMFS_CACHE),
+        "{CACHE_NOIMP_PORT}": str(ports.MU.CACHE_NOIMP),
+        "{ORIGIN_NOIMP_PORT}": str(ports.MU.ORIGIN_NOIMP),
         "{BIND_HOST}": ports.MU.HOST,
         "{DATA_DIR}": ports.MU.DATA_ROOT,
         "{CACHE_DIR}": ports.MU.CACHE_ROOT,

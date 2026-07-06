@@ -50,8 +50,17 @@ def _root_env(principal) -> dict:
         env["X509_USER_PROXY"] = principal.proxy
         env["XrdSecPROTOCOL"] = "gsi"
     elif getattr(principal, "token", ""):
-        env["BEARER_TOKEN_FILE"] = principal.token
-        env["XrdSecPROTOCOL"] = "ztn"
+        # WLCG bearer-token discovery: BEARER_TOKEN_FILE is what the XrdCl ztn
+        # plugin reads (matching tests/_test_native_xrdcp_xrdfs_helpers.py). Do NOT
+        # force XrdSecPROTOCOL=ztn — forcing it to the sole protocol makes a
+        # construction failure fatal ("no protocols left to try"); left unset the
+        # client auto-negotiates ztn when the token file is present.
+        tok = principal.token
+        env["BEARER_TOKEN_FILE"] = tok
+        try:
+            env["BEARER_TOKEN"] = open(tok).read().strip()
+        except OSError:
+            pass
     return env
 
 
