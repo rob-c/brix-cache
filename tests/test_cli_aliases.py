@@ -233,6 +233,62 @@ def test_tree_depth_alias_live():
     assert out_s == out_l, "tree -L and tree --depth produced different output"
 
 
+def test_df_human_alias_live():
+    """xrdfs df -h and df --human produce identical stdout+exit on the fleet root."""
+    _skip_no_fleet()
+    url = f"{_TEST_HOST}:{_ANON_PORT}"
+    rc_s, out_s, _ = _xrdfs(url, "df", "-h")
+    rc_l, out_l, _ = _xrdfs(url, "df", "--human")
+    assert rc_s == rc_l, f"df -h exited {rc_s}, df --human exited {rc_l}"
+    assert out_s == out_l, "df -h and df --human produced different output"
+
+
+def test_rm_verbose_alias_live():
+    """xrdfs rm -v and rm --verbose produce identical exit+stderr on a nonexistent path."""
+    _skip_no_fleet()
+    url = f"{_TEST_HOST}:{_ANON_PORT}"
+    rc_s, _, err_s = _xrdfs(url, "rm", "-v", "/no-such-path-alias-test")
+    rc_l, _, err_l = _xrdfs(url, "rm", "--verbose", "/no-such-path-alias-test")
+    assert rc_s == rc_l, f"rm -v exited {rc_s}, rm --verbose exited {rc_l}"
+    assert err_s == err_l, "rm -v and rm --verbose stderr differs"
+
+
+# ---------------------------------------------------------------------------
+# 3b. EQUIVALENCE: xrdfs subcommand --help mentions long aliases (WS-2)
+#     Fleet-gated: xrdfs subcommand --help requires a live connection.
+#     xfail: help strings in xrdfs.c COMMANDS table not yet updated (WS-2
+#     work stream will update them; tests here ensure coverage fires on merge).
+# ---------------------------------------------------------------------------
+
+@pytest.mark.xfail(
+    reason="WS-2: long-alias names not yet in xrdfs.c COMMANDS help strings",
+    strict=False,
+)
+@pytest.mark.parametrize("sub,alias", [
+    ("ls",    "--human"),
+    ("du",    "--human"),
+    ("df",    "--human"),
+    ("tree",  "--dirs-only"),
+    ("tree",  "--depth"),
+    ("rm",    "--verbose"),
+    ("touch", "--timestamp"),
+])
+def test_xrdfs_subcommand_help_has_long_alias(sub, alias):
+    """xrdfs <sub> --help output must contain the long alias (WS-2).
+
+    xrdfs subcommand --help requires a live connection (parse + dispatch
+    happen after connect); uses the local fleet when available.
+    """
+    _skip_no_fleet()
+    url = f"{_TEST_HOST}:{_ANON_PORT}"
+    rc, out, _ = _xrdfs(url, sub, "--help")
+    assert rc == 0, f"xrdfs {sub} --help exited {rc}"
+    assert alias in out, (
+        f"xrdfs {sub} --help does not mention {alias!r}.\n"
+        f"  help output: {out!r}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # 4. ERROR-GOLDEN: unknown --nonsense keeps current error+exit code per tool
 # ---------------------------------------------------------------------------
@@ -258,10 +314,11 @@ def test_unknown_option_exit_code_unchanged(tool, expected_rc):
 
 @pytest.mark.parametrize("tool,expected_rc", _UNKNOWN_OPT_RC.items())
 def test_unknown_option_writes_stderr(tool, expected_rc):
-    """Unknown option writes a diagnostic to stderr, not stdout."""
+    """Unknown option writes a diagnostic to stderr, never to stdout (C4)."""
     _, out, err = _run(tool, "--nonsense-xyzzy")
-    assert err.strip() or out.strip(), (
-        f"{tool} --nonsense-xyzzy produced no output at all"
+    assert err.strip(), (
+        f"{tool} --nonsense-xyzzy produced no diagnostic on stderr"
+        + (f" (stdout had: {out.strip()!r})" if out.strip() else "")
     )
 
 
