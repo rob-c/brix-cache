@@ -302,10 +302,12 @@ int  brix_opts_parse_arg(brix_opts *o, int argc, char **argv, int *i);
  * (XRDC_EXIT_USAGE on parse error, brix_shellcode(st) on connect failure). */
 int  brix_cli_connect(const char *endpoint, const brix_opts *o, brix_conn *c,
                       const char *prog, brix_status *st);
-/* Emit "tool: op path: msg" + a credential hint and return brix_shellcode(st):
- * the per-operation failure idiom shared across the namespace tools. */
+/* Emit "tool: op path: msg" + a credential hint + WS-3 double-slash hint (if
+ * url->single_slash_path is set) and return brix_shellcode(st): the per-operation
+ * failure idiom shared across the namespace tools.  url may be NULL. */
 int  brix_report_err(FILE *out, const char *tool, const char *op,
-                     const char *path, const brix_status *st, int want_write);
+                     const char *path, const brix_status *st, int want_write,
+                     const brix_url *url);
 
 /* ---- path.c / units.c (shared path + byte-count helpers) ---- */
 /* Canonicalise `arg` against `cwd` into an absolute server path in out[outsz],

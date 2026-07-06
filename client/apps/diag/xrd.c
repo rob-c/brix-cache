@@ -4,6 +4,8 @@
  */
 #include "xrd_internal.h"
 #include "core/version.h"
+#include "cli/suggest.h"    /* brix_suggest(): did-you-mean at unknown-command sites */
+#include "cli/cli_hint.h"   /* brix_cli_hint(): TTY-gated hint output */
 
 const char *FS_VERBS[] = {
     "ls", "stat", "mkdir", "rm", "rmdir", "mv", "chmod", "touch", "ln", "readlink",
@@ -329,7 +331,39 @@ main(int argc, char **argv)
         exec_tool("xrdfs", nv);
     }
 
-    fprintf(stderr, "xrd: unknown command '%s'\n\n", cmd);
+    {
+        /*
+         * WHAT: emit a did-you-mean hint when the user typed an unrecognised xrd
+         *       command; search both the named xrd dispatch table and FS_VERBS.
+         * WHY:  spec WS-7: every unknown-command site must offer a suggestion when
+         *       one exists within DL distance ≤ 2 (TTY-gated, C3 compliant).
+         * HOW:  build a merged NULL-terminated names array; pass to brix_suggest().
+         */
+        static const char *const XRD_CMDS[] = {
+            "cp", "copy", "get", "put", "sync", "ping", "certinfo",
+            "clockskew", "whoami", "caps", "doctor", "login", "mount",
+            "mounts", "unmount", "umount", "inventory", "verify", "drift",
+            "inspect", "version", "help", "diag", "replicas", NULL
+        };
+        const char          *all_names[80];   /* FS_VERBS(36) + XRD_CMDS(24) + pad */
+        int                  n = 0;
+        int                  i;
+        const char          *suggestion;
+
+        for (i = 0; XRD_CMDS[i] != NULL && n < 79; i++) {
+            all_names[n++] = XRD_CMDS[i];
+        }
+        for (i = 0; FS_VERBS[i] != NULL && n < 79; i++) {
+            all_names[n++] = FS_VERBS[i];
+        }
+        all_names[n] = NULL;
+
+        fprintf(stderr, "xrd: unknown command '%s'\n\n", cmd);
+        suggestion = brix_suggest(cmd, all_names);
+        if (suggestion != NULL) {
+            brix_cli_hint("hint: did you mean '%s'?\n", suggestion);
+        }
+    }
     usage();
     return 50;
 }

@@ -4,6 +4,8 @@
  */
 #include "xrdfs_internal.h"
 #include "core/version.h"
+#include "cli/suggest.h"    /* brix_suggest(): did-you-mean at unknown-command sites */
+#include "cli/cli_hint.h"   /* brix_cli_hint(): TTY-gated hint output */
 
 volatile sig_atomic_t tail_stop = 0;
 
@@ -115,7 +117,31 @@ dispatch(brix_conn *c, char *cwd, size_t cwdsz, int ntok, char **tok, int *quit)
 
     cmd = find_command(tok[0]);
     if (cmd == NULL) {
+        /*
+         * WHAT: build a NULL-terminated name array from COMMANDS[] and emit a
+         *       "did you mean?" hint on TTY stderr when brix_suggest() finds a
+         *       close match (Damerau-Levenshtein distance ≤ 2).
+         * WHY:  spec WS-7: unknown-subcommand error sites must emit a did-you-mean
+         *       hint for interactive users without polluting pipeline output (C3).
+         * HOW:  count COMMANDS entries first (bounded), build a stack VLA of name
+         *       pointers, terminate with NULL, then pass to brix_suggest().
+         */
+        int                  ncmds;
+        const char          *names[48 + 1]; /* COMMANDS has ≤ 47 entries */
+        const xrdfs_cmd     *h;
+        const char          *suggestion;
+
+        ncmds = 0;
+        for (h = COMMANDS; h->name != NULL && ncmds < 48; h++) {
+            names[ncmds++] = h->name;
+        }
+        names[ncmds] = NULL;
+
         fprintf(stderr, "xrdfs: unknown command '%s'\n", tok[0]);
+        suggestion = brix_suggest(tok[0], names);
+        if (suggestion != NULL) {
+            brix_cli_hint("hint: did you mean '%s'?\n", suggestion);
+        }
         return 50;
     }
     /* <cmd> --help: print the one-line synopsis for this command. */

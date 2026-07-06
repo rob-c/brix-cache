@@ -17,6 +17,8 @@
  */
 #include "cvmfs/client/client.h"   /* not required, keeps include-path uniform */
 #include "core/version.h"
+#include "cli/suggest.h"    /* brix_suggest(): did-you-mean at unknown-type sites */
+#include "cli/cli_hint.h"   /* brix_cli_hint(): TTY-gated hint output */
 
 #include <stdio.h>
 #include <string.h>
@@ -82,7 +84,29 @@ int brixmount_dispatch(int argc, char **argv, const brix_driver_t *drv, size_t n
         if (strcmp(drv[i].type, type) == 0) { sel = &drv[i]; break; }
 
     if (sel == NULL) {
+        /*
+         * WHAT: build a NULL-terminated name array from drv[] and emit a
+         *       did-you-mean hint when brix_suggest() finds a close match.
+         * WHY:  spec WS-7: every unknown-type/subcommand site must suggest a
+         *       close match for interactive users (TTY-gated, C3 compliant).
+         * HOW:  iterate drv[] up to ndrv entries, cap at 16 for safety; pass
+         *       to brix_suggest() and emit via brix_cli_hint() if non-NULL.
+         */
+        const char  *type_names[17];   /* at most 16 driver types + NULL */
+        size_t       nt = 0;
+        size_t       di;
+        const char  *suggestion;
+
+        for (di = 0; di < ndrv && nt < 16; di++) {
+            type_names[nt++] = drv[di].type;
+        }
+        type_names[nt] = NULL;
+
         fprintf(stderr, "brixMount: unknown type '%s'\n", type);
+        suggestion = brix_suggest(type, type_names);
+        if (suggestion != NULL) {
+            brix_cli_hint("hint: did you mean '%s'?\n", suggestion);
+        }
         brixmount_usage(stderr, drv, ndrv);
         return 2;
     }
