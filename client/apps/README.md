@@ -103,6 +103,24 @@ sudo cp client/completions/brix-tools.bash /etc/bash_completion.d/brix-tools
 
 zsh: `autoload -U +X bashcompinit && bashcompinit`, then source the same file.
 
+## CLI compatibility contract (binding for all flag/env/output work)
+
+Per [`docs/superpowers/specs/2026-07-06-client-cli-usability-design.md`](../../docs/superpowers/specs/2026-07-06-client-cli-usability-design.md) §2:
+
+- **C1** — existing flags, env vars, subcommands, and exit codes never change
+  meaning; new spellings are additive aliases only.
+- **C2** — legacy env names (`XrdSec*`) are accepted forever; new lookups go
+  through `brix_env_resolve()` chains (see `brix-env(7)`).
+- **C3** — interactive hints go through `brix_cli_hint*()` ONLY (TTY-gated,
+  `BRIX_NO_HINTS` opt-out); non-TTY output is byte-identical, enforced by
+  `tests/test_cli_golden.py`.
+- **C4** — diagnostics never print to stdout.
+- **C5** — exit-code values are frozen (documented per tool in the man pages).
+
+Usage text, man page, and shell completion must stay in sync for every flag —
+`client/man/check_man.sh` and `client/completions/check_completions.sh` run in
+`make -C client test` and fail the build on drift.
+
 ## See also
 
 - [`../lib/README.md`](../lib/README.md) — the `libbrix` library these tools link against.
