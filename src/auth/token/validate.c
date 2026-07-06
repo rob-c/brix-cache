@@ -129,6 +129,27 @@ brix_token_extract_groups(const char *pay_json, size_t pay_len,
 }
 
 /*
+ * token_sig_ok — dispatch signature verification by algorithm.
+ *
+ * WHAT: Calls brix_token_verify_es256() for ES256 or brix_token_verify_rs256()
+ *       for RS256 (the only two accepted algorithms at this call site).
+ * WHY:  DRY helper shared by the kid-present single-key path and the kid-absent
+ *       multi-key fallback loop; avoids duplicating the ES256/RS256 branch.
+ * HOW:  strcmp on alg (already validated non-NULL before this point).
+ *       Returns 1 on success, 0 on failure, matching the underlying verify API.
+ */
+static int
+token_sig_ok(const char *alg, const u_char *token, size_t signed_len,
+    const u_char *sig_bin, size_t sig_len, EVP_PKEY *pkey)
+{
+    if (strcmp(alg, "ES256") == 0) {
+        return brix_token_verify_es256(token, signed_len, sig_bin, sig_len, pkey);
+    }
+    return brix_token_verify_rs256(token, signed_len, sig_bin, sig_len, pkey);
+}
+
+
+/*
  * brix_token_validate — verify a WLCG/SciToken JWT bearer token.
  *
  * Validates the token according to the WLCG token profile spec:
@@ -140,8 +161,8 @@ brix_token_extract_groups(const char *pay_json, size_t pay_len,
  *      alg:"none" bypass — a token that declares alg:"none" or any other
  *      algorithm is rejected before signature verification, preventing an
  *      attacker from forging an unsigned token.
- *   3. Key selection: by "kid" header claim; falls back to the only key
- *      when key_count == 1 and "kid" is absent.
+ *   3. Key selection: by "kid" header claim (exact match); when "kid" is
+ *      absent all JWKS keys are tried in order (rotation grace, §3.3).
  *   4. Signature: RSA PKCS#1v1.5 SHA-256 over header.payload.
  *      The signature MUST be verified before claims are trusted.
  *   5. Issuer: if expected_issuer is non-empty, "iss" must match exactly.
@@ -181,7 +202,6 @@ brix_token_validate(ngx_log_t *log,
     int         i;
     time_t      now;
     size_t      hdr_b64_len, pay_b64_len, sig_b64_len, signed_len;
-    EVP_PKEY   *pkey;
  
     ngx_memzero(claims, sizeof(*claims));
  
@@ -268,24 +288,6 @@ brix_token_validate(ngx_log_t *log,
     json_get_string((char *) hdr_json, (size_t) hdr_len, "kid", kid,
                     sizeof(kid));
 
-    pkey = NULL;
-    for (i = 0; i < key_count; i++) {
-        if (kid[0] == '\0' || strcmp(keys[i].kid, kid) == 0) {
-            pkey = keys[i].pkey;
-            break;
-        }
-    }
-    if (pkey == NULL && key_count == 1) {
-        pkey = keys[0].pkey;
-    }
-    if (pkey == NULL) {
-        char safe_kid[256];
-        token_sanitize_for_log(kid, safe_kid, sizeof(safe_kid));
-        ngx_log_error(NGX_LOG_WARN, log, 0,
-                      "brix_token: no JWKS key matching kid=\"%s\"", safe_kid);
-        return -1;
-    }
-
     sig_len = b64url_decode(seg[2].p, sig_b64_len, sig_bin, sizeof(sig_bin));
     if (sig_len < 0) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
@@ -295,15 +297,35 @@ brix_token_validate(ngx_log_t *log,
 
     signed_len = hdr_b64_len + 1 + pay_b64_len;   /* "header.payload" */
     {
-        int sig_ok;
-        if (strcmp(alg, "ES256") == 0) {
-            sig_ok = brix_token_verify_es256((const u_char *) token,
-                                               signed_len, sig_bin,
-                                               (size_t) sig_len, pkey);
+        int sig_ok = 0;
+        if (kid[0] != '\0') {
+            /* kid asserted: exact-match the named key only. */
+            EVP_PKEY *pkey = NULL;
+            for (i = 0; i < key_count; i++) {
+                if (strcmp(keys[i].kid, kid) == 0) {
+                    pkey = keys[i].pkey;
+                    break;
+                }
+            }
+            if (pkey == NULL && key_count == 1) {
+                pkey = keys[0].pkey;   /* preserve legacy single-key leniency */
+            }
+            if (pkey == NULL) {
+                char safe_kid[256];
+                token_sanitize_for_log(kid, safe_kid, sizeof(safe_kid));
+                ngx_log_error(NGX_LOG_WARN, log, 0,
+                              "brix_token: no JWKS key matching kid=\"%s\"",
+                              safe_kid);
+                return -1;
+            }
+            sig_ok = token_sig_ok(alg, (const u_char *) token, signed_len,
+                                  sig_bin, (size_t) sig_len, pkey);
         } else {
-            sig_ok = brix_token_verify_rs256((const u_char *) token,
-                                               signed_len, sig_bin,
-                                               (size_t) sig_len, pkey);
+            /* kid absent: try every JWKS key in order (rotation grace, §3.3). */
+            for (i = 0; i < key_count && !sig_ok; i++) {
+                sig_ok = token_sig_ok(alg, (const u_char *) token, signed_len,
+                                      sig_bin, (size_t) sig_len, keys[i].pkey);
+            }
         }
         if (!sig_ok) {
             ngx_log_error(NGX_LOG_WARN, log, 0,
