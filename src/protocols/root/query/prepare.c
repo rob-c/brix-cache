@@ -184,9 +184,31 @@ brix_prepare_check_path(brix_ctx_t *ctx, ngx_connection_t *c,
     if (brix_stat_beneath(conf->rootfd, pathbuf, &st) != 0) {
         if ((errno == ENOENT || errno == ENOTDIR) && noerrs) {
             (*missing)++;
+            /* SECURITY: authorization is a property of the IDENTITY + LOGICAL
+             * PATH, not of on-disk existence. A prepare/stage of a not-yet-
+             * materialised object (tape nearline recall, not-yet-cached) must
+             * still prove the caller may READ/STAGE this namespace path —
+             * otherwise an unauthorized principal drives recalls or enumerates
+             * the namespace via prepare, and later serves the recalled bytes from
+             * the shared cache. Run the SAME three tiers, on the SAME paths, as
+             * the existing-file branch below (verdict parity between "exists" and
+             * "absent"); only then supply the staging path. */
+            if (brix_authz_check(ctx, c, conf, pathbuf, full_path, "PREPARE",
+                                   BRIX_AUTH_READ, BRIX_AOP_STAGE) != NGX_OK) {
+                return brix_prepare_check_fail(ctx, c, full_path,
+                                                 kXR_NotAuthorized, "not authorized");
+            }
+            if (brix_check_vo_acl_identity(c->log, full_path, conf->vo_rules,
+                                             ctx->identity) != NGX_OK) {
+                return brix_prepare_check_fail(ctx, c, full_path,
+                                                 kXR_NotAuthorized, "VO not authorized");
+            }
+            if (brix_check_token_scope(ctx, pathbuf, 0) != NGX_OK) {
+                return brix_prepare_check_fail(ctx, c, pathbuf,
+                                                 kXR_NotAuthorized, "token scope denied");
+            }
             /* For staging: supply absolute path even if file doesn't exist yet
-             * (tape nearline / not-yet-created).  Auth checks are skipped since
-             * there is no filesystem object to verify against. */
+             * (tape nearline / not-yet-created). */
             if (out_resolved != NULL) {
                 ngx_cpystrn((u_char *) out_resolved, (u_char *) full_path,
                             PATH_MAX);

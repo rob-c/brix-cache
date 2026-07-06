@@ -23,6 +23,10 @@ class MU:
     S3_DIRECT     = _p("TEST_MU_S3_DIRECT",     12104)
     S3_CACHE      = _p("TEST_MU_S3_CACHE",      12105)
     CVMFS_CACHE   = _p("TEST_MU_CVMFS_CACHE",   12106)
+    # No-impersonation cache node + its anonymous origin — a no-root verification of the
+    # cache-transparency fix (real remote-origin cache-HIT path).
+    CACHE_NOIMP   = _p("TEST_MU_CACHE_NOIMP",   12110)
+    ORIGIN_NOIMP  = _p("TEST_MU_ORIGIN_NOIMP",  12111)
 
     # Directory layout (kept out of the shared /tmp/xrd-test fleet roots).
     MU_ROOT    = os.environ.get("TEST_MU_ROOT", "/tmp/xrd-test/mu")

@@ -21,10 +21,23 @@ brix_open_cached_read(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_beneath_full_path(conf->common.root_canon, clean_path,
                              acl_path, sizeof(acl_path));
 
-    if (brix_check_vo_acl_identity(c->log, acl_path, conf->vo_rules,
-                                     ctx->identity) != NGX_OK) {
-        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
-                          clean_path, "cache", kXR_NotAuthorized, "VO not authorized");
+    /* SECURITY (cache transparency): the cache serve path — both the HIT branch
+     * below and the async fill on MISS — MUST run the SAME full three-tier gate
+     * the direct/non-cache path runs (open_request.c, brix_auth_gate at
+     * BRIX_AUTH_READ): authdb (tier 1), VO ACL (tier 2), AND token scope
+     * (tier 3), evaluated against the EXPORT-root namespace path (acl_path), not
+     * the cache-root path. The old VO-ACL-only check let a principal denied by
+     * authdb or token scope be served bytes that another principal's request had
+     * already pulled into the shared, path-only-keyed cache — a cross-user /
+     * cross-group leak. The fill worker performs no auth, so this open-time gate
+     * is the sole enforcement point. It runs BEFORE the stat() below, so a denied
+     * principal never even probes cache residency (no cache-hit timing oracle),
+     * and returns ctx->write_rc exactly as the direct path does. The decision is
+     * L1/L2 identity-cached, so an authorized principal's repeat hits stay cheap. */
+    if (brix_auth_gate(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
+                         clean_path, acl_path, conf,
+                         BRIX_AUTH_READ, 0) != NGX_OK) {
+        return ctx->write_rc;
     }
 
     /* Build the absolute cache path: cache_root + "/" + rel_clean_path */
