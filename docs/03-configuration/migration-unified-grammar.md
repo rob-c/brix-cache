@@ -68,11 +68,14 @@ All three are gone. The bare `brix_*` name is now registered once by
 | `brix_webdav_read_only` / `brix_s3_read_only` | `brix_read_only` |
 | `brix_webdav_compress` / `brix_s3_compress` | `brix_compress` |
 
-### cvmfs: verify directive ownership moved
+### cvmfs: verify directive ownership moved (name unchanged)
 
-| Old name | New name | Notes |
-|---|---|---|
-| `brix_cvmfs_cache_verify` (cvmfs-only) | `brix_cache_verify` | Now owned by `ngx_http_brix_common_module`; valid at all brix HTTP locations; cvmfs defaults to `cvmfs-cas`, other protocols default to `off` |
+`brix_cache_verify` keeps its name — no config edit is needed. What changed is
+ownership and scope: it was previously registered by the cvmfs module and valid
+only in cvmfs locations; it is now owned by the shared config module and valid
+at all brix HTTP locations. Its default under cvmfs is now `cvmfs-cas` (other
+protocols default to `off`) — set `brix_cache_verify off;` explicitly to
+restore the old behaviour.
 
 ---
 
