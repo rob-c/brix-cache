@@ -30,11 +30,23 @@ _xrdcp() {
 }
 
 _xrdfs() {
+  local sub="${COMP_WORDS[2]}"
   if [[ $COMP_CWORD -eq 2 ]]; then
     COMPREPLY=($(compgen -W "stat ls du df tree find mkdir rm rmdir mv chmod
       touch ln readlink truncate cat head tail wc grep hexdump dd upload
       download cmp cksum xattr readv writev locate query statvfs prepare
       stage evict explain" -- "${COMP_WORDS[COMP_CWORD]}"))
+    return
+  fi
+  if [[ $COMP_CWORD -gt 2 ]]; then
+    local global_opts="--tls --notlsok --noverifyhost --auth --token --version"
+    case "$sub" in
+      ls|du|df) _brix_opts_filter "--human $global_opts" ;;
+      tree)     _brix_opts_filter "--dirs-only --depth $global_opts" ;;
+      rm)       _brix_opts_filter "--verbose -r $global_opts" ;;
+      touch)    _brix_opts_filter "--timestamp $global_opts" ;;
+      *)        _brix_opts_filter "$global_opts" ;;
+    esac
   fi
 }
 

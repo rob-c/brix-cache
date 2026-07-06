@@ -40,17 +40,17 @@ Print file or directory metadata. \fB\-j\fR emits JSON.
 .TP
 .B ls [-l] [-R] [-h, --human] [-j] [\fIPATH\fR]
 List a directory. \fB\-l\fR long, \fB\-R\fR recursive,
-\fB\-h\fR/\fB\-\-human\fR human-readable sizes, \fB\-j\fR JSON output.
+\fB\-h\fR, \fB\-\-human\fR human-readable sizes, \fB\-j\fR JSON output.
 .TP
 .B du [-h, --human] [-j] \fIPATH\fR...
-Recursive disk-usage summary. \fB\-h\fR/\fB\-\-human\fR human-readable, \fB\-j\fR JSON.
+Recursive disk-usage summary. \fB\-h\fR, \fB\-\-human\fR human-readable, \fB\-j\fR JSON.
 .TP
 .B df [-h, --human] [\fIPATH\fR]
-Disk space and \fBoss.*\fR quota space. \fB\-h\fR/\fB\-\-human\fR human-readable.
+Disk space and \fBoss.*\fR quota space. \fB\-h\fR, \fB\-\-human\fR human-readable.
 .TP
-.B tree [-d, --dirs-only] [-L/--depth \fIN\fR] [\fIPATH\fR]
-ASCII tree view. \fB\-d\fR/\fB\-\-dirs\-only\fR directories only,
-\fB\-L\fR/\fB\-\-depth\fR max depth.
+.B tree [-d, --dirs-only] [-L, --depth \fIN\fR] [\fIPATH\fR]
+ASCII tree view. \fB\-d\fR, \fB\-\-dirs\-only\fR directories only,
+\fB\-L\fR, \fB\-\-depth\fR max depth.
 .TP
 .B find \fIPATH\fR [-name \fIGLOB\fR] [-type f|d] [-size +\fIN\fR|-\fIN\fR]
 Search a subtree.
@@ -60,7 +60,7 @@ Create a directory. \fB\-p\fR create parents, \fB\-m\fR octal mode.
 .TP
 .B rm [-r] [-v, --verbose] \fIPATH\fR
 Remove a file or, with \fB\-r\fR, a directory tree.
-\fB\-v\fR/\fB\-\-verbose\fR prints each removed entry.
+\fB\-v\fR, \fB\-\-verbose\fR prints each removed entry.
 Note: because the server's directory listing carries no
 .BR lstat (2)
 information, symlinked directories on the server are descended and their
@@ -77,9 +77,9 @@ Rename or move a file.
 .B chmod [-R] \fIPATH\fR \fIOCTAL\fR
 Change permissions. \fB\-R\fR recursive.
 .TP
-.B touch [-c] [-a] [-m] [-t/--timestamp \fISTAMP\fR] \fIPATH\fR
+.B touch [-c] [-a] [-m] [-t, --timestamp \fISTAMP\fR] \fIPATH\fR
 Update timestamps; \fB\-c\fR do not create;
-\fB\-t\fR/\fB\-\-timestamp\fR sets an explicit [[CC]YY]MMDDhhmm[.ss] time.
+\fB\-t\fR, \fB\-\-timestamp\fR sets an explicit [[CC]YY]MMDDhhmm[.ss] time.
 .TP
 .B ln [-s] [-f] \fITARGET\fR \fILINKPATH\fR
 Create a hard or symbolic (\fB\-s\fR) link.
