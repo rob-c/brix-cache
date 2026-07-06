@@ -32,6 +32,8 @@ class MU:
     DIRECT_AUTHZ  = _p("TEST_MU_DIRECT_AUTHZ",  12130)
     # WebDAV write node — verifies staging temp-file modes (stage-private / publish-intended).
     WEBDAV_STAGE  = _p("TEST_MU_WEBDAV_STAGE",  12140)
+    # root:// anon node — verifies internal metadata sidecars are never listed/served.
+    SIDECAR_ROOT  = _p("TEST_MU_SIDECAR_ROOT",  12150)
 
     # Directory layout (kept out of the shared /tmp/xrd-test fleet roots).
     MU_ROOT    = os.environ.get("TEST_MU_ROOT", "/tmp/xrd-test/mu")

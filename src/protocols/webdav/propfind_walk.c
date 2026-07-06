@@ -4,6 +4,7 @@
  */
 #include "propfind_internal.h"
 #include "fs/vfs/vfs.h"   /* directory listing via the VFS seam (impersonation-aware) */
+#include "fs/path/reserved_names.h"   /* brix_is_internal_name — hide sidecars */
 
 
 /* Adapt the VFS stat (returned per-entry by brix_vfs_readdir, a no-follow
@@ -96,6 +97,12 @@ propfind_walk(ngx_http_request_t *r,
 
         /* readdir already skips "."/".."; drop any other dotfile (not listed). */
         if (name.data[0] == '.') {
+            continue;
+        }
+        /* Hide internal metadata/staging artifacts. A sidecar like
+         * "f.dat.cinfo" or an upload temp is NOT a dotfile, so the check above
+         * misses it — this predicate catches them by suffix/infix. */
+        if (brix_is_internal_name((const char *) name.data)) {
             continue;
         }
 

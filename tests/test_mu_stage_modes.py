@@ -102,9 +102,15 @@ def test_inflight_resume_partial_is_private_then_publishes(stage_env, alice_prox
     """An in-flight resumable-PUT partial is 0600 (a peer mapped uid cannot read the in-progress
     upload); once completed the object is published at 0644."""
     url = stage_env
-    final = os.path.join(ports.MU.DATA_ROOT, "stage", "resumable.bin")
+    stage_dir = os.path.join(ports.MU.DATA_ROOT, "stage")
+    final = os.path.join(stage_dir, "resumable.bin")
     if os.path.exists(final):
         os.remove(final)
+    # Clear any leftover resume partial from a prior interrupted run (identity-keyed
+    # name); otherwise a stale offset yields a 409 resume conflict.
+    for fn in os.listdir(stage_dir):
+        if ".xrdresume." in fn:
+            os.remove(os.path.join(stage_dir, fn))
     payload = b"R" * 4096
 
     # First chunk: bytes 0-2047/4096 — incomplete, so the server holds a persistent partial.
@@ -115,18 +121,12 @@ def test_inflight_resume_partial_is_private_then_publishes(stage_env, alice_prox
         f"partial PUT failed: {r1.status_code} {r1.text[:200]}"
     assert not os.path.exists(final), "object committed before the upload completed"
 
-    # The partial lives under the export (identity-keyed). Find it and assert it is private.
-    partials = []
-    for root, _dirs, files in os.walk(ports.MU.DATA_ROOT):
-        for fn in files:
-            fp = os.path.join(root, fn)
-            if os.path.samefile(root, os.path.dirname(final)) and fn == "resumable.bin":
-                continue
-            if os.path.getsize(fp) > 0 and fp != final:
-                partials.append(fp)
-    # the freshly written partial is the one holding our 2048 in-flight bytes
-    inflight = [p for p in partials if os.path.getsize(p) == 2048]
-    assert inflight, f"could not locate the in-flight resume partial (saw {partials})"
+    # The partial lives in the stage dir (the export, no separate stage dir configured),
+    # identity-keyed with a ".xrdresume." name. Scope to the stage dir + match by name so a
+    # same-sized sibling elsewhere in the export cannot be mistaken for it.
+    inflight = [os.path.join(stage_dir, fn) for fn in os.listdir(stage_dir)
+                if ".xrdresume." in fn]
+    assert inflight, f"could not locate the in-flight resume partial in {stage_dir}"
     for p in inflight:
         assert _mode(p) == 0o600, (
             f"in-flight resume partial {p} mode {oct(_mode(p))} != 0o600 — a peer mapped uid "
