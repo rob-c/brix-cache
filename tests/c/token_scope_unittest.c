@@ -195,6 +195,60 @@ static void test_scope_limits(void)
           "SCP-22 multi-scope: write on /a denied (write scope covers /b only)");
 }
 
+/* --------------------------------------------------------------------------
+ * RFC scope-layer conformance
+ * (RFC 6749 §3.3, WLCG/SciTokens rules 97, 113, 117, 139-140)
+ * -------------------------------------------------------------------------- */
+static void test_scope_rfc_conformance(void)
+{
+    brix_token_scope_t scopes[8];
+    int                n;
+
+    /*
+     * RFC117-sibling-boundary (rule citation re-affirmation):
+     * Rule 117 [SEC]: path authorisation is on segment boundaries;
+     * "/foo" MUST NOT authorise "/foobar" (the sibling-path CVE class).
+     * Already covered as SCP-01/SCP-12; re-confirmed here with the rule id
+     * for traceability to docs/10-reference/wlcg-token-rfc-rules.md.
+     */
+    CHECK(brix_token_scope_path_matches("/foo", "/foobar") == 0,
+          "RFC117-sibling-boundary");
+
+    /*
+     * RFC3986-139-no-normalize-DIVERGENCE:
+     * Rule 139 [SEC] (SciTokens v2.0): "$PATH MUST be normalised per
+     * RFC 3986 before compare" — ".." MUST be resolved.  A normalised
+     * "/foo/../bar" collapses to "/bar" and would then match request_path
+     * "/bar" (returning 1).
+     * Actual: brix_token_scope_path_matches() performs a pure strncmp —
+     * it does NOT normalise ".." in the scope path.  strncmp("/foo/../bar",
+     * "/bar", 11) fails at the first character difference → returns 0.
+     * The result is conservative (safer) in this specific case, but scope
+     * paths embedded in tokens are never normalised by this layer.
+     * Architecture note: canonicalisation of the REQUEST path is done
+     * upstream via resolve_path() (INVARIANT §4); scope-path normalisation
+     * is not implemented and would require a separate pass over the scope
+     * claim at parse time.
+     */
+    CHECK(brix_token_scope_path_matches("/foo/../bar", "/bar") == 0,
+          "RFC3986-139-no-normalize-DIVERGENCE");
+
+    /*
+     * RFC6749-97-charset-DIVERGENCE:
+     * Rule 97: scope-token charset is 1*(%x21/%x23-5B/%x5D-7E), which
+     * excludes space (0x20), '"' (0x22), and '\' (0x5C).  A '"' embedded
+     * in a scope path MUST be rejected.
+     * Actual: brix_token_parse_scopes() copies the path verbatim with no
+     * charset validation; '"' lands in scope->path unchanged.  The
+     * embedded character is not rejected at the scope-parse layer.
+     * Defense-in-depth would validate charset here; currently the caller
+     * (validate.c) relies on well-formed tokens from trusted issuers.
+     */
+    n = brix_token_parse_scopes("storage.read:/a\"b", scopes, 8);
+    CHECK(n == 1 && strcmp(scopes[0].path, "/a\"b") == 0,
+          "RFC6749-97-charset-DIVERGENCE");
+}
+
 int main(void)
 {
     test_path_boundary();
@@ -204,6 +258,8 @@ int main(void)
     test_permission_cross_check();
     test_traversal_raw_behavior();
     test_scope_limits();
+    printf("\n--- RFC scope-layer conformance (rules 97,117,139) ---\n");
+    test_scope_rfc_conformance();
     printf("\n%d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;
 }

@@ -229,6 +229,178 @@ static void test_ver(void)
     CHECK(n == 3 && strcmp(buf, "2.0") == 0, "VER-03-alt-version-extracted");
 }
 
+/* --------------------------------------------------------------------------
+ * b64url RFC conformance (RFC 7515 §2, rules 24-25)
+ * -------------------------------------------------------------------------- */
+static void test_b64url_rfc_conformance(void)
+{
+    uint8_t     out[128];
+    char        oversized[8200];
+    ssize_t     n;
+
+    /*
+     * RFC7515-25-padding-accepted-DIVERGENCE:
+     * Rule 25 [SEC]: JWT segments MUST be base64url without padding; '='
+     * MUST be rejected. Actual: b64url_decode() preserves '=' in the tmp
+     * buffer and passes it straight to OpenSSL EVP, which interprets it as
+     * standard-base64 padding.  The padded string "aGVsbG8=" ("hello" with
+     * one '=' pad byte) decodes successfully to 5 bytes.  Callers that split
+     * compact JWTs must verify no padding is present before calling, because
+     * the decoder will silently accept it.
+     */
+    n = b64url_decode("aGVsbG8=", 8, out, sizeof(out));
+    CHECK(n == 5 && memcmp(out, "hello", 5) == 0,
+          "RFC7515-25-padding-accepted-DIVERGENCE");
+
+    /*
+     * RFC7515-25-std-b64-plus-DIVERGENCE:
+     * Rule 25 [SEC]: '+' is not in the base64url alphabet and MUST be
+     * rejected.  Actual: the decoder only maps '-'→'+' and '_'→'/'; a
+     * literal '+' in the input passes through unchanged to the OpenSSL EVP
+     * standard-base64 decoder, which accepts it as value 62.  Standard-
+     * base64 input that contains '+' is silently decoded rather than
+     * rejected.
+     */
+    n = b64url_decode("Zm9v+Q", 6, out, sizeof(out));
+    CHECK(n >= 0, "RFC7515-25-std-b64-plus-DIVERGENCE");
+
+    /*
+     * RFC7515-25-std-b64-slash-DIVERGENCE:
+     * Rule 25 [SEC]: '/' is not in the base64url alphabet and MUST be
+     * rejected.  Actual: '/' passes through unchanged to the EVP decoder
+     * (value 63); standard-base64 input containing '/' is accepted.
+     */
+    n = b64url_decode("Zm9v/Q", 6, out, sizeof(out));
+    CHECK(n >= 0, "RFC7515-25-std-b64-slash-DIVERGENCE");
+
+    /* RFC7515-25-invalid-at-reject:
+     * '@' (0x40) is not in any base64 alphabet; EVP rejects it → -1. */
+    n = b64url_decode("aG@sbG8", 7, out, sizeof(out));
+    CHECK(n == -1, "RFC7515-25-invalid-at-reject");
+
+    /* RFC7515-25-empty-input:
+     * Empty input (in_len=0) produces 0 decoded bytes, not an error. */
+    n = b64url_decode("", 0, out, sizeof(out));
+    CHECK(n == 0, "RFC7515-25-empty-input");
+
+    /* RFC7515-25-oversized-reject:
+     * padded_len > 8192 is rejected before any decode (DoS guard). */
+    memset(oversized, 'A', sizeof(oversized));
+    n = b64url_decode(oversized, sizeof(oversized), out, sizeof(out));
+    CHECK(n == -1, "RFC7515-25-oversized-reject");
+}
+
+/* --------------------------------------------------------------------------
+ * NumericDate RFC conformance (RFC 7519 §2, rules 1-3)
+ * -------------------------------------------------------------------------- */
+static void test_clm_numericdate_rfc(void)
+{
+    int64_t     val;
+    int         rc;
+    const char *j_huge;
+
+    /* RFC7519-2-integer-accepted: integer NumericDate is extracted correctly. */
+    rc = json_get_int64("{\"exp\":1893456000}", 18, "exp", &val);
+    CHECK(rc == 0 && val == 1893456000LL, "RFC7519-2-integer-accepted");
+
+    /* RFC7519-1-string-rejected: rule 1 — exp MUST be a JSON number, not
+     * a string.  json_is_integer() rejects a JSON string → -1. */
+    rc = json_get_int64("{\"exp\":\"1893456000\"}", 20, "exp", &val);
+    CHECK(rc == -1, "RFC7519-1-string-rejected");
+
+    /*
+     * RFC7519-2-fractional-DIVERGENCE:
+     * Rule 2: "NumericDate MAY be fractional (e.g. 1300819380.5) —
+     * implementations MUST accept it."  Actual: jansson parses
+     * 1893456000.5 as json_real, not json_integer; json_is_integer()
+     * returns false → json_get_int64 returns -1.  The fractional form is
+     * rejected rather than accepted and truncated to integer seconds as
+     * RFC 7519 §2 requires.
+     */
+    rc = json_get_int64("{\"exp\":1893456000.5}", 20, "exp", &val);
+    CHECK(rc == -1, "RFC7519-2-fractional-DIVERGENCE");
+
+    /* RFC7519-3-negative: negative NumericDate (-1) is representable as
+     * int64_t; rule 3 prohibits overflow/wrap and negative is no overflow.
+     * Accepted with the stored value. */
+    rc = json_get_int64("{\"exp\":-1}", 10, "exp", &val);
+    CHECK(rc == 0 && val == -1LL, "RFC7519-3-negative-accepted");
+
+    /*
+     * RFC7519-3-overflow-promoted-to-real:
+     * Rule 3: parsing MUST NOT overflow/wrap.  99999999999999999999 (~10^20)
+     * overflows int64_t (~9.2e18).  Actual: jansson silently promotes the
+     * value to json_real; json_is_integer() returns false → json_get_int64
+     * returns -1.  No signed-integer overflow occurs — the value is
+     * conservatively rejected rather than wrapped.
+     */
+    j_huge = "{\"exp\":99999999999999999999}";
+    rc = json_get_int64(j_huge, strlen(j_huge), "exp", &val);
+    CHECK(rc == -1, "RFC7519-3-overflow-promoted-to-real");
+
+    /* RFC7519-1-null-rejected: JSON null is not a number; rule 1 requires
+     * numeric claims to be JSON numbers.  json_is_integer(null) → false. */
+    rc = json_get_int64("{\"exp\":null}", 12, "exp", &val);
+    CHECK(rc == -1, "RFC7519-1-null-rejected");
+}
+
+/* --------------------------------------------------------------------------
+ * Duplicate-key + unknown-claim handling (RFC 7519 §7.2/§4, rules 16, 21)
+ * -------------------------------------------------------------------------- */
+static void test_claims_rfc(void)
+{
+    char        buf[64];
+    ssize_t     n;
+    const char *j_dup;
+    const char *j_extra;
+
+    /*
+     * RFC7519-21-dup-keys-DIVERGENCE:
+     * Rule 21 [SEC]: "duplicate member names SHOULD [be rejected]."
+     * Actual: jansson silently discards all but the LAST value for a
+     * duplicate key.  {"aud":"a","aud":"b"} → json_object_get("aud") = "b".
+     * The token is not rejected; the last value wins.  A conformant
+     * implementation should reject tokens with duplicate claim names.
+     */
+    j_dup = "{\"aud\":\"a\",\"aud\":\"b\"}";
+    n = json_get_string(j_dup, strlen(j_dup), "aud", buf, sizeof(buf));
+    CHECK(n == 1 && strcmp(buf, "b") == 0, "RFC7519-21-dup-keys-DIVERGENCE");
+
+    /*
+     * RFC7519-16-unknown-claims-ignored:
+     * Rule 16: unknown/custom claims MUST be ignored; the token remains
+     * valid.  A document with extra unrecognised keys still yields the
+     * known "aud" claim correctly.
+     */
+    j_extra = "{\"sub\":\"user\",\"custom_claim\":42,\"aud\":\"nginx-xrootd\"}";
+    n = json_get_string(j_extra, strlen(j_extra), "aud", buf, sizeof(buf));
+    CHECK(n == 12 && strcmp(buf, "nginx-xrootd") == 0,
+          "RFC7519-16-unknown-claims-ignored");
+}
+
+/* --------------------------------------------------------------------------
+ * aud array conformance (RFC 7519 §4.1.3, rules 7-9)
+ * -------------------------------------------------------------------------- */
+static void test_aud_rfc(void)
+{
+    const char *j_arr = "{\"aud\":[\"a\",\"nginx-xrootd\"]}";
+
+    /* RFC7519-7-aud-array-match:
+     * Rule 7: aud MUST accept both a single string AND an array of strings;
+     * return 1 when the needle is present in the array. */
+    CHECK(json_string_or_array_contains(j_arr, strlen(j_arr),
+          "aud", "nginx-xrootd") == 1, "RFC7519-7-aud-array-match");
+
+    /*
+     * RFC7519-9-aud-exact-no-substring:
+     * Rule 9 [SEC]: aud comparison MUST be case-sensitive equality — no
+     * substring or prefix matching.  "nginx" is a substring of
+     * "nginx-xrootd" but NOT an exact match → must return 0.
+     */
+    CHECK(json_string_or_array_contains(j_arr, strlen(j_arr),
+          "aud", "nginx") == 0, "RFC7519-9-aud-exact-no-substring");
+}
+
 int main(void)
 {
     /* Task-3 skeleton check (preserved) */
@@ -253,6 +425,18 @@ int main(void)
 
     printf("\n--- VER ---\n");
     test_ver();
+
+    printf("\n--- b64url RFC conformance (rules 24-25) ---\n");
+    test_b64url_rfc_conformance();
+
+    printf("\n--- NumericDate RFC conformance (rules 1-3) ---\n");
+    test_clm_numericdate_rfc();
+
+    printf("\n--- duplicate-key / unknown-claim RFC conformance (rules 16,21) ---\n");
+    test_claims_rfc();
+
+    printf("\n--- aud array RFC conformance (rules 7-9) ---\n");
+    test_aud_rfc();
 
     printf("\n%d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;
