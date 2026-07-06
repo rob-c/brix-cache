@@ -1,0 +1,591 @@
+#compdef xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin brixMount xrdstorascan xrdcrc32c xrdcrc64 xrdadler32 xrdckverify xrdcinfo
+
+# _brix-client — zsh completion for the brix client CLI suite.
+#
+# WHAT: Provides subcommand, flag, and enum-value completions for every brix
+#       CLI tool, mirroring the coverage of brix-tools.bash.
+# WHY:  Native zsh completions offer enum filtering, argument descriptions,
+#       and better integration with zsh's _arguments framework.
+# HOW:  Single file, #compdef on all tool names; dispatch on $words[1].
+#
+# Install:
+#   Copy to a directory in $fpath (e.g. /usr/share/zsh/site-functions/_brix-client),
+#   or source directly: autoload -U _brix-client && compdef _brix-client xrdcp xrdfs ...
+
+_brix-client() {
+    case ${words[1]} in
+    (xrdcp)                              _brix_xrdcp ;;
+    (xrdfs)                              _brix_xrdfs ;;
+    (xrddiag)                            _brix_xrddiag ;;
+    (xrdcksum)                           _brix_xrdcksum ;;
+    (xrdcrc32c|xrdcrc64|xrdadler32)      _brix_cksum_hash ;;
+    (xrdckverify)                        _brix_xrdckverify ;;
+    (xrdcinfo)                           _brix_xrdcinfo ;;
+    (xrd)                                _brix_xrd ;;
+    (xrdprep)                            _brix_xrdprep ;;
+    (xrdgsiproxy)                        _brix_xrdgsiproxy ;;
+    (xrdsssadmin)                        _brix_xrdsssadmin ;;
+    (brixMount)                          _brix_brixMount ;;
+    (xrdstorascan)                       _brix_xrdstorascan ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
+# xrdcp
+# ---------------------------------------------------------------------------
+_brix_xrdcp() {
+    _arguments -S \
+        '-f[overwrite existing destination]' \
+        '-r[recursively copy a tree]' \
+        '(-P --posc)'{-P,--posc}'[persist-on-successful-close (upload)]' \
+        '-s[silent: suppress all non-error output]' \
+        '(-v -d --verbose --debug)'{-v,-d,--verbose,--debug}'[verbose/debug output]' \
+        '(-N --no-progress)'{-N,--no-progress}'[suppress progress bar]' \
+        '--progress[show transfer progress bar]' \
+        '--from=[read source list from manifest file]:manifest:_files' \
+        '--journal=[record completed transfers to file]:journal:_files' \
+        '--resume[shorthand for --journal <manifest>.journal (requires --from)]' \
+        '--retry=[retry each failed transfer N times]:retries' \
+        '--no-retry[fail immediately on first fault, no reconnect]' \
+        '--max-stall=[reconnect patience window in milliseconds]:ms' \
+        '--auto-refresh[proactively renew expired token or proxy]' \
+        '--oidc-account=[oidc-agent account for --auto-refresh]:account' \
+        '(-j --jobs)'{-j+,--jobs=}'[copy up to N files concurrently]:n' \
+        '--sync[skip destinations with matching size (or per --sync-check)]' \
+        '--sync-check=[destination comparison mode for --sync]:mode:(size mtime cksum)' \
+        '(-n --dry-run)'{-n,--dry-run}'[print what would transfer; move no bytes]' \
+        '--exclude=[skip files matching fnmatch pattern (repeatable)]:glob' \
+        '--include=[only transfer files matching pattern (repeatable)]:glob' \
+        '--delete[with -r --sync: delete stale destination entries]' \
+        '--remove-source[delete each source after successful transfer]' \
+        '--verify[verify checksum against server after each transfer (root:// only)]' \
+        '--tls[require in-protocol TLS (implied by roots://)]' \
+        '--notlsok[permit cleartext if server offers no TLS]' \
+        '--noverifyhost[skip TLS hostname verification (chain check stays on)]' \
+        '--auth=[force authentication protocol]:proto:(gsi ztn krb5 sss unix)' \
+        '--proxy=[X.509 proxy certificate path, overrides X509_USER_PROXY]:file:_files' \
+        '--pgrw[use paged I/O (kXR_pgread/kXR_pgwrite) with per-page CRC32c]' \
+        '--io-uring=[local-disk io_uring overlap ring mode]:mode:(on off auto)' \
+        '--cksum=[verify checksum type after transfer]:type:(adler32 crc32c md5)' \
+        '--compress=[enable inline compression on root:// transfers]:codec:(gzip deflate zstd br xz bzip2)' \
+        '--zip[store local source in a STORE ZIP archive member]' \
+        '--zip-append[like --zip but append to an existing archive]' \
+        '(-S --streams)'{-S+,--streams=}'[open N-1 secondary kXR_bind data streams]:n' \
+        '--tpc=[server-side third-party copy mode]:mode:(first only delegate)' \
+        '--tpc-token-mode=[bearer-token forwarding mode for --tpc]:mode' \
+        '(-T --token)'{-T+,--token=}'[WebDAV/HTTP bearer token (or $BEARER_TOKEN)]:jwt' \
+        '--s3-access=[S3 SigV4 access key ID (or $AWS_ACCESS_KEY_ID)]:key' \
+        '--s3-secret=[S3 SigV4 secret key (or $AWS_SECRET_ACCESS_KEY)]:key' \
+        '--s3-region=[S3 SigV4 region (or $AWS_DEFAULT_REGION)]:region' \
+        '--wire-trace=[decode every frame to stderr; N>=2 adds hex dump]:verbosity' \
+        '--timing[print per-opcode round-trip time at end]' \
+        '(-V --version)'{-V,--version}'[print version and exit]' \
+        '(-h --help)'{-h,--help}'[print help and exit]' \
+        '*: :_files'
+}
+
+# ---------------------------------------------------------------------------
+# xrdfs
+# ---------------------------------------------------------------------------
+_brix_xrdfs() {
+    local -a _fs_cmds
+    _fs_cmds=(
+        'stat:print file or directory metadata'
+        'ls:list a directory'
+        'du:recursive disk-usage summary'
+        'df:disk space and quota report'
+        'tree:ASCII directory tree'
+        'find:recursive predicate search'
+        'mkdir:create a directory'
+        'rm:remove a file or directory tree'
+        'rmdir:remove an empty directory'
+        'mv:rename or move a file'
+        'chmod:change permissions'
+        'touch:update timestamps'
+        'ln:create a link'
+        'readlink:print symlink target'
+        'truncate:truncate a file'
+        'cat:print file contents'
+        'head:print start of file'
+        'tail:print end of file'
+        'wc:count bytes/lines/words'
+        'grep:search file for pattern'
+        'hexdump:hex dump a file'
+        'dd:copy with rate limiting'
+        'upload:upload a local file'
+        'download:download to a local file'
+        'cmp:compare two remote files'
+        'cksum:compute server-side checksum'
+        'xattr:manage extended attributes'
+        'readv:scatter-gather read'
+        'writev:scatter-gather write'
+        'locate:resolve replica locations'
+        'query:send kXR_query request'
+        'statvfs:filesystem statistics'
+        'prepare:send kXR_prepare request'
+        'stage:stage from tape'
+        'evict:evict from cache'
+        'explain:print session facts'
+    )
+
+    local -a _global_opts
+    _global_opts=(
+        '--tls[require in-protocol TLS]'
+        '--notlsok[permit cleartext]'
+        '--noverifyhost[skip TLS hostname verification]'
+        '--auth=[authentication protocol]:proto:(gsi ztn krb5 sss unix)'
+        '(-T --token)'{-T+,--token=}'[bearer token (or $BEARER_TOKEN)]:token'
+        '--version[print version and exit]'
+        '--help[print help and exit]'
+    )
+
+    if (( CURRENT == 2 )); then
+        _arguments "${_global_opts[@]}" ': :' && return
+        return
+    fi
+
+    if (( CURRENT == 3 )); then
+        _describe 'command' _fs_cmds
+        return
+    fi
+
+    case ${words[3]} in
+    (ls|du|df)
+        _arguments \
+            '(-h --human)'{-h,--human}'[human-readable sizes]' \
+            '(-j)'-j'[JSON output]' \
+            "${_global_opts[@]}" ;;
+    (tree)
+        _arguments \
+            '(-d --dirs-only)'{-d,--dirs-only}'[directories only]' \
+            '(-L --depth)'{-L+,--depth=}'[maximum depth]:n' \
+            "${_global_opts[@]}" ;;
+    (rm)
+        _arguments \
+            '-r[recursive]' \
+            '(-v --verbose)'{-v,--verbose}'[print each removed entry]' \
+            "${_global_opts[@]}" ;;
+    (touch)
+        _arguments \
+            '-c[do not create if absent]' \
+            '-a[set access time only]' \
+            '-m[set modification time only]' \
+            '(-t --timestamp)'{-t+,--timestamp=}'[explicit time stamp]:stamp' \
+            "${_global_opts[@]}" ;;
+    (upload|download)
+        _arguments \
+            '--io-uring=[local I/O backend]:mode:(on off auto)' \
+            '-f[overwrite existing destination]' \
+            "${_global_opts[@]}" ;;
+    (*)
+        _arguments "${_global_opts[@]}" ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
+# xrddiag
+# ---------------------------------------------------------------------------
+_brix_xrddiag() {
+    local -a _diag_cmds
+    _diag_cmds=(
+        'check:protocol-correctness probes'
+        'bench:timed download benchmark'
+        'metabench:concurrent metadata storm'
+        'watch:continuous health and SLA probe'
+        'topology:locate and redirect convergence'
+        'status:pull Prometheus /metrics and summarise health'
+        'compare:root-vs-root or root-vs-WebDAV comparison'
+        'probe-robustness:adversarial reject auditor'
+        'replay:decode or re-issue a captured session'
+        'srr:fetch WLCG Storage Resource Report'
+        'tape:drive Tape REST interface'
+        'qstats:send kXR_query stats/config/space'
+        'wait41:wait until server is ready'
+        'mpxstats:subscribe to mpxstats feed'
+        'remote-doctor:active multi-protocol diagnosis'
+    )
+
+    if (( CURRENT == 2 )); then
+        _describe 'subcommand' _diag_cmds
+        return
+    fi
+
+    _arguments \
+        '--tls[require in-protocol TLS]' \
+        '--notlsok[permit cleartext]' \
+        '--noverifyhost[skip TLS hostname verification]' \
+        '--auth=[force authentication protocol]:proto:(gsi ztn unix)' \
+        '--wire-trace=[decode every frame to stderr]:verbosity' \
+        '--timing[print per-opcode RTT at end]' \
+        '--probe-timeout=[timeout for each probe step in ms]:ms' \
+        '--version[print version and exit]' \
+        '--json[emit machine-readable JSON output]' \
+        '--interval=[polling interval in seconds]:s' \
+        '--count=[repeat count]:n' \
+        '--prometheus=[emit Prometheus metrics (optional path)]:path' \
+        '--sweep[sweep stream counts to find knee]' \
+        '--davs=[WebDAV host for cross-protocol compare]:host' \
+        '--cluster-url=[redirector URL for topology probes]:url' \
+        '--playback=[replay captures against this URL]:url' \
+        '--allow-write[add write and stage probes]' \
+        '--auth-suite[add auth/permissions battery]' \
+        '--no-verify-tls[skip TLS chain verification for self-signed endpoints]' \
+        '--vs-reference=[reference URL for compare subcommand]:url' \
+        '--i-am-authorized[enable adversarial reject auditor probes]' \
+        '--full[wait41: also wait for auth and namespace readiness]' \
+        '--timeout=[wait41: timeout in seconds]:s' \
+        '--capture=[write session capture to file]:file:_files' \
+        '--metrics-port=[Prometheus metrics port]:port' \
+        '-S+[parallel streams for bench]:n' \
+        '*: :'
+}
+
+# ---------------------------------------------------------------------------
+# xrdcksum (dispatcher)
+# ---------------------------------------------------------------------------
+_brix_xrdcksum() {
+    local -a _ck_cmds
+    _ck_cmds=(
+        'crc32c:compute CRC32c checksum'
+        'crc64:compute CRC-64/XZ checksum'
+        'adler32:compute Adler-32 checksum'
+        'verify:verify file against its recorded checksum'
+        'info:dump .cinfo or xmeta xattr as JSON'
+        'tree:produce a checksum manifest of a directory tree'
+        'check:verify all files listed in a manifest'
+    )
+
+    if (( CURRENT == 2 )); then
+        _describe 'subcommand' _ck_cmds
+        return
+    fi
+
+    local -a _algo_opt
+    _algo_opt=('--algo=[checksum algorithm]:algo:(adler32 crc32c crc64 crc64nvme md5)')
+
+    case ${words[2]} in
+    (verify)
+        _arguments \
+            '--cache[read proxy-cache .cinfo digest]' \
+            '--storage[read user.XrdCks.* xattr and .cks sidecar]' \
+            '--auto[consult both cache and storage (default)]' \
+            "${_algo_opt[@]}" \
+            '-q[quiet: print only on mismatch or error]' \
+            '*: :_files' ;;
+    (tree|check)
+        _arguments \
+            "${_algo_opt[@]}" \
+            '-o+[write manifest to file instead of stdout]:file:_files' \
+            '*: :_files' ;;
+    (crc32c|crc64|adler32|info)
+        _arguments "${_algo_opt[@]}" '*: :_files' ;;
+    (*)
+        _arguments '*: :_files' ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
+# xrdcrc32c / xrdcrc64 / xrdadler32  (hash-only symlinks)
+# ---------------------------------------------------------------------------
+_brix_cksum_hash() {
+    _arguments '*: :_files'
+}
+
+# ---------------------------------------------------------------------------
+# xrdckverify  (verify symlink)
+# ---------------------------------------------------------------------------
+_brix_xrdckverify() {
+    _arguments \
+        '--cache[read proxy-cache .cinfo digest]' \
+        '--storage[read user.XrdCks.* xattr and .cks sidecar]' \
+        '--auto[consult both (default)]' \
+        '--algo=[restrict to algorithm]:algo:(adler32 crc32c crc64 crc64nvme md5)' \
+        '-q[quiet: print only on mismatch or error]' \
+        '*: :_files'
+}
+
+# ---------------------------------------------------------------------------
+# xrdcinfo  (cinfo symlink)
+# ---------------------------------------------------------------------------
+_brix_xrdcinfo() {
+    _arguments \
+        '--xattr[dump xmeta xattr instead of .cinfo file]' \
+        '*: :_files'
+}
+
+# ---------------------------------------------------------------------------
+# xrd  (unified front-end dispatcher)
+# ---------------------------------------------------------------------------
+_brix_xrd() {
+    local -a _xrd_cmds
+    _xrd_cmds=(
+        'cp:copy files (-> xrdcp)'
+        'get:download a file'
+        'put:upload a file'
+        'sync:recursive mirror (-> xrdcp -r --sync)'
+        'upload:rate-limited upload'
+        'download:rate-limited download'
+        'ls:list directory'
+        'stat:show file metadata'
+        'du:recursive disk usage'
+        'df:disk space report'
+        'tree:visual directory tree'
+        'find:recursive predicate search'
+        'mkdir:create directory'
+        'rm:remove file or tree'
+        'rmdir:remove empty directory'
+        'mv:rename or move'
+        'truncate:truncate file'
+        'cat:print file contents'
+        'head:print start of file'
+        'tail:print end of file'
+        'wc:count bytes/lines/words'
+        'grep:search file for pattern'
+        'hexdump:hex dump'
+        'dd:windowed read'
+        'cmp:compare two files'
+        'cksum:server-side checksum'
+        'xattr:extended attributes'
+        'touch:update timestamps'
+        'chmod:change permissions'
+        'ln:create link'
+        'readlink:print symlink target'
+        'stage:request tape staging'
+        'evict:evict from cache'
+        'locate:resolve replica locations'
+        'query:send kXR_query'
+        'statvfs:filesystem statistics'
+        'prepare:send kXR_prepare'
+        'explain:print session facts'
+        'diag:run diagnostic (-> xrddiag)'
+        'ping:liveness and RTT probe'
+        'certinfo:server host-cert validity'
+        'clockskew:client<->server clock offset'
+        'whoami:show negotiated auth identity'
+        'caps:server capability matrix'
+        'doctor:full endpoint health check (--rw --also URL --insecure --json)'
+        'login:acquire/refresh credentials (--oidc-account --read)'
+        'mount:FUSE mount via xrootdfs (--legacy)'
+        'mounts:list active XRootD FUSE mounts'
+        'unmount:unmount FUSE mount'
+        'inventory:dump backend object catalog (--stats)'
+        'verify:recompute and compare checksums (--wire)'
+        'drift:reconcile namespace vs catalog'
+        'inspect:one object backend facts'
+        'replicas:cluster holder and space map'
+        'version:print version'
+        'help:print help'
+    )
+
+    if (( CURRENT == 2 )); then
+        _describe 'command' _xrd_cmds
+        return
+    fi
+
+    # Subcommand-specific flags for CURRENT >= 3
+    case ${words[2]} in
+    (cp|sync)
+        _arguments \
+            '--from=[read source list from file]:manifest:_files' \
+            '--sync[skip matching-size destinations]' \
+            '*: :_files' ;;
+    (doctor)
+        _arguments \
+            '--rw[add write and stage probes]' \
+            '--also=[add another protocol endpoint]:url' \
+            '--insecure[skip TLS chain verification]' \
+            '--json[emit full JSON report]' \
+            '*: :' ;;
+    (login)
+        _arguments \
+            '--oidc-account=[oidc-agent account]:account' \
+            '--read[acquire token for read-only scope]' ;;
+    (mount)
+        _arguments \
+            '--legacy[use simple synchronous driver]' \
+            ': :' \
+            '*: :_files -/' ;;
+    (inventory)
+        _arguments \
+            '--stats[include object sizes]' \
+            '-o+[output TSV file]:file:_files' \
+            ': :' ;;
+    (verify)
+        _arguments \
+            '--wire[recompute and compare via wire checksum]' \
+            ': :' ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
+# xrdprep
+# ---------------------------------------------------------------------------
+_brix_xrdprep() {
+    _arguments \
+        '(-s --stage)'{-s,--stage}'[request tape staging (default)]' \
+        '(-c --cancel)'{-c,--cancel}'[cancel a pending stage request]' \
+        '(-w --wmode)'{-w,--wmode}'[write-mode hint]' \
+        '(-f --fresh)'{-f,--fresh}'[invalidate cached copy and fetch fresh]' \
+        '(-e --evict)'{-e,--evict}'[evict from disk cache]' \
+        '(-p --priority)'{-p+,--priority=}'[priority 0-3 (default 0)]:n:(0 1 2 3)' \
+        '(-h --help)'{-h,--help}'[print help and exit]' \
+        '--version[print version and exit]' \
+        ': :' \
+        '*: :'
+}
+
+# ---------------------------------------------------------------------------
+# xrdgsiproxy
+# ---------------------------------------------------------------------------
+_brix_xrdgsiproxy() {
+    local -a _gsi_cmds
+    _gsi_cmds=(
+        'init:create a new proxy certificate'
+        'info:print subject, issuer, and validity of proxy'
+        'destroy:remove the proxy file'
+    )
+
+    if (( CURRENT == 2 )); then
+        _describe 'subcommand' _gsi_cmds
+        return
+    fi
+
+    _arguments \
+        '(-valid --valid)'{-valid+,--valid=}'[validity in H[:M]]:hours' \
+        '(-cert --cert)'{-cert+,--cert=}'[user certificate file]:file:_files' \
+        '(-key --key)'{-key+,--key=}'[user private key file]:file:_files' \
+        '(-out --out)'{-out+,--out=}'[output proxy file]:file:_files' \
+        '(-bits --bits)'{-bits+,--bits=}'[RSA key size in bits]:bits:(1024 2048 4096)' \
+        '(-file --file)'{-file+,--file=}'[proxy file to inspect or destroy]:file:_files' \
+        '(-h --help)'{-h,--help}'[print help and exit]' \
+        '--version[print version and exit]'
+}
+
+# ---------------------------------------------------------------------------
+# xrdsssadmin
+# ---------------------------------------------------------------------------
+_brix_xrdsssadmin() {
+    local -a _sss_cmds
+    _sss_cmds=(
+        'add:mint a new key and append it to the keytab'
+        'install:identical to add; creates keytab if absent'
+        'list:print all keytab entries'
+        'del:delete a keytab entry by wire ID'
+    )
+
+    if (( CURRENT == 2 )); then
+        _describe 'subcommand' _sss_cmds
+        return
+    fi
+
+    _arguments \
+        '(-k --keytab)'{-k+,--keytab=}'[keytab file path]:file:_files' \
+        '--user=[bind key to user]:user:_users' \
+        '--group=[bind key to group]:group:_groups' \
+        '--name=[logical key name]:name' \
+        '--id=[wire key ID to assign or delete]:n' \
+        '--lifetime=[key lifetime in days]:days' \
+        '--keylen=[random key length in bytes]:bytes' \
+        '(-h --help)'{-h,--help}'[print help and exit]' \
+        '--version[print version and exit]'
+}
+
+# ---------------------------------------------------------------------------
+# brixMount
+# ---------------------------------------------------------------------------
+_brix_brixMount() {
+    local -a _mount_types
+    _mount_types=(
+        'cvmfs:mount read-only CVMFS repository'
+        'cvmfs-rw:mount CVMFS repository with local writable overlay'
+        'eos:mount EOS namespace via XRootDFS-brix (root://)'
+        'root:mount XRootD namespace over root://'
+        'roots:mount XRootD namespace over roots:// (TLS)'
+    )
+
+    if (( CURRENT == 2 )); then
+        _arguments \
+            '--overlay-list=[list overlay changes for mountdir]:mountdir:_files -/' \
+            '--overlay-reset=[discard overlay changes for mountdir]:mountdir:_files -/' \
+            '(-h --help)'{-h,--help}'[print help and exit]' \
+            '--version[print version and exit]' \
+            ': :_describe type _mount_types'
+        return
+    fi
+
+    if (( CURRENT == 3 )); then
+        case ${words[2]} in
+        (cvmfs|cvmfs-rw) _message 'repository name (e.g. atlas.cern.ch)' ;;
+        (eos|root|roots)  _message 'endpoint (root://host[:port] or host[:port])' ;;
+        esac
+        return
+    fi
+
+    if (( CURRENT == 4 )); then
+        _files -/
+        return
+    fi
+
+    # remaining: FUSE options pass-through
+    _arguments \
+        '-f[run in foreground]' \
+        '-d[debug mode (implies -f)]' \
+        '-o+[FUSE option]:opt' \
+        '--overlay-list=[list overlay changes]:mountdir:_files -/' \
+        '--overlay-reset=[discard overlay changes]:mountdir:_files -/'
+}
+
+# ---------------------------------------------------------------------------
+# xrdstorascan
+# ---------------------------------------------------------------------------
+_brix_xrdstorascan() {
+    local -a _scan_modes
+    _scan_modes=(
+        'verify:end-to-end verify one file by checksum'
+        'bench:throughput and latency sweep'
+        'dump:dump recorded checksums-at-rest via admin API'
+        'fill:back-fill missing checksums-at-rest via admin API'
+        'compare:verify all checksums-at-rest across a subtree'
+    )
+
+    if (( CURRENT == 2 )); then
+        _describe 'mode' _scan_modes
+        return
+    fi
+
+    local -a _common_opts
+    _common_opts=(
+        '--algo=[checksum algorithm]:algo:(adler32 crc32c crc64 md5)'
+        '--json[machine-readable JSON output]'
+        '--summary[print one-line summary only]'
+    )
+
+    case ${words[2]} in
+    (verify)
+        _arguments \
+            "${_common_opts[@]}" \
+            '-q[quiet: suppress output on success]' \
+            ': :' ;;
+    (bench)
+        _arguments \
+            "${_common_opts[@]}" \
+            '--op=[operation to benchmark]:op:(read)' \
+            '--block=[block size(s), comma-separated, K/M/G suffix]:sz' \
+            '--parallel=[parallelism level(s), comma-separated]:n' \
+            '--duration=[sweep duration in seconds]:s' \
+            '--count=[request count instead of duration]:n' \
+            '--pattern=[I/O access pattern]:pat:(seq random)' \
+            ': :' ;;
+    (dump|fill|compare)
+        _arguments \
+            "${_common_opts[@]}" \
+            '--path=[limit scan to path prefix]:path' \
+            '--password=[dashboard admin password]:pw' \
+            '--insecure[skip TLS certificate verification]' \
+            ': :' ;;
+    (*)
+        _arguments "${_common_opts[@]}" ': :' ;;
+    esac
+}
+
+_brix-client "$@"

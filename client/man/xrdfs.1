@@ -156,6 +156,17 @@ Evict files from the cache tier.
 .TP
 .B explain
 Print connection, authentication, and TLS facts for the current session.
+.SH URLS
+.TP
+.BR root [ s ]:// host [: port ]
+Native XRootD endpoint; default port 1094.
+\fBroots://\fR enables in-protocol TLS.
+An alias in \fI~/.xrdrc\fR may replace the \fIhost[:port]\fR component.
+Append a base path (\fBroot://host/base\fR) to root the session at that subtree.
+.TP
+.BR https:// " | " http:// " | " davs:// " | " dav:// host [: port ]/ path
+HTTP/WebDAV endpoint (read-only metadata: \fBls\fR and \fBstat\fR).
+TLS enabled for \fBhttps://\fR and \fBdavs://\fR.
 .SH EXAMPLES
 .nf
 # List a remote directory
@@ -195,6 +206,11 @@ GSI proxy certificate path.
 Per-user configuration file defining endpoint aliases and default credentials.
 See
 .BR brix\-env (7).
+.SH EXIT STATUS
+0 on success.
+50 on a usage error.
+51 on out of memory.
+Non-zero (the underlying XRootD error code) on a protocol or I/O error.
 .SH SEE ALSO
 .BR xrdcp (1),
 .BR xrddiag (1),

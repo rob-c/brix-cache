@@ -56,6 +56,20 @@ Machine-readable JSON output.
 .TP
 .B \-\-summary
 Print a one-line summary only.
+.SH URLS
+.TP
+.BR root [ s ]:// host [: port ]// path
+Native XRootD endpoint for the
+.B verify
+and
+.B bench
+modes; default port 1094.
+\fBroots://\fR enables TLS.
+.TP
+.BR https:// " | " http:// host [: port ]
+Dashboard base URL for the
+.BR dump ", " fill ", and " compare
+server-side scan modes.
 .SH EXAMPLES
 .nf
 # Verify a single file
@@ -87,6 +101,15 @@ Path to configuration file (default \fI~/.xrdrc\fR).
 Per-user configuration file.
 See
 .BR brix\-env (7).
+.SH EXIT STATUS
+0 if the operation succeeded (all checksums matched for
+.B compare
+).
+1 if a checksum mismatch was detected (bit-rot).
+2 if no recorded checksum was available for the file.
+3 on a local I/O, parse, or protocol error.
+64 on a server-side scan API error.
+50 on a usage error.
 .SH SEE ALSO
 .BR xrdcksum (1),
 .BR xrdfs (1),

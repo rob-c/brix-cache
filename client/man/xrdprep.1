@@ -67,6 +67,10 @@ GSI proxy certificate path.
 Per-user configuration file.
 See
 .BR brix\-env (7).
+.SH EXIT STATUS
+0 on success.
+50 on a usage error.
+Non-zero (the underlying XRootD error code) on a connect or protocol error.
 .SH SEE ALSO
 .BR xrdfs (1),
 .BR xrdcp (1),
