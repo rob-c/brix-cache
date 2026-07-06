@@ -136,15 +136,63 @@ do_mkdir(brix_conn *c, const char *cwd, int argc, char **argv)
 }
 
 
+/* rm_report — per-entry printer for rm -r -v. Never aborts the delete. */
+static int
+rm_report(const char *path, int is_dir, void *u)
+{
+    (void) u;
+    printf("removed %s%s\n", is_dir ? "dir  " : "file ", path);
+    return 0;
+}
+
+/* WHAT: rm [-r] [-v] <path> — delete a file, or a whole tree with -r.
+ * WHY:  rmdir only takes empty dirs; users cleaning a tree need one command.
+ * HOW:  -r stats the target; directories go through brix_rmtree (post-order,
+ *       depth-capped). The resolved export root "/" is always refused. */
 int
 do_rm(brix_conn *c, const char *cwd, int argc, char **argv)
 {
     brix_status st;
     char        path[XRDC_PATH_MAX];
+    int         recursive = 0, verbose = 0, i;
+    const char *arg = NULL;
 
-    if (argc < 2) { fprintf(stderr, "usage: rm <path>\n"); return 50; }
-    build_path(cwd, argv[1], path, sizeof(path));
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "-R") == 0) {
+            recursive = 1;
+        } else if (strcmp(argv[i], "-v") == 0) {
+            verbose = 1;
+        } else {
+            arg = argv[i];
+        }
+    }
+    if (arg == NULL) {
+        fprintf(stderr, "usage: rm [-r] [-v] <path>\n");
+        return 50;
+    }
+    build_path(cwd, arg, path, sizeof(path));
     brix_status_clear(&st);
+    if (recursive) {
+        brix_statinfo si;
+        if (strcmp(path, "/") == 0) {
+            fprintf(stderr, "xrdfs: rm -r: refusing to delete the export root\n");
+            return 50;
+        }
+        if (brix_stat(c, path, &si, &st) != 0) {
+            fprintf(stderr, "xrdfs: rm %s: %s\n", path, st.msg);
+            return brix_shellcode(&st);
+        }
+        if (si.flags & kXR_isDir) {
+            if (brix_rmtree(c, path, 0, verbose ? rm_report : NULL, NULL,
+                            &st) != 0) {
+                fprintf(stderr, "xrdfs: rm -r %s: %s\n", path, st.msg);
+                brix_cred_hint_for_status(&st, 1, stderr);
+                return brix_shellcode(&st);
+            }
+            return 0;
+        }
+        /* -r on a plain file falls through to the single unlink */
+    }
     if (brix_rm(c, path, &st) != 0) {
         fprintf(stderr, "xrdfs: rm %s: %s\n", path, st.msg);
         brix_cred_hint_for_status(&st, 1, stderr);   /* Phase 40 (c) */

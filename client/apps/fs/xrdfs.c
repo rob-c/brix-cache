@@ -14,7 +14,7 @@ const xrdfs_cmd COMMANDS[] = {
     { "tree",     do_tree,     "tree [-d] [-L N] [path]" },
     { "find",     do_find,     "find <path> [-name GLOB] [-type f|d] [-size +N|-N]" },
     { "mkdir",    do_mkdir,    "mkdir [-p] [-m mode] <path>" },
-    { "rm",       do_rm,       "rm <path>" },
+    { "rm",       do_rm,       "rm [-r] [-v] <path>" },
     { "rmdir",    do_rmdir,    "rmdir <path>" },
     { "mv",       do_mv,       "mv <src> <dst>" },
     { "chmod",    do_chmod,    "chmod [-R] <path> <octal-mode>" },
