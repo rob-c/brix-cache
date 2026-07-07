@@ -1,9 +1,11 @@
 # Weekly GCC -fanalyzer ratchet (use-after-free / leak / NULL-deref findings
-# vs tools/ci/fanalyzer_baseline.txt). NON-BLOCKING for now: the baseline was
-# generated with a local GCC and CI's GCC may differ; promote to a blocking
-# gate (remove continue-on-error) after two consecutive clean scheduled runs.
-# Local runs against the dev build remain the authoritative gate meanwhile —
-# see tools/ci/README.md. Never --regen the baseline from CI output.
+# vs tools/ci/fanalyzer_baseline.txt). NON-BLOCKING: the baseline was
+# generated with the local dev GCC; ubuntu-latest's GCC reports a different
+# set. First run (2026-07-07, 632 files analyzed) showed 3 findings absent
+# from the local baseline: fd-leak in core/compat/subprocess.c and two
+# NULL-derefs (ngx_log.h, fs/vfs/vfs_staged.c) — triage before trusting or
+# promoting this gate. Local runs against the dev build remain the
+# authoritative gate — see tools/ci/README.md. Never --regen from CI output.
 name: fanalyzer
 on:
   workflow_dispatch:
