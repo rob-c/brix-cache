@@ -421,25 +421,44 @@ macaroon_parse_core(ngx_log_t *log,
 
             /* Parse WLCG first-party caveats */
             if (clen >= 9 && memcmp(caveat, "activity:", 9) == 0) {
-                const char *act   = (const char *)(caveat + 9);
-                size_t      alen  = clen - 9;
-                const char *scope = NULL;
+                /* activity: values may be comma-joined ("DOWNLOAD,LIST,MANAGE")
+                 * or single-valued ("DOWNLOAD").  Split on commas and build one
+                 * "storage.perm:/" entry per recognised activity.  The "/"
+                 * default path makes brix_token_parse_scopes parse the entry;
+                 * macaroon_apply_path_caveats narrows it to any path: caveats. */
+                const char *acts      = (const char *)(caveat + 9);
+                size_t      remaining = clen - 9;
 
-                if      (alen == 8 && memcmp(act, "DOWNLOAD", 8) == 0) scope = "storage.read";
-                else if (alen == 4 && memcmp(act, "LIST",     4) == 0) scope = "storage.read";
-                else if (alen == 6 && memcmp(act, "UPLOAD",   6) == 0) scope = "storage.write";
-                else if (alen == 6 && memcmp(act, "DELETE",   6) == 0) scope = "storage.write";
-                else if (alen == 6 && memcmp(act, "MANAGE",   6) == 0) scope = "storage.modify";
+                while (remaining > 0) {
+                    const char *comma = memchr(acts, ',', remaining);
+                    size_t      alen  = (comma != NULL)
+                                        ? (size_t)(comma - acts) : remaining;
+                    const char *scope = NULL;
 
-                if (scope) {
-                    size_t slen = strlen(scope);
-                    if (scope_off + slen + 2 < sizeof(scope_buf)) {
-                        if (scope_off > 0) {
-                            scope_buf[scope_off++] = ' ';
+                    if      (alen == 8 && memcmp(acts, "DOWNLOAD", 8) == 0) scope = "storage.read";
+                    else if (alen == 4 && memcmp(acts, "LIST",     4) == 0) scope = "storage.read";
+                    else if (alen == 5 && memcmp(acts, "STAGE",    5) == 0) scope = "storage.stage";
+                    else if (alen == 6 && memcmp(acts, "UPLOAD",   6) == 0) scope = "storage.write";
+                    else if (alen == 6 && memcmp(acts, "DELETE",   6) == 0) scope = "storage.write";
+                    else if (alen == 6 && memcmp(acts, "MANAGE",   6) == 0) scope = "storage.modify";
+
+                    if (scope != NULL) {
+                        size_t slen = strlen(scope);
+                        /* +4: 1 space separator + slen + 2 for ":/" + 1 NUL */
+                        if (scope_off + slen + 4 < sizeof(scope_buf)) {
+                            if (scope_off > 0) {
+                                scope_buf[scope_off++] = ' ';
+                            }
+                            memcpy(scope_buf + scope_off, scope, slen);
+                            scope_off += slen;
+                            scope_buf[scope_off++] = ':';
+                            scope_buf[scope_off++] = '/';
+                            scope_buf[scope_off]   = '\0';
                         }
-                        memcpy(scope_buf + scope_off, scope, slen);
-                        scope_off += slen;
                     }
+
+                    acts      += alen + (comma != NULL ? 1 : 0);
+                    remaining -= alen + (comma != NULL ? 1 : 0);
                 }
 
             } else if (clen >= 7 && memcmp(caveat, "before:", 7) == 0) {

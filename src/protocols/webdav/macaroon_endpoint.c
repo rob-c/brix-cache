@@ -368,6 +368,44 @@ webdav_handle_macaroon_token(ngx_http_request_t *r)
         return;
     }
 
+    /* Authority bound: a bearer-token caller cannot obtain a macaroon that
+     * exceeds their own scope.  GSI-cert callers (token_auth == 0) carry
+     * full identity-level authority and are not bounded here.
+     *
+     * Conservative rule: if ANY write activity (UPLOAD/MANAGE/DELETE) is
+     * requested, require write scope on the target path; otherwise require
+     * read scope.  This prevents a zero- or read-only-scope token from
+     * delegating write rights it does not hold. */
+    if (ctx->token_auth) {
+        int wants_write = (strstr(activities, "UPLOAD")  != NULL
+                           || strstr(activities, "MANAGE") != NULL
+                           || strstr(activities, "DELETE") != NULL);
+        int scope_ok;
+
+        if (ctx->identity != NULL) {
+            scope_ok = (brix_identity_check_token_scope(ctx->identity,
+                                                         path, wants_write)
+                        == NGX_OK);
+        } else {
+            scope_ok = wants_write
+                ? brix_token_check_write(ctx->token_scopes,
+                                          ctx->token_scope_count, path)
+                : brix_token_check_read(ctx->token_scopes,
+                                         ctx->token_scope_count, path);
+        }
+
+        if (!scope_ok) {
+            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                          "macaroon_endpoint: token scope insufficient for"
+                          " activities \"%s\" on \"%s\" — issue denied",
+                          activities, path);
+            rc = send_json(r, NGX_HTTP_FORBIDDEN,
+                           J_UNAUTHORIZED, sizeof(J_UNAUTHORIZED) - 1);
+            webdav_metrics_finalize_request(r, rc);
+            return;
+        }
+    }
+
     /* Parse hex secret into binary key material */
     key_len = brix_macaroon_secret_parse(
         (const char *) conf->token_macaroon_secret.data,
@@ -619,6 +657,46 @@ webdav_handle_macaroon_request(ngx_http_request_t *r)
         size_t cp = ngx_min(r->uri.len, sizeof(cav_path) - 1);
         ngx_memcpy(cav_path, r->uri.data, cp);
         cav_path[cp] = '\0';
+    }
+
+    /* Authority bound: a bearer-token caller cannot obtain a macaroon that
+     * exceeds their own scope.  GSI-cert callers (token_auth == 0) carry
+     * full identity-level authority and are not bounded here.
+     *
+     * Conservative rule: if ANY write activity (UPLOAD/MANAGE/DELETE) is
+     * present, require write scope on the caveat path; otherwise require
+     * read scope.  When activities is empty the issued macaroon carries no
+     * activity restriction, so we still require at least read scope on the
+     * base path to prevent zero-scope tokens from issuing unconstrained
+     * macaroons. */
+    if (ctx->token_auth) {
+        int wants_write = (strstr(activities, "UPLOAD")  != NULL
+                           || strstr(activities, "MANAGE") != NULL
+                           || strstr(activities, "DELETE") != NULL);
+        int scope_ok;
+
+        if (ctx->identity != NULL) {
+            scope_ok = (brix_identity_check_token_scope(ctx->identity,
+                                                         cav_path, wants_write)
+                        == NGX_OK);
+        } else {
+            scope_ok = wants_write
+                ? brix_token_check_write(ctx->token_scopes,
+                                          ctx->token_scope_count, cav_path)
+                : brix_token_check_read(ctx->token_scopes,
+                                         ctx->token_scope_count, cav_path);
+        }
+
+        if (!scope_ok) {
+            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                          "macaroon_endpoint: token scope insufficient for"
+                          " activities \"%s\" on \"%s\" — issue denied",
+                          activities, cav_path);
+            rc = send_json(r, NGX_HTTP_FORBIDDEN,
+                           J_UNAUTHORIZED, sizeof(J_UNAUTHORIZED) - 1);
+            webdav_metrics_finalize_request(r, rc);
+            return;
+        }
     }
 
     /* validity (ISO-8601) → seconds, clamped to the configured max. */

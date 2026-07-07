@@ -325,8 +325,13 @@ class TestTokenIssuance:
         # Should expire roughly 7200 seconds from now (allow 60s slack)
         assert expiry_ts > time.time() + 7000
 
-    def test_write_scope_maps_to_upload_activity(self, token_endpoint, auth_token):
-        """storage.write scope maps to UPLOAD activity in the issued macaroon."""
+    def test_write_scope_escalation_denied_for_read_token(self, token_endpoint, auth_token):
+        """A read-only credential cannot obtain a write macaroon (privilege escalation denied).
+
+        auth_token carries only activity:DOWNLOAD (storage.read scope).  Requesting
+        storage.write:/data requires write authority the caller does not hold.
+        The server must refuse with 403 to prevent scope escalation.
+        """
         r = requests.post(
             token_endpoint,
             data="grant_type=client_credentials&scope=storage.write%3A%2Fdata",
@@ -336,10 +341,10 @@ class TestTokenIssuance:
             },
             timeout=10,
         )
-        assert r.status_code == 200
-        caveats = validate_macaroon(r.json()["token"], MACAROON_SECRET)
-        assert "activity" in caveats
-        assert "UPLOAD" in caveats["activity"]
+        assert r.status_code == 403, (
+            f"Expected 403 (escalation denied) but got {r.status_code}: {r.text}"
+        )
+        assert "unauthorized" in r.text or "error" in r.text
 
     def test_issued_token_is_accepted_for_auth(self, base_url, token_endpoint, auth_token):
         """An issued delegation macaroon can authenticate a subsequent GET request."""

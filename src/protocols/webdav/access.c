@@ -277,18 +277,31 @@ ngx_http_brix_webdav_access_handler(ngx_http_request_t *r)
         }
     }
 
-    /* Token scope check (read AND write).  Exempt OPTIONS (capability query /
-     * CORS preflight) and LOCK/UNLOCK (advisory locks do not require a scope
-     * claim — preserves the pre-existing exemption).  op->name is a static,
-     * null-terminated string, so it is safe to log (no wire-origin overread). */
+    /* Token scope check (read AND write).  Exempt:
+     *   OPTIONS — capability query / CORS preflight, no data access.
+     *   LOCK/UNLOCK — advisory locks require no scope claim (pre-existing).
+     *   /.oauth2/token and /.well-known/oauth-authorization-server — OAuth2
+     *     control-plane endpoints are not data resources; path-scope checking
+     *     the endpoint URI conflates the data-resource model with OAuth2.
+     *     Authority bounding is enforced inside the issuance handler instead.
+     * op->name is a static, null-terminated string, so it is safe to log. */
     if (r->method != NGX_HTTP_OPTIONS) {
+        static const char tok_ep[]  = "/.oauth2/token";
+        static const char disc_ep[] = "/.well-known/oauth-authorization-server";
+        int is_macaroon_ep =
+            (r->uri.len >= sizeof(tok_ep) - 1
+             && ngx_memcmp(r->uri.data + r->uri.len - (sizeof(tok_ep) - 1),
+                           tok_ep, sizeof(tok_ep) - 1) == 0)
+            || (r->uri.len >= sizeof(disc_ep) - 1
+                && ngx_memcmp(r->uri.data + r->uri.len - (sizeof(disc_ep) - 1),
+                              disc_ep, sizeof(disc_ep) - 1) == 0);
         const brix_http_operation_t *op =
             brix_http_operation_find(r, brix_webdav_operations,
                                        brix_webdav_operations_count);
         int is_lock = (op != NULL
                        && (ngx_strcmp(op->name, "LOCK") == 0
                            || ngx_strcmp(op->name, "UNLOCK") == 0));
-        if (!is_lock) {
+        if (!is_lock && !is_macaroon_ep) {
             const char *mname = (op != NULL) ? op->name : "GET";
             rc = webdav_check_token_scope(r, mname);
             if (rc != NGX_OK) {
