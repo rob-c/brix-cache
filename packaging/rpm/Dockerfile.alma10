@@ -24,52 +24,48 @@
 
 FROM almalinux:10 AS builder
 
-# Enable EPEL 10 for packages not in BaseOS/AppStream.
-RUN dnf install -y epel-release && \
-    dnf install -y \
-        gcc \
-        gcc-c++ \
-        make \
-        pkgconfig \
-        rpm-build \
-        rpmdevtools \
-        redhat-rpm-config \
-        nginx-mod-devel \
-        openssl-devel \
-        pcre2-devel \
-        zlib-devel \
-        libxml2-devel \
-        jansson-devel \
-        libcurl-devel \
-        krb5-devel \
-        libcom_err-devel \
-        libxcrypt-devel \
-        fuse3-devel \
-        sqlite-devel \
-        librados-devel \
-        libradospp-devel \
-        libradosstriper-devel \
-        libcephfs-devel \
+# Ceph release to pull dev packages from.
+ARG BRIX_CEPH_RELEASE=reef
+
+# Step 1: bootstrap repo manager, enable CRB (needed for jansson-devel and
+# other build-time packages not in BaseOS/AppStream), then install EPEL.
+RUN dnf install -y 'dnf-command(config-manager)' && \
+    dnf config-manager --set-enabled crb && \
+    dnf install -y epel-release
+
+# Step 2: add the nginx.org stable repo for nginx-mod-devel.  If EPEL 10
+# carries nginx-mod-devel without modular filtering issues, this step can be
+# removed and nginx-mod-devel installed directly from EPEL.
+RUN printf '[nginx-stable]\nname=nginx stable repo\nbaseurl=https://nginx.org/packages/rhel/10/$basearch/\ngpgcheck=1\nenabled=1\ngpgkey=https://nginx.org/keys/nginx_signing.key\nmodule_hotfixes=true\n' \
+    > /etc/yum.repos.d/nginx.repo
+
+# Step 3: add the CentOS Stream 10 Storage SIG Ceph repo.  If the SIG is not
+# yet published for EL10, switch baseurl to https://download.ceph.com/rpm-${BRIX_CEPH_RELEASE}/el10/$basearch.
+RUN printf '[centos-storage-ceph-%s]\nname=CentOS Stream 10 Storage SIG Ceph %s\nbaseurl=https://mirror.stream.centos.org/SIGs/10-stream/storage/$basearch/ceph-%s/\nenabled=1\ngpgcheck=0\nmodule_hotfixes=1\n' \
+    "${BRIX_CEPH_RELEASE}" "${BRIX_CEPH_RELEASE}" "${BRIX_CEPH_RELEASE}" \
+    > /etc/yum.repos.d/centos-storage-ceph.repo
+
+# Step 4: install all build dependencies.  EL10 uses GCC 14 by default.
+RUN dnf install -y \
+        gcc gcc-c++ make pkgconfig rpm-build rpmdevtools redhat-rpm-config \
+        nginx-mod-devel openssl-devel pcre2-devel zlib-devel \
+        libxml2-devel jansson-devel libcurl-devel krb5-devel libcom_err-devel \
+        libxcrypt-devel fuse3-devel sqlite-devel liburing-devel libzstd-devel lz4-devel \
+        librados-devel libradospp-devel libradosstriper-devel libcephfs-devel \
     && dnf clean all
 
-# If nginx-mod-devel is not available in EPEL 10 at the time of the build,
-# uncomment the block below to add the nginx stable upstream repo first:
-#
-# RUN printf '[nginx-stable]\nname=nginx stable repo\n\
-# baseurl=https://nginx.org/packages/rhel/10/$basearch/\ngpgcheck=1\nenabled=1\n\
-# gpgkey=https://nginx.org/keys/nginx_signing.key\nmodule_hotfixes=true\n' \
-#     > /etc/yum.repos.d/nginx.repo && \
-#     dnf install -y nginx-mod-devel && \
-#     dnf clean all
-
-ARG VERSION=0.1.0
+# Explicit override only; empty means "use the version baked into the
+# source" (BRIX_SERVER_VERSION_BARE in src/core/ident.h), derived below.
+ARG VERSION=""
 
 WORKDIR /build/src
 COPY . .
 
 RUN set -euo pipefail && \
     rpmdev-setuptree && \
-    source_name="nginx-xrootd-${VERSION}" && \
+    version="${VERSION:-$(sed -n 's/#define BRIX_SERVER_VERSION_BARE[[:space:]]*"\([^"]*\)".*/\1/p' src/core/ident.h)}" && \
+    test -n "$version" && \
+    source_name="brix-${version}" && \
     tar \
         --exclude-vcs \
         --exclude='./.rpmbuild' \
@@ -83,7 +79,7 @@ RUN set -euo pipefail && \
         -czf ~/rpmbuild/SOURCES/"${source_name}.tar.gz" \
         -C /build/src . && \
     rpmbuild -ba \
-        --define "version_override ${VERSION}" \
+        --define "version_override ${version}" \
         /build/src/packaging/rpm/nginx-mod-brix-cache.spec
 
 RUN mkdir -p /artifacts && \

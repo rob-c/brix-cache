@@ -210,10 +210,12 @@ void aconn_do_read(brix_aconn *ac);
 void aconn_handle_io(brix_aconn *ac, uint32_t events);
 
 /* aio_engine.c */
+#if (BRIX_HAVE_LIBURING)
 unsigned uring_pollmask(int want);
 int uring_slot_alloc(brix_loop *l, brix_aconn *ac);
 int uring_poll_submit(brix_loop *l, brix_aconn *ac, int want);
 void uring_poll_cancel(brix_loop *l, brix_aconn *ac, int freeing);
+#endif /* BRIX_HAVE_LIBURING */
 int io_engine_setup(brix_loop *l, brix_status *st);
 void io_engine_teardown(brix_loop *l);
 int io_engine_arm(brix_loop *l, brix_aconn *ac, int want);

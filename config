@@ -246,7 +246,7 @@ if [ "${BRIX_WITHOUT_CEPH:-}" != "1" ] \
    && printf '#include <rados/librados.h>\nint main(void){rados_t c; return rados_create(&c, 0);}\n' > "$NGX_AUTOTEST.c" 2>/dev/null \
    && $CC $CC_TEST_FLAGS -o "$NGX_AUTOTEST" "$NGX_AUTOTEST.c" -lrados >/dev/null 2>&1; then
     rm -f "$NGX_AUTOTEST" "$NGX_AUTOTEST.c"
-    CFLAGS="$CFLAGS -DBRIX_HAVE_CEPH=1"
+    CFLAGS="$CFLAGS -D_FILE_OFFSET_BITS=64 -DBRIX_HAVE_CEPH=1"
     BRIX_CEPH_LIBS="-lrados"
     echo " + xrootd storage backend: ceph/rados enabled"
 

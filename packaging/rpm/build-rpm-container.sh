@@ -6,17 +6,18 @@
 #   packaging/rpm/build-rpm-container.sh [options]
 #
 # Options:
-#   -v VERSION   Version string embedded in the RPM (default: 0.1.0)
+#   -v VERSION   Version string embedded in the RPM (default: derived from
+#                BRIX_SERVER_VERSION_BARE in src/core/ident.h)
 #   -d DISTRO    Target distro: alma9 or alma10 (default: alma9)
 #   -o OUTDIR    Directory to copy built RPMs into (default: dist/)
 #   -e ENGINE    Container engine: docker or podman (auto-detected)
 #   -h           Print this help
 #
 # Examples:
-#   # Build for AlmaLinux 9 (default):
+#   # Build for AlmaLinux 9 (default), version from src/core/ident.h:
 #   packaging/rpm/build-rpm-container.sh
 #
-#   # Build for AlmaLinux 10, version 1.2.3:
+#   # Build for AlmaLinux 10, explicit version override:
 #   packaging/rpm/build-rpm-container.sh -d alma10 -v 1.2.3 -o /tmp/rpms
 
 set -euo pipefail
@@ -24,7 +25,7 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/../.." && pwd)"
 
-version="0.1.0"
+version=""
 distro="alma9"
 outdir="$repo_root/dist"
 engine=""
@@ -45,6 +46,17 @@ while getopts "v:d:o:e:h" opt; do
     esac
 done
 
+# Default the version to the one baked into the source (the single source of
+# truth the server reports at runtime), unless -v overrides it.
+if [[ -z "$version" ]]; then
+    version="$(sed -n 's/#define BRIX_SERVER_VERSION_BARE[[:space:]]*"\([^"]*\)".*/\1/p' \
+        "$repo_root/src/core/ident.h")"
+    if [[ -z "$version" ]]; then
+        echo "error: could not derive version from src/core/ident.h (BRIX_SERVER_VERSION_BARE)" >&2
+        exit 1
+    fi
+fi
+
 # Auto-detect container engine.
 if [[ -z "$engine" ]]; then
     if command -v podman &>/dev/null; then
@@ -64,8 +76,8 @@ if [[ ! -f "$dockerfile" ]]; then
     exit 1
 fi
 
-image_tag="nginx-xrootd-rpm-builder:${distro}-${version}"
-container_name="nginx-xrootd-rpm-extract-$$"
+image_tag="brix-rpm-builder:${distro}-${version}"
+container_name="brix-rpm-extract-$$"
 
 echo "==> Building RPM for ${distro}, version ${version}"
 echo "    Engine   : ${engine}"

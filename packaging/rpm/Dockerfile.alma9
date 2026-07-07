@@ -14,37 +14,41 @@
 
 FROM almalinux:9 AS builder
 
-# Enable EPEL 9 for packages not in BaseOS/AppStream (e.g. nginx-mod-devel).
-# Enable the nginx stable repo in case the distribution nginx lags behind the
-# version for which nginx-mod-devel is built.
-RUN dnf install -y epel-release && \
-    dnf install -y \
-        gcc \
-        gcc-c++ \
-        make \
-        pkgconfig \
-        rpm-build \
-        rpmdevtools \
-        redhat-rpm-config \
-        nginx-mod-devel \
-        openssl-devel \
-        pcre2-devel \
-        zlib-devel \
-        libxml2-devel \
-        jansson-devel \
-        libcurl-devel \
-        krb5-devel \
-        libcom_err-devel \
-        libxcrypt-devel \
-        fuse3-devel \
-        sqlite-devel \
-        librados-devel \
-        libradospp-devel \
-        libradosstriper-devel \
-        libcephfs-devel \
+# Ceph release to pull dev packages from (reef, squid, tentacle, …).
+ARG BRIX_CEPH_RELEASE=reef
+
+# Step 1: bootstrap repo manager, enable CRB (needed for jansson-devel and
+# other build-time packages not in BaseOS/AppStream), then install EPEL.
+RUN dnf install -y 'dnf-command(config-manager)' && \
+    dnf config-manager --set-enabled crb && \
+    dnf install -y epel-release
+
+# Step 2: add the nginx.org stable repo.  nginx-mod-devel from the distro
+# AppStream is filtered by modular gating; the nginx.org repo bypasses that
+# and provides nginx-mod-devel built against a known nginx stable version.
+RUN printf '[nginx-stable]\nname=nginx stable repo\nbaseurl=https://nginx.org/packages/rhel/9/$basearch/\ngpgcheck=1\nenabled=1\ngpgkey=https://nginx.org/keys/nginx_signing.key\nmodule_hotfixes=true\n' \
+    > /etc/yum.repos.d/nginx.repo
+
+# Step 3: add the CentOS Stream 9 Storage SIG Ceph repo so the Ceph dev
+# packages (librados-devel, libradospp-devel, libradosstriper-devel,
+# libcephfs-devel) are available.  gpgcheck=0 is intentional for a build
+# container; the source tree is verified separately via git.
+RUN printf '[centos-storage-ceph-%s]\nname=CentOS Stream 9 Storage SIG Ceph %s\nbaseurl=https://mirror.stream.centos.org/SIGs/9-stream/storage/$basearch/ceph-%s/\nenabled=1\ngpgcheck=0\nmodule_hotfixes=1\n' \
+    "${BRIX_CEPH_RELEASE}" "${BRIX_CEPH_RELEASE}" "${BRIX_CEPH_RELEASE}" \
+    > /etc/yum.repos.d/centos-storage-ceph.repo
+
+# Step 4: install all build dependencies.
+RUN dnf install -y \
+        gcc gcc-c++ make pkgconfig rpm-build rpmdevtools redhat-rpm-config \
+        nginx-mod-devel openssl-devel pcre2-devel zlib-devel \
+        libxml2-devel jansson-devel libcurl-devel krb5-devel libcom_err-devel \
+        libxcrypt-devel fuse3-devel sqlite-devel liburing-devel libzstd-devel lz4-devel \
+        librados-devel libradospp-devel libradosstriper-devel libcephfs-devel \
     && dnf clean all
 
-ARG VERSION=0.1.0
+# Explicit override only; empty means "use the version baked into the
+# source" (BRIX_SERVER_VERSION_BARE in src/core/ident.h), derived below.
+ARG VERSION=""
 
 # Copy the full source tree.  .dockerignore should exclude build artefacts and
 # virtual environments.
@@ -54,7 +58,9 @@ COPY . .
 # Build the source archive from the working tree, then build the RPM.
 RUN set -euo pipefail && \
     rpmdev-setuptree && \
-    source_name="nginx-xrootd-${VERSION}" && \
+    version="${VERSION:-$(sed -n 's/#define BRIX_SERVER_VERSION_BARE[[:space:]]*"\([^"]*\)".*/\1/p' src/core/ident.h)}" && \
+    test -n "$version" && \
+    source_name="brix-${version}" && \
     tar \
         --exclude-vcs \
         --exclude='./.rpmbuild' \
@@ -68,7 +74,7 @@ RUN set -euo pipefail && \
         -czf ~/rpmbuild/SOURCES/"${source_name}.tar.gz" \
         -C /build/src . && \
     rpmbuild -ba \
-        --define "version_override ${VERSION}" \
+        --define "version_override ${version}" \
         /build/src/packaging/rpm/nginx-mod-brix-cache.spec
 
 # Collect built RPMs into /artifacts for extraction.

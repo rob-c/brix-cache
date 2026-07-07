@@ -10,7 +10,7 @@ source tree:
 |---|---|---|
 | `nginx-mod-brix-cache` | arch | The combined BriX nginx dynamic module, the xrdhttp filter module, and the `mod-xrootd.conf` loader |
 | `brix-cache-client` | arch | The clean-room native CLI tools (`xrdcp`, `xrdfs`, `xrd`, `xrdcksum`, `xrdstorascan`, …), the `xrootdfs` and `brixMount` FUSE mounts, the `libbrixposix_preload.so` POSIX shim, completions, and their man pages |
-| `brix-cache-tests` | noarch | The full pytest integration/conformance suite under `%{_datadir}/nginx-xrootd`, pulling in the python packages it needs |
+| `brix-cache-tests` | noarch | The full pytest integration/conformance suite under `%{_datadir}/brix`, pulling in the python packages it needs |
 | `brix-tools` | arch | XrdCeph/CephFS operator tools from `client/apps/ceph/`: the compiled C++ migration pair (`xrdceph_striper_migrate`, `xrdceph_cephfs_to_striper`), their Python variants (`*.py` + `pymigrate` under `%{_libexecdir}/brix`), and the offline rescue utilities (`xrdrados_rescue`, `xrdcephfs_rescue`, `xrdceph_migrate`) |
 
 The module package builds against the distribution nginx source exposed by
@@ -100,11 +100,12 @@ packaging/rpm/build-rpm.sh
 ```
 
 The helper writes build products under `.rpmbuild/` in the repository root.
-Pass a version if you want the generated source tarball and RPM metadata to use
-something other than `0.1.0`:
+The version defaults to the one baked into the source
+(`BRIX_SERVER_VERSION_BARE` in `src/core/ident.h`); pass one explicitly to
+override it:
 
 ```bash
-packaging/rpm/build-rpm.sh 0.1.0
+packaging/rpm/build-rpm.sh 1.2.3
 ```
 
 ## Container-based build (AlmaLinux 9 or 10)
@@ -113,14 +114,15 @@ packaging/rpm/build-rpm.sh 0.1.0
 need any RPM build toolchain installed.
 
 ```bash
-# AlmaLinux 9 (default), version 0.1.0:
+# AlmaLinux 9 (default), version from src/core/ident.h:
 packaging/rpm/build-rpm-container.sh
 
-# AlmaLinux 10, version 1.2.3, output to /tmp/rpms:
+# AlmaLinux 10, explicit version override, output to /tmp/rpms:
 packaging/rpm/build-rpm-container.sh -d alma10 -v 1.2.3 -o /tmp/rpms
 
 # Options:
-#   -v VERSION   Version embedded in the RPM (default: 0.1.0)
+#   -v VERSION   Version embedded in the RPM (default: derived from
+#                BRIX_SERVER_VERSION_BARE in src/core/ident.h)
 #   -d DISTRO    alma9 or alma10 (default: alma9)
 #   -o OUTDIR    Directory for built RPMs (default: dist/)
 #   -e ENGINE    docker or podman (auto-detected)
@@ -172,7 +174,7 @@ the Dockerfile before the `dnf install` step.
 
 ## Release build (mock)
 
-For a Fedora/EPEL-style build, create a matching upstream tag such as `v0.1.0`,
+For a Fedora/EPEL-style build, create a matching upstream tag (`v` + BRIX_SERVER_VERSION_BARE from `src/core/ident.h`, e.g. `v1.1.1`),
 then build `packaging/rpm/nginx-mod-brix-cache.spec` in `mock`:
 
 ```bash
@@ -183,4 +185,4 @@ mock -r epel-9-x86_64 --rebuild result/nginx-mod-brix-cache-*.src.rpm
 ```
 
 The spec expects the release source archive to unpack as
-`nginx-xrootd-<version>/`.
+`brix-<version>/`.

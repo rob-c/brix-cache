@@ -2,17 +2,31 @@
 # needs only ./config + ./src + its deploy files. The k8s-tests images
 # (images/authority, images/test-runner, images/server, images/client-fuse) also
 # need ./tests + ./utils, and the server module build needs ./config + ./src.
-# Everything else (docs, .git, .rpmbuild, node_modules, scratch) stays out.
+# The RPM builder Dockerfiles need ./packaging (spec file), ./client (tools),
+# ./contrib + ./docs (%doc payload), and the top-level LICENSE/README/pytest
+# files the spec installs.
+# Everything else (.git, .rpmbuild, node_modules, scratch) stays out.
 *
 !config
 !src
 !shared
+!client
+!packaging
+!contrib
+!docs
+!LICENSE
+!README.md
+!conftest.py
+!pytest.ini
+!requirements.txt
 !deploy/cvmfs/docker
 !deploy/fail2ban
 !tests
 !utils
 !k8s-tests
-# Keep the context lean — never ship caches, scratch, or vendored chart archives.
+# Keep the context lean — never ship caches, scratch, generated doxygen output,
+# or vendored chart archives.
+docs/doxygen
 **/__pycache__
 **/*.pyc
 tests/.pytest_cache
