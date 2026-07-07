@@ -17,6 +17,7 @@ the test suite.
 
 from __future__ import annotations
 
+import functools
 import datetime
 import json
 import shutil
@@ -426,13 +427,28 @@ def make_crl(ca: Cert, *, revoked: list[Cert] | None = None,
 # CA-directory materialisation
 # --------------------------------------------------------------------------
 
-def _openssl_hashes(cert_path: Path) -> tuple[str, str]:
+@functools.lru_cache(maxsize=8192)
+def _openssl_hashes_cached(pem: bytes) -> tuple[str, str]:
+    """Compute (subject_hash, subject_hash_old) for a CA cert, forking openssl.
+
+    Keyed on the cert PEM bytes: the subject hash is a pure function of the
+    certificate's subject DN, so identical content always yields identical
+    hashes.  build_all(ALL_CLAUSES) places the same handful of CAs across
+    hundreds of clause rows; without this memo each placement forked openssl
+    twice, and the resulting fork-storm pushed the conformance corpus past the
+    per-test timeout under load.  openssl reads the cert from stdin so no temp
+    path is needed (and the cache key is content, not a per-run temp path).
+    """
     def h(flag: str) -> str:
         r = subprocess.run(
-            ["openssl", "x509", "-in", str(cert_path), "-noout", flag],
-            capture_output=True, text=True, check=True)
-        return r.stdout.strip()
+            ["openssl", "x509", "-noout", flag],
+            input=pem, capture_output=True, check=True)
+        return r.stdout.decode().strip()
     return h("-subject_hash"), h("-subject_hash_old")
+
+
+def _openssl_hashes(cert_path: Path) -> tuple[str, str]:
+    return _openssl_hashes_cached(cert_path.read_bytes())
 
 
 def write_hashed_ca_dir(ca_dir: Path, ca: Cert, *, policy_text: str | None = None,
