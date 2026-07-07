@@ -17,13 +17,14 @@ docker ps --format '{{.Names}}' | grep -qx "$WORK" \
 docker exec "$WORK" mkdir -p /work/repo/tests/ceph /work/repo/src/fs/backend/rados /work/repo/client/apps/ceph
 docker cp "$REPO/src/fs/backend/rados/sd_ceph.c"   "$WORK:/work/repo/src/fs/backend/rados/sd_ceph.c"
 docker cp "$REPO/src/fs/backend/rados/sd_ceph.h"   "$WORK:/work/repo/src/fs/backend/rados/sd_ceph.h"
+docker cp "$REPO/src/fs/backend/rados/sd_ceph_striper.h" "$WORK:/work/repo/src/fs/backend/rados/sd_ceph_striper.h"
 docker cp "$REPO/tests/ceph/sd_ceph_live_test.c"   "$WORK:/work/repo/tests/ceph/sd_ceph_live_test.c"
 docker cp "$REPO/client/apps/ceph/ngx_shim.h"      "$WORK:/work/repo/client/apps/ceph/ngx_shim.h"
 
 docker exec -e CEPH_POOL="$POOL" -e CEPH_CONF=/etc/ceph/ceph.conf "$WORK" bash -lc '
     cd /work/repo &&
     gcc -Wall -Wextra -Werror -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH \
-        -I src/fs/backend -I src/fs/backend/rados \
+        -I src -I src/fs/backend -I src/fs/backend/rados \
         -include client/apps/ceph/ngx_shim.h \
         tests/ceph/sd_ceph_live_test.c src/fs/backend/rados/sd_ceph.c \
         -lrados -o /tmp/sd_ceph_live &&

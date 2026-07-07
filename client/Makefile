@@ -338,7 +338,7 @@ $(BINDIR)/brixMount: $(BRIXMOUNT_OBJS) $(CLIENT_LIB) | $(BINDIR)
 CEPH_RADOS_DIR := $(SRC)/fs/backend/rados
 CEPH_C_FLAGS   := -std=c11 -Wall -Wextra -D_FILE_OFFSET_BITS=64 $(HARDEN) $(OPT) \
                   -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH \
-                  -I$(SRC)/fs/backend -I$(CEPH_RADOS_DIR) -Iapps/ceph \
+                  -I$(SRC) -I$(SRC)/fs/backend -I$(CEPH_RADOS_DIR) -Iapps/ceph \
                   -include apps/ceph/ngx_shim.h $(CFLAGS)
 CEPH_CXX_FLAGS := -std=c++17 -Wall -Wextra -D_FILE_OFFSET_BITS=64 $(HARDEN) $(OPT) \
                   -Iapps/ceph $(CFLAGS)
