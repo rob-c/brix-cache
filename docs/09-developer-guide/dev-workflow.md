@@ -1,5 +1,18 @@
 # Development
 
+## Local setup — hooks and IDE navigation
+
+- **Git hooks (once per clone):** `git config core.hooksPath tools/git-hooks`
+  — pre-push then runs the tools/ci guards (seconds) plus the fast test tier
+  (~4 min). Bypass: `git push --no-verify`.
+- **clangd navigation:** `tools/clangd/gen_compile_commands.py` generates
+  `compile_commands.json` so clangd/LSP can cross-reference all 660+ C files.
+  Regenerate after `./configure`.
+- **Guard reference:** [tools/ci/README.md](../../tools/ci/README.md) — what
+  each CI guard enforces and how the backlog ratchets work.
+- **API docs:** `tools/gen-docs.sh` builds the Doxygen tree locally; CI
+  publishes it at `/apidocs/` on the gh-pages site on every `src/` push.
+
 ## Source layout
 
 | File | Responsibility |
