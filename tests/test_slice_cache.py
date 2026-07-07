@@ -58,6 +58,11 @@ class TestSliceConfig:
     """Step F — the brix_cache_slice_size tier directive parses and validates."""
 
     def _nginx_t(self, tmp_path, slice_value):
+        # Export and cache_store must be siblings: the server rejects a cache
+        # store at/beneath the export root (its .cinfo/.meta sidecars would be
+        # exposed in the client namespace).
+        origin = tmp_path / "origin"
+        origin.mkdir()
         cache = tmp_path / "cache"
         cache.mkdir()
         (tmp_path / "logs").mkdir()
@@ -71,7 +76,7 @@ class TestSliceConfig:
                 server {{
                     listen 21794;
                     brix_root on;
-                    brix_export {tmp_path};
+                    brix_export {origin};
                     brix_auth none;
                     brix_storage_backend root://{HOST}:1095;
                     brix_cache_store posix:{cache};

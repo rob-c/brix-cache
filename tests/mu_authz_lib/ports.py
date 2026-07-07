@@ -27,7 +27,7 @@ class MU:
     # cache-transparency fix (real remote-origin cache-HIT path).
     CACHE_NOIMP   = _p("TEST_MU_CACHE_NOIMP",   12110)
     ORIGIN_NOIMP  = _p("TEST_MU_ORIGIN_NOIMP",  12111)
-    WEBDAV_AUTHZ  = _p("TEST_MU_WEBDAV_AUTHZ",  12120)
+    WEBDAV_AUTHZ  = _p("TEST_MU_WEBDAV_AUTHZ",  12127)  # 12120 collides with fleet upstream-redirect
     # Direct (non-cache) GSI+authdb root:// node — verifies the read-open existence oracle fix.
     DIRECT_AUTHZ  = _p("TEST_MU_DIRECT_AUTHZ",  12130)
     # WebDAV write node — verifies staging temp-file modes (stage-private / publish-intended).
