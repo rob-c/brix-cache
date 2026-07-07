@@ -93,17 +93,28 @@ def _sha256(data: bytes) -> str:
 
 
 def _list_binaries() -> List[str]:
-    """Return a sorted list of executable binary names in client/bin/.
+    """Return a sorted list of user-facing CLI binary names in client/bin/.
 
-    Excludes ``*.d`` dependency files and anything that is not a regular
-    executable file.  The result is deterministic (sorted).
+    Excludes ``*.d`` dependency files, non-executables, AND compiled unit-test
+    binaries (``*_unit`` / ``*_unittest`` / ``*_test``).  ``make -C client test``
+    builds those into client/bin/, but they are unit-test harnesses, not user
+    CLI tools — their output changes whenever a unit test is edited, which would
+    spuriously break this golden CLI matrix (a real occurrence: editing
+    relsafe_unit's test cases flipped its no-arg output hash).  The result is
+    deterministic (sorted).
     """
     if not BIN_DIR.is_dir():
         return []
+
+    def _is_unit_test_bin(name: str) -> bool:
+        return (name.endswith("_unit") or name.endswith("_unittest")
+                or name.endswith("_test"))
+
     return sorted(
         p.name
         for p in BIN_DIR.iterdir()
         if p.is_file() and not p.name.endswith(".d") and os.access(p, os.X_OK)
+        and not _is_unit_test_bin(p.name)
     )
 
 
