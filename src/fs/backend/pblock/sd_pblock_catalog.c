@@ -719,6 +719,10 @@ path_list_push(path_list *pl, const char *s)
         pl->items = ni;
         pl->cap   = ncap;
     }
+    /* Ownership transfers INTO the list; path_list_free releases every entry.
+     * (gcc -fanalyzer reports the strdup as leaking — it does not track
+     * ownership through the container, known false positive in the fanalyzer
+     * baseline.) */
     dup = strdup(s);
     if (dup == NULL) {
         return -1;

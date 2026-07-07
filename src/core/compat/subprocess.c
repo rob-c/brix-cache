@@ -47,6 +47,10 @@ brix_subprocess_capture(char *const argv[], char *out, size_t outsz,
     }
     if (pid == 0) {
         close(pfd[0]);
+        /* The dup'd stdout MUST stay open across execvp — it IS the capture
+         * channel; the kernel reclaims it at _exit. (gcc >= 13 -fanalyzer
+         * reports it as an fd leak: it does not model exec/_exit ending the
+         * image — known false positive.) */
         if (dup2(pfd[1], STDOUT_FILENO) < 0) {
             _exit(127);
         }

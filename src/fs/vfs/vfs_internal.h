@@ -97,6 +97,12 @@ struct brix_vfs_staged_s {
     /* Write-back staging is no longer a vfs_staged mode: the registry composes the
      * sd_stage decorator (phase-63 C-2/C-6), so a remote-backend export with staging
      * enabled stages locally + promotes inside the driver's staged_* slots above. */
+    /* INVARIANT: never NULL on a handle a caller can hold — the sole
+     * constructor (brix_vfs_staged_open) allocates and deep-copies it before
+     * anything else and returns NULL on failure, so write/commit/abort may
+     * dereference it unguarded. (gcc -fanalyzer flags those derefs as
+     * possible-NULL: it models the opaque parameter, not the constructor —
+     * known false positive, do not "fix" with a guard that hides misuse.) */
     brix_vfs_ctx_t     *ctx;      /* carries root_canon + final (resolved) path */
     ngx_pool_t           *pool;
     ngx_log_t            *log;

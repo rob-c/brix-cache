@@ -183,6 +183,11 @@ brix_proxy_pool_shutdown(void)
         return;
     }
 
+    /* Drain head-first: each node is UNLINKED (ngx_queue_remove) before it is
+     * freed, so the next ngx_queue_head is always a different, live node.
+     * (gcc -fanalyzer reports a use-after-free here by conflating loop
+     * iterations — nginx's queue-drain idiom, known false positive in the
+     * fanalyzer baseline.) */
     while (!ngx_queue_empty(&proxy_pool)) {
         ngx_queue_t                *q  = ngx_queue_head(&proxy_pool);
         brix_proxy_pooled_conn_t *pc =
