@@ -108,7 +108,7 @@ there is no standalone `xrdssi` CLI, so byte-level golden vectors back the cases
 stock client cannot drive directly.
 
 The full XrdSsi framework + CTA tape service is complete. Design spec:
-[`docs/superpowers/specs/2026-06-30-full-ssi-framework-cta-service-design.md`](../../docs/superpowers/specs/2026-06-30-full-ssi-framework-cta-service-design.md);
+[`docs/superpowers/specs/2026-06-30-full-ssi-framework-cta-service-design.md`](../../../docs/superpowers/specs/2026-06-30-full-ssi-framework-cta-service-design.md);
 per-phase plans in `docs/superpowers/plans/`.
 
 ## RRInfo wire layout

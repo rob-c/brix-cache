@@ -37,3 +37,6 @@ jobs:
       - name: doc path drift — CLAUDE.md/README/index reference real paths
         if: '!cancelled()'
         run: tools/ci/check_doc_paths.sh
+      - name: doc links — relative markdown links resolve
+        if: '!cancelled()'
+        run: tools/ci/check_doc_links.sh

@@ -184,22 +184,22 @@ Entry is via nginx HTTP phase handlers registered in `postconfig.c`:
 4. **Log phase**: bandwidth charge (`../ratelimit/`) + mirror-divergence status.
 
 Outbound calls into sibling subsystems:
-[`../path/`](../path/README.md) (confinement),
-[`../fs/`](../fs/README.md) (VFS),
-[`../aio/`](../aio/README.md) (thread-pool I/O),
-[`../cache/`](../cache/README.md) (read-through cache, via VFS),
+[`../path/`](../../fs/path/README.md) (confinement),
+[`../fs/`](../../fs/README.md) (VFS),
+[`../aio/`](../../core/aio/README.md) (thread-pool I/O),
+[`../cache/`](../../fs/cache/README.md) (read-through cache, via VFS),
 [`../shared/`](../shared/README.md) (`file_serve`),
-[`../compat/`](../compat/README.md) (path resolver, http body/headers/xml, ETag,
+[`../compat/`](../../core/compat/README.md) (path resolver, http body/headers/xml, ETag,
 namespace ops, fs_walk, net_target/SSRF, staged_file),
-[`../crypto/`](../crypto/README.md) (GSI verify, PKI build),
-[`../token/`](../token/README.md) (JWT/macaroon/OAuth2, token cache),
-[`../gsi/`](../gsi/README.md) & [`../voms/`](../voms/README.md) (cert identity),
-[`../metrics/`](../metrics/README.md) (counters),
-[`../mirror/`](../mirror/README.md) (shadow replay),
-[`../ratelimit/`](../ratelimit/README.md) (advanced limits),
-[`../tpc/`](../tpc/README.md) (transfer registry, authz, credential common),
-[`../dashboard/`](../dashboard/README.md) (live transfer tracking),
-[`../shm/`](../shm/README.md) (KV/rate-limit zones).
+[`../crypto/`](../../auth/crypto/README.md) (GSI verify, PKI build),
+[`../token/`](../../auth/token/README.md) (JWT/macaroon/OAuth2, token cache),
+[`../gsi/`](../../auth/gsi/README.md) & [`../voms/`](../../auth/voms/README.md) (cert identity),
+[`../metrics/`](../../observability/metrics/README.md) (counters),
+[`../mirror/`](../../net/mirror/README.md) (shadow replay),
+[`../ratelimit/`](../../net/ratelimit/README.md) (advanced limits),
+[`../tpc/`](../../tpc/README.md) (transfer registry, authz, credential common),
+[`../dashboard/`](../../observability/dashboard/README.md) (live transfer tracking),
+[`../shm/`](../../core/shm/README.md) (KV/rate-limit zones).
 The S3 face ([`../s3/`](../s3/README.md)) is a sibling HTTP handler that shares
 the same export root and the same `../compat`/`../fs` core but never shares auth
 logic (SigV4 ≠ WLCG token).
@@ -280,10 +280,10 @@ logic (SigV4 ≠ WLCG token).
 
 - [`../README.md`](../README.md) — master subsystem index
 - [`../s3/README.md`](../s3/README.md) — sibling HTTP face (S3 REST), same root, distinct auth
-- [`../path/README.md`](../path/README.md) — RESOLVE_BENEATH confinement
-- [`../fs/README.md`](../fs/README.md) / [`../aio/README.md`](../aio/README.md) — VFS + thread-pool I/O
-- [`../cache/README.md`](../cache/README.md) — read-through / write-through cache
-- [`../tpc/README.md`](../tpc/README.md) — TPC transfer registry & native (stream) TPC
-- [`../token/README.md`](../token/README.md) / [`../gsi/README.md`](../gsi/README.md) / [`../crypto/README.md`](../crypto/README.md) — auth building blocks
-- [`../mirror/README.md`](../mirror/README.md) / [`../ratelimit/README.md`](../ratelimit/README.md) / [`../metrics/README.md`](../metrics/README.md) / [`../dashboard/README.md`](../dashboard/README.md) — cross-cutting
-- [`../compat/README.md`](../compat/README.md) — shared HTTP/path/XML/namespace helpers
+- [`../path/README.md`](../../fs/path/README.md) — RESOLVE_BENEATH confinement
+- [`../fs/README.md`](../../fs/README.md) / [`../aio/README.md`](../../core/aio/README.md) — VFS + thread-pool I/O
+- [`../cache/README.md`](../../fs/cache/README.md) — read-through / write-through cache
+- [`../tpc/README.md`](../../tpc/README.md) — TPC transfer registry & native (stream) TPC
+- [`../token/README.md`](../../auth/token/README.md) / [`../gsi/README.md`](../../auth/gsi/README.md) / [`../crypto/README.md`](../../auth/crypto/README.md) — auth building blocks
+- [`../mirror/README.md`](../../net/mirror/README.md) / [`../ratelimit/README.md`](../../net/ratelimit/README.md) / [`../metrics/README.md`](../../observability/metrics/README.md) / [`../dashboard/README.md`](../../observability/dashboard/README.md) — cross-cutting
+- [`../compat/README.md`](../../core/compat/README.md) — shared HTTP/path/XML/namespace helpers

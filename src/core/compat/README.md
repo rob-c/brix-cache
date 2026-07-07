@@ -84,7 +84,7 @@ Execution always **enters from a caller above** — a protocol handler or a subs
 - **Native stream** (`../read/`, `../write/`, `../query/`, `../fattr/`): checksums → `checksum.c`/`crc32c.c`/`integrity_info.c`; readv coalescing → `range_vector.c`; clone/chkpoint/copy → `copy_range.c`; mutations → `namespace_ops.c`; space → `fs_usage.c`.
 - **TPC / proxy / CMS** (`../tpc/`, `../proxy/`, `../cms/`): outbound target validation → `net_target.c`; background job teardown → `async_job.c`; SHM slot bookkeeping → `shm_slots.h`.
 
-What this directory **calls out to**: the filesystem helpers depend on the kernel-confinement primitives in [`../path/beneath.h`](../path/README.md) (`brix_*_beneath`, `brix_beneath_open_root`, `brix_beneath_strip_root`) and on [`../fattr`](../fattr/README.md) xattr key constants; `copy_range.c` and the body/checksum loops are **blocking** and run under the [`../aio`](../aio/README.md) thread pool; status mappings feed the response framing in [`../response`](../response/README.md) and the counters in [`../metrics`](../metrics/README.md). It depends on nginx core/HTTP, OpenSSL, zlib, and libxml2.
+What this directory **calls out to**: the filesystem helpers depend on the kernel-confinement primitives in [`../path/beneath.h`](../../fs/path/README.md) (`brix_*_beneath`, `brix_beneath_open_root`, `brix_beneath_strip_root`) and on [`../fattr`](../../protocols/root/fattr/README.md) xattr key constants; `copy_range.c` and the body/checksum loops are **blocking** and run under the [`../aio`](../aio/README.md) thread pool; status mappings feed the response framing in [`../response`](../../protocols/root/response/README.md) and the counters in [`../metrics`](../../observability/metrics/README.md). It depends on nginx core/HTTP, OpenSSL, zlib, and libxml2.
 
 ## Invariants, security & gotchas
 
@@ -111,10 +111,10 @@ What this directory **calls out to**: the filesystem helpers depend on the kerne
 
 ## See also
 
-- [`../path/README.md`](../path/README.md) — `beneath.h` RESOLVE_BENEATH confinement, canonicalisation, ACL/authdb (this directory's confinement backend).
+- [`../path/README.md`](../../fs/path/README.md) — `beneath.h` RESOLVE_BENEATH confinement, canonicalisation, ACL/authdb (this directory's confinement backend).
 - [`../aio/README.md`](../aio/README.md) — thread-pool offload for the blocking calls here.
-- [`../read/README.md`](../read/README.md), [`../write/README.md`](../write/README.md) — native opcode bodies that consume these checksum/copy/mutation helpers.
-- [`../webdav/README.md`](../webdav/README.md), [`../s3/README.md`](../s3/README.md) — the two HTTP front-ends that drive the `http_*` / `range` / `xml` / `staged_file` helpers.
-- [`../fattr/README.md`](../fattr/README.md) — xattr key constants used by `integrity_info.c` / `namespace_ops.c`.
-- [`../query/README.md`](../query/README.md), [`../tpc/README.md`](../tpc/README.md), [`../metrics/README.md`](../metrics/README.md) — callers of checksum, `net_target`, and `fs_usage`.
+- [`../read/README.md`](../../protocols/root/read/README.md), [`../write/README.md`](../../protocols/root/write/README.md) — native opcode bodies that consume these checksum/copy/mutation helpers.
+- [`../webdav/README.md`](../../protocols/webdav/README.md), [`../s3/README.md`](../../protocols/s3/README.md) — the two HTTP front-ends that drive the `http_*` / `range` / `xml` / `staged_file` helpers.
+- [`../fattr/README.md`](../../protocols/root/fattr/README.md) — xattr key constants used by `integrity_info.c` / `namespace_ops.c`.
+- [`../query/README.md`](../../protocols/root/query/README.md), [`../tpc/README.md`](../../tpc/README.md), [`../metrics/README.md`](../../observability/metrics/README.md) — callers of checksum, `net_target`, and `fs_usage`.
 - [`../README.md`](../README.md) — master subsystem index.

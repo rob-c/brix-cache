@@ -3,8 +3,8 @@
 Optional, **off by default**. Lets the gateway run namespace/open operations as
 the local UNIX account the authenticated identity maps to (so files are owned by,
 and kernel DAC is enforced for, the real user) instead of the single nginx worker
-uid. Plan: [`docs/refactor/phase-40-unix-impersonation.md`](../../docs/refactor/phase-40-unix-impersonation.md).
-Operator guide: [`docs/06-authentication/impersonation.md`](../../docs/06-authentication/impersonation.md).
+uid. Plan: [`docs/refactor/phase-40-unix-impersonation.md`](../../../docs/refactor/phase-40-unix-impersonation.md).
+Operator guide: [`docs/06-authentication/impersonation.md`](../../../docs/06-authentication/impersonation.md).
 
 ## Operating modes (`brix_impersonation off|single|map`)
 
@@ -97,9 +97,9 @@ its own export rootfd, so a worker bug cannot escape the export root.
 
 ## Tests
 
-[`tests/userns/`](../../tests/userns/) — runs the real broker+client+idmap under
+[`tests/userns/`](../../../tests/userns/) — runs the real broker+client+idmap under
 an **unprivileged user namespace** (subuid range via `newuidmap`/`newgidmap` +
 a bind-mounted fake `/etc/passwd`, no `nss_wrapper`), proving ownership, DAC
 enforcement, supplementary groups, confinement, deny policy, squash, and
 no-credential-leak-under-concurrency without real root. Plus `nginx -t` mode
-validation and an idmap unit test ([`tests/c/idmap_test.c`](../../tests/c/idmap_test.c)).
+validation and an idmap unit test ([`tests/c/idmap_test.c`](../../../tests/c/idmap_test.c)).

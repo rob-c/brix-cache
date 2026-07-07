@@ -24,24 +24,24 @@ checked globally before any per-path token scope).
 The data-carrying opcodes (`write`/`pgwrite`/`writev`) follow a uniform AIO
 fork: when a thread pool is configured they detach the received payload from
 `ctx->payload_buf` and post a `pwrite(2)` task to
-[`../aio`](../aio/README.md) (the worker thread + completion callbacks live in
+[`../aio`](../../../core/aio/README.md) (the worker thread + completion callbacks live in
 `../aio/write.c`, *not* in this directory), letting the event loop read the next
 header while disk I/O proceeds. With no thread pool, or if the task queue is
 full, they fall back to an inline synchronous `pwrite(2)` that rebuilds the same
 response. Either way, since phase-54 the `pwrite`/writev/pgwrite byte movement runs
 through the VFS-owned thread-safe core `brix_vfs_io_execute()`
-([`../fs/vfs_io_core.c`](../fs/README.md)) rather than a syscall reimplemented here, so
+([`../fs/vfs_io_core.c`](../../../fs/README.md)) rather than a syscall reimplemented here, so
 short-write and error handling are shared with the rest of the VFS. Namespace opcodes are
 path-based: they resolve the client path beneath
 the export root, run the auth gate, and perform a single confined syscall via
-[`../compat`](../compat/README.md)'s `namespace_ops` helpers.
+[`../compat`](../../../core/compat/README.md)'s `namespace_ops` helpers.
 
 Two reliability features thread through the write path: a per-handle
 **write-recovery journal** (`wrts_journal.*`, backing the `kXR_recoverWrts`
 protocol flag — replayed writes after a client reconnect are detected and
 short-circuited so bytes are never written twice), and **write-through dirty
 tracking** (`wt_*` fields, mirroring `XrdPfcFile`, accumulated for close-time
-origin flush by [`../cache`](../cache/README.md)).
+origin flush by [`../cache`](../../../fs/cache/README.md)).
 
 ## Files
 
@@ -116,21 +116,21 @@ origin flush by [`../cache`](../cache/README.md)).
 
 Calls outward to sibling subsystems:
 
-- **[`../path`](../path/README.md)** — `brix_resolve_op_path()`,
+- **[`../path`](../../../fs/path/README.md)** — `brix_resolve_op_path()`,
   `brix_path_resolve_beneath()`, `brix_extract_path()` for confinement, and
   `brix_auth_gate()` for the three-tier (VO ACL / authdb / token-scope) write
   authorization that the gate enforces for path-based ops.
-- **[`../aio`](../aio/README.md)** — thread-pool task plumbing
+- **[`../aio`](../../../core/aio/README.md)** — thread-pool task plumbing
   (`brix_aio_post_task`, `brix_task_bind`, `BRIX_GET_SCRATCH`); the
   `*_aio_thread`/`*_aio_done` callbacks for both `write` and `writev` live in
   `../aio/write.c`.
-- **[`../compat`](../compat/README.md)** — `brix_ns_mkdir` / `brix_ns_rename`
+- **[`../compat`](../../../core/compat/README.md)** — `brix_ns_mkdir` / `brix_ns_rename`
   / `brix_ns_delete` (confined namespace syscalls), `brix_crc32c_copy`,
   `brix_copy_range`, `brix_staged_*`, and the `brix_kxr_*` errno→kXR
   mappers.
-- **[`../cache`](../cache/README.md)** — `brix_wt_mark_dirty` /
+- **[`../cache`](../../../fs/cache/README.md)** — `brix_wt_mark_dirty` /
   `brix_wt_flush_sync_handle` for write-through origin propagation.
-- **[`../tpc`](../tpc/README.md)** — `brix_tpc_start_pull` driven by the
+- **[`../tpc`](../../../tpc/README.md)** — `brix_tpc_start_pull` driven by the
   second `kXR_sync` on a native-TPC destination handle.
 - **`../read`** validation helpers — `brix_validate_write_handle` /
   `brix_validate_file_handle` (defined in `../connection/fd_table.c`,
@@ -222,10 +222,10 @@ and a `case` in `ckp_xeq()`'s `switch (sub_reqid)`.
 
 - [`../read/README.md`](../read/README.md) — the read-side opcode peer.
 - [`../handshake/README.md`](../handshake/README.md) — the opcode dispatcher and write gate.
-- [`../aio/README.md`](../aio/README.md) — thread-pool offload; the write AIO worker/done callbacks.
-- [`../path/README.md`](../path/README.md) — confinement and the auth gate.
-- [`../compat/README.md`](../compat/README.md) — confined namespace syscalls, CRC32c, errno→kXR mapping.
-- [`../cache/README.md`](../cache/README.md) — write-through dirty tracking and origin flush.
-- [`../tpc/README.md`](../tpc/README.md) — native third-party copy (sync-driven pull).
-- [`../types/README.md`](../types/README.md) — `brix_file_t` (journal + checkpoint state).
+- [`../aio/README.md`](../../../core/aio/README.md) — thread-pool offload; the write AIO worker/done callbacks.
+- [`../path/README.md`](../../../fs/path/README.md) — confinement and the auth gate.
+- [`../compat/README.md`](../../../core/compat/README.md) — confined namespace syscalls, CRC32c, errno→kXR mapping.
+- [`../cache/README.md`](../../../fs/cache/README.md) — write-through dirty tracking and origin flush.
+- [`../tpc/README.md`](../../../tpc/README.md) — native third-party copy (sync-driven pull).
+- [`../types/README.md`](../../../core/types/README.md) — `brix_file_t` (journal + checkpoint state).
 - [`../README.md`](../README.md) — subsystem master index.

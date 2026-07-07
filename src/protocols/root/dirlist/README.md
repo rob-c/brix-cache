@@ -31,7 +31,7 @@ one-worker test deployments. Reviewers should treat the synchronous path as the
 live code path.
 
 Since phase-54 the VFS-owned thread-safe core `brix_vfs_io_execute()` has an
-`OPENDIR` op (in [`../fs/vfs_io_core.c`](../fs/README.md)) that scans a confined
+`OPENDIR` op (in [`../fs/vfs_io_core.c`](../../../fs/README.md)) that scans a confined
 directory fd and builds the `kXR_dirlist` wire body off the event loop. **It is
 wired into the `../aio/dirlist.c` worker only** — and that worker is currently
 gated off (see above) — so the **live** path is still the synchronous

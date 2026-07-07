@@ -5,7 +5,7 @@ family and the [SciTags](https://www.scitags.org) initiative (WLCG / ESnet / GÉ
 Each data flow is labelled with an `(experiment, activity)` pair so R&E network
 operators can account for and engineer traffic per-VO / per-activity.
 
-Design doc: [`docs/refactor/phase-34-packet-marking-scitags.md`](../../docs/refactor/phase-34-packet-marking-scitags.md).
+Design doc: [`docs/refactor/phase-34-packet-marking-scitags.md`](../../../docs/refactor/phase-34-packet-marking-scitags.md).
 
 ## Overview
 
@@ -59,11 +59,11 @@ brix_pmark_map_activity   atlas default   default;
 A flow is begun once per transfer at the protocol's open/handler site and ended at
 teardown (firefly `end` reads the final TCP_INFO before the fd closes):
 
-- **root://** (stream): begun in [`../read/open_request.c`](../read/README.md) on
-  the first local data open; ended in [`../connection/disconnect.c`](../connection/README.md).
+- **root://** (stream): begun in [`../read/open_request.c`](../../protocols/root/read/README.md) on
+  the first local data open; ended in [`../connection/disconnect.c`](../../protocols/root/connection/README.md).
   Handle stored on `brix_ctx_t.pmark_flow`.
-- **WebDAV / S3** (HTTP): begun in [`../webdav/dispatch.c`](../webdav/README.md) /
-  [`../s3/handler.c`](../s3/README.md) post-auth; ended via an `ngx_pool_cleanup`.
+- **WebDAV / S3** (HTTP): begun in [`../webdav/dispatch.c`](../../protocols/webdav/README.md) /
+  [`../s3/handler.c`](../../protocols/s3/README.md) post-auth; ended via an `ngx_pool_cleanup`.
   TPC (COPY) always marked; plain GET/PUT only with `brix_pmark_http_plain`.
 
 ## Invariants, security & gotchas
@@ -89,5 +89,5 @@ teardown (firefly `end` reads the final TCP_INFO before the fd closes):
 
 ## See also
 
-- [`../../docs/refactor/phase-34-packet-marking-scitags.md`](../../docs/refactor/phase-34-packet-marking-scitags.md) — full design + XRootD ground truth.
-- [`../config/shared_conf.h`](../config/README.md) — where the pmark config is embedded.
+- [`../../docs/refactor/phase-34-packet-marking-scitags.md`](../../../docs/refactor/phase-34-packet-marking-scitags.md) — full design + XRootD ground truth.
+- [`../config/shared_conf.h`](../../core/config/README.md) — where the pmark config is embedded.

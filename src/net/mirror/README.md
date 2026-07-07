@@ -196,16 +196,16 @@ wire framing), `../metrics/README.md` (`brix_metrics_shared`), `../webdav/`
 
 ## See also
 
-- [`../handshake/README.md`](../handshake/README.md) — stream dispatch hooks that
+- [`../handshake/README.md`](../../protocols/root/handshake/README.md) — stream dispatch hooks that
   invoke `brix_stream_mirror_maybe` / `brix_stream_wmirror_observe`.
-- [`../webdav/README.md`](../webdav/README.md) — HTTP method router; registers the
+- [`../webdav/README.md`](../../protocols/webdav/README.md) — HTTP method router; registers the
   mirror phase handlers and owns the loc conf / req ctx.
 - [`../upstream/README.md`](../upstream/README.md) —
   `brix_upstream_build_bootstrap` and the health-check probe this mirror's wire
   framing is modelled on.
-- [`../metrics/README.md`](../metrics/README.md) — the shared SHM counter struct.
-- [`../read/README.md`](../read/README.md) — write-open hook
+- [`../metrics/README.md`](../../observability/metrics/README.md) — the shared SHM counter struct.
+- [`../read/README.md`](../../protocols/root/read/README.md) — write-open hook
   (`open_resolved_file.c`) that starts data-write accumulation.
-- [`../protocol/README.md`](../protocol/README.md) — `kXR_*` constants and wire
+- [`../protocol/README.md`](../../protocols/root/protocol/README.md) — `kXR_*` constants and wire
   structures used by the stream replays.
 - [`../README.md`](../README.md) — subsystem master index.

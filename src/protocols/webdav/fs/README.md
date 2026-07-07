@@ -63,7 +63,7 @@ canonicalized C-string paths. The relevant types it operates on are:
 **Calls out to (siblings):**
 - `../../compat/copy_range.c` (`brix_copy_range()`) — the actual byte mover:
   `copy_file_range(2)` with a `pread`/`pwrite` fallback on `ENOSYS`/`EOPNOTSUPP`/`EXDEV`.
-  See [../../compat/README.md](../../compat/README.md).
+  See [../../compat/README.md](../../../core/compat/README.md).
 - `../../compat/namespace_ops.c` — confinement + metadata: `brix_open_confined_canon()` /
   `brix_mkdir_confined_canon()` (`openat2 RESOLVE_BENEATH` against the export root),
   `brix_ns_copy_fattrs()` (copies the `user.xrd.*` xattr prefix), and `brix_log_safe_path()`
@@ -76,8 +76,8 @@ canonicalized C-string paths. The relevant types it operates on are:
 subsystem itself runs synchronously; see the blocking-I/O note below.
 
 Related upstream context: WebDAV method routing lives in [../README.md](../README.md);
-path canonicalization/confinement in [../../path/README.md](../../path/README.md); the
-async data plane for *reads/writes* (not used here) in [../../aio/README.md](../../aio/README.md).
+path canonicalization/confinement in [../../path/README.md](../../../fs/path/README.md); the
+async data plane for *reads/writes* (not used here) in [../../aio/README.md](../../../core/aio/README.md).
 
 ## Invariants, security & gotchas
 
@@ -145,9 +145,9 @@ async data plane for *reads/writes* (not used here) in [../../aio/README.md](../
 ## See also
 
 - [../README.md](../README.md) — WebDAV method router and `COPY`/`MOVE` handlers (`../copy.c`).
-- [../../compat/README.md](../../compat/README.md) — `brix_copy_range`, `namespace_ops`
+- [../../compat/README.md](../../../core/compat/README.md) — `brix_copy_range`, `namespace_ops`
   confined helpers, and xattr-prefix copy.
-- [../../path/README.md](../../path/README.md) — path canonicalization and `RESOLVE_BENEATH`
+- [../../path/README.md](../../../fs/path/README.md) — path canonicalization and `RESOLVE_BENEATH`
   confinement model.
 - `../../tpc/` (native SHM-key TPC) and `../tpc.c` (WebDAV curl COPY) — the *remote*
   third-party-copy paths this subsystem deliberately does not implement.

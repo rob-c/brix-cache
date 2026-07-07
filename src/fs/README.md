@@ -60,12 +60,12 @@ S3 transport-vtable trick, the dual-build mechanism, invariants):
 [`docs/09-developer-guide/vfs-shared-architecture.md`](../../docs/09-developer-guide/vfs-shared-architecture.md).
 
 Crucially, the VFS does **not** decide *which* path to touch — that is the job of
-[`../path/`](../path/README.md), which produces the `brix_path_result_t`
+[`../path/`](path/README.md), which produces the `brix_path_result_t`
 embedded in the ctx. The VFS *re-verifies* confinement before every syscall
 (`is_confined` must be set and the resolved path non-empty) and then opens via
-the kernel `RESOLVE_BENEATH` API in [`../path/beneath.h`](../path/README.md). It
+the kernel `RESOLVE_BENEATH` API in [`../path/beneath.h`](path/README.md). It
 also does not run blocking I/O on the event loop on its own behalf. The blocking
-read/write/readv/writev/pgread bodies — on a [`../aio/`](../aio/README.md)
+read/write/readv/writev/pgread bodies — on a [`../aio/`](../core/aio/README.md)
 thread-pool worker, on the io_uring inline fallback, or on the event-loop inline
 fallback — execute through one VFS-owned, thread-safe core,
 `brix_vfs_io_execute()` in `vfs_io_core.c` (phase-54). The synchronous
@@ -75,13 +75,13 @@ completion. Workers no longer carry their own copies of these syscalls; a few
 zero-copy/fast paths stay beside the core by design (see the two-tier boundary
 note below).
 
-Callers today: [`../read/`](../read/README.md) and [`../write/`](../write/README.md)
-(XRootD opcodes), [`../shared/file_serve.c`](../shared/README.md),
-[`../webdav/`](../webdav/README.md) (`get.c`, `resource.c`; plus the metered
+Callers today: [`../read/`](../protocols/root/read/README.md) and [`../write/`](../protocols/root/write/README.md)
+(XRootD opcodes), [`../shared/file_serve.c`](../protocols/shared/README.md),
+[`../webdav/`](../protocols/webdav/README.md) (`get.c`, `resource.c`; plus the metered
 xattr/copy/staged/delete paths in `prop_xattr.c`, `dead_props.c`, `copy.c`,
-`put.c`, `namespace.c`), [`../s3/`](../s3/README.md) (`object.c`,
+`put.c`, `namespace.c`), [`../s3/`](../protocols/s3/README.md) (`object.c`,
 `post_object.c`, `put.c`, `tagging.c`, `checksum.c`, `conditional.c`), and
-[`../dirlist/`](../dirlist/README.md).
+[`../dirlist/`](../protocols/root/dirlist/README.md).
 
 > **Two VFS tiers — metered (loop-only) vs. raw (thread-safe).** Since phase-54
 > the VFS exposes two surfaces, and **all disk byte I/O now goes through the VFS**
@@ -95,7 +95,7 @@ xattr/copy/staged/delete paths in `prop_xattr.c`, `dead_props.c`, `copy.c`,
 >    the thread-safe EXECUTE surface that the offloaded and inline-fallback raw
 >    byte ops now funnel through — `kXR_read`, `write`, `readv`, `writev`,
 >    `pgread`, and the `dirlist` scan — whether executed on the
->    [`../aio/`](../aio/README.md) thread pool, on the event-loop **inline
+>    [`../aio/`](../core/aio/README.md) thread pool, on the event-loop **inline
 >    fallback** (no pool / queue full), or on the io_uring inline fallback. It
 >    mutates only a POD job descriptor and caller-owned buffers: **no pool, no
 >    metrics, no log, no cache.** This is what removed the old "workers
@@ -106,9 +106,9 @@ xattr/copy/staged/delete paths in `prop_xattr.c`, `dead_props.c`, `copy.c`,
 >
 >    Two categories sit *beside* the core by design, not below it: (a) **zero-copy
 >    fast paths** — the cleartext/kTLS `sendfile` read and the
->    `preadv2(RWF_NOWAIT)` warm-cache probe in [`../read/read.c`](../read/README.md)
+>    `preadv2(RWF_NOWAIT)` warm-cache probe in [`../read/read.c`](../protocols/root/read/README.md)
 >    move bytes without a core buffer at all; (b) the **live synchronous
->    `dirlist`** loop in [`../dirlist/handler.c`](../dirlist/README.md) still runs
+>    `dirlist`** loop in [`../dirlist/handler.c`](../protocols/root/dirlist/README.md) still runs
 >    its own confined `fdopendir`/`readdir` (the core's `OPENDIR` op is wired into
 >    the `../aio/dirlist.c` worker, which is currently gated off). These are
 >    tracked follow-ups, not separate raw-I/O implementations of the offload path.
@@ -196,13 +196,13 @@ verb kernel), `backend/` (storage drivers), `path/` (confinement), `cache/`,
 ## Control & data flow
 
 **Entry.** A protocol op handler resolves the client path via
-[`../path/`](../path/README.md), stamps an `brix_vfs_ctx_t`, and calls a single
+[`../path/`](path/README.md), stamps an `brix_vfs_ctx_t`, and calls a single
 VFS function. There is no dispatcher inside `fs/`; each entry point is called
 directly.
 
 **Open (`vfs_open.c`).** `brix_vfs_require_confined()` rejects unconfined or
 empty paths; a write open additionally requires `allow_write`. Then:
-1. `brix_cache_open()` ([`../cache/`](../cache/README.md)) gets first refusal —
+1. `brix_cache_open()` ([`../cache/`](cache/README.md)) gets first refusal —
    a read-through cache hit returns a ready handle and bumps the cache-hit
    metric; `NGX_DECLINED` falls through (and records a miss).
 2. Otherwise the **confinement cascade**: `rootfd >= 0` →
@@ -221,27 +221,27 @@ branches on transport: TLS or `want_pgcrc` → `make_memory_chain()`
 (`ngx_pnalloc` + `pread_full`, `b->memory=1`, CRC computed inline); cleartext →
 `make_file_chain()` (`dup` the fd, register `ngx_pool_cleanup_file`, emit an
 `in_file` buf for sendfile). Cache hits record access into
-[`../cache/`](../cache/README.md). The synchronous body here is what
-[`../aio/`](../aio/README.md) runs in the thread pool; the AIO completion
+[`../cache/`](cache/README.md). The synchronous body here is what
+[`../aio/`](../core/aio/README.md) runs in the thread pool; the AIO completion
 rebuilds an identical chain on the event loop.
 
 **Write (`vfs_write.c`).** Iterates the input chain, copying in-file bufs in
 `BRIX_VFS_COPY_CHUNK` (64 KiB) blocks via `pread_full`→`pwrite_full` and
 writing in-memory bufs directly, extending the CRC32c and advancing `dst_off`.
 On success it grows the handle's cached `size` and asks
-[`../cache/`](../cache/README.md) whether the region should be mirrored
+[`../cache/`](cache/README.md) whether the region should be mirrored
 write-through.
 
 **Namespace ops (`vfs_mkdir.c`/`vfs_rename.c`/`vfs_unlink.c`).** These do not
 syscall directly; they delegate to the `brix_ns_*` family in
-[`../compat/namespace_ops`](../compat/README.md) (which itself confines via the
+[`../compat/namespace_ops`](../core/compat/README.md) (which itself confines via the
 beneath API), translating `brix_ns_result_t.status`/`.sys_errno` back to
 `NGX_OK`/`NGX_ERROR` + `errno`.
 
 **Exit / observability.** Every entry point wraps its result through
 `brix_vfs_observe_*` (`vfs_internal.h`), which calls `brix_metric_op_done()`
-([`../metrics/`](../metrics/README.md)) and `brix_access_log_emit()`
-([`../metrics/access_log`](../metrics/README.md)) with op, byte count, latency,
+([`../metrics/`](../observability/metrics/README.md)) and `brix_access_log_emit()`
+([`../metrics/access_log`](../observability/metrics/README.md)) with op, byte count, latency,
 and an `brix_err_class_t` derived from `errno` — then restores `errno` for the
 caller. This is why protocol handlers don't (and shouldn't) emit their own
 per-op data-plane metrics.
@@ -254,7 +254,7 @@ per-op data-plane metrics.
    filesystem access then goes through `brix_open_beneath` /
    `brix_open_confined_canon` / `brix_ns_*`, all of which use
    `RESOLVE_BENEATH`. An `EXDEV` from those means an escape attempt — callers map
-   it to `kXR_NotAuthorized`/403 (see [`../path/beneath.h`](../path/README.md)).
+   it to `kXR_NotAuthorized`/403 (see [`../path/beneath.h`](path/README.md)).
 2. **The raw-`open()` branch is not a bypass.** It is only reached when the ctx
    carries *no* root at all (server-constructed absolute path). Client requests
    always set a root and take the confined branches. Do not "simplify" the
@@ -273,7 +273,7 @@ per-op data-plane metrics.
    framing. The VFS computes the checksum but does not frame it.
 6. **Event-loop safety.** `pread_full`/`pwrite_full` loop on `EINTR` and short
    writes but are *blocking*. On hot paths they run inside the
-   [`../aio/`](../aio/README.md) thread pool, never directly on the event loop.
+   [`../aio/`](../core/aio/README.md) thread pool, never directly on the event loop.
    Treat new blocking syscalls added here as AIO-offload candidates.
 7. **Sendfile fd ownership.** `make_file_chain()` `dup`s the handle fd and
    registers `ngx_pool_cleanup_file`, so the request pool closes the *duplicate*
@@ -379,13 +379,13 @@ design, not omission. See
   state machine + ledger behind normal staging, tape stage-out, proxy
   write-through, and TPC (consumed by `vfs_staged.c`, `cache/writethrough_*`,
   `webdav/tpc*`, `s3/put_finalize.c`, `read/close.c`).
-- [`../path/README.md`](../path/README.md) — produces the confined
+- [`../path/README.md`](path/README.md) — produces the confined
   `brix_path_result_t` and the `RESOLVE_BENEATH` open primitives this layer relies on.
-- [`../cache/README.md`](../cache/README.md) — read-through open + write-through mirroring hooked into open/read/write.
-- [`../aio/README.md`](../aio/README.md) — thread-pool offload that runs the VFS read/write bodies off the event loop.
-- [`../read/README.md`](../read/README.md), [`../write/README.md`](../write/README.md) — XRootD opcode handlers that frame VFS results onto the stream wire.
-- [`../shared/README.md`](../shared/README.md), [`../webdav/README.md`](../webdav/README.md), [`../s3/README.md`](../s3/README.md) — HTTP/S3 file-serving callers.
-- [`../dirlist/README.md`](../dirlist/README.md) — consumes `brix_vfs_opendir`/`readdir`.
-- [`../compat/README.md`](../compat/README.md) — `brix_ns_*` namespace mutation helpers and CRC32c.
-- [`../metrics/README.md`](../metrics/README.md) — `brix_metric_op_done` + access-log emission.
+- [`../cache/README.md`](cache/README.md) — read-through open + write-through mirroring hooked into open/read/write.
+- [`../aio/README.md`](../core/aio/README.md) — thread-pool offload that runs the VFS read/write bodies off the event loop.
+- [`../read/README.md`](../protocols/root/read/README.md), [`../write/README.md`](../protocols/root/write/README.md) — XRootD opcode handlers that frame VFS results onto the stream wire.
+- [`../shared/README.md`](../protocols/shared/README.md), [`../webdav/README.md`](../protocols/webdav/README.md), [`../s3/README.md`](../protocols/s3/README.md) — HTTP/S3 file-serving callers.
+- [`../dirlist/README.md`](../protocols/root/dirlist/README.md) — consumes `brix_vfs_opendir`/`readdir`.
+- [`../compat/README.md`](../core/compat/README.md) — `brix_ns_*` namespace mutation helpers and CRC32c.
+- [`../metrics/README.md`](../observability/metrics/README.md) — `brix_metric_op_done` + access-log emission.
 - [`../README.md`](../README.md) — module-wide subsystem index.

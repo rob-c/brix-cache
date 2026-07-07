@@ -203,9 +203,9 @@ to `config` (`NGX_ADDON_SRCS`); header-only helpers need no registration.
 - [`../README.md`](../README.md) — master subsystem index.
 - [`../webdav/README.md`](../webdav/README.md) — WebDAV `GET` caller of `file_serve.c`.
 - [`../s3/README.md`](../s3/README.md) — S3 `GetObject` caller of `file_serve.c`.
-- [`../compat/README.md`](../compat/README.md) — `range.h` / `http_file_response.h` (range parse + header/body send).
-- [`../fs/README.md`](../fs/README.md) — VFS handle/stat types and accessors.
-- [`../cache/README.md`](../cache/README.md) — cache-backed handles + `evict_candidates.c` (safe_size consumer).
-- [`../read/README.md`](../read/README.md) — `readv.c` segment array (safe_size consumer).
-- [`../dashboard/README.md`](../dashboard/README.md) — live transfer tracking hooks.
-- [`../path/README.md`](../path/README.md) — path confinement that precedes every serve.
+- [`../compat/README.md`](../../core/compat/README.md) — `range.h` / `http_file_response.h` (range parse + header/body send).
+- [`../fs/README.md`](../../fs/README.md) — VFS handle/stat types and accessors.
+- [`../cache/README.md`](../../fs/cache/README.md) — cache-backed handles + `evict_candidates.c` (safe_size consumer).
+- [`../read/README.md`](../root/read/README.md) — `readv.c` segment array (safe_size consumer).
+- [`../dashboard/README.md`](../../observability/dashboard/README.md) — live transfer tracking hooks.
+- [`../path/README.md`](../../fs/path/README.md) — path confinement that precedes every serve.

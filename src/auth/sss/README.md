@@ -14,25 +14,25 @@ directive.
 
 This subsystem sits on the **stream** (`root://`) authentication path. After the
 client `kXR_login`, it sends a `kXR_auth` request whose credential `protocol`
-field is `"sss"`; the opcode dispatcher in [`../handshake/`](../handshake/) routes
+field is `"sss"`; the opcode dispatcher in [`../handshake/`](../../protocols/root/handshake/) routes
 through [`../gsi/auth.c`](../gsi/auth.c) (`brix_handle_auth`), which dispatches
 on credential type to `brix_handle_sss_auth()` in `auth_request.c`. On success
 the handler populates `ctx->dn` / `ctx->vo_list` / `ctx->primary_vo`, sets the
 unified `ctx->identity` (`BRIX_AUTHN_SSS`), registers the session in
-[`../session/`](../session/registry.h), and tracks per-VO / unique-user metrics.
+[`../session/`](../../protocols/root/session/registry.h), and tracks per-VO / unique-user metrics.
 
 The same credential machinery is reused in two other places. In **proxy mode**,
-when an upstream XRootD server demands SSS, [`../proxy/`](../proxy/) calls
+when an upstream XRootD server demands SSS, [`../proxy/`](../../net/proxy/) calls
 `brix_sss_build_proxy_credential()` (`auth_proxy_credential.c`) to mint a
 credential *as a client*. In **CMS cluster mode**, the `kYR_xauth` handshake in
-[`../cms/`](../cms/) verifies a peer's self-contained SSS blob with the
+[`../cms/`](../../net/cms/) verifies a peer's self-contained SSS blob with the
 transport-independent `brix_sss_verify_blob()` (`auth_crypto_helpers.c`), and
 loads its keytab through the shared `brix_sss_load_keytab()` (`config.c`).
 
 SSS is purely an auth/identity establishment layer: it issues no I/O, touches no
 filesystem path, and returns control to the normal opcode dispatcher once the
-session identity is set. Kernel path confinement ([`../path/beneath.c`](../path/))
-and ACL enforcement of that identity happen later in [`../path/`](../path/)
+session identity is set. Kernel path confinement ([`../path/beneath.c`](../../fs/path/))
+and ACL enforcement of that identity happen later in [`../path/`](../../fs/path/)
 (`authdb`, `auth_gate`, VO rules) — never inside this subsystem.
 
 ## Files
@@ -54,7 +54,7 @@ and ACL enforcement of that identity happen later in [`../path/`](../path/)
 
 ## Key types & data structures
 
-- **`brix_sss_key_t`** (defined in [`../types/config.h`](../types/config.h)) —
+- **`brix_sss_key_t`** (defined in [`../types/config.h`](../../core/types/config.h)) —
   one parsed keytab entry: `id` (`int64_t` wire key-id), `exp` (expiry `time_t`,
   0 = never), `opts` (policy bitmask), `key[BRIX_SSS_KEY_MAX]` + `key_len` (raw
   secret, max 128 bytes), and the `name[BRIX_SSS_NAME_MAX]` /
@@ -71,7 +71,7 @@ and ACL enforcement of that identity happen later in [`../path/`](../path/)
   32-byte random nonce + 4-byte BE `gen_time` (offset 32) + reserved + 1 option
   byte (`USEDATA`/`SNDLID`) at offset 39, then the identity TLV stream, with a
   4-byte CRC32 appended **before** encryption.
-- **Key policy `opts`** ([`../types/tunables.h`](../types/tunables.h),
+- **Key policy `opts`** ([`../types/tunables.h`](../../core/types/tunables.h),
   `BRIX_SSS_OPT_*`): `ALLUSR` `0x01` / `ANYUSR` `0x02` (take username from the
   credential), `ANYGRP` `0x04` (take groups from the credential), `USRGRP` `0x08`
   (derive group from user → no group set), `NOIPCK` `0x10` (keytab `name` ends in
@@ -85,7 +85,7 @@ and ACL enforcement of that identity happen later in [`../path/`](../path/)
 
 **Inbound (stream `kXR_auth`):**
 
-1. [`../handshake/`](../handshake/) dispatcher → [`../gsi/auth.c`](../gsi/auth.c)
+1. [`../handshake/`](../../protocols/root/handshake/) dispatcher → [`../gsi/auth.c`](../gsi/auth.c)
    `brix_handle_auth` matches credential type `"sss"`, checks
    `conf->auth == BRIX_AUTH_SSS` (`gsi/auth.c:126`), and calls
    `brix_handle_sss_auth(ctx, c, conf)` (`gsi/auth.c:130`).
@@ -97,24 +97,24 @@ and ACL enforcement of that identity happen later in [`../path/`](../path/)
    re-submits a `USEDATA` credential.
 4. On success the handler sets `ctx->dn`/`vo_list`/`primary_vo`, updates
    `ctx->identity` via `brix_identity_set_dn`/`set_vos_csv`
-   ([`../types/identity.h`](../types/identity.h)), records metrics through
-   [`../metrics/`](../metrics/) (`brix_track_vo_activity`,
+   ([`../types/identity.h`](../../core/types/identity.h)), records metrics through
+   [`../metrics/`](../../observability/metrics/) (`brix_track_vo_activity`,
    `brix_track_unique_user`), calls `brix_session_register()`
-   ([`../session/`](../session/registry.h)), and returns `kXR_ok` via
+   ([`../session/`](../../protocols/root/session/registry.h)), and returns `kXR_ok` via
    `BRIX_RETURN_OK`.
 
-**Outbound (proxy mode):** [`../proxy/`](../proxy/) (`events_bootstrap.c`) calls
+**Outbound (proxy mode):** [`../proxy/`](../../net/proxy/) (`events_bootstrap.c`) calls
 `brix_sss_build_proxy_credential()` to encrypt a credential with the local
 keytab key (selected via `conf->sss_keyname`, or the first key when empty), then
 sends it as a `kXR_auth` to the upstream.
 
-**CMS peer auth:** [`../cms/`](../cms/) (`server_auth.c:72`) calls
+**CMS peer auth:** [`../cms/`](../../net/cms/) (`server_auth.c:72`) calls
 `brix_sss_verify_blob(ctx->conf->sss_keys, CMS_SSS_LIFETIME, ...)` to validate a
 peer's self-contained credential out of the `kYR_xauth` frame; the keytab itself
 is loaded at config time by `brix_sss_load_keytab()` from
-[`../cms/`](../cms/) `server_module.c`.
+[`../cms/`](../../net/cms/) `server_module.c`.
 
-**Startup:** [`../config/postconfiguration.c`](../config/postconfiguration.c)
+**Startup:** [`../config/postconfiguration.c`](../../core/config/postconfiguration.c)
 calls `brix_configure_sss_auth()` alongside the GSI/token loaders; any failure
 aborts nginx start (fail-closed).
 
@@ -154,7 +154,7 @@ aborts nginx start (fail-closed).
   a keytab in that mode — SSS is not silently usable alongside other schemes.
 - **nginx discipline:** stream-path allocation uses the connection pool
   (`ngx_palloc(c->pool, ...)`); responses are framed via
-  `brix_build_resp_hdr` + `brix_queue_response` ([`../response/`](../response/)),
+  `brix_build_resp_hdr` + `brix_queue_response` ([`../response/`](../../protocols/root/response/)),
   never raw writes. Wire strings reaching logs go through
   `brix_sanitize_log_string`. The keytab loader runs at config time and is the
   *only* place blocking file I/O (`open`/`fgets`/`fstat`) is permitted — never on
@@ -164,14 +164,14 @@ aborts nginx start (fail-closed).
 
 - **Add a new keytab field:** add a `case` in `brix_sss_parse_key_line()`
   (`config.c`) switching on the field prefix char; extend `brix_sss_key_t`
-  ([`../types/config.h`](../types/config.h)) if it needs new state; keep unknown
+  ([`../types/config.h`](../../core/types/config.h)) if it needs new state; keep unknown
   fields ignored for keytab compatibility but fail-closed on malformed *required*
   fields (`N:` id, `k:` key).
 - **Add a new identity TLV type:** add the constant to `sss_internal.h` and a
   `case` in `brix_sss_parse_identity()` (`auth_identity_challenge.c`); remember
   non-`RAND` fields must increment `id_count` to count as a valid identity.
 - **Add a new key policy option:** define `BRIX_SSS_OPT_*` in
-  [`../types/tunables.h`](../types/tunables.h), set it from a sentinel
+  [`../types/tunables.h`](../../core/types/tunables.h), set it from a sentinel
   user/group/name value in `brix_sss_parse_key_line()`, and apply it where
   `key->opts` is consulted in `auth_request.c`.
 - **Reuse SSS over a new transport:** call `brix_sss_verify_blob()` (verify) or
@@ -185,10 +185,10 @@ aborts nginx start (fail-closed).
 - [`../token/`](../token/) — WLCG/JWT bearer-token auth (distinct auth domain).
 - [`../krb5/`](../krb5/), [`../unix/`](../unix/), [`../voms/`](../voms/) — sibling
   authentication schemes.
-- [`../session/`](../session/) — session registry populated after auth.
-- [`../cms/`](../cms/) — CMS `kYR_xauth` peer authentication (reuses SSS verify).
-- [`../proxy/`](../proxy/) — outbound SSS as a client to upstream servers.
-- [`../path/`](../path/) — kernel confinement + ACL/VO enforcement of the
+- [`../session/`](../../protocols/root/session/) — session registry populated after auth.
+- [`../cms/`](../../net/cms/) — CMS `kYR_xauth` peer authentication (reuses SSS verify).
+- [`../proxy/`](../../net/proxy/) — outbound SSS as a client to upstream servers.
+- [`../path/`](../../fs/path/) — kernel confinement + ACL/VO enforcement of the
   established identity.
-- [`../config/`](../config/) — `postconfiguration.c` startup wiring.
+- [`../config/`](../../core/config/) — `postconfiguration.c` startup wiring.
 - [`../README.md`](../README.md) — master subsystem index.

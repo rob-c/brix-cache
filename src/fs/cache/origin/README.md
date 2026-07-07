@@ -49,5 +49,5 @@ back on the single-threaded loop via the shared fill-done path.
 ## See also
 
 - `../README.md` — the cache subsystem overview (fill engine, write-through).
-- [`docs/02-concepts/`](../../../docs/02-concepts/) and the Pelican design notes
+- [`docs/02-concepts/`](../../../../docs/02-concepts/) and the Pelican design notes
   referenced inline in `pelican.c` / `pelican_register.c`.

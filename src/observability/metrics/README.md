@@ -127,16 +127,16 @@ handler emits `brix_kv_metrics_emit()` (KV zones). All reads use
 `ngx_atomic_fetch_add(..., 0)`.
 
 **Calls out to siblings.** `cluster.c` reads the manager registry SHM
-(`../manager/registry.h`, `brix_srv_snapshot`) — see [../manager/README.md](../manager/README.md)
-and [../cms/README.md](../cms/README.md) for how that registry is populated.
-`stream_cache.c` reports on the [../cache/README.md](../cache/README.md) read-through/
+(`../manager/registry.h`, `brix_srv_snapshot`) — see [../manager/README.md](../../net/manager/README.md)
+and [../cms/README.md](../../net/cms/README.md) for how that registry is populated.
+`stream_cache.c` reports on the [../cache/README.md](../../fs/cache/README.md) read-through/
 write-through subsystem via `../compat/fs_usage.h`. `unified.c` and `access_log.c`
 consume identity from `../types/identity.h`, and `writer.c` reads KV stats from
 `../shm/kv.h`. The op slots correspond to handlers in
-[../read/README.md](../read/README.md) and [../write/README.md](../write/README.md);
-async completions that bump counters originate in [../aio/README.md](../aio/README.md);
+[../read/README.md](../../protocols/root/read/README.md) and [../write/README.md](../../protocols/root/write/README.md);
+async completions that bump counters originate in [../aio/README.md](../../core/aio/README.md);
 path-confinement rejections feed `path_depth_violations_total` from
-[../path/README.md](../path/README.md).
+[../path/README.md](../../fs/path/README.md).
 
 ## Invariants, security & gotchas
 
@@ -209,8 +209,8 @@ path-confinement rejections feed `path_depth_violations_total` from
 ## See also
 
 - [../README.md](../README.md) — master subsystem index
-- [../manager/README.md](../manager/README.md), [../cms/README.md](../cms/README.md) — the cluster registry `cluster.c` reads
-- [../cache/README.md](../cache/README.md) — read-through/write-through counters surfaced by `stream_cache.c`
-- [../read/README.md](../read/README.md), [../write/README.md](../write/README.md), [../aio/README.md](../aio/README.md) — handlers/async completions that drive the op slots
-- [../path/README.md](../path/README.md) — confinement layer feeding `path_depth_violations_total`
-- [../webdav/README.md](../webdav/README.md), [../s3/README.md](../s3/README.md), [../dashboard/README.md](../dashboard/README.md) — protocol surfaces and the richer (high-cardinality) dashboard API
+- [../manager/README.md](../../net/manager/README.md), [../cms/README.md](../../net/cms/README.md) — the cluster registry `cluster.c` reads
+- [../cache/README.md](../../fs/cache/README.md) — read-through/write-through counters surfaced by `stream_cache.c`
+- [../read/README.md](../../protocols/root/read/README.md), [../write/README.md](../../protocols/root/write/README.md), [../aio/README.md](../../core/aio/README.md) — handlers/async completions that drive the op slots
+- [../path/README.md](../../fs/path/README.md) — confinement layer feeding `path_depth_violations_total`
+- [../webdav/README.md](../../protocols/webdav/README.md), [../s3/README.md](../../protocols/s3/README.md), [../dashboard/README.md](../dashboard/README.md) — protocol surfaces and the richer (high-cardinality) dashboard API
