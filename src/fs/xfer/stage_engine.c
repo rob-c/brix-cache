@@ -605,12 +605,21 @@ brix_stage_reconcile(brix_stage_queue_t *queue)
     struct dirent *de;
     char           names[1024][256];
     ngx_uint_t     ncount = 0, i, replayed = 0, kept = 0, dropped = 0;
-    ngx_log_t     *log = (ngx_cycle != NULL) ? ngx_cycle->log : NULL;
+    ngx_log_t     *log;
 
     (void) queue;
     if (stage_journal_dir[0] == '\0') {
         return;                              /* no durable journal configured */
     }
+    /* Reconcile REPORTS every replay/keep/drop decision through ngx_log_error,
+     * whose macro dereferences the log unconditionally — a NULL log here is a
+     * crash, not a quiet run. Without a cycle (pre-init or a bare harness)
+     * DEFER: return with the journal untouched so a properly-initialised boot
+     * replays it. The in-tree caller (worker-0 init_process) always has one. */
+    if (ngx_cycle == NULL) {
+        return;
+    }
+    log = ngx_cycle->log;
     d = opendir(stage_journal_dir);
     if (d == NULL) {
         return;
