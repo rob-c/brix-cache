@@ -2,7 +2,9 @@
 
 Pure-C, libXrdCl-free client suite built on `libbrix` and the in-tree
 `libxrdproto` wire layer. No libXrdSec*, no Xrootd headers beyond the wire
-structs in `src/protocols/root/protocol/`.
+structs in `src/protocols/root/protocol/`. One exception to "pure C":
+`apps/ceph/` holds the C++/Python storage-plane Ceph operator tools, which
+link librados directly (still libXrdCl-free).
 
 ## Directory layout
 
@@ -73,6 +75,17 @@ is present but are not in the default `BINS` list.
 | `check <url> [--json]` | Protocol-correctness probes; `--json` for machine-readable output |
 | `topology <url> [--json]` | Locate + redirect convergence; `--json` for machine-readable output |
 | `replay <file.xrdcap>` | Decode a captured session; `--playback <url>` re-issues it live |
+
+### Ceph operator tools
+
+Five storage-plane utilities in `apps/ceph/` — the XrdCeph⇄CephFS migration
+pair (`xrdceph_striper_migrate`, `xrdceph_cephfs_to_striper`; compiled C++
+primaries plus `.py` Python variants) and the offline rescue tools
+(`xrdrados_rescue`, `xrdcephfs_rescue`, `xrdceph_migrate`). They are
+dep-gated at make time (librados / libradosstriper / libcephfs headers + a
+C++ compiler, probed like fuse3; missing deps skip silently) and build as a
+group with `make -C client ceph-tools`. See
+[`apps/README.md`](apps/README.md#ceph-operator-tools-appsceph--built-only-when-the-ceph-dev-headers-are-present).
 
 ## Configuration — `~/.xrdrc`
 

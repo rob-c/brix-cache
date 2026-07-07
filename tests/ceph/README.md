@@ -133,20 +133,25 @@ naturally picks up *flushed* changes. The mode picks the safety posture:
 
 ## Recovery & migration tools (operator utilities)
 
+> **Promoted to the official client suite (2026-07-07):** the five operator
+> tools + `pymigrate/` now live in `client/apps/ceph/` and build dep-gated via
+> `make -C client ceph-tools`. This directory keeps the Ceph harness, seeds,
+> spikes, fixtures, unit tests, and the e2e runners below.
+
 Offline tools (no nginx) that reuse the same RADOS layers. Build + smoke all three
 in the container with `tests/ceph/run_rescue_tools.sh` (host-side runner).
 
-- **`xrdcephfs_rescue`** (`tests/ceph/xrdcephfs_rescue.c`) — recover from an
+- **`xrdcephfs_rescue`** (`client/apps/ceph/xrdcephfs_rescue.c`) — recover from an
   unmountable **CephFS** via pure RADOS, driving the `cephfsro` core:
   ```bash
   xrdcephfs_rescue <meta_pool> <data_pool> ls|stat|cat|get|cp -r <path> [local]
   ```
-- **`xrdrados_rescue`** (`tests/ceph/xrdrados_rescue.c`) — recover from a **flat
+- **`xrdrados_rescue`** (`client/apps/ceph/xrdrados_rescue.c`) — recover from a **flat
   RADOS pool** (the block-only `ceph` backend, or any object pool):
   ```bash
   xrdrados_rescue <pool> ls [prefix] | stat <key> | get <key> <file> | cp <prefix> <dir>
   ```
-- **`xrdceph_migrate`** (`tests/ceph/xrdceph_migrate.c`) — **copy-through-mount**
+- **`xrdceph_migrate`** (`client/apps/ceph/xrdceph_migrate.c`) — **copy-through-mount**
   migration of a flat pool into a real filesystem tree (point `<dest_dir>` at a
   mounted CephFS so its MDS builds the namespace — the only sound migration, since
   CephFS keys data by MDS-allocated inode). Recreates the key→path layout and
@@ -208,7 +213,7 @@ Pass `--config PATH` (or set `$XRDCEPH_MIGRATE_CONF`). Precedence: explicit
 CLI > config file > built-in default. Give the tool its **full legacy
 positional arity or none** — a partial mix is refused. The C++ side shares
 the parser via the header-only `xrdceph_migrate_config.h` (compile with
-`-I tests/ceph`).
+`-I client/apps/ceph`).
 
 **Dependencies:** distro `python3-rados` + `python3-cephfs` only. The
 C++-only redirect ops (`set_redirect`/`copy_from`/`tier_promote`/

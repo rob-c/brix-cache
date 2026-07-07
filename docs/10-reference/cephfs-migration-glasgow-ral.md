@@ -1,7 +1,7 @@
 # Enabling CephFS over a Glasgow/RAL (XrdCeph/libradosstriper) pool — runbook
 
 Operator runbook for `xrdceph_striper_migrate`
-(`tests/ceph/xrdceph_striper_migrate.cpp`). It has two modes:
+(`client/apps/ceph/xrdceph_striper_migrate.cpp`). It has two modes:
 
 - **`--mode redirect` (default, ZERO-MOVE)** — no data is copied. The MDS builds
   the namespace and each CephFS data-object name is pointed at the existing striper
@@ -116,7 +116,9 @@ cost is in-cluster space/bandwidth + time during phase 2 — never the external 
 ## Build
 
 ```bash
-g++ -std=c++17 -D_FILE_OFFSET_BITS=64 tests/ceph/xrdceph_striper_migrate.cpp \
+make -C client ceph-tools        # dep-gated; binary lands in client/bin/
+# or by hand:
+g++ -std=c++17 -D_FILE_OFFSET_BITS=64 client/apps/ceph/xrdceph_striper_migrate.cpp \
     -lrados -lcephfs -lpthread -o xrdceph_striper_migrate
 ```
 

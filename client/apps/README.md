@@ -61,6 +61,25 @@ record the groupings; the table lists each tool by its binary, not its files.
 | `brixMount` | Umbrella FUSE front-end: `brixMount <type> <endpoint> <mountdir>` — `cvmfs` (CVMFS-brix, read-only), `cvmfs-rw` (CVMFS-brix-rw: same mount plus a local writable overlay in `<mountdir>/.brixwrites` — copy-up, whiteout deletes; manage with `brixMount --overlay-list/--overlay-reset <mountdir>`), `eos`/`root`/`roots` (XRootDFS-brix). |
 | `libbrixposix_preload.so` | LD_PRELOAD POSIX→XRootD read-path shim (see [`../preload/`](../preload/)). |
 
+## Ceph operator tools (`apps/ceph/` — built only when the Ceph dev headers are present)
+
+Storage-plane migration and rescue utilities linking librados directly (they
+do not speak `root://`). Compile-gated per tool; `make -C client ceph-tools`
+builds exactly this group. The migration pair ships BOTH a compiled C++
+primary and a pure-Python variant (`.py` suffix, installed under
+`libexec/brix/` with `bin/` symlinks) with extra operator plumbing
+(`--json`, resumable `--state`, `--prefix`/`--match` filters, `--progress`)
+backed by the `pymigrate/` package (ctypes bridge to librados's C++-only
+manifest ops, with a compiled shim fallback).
+
+| Binary | Purpose |
+|---|---|
+| `xrdceph_striper_migrate` (+ `.py`) | libradosstriper (stock XrdCeph) pool → CephFS. Zero-move redirect default, `--mode copy`, `--rollback` (detaches stubs first — source always intact), `--finalize`. |
+| `xrdceph_cephfs_to_striper` (+ `.py`) | Quiesced CephFS → libradosstriper pool (namespace walked from pure RADOS). Zero-move redirects, `--rollback`, `--finalize`; requires `--assume-quiesced`. |
+| `xrdrados_rescue` | Offline recovery from a flat RADOS pool (`ls`/`stat`/`get`/`cp`). |
+| `xrdcephfs_rescue` | Offline CephFS recovery via pure RADOS — no mount, no MDS (drives the read-only `cephfsro` driver core). |
+| `xrdceph_migrate` | Flat pool → filesystem tree copy-through-mount (the only sound flat→CephFS upgrade). |
+
 ## Configuration — `~/.xrdrc`
 
 The per-user config file supports two kinds of section:

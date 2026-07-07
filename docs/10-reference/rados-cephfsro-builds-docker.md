@@ -229,7 +229,7 @@ the **same fixtures**, so C and Python decoders validate each other.
 Compiles the *driver itself* against a real cluster, without nginx: the
 runner `docker cp`'s just the needed sources (`sd.h`, `sd_ceph.*`,
 `sd_ceph_compat.*`, `cephfs_denc/layout.*`, `sd_cephfs_ro.c`) plus
-`tests/ceph/ngx_shim.h` — a small header that **stubs the nginx types** the
+`client/apps/ceph/ngx_shim.h` — a small header that **stubs the nginx types** the
 driver signature needs — and the test main
 (`sd_cephfs_ro_live_test.c`) into `xrd-ceph-work`, builds with plain
 `gcc … -lrados`, and drives the vtable against the **seeded** CephFS:
