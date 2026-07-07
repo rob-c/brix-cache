@@ -40,3 +40,6 @@ jobs:
       - name: doc links — relative markdown links resolve
         if: '!cancelled()'
         run: tools/ci/check_doc_links.sh
+      - name: readme coverage — substantial src/ dirs are documented
+        if: '!cancelled()'
+        run: tools/ci/check_readme_coverage.sh
