@@ -50,7 +50,7 @@ docs/
 │
 ├── glossary.md                   ← NEW: All terminology explained, cross-referenced from other docs
 │
-├── 10-architecture/              ← Consolidated architecture docs
+├── 11-architecture/              ← Consolidated architecture docs
 │   ├── overview.md               ← Visual diagram + high-level mental model (NEW)
 │   ├── stream-layer.md           ← Native XRootD protocol handling
 │   ├── webdav-layer.md           ← WebDAV/HTTPS layer
@@ -119,7 +119,7 @@ docs/
 |---|---|---|
 | `docs/01-getting-started/*.md` | Split getting-started into phased learning | 471-line doc is overwhelming; split by "must know" vs "nice to know" |
 | `docs/glossary.md` | Terminology reference | Newcomers encounter physics terms without explanation — this becomes the single source of truth |
-| `docs/10-architecture/overview.md` | Visual architecture diagram | ASCII diagrams are scattered; newcomers need one page with a clean visual overview |
+| `docs/11-architecture/overview.md` | Visual architecture diagram | ASCII diagrams are scattered; newcomers need one page with a clean visual overview |
 
 ### CONSOLIDATE INTO
 
@@ -163,7 +163,7 @@ the connecting user and their permissions.
 GSI-specific XRootD opcodes (`kXR_auth` with GSI method).
 ```
 
-### 2. Visual Architecture Overview (`docs/10-architecture/overview.md`)
+### 2. Visual Architecture Overview (`docs/11-architecture/overview.md`)
 
 Replace scattered ASCII diagrams with a single-page visual summary using Mermaid.js (supported by GitHub and most Markdown renderers):
 
@@ -270,7 +270,7 @@ If you're new to any of these topics, spend 10 minutes reading before continuing
 ### Phase 1: Add New Content (Non-Destructive)
 1. Create `docs/glossary.md` with terms encountered across existing documentation
 2. Create `docs/01-getting-started/` directory structure, move first 3 sections of current getting-started.md
-3. Create `docs/10-architecture/overview.md` with visual diagram
+3. Create `docs/11-architecture/overview.md` with visual diagram
 
 ### Phase 2: Consolidate (No Content Loss)
 4. Move proxy-mode.md, cluster-mode.md to deployment section

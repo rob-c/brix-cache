@@ -140,7 +140,7 @@ brix_access_log /var/log/nginx/brix_access.log;
 ## Related Documentation
 
 - [Configuration Directives](../03-configuration/directives.md) — Full reference for nginx directives
-- [Architecture Overview](../10-architecture/overview.md) — Request lifecycle diagrams
+- [Architecture Overview](../11-architecture/overview.md) — Request lifecycle diagrams
 - [WebDAV Methods](../04-protocols/webdav-methods.md) — WebDAV operation details and RFC compliance
 - [Dashboard Feature Ideas](dashboard-feature-ideas.md) — Roadmap of useful additions for the HTTPS monitoring dashboard
 - [Dashboard Feature Implementation Plan](../_archive/dashboard-feature-implementation-plan.md) — Developer roadmap for implementing dashboard additions

@@ -29,7 +29,7 @@ Physicists at CERN, SLAC, and Fermilab move petabytes of collision data using tw
                          Prometheus /metrics
 ```
 
-**Prefer pictures?** The [Architecture Overview](docs/10-architecture/overview.md) has Mermaid diagrams showing every request path.
+**Prefer pictures?** The [Architecture Overview](docs/11-architecture/overview.md) has Mermaid diagrams showing every request path.
 
 New to XRootD or grid security? [What Is This Project](docs/01-getting-started/what-is-this.md) answers all the "wait, what?" questions, and [XRootD Basics](docs/02-concepts/xrootd-basics.md) fills in the physics context.
 
@@ -601,7 +601,7 @@ Docs are organized as a learning path — newcomers follow 01 → 02 → … and
 | **07 — Security** | Hardening and security model | [Security Hardening Guide](docs/07-security/hardening-guide.md) |
 | **08 — Metrics & Monitoring** | Prometheus metrics, HTTPS dashboard, access logging | [Monitoring Guide](docs/08-metrics-monitoring/monitoring-guide.md), [Dashboard Feature Ideas](docs/08-metrics-monitoring/dashboard-feature-ideas.md) |
 | **09 — Developer Guide** | Contributing, testing, development workflow | [Dev Workflow](docs/09-developer-guide/dev-workflow.md), [Testing Runbook](docs/09-developer-guide/testing-runbook.md), [Feature Roadmap](docs/09-developer-guide/feature-roadmap.md), [Contributing](docs/09-developer-guide/contributing.md) |
-| **Architecture** | Architecture diagrams, data-path traces, plane-by-plane design | [Architecture Overview](docs/10-architecture/overview.md), [Request Lifecycle](docs/10-architecture/index.md) |
+| **Architecture** | Architecture diagrams, data-path traces, plane-by-plane design | [Architecture Overview](docs/11-architecture/overview.md), [Request Lifecycle](docs/11-architecture/index.md) |
 | **Reference** | Deep technical reference (advanced) | [XRootD Concepts Deep](docs/10-reference/xrootd-concepts-deep.md), [Protocol Notes](docs/10-reference/protocol-notes.md), [Quirks & Compromises](docs/10-reference/quirks.md) |
 
 Start at [docs/index.md](docs/index.md) for a guided path based on your experience level.

@@ -185,7 +185,7 @@ Used by WebDAV COPY, WebDAV TPC pull, S3 PUT, S3 CopyObject.
 Used by POSC writes (also has `O_EXCL` on first attempt), cache part files, checkpoint
 snapshots.  Each has a structural reason why a random name or the staged API cannot be
 used; those reasons are documented in
-[cross-protocol-unification.md](../10-architecture/cross-protocol-unification.md#temp-file-staging-srccompatstaged_filec).
+[cross-protocol-unification.md](../11-architecture/cross-protocol-unification.md#temp-file-staging-srccompatstaged_filec).
 
 The common invariant across both patterns: **no `open()` with `O_CREAT` is issued
 without either `O_EXCL` or `O_NOFOLLOW`**.

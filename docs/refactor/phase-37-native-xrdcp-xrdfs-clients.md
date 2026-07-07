@@ -859,7 +859,7 @@ subcommands, and one consolidated `xrddiag` binary.
   struct; the client can decode and pretty-print *both directions* — no opaque
   `libXrdCl` event loop hiding the bytes.
 - **Cross-protocol oracle.** This project *unifies* `root://`/`davs://`/S3 over one
-  VFS (`docs/10-architecture/cross-protocol-unification.md`); a client that speaks
+  VFS (`docs/11-architecture/cross-protocol-unification.md`); a client that speaks
   all three can read the same object three ways and **diff** them — the divergence
   class `tests/test_integrity_matrix.py` targets, now a live tool.
 - **Reference-diff built in.** The test harness already runs every op against both

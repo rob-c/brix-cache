@@ -328,7 +328,7 @@ External upstream references:
 Project-local references:
 
 - `README.md`
-- `docs/10-architecture/overview.md`
+- `docs/11-architecture/overview.md`
 - `docs/05-operations/operations-guide.md`
 - `docs/05-operations/operation-status.md`
 - `docs/09-developer-guide/optimizations.md`

@@ -358,7 +358,7 @@ pre-existing paths are byte-for-byte unchanged.
 | `src/protocols/s3/tagging.c` / `.h` (new) | object tagging via xattr |
 | `src/protocols/s3/s3.h`, `s3_auth_internal.h` | new ctx fields (body_encoding, decoded length), signing-key reuse decl |
 | `src/core/config/config.h`, `src/protocols/s3/module.c`/config | `xrootd_s3_verify_chunk_signatures` directive; reuse `region` field |
-| `docs/10-reference/feature-gaps.md`, `docs/10-architecture/s3.md` | update once landed |
+| `docs/10-reference/feature-gaps.md`, `docs/11-architecture/s3.md` | update once landed |
 
 New `.c` files must be registered in `src/core/config/config.h` (`NGX_ADDON_SRCS`) and a
 `./configure` re-run; pure edits to existing files build with `make -j$(nproc)` alone.

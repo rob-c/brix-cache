@@ -386,7 +386,7 @@ Before planning, audit what is already present to avoid duplicating existing doc
 | §8 Test infrastructure | `docs/09-developer-guide/testing-runbook.md` (173 lines) | Has test philosophy + security policy | No LOCAL/REMOTE mode explanation, no conftest.py fixture hierarchy, no shared port table |
 | §9 Request context objects | `src/core/types/README.md` (13 lines) | Minimal — file-to-concept table only | No set_ctx/get_module_ctx pattern, no stream vs HTTP context lifecycle comparison |
 | §10 Metrics export pattern | `src/observability/metrics/README.md` (57 lines) | Has usage example | No label schema table, no low-cardinality constraint explanation, no "adding a metric" recipe |
-| Capstone | `docs/10-architecture/cross-protocol-unification.md` (397 lines) | Has shared layer description + gap roadmap | v3 patterns (lifecycle phases, auth state layout, fh_map, disconnect phases) not yet synthesized into it |
+| Capstone | `docs/11-architecture/cross-protocol-unification.md` (397 lines) | Has shared layer description + gap roadmap | v3 patterns (lifecycle phases, auth state layout, fh_map, disconnect phases) not yet synthesized into it |
 
 ---
 
@@ -417,7 +417,7 @@ Phase 2: Higher-level developer docs (4 parallel tasks — blocked by Phase 1 fo
                    [blocked by T1 — references auth state layout added in T1]
 
 Phase 3: Capstone architecture doc (blocked by all of Phase 1 + Phase 2)
-         └── T10: docs/10-architecture/cross-protocol-unification.md  (3 h)
+         └── T10: docs/11-architecture/cross-protocol-unification.md  (3 h)
                    [synthesizes T1–T9 into one unified view]
 ```
 
@@ -438,7 +438,7 @@ Phase 3: Capstone architecture doc (blocked by all of Phase 1 + Phase 2)
 | `docs/09-developer-guide/dev-workflow.md` | Find the source layout table position to insert lifecycle diagram immediately after | 290 lines |
 | `docs/09-developer-guide/testing-runbook.md` | Find the test philosophy section end — lifecycle diagram inserts before it | 173 lines |
 | `src/core/types/README.md` | Understand the 13 lines present; plan expansion without duplicating the file-to-concept table | 13 lines |
-| `docs/10-architecture/cross-protocol-unification.md` | Understand current 397-line structure — plan v3 additions without redundancy | 397 lines |
+| `docs/11-architecture/cross-protocol-unification.md` | Understand current 397-line structure — plan v3 additions without redundancy | 397 lines |
 
 **Done-when:** Annotated notes on each file's current state; no ambiguity about where each task's additions land.
 
@@ -863,7 +863,7 @@ Each protocol allocates and retrieves its request/connection context differently
 
 ### Phase 3 — Capstone Architecture Doc (3 h)
 
-#### T10: Update `docs/10-architecture/cross-protocol-unification.md` with v3 Patterns (3 h)
+#### T10: Update `docs/11-architecture/cross-protocol-unification.md` with v3 Patterns (3 h)
 
 **Goal:** The existing 397-line doc covers shared infrastructure and the gap roadmap. Extend it with the v3 architectural patterns as a new "Shared Mental Models" section, without repeating content from the existing "layers not silos" framing.
 
@@ -940,7 +940,7 @@ See `src/core/types/README.md` §Context retrieval patterns.
 One macro per protocol: `BRIX_SRV_METRIC_INC(slot)` (stream), `BRIX_WEBDAV_METRIC_INC(slot)` (WebDAV), `BRIX_S3_METRIC_INC(slot)` (S3). Labels: proto/op/status — always low-cardinality. See `src/observability/metrics/README.md` §Label schema.
 ```
 
-**File modified:** `docs/10-architecture/cross-protocol-unification.md`
+**File modified:** `docs/11-architecture/cross-protocol-unification.md`
 **Lines added:** ~80
 **Lines removed:** 0
 
@@ -960,7 +960,7 @@ One macro per protocol: `BRIX_SRV_METRIC_INC(slot)` (stream), `BRIX_WEBDAV_METRI
 | T7: LOCAL/REMOTE + conftest.py | 2 | 1 | T5, Phase 0 | `docs/09-developer-guide/testing-runbook.md` | ~50 | 0 | No |
 | T8: namespace translation in compat | 2 | 1 | T1, Phase 0 | `src/core/compat/README.md` | ~30 | 0 | No |
 | T9: types/README.md context pattern | 2 | 1 | T1 | `src/core/types/README.md` | ~45 | 13 | No |
-| T10: cross-protocol-unification capstone | 3 | 3 | T1–T9 | `docs/10-architecture/cross-protocol-unification.md` | ~80 | 0 | No |
+| T10: cross-protocol-unification capstone | 3 | 3 | T1–T9 | `docs/11-architecture/cross-protocol-unification.md` | ~80 | 0 | No |
 
 **Total estimate: ~16 h (~2 engineer-days)**
 **Total files touched: 10 source + doc files**
@@ -979,7 +979,7 @@ After all tasks complete, run these checks before marking the plan done:
 make -j$(nproc) 2>&1 | grep -E "error:|warning:" | head -20
 
 # 2. Cross-references in T10 capstone point to real sections
-grep -n "§" docs/10-architecture/cross-protocol-unification.md | while read line; do
+grep -n "§" docs/11-architecture/cross-protocol-unification.md | while read line; do
     echo "$line"
 done
 

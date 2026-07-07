@@ -18,7 +18,7 @@ Don't wade through directories. This page routes you straight to what matters ba
 
 **50 minutes. Server running. All three protocols verified.**
 
-> **Prefer a diagram first?** The [Architecture Overview](10-architecture/overview.md) shows every request path at a glance. Highly recommended before reading any config.
+> **Prefer a diagram first?** The [Architecture Overview](11-architecture/overview.md) shows every request path at a glance. Highly recommended before reading any config.
 
 ---
 
@@ -234,11 +234,11 @@ Visual overview of every request path and component relationship. **Start here i
 
 | Document | Description |
 |----------|-------------|
-| **[Architecture Overview](10-architecture/overview.md)** | Mermaid diagram, deployment modes, request flows, file reference index |
-| [Logical Pathways (Tier 1 & 2)](10-architecture/logical-pathways.md) | Core data/security pathways vs clustering/advanced features |
-| [Tier 1 Stream Data Paths](10-architecture/tier1-stream-data-paths.md) | Per-opcode walkthrough of the core stream wire operations |
-| [Tier 2 Stream Data Paths](10-architecture/tier2-stream-data-paths.md) | Per-opcode walkthrough of the advanced/clustering stream operations |
-| [Cross-Protocol Unification](10-architecture/cross-protocol-unification.md) | How root/WebDAV/S3 share resolution, identity, VFS, and metrics |
+| **[Architecture Overview](11-architecture/overview.md)** | Mermaid diagram, deployment modes, request flows, file reference index |
+| [Logical Pathways (Tier 1 & 2)](11-architecture/logical-pathways.md) | Core data/security pathways vs clustering/advanced features |
+| [Tier 1 Stream Data Paths](11-architecture/tier1-stream-data-paths.md) | Per-opcode walkthrough of the core stream wire operations |
+| [Tier 2 Stream Data Paths](11-architecture/tier2-stream-data-paths.md) | Per-opcode walkthrough of the advanced/clustering stream operations |
+| [Cross-Protocol Unification](11-architecture/cross-protocol-unification.md) | How root/WebDAV/S3 share resolution, identity, VFS, and metrics |
 
 > The architecture overview targets operators and newcomers. For source-level deep dives — state machines, call graphs, buffer lifetimes — go to [Developer Guide → Architecture](09-developer-guide/architecture-overview.md).
 
@@ -312,7 +312,7 @@ Contributing code? Start here. Everything you need to navigate the source tree, 
 2. [Development Workflow](09-developer-guide/dev-workflow.md)
 3. [Testing Runbook](09-developer-guide/testing-runbook.md)
 4. **[Security Hardening Guide](07-security/hardening-guide.md)** — security-sensitive changes need negative test cases
-5. **[Architecture Overview](10-architecture/overview.md)** — visual guide, then protocol-specific docs for your area
+5. **[Architecture Overview](11-architecture/overview.md)** — visual guide, then protocol-specific docs for your area
 6. AGENTS.md (project root) — Operation-to-file index, implementation recipes
 
 ### "I'm a security-conscious operator" (2 hours)
@@ -333,7 +333,7 @@ The original flat structure has been migrated to the numbered sections above. Ol
 |---|---|
 | `docs/getting-started.md` | [01-getting-started/quick-install.md](01-getting-started/quick-install.md) |
 | `docs/background.md` | [02-concepts/xrootd-basics.md](02-concepts/xrootd-basics.md) |
-| `docs/architecture/*` | [`10-architecture/`](10-architecture/) + [`09-developer-guide/`](09-developer-guide/) |
+| `docs/architecture/*` | [`11-architecture/`](11-architecture/) + [`09-developer-guide/`](09-developer-guide/) |
 | `docs/configuration/*` | [`03-configuration/`](03-configuration/) |
 | `docs/contributing/*` | [`09-developer-guide/`](09-developer-guide/) |
 | `docs/metrics/*` | [`08-metrics-monitoring/`](08-metrics-monitoring/) |
@@ -351,7 +351,7 @@ Full migration details: [MIGRATION-NOTICE.md](MIGRATION-NOTICE.md)
 ## Recent Changes
 
 - **May 2026 — Documentation restructuring:** Removed numbered sections in favor of topic-based categories. Added Mermaid diagrams for deployment mode selection and authentication decisions. Improved cross-linking throughout. Newcomers should start at [I Want a Working Server](#-i-want-a-working-server---start-here).
-- **May 2026 — Documentation improvements:** Added [Architecture Overview](10-architecture/overview.md) with Mermaid diagrams for visual learners and request lifecycle diagrams for all three protocols. Enhanced [Glossary](10-reference/glossary.md) with A-Z quick lookup, missing terms (Manager Mode, Cluster Mode, JWKS, HTTP-TPC vs native TPC), and fixed all broken cross-references.
+- **May 2026 — Documentation improvements:** Added [Architecture Overview](11-architecture/overview.md) with Mermaid diagrams for visual learners and request lifecycle diagrams for all three protocols. Enhanced [Glossary](10-reference/glossary.md) with A-Z quick lookup, missing terms (Manager Mode, Cluster Mode, JWKS, HTTP-TPC vs native TPC), and fixed all broken cross-references.
 - **May 2026 — Documentation cleanup:** Merged duplicate docs (`quick-install.md` → `getting-started-full.md`, deleted `xrootd-background.md`). Removed orphaned stub files from `optimizations/` and `testing/`. Archived planning documents to `_archive/`.
 - **Section 07 — Security Hardening** (new): Consolidated security guidance including the four-layer security model and production hardening checklist
 - All legacy flat paths are deprecated; see mapping above for updates

@@ -19,7 +19,7 @@ docs/
 ├── 07-security/                ← Security hardening
 ├── 08-metrics-monitoring/      ← Observability
 ├── 09-developer-guide/         ← Contributing and development
-├── 10-architecture/            ← Visual architecture overview (new)
+├── 11-architecture/            ← Visual architecture overview (new)
 └── 10-reference/               ← Deep technical reference
 ```
 
@@ -29,7 +29,7 @@ docs/
 |---|---|---|
 | `docs/getting-started.md` | [01-getting-started/getting-started-full.md](01-getting-started/getting-started-full.md) | Consolidated into full guide; quick-install.md now redirects here |
 | `docs/background.md` | [02-concepts/xrootd-basics.md](02-concepts/xrootd-basics.md) | xrootd-background.md deleted as duplicate |
-| `docs/architecture/` | [10-architecture/overview.md](10-architecture/overview.md) + [09-developer-guide/architecture-overview.md](09-developer-guide/architecture-overview.md) | Visual overview now consolidated into single page with Mermaid diagrams |
+| `docs/architecture/` | [11-architecture/overview.md](11-architecture/overview.md) + [09-developer-guide/architecture-overview.md](09-developer-guide/architecture-overview.md) | Visual overview now consolidated into single page with Mermaid diagrams |
 | `docs/comparison/` | [10-reference/design-rationale.md](10-reference/design-rationale.md) | |
 | `docs/configuration/` | [03-configuration/](03-configuration/) + [rpm-package-build.md](03-configuration/rpm-package-build.md) | directives moved to config-reference.md |
 | `docs/contributing/` | [09-developer-guide/contributing.md](09-developer-guide/contributing.md) | |
@@ -52,7 +52,7 @@ The following stub redirect files have been removed — content was already cons
 ## May 2026 — New Additions and Enhancements
 
 ### Architecture Overview (New Section)
-- **[10-architecture/overview.md](10-architecture/overview.md)** — Single-page visual guide with Mermaid diagrams showing:
+- **[11-architecture/overview.md](11-architecture/overview.md)** — Single-page visual guide with Mermaid diagrams showing:
   - High-level client → nginx layers → filesystem architecture
   - Protocol comparison table (XRootD vs WebDAV vs S3)
   - Three deployment mode diagrams
@@ -72,7 +72,7 @@ of the active tree:
 
 - **Loose top-level docs relocated** into the numbered sections — e.g.
   `docs/quick-start-guide.md` → [01-getting-started/](01-getting-started/),
-  `docs/Tier{1,2}-Stream-Data-Paths.md` → [10-architecture/](10-architecture/),
+  `docs/Tier{1,2}-Stream-Data-Paths.md` → [11-architecture/](11-architecture/),
   `docs/comparison-nginx-xrootd-vs-canonical.md` and `docs/FEATURE_GAPS.md` →
   [10-reference/](10-reference/), `docs/TEST_PROTOCOL_MAPPING.md` →
   [09-developer-guide/](09-developer-guide/).
