@@ -186,11 +186,17 @@ brix_gsi_verify_chain(ngx_log_t *log, X509_STORE *store,
         return NGX_ERROR;
     }
 
-    /* RFC 3820 proxy chains are accepted only on the GSI path; the WebDAV/TLS
-     * client-cert path (client_purpose) does not accept proxies. */
-    if (!client_purpose) {
-        X509_STORE_CTX_set_flags(vctx, X509_V_FLAG_ALLOW_PROXY_CERTS);
-    }
+    /* RFC 3820 proxy chains are accepted on BOTH the GSI (root://) and the
+     * WebDAV davs:// paths: WLCG/grid clients present voms-proxy-init proxy
+     * credentials over davs:// (gfal2 / davix / FTS) exactly as over root://,
+     * and the gsi-8444 WebDAV suite authenticates with an RFC 3820 proxy.  The
+     * client_purpose flag still drives the extra cert-conformance/purpose checks
+     * below (brix_gsi_enforce_cert_policy) — it must NOT gate proxy acceptance,
+     * which regressed davs:// GSI auth to 403 (X509_V_ERR_PROXY_CERTIFICATES_
+     * NOT_ALLOWED at X509_verify_cert).  Malformed/untrusted/expired proxies are
+     * still rejected by normal chain verification and the proxy-PCI/monotonicity
+     * enforcement that follows. */
+    X509_STORE_CTX_set_flags(vctx, X509_V_FLAG_ALLOW_PROXY_CERTS);
 
     if (verify_depth > 0) {
         X509_STORE_CTX_set_depth(vctx, (int) verify_depth);
