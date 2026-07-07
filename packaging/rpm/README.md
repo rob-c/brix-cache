@@ -3,14 +3,15 @@
 This directory contains RPM packaging for AlmaLinux 9 / EPEL 9 and
 AlmaLinux 10 / EPEL 10 style nginx dynamic module builds.
 
-A single spec (`nginx-mod-brix-cache.spec`) builds **three** packages from one
+A single spec (`nginx-mod-brix-cache.spec`) builds **four** packages from one
 source tree:
 
 | Package | Arch | Contents |
 |---|---|---|
-| `nginx-mod-brix-cache` | arch | The 8 nginx dynamic modules (stream/webdav/s3/metrics/srr/cms/dashboard/xrdhttp-filter) + the `mod-xrootd.conf` loader |
-| `brix-cache-client` | arch | The clean-room native CLI tools (`xrdcp`, `xrdfs`, …), the `xrootdfs` FUSE mount (default + `--legacy` mode), the `libxrdposix_preload.so` POSIX shim, and their man pages |
+| `nginx-mod-brix-cache` | arch | The combined BriX nginx dynamic module, the xrdhttp filter module, and the `mod-xrootd.conf` loader |
+| `brix-cache-client` | arch | The clean-room native CLI tools (`xrdcp`, `xrdfs`, `xrd`, `xrdcksum`, `xrdstorascan`, …), the `xrootdfs` and `brixMount` FUSE mounts, the `libbrixposix_preload.so` POSIX shim, completions, and their man pages |
 | `brix-cache-tests` | noarch | The full pytest integration/conformance suite under `%{_datadir}/nginx-xrootd`, pulling in the python packages it needs |
+| `brix-tools` | arch | XrdCeph/CephFS operator tools from `client/apps/ceph/`: the compiled C++ migration pair (`xrdceph_striper_migrate`, `xrdceph_cephfs_to_striper`), their Python variants (`*.py` + `pymigrate` under `%{_libexecdir}/brix`), and the offline rescue utilities (`xrdrados_rescue`, `xrdcephfs_rescue`, `xrdceph_migrate`) |
 
 The module package builds against the distribution nginx source exposed by
 `nginx-mod-devel`, installs the module `.so` files under the nginx module
@@ -40,6 +41,13 @@ auto-detected and are therefore declared explicitly.
 |---|---|
 | `fuse3` | `xrootdfs` `fork/exec`s the `fusermount3(1)` helper at mount/unmount; the libraries (`libfuse3`, OpenSSL, krb5, …) are auto-detected from the ELF |
 
+**`brix-tools` (operator tools):**
+
+The compiled C++ tools link directly to Ceph's native libraries:
+`librados`, `libcephfs`, and `libradosstriper`.  `rpmbuild` auto-detects the
+runtime shared-library requirements from the ELF records; the matching
+development packages are build-time requirements.
+
 **`brix-cache-tests` (suite, noarch):** depends on the system under test
 (`nginx-mod-brix-cache`, `brix-cache-client`, `nginx`) plus the python packages
 the suite drives pytest with: `python3-pytest`, `python3-pytest-timeout`,
@@ -49,10 +57,14 @@ EPEL/WLCG) is a *weak* dependency (`Recommends`) — it is only needed by the
 cross-backend / reference-daemon comparison tests, so the package still installs
 where the WLCG repo is not enabled.
 
-The build additionally needs `fuse3-devel`, `libcom_err-devel`, and `pkgconfig`
-at build time for the client tools (`pkg-config` gates the FUSE/krb5 features;
-`libcom_err-devel` resolves the `-lcom_err` pulled in by `pkg-config --libs
-krb5`).
+The build additionally needs `fuse3-devel`, `sqlite-devel`, `libcom_err-devel`,
+and `pkgconfig` at build time for the client tools (`pkg-config` gates the
+FUSE/krb5 features; `sqlite-devel` backs the CVMFS catalog reader in
+`brixMount`; `libcom_err-devel` resolves the `-lcom_err` pulled in by
+`pkg-config --libs krb5`).  The compiled Ceph migration tools additionally
+need `gcc-c++`, `librados-devel`, `libradospp-devel`,
+`libradosstriper-devel`, and `libcephfs-devel`; enable your site Ceph/RHCS/SIG
+repository before building if those packages are not in the base distro repos.
 
 `voms-libs` comes from the WLCG repository.  On the target host, enable it
 before installing this RPM:
@@ -71,10 +83,11 @@ Install the local build prerequisites:
 
 ```bash
 sudo dnf install -y epel-release
-sudo dnf install -y gcc make pkgconfig rpm-build rpmdevtools redhat-rpm-config \
+sudo dnf install -y gcc gcc-c++ make pkgconfig rpm-build rpmdevtools redhat-rpm-config \
     nginx-mod-devel openssl-devel pcre2-devel zlib-devel libxml2-devel \
     jansson-devel libcurl-devel krb5-devel libcom_err-devel libxcrypt-devel \
-    fuse3-devel
+    fuse3-devel sqlite-devel librados-devel libradospp-devel \
+    libradosstriper-devel libcephfs-devel
 ```
 
 Build from the current checkout:
@@ -118,6 +131,12 @@ The corresponding Dockerfiles are:
 | `Dockerfile.alma9` | AlmaLinux 9 / EPEL 9 |
 | `Dockerfile.alma10` | AlmaLinux 10 / EPEL 10 |
 | `Dockerfile.alma11` | AlmaLinux 11 / EPEL 11 (speculative) |
+
+These Dockerfiles install the Ceph development packages required by
+`brix-tools`.  If your target Alma image does not expose
+`librados-devel`, `libradospp-devel`, `libradosstriper-devel`, and
+`libcephfs-devel` from its enabled repos, add your site Ceph/RHCS/SIG repo to
+the Dockerfile before the `dnf install` step.
 
 ### AlmaLinux 8 notes
 
