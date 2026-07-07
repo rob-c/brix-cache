@@ -104,14 +104,22 @@ installed (all five simply skipped).
 
 ## 4. C++ rollback hazard fix (promotion gate)
 
-`xrdceph_striper_migrate.cpp --rollback` unlinks migrated files while their
-redirect stubs are still attached; the **async MDS purge** then
-delete-throughs each stub to its target, destroying the source striper
-objects — the exact data loss rollback exists to prevent. The Python tool
-already detaches (unset manifest) every stub before any unlink; the C++ tool
-gets the same sequence. Since the C++ binary is the primary installed face,
-this fix lands in the same change as the promotion, verified by the existing
-container e2e runner (`run_striper_migrate.sh` rollback leg).
+**Audit outcome (2026-07-07): the fix is already present in both C++ tools —
+no code change was required.** The hazard (async MDS purge delete-throughs a
+still-attached redirect stub to its source) was fixed after the memory note
+that motivated this section was written. Re-verified at promotion time:
+
+- Forward tool (`xrdceph_striper_migrate.cpp`): `detach_stubs()` runs before
+  `ceph_unlink` in BOTH `rollback_one()` and the `--force` re-migrate path;
+  `--finalize` detaches only after `tier_promote` makes the object owned;
+  stubs are created with `set_redirect(..., 0)` (no reference), so deleting a
+  detached stub never GCs the source.
+- Reverse tool (`xrdceph_cephfs_to_striper.cpp`): rollback issues
+  `unset_manifest` on each stub before `remove`; finalize promotes then
+  detaches; `--delete-source` removes CephFS data objects only on the
+  finalize path, after any `--verify`.
+
+The stale "C++ tool unfixed" memory note has been corrected.
 
 ## 5. Docs, man pages, completions
 
