@@ -14,6 +14,14 @@ from mu_authz_lib import accounts, corpus, fleet, policy, ports, principals
 
 @pytest.fixture(scope="session")
 def cast():
+    # cast is evaluated BEFORE mu_fleet (which depends on it), and build_cast()
+    # generates VOMS proxies from MU-only service certs that exist only in the
+    # privileged MU fleet — off a privileged host it raises, erroring every mu
+    # test before mu_fleet's own skip can fire.  Skip here (the earliest mu
+    # fixture) so the whole multi-user suite skips cleanly without root.
+    if os.geteuid() != 0:
+        pytest.skip("MU conformance suite requires root (spec D4) — run "
+                    "tests/run_multiuser_authz.sh under sudo")
     return principals.build_cast()
 
 
