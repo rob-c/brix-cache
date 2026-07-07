@@ -190,9 +190,9 @@ endif
 # probe above.
 CXX ?= g++
 HAVE_CXX          := $(shell command -v $(CXX) >/dev/null 2>&1 && echo yes)
-HAVE_RADOS        := $(shell $(CC) -E -x c /dev/null -include rados/librados.h >/dev/null 2>&1 && echo yes)
-HAVE_RADOSSTRIPER := $(shell $(CC) -E -x c /dev/null -include radosstriper/libradosstriper.h >/dev/null 2>&1 && echo yes)
-HAVE_CEPHFS       := $(shell $(CC) -E -x c /dev/null -include cephfs/libcephfs.h >/dev/null 2>&1 && echo yes)
+HAVE_RADOS        := $(shell $(CC) -E -x c -D_FILE_OFFSET_BITS=64 /dev/null -include rados/librados.h >/dev/null 2>&1 && echo yes)
+HAVE_RADOSSTRIPER := $(shell $(CC) -E -x c -D_FILE_OFFSET_BITS=64 /dev/null -include radosstriper/libradosstriper.h >/dev/null 2>&1 && echo yes)
+HAVE_CEPHFS       := $(shell $(CC) -E -x c -D_FILE_OFFSET_BITS=64 /dev/null -include cephfs/libcephfs.h >/dev/null 2>&1 && echo yes)
 CEPH_EXES :=
 ifeq ($(HAVE_RADOS),yes)
   CEPH_EXES += $(BINDIR)/xrdrados_rescue $(BINDIR)/xrdcephfs_rescue $(BINDIR)/xrdceph_migrate
