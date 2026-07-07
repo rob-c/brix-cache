@@ -13,7 +13,7 @@
 
 Name:           nginx-mod-brix-cache
 Version:        %{upstream_version}
-Release:        5%{?dist}
+Release:        8%{?dist}
 Summary:        BriX-Cache — XRootD, WebDAV, S3, CMS, and metrics dynamic modules for nginx
 
 # Rebrand (gnuBall -> BriX-Cache, 0.1.0-5): same modules, new product name.
@@ -27,6 +27,7 @@ Source0:        %{url}/archive/refs/tags/v%{version}/%{upstream_name}-%{version}
 
 # --- toolchain ---
 BuildRequires:  gcc
+BuildRequires:  gcc-c++
 BuildRequires:  make
 BuildRequires:  pkgconfig
 BuildRequires:  nginx-mod-devel
@@ -40,6 +41,7 @@ BuildRequires:  libcurl-devel
 BuildRequires:  krb5-devel
 BuildRequires:  libcom_err-devel
 BuildRequires:  libxcrypt-devel
+BuildRequires:  sqlite-devel
 # --- phase-42 optional compression codecs (off by default; see %%bcond above).
 # When enabled, ./configure links the lib and find-requires turns it into a
 # runtime dep automatically; when disabled, the codec reports available=0. ---
@@ -49,9 +51,18 @@ BuildRequires:  libxcrypt-devel
 %{?with_bzip2:BuildRequires:  bzip2-devel}
 %{?with_lz4:BuildRequires:  lz4-devel}
 # --- native client (brix-cache-client subpackage) extra link deps ---
-# fuse3-devel: the xrootdfs FUSE mount (default + --legacy mode); libcom_err-devel above
-# resolves the -lcom_err pulled in by `pkg-config --libs krb5`.
+# fuse3-devel: the xrootdfs and brixMount FUSE mounts; libcom_err-devel above
+# resolves the -lcom_err pulled in by `pkg-config --libs krb5`; sqlite-devel
+# backs the CVMFS catalog reader linked into brixMount.
 BuildRequires:  fuse3-devel
+# --- Ceph/XrdCeph migration operator tools (brix-tools) ---
+# libradospp-devel carries <rados/librados.hpp> on EL9-style Ceph packaging;
+# libradosstriper-devel and libcephfs-devel provide the data-plane APIs used by
+# the two compiled migration tools.
+BuildRequires:  librados-devel
+BuildRequires:  libradospp-devel
+BuildRequires:  libradosstriper-devel
+BuildRequires:  libcephfs-devel
 
 # nginx-mod-stream provides the stream {} core that our modules load into.
 # openssl-libs: directly linked (-lssl -lcrypto) — auto-detected by find-requires
@@ -85,10 +96,11 @@ Requires:       fuse3
 
 %description -n brix-cache-client
 Native command-line XRootD clients built clean-room on the in-tree protocol
-core (libxrdc + libxrdproto) with NO libXrdCl / libXrdSec dependency: xrdcp,
-xrdfs, xrdcrc32c, xrdcrc64, xrdadler32, xrdqstats, xrdprep, xrdgsiproxy,
-xrddiag, xrdmapc, xrdgsitest, mpxstats, xrdsssadmin and wait41, plus the
-xrootdfs FUSE mount (default + --legacy mode) and an LD_PRELOAD POSIX shim.
+core (libbrix + libxrdproto) with NO libXrdCl / libXrdSec dependency:
+xrdcp, xrdfs, xrd, xrdcksum and checksum personalities, xrdqstats, xrdprep,
+xrdgsiproxy, xrddiag, xrdmapc, xrdgsitest, xrdstorascan, mpxstats,
+xrdsssadmin and wait41, plus xrootdfs, brixMount, and the
+libbrixposix_preload.so LD_PRELOAD POSIX shim.
 
 # ---------------------------------------------------------------------------
 # Subpackage 3: the pytest integration/conformance test-suite + its python deps
@@ -120,6 +132,27 @@ BriX-Cache (root://, WebDAV, S3, CMS, metrics, FRM, TPC, ...), installed under
 %{_datadir}/nginx-xrootd.  Run with, e.g.:
     cd %{_datadir}/nginx-xrootd && PYTHONPATH=tests python3 -m pytest tests/ -v
 
+# ---------------------------------------------------------------------------
+# Subpackage 4: Ceph/XrdCeph migration operator tools
+# ---------------------------------------------------------------------------
+%package -n brix-tools
+Summary:        XrdCeph/CephFS migration + rescue operator tools for BriX-Cache
+Provides:       brix-cache-ceph-tools = %{version}-%{release}
+Obsoletes:      brix-cache-ceph-tools <= %{version}-%{release}
+# The .py tool variants import the distro rados/cephfs python bindings at run
+# time; the compiled tools need neither.
+Recommends:     python3-rados
+Recommends:     python3-cephfs
+
+%description -n brix-tools
+XrdCeph <-> CephFS migration tools with zero-move redirect mode,
+rollback/finalize support, and site-profile configuration: compiled C++
+primaries (xrdceph_striper_migrate, xrdceph_cephfs_to_striper) plus the
+pure-Python variants (*.py, libexec-backed pymigrate package) with JSONL
+output and resumable state, and the offline rescue utilities
+xrdrados_rescue, xrdcephfs_rescue, and xrdceph_migrate. Source of truth:
+client/apps/ceph/ (build: make -C client ceph-tools).
+
 %prep
 %autosetup -n %{upstream_name}-%{version}
 
@@ -140,31 +173,43 @@ make -C shared/xrdproto clean
 make -C shared/xrdproto %{?_smp_mflags} CFLAGS="%{optflags}"
 make -C client %{?_smp_mflags} CFLAGS="%{optflags}" LDFLAGS="%{build_ldflags}"
 
+# --- Ceph/XrdCeph migration + rescue operator tools ---
+# Built by the client Makefile's dep-gated ceph-tools target (source of truth:
+# client/apps/ceph/; the BuildRequires above guarantee librados/libradosstriper/
+# libcephfs are present, so all five tools build). The main client make above
+# already covers them via OPT_EXES; the explicit target plus the test loop is a
+# build-time assertion that none were silently gate-skipped.
+make -C client ceph-tools %{?_smp_mflags} CFLAGS="%{optflags}" LDFLAGS="%{build_ldflags}"
+for t in xrdceph_striper_migrate xrdceph_cephfs_to_striper \
+         xrdrados_rescue xrdcephfs_rescue xrdceph_migrate; do
+    test -x client/bin/$t
+done
+
 %install
 # --- nginx dynamic modules ---
-# phase-47 W1: the dynamic build emits exactly TWO .so files — one combined
-# module (ngx_stream_xrootd_module.so, which contains stream+metrics+srr+webdav+
+# phase-47 W1: the dynamic build emits exactly TWO .so files: one combined
+# module (ngx_stream_brix_module.so, which contains stream+metrics+srr+webdav+
 # s3+dashboard+cms) and the standalone HTTP AUX filter.  Bundling the formerly-
 # separate modules into one .so makes their cross-module symbol references
 # (dashboard<->webdav<->metrics<->stream) resolve at link time, so dlopen no
 # longer trips on the cross-.so RTLD_NOW cycle that broke `nginx -t` before.
-install -Dpm0755 %{_vpath_builddir}/ngx_stream_xrootd_module.so \
-    %{buildroot}%{nginx_moddir}/ngx_stream_xrootd_module.so
-install -Dpm0755 %{_vpath_builddir}/ngx_http_xrootd_xrdhttp_filter_module.so \
-    %{buildroot}%{nginx_moddir}/ngx_http_xrootd_xrdhttp_filter_module.so
+install -Dpm0755 %{_vpath_builddir}/ngx_stream_brix_module.so \
+    %{buildroot}%{nginx_moddir}/ngx_stream_brix_module.so
+install -Dpm0755 %{_vpath_builddir}/ngx_http_brix_xrdhttp_filter_module.so \
+    %{buildroot}%{nginx_moddir}/ngx_http_brix_xrdhttp_filter_module.so
 
 mkdir -p %{buildroot}%{nginx_modconfdir}
 # Combined module first so its symbols back the filter via RTLD_GLOBAL.
 {
-    echo 'load_module "%{nginx_moddir}/ngx_stream_xrootd_module.so";'
-    echo 'load_module "%{nginx_moddir}/ngx_http_xrootd_xrdhttp_filter_module.so";'
+    echo 'load_module "%{nginx_moddir}/ngx_stream_brix_module.so";'
+    echo 'load_module "%{nginx_moddir}/ngx_http_brix_xrdhttp_filter_module.so";'
 } > %{buildroot}%{nginx_modconfdir}/mod-xrootd.conf
 
 # phase-47 W3: ship a heavily-commented example server config (installed as
 # .example so it never auto-activates — the operator copies it to a .conf name)
 # and a logrotate rule for the module's access logs.
-install -Dpm0644 contrib/xrootd.conf.example \
-    %{buildroot}%{_sysconfdir}/nginx/conf.d/xrootd.conf.example
+install -Dpm0644 contrib/brix-cache.conf.example \
+    %{buildroot}%{_sysconfdir}/nginx/conf.d/brix-cache.conf.example
 install -Dpm0644 contrib/logrotate.d/nginx-xrootd \
     %{buildroot}%{_sysconfdir}/logrotate.d/nginx-xrootd
 
@@ -175,15 +220,12 @@ install -Dpm0644 contrib/prometheus-alerts.yml \
     %{buildroot}%{_datadir}/nginx-xrootd/prometheus-alerts.yml
 
 # --- native client tools (brix-cache-client) ---
-for b in xrdfs xrdcp xrdcrc32c xrdcrc64 xrdadler32 xrdqstats wait41 \
-         xrdprep xrdgsiproxy xrddiag xrdmapc xrdgsitest mpxstats xrdsssadmin \
-         xrootdfs; do
-    install -Dpm0755 client/bin/$b %{buildroot}%{_bindir}/$b
-done
-install -Dpm0755 client/libxrdposix_preload.so \
-    %{buildroot}%{_libdir}/libxrdposix_preload.so
-install -Dpm0644 client/man/xrootdfs.1 \
-    %{buildroot}%{_mandir}/man1/xrootdfs.1
+# Use the in-tree install target so the RPM follows the current client tool set
+# (xrd/xrdcksum/xrdstorascan/brixMount/etc.) instead of a stale spec-local list.
+make -C client install-bin \
+    DESTDIR=%{buildroot} \
+    PREFIX=%{_prefix} \
+    LIBDIR=%{_libdir}
 
 # --- test-suite (brix-cache-tests, noarch data) ---
 install -d %{buildroot}%{_datadir}/nginx-xrootd
@@ -200,24 +242,35 @@ install -Dpm0644 conftest.py      %{buildroot}%{_datadir}/nginx-xrootd/conftest.
 install -Dpm0644 pytest.ini       %{buildroot}%{_datadir}/nginx-xrootd/pytest.ini
 install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/nginx-xrootd/requirements.txt
 
+# --- Ceph/XrdCeph migration + rescue operator tools (brix-tools) ---
+# Already staged by `make -C client install-bin` above: the compiled tools via
+# the OPT_EXES loop, the Python pair + pymigrate under %{_libexecdir}/brix with
+# %{_bindir}/*.py symlinks, and their man pages/completions. Ownership is split
+# in %%files: binaries/python/completions go to brix-tools, man pages ride the
+# brix-cache-client man1 glob.
+
 %files
 %license LICENSE
 %doc README.md docs/
-%{nginx_moddir}/ngx_stream_xrootd_module.so
-%{nginx_moddir}/ngx_http_xrootd_xrdhttp_filter_module.so
+%{nginx_moddir}/ngx_stream_brix_module.so
+%{nginx_moddir}/ngx_http_brix_xrdhttp_filter_module.so
 %{nginx_modconfdir}/mod-xrootd.conf
-%config(noreplace) %{_sysconfdir}/nginx/conf.d/xrootd.conf.example
+%config(noreplace) %{_sysconfdir}/nginx/conf.d/brix-cache.conf.example
 %config(noreplace) %{_sysconfdir}/logrotate.d/nginx-xrootd
 %{_datadir}/nginx-xrootd/grafana-dashboard.json
 %{_datadir}/nginx-xrootd/prometheus-alerts.yml
 
 %files -n brix-cache-client
 %license LICENSE
+%{_bindir}/xrd
 %{_bindir}/xrdfs
 %{_bindir}/xrdcp
+%{_bindir}/xrdcksum
 %{_bindir}/xrdcrc32c
 %{_bindir}/xrdcrc64
 %{_bindir}/xrdadler32
+%{_bindir}/xrdckverify
+%{_bindir}/xrdcinfo
 %{_bindir}/xrdqstats
 %{_bindir}/wait41
 %{_bindir}/xrdprep
@@ -227,9 +280,24 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/nginx-xrootd/requireme
 %{_bindir}/xrdgsitest
 %{_bindir}/mpxstats
 %{_bindir}/xrdsssadmin
+%{_bindir}/xrdstorascan
 %{_bindir}/xrootdfs
-%{_libdir}/libxrdposix_preload.so
-%{_mandir}/man1/xrootdfs.1*
+%{_bindir}/brixMount
+%{_libdir}/libbrixposix_preload.so
+%{_mandir}/man1/*.1*
+%{_mandir}/man7/brix-env.7*
+%{_datadir}/bash-completion/completions/xrd
+%{_datadir}/bash-completion/completions/xrdcp
+%{_datadir}/bash-completion/completions/xrdfs
+%{_datadir}/bash-completion/completions/xrddiag
+%{_datadir}/bash-completion/completions/xrdcksum
+%{_datadir}/bash-completion/completions/xrdprep
+%{_datadir}/bash-completion/completions/xrdgsiproxy
+%{_datadir}/bash-completion/completions/xrdsssadmin
+%{_datadir}/bash-completion/completions/brixMount
+%{_datadir}/bash-completion/completions/xrdstorascan
+%{_datadir}/bash-completion/completions/xrootdfs
+%{_datadir}/zsh/site-functions/_brix-client
 
 %files -n brix-cache-tests
 %license LICENSE
@@ -239,20 +307,64 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/nginx-xrootd/requireme
 %{_datadir}/nginx-xrootd/pytest.ini
 %{_datadir}/nginx-xrootd/requirements.txt
 
+%files -n brix-tools
+%license LICENSE
+%doc docs/10-reference/xrdceph-cephfs-bidirectional-migration.md
+%doc docs/10-reference/cephfs-migration-glasgow-ral.md
+%doc docs/10-reference/cephfs-to-xrdceph-migration.md
+%doc docs/10-reference/xrdceph-cephfs-migration-test-record.md
+%{_bindir}/xrdceph_striper_migrate
+%{_bindir}/xrdceph_cephfs_to_striper
+%{_bindir}/xrdrados_rescue
+%{_bindir}/xrdcephfs_rescue
+%{_bindir}/xrdceph_migrate
+%{_bindir}/xrdceph_striper_migrate.py
+%{_bindir}/xrdceph_cephfs_to_striper.py
+%{_libexecdir}/brix/
+%{_datadir}/bash-completion/completions/xrdceph_striper_migrate
+%{_datadir}/bash-completion/completions/xrdceph_cephfs_to_striper
+%{_datadir}/bash-completion/completions/xrdrados_rescue
+%{_datadir}/bash-completion/completions/xrdcephfs_rescue
+%{_datadir}/bash-completion/completions/xrdceph_migrate
+
 %changelog
+* Tue Jul 07 2026 Rob Currie <rob.currie@ed.ac.uk> - 0.1.0-8
+- Ceph operator tools promoted to client/apps/ceph/: brix-tools now builds via
+  the dep-gated `make -C client ceph-tools` target and is staged by the client
+  install-bin target (no more spec-local compile/install recipes).
+- brix-tools gains the offline rescue utilities (xrdrados_rescue,
+  xrdcephfs_rescue, xrdceph_migrate), the Python migration variants (*.py on
+  PATH, pymigrate under %%{_libexecdir}/brix; Recommends python3-rados/
+  python3-cephfs), and their bash completions. The five new man pages ride the
+  brix-cache-client man1 glob.
+
+* Tue Jul 07 2026 Rob Currie <rob.currie@ed.ac.uk> - 0.1.0-7
+- Package brix-tools as compiled C++ XrdCeph/CephFS migration
+  binaries instead of the Python reference/operator scripts.
+- Provide/obsolete the temporary brix-cache-ceph-tools package name.
+- Add the Ceph development build requirements needed for the binary tools.
+
+* Tue Jul 07 2026 Rob Currie <rob.currie@ed.ac.uk> - 0.1.0-6
+- Package the current client install surface from client/Makefile so xrd,
+  xrdcksum personalities, xrdstorascan, brixMount, all man pages, completions,
+  and libbrixposix_preload.so are included.
+- Add brix-cache-ceph-tools with the Python XrdCeph/CephFS migration tools and
+  their pymigrate helper package.
+- Update the module payload for the current BriX artifact names.
+- Ship the renamed brix-cache.conf.example reference config.
+
 * Fri Jul 03 2026 Rob Currie <rob.currie@ed.ac.uk> - 0.1.0-5
 - Rebrand: the product is now BriX-Cache (server identity string, docs, site).
   Package renames: nginx-mod-xrootd -> nginx-mod-brix-cache,
   nginx-xrootd-client -> brix-cache-client, nginx-xrootd-tests -> brix-cache-tests,
   each with Provides/Obsoletes on the old name for a clean dnf upgrade path.
-  Installed artifact names (module .so files, mod-xrootd.conf, xrootd.conf.example,
-  %%{_datadir}/nginx-xrootd) are unchanged — configs keep working as-is.
+  Installed compatibility names (mod-xrootd.conf and %%{_datadir}/nginx-xrootd)
+  are unchanged, so existing active configs keep working as-is.
 - Server now reports "BriX-Cache" in kXR_query Qconfig version, stats XML pgm/name,
   /healthz service, SRR implementation, and the dashboard (src/core/ident.h)
 
 * Sun Jun 21 2026 nginx-xrootd maintainers <maintainers@example.com> - 0.1.0-4
-- phase-47 W1: bundle the dynamic modules into a single combined .so
-  (ngx_stream_xrootd_module.so = stream+metrics+srr+webdav+s3+dashboard+cms)
+- phase-47 W1: bundle the dynamic modules into a single combined stream .so
   plus the standalone HTTP AUX filter, so cross-module symbols resolve at link
   time and `nginx -t` loads cleanly — fixes the dlopen failure that the previous
   8-separate-.so layout hit on stock nginx (cross-.so RTLD_NOW symbol cycle).
