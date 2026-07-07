@@ -4,8 +4,12 @@ Verifies that WebDAV GET serves files from the read-through cache when
 ``brix_webdav_cache_root`` is configured.  The dedicated ``http-cache``
 server (port 18457) serves anonymous HTTP WebDAV with:
 
-    brix_export       /tmp/xrd-test/data-http-cache
+    brix_storage_backend posix:/tmp/xrd-test/data-http-cache/origin
     brix_webdav_cache_root /tmp/xrd-test/data-http-cache/cache
+
+Export root and cache root are siblings under data-http-cache so neither
+is beneath the other, satisfying the security check that rejects cache_root
+at or beneath the export root (which would expose .cinfo/.meta sidecars).
 
 Cache path formula (shared with src/fs/cache/open.c):
     cache_path = cache_root_canon + (fs_path - root_canon)
@@ -31,8 +35,11 @@ from settings import (
     DATA_ROOT,
 )
 
-# Data directories created by start_dedicated_nginx "http-cache"
+# Data directories created by start_dedicated_nginx "http-cache".
+# HTTP_CACHE_DATA is the base directory; origin files live in the "origin"
+# subdirectory (the export root) and cache entries in the "cache" sibling.
 HTTP_CACHE_DATA = os.path.join(os.path.dirname(DATA_ROOT), "data-http-cache")
+HTTP_CACHE_ORIGIN = os.path.join(HTTP_CACHE_DATA, "origin")
 HTTP_CACHE_CACHE = os.path.join(HTTP_CACHE_DATA, "cache")
 
 
@@ -69,8 +76,9 @@ def base_url():
 
 
 @pytest.fixture(autouse=True)
-def ensure_cache_dir():
-    """Ensure cache directory exists before each test."""
+def ensure_dirs():
+    """Ensure origin and cache directories exist before each test."""
+    os.makedirs(HTTP_CACHE_ORIGIN, exist_ok=True)
     os.makedirs(HTTP_CACHE_CACHE, exist_ok=True)
 
 
@@ -87,7 +95,7 @@ def test_cache_hit_served(base_url):
     uid = uuid.uuid4().hex
     rel = f"cache_hit_{uid}.txt"
 
-    origin_path = os.path.join(HTTP_CACHE_DATA, rel)
+    origin_path = os.path.join(HTTP_CACHE_ORIGIN, rel)
     cache_path = os.path.join(HTTP_CACHE_CACHE, rel)
 
     origin_content = b"origin-content-" + uid.encode()
@@ -124,7 +132,7 @@ def test_cache_miss_fallthrough(base_url):
     uid = uuid.uuid4().hex
     rel = f"cache_miss_{uid}.txt"
 
-    origin_path = os.path.join(HTTP_CACHE_DATA, rel)
+    origin_path = os.path.join(HTTP_CACHE_ORIGIN, rel)
     cache_path = os.path.join(HTTP_CACHE_CACHE, rel)
 
     origin_content = b"origin-only-" + uid.encode()
@@ -206,7 +214,7 @@ class TestXCacheAlternative:
         rel = f"xcache_first_{uid}.bin"
         origin_data = os.urandom(16 * 1024)
 
-        origin_path = os.path.join(HTTP_CACHE_DATA, rel)
+        origin_path = os.path.join(HTTP_CACHE_ORIGIN, rel)
         cache_path = os.path.join(HTTP_CACHE_CACHE, rel)
 
         # Ensure no pre-existing cache entry.
@@ -241,7 +249,7 @@ class TestXCacheAlternative:
         origin_data = b"origin-" + uid.encode()
         cache_data = b"cached-" + uid.encode()  # Different content to distinguish
 
-        origin_path = os.path.join(HTTP_CACHE_DATA, rel)
+        origin_path = os.path.join(HTTP_CACHE_ORIGIN, rel)
         cache_path = os.path.join(HTTP_CACHE_CACHE, rel)
 
         try:
@@ -276,7 +284,7 @@ class TestXCacheAlternative:
         rel = f"xcache_cksum_{uid}.bin"
         payload = os.urandom(32 * 1024)
 
-        origin_path = os.path.join(HTTP_CACHE_DATA, rel)
+        origin_path = os.path.join(HTTP_CACHE_ORIGIN, rel)
         cache_path = os.path.join(HTTP_CACHE_CACHE, rel)
 
         expected_sha256 = hashlib.sha256(payload).hexdigest()
@@ -310,7 +318,7 @@ class TestXCacheAlternative:
         uid = uuid.uuid4().hex
         rel = f"xcache_autodir_{uid}.bin"
         origin_data = b"autodir-test"
-        origin_path = os.path.join(HTTP_CACHE_DATA, rel)
+        origin_path = os.path.join(HTTP_CACHE_ORIGIN, rel)
 
         try:
             with open(origin_path, "wb") as fh:
@@ -337,7 +345,7 @@ class TestXCacheAlternative:
         rel = f"xcache_corrupt_{uid}.bin"
         origin_data = b"origin-after-corrupt-cache"
 
-        origin_path = os.path.join(HTTP_CACHE_DATA, rel)
+        origin_path = os.path.join(HTTP_CACHE_ORIGIN, rel)
         cache_path = os.path.join(HTTP_CACHE_CACHE, rel)
 
         try:

@@ -325,7 +325,8 @@ start_dedicated_nginx() {
         "${data_root}/dest_no_service_cert" \
         "${data_root}/dest_disabled" \
         "${data_root}/dest_readonly" \
-        "${data_root}/cache"
+        "${data_root}/cache" \
+        "${data_root}/origin"
     rm -f "${instance_root}/logs"/*.log "${instance_root}/logs"/*.pid
     if [[ ! -f "${data_root}/test.txt" ]]; then
         printf '%s\n' "hello from nginx-xrootd" > "${data_root}/test.txt"
