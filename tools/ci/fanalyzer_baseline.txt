@@ -1,0 +1,12 @@
+# fanalyzer baseline — known/false-positive findings, line:col stripped.
+# Regenerate with: tools/ci/run_fanalyzer.sh --regen   (review the diff!)
+src/fs/cache/evict_candidates.c │ leak of ‘copy’ [CWE-401]  │ -Wanalyzer-malloc-leak
+src/core/ngx_log.h │ dereference of NULL ‘log’ [CWE-476]  │ -Wanalyzer-null-dereference
+src/event/ngx_event_timer.h │ use after ‘free’ of ‘q’ [CWE-416]  │ -Wanalyzer-use-after-free
+src/frm/index.c │ dereference of NULL ‘0’ [CWE-476]  │ -Wanalyzer-null-dereference
+src/frm/index.c │ dereference of NULL ‘tbl’ [CWE-476]  │ -Wanalyzer-null-dereference
+src/frm/waiter.c │ dereference of NULL ‘0’ [CWE-476]  │ -Wanalyzer-null-dereference
+src/fs/backend/pblock/sd_pblock_catalog.c │ leak of ‘dup’ [CWE-401]  │ -Wanalyzer-malloc-leak
+src/net/manager/redir_cache.c │ dereference of NULL ‘0’ [CWE-476]  │ -Wanalyzer-null-dereference
+src/net/proxy/pool.c │ use after ‘free’ of ‘q’ [CWE-416]  │ -Wanalyzer-use-after-free
+src/core/shm/kv.c │ dereference of NULL ‘0’ [CWE-476]  │ -Wanalyzer-null-dereference
