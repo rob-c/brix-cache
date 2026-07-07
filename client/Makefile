@@ -142,6 +142,9 @@ PREFIX     ?= /usr/local
 LIBDIR     ?= $(PREFIX)/lib
 INCLUDEDIR ?= $(PREFIX)/include
 PKGCONFDIR ?= $(LIBDIR)/pkgconfig
+# Python migration tools + their pymigrate package live under libexec; bin/
+# gets *.py symlinks (relative, so DESTDIR staging keeps working).
+LIBEXECDIR ?= $(PREFIX)/libexec/brix
 
 # All compiled executables land under bin/ (keeps the source tree clean — the whole
 # dir is git-ignored). Libraries (.a/.so/.pc) stay in the build root. The bare names
@@ -178,6 +181,31 @@ ifeq ($(HAVE_FUSE3),yes)
   OPT_EXES += $(BINDIR)/xrootdfs
   OPT_EXES += $(BINDIR)/brixMount
 endif
+
+# Ceph operator tools (apps/ceph/) — migration + rescue utilities linking
+# librados directly (storage-plane, not root://). Compile-gated like fuse3:
+# each tool joins OPT_EXES only when its own dev headers are present. The two
+# C++ tools additionally need a C++ compiler. Header probes (not pkg-config —
+# the striper/cephfs libs don't reliably ship .pc files) mirror the bzlib
+# probe above.
+CXX ?= g++
+HAVE_CXX          := $(shell command -v $(CXX) >/dev/null 2>&1 && echo yes)
+HAVE_RADOS        := $(shell $(CC) -E -x c /dev/null -include rados/librados.h >/dev/null 2>&1 && echo yes)
+HAVE_RADOSSTRIPER := $(shell $(CC) -E -x c /dev/null -include radosstriper/libradosstriper.h >/dev/null 2>&1 && echo yes)
+HAVE_CEPHFS       := $(shell $(CC) -E -x c /dev/null -include cephfs/libcephfs.h >/dev/null 2>&1 && echo yes)
+CEPH_EXES :=
+ifeq ($(HAVE_RADOS),yes)
+  CEPH_EXES += $(BINDIR)/xrdrados_rescue $(BINDIR)/xrdcephfs_rescue $(BINDIR)/xrdceph_migrate
+  ifeq ($(HAVE_CXX)$(HAVE_CEPHFS),yesyes)
+    CEPH_EXES += $(BINDIR)/xrdceph_striper_migrate
+  endif
+  ifeq ($(HAVE_CXX)$(HAVE_RADOSSTRIPER),yesyes)
+    CEPH_EXES += $(BINDIR)/xrdceph_cephfs_to_striper
+  endif
+endif
+OPT_EXES += $(CEPH_EXES)
+CEPH_TOOL_NAMES := xrdrados_rescue xrdcephfs_rescue xrdceph_migrate \
+                   xrdceph_striper_migrate xrdceph_cephfs_to_striper
 
 # phase-69: apps regrouped into tool-family subdirs — each CLI's translation units
 # are listed in a <name>_OBJS variable (the Phase-38 split siblings are just extra
@@ -302,6 +330,67 @@ $(BINDIR)/brixMount: $(BRIXMOUNT_OBJS) $(CLIENT_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(BRIXMOUNT_OBJS) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -lcurl -lsqlite3 -lcrypto -lz -o $@
 	@echo " + built $@ (CVMFS-brix + XRootDFS-brix; libfuse3/libcurl/libsqlite3)"
 
+# --- Ceph operator tools (apps/ceph/) -------------------------------------
+# Build recipes mirror tests/ceph/run_rescue_tools.sh and the RPM spec. The C
+# tools force-include the ngx shim and compile the sd_ceph driver sources
+# directly; the reverse C++ tool keeps its CephFS decoders as C objects (g++
+# would treat the .c inputs as C++ and break their extern "C" boundary).
+CEPH_RADOS_DIR := $(SRC)/fs/backend/rados
+CEPH_C_FLAGS   := -std=c11 -Wall -Wextra -D_FILE_OFFSET_BITS=64 $(HARDEN) $(OPT) \
+                  -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH \
+                  -I$(SRC)/fs/backend -I$(CEPH_RADOS_DIR) -Iapps/ceph \
+                  -include apps/ceph/ngx_shim.h $(CFLAGS)
+CEPH_CXX_FLAGS := -std=c++17 -Wall -Wextra -D_FILE_OFFSET_BITS=64 $(HARDEN) $(OPT) \
+                  -Iapps/ceph $(CFLAGS)
+
+$(BINDIR)/xrdrados_rescue: apps/ceph/xrdrados_rescue.c $(CEPH_RADOS_DIR)/sd_ceph.c \
+		$(CEPH_RADOS_DIR)/sd_ceph_compat.c apps/ceph/ngx_shim.h | $(BINDIR)
+	$(CC) $(CEPH_C_FLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(filter %.c,$^) -lrados -o $@
+	@echo " + built $@ (librados)"
+
+$(BINDIR)/xrdceph_migrate: apps/ceph/xrdceph_migrate.c $(CEPH_RADOS_DIR)/sd_ceph.c \
+		$(CEPH_RADOS_DIR)/sd_ceph_compat.c apps/ceph/ngx_shim.h | $(BINDIR)
+	$(CC) $(CEPH_C_FLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(filter %.c,$^) -lrados -o $@
+	@echo " + built $@ (librados)"
+
+$(BINDIR)/xrdcephfs_rescue: apps/ceph/xrdcephfs_rescue.c $(CEPH_RADOS_DIR)/sd_cephfs_ro.c \
+		$(CEPH_RADOS_DIR)/sd_ceph.c $(CEPH_RADOS_DIR)/sd_ceph_compat.c \
+		$(CEPH_RADOS_DIR)/cephfs_denc.c $(CEPH_RADOS_DIR)/cephfs_layout.c \
+		apps/ceph/ngx_shim.h | $(BINDIR)
+	$(CC) $(CEPH_C_FLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(filter %.c,$^) -lrados -o $@
+	@echo " + built $@ (librados; cephfsro core)"
+
+apps/ceph/cephfs_denc.o: $(CEPH_RADOS_DIR)/cephfs_denc.c
+	$(CC) -std=c11 -Wall -Wextra -D_FILE_OFFSET_BITS=64 $(OPT) -I$(CEPH_RADOS_DIR) $(CFLAGS) -c $< -o $@
+apps/ceph/cephfs_layout.o: $(CEPH_RADOS_DIR)/cephfs_layout.c
+	$(CC) -std=c11 -Wall -Wextra -D_FILE_OFFSET_BITS=64 $(OPT) -I$(CEPH_RADOS_DIR) $(CFLAGS) -c $< -o $@
+
+$(BINDIR)/xrdceph_striper_migrate: apps/ceph/xrdceph_striper_migrate.cpp \
+		apps/ceph/xrdceph_migrate_config.h | $(BINDIR)
+	$(CXX) $(CEPH_CXX_FLAGS) $(LDFLAGS) $(LDFLAGS_PIE) \
+	    apps/ceph/xrdceph_striper_migrate.cpp -lrados -lcephfs -pthread -o $@
+	@echo " + built $@ (librados/libcephfs; C++17)"
+
+$(BINDIR)/xrdceph_cephfs_to_striper: apps/ceph/xrdceph_cephfs_to_striper.cpp \
+		apps/ceph/xrdceph_migrate_config.h apps/ceph/cephfs_denc.o apps/ceph/cephfs_layout.o | $(BINDIR)
+	$(CXX) $(CEPH_CXX_FLAGS) -I$(CEPH_RADOS_DIR) $(LDFLAGS) $(LDFLAGS_PIE) \
+	    apps/ceph/xrdceph_cephfs_to_striper.cpp \
+	    apps/ceph/cephfs_denc.o apps/ceph/cephfs_layout.o \
+	    -lrados -lradosstriper -o $@
+	@echo " + built $@ (librados/libradosstriper; C++17)"
+
+# `make -C client ceph-tools` — build exactly this group (used by the RPM spec).
+.PHONY: ceph-tools
+ceph-tools: $(CEPH_EXES)
+ifeq ($(strip $(CEPH_EXES)),)
+	@echo "ceph-tools: skipped — librados dev headers not found" \
+	     "(need librados-devel; + libradosstriper-devel/libcephfs-devel and a C++ compiler for the migration pair)"
+endif
+
+# Bare-name aliases (`make -C client xrdrados_rescue`), like $(BINS).
+.PHONY: $(CEPH_TOOL_NAMES)
+$(CEPH_TOOL_NAMES): %: $(BINDIR)/%
+
 # A5 VFS S3 backend smoke test — exercises the brix_vfs S3 backend directly.
 # Run against a live S3 server: S3_URL=s3://host:port/bucket/key AWS_* ./vfs_s3_smoke
 .PHONY: vfs-s3-smoke
@@ -418,16 +507,28 @@ install: lib
 	install -m644 $(SRC)/protocol/codec/*.h $(DESTDIR)$(INCLUDEDIR)/brix/xrdproto/protocol/codec/
 	install -m644 libbrix.pc $(DESTDIR)$(PKGCONFDIR)/
 
-# Install the CLI binaries + all man pages (build them first).
+# Install the CLI binaries, optional FUSE/preload artifacts, completions, and
+# all man pages (build them first).
 install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES) install-completions
 	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/share/man/man1 \
-	           $(DESTDIR)$(PREFIX)/share/man/man7
+	           $(DESTDIR)$(PREFIX)/share/man/man7 $(DESTDIR)$(LIBDIR)
 	install -m755 $(BIN_EXES) $(DESTDIR)$(PREFIX)/bin/
 	for l in $(CKSUM_LINKS); do ln -sf xrdcksum $(DESTDIR)$(PREFIX)/bin/$$l; done
 	for l in $(DIAG_LINKS); do ln -sf xrddiag $(DESTDIR)$(PREFIX)/bin/$$l; done
-	[ -f $(BINDIR)/xrootdfs ] && install -m755 $(BINDIR)/xrootdfs $(DESTDIR)$(PREFIX)/bin/ || true
+	for e in $(OPT_EXES); do [ -f $$e ] && install -m755 $$e $(DESTDIR)$(PREFIX)/bin/ || true; done
+	for so in $(OPT_BINS); do [ -f $$so ] && install -m755 $$so $(DESTDIR)$(LIBDIR)/ || true; done
 	for m in man/*.1; do install -m644 $$m $(DESTDIR)$(PREFIX)/share/man/man1/; done
 	for m in man/*.7; do install -m644 $$m $(DESTDIR)$(PREFIX)/share/man/man7/; done
+	install -d $(DESTDIR)$(LIBEXECDIR)/pymigrate/shim
+	install -m755 apps/ceph/xrdceph_striper_migrate.py \
+	              apps/ceph/xrdceph_cephfs_to_striper.py $(DESTDIR)$(LIBEXECDIR)/
+	install -m644 apps/ceph/pymigrate/__init__.py apps/ceph/pymigrate/common.py \
+	              apps/ceph/pymigrate/cephfs_meta.py apps/ceph/pymigrate/radosbridge.py \
+	              $(DESTDIR)$(LIBEXECDIR)/pymigrate/
+	install -m644 apps/ceph/pymigrate/shim/rados_manifest_shim.cpp \
+	              $(DESTDIR)$(LIBEXECDIR)/pymigrate/shim/
+	ln -sf ../libexec/brix/xrdceph_striper_migrate.py $(DESTDIR)$(PREFIX)/bin/xrdceph_striper_migrate.py
+	ln -sf ../libexec/brix/xrdceph_cephfs_to_striper.py $(DESTDIR)$(PREFIX)/bin/xrdceph_cephfs_to_striper.py
 
 # ---------------------------------------------------------------------------
 # Install man pages only (DESTDIR-aware; includes the .so link pages).
