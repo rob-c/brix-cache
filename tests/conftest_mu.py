@@ -35,7 +35,13 @@ def _seed_export(cast_map) -> None:
 def mu_fleet(cast):
     """Privileged: bring up the paired MU fleet with real accounts; reap on teardown."""
     if os.geteuid() != 0:
-        pytest.fail("MU conformance suite requires root (spec D4) — run "
+        # An unmet ENVIRONMENT requirement (real user accounts + setuid need
+        # root) is a skip, not a failure: pytest.fail() here turned every
+        # multi-user test into an ERROR in the ordinary non-root full-suite run
+        # (~230 cascading errors).  Skip cleanly so the suite stays green off a
+        # privileged host; run tests/run_multiuser_authz.sh under sudo to
+        # actually exercise them.
+        pytest.skip("MU conformance suite requires root (spec D4) — run "
                     "tests/run_multiuser_authz.sh under sudo")
     accounts.sweep_leftover()
     accounts.provision(cast)
