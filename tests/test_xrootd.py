@@ -324,8 +324,9 @@ class TestGSI:
 
     def test_gsi_wrong_ca_rejected(self):
         """GSI: unknown CA dir causes auth failure (tested in fresh subprocess)."""
-        os.environ["X509_CERT_DIR"] = "/nonexistent/ca"
-        os.environ["X509_USER_PROXY"] = PROXY_PEM
+        # The bad-CA env is set INSIDE the subprocess script below; mutating the
+        # live pytest-process env here would corrupt X509_CERT_DIR for every test
+        # that runs after this one in the same process (a real cross-test leak).
         script = """\
 import os, sys
 os.environ["X509_CERT_DIR"]  = "/nonexistent/ca"

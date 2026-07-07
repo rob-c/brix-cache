@@ -100,6 +100,21 @@ def _chdir_scratch():
     os.chdir(CWD_DIR)
 
 
+def _ensure_client_x509_env():
+    """Point GSI clients at the shared CA dir + proxy.
+
+    Normally set inside _setup_session(), but that is skipped in attach mode
+    (external fleet already up) and in xdist worker processes.  GSI subprocess
+    clients — notably test_concurrent's spawn ProcessPoolExecutor workers, which
+    inherit this env — then find no X509_USER_PROXY and fail every GSI open with
+    "No protocols left to try".  setdefault so a test that forges its own proxy
+    still wins; skipped for a remote fleet, which manages its own credentials."""
+    if REMOTE_SERVER:
+        return
+    os.environ.setdefault("X509_CERT_DIR", CA_DIR)
+    os.environ.setdefault("X509_USER_PROXY", PROXY_STD)
+
+
 def _check_server_reachable(host: str, port: int, timeout: float = 5.0) -> bool:
     """Return True if the server is accepting TCP connections."""
     try:
@@ -449,8 +464,17 @@ def pytest_sessionstart(session):
     if hasattr(session.config, "workerinput"):
         if not REMOTE_SERVER and not no_local_work:
             _chdir_scratch()
+            _ensure_client_x509_env()
         return
     if _should_skip_local_lifecycle(session.config):
+        # Attach mode (an external fleet is already up) skips _setup_session(),
+        # which is where X509_CERT_DIR / X509_USER_PROXY normally get set.  Without
+        # them, GSI clients — especially test_concurrent's spawn ProcessPoolExecutor
+        # workers, which inherit this env — find no proxy and fail every GSI open
+        # with "No protocols left to try".  This is the exact race behind the
+        # lane-2 retry-ladder GSI failures: the --lf rerun attaches to the prior
+        # attempt's not-yet-stopped fleet.  Set the client env even when attaching.
+        _ensure_client_x509_env()
         return
     _setup_session()
 
