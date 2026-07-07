@@ -5,6 +5,7 @@ objs/
 
 # C build artifacts (client + shared + test harnesses)
 *.d
+!*.d/
 *.so
 *.pc
 

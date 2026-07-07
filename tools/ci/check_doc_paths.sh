@@ -4,7 +4,9 @@
 #
 # WHAT: Fails (exit 1) when CLAUDE.md, README.md, or docs/index.md references
 #       a repo-relative path (src/…, tools/…, tests/…, docs/…, …) that does
-#       not exist in the working tree.
+#       not exist in the working tree, or exists but is NOT git-tracked (a
+#       gitignore casualty: present locally, absent in every fresh clone —
+#       exactly how the fail2ban configs and tools/ci guards went missing).
 #
 # WHY:  The OP→FILE tables in CLAUDE.md are the fastest entry point into the
 #       codebase for humans and agents. After tree-reorganization phases
@@ -35,6 +37,9 @@ for doc in "${DOCS[@]}"; do
         p="${p%/}"                       # tolerate trailing slash on dir refs
         if [ ! -e "$REPO/$p" ]; then
             echo "FAIL $rel references missing path: $p"
+            viol=1
+        elif [ -z "$(git -C "$REPO" ls-files -- "$p" | head -1)" ]; then
+            echo "FAIL $rel references untracked (gitignored?) path: $p"
             viol=1
         fi
     done < <(
