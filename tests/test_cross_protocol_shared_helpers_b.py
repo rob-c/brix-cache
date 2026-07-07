@@ -44,14 +44,22 @@ def test_phase2_policy_consumes_identity():
 
 
 def test_phase2_voms_identity_rejects_injected_vo_tokens():
+    # The per-character injection guard was refactored out of collect.c into a
+    # shared static-inline brix_vo_token_is_safe() in vo_token.h; the property is
+    # unchanged, only its location. collect.c still calls the guard + fqan→vo.
     _assert_markers(
-        "src/auth/voms/collect.c",
+        "src/auth/voms/vo_token.h",
         [
-            "brix_vo_token_safe(",
             "ch <= ' '",
             "ch >= 0x7f",
             "ch == ','",
             "ch == '/'",
+        ],
+    )
+    _assert_markers(
+        "src/auth/voms/collect.c",
+        [
+            "brix_vo_token_safe(",
             "brix_fqan_to_vo(",
         ],
     )
@@ -418,7 +426,9 @@ def test_implementation_plan_feature_gaps_are_closed():
             "webdav_add_cors_headers(r)",
             "webdav_verify_proxy_cert(r, conf)",
             "webdav_verify_bearer_token(r, conf)",
-            "webdav_check_token_write_scope(r, scope_method)",
+            # 7de0b6d renamed webdav_check_token_write_scope → _scope
+            # (now enforces READ and WRITE scope, not write-only).
+            "webdav_check_token_scope(r, mname)",
             "webdav_metrics_return(r,",
         ],
     )
@@ -426,7 +436,8 @@ def test_implementation_plan_feature_gaps_are_closed():
         "src/protocols/webdav/auth_token.c",
         [
             "webdav_verify_bearer_token(",
-            "webdav_check_token_write_scope(",
+            # renamed from webdav_check_token_write_scope (7de0b6d: read+write)
+            "webdav_check_token_scope(",
             "brix_identity_check_token_scope(",
             "brix_token_check_write(",
         ],
