@@ -140,6 +140,13 @@ ngx_command_t ngx_stream_brix_commands[] = {
       offsetof(ngx_stream_brix_srv_conf_t, access_log),
       NULL },
 
+    { ngx_string("brix_session_log"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, session_log),
+      NULL },
+
     /* Manager-mode: static prefix -> backend mapping (manager/redirector). */
     { ngx_string("brix_manager_map"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE2,

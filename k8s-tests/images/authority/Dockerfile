@@ -1,6 +1,11 @@
 # authority — provisioning tools + static HTTP distributor for the auth plane.
-FROM almalinux:9
-RUN dnf install -y epel-release \
+ARG BRIX_BASE_IMAGE=almalinux:9
+FROM ${BRIX_BASE_IMAGE}
+ARG BRIX_OS_TARGET=alma9
+ARG BRIX_ENABLE_CEPH_SIG=0
+ARG BRIX_CEPH_SIG_RELEASE=tentacle
+COPY k8s-tests/lib/el-target.sh /tmp/el-target.sh
+RUN bash /tmp/el-target.sh \
     && dnf install -y python3 python3-pip openssl nginx \
                       krb5-server krb5-workstation \
     && (dnf install -y voms-clients || true) \

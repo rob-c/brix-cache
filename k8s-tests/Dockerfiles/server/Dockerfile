@@ -1,7 +1,14 @@
 # Server — nginx-xrootd deployment image with full PKI tooling
-FROM almalinux:9-minimal AS base
+ARG BRIX_RUNTIME_IMAGE=almalinux:9-minimal
+FROM ${BRIX_RUNTIME_IMAGE} AS base
 
-RUN dnf install -y \
+ARG BRIX_OS_TARGET=alma9
+ARG BRIX_ENABLE_CEPH_SIG=0
+ARG BRIX_CEPH_SIG_RELEASE=tentacle
+COPY k8s-tests/lib/el-target.sh /tmp/el-target.sh
+
+RUN bash /tmp/el-target.sh \
+    && dnf install -y \
         nginx curl openssl voms-libs xrootd-client \
         && dnf clean all
 

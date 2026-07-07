@@ -66,6 +66,7 @@
 #include "core/shm/kv.h"
 #include "net/mirror/mirror.h"
 #include "core/shm/rate_limit.h"
+#include "observability/sesslog/sesslog.h"
 
 #include <ngx_open_file_cache.h>
 
@@ -366,6 +367,10 @@ typedef struct {
      * brix_rl_rule_t* (void here for the same header-isolation reason). */
     void             *rl_conc_rule;
     char              rl_conc_key[128];
+
+    /* Session-lifecycle audit transfer record for request-sized data moves. */
+    brix_sess_xfer_t  sess_xfer;
+    unsigned          sess_xfer_started:1;
 } ngx_http_brix_webdav_req_ctx_t;
 
 extern ngx_module_t ngx_http_brix_webdav_module;

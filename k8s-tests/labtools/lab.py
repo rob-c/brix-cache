@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 from . import LAB, REPO
+from . import targets
 
 CHART = LAB / "charts" / "brix-test-lab"
 
@@ -43,24 +44,34 @@ def plan_up():
 
 # (profiles that need it, image tag, image subdir | None=smoke builds in-cluster)
 _IMAGES = [
-    (("dev",),                        "brix-smoke:dev",       None),
-    (("gsi", "token", "fleet", "full"), "brix-authority:dev",   "authority"),
-    (("token", "full"),               "brix-krb5-kdc:dev",    "krb5-kdc"),
-    (("chaos", "cms", "fleet", "full"), "brix-server:dev",      "server"),
-    (("fleet", "full"),               "brix-test-runner:dev", "test-runner"),
+    (("dev",),                         "brix-smoke",       None),
+    (("gsi", "token", "fleet", "full"), "brix-authority",   "authority"),
+    (("token", "full"),                "brix-krb5-kdc",    "krb5-kdc"),
+    (("chaos", "cms", "fleet", "full"), "brix-server",      "server"),
+    (("fleet", "full"),                "brix-test-runner", "test-runner"),
 ]
 
 
 def plan_images(profile):
+    target = targets.current()
+    tag = targets.image_tag()
     cmds = []
-    for profiles, tag, subdir in _IMAGES:
+    for profiles, repo, subdir in _IMAGES:
         if profile not in profiles:
             continue
+        image = f"{repo}:{tag}"
         if subdir is None:
-            cmds.append(["minikube", "image", "build", "-t", tag, str(LAB / "images" / "smoke")])
+            cmds.append([
+                "minikube", "image", "build",
+                *targets.smoke_build_args(target),
+                "-t", image, str(LAB / "images" / "smoke"),
+            ])
         else:
-            cmds += [["docker", "build", "-t", tag, "-f", _dockerfile(subdir), str(REPO)],
-                     ["minikube", "image", "load", tag]]
+            cmds += [[
+                "docker", "build",
+                *targets.build_args(target),
+                "-t", image, "-f", _dockerfile(subdir), str(REPO),
+            ], ["minikube", "image", "load", image]]
     return cmds
 
 
@@ -288,6 +299,9 @@ def cmd_test(argv):
     elif scenario in ("suite", "remote-suite"):
         from . import lab_suite
         lines = lab_suite.run(scenario, argv[1:])
+    elif scenario in ("ceph-docker", "ceph-rpmbuild"):
+        from . import ceph_docker
+        lines = ceph_docker.run(scenario)
     elif scenario in SCENARIOS:
         lines = SCENARIOS[scenario]()
     elif catalog.scenarios(LAB / "scenarios" / "catalog.yaml").get(scenario) is not None:
@@ -306,7 +320,7 @@ USAGE = """Usage: xrd-lab <command> [args]
   test <scenario>    Run a scenario check against a deployed profile
   status             Show cluster nodes and lab resources
   down <profile>     Uninstall a profile release and delete its namespace
-Env: XRD_LAB_K8S_VERSION XRD_LAB_NODES XRD_LAB_DRIVER XRD_LAB_DRY_RUN"""
+Env: XRD_LAB_K8S_VERSION XRD_LAB_NODES XRD_LAB_DRIVER XRD_LAB_OS_TARGET XRD_LAB_DRY_RUN"""
 
 
 def main(argv):

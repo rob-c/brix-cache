@@ -118,6 +118,8 @@ typedef struct {
     int       result;       /* NGX_OK on success, NGX_ERROR on failure */
     int       xrd_error;    /* kXR_* error code when result == NGX_ERROR */
     uint64_t  transfer_id;  /* shared TPC registry entry, 0 if unavailable */
+    brix_sess_t *sess;      /* outbound lifecycle audit session */
+    brix_sess_xfer_t sess_xfer; /* source-side transfer audit record */
     size_t    bytes_written;/* source bytes copied into dst_fd */
     char      err_msg[512]; /* human-readable error detail for logging */
     ngx_uint_t pmark_exp;   /* SciTags experiment id for the outbound flow,    */

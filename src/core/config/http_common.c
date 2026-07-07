@@ -67,6 +67,20 @@ static ngx_command_t  brix_http_common_commands[] = {
       offsetof(ngx_http_brix_common_conf_t, common.compress),
       NULL },
 
+    { ngx_string("brix_access_log"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.access_log),
+      NULL },
+
+    { ngx_string("brix_session_log"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.session_log),
+      NULL },
+
     { ngx_string("brix_thread_pool"),
       BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
@@ -159,6 +173,7 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_STR(storage_backend);
     BRIX_ADOPT_STR(storage_credential);
     BRIX_ADOPT_STR(thread_pool_name);
+    BRIX_ADOPT_STR(access_log);
     BRIX_ADOPT_STR(cache_store);
     BRIX_ADOPT_PTR(cache_store_args);
     BRIX_ADOPT_STR(stage_store);
@@ -166,6 +181,7 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_VAL(allow_write,       NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(read_only,         NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(compress,          NGX_CONF_UNSET);
+    BRIX_ADOPT_VAL(session_log,       NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(stage_enable,      NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(stage_flush_async, NGX_CONF_UNSET_UINT);
     BRIX_ADOPT_VAL(cache_max_object,  NGX_CONF_UNSET);          /* off_t */

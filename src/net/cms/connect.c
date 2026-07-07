@@ -2,6 +2,7 @@
 #include "protocols/root/connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
 #include "core/compat/log_diag.h"
 #include "core/compat/lifecycle_timing.h"   /* monotonic clock for settle timing */
+#include "observability/sesslog/sesslog_ngx.h"
 
 #include <ngx_event_connect.h>
 #include <netinet/in.h>
@@ -29,6 +30,99 @@ cms_addr_is_loopback(struct sockaddr *sa)
 #endif
 
     return 0;
+}
+
+void
+ngx_brix_cms_set_end_hint(ngx_brix_cms_ctx_t *ctx, brix_sess_end_t why)
+{
+    if (ctx == NULL || ctx->sess_end_hint_set) {
+        return;
+    }
+
+    ctx->sess_end_hint = why;
+    ctx->sess_end_hint_set = 1;
+}
+
+static brix_sess_end_t
+ngx_brix_cms_end_reason(ngx_brix_cms_ctx_t *ctx, ngx_connection_t *c)
+{
+    if (ngx_exiting || ngx_terminate) {
+        return BRIX_SESS_END_SHUTDOWN;
+    }
+
+    if (ctx != NULL && ctx->sess_end_hint_set) {
+        return ctx->sess_end_hint;
+    }
+
+    if (c != NULL) {
+        if ((c->read != NULL && c->read->timedout)
+            || (c->write != NULL && c->write->timedout))
+        {
+            return BRIX_SESS_END_TIMEOUT;
+        }
+        if (c->error) {
+            return BRIX_SESS_END_ERROR;
+        }
+    }
+
+    return BRIX_SESS_END_ERROR;
+}
+
+static const char *
+ngx_brix_cms_manager_cstr(ngx_brix_cms_ctx_t *ctx, char *dst,
+    size_t dst_size)
+{
+    size_t n;
+
+    if (ctx == NULL || dst == NULL || dst_size == 0
+        || ctx->conf->cms.manager.data == NULL)
+    {
+        return "-";
+    }
+
+    n = ctx->conf->cms.manager.len;
+    if (n >= dst_size) {
+        n = dst_size - 1;
+    }
+    if (n > 0) {
+        ngx_memcpy(dst, ctx->conf->cms.manager.data, n);
+    }
+    dst[n] = '\0';
+
+    return dst;
+}
+
+static void
+ngx_brix_cms_sess_begin(ngx_brix_cms_ctx_t *ctx)
+{
+    if (ctx == NULL || ctx->sess != NULL) {
+        return;
+    }
+
+    ctx->sess = brix_sess_begin(ctx->conf->session_log,
+                                ctx->conf->access_log_fd,
+                                BRIX_SESS_PROTO_CMS,
+                                BRIX_SESS_DIR_OUT,
+                                (const char *) ctx->conf->cms.manager.data,
+                                ctx->conf->cms.manager.len,
+                                BRIX_SESS_AM_HOST, NULL);
+}
+
+static void
+ngx_brix_cms_log_registration(ngx_brix_cms_ctx_t *ctx)
+{
+    char        manager[BRIX_SESSLOG_PATH_MAX];
+    const char *target;
+
+    if (ctx == NULL || ctx->sess_attempt_logged) {
+        return;
+    }
+
+    target = ngx_brix_cms_manager_cstr(ctx, manager, sizeof(manager));
+    brix_sess_auth_once(ctx->sess, BRIX_SESS_AM_HOST, target, "-");
+    brix_sess_attempt(ctx->sess, target, BRIX_SESS_MODE_META);
+    ctx->sess_attempt_logged = 1;
+    brix_sess_result(ctx->sess, 1, target, BRIX_SESS_MODE_META, NULL);
 }
 
 /* ngx_brix_cms_arm_read_deadline — (re)arm c->read with conf->cms.read_timeout
@@ -175,6 +269,11 @@ ngx_brix_cms_disconnect(ngx_brix_cms_ctx_t *ctx)
         ngx_del_timer(c->write);
     }
 
+    brix_sess_end(ctx->sess, ngx_brix_cms_end_reason(ctx, c));
+    ctx->sess = NULL;
+    ctx->sess_attempt_logged = 0;
+    ctx->sess_end_hint_set = 0;
+
     ngx_close_connection(c);
 
     ctx->connection = NULL;
@@ -204,6 +303,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
          * backs off — never the multi-second backoff for a same-host cold start. */
         ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ev->log, 0,
                        "brix: CMS connect/write timed out");
+        ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_TIMEOUT);
         ngx_brix_cms_disconnect(ctx);
         ngx_brix_cms_schedule_retry(ctx);
         return;
@@ -219,6 +319,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
              * surfaces here as a writable-with-error event, not at connect()).
              * This is exactly the same-host "manager not listening yet" case → the
              * fast-retry policy, not the multi-second backoff. */
+            ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_ERROR);
             ngx_brix_cms_disconnect(ctx);
             ngx_brix_cms_schedule_retry(ctx);
             return;
@@ -253,10 +354,12 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
          * redirects clients here.
          */
         if (ngx_brix_cms_send_status(ctx) != NGX_OK) {
+            ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_ERROR);
             ngx_brix_cms_disconnect(ctx);
             ngx_brix_cms_schedule_retry(ctx);
             return;
         }
+        ngx_brix_cms_log_registration(ctx);
 
         /*
          * WS1: arm the manager-silence deadline ONCE, at the login transition.
@@ -272,12 +375,14 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
     if (ngx_brix_cms_send_load(ctx) != NGX_OK) {
         ngx_log_error(NGX_LOG_WARN, ev->log, 0,
                       "brix: CMS write handler: send_load failed");
+        ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_ERROR);
         ngx_brix_cms_disconnect(ctx);
         ngx_brix_cms_schedule_retry(ctx);
         return;
     }
 
     if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
+        ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_ERROR);
         ngx_brix_cms_disconnect(ctx);
         ngx_brix_cms_schedule_retry(ctx);
         return;
@@ -333,6 +438,7 @@ ngx_brix_cms_connect(ngx_brix_cms_ctx_t *ctx)
     c->data = ctx;
     c->read->handler = ngx_brix_cms_read_handler;
     c->write->handler = ngx_brix_cms_write_handler;
+    ngx_brix_cms_sess_begin(ctx);
 
     /*
      * WS5: OS-level dead-peer reaping on the manager socket, so a silently-
@@ -390,6 +496,7 @@ ngx_brix_cms_timer(ngx_event_t *ev)
     if (ngx_brix_cms_send_load(ctx) != NGX_OK) {
         ngx_log_error(NGX_LOG_WARN, ev->log, 0,
                       "brix: CMS load heartbeat failed");
+        ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_ERROR);
         ngx_brix_cms_disconnect(ctx);
         ngx_brix_cms_schedule_retry(ctx);
         return;

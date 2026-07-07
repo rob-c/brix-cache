@@ -424,6 +424,9 @@ ngx_http_s3_handler(ngx_http_request_t *r)
         return s3_metrics_return_method(r, method_slot, NGX_OK);
     }
 
+    s3_sess_begin_request(r, method_slot);
+    s3_sess_attempt_request(r, method_slot);
+
     /*
      * SciTags packet marking (phase-34).  S3 has no TPC, so only plain
      * GET/PUT are marked, and only when brix_pmark_http_plain is on.

@@ -43,10 +43,13 @@ auto-detected and are therefore declared explicitly.
 
 **`brix-tools` (operator tools):**
 
-The compiled C++ tools link directly to Ceph's native libraries:
+The compiled C/C++ tools link directly to Ceph's native libraries:
 `librados`, `libcephfs`, and `libradosstriper`.  `rpmbuild` auto-detects the
 runtime shared-library requirements from the ELF records; the matching
-development packages are build-time requirements.
+development packages are build-time requirements.  The Python migration
+entrypoints are shipped as weakly coupled operator variants and therefore use
+`Recommends: python3-rados` and `Recommends: python3-cephfs` instead of hard
+runtime dependencies.
 
 **`brix-cache-tests` (suite, noarch):** depends on the system under test
 (`nginx-mod-brix-cache`, `brix-cache-client`, `nginx`) plus the python packages

@@ -1,8 +1,13 @@
 # test-runner — pytest + the repo tests tree + xrootd clients, run against the
 # deployed lab via TEST_* env pointed at cluster Service DNS.
-FROM almalinux:9
+ARG BRIX_BASE_IMAGE=almalinux:9
+FROM ${BRIX_BASE_IMAGE}
+ARG BRIX_OS_TARGET=alma9
+ARG BRIX_ENABLE_CEPH_SIG=0
+ARG BRIX_CEPH_SIG_RELEASE=tentacle
 # The suite uses 3.10+ typing (X | None), so ship Python 3.12 as python3.
-RUN dnf install -y epel-release \
+COPY k8s-tests/lib/el-target.sh /tmp/el-target.sh
+RUN bash /tmp/el-target.sh \
     && dnf install -y --allowerasing python3.12 python3.12-pip xrootd-client openssl krb5-workstation \
     && alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 \
     && dnf clean all

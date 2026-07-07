@@ -8,6 +8,7 @@
 #include "core/http/http_headers.h"
 #include "core/compat/staged_file.h"
 #include "observability/dashboard/dashboard_tracking.h"
+#include "observability/sesslog/sesslog_ngx.h"
 #include "fs/xfer/xfer.h"     /* unified transfer audit ledger (kind=tpc) */
 #include "tpc/common/auth.h"
 #include "tpc/common/metrics.h"
@@ -68,6 +69,28 @@ webdav_tpc_request_identity(ngx_http_request_t *r)
 
     wctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     return wctx != NULL ? wctx->identity : NULL;
+}
+
+static void
+webdav_tpc_note_client_copy_xfer(ngx_http_request_t *r, off_t bytes,
+    int64_t expected)
+{
+    ngx_http_brix_webdav_req_ctx_t *wctx;
+    uint64_t                        moved;
+
+    wctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+    if (wctx == NULL || !wctx->sess_xfer_started) {
+        return;
+    }
+
+    if (expected >= 0) {
+        wctx->sess_xfer.expected = expected;
+    }
+
+    moved = bytes > 0 ? (uint64_t) bytes : 0;
+    if (moved > wctx->sess_xfer.bytes) {
+        brix_sess_xfer_add(&wctx->sess_xfer, moved - wctx->sess_xfer.bytes);
+    }
 }
 
 /*
@@ -410,6 +433,7 @@ webdav_tpc_handle_push(ngx_http_request_t *r,
         brix_dashboard_http_finish(r);
         brix_xfer_finish(BRIX_XFER_TPC, "out", path, NULL, 0,
                            BRIX_XFER_DST_ERR, 0, r->connection->log);
+        webdav_tpc_note_client_copy_xfer(r, 0, (int64_t) sb.st_size);
         return rc;
     }
 
@@ -425,6 +449,7 @@ webdav_tpc_handle_push(ngx_http_request_t *r,
     brix_dashboard_http_add(r, (ngx_atomic_int_t) sb.st_size);
     brix_dashboard_http_finish(r);
     BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_PUSH_SUCCESS]);
+    webdav_tpc_note_client_copy_xfer(r, sb.st_size, (int64_t) sb.st_size);
     return webdav_send_no_body(r, NGX_HTTP_CREATED);
 }
 
@@ -543,6 +568,7 @@ ngx_http_brix_webdav_tpc_handle_copy(ngx_http_request_t *r)
     ngx_str_t        dst_scope;
     uint64_t         transfer_id;
     ngx_uint_t       n_streams;
+    off_t            completed_bytes;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
 
@@ -757,6 +783,7 @@ ngx_http_brix_webdav_tpc_handle_copy(ngx_http_request_t *r)
         brix_staged_abort(r->connection->log, conf->common.root_canon, &staged, 1);
         brix_xfer_finish(BRIX_XFER_TPC, "in", path, NULL, 0,
                            BRIX_XFER_SRC_ERR, 0, r->connection->log);
+        webdav_tpc_note_client_copy_xfer(r, 0, -1);
         return rc;
     }
 
@@ -807,7 +834,9 @@ ngx_http_brix_webdav_tpc_handle_copy(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
+    completed_bytes = 0;
     if (webdav_tpc_probe(r, conf, path, &sb) == NGX_OK) {
+        completed_bytes = sb.st_size;
         brix_dashboard_http_add(r, (ngx_atomic_int_t) sb.st_size);
         (void) brix_tpc_registry_update(transfer_id, sb.st_size,
                                           BRIX_TPC_STATE_DONE,
@@ -829,10 +858,10 @@ ngx_http_brix_webdav_tpc_handle_copy(ngx_http_request_t *r)
     (void) brix_tpc_registry_remove(transfer_id, r->connection->log);
     brix_dashboard_http_finish(r);
     BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_PULL_SUCCESS]);
-    brix_xfer_finish(BRIX_XFER_TPC, "in", path, NULL,
-                       (size_t) (webdav_tpc_probe(r, conf, path, &sb) == NGX_OK
-                           ? sb.st_size : 0),
+    brix_xfer_finish(BRIX_XFER_TPC, "in", path, NULL, (size_t) completed_bytes,
                        BRIX_XFER_OK, 0, r->connection->log);
+    webdav_tpc_note_client_copy_xfer(r, completed_bytes,
+        completed_bytes > 0 ? (int64_t) completed_bytes : -1);
     return webdav_send_no_body(r, existed ? NGX_HTTP_NO_CONTENT
                                           : NGX_HTTP_CREATED);
 }

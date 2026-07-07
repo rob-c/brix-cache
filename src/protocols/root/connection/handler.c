@@ -2,6 +2,7 @@
 #include <netinet/tcp.h>   /* Phase 39: TCP_USER_TIMEOUT / TCP_KEEPIDLE etc. */
 #include "netopt.h"        /* Phase 50: shared dead-peer setsockopt helper */
 #include "protocols/root/relay/relay.h"   /* transparent pass-through relay engage */
+#include "observability/sesslog/sesslog_ngx.h"
 
 void
 ngx_stream_brix_handler(ngx_stream_session_t *s)
@@ -227,6 +228,29 @@ ngx_stream_brix_handler(ngx_stream_session_t *s)
             }
             return;
         }
+    }
+
+    {
+        ngx_stream_brix_srv_conf_t *sconf;
+        const char                 *peer;
+        size_t                      peer_len;
+
+        sconf = ngx_stream_get_module_srv_conf(s, ngx_stream_brix_module);
+        if (c->addr_text.len > 0) {
+            peer = (const char *) c->addr_text.data;
+            peer_len = c->addr_text.len;
+        } else {
+            peer = "-";
+            peer_len = 1;
+        }
+
+        ctx->sess = brix_sess_begin(sconf->session_log,
+                                    sconf->access_log_fd,
+                                    BRIX_SESS_PROTO_ROOT,
+                                    BRIX_SESS_DIR_IN,
+                                    peer, peer_len,
+                                    brix_sess_am_from_stream_auth(sconf->auth),
+                                    NULL);
     }
 
     c->read->handler = ngx_stream_brix_recv;

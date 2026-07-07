@@ -29,6 +29,7 @@
 #include "core/aio/uring.h"
 #include "fs/backend/sd.h"          /* SD registry: per-worker backend instance */
 #include "core/compat/cstr.h"       /* brix_str_cbuf */
+#include "observability/sesslog/sesslog_ngx.h"
 
 #if defined(__SANITIZE_ADDRESS__)   /* Phase 27 W6: explicit LSan check at exit */
 #include <sanitizer/lsan_interface.h>
@@ -503,6 +504,8 @@ brix_exit_process(ngx_cycle_t *cycle)
 #if defined(__SANITIZE_ADDRESS__)
     __lsan_do_recoverable_leak_check();
 #endif
+
+    brix_sesslog_shutdown_flush();
 
     /* Fast teardown: drop any idle pooled upstream connections so this draining
      * worker releases authenticated upstream sockets immediately (with a clean

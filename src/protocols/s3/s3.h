@@ -60,6 +60,7 @@
 #include "core/compat/uri.h"
 #include "core/compat/xml.h"
 #include "core/types/identity.h"
+#include "observability/sesslog/sesslog.h"
 
 /* -------------------------------------------------------------------------
  * Configuration
@@ -131,6 +132,8 @@ typedef struct {
     char               sigv4_seed_signature[65]; /* hex, 64 chars + NUL  */
     char               sigv4_amz_date[32];        /* YYYYMMDDTHHMMSSZ     */
     char               sigv4_scope[96];           /* date/region/s3/aws4_request */
+    brix_sess_xfer_t   sess_xfer;                 /* request data move audit */
+    unsigned           sess_xfer_started:1;
 } ngx_http_s3_req_ctx_t;
 
 /* Sentinel filename created by XrdClS3 mkdir */
@@ -340,6 +343,8 @@ ngx_int_t s3_metrics_return_method(ngx_http_request_t *r,
  * Use from async body callbacks that own request finalization (no return). */
 void s3_metrics_finalize_request_method(ngx_http_request_t *r,
     ngx_uint_t method_slot, ngx_int_t handler_rc);
+void s3_sess_begin_request(ngx_http_request_t *r, ngx_uint_t method_slot);
+void s3_sess_attempt_request(ngx_http_request_t *r, ngx_uint_t method_slot);
 
 /* -------------------------------------------------------------------------
  * Authentication

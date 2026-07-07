@@ -23,6 +23,9 @@ void webdav_metrics_request(ngx_http_request_t *r);
 void webdav_metrics_response(ngx_http_request_t *r, ngx_int_t rc);
 /* webdav_metrics_response(r, rc) then return rc — convenience for handler tails. */
 ngx_int_t webdav_metrics_return(ngx_http_request_t *r, ngx_int_t rc);
+/* Session lifecycle hooks paired with the metrics finalization point. */
+void webdav_sess_begin_request(ngx_http_request_t *r);
+void webdav_sess_attempt_request(ngx_http_request_t *r);
 /* Emit a status-only (empty-body) response — set status + zero content length,
  * send the header, and finalise via the send_special result (records response
  * metrics).  Finalises the request: must be the caller's last action on `r`.

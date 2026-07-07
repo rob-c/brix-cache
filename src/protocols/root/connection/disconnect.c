@@ -8,6 +8,7 @@
 #include "net/ratelimit/ratelimit.h"
 #include "net/ratelimit/throttle_compat.h"   /* phase-59 W3a: open-files release */
 #include "net/mirror/stream_wmirror.h"
+#include "observability/sesslog/sesslog_ngx.h"
 
 #include <ngx_event.h>
 #include <ngx_stream.h>
@@ -172,6 +173,32 @@ brix_disconnect_file_bytes(const brix_file_t *file)
     return file->bytes_read;
 }
 
+/*
+ * WHAT: Derive the sesslog END reason for root connection teardown.
+ * WHY: END lines need a stable low-cardinality reason even though many nginx
+ * callbacks funnel through brix_on_disconnect().
+ * HOW: Prefer an explicit hint, then shutdown, timeout, socket error, and
+ * finally the normal client-disconnect case.
+ */
+static brix_sess_end_t
+brix_disconnect_sess_reason(brix_ctx_t *ctx, ngx_connection_t *c)
+{
+    if (ctx->sess_end_hint_set) {
+        return ctx->sess_end_hint;
+    }
+    if (ngx_exiting || ngx_terminate) {
+        return BRIX_SESS_END_SHUTDOWN;
+    }
+    if (c != NULL && c->timedout) {
+        return BRIX_SESS_END_TIMEOUT;
+    }
+    if (c != NULL && c->error) {
+        return BRIX_SESS_END_ERROR;
+    }
+
+    return BRIX_SESS_END_CLIENT;
+}
+
 /* Emit a kXR_Cancelled access-log entry for every still-open handle when the
  * connection drops (detail "interrupted X.XXMB/s" or "interrupted"), with duration
  * measured from the original open_time via req_start reuse. */
@@ -214,6 +241,14 @@ brix_disconnect_log_open_files(brix_ctx_t *ctx, ngx_connection_t *c,
         ctx->req_start = file->open_time;
         brix_log_access(ctx, c, "CLOSE", file->path, detail, 0,
                           kXR_Cancelled, "connection lost", byte_total);
+        if (file->sess_xfer.active && byte_total > file->sess_xfer.bytes) {
+            brix_sess_xfer_add(&file->sess_xfer,
+                               (uint64_t) (byte_total - file->sess_xfer.bytes));
+        }
+        brix_sess_xfer_end(ctx->sess, &file->sess_xfer,
+                           (ngx_exiting || ngx_terminate)
+                               ? BRIX_SESS_XFER_SHUTDOWN
+                               : BRIX_SESS_XFER_ABORTED);
     }
 }
 
@@ -339,6 +374,8 @@ brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c)
     brix_release_disconnect_crypto_state(ctx);
     brix_disconnect_update_metrics(ctx);
     brix_disconnect_log_open_files(ctx, c, now);
+    brix_sess_end(ctx->sess, brix_disconnect_sess_reason(ctx, c));
+    ctx->sess = NULL;
 
     /* Free any transfer monitor slots for this session (handles kXR_close was never sent). */
     if (ngx_brix_dashboard_shm_zone != NULL) {

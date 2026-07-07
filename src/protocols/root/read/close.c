@@ -41,6 +41,7 @@
 #include "net/cms/cns.h"
 #include "net/cms/cms_internal.h"   /* ngx_brix_cms_ctx_t */
 #include "net/cms/frame_io.h"       /* brix_cms_send_frame */
+#include "observability/sesslog/sesslog_ngx.h"
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -98,6 +99,29 @@ brix_cns_emit_close(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
     }
     (void) brix_cms_send_frame(conf->cms.ctx->connection, 0, CMS_RR_CNS,
                                  CMS_MOD_RAW, buf, n);
+}
+
+/*
+ * WHAT: Finish the sesslog transfer attached to a root file handle.
+ * WHY: kXR_close is the first point where final byte counters and the durable
+ * commit outcome are known while the handle state is still alive.
+ * HOW: Reconcile the intrusive xfer byte counter from the existing per-handle
+ * read/write totals, then emit COMPLETE or ABORTED before brix_free_fhandle().
+ */
+static void
+brix_close_finish_sess_xfer(brix_ctx_t *ctx, int idx,
+    brix_sess_xfer_status_t status)
+{
+    brix_file_t *file;
+    size_t       total;
+
+    file = &ctx->files[idx];
+    total = (file->bytes_written > 0) ? file->bytes_written : file->bytes_read;
+    if (file->sess_xfer.active && total > file->sess_xfer.bytes) {
+        brix_sess_xfer_add(&file->sess_xfer,
+                           (uint64_t) (total - file->sess_xfer.bytes));
+    }
+    brix_sess_xfer_end(ctx->sess, &file->sess_xfer, status);
 }
 
 ngx_int_t brix_handle_close(brix_ctx_t *ctx, ngx_connection_t *c) {
@@ -203,6 +227,7 @@ ngx_int_t brix_handle_close(brix_ctx_t *ctx, ngx_connection_t *c) {
                           temp_path, final_path);
             /* Keep the staged partial (resume) — only the publish failed; the
              * client can retry the close.  Surface an I/O error. */
+            brix_close_finish_sess_xfer(ctx, idx, BRIX_SESS_XFER_ABORTED);
             brix_free_fhandle(ctx, idx);
             BRIX_OP_ERR(ctx, BRIX_OP_CLOSE);
             brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path,
@@ -259,6 +284,8 @@ ngx_int_t brix_handle_close(brix_ctx_t *ctx, ngx_connection_t *c) {
     /* Flush the write-recovery journal so future writes with the same
      * offsets after a reconnect are not mistakenly skipped as replays. */
     brix_wrts_flush(&ctx->files[idx]);
+
+    brix_close_finish_sess_xfer(ctx, idx, BRIX_SESS_XFER_COMPLETE);
 
     brix_free_fhandle(ctx, idx);
 

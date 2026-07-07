@@ -149,6 +149,10 @@ struct ngx_brix_cms_ctx_s {
     ngx_stream_brix_srv_conf_t   *conf;        /* server block configuration */
     ngx_peer_connection_t           peer;        /* nginx upstream peer state */
     ngx_connection_t               *connection;  /* active TCP connection (NULL = disconnected) */
+    brix_sess_t                    *sess;        /* lifecycle audit session */
+    brix_sess_end_t                 sess_end_hint;
+    ngx_uint_t                      sess_end_hint_set;
+    ngx_uint_t                      sess_attempt_logged;
     ngx_event_t                     timer;       /* reconnect / heartbeat timer */
     ngx_msec_t                      backoff;     /* current reconnect wait (ms) */
     ngx_uint_t                      logged_in;   /* 1 after kYR_login exchange */
@@ -260,6 +264,8 @@ void  ngx_brix_cms_read_handler(ngx_event_t *ev);
 /* Close the active connection (if any), drop its read/write timers, and reset
  * ctx state (connection=NULL, logged_in=0, inbuf cursors). Safe to call when
  * already disconnected (no-op). Does NOT schedule a reconnect — caller must. */
+void  ngx_brix_cms_set_end_hint(ngx_brix_cms_ctx_t *ctx,
+          brix_sess_end_t why);
 void  ngx_brix_cms_disconnect(ngx_brix_cms_ctx_t *ctx);
 /* Arm (replacing any pending) the ctx heartbeat/reconnect timer to fire in delay
  * milliseconds. */

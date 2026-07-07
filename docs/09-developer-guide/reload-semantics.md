@@ -102,7 +102,7 @@ postconfiguration, so it rejects a bad config before you reload), then
 
 | Class | Behaviour on reload | Examples |
 |---|---|---|
-| **(a) Reloadable for new connections** (the default majority) | New workers pick up the new value; new connections honour it after the drain window. | scalars/flags/timeouts, `brix_export`, `brix_auth`, `brix_allow_write`, ACL/policy rules (`brix_authdb`, `brix_require_vo`, `brix_inherit_parent_group`), `brix_manager_map`, cache/proxy/TPC settings, the `brix_metrics`/`brix_health` location flags |
+| **(a) Reloadable for new connections** (the default majority) | New workers pick up the new value; new connections honour it after the drain window. | scalars/flags/timeouts, `brix_export`, `brix_auth`, `brix_allow_write`, `brix_session_log`, ACL/policy rules (`brix_authdb`, `brix_require_vo`, `brix_inherit_parent_group`), `brix_manager_map`, cache/proxy/TPC settings, the `brix_metrics`/`brix_health` location flags |
 | **(b) Hot-reloaded by a timer** (no reload needed at all) | A per-worker mtime-polling timer reloads the file in place and atomically swaps it; a reload also re-reads it. | CRL (`brix_crl` + `brix_crl_reload`), JWKS (`brix_token_jwks` + refresh interval), XrdAcc authdb (`brix_authdb_format xrdacc`) |
 | **(c) Re-read on reload** (rotation needs a reload, not a restart) | Loaded once per cycle in postconfiguration/init_process; a reload re-reads from disk for new workers. No in-place hot-reload timer. | GSI server cert/key (`brix_certificate`, `brix_certificate_key`), trust store, SSS keytab, Kerberos keytab, in-protocol and upstream TLS contexts |
 | **(d) State reset on resize** | nginx cannot grow a live SHM zone, so changing a slot-count allocates a **fresh** zone — the live table's contents are dropped for new connections (in-flight ones drain on the old workers). The module logs a **WARN** so this is not silent. | `brix_session_slots`, `brix_registry_slots` |
@@ -129,6 +129,10 @@ Notes:
   with nginx (`cycle->open_files`), so the master owns their lifecycle: they are
   reopened on `nginx -s reopen`/USR1 (via `dup2` onto the same fd number) and
   closed cleanly across reload — no leaked fds, and log rotation works.
+- **Session lifecycle logging** (`brix_session_log`) is per-worker state that
+  writes through the same `brix_access_log` fd. Existing SESS IDs and live
+  transfer records drain with their old worker; new workers create new session
+  registries and honor the new directive value.
 - **Metrics and dashboard SHM** re-attach across reload, so counters and
   in-flight transfer rows **survive** a reload (they are not reset).
 

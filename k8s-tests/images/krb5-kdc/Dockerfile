@@ -1,7 +1,14 @@
 # krb5-kdc — MIT KDC running the repo's kdc_helpers.py realm, publishing its
 # krb5.conf + service keytab into the release namespace on startup.
-FROM almalinux:9
-RUN dnf install -y krb5-server krb5-workstation python3 && dnf clean all
+ARG BRIX_BASE_IMAGE=almalinux:9
+FROM ${BRIX_BASE_IMAGE}
+ARG BRIX_OS_TARGET=alma9
+ARG BRIX_ENABLE_CEPH_SIG=0
+ARG BRIX_CEPH_SIG_RELEASE=tentacle
+COPY k8s-tests/lib/el-target.sh /tmp/el-target.sh
+RUN bash /tmp/el-target.sh \
+    && dnf install -y krb5-server krb5-workstation python3 \
+    && dnf clean all
 RUN curl -fsSLo /usr/local/bin/kubectl \
         "https://dl.k8s.io/release/v1.31.4/bin/linux/amd64/kubectl" \
     && chmod +x /usr/local/bin/kubectl

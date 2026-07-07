@@ -8,10 +8,32 @@
 
 #include "tpc_internal.h"
 #include "fs/vfs/vfs.h"   /* confined unlink of the export destination */
+#include "observability/sesslog/sesslog_ngx.h"
 
 #include <string.h>
 #include <unistd.h>
 
+static void
+tpc_sess_finish_pull(brix_tpc_pull_t *t, int ok, brix_sess_end_t why)
+{
+    char        errscratch[BRIX_SESSLOG_ERR_MAX];
+    const char *err;
+
+    if (t == NULL) {
+        return;
+    }
+
+    err = ok ? NULL : brix_sesslog_err_from_kxr(
+        t->xrd_error ? t->xrd_error : kXR_ServerError,
+        errscratch, sizeof(errscratch));
+    brix_sess_xfer_add(&t->sess_xfer, t->bytes_written);
+    brix_sess_result(t->sess, ok, t->src_path, BRIX_SESS_MODE_READ, err);
+    brix_sess_xfer_end(t->sess, &t->sess_xfer,
+                       ok ? BRIX_SESS_XFER_COMPLETE
+                          : BRIX_SESS_XFER_ABORTED);
+    brix_sess_end(t->sess, why);
+    t->sess = NULL;
+}
 
 /* WHAT: Main-thread completion callback — restore deferred request, dispatch SYNC vs async reply, build/send kXR_open response or error. */
 void
@@ -43,6 +65,9 @@ brix_tpc_pull_done(ngx_event_t *ev)
      * no brix_aio_resume(), because there is no connection to resume.
      */
     if (!brix_aio_restore_request(ctx, t->streamid)) {
+        tpc_sess_finish_pull(t, t->result == NGX_OK,
+                             t->result == NGX_OK ? BRIX_SESS_END_SERVER
+                                                 : BRIX_SESS_END_ERROR);
         /* Connection closed while pull was in-flight — release resources. */
         (void) brix_tpc_registry_update(t->transfer_id,
                                           (off_t) t->bytes_written,
@@ -80,6 +105,8 @@ brix_tpc_pull_done(ngx_event_t *ev)
 
         if (t->result != NGX_OK) {
             int err = t->xrd_error ? t->xrd_error : kXR_ServerError;
+
+            tpc_sess_finish_pull(t, 0, BRIX_SESS_END_ERROR);
 
             /* Failed copy: discard the half-written destination. If the slot is
              * still valid, free it (which also closes the fd); otherwise close
@@ -119,6 +146,7 @@ brix_tpc_pull_done(ngx_event_t *ev)
         /* Success: mark the handle done and refresh its cached metadata from
          * the now-complete file so a subsequent stat/read on the same handle
          * sees the real size/inode without another path syscall (INVARIANT 7). */
+        tpc_sess_finish_pull(t, 1, BRIX_SESS_END_SERVER);
         if (file != NULL) {
             struct stat st;
 
@@ -160,6 +188,8 @@ brix_tpc_pull_done(ngx_event_t *ev)
     if (t->result != NGX_OK) {
         int err = t->xrd_error ? t->xrd_error : kXR_ServerError;
 
+        tpc_sess_finish_pull(t, 0, BRIX_SESS_END_ERROR);
+
         /* Failed copy: close+unlink the partial destination and release the
          * fhandle slot before replying with the error to the OPEN. */
         close(t->dst_fd);
@@ -188,6 +218,7 @@ brix_tpc_pull_done(ngx_event_t *ev)
         return;
     }
 
+    tpc_sess_finish_pull(t, 1, BRIX_SESS_END_SERVER);
     brix_log_access(ctx, c, "TPC-PULL", t->dst_path, "ok", 1, 0, NULL, 0);
     BRIX_OP_OK(ctx, BRIX_OP_OPEN_WR);
     if (idx >= 0 && idx < BRIX_MAX_FILES) {

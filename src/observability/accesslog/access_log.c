@@ -24,8 +24,11 @@
 
 #include "core/ngx_brix_module.h"
 #include "core/compat/cstr.h"
+#include "observability/accesslog/access_log.h"
+#include "observability/sesslog/sesslog_ngx.h"
 
 #include <arpa/inet.h>
+#include <string.h>
 #include <time.h>
 
 /*
@@ -64,8 +67,41 @@ brix_alog_timer_handler(ngx_event_t *ev)
     brix_access_log_flush();
 }
 
+/*
+ * WHAT: Render the access-log timestamp prefix shared by request and session
+ * logs.
+ * WHY: SESS records must be grep-compatible with the existing access-log
+ * convention and must not drift from it over time.
+ * HOW: Use nginx's cached time and the same strftime pattern access_log.c has
+ * used for request records, wrapping it as "[timestamp] ".
+ */
+size_t
+brix_access_log_time_prefix(char *dst, size_t dst_size)
+{
+    ngx_time_t *tp;
+    struct tm   tm;
+    char        timebuf[64];
+    int         n;
+
+    if (dst == NULL || dst_size == 0) {
+        return 0;
+    }
+
+    tp = ngx_timeofday();
+    ngx_libc_localtime(tp->sec, &tm);
+    strftime(timebuf, sizeof(timebuf), "%d/%b/%Y:%H:%M:%S %z", &tm);
+
+    n = snprintf(dst, dst_size, "[%s] ", timebuf);
+    if (n <= 0 || (size_t) n >= dst_size) {
+        dst[0] = '\0';
+        return 0;
+    }
+
+    return (size_t) n;
+}
+
 /* Append one formatted line to the per-worker buffer, flushing as needed. */
-static void
+void
 brix_alog_emit(ngx_fd_t fd, const char *line, size_t n)
 {
     if (fd == NGX_INVALID_FILE || n == 0) {
@@ -103,6 +139,205 @@ brix_alog_emit(ngx_fd_t fd, const char *line, size_t n)
         ngx_add_timer(&brix_alog_timer, 1000);
         brix_alog_timer_set = 1;
     }
+}
+
+static ngx_flag_t
+brix_access_streq(const char *a, const char *b)
+{
+    return a != NULL && b != NULL && ngx_strcmp(a, b) == 0;
+}
+
+static ngx_flag_t
+brix_access_contains(const char *s, const char *needle)
+{
+    return s != NULL && needle != NULL && strstr(s, needle) != NULL;
+}
+
+/*
+ * WHAT: Convert the legacy access-log auth detail into a sesslog auth method.
+ * WHY: Existing root auth handlers already log AUTH records; piggybacking those
+ * calls keeps method-specific auth code untouched.
+ * HOW: Prefer the detail token when it names a method, otherwise derive from
+ * the authenticated ctx/config state.
+ */
+static brix_sess_am_t
+brix_access_sess_auth_method(brix_ctx_t *ctx,
+    ngx_stream_brix_srv_conf_t *conf, const char *detail)
+{
+    if (brix_access_streq(detail, "gsi")) {
+        return BRIX_SESS_AM_GSI;
+    }
+    if (brix_access_streq(detail, "ztn") || brix_access_streq(detail, "token")) {
+        return BRIX_SESS_AM_TOKEN;
+    }
+    if (brix_access_streq(detail, "sss")) {
+        return BRIX_SESS_AM_SSS;
+    }
+    if (brix_access_streq(detail, "krb5")) {
+        return BRIX_SESS_AM_KRB5;
+    }
+    if (brix_access_streq(detail, "pwd")) {
+        return BRIX_SESS_AM_PWD;
+    }
+    if (brix_access_streq(detail, "unix")) {
+        return BRIX_SESS_AM_UNIX;
+    }
+    if (brix_access_streq(detail, "host")) {
+        return BRIX_SESS_AM_HOST;
+    }
+    if (ctx != NULL && ctx->token.auth) {
+        return BRIX_SESS_AM_TOKEN;
+    }
+    return brix_sess_am_from_stream_auth(conf != NULL ? conf->auth
+                                                      : BRIX_AUTH_NONE);
+}
+
+/*
+ * WHAT: Collapse method-specific auth messages into stable sesslog err tokens.
+ * WHY: AUTH failure text is deliberately human-readable and inconsistent; the
+ * session grammar requires a small closed token set.
+ * HOW: Preserve high-signal substrings where available and fall back to kXR
+ * status mapping.
+ */
+static const char *
+brix_access_sess_auth_err(uint16_t errcode, const char *errmsg, char *scratch,
+    size_t scratch_size)
+{
+    if (brix_access_contains(errmsg, "scope")) {
+        return "scope";
+    }
+    if (brix_access_contains(errmsg, "expired")) {
+        return "expired-cert";
+    }
+    if (brix_access_contains(errmsg, "signature")
+        || brix_access_contains(errmsg, "validation")
+        || brix_access_contains(errmsg, "verification")
+        || brix_access_contains(errmsg, "decrypt"))
+    {
+        return "bad-signature";
+    }
+    if (brix_access_contains(errmsg, "rate limit")) {
+        return "busy";
+    }
+    if (brix_access_contains(errmsg, "not authorized")
+        || brix_access_contains(errmsg, "denied"))
+    {
+        return "permission";
+    }
+
+    return brix_sesslog_err_from_kxr((int) errcode, scratch, scratch_size);
+}
+
+/*
+ * WHAT: Map root access-log verbs to sesslog access modes.
+ * WHY: The legacy access logger is already present on namespace-operation exits;
+ * this table lets it produce uniform ATTEMPT/RESULT pairs without touching every
+ * handler in the root plane.
+ * HOW: Return 0 for lifecycle and pure I/O verbs that aggregate into AUTH,
+ * XFER, or END; return 1 with a mode for namespace operations.
+ */
+static ngx_flag_t
+brix_access_sess_mode(const char *verb, const char *detail,
+    brix_sess_mode_t *mode)
+{
+    if (verb == NULL || mode == NULL) {
+        return 0;
+    }
+
+    if (brix_access_streq(verb, "OPEN")) {
+        if (brix_access_contains(detail, "wr")
+            || brix_access_contains(detail, "staging")
+            || brix_access_contains(detail, "tpc-pull"))
+        {
+            *mode = BRIX_SESS_MODE_WRITE;
+        } else {
+            *mode = BRIX_SESS_MODE_READ;
+        }
+        return 1;
+    }
+
+    if (brix_access_streq(verb, "STAT")
+        || brix_access_streq(verb, "STATX")
+        || brix_access_streq(verb, "LOCATE")
+        || brix_access_streq(verb, "QUERY")
+        || brix_access_streq(verb, "SET")
+        || brix_access_streq(verb, "READLINK"))
+    {
+        *mode = BRIX_SESS_MODE_META;
+        return 1;
+    }
+
+    if (brix_access_streq(verb, "DIRLIST")) {
+        *mode = BRIX_SESS_MODE_LIST;
+        return 1;
+    }
+
+    if (brix_access_streq(verb, "RM")
+        || brix_access_streq(verb, "RMDIR")
+        || brix_access_streq(verb, "DELETE"))
+    {
+        *mode = BRIX_SESS_MODE_DELETE;
+        return 1;
+    }
+
+    if (brix_access_streq(verb, "MKDIR")
+        || brix_access_streq(verb, "MV")
+        || brix_access_streq(verb, "TRUNCATE")
+        || brix_access_streq(verb, "CHMOD")
+        || brix_access_streq(verb, "SETATTR")
+        || brix_access_streq(verb, "LINK")
+        || brix_access_streq(verb, "SYMLINK"))
+    {
+        *mode = BRIX_SESS_MODE_WRITE;
+        return 1;
+    }
+
+    return 0;
+}
+
+/*
+ * WHAT: Mirror selected legacy access-log calls into the sesslog lifecycle.
+ * WHY: Root handlers already have well-audited success/error exits; using this
+ * chokepoint gives root:// ATTEMPT/RESULT and AUTH coverage with minimal risk.
+ * HOW: AUTH emits auth events; namespace verbs emit immediate ATTEMPT followed
+ * by RESULT; pure data I/O is intentionally ignored and summarized by XFER.
+ */
+static void
+brix_access_maybe_sesslog(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
+    const char *verb, const char *path, const char *detail,
+    ngx_uint_t xrd_ok, uint16_t errcode, const char *errmsg)
+{
+    char              errscratch[64];
+    brix_sess_mode_t  mode;
+    const char       *err;
+
+    if (ctx == NULL || ctx->sess == NULL || verb == NULL) {
+        return;
+    }
+
+    if (brix_access_streq(verb, "AUTH")) {
+        err = xrd_ok ? NULL
+                     : brix_access_sess_auth_err(errcode, errmsg, errscratch,
+                                                 sizeof(errscratch));
+        brix_sess_auth(ctx->sess, xrd_ok,
+                       brix_access_sess_auth_method(ctx, conf, detail),
+                       xrd_ok && ctx->login.dn[0] != '\0'
+                           ? ctx->login.dn : "-",
+                       xrd_ok && ctx->login.primary_vo[0] != '\0'
+                           ? ctx->login.primary_vo : "-",
+                       err);
+        return;
+    }
+
+    if (!brix_access_sess_mode(verb, detail, &mode)) {
+        return;
+    }
+
+    err = xrd_ok ? NULL
+                 : brix_sesslog_err_from_kxr((int) errcode, errscratch,
+                                             sizeof(errscratch));
+    brix_sess_attempt(ctx->sess, path != NULL ? path : "-", mode);
+    brix_sess_result(ctx->sess, xrd_ok, path != NULL ? path : "-", mode, err);
 }
 
 void
@@ -172,6 +407,9 @@ brix_log_access(brix_ctx_t *ctx, ngx_connection_t *c,
         snprintf(errbuf, sizeof(errbuf), "code:%u", (unsigned) errcode);
         errmsg = errbuf;
     }
+
+    brix_access_maybe_sesslog(ctx, conf, verb, path, detail, xrd_ok,
+                              errcode, errmsg);
 
     brix_sanitize_log_string(client_ip, safe_client_ip, sizeof(safe_client_ip));
     brix_sanitize_log_string(identity, safe_identity, sizeof(safe_identity));

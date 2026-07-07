@@ -17,6 +17,8 @@
 #include "core/compat/error_mapping.h"
 #include "core/http/etag.h"
 #include "core/http/http_conditionals.h"
+#include "core/http/http_headers.h"
+#include "core/http/sesslog_conn.h"
 #include "fs/vfs/vfs.h"
 #include "fs/vfs/vfs_backend_registry.h"
 #include "observability/dashboard/dashboard.h"
@@ -226,7 +228,33 @@ cvmfs_finalize_observe(void *data)
         ngx_http_get_module_loc_conf(r, ngx_http_brix_cvmfs_module);
     ngx_http_brix_cvmfs_ctx_t      *ctx =
         ngx_http_get_module_ctx(r, ngx_http_brix_cvmfs_module);
-    ngx_uint_t                        status = r->headers_out.status;
+    ngx_uint_t                        status =
+        brix_http_effective_status(r, NGX_OK);
+    brix_sess_t                      *sess;
+    char                              path[BRIX_SESSLOG_PATH_MAX];
+    char                              errscratch[BRIX_SESSLOG_ERR_MAX];
+
+    if (lcf != NULL && ctx != NULL && ctx->sess_attempt_logged) {
+        sess = brix_http_sess(r, &lcf->common, BRIX_SESS_PROTO_CVMFS,
+                              BRIX_SESS_AM_ANON);
+        brix_sess_result(sess, status < NGX_HTTP_BAD_REQUEST,
+                         brix_http_sess_uri(r, path, sizeof(path)),
+                         BRIX_SESS_MODE_READ,
+                         status < NGX_HTTP_BAD_REQUEST ? NULL
+                             : brix_sesslog_err_from_http((int) status,
+                                                           errscratch,
+                                                           sizeof(errscratch)));
+        if (ctx->sess_xfer_started) {
+            if (r->headers_out.content_length_n > 0) {
+                brix_sess_xfer_add(&ctx->sess_xfer,
+                    (uint64_t) r->headers_out.content_length_n);
+            }
+            brix_sess_xfer_end(sess, &ctx->sess_xfer,
+                status < NGX_HTTP_BAD_REQUEST ? BRIX_SESS_XFER_COMPLETE
+                                               : BRIX_SESS_XFER_ABORTED);
+            ctx->sess_xfer_started = 0;
+        }
+    }
 
     if (lcf != NULL) {
         brix_cvmfs_notify_status(r, lcf, status);
@@ -346,6 +374,24 @@ ngx_http_brix_cvmfs_handler(ngx_http_request_t *r)
         }
         cln->handler = cvmfs_finalize_observe;
         cln->data    = r;
+    }
+
+    if (!ctx->sess_attempt_logged) {
+        brix_sess_t *sess;
+        char         path[BRIX_SESSLOG_PATH_MAX];
+
+        sess = brix_http_sess(r, &lcf->common, BRIX_SESS_PROTO_CVMFS,
+                              BRIX_SESS_AM_ANON);
+        brix_sess_auth_once(sess, BRIX_SESS_AM_ANON, "-", "-");
+        brix_sess_attempt(sess, brix_http_sess_uri(r, path, sizeof(path)),
+                          BRIX_SESS_MODE_READ);
+        ctx->sess_attempt_logged = 1;
+        if (r->method == NGX_HTTP_GET) {
+            brix_sess_xfer_start(sess, &ctx->sess_xfer,
+                brix_http_sess_uri(r, path, sizeof(path)),
+                BRIX_SESS_MODE_READ, -1);
+            ctx->sess_xfer_started = ctx->sess_xfer.active ? 1 : 0;
+        }
     }
 
     rc = ngx_http_discard_request_body(r);          /* GET/HEAD only proto */

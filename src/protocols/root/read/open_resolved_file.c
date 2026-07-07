@@ -17,6 +17,7 @@
 #include "protocols/root/session/registry.h"
 #include "core/compat/codec_core.h"
 #include "protocols/root/protocol/open_flags.h"   /* shared kXR_open option-bit semantics */
+#include "observability/sesslog/sesslog_ngx.h"
 
 #include <string.h>
 #include <unistd.h>
@@ -1119,6 +1120,10 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 	ctx->files[idx].bytes_read    = 0;
 	ctx->files[idx].bytes_written = 0;
 	ctx->files[idx].open_time     = ngx_current_msec;
+	brix_sess_xfer_start(ctx->sess, &ctx->files[idx].sess_xfer, resolved,
+	                     is_write ? BRIX_SESS_MODE_WRITE
+	                              : BRIX_SESS_MODE_READ,
+	                     is_write ? -1 : (int64_t) ctx->files[idx].cached_size);
 
 	if (!ctx->is_bound) {
 		brix_session_handle_publish(ctx->login.sessid, idx, &ctx->files[idx]);

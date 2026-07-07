@@ -36,6 +36,10 @@ typedef enum {
 typedef struct {
     ngx_connection_t  *c;
     ngx_stream_brix_cms_srv_conf_t *conf;          /* owning srv block       */
+    brix_sess_t       *sess;                       /* lifecycle audit session */
+    brix_sess_end_t    sess_end_hint;
+    ngx_uint_t         sess_end_hint_set;
+    ngx_uint_t         sess_attempt_logged;
     char               host[256];                    /* remote IP (NUL-terminated) */
     uint16_t           port;                         /* XRootD data port from LOGIN */
     char               paths[BRIX_SRV_MAX_PATHS];  /* colon-delimited export list */

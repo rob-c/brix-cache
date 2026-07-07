@@ -2,7 +2,7 @@
 # nginx-xrootd — example server configuration
 # ============================================================================
 #
-# This file is shipped as a *reference* (installed as xrootd.conf.example so it
+# This file is shipped as a *reference* (installed as brix-cache.conf.example so it
 # never auto-activates).  To use it:
 #
 #   1. The module's load_module lines are installed separately by the RPM as
@@ -10,7 +10,7 @@
 #      with:  nginx -t
 #
 #   2. Copy this file to an ACTIVE name and edit the paths/secrets:
-#        cp /etc/nginx/conf.d/xrootd.conf.example /etc/nginx/conf.d/xrootd.conf
+#        cp /etc/nginx/conf.d/brix-cache.conf.example /etc/nginx/conf.d/brix-cache.conf
 #
 #   3. The server blocks BELOW are HTTP-context (davs:// WebDAV + S3 + /metrics
 #      + /healthz + dashboard) and load from conf.d as-is, because nginx's
