@@ -32,10 +32,14 @@ jobs:
             --with-http_ssl_module --with-http_dav_module --with-threads \
             --add-module="$GITHUB_WORKSPACE"
       - name: Run analyzer ratchet
-        run: NGX_BUILD=/tmp/nginx-1.28.3 tools/ci/run_fanalyzer.sh 2>&1 | tee /tmp/fanalyzer-report.txt
+        run: |
+          NGX_BUILD=/tmp/nginx-1.28.3 FANALYZER_RAW=/tmp/fanalyzer-raw.txt \
+            tools/ci/run_fanalyzer.sh 2>&1 | tee /tmp/fanalyzer-report.txt
       - name: Upload findings
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: fanalyzer-report
-          path: /tmp/fanalyzer-report.txt
+          path: |
+            /tmp/fanalyzer-report.txt
+            /tmp/fanalyzer-raw.txt

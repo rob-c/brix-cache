@@ -101,6 +101,12 @@ analyze_one() {
   rc=$?
   # Keep only analyzer diagnostics.
   grep -E '\[-Wanalyzer-[a-z-]+\]' "$WORK/err.$$" >>"$WORK/findings.txt" 2>/dev/null || true
+  # Optional raw-trace capture for finding triage: FANALYZER_RAW=<file> keeps
+  # each file's full analyzer stderr (event paths included), not just the
+  # normalized one-liners the ratchet gates on.
+  if [ -n "${FANALYZER_RAW:-}" ] && grep -qE '\[-Wanalyzer-' "$WORK/err.$$"; then
+    { echo "==== $src ===="; cat "$WORK/err.$$"; } >>"$FANALYZER_RAW" 2>/dev/null || true
+  fi
   # A non-zero exit with NO analyzer finding means the file failed to COMPILE
   # (bad flags / missing header) — the analysis never ran, so this must not pass
   # as "clean". Record it as a hard error.
