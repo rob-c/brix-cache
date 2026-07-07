@@ -3489,7 +3489,7 @@ combined) and parallelizable with the rest. **5.3** is blocked by the outbound-G
 | §3 | `docs/05-operations/` dig page; `src/protocols/dig/README.md` |
 | §4 | `docs/04-protocols/` archive/zip page; `src/protocols/root/zip/README.md` update |
 | §5 | `docs/06-authentication/gsi.md` delegation section; `src/auth/gsi/README.md` |
-| §6 | `docs/10-architecture/` CNS page; `src/net/cms/README.md` CNS note |
+| §6 | `docs/11-architecture/` CNS page; `src/net/cms/README.md` CNS note |
 | §7 | `docs/04-protocols/ssi.md`; `src/protocols/ssi/README.md` |
 | §8 | `docs/10-reference/crc64-checksums.md` (+at-rest/xattr/sidecar) |
 | §9 | `docs/02-concepts/` caching page (+cinfo); `src/fs/cache/README.md` |

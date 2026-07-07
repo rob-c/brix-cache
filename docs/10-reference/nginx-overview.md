@@ -108,7 +108,7 @@ VO ACL matching, TPC rendezvous, S3 SigV4) and storage logic (path confinement,
 
 ## Related docs
 
-- [architecture.md](../10-architecture/overview.md) — end-to-end request lifecycle for both modules
+- [architecture.md](../11-architecture/overview.md) — end-to-end request lifecycle for both modules
 - [types.md](types.md) — `brix_ctx_t` and config struct field reference
 - [development.md](../09-developer-guide/dev-workflow.md) — AIO pattern, build workflow, configure vs make
 - [contributing.md](../09-developer-guide/contributing.md) — step-by-step guides for adding opcodes and WebDAV methods

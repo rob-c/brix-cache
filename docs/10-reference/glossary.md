@@ -463,7 +463,7 @@ A distributed computing resource that connects regional and institutional comput
 | GSI | Authentication | [Auth Overview](../06-authentication/auth-overview.md), [PKI Config](../06-authentication/pki-config.md) |
 | WLCG token | Authentication | [Auth Overview](../06-authentication/auth-overview.md#token--jwt-wlcg-bearer-token-authentication) |
 | VOMS / FQAN | Authorization | [PKI Config](../06-authentication/pki-config.md), [VO ACLs](../../tests/test_vo_acl.py) (tests) |
-| stream {} block | nginx | [Architecture Overview](../10-architecture/overview.md), [XRootD Basics](../02-concepts/xrootd-basics.md) |
+| stream {} block | nginx | [Architecture Overview](../11-architecture/overview.md), [XRootD Basics](../02-concepts/xrootd-basics.md) |
 | thread_pool | Performance | [Getting started](../01-getting-started/getting-started-full.md#step-3-write-a-minimal-nginxconf), [Optimizations](../09-developer-guide/optimizations.md) |
 | WebDAV (davs://) | Protocol | [WebDAV Overview](../04-protocols/webdav-overview.md) |
 | HTTP-TPC / Native TPC | Transfer | [HTTP TPC Reference](../04-protocols/http-tpc-reference.md), [Native TPC tests](../../tests/test_root_tpc.py) |

@@ -566,6 +566,6 @@ Also, out of band: validating a NEW backend against live traffic ▶ mirroring (
 
 ---
 
-*See also:* [`docs/10-architecture/`](../10-architecture/) for per-protocol
+*See also:* [`docs/11-architecture/`](../11-architecture/) for per-protocol
 request lifecycles, and `docs/refactor/phase-68-cvmfs-site-cache.md` for the
 CVMFS site-cache build-out (T14 = proxy mode).
