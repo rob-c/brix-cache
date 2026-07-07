@@ -26,6 +26,16 @@ set -u
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 export PYTHONPATH="tests${PYTHONPATH:+:$PYTHONPATH}"
+# Every lane AND every --lf rerun must OWN a fresh fleet, never attach.  Without
+# this, a lane's sessionfinish rmtree's TEST_ROOT (deleting the PKI) but nginx
+# workers outlive the 30s stop window, so the next invocation (a rerun, or the
+# next lane) probes port 11094, finds the zombie fleet, and enters attach mode —
+# skipping _setup_session, which is where X509_CERT_DIR/X509_USER_PROXY get set
+# and the PKI regenerated.  GSI clients then have no proxy and every GSI open
+# fails "No protocols left to try" (the entire lane-2 concurrent/throughput/
+# gsi_handshake cluster).  Forcing own-fleet reaps the zombie (resilient
+# start-all) and regenerates the PKI for each invocation.
+export TEST_OWN_FLEET=1
 
 NPROC="$(nproc 2>/dev/null || echo 8)"
 NPAR=$(( NPROC - 2 )); [ "$NPAR" -gt 12 ] && NPAR=12; [ "$NPAR" -lt 2 ] && NPAR=2
