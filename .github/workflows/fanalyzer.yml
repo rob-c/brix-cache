@@ -20,7 +20,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential \
             libssl-dev zlib1g-dev libpcre3-dev libpcre2-dev \
-            libcurl4-openssl-dev libsqlite3-dev libkrb5-dev
+            libcurl4-openssl-dev libsqlite3-dev libkrb5-dev \
+            libjansson-dev libxml2-dev librados-dev
       - name: Fetch and configure nginx with the module
         run: |
           curl -fsSL https://nginx.org/download/nginx-1.28.3.tar.gz | tar -xz -C /tmp
