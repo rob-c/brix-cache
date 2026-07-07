@@ -29,7 +29,10 @@ from settings import (
 
 # serial: these assert aggregate-throughput scaling ratios, which are only valid
 # when the box isn't saturated — they must not run inside the parallel pool.
-pytestmark = pytest.mark.serial
+# timeout(180): each case spawns a ProcessPoolExecutor of GSI xrdcp workers; the
+# 8-worker GSI cases can exceed the 30s default when the box is fatigued after a
+# full-suite lane, causing spurious timeouts (they complete in seconds isolated).
+pytestmark = [pytest.mark.serial, pytest.mark.timeout(180)]
 
 # ---------------------------------------------------------------------------
 # Configuration

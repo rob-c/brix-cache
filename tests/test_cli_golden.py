@@ -164,12 +164,10 @@ def _build_matrix() -> List[Tuple]:
         ))
 
     # Fleet-dependent entries — skip cleanly when the fleet is down.
-    entries.append((
-        "fleet:xrdfs_ls_root",
-        [str(BIN_DIR / "xrdfs"), FLEET_ADDR, "ls", "/"],
-        True,
-        None,
-    ))
+    # NOTE: `xrdfs ls /` is intentionally NOT a golden target — the export root
+    # listing is non-deterministic in a parallel run (concurrent tests create
+    # and delete files in the shared data dir), so its output hash is unstable.
+    # The fleet entries below exercise deterministic error paths instead.
     entries.append((
         "fleet:xrdcp_missing",
         [str(BIN_DIR / "xrdcp"),
