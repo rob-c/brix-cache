@@ -43,3 +43,6 @@ jobs:
       - name: readme coverage — substantial src/ dirs are documented
         if: '!cancelled()'
         run: tools/ci/check_readme_coverage.sh
+      - name: ports registry — settings.py constants all documented
+        if: '!cancelled()'
+        run: tools/ci/check_ports_doc.sh
