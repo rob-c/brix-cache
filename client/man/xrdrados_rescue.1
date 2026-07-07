@@ -1,0 +1,34 @@
+.TH XRDRADOS_RESCUE 1 "July 2026" "brix client tools" "User Commands"
+.SH NAME
+xrdrados_rescue \- offline pure-RADOS recovery from a flat pool
+.SH SYNOPSIS
+.B xrdrados_rescue
+.I pool
+.BR ls " [\fIprefix\fR] | " stat " \fIkey\fR | " get " \fIkey local_file\fR | " cp " \fIprefix local_dir\fR"
+.SH DESCRIPTION
+Enumerates and extracts objects from a flat RADOS pool (the block-only `ceph`
+backend's storage, or any pool of opaque objects) with no namespace service.
+For pools where the object key equals the logical path this recovers files
+directly. The flat-pool counterpart to
+.BR xrdcephfs_rescue (1);
+both reuse the sd_ceph driver's connection and oid layer.
+.SH COMMANDS
+.TP
+.BI ls " [prefix]"
+List object keys (optionally under \fIprefix\fR).
+.TP
+.BI stat " key"
+Print an object's size and mtime.
+.TP
+.BI get " key local_file"
+Extract one object's bytes to a local file.
+.TP
+.BI cp " prefix local_dir"
+Bulk-extract every object under \fIprefix\fR into \fIlocal_dir\fR.
+.SH ENVIRONMENT
+.TP
+.B CEPH_CONF
+Overrides /etc/ceph/ceph.conf.
+.SH SEE ALSO
+.BR xrdcephfs_rescue (1),
+.BR xrdceph_migrate (1)

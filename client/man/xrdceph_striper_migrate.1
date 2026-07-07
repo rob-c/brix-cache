@@ -1,0 +1,85 @@
+.TH XRDCEPH_STRIPER_MIGRATE 1 "July 2026" "brix client tools" "User Commands"
+.SH NAME
+xrdceph_striper_migrate \- enable CephFS over an existing libradosstriper (XrdCeph) RADOS pool
+.SH SYNOPSIS
+.B xrdceph_striper_migrate
+.I striper_pool cephfs_data_pool dest_prefix
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+Migrates a stock-XrdCeph (libradosstriper) pool to CephFS. For every logical
+file the MDS builds the namespace, checksum/xattrs are carried over, and the
+size is set via the MDS. Striper and CephFS share Ceph's striping algorithm,
+so object index N maps to the same byte range in both; only the object NAME
+differs.
+.PP
+The default mode is \fBzero-move\fR: a RADOS redirect stub at each data object
+points at the existing striper object. No bytes are copied and the source pool
+stays the single copy. \fBREAD-ONLY ONLY\fR: a write to a redirect-migrated
+file writes THROUGH to the source object \(em serve the migrated CephFS
+read-only until \fB\-\-finalize\fR, or the original data is silently modified
+and rollback can no longer restore it.
+.SH OPTIONS
+.TP
+.BI \-\-mode " redirect|copy"
+\fBredirect\fR (default): zero-move stubs. \fBcopy\fR: server-side copy_from
+(OSD-to-OSD) \(em real owned copies, no host/WAN data movement, transient
+~2x space.
+.TP
+.B \-\-rollback
+Remove the CephFS overlay. Every stub is DETACHED from its source first, so
+the async MDS purge cannot delete-through; the source pool is left intact.
+.TP
+.B \-\-finalize
+Materialize redirect stubs into owned objects (tier_promote, in-cluster) so
+the result is a normal read-write CephFS and the striper pool can be
+decommissioned.
+.TP
+.BI \-\-list " FILE"
+Migrate only the soids listed (one per line); otherwise enumerate the pool.
+.TP
+.BI \-\-strip " PFX"
+Strip a leading PFX from each soid before joining \fIdest_prefix\fR.
+.TP
+.BI \-\-threads " N"
+Parallel workers (default 4).
+.TP
+.B \-\-verify
+Read the migrated file and compare adler32 against the carried
+user.XrdCks.adler32 checksum (in redirect mode this also proves the redirect
+chain serves correct data end-to-end).
+.TP
+.B \-\-delete\-source
+(copy mode only) Remove the striper objects after verify.
+.TP
+.B \-\-force
+Re-migrate a file that already exists at the destination (its old stubs are
+detached before the unlink).
+.TP
+.B \-\-dry\-run
+Print what would be done without writing; includes a wall-clock estimate.
+.TP
+.BI \-\-sample\-mb " N"
+Size of the timing sample used by the \fB\-\-dry\-run\fR estimator (MiB).
+.TP
+.B \-\-progress
+Periodic progress output.
+.TP
+.BI \-\-conf " PATH"
+Ceph configuration file (default /etc/ceph/ceph.conf).
+.TP
+.BI \-\-config " PATH"
+Site-profile tool configuration (pool names, prefixes).
+.SH PYTHON VARIANT
+.B xrdceph_striper_migrate.py
+is the pure-Python implementation with identical semantics plus
+.BR \-\-json " (JSONL output), " \-\-state " (resumable manifest), and "
+.BR \-\-prefix " / " \-\-match " (worklist filters)."
+It requires python3-rados and python3-cephfs; the redirect operations go
+through the pymigrate.radosbridge ctypes bridge (compiled shim fallback).
+.SH EXIT STATUS
+0 all ok/skipped, 1 any per-file failure, 2 usage or guard error.
+.SH SEE ALSO
+.BR xrdceph_cephfs_to_striper (1),
+.BR xrdrados_rescue (1),
+.BR xrdcephfs_rescue (1),
+.BR xrdceph_migrate (1)

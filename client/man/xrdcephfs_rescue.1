@@ -1,0 +1,42 @@
+.TH XRDCEPHFS_RESCUE 1 "July 2026" "brix client tools" "User Commands"
+.SH NAME
+xrdcephfs_rescue \- offline CephFS recovery via pure RADOS (no mount, no MDS)
+.SH SYNOPSIS
+.B xrdcephfs_rescue
+.I meta_pool data_pool
+.BR ls | stat | cat | get | "cp \-r"
+.I path
+.RI [ local ]
+.SH DESCRIPTION
+Reads a CephFS directly from its RADOS pools \(em no kernel mount, no MDS, no
+libcephfs \(em to list, stat, cat, and recursively copy data OUT when the
+filesystem cannot be mounted but the pools are intact. It is the command-line
+face of the read-only `cephfsro` storage driver: it drives the same vtable the
+nginx export uses, so the decode and read path is shared and identically
+tested.
+.PP
+SAFETY: assumes a QUIESCED filesystem (MDS down / fs failed, journal
+flushed). It only ever reads.
+.SH COMMANDS
+.TP
+.BI ls " path"
+List a directory.
+.TP
+.BI stat " path"
+Print file metadata.
+.TP
+.BI cat " path"
+Write a file's bytes to stdout.
+.TP
+.BI get " path local_file"
+Copy one file out.
+.TP
+.BI "cp \-r" " path local_dir"
+Recursively copy a subtree out.
+.SH ENVIRONMENT
+.TP
+.B CEPH_CONF
+Overrides /etc/ceph/ceph.conf.
+.SH SEE ALSO
+.BR xrdrados_rescue (1),
+.BR xrdceph_striper_migrate (1)
