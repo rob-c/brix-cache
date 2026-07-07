@@ -1,0 +1,36 @@
+# Run the tools/ci/ invariant guards on every PR and push to main.
+#
+# These guards encode the project's hardest-won invariants (VFS seam,
+# config coverage, shared-helper discipline, SD driver conformance,
+# file-size ratchet). They were manual-only until 2026-07-07 — and the
+# file-size ratchet accumulated 18 violations in that time. Never remove
+# a step here without removing the invariant it enforces.
+#
+# `if: '!cancelled()'` on each step so ALL guards report, not just the
+# first failure.
+name: guards
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # guards use `git ls-files`
+      - name: config coverage — every .c built or reasoned
+        run: tools/ci/check_config_coverage.sh
+      - name: vfs seam — no new storage-plane bypasses
+        if: '!cancelled()'
+        run: tools/ci/check_vfs_seam.sh
+      - name: http helper reimplementation
+        if: '!cancelled()'
+        run: tools/ci/check_http_helper_reimpl.sh
+      - name: sd driver conformance
+        if: '!cancelled()'
+        run: tools/ci/check_sd_driver_conformance.sh
+      - name: file-size ratchet (500-line soft cap)
+        if: '!cancelled()'
+        run: tools/ci/check_file_size.sh
