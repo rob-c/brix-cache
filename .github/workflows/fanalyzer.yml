@@ -1,0 +1,38 @@
+# Weekly GCC -fanalyzer ratchet (use-after-free / leak / NULL-deref findings
+# vs tools/ci/fanalyzer_baseline.txt). NON-BLOCKING for now: the baseline was
+# generated with a local GCC and CI's GCC may differ; promote to a blocking
+# gate (remove continue-on-error) after two consecutive clean scheduled runs.
+# Local runs against the dev build remain the authoritative gate meanwhile —
+# see tools/ci/README.md. Never --regen the baseline from CI output.
+name: fanalyzer
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 1'
+jobs:
+  fanalyzer:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential \
+            libssl-dev zlib1g-dev libpcre3-dev libpcre2-dev \
+            libcurl4-openssl-dev libsqlite3-dev libkrb5-dev
+      - name: Fetch and configure nginx with the module
+        run: |
+          curl -fsSL https://nginx.org/download/nginx-1.28.3.tar.gz | tar -xz -C /tmp
+          cd /tmp/nginx-1.28.3
+          ./configure --with-stream --with-stream_ssl_module \
+            --with-http_ssl_module --with-http_dav_module --with-threads \
+            --add-module="$GITHUB_WORKSPACE"
+      - name: Run analyzer ratchet
+        run: NGX_BUILD=/tmp/nginx-1.28.3 tools/ci/run_fanalyzer.sh 2>&1 | tee /tmp/fanalyzer-report.txt
+      - name: Upload findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fanalyzer-report
+          path: /tmp/fanalyzer-report.txt
