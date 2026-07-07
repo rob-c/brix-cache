@@ -7,7 +7,7 @@
  * the known seed values — plus that writes are refused (EROFS).
  *
  *   gcc -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH -I src/fs/backend -I src/fs/backend/rados \
- *     -include tests/ceph/ngx_shim.h \
+ *     -include client/apps/ceph/ngx_shim.h \
  *     tests/ceph/sd_cephfs_ro_live_test.c src/fs/backend/rados/sd_cephfs_ro.c \
  *     src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/cephfs_layout.c \
  *     src/fs/backend/rados/cephfs_denc.c -lrados -o /tmp/cephfsro_live && /tmp/cephfsro_live

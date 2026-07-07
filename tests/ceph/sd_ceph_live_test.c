@@ -10,7 +10,7 @@
  *
  * Build (inside the xrd-ceph-build container, where librados-devel exists):
  *   gcc -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH -I src/fs/backend -I src/fs/backend/rados \
- *       -include tests/ceph/ngx_shim.h \
+ *       -include client/apps/ceph/ngx_shim.h \
  *       tests/ceph/sd_ceph_live_test.c src/fs/backend/rados/sd_ceph.c \
  *       -lrados -o /tmp/sd_ceph_live && /tmp/sd_ceph_live
  *

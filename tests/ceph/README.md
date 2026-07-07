@@ -13,8 +13,28 @@ everything that talks to RADOS runs in a `--network host` container).
 
 ```bash
 tests/ceph_harness.sh start                                   # single-node Ceph (pool xrdtest)
-docker build -f tests/ceph/Dockerfile.build -t xrd-ceph-build tests/ceph   # build env (librados-devel)
+docker build -f tests/ceph/Dockerfile.build -t xrd-ceph-build tests/ceph   # CentOS Stream 9 + Storage SIG build env
 tests/ceph/build_in_container.sh                              # build the module WITH ceph (in xrd-ceph-work)
+```
+
+The official k8s-lab entrypoint for the always-on Docker gate is:
+
+```bash
+cd k8s-tests
+./xrd-lab test ceph-docker
+```
+
+That runs the single-node demo cluster, builds the CentOS Stream 9 Storage SIG
+Ceph toolchain image, builds nginx with `BRIX_HAVE_CEPH`, runs the live
+`sd_ceph` driver test, and runs the root/WebDAV Ceph export smoke.  Use
+`XRD_LAB_DRY_RUN=1 ./xrd-lab test ceph-docker` to print the exact command plan.
+
+For the isolated RPM build against the same CentOS Stream 9 Storage SIG Ceph
+toolchain:
+
+```bash
+cd k8s-tests
+./xrd-lab test ceph-rpmbuild
 ```
 
 ## Tests

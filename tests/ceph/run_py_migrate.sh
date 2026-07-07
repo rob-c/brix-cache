@@ -25,10 +25,11 @@ docker ps --format '{{.Names}}' | grep -qx "$WORK" \
     || { echo "work container '$WORK' not running (tests/ceph_harness.sh start)" >&2; exit 1; }
 
 docker exec "$WORK" mkdir -p /work/pymig
-docker cp "$REPO/tests/ceph/pymigrate" "$WORK:/work/pymig/" >/dev/null
-for f in xrdceph_striper_migrate.py xrdceph_cephfs_to_striper.py striper_seed.c; do
-    docker cp "$REPO/tests/ceph/$f" "$WORK:/work/pymig/$f" >/dev/null
+docker cp "$REPO/client/apps/ceph/pymigrate" "$WORK:/work/pymig/" >/dev/null
+for f in xrdceph_striper_migrate.py xrdceph_cephfs_to_striper.py; do
+    docker cp "$REPO/client/apps/ceph/$f" "$WORK:/work/pymig/$f" >/dev/null
 done
+docker cp "$REPO/tests/ceph/striper_seed.c" "$WORK:/work/pymig/striper_seed.c" >/dev/null
 
 docker exec -i -w /work/pymig -e CEPH_CONF=/etc/ceph/ceph.conf "$WORK" bash -s <<'INNER'
 set -euo pipefail

@@ -18,15 +18,15 @@ DATA="${CEPHFS_DATA:-cephfs_data}"
 docker ps --format '{{.Names}}' | grep -qx "$WORK" \
     || { echo "work container '$WORK' not running — run tests/ceph/build_in_container.sh" >&2; exit 1; }
 
-docker exec "$WORK" mkdir -p /work/repo/src/fs/backend/rados /work/repo/tests/ceph
+docker exec "$WORK" mkdir -p /work/repo/src/fs/backend/rados /work/repo/client/apps/ceph
 for f in src/fs/backend/sd.h \
          src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/sd_ceph.h \
          src/fs/backend/rados/sd_ceph_compat.c src/fs/backend/rados/sd_ceph_compat.h \
          src/fs/backend/rados/cephfs_denc.c src/fs/backend/rados/cephfs_denc.h \
          src/fs/backend/rados/cephfs_layout.c src/fs/backend/rados/cephfs_layout.h \
          src/fs/backend/rados/sd_cephfs_ro.c \
-         tests/ceph/ngx_shim.h tests/ceph/xrdcephfs_rescue.c \
-         tests/ceph/xrdrados_rescue.c tests/ceph/xrdceph_migrate.c; do
+         client/apps/ceph/ngx_shim.h client/apps/ceph/xrdcephfs_rescue.c \
+         client/apps/ceph/xrdrados_rescue.c client/apps/ceph/xrdceph_migrate.c; do
     docker cp "$REPO/$f" "$WORK:/work/repo/$f" >/dev/null
 done
 
@@ -39,11 +39,11 @@ CEPHFS_SRCS="src/fs/backend/rados/sd_cephfs_ro.c src/fs/backend/rados/sd_ceph.c
              src/fs/backend/rados/cephfs_denc.c"
 FLAT_SRCS="src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/sd_ceph_compat.c"
 CC="gcc -Wall -Wextra -Werror -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH
-    -I src/fs/backend -I src/fs/backend/rados -include tests/ceph/ngx_shim.h"
+    -I src/fs/backend -I src/fs/backend/rados -include client/apps/ceph/ngx_shim.h"
 
-$CC tests/ceph/xrdcephfs_rescue.c $CEPHFS_SRCS -lrados -o /tmp/xrdcephfs_rescue
-$CC tests/ceph/xrdrados_rescue.c  $FLAT_SRCS   -lrados -o /tmp/xrdrados_rescue
-$CC tests/ceph/xrdceph_migrate.c  $FLAT_SRCS   -lrados -o /tmp/xrdceph_migrate
+$CC client/apps/ceph/xrdcephfs_rescue.c $CEPHFS_SRCS -lrados -o /tmp/xrdcephfs_rescue
+$CC client/apps/ceph/xrdrados_rescue.c  $FLAT_SRCS   -lrados -o /tmp/xrdrados_rescue
+$CC client/apps/ceph/xrdceph_migrate.c  $FLAT_SRCS   -lrados -o /tmp/xrdceph_migrate
 echo "build: ok"
 
 echo "== xrdcephfs_rescue cp -r / =="

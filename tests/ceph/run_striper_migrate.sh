@@ -22,8 +22,9 @@ echo "using CephFS data pool: $DPOOL"
 
 docker ps --format '{{.Names}}' | grep -qx "$WORK" \
     || { echo "work container '$WORK' not running" >&2; exit 1; }
-for f in tests/ceph/striper_seed.c tests/ceph/xrdceph_striper_migrate.cpp \
-         tests/ceph/xrdceph_migrate_config.h; do
+docker exec "$WORK" mkdir -p /work/repo/tests/ceph /work/repo/client/apps/ceph
+for f in tests/ceph/striper_seed.c client/apps/ceph/xrdceph_striper_migrate.cpp \
+         client/apps/ceph/xrdceph_migrate_config.h; do
     docker cp "$REPO/$f" "$WORK:/work/repo/$f" >/dev/null
 done
 
@@ -31,7 +32,7 @@ docker exec -e CEPH_CONF=/etc/ceph/ceph.conf "$WORK" bash -lc '
 set -e
 cd /work/repo
 gcc -Wall -D_FILE_OFFSET_BITS=64 tests/ceph/striper_seed.c -lradosstriper -lrados -o /tmp/striper_seed
-g++ -std=c++17 -Wall -D_FILE_OFFSET_BITS=64 tests/ceph/xrdceph_striper_migrate.cpp \
+g++ -std=c++17 -Wall -D_FILE_OFFSET_BITS=64 client/apps/ceph/xrdceph_striper_migrate.cpp \
     -lrados -lcephfs -lpthread -o /tmp/migtool
 M=/tmp/migtool
 echo "build: ok"

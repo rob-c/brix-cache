@@ -17,7 +17,9 @@ import zlib
 
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# pymigrate was promoted to client/apps/ceph/ (official client tools, 2026-07-07).
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "..", "..", "client", "apps", "ceph"))
 
 from pymigrate.cephfs_meta import (  # noqa: E402
     Denc,
