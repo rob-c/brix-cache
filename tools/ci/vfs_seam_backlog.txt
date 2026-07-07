@@ -1,0 +1,4 @@
+# vfs_seam_backlog.txt — grandfathered tier-2 seam bypasses (phase-56 §9, App C).
+# Each entry is a 'path:' prefix; a migrated file's line is DELETED here so the
+# guard then rejects any regression in it. When this file holds only comments the
+# seam is closed. Regenerate ONLY after a deliberate migration: --regen.

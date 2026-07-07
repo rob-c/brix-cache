@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+#
+# pre-push — run the FAST test tier before a push so obviously-broken code never
+# leaves your machine.  ~4min (vs ~20min full).  The full suite
+# (tests/run_suite.sh) remains the pre-merge gate.
+#
+# Install (once):   git config core.hooksPath tools/git-hooks
+#          or:      tools/git-hooks/install.sh
+#
+# Bypass:  git push --no-verify          (one-off)
+#          SKIP_FAST_TESTS=1 git push    (one-off, env)
+#
+set -u
+
+if [ "${SKIP_FAST_TESTS:-0}" = "1" ]; then
+    echo "[pre-push] SKIP_FAST_TESTS=1 → skipping fast tests"
+    exit 0
+fi
+
+REPO="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+RUNNER="$REPO/tests/run_suite.sh"
+
+if [ ! -x "$RUNNER" ]; then
+    echo "[pre-push] $RUNNER not found/executable — skipping (nothing to gate)."
+    exit 0
+fi
+
+echo "[pre-push] running fast test tier — ~4min; bypass with 'git push --no-verify'"
+echo "[pre-push] (tests run against the CURRENT build — rebuild first if you changed src/)"
+
+"$RUNNER" --fast
+rc=$?
+
+if [ "$rc" -ne 0 ]; then
+    echo ""
+    echo "[pre-push] ✗ fast tests FAILED — push blocked."
+    echo "[pre-push]   reproduce: tests/run_suite.sh --fast"
+    echo "[pre-push]   bypass:    git push --no-verify   (or SKIP_FAST_TESTS=1 git push)"
+fi
+exit "$rc"

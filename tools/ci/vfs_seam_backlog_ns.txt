@@ -1,0 +1,6 @@
+# vfs_seam_backlog_ns.txt — grandfathered tier-3 raw namespace/metadata
+# syscalls (phase-2 full VFS seam, 2026-06-28). Same rules as the tier-2
+# backlog: each entry is a 'path:' prefix; a migrated file's line is DELETED
+# so the guard then rejects any regression in it. A deliberate raw call to a
+# SEPARATE storage domain (cache/stage/journal) should instead carry a
+# per-line 'vfs-seam-allow' marker. Regenerate ONLY after a migration.

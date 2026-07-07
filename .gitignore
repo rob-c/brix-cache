@@ -49,8 +49,13 @@ __pycache__/
 davs:/
 tests/davs:/
 
-# Local helper scripts not for upstream
-tools/
+# Local helper scripts not for upstream (PoCs, fuzzer, scratch) — but the
+# guard/hook/IDE infrastructure IS upstream: CI and other clones need it.
+tools/*
+!tools/ci/
+!tools/git-hooks/
+!tools/clangd/
+!tools/gen-docs.sh
 .aider*
 
 .rpmbuild/

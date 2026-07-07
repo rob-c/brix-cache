@@ -1,0 +1,18 @@
+# vfs_seam_backlog_client.txt — grandfathered raw positional byte syscalls
+# in the native client (client/lib + client/apps) outside the client VFS
+# backends. Same rules as the other backlogs: each entry is a 'path:' prefix;
+# a file migrated onto xrdc_vfs_* is DELETED here so the guard then rejects any
+# regression in it. A permanently non-storage raw call carries a per-line
+# 'vfs-seam-allow' marker instead. Regenerate ONLY after a migration.
+# (phase-69: client/lib reorganized into concept buckets — paths updated.)
+#
+# copy_zip.c and zip_write.c were REMOVED from this backlog (2026-07-06):
+# all their raw pread/pwrite calls were reclassified as permanently-sanctioned
+# local zip-archive assembly (not export data) and annotated with per-line
+# 'vfs-seam-allow: local zip-archive assembly, not export data' markers.
+#
+# cks_verify.c remains backlogged: its pread reads on-disk .cinfo/.meta
+# sidecars to verify a file's recorded checksum.  The client VFS vtable has
+# no read-by-name or xattr op yet, so there is no seam to route through.
+# When the vtable gains those ops this entry should be migrated (not marked).
+client/lib/protocols/shared/cks_verify.c:
