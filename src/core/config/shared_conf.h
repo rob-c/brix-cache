@@ -97,6 +97,15 @@ typedef struct {
     ngx_flag_t          compress;           /* phase-42: outbound GET compression
                                              * (Accept-Encoding negotiated). Off by
                                              * default; bypasses sendfile when used. */
+    ngx_str_t           access_log;         /* HTTP-plane brix_access_log path.
+                                             * Empty/off disables sesslog emission
+                                             * for HTTP protocols. Stream keeps its
+                                             * legacy srv_conf access_log owner. */
+    ngx_open_file_t    *access_log_file;    /* nginx-managed HTTP log handle. */
+    ngx_flag_t          session_log;        /* brix_session_log on|off; controls
+                                             * correlated SESS lifecycle records.
+                                             * Default ON wherever an access-log fd
+                                             * exists. */
     ngx_flag_t          ktls;               /* [brix_ktls on|off] SSL_OP_ENABLE_KTLS
                                              * on this server's TLS context so HTTPS
                                              * GET sendfiles over kernel-TLS (and PUT
@@ -133,6 +142,10 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->allow_write        = NGX_CONF_UNSET;
     conf->read_only          = NGX_CONF_UNSET;
     conf->compress           = NGX_CONF_UNSET;
+    conf->access_log.len     = 0;
+    conf->access_log.data    = NULL;
+    conf->access_log_file    = NULL;
+    conf->session_log        = NGX_CONF_UNSET;
     conf->ktls               = NGX_CONF_UNSET;
     conf->storage_staging    = NGX_CONF_UNSET;
     conf->cache_verify_mode  = NGX_CONF_UNSET_UINT;
@@ -230,6 +243,22 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
     ngx_conf_merge_value(conf->allow_write, prev->allow_write, 0);
     ngx_conf_merge_value(conf->read_only, prev->read_only, 0);
     ngx_conf_merge_value(conf->compress, prev->compress, 0);
+    ngx_conf_merge_str_value(conf->access_log, prev->access_log, "");
+    if (conf->access_log.len > 0
+        && ngx_strcmp(conf->access_log.data, (u_char *) "off") != 0)
+    {
+        conf->access_log_file = ngx_conf_open_file(cf->cycle,
+                                                   &conf->access_log);
+        if (conf->access_log_file == NULL) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix: cannot register HTTP access log \"%V\"",
+                &conf->access_log);
+            return NGX_CONF_ERROR;
+        }
+    } else {
+        conf->access_log_file = NULL;
+    }
+    ngx_conf_merge_value(conf->session_log, prev->session_log, 1);
     ngx_conf_merge_value(conf->ktls, prev->ktls, 1);   /* default ON (offload-gated) */
     ngx_conf_merge_value(conf->storage_staging, prev->storage_staging, 0);
     ngx_conf_merge_str_value(conf->thread_pool_name, prev->thread_pool_name, "");
@@ -267,6 +296,16 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
     brix_shared_apply_read_only(conf, cf->log);
 
     return brix_pmark_conf_merge(cf, &prev->pmark, &conf->pmark);
+}
+
+static inline ngx_fd_t
+brix_http_shared_access_log_fd(const ngx_http_brix_shared_conf_t *conf)
+{
+    if (conf == NULL || conf->access_log_file == NULL) {
+        return NGX_INVALID_FILE;
+    }
+
+    return conf->access_log_file->fd;
 }
 
 /*

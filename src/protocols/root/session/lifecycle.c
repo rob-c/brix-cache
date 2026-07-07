@@ -81,6 +81,8 @@ brix_handle_endsess(brix_ctx_t *ctx, ngx_connection_t *c)
      * This keeps explicit end-of-session requests aligned with the same cleanup
      * bookkeeping used for timeouts and transport-level disconnects.
      */
+    ctx->sess_end_hint = BRIX_SESS_END_SERVER;
+    ctx->sess_end_hint_set = 1;
     brix_on_disconnect(ctx, c);
     brix_close_all_files(ctx);
 

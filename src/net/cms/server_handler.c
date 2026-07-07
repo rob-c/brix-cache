@@ -2,6 +2,7 @@
 #include "protocols/root/connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
 #include "core/compat/log_diag.h"
 #include "observability/metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
+#include "observability/sesslog/sesslog_ngx.h"
 
 /*
  * Phase 50 (WS4): per-worker live gauge of accepted CMS data-server connections.
@@ -159,6 +160,7 @@ brix_cms_srv_handler(ngx_stream_session_t *s)
     ngx_connection_t                  *c;
     brix_cms_srv_ctx_t              *ctx;
     ngx_stream_brix_cms_srv_conf_t  *conf;
+    ngx_stream_brix_srv_conf_t      *root_conf;
     size_t                             len;
 
     c = s->connection;
@@ -242,6 +244,16 @@ brix_cms_srv_handler(ngx_stream_session_t *s)
     /* W1a — require the sss handshake before registration iff a keytab is set. */
     ctx->auth_state = (conf->sss_keys != NULL) ? CMS_AUTH_REQUESTED
                                                : CMS_AUTH_NONE;
+
+    root_conf = ngx_stream_get_module_srv_conf(s, ngx_stream_brix_module);
+    if (root_conf != NULL) {
+        ctx->sess = brix_sess_begin(root_conf->session_log,
+                                    root_conf->access_log_fd,
+                                    BRIX_SESS_PROTO_CMS,
+                                    BRIX_SESS_DIR_IN,
+                                    ctx->host, ngx_strlen(ctx->host),
+                                    BRIX_SESS_AM_HOST, NULL);
+    }
 
     ctx->ping_timer.log  = c->log;
     ctx->ping_timer.data = ctx;

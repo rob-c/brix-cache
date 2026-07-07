@@ -20,9 +20,9 @@ import Cta from '../../components/Cta.astro';
       <div class="term" aria-label="Transparent proxy config">
         <div class="term-title">in front of an existing server</div>
         <div><span class="c"># stream {}</span></div>
-        <div>xrootd on;</div>
-        <div>xrootd_proxy on;</div>
-        <div>xrootd_proxy_upstream <span class="k">ceph-xrootd:1094</span>;</div>
+        <div>brix_root on;</div>
+        <div>brix_tap_proxy on;</div>
+        <div>brix_tap_proxy_upstream <span class="k">ceph-xrootd:1094</span>;</div>
         <div class="mt"><span class="c"># clients connect to nginx — backend stays invisible</span></div>
       </div>
     </AudienceHero>
@@ -58,9 +58,9 @@ import Cta from '../../components/Cta.astro';
       <Benefit marker="observe" title="Prometheus + a live dashboard">
         <p>
           Per-request counters for every protocol with fixed, low-cardinality labels, structured
-          access logs, and an HTTPS operator dashboard at <span class="mono">/xrootd/</span> showing
+          access logs, and an HTTPS operator dashboard at <span class="mono">/brix/</span> showing
           active transfers, cache and cluster health, and versioned JSON under
-          <span class="mono">/xrootd/api/v1/</span>.
+          <span class="mono">/brix/api/v1/</span>.
         </p>
       </Benefit>
       <Benefit marker="cache" title="Read-through cache built in">

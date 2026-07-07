@@ -1,8 +1,13 @@
 # brix-client — runs the copied suite against a remote server, with real pyxrootd.
 # pytest runs on python3.12 (the suite uses 3.10+ typing); the XrdCl worker runs
 # on python3.9 (where EPEL's python3-xrootd C extension is installed).
-FROM almalinux:9
-RUN dnf install -y epel-release \
+ARG BRIX_BASE_IMAGE=almalinux:9
+FROM ${BRIX_BASE_IMAGE}
+ARG BRIX_OS_TARGET=alma9
+ARG BRIX_ENABLE_CEPH_SIG=0
+ARG BRIX_CEPH_SIG_RELEASE=tentacle
+COPY k8s-tests/lib/el-target.sh /tmp/el-target.sh
+RUN bash /tmp/el-target.sh \
     && dnf install -y --allowerasing python3.12 python3.12-pip \
                       python3-xrootd xrootd-client openssl krb5-workstation \
     && alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 \

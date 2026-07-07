@@ -25,6 +25,7 @@
 #include "fs/cache/fill_retry.h"        /* T20 classification + backoff */
 #include "core/aio/aio.h"                      /* brix_task_bind */
 #include "fs/path/path.h"        /* brix_sanitize_log_string (wire keys) */
+#include "observability/sesslog/sesslog_ngx.h"
 
 #include <limits.h>                          /* PATH_MAX */
 #include <stdatomic.h>
@@ -62,6 +63,8 @@ typedef struct brix_http_cache_fill_ctx_s {
     ngx_msec_t                           started_ms; /* fill post timestamp */
     unsigned                             attempts;   /* origin attempts run */
     char                                 key[PATH_MAX];
+    brix_sess_t                         *sess;
+    brix_sess_xfer_t                     sess_xfer;
 } brix_http_cache_fill_ctx_t;
 
 /* Sanitize the (wire-derived) object key for a log line. */
@@ -454,6 +457,9 @@ brix_http_cache_fill_done(ngx_event_t *ev)
     brix_http_cache_fill_ctx_t  *t = task->ctx;
     brix_http_cache_fill_ctx_t **pp;
     brix_http_fill_waiter_t     *w;
+    char                         errscratch[BRIX_SESSLOG_ERR_MAX];
+    const char                  *err;
+    int                          ok;
 
     /* Unlink from the in-flight list FIRST so a re-entered handler that
      * misses again starts a fresh fill rather than attaching to this one. */
@@ -503,6 +509,16 @@ brix_http_cache_fill_done(ngx_event_t *ev)
                     : "\"502 to every waiter\"");
         }
     }
+
+    ok = (t->result == NGX_OK);
+    err = ok ? NULL : brix_sesslog_err_from_errno(t->err, errscratch,
+                                                  sizeof(errscratch));
+    brix_sess_result(t->sess, ok, t->key, BRIX_SESS_MODE_READ, err);
+    brix_sess_xfer_end(t->sess, &t->sess_xfer,
+                       ok ? BRIX_SESS_XFER_COMPLETE
+                          : BRIX_SESS_XFER_ABORTED);
+    brix_sess_end(t->sess, ok ? BRIX_SESS_END_SERVER
+                               : BRIX_SESS_END_ERROR);
 
     while ((w = t->waiters) != NULL) {
         brix_http_fill_detach(w);              /* unlink + stop the hold */
@@ -584,12 +600,21 @@ brix_http_cache_fill_if_needed(ngx_http_request_t *r,
     t->max_life    = common->cache_fill_max_life;
     t->started_ms  = ngx_current_msec;
     ngx_cpystrn((u_char *) t->key, (u_char *) key, sizeof(t->key));
+    t->sess = brix_sess_begin(common->session_log,
+        brix_http_shared_access_log_fd(common), BRIX_SESS_PROTO_FILL,
+        BRIX_SESS_DIR_OUT, "cache-origin", sizeof("cache-origin") - 1,
+        BRIX_SESS_AM_ANON, NULL);
+    brix_sess_auth_once(t->sess, BRIX_SESS_AM_ANON, "-", "-");
+    brix_sess_attempt(t->sess, t->key, BRIX_SESS_MODE_READ);
+    brix_sess_xfer_start(t->sess, &t->sess_xfer, t->key,
+                         BRIX_SESS_MODE_READ, -1);
 
     brix_task_bind(task, brix_http_cache_fill_thread,
                      brix_http_cache_fill_done);
     task->event.log = r->connection->log;
 
     if (brix_http_fill_attach(t, r, reenter, reenter_data) != NGX_DONE) {
+        brix_sess_end(t->sess, BRIX_SESS_END_ERROR);
         free(block);
         return NGX_ERROR;
     }
@@ -597,6 +622,7 @@ brix_http_cache_fill_if_needed(ngx_http_request_t *r,
     if (ngx_thread_task_post(pool, task) != NGX_OK) {
         brix_http_fill_detach(t->waiters);     /* undo the attach        */
         r->main->count--;
+        brix_sess_end(t->sess, BRIX_SESS_END_ERROR);
         free(block);
         return NGX_ERROR;
     }

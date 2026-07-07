@@ -247,15 +247,39 @@ brix_token_audience "my-storage";
 
 ### `brix_access_log <path>|off`
 
+**Context:** stream `server`, HTTP `main`/`server`/`location`
+
 **Default:** `off`
 
-File path for the per-request access log. One line is written per operation. See [Metrics & logging](../08-metrics-monitoring/monitoring-guide.md) for the log format and examples.
+File path for the brix access log. Stream root:// locations write the legacy
+per-operation access lines here. HTTP WebDAV/S3/CVMFS locations use the same
+file handle for correlated `SESS` lifecycle audit lines when
+`brix_session_log` is enabled. See [Metrics & logging](../08-metrics-monitoring/monitoring-guide.md) for the log format and examples.
 
 ```nginx
 brix_access_log /var/log/nginx/brix_access.log;
 ```
 
 The file is opened `O_APPEND` so it is safe to share across multiple nginx worker processes. Rotate with `kill -USR1 $(cat /run/nginx.pid)`.
+
+---
+
+### `brix_session_log on|off`
+
+**Context:** stream `server`, HTTP `main`/`server`/`location`
+
+**Default:** `on`
+
+Controls correlated `SESS` lifecycle audit lines. When enabled, sessions write
+CONNECT/AUTH/ATTEMPT/RESULT/XFER/END records into the existing
+`brix_access_log` stream with a per-session ID.
+
+```nginx
+brix_session_log on;
+```
+
+Disable this only when the extra lifecycle lines are not wanted; the regular
+per-operation access log is controlled separately by `brix_access_log`.
 
 ---
 

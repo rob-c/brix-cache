@@ -4,6 +4,7 @@
 
 #include "webdav.h"
 #include "core/http/http_headers.h"
+#include "core/http/sesslog_conn.h"
 #include "observability/metrics/http_common.h"
 #include "observability/metrics/unified.h"
 
@@ -28,6 +29,221 @@ webdav_unified_op(ngx_uint_t method)
     default:
         return BRIX_METRIC_OP_STAT;
     }
+}
+
+static brix_sess_mode_t
+webdav_sess_mode(ngx_http_request_t *r, ngx_uint_t method)
+{
+    if (method == BRIX_WEBDAV_METHOD_GET) {
+        return BRIX_SESS_MODE_READ;
+    }
+    if (method == BRIX_WEBDAV_METHOD_PUT
+        || method == BRIX_WEBDAV_METHOD_MKCOL
+        || (r != NULL && r->method == NGX_HTTP_MOVE))
+    {
+        return BRIX_SESS_MODE_WRITE;
+    }
+    if (method == BRIX_WEBDAV_METHOD_DELETE) {
+        return BRIX_SESS_MODE_DELETE;
+    }
+    if (method == BRIX_WEBDAV_METHOD_COPY) {
+        return BRIX_SESS_MODE_COPY;
+    }
+    if (method == BRIX_WEBDAV_METHOD_PROPFIND) {
+        ngx_str_t depth = brix_http_get_header(r, "Depth");
+        if (depth.len == 1 && depth.data[0] == '0') {
+            return BRIX_SESS_MODE_META;
+        }
+        return BRIX_SESS_MODE_LIST;
+    }
+
+    return BRIX_SESS_MODE_META;
+}
+
+static brix_sess_am_t
+webdav_sess_auth_method(ngx_http_brix_webdav_req_ctx_t *ctx)
+{
+    if (ctx == NULL) {
+        return BRIX_SESS_AM_ANON;
+    }
+
+    if (ctx->token_auth) {
+        return BRIX_SESS_AM_TOKEN;
+    }
+
+    if (ctx->verified) {
+        return BRIX_SESS_AM_GSI;
+    }
+
+    return BRIX_SESS_AM_ANON;
+}
+
+static const char *
+webdav_sess_user(ngx_http_brix_webdav_req_ctx_t *ctx)
+{
+    const char *subject;
+
+    if (ctx == NULL || ctx->identity == NULL) {
+        return "-";
+    }
+
+    subject = brix_identity_subject_cstr(ctx->identity);
+    if (subject != NULL && subject[0] != '\0') {
+        return subject;
+    }
+
+    subject = brix_identity_dn_cstr(ctx->identity);
+    return subject != NULL && subject[0] != '\0' ? subject : "-";
+}
+
+static const char *
+webdav_sess_vo(ngx_http_brix_webdav_req_ctx_t *ctx)
+{
+    const char *vo;
+
+    if (ctx == NULL || ctx->identity == NULL) {
+        return "-";
+    }
+
+    vo = brix_identity_vo_csv_cstr(ctx->identity);
+    return vo != NULL && vo[0] != '\0' ? vo : "-";
+}
+
+static brix_sess_t *
+webdav_sess(ngx_http_request_t *r)
+{
+    ngx_http_brix_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_req_ctx_t  *ctx;
+
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+
+    return brix_http_sess(r, &conf->common, BRIX_SESS_PROTO_WEBDAV,
+                          webdav_sess_auth_method(ctx));
+}
+
+static int
+webdav_sess_mode_has_xfer(brix_sess_mode_t mode)
+{
+    return mode == BRIX_SESS_MODE_READ || mode == BRIX_SESS_MODE_WRITE
+           || mode == BRIX_SESS_MODE_COPY;
+}
+
+static int64_t
+webdav_sess_xfer_expected(ngx_http_request_t *r, brix_sess_mode_t mode)
+{
+    if (r == NULL) {
+        return -1;
+    }
+
+    if (mode == BRIX_SESS_MODE_READ || mode == BRIX_SESS_MODE_COPY) {
+        return r->headers_out.content_length_n >= 0
+               ? (int64_t) r->headers_out.content_length_n : -1;
+    }
+
+    if (mode == BRIX_SESS_MODE_WRITE) {
+        return r->headers_in.content_length_n >= 0
+               ? (int64_t) r->headers_in.content_length_n : -1;
+    }
+
+    return -1;
+}
+
+static uint64_t
+webdav_sess_xfer_bytes(ngx_http_request_t *r, brix_sess_mode_t mode,
+    int64_t expected)
+{
+    if (mode == BRIX_SESS_MODE_READ || mode == BRIX_SESS_MODE_COPY) {
+        return expected > 0 ? (uint64_t) expected : 0;
+    }
+
+    if (mode == BRIX_SESS_MODE_WRITE && r != NULL
+        && r->headers_in.content_length_n > 0)
+    {
+        return (uint64_t) r->headers_in.content_length_n;
+    }
+
+    return 0;
+}
+
+static void
+webdav_sess_start_xfer(ngx_http_request_t *r, brix_sess_t *sess,
+    const char *path, brix_sess_mode_t mode)
+{
+    ngx_http_brix_webdav_req_ctx_t *ctx;
+
+    if (!webdav_sess_mode_has_xfer(mode)) {
+        return;
+    }
+
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+    if (ctx == NULL || ctx->sess_xfer_started) {
+        return;
+    }
+
+    brix_sess_xfer_start(sess, &ctx->sess_xfer, path, mode, -1);
+    ctx->sess_xfer_started = ctx->sess_xfer.active ? 1 : 0;
+}
+
+static void
+webdav_sess_finish_xfer(ngx_http_request_t *r, brix_sess_t *sess,
+    brix_sess_mode_t mode, ngx_uint_t status)
+{
+    ngx_http_brix_webdav_req_ctx_t *ctx;
+    int64_t                         expected;
+    uint64_t                        bytes;
+
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+    if (ctx == NULL || !ctx->sess_xfer_started) {
+        return;
+    }
+
+    if (mode == BRIX_SESS_MODE_COPY && ctx->sess_xfer.expected >= 0) {
+        expected = ctx->sess_xfer.expected;
+        bytes = ctx->sess_xfer.bytes;
+    } else {
+        expected = webdav_sess_xfer_expected(r, mode);
+        bytes = webdav_sess_xfer_bytes(r, mode, expected);
+    }
+    ctx->sess_xfer.expected = expected;
+    if (bytes > ctx->sess_xfer.bytes) {
+        brix_sess_xfer_add(&ctx->sess_xfer, bytes - ctx->sess_xfer.bytes);
+    }
+
+    brix_sess_xfer_end(sess, &ctx->sess_xfer,
+                       status < NGX_HTTP_BAD_REQUEST
+                       ? BRIX_SESS_XFER_COMPLETE
+                       : BRIX_SESS_XFER_ABORTED);
+    ctx->sess_xfer_started = 0;
+}
+
+void
+webdav_sess_begin_request(ngx_http_request_t *r)
+{
+    ngx_http_brix_webdav_req_ctx_t *ctx;
+    brix_sess_t                    *sess;
+    brix_sess_am_t                  method;
+
+    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+    method = webdav_sess_auth_method(ctx);
+    sess = webdav_sess(r);
+    brix_sess_auth_once(sess, method, webdav_sess_user(ctx),
+                        webdav_sess_vo(ctx));
+}
+
+void
+webdav_sess_attempt_request(ngx_http_request_t *r)
+{
+    char         path[BRIX_SESSLOG_PATH_MAX];
+    ngx_uint_t   method;
+    brix_sess_t *sess;
+    brix_sess_mode_t mode;
+
+    method = webdav_metrics_method(r);
+    sess = webdav_sess(r);
+    mode = webdav_sess_mode(r, method);
+    brix_sess_attempt(sess, brix_http_sess_uri(r, path, sizeof(path)), mode);
+    webdav_sess_start_xfer(r, sess, path, mode);
 }
 
 /**
@@ -85,6 +301,9 @@ webdav_metrics_response(ngx_http_request_t *r, ngx_int_t rc)
     ngx_uint_t method;
     ngx_uint_t status;
     ngx_uint_t status_class;
+    brix_sess_t *sess;
+    char path[BRIX_SESSLOG_PATH_MAX];
+    char errscratch[BRIX_SESSLOG_ERR_MAX];
 
     if (rc == NGX_DONE) {
         return;
@@ -94,6 +313,15 @@ webdav_metrics_response(ngx_http_request_t *r, ngx_int_t rc)
 
     status = brix_http_effective_status(r, rc);
     status_class = brix_http_status_class(status);
+    sess = webdav_sess(r);
+    brix_sess_result(sess, status < NGX_HTTP_BAD_REQUEST,
+                     brix_http_sess_uri(r, path, sizeof(path)),
+                     webdav_sess_mode(r, method),
+                     status < NGX_HTTP_BAD_REQUEST ? NULL
+                         : brix_sesslog_err_from_http((int) status,
+                                                       errscratch,
+                                                       sizeof(errscratch)));
+    webdav_sess_finish_xfer(r, sess, webdav_sess_mode(r, method), status);
     BRIX_WEBDAV_METRIC_INC(responses_total[method][status_class]);
     brix_metric_op_done(BRIX_PROTO_WEBDAV, webdav_unified_op(method),
                           0, 0,

@@ -1,6 +1,7 @@
 #include "tpc_internal.h"
 #include "fs/vfs/vfs.h"   /* brix_vfs_open_fd_at (handle-table confined open) */
 #include "core/compat/host_format.h"  /* brix_format_host_port — IPv6 bracketing */
+#include "observability/sesslog/sesslog_ngx.h"
 /* File: launch.c — TPC pull entry point and destination-side preparation for native root:// third-party copy
  * WHAT: Six functions implement the TPC pull launch pipeline on the event thread. tpc_send_open_response builds kXR_ok open response body (fhandle + optional statbuf) → brix_queue_response; tpc_build_origin_id constructs origin ID string from ctx->login.user+ngx_pid+getnameinfo host via snprintf+cpystrn; tpc_destination_open_flags derives O_CREAT/O_EXCL/O_TRUNC flags from options bitmask for POSIX open; brix_tpc_prepare_pull validates thread_pool + TPC source host/path → checks src policy (allow_local/allow_private) → alloc fhandle idx → brix_open_confined(canonical path) → set file metadata (writable=1, tpc_destination=1) → generate+register key if empty → store token_mode → send open response; brix_tpc_start_pull validates fhandle_idx + tpc_destination flag → alloc ngx_thread_task → populate brix_tpc_pull_t struct from file fields → set handler=brix_tpc_pull_thread, event.handler=brix_tpc_pull_done → post to thread pool; brix_tpc_launch_pull is wrapper for prepare_pull. Non-NGX_THREADS stubs return kXR_ServerError "TPC pull requires NGX_THREADS support". Caller: dispatch.c (kXR_open TPC opaque param path).
  *
@@ -18,6 +19,97 @@
 #include <netdb.h>
 #include "core/compat/alloc_guard.h"
 #include "core/compat/cstr.h"
+
+static brix_sess_am_t
+tpc_sess_auth_method(const brix_tpc_pull_t *t)
+{
+    if (t == NULL || t->conf == NULL) {
+        return BRIX_SESS_AM_ANON;
+    }
+
+    if ((t->token_mode[0] != '\0' && ngx_strcmp(t->token_mode, "none") != 0)
+        || t->conf->tpc_outbound_bearer_file.len > 0)
+    {
+        return BRIX_SESS_AM_TOKEN;
+    }
+
+    if (t->deleg_cred_len > 0
+        || (t->conf->certificate.len > 0 && t->conf->certificate_key.len > 0))
+    {
+        return BRIX_SESS_AM_GSI;
+    }
+
+    return BRIX_SESS_AM_ANON;
+}
+
+static const char *
+tpc_sess_identity_user(const brix_tpc_pull_t *t)
+{
+    const char *subject;
+
+    if (t == NULL || t->ctx == NULL || t->ctx->identity == NULL) {
+        return "-";
+    }
+
+    subject = brix_identity_subject_cstr(t->ctx->identity);
+    if (subject != NULL && subject[0] != '\0') {
+        return subject;
+    }
+
+    subject = brix_identity_dn_cstr(t->ctx->identity);
+    return subject != NULL && subject[0] != '\0' ? subject : "-";
+}
+
+static const char *
+tpc_sess_identity_vo(const brix_tpc_pull_t *t)
+{
+    const char *vo;
+
+    if (t == NULL || t->ctx == NULL || t->ctx->identity == NULL) {
+        return "-";
+    }
+
+    vo = brix_identity_vo_csv_cstr(t->ctx->identity);
+    return vo != NULL && vo[0] != '\0' ? vo : "-";
+}
+
+static void
+tpc_sess_begin_pull(brix_tpc_pull_t *t)
+{
+    char          peer[320];
+    uint16_t      sport;
+    brix_sess_am_t method;
+
+    if (t == NULL || t->sess != NULL || t->conf == NULL) {
+        return;
+    }
+
+    sport = t->src_port ? t->src_port : 1094;
+    brix_format_host_port(t->src_host, sport, peer, sizeof(peer));
+    method = tpc_sess_auth_method(t);
+    t->sess = brix_sess_begin(t->conf->session_log, t->conf->access_log_fd,
+                              BRIX_SESS_PROTO_TPC, BRIX_SESS_DIR_OUT,
+                              peer, ngx_strlen(peer), method,
+                              t->ctx != NULL ? t->ctx->sess : NULL);
+    brix_sess_auth_once(t->sess, method, tpc_sess_identity_user(t),
+                        tpc_sess_identity_vo(t));
+    brix_sess_attempt(t->sess, t->src_path, BRIX_SESS_MODE_READ);
+    brix_sess_xfer_start(t->sess, &t->sess_xfer, t->src_path,
+                         BRIX_SESS_MODE_READ, -1);
+}
+
+static void
+tpc_sess_abort_pull(brix_tpc_pull_t *t, const char *err)
+{
+    if (t == NULL) {
+        return;
+    }
+
+    brix_sess_result(t->sess, 0, t->src_path, BRIX_SESS_MODE_READ, err);
+    brix_sess_xfer_end(t->sess, &t->sess_xfer, BRIX_SESS_XFER_ABORTED);
+    brix_sess_end(t->sess, BRIX_SESS_END_ERROR);
+    t->sess = NULL;
+}
 
 /* WHAT: Build kXR_ok open response body (fhandle + optional statbuf from fstat) → brix_build_resp_hdr → brix_queue_response. Returns NGX_OK or NGX_ERROR on alloc failure. Caller: brix_tpc_prepare_pull (end of pull prep pipeline). */
 static ngx_int_t
@@ -450,6 +542,7 @@ brix_tpc_start_pull(brix_ctx_t *ctx, ngx_connection_t *c,
     }
     ngx_cpystrn((u_char *) t->dst_path, (u_char *) file->path,
                 sizeof(t->dst_path));
+    tpc_sess_begin_pull(t);
 
     /*
      * SciTags packet marking (phase-34): resolve the (experiment, activity) for
@@ -480,6 +573,7 @@ brix_tpc_start_pull(brix_ctx_t *ctx, ngx_connection_t *c,
     if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
         (void) brix_tpc_registry_remove(file->tpc_transfer_id, c->log);
         file->tpc_transfer_id = 0;
+        tpc_sess_abort_pull(t, "io");
         brix_log_access(ctx, c, "SYNC", file->path, "tpc-pull",
                           0, kXR_ServerError, "thread post failed", 0);
         BRIX_OP_ERR(ctx, BRIX_OP_SYNC);

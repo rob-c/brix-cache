@@ -522,6 +522,7 @@ ngx_brix_cms_process_frame(ngx_brix_cms_ctx_t *ctx)
         /* Manager requested disconnect (do_Disc on a node simply closes). */
         ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
                       "brix: CMS node: manager requested disconnect");
+        ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_SERVER);
         ngx_brix_cms_disconnect(ctx);
         ngx_brix_cms_schedule_retry(ctx);
         return NGX_OK;
@@ -576,6 +577,7 @@ ngx_brix_cms_read_handler(ngx_event_t *ev)
                       "brix: CMS manager silent past read timeout — "
                       "reconnecting");
         BRIX_RESIL_METRIC_INC(cms_read_timeouts_total);
+        ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_TIMEOUT);
         ngx_brix_cms_disconnect(ctx);
         ngx_brix_cms_schedule_retry(ctx);
         return;
@@ -592,6 +594,8 @@ ngx_brix_cms_read_handler(ngx_event_t *ev)
         if (n == NGX_ERROR || n == 0) {
             ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ev->log, 0,
                            "brix: CMS recv EOF/error, disconnecting");
+            ngx_brix_cms_set_end_hint(ctx, n == 0 ? BRIX_SESS_END_SERVER
+                                                  : BRIX_SESS_END_ERROR);
             ngx_brix_cms_disconnect(ctx);
             ngx_brix_cms_schedule_retry(ctx);
             return;
@@ -612,6 +616,7 @@ ngx_brix_cms_read_handler(ngx_event_t *ev)
                 ngx_log_error(NGX_LOG_WARN, ev->log, 0,
                               "brix: CMS frame too large: %ui",
                               (ngx_uint_t) dlen);
+                ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_ERROR);
                 ngx_brix_cms_disconnect(ctx);
                 ngx_brix_cms_schedule_retry(ctx);
                 return;
@@ -628,6 +633,7 @@ ngx_brix_cms_read_handler(ngx_event_t *ev)
                        (ngx_uint_t) ctx->inbuf[4]);
 
         if (ngx_brix_cms_process_frame(ctx) != NGX_OK) {
+            ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_ERROR);
             ngx_brix_cms_disconnect(ctx);
             ngx_brix_cms_schedule_retry(ctx);
             return;
@@ -645,6 +651,7 @@ ngx_brix_cms_read_handler(ngx_event_t *ev)
          * manager cannot monopolise the event loop. */
         if (++processed >= NGX_BRIX_CMS_MAX_FRAMES_PER_WAKEUP) {
             if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
+                ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_ERROR);
                 ngx_brix_cms_disconnect(ctx);
                 ngx_brix_cms_schedule_retry(ctx);
                 return;
@@ -658,6 +665,7 @@ ngx_brix_cms_read_handler(ngx_event_t *ev)
     if (ctx->connection != NULL
         && ngx_handle_read_event(c->read, 0) != NGX_OK)
     {
+        ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_ERROR);
         ngx_brix_cms_disconnect(ctx);
         ngx_brix_cms_schedule_retry(ctx);
     }

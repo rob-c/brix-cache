@@ -45,13 +45,17 @@ packaging/rpm/build-rpm-container.sh -d alma10 -v 0.1.0
 packaging/rpm/build-rpm-container.sh -d alma11 -v 0.1.0
 ```
 
-Built RPMs appear in `dist/`.  The `nginx-mod-brix-cache-*.rpm` is the installable
-module package; the `.src.rpm` is the source package.
+Built RPMs appear in `dist/`.  The module package installs the nginx dynamic
+modules; the client, test-suite, and Ceph migration tools are split into their
+own RPMs so sites can install only what they need.
 
 ```
 dist/
-  nginx-mod-brix-cache-0.1.0-1.el9.x86_64.rpm   ← install this
-  nginx-mod-brix-cache-0.1.0-1.el9.src.rpm
+  nginx-mod-brix-cache-0.1.0-7.el9.x86_64.rpm
+  brix-cache-client-0.1.0-7.el9.x86_64.rpm
+  brix-cache-tests-0.1.0-7.el9.noarch.rpm
+  brix-tools-0.1.0-7.el9.x86_64.rpm
+  nginx-mod-brix-cache-0.1.0-7.el9.src.rpm
 ```
 
 ---
@@ -71,12 +75,23 @@ sudo dnf install -y https://linuxsoft.cern.ch/wlcg/el8/x86_64/wlcg-repo-1.0.0-1.
 sudo dnf install -y https://linuxsoft.cern.ch/wlcg/el9/x86_64/wlcg-repo-1.0.0-1.el9.noarch.rpm
 # AlmaLinux 10+ — monitor https://linuxsoft.cern.ch/wlcg/ for availability.
 # Until the EL10 repo is published, use --nodeps and install voms-libs separately.
+
+# brix-tools also needs the runtime Ceph libraries.  Enable your
+# site Ceph/RHCS/SIG repository before installing that optional package.
 ```
 
 ### 2.2 Install the RPM
 
 ```bash
-sudo dnf install -y dist/nginx-mod-brix-cache-0.1.0-1.el9.x86_64.rpm
+sudo dnf install -y dist/nginx-mod-brix-cache-0.1.0-7.el9.x86_64.rpm \
+    dist/brix-cache-client-0.1.0-7.el9.x86_64.rpm
+```
+
+Install the compiled XrdCeph/CephFS migration tools on hosts that will run
+operator migrations:
+
+```bash
+sudo dnf install -y dist/brix-tools-0.1.0-7.el9.x86_64.rpm
 ```
 
 This pulls in `nginx-mod-stream`, `openssl-libs`, `voms-libs`, and `curl`
@@ -88,7 +103,7 @@ Verify the modules are present:
 
 ```bash
 ls /usr/lib64/nginx/modules/ngx_stream_brix_module.so
-ls /usr/lib64/nginx/modules/ngx_http_brix_webdav_module.so
+ls /usr/lib64/nginx/modules/ngx_http_brix_xrdhttp_filter_module.so
 ```
 
 ---

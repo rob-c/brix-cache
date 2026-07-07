@@ -302,6 +302,7 @@ typedef struct {
 
     /* ---- access log ---- */
     ngx_str_t   access_log;     /* [brix_access_log /var/log/xrootd-access.log] */
+    ngx_flag_t  session_log;    /* [brix_session_log on|off] lifecycle SESS lines */
     ngx_fd_t    access_log_fd;  /* opened fd; NGX_INVALID_FILE if not configured.
                                    Captured per-worker from access_log_file->fd. */
     ngx_open_file_t *access_log_file;  /* nginx-managed handle (cycle->open_files):

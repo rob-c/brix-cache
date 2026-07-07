@@ -4,7 +4,93 @@
 #include "net/manager/registry.h"          /* aggregate space for statfs reply */
 #include "cns.h"                          /* §6 CNS inventory + event codec */
 #include "observability/metrics/metrics_macros.h"   /* Phase 51 (A1): resilience counters */
+#include "observability/sesslog/sesslog_ngx.h"
 #include "core/compat/log_diag.h"
+
+static void
+cms_srv_set_end_hint(brix_cms_srv_ctx_t *ctx, brix_sess_end_t why)
+{
+    if (ctx == NULL || ctx->sess_end_hint_set) {
+        return;
+    }
+
+    ctx->sess_end_hint = why;
+    ctx->sess_end_hint_set = 1;
+}
+
+static brix_sess_end_t
+cms_srv_end_reason(brix_cms_srv_ctx_t *ctx, ngx_connection_t *c)
+{
+    if (ngx_exiting || ngx_terminate) {
+        return BRIX_SESS_END_SHUTDOWN;
+    }
+
+    if (ctx != NULL && ctx->sess_end_hint_set) {
+        return ctx->sess_end_hint;
+    }
+
+    if (c != NULL) {
+        if ((c->read != NULL && c->read->timedout)
+            || (c->write != NULL && c->write->timedout))
+        {
+            return BRIX_SESS_END_TIMEOUT;
+        }
+        if (c->error) {
+            return BRIX_SESS_END_ERROR;
+        }
+    }
+
+    return BRIX_SESS_END_CLIENT;
+}
+
+static const char *
+cms_srv_target_path(brix_cms_srv_ctx_t *ctx, char *dst, size_t dst_size)
+{
+    u_char *p;
+    u_char *end;
+
+    if (ctx == NULL || dst == NULL || dst_size == 0) {
+        return "-";
+    }
+
+    end = (u_char *) dst + dst_size;
+    p = ngx_snprintf((u_char *) dst, dst_size, "%s:%d",
+                     ctx->host, (int) ctx->port);
+    if (p < end) {
+        *p = '\0';
+    } else {
+        dst[dst_size - 1] = '\0';
+    }
+
+    return dst;
+}
+
+static void
+cms_srv_log_auth_fail(brix_cms_srv_ctx_t *ctx, const char *err)
+{
+    if (ctx == NULL) {
+        return;
+    }
+
+    brix_sess_auth(ctx->sess, 0, BRIX_SESS_AM_HOST, "-", "-", err);
+}
+
+static void
+cms_srv_log_registration(brix_cms_srv_ctx_t *ctx)
+{
+    char        target[BRIX_SESSLOG_PATH_MAX];
+    const char *path;
+
+    if (ctx == NULL || ctx->sess_attempt_logged) {
+        return;
+    }
+
+    path = cms_srv_target_path(ctx, target, sizeof(target));
+    brix_sess_auth_once(ctx->sess, BRIX_SESS_AM_HOST, ctx->host, "-");
+    brix_sess_attempt(ctx->sess, path, BRIX_SESS_MODE_META);
+    ctx->sess_attempt_logged = 1;
+    brix_sess_result(ctx->sess, 1, path, BRIX_SESS_MODE_META, NULL);
+}
 
 /* brix_cms_srv_close — tear down a CMS data-server connection: drop the ping
  * timer, unregister host/port from the server registry if logged_in (so locate
@@ -50,6 +136,9 @@ brix_cms_srv_close(brix_cms_srv_ctx_t *ctx)
             "meanwhile",
             ctx->host, (int) ctx->port);
     }
+
+    brix_sess_end(ctx->sess, cms_srv_end_reason(ctx, c));
+    ctx->sess = NULL;
 
     ctx->c = NULL;
     ngx_close_connection(c);
@@ -300,6 +389,7 @@ brix_cms_srv_ping_timer(ngx_event_t *ev)
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
                       "brix: CMS server: ping to %s failed, closing",
                       ctx->host);
+        cms_srv_set_end_hint(ctx, BRIX_SESS_END_ERROR);
         brix_cms_srv_close(ctx);
         return;
     }
@@ -323,6 +413,7 @@ cms_srv_complete_login(brix_cms_srv_ctx_t *ctx)
     brix_srv_register(ctx->host, ctx->port, ctx->paths,
                          ctx->free_mb, ctx->util_pct);
     ctx->logged_in = 1;
+    cms_srv_log_registration(ctx);
 
     /* Arm the periodic ping now that the data server is logged in. */
     ctx->ping_timer.handler = brix_cms_srv_ping_timer;
@@ -361,6 +452,8 @@ cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
             ngx_log_error(NGX_LOG_WARN, ctx->c->log, 0,
                           "brix: CMS server: malformed LOGIN from %s",
                           ctx->host);
+            cms_srv_log_auth_fail(ctx, "invalid");
+            cms_srv_set_end_hint(ctx, BRIX_SESS_END_ERROR);
             brix_cms_srv_close(ctx);
             return;
         }
@@ -376,6 +469,7 @@ cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
             if (brix_cms_srv_send_xauth(ctx, sss_parms,
                                           sizeof(sss_parms)) != NGX_OK)
             {
+                cms_srv_set_end_hint(ctx, BRIX_SESS_END_ERROR);
                 brix_cms_srv_close(ctx);
                 return;
             }
@@ -392,10 +486,14 @@ cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
             ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
                           "brix: CMS server: unexpected kYR_xauth from %s",
                           ctx->host);
+            cms_srv_log_auth_fail(ctx, "invalid");
+            cms_srv_set_end_hint(ctx, BRIX_SESS_END_ERROR);
             brix_cms_srv_close(ctx);
             return;
         }
         if (brix_cms_srv_verify_xauth(ctx, payload, payload_len) != NGX_OK) {
+            cms_srv_log_auth_fail(ctx, "bad-signature");
+            cms_srv_set_end_hint(ctx, BRIX_SESS_END_ERROR);
             brix_cms_srv_close(ctx);
             return;
         }
@@ -432,6 +530,7 @@ cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
                        "brix: CMS server: ping from %s -> pong", ctx->host);
         if (brix_cms_srv_send_pong(ctx) != NGX_OK) {
+            cms_srv_set_end_hint(ctx, BRIX_SESS_END_ERROR);
             brix_cms_srv_close(ctx);
             return;
         }
@@ -445,6 +544,7 @@ cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
         ngx_log_error(NGX_LOG_NOTICE, ctx->c->log, 0,
                       "brix: CMS server: %s requested disconnect", ctx->host);
         (void) brix_cms_srv_send_disc(ctx);
+        cms_srv_set_end_hint(ctx, BRIX_SESS_END_CLIENT);
         brix_cms_srv_close(ctx);
         return;
 
@@ -458,6 +558,7 @@ cms_srv_process_frame(brix_cms_srv_ctx_t *ctx, u_char code, uint32_t streamid,
         if (brix_cms_srv_send_status(ctx, CMS_ST_RESUME | CMS_ST_NOSTAGE)
             != NGX_OK)
         {
+            cms_srv_set_end_hint(ctx, BRIX_SESS_END_ERROR);
             brix_cms_srv_close(ctx);
             return;
         }
@@ -582,6 +683,7 @@ brix_cms_srv_write(ngx_event_t *ev)
     brix_cms_srv_ctx_t  *ctx = c->data;
 
     if (ev->timedout) {
+        cms_srv_set_end_hint(ctx, BRIX_SESS_END_TIMEOUT);
         brix_cms_srv_close(ctx);
     }
 }
@@ -613,6 +715,7 @@ brix_cms_srv_read(ngx_event_t *ev)
         } else {
             BRIX_RESIL_METRIC_INC(cms_login_timeouts_total);
         }
+        cms_srv_set_end_hint(ctx, BRIX_SESS_END_TIMEOUT);
         brix_cms_srv_close(ctx);
         return;
     }
@@ -626,6 +729,8 @@ brix_cms_srv_read(ngx_event_t *ev)
         }
 
         if (n == NGX_ERROR || n == 0) {
+            cms_srv_set_end_hint(ctx, n == 0 ? BRIX_SESS_END_CLIENT
+                                             : BRIX_SESS_END_ERROR);
             brix_cms_srv_close(ctx);
             return;
         }
@@ -646,6 +751,7 @@ brix_cms_srv_read(ngx_event_t *ev)
                 ngx_log_error(NGX_LOG_WARN, c->log, 0,
                               "brix: CMS server: frame too large (%ui) "
                               "from %s", (ngx_uint_t) dlen, ctx->host);
+                cms_srv_set_end_hint(ctx, BRIX_SESS_END_ERROR);
                 brix_cms_srv_close(ctx);
                 return;
             }
@@ -684,6 +790,7 @@ brix_cms_srv_read(ngx_event_t *ev)
          * posted read event, so a flooding data node cannot monopolise the loop. */
         if (++processed >= NGX_BRIX_CMS_MAX_FRAMES_PER_WAKEUP) {
             if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
+                cms_srv_set_end_hint(ctx, BRIX_SESS_END_ERROR);
                 brix_cms_srv_close(ctx);
                 return;
             }
@@ -694,6 +801,7 @@ brix_cms_srv_read(ngx_event_t *ev)
     }
 
     if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
+        cms_srv_set_end_hint(ctx, BRIX_SESS_END_ERROR);
         brix_cms_srv_close(ctx);
     }
 }

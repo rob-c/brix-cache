@@ -461,6 +461,7 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/protocols/shared/http_serve_offload.h \
                         $ngx_addon_dir/src/core/http/http_file_response.h \
                         $ngx_addon_dir/src/core/http/http_headers.h \
+                        $ngx_addon_dir/src/core/http/sesslog_conn.h \
                         $ngx_addon_dir/src/core/compat/error_mapping.h \
                         $ngx_addon_dir/src/core/http/http_query.h \
                         $ngx_addon_dir/src/core/http/http_xml.h \
@@ -499,6 +500,9 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/observability/metrics/metrics_macros.h \
                         $ngx_addon_dir/src/observability/metrics/unified.h \
                         $ngx_addon_dir/src/observability/metrics/access_log.h \
+                        $ngx_addon_dir/src/observability/accesslog/access_log.h \
+                        $ngx_addon_dir/src/observability/sesslog/sesslog.h \
+                        $ngx_addon_dir/src/observability/sesslog/sesslog_ngx.h \
                         $ngx_addon_dir/src/protocols/root/protocol/protocol.h \
                         $ngx_addon_dir/src/protocols/root/protocol/types.h \
                         $ngx_addon_dir/src/protocols/root/protocol/opcodes.h \
@@ -613,6 +617,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/http/http_file_response.c \
     $ngx_addon_dir/src/core/http/http_compress.c \
     $ngx_addon_dir/src/core/http/http_headers.c \
+    $ngx_addon_dir/src/core/http/sesslog_conn.c \
     $ngx_addon_dir/src/core/compat/json_min.c \
     $ngx_addon_dir/src/core/compat/protocol_caps.c \
     $ngx_addon_dir/src/core/compat/net_target.c \
@@ -794,6 +799,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/fattr/del.c \
     $ngx_addon_dir/src/protocols/root/fattr/list.c \
     $ngx_addon_dir/src/observability/accesslog/access_log.c \
+    $ngx_addon_dir/src/observability/sesslog/sesslog.c \
+    $ngx_addon_dir/src/observability/sesslog/sesslog_ngx.c \
     $ngx_addon_dir/src/fs/path/helpers.c \
     $ngx_addon_dir/src/fs/path/resolve_confined_helpers.c \
     $ngx_addon_dir/src/fs/path/resolve_confined_ops.c \

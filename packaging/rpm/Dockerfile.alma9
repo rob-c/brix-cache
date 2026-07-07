@@ -20,7 +20,9 @@ FROM almalinux:9 AS builder
 RUN dnf install -y epel-release && \
     dnf install -y \
         gcc \
+        gcc-c++ \
         make \
+        pkgconfig \
         rpm-build \
         rpmdevtools \
         redhat-rpm-config \
@@ -32,7 +34,14 @@ RUN dnf install -y epel-release && \
         jansson-devel \
         libcurl-devel \
         krb5-devel \
+        libcom_err-devel \
         libxcrypt-devel \
+        fuse3-devel \
+        sqlite-devel \
+        librados-devel \
+        libradospp-devel \
+        libradosstriper-devel \
+        libcephfs-devel \
     && dnf clean all
 
 ARG VERSION=0.1.0

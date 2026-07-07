@@ -22,6 +22,7 @@
 #include "fs/backend/sd.h"
 #include "observability/metrics/metrics.h"
 #include "observability/metrics/metrics_macros.h"
+#include "observability/sesslog/sesslog.h"
 
 /* T19: origin-selection policy for the multi-endpoint backend. */
 typedef enum {
@@ -132,6 +133,9 @@ typedef struct {
                                               (T16)                          */
     ngx_str_t             origin_used;     /* host:port of the fill origin —
                                               $cvmfs_origin (T16)            */
+    brix_sess_xfer_t      sess_xfer;       /* GET transfer lifecycle record */
+    unsigned              sess_attempt_logged:1;
+    unsigned              sess_xfer_started:1;
     unsigned              secure:1;        /* scvmfs (T22)                   */
 } ngx_http_brix_cvmfs_ctx_t;
 

@@ -1,8 +1,13 @@
 # server — the real nginx-xrootd (brix) module compiled against nginx 1.28.3.
 # Strategy A: self-contained in-image compile (no external RPM dependency).
-FROM almalinux:9 AS build
-RUN dnf install -y epel-release dnf-plugins-core \
-    && dnf config-manager --set-enabled crb \
+ARG BRIX_BASE_IMAGE=almalinux:9
+ARG BRIX_RUNTIME_IMAGE=almalinux:9
+FROM ${BRIX_BASE_IMAGE} AS build
+ARG BRIX_OS_TARGET=alma9
+ARG BRIX_ENABLE_CEPH_SIG=0
+ARG BRIX_CEPH_SIG_RELEASE=tentacle
+COPY k8s-tests/lib/el-target.sh /tmp/el-target.sh
+RUN bash /tmp/el-target.sh \
     && dnf install -y --allowerasing gcc make perl tar gzip which curl \
                       pcre2-devel zlib-devel openssl-devel krb5-devel \
                       libxml2-devel libcurl-devel jansson-devel \
@@ -18,8 +23,12 @@ RUN cd "nginx-${NGINX_VER}" \
     && make -j"$(nproc)" \
     && make install
 
-FROM almalinux:9
-RUN dnf install -y epel-release \
+FROM ${BRIX_RUNTIME_IMAGE}
+ARG BRIX_OS_TARGET=alma9
+ARG BRIX_ENABLE_CEPH_SIG=0
+ARG BRIX_CEPH_SIG_RELEASE=tentacle
+COPY k8s-tests/lib/el-target.sh /tmp/el-target.sh
+RUN bash /tmp/el-target.sh \
     && dnf install -y --allowerasing pcre2 zlib openssl krb5-libs libxml2 libcurl jansson \
                       xrootd-client \
     && (dnf install -y voms-libs || true) \

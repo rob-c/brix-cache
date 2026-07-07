@@ -72,6 +72,7 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->gsi_max_inflight = NGX_CONF_UNSET;
     conf->vo_rules     = NULL;
     conf->group_rules  = NULL;
+    conf->session_log  = NGX_CONF_UNSET;
     conf->access_log_fd = NGX_INVALID_FILE;
     conf->metrics_slot = -1;
     conf->rootfd       = -1;
@@ -305,6 +306,7 @@ brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
                               prev->signing_policy_mode, BRIX_SP_MODE_ON);
     ngx_conf_merge_uint_value(conf->crl_mode, prev->crl_mode, BRIX_CRL_MODE_TRY);
     ngx_conf_merge_str_value(conf->access_log,      prev->access_log,      "");
+    ngx_conf_merge_value(conf->session_log, prev->session_log, 1);
     ngx_conf_merge_str_value(conf->token_jwks,      prev->token_jwks,      "");
     ngx_conf_merge_msec_value(conf->token_jwks_refresh_interval,
                               prev->token_jwks_refresh_interval,

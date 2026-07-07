@@ -79,6 +79,8 @@ webdav_dispatch_inner(ngx_http_request_t *r)
 
     /* AGPL-3.0 sec.13: offer remote users the source (X-Source header). */
     brix_http_source_offer(r);
+    webdav_sess_begin_request(r);
+    webdav_sess_attempt_request(r);
 
     /*
      * SciTags packet marking (phase-34).  TPC (COPY) is always marked; plain

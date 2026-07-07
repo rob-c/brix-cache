@@ -246,8 +246,8 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/nginx-xrootd/requireme
 # Already staged by `make -C client install-bin` above: the compiled tools via
 # the OPT_EXES loop, the Python pair + pymigrate under %{_libexecdir}/brix with
 # %{_bindir}/*.py symlinks, and their man pages/completions. Ownership is split
-# in %%files: binaries/python/completions go to brix-tools, man pages ride the
-# brix-cache-client man1 glob.
+# in %%files so brix-cache-client keeps the generic client surface while
+# brix-tools owns the Ceph/CephFS operator surface.
 
 %files
 %license LICENSE
@@ -284,7 +284,27 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/nginx-xrootd/requireme
 %{_bindir}/xrootdfs
 %{_bindir}/brixMount
 %{_libdir}/libbrixposix_preload.so
-%{_mandir}/man1/*.1*
+%{_mandir}/man1/brixMount.1*
+%{_mandir}/man1/mpxstats.1*
+%{_mandir}/man1/wait41.1*
+%{_mandir}/man1/xrd.1*
+%{_mandir}/man1/xrdadler32.1*
+%{_mandir}/man1/xrdcinfo.1*
+%{_mandir}/man1/xrdcksum.1*
+%{_mandir}/man1/xrdckverify.1*
+%{_mandir}/man1/xrdcp.1*
+%{_mandir}/man1/xrdcrc32c.1*
+%{_mandir}/man1/xrdcrc64.1*
+%{_mandir}/man1/xrddiag.1*
+%{_mandir}/man1/xrdfs.1*
+%{_mandir}/man1/xrdgsiproxy.1*
+%{_mandir}/man1/xrdgsitest.1*
+%{_mandir}/man1/xrdmapc.1*
+%{_mandir}/man1/xrdprep.1*
+%{_mandir}/man1/xrdqstats.1*
+%{_mandir}/man1/xrdsssadmin.1*
+%{_mandir}/man1/xrdstorascan.1*
+%{_mandir}/man1/xrootdfs.1*
 %{_mandir}/man7/brix-env.7*
 %{_datadir}/bash-completion/completions/xrd
 %{_datadir}/bash-completion/completions/xrdcp
@@ -320,7 +340,21 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/nginx-xrootd/requireme
 %{_bindir}/xrdceph_migrate
 %{_bindir}/xrdceph_striper_migrate.py
 %{_bindir}/xrdceph_cephfs_to_striper.py
-%{_libexecdir}/brix/
+%dir %{_libexecdir}/brix
+%{_libexecdir}/brix/xrdceph_striper_migrate.py
+%{_libexecdir}/brix/xrdceph_cephfs_to_striper.py
+%dir %{_libexecdir}/brix/pymigrate
+%{_libexecdir}/brix/pymigrate/__init__.py
+%{_libexecdir}/brix/pymigrate/common.py
+%{_libexecdir}/brix/pymigrate/cephfs_meta.py
+%{_libexecdir}/brix/pymigrate/radosbridge.py
+%dir %{_libexecdir}/brix/pymigrate/shim
+%{_libexecdir}/brix/pymigrate/shim/rados_manifest_shim.cpp
+%{_mandir}/man1/xrdceph_cephfs_to_striper.1*
+%{_mandir}/man1/xrdceph_migrate.1*
+%{_mandir}/man1/xrdceph_striper_migrate.1*
+%{_mandir}/man1/xrdcephfs_rescue.1*
+%{_mandir}/man1/xrdrados_rescue.1*
 %{_datadir}/bash-completion/completions/xrdceph_striper_migrate
 %{_datadir}/bash-completion/completions/xrdceph_cephfs_to_striper
 %{_datadir}/bash-completion/completions/xrdrados_rescue
@@ -335,8 +369,9 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/nginx-xrootd/requireme
 - brix-tools gains the offline rescue utilities (xrdrados_rescue,
   xrdcephfs_rescue, xrdceph_migrate), the Python migration variants (*.py on
   PATH, pymigrate under %%{_libexecdir}/brix; Recommends python3-rados/
-  python3-cephfs), and their bash completions. The five new man pages ride the
-  brix-cache-client man1 glob.
+  python3-cephfs), their bash completions, and the five Ceph operator man pages.
+  brix-cache-client now lists its own man pages explicitly so brix-tools owns
+  the full Ceph/CephFS operator surface.
 
 * Tue Jul 07 2026 Rob Currie <rob.currie@ed.ac.uk> - 0.1.0-7
 - Package brix-tools as compiled C++ XrdCeph/CephFS migration

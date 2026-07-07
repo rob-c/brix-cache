@@ -2,6 +2,7 @@
 #define BRIX_TYPES_FILE_H
 
 #include "fs/backend/sd.h"   /* brix_sd_obj_t — per-handle storage object */
+#include "observability/sesslog/sesslog.h"
 
 /* Number of committed-write entries kept per open handle for replay detection. */
 #define BRIX_WRTS_JOURNAL_SLOTS 64
@@ -58,6 +59,7 @@ typedef struct {
     size_t     bytes_read;      /* cumulative bytes read via this handle */
     size_t     bytes_written;   /* cumulative bytes written via this handle */
     ngx_msec_t open_time;       /* timestamp of kXR_open (for throughput log) */
+    brix_sess_xfer_t sess_xfer; /* session lifecycle transfer record */
     int        writable;        /* 1 = opened with write permission */
     int        readable;        /* 1 = opened with read permission */
     int        from_cache;      /* 1 = fd points into cache_root (not export root);

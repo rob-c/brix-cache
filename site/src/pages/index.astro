@@ -119,12 +119,12 @@ const flow = [
         <p class="muted">
           Prometheus <span class="mono">/metrics</span> with fixed, low-cardinality labels — no
           per-file or per-user explosion. Structured access logs for every protocol, and a live
-          HTTPS operator dashboard at <span class="mono">/xrootd/</span>.
+          HTTPS operator dashboard at <span class="mono">/brix/</span>.
         </p>
         <div class="term">
-          <div><span class="k">xrootd_requests_total</span>{'{proto="root",op="read"}'} <span class="c">14302</span></div>
-          <div><span class="k">xrootd_bytes_sent_total</span>{'{proto="dav"}'} <span class="c">9.2e11</span></div>
-          <div><span class="k">xrootd_auth_total</span>{'{method="gsi",result="ok"}'} <span class="c">4201</span></div>
+          <div><span class="k">brix_requests_total</span>{'{op="read",status="ok"}'} <span class="c">14302</span></div>
+          <div><span class="k">brix_io_bytes_read</span>{'{proto="webdav"}'} <span class="c">9.2e11</span></div>
+          <div><span class="k">brix_auth_total</span>{'{method="gsi",status="ok"}'} <span class="c">4201</span></div>
         </div>
       </div>
     </div>

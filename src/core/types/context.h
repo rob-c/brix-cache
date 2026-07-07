@@ -98,6 +98,9 @@ typedef struct {
 
     /* Session login + authenticated-identity state — see brix_ctx_login_t. */
     brix_ctx_login_t  login;
+    brix_sess_t      *sess;     /* lifecycle audit session; NULL when disabled */
+    brix_sess_end_t   sess_end_hint;     /* explicit END reason from close sites */
+    ngx_uint_t        sess_end_hint_set; /* 1 when sess_end_hint is meaningful */
     brix_identity_t *identity; /* canonical Phase 2 identity object */
 
     /* SciTags packet-marking flow handle (NULL = not marked); begun on the

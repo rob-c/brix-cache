@@ -46,7 +46,8 @@ The most-used directives on one page. Start here when you know what you want to 
 | `brix_token_jwks <path>` | `server` | — | If `auth token` or `auth both` |
 | `brix_token_issuer <string>` | `server` | — | If token JWKS is configured |
 | `brix_token_audience <string>` | `server` | — | If token JWKS is configured |
-| `brix_access_log <path>\|off` | `server` | `off` | No |
+| `brix_access_log <path>\|off` | `server`, HTTP `main/server/location` | `off` | No |
+| `brix_session_log on\|off` | `server`, HTTP `main/server/location` | `on` | No |
 | `brix_thread_pool <name>` | `server` | `default` | No |
 | `brix_ckscan_depth <n>` | `server` | `32` | Maximum recursive depth for `kXR_Qckscan` |
 | `brix_ckscan_max_files <n>` | `server` | `100000` | Maximum regular files returned by one `kXR_Qckscan` |
