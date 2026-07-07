@@ -50,10 +50,20 @@ DESTRUCTIVE=(
     tests/test_evil_actor.py tests/test_evil_actor_v2.py
     tests/test_evil_actor_v3.py tests/test_evil_actor_v3_b.py
     tests/test_evil_paths.py tests/test_netfault_stream.py
-    tests/test_net_resilience.py tests/test_official_brix_resilience.py
+    tests/test_net_resilience.py tests/test_official_xrootd_resilience.py
     tests/test_phase51_resilience.py tests/test_xrootdfs_resilience.py
     tests/resilience
 )
+# A stale path here (e.g. a renamed file) makes pytest abort collection with
+# "file or directory not found" and run ZERO tests for the whole lane — silently
+# disabling the entire destructive/chaos/resilience suite.  Drop any path that no
+# longer exists, loudly, so one rename can never zero the lane again.
+_dexist=()
+for _p in "${DESTRUCTIVE[@]}"; do
+    if [ -e "$REPO/$_p" ]; then _dexist+=("$_p")
+    else echo "WARNING: DESTRUCTIVE path missing, skipping: $_p" >&2; fi
+done
+DESTRUCTIVE=("${_dexist[@]}")
 CLIENTCONF=( tests/test_clientconf_cksum.py tests/test_clientconf_narrative.py
     tests/test_clientconf_surface.py tests/test_clientconf_xrdcp.py
     tests/test_clientconf_xrdfs.py tests/test_clientconf_xrdgsiproxy.py
@@ -134,7 +144,7 @@ if [ "$NIGHTLY" -eq 1 ]; then
     run_lane -p no:xdist -- "$REPO/tests/" --ignore="$REPO/tests/userns" \
         -m "slow and serial" || rc=1
     echo "== lane 3: destructive suites =="
-    run_lane -p no:xdist -- "${DESTRUCTIVE[@]/#/$REPO/}" -m "not serial" || rc=1
+    run_lane -p no:xdist -- "${DESTRUCTIVE[@]/#/$REPO/}" || rc=1
     echo "== lane 4: clientconf differential (-n2) =="
     run_lane -n 2 --dist load -- "${CLIENTCONF[@]/#/$REPO/}" || rc=1
     t1=$(date +%s)
@@ -169,7 +179,11 @@ echo "== LANE 2: serial-marked (timing / mesh / topology / xrdhttp daemon) =="
 run_lane -p no:xdist -- "$REPO/tests/" --ignore="$REPO/tests/userns" -m serial || rc=1
 
 echo "== LANE 3: destructive suites (serial — fixed-port self-started instances) =="
-run_lane -p no:xdist -- "${DESTRUCTIVE[@]/#/$REPO/}" -m "not serial" || rc=1
+# No marker filter: this lane already runs -p no:xdist (serial), and the
+# destructive files are --ignore'd from lanes 1-2, so this is their only home.
+# The old -m "not serial" deselected the serial-marked destructive tests
+# (chaos_mesh, netfault, …), which then ran in NO lane at all.
+run_lane -p no:xdist -- "${DESTRUCTIVE[@]/#/$REPO/}" || rc=1
 
 echo "== LANE 4: clientconf differential (-n2) =="
 run_lane -n 2 --dist load -- "${CLIENTCONF[@]/#/$REPO/}" || rc=1
