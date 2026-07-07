@@ -384,28 +384,41 @@ $(document).ready(function(){initNavTree('protocols_2webdav_2access_8c_source.ht
 <div class="line"><a id="l00277" name="l00277"></a><span class="lineno">  277</span>        }</div>
 <div class="line"><a id="l00278" name="l00278"></a><span class="lineno">  278</span>    }</div>
 <div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span> </div>
-<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>    <span class="comment">/* Token scope check (read AND write).  Exempt OPTIONS (capability query /</span></div>
-<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span><span class="comment">     * CORS preflight) and LOCK/UNLOCK (advisory locks do not require a scope</span></div>
-<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span><span class="comment">     * claim — preserves the pre-existing exemption).  op-&gt;name is a static,</span></div>
-<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span><span class="comment">     * null-terminated string, so it is safe to log (no wire-origin overread). */</span></div>
-<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span>    <span class="keywordflow">if</span> (r-&gt;method != NGX_HTTP_OPTIONS) {</div>
-<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span>        <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__http__operation__t.html">brix_http_operation_t</a> *op =</div>
-<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span>            <a class="code hl_function" href="protocol__caps_8c.html#a9227f8f4672009bd1af0f7ae6ff87c44">brix_http_operation_find</a>(r, <a class="code hl_variable" href="webdav_2operation__table_8c.html#a9f79ca587c4343aebccbb14ca4ce9119">brix_webdav_operations</a>,</div>
-<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span>                                       <a class="code hl_variable" href="webdav_2operation__table_8c.html#a453755058ca53e33487a22e7db3ab74c">brix_webdav_operations_count</a>);</div>
-<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>        <span class="keywordtype">int</span> is_lock = (op != NULL</div>
-<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>                       &amp;&amp; (ngx_strcmp(op-&gt;<a class="code hl_variable" href="structbrix__http__operation__t.html#a1220b48486c4679e44f1c8f72e2eb243">name</a>, <span class="stringliteral">&quot;LOCK&quot;</span>) == 0</div>
-<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span>                           || ngx_strcmp(op-&gt;<a class="code hl_variable" href="structbrix__http__operation__t.html#a1220b48486c4679e44f1c8f72e2eb243">name</a>, <span class="stringliteral">&quot;UNLOCK&quot;</span>) == 0));</div>
-<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span>        <span class="keywordflow">if</span> (!is_lock) {</div>
-<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span>            <span class="keyword">const</span> <span class="keywordtype">char</span> *mname = (op != NULL) ? op-&gt;<a class="code hl_variable" href="structbrix__http__operation__t.html#a1220b48486c4679e44f1c8f72e2eb243">name</a> : <span class="stringliteral">&quot;GET&quot;</span>;</div>
-<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span>            rc = <a class="code hl_function" href="auth__token_8c.html#acdd88bbf4484aa464f54ec2c2b2bf3a1">webdav_check_token_scope</a>(r, mname);</div>
-<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span>            <span class="keywordflow">if</span> (rc != NGX_OK) {</div>
-<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span>                <span class="keywordflow">return</span> <a class="code hl_function" href="protocols_2webdav_2metrics_8c.html#a19394613ef929e7d0594a1a2daf9eea5">webdav_metrics_return</a>(r, rc);</div>
-<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span>            }</div>
-<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span>        }</div>
-<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>    }</div>
-<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span> </div>
-<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>    <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>}</div>
+<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span>    <span class="comment">/* Token scope check (read AND write).  Exempt:</span></div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span><span class="comment">     *   OPTIONS — capability query / CORS preflight, no data access.</span></div>
+<div class="line"><a id="l00282" name="l00282"></a><span class="lineno">  282</span><span class="comment">     *   LOCK/UNLOCK — advisory locks require no scope claim (pre-existing).</span></div>
+<div class="line"><a id="l00283" name="l00283"></a><span class="lineno">  283</span><span class="comment">     *   /.oauth2/token and /.well-known/oauth-authorization-server — OAuth2</span></div>
+<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span><span class="comment">     *     control-plane endpoints are not data resources; path-scope checking</span></div>
+<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span><span class="comment">     *     the endpoint URI conflates the data-resource model with OAuth2.</span></div>
+<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span><span class="comment">     *     Authority bounding is enforced inside the issuance handler instead.</span></div>
+<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span><span class="comment">     * op-&gt;name is a static, null-terminated string, so it is safe to log. */</span></div>
+<div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span>    <span class="keywordflow">if</span> (r-&gt;method != NGX_HTTP_OPTIONS) {</div>
+<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span>        <span class="keyword">static</span> <span class="keyword">const</span> <span class="keywordtype">char</span> tok_ep[]  = <span class="stringliteral">&quot;/.oauth2/token&quot;</span>;</div>
+<div class="line"><a id="l00290" name="l00290"></a><span class="lineno">  290</span>        <span class="keyword">static</span> <span class="keyword">const</span> <span class="keywordtype">char</span> disc_ep[] = <span class="stringliteral">&quot;/.well-known/oauth-authorization-server&quot;</span>;</div>
+<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span>        <span class="keywordtype">int</span> is_macaroon_ep =</div>
+<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span>            (r-&gt;uri.len &gt;= <span class="keyword">sizeof</span>(tok_ep) - 1</div>
+<div class="line"><a id="l00293" name="l00293"></a><span class="lineno">  293</span>             &amp;&amp; ngx_memcmp(r-&gt;uri.data + r-&gt;uri.len - (<span class="keyword">sizeof</span>(tok_ep) - 1),</div>
+<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span>                           tok_ep, <span class="keyword">sizeof</span>(tok_ep) - 1) == 0)</div>
+<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span>            || (r-&gt;uri.len &gt;= <span class="keyword">sizeof</span>(disc_ep) - 1</div>
+<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span>                &amp;&amp; ngx_memcmp(r-&gt;uri.data + r-&gt;uri.len - (<span class="keyword">sizeof</span>(disc_ep) - 1),</div>
+<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span>                              disc_ep, <span class="keyword">sizeof</span>(disc_ep) - 1) == 0);</div>
+<div class="line"><a id="l00298" name="l00298"></a><span class="lineno">  298</span>        <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__http__operation__t.html">brix_http_operation_t</a> *op =</div>
+<div class="line"><a id="l00299" name="l00299"></a><span class="lineno">  299</span>            <a class="code hl_function" href="protocol__caps_8c.html#a9227f8f4672009bd1af0f7ae6ff87c44">brix_http_operation_find</a>(r, <a class="code hl_variable" href="webdav_2operation__table_8c.html#a9f79ca587c4343aebccbb14ca4ce9119">brix_webdav_operations</a>,</div>
+<div class="line"><a id="l00300" name="l00300"></a><span class="lineno">  300</span>                                       <a class="code hl_variable" href="webdav_2operation__table_8c.html#a453755058ca53e33487a22e7db3ab74c">brix_webdav_operations_count</a>);</div>
+<div class="line"><a id="l00301" name="l00301"></a><span class="lineno">  301</span>        <span class="keywordtype">int</span> is_lock = (op != NULL</div>
+<div class="line"><a id="l00302" name="l00302"></a><span class="lineno">  302</span>                       &amp;&amp; (ngx_strcmp(op-&gt;<a class="code hl_variable" href="structbrix__http__operation__t.html#a1220b48486c4679e44f1c8f72e2eb243">name</a>, <span class="stringliteral">&quot;LOCK&quot;</span>) == 0</div>
+<div class="line"><a id="l00303" name="l00303"></a><span class="lineno">  303</span>                           || ngx_strcmp(op-&gt;<a class="code hl_variable" href="structbrix__http__operation__t.html#a1220b48486c4679e44f1c8f72e2eb243">name</a>, <span class="stringliteral">&quot;UNLOCK&quot;</span>) == 0));</div>
+<div class="line"><a id="l00304" name="l00304"></a><span class="lineno">  304</span>        <span class="keywordflow">if</span> (!is_lock &amp;&amp; !is_macaroon_ep) {</div>
+<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span>            <span class="keyword">const</span> <span class="keywordtype">char</span> *mname = (op != NULL) ? op-&gt;<a class="code hl_variable" href="structbrix__http__operation__t.html#a1220b48486c4679e44f1c8f72e2eb243">name</a> : <span class="stringliteral">&quot;GET&quot;</span>;</div>
+<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span>            rc = <a class="code hl_function" href="auth__token_8c.html#acdd88bbf4484aa464f54ec2c2b2bf3a1">webdav_check_token_scope</a>(r, mname);</div>
+<div class="line"><a id="l00307" name="l00307"></a><span class="lineno">  307</span>            <span class="keywordflow">if</span> (rc != NGX_OK) {</div>
+<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span>                <span class="keywordflow">return</span> <a class="code hl_function" href="protocols_2webdav_2metrics_8c.html#a19394613ef929e7d0594a1a2daf9eea5">webdav_metrics_return</a>(r, rc);</div>
+<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span>            }</div>
+<div class="line"><a id="l00310" name="l00310"></a><span class="lineno">  310</span>        }</div>
+<div class="line"><a id="l00311" name="l00311"></a><span class="lineno">  311</span>    }</div>
+<div class="line"><a id="l00312" name="l00312"></a><span class="lineno">  312</span> </div>
+<div class="line"><a id="l00313" name="l00313"></a><span class="lineno">  313</span>    <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span>}</div>
 </div>
 <div class="ttc" id="aacc_8h_html"><div class="ttname"><a href="acc_8h.html">acc.h</a></div></div>
 <div class="ttc" id="aacc_8h_html_a346556483ba1cb748e34f894f4c1687a"><div class="ttname"><a href="acc_8h.html#a346556483ba1cb748e34f894f4c1687a">brix_acc_resolve_peer</a></div><div class="ttdeci">const char * brix_acc_resolve_peer(struct sockaddr *sa, socklen_t salen, char *buf, size_t buflen)</div><div class="ttdef"><b>Definition</b> <a href="resolve_8c_source.html#l00058">resolve.c:58</a></div></div>
