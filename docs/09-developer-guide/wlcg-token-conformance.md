@@ -171,3 +171,52 @@ TEST_TOKEN_DIFF=1 tests/run_token_differential.sh
 
 The conformance families carry the `conformance` filename hint, so they are in
 the `--nightly` slow tier; the fast per-file runs above are the iteration path.
+
+## 8. RFC-conformance expansion (spec-first, 510 cases)
+
+The suite was expanded to **510 cases** (428 wire + 82 C-unit) grounded in the
+normative text of the RFCs and profiles, catalogued as 158 numbered rules in
+[`../10-reference/wlcg-token-rfc-rules.md`](../10-reference/wlcg-token-rfc-rules.md).
+The operative rule: **the spec is the oracle** — where the module diverges from
+a `MUST`, the test asserts the spec and the divergence is a finding.
+
+New families: **ALG** (JWA matrix — RS/PS/ES/HS, curve binding, key size, `none`
+variants, confusion), **HDR** (JWS headers — `crit`, `typ`, `cty`, `jku`/`jwk`/
+`x5c` key-injection), **NDT** (NumericDate edge types), **CLM2** (claim
+types/interactions), **BEAR** (RFC 6750 transport + error responses), **SCP2**
+(scope charset/boundary/normalization), **WLCG**/**SCITOK** (profile specifics),
+plus **cross-protocol parity** (root/WebDAV/S3) and a deep boundary/fill matrix.
+
+**Security results confirmed robust:** the algorithm allowlist is exactly
+RS256/ES256 (Optional algs correctly rejected); `alg=none`, HS↔RS confusion,
+wrong-curve, weak-RSA, truncated/tampered signatures all reject; and **all three
+header key-injection vectors are blocked** — `jku` is never fetched (SSRF-safe),
+and embedded `jwk`/`x5c` keys are never trusted.
+
+**Fixes landed from the expansion** (on top of the four base-effort fixes):
+- **Reject unknown `crit` header** (RFC 7515 §4.1.11) — the validator now
+  rejects any token asserting critical headers it does not implement.
+- **Accept fractional/large NumericDate** (RFC 7519 §2) — `json_get_int64`
+  accepts a JSON real; `JSON_DECODE_INT_AS_REAL` on all parses; saturating
+  `exp + skew`.
+- **Accept the WLCG `aud` wildcard** `https://wlcg.cern.ch/jwt/v1/any`
+  (WLCG §Audience).
+
+**Documented deviations (found, not fixed — follow-up candidates):**
+- **RFC 6750 error responses**: invalid/absent token returns `403` (not `401`)
+  and no `WWW-Authenticate: Bearer` header; dual credential transports
+  (header+query) return `200` not `400`; query-token responses omit
+  `Cache-Control: no-store`. (Fixing the status split risks the existing
+  WebDAV-status suite; the `403`-for-auth-failure convention is common in
+  storage servers. Recommended as a scoped follow-up fix wave.)
+- `wlcg.ver` is advisory (WLCG requires `"1.0"`); token lifetime `>6h` not
+  rejected (WLCG SHOULD); `iat>exp` ordering unchecked; non-string `sub`
+  accepted; SciTokens `ANY` audience and `read:`/`write:` scope model not
+  honored (this is a WLCG server — `storage.*` only).
+- **Effective payload limit is ~4096 bytes** (the `pay_json[4096]` buffer),
+  stricter than the 8192-byte raw-token guard — a very rich `wlcg.groups`
+  token could be rejected.
+
+Run the expansion families the same way as the base suite (`pytest
+tests/test_wlcg_token_conformance_*.py`); the C-unit RFC checks are in
+`tests/run_token_conformance.sh`.
