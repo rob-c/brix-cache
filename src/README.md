@@ -144,7 +144,7 @@ These live under [webdav/](protocols/webdav/README.md) and back its method handl
 
 ## The four request lifecycles
 
-> **Visual call-ladders:** [`docs/10-architecture/request-lifecycle-sequences.md`](../docs/10-architecture/request-lifecycle-sequences.md)
+> **Visual call-ladders:** [`docs/11-architecture/request-lifecycle-sequences.md`](../docs/11-architecture/request-lifecycle-sequences.md)
 > renders each of the four flows below as a step-by-step sequence diagram annotated with the
 > real `function() (file.c:line)` at every hop — the fastest way to trace a request end-to-end.
 
