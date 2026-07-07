@@ -25,6 +25,16 @@ if [ ! -x "$RUNNER" ]; then
     exit 0
 fi
 
+# Static invariant guards first — they take seconds and catch what the test
+# tier can't (seam bypasses, size ratchets, doc drift). See tools/ci/README.md.
+echo "[pre-push] running tools/ci guards"
+for g in "$REPO"/tools/ci/check_*.sh; do
+    if ! "$g"; then
+        echo "[pre-push] ✗ guard failed: ${g##*/} — push blocked (bypass: --no-verify)"
+        exit 1
+    fi
+done
+
 echo "[pre-push] running fast test tier — ~4min; bypass with 'git push --no-verify'"
 echo "[pre-push] (tests run against the CURRENT build — rebuild first if you changed src/)"
 
