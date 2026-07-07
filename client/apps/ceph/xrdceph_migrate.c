@@ -18,9 +18,10 @@
  * The destination is treated as a plain directory, so this is verifiable against a
  * local folder; pointing it at a CephFS mount is what makes it a migration.
  *
- * BUILD (in the librados build container):
+ * BUILD: `make -C client ceph-tools` (dep-gated), or by hand where
+ * librados-devel exists:
  *   gcc -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH -I src/fs/backend -I src/fs/backend/rados \
- *     -include tests/ceph/ngx_shim.h tests/ceph/xrdceph_migrate.c \
+ *     -include client/apps/ceph/ngx_shim.h client/apps/ceph/xrdceph_migrate.c \
  *     src/fs/backend/rados/sd_ceph.c src/fs/backend/rados/sd_ceph_compat.c \
  *     -lrados -o xrdceph_migrate
  */

@@ -1,32 +1,46 @@
 # Build/run environment for the nginx-xrootd module WITH the Ceph (librados)
 # storage backend, for use against the tests/ceph_harness.sh single-node cluster.
 #
-# Based on the Ceph project's CentOS-Stream image because the Ceph Storage WG
-# ships librados-devel only for CentOS Stream, not RHEL — the image already has
-# the ceph dnf repos wired, so `librados-devel` installs cleanly here.
+# Based on CentOS Stream 9 plus the CentOS Storage SIG Ceph repo.  This keeps
+# the build/test toolchain independent from the all-in-one `quay.io/ceph/demo`
+# cluster image and lets us track the SIG's current Ceph package stream.
 #
 # The repo source is NOT baked in: run this image with the source delivered via
 # `docker cp` (tests/ceph/build_in_container.sh), so edits don't need an image
 # rebuild. nginx source is unpacked at /opt/nginx-src.
-FROM quay.io/ceph/demo:latest-reef
+ARG BRIX_BASE_IMAGE=quay.io/centos/centos:stream9
+FROM ${BRIX_BASE_IMAGE}
 
 ARG NGINX_VER=1.28.3
+ARG BRIX_CEPH_SIG_RELEASE=tentacle
 
 # CRB (liburing-devel etc.) + EPEL (brotli) widen the dep set on CentOS Stream 9.
+# The Storage SIG repo supplies the Ceph devel/runtime packages used by the
+# module, migration tools, and Python migration tests.
 RUN dnf -y install 'dnf-command(config-manager)' \
  && dnf config-manager --set-enabled crb \
  && dnf -y install epel-release \
+ && (dnf -y install epel-next-release || true)
+RUN printf '%s\n' \
+      "[centos-storage-ceph-${BRIX_CEPH_SIG_RELEASE}]" \
+      "name=CentOS Stream 9 Storage SIG Ceph ${BRIX_CEPH_SIG_RELEASE}" \
+      "baseurl=https://mirror.stream.centos.org/SIGs/9-stream/storage/\$basearch/ceph-${BRIX_CEPH_SIG_RELEASE}/" \
+      "enabled=1" \
+      "gpgcheck=0" \
+      "module_hotfixes=1" \
+      > "/etc/yum.repos.d/centos-storage-ceph-${BRIX_CEPH_SIG_RELEASE}.repo" \
  && dnf -y install \
-      gcc make perl-interpreter findutils tar gzip wget which diffutils \
+      gcc gcc-c++ make perl-interpreter findutils tar gzip wget which diffutils \
       openssl-devel pcre2-devel zlib-devel \
       libxml2-devel libxslt-devel jansson-devel krb5-devel libcurl-devel \
       sqlite-devel libuuid-devel \
       libzstd-devel xz-devel bzip2-devel lz4-devel \
       brotli-devel liburing-devel \
-      librados-devel \
+      ceph-common librados-devel libradospp-devel libradosstriper-devel \
+      libcephfs-devel python3-rados python3-cephfs \
  && dnf clean all
 
-# nginx upstream source — the module is added at ./configure time.
+# nginx upstream source - the module is added at ./configure time.
 RUN wget -q "https://nginx.org/download/nginx-${NGINX_VER}.tar.gz" -O /tmp/nginx.tgz \
  && tar -xzf /tmp/nginx.tgz -C /opt \
  && ln -s "/opt/nginx-${NGINX_VER}" /opt/nginx-src \

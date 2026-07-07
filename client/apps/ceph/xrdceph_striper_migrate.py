@@ -46,7 +46,7 @@ import re
 import sys
 import threading
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 
 import cephfs                                              # noqa: E402
 import rados                                               # noqa: E402

@@ -19,9 +19,10 @@
  *   xrdcephfs_rescue <meta_pool> <data_pool> cp -r <path> <local_dir>
  *   (env CEPH_CONF overrides /etc/ceph/ceph.conf)
  *
- * BUILD (in the librados build container):
+ * BUILD: `make -C client ceph-tools` (dep-gated), or by hand where
+ * librados-devel exists:
  *   gcc -DXRDPROTO_NO_NGX -DBRIX_HAVE_CEPH -I src/fs/backend -I src/fs/backend/rados \
- *     -include tests/ceph/ngx_shim.h tests/ceph/xrdcephfs_rescue.c \
+ *     -include client/apps/ceph/ngx_shim.h client/apps/ceph/xrdcephfs_rescue.c \
  *     src/fs/backend/rados/sd_cephfs_ro.c src/fs/backend/rados/sd_ceph.c \
  *     src/fs/backend/rados/sd_ceph_compat.c src/fs/backend/rados/cephfs_layout.c \
  *     src/fs/backend/rados/cephfs_denc.c -lrados -o xrdcephfs_rescue
