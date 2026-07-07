@@ -328,6 +328,7 @@ Contributing code? Start here. Everything you need to navigate the source tree, 
 
 The original flat structure has been migrated to the numbered sections above. Old URLs still resolve — update your bookmarks when you get a chance:
 
+<!-- doc-paths:off — the left column deliberately names paths that no longer exist -->
 | Deprecated Path | New Location |
 |---|---|
 | `docs/getting-started.md` | [01-getting-started/quick-install.md](01-getting-started/quick-install.md) |
@@ -341,6 +342,7 @@ The original flat structure has been migrated to the numbered sections above. Ol
 | `docs/reference/*` | [`10-reference/`](10-reference/) |
 | `docs/testing/*` | [`09-developer-guide/`](09-developer-guide/) |
 | `docs/webdav/*` | [`04-protocols/`](04-protocols/) |
+<!-- doc-paths:on -->
 
 Full migration details: [MIGRATION-NOTICE.md](MIGRATION-NOTICE.md)
 
