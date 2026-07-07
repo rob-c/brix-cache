@@ -15,6 +15,7 @@ import os
 import shutil
 import random
 import socket
+import subprocess
 import tempfile
 
 import pytest
@@ -354,13 +355,82 @@ def _setup_session():
     os.environ["X509_CERT_DIR"] = CA_DIR
     os.environ["X509_USER_PROXY"] = PROXY_STD
 
-    subprocess.run(
-        [
-            os.path.join(os.path.dirname(__file__), "manage_test_servers.sh"),
-            "start-all",
-        ],
-        check=True,
-        capture_output=True,
+    _start_all_resilient()
+
+
+def _reap_leaked_test_servers():
+    """Kill any nginx/xrootd/krb5kdc whose command line references a test path.
+
+    Pidfile-based ``stop-all`` only knows the servers it launched; a fleet
+    process orphaned by a ``kill -9``'d prior run keeps holding its fixed port,
+    which makes the next ``start-all`` bind fail.  This is the cmdline-scoped
+    reap ``brutal_teardown.sh`` uses, done in-process so it never touches the
+    freshly-generated data/PKI (a full brutal_teardown would wipe them).  Only a
+    process whose argv references TEST_ROOT / /tmp/xrd / /tmp/hsproto is killed —
+    never a broad ``pkill`` that could match this interpreter.
+    """
+    import signal
+
+    markers = (str(TEST_ROOT), "/tmp/xrd", "/tmp/hsproto")
+    for exe in ("nginx", "xrootd", "krb5kdc", "kadmind"):
+        try:
+            out = subprocess.run(
+                ["pgrep", "-x", exe], capture_output=True, text=True
+            ).stdout
+        except Exception:
+            continue
+        for pid in out.split():
+            try:
+                with open(f"/proc/{pid}/cmdline", "rb") as fh:
+                    cmd = fh.read().replace(b"\0", b" ").decode("utf-8", "replace")
+            except OSError:
+                continue
+            if any(m in cmd for m in markers):
+                try:
+                    os.kill(int(pid), signal.SIGKILL)
+                except (OSError, ValueError):
+                    pass
+
+
+def _start_all_resilient():
+    """Start the fleet, self-healing the one recoverable start-all failure.
+
+    A leaked fixed-port server from an interrupted (``kill -9``'d) prior run
+    makes ``start-all`` fail to bind.  The old call used ``check=True`` +
+    ``capture_output=True``, so that transient condition aborted the WHOLE
+    session with a bare ``CalledProcessError`` (pytest INTERNALERROR, zero tests
+    run) AND swallowed the stderr that names the stuck port — the exact failure
+    ``brutal_teardown.sh`` warns about.  Now: on failure the captured output is
+    always surfaced, leaked test servers are reaped, and start-all is retried
+    once.  A genuinely-unstartable fleet still raises, but with the diagnostic
+    visible instead of hidden.
+    """
+    import sys
+    import time
+
+    script = os.path.join(os.path.dirname(__file__), "manage_test_servers.sh")
+    for attempt in (1, 2):
+        r = subprocess.run([script, "start-all"], capture_output=True, text=True)
+        if r.returncode == 0:
+            return
+        sys.stderr.write(
+            f"\n[conftest] start-all failed (attempt {attempt}/2, rc={r.returncode}).\n"
+            f"--- start-all stdout (tail) ---\n{(r.stdout or '')[-4000:]}\n"
+            f"--- start-all stderr (tail) ---\n{(r.stderr or '')[-4000:]}\n"
+        )
+        if attempt == 1:
+            sys.stderr.write(
+                "[conftest] reaping leaked fixed-port test servers and retrying "
+                "start-all once…\n"
+            )
+            subprocess.run([script, "stop-all"], capture_output=True)
+            _reap_leaked_test_servers()
+            time.sleep(2)
+    raise pytest.UsageError(
+        "start-all failed twice (see the surfaced stdout/stderr above — typically "
+        "a leaked server from an interrupted run still holding a fixed port). The "
+        "session cannot proceed without the fleet; run tests/brutal_teardown.sh "
+        "and retry."
     )
 
 
