@@ -4,6 +4,8 @@ var structngx__http__s3__req__ctx__t =
     [ "fs_path", "structngx__http__s3__req__ctx__t.html#a1660b9bdea155303e087f924ef58357b", null ],
     [ "have_sigv4", "structngx__http__s3__req__ctx__t.html#a1693c13af8bbf440519088b4b910839a", null ],
     [ "identity", "structngx__http__s3__req__ctx__t.html#ab309222c83be0cf56eadc311a35574a1", null ],
+    [ "sess_xfer", "structngx__http__s3__req__ctx__t.html#a2c97551faf33a573dca1bcb2165f4d79", null ],
+    [ "sess_xfer_started", "structngx__http__s3__req__ctx__t.html#a6fcf30b32cbf372558eccd947074ffa0", null ],
     [ "sigv4_amz_date", "structngx__http__s3__req__ctx__t.html#a98482c03b0429005559a933e46b6b32c", null ],
     [ "sigv4_scope", "structngx__http__s3__req__ctx__t.html#aad5efe1e62d5a2112185602ea0334e08", null ],
     [ "sigv4_seed_signature", "structngx__http__s3__req__ctx__t.html#afb6587f3d05013612a4d13f2646bdfdf", null ],

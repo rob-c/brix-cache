@@ -93,12 +93,12 @@ $(document).ready(function(){initNavTree('md_src_2tpc_2gsi_2README.html',''); in
   <div class="headertitle"><div class="title">gsi — outbound GSI authentication for the TPC pull socket</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md551"></a> </p>
-<h1><a class="anchor" id="autotoc_md552"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md552"></a> </p>
+<h1><a class="anchor" id="autotoc_md553"></a>
 Overview</h1>
 <p>When a native-TPC pull connects to a source server that demands GSI (x509) authentication, this directory drives the <em>client</em> half of the GSI handshake over the pull socket. It runs entirely on the blocking thread-pool path (never the event loop), called from <a href="../outbound/">../outbound/</a>'s <code>bootstrap.c</code> after the login response announces the server's required sec protocol.</p>
 <p>The flow is staged across four files matching the wire round-trips: initiate (<code>certreq</code>), exchange, <code>kXR_authmore</code> continuation (shared with JWT bearer continuation), and final auth-path selection based on the server's login/auth response.</p>
-<h1><a class="anchor" id="autotoc_md553"></a>
+<h1><a class="anchor" id="autotoc_md554"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -112,14 +112,14 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="gsi__outbound__finish_8c.html">gsi_outbound_finish.c</a></code>   </td><td class="markdownTableBodyNone">pick the auth path from the server's login/auth response   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md554"></a>
+<h1><a class="anchor" id="autotoc_md555"></a>
 Invariants, security &amp; gotchas</h1>
 <ol type="1">
 <li>Blocking I/O only — this code runs on a thread-pool worker; it must never be called from the event loop.</li>
 <li>Delegated credentials (when used) live in per-transfer temp files with owner-only permissions and are removed on completion — never reused across transfers.</li>
 <li>Auth logic here is the <em>client</em> side; the server-side GSI verify lives in <a href="../../auth/gsi/">../../auth/gsi/</a> — keep them separate.</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md555"></a>
+<h1><a class="anchor" id="autotoc_md556"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2tpc_2outbound_2README.html">../outbound/README.md</a> — the socket + session this authenticates</li>

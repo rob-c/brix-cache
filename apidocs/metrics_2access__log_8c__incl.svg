@@ -67,7 +67,7 @@ var sectionId = 'dynsection-0';
 <!-- Node2 -->
 <g id="Node000002" class="node">
 <title>Node2</title>
-<g id="a_Node000002"><a xlink:href="access__log_8h.html" target="_top" xlink:title=" ">
+<g id="a_Node000002"><a xlink:href="metrics_2access__log_8h.html" target="_top" xlink:title=" ">
 <polygon fill="white" stroke="#666666" points="387.5,-250 308.5,-250 308.5,-231 387.5,-231 387.5,-250"/>
 <text text-anchor="middle" x="348" y="-238" font-family="Helvetica,sans-Serif" font-size="10.00">access_log.h</text>
 </a>

@@ -8,7 +8,7 @@ var searchData=
   ['ensure_5fconn_5',['ensure_conn',['../brixposix__preload_8c.html#a8be7b9b3dc0f4510eff62e3aacc9dc44',1,'brixposix_preload.c']]],
   ['ensure_5fweb_5fdst_5fbase_6',['ensure_web_dst_base',['../xrdcp__internal_8h.html#ae7337c72a479ac0a2ad4d6b4fc2fbfbb',1,'ensure_web_dst_base(const char *dstroot, const brix_copy_opts *fo, const brix_opts *co):&#160;xrdcp_recursive.c'],['../xrdcp__recursive_8c.html#ae7337c72a479ac0a2ad4d6b4fc2fbfbb',1,'ensure_web_dst_base(const char *dstroot, const brix_copy_opts *fo, const brix_opts *co):&#160;xrdcp_recursive.c']]],
   ['entry_5fcksum_7',['entry_cksum',['../xrdcp__transfer_8c.html#a914f5d85ce724aeedfb12f1716bfdf98',1,'xrdcp_transfer.c']]],
-  ['entry_5fcmp_8',['entry_cmp',['../list__walk_8c.html#a20a5ab12c2fc087e66405a97abe9dabd',1,'entry_cmp(const void *a, const void *b):&#160;list_walk.c'],['../metabench_8c.html#a726a07ebe45e22add43d6574f48a4057',1,'entry_cmp(const void *a, const void *b):&#160;metabench.c'],['../s3__handlers_8h.html#a20a5ab12c2fc087e66405a97abe9dabd',1,'entry_cmp(const void *a, const void *b):&#160;list_walk.c']]],
+  ['entry_5fcmp_8',['entry_cmp',['../s3__handlers_8h.html#a20a5ab12c2fc087e66405a97abe9dabd',1,'entry_cmp(const void *a, const void *b):&#160;list_walk.c'],['../metabench_8c.html#a726a07ebe45e22add43d6574f48a4057',1,'entry_cmp(const void *a, const void *b):&#160;metabench.c'],['../list__walk_8c.html#a20a5ab12c2fc087e66405a97abe9dabd',1,'entry_cmp(const void *a, const void *b):&#160;list_walk.c']]],
   ['entry_5fmeta_9',['entry_meta',['../xrdcp__internal_8h.html#a14c6a6e29391051c98e41830c98f89be',1,'entry_meta(const char *url, const brix_opts *co, long long *size, long long *mtime):&#160;xrdcp_transfer.c'],['../xrdcp__transfer_8c.html#a14c6a6e29391051c98e41830c98f89be',1,'entry_meta(const char *url, const brix_opts *co, long long *size, long long *mtime):&#160;xrdcp_transfer.c']]],
   ['eqi_10',['eqi',['../issuer__registry_8c.html#a6b08086735a4702a69b812bc54b3f370',1,'issuer_registry.c']]],
   ['errno_5fto_5fns_5fstatus_11',['errno_to_ns_status',['../namespace__ops_8c.html#a38876ffe589ce1fc38358577fe000ef7',1,'namespace_ops.c']]],
@@ -29,5 +29,6 @@ var searchData=
   ['exec_5frun_26',['exec_run',['../sd__frm__exec_8c.html#a8846b427ff9a9957562572bd6834fbd9',1,'sd_frm_exec.c']]],
   ['exec_5ftool_27',['exec_tool',['../xrd_8c.html#a6597d4ce9dac80da1386aa9fbe8944a6',1,'exec_tool(const char *tool, char **argv):&#160;xrd.c'],['../xrd__internal_8h.html#a6597d4ce9dac80da1386aa9fbe8944a6',1,'exec_tool(const char *tool, char **argv):&#160;xrd.c']]],
   ['expand_5fsource_28',['expand_source',['../xrdcp__internal_8h.html#af70073982e64b5fb2187aca8bc6f59da',1,'expand_source(const char *s_in, const brix_opts *co, char ***out, size_t *n, size_t *cap):&#160;xrdcp_recursive.c'],['../xrdcp__recursive_8c.html#af70073982e64b5fb2187aca8bc6f59da',1,'expand_source(const char *s_in, const brix_opts *co, char ***out, size_t *n, size_t *cap):&#160;xrdcp_recursive.c']]],
-  ['ext_5fsimple_29',['ext_simple',['../ops__ext_8c.html#aa32bb4f08730668e5c222f1a0c87cef3',1,'ops_ext.c']]]
+  ['ext_5fsimple_29',['ext_simple',['../ops__ext_8c.html#aa32bb4f08730668e5c222f1a0c87cef3',1,'ops_ext.c']]],
+  ['extract_5fobject_30',['extract_object',['../xrdrados__rescue_8c.html#adf6e53894b4f8683dae149ba6ba627cc',1,'xrdrados_rescue.c']]]
 ];

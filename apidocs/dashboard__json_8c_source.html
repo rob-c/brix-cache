@@ -138,7 +138,7 @@ $(document).ready(function(){initNavTree('dashboard__json_8c_source.html',''); i
 <div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    <span class="comment">/* root is fully serialised into buf; release it now (we own the ref). */</span></div>
 <div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    json_decref(root);</div>
 <div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span> </div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>    b = ngx_pcalloc(r-&gt;pool, <span class="keyword">sizeof</span>(*b));</div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>    b = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(r-&gt;pool, <span class="keyword">sizeof</span>(*b));</div>
 <div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    <span class="keywordflow">if</span> (b == NULL) {</div>
 <div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>        <span class="keywordflow">return</span> NGX_HTTP_INTERNAL_SERVER_ERROR;</div>
 <div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    }</div>
@@ -186,6 +186,7 @@ $(document).ready(function(){initNavTree('dashboard__json_8c_source.html',''); i
 <div class="ttc" id="adashboard__json_8c_html_a9383a39f765494b266cb9ffb1188c30d"><div class="ttname"><a href="dashboard__json_8c.html#a9383a39f765494b266cb9ffb1188c30d">dashboard_json_set_schema</a></div><div class="ttdeci">void dashboard_json_set_schema(json_t *root)</div><div class="ttdef"><b>Definition</b> <a href="dashboard__json_8c_source.html#l00074">dashboard_json.c:74</a></div></div>
 <div class="ttc" id="adashboard__json_8c_html_aa5772e6e3def5c1bb798ce672e5d98d9"><div class="ttname"><a href="dashboard__json_8c.html#aa5772e6e3def5c1bb798ce672e5d98d9">dashboard_json_send</a></div><div class="ttdeci">ngx_int_t dashboard_json_send(ngx_http_request_t *r, ngx_int_t status, json_t *root)</div><div class="ttdef"><b>Definition</b> <a href="dashboard__json_8c_source.html#l00008">dashboard_json.c:8</a></div></div>
 <div class="ttc" id="adashboard__json_8h_html"><div class="ttname"><a href="dashboard__json_8h.html">dashboard_json.h</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a0de53ece62d31e30ec1e1cd815b57267"><div class="ttname"><a href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a></div><div class="ttdeci">void * ngx_pcalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00042">xrdceph_migrate.c:42</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

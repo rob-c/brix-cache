@@ -174,12 +174,12 @@ $(document).ready(function(){initNavTree('core_2config_2helpers_8c_source.html',
 <div class="foldopen" id="foldopen00072" data-start="{" data-end="}">
 <div class="line"><a id="l00072" name="l00072"></a><span class="lineno"><a class="line" href="config_2config_8h.html#a090fa763cd8508093062c04eb5d72da3">   72</a></span><a class="code hl_function" href="core_2config_2helpers_8c.html#a090fa763cd8508093062c04eb5d72da3">brix_copy_conf_string</a>(ngx_conf_t *cf, <span class="keyword">const</span> ngx_str_t *src, ngx_str_t *dst)</div>
 <div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>{</div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>    dst-&gt;data = ngx_pnalloc(cf-&gt;pool, src-&gt;len + 1);</div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>    dst-&gt;data = <a class="code hl_function" href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a>(cf-&gt;pool, src-&gt;len + 1);</div>
 <div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>    <span class="keywordflow">if</span> (dst-&gt;data == NULL) {</div>
 <div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>        <span class="keywordflow">return</span> NGX_CONF_ERROR;</div>
 <div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    }</div>
 <div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span> </div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    ngx_memcpy(dst-&gt;data, src-&gt;data, src-&gt;len);</div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(dst-&gt;data, src-&gt;data, src-&gt;len);</div>
 <div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    dst-&gt;data[src-&gt;len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    dst-&gt;len = src-&gt;len;</div>
 <div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
@@ -193,6 +193,8 @@ $(document).ready(function(){initNavTree('core_2config_2helpers_8c_source.html',
 <div class="ttc" id="aconfig_2config_8h_html_a26c358bf7385010e265ad6cbddf7731aad36a35f475d660a1414d5c196cb0d013"><div class="ttname"><a href="config_2config_8h.html#a26c358bf7385010e265ad6cbddf7731aad36a35f475d660a1414d5c196cb0d013">BRIX_PATH_REGULAR_FILE</a></div><div class="ttdeci">@ BRIX_PATH_REGULAR_FILE</div><div class="ttdef"><b>Definition</b> <a href="config_2config_8h_source.html#l00019">config.h:19</a></div></div>
 <div class="ttc" id="acore_2config_2helpers_8c_html_a090fa763cd8508093062c04eb5d72da3"><div class="ttname"><a href="core_2config_2helpers_8c.html#a090fa763cd8508093062c04eb5d72da3">brix_copy_conf_string</a></div><div class="ttdeci">char * brix_copy_conf_string(ngx_conf_t *cf, const ngx_str_t *src, ngx_str_t *dst)</div><div class="ttdef"><b>Definition</b> <a href="core_2config_2helpers_8c_source.html#l00072">helpers.c:72</a></div></div>
 <div class="ttc" id="acore_2config_2helpers_8c_html_aebb0815d9f5a2afaa2f143e14a7799d5"><div class="ttname"><a href="core_2config_2helpers_8c.html#aebb0815d9f5a2afaa2f143e14a7799d5">brix_validate_path</a></div><div class="ttdeci">ngx_int_t brix_validate_path(ngx_conf_t *cf, const char *label, const ngx_str_t *path, brix_path_kind_t kind, int access_mode)</div><div class="ttdef"><b>Definition</b> <a href="core_2config_2helpers_8c_source.html#l00013">helpers.c:13</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_ae28be76366886c36db56889cfc779768"><div class="ttname"><a href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a></div><div class="ttdeci">void * ngx_pnalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00043">xrdceph_migrate.c:43</a></div></div>
 <div class="ttc" id="atypes_2config_8h_html"><div class="ttname"><a href="types_2config_8h.html">config.h</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->

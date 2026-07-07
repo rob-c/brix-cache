@@ -167,7 +167,7 @@ $(document).ready(function(){initNavTree('normalize_8c_source.html',''); initRes
 <div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>            out[written++] = <span class="charliteral">&#39;/&#39;</span>;</div>
 <div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>        }</div>
 <div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span> </div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>        ngx_memcpy(out + written, src-&gt;data + start, seg_len);</div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(out + written, src-&gt;data + start, seg_len);</div>
 <div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>        written += seg_len;</div>
 <div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>    }</div>
 <div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span> </div>
@@ -186,6 +186,7 @@ $(document).ready(function(){initNavTree('normalize_8c_source.html',''); initRes
 <div class="ttc" id="aalloc__guard_8h_html_a9d003b37ed0b61997b2c41660800a1c6"><div class="ttname"><a href="alloc__guard_8h.html#a9d003b37ed0b61997b2c41660800a1c6">BRIX_PNALLOC_OR_RETURN</a></div><div class="ttdeci">#define BRIX_PNALLOC_OR_RETURN(dst, pool, n, err)</div><div class="ttdef"><b>Definition</b> <a href="alloc__guard_8h_source.html#l00043">alloc_guard.h:43</a></div></div>
 <div class="ttc" id="afs_2path_2helpers_8c_html_a3ce6ac564012a1a32cd83b78fc42a153"><div class="ttname"><a href="fs_2path_2helpers_8c.html#a3ce6ac564012a1a32cd83b78fc42a153">brix_path_component_forbidden</a></div><div class="ttdeci">int brix_path_component_forbidden(const char *comp, size_t comp_len)</div><div class="ttdef"><b>Definition</b> <a href="fs_2path_2helpers_8c_source.html#l00010">helpers.c:10</a></div></div>
 <div class="ttc" id="angx__brix__module_8h_html"><div class="ttname"><a href="ngx__brix__module_8h.html">ngx_brix_module.h</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="anormalize_8c_html_aa1906ea4883e54b41a63b8d8808dfd95"><div class="ttname"><a href="normalize_8c.html#aa1906ea4883e54b41a63b8d8808dfd95">brix_normalize_policy_path</a></div><div class="ttdeci">ngx_int_t brix_normalize_policy_path(ngx_pool_t *pool, const ngx_str_t *src, ngx_str_t *dst)</div><div class="ttdef"><b>Definition</b> <a href="normalize_8c_source.html#l00019">normalize.c:19</a></div></div>
 <div class="ttc" id="apath__internal_8h_html"><div class="ttname"><a href="path__internal_8h.html">path_internal.h</a></div></div>
 </div><!-- fragment --></div><!-- contents -->

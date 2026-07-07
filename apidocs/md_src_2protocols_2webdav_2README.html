@@ -93,15 +93,15 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2webdav_2README.html
   <div class="headertitle"><div class="title">webdav — HTTP/WebDAV/HTTPS gateway (&lt;tt&gt;davs://&lt;/tt&gt;, &lt;tt&gt;http://&lt;/tt&gt;) over the export root</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md493"></a> </p>
-<h1><a class="anchor" id="autotoc_md494"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md494"></a> </p>
+<h1><a class="anchor" id="autotoc_md495"></a>
 Overview</h1>
 <p>This subsystem is the <b>HTTP face</b> of <code>nginx-xrootd</code>. It registers an nginx HTTP <b>content handler</b> plus a chain of access/precontent/log-phase handlers in a <code>location</code> marked <code>brix_webdav on</code>, and projects the same on-disk export root that the <code>root://</code> stream side and the S3 side serve. It speaks standard WebDAV (curl, rclone, davix, Cyberduck, Microsoft Office), the WLCG HTTP-TPC third-party-copy dialect (FTS, RUCIO), and the XRootD-aware <b>XrdHttp</b> extension (<code>xrdcp --prefer-xrdhttp</code>, ROOT <code>TFile</code>) — all over the same handler. It replaces both nginx's built-in <code>ngx_http_dav_module</code> and the XRootD reference <code>XrdHttp</code> plugin so that one daemon serves every HEP grid transfer protocol.</p>
 <p>Where it sits in the request lifecycle: an HTTP request to a WebDAV location is processed in nginx phases. The <b>access phase</b> (<code>access.c</code>, <code><a class="el" href="introspect_8c.html">introspect.c</a></code>, plus the shared rate-limit handler) does CORS, request metrics, authentication (GSI proxy cert then bearer token), the global write gate, and token-scope checks — so the content handler always sees a pre-authenticated request. The <b>precontent phase</b> fires traffic-mirror shadow subrequests (<code>../mirror/</code>). The <b>content phase</b> (<code>dispatch.c</code>) routes by HTTP method to the per-method handler, which confines the URI to the export root via <code>../path/</code> and performs the filesystem operation through <code>../fs/</code> (VFS) and <code>../aio/</code> (thread-pool offload). The <b>log phase</b> charges bandwidth and stamps mirror-divergence status.</p>
 <p>The module covers the full WebDAV method set (GET/HEAD/OPTIONS/PUT/DELETE/ MKCOL/MOVE/COPY/PROPFIND/PROPPATCH/LOCK/UNLOCK/SEARCH/ACL), three TPC variants (local server-side COPY, curl-based pull/push HTTP-TPC with WLCG Performance Markers, and OAuth2/OIDC credential delegation), a macaroon token-issuance endpoint, an OIDC-introspection revocation path, and a transparent upstream HTTP(S) <b>proxy mode</b> with static and dynamic (SHM) backend pools. A large shared infrastructure lives one directory up (<code>../compat/</code>, <code>../crypto/</code>, <code>../token/</code>, <code>../metrics/</code>, <code>../mirror/</code>, <code>../ratelimit/</code>, <code>../shm/</code>); this subsystem is the HTTP-specific glue plus the WebDAV/XrdHttp protocol logic.</p>
-<h1><a class="anchor" id="autotoc_md495"></a>
+<h1><a class="anchor" id="autotoc_md496"></a>
 Files</h1>
-<h2><a class="anchor" id="autotoc_md496"></a>
+<h2><a class="anchor" id="autotoc_md497"></a>
 Module wiring &amp; configuration</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -123,7 +123,7 @@ Module wiring &amp; configuration</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code>pki.c</code>   </td><td class="markdownTableBodyNone"><code>webdav_check_pki_consistency</code> — fail <code>nginx -t</code> if CA/CRL paths are missing/invalid (delegates to <code>../crypto/pki_check.h</code>).   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md497"></a>
+<h2><a class="anchor" id="autotoc_md498"></a>
 Dispatch &amp; generic helpers</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -145,7 +145,7 @@ Dispatch &amp; generic helpers</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="cors_8c.html">cors.c</a></code>   </td><td class="markdownTableBodyNone"><code>webdav_add_cors_headers</code> — single CORS entry point; origin allowlist match (incl. <code>*</code>), credentials, max-age, preflight Allow-Methods.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md498"></a>
+<h2><a class="anchor" id="autotoc_md499"></a>
 HTTP method handlers</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -181,7 +181,7 @@ HTTP method handlers</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="prop__xattr_8c.html">prop_xattr.c</a></code>   </td><td class="markdownTableBodyNone">xattr encode/decode/read/write/delete for the lock record (<code>user.nginx_xrootd.lock</code>); <code>XATTR_CREATE</code> gives atomic cross-worker lock creation.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md499"></a>
+<h2><a class="anchor" id="autotoc_md500"></a>
 Authentication</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -197,7 +197,7 @@ Authentication</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="macaroon__endpoint_8c.html">macaroon_endpoint.c</a></code>   </td><td class="markdownTableBodyNone"><code>POST /.oauth2/token</code> (issue scoped WLCG macaroon) + <code>GET /.well-known/oauth-authorization-server</code> discovery; maps <code>storage.*</code> scopes → macaroon activity/path caveats.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md500"></a>
+<h2><a class="anchor" id="autotoc_md501"></a>
 HTTP-TPC (third-party copy)</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -227,7 +227,7 @@ HTTP-TPC (third-party copy)</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="tpc__config_8h.html">tpc_config.h</a></code>, <code><a class="el" href="tpc__cred_8h.html">tpc_cred.h</a></code>, <code><a class="el" href="tpc__cred__internal_8h.html">tpc_cred_internal.h</a></code>   </td><td class="markdownTableBodyNone">TPC config struct, credential-mode enum/API, and internal-only constants.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md501"></a>
+<h2><a class="anchor" id="autotoc_md502"></a>
 Upstream proxy mode</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -245,7 +245,7 @@ Upstream proxy mode</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code>proxy_internal.h</code>   </td><td class="markdownTableBodyNone">Proxy-mode-only header: <code><a class="el" href="structwebdav__proxy__ctx__t.html">webdav_proxy_ctx_t</a></code>, <code><a class="el" href="structbrix__webdav__backend__t.html">brix_webdav_backend_t</a></code>, and the six upstream lifecycle prototypes.   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md502"></a>
+<h2><a class="anchor" id="autotoc_md503"></a>
 XrdHttp protocol extension</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -259,7 +259,7 @@ XrdHttp protocol extension</h2>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="xrdhttp__stats_8c.html">xrdhttp_stats.c</a></code>   </td><td class="markdownTableBodyNone"><code>?xrd.stats</code> XML endpoint in XRootD 5.x format from the SHM metrics zone — observable by <code>xrd_mon</code>/<code>xrdfs query stats</code>; aggregate counters only.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md503"></a>
+<h1><a class="anchor" id="autotoc_md504"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code><a class="el" href="structngx__http__brix__webdav__loc__conf__t.html">ngx_http_brix_webdav_loc_conf_t</a></code>** (<code><a class="el" href="webdav_8h.html">webdav.h</a></code>) — the per-location configuration. Embeds the shared <code><a class="el" href="structngx__http__brix__shared__conf__t.html">ngx_http_brix_shared_conf_t</a> common</code> (enable, root, <code>root_canon</code>, <code>allow_write</code>, thread pool) and adds GSI/CA fields + cached <code>ca_store</code>, bearer-token (JWKS/issuer/audience/macaroon secret + grace key), CORS, LOCK policy, optional read-through <code>cache_root</code>, HTTP-TPC + SSRF policy + OAuth2 delegation, upstream proxy (static and dynamic pool), token-cache/rate-limit SHM handles, OIDC introspection, traffic mirror, and advanced rate-limit rules.</li>
@@ -270,7 +270,7 @@ Key types &amp; data structures</h1>
 <li>**<code><a class="el" href="structbrix__webdav__backend__t.html">brix_webdav_backend_t</a></code> / <code><a class="el" href="structbrix__proxy__be__table__t.html">brix_proxy_be_table_t</a></code> / <code><a class="el" href="structwebdav__proxy__ctx__t.html">webdav_proxy_ctx_t</a></code>** (<code>proxy_internal.h</code>, <code><a class="el" href="proxy__pool_8h.html">proxy_pool.h</a></code>) — static resolved backend (with passive health counters), the SHM dynamic-pool table + entries, and the per-request proxy state.</li>
 <li>**<code><a class="el" href="structtpc__ms__progress__t.html">tpc_ms_progress_t</a></code>** (<code><a class="el" href="webdav_8h.html">webdav.h</a></code>) — atomic per-stream byte counters shared between the curl thread and the marker poll timer during 202-streaming TPC.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md504"></a>
+<h1><a class="anchor" id="autotoc_md505"></a>
 Control &amp; data flow</h1>
 <p>Entry is via nginx HTTP phase handlers registered in <code><a class="el" href="postconfig_8c.html">postconfig.c</a></code>:</p>
 <ol type="1">
@@ -280,7 +280,7 @@ Control &amp; data flow</h1>
 <li><b>Log phase</b>: bandwidth charge (<code>../ratelimit/</code>) + mirror-divergence status.</li>
 </ol>
 <p>Outbound calls into sibling subsystems: <a class="el" href="md_src_2fs_2path_2README.html">`../path/`</a> (confinement), <a class="el" href="md_src_2fs_2README.html">`../fs/`</a> (VFS), <a class="el" href="md_src_2core_2aio_2README.html">`../aio/`</a> (thread-pool I/O), <a class="el" href="md_src_2fs_2cache_2README.html">`../cache/`</a> (read-through cache, via VFS), <a class="el" href="md_src_2protocols_2shared_2README.html">`../shared/`</a> (<code>file_serve</code>), <a class="el" href="md_src_2core_2compat_2README.html">`../compat/`</a> (path resolver, http body/headers/xml, ETag, namespace ops, fs_walk, net_target/SSRF, staged_file), <a class="el" href="md_src_2auth_2crypto_2README.html">`../crypto/`</a> (GSI verify, PKI build), <a class="el" href="md_src_2auth_2token_2README.html">`../token/`</a> (JWT/macaroon/OAuth2, token cache), <a class="el" href="md_src_2auth_2gsi_2README.html">`../gsi/`</a> &amp; <a class="el" href="md_src_2auth_2voms_2README.html">`../voms/`</a> (cert identity), <a class="el" href="md_src_2observability_2metrics_2README.html">`../metrics/`</a> (counters), <a class="el" href="md_src_2net_2mirror_2README.html">`../mirror/`</a> (shadow replay), <a class="el" href="md_src_2net_2ratelimit_2README.html">`../ratelimit/`</a> (advanced limits), <a class="el" href="md_src_2tpc_2README.html">`../tpc/`</a> (transfer registry, authz, credential common), <a class="el" href="md_src_2observability_2dashboard_2README.html">`../dashboard/`</a> (live transfer tracking), <a class="el" href="md_src_2core_2shm_2README.html">`../shm/`</a> (KV/rate-limit zones). The S3 face (<a class="el" href="md_src_2protocols_2s3_2README.html">`../s3/`</a>) is a sibling HTTP handler that shares the same export root and the same <code>../compat</code>/<code>../fs</code> core but never shares auth logic (SigV4 ≠ WLCG token).</p>
-<h1><a class="anchor" id="autotoc_md505"></a>
+<h1><a class="anchor" id="autotoc_md506"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Kernel confinement is mandatory.</b> Every client URI and <code>Destination:</code> is resolved through <code>brix_http_resolve_path</code> / the <code>../path/</code> <code>RESOLVE_BENEATH</code> confinement before any syscall (<code>path.c</code>). In <code>get.c</code>, VFS errors <code>EXDEV</code>/ <code>ELOOP</code> (escape attempts) and <code>EACCES</code>/<code>EPERM</code> map to <b>403, never 500</b>. Never call a raw <code>open</code>/<code>stat</code> on a client path.</li>
@@ -295,7 +295,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Metric labels stay low-cardinality</b> — method/status-class only; no paths/DNs/buckets/UUIDs (<code>metrics.c</code>, <code><a class="el" href="xrdhttp__stats_8c.html">xrdhttp_stats.c</a></code>). <code>?xrd.stats</code> exposes aggregate counters only; restrict access via nginx location directives.</li>
 <li>**<code>ngx_str_t</code> is not NUL-terminated** and all request-pool allocation uses <code>ngx_palloc(r-&gt;pool, …)</code> (see <code><a class="el" href="webdav_8h.html">webdav.h</a></code> inline helpers and <code>../../CLAUDE.md</code>).</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md506"></a>
+<h1><a class="anchor" id="autotoc_md507"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>Add a WebDAV method:</b> implement <code>webdav_handle_&lt;m&gt;</code> in a <code>.c</code> here, declare it in <code><a class="el" href="webdav_8h.html">webdav.h</a></code>, route it in <code>dispatch.c</code> (by <code>r-&gt;method</code> or <code>r-&gt;method_name</code> length+<code>ngx_strncmp</code>), add a row to <code>brix_webdav_operations[]</code> in <code>operation_table.c</code> (name, method, metric slot, capability flags — this drives the Allow header, write gate, and CORS), and add a metric slot if needed. Three tests per the project rule: success + error + security-negative.</li>
@@ -303,7 +303,7 @@ Entry points / extending</h1>
 <li><b>Add an XrdHttp signal:</b> extend <code><a class="el" href="structxrdhttp__req__ctx__t.html">xrdhttp_req_ctx_t</a></code> (<code><a class="el" href="xrdhttp_8h.html">xrdhttp.h</a></code>), parse it in <code>xrdhttp_parse_request</code> and emit it in <code>xrdhttp_add_response_headers</code> (<code><a class="el" href="xrdhttp_8c.html">xrdhttp.c</a></code>); fixed-size fields only (bound untrusted client input).</li>
 <li><b>Add a metric:</b> follow <code>../metrics/README.md</code> (enum + field + export) then <code><a class="el" href="metrics__macros_8h.html#a793c70437e65456a3ec7e77bf13fb915">BRIX_WEBDAV_METRIC_INC(slot)</a></code> at the call site.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md507"></a>
+<h1><a class="anchor" id="autotoc_md508"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2protocols_2README.html">`../README.md`</a> — master subsystem index</li>

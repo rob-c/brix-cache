@@ -16,5 +16,9 @@ var structbrix__cms__srv__ctx__t =
     [ "paths", "structbrix__cms__srv__ctx__t.html#a8878034af7867eb9e4a398d3b16cd168", null ],
     [ "ping_timer", "structbrix__cms__srv__ctx__t.html#a8d054e30135c662beda2640aa3a9da59", null ],
     [ "port", "structbrix__cms__srv__ctx__t.html#ad481886b6c54488d571cd1244b262548", null ],
+    [ "sess", "structbrix__cms__srv__ctx__t.html#a72cad6e111f3d40fadb551892dbd6194", null ],
+    [ "sess_attempt_logged", "structbrix__cms__srv__ctx__t.html#ae71689f61b80cba648ca778a29ebdfd3", null ],
+    [ "sess_end_hint", "structbrix__cms__srv__ctx__t.html#afce153b8e7e01a988d4b0627186f6436", null ],
+    [ "sess_end_hint_set", "structbrix__cms__srv__ctx__t.html#a7b084ef7b46023b927819c43d1ec0384", null ],
     [ "util_pct", "structbrix__cms__srv__ctx__t.html#a8c00bbdcc05f9f698f31f165a16ee2cf", null ]
 ];

@@ -275,7 +275,7 @@ $(document).ready(function(){initNavTree('src_2observability_2dashboard_2auth_8c
 <div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span> </div>
 <div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>    <a class="code hl_define" href="alloc__guard_8h.html#a9d003b37ed0b61997b2c41660800a1c6">BRIX_PNALLOC_OR_RETURN</a>(dst, pool, src-&gt;len + 1, NGX_ERROR);</div>
 <div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span> </div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    ngx_memcpy(dst, src-&gt;data, src-&gt;len);</div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(dst, src-&gt;data, src-&gt;len);</div>
 <div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    dst[src-&gt;len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    *out = dst;</div>
 <div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>    <span class="keywordflow">return</span> NGX_OK;</div>
@@ -311,7 +311,7 @@ $(document).ready(function(){initNavTree('src_2observability_2dashboard_2auth_8c
 <div class="line"><a id="l00200" name="l00200"></a><span class="lineno">  200</span> </div>
 <div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>    <span class="comment">/* crypt() needs a NUL-terminated plaintext copy (the wire password is not). */</span></div>
 <div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>    <a class="code hl_define" href="alloc__guard_8h.html#a9d003b37ed0b61997b2c41660800a1c6">BRIX_PNALLOC_OR_RETURN</a>(plain, pool, password_len + 1, NGX_ERROR);</div>
-<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>    ngx_memcpy(plain, password, password_len);</div>
+<div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(plain, password, password_len);</div>
 <div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>    plain[password_len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span> </div>
 <div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>    <span class="comment">/* crypt(3) hash: the stored hash doubles as the salt; crypt re-derives the</span></div>
@@ -466,9 +466,9 @@ $(document).ready(function(){initNavTree('src_2observability_2dashboard_2auth_8c
 <div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>    }</div>
 <div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span> </div>
 <div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>    <span class="comment">/* Multi-user mode: sign &quot;&lt;ts&gt;.&lt;username&gt;&quot;. */</span></div>
-<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>    ngx_memcpy(msg, ts, ts_len);</div>
+<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(msg, ts, ts_len);</div>
 <div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span>    msg[ts_len] = <span class="charliteral">&#39;.&#39;</span>;</div>
-<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span>    ngx_memcpy(msg + ts_len + 1, username, username_len);</div>
+<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(msg + ts_len + 1, username, username_len);</div>
 <div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span>    msg_len = ts_len + 1 + username_len;</div>
 <div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span>    <a class="code hl_function" href="src_2observability_2dashboard_2auth_8c.html#a8bf004e880ccc5e0cab2aea45e3a8640">hmac_sha256_hex</a>(<a class="code hl_variable" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>-&gt;data, <a class="code hl_variable" href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a>-&gt;len, msg, msg_len, out_hex);</div>
 <div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span>    <span class="keywordflow">return</span> NGX_OK;</div>
@@ -549,7 +549,7 @@ $(document).ready(function(){initNavTree('src_2observability_2dashboard_2auth_8c
 <div class="line"><a id="l00432" name="l00432"></a><span class="lineno">  432</span>    <span class="keywordflow">if</span> (<a class="code hl_define" href="src_2observability_2dashboard_2auth_8c.html#a72a4c28da8631be983e171e776ff3068">HMAC_HEX_LEN</a> &gt;= <span class="keyword">sizeof</span>(given_hex)) {</div>
 <div class="line"><a id="l00433" name="l00433"></a><span class="lineno">  433</span>        <span class="keywordflow">return</span> NGX_HTTP_UNAUTHORIZED;</div>
 <div class="line"><a id="l00434" name="l00434"></a><span class="lineno">  434</span>    }</div>
-<div class="line"><a id="l00435" name="l00435"></a><span class="lineno">  435</span>    ngx_memcpy(given_hex, cookie_val, <a class="code hl_define" href="src_2observability_2dashboard_2auth_8c.html#a72a4c28da8631be983e171e776ff3068">HMAC_HEX_LEN</a>);</div>
+<div class="line"><a id="l00435" name="l00435"></a><span class="lineno">  435</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(given_hex, cookie_val, <a class="code hl_define" href="src_2observability_2dashboard_2auth_8c.html#a72a4c28da8631be983e171e776ff3068">HMAC_HEX_LEN</a>);</div>
 <div class="line"><a id="l00436" name="l00436"></a><span class="lineno">  436</span>    given_hex[<a class="code hl_define" href="src_2observability_2dashboard_2auth_8c.html#a72a4c28da8631be983e171e776ff3068">HMAC_HEX_LEN</a>] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00437" name="l00437"></a><span class="lineno">  437</span> </div>
 <div class="line"><a id="l00438" name="l00438"></a><span class="lineno">  438</span>    <span class="comment">/* In multi-user mode a SECOND &#39;.&#39; separates the timestamp from the username:</span></div>
@@ -579,7 +579,7 @@ $(document).ready(function(){initNavTree('src_2observability_2dashboard_2auth_8c
 <div class="line"><a id="l00462" name="l00462"></a><span class="lineno">  462</span>        <span class="keywordflow">if</span> (username_len == 0 || username_len &gt;= <span class="keyword">sizeof</span>(username)) {</div>
 <div class="line"><a id="l00463" name="l00463"></a><span class="lineno">  463</span>            <span class="keywordflow">return</span> NGX_HTTP_UNAUTHORIZED;</div>
 <div class="line"><a id="l00464" name="l00464"></a><span class="lineno">  464</span>        }</div>
-<div class="line"><a id="l00465" name="l00465"></a><span class="lineno">  465</span>        ngx_memcpy(username, dot2 + 1, username_len);</div>
+<div class="line"><a id="l00465" name="l00465"></a><span class="lineno">  465</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(username, dot2 + 1, username_len);</div>
 <div class="line"><a id="l00466" name="l00466"></a><span class="lineno">  466</span>        username[username_len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00467" name="l00467"></a><span class="lineno">  467</span> </div>
 <div class="line"><a id="l00468" name="l00468"></a><span class="lineno">  468</span>        user = <a class="code hl_function" href="src_2observability_2dashboard_2auth_8c.html#af1ad3911907b96d7501184e9f65e3f6c">dashboard_find_user</a>(conf, username, username_len);</div>
@@ -604,7 +604,7 @@ $(document).ready(function(){initNavTree('src_2observability_2dashboard_2auth_8c
 <div class="line"><a id="l00487" name="l00487"></a><span class="lineno">  487</span>                                   <span class="stringliteral">&quot;dashboard auth bad timestamp&quot;</span>, NULL);</div>
 <div class="line"><a id="l00488" name="l00488"></a><span class="lineno">  488</span>        <span class="keywordflow">return</span> NGX_HTTP_UNAUTHORIZED;</div>
 <div class="line"><a id="l00489" name="l00489"></a><span class="lineno">  489</span>    }</div>
-<div class="line"><a id="l00490" name="l00490"></a><span class="lineno">  490</span>    ngx_memcpy(ts_str, dot + 1, ts_len);</div>
+<div class="line"><a id="l00490" name="l00490"></a><span class="lineno">  490</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(ts_str, dot + 1, ts_len);</div>
 <div class="line"><a id="l00491" name="l00491"></a><span class="lineno">  491</span>    ts_str[ts_len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00492" name="l00492"></a><span class="lineno">  492</span> </div>
 <div class="line"><a id="l00493" name="l00493"></a><span class="lineno">  493</span>    endptr = NULL;</div>
@@ -719,7 +719,7 @@ $(document).ready(function(){initNavTree('src_2observability_2dashboard_2auth_8c
 <div class="line"><a id="l00600" name="l00600"></a><span class="lineno">  600</span>    ngx_buf_t    *b;</div>
 <div class="line"><a id="l00601" name="l00601"></a><span class="lineno">  601</span>    ngx_chain_t   out;</div>
 <div class="line"><a id="l00602" name="l00602"></a><span class="lineno">  602</span> </div>
-<div class="line"><a id="l00603" name="l00603"></a><span class="lineno">  603</span>    b = ngx_pcalloc(r-&gt;pool, <span class="keyword">sizeof</span>(*b));</div>
+<div class="line"><a id="l00603" name="l00603"></a><span class="lineno">  603</span>    b = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(r-&gt;pool, <span class="keyword">sizeof</span>(*b));</div>
 <div class="line"><a id="l00604" name="l00604"></a><span class="lineno">  604</span>    <span class="keywordflow">if</span> (b == NULL) { <span class="keywordflow">return</span> NGX_HTTP_INTERNAL_SERVER_ERROR; }</div>
 <div class="line"><a id="l00605" name="l00605"></a><span class="lineno">  605</span> </div>
 <div class="line"><a id="l00606" name="l00606"></a><span class="lineno">  606</span>    b-&gt;pos = b-&gt;last = (u_char *) html;</div>
@@ -806,7 +806,7 @@ $(document).ready(function(){initNavTree('src_2observability_2dashboard_2auth_8c
 <div class="line"><a id="l00683" name="l00683"></a><span class="lineno">  683</span>    p = body_buf;</div>
 <div class="line"><a id="l00684" name="l00684"></a><span class="lineno">  684</span>    <span class="keywordflow">for</span> (cl = r-&gt;request_body-&gt;bufs; cl; cl = cl-&gt;next) {</div>
 <div class="line"><a id="l00685" name="l00685"></a><span class="lineno">  685</span>        <span class="keywordtype">size_t</span> n = ngx_buf_size(cl-&gt;buf);</div>
-<div class="line"><a id="l00686" name="l00686"></a><span class="lineno">  686</span>        ngx_memcpy(p, cl-&gt;buf-&gt;pos, n);</div>
+<div class="line"><a id="l00686" name="l00686"></a><span class="lineno">  686</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, cl-&gt;buf-&gt;pos, n);</div>
 <div class="line"><a id="l00687" name="l00687"></a><span class="lineno">  687</span>        p     += n;</div>
 <div class="line"><a id="l00688" name="l00688"></a><span class="lineno">  688</span>        total += n;</div>
 <div class="line"><a id="l00689" name="l00689"></a><span class="lineno">  689</span>    }</div>
@@ -930,12 +930,12 @@ $(document).ready(function(){initNavTree('src_2observability_2dashboard_2auth_8c
 <div class="line"><a id="l00807" name="l00807"></a><span class="lineno">  807</span>    ngx_str_set(&amp;r-&gt;headers_out.location-&gt;key, <span class="stringliteral">&quot;Location&quot;</span>);</div>
 <div class="line"><a id="l00808" name="l00808"></a><span class="lineno">  808</span>    {</div>
 <div class="line"><a id="l00809" name="l00809"></a><span class="lineno">  809</span>        u_char *loc;</div>
-<div class="line"><a id="l00810" name="l00810"></a><span class="lineno">  810</span>        loc = ngx_pnalloc(r-&gt;pool, conf-&gt;<a class="code hl_variable" href="structngx__http__brix__dashboard__loc__conf__t.html#a4dcc14153f246885f137085c061308e4">cookie_path</a>.len + 2);</div>
+<div class="line"><a id="l00810" name="l00810"></a><span class="lineno">  810</span>        loc = <a class="code hl_function" href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a>(r-&gt;pool, conf-&gt;<a class="code hl_variable" href="structngx__http__brix__dashboard__loc__conf__t.html#a4dcc14153f246885f137085c061308e4">cookie_path</a>.len + 2);</div>
 <div class="line"><a id="l00811" name="l00811"></a><span class="lineno">  811</span>        <span class="keywordflow">if</span> (loc == NULL) {</div>
 <div class="line"><a id="l00812" name="l00812"></a><span class="lineno">  812</span>            ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);</div>
 <div class="line"><a id="l00813" name="l00813"></a><span class="lineno">  813</span>            <span class="keywordflow">return</span>;</div>
 <div class="line"><a id="l00814" name="l00814"></a><span class="lineno">  814</span>        }</div>
-<div class="line"><a id="l00815" name="l00815"></a><span class="lineno">  815</span>        ngx_memcpy(loc, conf-&gt;<a class="code hl_variable" href="structngx__http__brix__dashboard__loc__conf__t.html#a4dcc14153f246885f137085c061308e4">cookie_path</a>.data, conf-&gt;<a class="code hl_variable" href="structngx__http__brix__dashboard__loc__conf__t.html#a4dcc14153f246885f137085c061308e4">cookie_path</a>.len);</div>
+<div class="line"><a id="l00815" name="l00815"></a><span class="lineno">  815</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(loc, conf-&gt;<a class="code hl_variable" href="structngx__http__brix__dashboard__loc__conf__t.html#a4dcc14153f246885f137085c061308e4">cookie_path</a>.data, conf-&gt;<a class="code hl_variable" href="structngx__http__brix__dashboard__loc__conf__t.html#a4dcc14153f246885f137085c061308e4">cookie_path</a>.len);</div>
 <div class="line"><a id="l00816" name="l00816"></a><span class="lineno">  816</span>        loc[conf-&gt;<a class="code hl_variable" href="structngx__http__brix__dashboard__loc__conf__t.html#a4dcc14153f246885f137085c061308e4">cookie_path</a>.len] = <span class="charliteral">&#39;/&#39;</span>;</div>
 <div class="line"><a id="l00817" name="l00817"></a><span class="lineno">  817</span>        loc[conf-&gt;<a class="code hl_variable" href="structngx__http__brix__dashboard__loc__conf__t.html#a4dcc14153f246885f137085c061308e4">cookie_path</a>.len + 1] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00818" name="l00818"></a><span class="lineno">  818</span>        r-&gt;headers_out.location-&gt;value.data = loc;</div>
@@ -974,6 +974,9 @@ $(document).ready(function(){initNavTree('src_2observability_2dashboard_2auth_8c
 <div class="ttc" id="adashboard__http_8h_html_adfd88e8b49d244fa10446ca8e7b64dae"><div class="ttname"><a href="dashboard__http_8h.html#adfd88e8b49d244fa10446ca8e7b64dae">ngx_http_brix_dashboard_module</a></div><div class="ttdeci">ngx_module_t ngx_http_brix_dashboard_module</div><div class="ttdef"><b>Definition</b> <a href="observability_2dashboard_2module_8c_source.html#l00501">module.c:501</a></div></div>
 <div class="ttc" id="aident_8h_html"><div class="ttname"><a href="ident_8h.html">ident.h</a></div></div>
 <div class="ttc" id="aident_8h_html_a948a3a6ad1de802025d1fc683a1c9c8c"><div class="ttname"><a href="ident_8h.html#a948a3a6ad1de802025d1fc683a1c9c8c">BRIX_SERVER_NAME</a></div><div class="ttdeci">#define BRIX_SERVER_NAME</div><div class="ttdef"><b>Definition</b> <a href="ident_8h_source.html#l00023">ident.h:23</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a0de53ece62d31e30ec1e1cd815b57267"><div class="ttname"><a href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a></div><div class="ttdeci">void * ngx_pcalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00042">xrdceph_migrate.c:42</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_ae28be76366886c36db56889cfc779768"><div class="ttname"><a href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a></div><div class="ttdeci">void * ngx_pnalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00043">xrdceph_migrate.c:43</a></div></div>
 <div class="ttc" id="asrc_2observability_2dashboard_2auth_8c_html_a0b2be8d25f01bb523715aa8a72311688"><div class="ttname"><a href="src_2observability_2dashboard_2auth_8c.html#a0b2be8d25f01bb523715aa8a72311688">login_form_html_error</a></div><div class="ttdeci">static const char login_form_html_error[]</div><div class="ttdef"><b>Definition</b> <a href="src_2observability_2dashboard_2auth_8c_source.html#l00563">auth.c:563</a></div></div>
 <div class="ttc" id="asrc_2observability_2dashboard_2auth_8c_html_a2070171d9b736ba5af96c88333b4f82b"><div class="ttname"><a href="src_2observability_2dashboard_2auth_8c.html#a2070171d9b736ba5af96c88333b4f82b">dashboard_copy_str0</a></div><div class="ttdeci">static ngx_int_t dashboard_copy_str0(ngx_pool_t *pool, ngx_str_t *src, char **out)</div><div class="ttdef"><b>Definition</b> <a href="src_2observability_2dashboard_2auth_8c_source.html#l00163">auth.c:163</a></div></div>
 <div class="ttc" id="asrc_2observability_2dashboard_2auth_8c_html_a6640fefb45c4d12eda161d8152fc6d4e"><div class="ttname"><a href="src_2observability_2dashboard_2auth_8c.html#a6640fefb45c4d12eda161d8152fc6d4e">login_post_body_handler</a></div><div class="ttdeci">static void login_post_body_handler(ngx_http_request_t *r)</div><div class="ttdef"><b>Definition</b> <a href="src_2observability_2dashboard_2auth_8c_source.html#l00643">auth.c:643</a></div></div>

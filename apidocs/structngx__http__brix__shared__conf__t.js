@@ -1,5 +1,7 @@
 var structngx__http__brix__shared__conf__t =
 [
+    [ "access_log", "structngx__http__brix__shared__conf__t.html#ae0cefe611cd3cd0b6319d200356a6a11", null ],
+    [ "access_log_file", "structngx__http__brix__shared__conf__t.html#ab78aeb325aecc82bcdd32b093f999389", null ],
     [ "allow_write", "structngx__http__brix__shared__conf__t.html#af2dbcd27b38b307d6ce75ab309d4f3d8", null ],
     [ "cache_batch_cinfo", "structngx__http__brix__shared__conf__t.html#ad73699d5fe858f897d7735b02f72337c", null ],
     [ "cache_client_hold", "structngx__http__brix__shared__conf__t.html#a3f2b4b42f8c7dd87d1cf4e9181670427", null ],
@@ -24,6 +26,7 @@ var structngx__http__brix__shared__conf__t =
     [ "root", "structngx__http__brix__shared__conf__t.html#a7173924397cedcb8eb86a338c72593d3", null ],
     [ "root_canon", "structngx__http__brix__shared__conf__t.html#a16bdf484c0d11f79befd2ad1316c5725", null ],
     [ "rootfd", "structngx__http__brix__shared__conf__t.html#aea774edbbe058d9f91e1250570b5e8a2", null ],
+    [ "session_log", "structngx__http__brix__shared__conf__t.html#a3492d351c3ada00437814ff664ea6fb9", null ],
     [ "stage_enable", "structngx__http__brix__shared__conf__t.html#ae7c051f962cfe288cb8b53f09d2a710b", null ],
     [ "stage_flush_async", "structngx__http__brix__shared__conf__t.html#afaa9f33c34448500ebea505a742db94b", null ],
     [ "stage_store", "structngx__http__brix__shared__conf__t.html#aed45fbd8c5939873a92a142bcc358163", null ],

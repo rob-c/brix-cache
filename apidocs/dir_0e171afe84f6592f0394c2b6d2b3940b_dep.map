@@ -1,10 +1,16 @@
 <map id="src/core/http" name="src/core/http">
-<area shape="rect" id="node1" href="dir_eff44314c02ee69e0d3403998909b5e3.html" title="compat" alt="" coords="27,125,98,151"/>
-<area shape="rect" id="node2" href="dir_0e171afe84f6592f0394c2b6d2b3940b.html" title="http" alt="" coords="44,52,92,77"/>
-<area shape="poly" id="edge2" href="dir_000053_000021.html" alt="" coords="70,78,67,112,62,112,64,77"/>
-<area shape="rect" id="edge2-headlabel" href="dir_000053_000021.html" title="11" alt="" coords="65,100,82,115"/>
-<area shape="rect" id="node3" href="dir_7d71b6c457a61cbf03a04bfdc57b6110.html" title="fs" alt="" coords="122,125,161,151"/>
-<area shape="poly" id="edge1" href="dir_000053_000043.html" alt="" coords="82,76,121,114,118,118,78,80"/>
-<area shape="rect" id="edge1-headlabel" href="dir_000053_000043.html" title="2" alt="" coords="118,99,127,114"/>
-<area shape="rect" id="clust1" href="dir_aebb8dcc11953d78e620bbef0b9e2183.html" title="core" alt="" coords="16,16,109,161"/>
+<area shape="rect" id="node1" href="dir_310b47614135aad694cafb7265578956.html" title="config" alt="" coords="27,125,88,151"/>
+<area shape="rect" id="node2" href="dir_eff44314c02ee69e0d3403998909b5e3.html" title="compat" alt="" coords="113,125,183,151"/>
+<area shape="rect" id="node3" href="dir_0e171afe84f6592f0394c2b6d2b3940b.html" title="http" alt="" coords="129,52,177,77"/>
+<area shape="poly" id="edge1" href="dir_000054_000024.html" alt="" coords="139,80,86,119,83,115,136,75"/>
+<area shape="rect" id="edge1-headlabel" href="dir_000054_000024.html" title="1" alt="" coords="88,114,97,129"/>
+<area shape="poly" id="edge4" href="dir_000054_000022.html" alt="" coords="155,78,153,112,147,112,150,77"/>
+<area shape="rect" id="edge4-headlabel" href="dir_000054_000022.html" title="11" alt="" coords="150,100,167,115"/>
+<area shape="rect" id="node4" href="dir_7d71b6c457a61cbf03a04bfdc57b6110.html" title="fs" alt="" coords="207,125,246,151"/>
+<area shape="poly" id="edge2" href="dir_000054_000044.html" alt="" coords="167,76,207,114,203,118,164,80"/>
+<area shape="rect" id="edge2-headlabel" href="dir_000054_000044.html" title="2" alt="" coords="203,99,212,114"/>
+<area shape="rect" id="node5" href="dir_b74ed0efa461d1dc3d2a2bcdca1c8270.html" title="observability" alt="" coords="271,125,377,151"/>
+<area shape="poly" id="edge3" href="dir_000054_000070.html" alt="" coords="178,74,285,117,283,122,176,78"/>
+<area shape="rect" id="edge3-headlabel" href="dir_000054_000070.html" title="1" alt="" coords="278,103,287,118"/>
+<area shape="rect" id="clust1" href="dir_aebb8dcc11953d78e620bbef0b9e2183.html" title="core" alt="" coords="16,16,195,161"/>
 </map>

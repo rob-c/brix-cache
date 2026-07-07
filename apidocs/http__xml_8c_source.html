@@ -161,7 +161,7 @@ $(document).ready(function(){initNavTree('http__xml_8c_source.html',''); initRes
 <div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    }</div>
 <div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span> </div>
 <div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    <span class="keywordflow">if</span> ((<span class="keywordtype">size_t</span>) n &gt;= <span class="keyword">sizeof</span>(tmp)) {</div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>        src = ngx_pnalloc(pool, (<span class="keywordtype">size_t</span>) n + 1);</div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>        src = <a class="code hl_function" href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a>(pool, (<span class="keywordtype">size_t</span>) n + 1);</div>
 <div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>        <span class="keywordflow">if</span> (src == NULL) {</div>
 <div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>            va_end(ap_copy);</div>
 <div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>            <span class="keywordflow">return</span> NULL;</div>
@@ -180,7 +180,7 @@ $(document).ready(function(){initNavTree('http__xml_8c_source.html',''); initRes
 <div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>    <span class="keywordflow">if</span> (b == NULL) {</div>
 <div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>        <span class="keywordflow">return</span> NULL;</div>
 <div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>    }</div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    ngx_memcpy(b-&gt;pos, src, (<span class="keywordtype">size_t</span>) n);</div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(b-&gt;pos, src, (<span class="keywordtype">size_t</span>) n);</div>
 <div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>    b-&gt;last = b-&gt;pos + n;</div>
 <div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span> </div>
 <div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>    cl = ngx_alloc_chain_link(pool);</div>
@@ -347,6 +347,8 @@ $(document).ready(function(){initNavTree('http__xml_8c_source.html',''); initRes
 <div class="ttc" id="ahttp__xml_8c_html_a55ca25f760dd8560d236cbbad92b91d0"><div class="ttname"><a href="http__xml_8c.html#a55ca25f760dd8560d236cbbad92b91d0">brix_http_chain_vappendf</a></div><div class="ttdeci">ngx_buf_t * brix_http_chain_vappendf(ngx_pool_t *pool, ngx_chain_t **head, ngx_chain_t **tail, const char *fmt, va_list ap)</div><div class="ttdef"><b>Definition</b> <a href="http__xml_8c_source.html#l00045">http_xml.c:45</a></div></div>
 <div class="ttc" id="ahttp__xml_8c_html_ac6fe792a40b3a17316143659b23841da"><div class="ttname"><a href="http__xml_8c.html#ac6fe792a40b3a17316143659b23841da">brix_http_send_xml_error</a></div><div class="ttdeci">ngx_int_t brix_http_send_xml_error(ngx_http_request_t *r, ngx_uint_t status, const char *code, const char *message)</div><div class="ttdef"><b>Definition</b> <a href="http__xml_8c_source.html#l00183">http_xml.c:183</a></div></div>
 <div class="ttc" id="ahttp__xml_8h_html"><div class="ttname"><a href="http__xml_8h.html">http_xml.h</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_ae28be76366886c36db56889cfc779768"><div class="ttname"><a href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a></div><div class="ttdeci">void * ngx_pnalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00043">xrdceph_migrate.c:43</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

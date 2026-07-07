@@ -365,7 +365,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="post__form_8c_source.html#l00129">129</a> of file <a class="el" href="post__form_8c_source.html">post_form.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00041">brix_http_find_header()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00041">brix_http_find_header()</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="post__object_8c_source.html#l00231">s3_post_object_body_handler_inner()</a>.</p>
 
@@ -442,6 +442,8 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="post__object_8c_source.html#l00025">25</a> of file <a class="el" href="post__object_8c_source.html">post_object.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="post__form_8c_source.html#l00056">s3_post_store_field()</a>.</p>
 
@@ -559,7 +561,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="post__form_8c_source.html#l00280">280</a> of file <a class="el" href="post__form_8c_source.html">post_form.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00182">brix_http_str_has_ctl()</a>, <a class="el" href="s3__post__internal_8h_source.html#l00040">s3_post_form_t::filename</a>, <a class="el" href="s3__post__internal_8h_source.html#l00039">s3_post_form_t::key</a>, and <a class="el" href="s3_8h_source.html#l00140">S3_MAX_KEY</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00182">brix_http_str_has_ctl()</a>, <a class="el" href="s3__post__internal_8h_source.html#l00040">s3_post_form_t::filename</a>, <a class="el" href="s3__post__internal_8h_source.html#l00039">s3_post_form_t::key</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="s3_8h_source.html#l00143">S3_MAX_KEY</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="post__object_8c_source.html#l00231">s3_post_object_body_handler_inner()</a>.</p>
 
@@ -605,7 +607,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="post__form_8c_source.html#l00214">214</a> of file <a class="el" href="post__form_8c_source.html">post_form.c</a>.</p>
 
-<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>.</p>
+<p class="reference">References <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="post__form_8c_source.html#l00352">s3_post_parse_form()</a>.</p>
 
@@ -663,7 +665,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="post__object_8c_source.html#l00231">231</a> of file <a class="el" href="post__object_8c_source.html">post_object.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__body_8c_source.html#l00341">brix_http_body_read_all()</a>, <a class="el" href="error__mapping_8c_source.html#l00255">brix_http_map_errno()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__s3_8h_source.html#l00029">BRIX_S3_METHOD_POST</a>, <a class="el" href="metrics__macros_8h_source.html#l00123">BRIX_S3_METRIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="s3_8h_source.html#l00069">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3__post__internal_8h_source.html#l00051">s3_post_form_t::file_len</a>, <a class="el" href="s3__post__internal_8h_source.html#l00052">s3_post_form_t::have_file</a>, <a class="el" href="s3__post__internal_8h_source.html#l00039">s3_post_form_t::key</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00120">s3_metrics_finalize_request_method()</a>, <a class="el" href="post__form_8c_source.html#l00129">s3_post_boundary()</a>, <a class="el" href="post__object_8c_source.html#l00008">s3_post_error()</a>, <a class="el" href="post__form_8c_source.html#l00280">s3_post_expand_filename()</a>, <a class="el" href="s3__post__internal_8h_source.html#l00026">S3_POST_MAX_BODY</a>, <a class="el" href="post__form_8c_source.html#l00352">s3_post_parse_form()</a>, <a class="el" href="post__response_8c_source.html#l00097">s3_post_send_success()</a>, <a class="el" href="post__policy_8c_source.html#l00339">s3_post_verify_policy()</a>, <a class="el" href="post__object_8c_source.html#l00115">s3_post_write_object()</a>, and <a class="el" href="s3_2util_8c_source.html#l00077">s3_resolve_key()</a>.</p>
+<p class="reference">References <a class="el" href="http__body_8c_source.html#l00341">brix_http_body_read_all()</a>, <a class="el" href="error__mapping_8c_source.html#l00255">brix_http_map_errno()</a>, <a class="el" href="metrics__s3_8h_source.html#l00060">BRIX_S3_EVENT_INTERNAL_ERROR</a>, <a class="el" href="metrics__s3_8h_source.html#l00029">BRIX_S3_METHOD_POST</a>, <a class="el" href="metrics__macros_8h_source.html#l00123">BRIX_S3_METRIC_ADD</a>, <a class="el" href="metrics__macros_8h_source.html#l00088">BRIX_S3_METRIC_INC</a>, <a class="el" href="s3_8h_source.html#l00070">ngx_http_s3_loc_conf_t::common</a>, <a class="el" href="s3__post__internal_8h_source.html#l00051">s3_post_form_t::file_len</a>, <a class="el" href="s3__post__internal_8h_source.html#l00052">s3_post_form_t::have_file</a>, <a class="el" href="s3__post__internal_8h_source.html#l00039">s3_post_form_t::key</a>, <a class="el" href="protocols_2s3_2module_8c_source.html#l00550">ngx_http_brix_s3_module</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00321">s3_metrics_finalize_request_method()</a>, <a class="el" href="post__form_8c_source.html#l00129">s3_post_boundary()</a>, <a class="el" href="post__object_8c_source.html#l00008">s3_post_error()</a>, <a class="el" href="post__form_8c_source.html#l00280">s3_post_expand_filename()</a>, <a class="el" href="s3__post__internal_8h_source.html#l00026">S3_POST_MAX_BODY</a>, <a class="el" href="post__form_8c_source.html#l00352">s3_post_parse_form()</a>, <a class="el" href="post__response_8c_source.html#l00097">s3_post_send_success()</a>, <a class="el" href="post__policy_8c_source.html#l00339">s3_post_verify_policy()</a>, <a class="el" href="post__object_8c_source.html#l00115">s3_post_write_object()</a>, and <a class="el" href="s3_2util_8c_source.html#l00077">s3_resolve_key()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="post__object_8c_source.html#l00219">s3_post_object_body_handler()</a>.</p>
 
@@ -721,7 +723,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00275">275</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00239">date</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00240">region</a>.</p>
+<p class="reference">References <a class="el" href="auth__sigv4__verify_8c_source.html#l00239">date</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="auth__sigv4__verify_8c_source.html#l00240">region</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00339">s3_post_verify_policy()</a>.</p>
 
@@ -773,7 +775,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="post__form_8c_source.html#l00352">352</a> of file <a class="el" href="post__form_8c_source.html">post_form.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3__post__internal_8h_source.html#l00041">s3_post_form_t::content_type</a>, <a class="el" href="s3__post__internal_8h_source.html#l00050">s3_post_form_t::file_data</a>, <a class="el" href="s3__post__internal_8h_source.html#l00051">s3_post_form_t::file_len</a>, <a class="el" href="s3__post__internal_8h_source.html#l00040">s3_post_form_t::filename</a>, <a class="el" href="s3__post__internal_8h_source.html#l00052">s3_post_form_t::have_file</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="post__object_8c_source.html#l00054">s3_memmem()</a>, <a class="el" href="post__object_8c_source.html#l00085">s3_post_basename()</a>, <a class="el" href="post__form_8c_source.html#l00214">s3_post_extract_param()</a>, and <a class="el" href="post__form_8c_source.html#l00056">s3_post_store_field()</a>.</p>
+<p class="reference">References <a class="el" href="s3__post__internal_8h_source.html#l00041">s3_post_form_t::content_type</a>, <a class="el" href="s3__post__internal_8h_source.html#l00050">s3_post_form_t::file_data</a>, <a class="el" href="s3__post__internal_8h_source.html#l00051">s3_post_form_t::file_len</a>, <a class="el" href="s3__post__internal_8h_source.html#l00040">s3_post_form_t::filename</a>, <a class="el" href="s3__post__internal_8h_source.html#l00052">s3_post_form_t::have_file</a>, <a class="el" href="ssi__service_8c_source.html#l00102">name</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="post__object_8c_source.html#l00054">s3_memmem()</a>, <a class="el" href="post__object_8c_source.html#l00085">s3_post_basename()</a>, <a class="el" href="post__form_8c_source.html#l00214">s3_post_extract_param()</a>, and <a class="el" href="post__form_8c_source.html#l00056">s3_post_store_field()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="post__object_8c_source.html#l00231">s3_post_object_body_handler_inner()</a>.</p>
 
@@ -853,7 +855,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00100">100</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3_8h_source.html#l00073">ngx_http_s3_loc_conf_t::bucket</a>, <a class="el" href="s3__post__internal_8h_source.html#l00051">s3_post_form_t::file_len</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="post__policy_8c_source.html#l00076">s3_post_check_field_eq()</a>, and <a class="el" href="post__form_8c_source.html#l00018">s3_post_field_value()</a>.</p>
+<p class="reference">References <a class="el" href="s3_8h_source.html#l00074">ngx_http_s3_loc_conf_t::bucket</a>, <a class="el" href="s3__post__internal_8h_source.html#l00051">s3_post_form_t::file_len</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00241">key</a>, <a class="el" href="post__policy_8c_source.html#l00076">s3_post_check_field_eq()</a>, and <a class="el" href="post__form_8c_source.html#l00018">s3_post_field_value()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="post__policy_8c_source.html#l00209">s3_post_validate_policy_json()</a>.</p>
 
@@ -899,7 +901,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="post__response_8c_source.html#l00026">26</a> of file <a class="el" href="post__response_8c_source.html">post_response.c</a>.</p>
 
-<p class="reference">References <a class="el" href="alloc__guard_8h_source.html#l00043">BRIX_PNALLOC_OR_RETURN</a>, <a class="el" href="s3_8h_source.html#l00073">ngx_http_s3_loc_conf_t::bucket</a>, <a class="el" href="s3__post__internal_8h_source.html#l00039">s3_post_form_t::key</a>, <a class="el" href="s3_8h_source.html#l00140">S3_MAX_KEY</a>, <a class="el" href="s3_8h_source.html#l00183">XML_APPEND</a>, and <a class="el" href="s3_8h_source.html#l00193">XML_APPEND_ELEM</a>.</p>
+<p class="reference">References <a class="el" href="alloc__guard_8h_source.html#l00043">BRIX_PNALLOC_OR_RETURN</a>, <a class="el" href="s3_8h_source.html#l00074">ngx_http_s3_loc_conf_t::bucket</a>, <a class="el" href="s3__post__internal_8h_source.html#l00039">s3_post_form_t::key</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="s3_8h_source.html#l00143">S3_MAX_KEY</a>, <a class="el" href="s3_8h_source.html#l00186">XML_APPEND</a>, and <a class="el" href="s3_8h_source.html#l00196">XML_APPEND_ELEM</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="post__response_8c_source.html#l00097">s3_post_send_success()</a>.</p>
 
@@ -1115,7 +1117,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="post__policy_8c_source.html#l00339">339</a> of file <a class="el" href="post__policy_8c_source.html">post_policy.c</a>.</p>
 
-<p class="reference">References <a class="el" href="s3_8h_source.html#l00074">ngx_http_s3_loc_conf_t::access_key</a>, <a class="el" href="s3__post__internal_8h_source.html#l00043">s3_post_form_t::algorithm</a>, <a class="el" href="s3__post__internal_8h_source.html#l00045">s3_post_form_t::amz_date</a>, <a class="el" href="hex_8c_source.html#l00059">brix_hex_encode()</a>, <a class="el" href="crypto_8c_source.html#l00039">brix_hmac_sha256()</a>, <a class="el" href="s3__post__internal_8h_source.html#l00044">s3_post_form_t::credential</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00239">date</a>, <a class="el" href="s3__post__internal_8h_source.html#l00042">s3_post_form_t::policy</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00240">region</a>, <a class="el" href="s3_8h_source.html#l00076">ngx_http_s3_loc_conf_t::region</a>, <a class="el" href="post__object_8c_source.html#l00008">s3_post_error()</a>, <a class="el" href="post__policy_8c_source.html#l00275">s3_post_parse_credential()</a>, <a class="el" href="post__policy_8c_source.html#l00209">s3_post_validate_policy_json()</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00245">s3_sigv4_derive_signing_key_cached()</a>, <a class="el" href="s3_8h_source.html#l00075">ngx_http_s3_loc_conf_t::secret_key</a>, and <a class="el" href="s3__post__internal_8h_source.html#l00046">s3_post_form_t::signature</a>.</p>
+<p class="reference">References <a class="el" href="s3_8h_source.html#l00075">ngx_http_s3_loc_conf_t::access_key</a>, <a class="el" href="s3__post__internal_8h_source.html#l00043">s3_post_form_t::algorithm</a>, <a class="el" href="s3__post__internal_8h_source.html#l00045">s3_post_form_t::amz_date</a>, <a class="el" href="hex_8c_source.html#l00059">brix_hex_encode()</a>, <a class="el" href="crypto_8c_source.html#l00039">brix_hmac_sha256()</a>, <a class="el" href="s3__post__internal_8h_source.html#l00044">s3_post_form_t::credential</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00239">date</a>, <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>, <a class="el" href="s3__post__internal_8h_source.html#l00042">s3_post_form_t::policy</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00240">region</a>, <a class="el" href="s3_8h_source.html#l00077">ngx_http_s3_loc_conf_t::region</a>, <a class="el" href="post__object_8c_source.html#l00008">s3_post_error()</a>, <a class="el" href="post__policy_8c_source.html#l00275">s3_post_parse_credential()</a>, <a class="el" href="post__policy_8c_source.html#l00209">s3_post_validate_policy_json()</a>, <a class="el" href="auth__sigv4__verify_8c_source.html#l00245">s3_sigv4_derive_signing_key_cached()</a>, <a class="el" href="s3_8h_source.html#l00076">ngx_http_s3_loc_conf_t::secret_key</a>, and <a class="el" href="s3__post__internal_8h_source.html#l00046">s3_post_form_t::signature</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="post__object_8c_source.html#l00231">s3_post_object_body_handler_inner()</a>.</p>
 
@@ -1173,7 +1175,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="post__object_8c_source.html#l00115">115</a> of file <a class="el" href="post__object_8c_source.html">post_object.c</a>.</p>
 
-<p class="reference">References <a class="el" href="vfs__mkdir_8c_source.html#l00023">brix_vfs_mkdir()</a>, <a class="el" href="vfs__stat_8c_source.html#l00172">brix_vfs_probe()</a>, <a class="el" href="vfs__write_8c_source.html#l00022">brix_vfs_pwrite_full()</a>, <a class="el" href="vfs__staged_8c_source.html#l00311">brix_vfs_staged_abort()</a>, <a class="el" href="vfs__staged_8c_source.html#l00236">brix_vfs_staged_commit()</a>, <a class="el" href="vfs__staged_8c_source.html#l00179">brix_vfs_staged_fd()</a>, <a class="el" href="vfs__staged_8c_source.html#l00065">brix_vfs_staged_open()</a>, <a class="el" href="s3__post__internal_8h_source.html#l00050">s3_post_form_t::file_data</a>, <a class="el" href="s3__post__internal_8h_source.html#l00051">s3_post_form_t::file_len</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00063">brix_vfs_stat_t::mtime</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="s3_2util_8c_source.html#l00027">s3_build_vfs_ctx()</a>, <a class="el" href="s3_2util_8c_source.html#l00106">s3_etag()</a>, <a class="el" href="s3_2util_8c_source.html#l00055">s3_set_header()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00062">brix_vfs_stat_t::size</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
+<p class="reference">References <a class="el" href="vfs__mkdir_8c_source.html#l00023">brix_vfs_mkdir()</a>, <a class="el" href="vfs__stat_8c_source.html#l00172">brix_vfs_probe()</a>, <a class="el" href="vfs__write_8c_source.html#l00022">brix_vfs_pwrite_full()</a>, <a class="el" href="vfs__staged_8c_source.html#l00311">brix_vfs_staged_abort()</a>, <a class="el" href="vfs__staged_8c_source.html#l00236">brix_vfs_staged_commit()</a>, <a class="el" href="vfs__staged_8c_source.html#l00179">brix_vfs_staged_fd()</a>, <a class="el" href="vfs__staged_8c_source.html#l00065">brix_vfs_staged_open()</a>, <a class="el" href="s3__post__internal_8h_source.html#l00050">s3_post_form_t::file_data</a>, <a class="el" href="s3__post__internal_8h_source.html#l00051">s3_post_form_t::file_len</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00063">brix_vfs_stat_t::mtime</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="zip__dir_8h_source.html#l00027">PATH_MAX</a>, <a class="el" href="s3_2util_8c_source.html#l00027">s3_build_vfs_ctx()</a>, <a class="el" href="s3_2util_8c_source.html#l00106">s3_etag()</a>, <a class="el" href="s3_2util_8c_source.html#l00055">s3_set_header()</a>, <a class="el" href="src_2fs_2vfs_2vfs_8h_source.html#l00062">brix_vfs_stat_t::size</a>, and <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="post__object_8c_source.html#l00231">s3_post_object_body_handler_inner()</a>.</p>
 

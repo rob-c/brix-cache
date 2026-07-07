@@ -165,7 +165,7 @@ $(document).ready(function(){initNavTree('collect_8c_source.html',''); initResiz
 <div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    }</div>
 <div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span> </div>
 <div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    vo_list[list_len++] = <span class="charliteral">&#39;,&#39;</span>;</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    ngx_memcpy(vo_list + list_len, vo, vo_len);</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(vo_list + list_len, vo, vo_len);</div>
 <div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>    vo_list[list_len + vo_len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>    <span class="keywordflow">return</span> 1;</div>
 <div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>}</div>
@@ -204,7 +204,7 @@ $(document).ready(function(){initNavTree('collect_8c_source.html',''); initResiz
 <div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>        <span class="keywordflow">return</span> 0;</div>
 <div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    }</div>
 <div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span> </div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    ngx_memcpy(vo, start, len);</div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(vo, start, len);</div>
 <div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>    vo[len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>    <span class="keywordflow">return</span> 1;</div>
 <div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>}</div>
@@ -270,6 +270,7 @@ $(document).ready(function(){initNavTree('collect_8c_source.html',''); initResiz
 <div class="ttc" id="acollect_8c_html_ac0bbbece0f0675cdf5c83431378416c1"><div class="ttname"><a href="collect_8c.html#ac0bbbece0f0675cdf5c83431378416c1">brix_vo_token_safe</a></div><div class="ttdeci">static ngx_flag_t brix_vo_token_safe(const char *vo, size_t vo_len)</div><div class="ttdef"><b>Definition</b> <a href="collect_8c_source.html#l00023">collect.c:23</a></div></div>
 <div class="ttc" id="acollect_8c_html_ae37c80c556123506bcd5d64715d34ec8"><div class="ttname"><a href="collect_8c.html#ae37c80c556123506bcd5d64715d34ec8">brix_collect_voms_vos</a></div><div class="ttdeci">ngx_int_t brix_collect_voms_vos(struct voms_data *vd, char *primary_vo, size_t primary_vo_sz, char *vo_list, size_t vo_list_sz)</div><div class="ttdef"><b>Definition</b> <a href="collect_8c_source.html#l00119">collect.c:119</a></div></div>
 <div class="ttc" id="acollect_8c_html_aecafcecc62a91f72b247122a339ca529"><div class="ttname"><a href="collect_8c.html#aecafcecc62a91f72b247122a339ca529">brix_append_vo_token</a></div><div class="ttdeci">static ngx_flag_t brix_append_vo_token(char *primary_vo, size_t primary_vo_sz, char *vo_list, size_t vo_list_sz, const char *vo)</div><div class="ttdef"><b>Definition</b> <a href="collect_8c_source.html#l00029">collect.c:29</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="astructvoms__data_html"><div class="ttname"><a href="structvoms__data.html">voms_data</a></div><div class="ttdef"><b>Definition</b> <a href="voms__internal_8h_source.html#l00069">voms_internal.h:69</a></div></div>
 <div class="ttc" id="astructvoms__data_html_a413fb52bec3d8d9616c45ddb478f1d23"><div class="ttname"><a href="structvoms__data.html#a413fb52bec3d8d9616c45ddb478f1d23">voms_data::data</a></div><div class="ttdeci">struct voms_entry ** data</div><div class="ttdef"><b>Definition</b> <a href="voms__internal_8h_source.html#l00072">voms_internal.h:72</a></div></div>
 <div class="ttc" id="astructvoms__entry_html"><div class="ttname"><a href="structvoms__entry.html">voms_entry</a></div><div class="ttdef"><b>Definition</b> <a href="voms__internal_8h_source.html#l00041">voms_internal.h:41</a></div></div>

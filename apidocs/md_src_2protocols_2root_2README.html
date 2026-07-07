@@ -93,12 +93,12 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2root_2README.html',
   <div class="headertitle"><div class="title">root — the XRootD (&lt;tt&gt;root://&lt;/tt&gt; / &lt;tt&gt;roots://&lt;/tt&gt;) protocol plane</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md376"></a> </p>
-<h1><a class="anchor" id="autotoc_md377"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md377"></a> </p>
+<h1><a class="anchor" id="autotoc_md378"></a>
 Overview</h1>
 <p>Everything needed to speak the XRootD wire protocol lives under this directory: TCP/TLS connection lifecycle, request framing, opcode dispatch, the session/auth handshake, and one subdirectory per opcode family. The per-connection entry point is <code><a class="el" href="protocols_2root_2connection_2handler_8c.html#a01239d2db14b9061cc9e311bbe9030dd">ngx_stream_brix_handler()</a></code> (<a href="connection/">connection/handler.c</a>), installed by the stream module descriptor in <a href="stream/">stream/module.c</a>. After framing (<a href="connection/">connection/recv.c</a>) every complete request passes through <code><a class="el" href="ngx__brix__module_8h.html#af132ef0a0493ad5eae6803fcee92c20e">brix_dispatch()</a></code> (<a href="handshake/">handshake/dispatch.c</a>), which routes by opcode to the family dispatchers and on to the handlers below.</p>
 <p>All storage access goes through the VFS seam (<a href="../../fs/vfs/">../../fs/vfs/</a>) — no raw file I/O in this tree (CLAUDE.md INVARIANT 11). Identity and authorization live in <a href="../../auth/">../../auth/</a>; this tree only <em>invokes</em> the auth gate at the dispatch boundary.</p>
-<h1><a class="anchor" id="autotoc_md378"></a>
+<h1><a class="anchor" id="autotoc_md379"></a>
 Subdirectories</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -134,7 +134,7 @@ Subdirectories</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><a href="relay/">relay/</a>   </td><td class="markdownTableBodyNone">transparent pass-through relay + tap + bad-actor guard hook   </td><td class="markdownTableBodyNone"><code><a class="el" href="relay_8c.html">relay.c</a></code>   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md379"></a>
+<h1><a class="anchor" id="autotoc_md380"></a>
 Control &amp; data flow</h1>
 <div class="fragment"><div class="line">accept → connection/handler.c (ctx + session id)</div>
 <div class="line">       → connection/recv.c    (frame: 20B hello → 24B header → dlen payload)</div>
@@ -142,7 +142,7 @@ Control &amp; data flow</h1>
 <div class="line">       → opcode handler (read/, write/, query/, dirlist/, fattr/, zip/)</div>
 <div class="line">       → response/*.c → connection/write_helpers.c (out_ring FIFO) → send</div>
 </div><!-- fragment --><p>Alternate routes engage before dispatch: a non-XRootD first byte diverts to <a href="handoff/">handoff/</a>; a configured <code>brix_transparent_proxy</code> diverts the whole connection to <a href="relay/">relay/</a>.</p>
-<h1><a class="anchor" id="autotoc_md380"></a>
+<h1><a class="anchor" id="autotoc_md381"></a>
 Invariants, security &amp; gotchas</h1>
 <ol type="1">
 <li>Every wire path is resolved through the VFS/<code>resolve_path()</code> seam before any open — no exceptions (CLAUDE.md INVARIANT 4).</li>
@@ -152,7 +152,7 @@ Invariants, security &amp; gotchas</h1>
 <li>SHM tables (session registry, TPC keys) use spin+yield mutexes via <code><a class="el" href="shm__slots_8c.html#a678c7954c237818fe35aa00e045239f4">brix_shm_table_alloc()</a></code> — never POSIX-semaphore mode (INVARIANT 10).</li>
 <li>kXR_writev and chkpoint/ckpXeq frame descriptors only in <code>dlen</code>; the body is streamed after — do not "fix" a short dlen back to descriptors+body (stock parity, 2026-07-02).</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md381"></a>
+<h1><a class="anchor" id="autotoc_md382"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2protocols_2root_2connection_2README.html">connection/README.md</a> — the async I/O spine</li>

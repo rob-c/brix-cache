@@ -136,7 +136,7 @@ $(document).ready(function(){initNavTree('api__admin__cluster_8c_source.html',''
 <div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>    <span class="keywordflow">if</span> (taillen == 0 || taillen &gt;= <span class="keyword">sizeof</span>(tail)) {</div>
 <div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    }</div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    ngx_memcpy(tail, r-&gt;uri.data + pfxlen, taillen);</div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(tail, r-&gt;uri.data + pfxlen, taillen);</div>
 <div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>    tail[taillen] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span> </div>
 <div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    <span class="comment">/* In-place split of the mutable tail copy into up to 3 segments by &#39;/&#39;:</span></div>
@@ -322,6 +322,7 @@ $(document).ready(function(){initNavTree('api__admin__cluster_8c_source.html',''
 <div class="ttc" id="anet_2manager_2registry_8c_html_ac80bd1f335aaabd5c2db3f09b99b9da9"><div class="ttname"><a href="net_2manager_2registry_8c.html#ac80bd1f335aaabd5c2db3f09b99b9da9">brix_srv_register</a></div><div class="ttdeci">void brix_srv_register(const char *host, uint16_t port, const char *paths, uint32_t free_mb, uint32_t util_pct)</div><div class="ttdef"><b>Definition</b> <a href="net_2manager_2registry_8c_source.html#l00138">registry.c:138</a></div></div>
 <div class="ttc" id="anet_2manager_2registry_8h_html_a344c117dd9940e47dec2d71242ae9116"><div class="ttname"><a href="net_2manager_2registry_8h.html#a344c117dd9940e47dec2d71242ae9116">brix_srv_blacklist</a></div><div class="ttdeci">void brix_srv_blacklist(const char *host, uint16_t port, ngx_msec_t duration_ms)</div><div class="ttdef"><b>Definition</b> <a href="registry__select_8c_source.html#l00332">registry_select.c:332</a></div></div>
 <div class="ttc" id="anet_2manager_2registry_8h_html_a7236d13a3f672ec443df07b5d46736df"><div class="ttname"><a href="net_2manager_2registry_8h.html#a7236d13a3f672ec443df07b5d46736df">brix_srv_undrain</a></div><div class="ttdeci">int brix_srv_undrain(const char *host, uint16_t port)</div><div class="ttdef"><b>Definition</b> <a href="registry__select_8c_source.html#l00368">registry_select.c:368</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

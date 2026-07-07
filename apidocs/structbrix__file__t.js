@@ -26,6 +26,7 @@ var structbrix__file__t =
     [ "read_last_end", "structbrix__file__t.html#a60a3f0b7ec8bdb35569fde31fc82cfbc", null ],
     [ "readable", "structbrix__file__t.html#a3ff2e27165e1f0cf969fba493f41032c", null ],
     [ "sd_obj", "structbrix__file__t.html#a89147d5e147f80f2b2255e0b55bdf9d2", null ],
+    [ "sess_xfer", "structbrix__file__t.html#aa13bf3e24e5842ff16b9ce068af3e3e2", null ],
     [ "shared_handle_slot_hint", "structbrix__file__t.html#a8d82632481995dbeaff78dce8ec1fd8f", null ],
     [ "slice_size", "structbrix__file__t.html#a4ea5489a0bb01b6acdd760f42777635e", null ],
     [ "ssi", "structbrix__file__t.html#a44f54e2e9c244bb64abf47ed20514077", null ],

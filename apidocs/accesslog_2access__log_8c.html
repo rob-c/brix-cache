@@ -99,7 +99,10 @@ $(document).ready(function(){initNavTree('accesslog_2access__log_8c.html',''); i
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="ngx__brix__module_8h_source.html">core/ngx_brix_module.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="cstr_8h_source.html">core/compat/cstr.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="accesslog_2access__log_8h_source.html">observability/accesslog/access_log.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="sesslog__ngx_8h_source.html">observability/sesslog/sesslog_ngx.h</a>&quot;</code><br />
 <code>#include &lt;arpa/inet.h&gt;</code><br />
+<code>#include &lt;string.h&gt;</code><br />
 <code>#include &lt;<a class="el" href="time_8h_source.html">time.h</a>&gt;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
   <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Include dependency graph for access_log.c:</div>
@@ -122,8 +125,22 @@ Functions</h2></td></tr>
 <tr class="separator:a9b49d42e7785d004db3f804157c6d8fb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aee6155f83df08de9a851560d81751434" id="r_aee6155f83df08de9a851560d81751434"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="accesslog_2access__log_8c.html#aee6155f83df08de9a851560d81751434">brix_alog_timer_handler</a> (ngx_event_t *ev)</td></tr>
 <tr class="separator:aee6155f83df08de9a851560d81751434"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac3f6cf390504c5f2d0db6b93e88a98c9" id="r_ac3f6cf390504c5f2d0db6b93e88a98c9"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="accesslog_2access__log_8c.html#ac3f6cf390504c5f2d0db6b93e88a98c9">brix_alog_emit</a> (ngx_fd_t fd, const char *line, size_t n)</td></tr>
-<tr class="separator:ac3f6cf390504c5f2d0db6b93e88a98c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a45feb45adf3eae6b16ad5334b6df53e6" id="r_a45feb45adf3eae6b16ad5334b6df53e6"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="accesslog_2access__log_8c.html#a45feb45adf3eae6b16ad5334b6df53e6">brix_access_log_time_prefix</a> (char *dst, size_t dst_size)</td></tr>
+<tr class="separator:a45feb45adf3eae6b16ad5334b6df53e6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a155a29e10e35c79b70207b2a53f9aef6" id="r_a155a29e10e35c79b70207b2a53f9aef6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="accesslog_2access__log_8c.html#a155a29e10e35c79b70207b2a53f9aef6">brix_alog_emit</a> (ngx_fd_t fd, const char *line, size_t n)</td></tr>
+<tr class="separator:a155a29e10e35c79b70207b2a53f9aef6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aff104f4f29dd8cdcac19667fd5ffa698" id="r_aff104f4f29dd8cdcac19667fd5ffa698"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="accesslog_2access__log_8c.html#aff104f4f29dd8cdcac19667fd5ffa698">brix_access_streq</a> (const char *a, const char *b)</td></tr>
+<tr class="separator:aff104f4f29dd8cdcac19667fd5ffa698"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0dcef7221f1c3e124c74c566f25a35d4" id="r_a0dcef7221f1c3e124c74c566f25a35d4"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="accesslog_2access__log_8c.html#a0dcef7221f1c3e124c74c566f25a35d4">brix_access_contains</a> (const char *<a class="el" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, const char *needle)</td></tr>
+<tr class="separator:a0dcef7221f1c3e124c74c566f25a35d4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7d4916258265e5447c686a4415142c8d" id="r_a7d4916258265e5447c686a4415142c8d"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="sesslog_8h.html#a423ea74f1f8a2e20c2e6c87f5c12113f">brix_sess_am_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="accesslog_2access__log_8c.html#a7d4916258265e5447c686a4415142c8d">brix_access_sess_auth_method</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, const char *detail)</td></tr>
+<tr class="separator:a7d4916258265e5447c686a4415142c8d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7a43e063a7c7f704c78e8ddc32a4a0e6" id="r_a7a43e063a7c7f704c78e8ddc32a4a0e6"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="accesslog_2access__log_8c.html#a7a43e063a7c7f704c78e8ddc32a4a0e6">brix_access_sess_auth_err</a> (uint16_t errcode, const char *errmsg, char *scratch, size_t scratch_size)</td></tr>
+<tr class="separator:a7a43e063a7c7f704c78e8ddc32a4a0e6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2a2eac5cbdb142ff6a7dde1d1a111b5c" id="r_a2a2eac5cbdb142ff6a7dde1d1a111b5c"><td class="memItemLeft" align="right" valign="top">static ngx_flag_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="accesslog_2access__log_8c.html#a2a2eac5cbdb142ff6a7dde1d1a111b5c">brix_access_sess_mode</a> (const char *verb, const char *detail, <a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a> *<a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="separator:a2a2eac5cbdb142ff6a7dde1d1a111b5c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8eb70484c083a301eb7344ef570509d4" id="r_a8eb70484c083a301eb7344ef570509d4"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="accesslog_2access__log_8c.html#a8eb70484c083a301eb7344ef570509d4">brix_access_maybe_sesslog</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, const char *verb, const char *path, const char *detail, ngx_uint_t xrd_ok, uint16_t errcode, const char *errmsg)</td></tr>
+<tr class="separator:a8eb70484c083a301eb7344ef570509d4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a308cfe11a89dc7e25d8c493abffaf624" id="r_a308cfe11a89dc7e25d8c493abffaf624"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="accesslog_2access__log_8c.html#a308cfe11a89dc7e25d8c493abffaf624">brix_log_access</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, const char *verb, const char *path, const char *detail, ngx_uint_t xrd_ok, uint16_t errcode, const char *errmsg, size_t bytes)</td></tr>
 <tr class="separator:a308cfe11a89dc7e25d8c493abffaf624"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
@@ -153,11 +170,53 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00043">43</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00046">46</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
 
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a0dcef7221f1c3e124c74c566f25a35d4" name="a0dcef7221f1c3e124c74c566f25a35d4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0dcef7221f1c3e124c74c566f25a35d4">&#9670;&#160;</a></span>brix_access_contains()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_access_contains </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>s</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>needle</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00151">151</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+
+<p class="reference">References <a class="el" href="protocols_2ssi_2registry_8c_source.html#l00016">s</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00203">brix_access_sess_auth_err()</a>, and <a class="el" href="accesslog_2access__log_8c_source.html#l00240">brix_access_sess_mode()</a>.</p>
+
+</div>
+</div>
 <a id="a9b49d42e7785d004db3f804157c6d8fb" name="a9b49d42e7785d004db3f804157c6d8fb"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a9b49d42e7785d004db3f804157c6d8fb">&#9670;&#160;</a></span>brix_access_log_flush()</h2>
 
@@ -174,16 +233,48 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00052">52</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00055">55</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
 
-<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00045">brix_alog_buf</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00047">brix_alog_fd</a>, and <a class="el" href="accesslog_2access__log_8c_source.html#l00046">brix_alog_len</a>.</p>
+<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00048">brix_alog_buf</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00050">brix_alog_fd</a>, and <a class="el" href="accesslog_2access__log_8c_source.html#l00049">brix_alog_len</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00069">brix_alog_emit()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00061">brix_alog_timer_handler()</a>, and <a class="el" href="disconnect_8c_source.html#l00260">brix_on_disconnect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00105">brix_alog_emit()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00064">brix_alog_timer_handler()</a>, <a class="el" href="disconnect_8c_source.html#l00295">brix_on_disconnect()</a>, and <a class="el" href="sesslog__ngx_8c_source.html#l00465">brix_sesslog_shutdown_flush()</a>.</p>
 
 </div>
 </div>
-<a id="ac3f6cf390504c5f2d0db6b93e88a98c9" name="ac3f6cf390504c5f2d0db6b93e88a98c9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac3f6cf390504c5f2d0db6b93e88a98c9">&#9670;&#160;</a></span>brix_alog_emit()</h2>
+<a id="a45feb45adf3eae6b16ad5334b6df53e6" name="a45feb45adf3eae6b16ad5334b6df53e6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a45feb45adf3eae6b16ad5334b6df53e6">&#9670;&#160;</a></span>brix_access_log_time_prefix()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">size_t brix_access_log_time_prefix </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>dst</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>dst_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00079">79</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="sesslog__ngx_8c_source.html#l00156">brix_sess_emit()</a>.</p>
+
+</div>
+</div>
+<a id="a8eb70484c083a301eb7344ef570509d4" name="a8eb70484c083a301eb7344ef570509d4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8eb70484c083a301eb7344ef570509d4">&#9670;&#160;</a></span>brix_access_maybe_sesslog()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -192,7 +283,272 @@ Variables</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">static void brix_alog_emit </td>
+          <td class="memname">static void brix_access_maybe_sesslog </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>verb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>detail</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>xrd_ok</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>errcode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>errmsg</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00306">306</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+
+<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00203">brix_access_sess_auth_err()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00164">brix_access_sess_auth_method()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00240">brix_access_sess_mode()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00145">brix_access_streq()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00327">brix_sess_attempt()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00279">brix_sess_auth()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00353">brix_sess_result()</a>, <a class="el" href="sesslog_8c_source.html#l00504">brix_sesslog_err_from_kxr()</a>, <a class="el" href="ctx__structs_8h_source.html#l00159">brix_ctx_login_t::dn</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="ctx__structs_8h_source.html#l00160">brix_ctx_login_t::primary_vo</a>, and <a class="el" href="context_8h_source.html#l00101">brix_ctx_t::sess</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00344">brix_log_access()</a>.</p>
+
+</div>
+</div>
+<a id="a7a43e063a7c7f704c78e8ddc32a4a0e6" name="a7a43e063a7c7f704c78e8ddc32a4a0e6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7a43e063a7c7f704c78e8ddc32a4a0e6">&#9670;&#160;</a></span>brix_access_sess_auth_err()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static const char * brix_access_sess_auth_err </td>
+          <td>(</td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>errcode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>errmsg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>scratch</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>scratch_size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00203">203</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+
+<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00151">brix_access_contains()</a>, and <a class="el" href="sesslog_8c_source.html#l00504">brix_sesslog_err_from_kxr()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00306">brix_access_maybe_sesslog()</a>.</p>
+
+</div>
+</div>
+<a id="a7d4916258265e5447c686a4415142c8d" name="a7d4916258265e5447c686a4415142c8d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7d4916258265e5447c686a4415142c8d">&#9670;&#160;</a></span>brix_access_sess_auth_method()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="sesslog_8h.html#a423ea74f1f8a2e20c2e6c87f5c12113f">brix_sess_am_t</a> brix_access_sess_auth_method </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *&#160;</td>
+          <td class="paramname"><em>conf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>detail</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00164">164</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+
+<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00120">ngx_stream_brix_srv_conf_t::auth</a>, <a class="el" href="ctx__structs_8h_source.html#l00037">brix_ctx_token_t::auth</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00145">brix_access_streq()</a>, <a class="el" href="tunables_8h_source.html#l00229">BRIX_AUTH_NONE</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00482">brix_sess_am_from_stream_auth()</a>, <a class="el" href="sesslog_8h_source.html#l00033">BRIX_SESS_AM_GSI</a>, <a class="el" href="sesslog_8h_source.html#l00039">BRIX_SESS_AM_HOST</a>, <a class="el" href="sesslog_8h_source.html#l00036">BRIX_SESS_AM_KRB5</a>, <a class="el" href="sesslog_8h_source.html#l00037">BRIX_SESS_AM_PWD</a>, <a class="el" href="sesslog_8h_source.html#l00035">BRIX_SESS_AM_SSS</a>, <a class="el" href="sesslog_8h_source.html#l00034">BRIX_SESS_AM_TOKEN</a>, <a class="el" href="sesslog_8h_source.html#l00038">BRIX_SESS_AM_UNIX</a>, and <a class="el" href="context_8h_source.html#l00177">brix_ctx_t::token</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00306">brix_access_maybe_sesslog()</a>.</p>
+
+</div>
+</div>
+<a id="a2a2eac5cbdb142ff6a7dde1d1a111b5c" name="a2a2eac5cbdb142ff6a7dde1d1a111b5c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2a2eac5cbdb142ff6a7dde1d1a111b5c">&#9670;&#160;</a></span>brix_access_sess_mode()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_access_sess_mode </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>verb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>detail</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a> *&#160;</td>
+          <td class="paramname"><em>mode</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00240">240</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+
+<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00151">brix_access_contains()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00145">brix_access_streq()</a>, <a class="el" href="sesslog_8h_source.html#l00049">BRIX_SESS_MODE_DELETE</a>, <a class="el" href="sesslog_8h_source.html#l00050">BRIX_SESS_MODE_LIST</a>, <a class="el" href="sesslog_8h_source.html#l00048">BRIX_SESS_MODE_META</a>, <a class="el" href="sesslog_8h_source.html#l00046">BRIX_SESS_MODE_READ</a>, <a class="el" href="sesslog_8h_source.html#l00047">BRIX_SESS_MODE_WRITE</a>, and <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00306">brix_access_maybe_sesslog()</a>.</p>
+
+</div>
+</div>
+<a id="aff104f4f29dd8cdcac19667fd5ffa698" name="aff104f4f29dd8cdcac19667fd5ffa698"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aff104f4f29dd8cdcac19667fd5ffa698">&#9670;&#160;</a></span>brix_access_streq()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static ngx_flag_t brix_access_streq </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>a</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>b</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00145">145</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00306">brix_access_maybe_sesslog()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00164">brix_access_sess_auth_method()</a>, and <a class="el" href="accesslog_2access__log_8c_source.html#l00240">brix_access_sess_mode()</a>.</p>
+
+</div>
+</div>
+<a id="a155a29e10e35c79b70207b2a53f9aef6" name="a155a29e10e35c79b70207b2a53f9aef6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a155a29e10e35c79b70207b2a53f9aef6">&#9670;&#160;</a></span>brix_alog_emit()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void brix_alog_emit </td>
           <td>(</td>
           <td class="paramtype">ngx_fd_t&#160;</td>
           <td class="paramname"><em>fd</em>, </td>
@@ -215,18 +571,13 @@ Variables</h2></td></tr>
           <td></td><td></td>
         </tr>
       </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00069">69</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00105">105</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
 
-<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00052">brix_access_log_flush()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00045">brix_alog_buf</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00043">BRIX_ALOG_BUF_SIZE</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00047">brix_alog_fd</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00046">brix_alog_len</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00048">brix_alog_timer</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00061">brix_alog_timer_handler()</a>, and <a class="el" href="accesslog_2access__log_8c_source.html#l00049">brix_alog_timer_set</a>.</p>
+<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00055">brix_access_log_flush()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00048">brix_alog_buf</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00046">BRIX_ALOG_BUF_SIZE</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00050">brix_alog_fd</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00049">brix_alog_len</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00051">brix_alog_timer</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00064">brix_alog_timer_handler()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00052">brix_alog_timer_set</a>, and <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00109">brix_log_access()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00344">brix_log_access()</a>, and <a class="el" href="sesslog__ngx_8c_source.html#l00156">brix_sess_emit()</a>.</p>
 
 </div>
 </div>
@@ -254,11 +605,11 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00061">61</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00064">64</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
 
-<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00052">brix_access_log_flush()</a>, and <a class="el" href="accesslog_2access__log_8c_source.html#l00049">brix_alog_timer_set</a>.</p>
+<p class="reference">References <a class="el" href="accesslog_2access__log_8c_source.html#l00055">brix_access_log_flush()</a>, and <a class="el" href="accesslog_2access__log_8c_source.html#l00052">brix_alog_timer_set</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00069">brix_alog_emit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00105">brix_alog_emit()</a>.</p>
 
 </div>
 </div>
@@ -330,11 +681,11 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00109">109</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00344">344</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
 
-<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00305">ngx_stream_brix_srv_conf_t::access_log_fd</a>, <a class="el" href="types_2config_8h_source.html#l00120">ngx_stream_brix_srv_conf_t::auth</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00069">brix_alog_emit()</a>, <a class="el" href="tunables_8h_source.html#l00230">BRIX_AUTH_GSI</a>, <a class="el" href="tunables_8h_source.html#l00235">BRIX_AUTH_KRB5</a>, <a class="el" href="tunables_8h_source.html#l00233">BRIX_AUTH_SSS</a>, <a class="el" href="tunables_8h_source.html#l00234">BRIX_AUTH_UNIX</a>, <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00159">brix_ctx_login_t::dn</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="context_8h_source.html#l00183">brix_ctx_t::req_start</a>, and <a class="el" href="context_8h_source.html#l00092">brix_ctx_t::session</a>.</p>
+<p class="reference">References <a class="el" href="types_2config_8h_source.html#l00306">ngx_stream_brix_srv_conf_t::access_log_fd</a>, <a class="el" href="types_2config_8h_source.html#l00120">ngx_stream_brix_srv_conf_t::auth</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00306">brix_access_maybe_sesslog()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00105">brix_alog_emit()</a>, <a class="el" href="tunables_8h_source.html#l00230">BRIX_AUTH_GSI</a>, <a class="el" href="tunables_8h_source.html#l00235">BRIX_AUTH_KRB5</a>, <a class="el" href="tunables_8h_source.html#l00233">BRIX_AUTH_SSS</a>, <a class="el" href="tunables_8h_source.html#l00234">BRIX_AUTH_UNIX</a>, <a class="el" href="fs_2path_2helpers_8c_source.html#l00046">brix_sanitize_log_string()</a>, <a class="el" href="cstr_8h_source.html#l00043">brix_str_cbuf()</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="ctx__structs_8h_source.html#l00159">brix_ctx_login_t::dn</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="context_8h_source.html#l00186">brix_ctx_t::req_start</a>, and <a class="el" href="context_8h_source.html#l00092">brix_ctx_t::session</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00213">brix_auth_gate_op()</a>, <a class="el" href="open__or__fill_8c_source.html#l00152">brix_cache_fill_composed_done()</a>, <a class="el" href="fs_2cache_2thread_8c_source.html#l00067">brix_cache_fill_done()</a>, <a class="el" href="checksum__ckscan__async_8c_source.html#l00088">brix_ckscan_aio_done()</a>, <a class="el" href="checksum__ckscan__dispatch_8c_source.html#l00116">brix_ckscan_sync()</a>, <a class="el" href="checksum__qcksum__async_8c_source.html#l00069">brix_cksum_aio_done()</a>, <a class="el" href="dirlist_8c_source.html#l00114">brix_dirlist_aio_done()</a>, <a class="el" href="disconnect_8c_source.html#l00180">brix_disconnect_log_open_files()</a>, <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00123">brix_handle_auth_inner()</a>, <a class="el" href="bind_8c_source.html#l00035">brix_handle_bind()</a>, <a class="el" href="close_8c_source.html#l00103">brix_handle_close()</a>, <a class="el" href="protocols_2root_2dirlist_2handler_8c_source.html#l00071">brix_handle_dirlist()</a>, <a class="el" href="src_2auth_2krb5_2auth_8c_source.html#l00165">brix_handle_krb5_auth()</a>, <a class="el" href="locate_8c_source.html#l00044">brix_handle_locate()</a>, <a class="el" href="login_8c_source.html#l00021">brix_handle_login()</a>, <a class="el" href="open__request_8c_source.html#l00269">brix_handle_open()</a>, <a class="el" href="pgread_8c_source.html#l00164">brix_handle_pgread()</a>, <a class="el" href="pgwrite_8c_source.html#l00099">brix_handle_pgwrite()</a>, <a class="el" href="prepare_8c_source.html#l00322">brix_handle_prepare()</a>, <a class="el" href="read_8c_source.html#l00156">brix_handle_read()</a>, <a class="el" href="ext__ops_8c_source.html#l00250">brix_handle_readlink()</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00164">brix_handle_readv()</a>, <a class="el" href="signing_8c_source.html#l00028">brix_handle_sigver()</a>, <a class="el" href="stat_8c_source.html#l00106">brix_handle_stat()</a>, <a class="el" href="statx_8c_source.html#l00059">brix_handle_statx()</a>, <a class="el" href="token_8c_source.html#l00044">brix_handle_token_auth()</a>, <a class="el" href="truncate_8c_source.html#l00026">brix_handle_truncate()</a>, <a class="el" href="writev_8c_source.html#l00068">brix_handle_writev()</a>, <a class="el" href="disconnect_8c_source.html#l00260">brix_on_disconnect()</a>, <a class="el" href="open__resolved__file_8c_source.html#l00646">brix_open_resolved_file()</a>, <a class="el" href="open__resolved__file_8c_source.html#l00523">brix_open_stage_backpressure()</a>, <a class="el" href="reads_8c_source.html#l00400">brix_pgread_aio_done()</a>, <a class="el" href="prepare_8c_source.html#l00269">brix_prepare_handle_cancel()</a>, <a class="el" href="prepare_8c_source.html#l00121">brix_prepare_send_fail()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00357">brix_query_cksum_handle()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00101">brix_query_cksum_path()</a>, <a class="el" href="metadata_8c_source.html#l00218">brix_query_finfo()</a>, <a class="el" href="protocols_2root_2query_2space_8c_source.html#l00119">brix_query_fsinfo()</a>, <a class="el" href="prepare_8c_source.html#l00626">brix_query_prep_status()</a>, <a class="el" href="protocols_2root_2query_2space_8c_source.html#l00051">brix_query_space()</a>, <a class="el" href="metadata_8c_source.html#l00068">brix_query_stats()</a>, <a class="el" href="metadata_8c_source.html#l00119">brix_query_xattr()</a>, <a class="el" href="read__compress_8c_source.html#l00109">brix_read_compressed()</a>, <a class="el" href="read_8c_source.html#l00056">brix_read_serve_sendfile()</a>, <a class="el" href="dispatch__read_8c_source.html#l00009">brix_reject_bound_nonread_file_op()</a>, <a class="el" href="op__path_8c_source.html#l00233">brix_reject_dotdot_path()</a>, <a class="el" href="op__path_8c_source.html#l00249">brix_resolve_op_path()</a>, <a class="el" href="launch_8c_source.html#l00207">brix_tpc_prepare_pull()</a>, <a class="el" href="done_8c_source.html#l00018">brix_tpc_pull_done()</a>, <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, <a class="el" href="core_2aio_2write_8c_source.html#l00037">brix_write_aio_done()</a>, <a class="el" href="write__compress_8c_source.html#l00047">brix_write_compressed()</a>, <a class="el" href="core_2aio_2write_8c_source.html#l00302">brix_writev_write_aio_done()</a>, <a class="el" href="zip__member_8c_source.html#l00213">brix_zip_open_member()</a>, <a class="el" href="chkpoint_8c_source.html#l00208">ckp_query()</a>, <a class="el" href="chkpoint__xeq_8c_source.html#l00128">ckp_xeq_pgwrite()</a>, and <a class="el" href="chkpoint__xeq_8c_source.html#l00307">ckp_xeq_writev()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00213">brix_auth_gate_op()</a>, <a class="el" href="open__or__fill_8c_source.html#l00152">brix_cache_fill_composed_done()</a>, <a class="el" href="fs_2cache_2thread_8c_source.html#l00067">brix_cache_fill_done()</a>, <a class="el" href="checksum__ckscan__async_8c_source.html#l00088">brix_ckscan_aio_done()</a>, <a class="el" href="checksum__ckscan__dispatch_8c_source.html#l00116">brix_ckscan_sync()</a>, <a class="el" href="checksum__qcksum__async_8c_source.html#l00069">brix_cksum_aio_done()</a>, <a class="el" href="dirlist_8c_source.html#l00114">brix_dirlist_aio_done()</a>, <a class="el" href="disconnect_8c_source.html#l00207">brix_disconnect_log_open_files()</a>, <a class="el" href="src_2auth_2gsi_2auth_8c_source.html#l00123">brix_handle_auth_inner()</a>, <a class="el" href="bind_8c_source.html#l00035">brix_handle_bind()</a>, <a class="el" href="close_8c_source.html#l00127">brix_handle_close()</a>, <a class="el" href="protocols_2root_2dirlist_2handler_8c_source.html#l00071">brix_handle_dirlist()</a>, <a class="el" href="src_2auth_2krb5_2auth_8c_source.html#l00165">brix_handle_krb5_auth()</a>, <a class="el" href="locate_8c_source.html#l00044">brix_handle_locate()</a>, <a class="el" href="login_8c_source.html#l00022">brix_handle_login()</a>, <a class="el" href="open__request_8c_source.html#l00269">brix_handle_open()</a>, <a class="el" href="pgread_8c_source.html#l00164">brix_handle_pgread()</a>, <a class="el" href="pgwrite_8c_source.html#l00099">brix_handle_pgwrite()</a>, <a class="el" href="prepare_8c_source.html#l00322">brix_handle_prepare()</a>, <a class="el" href="read_8c_source.html#l00156">brix_handle_read()</a>, <a class="el" href="ext__ops_8c_source.html#l00250">brix_handle_readlink()</a>, <a class="el" href="protocols_2root_2read_2readv_8c_source.html#l00164">brix_handle_readv()</a>, <a class="el" href="signing_8c_source.html#l00028">brix_handle_sigver()</a>, <a class="el" href="stat_8c_source.html#l00106">brix_handle_stat()</a>, <a class="el" href="statx_8c_source.html#l00059">brix_handle_statx()</a>, <a class="el" href="token_8c_source.html#l00044">brix_handle_token_auth()</a>, <a class="el" href="truncate_8c_source.html#l00026">brix_handle_truncate()</a>, <a class="el" href="writev_8c_source.html#l00068">brix_handle_writev()</a>, <a class="el" href="disconnect_8c_source.html#l00295">brix_on_disconnect()</a>, <a class="el" href="open__resolved__file_8c_source.html#l00647">brix_open_resolved_file()</a>, <a class="el" href="open__resolved__file_8c_source.html#l00524">brix_open_stage_backpressure()</a>, <a class="el" href="reads_8c_source.html#l00400">brix_pgread_aio_done()</a>, <a class="el" href="prepare_8c_source.html#l00269">brix_prepare_handle_cancel()</a>, <a class="el" href="prepare_8c_source.html#l00121">brix_prepare_send_fail()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00357">brix_query_cksum_handle()</a>, <a class="el" href="checksum__qcksum_8c_source.html#l00101">brix_query_cksum_path()</a>, <a class="el" href="metadata_8c_source.html#l00218">brix_query_finfo()</a>, <a class="el" href="protocols_2root_2query_2space_8c_source.html#l00119">brix_query_fsinfo()</a>, <a class="el" href="prepare_8c_source.html#l00626">brix_query_prep_status()</a>, <a class="el" href="protocols_2root_2query_2space_8c_source.html#l00051">brix_query_space()</a>, <a class="el" href="metadata_8c_source.html#l00068">brix_query_stats()</a>, <a class="el" href="metadata_8c_source.html#l00119">brix_query_xattr()</a>, <a class="el" href="read__compress_8c_source.html#l00109">brix_read_compressed()</a>, <a class="el" href="read_8c_source.html#l00056">brix_read_serve_sendfile()</a>, <a class="el" href="dispatch__read_8c_source.html#l00009">brix_reject_bound_nonread_file_op()</a>, <a class="el" href="op__path_8c_source.html#l00233">brix_reject_dotdot_path()</a>, <a class="el" href="op__path_8c_source.html#l00249">brix_resolve_op_path()</a>, <a class="el" href="launch_8c_source.html#l00299">brix_tpc_prepare_pull()</a>, <a class="el" href="done_8c_source.html#l00040">brix_tpc_pull_done()</a>, <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, <a class="el" href="core_2aio_2write_8c_source.html#l00037">brix_write_aio_done()</a>, <a class="el" href="write__compress_8c_source.html#l00047">brix_write_compressed()</a>, <a class="el" href="core_2aio_2write_8c_source.html#l00302">brix_writev_write_aio_done()</a>, <a class="el" href="zip__member_8c_source.html#l00213">brix_zip_open_member()</a>, <a class="el" href="chkpoint_8c_source.html#l00208">ckp_query()</a>, <a class="el" href="chkpoint__xeq_8c_source.html#l00128">ckp_xeq_pgwrite()</a>, and <a class="el" href="chkpoint__xeq_8c_source.html#l00307">ckp_xeq_writev()</a>.</p>
 
 </div>
 </div>
@@ -359,9 +710,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00045">45</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00048">48</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00052">brix_access_log_flush()</a>, and <a class="el" href="accesslog_2access__log_8c_source.html#l00069">brix_alog_emit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00055">brix_access_log_flush()</a>, and <a class="el" href="accesslog_2access__log_8c_source.html#l00105">brix_alog_emit()</a>.</p>
 
 </div>
 </div>
@@ -385,9 +736,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00047">47</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00050">50</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00052">brix_access_log_flush()</a>, and <a class="el" href="accesslog_2access__log_8c_source.html#l00069">brix_alog_emit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00055">brix_access_log_flush()</a>, and <a class="el" href="accesslog_2access__log_8c_source.html#l00105">brix_alog_emit()</a>.</p>
 
 </div>
 </div>
@@ -411,9 +762,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00046">46</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00049">49</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00052">brix_access_log_flush()</a>, and <a class="el" href="accesslog_2access__log_8c_source.html#l00069">brix_alog_emit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00055">brix_access_log_flush()</a>, and <a class="el" href="accesslog_2access__log_8c_source.html#l00105">brix_alog_emit()</a>.</p>
 
 </div>
 </div>
@@ -437,9 +788,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00048">48</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00051">51</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00069">brix_alog_emit()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00105">brix_alog_emit()</a>.</p>
 
 </div>
 </div>
@@ -463,9 +814,9 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00049">49</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="accesslog_2access__log_8c_source.html#l00052">52</a> of file <a class="el" href="accesslog_2access__log_8c_source.html">access_log.c</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00069">brix_alog_emit()</a>, and <a class="el" href="accesslog_2access__log_8c_source.html#l00061">brix_alog_timer_handler()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="accesslog_2access__log_8c_source.html#l00105">brix_alog_emit()</a>, and <a class="el" href="accesslog_2access__log_8c_source.html#l00064">brix_alog_timer_handler()</a>.</p>
 
 </div>
 </div>

@@ -117,7 +117,7 @@ $(document).ready(function(){initNavTree('canonical_8c_source.html',''); initRes
 <div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span>        <span class="keywordflow">return</span> 0;</div>
 <div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span>    }</div>
 <div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span> </div>
-<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>    ngx_memcpy(root_buf, root-&gt;data, root-&gt;len);</div>
+<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(root_buf, root-&gt;data, root-&gt;len);</div>
 <div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span>    root_buf[root-&gt;len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span> </div>
 <div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span>    <span class="keywordflow">if</span> (realpath(root_buf, root_canon) == NULL) {</div>
@@ -135,6 +135,7 @@ $(document).ready(function(){initNavTree('canonical_8c_source.html',''); initRes
 </div>
 <div class="ttc" id="acanonical_8c_html_aead053a1a06f3a5795c3be82e3fe94db"><div class="ttname"><a href="canonical_8c.html#aead053a1a06f3a5795c3be82e3fe94db">brix_get_canonical_root</a></div><div class="ttdeci">int brix_get_canonical_root(ngx_log_t *log, const ngx_str_t *root, char *root_canon, size_t root_canon_sz)</div><div class="ttdef"><b>Definition</b> <a href="canonical_8c_source.html#l00010">canonical.c:10</a></div></div>
 <div class="ttc" id="angx__brix__module_8h_html"><div class="ttname"><a href="ngx__brix__module_8h.html">ngx_brix_module.h</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="apki__check_8h_html_ac08d621cd366ef68ad85972de09dc827"><div class="ttname"><a href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a></div><div class="ttdeci">BRIX_LOG_T * log</div><div class="ttdef"><b>Definition</b> <a href="pki__check_8h_source.html#l00035">pki_check.h:35</a></div></div>
 <div class="ttc" id="azip__dir_8h_html_ae688d728e1acdfe5988c7db45d6f0166"><div class="ttname"><a href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a></div><div class="ttdeci">#define PATH_MAX</div><div class="ttdef"><b>Definition</b> <a href="zip__dir_8h_source.html#l00027">zip_dir.h:27</a></div></div>
 </div><!-- fragment --></div><!-- contents -->

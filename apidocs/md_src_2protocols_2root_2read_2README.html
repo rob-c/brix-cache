@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2root_2read_2README.
   <div class="headertitle"><div class="title">read — XRootD read-side opcodes and the file-handle lifecycle</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md368"></a> </p>
-<h1><a class="anchor" id="autotoc_md369"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md369"></a> </p>
+<h1><a class="anchor" id="autotoc_md370"></a>
 Overview</h1>
 <p>This subsystem implements the read-half of the XRootD binary wire protocol over the nginx <b>stream</b> module: it opens files (<code>kXR_open</code>), serves their bytes (<code>kXR_read</code>, <code>kXR_readv</code>, <code>kXR_pgread</code>), reports metadata (<code>kXR_stat</code>, <code>kXR_statx</code>, <code>kXR_locate</code>), copies server-side ranges (<code>kXR_clone</code>), and tears handles down (<code>kXR_close</code>). Despite the directory name, it owns more than reads: <code>kXR_open</code> is the densest opcode in the protocol and seeds the per-handle bookkeeping (<code><a class="el" href="structbrix__file__t.html">brix_file_t</a></code> slots 0–15, <code>BRIX_MAX_FILES</code>, in <code>../connection/fd_table.c</code>) that every later read <b>and write</b> opcode reuses, so the open/close lifecycle lives here while the actual write opcodes live in <code>../write/</code>.</p>
 <p>Each handler is a leaf of the stream dispatcher: <code>../handshake/dispatch_read.c</code> switches on the opcode via the <code>DISPATCH_RD</code> (handle-only) / <code>DISPATCH_RD_BOUND</code> (<code>conf</code>-taking) macros and calls one <code>brix_handle_*()</code> once the request header and any payload have been accumulated by <code>../connection/</code>. (That same switch also routes <code>kXR_dirlist</code>, <code>kXR_query</code>, <code>kXR_prepare</code>, and <code>kXR_fattr</code>, whose bodies live in sibling subsystems — see <code>../dirlist/</code>, <code>../query/</code>, <code>../fattr/</code>.) Handlers run on nginx's single-threaded event loop and must never block — blocking <code>pread</code>/<code>preadv</code> is offloaded to the thread pool in <code>../aio/</code>, with the completion callback rebuilding the response chain identically to the synchronous path. Since phase-54 the AIO-offloaded and the window-pump inline-fallback read/pgread/readv bodies run through the VFS-owned thread-safe core <code><a class="el" href="vfs__io__core_8c.html#aab00f7ff5deb71f5898ed860402962a7">brix_vfs_io_execute()</a></code> (<a class="el" href="md_src_2fs_2README.html">`../fs/vfs_io_core.c`</a>) rather than a <code>pread</code> reimplemented here; these handlers own validation, framing, and scheduling. The zero-copy <code>sendfile</code> branch and the <code>preadv2(RWF_NOWAIT)</code> warm-cache probe stay separate by design (they move bytes without a core buffer). Responses are framed by <code>../response/</code> and queued via <code>brix_queue_response</code> / <code>brix_queue_response_chain</code>; the terse metric+log+error exits use the <code>BRIX_RETURN_ERR</code> / <code>BRIX_RETURN_REDIR</code> / <code>BRIX_RETURN_OK</code> / <code>BRIX_OP_OK</code> / <code>BRIX_OP_ERR</code> macros.</p>
 <p>The read path is also where the gateway's three operating modes diverge. In a plain <b>data server</b> the handlers resolve a path beneath the export root and serve local bytes. In <b>manager/redirector</b> mode <code>kXR_open</code> / <code>kXR_stat</code> / <code>kXR_locate</code> do not touch the filesystem — they pick a backend via <code><a class="el" href="net_2manager_2registry_8h.html#a3239940eb727df4b789fccf11a394ba9">brix_srv_select()</a></code> (<code>../manager/</code>), reply <code>kXR_redirect</code>, and fall back to a CMS <code>kYR_locate</code> round-trip (<code>../cms/</code>) on a registry miss. The <b>XCache</b> path (<code><a class="el" href="open__cache_8c.html">open_cache.c</a></code>, <code>slice_read.c</code>) serves reads from a local cache root, filling whole files or per-slice fragments from an origin on miss.</p>
 <p>This subsystem also enforces the read-side security gates: kernel path confinement (<code>RESOLVE_BENEATH</code> via <code>../path/</code>), the authdb / VO-ACL / token-scope <code>brix_auth_gate</code>, and the global <code>allow_write</code> policy for write-mode opens.</p>
-<h1><a class="anchor" id="autotoc_md370"></a>
+<h1><a class="anchor" id="autotoc_md371"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -140,7 +140,7 @@ Files</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code><a class="el" href="clone_8c.html">clone.c</a></code> / <code><a class="el" href="clone_8h.html">clone.h</a></code>   </td><td class="markdownTableBodyNone"><code><a class="el" href="clone_8c.html#a0da7313b56ccc94dfda821c1a6e8c8f3">brix_handle_clone()</a></code> — <code>kXR_clone</code> (v5.2.0): batched server-side range copy (≤1024 <code><a class="el" href="structclone__item.html">clone_item</a></code>s) from open source handles into one open destination handle via <code><a class="el" href="copy__range_8c.html#aca065823b4708547bdb48ee44cce42fd">brix_copy_range()</a></code> (<code>copy_file_range</code>/pread+pwrite fallback), validating each handle's read/write access.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md371"></a>
+<h1><a class="anchor" id="autotoc_md372"></a>
 Key types &amp; data structures</h1>
 <ul>
 <li>**<code><a class="el" href="structbrix__file__t.html">brix_file_t</a></code>** (defined in <code>../types/</code>, table in <code>../connection/fd_table.c</code>): the per-handle state object indexed by the single-byte <code>fhandle[0]</code>, of which only slots 0–15 (<code>BRIX_MAX_FILES</code>) are allocated. <code>kXR_open</code> populates it (<code>fd</code>, <code>readable</code>/<code>writable</code>, <code>is_regular</code>, <code>from_cache</code>, <code>device</code>/<code>inode</code>, <code>cached_size</code>, <code>bytes_read</code>/<code>bytes_written</code>, <code>open_time</code>, the <code>read_last_end</code>/ <code>read_ahead_end</code> prefetch cursors, the <code>wt_*</code> write-through fields, the <code>wrts_*</code> write-recovery ring, <code>posc_final_path</code>, <code>dashboard_slot</code>, and the <code>slice_mode</code> / <code>slice_size</code> / <code>slice_cache_path</code> / <code>slice_clean_path</code> cache fields); every other opcode reads it; <code>kXR_close</code> frees it. A slot is "in use" iff <code>fd &gt;= 0</code>.</li>
@@ -150,7 +150,7 @@ Key types &amp; data structures</h1>
 <li>**<code><a class="el" href="structbrix__read__aio__t.html">brix_read_aio_t</a></code> / <code><a class="el" href="structbrix__readv__aio__t.html">brix_readv_aio_t</a></code> / <code><a class="el" href="structbrix__pgread__aio__t.html">brix_pgread_aio_t</a></code>** (<code>../aio/</code>): the task payloads carrying <code>fd</code>, <code>offset</code>, <code>rlen</code>, the scratch pointer, and the <code>streamid</code> needed to restore the suspended request in the done callback.</li>
 <li>**<code><a class="el" href="structbrix__cache__fill__t.html">brix_cache_fill_t</a></code>** (<code>../cache/</code>): reused by <code>slice_read.c</code> to carry the slice index/start/len, cache/part/lock paths, and the original <code>kXR_read</code> (<code>slice_read_idx</code>/<code>_offset</code>/<code>_rlen</code>) so the read handler can be re-entered after a slice fill lands.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md372"></a>
+<h1><a class="anchor" id="autotoc_md373"></a>
 Control &amp; data flow</h1>
 <p>Entry is always <code><a class="el" href="dispatch__read_8c.html#a8ba239b28eba748b8eabf2cd2c9ea3c6">brix_dispatch_read_opcode()</a></code> in <a class="el" href="md_src_2protocols_2root_2handshake_2README.html">`../handshake/dispatch_read.c`</a>, which validates the session is bound and calls one <code>brix_handle_*()</code>. From there:</p>
 <ul>
@@ -164,7 +164,7 @@ Control &amp; data flow</h1>
 <li><b>Upstream proxy</b> → <a class="el" href="md_src_2net_2upstream_2README.html">`../upstream/`</a>: <code>brix_upstream_start</code> when a local read/stat/locate misses but an upstream origin is configured.</li>
 <li><b>Cross-cutting</b> → write-recovery journal (<code>../write/wrts_journal.h</code>, <code>brix_wrts_open</code>/<code>_flush</code>), POSC temp paths (<code>../compat/tmp_path.h</code>, <code>brix_make_tmp_path</code>), mirror replay (<code>../mirror/stream_wmirror.h</code>, <code>brix_stream_wmirror_on_open</code>), session publish (<code>../session/registry.h</code>, <code>brix_session_handle_publish</code>), rate-limit bandwidth charge (<code>brix_rl_charge_ctx</code>, <code>../ratelimit/</code>), and the live-transfer dashboard (<code>../dashboard/</code>, <code>brix_transfer_slot_*</code>).</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md373"></a>
+<h1><a class="anchor" id="autotoc_md374"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Kernel confinement is mandatory.</b> Every client path is opened/stat'd through <code>RESOLVE_BENEATH</code> against the per-worker <code>conf-&gt;rootfd</code> (<code>brix_open_beneath</code>, <code>brix_stat_beneath</code>). <code><a class="el" href="open__resolved__file_8c.html">open_resolved_file.c</a></code> strips <code>root_canon</code> to derive the relative path for <code>openat2</code>; never call a raw <code>open</code>/<code>stat</code> on a wire path. Cache-root files are the one pre-validated exception and use plain <code>open</code> + <code>O_CLOEXEC</code>.</li>
@@ -180,7 +180,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>AIO/CMS suspension uses <code>streamid</code>, not the connection.</b> Done callbacks call <code>brix_aio_restore_request(ctx, streamid)</code> before touching <code>ctx</code>; if it returns false the original request is gone (client disconnected) and the callback must bail without resuming. The slice read-resume only resumes the connection when the re-run leaves <code>XRD_ST_AIO</code>. <code>readv</code> total bytes must equal the requested run or it errors as "past EOF".</li>
 <li>**<code>readv</code> segment math is overflow-checked.** <code>brix_size_mul</code>, the <code>BRIX_READV_MAXSEGS</code> cap, and per-segment offset+length overflow guards run before any <code>malloc</code>/<code>preadv</code> (<code>readv.c</code>) — defense in depth over the recv-layer payload cap (a malformed-payload <code>kXR_ArgInvalid</code> enters at <code>readv.c:214</code>). Note the documented <code>read_scratch</code> corruption gotcha (phase-29 blocker) when refactoring the shared scratch buffer across <code><a class="el" href="read_8c.html">read.c</a></code>/<code>readv.c</code>/<code>slice_read.c</code> — it is reused across requests on one connection, so a stale pointer or premature release silently corrupts data.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md374"></a>
+<h1><a class="anchor" id="autotoc_md375"></a>
 Entry points / extending</h1>
 <p>To add a <b>new read-side opcode</b> (e.g. a hypothetical <code>kXR_foo</code>):</p>
 <ol type="1">
@@ -193,7 +193,7 @@ Entry points / extending</h1>
 <li>Add the three required tests: success, error, and a security-negative (confinement / auth) case.</li>
 </ol>
 <p>For a new <b>cache or prefetch tunable</b>, prefer extending <code><a class="el" href="prefetch_8h.html">prefetch.h</a></code> constants or the write-through decision engine in <code>../cache/</code> rather than threading new state through <code><a class="el" href="structbrix__file__t.html">brix_file_t</a></code>.</p>
-<h1><a class="anchor" id="autotoc_md375"></a>
+<h1><a class="anchor" id="autotoc_md376"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2protocols_2root_2README.html">`../README.md`</a> — master subsystem index.</li>

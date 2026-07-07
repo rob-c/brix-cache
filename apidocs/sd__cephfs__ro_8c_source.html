@@ -533,7 +533,7 @@ $(document).ready(function(){initNavTree('sd__cephfs__ro_8c_source.html',''); in
 <div class="line"><a id="l00433" name="l00433"></a><span class="lineno">  433</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00434" name="l00434"></a><span class="lineno">  434</span>    }</div>
 <div class="line"><a id="l00435" name="l00435"></a><span class="lineno">  435</span> </div>
-<div class="line"><a id="l00436" name="l00436"></a><span class="lineno">  436</span>    st = ngx_pcalloc(inst-&gt;pool, <span class="keyword">sizeof</span>(*st));</div>
+<div class="line"><a id="l00436" name="l00436"></a><span class="lineno">  436</span>    st = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(inst-&gt;pool, <span class="keyword">sizeof</span>(*st));</div>
 <div class="line"><a id="l00437" name="l00437"></a><span class="lineno">  437</span>    <span class="keywordflow">if</span> (st == NULL) { errno = ENOMEM; <span class="keywordflow">return</span> NGX_ERROR; }</div>
 <div class="line"><a id="l00438" name="l00438"></a><span class="lineno">  438</span>    st-&gt;live      = dc-&gt;live ? 1 : 0;</div>
 <div class="line"><a id="l00439" name="l00439"></a><span class="lineno">  439</span>    st-&gt;max_retry = CEPHFS_RO_MAX_RETRY;</div>
@@ -598,8 +598,8 @@ $(document).ready(function(){initNavTree('sd__cephfs__ro_8c_source.html',''); in
 <div class="line"><a id="l00498" name="l00498"></a><span class="lineno">  498</span>        <span class="keywordflow">return</span> NULL;</div>
 <div class="line"><a id="l00499" name="l00499"></a><span class="lineno">  499</span>    }</div>
 <div class="line"><a id="l00500" name="l00500"></a><span class="lineno">  500</span> </div>
-<div class="line"><a id="l00501" name="l00501"></a><span class="lineno">  501</span>    obj = ngx_pcalloc(inst-&gt;pool, <span class="keyword">sizeof</span>(*obj));</div>
-<div class="line"><a id="l00502" name="l00502"></a><span class="lineno">  502</span>    os  = ngx_pcalloc(inst-&gt;pool, <span class="keyword">sizeof</span>(*os));</div>
+<div class="line"><a id="l00501" name="l00501"></a><span class="lineno">  501</span>    obj = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(inst-&gt;pool, <span class="keyword">sizeof</span>(*obj));</div>
+<div class="line"><a id="l00502" name="l00502"></a><span class="lineno">  502</span>    os  = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(inst-&gt;pool, <span class="keyword">sizeof</span>(*os));</div>
 <div class="line"><a id="l00503" name="l00503"></a><span class="lineno">  503</span>    <span class="keywordflow">if</span> (obj == NULL || os == NULL) {</div>
 <div class="line"><a id="l00504" name="l00504"></a><span class="lineno">  504</span>        <span class="keywordflow">if</span> (err_out != NULL) { *err_out = ENOMEM; }</div>
 <div class="line"><a id="l00505" name="l00505"></a><span class="lineno">  505</span>        <span class="keywordflow">return</span> NULL;</div>
@@ -760,8 +760,8 @@ $(document).ready(function(){initNavTree('sd__cephfs__ro_8c_source.html',''); in
 <div class="line"><a id="l00660" name="l00660"></a><span class="lineno">  660</span>        <span class="keywordflow">return</span> NULL;</div>
 <div class="line"><a id="l00661" name="l00661"></a><span class="lineno">  661</span>    }</div>
 <div class="line"><a id="l00662" name="l00662"></a><span class="lineno">  662</span> </div>
-<div class="line"><a id="l00663" name="l00663"></a><span class="lineno">  663</span>    d  = ngx_pcalloc(inst-&gt;pool, <span class="keyword">sizeof</span>(*d));</div>
-<div class="line"><a id="l00664" name="l00664"></a><span class="lineno">  664</span>    ds = ngx_pcalloc(inst-&gt;pool, <span class="keyword">sizeof</span>(*ds));</div>
+<div class="line"><a id="l00663" name="l00663"></a><span class="lineno">  663</span>    d  = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(inst-&gt;pool, <span class="keyword">sizeof</span>(*d));</div>
+<div class="line"><a id="l00664" name="l00664"></a><span class="lineno">  664</span>    ds = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(inst-&gt;pool, <span class="keyword">sizeof</span>(*ds));</div>
 <div class="line"><a id="l00665" name="l00665"></a><span class="lineno">  665</span>    <span class="keywordflow">if</span> (d == NULL || ds == NULL) {</div>
 <div class="line"><a id="l00666" name="l00666"></a><span class="lineno">  666</span>        <span class="keywordflow">if</span> (err_out != NULL) { *err_out = ENOMEM; }</div>
 <div class="line"><a id="l00667" name="l00667"></a><span class="lineno">  667</span>        <span class="keywordflow">return</span> NULL;</div>
@@ -846,10 +846,10 @@ $(document).ready(function(){initNavTree('sd__cephfs__ro_8c_source.html',''); in
 <div class="line"><a id="l00746" name="l00746"></a><span class="lineno">  746</span>        <span class="keywordflow">if</span> (ds-&gt;npage &lt; CEPHFS_READDIR_PAGE</div>
 <div class="line"><a id="l00747" name="l00747"></a><span class="lineno">  747</span>            &amp;&amp; cephfsro_key_to_name(k, <a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, <span class="keyword">sizeof</span>(<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)) == 0)</div>
 <div class="line"><a id="l00748" name="l00748"></a><span class="lineno">  748</span>        {</div>
-<div class="line"><a id="l00749" name="l00749"></a><span class="lineno">  749</span>            ngx_memcpy(ds-&gt;names[ds-&gt;npage], <a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, strlen(<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>) + 1);</div>
+<div class="line"><a id="l00749" name="l00749"></a><span class="lineno">  749</span>            <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(ds-&gt;names[ds-&gt;npage], <a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, strlen(<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>) + 1);</div>
 <div class="line"><a id="l00750" name="l00750"></a><span class="lineno">  750</span>            ds-&gt;npage++;</div>
 <div class="line"><a id="l00751" name="l00751"></a><span class="lineno">  751</span>        }</div>
-<div class="line"><a id="l00752" name="l00752"></a><span class="lineno">  752</span>        ngx_memcpy(ds-&gt;last_key, k, strlen(k) + 1);   <span class="comment">/* cursor = last key seen */</span></div>
+<div class="line"><a id="l00752" name="l00752"></a><span class="lineno">  752</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(ds-&gt;last_key, k, strlen(k) + 1);   <span class="comment">/* cursor = last key seen */</span></div>
 <div class="line"><a id="l00753" name="l00753"></a><span class="lineno">  753</span>    }</div>
 <div class="line"><a id="l00754" name="l00754"></a><span class="lineno">  754</span>    <span class="keywordflow">if</span> (it != NULL) { rados_omap_get_end(it); }</div>
 <div class="line"><a id="l00755" name="l00755"></a><span class="lineno">  755</span>    rados_release_read_op(op);</div>
@@ -865,7 +865,7 @@ $(document).ready(function(){initNavTree('sd__cephfs__ro_8c_source.html',''); in
 <div class="line"><a id="l00765" name="l00765"></a><span class="lineno">  765</span> </div>
 <div class="line"><a id="l00766" name="l00766"></a><span class="lineno">  766</span>    <span class="keywordflow">for</span> (;;) {</div>
 <div class="line"><a id="l00767" name="l00767"></a><span class="lineno">  767</span>        <span class="keywordflow">if</span> (ds-&gt;pi &lt; ds-&gt;npage) {</div>
-<div class="line"><a id="l00768" name="l00768"></a><span class="lineno">  768</span>            ngx_memcpy(out-&gt;<a class="code hl_variable" href="structbrix__sd__dirent__t.html#af1173b0600b83adeafb7ac849d7beba0">name</a>, ds-&gt;names[ds-&gt;pi], strlen(ds-&gt;names[ds-&gt;pi]) + 1);</div>
+<div class="line"><a id="l00768" name="l00768"></a><span class="lineno">  768</span>            <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(out-&gt;<a class="code hl_variable" href="structbrix__sd__dirent__t.html#af1173b0600b83adeafb7ac849d7beba0">name</a>, ds-&gt;names[ds-&gt;pi], strlen(ds-&gt;names[ds-&gt;pi]) + 1);</div>
 <div class="line"><a id="l00769" name="l00769"></a><span class="lineno">  769</span>            ds-&gt;pi++;</div>
 <div class="line"><a id="l00770" name="l00770"></a><span class="lineno">  770</span>            <span class="keywordflow">return</span> NGX_OK;</div>
 <div class="line"><a id="l00771" name="l00771"></a><span class="lineno">  771</span>        }</div>
@@ -989,6 +989,8 @@ $(document).ready(function(){initNavTree('sd__cephfs__ro_8c_source.html',''); in
 <div class="ttc" id="acephfs__layout_8h_html_a75be7968f9195fe2aca28dc5c0997ce6a9ee06591d8be7e283df1a28e9128f061"><div class="ttname"><a href="cephfs__layout_8h.html#a75be7968f9195fe2aca28dc5c0997ce6a9ee06591d8be7e283df1a28e9128f061">CEPHFS_DENTRY_PRIMARY</a></div><div class="ttdeci">@ CEPHFS_DENTRY_PRIMARY</div><div class="ttdef"><b>Definition</b> <a href="cephfs__layout_8h_source.html#l00093">cephfs_layout.h:93</a></div></div>
 <div class="ttc" id="acephfs__layout_8h_html_a75be7968f9195fe2aca28dc5c0997ce6af806c8fa8d4eabb3274c51a7de222270"><div class="ttname"><a href="cephfs__layout_8h.html#a75be7968f9195fe2aca28dc5c0997ce6af806c8fa8d4eabb3274c51a7de222270">CEPHFS_DENTRY_REMOTE</a></div><div class="ttdeci">@ CEPHFS_DENTRY_REMOTE</div><div class="ttdef"><b>Definition</b> <a href="cephfs__layout_8h_source.html#l00094">cephfs_layout.h:94</a></div></div>
 <div class="ttc" id="acephfs__layout_8h_html_ae444ab95150d4c76f161b13d3353347b"><div class="ttname"><a href="cephfs__layout_8h.html#ae444ab95150d4c76f161b13d3353347b">CEPHFS_MAX_FRAGS</a></div><div class="ttdeci">#define CEPHFS_MAX_FRAGS</div><div class="ttdef"><b>Definition</b> <a href="cephfs__layout_8h_source.html#l00043">cephfs_layout.h:43</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a0de53ece62d31e30ec1e1cd815b57267"><div class="ttname"><a href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a></div><div class="ttdeci">void * ngx_pcalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00042">xrdceph_migrate.c:42</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="asd_8h_html_a014489da062b3e2b72231889903fa3cda2139021e43875bb591df43799bc12c28"><div class="ttname"><a href="sd_8h.html#a014489da062b3e2b72231889903fa3cda2139021e43875bb591df43799bc12c28">BRIX_SD_CAP_DIRS</a></div><div class="ttdeci">@ BRIX_SD_CAP_DIRS</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00092">sd.h:92</a></div></div>
 <div class="ttc" id="asd_8h_html_a014489da062b3e2b72231889903fa3cda2ba74f3fdd30ab40b38db1792f4552db"><div class="ttname"><a href="sd_8h.html#a014489da062b3e2b72231889903fa3cda2ba74f3fdd30ab40b38db1792f4552db">BRIX_SD_CAP_RANGE_READ</a></div><div class="ttdeci">@ BRIX_SD_CAP_RANGE_READ</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00087">sd.h:87</a></div></div>
 <div class="ttc" id="asd_8h_html_a014489da062b3e2b72231889903fa3cda9bf9e842afb01d4d35b0d476cf2bb895"><div class="ttname"><a href="sd_8h.html#a014489da062b3e2b72231889903fa3cda9bf9e842afb01d4d35b0d476cf2bb895">BRIX_SD_CAP_XATTR</a></div><div class="ttdeci">@ BRIX_SD_CAP_XATTR</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00090">sd.h:90</a></div></div>

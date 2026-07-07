@@ -171,11 +171,12 @@ $(document).ready(function(){initNavTree('oauth2_8c_source.html',''); initResiza
 <div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>    }</div>
 <div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span> </div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>    ngx_memcpy(out, token, len + 1);</div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(out, token, len + 1);</div>
 <div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>    json_decref(root);</div>
 <div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>    <span class="keywordflow">return</span> NGX_OK;</div>
 <div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>}</div>
 </div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="aoauth2_8c_html_ae8db516c82183827a7f2ba267e0b1e56"><div class="ttname"><a href="oauth2_8c.html#ae8db516c82183827a7f2ba267e0b1e56">brix_oauth2_parse_access_token</a></div><div class="ttdeci">ngx_int_t brix_oauth2_parse_access_token(const char *json, char *out, size_t out_sz, char *err, size_t err_sz)</div><div class="ttdef"><b>Definition</b> <a href="oauth2_8c_source.html#l00032">oauth2.c:32</a></div></div>
 <div class="ttc" id="aoauth2_8h_html"><div class="ttname"><a href="oauth2_8h.html">oauth2.h</a></div></div>
 </div><!-- fragment --></div><!-- contents -->

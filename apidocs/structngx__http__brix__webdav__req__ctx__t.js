@@ -16,6 +16,8 @@ var structngx__http__brix__webdav__req__ctx__t =
     [ "rl_conc_key", "structngx__http__brix__webdav__req__ctx__t.html#a86bdc87ebd0052a5f49c9bde611f27a6", null ],
     [ "rl_conc_rule", "structngx__http__brix__webdav__req__ctx__t.html#afd5d53bd5c90108b70caaeba4055cd5b", null ],
     [ "rl_key_str", "structngx__http__brix__webdav__req__ctx__t.html#a9cedea914e29079aab346d0c622eebb7", null ],
+    [ "sess_xfer", "structngx__http__brix__webdav__req__ctx__t.html#a0d22ccb1ac8d634be4eedbe0ecfbf29c", null ],
+    [ "sess_xfer_started", "structngx__http__brix__webdav__req__ctx__t.html#a6a5346224bd9f4616124da8bf253b328", null ],
     [ "token_auth", "structngx__http__brix__webdav__req__ctx__t.html#aa221fe141d5998f1936deb875aa6b0bf", null ],
     [ "token_scope_count", "structngx__http__brix__webdav__req__ctx__t.html#a46b89755c7fb77bae1132c1bb8d3a1c3", null ],
     [ "token_scopes", "structngx__http__brix__webdav__req__ctx__t.html#a894bf85418428597e3115563490c5287", null ],

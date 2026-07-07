@@ -166,13 +166,13 @@ $(document).ready(function(){initNavTree('scan__engine_8c_source.html',''); init
 <div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>            <span class="keywordflow">return</span> -1;</div>
 <div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>        }</div>
 <div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>        <span class="keywordflow">if</span> (*buf != NULL) {</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>            ngx_memcpy(nb, *buf, *used);</div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>            <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(nb, *buf, *used);</div>
 <div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>            ngx_free(*buf);</div>
 <div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>        }</div>
 <div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>        *buf = nb;</div>
 <div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>        *cap = new_cap;</div>
 <div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>    }</div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>    ngx_memcpy(*buf + *used, line, llen);</div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(*buf + *used, line, llen);</div>
 <div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>    *used += llen;</div>
 <div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>    (*buf)[(*used)++] = <span class="charliteral">&#39;\n&#39;</span>;</div>
 <div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>    <span class="keywordflow">return</span> 0;</div>
@@ -244,7 +244,7 @@ $(document).ready(function(){initNavTree('scan__engine_8c_source.html',''); init
 <div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span> </div>
 <div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>    stored = <a class="code hl_function" href="scan__engine_8c.html#aae96cb64efc8edbf0e452b5baeea7837">scan_stored</a>(cc, fd, logical, &amp;stored_info);</div>
 <div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>    <span class="keywordflow">if</span> (stored != NULL) {</div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>        ngx_memcpy(stored_copy, stored, ngx_strlen(stored) + 1);</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(stored_copy, stored, ngx_strlen(stored) + 1);</div>
 <div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>        stored = stored_copy;   <span class="comment">/* survive the second get_fd&#39;s info reuse */</span></div>
 <div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    }</div>
 <div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span> </div>
@@ -596,7 +596,7 @@ $(document).ready(function(){initNavTree('scan__engine_8c_source.html',''); init
 <div class="line"><a id="l00461" name="l00461"></a><span class="lineno">  461</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="integrity__info_8c.html#ae21c63f65842ae193501d5e3c5bf63fa">brix_integrity_get_fd</a>(cc-&gt;<a class="code hl_variable" href="structscan__verify__ctx__t.html#ab00753e7cd766f725edbaeba7d95cb22">log</a>, -1, obj, logical, cc-&gt;<a class="code hl_variable" href="structscan__verify__ctx__t.html#a1521bb1561a88c825658c137a90812fb">alg</a>, &amp;io,</div>
 <div class="line"><a id="l00462" name="l00462"></a><span class="lineno">  462</span>                                &amp;stored_info) == NGX_OK)</div>
 <div class="line"><a id="l00463" name="l00463"></a><span class="lineno">  463</span>    {</div>
-<div class="line"><a id="l00464" name="l00464"></a><span class="lineno">  464</span>        ngx_memcpy(stored_copy, stored_info.<a class="code hl_variable" href="structbrix__integrity__info__t.html#a7009cc16ab5467f88e825552c6403ac5">hex</a>, ngx_strlen(stored_info.<a class="code hl_variable" href="structbrix__integrity__info__t.html#a7009cc16ab5467f88e825552c6403ac5">hex</a>) + 1);</div>
+<div class="line"><a id="l00464" name="l00464"></a><span class="lineno">  464</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(stored_copy, stored_info.<a class="code hl_variable" href="structbrix__integrity__info__t.html#a7009cc16ab5467f88e825552c6403ac5">hex</a>, ngx_strlen(stored_info.<a class="code hl_variable" href="structbrix__integrity__info__t.html#a7009cc16ab5467f88e825552c6403ac5">hex</a>) + 1);</div>
 <div class="line"><a id="l00465" name="l00465"></a><span class="lineno">  465</span>        stored = stored_copy;             <span class="comment">/* survive the recompute&#39;s info reuse */</span></div>
 <div class="line"><a id="l00466" name="l00466"></a><span class="lineno">  466</span>    }</div>
 <div class="line"><a id="l00467" name="l00467"></a><span class="lineno">  467</span> </div>
@@ -703,6 +703,7 @@ $(document).ready(function(){initNavTree('scan__engine_8c_source.html',''); init
 </div>
 <div class="ttc" id="aintegrity__info_8c_html_ae21c63f65842ae193501d5e3c5bf63fa"><div class="ttname"><a href="integrity__info_8c.html#ae21c63f65842ae193501d5e3c5bf63fa">brix_integrity_get_fd</a></div><div class="ttdeci">ngx_int_t brix_integrity_get_fd(ngx_log_t *log, int fd, brix_sd_obj_t *obj, const char *path, const char *alg_name, const brix_integrity_opts_t *opts, brix_integrity_info_t *out)</div><div class="ttdef"><b>Definition</b> <a href="integrity__info_8c_source.html#l00409">integrity_info.c:409</a></div></div>
 <div class="ttc" id="aintegrity__info_8h_html"><div class="ttname"><a href="integrity__info_8h.html">integrity_info.h</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="aopcodes_8h_html"><div class="ttname"><a href="opcodes_8h.html">opcodes.h</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_a3b0a8f16633b4ef102b2948622292d3b"><div class="ttname"><a href="opcodes_8h.html#a3b0a8f16633b4ef102b2948622292d3b">kXR_NotFound</a></div><div class="ttdeci">#define kXR_NotFound</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00157">opcodes.h:157</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_a50631794a0a8a25bb067d8bcb3af95ab"><div class="ttname"><a href="opcodes_8h.html#a50631794a0a8a25bb067d8bcb3af95ab">kXR_NoMemory</a></div><div class="ttdeci">#define kXR_NoMemory</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00154">opcodes.h:154</a></div></div>

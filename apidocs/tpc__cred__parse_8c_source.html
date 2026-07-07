@@ -137,7 +137,7 @@ $(document).ready(function(){initNavTree('tpc__cred__parse_8c_source.html',''); 
 <div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span> </div>
 <div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    tok_len = strlen(token);</div>
 <div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    token_out-&gt;len = tok_len;</div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>    token_out-&gt;data = ngx_pnalloc(r-&gt;pool, tok_len + 1);</div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>    token_out-&gt;data = <a class="code hl_function" href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a>(r-&gt;pool, tok_len + 1);</div>
 <div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>    <span class="keywordflow">if</span> (token_out-&gt;data == NULL) {</div>
 <div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>        ngx_log_error(NGX_LOG_ERR, r-&gt;connection-&gt;log, 0,</div>
 <div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>                      <span class="stringliteral">&quot;tpc_cred: pnalloc failed for token&quot;</span>);</div>
@@ -149,6 +149,7 @@ $(document).ready(function(){initNavTree('tpc__cred__parse_8c_source.html',''); 
 <div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    <span class="keywordflow">return</span> NGX_OK;</div>
 <div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>}</div>
 </div>
+<div class="ttc" id="angx__shim_8h_html_ae28be76366886c36db56889cfc779768"><div class="ttname"><a href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a></div><div class="ttdeci">void * ngx_pnalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00043">xrdceph_migrate.c:43</a></div></div>
 <div class="ttc" id="aoauth2_8c_html_ae8db516c82183827a7f2ba267e0b1e56"><div class="ttname"><a href="oauth2_8c.html#ae8db516c82183827a7f2ba267e0b1e56">brix_oauth2_parse_access_token</a></div><div class="ttdeci">ngx_int_t brix_oauth2_parse_access_token(const char *json, char *out, size_t out_sz, char *err, size_t err_sz)</div><div class="ttdef"><b>Definition</b> <a href="oauth2_8c_source.html#l00032">oauth2.c:32</a></div></div>
 <div class="ttc" id="aoauth2_8h_html"><div class="ttname"><a href="oauth2_8h.html">oauth2.h</a></div></div>
 <div class="ttc" id="atpc__cred__internal_8h_html"><div class="ttname"><a href="tpc__cred__internal_8h.html">tpc_cred_internal.h</a></div></div>

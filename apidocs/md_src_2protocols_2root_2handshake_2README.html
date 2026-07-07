@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2root_2handshake_2RE
   <div class="headertitle"><div class="title">handshake — XRootD stream request entry point and opcode dispatcher</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md338"></a> </p>
-<h1><a class="anchor" id="autotoc_md339"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md339"></a> </p>
+<h1><a class="anchor" id="autotoc_md340"></a>
 Overview</h1>
 <p>This subsystem is the front door for the native XRootD binary protocol (<code>root://</code> / <code>roots://</code>). After <code><a class="el" href="protocols_2root_2connection_2recv_8c.html">connection/recv.c</a></code> has accumulated a complete wire frame, control enters here twice: once for the very first 20-byte <em><a class="el" href="structClientInitHandShake.html">ClientInitHandShake</a></em> (handled by <code>brix_process_handshake</code>), and thereafter, for every request header + payload, through the central router <code>brix_dispatch</code>. Nothing in this directory touches the filesystem or builds an operation response itself — it validates the protocol prologue, enforces the session/auth/write/signing gates, and routes each opcode to the correct handler in a sibling subsystem.</p>
 <p><code>brix_dispatch</code> is a layered fall-through router. It runs a fixed sequence of phases — sigver verification, security-level enforcement, then four category sub-dispatchers (session, read, write, signing) — short-circuited by proxy mode and rate-limit/mirror hooks. Each sub-dispatcher inspects <code>ctx-&gt;cur_reqid</code> (the parsed opcode) and either handles it or returns the sentinel <code>BRIX_DISPATCH_CONTINUE</code> (= <code>NGX_DECLINED</code>) so routing continues to the next phase. An opcode that no sub-dispatcher claims falls through every layer and is answered with <code>kXR_Unsupported</code>.</p>
 <p>The gates in <code>policy.c</code> (<code>require_login</code>, <code>require_auth</code>, <code>require_write</code>) and the request-signing logic in <code>sigver.c</code> are the fail-closed security spine of the stream protocol: they are invoked <em>before</em> any handler runs, so a handler is only ever reached for a session that has logged in, authenticated, and (for mutations) been granted write access and a valid signature where policy demands one. This is the stream-side analogue of the HTTP access-phase checks in <a class="el" href="md_src_2protocols_2webdav_2README.html">`../webdav/`</a> and <a class="el" href="md_src_2protocols_2s3_2README.html">`../s3/`</a>.</p>
 <p>This subsystem is used by every <code>root://</code> request lifecycle: anonymous, GSI-proxy, WLCG-token, SSS, and Kerberos sessions, as well as proxy/redirector deployments (it hands off to <a class="el" href="md_src_2net_2proxy_2README.html">`../proxy/`</a> and <a class="el" href="md_src_2net_2manager_2README.html">`../manager/`</a> once login completes in those modes).</p>
-<h1><a class="anchor" id="autotoc_md340"></a>
+<h1><a class="anchor" id="autotoc_md341"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -124,7 +124,7 @@ Files</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code>sigver.c</code>   </td><td class="markdownTableBodyNone">Request-signing verification: <code>brix_verify_pending_sigver</code> (checks the HMAC-SHA256 envelope queued by the previous <code>kXR_sigver</code> against the current header+payload) and <code>brix_signing_enforce_level</code> (rejects unsigned opcodes that the configured <code>security_level</code> 0–4 requires to be signed).   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md341"></a>
+<h1><a class="anchor" id="autotoc_md342"></a>
 Key types &amp; data structures</h1>
 <p>This subsystem owns no struct of its own; it manipulates the per-connection <code><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a></code> (defined in <a class="el" href="md_src_2core_2types_2README.html">`../types/context.h`</a>) and the stream server config <code><a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></code>. The fields it reads/writes:</p>
 <ul>
@@ -136,7 +136,7 @@ Key types &amp; data structures</h1>
 </ul>
 <p><code>BRIX_DISPATCH_CONTINUE</code> (a <code>#define</code> for <code>NGX_DECLINED</code>) is the routing contract: any sub-dispatcher or gate returning it means "not handled / keep
 going"; any other <code>ngx_int_t</code> is the final result for the request (usually the return value of <code>brix_send_error</code> or <code>NGX_ERROR</code>).</p>
-<h1><a class="anchor" id="autotoc_md342"></a>
+<h1><a class="anchor" id="autotoc_md343"></a>
 Control &amp; data flow</h1>
 <p><b>Entry.</b> <a class="el" href="md_src_2protocols_2root_2connection_2README.html">`../connection/recv.c`</a> is the only caller. On the first frame of a connection it calls <code>brix_process_handshake</code>; on every subsequent fully-framed request it calls <code>brix_dispatch(ctx, c, conf)</code>.</p>
 <p>**<code>brix_dispatch</code> phase order (<code>dispatch.c</code>):**</p>
@@ -161,7 +161,7 @@ Control &amp; data flow</h1>
 <li>handlers themselves resolve client paths beneath the export root via <a class="el" href="md_src_2fs_2path_2README.html">`../path/`</a> and offload blocking I/O through <a class="el" href="md_src_2core_2aio_2README.html">`../aio/`</a>; this subsystem does neither directly.</li>
 </ul>
 <p><b>Auth happens elsewhere; gating happens here.</b> <code><a class="el" href="dispatch__session_8c.html">dispatch_session.c</a></code> routes <code>kXR_auth</code> to its handler <code><a class="el" href="src_2auth_2gsi_2auth_8c.html#a057d6806d9eb05ca423f7c23be708a34">brix_handle_auth()</a></code>, which lives in <a class="el" href="md_src_2auth_2gsi_2README.html">`../gsi/`</a> (<code><a class="el" href="src_2auth_2gsi_2auth_8c.html">gsi/auth.c</a></code> — the credential-type front door), <em>not</em> in <code>session/</code>. From there it dispatches by credential type to <a class="el" href="md_src_2auth_2gsi_2README.html">`../gsi/`</a> (GSI proxy chains), <a class="el" href="md_src_2auth_2token_2README.html">`../token/`</a> (JWT/WLCG bearer), <a class="el" href="md_src_2auth_2sss_2README.html">`../sss/`</a> (shared secret), and <a class="el" href="md_src_2auth_2krb5_2README.html">`../krb5/`</a> (Kerberos). <code>session/</code> owns the <em>other</em> session-lifecycle opcodes (login, bind, ping, set, endsess). The handshake gates here only <em>enforce</em> the resulting <code>ctx-&gt;logged_in</code> / <code>ctx-&gt;auth_done</code> flags.</p>
-<h1><a class="anchor" id="autotoc_md343"></a>
+<h1><a class="anchor" id="autotoc_md344"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>Fall-through routing, fixed order.</b> Phases run in the exact order in <code>dispatch.c</code>. The signing dispatcher must remain last because <code><a class="el" href="dispatch__signing_8c.html">dispatch_signing.c</a></code> only handles <code>kXR_sigver</code>, while <code>sigver.c</code> (phase 1) inspects <em>every</em> request to validate the previously-queued envelope. Do not reorder; <code>kXR_bind</code> in particular must be tried before the login/auth gates because it legitimately arrives on a secondary connection <em>before</em> its login (<code><a class="el" href="dispatch__session_8c.html">dispatch_session.c</a>:149</code>).</li>
@@ -173,7 +173,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Minimal handshake validation by design.</b> <code><a class="el" href="client__hello_8c.html">client_hello.c</a></code> deliberately validates only the two magic fields it relies on (<code>fourth==4</code>, <code>fifth==ROOTD_PQ</code>); other prologue bytes are accepted. The reply uses <code>streamid={0,0}</code> because no request header exists yet. In XRootD v5 the client often packs handshake + <code>kXR_protocol</code> into one 44-byte TCP segment — framing of the trailing bytes is <code>recv.c</code>'s job, not this file's.</li>
 <li><b>Single-threaded, no blocking here.</b> Dispatch runs on the worker event loop; it never sleeps, reads, or does filesystem I/O. Blocking work belongs to the handlers it routes to, which offload via <a class="el" href="md_src_2core_2aio_2README.html">`../aio/`</a>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md344"></a>
+<h1><a class="anchor" id="autotoc_md345"></a>
 Entry points / extending</h1>
 <p><b>Add a new stream opcode:</b></p><ol type="1">
 <li>Decide its category and add a <code>case</code> to the matching file: <code><a class="el" href="dispatch__session_8c.html">dispatch_session.c</a></code> (lifecycle), <code><a class="el" href="dispatch__read_8c.html">dispatch_read.c</a></code> (non-mutating — wrap in <code>DISPATCH_RD</code> or <code>DISPATCH_RD_BOUND</code>), or <code><a class="el" href="dispatch__write_8c.html">dispatch_write.c</a></code> (mutating — wrap in <code>DISPATCH_WR</code>). The macro applies the correct gate automatically; pass <code>conf</code> as a trailing arg only if the handler needs it.</li>
@@ -182,7 +182,7 @@ Entry points / extending</h1>
 <li>Update the routing comment block in <code>dispatch.c</code> and add the 3 standard tests (success + error + security-negative) per the project test rule.</li>
 </ol>
 <p><b>Add a new pre-dispatch gate</b> (e.g. a new policy check applied to all requests): add a phase in <code>brix_dispatch</code> (<code>dispatch.c</code>) returning <code>BRIX_DISPATCH_CONTINUE</code> to proceed; keep the signing dispatcher last.</p>
-<h1><a class="anchor" id="autotoc_md345"></a>
+<h1><a class="anchor" id="autotoc_md346"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2protocols_2root_2connection_2README.html">`../connection/README.md`</a> — frames bytes and invokes this subsystem (sole caller).</li>

@@ -16,5 +16,7 @@ var dir_0e171afe84f6592f0394c2b6d2b3940b =
     [ "http_query.h", "http__query_8h.html", "http__query_8h" ],
     [ "http_xml.c", "http__xml_8c.html", "http__xml_8c" ],
     [ "http_xml.h", "http__xml_8h.html", "http__xml_8h" ],
-    [ "ktls.h", "ktls_8h.html", "ktls_8h" ]
+    [ "ktls.h", "ktls_8h.html", "ktls_8h" ],
+    [ "sesslog_conn.c", "sesslog__conn_8c.html", "sesslog__conn_8c" ],
+    [ "sesslog_conn.h", "sesslog__conn_8h.html", "sesslog__conn_8h" ]
 ];

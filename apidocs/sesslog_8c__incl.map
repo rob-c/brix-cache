@@ -1,0 +1,19 @@
+<map id="src/observability/sesslog/sesslog.c" name="src/observability/sesslog/sesslog.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="379,5,562,45"/>
+<area shape="rect" id="Node000002" href="$sesslog_8h.html" title=" " alt="" coords="11,93,171,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="388,48,185,94,184,88,387,43"/>
+<area shape="rect" id="Node000005" href="$opcodes_8h.html" title=" " alt="" coords="195,93,365,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="430,48,335,90,333,85,428,43"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="389,101,457,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="462,47,438,90,434,87,458,44"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="481,101,556,126"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="484,44,508,87,503,90,479,47"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="580,101,647,126"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="503,43,584,91,581,96,501,48"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="671,101,742,126"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="526,43,660,91,666,93,664,98,658,96,524,48"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,181,80,207"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="81,135,59,171,55,168,77,132"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="105,181,175,207"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="105,132,128,168,123,171,100,135"/>
+</map>

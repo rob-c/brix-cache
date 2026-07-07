@@ -211,8 +211,8 @@ $(document).ready(function(){initNavTree('keys_8c_source.html',''); initResizabl
 <div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>    }</div>
 <div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span> </div>
 <div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>    pub_point[0] = 0x04;  <span class="comment">/* uncompressed point */</span></div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    ngx_memcpy(pub_point + 1,  x_bin, 32);</div>
-<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    ngx_memcpy(pub_point + 33, y_bin, 32);</div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(pub_point + 1,  x_bin, 32);</div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(pub_point + 33, y_bin, 32);</div>
 <div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span> </div>
 <div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>    bld = OSSL_PARAM_BLD_new();</div>
 <div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>    <span class="keywordflow">if</span> (bld == NULL) {</div>
@@ -242,6 +242,7 @@ $(document).ready(function(){initNavTree('keys_8c_source.html',''); initResizabl
 <div class="ttc" id="ab64url_8h_html"><div class="ttname"><a href="b64url_8h.html">b64url.h</a></div></div>
 <div class="ttc" id="akeys_8c_html_a288c8217d8a28be8d7bcf0a199554c18"><div class="ttname"><a href="keys_8c.html#a288c8217d8a28be8d7bcf0a199554c18">brix_token_ec_pubkey_from_xy</a></div><div class="ttdeci">EVP_PKEY * brix_token_ec_pubkey_from_xy(const char *x_b64, size_t x_b64_len, const char *y_b64, size_t y_b64_len, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="keys_8c_source.html#l00091">keys.c:91</a></div></div>
 <div class="ttc" id="akeys_8c_html_a86f0d816ad62b0f8e4a44607168f0e51"><div class="ttname"><a href="keys_8c.html#a86f0d816ad62b0f8e4a44607168f0e51">brix_token_rsa_pubkey_from_ne</a></div><div class="ttdeci">EVP_PKEY * brix_token_rsa_pubkey_from_ne(const char *n_b64, size_t n_b64_len, const char *e_b64, size_t e_b64_len, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="keys_8c_source.html#l00031">keys.c:31</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="apki__check_8h_html_ac08d621cd366ef68ad85972de09dc827"><div class="ttname"><a href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a></div><div class="ttdeci">BRIX_LOG_T * log</div><div class="ttdef"><b>Definition</b> <a href="pki__check_8h_source.html#l00035">pki_check.h:35</a></div></div>
 <div class="ttc" id="atoken__internal_8h_html"><div class="ttname"><a href="token__internal_8h.html">token_internal.h</a></div></div>
 </div><!-- fragment --></div><!-- contents -->

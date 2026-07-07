@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2webdav_2util_2READM
   <div class="headertitle"><div class="title">webdav/util — WebDAV URI decoding and XML escaping helpers</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md508"></a> </p>
-<h1><a class="anchor" id="autotoc_md509"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md509"></a> </p>
+<h1><a class="anchor" id="autotoc_md510"></a>
 Overview</h1>
 <p>This is the smallest WebDAV leaf subsystem: two thin, protocol-aware adapters that sit between the WebDAV method handlers (<code>../</code>) and the all-protocol shared implementations in <code>../../compat/</code>. It holds no state, allocates almost nothing of its own, and exists purely to translate the generic compat primitives into the <em>nginx HTTP</em> dialect that WebDAV handlers expect — specifically nginx status codes (<code>NGX_OK</code>, <code>NGX_HTTP_BAD_REQUEST</code>, …) and nginx request-pool allocation (<code>ngx_pnalloc</code>).</p>
 <p><code>uri.c</code> handles two inbound-path concerns. <code><a class="el" href="protocols_2webdav_2util_2uri_8c.html#a9fb3cbd2f4fe9af855a71ce59545c564">webdav_urldecode()</a></code> percent-decodes a request URI or a <code>Destination</code> header path into a caller-supplied buffer, mapping the compat decoder's numeric result codes onto nginx HTTP error codes and <em>rejecting embedded NUL bytes</em> (a security requirement — a NUL would otherwise truncate the string before path confinement runs). <code><a class="el" href="protocols_2webdav_2util_2uri_8c.html#a789d22d57db46a4a63d7989ff43de3d2">webdav_destination_extract_path()</a></code> strips the optional <code>scheme://authority</code> prefix from a WebDAV <code>Destination</code> header (RFC 4918 §8.3 allows both the absolute-URI and path-only forms), returning a zero-copy pointer into the original buffer at the start of the path component.</p>
 <p><code>xml.c</code> handles the outbound concern. <code><a class="el" href="protocols_2webdav_2util_2xml_8c.html#abab0572c90b2e91e08460e6061df7fcb" title="WHAT: Escape a string for safe inclusion in XML text response bodies.">webdav_escape_xml_text()</a></code> escapes filesystem paths, lock-owner strings, and metadata before they are embedded as XML text in response bodies (PROPFIND Multi-Status, LOCK, HEAD/property output, SEARCH, dead-property storage). Without escaping, a filename containing <code>&amp;</code> or <code>&lt;</code> would corrupt the XML structure — i.e. an XML-injection / response-corruption bug.</p>
 <p>These helpers run on the HTTP request path only. <code>uri.c</code> is invoked during path resolution (<code>../path.c</code>) and by the COPY/MOVE handlers (<code>../copy.c</code>, <code>../move.c</code>); <code>xml.c</code> is invoked by every handler that emits an XML body. Both <code>.c</code> files are registered in the top-level <code>config</code> build script (sources around lines 563–564, headers around 228–229).</p>
-<h1><a class="anchor" id="autotoc_md510"></a>
+<h1><a class="anchor" id="autotoc_md511"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -117,7 +117,7 @@ Files</h1>
 <blockquote class="doxtable">
 <p>&zwj;Historical note: safe-path log formatting (<code>brix_log_safe_path</code>) is <b>not</b> here — it was promoted to the all-protocol shared helper in <code>../../compat/log.{c,h}</code> (reached via <code>../webdav.h</code>), and the former <code>webdav/util/logging.{c,h}</code> back-compat stubs were removed once all callers resolved to the compat header. </p>
 </blockquote>
-<h1><a class="anchor" id="autotoc_md511"></a>
+<h1><a class="anchor" id="autotoc_md512"></a>
 Key types &amp; data structures</h1>
 <p>This subsystem defines no types of its own. It consumes constants and signatures from <code>../../compat/</code>:</p>
 <ul>
@@ -125,7 +125,7 @@ Key types &amp; data structures</h1>
 <li>**<code>BRIX_URLDECODE_REJECT_NUL</code>** (<code>0x01</code>) — the flag <code><a class="el" href="protocols_2webdav_2util_2uri_8c.html#a9fb3cbd2f4fe9af855a71ce59545c564">webdav_urldecode()</a></code> always passes so that <code>%00</code> yields <code>NUL_BYTE</code> (→ 400) instead of a silent truncation.</li>
 <li>**<code>BRIX_XML_ESCAPE_CONTROL_PERCENT</code>** (<code>0x02</code>) — the flag <code><a class="el" href="protocols_2webdav_2util_2xml_8c.html#abab0572c90b2e91e08460e6061df7fcb" title="WHAT: Escape a string for safe inclusion in XML text response bodies.">webdav_escape_xml_text()</a></code> always passes so control bytes (<code>&lt; 0x20</code>, <code>0x7f</code>) are rendered as <code>XX</code> rather than left raw (they have no standard XML entity name). Note: with this flag set (and <code>BRIX_XML_ESCAPE_APOS_ENTITY</code> unset) &lsquo;&rsquo;<code>is escaped as</code>&amp;#39;`.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md512"></a>
+<h1><a class="anchor" id="autotoc_md513"></a>
 Control &amp; data flow</h1>
 <p>**Entry — inbound (<code>uri.c</code>):**</p><ul>
 <li><code>../path.c</code> (<code>webdav</code> path resolution) calls <code>webdav_urldecode(r-&gt;uri.data, r-&gt;uri.len, …)</code> to decode the request URI before it is canonicalised and confined beneath the export root.</li>
@@ -139,7 +139,7 @@ Control &amp; data flow</h1>
 <li><code>../../compat/xml.c</code> (<code>brix_xml_escaped_len</code>, <code>brix_xml_escape</code>) — the actual two-pass escaper (length pre-sizing, then escape into the sized buffer).</li>
 </ul>
 <p>The decoded/escaped output then flows on into the rest of the WebDAV lifecycle: the decoded path goes through kernel confinement in <code>../../path/</code> (see <code>../../path/README.md</code>, <code><a class="el" href="beneath_8c.html">beneath.c</a></code> / RESOLVE_BENEATH) before any syscall; the escaped XML is written into response chains by the calling method handler.</p>
-<h1><a class="anchor" id="autotoc_md513"></a>
+<h1><a class="anchor" id="autotoc_md514"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>NUL-byte rejection is load-bearing, not cosmetic.</b> <code><a class="el" href="protocols_2webdav_2util_2uri_8c.html#a9fb3cbd2f4fe9af855a71ce59545c564">webdav_urldecode()</a></code> always passes <code>BRIX_URLDECODE_REJECT_NUL</code> (<code>uri.c:46-47</code>). A <code>%00</code> in a path must fail the request with <code>400</code>, never silently truncate — a truncated string would be confined/matched against the <em>wrong</em> path. This is the WebDAV analogue of the "always confine client paths" invariant.</li>
@@ -151,14 +151,14 @@ Invariants, security &amp; gotchas</h1>
 <li>**<code>src</code> for <code><a class="el" href="protocols_2webdav_2util_2xml_8c.html#abab0572c90b2e91e08460e6061df7fcb" title="WHAT: Escape a string for safe inclusion in XML text response bodies.">webdav_escape_xml_text()</a></code> must be a C string.** Length is computed via <code>strlen()</code> (<code>xml.c:65</code>); this helper is for NUL-terminated input, unlike the length-explicit URI helpers.</li>
 <li><b>Two-pass sizing is exact.</b> The buffer is sized via <code><a class="el" href="core_2compat_2xml_8c.html#aeebeba0cf554249e3531e695c2640db4">brix_xml_escaped_len()</a></code> and then <code><a class="el" href="core_2compat_2xml_8c.html#a2d0c0bc5b13e421ca9329cd196f0a114">brix_xml_escape()</a></code> is called with <code>escaped_len + 1</code> capacity (<code>xml.c:66-75</code>); a non-zero return from the escaper (overflow/badarg) is treated as failure → <code>NULL</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md514"></a>
+<h1><a class="anchor" id="autotoc_md515"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>Add a new WebDAV URI/Destination transform:</b> put it in <code>uri.c</code>/<code>uri.h</code>, follow the existing pattern — delegate the byte-level work to a <code>../../compat/</code> primitive and only do the nginx-code / pool adaptation here. Register any new <code>.c</code> in the top-level <code>config</code> (<code>NGX_ADDON_SRCS</code>, alongside the existing <code><a class="el" href="protocols_2webdav_2util_2uri_8c.html">src/protocols/webdav/util/uri.c</a></code>) and the header in the headers list.</li>
 <li><b>Add a new response-body escaper (e.g. JSON):</b> mirror <code>xml.c</code> — add the flag handling to <code>../../compat/xml.c</code> (or the relevant compat module) and keep the pool-allocating, NULL-on-failure wrapper here so callers stay protocol-clean.</li>
 <li><b>Do not</b> add stateful or I/O-performing code here; this layer is intentionally pure transformation. Anything touching the filesystem belongs in <code>../../fs/</code> or <code>../../path/</code>.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md515"></a>
+<h1><a class="anchor" id="autotoc_md516"></a>
 See also</h1>
 <ul>
 <li><code>../README.md</code> — WebDAV method-handler subsystem (callers: <code>path.c</code>, <code>copy.c</code>, <code><a class="el" href="move_8c.html">move.c</a></code>, <code><a class="el" href="propfind_8c.html">propfind.c</a></code>, <code>lock.c</code>, <code><a class="el" href="methods__basic_8c.html">methods_basic.c</a></code>, <code><a class="el" href="search_8c.html">search.c</a></code>, <code><a class="el" href="dead__props_8c.html">dead_props.c</a></code>).</li>

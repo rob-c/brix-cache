@@ -93,8 +93,8 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2dig_2README.html','
   <div class="headertitle"><div class="title">&lt;tt&gt;src/protocols/dig/&lt;/tt&gt; — XrdDig-style remote diagnostics</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md304"></a> </p>
-<h1><a class="anchor" id="autotoc_md305"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md305"></a> </p>
+<h1><a class="anchor" id="autotoc_md306"></a>
 Overview</h1>
 <p>An <code>XrdDig</code>-style handler that gives operators <b>read-only, authorization-gated HTTP access to a whitelist of server-side files</b> (config, logs, …) without a shell on the box. Requests under <code>/.well-known/dig/&lt;export&gt;/&lt;rel&gt;</code> are routed here from the WebDAV dispatch when the feature is enabled (<code>brix_webdav_dig on</code>).</p>
 <p>The handler is <b>fail-closed by construction</b> — every layer denies by default:</p>
@@ -104,7 +104,7 @@ Overview</h1>
 <li><b>Confinement</b> — every open goes through the kernel <code>openat2(RESOLVE_BENEATH)</code> primitive (<code>brix_open_beneath</code>) anchored at the export's realpath, so <code>../</code> and symlink escapes are impossible regardless of the requested relative path. Export dirs are realpath'd at config time (the BENEATH anchors).</li>
 <li><b>Authorization</b> — a principal→export allow-file. An anonymous principal, an unset/unreadable allow-file, or no matching rule all DENY (403). The principal is the token subject if present, else the GSI DN.</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md306"></a>
+<h1><a class="anchor" id="autotoc_md307"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -114,7 +114,7 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="dig_8c.html">dig.c</a></code>   </td><td class="markdownTableBodyNone">The handler and all of its enforcement: principal resolution, allow-file authorization, method/confinement checks, and the confined open+serve.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md307"></a>
+<h1><a class="anchor" id="autotoc_md308"></a>
 See also</h1>
 <ul>
 <li><code>../path/beneath.h</code> — the <code>RESOLVE_BENEATH</code> confined-open primitive.</li>

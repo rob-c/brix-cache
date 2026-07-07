@@ -106,6 +106,7 @@ $(document).ready(function(){initNavTree('close_8c.html',''); initResizable(); }
 <code>#include &quot;<a class="el" href="cns_8h_source.html">net/cms/cns.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="cms__internal_8h_source.html">net/cms/cms_internal.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="frame__io_8h_source.html">net/cms/frame_io.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="sesslog__ngx_8h_source.html">observability/sesslog/sesslog_ngx.h</a>&quot;</code><br />
 <code>#include &lt;stdio.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
 <code>#include &lt;sys/stat.h&gt;</code><br />
@@ -124,10 +125,60 @@ $(document).ready(function(){initNavTree('close_8c.html',''); initResizable(); }
 Functions</h2></td></tr>
 <tr class="memitem:a7fec9bebebe47c538e94b0d13e7298de" id="r_a7fec9bebebe47c538e94b0d13e7298de"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="close_8c.html#a7fec9bebebe47c538e94b0d13e7298de">brix_cns_emit_close</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, <a class="el" href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a> *conf, int idx)</td></tr>
 <tr class="separator:a7fec9bebebe47c538e94b0d13e7298de"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a94fb9e0516f821755233da36f704803c" id="r_a94fb9e0516f821755233da36f704803c"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="close_8c.html#a94fb9e0516f821755233da36f704803c">brix_close_finish_sess_xfer</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, int idx, <a class="el" href="sesslog_8h.html#aed82e27732dc1aab2958badc613c29c4">brix_sess_xfer_status_t</a> status)</td></tr>
+<tr class="separator:a94fb9e0516f821755233da36f704803c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0fbd696dc6925d511eb00d06796353d9" id="r_a0fbd696dc6925d511eb00d06796353d9"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="close_8c.html#a0fbd696dc6925d511eb00d06796353d9">brix_handle_close</a> (<a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *ctx, ngx_connection_t *<a class="el" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>)</td></tr>
 <tr class="separator:a0fbd696dc6925d511eb00d06796353d9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="a94fb9e0516f821755233da36f704803c" name="a94fb9e0516f821755233da36f704803c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a94fb9e0516f821755233da36f704803c">&#9670;&#160;</a></span>brix_close_finish_sess_xfer()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void brix_close_finish_sess_xfer </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structbrix__ctx__t.html">brix_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>idx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="sesslog_8h.html#aed82e27732dc1aab2958badc613c29c4">brix_sess_xfer_status_t</a>&#160;</td>
+          <td class="paramname"><em>status</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="close_8c_source.html#l00112">112</a> of file <a class="el" href="close_8c_source.html">close.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00080">brix_sess_xfer_t::active</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00399">brix_sess_xfer_add()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00408">brix_sess_xfer_end()</a>, <a class="el" href="sesslog_8h_source.html#l00077">brix_sess_xfer_t::bytes</a>, <a class="el" href="core_2types_2file_8h_source.html#l00059">brix_file_t::bytes_read</a>, <a class="el" href="core_2types_2file_8h_source.html#l00060">brix_file_t::bytes_written</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="context_8h_source.html#l00101">brix_ctx_t::sess</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00062">brix_file_t::sess_xfer</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="close_8c_source.html#l00127">brix_handle_close()</a>.</p>
+
+</div>
+</div>
 <a id="a7fec9bebebe47c538e94b0d13e7298de" name="a7fec9bebebe47c538e94b0d13e7298de"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a7fec9bebebe47c538e94b0d13e7298de">&#9670;&#160;</a></span>brix_cns_emit_close()</h2>
 
@@ -168,11 +219,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="close_8c_source.html#l00058">58</a> of file <a class="el" href="close_8c_source.html">close.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="close_8c_source.html#l00059">59</a> of file <a class="el" href="close_8c_source.html">close.c</a>.</p>
 
-<p class="reference">References <a class="el" href="frame__io_8c_source.html#l00064">brix_cms_send_frame()</a>, <a class="el" href="cns_8h_source.html#l00035">BRIX_CNS_ADD</a>, <a class="el" href="cns_8h_source.html#l00042">BRIX_CNS_EMIT</a>, <a class="el" href="cns_8c_source.html#l00034">brix_cns_event_encode()</a>, <a class="el" href="cns_8h_source.html#l00051">BRIX_CNS_HDR_LEN</a>, <a class="el" href="cns_8h_source.html#l00045">BRIX_CNS_PATH_MAX</a>, <a class="el" href="types_2config_8h_source.html#l00636">ngx_stream_brix_srv_conf_t::cms</a>, <a class="el" href="cms__internal_8h_source.html#l00118">CMS_MOD_RAW</a>, <a class="el" href="cns_8h_source.html#l00032">CMS_RR_CNS</a>, <a class="el" href="types_2config_8h_source.html#l00355">ngx_stream_brix_srv_conf_t::cns_mode</a>, <a class="el" href="types_2config_8h_source.html#l00113">ngx_stream_brix_srv_conf_t::common</a>, <a class="el" href="conf__structs_8h_source.html#l00084">brix_cms_conf_t::ctx</a>, <a class="el" href="core_2types_2file_8h_source.html#l00056">brix_file_t::fd</a>, <a class="el" href="context_8h_source.html#l00108">brix_ctx_t::files</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="core_2types_2file_8h_source.html#l00057">brix_file_t::path</a>, <a class="el" href="core_2types_2file_8h_source.html#l00131">brix_file_t::posc_final_path</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00061">brix_file_t::writable</a>.</p>
+<p class="reference">References <a class="el" href="frame__io_8c_source.html#l00064">brix_cms_send_frame()</a>, <a class="el" href="cns_8h_source.html#l00035">BRIX_CNS_ADD</a>, <a class="el" href="cns_8h_source.html#l00042">BRIX_CNS_EMIT</a>, <a class="el" href="cns_8c_source.html#l00034">brix_cns_event_encode()</a>, <a class="el" href="cns_8h_source.html#l00051">BRIX_CNS_HDR_LEN</a>, <a class="el" href="cns_8h_source.html#l00045">BRIX_CNS_PATH_MAX</a>, <a class="el" href="types_2config_8h_source.html#l00637">ngx_stream_brix_srv_conf_t::cms</a>, <a class="el" href="cms__internal_8h_source.html#l00118">CMS_MOD_RAW</a>, <a class="el" href="cns_8h_source.html#l00032">CMS_RR_CNS</a>, <a class="el" href="types_2config_8h_source.html#l00356">ngx_stream_brix_srv_conf_t::cns_mode</a>, <a class="el" href="types_2config_8h_source.html#l00113">ngx_stream_brix_srv_conf_t::common</a>, <a class="el" href="conf__structs_8h_source.html#l00084">brix_cms_conf_t::ctx</a>, <a class="el" href="core_2types_2file_8h_source.html#l00057">brix_file_t::fd</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="core_2types_2file_8h_source.html#l00058">brix_file_t::path</a>, <a class="el" href="core_2types_2file_8h_source.html#l00133">brix_file_t::posc_final_path</a>, <a class="el" href="shared__conf_8h_source.html#l00035">ngx_http_brix_shared_conf_t::root_canon</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, and <a class="el" href="core_2types_2file_8h_source.html#l00063">brix_file_t::writable</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="close_8c_source.html#l00103">brix_handle_close()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="close_8c_source.html#l00127">brix_handle_close()</a>.</p>
 
 </div>
 </div>
@@ -202,9 +253,9 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="close_8c_source.html#l00103">103</a> of file <a class="el" href="close_8c_source.html">close.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="close_8c_source.html#l00127">127</a> of file <a class="el" href="close_8c_source.html">close.c</a>.</p>
 
-<p class="reference">References <a class="el" href="close_8c_source.html#l00058">brix_cns_emit_close()</a>, <a class="el" href="staged__file_8c_source.html#l00368">brix_commit_staged()</a>, <a class="el" href="fd__table_8c_source.html#l00290">brix_free_fhandle()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00109">brix_log_access()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00039">BRIX_OP_CLOSE</a>, <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="pgw__fob_8c_source.html#l00107">brix_pgw_fob_count()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="staged__file_8c_source.html#l00502">brix_stage_mark_pending()</a>, <a class="el" href="staged__file_8c_source.html#l00530">brix_stage_unmark_pending()</a>, <a class="el" href="throttle__compat_8c_source.html#l00168">brix_throttle_open_dec()</a>, <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00153">brix_transfer_slot_count_op()</a>, <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00162">brix_transfer_slot_free()</a>, <a class="el" href="fd__table_8c_source.html#l00451">brix_validate_file_handle()</a>, <a class="el" href="wrts__journal_8c_source.html#l00100">brix_wrts_flush()</a>, <a class="el" href="xfer_8h_source.html#l00066">BRIX_XFER_COMMIT_ERR</a>, <a class="el" href="xfer__core_8c_source.html#l00025">brix_xfer_finish()</a>, <a class="el" href="xfer_8h_source.html#l00061">BRIX_XFER_OK</a>, <a class="el" href="xfer_8h_source.html#l00037">BRIX_XFER_STAGE</a>, <a class="el" href="core_2types_2file_8h_source.html#l00058">brix_file_t::bytes_read</a>, <a class="el" href="core_2types_2file_8h_source.html#l00059">brix_file_t::bytes_written</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="core_2types_2file_8h_source.html#l00227">brix_file_t::dashboard_slot</a>, <a class="el" href="ctx__structs_8h_source.html#l00159">brix_ctx_login_t::dn</a>, <a class="el" href="core_2types_2file_8h_source.html#l00056">brix_file_t::fd</a>, <a class="el" href="wire__codec_8h_source.html#l00170">xrdw_close_req_t::fhandle</a>, <a class="el" href="context_8h_source.html#l00108">brix_ctx_t::files</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="ctx__structs_8h_source.html#l00173">brix_ctx_recv_t::hdr_buf</a>, <a class="el" href="core_2types_2file_8h_source.html#l00143">brix_file_t::is_resume</a>, <a class="el" href="opcodes_8h_source.html#l00165">kXR_ChkSumErr</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="observability_2dashboard_2config_8c_source.html#l00019">ngx_brix_dashboard_shm_zone</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="ctx__structs_8h_source.html#l00046">brix_ctx_throttle_t::open_held</a>, <a class="el" href="core_2types_2file_8h_source.html#l00060">brix_file_t::open_time</a>, <a class="el" href="core_2types_2file_8h_source.html#l00057">brix_file_t::path</a>, <a class="el" href="core_2types_2file_8h_source.html#l00219">brix_file_t::pgw_fob_enabled</a>, <a class="el" href="core_2types_2file_8h_source.html#l00131">brix_file_t::posc_final_path</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="context_8h_source.html#l00092">brix_ctx_t::session</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="types_2config_8h_source.html#l00235">ngx_stream_brix_srv_conf_t::throttle</a>, <a class="el" href="context_8h_source.html#l00180">brix_ctx_t::throttle</a>, <a class="el" href="types_2config_8h_source.html#l00680">ngx_stream_brix_srv_conf_t::upload_stage_dir_canon</a>, <a class="el" href="wire__codec__file_8c_source.html#l00056">xrdw_close_req_unpack()</a>, and <a class="el" href="conf__structs_8h_source.html#l00173">brix_throttle_conf_t::zone</a>.</p>
+<p class="reference">References <a class="el" href="close_8c_source.html#l00112">brix_close_finish_sess_xfer()</a>, <a class="el" href="close_8c_source.html#l00059">brix_cns_emit_close()</a>, <a class="el" href="staged__file_8c_source.html#l00368">brix_commit_staged()</a>, <a class="el" href="fd__table_8c_source.html#l00290">brix_free_fhandle()</a>, <a class="el" href="accesslog_2access__log_8c_source.html#l00344">brix_log_access()</a>, <a class="el" href="observability_2metrics_2metrics_8h_source.html#l00039">BRIX_OP_CLOSE</a>, <a class="el" href="tunables_8h_source.html#l00266">BRIX_OP_ERR</a>, <a class="el" href="tunables_8h_source.html#l00261">BRIX_OP_OK</a>, <a class="el" href="pgw__fob_8c_source.html#l00107">brix_pgw_fob_count()</a>, <a class="el" href="basic_8c_source.html#l00067">brix_send_error()</a>, <a class="el" href="basic_8c_source.html#l00043">brix_send_ok()</a>, <a class="el" href="sesslog_8h_source.html#l00057">BRIX_SESS_XFER_ABORTED</a>, <a class="el" href="sesslog_8h_source.html#l00056">BRIX_SESS_XFER_COMPLETE</a>, <a class="el" href="staged__file_8c_source.html#l00502">brix_stage_mark_pending()</a>, <a class="el" href="staged__file_8c_source.html#l00530">brix_stage_unmark_pending()</a>, <a class="el" href="throttle__compat_8c_source.html#l00168">brix_throttle_open_dec()</a>, <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00153">brix_transfer_slot_count_op()</a>, <a class="el" href="observability_2dashboard_2noop_8c_source.html#l00162">brix_transfer_slot_free()</a>, <a class="el" href="fd__table_8c_source.html#l00451">brix_validate_file_handle()</a>, <a class="el" href="wrts__journal_8c_source.html#l00100">brix_wrts_flush()</a>, <a class="el" href="xfer_8h_source.html#l00066">BRIX_XFER_COMMIT_ERR</a>, <a class="el" href="xfer__core_8c_source.html#l00025">brix_xfer_finish()</a>, <a class="el" href="xfer_8h_source.html#l00061">BRIX_XFER_OK</a>, <a class="el" href="xfer_8h_source.html#l00037">BRIX_XFER_STAGE</a>, <a class="el" href="core_2types_2file_8h_source.html#l00059">brix_file_t::bytes_read</a>, <a class="el" href="core_2types_2file_8h_source.html#l00060">brix_file_t::bytes_written</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="core_2types_2file_8h_source.html#l00229">brix_file_t::dashboard_slot</a>, <a class="el" href="ctx__structs_8h_source.html#l00159">brix_ctx_login_t::dn</a>, <a class="el" href="core_2types_2file_8h_source.html#l00057">brix_file_t::fd</a>, <a class="el" href="wire__codec_8h_source.html#l00170">xrdw_close_req_t::fhandle</a>, <a class="el" href="context_8h_source.html#l00111">brix_ctx_t::files</a>, <a class="el" href="brixposix__preload_8c_source.html#l00443">fstat()</a>, <a class="el" href="ctx__structs_8h_source.html#l00173">brix_ctx_recv_t::hdr_buf</a>, <a class="el" href="core_2types_2file_8h_source.html#l00145">brix_file_t::is_resume</a>, <a class="el" href="opcodes_8h_source.html#l00165">kXR_ChkSumErr</a>, <a class="el" href="opcodes_8h_source.html#l00153">kXR_IOError</a>, <a class="el" href="context_8h_source.html#l00100">brix_ctx_t::login</a>, <a class="el" href="observability_2dashboard_2config_8c_source.html#l00019">ngx_brix_dashboard_shm_zone</a>, <a class="el" href="module__definition_8c_source.html#l00029">ngx_stream_brix_module</a>, <a class="el" href="ctx__structs_8h_source.html#l00046">brix_ctx_throttle_t::open_held</a>, <a class="el" href="core_2types_2file_8h_source.html#l00061">brix_file_t::open_time</a>, <a class="el" href="core_2types_2file_8h_source.html#l00058">brix_file_t::path</a>, <a class="el" href="core_2types_2file_8h_source.html#l00221">brix_file_t::pgw_fob_enabled</a>, <a class="el" href="core_2types_2file_8h_source.html#l00133">brix_file_t::posc_final_path</a>, <a class="el" href="context_8h_source.html#l00097">brix_ctx_t::recv</a>, <a class="el" href="context_8h_source.html#l00092">brix_ctx_t::session</a>, <a class="el" href="brixposix__preload_8c_source.html#l00421">stat()</a>, <a class="el" href="types_2config_8h_source.html#l00235">ngx_stream_brix_srv_conf_t::throttle</a>, <a class="el" href="context_8h_source.html#l00183">brix_ctx_t::throttle</a>, <a class="el" href="types_2config_8h_source.html#l00681">ngx_stream_brix_srv_conf_t::upload_stage_dir_canon</a>, <a class="el" href="wire__codec__file_8c_source.html#l00056">xrdw_close_req_unpack()</a>, and <a class="el" href="conf__structs_8h_source.html#l00173">brix_throttle_conf_t::zone</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="dispatch__read_8c_source.html#l00044">brix_dispatch_read_opcode()</a>.</p>
 

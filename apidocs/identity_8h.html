@@ -410,9 +410,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="identity_8c_source.html#l00175">175</a> of file <a class="el" href="identity_8c_source.html">identity.c</a>.</p>
 
-<p class="reference">References <a class="el" href="identity_8h_source.html#l00017">BRIX_AUTHN_NONE</a>.</p>
+<p class="reference">References <a class="el" href="identity_8h_source.html#l00017">BRIX_AUTHN_NONE</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00042">ngx_pcalloc()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00362">ngx_http_s3_handler()</a>, <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00007">ngx_stream_brix_handler()</a>, <a class="el" href="auth__cert_8c_source.html#l00153">webdav_ensure_identity()</a>, and <a class="el" href="auth__token_8c_source.html#l00160">webdav_verify_bearer_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2s3_2handler_8c_source.html#l00362">ngx_http_s3_handler()</a>, <a class="el" href="protocols_2root_2connection_2handler_8c_source.html#l00008">ngx_stream_brix_handler()</a>, <a class="el" href="auth__cert_8c_source.html#l00153">webdav_ensure_identity()</a>, and <a class="el" href="auth__token_8c_source.html#l00160">webdav_verify_bearer_token()</a>.</p>
 
 </div>
 </div>
@@ -450,9 +450,9 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="identity_8c_source.html#l00482">482</a> of file <a class="el" href="identity_8c_source.html">identity.c</a>.</p>
 
-<p class="reference">References <a class="el" href="identity_8h_source.html#l00058">brix_identity_t::auth_method</a>, <a class="el" href="identity_8h_source.html#l00019">BRIX_AUTHN_TOKEN</a>, <a class="el" href="validate_8c_source.html#l00581">brix_token_authz_strategy()</a>, <a class="el" href="scopes_8c_source.html#l00238">brix_token_check_read()</a>, <a class="el" href="scopes_8c_source.html#l00265">brix_token_check_write()</a>, <a class="el" href="token_8h_source.html#l00106">BRIX_TOKEN_OP_READ</a>, <a class="el" href="token_8h_source.html#l00107">BRIX_TOKEN_OP_WRITE</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="identity_8h_source.html#l00054">brix_identity_t::token_issuer</a>, <a class="el" href="identity_8h_source.html#l00052">brix_identity_t::token_scope_count</a>, and <a class="el" href="identity_8h_source.html#l00053">brix_identity_t::token_scopes</a>.</p>
+<p class="reference">References <a class="el" href="identity_8h_source.html#l00058">brix_identity_t::auth_method</a>, <a class="el" href="identity_8h_source.html#l00019">BRIX_AUTHN_TOKEN</a>, <a class="el" href="validate_8c_source.html#l00581">brix_token_authz_strategy()</a>, <a class="el" href="scopes_8c_source.html#l00238">brix_token_check_read()</a>, <a class="el" href="scopes_8c_source.html#l00265">brix_token_check_write()</a>, <a class="el" href="token_8h_source.html#l00106">BRIX_TOKEN_OP_READ</a>, <a class="el" href="token_8h_source.html#l00107">BRIX_TOKEN_OP_WRITE</a>, <a class="el" href="root_2session_2session_8h_source.html#l00059">c</a>, <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, <a class="el" href="identity_8h_source.html#l00054">brix_identity_t::token_issuer</a>, <a class="el" href="identity_8h_source.html#l00052">brix_identity_t::token_scope_count</a>, and <a class="el" href="identity_8h_source.html#l00053">brix_identity_t::token_scopes</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00019">brix_check_token_scope()</a>, <a class="el" href="src_2tpc_2common_2auth_8c_source.html#l00029">brix_tpc_check_scope_path()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00471">s3_dispatch_after_auth()</a>, <a class="el" href="tape__rest_8c_source.html#l00235">tape_authz_path()</a>, <a class="el" href="auth__token_8c_source.html#l00069">webdav_check_token_scope()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00610">webdav_handle_macaroon_request()</a>, and <a class="el" href="macaroon__endpoint_8c_source.html#l00271">webdav_handle_macaroon_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2root_2handshake_2policy_8c_source.html#l00019">brix_check_token_scope()</a>, <a class="el" href="src_2tpc_2common_2auth_8c_source.html#l00029">brix_tpc_check_scope_path()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00474">s3_dispatch_after_auth()</a>, <a class="el" href="tape__rest_8c_source.html#l00235">tape_authz_path()</a>, <a class="el" href="auth__token_8c_source.html#l00069">webdav_check_token_scope()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00610">webdav_handle_macaroon_request()</a>, and <a class="el" href="macaroon__endpoint_8c_source.html#l00271">webdav_handle_macaroon_token()</a>.</p>
 
 </div>
 </div>
@@ -484,7 +484,7 @@ Functions</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="identity_8c_source.html#l00522">522</a> of file <a class="el" href="identity_8c_source.html">identity.c</a>.</p>
 
-<p class="reference">References <a class="el" href="identity_8h_source.html#l00058">brix_identity_t::auth_method</a>, <a class="el" href="identity_8h_source.html#l00017">BRIX_AUTHN_NONE</a>, <a class="el" href="identity_8c_source.html#l00432">brix_identity_dn_cstr()</a>, <a class="el" href="identity_8c_source.html#l00147">brix_identity_method_name()</a>, and <a class="el" href="identity_8c_source.html#l00439">brix_identity_subject_cstr()</a>.</p>
+<p class="reference">References <a class="el" href="identity_8h_source.html#l00058">brix_identity_t::auth_method</a>, <a class="el" href="identity_8h_source.html#l00017">BRIX_AUTHN_NONE</a>, <a class="el" href="identity_8c_source.html#l00432">brix_identity_dn_cstr()</a>, <a class="el" href="identity_8c_source.html#l00147">brix_identity_method_name()</a>, <a class="el" href="identity_8c_source.html#l00439">brix_identity_subject_cstr()</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
 
 </div>
 </div>
@@ -508,7 +508,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="identity_8h_source.html#l00028">brix_identity_t::dn</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00026">brix_acc_gate_engine()</a>, <a class="el" href="metrics_2access__log_8c_source.html#l00089">brix_access_log_emit()</a>, <a class="el" href="authdb_8c_source.html#l00462">brix_check_authdb_identity()</a>, <a class="el" href="authdb_8c_source.html#l00349">brix_find_authdb_rule_identity()</a>, <a class="el" href="open__request_8c_source.html#l00269">brix_handle_open()</a>, <a class="el" href="identity_8c_source.html#l00522">brix_identity_describe()</a>, <a class="el" href="prepare_8c_source.html#l00088">brix_prepare_owner_key()</a>, <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, <a class="el" href="dig_8c_source.html#l00031">dig_principal()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00535">imp_principal_of()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00362">ngx_http_s3_handler()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00064">s3_acc_check()</a>, <a class="el" href="tape__rest_8c_source.html#l00479">tape_stage_cancel()</a>, <a class="el" href="tape__rest_8c_source.html#l00453">tape_stage_delete()</a>, <a class="el" href="tape__rest_8c_source.html#l00269">tape_stage_post()</a>, <a class="el" href="protocols_2webdav_2access_8c_source.html#l00061">webdav_acc_check()</a>, and <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="auth__gate_8c_source.html#l00026">brix_acc_gate_engine()</a>, <a class="el" href="metrics_2access__log_8c_source.html#l00089">brix_access_log_emit()</a>, <a class="el" href="authdb_8c_source.html#l00462">brix_check_authdb_identity()</a>, <a class="el" href="authdb_8c_source.html#l00349">brix_find_authdb_rule_identity()</a>, <a class="el" href="open__request_8c_source.html#l00269">brix_handle_open()</a>, <a class="el" href="identity_8c_source.html#l00522">brix_identity_describe()</a>, <a class="el" href="prepare_8c_source.html#l00088">brix_prepare_owner_key()</a>, <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, <a class="el" href="dig_8c_source.html#l00031">dig_principal()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00535">imp_principal_of()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00362">ngx_http_s3_handler()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00064">s3_acc_check()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00095">s3_sess_user()</a>, <a class="el" href="tape__rest_8c_source.html#l00479">tape_stage_cancel()</a>, <a class="el" href="tape__rest_8c_source.html#l00453">tape_stage_delete()</a>, <a class="el" href="tape__rest_8c_source.html#l00269">tape_stage_post()</a>, <a class="el" href="launch_8c_source.html#l00046">tpc_sess_identity_user()</a>, <a class="el" href="protocols_2webdav_2access_8c_source.html#l00061">webdav_acc_check()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00082">webdav_sess_user()</a>.</p>
 
 </div>
 </div>
@@ -545,6 +545,8 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="identity_8c_source.html#l00196">196</a> of file <a class="el" href="identity_8c_source.html">identity.c</a>.</p>
+
+<p class="reference">References <a class="el" href="ngx__shim_8h_source.html#l00019">ngx_memcpy</a>, and <a class="el" href="xrdceph__migrate_8c_source.html#l00043">ngx_pnalloc()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="bind_8c_source.html#l00035">brix_handle_bind()</a>, <a class="el" href="identity_8c_source.html#l00227">brix_identity_set_dn()</a>, <a class="el" href="identity_8c_source.html#l00248">brix_identity_set_subject()</a>, <a class="el" href="identity_8c_source.html#l00378">brix_identity_set_token_claims()</a>, and <a class="el" href="identity_8c_source.html#l00352">brix_identity_set_vos_csv()</a>.</p>
 
@@ -742,7 +744,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="identity_8h_source.html#l00029">brix_identity_t::subject</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="metrics_2access__log_8c_source.html#l00089">brix_access_log_emit()</a>, <a class="el" href="identity_8c_source.html#l00522">brix_identity_describe()</a>, <a class="el" href="dig_8c_source.html#l00031">dig_principal()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00535">imp_principal_of()</a>, <a class="el" href="s3_2put_8c_source.html#l00024">s3_dashboard_identity()</a>, and <a class="el" href="object_8c_source.html#l00098">s3_handle_get()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="metrics_2access__log_8c_source.html#l00089">brix_access_log_emit()</a>, <a class="el" href="identity_8c_source.html#l00522">brix_identity_describe()</a>, <a class="el" href="dig_8c_source.html#l00031">dig_principal()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00535">imp_principal_of()</a>, <a class="el" href="s3_2put_8c_source.html#l00024">s3_dashboard_identity()</a>, <a class="el" href="object_8c_source.html#l00098">s3_handle_get()</a>, <a class="el" href="protocols_2s3_2metrics_8c_source.html#l00095">s3_sess_user()</a>, <a class="el" href="launch_8c_source.html#l00046">tpc_sess_identity_user()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00082">webdav_sess_user()</a>.</p>
 
 </div>
 </div>
@@ -766,7 +768,7 @@ Functions</h2></td></tr>
 
 <p class="reference">References <a class="el" href="identity_8h_source.html#l00039">brix_identity_t::vo_csv</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="authdb_8c_source.html#l00462">brix_check_authdb_identity()</a>, <a class="el" href="auth_2authz_2acl_8c_source.html#l00094">brix_check_vo_acl_identity()</a>, <a class="el" href="authdb_8c_source.html#l00349">brix_find_authdb_rule_identity()</a>, <a class="el" href="open__request_8c_source.html#l00269">brix_handle_open()</a>, <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00362">ngx_http_s3_handler()</a>, and <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="authdb_8c_source.html#l00462">brix_check_authdb_identity()</a>, <a class="el" href="auth_2authz_2acl_8c_source.html#l00094">brix_check_vo_acl_identity()</a>, <a class="el" href="authdb_8c_source.html#l00349">brix_find_authdb_rule_identity()</a>, <a class="el" href="open__request_8c_source.html#l00269">brix_handle_open()</a>, <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, <a class="el" href="protocols_2s3_2handler_8c_source.html#l00362">ngx_http_s3_handler()</a>, <a class="el" href="launch_8c_source.html#l00064">tpc_sess_identity_vo()</a>, <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00100">webdav_sess_vo()</a>.</p>
 
 </div>
 </div>

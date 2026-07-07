@@ -207,7 +207,7 @@ $(document).ready(function(){initNavTree('tape__stage__conf_8c_source.html','');
 <div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    <span class="keywordflow">if</span> (n == 0 || n &gt;= <span class="keyword">sizeof</span>(buf)) {</div>
 <div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>        <span class="keywordflow">return</span> 0;</div>
 <div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>    }</div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>    ngx_memcpy(buf, <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>-&gt;data, n);</div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(buf, <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>-&gt;data, n);</div>
 <div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span>    buf[n] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>    v = strtod(buf, NULL);</div>
 <div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>    <span class="keywordflow">if</span> (buf[n - 1] == <span class="charliteral">&#39;%&#39;</span> || v &gt; 1.0) {     <span class="comment">/* a percentage like &quot;95&quot; or &quot;95%&quot; */</span></div>
@@ -239,6 +239,7 @@ $(document).ready(function(){initNavTree('tape__stage__conf_8c_source.html','');
 <div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>    <span class="keywordflow">return</span> NGX_CONF_OK;</div>
 <div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>}</div>
 </div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="aprotocols_2ssi_2registry_8c_html_acd3d5832e08669d2a41d61c045abc1fd"><div class="ttname"><a href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a></div><div class="ttdeci">brix_ssi_session_t * s</div><div class="ttdef"><b>Definition</b> <a href="protocols_2ssi_2registry_8c_source.html#l00016">registry.c:16</a></div></div>
 <div class="ttc" id="astructbrix__frm__conf__t_html"><div class="ttname"><a href="structbrix__frm__conf__t.html">brix_frm_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="tape__stage__conf_8h_source.html#l00024">tape_stage_conf.h:24</a></div></div>
 <div class="ttc" id="astructbrix__frm__conf__t_html_a00484e7296a435a165e978325103d117"><div class="ttname"><a href="structbrix__frm__conf__t.html#a00484e7296a435a165e978325103d117">brix_frm_conf_t::xfrhold_ms</a></div><div class="ttdeci">ngx_msec_t xfrhold_ms</div><div class="ttdef"><b>Definition</b> <a href="tape__stage__conf_8h_source.html#l00033">tape_stage_conf.h:33</a></div></div>

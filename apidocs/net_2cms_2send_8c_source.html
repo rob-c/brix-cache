@@ -144,7 +144,7 @@ $(document).ready(function(){initNavTree('net_2cms_2send_8c_source.html',''); in
 <div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    }</div>
 <div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>    <a class="code hl_function" href="cms__internal_8h.html#a7cf215af3794453c52bdff09dfe2ed84">ngx_brix_cms_put32</a>(buf, ecode);</div>
 <div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    <span class="keywordflow">if</span> (tlen &gt; 0) {</div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>        ngx_memcpy(buf + 4, text, tlen);</div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(buf + 4, text, tlen);</div>
 <div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    }</div>
 <div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    buf[4 + tlen] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="net_2cms_2send_8c.html#a05eee02aeaec9c799e2ecb2e74cccee0">ngx_brix_cms_send_frame</a>(ctx, streamid, <a class="code hl_define" href="cms__internal_8h.html#ae4d93e7d63f54f8e5a1b3a2ee8dece41">CMS_RSP_ERROR</a>, 0,</div>
@@ -212,7 +212,7 @@ $(document).ready(function(){initNavTree('net_2cms_2send_8c_source.html',''); in
 <div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span>                }</div>
 <div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>                *pp++ = ptype;</div>
 <div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>                *pp++ = <span class="charliteral">&#39; &#39;</span>;</div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>                ngx_memcpy(pp, paths.data + seg_start, seglen);</div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>                <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(pp, paths.data + seg_start, seglen);</div>
 <div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>                pp += seglen;</div>
 <div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>            }</div>
 <div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>            seg_start = i + 1;</div>
@@ -225,7 +225,7 @@ $(document).ready(function(){initNavTree('net_2cms_2send_8c_source.html',''); in
 <div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="comment">     * stable and reasonably unique for this node.</span></div>
 <div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="comment">     */</span></div>
 <div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>    <span class="keywordflow">if</span> (gethostname((<span class="keywordtype">char</span> *) hostbuf, <span class="keyword">sizeof</span>(hostbuf)) != 0) {</div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>        ngx_memcpy(hostbuf, <span class="stringliteral">&quot;nginx&quot;</span>, <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;nginx&quot;</span>));</div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(hostbuf, <span class="stringliteral">&quot;nginx&quot;</span>, <span class="keyword">sizeof</span>(<span class="stringliteral">&quot;nginx&quot;</span>));</div>
 <div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>    }</div>
 <div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>    hostbuf[<span class="keyword">sizeof</span>(hostbuf) - 1] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>    sid_len = (size_t) (ngx_snprintf(sid, <span class="keyword">sizeof</span>(sid), <span class="stringliteral">&quot;%s:%d&quot;</span>, hostbuf,</div>
@@ -481,7 +481,7 @@ $(document).ready(function(){initNavTree('net_2cms_2send_8c_source.html',''); in
 <div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span>    }</div>
 <div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span> </div>
-<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span>    ngx_memcpy(payload, path, plen);</div>
+<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(payload, path, plen);</div>
 <div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="net_2cms_2send_8c.html#a05eee02aeaec9c799e2ecb2e74cccee0">ngx_brix_cms_send_frame</a>(ctx, streamid, <a class="code hl_define" href="cms__internal_8h.html#afc6f3fe4cd5b6da638478b647aaaf370">CMS_RR_LOCATE</a>, 0,</div>
 <div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span>                                     payload, plen);</div>
 <div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span>}</div>
@@ -509,7 +509,7 @@ $(document).ready(function(){initNavTree('net_2cms_2send_8c_source.html',''); in
 <div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span>    }</div>
 <div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span> </div>
-<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span>    ngx_memcpy(payload, path, path_len);</div>
+<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(payload, path, path_len);</div>
 <div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span>    payload[path_len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span> </div>
 <div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="net_2cms_2send_8c.html#a05eee02aeaec9c799e2ecb2e74cccee0">ngx_brix_cms_send_frame</a>(ctx, streamid, <a class="code hl_define" href="cms__internal_8h.html#aa658616094713fe2a5498befdc233fd2">CMS_RR_HAVE</a>,</div>
@@ -556,6 +556,7 @@ $(document).ready(function(){initNavTree('net_2cms_2send_8c_source.html',''); in
 <div class="ttc" id="anet_2manager_2registry_8h_html"><div class="ttname"><a href="net_2manager_2registry_8h.html">registry.h</a></div></div>
 <div class="ttc" id="anet_2manager_2registry_8h_html_a53e7524a13a949ef69cd24e6e24bc78f"><div class="ttname"><a href="net_2manager_2registry_8h.html#a53e7524a13a949ef69cd24e6e24bc78f">brix_srv_aggregate_space</a></div><div class="ttdeci">void brix_srv_aggregate_space(uint32_t *total_free_mb, uint32_t *avg_util_pct)</div><div class="ttdef"><b>Definition</b> <a href="registry__health_8c_source.html#l00311">registry_health.c:311</a></div></div>
 <div class="ttc" id="anet_2manager_2registry_8h_html_a647683e11346693b3314f8d1e9cc8205"><div class="ttname"><a href="net_2manager_2registry_8h.html#a647683e11346693b3314f8d1e9cc8205">BRIX_SRV_MAX_PATHS</a></div><div class="ttdeci">#define BRIX_SRV_MAX_PATHS</div><div class="ttdef"><b>Definition</b> <a href="net_2manager_2registry_8h_source.html#l00025">registry.h:25</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

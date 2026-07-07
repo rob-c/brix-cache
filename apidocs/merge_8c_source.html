@@ -140,7 +140,7 @@ $(document).ready(function(){initNavTree('merge_8c_source.html',''); initResizab
 <div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>            <span class="keywordflow">return</span> NULL;</div>
 <div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>        }</div>
 <div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span> </div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>        ngx_memcpy(dst, parent-&gt;elts, parent-&gt;nelts * element_size);</div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(dst, parent-&gt;elts, parent-&gt;nelts * element_size);</div>
 <div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    }</div>
 <div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span> </div>
 <div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    <span class="keywordflow">if</span> (child != NULL &amp;&amp; child-&gt;nelts &gt; 0) {</div>
@@ -149,7 +149,7 @@ $(document).ready(function(){initNavTree('merge_8c_source.html',''); initResizab
 <div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>            <span class="keywordflow">return</span> NULL;</div>
 <div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>        }</div>
 <div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span> </div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>        ngx_memcpy(dst, child-&gt;elts, child-&gt;nelts * element_size);</div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(dst, child-&gt;elts, child-&gt;nelts * element_size);</div>
 <div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span>    }</div>
 <div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span> </div>
 <div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>    <span class="keywordflow">return</span> merged;</div>
@@ -157,6 +157,7 @@ $(document).ready(function(){initNavTree('merge_8c_source.html',''); initResizab
 </div>
 <div class="ttc" id="amerge_8c_html_a2d92f01a5f046ae5cdc112cd6e26cce6"><div class="ttname"><a href="merge_8c.html#a2d92f01a5f046ae5cdc112cd6e26cce6">brix_merge_arrays</a></div><div class="ttdeci">ngx_array_t * brix_merge_arrays(ngx_conf_t *cf, ngx_array_t *parent, ngx_array_t *child, size_t element_size)</div><div class="ttdef"><b>Definition</b> <a href="merge_8c_source.html#l00010">merge.c:10</a></div></div>
 <div class="ttc" id="angx__brix__module_8h_html"><div class="ttname"><a href="ngx__brix__module_8h.html">ngx_brix_module.h</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

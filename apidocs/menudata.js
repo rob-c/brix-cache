@@ -25,6 +25,11 @@
 var menudata={children:[
 {text:"Main Page",url:"index.html"},
 {text:"Related Pages",url:"pages.html"},
+{text:"Namespaces",url:"namespaces.html",children:[
+{text:"Namespace List",url:"namespaces.html"},
+{text:"Namespace Members",url:"namespacemembers.html",children:[
+{text:"All",url:"namespacemembers.html"},
+{text:"Functions",url:"namespacemembers_func.html"}]}]},
 {text:"Data Structures",url:"annotated.html",children:[
 {text:"Data Structures",url:"annotated.html"},
 {text:"Data Structure Index",url:"classes.html"},
@@ -163,6 +168,7 @@ var menudata={children:[
 {text:"Typedefs",url:"globals_type.html",children:[
 {text:"b",url:"globals_type.html#index_b"},
 {text:"k",url:"globals_type.html#index_k"},
+{text:"o",url:"globals_type.html#index_o"},
 {text:"p",url:"globals_type.html#index_p"},
 {text:"r",url:"globals_type.html#index_r"},
 {text:"s",url:"globals_type.html#index_s"},

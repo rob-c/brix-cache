@@ -218,7 +218,7 @@ $(document).ready(function(){initNavTree('safe__size_8h_source.html',''); initRe
 <div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span>    <span class="keywordflow">if</span> (<a class="code hl_function" href="safe__size_8h.html#a3e440ffc599badda7129c83dbc340b53">brix_size_mul</a>(n, sz, &amp;total) != NGX_OK || total == 0) {</div>
 <div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>        <span class="keywordflow">return</span> NULL;</div>
 <div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    }</div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>    <span class="keywordflow">return</span> ngx_pcalloc(pool, total);</div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(pool, total);</div>
 <div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>}</div>
 </div>
 <div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span> </div>
@@ -245,6 +245,7 @@ $(document).ready(function(){initNavTree('safe__size_8h_source.html',''); initRe
 </div>
 <div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span> </div>
 <div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span><span class="preprocessor">#endif </span><span class="comment">/* BRIX_SHARED_SAFE_SIZE_H */</span><span class="preprocessor"></span></div>
+<div class="ttc" id="angx__shim_8h_html_a0de53ece62d31e30ec1e1cd815b57267"><div class="ttname"><a href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a></div><div class="ttdeci">void * ngx_pcalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00042">xrdceph_migrate.c:42</a></div></div>
 <div class="ttc" id="apki__check_8h_html_ac08d621cd366ef68ad85972de09dc827"><div class="ttname"><a href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a></div><div class="ttdeci">BRIX_LOG_T * log</div><div class="ttdef"><b>Definition</b> <a href="pki__check_8h_source.html#l00035">pki_check.h:35</a></div></div>
 <div class="ttc" id="asafe__size_8h_html_a3e440ffc599badda7129c83dbc340b53"><div class="ttname"><a href="safe__size_8h.html#a3e440ffc599badda7129c83dbc340b53">brix_size_mul</a></div><div class="ttdeci">static ngx_int_t brix_size_mul(size_t a, size_t b, size_t *out)</div><div class="ttdef"><b>Definition</b> <a href="safe__size_8h_source.html#l00043">safe_size.h:43</a></div></div>
 <div class="ttc" id="asafe__size_8h_html_aa4eabbb2fcdb8a11d7500fd9d507799e"><div class="ttname"><a href="safe__size_8h.html#aa4eabbb2fcdb8a11d7500fd9d507799e">brix_pcalloc_array</a></div><div class="ttdeci">static void * brix_pcalloc_array(ngx_pool_t *pool, size_t n, size_t sz)</div><div class="ttdef"><b>Definition</b> <a href="safe__size_8h_source.html#l00107">safe_size.h:107</a></div></div>

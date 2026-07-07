@@ -151,6 +151,10 @@ Data Fields</h2></td></tr>
 <tr class="separator:ae1232e70e07d575a86ead894eec93671"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a21f9b760eaba940e71461ae831013dff" id="r_a21f9b760eaba940e71461ae831013dff"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__tpc__pull__t.html#a21f9b760eaba940e71461ae831013dff">transfer_id</a></td></tr>
 <tr class="separator:a21f9b760eaba940e71461ae831013dff"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8900d0e36d109034f2c7e69772cc2a1f" id="r_a8900d0e36d109034f2c7e69772cc2a1f"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__tpc__pull__t.html#a8900d0e36d109034f2c7e69772cc2a1f">sess</a></td></tr>
+<tr class="separator:a8900d0e36d109034f2c7e69772cc2a1f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a633b28c49fdd681d4cfb412132f4559b" id="r_a633b28c49fdd681d4cfb412132f4559b"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structbrix__sess__xfer__t.html">brix_sess_xfer_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__tpc__pull__t.html#a633b28c49fdd681d4cfb412132f4559b">sess_xfer</a></td></tr>
+<tr class="separator:a633b28c49fdd681d4cfb412132f4559b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4476f314326b684f3a61e58150ded04f" id="r_a4476f314326b684f3a61e58150ded04f"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__tpc__pull__t.html#a4476f314326b684f3a61e58150ded04f">bytes_written</a></td></tr>
 <tr class="separator:a4476f314326b684f3a61e58150ded04f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3f5b2c2066d949a4079ee8b39a69937e" id="r_a3f5b2c2066d949a4079ee8b39a69937e"><td class="memItemLeft" align="right" valign="top">char&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structbrix__tpc__pull__t.html#a3f5b2c2066d949a4079ee8b39a69937e">err_msg</a> [512]</td></tr>
@@ -184,9 +188,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00118">118</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00120">120</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00018">brix_tpc_pull_done()</a>, <a class="el" href="tpc_2outbound_2thread_8c_source.html#l00016">brix_tpc_pull_thread()</a>, and <a class="el" href="source_8c_source.html#l00332">tpc_stream_to_dst()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00040">brix_tpc_pull_done()</a>, <a class="el" href="tpc_2outbound_2thread_8c_source.html#l00016">brix_tpc_pull_thread()</a>, <a class="el" href="done_8c_source.html#l00017">tpc_sess_finish_pull()</a>, and <a class="el" href="source_8c_source.html#l00332">tpc_stream_to_dst()</a>.</p>
 
 </div>
 </div>
@@ -204,7 +208,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00096">96</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00018">brix_tpc_pull_done()</a>, <a class="el" href="tpc_2outbound_2thread_8c_source.html#l00016">brix_tpc_pull_thread()</a>, <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, <a class="el" href="gsi__outbound__certreq_8c_source.html#l00049">tpc_outbound_gsi()</a>, <a class="el" href="source_8c_source.html#l00332">tpc_stream_to_dst()</a>, and <a class="el" href="tpc__token_8c_source.html#l00087">tpc_token_validate_delegated()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00040">brix_tpc_pull_done()</a>, <a class="el" href="tpc_2outbound_2thread_8c_source.html#l00016">brix_tpc_pull_thread()</a>, <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, <a class="el" href="gsi__outbound__certreq_8c_source.html#l00049">tpc_outbound_gsi()</a>, <a class="el" href="source_8c_source.html#l00332">tpc_stream_to_dst()</a>, and <a class="el" href="tpc__token_8c_source.html#l00087">tpc_token_validate_delegated()</a>.</p>
 
 </div>
 </div>
@@ -222,7 +226,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00098">98</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00018">brix_tpc_pull_done()</a>, <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, <a class="el" href="tpc_2outbound_2bootstrap_8c_source.html#l00027">tpc_bootstrap()</a>, <a class="el" href="tpc_2outbound_2connect_8c_source.html#l00028">tpc_connect()</a>, <a class="el" href="tpc__token_8c_source.html#l00439">tpc_fetch_delegated_token()</a>, <a class="el" href="gsi__outbound__finish_8c_source.html#l00027">tpc_outbound_finish_login()</a>, <a class="el" href="gsi__outbound__certreq_8c_source.html#l00049">tpc_outbound_gsi()</a>, <a class="el" href="gsi__outbound__exchange_8c_source.html#l00071">tpc_outbound_gsi_exchange()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00103">tpc_read_bearer_token()</a>, <a class="el" href="src_2tpc_2outbound_2tls_8c_source.html#l00035">tpc_start_tls()</a>, <a class="el" href="source_8c_source.html#l00332">tpc_stream_to_dst()</a>, and <a class="el" href="tpc__token_8c_source.html#l00285">tpc_token_rfc8693()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00040">brix_tpc_pull_done()</a>, <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, <a class="el" href="tpc_2outbound_2bootstrap_8c_source.html#l00027">tpc_bootstrap()</a>, <a class="el" href="tpc_2outbound_2connect_8c_source.html#l00028">tpc_connect()</a>, <a class="el" href="tpc__token_8c_source.html#l00439">tpc_fetch_delegated_token()</a>, <a class="el" href="gsi__outbound__finish_8c_source.html#l00027">tpc_outbound_finish_login()</a>, <a class="el" href="gsi__outbound__certreq_8c_source.html#l00049">tpc_outbound_gsi()</a>, <a class="el" href="gsi__outbound__exchange_8c_source.html#l00071">tpc_outbound_gsi_exchange()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00103">tpc_read_bearer_token()</a>, <a class="el" href="launch_8c_source.html#l00024">tpc_sess_auth_method()</a>, <a class="el" href="launch_8c_source.html#l00077">tpc_sess_begin_pull()</a>, <a class="el" href="src_2tpc_2outbound_2tls_8c_source.html#l00035">tpc_start_tls()</a>, <a class="el" href="source_8c_source.html#l00332">tpc_stream_to_dst()</a>, and <a class="el" href="tpc__token_8c_source.html#l00285">tpc_token_rfc8693()</a>.</p>
 
 </div>
 </div>
@@ -240,7 +244,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00097">97</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00018">brix_tpc_pull_done()</a>, and <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00040">brix_tpc_pull_done()</a>, <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, <a class="el" href="launch_8c_source.html#l00077">tpc_sess_begin_pull()</a>, <a class="el" href="launch_8c_source.html#l00046">tpc_sess_identity_user()</a>, and <a class="el" href="launch_8c_source.html#l00064">tpc_sess_identity_vo()</a>.</p>
 
 </div>
 </div>
@@ -256,9 +260,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00133">133</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00135">135</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, <a class="el" href="source_8c_source.html#l00193">tpc_open_source()</a>, and <a class="el" href="gsi__outbound__certreq_8c_source.html#l00049">tpc_outbound_gsi()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, <a class="el" href="source_8c_source.html#l00193">tpc_open_source()</a>, <a class="el" href="gsi__outbound__certreq_8c_source.html#l00049">tpc_outbound_gsi()</a>, and <a class="el" href="launch_8c_source.html#l00024">tpc_sess_auth_method()</a>.</p>
 
 </div>
 </div>
@@ -274,9 +278,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00128">128</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00130">130</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tpc_2outbound_2thread_8c_source.html#l00016">brix_tpc_pull_thread()</a>, <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, <a class="el" href="source_8c_source.html#l00193">tpc_open_source()</a>, and <a class="el" href="gsi__outbound__certreq_8c_source.html#l00049">tpc_outbound_gsi()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tpc_2outbound_2thread_8c_source.html#l00016">brix_tpc_pull_thread()</a>, <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, <a class="el" href="source_8c_source.html#l00193">tpc_open_source()</a>, and <a class="el" href="gsi__outbound__certreq_8c_source.html#l00049">tpc_outbound_gsi()</a>.</p>
 
 </div>
 </div>
@@ -312,7 +316,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00112">112</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00018">brix_tpc_pull_done()</a>, <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, and <a class="el" href="source_8c_source.html#l00332">tpc_stream_to_dst()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00040">brix_tpc_pull_done()</a>, <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, and <a class="el" href="source_8c_source.html#l00332">tpc_stream_to_dst()</a>.</p>
 
 </div>
 </div>
@@ -330,7 +334,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00111">111</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00018">brix_tpc_pull_done()</a>, and <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00040">brix_tpc_pull_done()</a>, and <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>.</p>
 
 </div>
 </div>
@@ -346,9 +350,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00119">119</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00121">121</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00018">brix_tpc_pull_done()</a>, <a class="el" href="tpc_2outbound_2thread_8c_source.html#l00016">brix_tpc_pull_thread()</a>, <a class="el" href="tpc_2outbound_2bootstrap_8c_source.html#l00027">tpc_bootstrap()</a>, <a class="el" href="tpc_2outbound_2connect_8c_source.html#l00028">tpc_connect()</a>, <a class="el" href="tpc__token_8c_source.html#l00439">tpc_fetch_delegated_token()</a>, <a class="el" href="source_8c_source.html#l00060">tpc_open_resolve()</a>, <a class="el" href="source_8c_source.html#l00193">tpc_open_source()</a>, <a class="el" href="gsi__outbound__finish_8c_source.html#l00027">tpc_outbound_finish_login()</a>, <a class="el" href="gsi__outbound__certreq_8c_source.html#l00049">tpc_outbound_gsi()</a>, <a class="el" href="gsi__outbound__exchange_8c_source.html#l00071">tpc_outbound_gsi_exchange()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00132">tpc_outbound_ztn()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00103">tpc_read_bearer_token()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00052">tpc_send_kxr_auth()</a>, <a class="el" href="src_2tpc_2outbound_2tls_8c_source.html#l00035">tpc_start_tls()</a>, <a class="el" href="source_8c_source.html#l00332">tpc_stream_to_dst()</a>, <a class="el" href="tpc__token_8c_source.html#l00146">tpc_token_oidc_agent()</a>, <a class="el" href="tpc__token_8c_source.html#l00285">tpc_token_rfc8693()</a>, and <a class="el" href="tpc__token_8c_source.html#l00087">tpc_token_validate_delegated()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00040">brix_tpc_pull_done()</a>, <a class="el" href="tpc_2outbound_2thread_8c_source.html#l00016">brix_tpc_pull_thread()</a>, <a class="el" href="tpc_2outbound_2bootstrap_8c_source.html#l00027">tpc_bootstrap()</a>, <a class="el" href="tpc_2outbound_2connect_8c_source.html#l00028">tpc_connect()</a>, <a class="el" href="tpc__token_8c_source.html#l00439">tpc_fetch_delegated_token()</a>, <a class="el" href="source_8c_source.html#l00060">tpc_open_resolve()</a>, <a class="el" href="source_8c_source.html#l00193">tpc_open_source()</a>, <a class="el" href="gsi__outbound__finish_8c_source.html#l00027">tpc_outbound_finish_login()</a>, <a class="el" href="gsi__outbound__certreq_8c_source.html#l00049">tpc_outbound_gsi()</a>, <a class="el" href="gsi__outbound__exchange_8c_source.html#l00071">tpc_outbound_gsi_exchange()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00132">tpc_outbound_ztn()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00103">tpc_read_bearer_token()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00052">tpc_send_kxr_auth()</a>, <a class="el" href="src_2tpc_2outbound_2tls_8c_source.html#l00035">tpc_start_tls()</a>, <a class="el" href="source_8c_source.html#l00332">tpc_stream_to_dst()</a>, <a class="el" href="tpc__token_8c_source.html#l00146">tpc_token_oidc_agent()</a>, <a class="el" href="tpc__token_8c_source.html#l00285">tpc_token_rfc8693()</a>, and <a class="el" href="tpc__token_8c_source.html#l00087">tpc_token_validate_delegated()</a>.</p>
 
 </div>
 </div>
@@ -366,7 +370,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00113">113</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00018">brix_tpc_pull_done()</a>, and <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00040">brix_tpc_pull_done()</a>, and <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>.</p>
 
 </div>
 </div>
@@ -418,7 +422,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00100">100</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00018">brix_tpc_pull_done()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00040">brix_tpc_pull_done()</a>.</p>
 
 </div>
 </div>
@@ -434,9 +438,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00121">121</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00123">123</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, and <a class="el" href="tpc_2outbound_2connect_8c_source.html#l00028">tpc_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, and <a class="el" href="tpc_2outbound_2connect_8c_source.html#l00028">tpc_connect()</a>.</p>
 
 </div>
 </div>
@@ -452,9 +456,9 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00120">120</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00122">122</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, and <a class="el" href="tpc_2outbound_2connect_8c_source.html#l00028">tpc_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, and <a class="el" href="tpc_2outbound_2connect_8c_source.html#l00028">tpc_connect()</a>.</p>
 
 </div>
 </div>
@@ -472,7 +476,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00114">114</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00018">brix_tpc_pull_done()</a>, and <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00040">brix_tpc_pull_done()</a>, and <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>.</p>
 
 </div>
 </div>
@@ -490,7 +494,43 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00115">115</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00018">brix_tpc_pull_done()</a>, <a class="el" href="tpc_2outbound_2thread_8c_source.html#l00016">brix_tpc_pull_thread()</a>, and <a class="el" href="source_8c_source.html#l00332">tpc_stream_to_dst()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00040">brix_tpc_pull_done()</a>, <a class="el" href="tpc_2outbound_2thread_8c_source.html#l00016">brix_tpc_pull_thread()</a>, and <a class="el" href="source_8c_source.html#l00332">tpc_stream_to_dst()</a>.</p>
+
+</div>
+</div>
+<a id="a8900d0e36d109034f2c7e69772cc2a1f" name="a8900d0e36d109034f2c7e69772cc2a1f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8900d0e36d109034f2c7e69772cc2a1f">&#9670;&#160;</a></span>sess</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="structbrix__sess__t.html">brix_sess_t</a>* brix_tpc_pull_t::sess</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00118">118</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00102">tpc_sess_abort_pull()</a>, <a class="el" href="launch_8c_source.html#l00077">tpc_sess_begin_pull()</a>, and <a class="el" href="done_8c_source.html#l00017">tpc_sess_finish_pull()</a>.</p>
+
+</div>
+</div>
+<a id="a633b28c49fdd681d4cfb412132f4559b" name="a633b28c49fdd681d4cfb412132f4559b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a633b28c49fdd681d4cfb412132f4559b">&#9670;&#160;</a></span>sess_xfer</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="structbrix__sess__xfer__t.html">brix_sess_xfer_t</a> brix_tpc_pull_t::sess_xfer</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00119">119</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00102">tpc_sess_abort_pull()</a>, <a class="el" href="launch_8c_source.html#l00077">tpc_sess_begin_pull()</a>, and <a class="el" href="done_8c_source.html#l00017">tpc_sess_finish_pull()</a>.</p>
 
 </div>
 </div>
@@ -508,7 +548,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00102">102</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, <a class="el" href="tpc_2outbound_2connect_8c_source.html#l00028">tpc_connect()</a>, <a class="el" href="gsi__outbound__finish_8c_source.html#l00027">tpc_outbound_finish_login()</a>, <a class="el" href="src_2tpc_2outbound_2tls_8c_source.html#l00035">tpc_start_tls()</a>, and <a class="el" href="tpc__token_8c_source.html#l00285">tpc_token_rfc8693()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, <a class="el" href="tpc_2outbound_2connect_8c_source.html#l00028">tpc_connect()</a>, <a class="el" href="gsi__outbound__finish_8c_source.html#l00027">tpc_outbound_finish_login()</a>, <a class="el" href="launch_8c_source.html#l00077">tpc_sess_begin_pull()</a>, <a class="el" href="src_2tpc_2outbound_2tls_8c_source.html#l00035">tpc_start_tls()</a>, and <a class="el" href="tpc__token_8c_source.html#l00285">tpc_token_rfc8693()</a>.</p>
 
 </div>
 </div>
@@ -526,7 +566,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00104">104</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, and <a class="el" href="source_8c_source.html#l00193">tpc_open_source()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, <a class="el" href="source_8c_source.html#l00193">tpc_open_source()</a>, <a class="el" href="launch_8c_source.html#l00102">tpc_sess_abort_pull()</a>, <a class="el" href="launch_8c_source.html#l00077">tpc_sess_begin_pull()</a>, and <a class="el" href="done_8c_source.html#l00017">tpc_sess_finish_pull()</a>.</p>
 
 </div>
 </div>
@@ -544,7 +584,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00103">103</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, and <a class="el" href="tpc_2outbound_2connect_8c_source.html#l00028">tpc_connect()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, <a class="el" href="tpc_2outbound_2connect_8c_source.html#l00028">tpc_connect()</a>, and <a class="el" href="launch_8c_source.html#l00077">tpc_sess_begin_pull()</a>.</p>
 
 </div>
 </div>
@@ -562,7 +602,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00099">99</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00018">brix_tpc_pull_done()</a>, and <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00040">brix_tpc_pull_done()</a>, and <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>.</p>
 
 </div>
 </div>
@@ -578,7 +618,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00123">123</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00125">125</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="tpc_2outbound_2io_8c_source.html#l00070">tpc_recv_exact()</a>, <a class="el" href="tpc_2outbound_2io_8c_source.html#l00037">tpc_send_all()</a>, <a class="el" href="src_2tpc_2outbound_2tls_8c_source.html#l00035">tpc_start_tls()</a>, and <a class="el" href="src_2tpc_2outbound_2tls_8c_source.html#l00112">tpc_tls_teardown()</a>.</p>
 
@@ -596,7 +636,7 @@ Data Fields</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00127">127</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00129">129</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="src_2tpc_2outbound_2tls_8c_source.html#l00035">tpc_start_tls()</a>, and <a class="el" href="src_2tpc_2outbound_2tls_8c_source.html#l00112">tpc_tls_teardown()</a>.</p>
 
@@ -616,7 +656,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00107">107</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, <a class="el" href="tpc_2outbound_2bootstrap_8c_source.html#l00027">tpc_bootstrap()</a>, and <a class="el" href="tpc__token_8c_source.html#l00439">tpc_fetch_delegated_token()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, <a class="el" href="tpc_2outbound_2bootstrap_8c_source.html#l00027">tpc_bootstrap()</a>, <a class="el" href="tpc__token_8c_source.html#l00439">tpc_fetch_delegated_token()</a>, and <a class="el" href="launch_8c_source.html#l00024">tpc_sess_auth_method()</a>.</p>
 
 </div>
 </div>
@@ -634,7 +674,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00109">109</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, and <a class="el" href="tpc__token_8c_source.html#l00285">tpc_token_rfc8693()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, and <a class="el" href="tpc__token_8c_source.html#l00285">tpc_token_rfc8693()</a>.</p>
 
 </div>
 </div>
@@ -652,7 +692,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00105">105</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00018">brix_tpc_pull_done()</a>, <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, and <a class="el" href="source_8c_source.html#l00193">tpc_open_source()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00040">brix_tpc_pull_done()</a>, <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, and <a class="el" href="source_8c_source.html#l00193">tpc_open_source()</a>.</p>
 
 </div>
 </div>
@@ -670,7 +710,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00106">106</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, and <a class="el" href="source_8c_source.html#l00193">tpc_open_source()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, and <a class="el" href="source_8c_source.html#l00193">tpc_open_source()</a>.</p>
 
 </div>
 </div>
@@ -688,7 +728,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00117">117</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00018">brix_tpc_pull_done()</a>, <a class="el" href="tpc_2outbound_2thread_8c_source.html#l00016">brix_tpc_pull_thread()</a>, <a class="el" href="launch_8c_source.html#l00361">brix_tpc_start_pull()</a>, and <a class="el" href="source_8c_source.html#l00332">tpc_stream_to_dst()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00040">brix_tpc_pull_done()</a>, <a class="el" href="tpc_2outbound_2thread_8c_source.html#l00016">brix_tpc_pull_thread()</a>, <a class="el" href="launch_8c_source.html#l00453">brix_tpc_start_pull()</a>, and <a class="el" href="source_8c_source.html#l00332">tpc_stream_to_dst()</a>.</p>
 
 </div>
 </div>
@@ -706,7 +746,7 @@ Data Fields</h2></td></tr>
 
 <p class="definition">Definition at line <a class="el" href="tpc__internal_8h_source.html#l00116">116</a> of file <a class="el" href="tpc__internal_8h_source.html">tpc_internal.h</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00018">brix_tpc_pull_done()</a>, <a class="el" href="tpc_2outbound_2thread_8c_source.html#l00016">brix_tpc_pull_thread()</a>, <a class="el" href="tpc_2outbound_2bootstrap_8c_source.html#l00027">tpc_bootstrap()</a>, <a class="el" href="tpc__token_8c_source.html#l00439">tpc_fetch_delegated_token()</a>, <a class="el" href="source_8c_source.html#l00060">tpc_open_resolve()</a>, <a class="el" href="source_8c_source.html#l00193">tpc_open_source()</a>, <a class="el" href="gsi__outbound__finish_8c_source.html#l00027">tpc_outbound_finish_login()</a>, <a class="el" href="gsi__outbound__certreq_8c_source.html#l00049">tpc_outbound_gsi()</a>, <a class="el" href="gsi__outbound__exchange_8c_source.html#l00071">tpc_outbound_gsi_exchange()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00132">tpc_outbound_ztn()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00103">tpc_read_bearer_token()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00052">tpc_send_kxr_auth()</a>, <a class="el" href="src_2tpc_2outbound_2tls_8c_source.html#l00035">tpc_start_tls()</a>, <a class="el" href="source_8c_source.html#l00332">tpc_stream_to_dst()</a>, <a class="el" href="tpc__token_8c_source.html#l00146">tpc_token_oidc_agent()</a>, <a class="el" href="tpc__token_8c_source.html#l00285">tpc_token_rfc8693()</a>, and <a class="el" href="tpc__token_8c_source.html#l00087">tpc_token_validate_delegated()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="done_8c_source.html#l00040">brix_tpc_pull_done()</a>, <a class="el" href="tpc_2outbound_2thread_8c_source.html#l00016">brix_tpc_pull_thread()</a>, <a class="el" href="tpc_2outbound_2bootstrap_8c_source.html#l00027">tpc_bootstrap()</a>, <a class="el" href="tpc__token_8c_source.html#l00439">tpc_fetch_delegated_token()</a>, <a class="el" href="source_8c_source.html#l00060">tpc_open_resolve()</a>, <a class="el" href="source_8c_source.html#l00193">tpc_open_source()</a>, <a class="el" href="gsi__outbound__finish_8c_source.html#l00027">tpc_outbound_finish_login()</a>, <a class="el" href="gsi__outbound__certreq_8c_source.html#l00049">tpc_outbound_gsi()</a>, <a class="el" href="gsi__outbound__exchange_8c_source.html#l00071">tpc_outbound_gsi_exchange()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00132">tpc_outbound_ztn()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00103">tpc_read_bearer_token()</a>, <a class="el" href="gsi__outbound__common_8c_source.html#l00052">tpc_send_kxr_auth()</a>, <a class="el" href="done_8c_source.html#l00017">tpc_sess_finish_pull()</a>, <a class="el" href="src_2tpc_2outbound_2tls_8c_source.html#l00035">tpc_start_tls()</a>, <a class="el" href="source_8c_source.html#l00332">tpc_stream_to_dst()</a>, <a class="el" href="tpc__token_8c_source.html#l00146">tpc_token_oidc_agent()</a>, <a class="el" href="tpc__token_8c_source.html#l00285">tpc_token_rfc8693()</a>, and <a class="el" href="tpc__token_8c_source.html#l00087">tpc_token_validate_delegated()</a>.</p>
 
 </div>
 </div>

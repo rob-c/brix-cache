@@ -226,18 +226,18 @@ $(document).ready(function(){initNavTree('sd__posix_8c_source.html',''); initRes
 <div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>    }</div>
 <div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span> </div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    st = ngx_pcalloc(inst-&gt;pool, <span class="keyword">sizeof</span>(*st));</div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    st = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(inst-&gt;pool, <span class="keyword">sizeof</span>(*st));</div>
 <div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>    <span class="keywordflow">if</span> (st == NULL) {</div>
 <div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>        errno = ENOMEM;</div>
 <div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>    }</div>
 <div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span> </div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>    st-&gt;<a class="code hl_variable" href="structsd__posix__state__t.html#a2d37091203d1c60a442374bb7184dcc5">root_canon</a> = ngx_pnalloc(inst-&gt;pool, ngx_strlen(root_canon) + 1);</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>    st-&gt;<a class="code hl_variable" href="structsd__posix__state__t.html#a2d37091203d1c60a442374bb7184dcc5">root_canon</a> = <a class="code hl_function" href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a>(inst-&gt;pool, ngx_strlen(root_canon) + 1);</div>
 <div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>    <span class="keywordflow">if</span> (st-&gt;<a class="code hl_variable" href="structsd__posix__state__t.html#a2d37091203d1c60a442374bb7184dcc5">root_canon</a> == NULL) {</div>
 <div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>        errno = ENOMEM;</div>
 <div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>    }</div>
-<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    ngx_memcpy(st-&gt;<a class="code hl_variable" href="structsd__posix__state__t.html#a2d37091203d1c60a442374bb7184dcc5">root_canon</a>, root_canon, ngx_strlen(root_canon) + 1);</div>
+<div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(st-&gt;<a class="code hl_variable" href="structsd__posix__state__t.html#a2d37091203d1c60a442374bb7184dcc5">root_canon</a>, root_canon, ngx_strlen(root_canon) + 1);</div>
 <div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span> </div>
 <div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>    st-&gt;<a class="code hl_variable" href="structsd__posix__state__t.html#ae1b3f6901f964e5cb8a0fd5a4bff01ce">rootfd</a> = <a class="code hl_function" href="beneath_8c.html#aa9004e2ff5d1f5b027135050b49b6a12">brix_beneath_open_root</a>(root_canon);  <span class="comment">/* -1 tolerated */</span></div>
 <div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    inst-&gt;state = st;</div>
@@ -279,8 +279,8 @@ $(document).ready(function(){initNavTree('sd__posix_8c_source.html',''); initRes
 <div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>        <span class="keywordflow">return</span> NULL;</div>
 <div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span>    }</div>
 <div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span> </div>
-<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    inst = ngx_pcalloc(pool, <span class="keyword">sizeof</span>(*inst));</div>
-<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    st = ngx_pcalloc(pool, <span class="keyword">sizeof</span>(*st));</div>
+<div class="line"><a id="l00169" name="l00169"></a><span class="lineno">  169</span>    inst = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(pool, <span class="keyword">sizeof</span>(*inst));</div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span>    st = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(pool, <span class="keyword">sizeof</span>(*st));</div>
 <div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span>    <span class="keywordflow">if</span> (inst == NULL || st == NULL) {</div>
 <div class="line"><a id="l00172" name="l00172"></a><span class="lineno">  172</span>        errno = ENOMEM;</div>
 <div class="line"><a id="l00173" name="l00173"></a><span class="lineno">  173</span>        <span class="keywordflow">return</span> NULL;</div>
@@ -316,7 +316,7 @@ $(document).ready(function(){initNavTree('sd__posix_8c_source.html',''); initRes
 <div class="line"><a id="l00201" name="l00201"></a><span class="lineno">  201</span>        <span class="keywordflow">return</span> NULL;</div>
 <div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span>    }</div>
 <div class="line"><a id="l00203" name="l00203"></a><span class="lineno">  203</span> </div>
-<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>    obj = ngx_pcalloc(inst-&gt;pool, <span class="keyword">sizeof</span>(*obj));</div>
+<div class="line"><a id="l00204" name="l00204"></a><span class="lineno">  204</span>    obj = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(inst-&gt;pool, <span class="keyword">sizeof</span>(*obj));</div>
 <div class="line"><a id="l00205" name="l00205"></a><span class="lineno">  205</span>    <span class="keywordflow">if</span> (obj == NULL) {</div>
 <div class="line"><a id="l00206" name="l00206"></a><span class="lineno">  206</span>        <a class="code hl_function" href="brixposix__preload_8c.html#aafbcde67669a1b96577e735ddebd8634">close</a>(fd);</div>
 <div class="line"><a id="l00207" name="l00207"></a><span class="lineno">  207</span>        <span class="keywordflow">if</span> (err_out != NULL) { *err_out = ENOMEM; }</div>
@@ -619,8 +619,8 @@ $(document).ready(function(){initNavTree('sd__posix_8c_source.html',''); initRes
 <div class="line"><a id="l00468" name="l00468"></a><span class="lineno">  468</span>        <span class="keywordflow">return</span> NULL;</div>
 <div class="line"><a id="l00469" name="l00469"></a><span class="lineno">  469</span>    }</div>
 <div class="line"><a id="l00470" name="l00470"></a><span class="lineno">  470</span> </div>
-<div class="line"><a id="l00471" name="l00471"></a><span class="lineno">  471</span>    dir = ngx_pcalloc(inst-&gt;pool, <span class="keyword">sizeof</span>(*dir));</div>
-<div class="line"><a id="l00472" name="l00472"></a><span class="lineno">  472</span>    pd = ngx_pcalloc(inst-&gt;pool, <span class="keyword">sizeof</span>(*pd));</div>
+<div class="line"><a id="l00471" name="l00471"></a><span class="lineno">  471</span>    dir = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(inst-&gt;pool, <span class="keyword">sizeof</span>(*dir));</div>
+<div class="line"><a id="l00472" name="l00472"></a><span class="lineno">  472</span>    pd = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(inst-&gt;pool, <span class="keyword">sizeof</span>(*pd));</div>
 <div class="line"><a id="l00473" name="l00473"></a><span class="lineno">  473</span>    <span class="keywordflow">if</span> (dir == NULL || pd == NULL) {</div>
 <div class="line"><a id="l00474" name="l00474"></a><span class="lineno">  474</span>        closedir(dp);</div>
 <div class="line"><a id="l00475" name="l00475"></a><span class="lineno">  475</span>        <span class="keywordflow">if</span> (err_out != NULL) { *err_out = ENOMEM; }</div>
@@ -779,8 +779,8 @@ $(document).ready(function(){initNavTree('sd__posix_8c_source.html',''); initRes
 <div class="line"><a id="l00612" name="l00612"></a><span class="lineno">  612</span>    <a class="code hl_struct" href="structsd__posix__staged__t.html">sd_posix_staged_t</a>  *ps;</div>
 <div class="line"><a id="l00613" name="l00613"></a><span class="lineno">  613</span>    <span class="keywordtype">char</span>                abspath[<a class="code hl_define" href="zip__dir_8h.html#ae688d728e1acdfe5988c7db45d6f0166">PATH_MAX</a>];</div>
 <div class="line"><a id="l00614" name="l00614"></a><span class="lineno">  614</span> </div>
-<div class="line"><a id="l00615" name="l00615"></a><span class="lineno">  615</span>    handle = ngx_pcalloc(inst-&gt;pool, <span class="keyword">sizeof</span>(*handle));</div>
-<div class="line"><a id="l00616" name="l00616"></a><span class="lineno">  616</span>    ps = ngx_pcalloc(inst-&gt;pool, <span class="keyword">sizeof</span>(*ps));</div>
+<div class="line"><a id="l00615" name="l00615"></a><span class="lineno">  615</span>    handle = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(inst-&gt;pool, <span class="keyword">sizeof</span>(*handle));</div>
+<div class="line"><a id="l00616" name="l00616"></a><span class="lineno">  616</span>    ps = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(inst-&gt;pool, <span class="keyword">sizeof</span>(*ps));</div>
 <div class="line"><a id="l00617" name="l00617"></a><span class="lineno">  617</span>    <span class="keywordflow">if</span> (handle == NULL || ps == NULL) {</div>
 <div class="line"><a id="l00618" name="l00618"></a><span class="lineno">  618</span>        <span class="keywordflow">if</span> (err_out != NULL) { *err_out = ENOMEM; }</div>
 <div class="line"><a id="l00619" name="l00619"></a><span class="lineno">  619</span>        <span class="keywordflow">return</span> NULL;</div>
@@ -944,6 +944,9 @@ $(document).ready(function(){initNavTree('sd__posix_8c_source.html',''); initRes
 <div class="ttc" id="anamespace__ops_8c_html_a8bc1bba7c8110627038b61608d52635c"><div class="ttname"><a href="namespace__ops_8c.html#a8bc1bba7c8110627038b61608d52635c">brix_ns_delete</a></div><div class="ttdeci">brix_ns_result_t brix_ns_delete(ngx_log_t *log, const char *root_canon, const char *path, const brix_ns_delete_opts_t *opts)</div><div class="ttdef"><b>Definition</b> <a href="namespace__ops_8c_source.html#l00157">namespace_ops.c:157</a></div></div>
 <div class="ttc" id="anamespace__ops_8c_html_ac950d3a2396418df1a83601d3b865619"><div class="ttname"><a href="namespace__ops_8c.html#ac950d3a2396418df1a83601d3b865619">brix_ns_local_copy</a></div><div class="ttdeci">brix_ns_result_t brix_ns_local_copy(ngx_log_t *log, const char *root_canon, const char *src, const char *dst, const brix_ns_copy_opts_t *opts)</div><div class="ttdef"><b>Definition</b> <a href="namespace__ops_8c_source.html#l00341">namespace_ops.c:341</a></div></div>
 <div class="ttc" id="anamespace__ops_8h_html"><div class="ttname"><a href="namespace__ops_8h.html">namespace_ops.h</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a0de53ece62d31e30ec1e1cd815b57267"><div class="ttname"><a href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a></div><div class="ttdeci">void * ngx_pcalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00042">xrdceph_migrate.c:42</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_ae28be76366886c36db56889cfc779768"><div class="ttname"><a href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a></div><div class="ttdeci">void * ngx_pnalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00043">xrdceph_migrate.c:43</a></div></div>
 <div class="ttc" id="ans__status_8h_html_a3c7cec413616425d6bc17c99cf2c81bdac28f0b3b6e299449d6ae54e3586863f8"><div class="ttname"><a href="ns__status_8h.html#a3c7cec413616425d6bc17c99cf2c81bdac28f0b3b6e299449d6ae54e3586863f8">BRIX_NS_OK</a></div><div class="ttdeci">@ BRIX_NS_OK</div><div class="ttdef"><b>Definition</b> <a href="ns__status_8h_source.html#l00018">ns_status.h:18</a></div></div>
 <div class="ttc" id="apki__check_8h_html_ac08d621cd366ef68ad85972de09dc827"><div class="ttname"><a href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a></div><div class="ttdeci">BRIX_LOG_T * log</div><div class="ttdef"><b>Definition</b> <a href="pki__check_8h_source.html#l00035">pki_check.h:35</a></div></div>
 <div class="ttc" id="asd_8h_html"><div class="ttname"><a href="sd_8h.html">sd.h</a></div></div>

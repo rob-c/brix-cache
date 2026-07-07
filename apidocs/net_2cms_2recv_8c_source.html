@@ -558,7 +558,7 @@ $(document).ready(function(){initNavTree('net_2cms_2recv_8c_source.html',''); in
 <div class="line"><a id="l00449" name="l00449"></a><span class="lineno">  449</span>            }</div>
 <div class="line"><a id="l00450" name="l00450"></a><span class="lineno">  450</span>        }</div>
 <div class="line"><a id="l00451" name="l00451"></a><span class="lineno">  451</span> </div>
-<div class="line"><a id="l00452" name="l00452"></a><span class="lineno">  452</span>        ngx_memcpy(pathz, payload, pl);</div>
+<div class="line"><a id="l00452" name="l00452"></a><span class="lineno">  452</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(pathz, payload, pl);</div>
 <div class="line"><a id="l00453" name="l00453"></a><span class="lineno">  453</span>        pathz[pl] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00454" name="l00454"></a><span class="lineno">  454</span> </div>
 <div class="line"><a id="l00455" name="l00455"></a><span class="lineno">  455</span>        <span class="keywordflow">if</span> (ctx-&gt;conf-&gt;manager_mode) {</div>
@@ -631,148 +631,156 @@ $(document).ready(function(){initNavTree('net_2cms_2recv_8c_source.html',''); in
 <div class="line"><a id="l00522" name="l00522"></a><span class="lineno">  522</span>        <span class="comment">/* Manager requested disconnect (do_Disc on a node simply closes). */</span></div>
 <div class="line"><a id="l00523" name="l00523"></a><span class="lineno">  523</span>        ngx_log_error(NGX_LOG_NOTICE, ctx-&gt;cycle-&gt;log, 0,</div>
 <div class="line"><a id="l00524" name="l00524"></a><span class="lineno">  524</span>                      <span class="stringliteral">&quot;brix: CMS node: manager requested disconnect&quot;</span>);</div>
-<div class="line"><a id="l00525" name="l00525"></a><span class="lineno">  525</span>        <a class="code hl_function" href="cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e">ngx_brix_cms_disconnect</a>(ctx);</div>
-<div class="line"><a id="l00526" name="l00526"></a><span class="lineno">  526</span>        <a class="code hl_function" href="cms__internal_8h.html#a15ccaae4ad769d69c59c86893a1997f1">ngx_brix_cms_schedule_retry</a>(ctx);</div>
-<div class="line"><a id="l00527" name="l00527"></a><span class="lineno">  527</span>        <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00528" name="l00528"></a><span class="lineno">  528</span> </div>
-<div class="line"><a id="l00529" name="l00529"></a><span class="lineno">  529</span>    <span class="keywordflow">default</span>: {</div>
-<div class="line"><a id="l00530" name="l00530"></a><span class="lineno">  530</span>        <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__cms__route__t.html">brix_cms_route_t</a> *r =</div>
-<div class="line"><a id="l00531" name="l00531"></a><span class="lineno">  531</span>            <a class="code hl_function" href="router_8c.html#aad987463b076920acad7883c0c307f85">brix_cms_route_lookup</a>(<a class="code hl_enumvalue" href="router_8h.html#ae4df819dd6622e99f514575386de77fda30885c93c722d62b62492a23a7e7ba5f">XRDCMS_ROLE_NODE</a>, code);</div>
-<div class="line"><a id="l00532" name="l00532"></a><span class="lineno">  532</span>        <span class="keywordflow">if</span> (r != NULL) {</div>
-<div class="line"><a id="l00533" name="l00533"></a><span class="lineno">  533</span>            ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx-&gt;cycle-&gt;log, 0,</div>
-<div class="line"><a id="l00534" name="l00534"></a><span class="lineno">  534</span>                           <span class="stringliteral">&quot;brix: CMS node: unhandled opcode &#39;%s&#39;&quot;</span>, r-&gt;<a class="code hl_variable" href="structbrix__cms__route__t.html#ab61b8b7e2b0acff028098237fbdce6cf">name</a>);</div>
-<div class="line"><a id="l00535" name="l00535"></a><span class="lineno">  535</span>        } <span class="keywordflow">else</span> {</div>
-<div class="line"><a id="l00536" name="l00536"></a><span class="lineno">  536</span>            ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx-&gt;cycle-&gt;log, 0,</div>
-<div class="line"><a id="l00537" name="l00537"></a><span class="lineno">  537</span>                           <span class="stringliteral">&quot;brix: ignoring CMS rrCode=%ui&quot;</span>, (ngx_uint_t) code);</div>
-<div class="line"><a id="l00538" name="l00538"></a><span class="lineno">  538</span>        }</div>
-<div class="line"><a id="l00539" name="l00539"></a><span class="lineno">  539</span>        <span class="keywordflow">return</span> NGX_OK;</div>
-<div class="line"><a id="l00540" name="l00540"></a><span class="lineno">  540</span>    }</div>
+<div class="line"><a id="l00525" name="l00525"></a><span class="lineno">  525</span>        <a class="code hl_function" href="cms__internal_8h.html#a90ce1ed8b63e053286a655f7c286dd6b">ngx_brix_cms_set_end_hint</a>(ctx, <a class="code hl_enumvalue" href="sesslog_8h.html#af296b50cd276eda633454fac47fd3fc7ae401bbd1b727468a011c0252736018af">BRIX_SESS_END_SERVER</a>);</div>
+<div class="line"><a id="l00526" name="l00526"></a><span class="lineno">  526</span>        <a class="code hl_function" href="cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e">ngx_brix_cms_disconnect</a>(ctx);</div>
+<div class="line"><a id="l00527" name="l00527"></a><span class="lineno">  527</span>        <a class="code hl_function" href="cms__internal_8h.html#a15ccaae4ad769d69c59c86893a1997f1">ngx_brix_cms_schedule_retry</a>(ctx);</div>
+<div class="line"><a id="l00528" name="l00528"></a><span class="lineno">  528</span>        <span class="keywordflow">return</span> NGX_OK;</div>
+<div class="line"><a id="l00529" name="l00529"></a><span class="lineno">  529</span> </div>
+<div class="line"><a id="l00530" name="l00530"></a><span class="lineno">  530</span>    <span class="keywordflow">default</span>: {</div>
+<div class="line"><a id="l00531" name="l00531"></a><span class="lineno">  531</span>        <span class="keyword">const</span> <a class="code hl_struct" href="structbrix__cms__route__t.html">brix_cms_route_t</a> *r =</div>
+<div class="line"><a id="l00532" name="l00532"></a><span class="lineno">  532</span>            <a class="code hl_function" href="router_8c.html#aad987463b076920acad7883c0c307f85">brix_cms_route_lookup</a>(<a class="code hl_enumvalue" href="router_8h.html#ae4df819dd6622e99f514575386de77fda30885c93c722d62b62492a23a7e7ba5f">XRDCMS_ROLE_NODE</a>, code);</div>
+<div class="line"><a id="l00533" name="l00533"></a><span class="lineno">  533</span>        <span class="keywordflow">if</span> (r != NULL) {</div>
+<div class="line"><a id="l00534" name="l00534"></a><span class="lineno">  534</span>            ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx-&gt;cycle-&gt;log, 0,</div>
+<div class="line"><a id="l00535" name="l00535"></a><span class="lineno">  535</span>                           <span class="stringliteral">&quot;brix: CMS node: unhandled opcode &#39;%s&#39;&quot;</span>, r-&gt;<a class="code hl_variable" href="structbrix__cms__route__t.html#ab61b8b7e2b0acff028098237fbdce6cf">name</a>);</div>
+<div class="line"><a id="l00536" name="l00536"></a><span class="lineno">  536</span>        } <span class="keywordflow">else</span> {</div>
+<div class="line"><a id="l00537" name="l00537"></a><span class="lineno">  537</span>            ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx-&gt;cycle-&gt;log, 0,</div>
+<div class="line"><a id="l00538" name="l00538"></a><span class="lineno">  538</span>                           <span class="stringliteral">&quot;brix: ignoring CMS rrCode=%ui&quot;</span>, (ngx_uint_t) code);</div>
+<div class="line"><a id="l00539" name="l00539"></a><span class="lineno">  539</span>        }</div>
+<div class="line"><a id="l00540" name="l00540"></a><span class="lineno">  540</span>        <span class="keywordflow">return</span> NGX_OK;</div>
 <div class="line"><a id="l00541" name="l00541"></a><span class="lineno">  541</span>    }</div>
-<div class="line"><a id="l00542" name="l00542"></a><span class="lineno">  542</span>}</div>
+<div class="line"><a id="l00542" name="l00542"></a><span class="lineno">  542</span>    }</div>
+<div class="line"><a id="l00543" name="l00543"></a><span class="lineno">  543</span>}</div>
 </div>
-<div class="line"><a id="l00543" name="l00543"></a><span class="lineno">  543</span> </div>
-<div class="line"><a id="l00544" name="l00544"></a><span class="lineno">  544</span><span class="comment">/* ngx_brix_cms_read_handler — read event handler for the manager connection:</span></div>
-<div class="line"><a id="l00545" name="l00545"></a><span class="lineno">  545</span><span class="comment"> * accumulate bytes to a complete header, read the dlen-sized payload, and dispatch</span></div>
-<div class="line"><a id="l00546" name="l00546"></a><span class="lineno">  546</span><span class="comment"> * each frame via ngx_brix_cms_process_frame(); disconnect and retry on</span></div>
-<div class="line"><a id="l00547" name="l00547"></a><span class="lineno">  547</span><span class="comment"> * timeout/error. */</span></div>
-<div class="line"><a id="l00548" name="l00548"></a><span class="lineno">  548</span> </div>
-<div class="line"><a id="l00549" name="l00549"></a><span class="lineno">  549</span><span class="keywordtype">void</span></div>
-<div class="foldopen" id="foldopen00550" data-start="{" data-end="}">
-<div class="line"><a id="l00550" name="l00550"></a><span class="lineno"><a class="line" href="cms__internal_8h.html#adc1b65b0001521639efbb96df91a480a">  550</a></span><a class="code hl_function" href="net_2cms_2recv_8c.html#adc1b65b0001521639efbb96df91a480a">ngx_brix_cms_read_handler</a>(ngx_event_t *ev)</div>
-<div class="line"><a id="l00551" name="l00551"></a><span class="lineno">  551</span>{</div>
-<div class="line"><a id="l00552" name="l00552"></a><span class="lineno">  552</span>    ngx_connection_t      *<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>;</div>
-<div class="line"><a id="l00553" name="l00553"></a><span class="lineno">  553</span>    ngx_brix_cms_ctx_t  *ctx;</div>
-<div class="line"><a id="l00554" name="l00554"></a><span class="lineno">  554</span>    ssize_t                n;</div>
-<div class="line"><a id="l00555" name="l00555"></a><span class="lineno">  555</span>    uint16_t               dlen;</div>
-<div class="line"><a id="l00556" name="l00556"></a><span class="lineno">  556</span>    ngx_uint_t             processed = 0;</div>
-<div class="line"><a id="l00557" name="l00557"></a><span class="lineno">  557</span> </div>
-<div class="line"><a id="l00558" name="l00558"></a><span class="lineno">  558</span>    <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a> = ev-&gt;data;</div>
-<div class="line"><a id="l00559" name="l00559"></a><span class="lineno">  559</span>    ctx = <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;data;</div>
-<div class="line"><a id="l00560" name="l00560"></a><span class="lineno">  560</span> </div>
-<div class="line"><a id="l00561" name="l00561"></a><span class="lineno">  561</span>    <span class="keywordflow">if</span> (ctx == NULL || ctx-&gt;connection != <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>) {</div>
-<div class="line"><a id="l00562" name="l00562"></a><span class="lineno">  562</span>        <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00563" name="l00563"></a><span class="lineno">  563</span>    }</div>
-<div class="line"><a id="l00564" name="l00564"></a><span class="lineno">  564</span> </div>
-<div class="line"><a id="l00565" name="l00565"></a><span class="lineno">  565</span>    ngx_log_debug3(NGX_LOG_DEBUG_EVENT, ev-&gt;log, 0,</div>
-<div class="line"><a id="l00566" name="l00566"></a><span class="lineno">  566</span>                   <span class="stringliteral">&quot;brix: CMS read handler timedout=%d in_pos=%uz in_need=%uz&quot;</span>,</div>
-<div class="line"><a id="l00567" name="l00567"></a><span class="lineno">  567</span>                   (<span class="keywordtype">int</span>) ev-&gt;timedout, ctx-&gt;in_pos, ctx-&gt;in_need);</div>
-<div class="line"><a id="l00568" name="l00568"></a><span class="lineno">  568</span> </div>
-<div class="line"><a id="l00569" name="l00569"></a><span class="lineno">  569</span>    <span class="keywordflow">if</span> (ev-&gt;timedout) {</div>
-<div class="line"><a id="l00570" name="l00570"></a><span class="lineno">  570</span>        <span class="comment">/*</span></div>
-<div class="line"><a id="l00571" name="l00571"></a><span class="lineno">  571</span><span class="comment">         * WS1: the manager went silent past cms_read_timeout (black-holed /</span></div>
-<div class="line"><a id="l00572" name="l00572"></a><span class="lineno">  572</span><span class="comment">         * half-open).  Tear down and reconnect with backoff so we fail over</span></div>
-<div class="line"><a id="l00573" name="l00573"></a><span class="lineno">  573</span><span class="comment">         * instead of heartbeating into a dead socket forever.</span></div>
-<div class="line"><a id="l00574" name="l00574"></a><span class="lineno">  574</span><span class="comment">         */</span></div>
-<div class="line"><a id="l00575" name="l00575"></a><span class="lineno">  575</span>        ngx_log_error(NGX_LOG_NOTICE, ev-&gt;log, 0,</div>
-<div class="line"><a id="l00576" name="l00576"></a><span class="lineno">  576</span>                      <span class="stringliteral">&quot;brix: CMS manager silent past read timeout — &quot;</span></div>
-<div class="line"><a id="l00577" name="l00577"></a><span class="lineno">  577</span>                      <span class="stringliteral">&quot;reconnecting&quot;</span>);</div>
-<div class="line"><a id="l00578" name="l00578"></a><span class="lineno">  578</span>        <a class="code hl_define" href="metrics__macros_8h.html#a1a79c1d173ab92bbeb7721e8df9f71bc">BRIX_RESIL_METRIC_INC</a>(cms_read_timeouts_total);</div>
-<div class="line"><a id="l00579" name="l00579"></a><span class="lineno">  579</span>        <a class="code hl_function" href="cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e">ngx_brix_cms_disconnect</a>(ctx);</div>
-<div class="line"><a id="l00580" name="l00580"></a><span class="lineno">  580</span>        <a class="code hl_function" href="cms__internal_8h.html#a15ccaae4ad769d69c59c86893a1997f1">ngx_brix_cms_schedule_retry</a>(ctx);</div>
-<div class="line"><a id="l00581" name="l00581"></a><span class="lineno">  581</span>        <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00582" name="l00582"></a><span class="lineno">  582</span>    }</div>
-<div class="line"><a id="l00583" name="l00583"></a><span class="lineno">  583</span> </div>
-<div class="line"><a id="l00584" name="l00584"></a><span class="lineno">  584</span>    <span class="keywordflow">for</span> ( ;; ) {</div>
-<div class="line"><a id="l00585" name="l00585"></a><span class="lineno">  585</span>        n = <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;recv(<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, ctx-&gt;inbuf + ctx-&gt;in_pos,</div>
-<div class="line"><a id="l00586" name="l00586"></a><span class="lineno">  586</span>                    ctx-&gt;in_need - ctx-&gt;in_pos);</div>
-<div class="line"><a id="l00587" name="l00587"></a><span class="lineno">  587</span> </div>
-<div class="line"><a id="l00588" name="l00588"></a><span class="lineno">  588</span>        <span class="keywordflow">if</span> (n == NGX_AGAIN) {</div>
-<div class="line"><a id="l00589" name="l00589"></a><span class="lineno">  589</span>            <span class="keywordflow">break</span>;</div>
-<div class="line"><a id="l00590" name="l00590"></a><span class="lineno">  590</span>        }</div>
-<div class="line"><a id="l00591" name="l00591"></a><span class="lineno">  591</span> </div>
-<div class="line"><a id="l00592" name="l00592"></a><span class="lineno">  592</span>        <span class="keywordflow">if</span> (n == NGX_ERROR || n == 0) {</div>
-<div class="line"><a id="l00593" name="l00593"></a><span class="lineno">  593</span>            ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ev-&gt;log, 0,</div>
-<div class="line"><a id="l00594" name="l00594"></a><span class="lineno">  594</span>                           <span class="stringliteral">&quot;brix: CMS recv EOF/error, disconnecting&quot;</span>);</div>
-<div class="line"><a id="l00595" name="l00595"></a><span class="lineno">  595</span>            <a class="code hl_function" href="cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e">ngx_brix_cms_disconnect</a>(ctx);</div>
-<div class="line"><a id="l00596" name="l00596"></a><span class="lineno">  596</span>            <a class="code hl_function" href="cms__internal_8h.html#a15ccaae4ad769d69c59c86893a1997f1">ngx_brix_cms_schedule_retry</a>(ctx);</div>
-<div class="line"><a id="l00597" name="l00597"></a><span class="lineno">  597</span>            <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00598" name="l00598"></a><span class="lineno">  598</span>        }</div>
-<div class="line"><a id="l00599" name="l00599"></a><span class="lineno">  599</span> </div>
-<div class="line"><a id="l00600" name="l00600"></a><span class="lineno">  600</span>        ctx-&gt;in_pos += (size_t) n;</div>
-<div class="line"><a id="l00601" name="l00601"></a><span class="lineno">  601</span> </div>
-<div class="line"><a id="l00602" name="l00602"></a><span class="lineno">  602</span>        <span class="keywordflow">if</span> (ctx-&gt;in_pos &lt; ctx-&gt;in_need) {</div>
-<div class="line"><a id="l00603" name="l00603"></a><span class="lineno">  603</span>            <span class="keywordflow">continue</span>;</div>
-<div class="line"><a id="l00604" name="l00604"></a><span class="lineno">  604</span>        }</div>
+<div class="line"><a id="l00544" name="l00544"></a><span class="lineno">  544</span> </div>
+<div class="line"><a id="l00545" name="l00545"></a><span class="lineno">  545</span><span class="comment">/* ngx_brix_cms_read_handler — read event handler for the manager connection:</span></div>
+<div class="line"><a id="l00546" name="l00546"></a><span class="lineno">  546</span><span class="comment"> * accumulate bytes to a complete header, read the dlen-sized payload, and dispatch</span></div>
+<div class="line"><a id="l00547" name="l00547"></a><span class="lineno">  547</span><span class="comment"> * each frame via ngx_brix_cms_process_frame(); disconnect and retry on</span></div>
+<div class="line"><a id="l00548" name="l00548"></a><span class="lineno">  548</span><span class="comment"> * timeout/error. */</span></div>
+<div class="line"><a id="l00549" name="l00549"></a><span class="lineno">  549</span> </div>
+<div class="line"><a id="l00550" name="l00550"></a><span class="lineno">  550</span><span class="keywordtype">void</span></div>
+<div class="foldopen" id="foldopen00551" data-start="{" data-end="}">
+<div class="line"><a id="l00551" name="l00551"></a><span class="lineno"><a class="line" href="cms__internal_8h.html#adc1b65b0001521639efbb96df91a480a">  551</a></span><a class="code hl_function" href="net_2cms_2recv_8c.html#adc1b65b0001521639efbb96df91a480a">ngx_brix_cms_read_handler</a>(ngx_event_t *ev)</div>
+<div class="line"><a id="l00552" name="l00552"></a><span class="lineno">  552</span>{</div>
+<div class="line"><a id="l00553" name="l00553"></a><span class="lineno">  553</span>    ngx_connection_t      *<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>;</div>
+<div class="line"><a id="l00554" name="l00554"></a><span class="lineno">  554</span>    ngx_brix_cms_ctx_t  *ctx;</div>
+<div class="line"><a id="l00555" name="l00555"></a><span class="lineno">  555</span>    ssize_t                n;</div>
+<div class="line"><a id="l00556" name="l00556"></a><span class="lineno">  556</span>    uint16_t               dlen;</div>
+<div class="line"><a id="l00557" name="l00557"></a><span class="lineno">  557</span>    ngx_uint_t             processed = 0;</div>
+<div class="line"><a id="l00558" name="l00558"></a><span class="lineno">  558</span> </div>
+<div class="line"><a id="l00559" name="l00559"></a><span class="lineno">  559</span>    <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a> = ev-&gt;data;</div>
+<div class="line"><a id="l00560" name="l00560"></a><span class="lineno">  560</span>    ctx = <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;data;</div>
+<div class="line"><a id="l00561" name="l00561"></a><span class="lineno">  561</span> </div>
+<div class="line"><a id="l00562" name="l00562"></a><span class="lineno">  562</span>    <span class="keywordflow">if</span> (ctx == NULL || ctx-&gt;connection != <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>) {</div>
+<div class="line"><a id="l00563" name="l00563"></a><span class="lineno">  563</span>        <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00564" name="l00564"></a><span class="lineno">  564</span>    }</div>
+<div class="line"><a id="l00565" name="l00565"></a><span class="lineno">  565</span> </div>
+<div class="line"><a id="l00566" name="l00566"></a><span class="lineno">  566</span>    ngx_log_debug3(NGX_LOG_DEBUG_EVENT, ev-&gt;log, 0,</div>
+<div class="line"><a id="l00567" name="l00567"></a><span class="lineno">  567</span>                   <span class="stringliteral">&quot;brix: CMS read handler timedout=%d in_pos=%uz in_need=%uz&quot;</span>,</div>
+<div class="line"><a id="l00568" name="l00568"></a><span class="lineno">  568</span>                   (<span class="keywordtype">int</span>) ev-&gt;timedout, ctx-&gt;in_pos, ctx-&gt;in_need);</div>
+<div class="line"><a id="l00569" name="l00569"></a><span class="lineno">  569</span> </div>
+<div class="line"><a id="l00570" name="l00570"></a><span class="lineno">  570</span>    <span class="keywordflow">if</span> (ev-&gt;timedout) {</div>
+<div class="line"><a id="l00571" name="l00571"></a><span class="lineno">  571</span>        <span class="comment">/*</span></div>
+<div class="line"><a id="l00572" name="l00572"></a><span class="lineno">  572</span><span class="comment">         * WS1: the manager went silent past cms_read_timeout (black-holed /</span></div>
+<div class="line"><a id="l00573" name="l00573"></a><span class="lineno">  573</span><span class="comment">         * half-open).  Tear down and reconnect with backoff so we fail over</span></div>
+<div class="line"><a id="l00574" name="l00574"></a><span class="lineno">  574</span><span class="comment">         * instead of heartbeating into a dead socket forever.</span></div>
+<div class="line"><a id="l00575" name="l00575"></a><span class="lineno">  575</span><span class="comment">         */</span></div>
+<div class="line"><a id="l00576" name="l00576"></a><span class="lineno">  576</span>        ngx_log_error(NGX_LOG_NOTICE, ev-&gt;log, 0,</div>
+<div class="line"><a id="l00577" name="l00577"></a><span class="lineno">  577</span>                      <span class="stringliteral">&quot;brix: CMS manager silent past read timeout — &quot;</span></div>
+<div class="line"><a id="l00578" name="l00578"></a><span class="lineno">  578</span>                      <span class="stringliteral">&quot;reconnecting&quot;</span>);</div>
+<div class="line"><a id="l00579" name="l00579"></a><span class="lineno">  579</span>        <a class="code hl_define" href="metrics__macros_8h.html#a1a79c1d173ab92bbeb7721e8df9f71bc">BRIX_RESIL_METRIC_INC</a>(cms_read_timeouts_total);</div>
+<div class="line"><a id="l00580" name="l00580"></a><span class="lineno">  580</span>        <a class="code hl_function" href="cms__internal_8h.html#a90ce1ed8b63e053286a655f7c286dd6b">ngx_brix_cms_set_end_hint</a>(ctx, <a class="code hl_enumvalue" href="sesslog_8h.html#af296b50cd276eda633454fac47fd3fc7a465146a3074cc8057c1bedbd9e8c8392">BRIX_SESS_END_TIMEOUT</a>);</div>
+<div class="line"><a id="l00581" name="l00581"></a><span class="lineno">  581</span>        <a class="code hl_function" href="cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e">ngx_brix_cms_disconnect</a>(ctx);</div>
+<div class="line"><a id="l00582" name="l00582"></a><span class="lineno">  582</span>        <a class="code hl_function" href="cms__internal_8h.html#a15ccaae4ad769d69c59c86893a1997f1">ngx_brix_cms_schedule_retry</a>(ctx);</div>
+<div class="line"><a id="l00583" name="l00583"></a><span class="lineno">  583</span>        <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00584" name="l00584"></a><span class="lineno">  584</span>    }</div>
+<div class="line"><a id="l00585" name="l00585"></a><span class="lineno">  585</span> </div>
+<div class="line"><a id="l00586" name="l00586"></a><span class="lineno">  586</span>    <span class="keywordflow">for</span> ( ;; ) {</div>
+<div class="line"><a id="l00587" name="l00587"></a><span class="lineno">  587</span>        n = <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;recv(<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, ctx-&gt;inbuf + ctx-&gt;in_pos,</div>
+<div class="line"><a id="l00588" name="l00588"></a><span class="lineno">  588</span>                    ctx-&gt;in_need - ctx-&gt;in_pos);</div>
+<div class="line"><a id="l00589" name="l00589"></a><span class="lineno">  589</span> </div>
+<div class="line"><a id="l00590" name="l00590"></a><span class="lineno">  590</span>        <span class="keywordflow">if</span> (n == NGX_AGAIN) {</div>
+<div class="line"><a id="l00591" name="l00591"></a><span class="lineno">  591</span>            <span class="keywordflow">break</span>;</div>
+<div class="line"><a id="l00592" name="l00592"></a><span class="lineno">  592</span>        }</div>
+<div class="line"><a id="l00593" name="l00593"></a><span class="lineno">  593</span> </div>
+<div class="line"><a id="l00594" name="l00594"></a><span class="lineno">  594</span>        <span class="keywordflow">if</span> (n == NGX_ERROR || n == 0) {</div>
+<div class="line"><a id="l00595" name="l00595"></a><span class="lineno">  595</span>            ngx_log_debug0(NGX_LOG_DEBUG_EVENT, ev-&gt;log, 0,</div>
+<div class="line"><a id="l00596" name="l00596"></a><span class="lineno">  596</span>                           <span class="stringliteral">&quot;brix: CMS recv EOF/error, disconnecting&quot;</span>);</div>
+<div class="line"><a id="l00597" name="l00597"></a><span class="lineno">  597</span>            <a class="code hl_function" href="cms__internal_8h.html#a90ce1ed8b63e053286a655f7c286dd6b">ngx_brix_cms_set_end_hint</a>(ctx, n == 0 ? <a class="code hl_enumvalue" href="sesslog_8h.html#af296b50cd276eda633454fac47fd3fc7ae401bbd1b727468a011c0252736018af">BRIX_SESS_END_SERVER</a></div>
+<div class="line"><a id="l00598" name="l00598"></a><span class="lineno">  598</span>                                                  : <a class="code hl_enumvalue" href="sesslog_8h.html#af296b50cd276eda633454fac47fd3fc7a8f8644deff7c202fec2694ba268b7059">BRIX_SESS_END_ERROR</a>);</div>
+<div class="line"><a id="l00599" name="l00599"></a><span class="lineno">  599</span>            <a class="code hl_function" href="cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e">ngx_brix_cms_disconnect</a>(ctx);</div>
+<div class="line"><a id="l00600" name="l00600"></a><span class="lineno">  600</span>            <a class="code hl_function" href="cms__internal_8h.html#a15ccaae4ad769d69c59c86893a1997f1">ngx_brix_cms_schedule_retry</a>(ctx);</div>
+<div class="line"><a id="l00601" name="l00601"></a><span class="lineno">  601</span>            <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00602" name="l00602"></a><span class="lineno">  602</span>        }</div>
+<div class="line"><a id="l00603" name="l00603"></a><span class="lineno">  603</span> </div>
+<div class="line"><a id="l00604" name="l00604"></a><span class="lineno">  604</span>        ctx-&gt;in_pos += (size_t) n;</div>
 <div class="line"><a id="l00605" name="l00605"></a><span class="lineno">  605</span> </div>
-<div class="line"><a id="l00606" name="l00606"></a><span class="lineno">  606</span>        <span class="keywordflow">if</span> (ctx-&gt;in_need == <a class="code hl_define" href="cms__internal_8h.html#af14b9cf07341ee61d3202266b4656134">NGX_BRIX_CMS_HDR_LEN</a>) {</div>
-<div class="line"><a id="l00607" name="l00607"></a><span class="lineno">  607</span>            dlen = <a class="code hl_function" href="cms__internal_8h.html#a512bd94b14d58ca0c566a023ff4259c2">ngx_brix_cms_get16</a>(ctx-&gt;inbuf + 6);</div>
-<div class="line"><a id="l00608" name="l00608"></a><span class="lineno">  608</span> </div>
-<div class="line"><a id="l00609" name="l00609"></a><span class="lineno">  609</span>            <span class="keywordflow">if</span> ((<span class="keywordtype">size_t</span>) dlen + <a class="code hl_define" href="cms__internal_8h.html#af14b9cf07341ee61d3202266b4656134">NGX_BRIX_CMS_HDR_LEN</a></div>
-<div class="line"><a id="l00610" name="l00610"></a><span class="lineno">  610</span>                &gt; <a class="code hl_define" href="cms__internal_8h.html#a673775380eb74d794ec780386160bd4b">NGX_BRIX_CMS_MAX_FRAME</a>)</div>
-<div class="line"><a id="l00611" name="l00611"></a><span class="lineno">  611</span>            {</div>
-<div class="line"><a id="l00612" name="l00612"></a><span class="lineno">  612</span>                ngx_log_error(NGX_LOG_WARN, ev-&gt;log, 0,</div>
-<div class="line"><a id="l00613" name="l00613"></a><span class="lineno">  613</span>                              <span class="stringliteral">&quot;brix: CMS frame too large: %ui&quot;</span>,</div>
-<div class="line"><a id="l00614" name="l00614"></a><span class="lineno">  614</span>                              (ngx_uint_t) dlen);</div>
-<div class="line"><a id="l00615" name="l00615"></a><span class="lineno">  615</span>                <a class="code hl_function" href="cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e">ngx_brix_cms_disconnect</a>(ctx);</div>
-<div class="line"><a id="l00616" name="l00616"></a><span class="lineno">  616</span>                <a class="code hl_function" href="cms__internal_8h.html#a15ccaae4ad769d69c59c86893a1997f1">ngx_brix_cms_schedule_retry</a>(ctx);</div>
-<div class="line"><a id="l00617" name="l00617"></a><span class="lineno">  617</span>                <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00618" name="l00618"></a><span class="lineno">  618</span>            }</div>
-<div class="line"><a id="l00619" name="l00619"></a><span class="lineno">  619</span> </div>
-<div class="line"><a id="l00620" name="l00620"></a><span class="lineno">  620</span>            ctx-&gt;in_need = <a class="code hl_define" href="cms__internal_8h.html#af14b9cf07341ee61d3202266b4656134">NGX_BRIX_CMS_HDR_LEN</a> + dlen;</div>
-<div class="line"><a id="l00621" name="l00621"></a><span class="lineno">  621</span>            <span class="keywordflow">if</span> (ctx-&gt;in_pos &lt; ctx-&gt;in_need) {</div>
-<div class="line"><a id="l00622" name="l00622"></a><span class="lineno">  622</span>                <span class="keywordflow">continue</span>;</div>
+<div class="line"><a id="l00606" name="l00606"></a><span class="lineno">  606</span>        <span class="keywordflow">if</span> (ctx-&gt;in_pos &lt; ctx-&gt;in_need) {</div>
+<div class="line"><a id="l00607" name="l00607"></a><span class="lineno">  607</span>            <span class="keywordflow">continue</span>;</div>
+<div class="line"><a id="l00608" name="l00608"></a><span class="lineno">  608</span>        }</div>
+<div class="line"><a id="l00609" name="l00609"></a><span class="lineno">  609</span> </div>
+<div class="line"><a id="l00610" name="l00610"></a><span class="lineno">  610</span>        <span class="keywordflow">if</span> (ctx-&gt;in_need == <a class="code hl_define" href="cms__internal_8h.html#af14b9cf07341ee61d3202266b4656134">NGX_BRIX_CMS_HDR_LEN</a>) {</div>
+<div class="line"><a id="l00611" name="l00611"></a><span class="lineno">  611</span>            dlen = <a class="code hl_function" href="cms__internal_8h.html#a512bd94b14d58ca0c566a023ff4259c2">ngx_brix_cms_get16</a>(ctx-&gt;inbuf + 6);</div>
+<div class="line"><a id="l00612" name="l00612"></a><span class="lineno">  612</span> </div>
+<div class="line"><a id="l00613" name="l00613"></a><span class="lineno">  613</span>            <span class="keywordflow">if</span> ((<span class="keywordtype">size_t</span>) dlen + <a class="code hl_define" href="cms__internal_8h.html#af14b9cf07341ee61d3202266b4656134">NGX_BRIX_CMS_HDR_LEN</a></div>
+<div class="line"><a id="l00614" name="l00614"></a><span class="lineno">  614</span>                &gt; <a class="code hl_define" href="cms__internal_8h.html#a673775380eb74d794ec780386160bd4b">NGX_BRIX_CMS_MAX_FRAME</a>)</div>
+<div class="line"><a id="l00615" name="l00615"></a><span class="lineno">  615</span>            {</div>
+<div class="line"><a id="l00616" name="l00616"></a><span class="lineno">  616</span>                ngx_log_error(NGX_LOG_WARN, ev-&gt;log, 0,</div>
+<div class="line"><a id="l00617" name="l00617"></a><span class="lineno">  617</span>                              <span class="stringliteral">&quot;brix: CMS frame too large: %ui&quot;</span>,</div>
+<div class="line"><a id="l00618" name="l00618"></a><span class="lineno">  618</span>                              (ngx_uint_t) dlen);</div>
+<div class="line"><a id="l00619" name="l00619"></a><span class="lineno">  619</span>                <a class="code hl_function" href="cms__internal_8h.html#a90ce1ed8b63e053286a655f7c286dd6b">ngx_brix_cms_set_end_hint</a>(ctx, <a class="code hl_enumvalue" href="sesslog_8h.html#af296b50cd276eda633454fac47fd3fc7a8f8644deff7c202fec2694ba268b7059">BRIX_SESS_END_ERROR</a>);</div>
+<div class="line"><a id="l00620" name="l00620"></a><span class="lineno">  620</span>                <a class="code hl_function" href="cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e">ngx_brix_cms_disconnect</a>(ctx);</div>
+<div class="line"><a id="l00621" name="l00621"></a><span class="lineno">  621</span>                <a class="code hl_function" href="cms__internal_8h.html#a15ccaae4ad769d69c59c86893a1997f1">ngx_brix_cms_schedule_retry</a>(ctx);</div>
+<div class="line"><a id="l00622" name="l00622"></a><span class="lineno">  622</span>                <span class="keywordflow">return</span>;</div>
 <div class="line"><a id="l00623" name="l00623"></a><span class="lineno">  623</span>            }</div>
-<div class="line"><a id="l00624" name="l00624"></a><span class="lineno">  624</span>        }</div>
-<div class="line"><a id="l00625" name="l00625"></a><span class="lineno">  625</span> </div>
-<div class="line"><a id="l00626" name="l00626"></a><span class="lineno">  626</span>        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ev-&gt;log, 0,</div>
-<div class="line"><a id="l00627" name="l00627"></a><span class="lineno">  627</span>                       <span class="stringliteral">&quot;brix: CMS process_frame code=%ui&quot;</span>,</div>
-<div class="line"><a id="l00628" name="l00628"></a><span class="lineno">  628</span>                       (ngx_uint_t) ctx-&gt;inbuf[4]);</div>
-<div class="line"><a id="l00629" name="l00629"></a><span class="lineno">  629</span> </div>
-<div class="line"><a id="l00630" name="l00630"></a><span class="lineno">  630</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="net_2cms_2recv_8c.html#ad990b999725b31e86b7f2384ec8b6e83">ngx_brix_cms_process_frame</a>(ctx) != NGX_OK) {</div>
-<div class="line"><a id="l00631" name="l00631"></a><span class="lineno">  631</span>            <a class="code hl_function" href="cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e">ngx_brix_cms_disconnect</a>(ctx);</div>
-<div class="line"><a id="l00632" name="l00632"></a><span class="lineno">  632</span>            <a class="code hl_function" href="cms__internal_8h.html#a15ccaae4ad769d69c59c86893a1997f1">ngx_brix_cms_schedule_retry</a>(ctx);</div>
-<div class="line"><a id="l00633" name="l00633"></a><span class="lineno">  633</span>            <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00634" name="l00634"></a><span class="lineno">  634</span>        }</div>
-<div class="line"><a id="l00635" name="l00635"></a><span class="lineno">  635</span> </div>
-<div class="line"><a id="l00636" name="l00636"></a><span class="lineno">  636</span>        ctx-&gt;in_pos = 0;</div>
-<div class="line"><a id="l00637" name="l00637"></a><span class="lineno">  637</span>        ctx-&gt;in_need = <a class="code hl_define" href="cms__internal_8h.html#af14b9cf07341ee61d3202266b4656134">NGX_BRIX_CMS_HDR_LEN</a>;</div>
-<div class="line"><a id="l00638" name="l00638"></a><span class="lineno">  638</span> </div>
-<div class="line"><a id="l00639" name="l00639"></a><span class="lineno">  639</span>        <span class="comment">/* WS1: a frame from the manager proves it is alive — reset the silence</span></div>
-<div class="line"><a id="l00640" name="l00640"></a><span class="lineno">  640</span><span class="comment">         * deadline so a responsive manager is never reconnected. */</span></div>
-<div class="line"><a id="l00641" name="l00641"></a><span class="lineno">  641</span>        <a class="code hl_function" href="cms__internal_8h.html#a873f3f4f20b953dc154b465ad18fa10b">ngx_brix_cms_arm_read_deadline</a>(ctx);</div>
-<div class="line"><a id="l00642" name="l00642"></a><span class="lineno">  642</span> </div>
-<div class="line"><a id="l00643" name="l00643"></a><span class="lineno">  643</span>        <span class="comment">/* A2: fairness — after a bounded number of frames, yield the worker to</span></div>
-<div class="line"><a id="l00644" name="l00644"></a><span class="lineno">  644</span><span class="comment">         * other connections and resume via a posted read event, so a flooding</span></div>
-<div class="line"><a id="l00645" name="l00645"></a><span class="lineno">  645</span><span class="comment">         * manager cannot monopolise the event loop. */</span></div>
-<div class="line"><a id="l00646" name="l00646"></a><span class="lineno">  646</span>        <span class="keywordflow">if</span> (++processed &gt;= <a class="code hl_define" href="cms__internal_8h.html#acbdff4a429d2f938bc3692e40474074f">NGX_BRIX_CMS_MAX_FRAMES_PER_WAKEUP</a>) {</div>
-<div class="line"><a id="l00647" name="l00647"></a><span class="lineno">  647</span>            <span class="keywordflow">if</span> (ngx_handle_read_event(<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;read, 0) != NGX_OK) {</div>
-<div class="line"><a id="l00648" name="l00648"></a><span class="lineno">  648</span>                <a class="code hl_function" href="cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e">ngx_brix_cms_disconnect</a>(ctx);</div>
-<div class="line"><a id="l00649" name="l00649"></a><span class="lineno">  649</span>                <a class="code hl_function" href="cms__internal_8h.html#a15ccaae4ad769d69c59c86893a1997f1">ngx_brix_cms_schedule_retry</a>(ctx);</div>
-<div class="line"><a id="l00650" name="l00650"></a><span class="lineno">  650</span>                <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00651" name="l00651"></a><span class="lineno">  651</span>            }</div>
-<div class="line"><a id="l00652" name="l00652"></a><span class="lineno">  652</span>            <a class="code hl_define" href="metrics__macros_8h.html#a1a79c1d173ab92bbeb7721e8df9f71bc">BRIX_RESIL_METRIC_INC</a>(cms_frame_yields_total);</div>
-<div class="line"><a id="l00653" name="l00653"></a><span class="lineno">  653</span>            ngx_post_event(<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;read, &amp;ngx_posted_events);</div>
-<div class="line"><a id="l00654" name="l00654"></a><span class="lineno">  654</span>            <span class="keywordflow">return</span>;</div>
-<div class="line"><a id="l00655" name="l00655"></a><span class="lineno">  655</span>        }</div>
-<div class="line"><a id="l00656" name="l00656"></a><span class="lineno">  656</span>    }</div>
-<div class="line"><a id="l00657" name="l00657"></a><span class="lineno">  657</span> </div>
-<div class="line"><a id="l00658" name="l00658"></a><span class="lineno">  658</span>    <span class="keywordflow">if</span> (ctx-&gt;connection != NULL</div>
-<div class="line"><a id="l00659" name="l00659"></a><span class="lineno">  659</span>        &amp;&amp; ngx_handle_read_event(<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;read, 0) != NGX_OK)</div>
-<div class="line"><a id="l00660" name="l00660"></a><span class="lineno">  660</span>    {</div>
-<div class="line"><a id="l00661" name="l00661"></a><span class="lineno">  661</span>        <a class="code hl_function" href="cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e">ngx_brix_cms_disconnect</a>(ctx);</div>
-<div class="line"><a id="l00662" name="l00662"></a><span class="lineno">  662</span>        <a class="code hl_function" href="cms__internal_8h.html#a15ccaae4ad769d69c59c86893a1997f1">ngx_brix_cms_schedule_retry</a>(ctx);</div>
+<div class="line"><a id="l00624" name="l00624"></a><span class="lineno">  624</span> </div>
+<div class="line"><a id="l00625" name="l00625"></a><span class="lineno">  625</span>            ctx-&gt;in_need = <a class="code hl_define" href="cms__internal_8h.html#af14b9cf07341ee61d3202266b4656134">NGX_BRIX_CMS_HDR_LEN</a> + dlen;</div>
+<div class="line"><a id="l00626" name="l00626"></a><span class="lineno">  626</span>            <span class="keywordflow">if</span> (ctx-&gt;in_pos &lt; ctx-&gt;in_need) {</div>
+<div class="line"><a id="l00627" name="l00627"></a><span class="lineno">  627</span>                <span class="keywordflow">continue</span>;</div>
+<div class="line"><a id="l00628" name="l00628"></a><span class="lineno">  628</span>            }</div>
+<div class="line"><a id="l00629" name="l00629"></a><span class="lineno">  629</span>        }</div>
+<div class="line"><a id="l00630" name="l00630"></a><span class="lineno">  630</span> </div>
+<div class="line"><a id="l00631" name="l00631"></a><span class="lineno">  631</span>        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ev-&gt;log, 0,</div>
+<div class="line"><a id="l00632" name="l00632"></a><span class="lineno">  632</span>                       <span class="stringliteral">&quot;brix: CMS process_frame code=%ui&quot;</span>,</div>
+<div class="line"><a id="l00633" name="l00633"></a><span class="lineno">  633</span>                       (ngx_uint_t) ctx-&gt;inbuf[4]);</div>
+<div class="line"><a id="l00634" name="l00634"></a><span class="lineno">  634</span> </div>
+<div class="line"><a id="l00635" name="l00635"></a><span class="lineno">  635</span>        <span class="keywordflow">if</span> (<a class="code hl_function" href="net_2cms_2recv_8c.html#ad990b999725b31e86b7f2384ec8b6e83">ngx_brix_cms_process_frame</a>(ctx) != NGX_OK) {</div>
+<div class="line"><a id="l00636" name="l00636"></a><span class="lineno">  636</span>            <a class="code hl_function" href="cms__internal_8h.html#a90ce1ed8b63e053286a655f7c286dd6b">ngx_brix_cms_set_end_hint</a>(ctx, <a class="code hl_enumvalue" href="sesslog_8h.html#af296b50cd276eda633454fac47fd3fc7a8f8644deff7c202fec2694ba268b7059">BRIX_SESS_END_ERROR</a>);</div>
+<div class="line"><a id="l00637" name="l00637"></a><span class="lineno">  637</span>            <a class="code hl_function" href="cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e">ngx_brix_cms_disconnect</a>(ctx);</div>
+<div class="line"><a id="l00638" name="l00638"></a><span class="lineno">  638</span>            <a class="code hl_function" href="cms__internal_8h.html#a15ccaae4ad769d69c59c86893a1997f1">ngx_brix_cms_schedule_retry</a>(ctx);</div>
+<div class="line"><a id="l00639" name="l00639"></a><span class="lineno">  639</span>            <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00640" name="l00640"></a><span class="lineno">  640</span>        }</div>
+<div class="line"><a id="l00641" name="l00641"></a><span class="lineno">  641</span> </div>
+<div class="line"><a id="l00642" name="l00642"></a><span class="lineno">  642</span>        ctx-&gt;in_pos = 0;</div>
+<div class="line"><a id="l00643" name="l00643"></a><span class="lineno">  643</span>        ctx-&gt;in_need = <a class="code hl_define" href="cms__internal_8h.html#af14b9cf07341ee61d3202266b4656134">NGX_BRIX_CMS_HDR_LEN</a>;</div>
+<div class="line"><a id="l00644" name="l00644"></a><span class="lineno">  644</span> </div>
+<div class="line"><a id="l00645" name="l00645"></a><span class="lineno">  645</span>        <span class="comment">/* WS1: a frame from the manager proves it is alive — reset the silence</span></div>
+<div class="line"><a id="l00646" name="l00646"></a><span class="lineno">  646</span><span class="comment">         * deadline so a responsive manager is never reconnected. */</span></div>
+<div class="line"><a id="l00647" name="l00647"></a><span class="lineno">  647</span>        <a class="code hl_function" href="cms__internal_8h.html#a873f3f4f20b953dc154b465ad18fa10b">ngx_brix_cms_arm_read_deadline</a>(ctx);</div>
+<div class="line"><a id="l00648" name="l00648"></a><span class="lineno">  648</span> </div>
+<div class="line"><a id="l00649" name="l00649"></a><span class="lineno">  649</span>        <span class="comment">/* A2: fairness — after a bounded number of frames, yield the worker to</span></div>
+<div class="line"><a id="l00650" name="l00650"></a><span class="lineno">  650</span><span class="comment">         * other connections and resume via a posted read event, so a flooding</span></div>
+<div class="line"><a id="l00651" name="l00651"></a><span class="lineno">  651</span><span class="comment">         * manager cannot monopolise the event loop. */</span></div>
+<div class="line"><a id="l00652" name="l00652"></a><span class="lineno">  652</span>        <span class="keywordflow">if</span> (++processed &gt;= <a class="code hl_define" href="cms__internal_8h.html#acbdff4a429d2f938bc3692e40474074f">NGX_BRIX_CMS_MAX_FRAMES_PER_WAKEUP</a>) {</div>
+<div class="line"><a id="l00653" name="l00653"></a><span class="lineno">  653</span>            <span class="keywordflow">if</span> (ngx_handle_read_event(<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;read, 0) != NGX_OK) {</div>
+<div class="line"><a id="l00654" name="l00654"></a><span class="lineno">  654</span>                <a class="code hl_function" href="cms__internal_8h.html#a90ce1ed8b63e053286a655f7c286dd6b">ngx_brix_cms_set_end_hint</a>(ctx, <a class="code hl_enumvalue" href="sesslog_8h.html#af296b50cd276eda633454fac47fd3fc7a8f8644deff7c202fec2694ba268b7059">BRIX_SESS_END_ERROR</a>);</div>
+<div class="line"><a id="l00655" name="l00655"></a><span class="lineno">  655</span>                <a class="code hl_function" href="cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e">ngx_brix_cms_disconnect</a>(ctx);</div>
+<div class="line"><a id="l00656" name="l00656"></a><span class="lineno">  656</span>                <a class="code hl_function" href="cms__internal_8h.html#a15ccaae4ad769d69c59c86893a1997f1">ngx_brix_cms_schedule_retry</a>(ctx);</div>
+<div class="line"><a id="l00657" name="l00657"></a><span class="lineno">  657</span>                <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00658" name="l00658"></a><span class="lineno">  658</span>            }</div>
+<div class="line"><a id="l00659" name="l00659"></a><span class="lineno">  659</span>            <a class="code hl_define" href="metrics__macros_8h.html#a1a79c1d173ab92bbeb7721e8df9f71bc">BRIX_RESIL_METRIC_INC</a>(cms_frame_yields_total);</div>
+<div class="line"><a id="l00660" name="l00660"></a><span class="lineno">  660</span>            ngx_post_event(<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;read, &amp;ngx_posted_events);</div>
+<div class="line"><a id="l00661" name="l00661"></a><span class="lineno">  661</span>            <span class="keywordflow">return</span>;</div>
+<div class="line"><a id="l00662" name="l00662"></a><span class="lineno">  662</span>        }</div>
 <div class="line"><a id="l00663" name="l00663"></a><span class="lineno">  663</span>    }</div>
-<div class="line"><a id="l00664" name="l00664"></a><span class="lineno">  664</span>}</div>
+<div class="line"><a id="l00664" name="l00664"></a><span class="lineno">  664</span> </div>
+<div class="line"><a id="l00665" name="l00665"></a><span class="lineno">  665</span>    <span class="keywordflow">if</span> (ctx-&gt;connection != NULL</div>
+<div class="line"><a id="l00666" name="l00666"></a><span class="lineno">  666</span>        &amp;&amp; ngx_handle_read_event(<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;read, 0) != NGX_OK)</div>
+<div class="line"><a id="l00667" name="l00667"></a><span class="lineno">  667</span>    {</div>
+<div class="line"><a id="l00668" name="l00668"></a><span class="lineno">  668</span>        <a class="code hl_function" href="cms__internal_8h.html#a90ce1ed8b63e053286a655f7c286dd6b">ngx_brix_cms_set_end_hint</a>(ctx, <a class="code hl_enumvalue" href="sesslog_8h.html#af296b50cd276eda633454fac47fd3fc7a8f8644deff7c202fec2694ba268b7059">BRIX_SESS_END_ERROR</a>);</div>
+<div class="line"><a id="l00669" name="l00669"></a><span class="lineno">  669</span>        <a class="code hl_function" href="cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e">ngx_brix_cms_disconnect</a>(ctx);</div>
+<div class="line"><a id="l00670" name="l00670"></a><span class="lineno">  670</span>        <a class="code hl_function" href="cms__internal_8h.html#a15ccaae4ad769d69c59c86893a1997f1">ngx_brix_cms_schedule_retry</a>(ctx);</div>
+<div class="line"><a id="l00671" name="l00671"></a><span class="lineno">  671</span>    }</div>
+<div class="line"><a id="l00672" name="l00672"></a><span class="lineno">  672</span>}</div>
 </div>
 <div class="ttc" id="abeneath_8c_html_a1a9bf312d9c8c41e64d592e3e5178248"><div class="ttname"><a href="beneath_8c.html#a1a9bf312d9c8c41e64d592e3e5178248">brix_rename_beneath</a></div><div class="ttdeci">int brix_rename_beneath(int rootfd, const char *src, const char *dst)</div><div class="ttdef"><b>Definition</b> <a href="beneath_8c_source.html#l00293">beneath.c:293</a></div></div>
 <div class="ttc" id="abeneath_8c_html_a273847392f1ae5c7e56b8077697b1cd5"><div class="ttname"><a href="beneath_8c.html#a273847392f1ae5c7e56b8077697b1cd5">brix_mkdir_beneath</a></div><div class="ttdeci">int brix_mkdir_beneath(int rootfd, const char *reqpath, mode_t mode)</div><div class="ttdef"><b>Definition</b> <a href="beneath_8c_source.html#l00274">beneath.c:274</a></div></div>
@@ -784,7 +792,7 @@ $(document).ready(function(){initNavTree('net_2cms_2recv_8c_source.html',''); in
 <div class="ttc" id="acms__internal_8h_html"><div class="ttname"><a href="cms__internal_8h.html">cms_internal.h</a></div></div>
 <div class="ttc" id="acms__internal_8h_html_a0b5e6fe14a9ab73cf4fa4f2389cb0228"><div class="ttname"><a href="cms__internal_8h.html#a0b5e6fe14a9ab73cf4fa4f2389cb0228">ngx_brix_cms_get32</a></div><div class="ttdeci">uint32_t ngx_brix_cms_get32(const u_char *p)</div><div class="ttdef"><b>Definition</b> <a href="wire_8c_source.html#l00034">wire.c:34</a></div></div>
 <div class="ttc" id="acms__internal_8h_html_a0b73ba081fd9931fdcf4e1ef367d1c2f"><div class="ttname"><a href="cms__internal_8h.html#a0b73ba081fd9931fdcf4e1ef367d1c2f">CMS_RR_RMDIR</a></div><div class="ttdeci">#define CMS_RR_RMDIR</div><div class="ttdef"><b>Definition</b> <a href="cms__internal_8h_source.html#l00065">cms_internal.h:65</a></div></div>
-<div class="ttc" id="acms__internal_8h_html_a15ccaae4ad769d69c59c86893a1997f1"><div class="ttname"><a href="cms__internal_8h.html#a15ccaae4ad769d69c59c86893a1997f1">ngx_brix_cms_schedule_retry</a></div><div class="ttdeci">void ngx_brix_cms_schedule_retry(ngx_brix_cms_ctx_t *ctx)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2connect_8c_source.html#l00086">connect.c:86</a></div></div>
+<div class="ttc" id="acms__internal_8h_html_a15ccaae4ad769d69c59c86893a1997f1"><div class="ttname"><a href="cms__internal_8h.html#a15ccaae4ad769d69c59c86893a1997f1">ngx_brix_cms_schedule_retry</a></div><div class="ttdeci">void ngx_brix_cms_schedule_retry(ngx_brix_cms_ctx_t *ctx)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2connect_8c_source.html#l00180">connect.c:180</a></div></div>
 <div class="ttc" id="acms__internal_8h_html_a21cbb048efc3b49db444628dde3db4cb"><div class="ttname"><a href="cms__internal_8h.html#a21cbb048efc3b49db444628dde3db4cb">CMS_RR_STATE</a></div><div class="ttdeci">#define CMS_RR_STATE</div><div class="ttdef"><b>Definition</b> <a href="cms__internal_8h_source.html#l00097">cms_internal.h:97</a></div></div>
 <div class="ttc" id="acms__internal_8h_html_a348f0b39f400e396c942268c7468737d"><div class="ttname"><a href="cms__internal_8h.html#a348f0b39f400e396c942268c7468737d">ngx_brix_cms_send_status</a></div><div class="ttdeci">ngx_int_t ngx_brix_cms_send_status(ngx_brix_cms_ctx_t *ctx)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2send_8c_source.html#l00209">send.c:209</a></div></div>
 <div class="ttc" id="acms__internal_8h_html_a39553c42ce6e1483a4814338fb6d56c2"><div class="ttname"><a href="cms__internal_8h.html#a39553c42ce6e1483a4814338fb6d56c2">CMS_RR_UPDATE</a></div><div class="ttdeci">#define CMS_RR_UPDATE</div><div class="ttdef"><b>Definition</b> <a href="cms__internal_8h_source.html#l00070">cms_internal.h:70</a></div></div>
@@ -801,9 +809,10 @@ $(document).ready(function(){initNavTree('net_2cms_2recv_8c_source.html',''); in
 <div class="ttc" id="acms__internal_8h_html_a569ad6f47d1e7a8acb5ad0dc77625d38"><div class="ttname"><a href="cms__internal_8h.html#a569ad6f47d1e7a8acb5ad0dc77625d38">CMS_ERR_EINVAL</a></div><div class="ttdeci">#define CMS_ERR_EINVAL</div><div class="ttdef"><b>Definition</b> <a href="cms__internal_8h_source.html#l00088">cms_internal.h:88</a></div></div>
 <div class="ttc" id="acms__internal_8h_html_a58e54978594cc4ef6557f6bfed2634fe"><div class="ttname"><a href="cms__internal_8h.html#a58e54978594cc4ef6557f6bfed2634fe">CMS_RR_CHMOD</a></div><div class="ttdeci">#define CMS_RR_CHMOD</div><div class="ttdef"><b>Definition</b> <a href="cms__internal_8h_source.html#l00057">cms_internal.h:57</a></div></div>
 <div class="ttc" id="acms__internal_8h_html_a673775380eb74d794ec780386160bd4b"><div class="ttname"><a href="cms__internal_8h.html#a673775380eb74d794ec780386160bd4b">NGX_BRIX_CMS_MAX_FRAME</a></div><div class="ttdeci">#define NGX_BRIX_CMS_MAX_FRAME</div><div class="ttdef"><b>Definition</b> <a href="cms__internal_8h_source.html#l00042">cms_internal.h:42</a></div></div>
-<div class="ttc" id="acms__internal_8h_html_a873f3f4f20b953dc154b465ad18fa10b"><div class="ttname"><a href="cms__internal_8h.html#a873f3f4f20b953dc154b465ad18fa10b">ngx_brix_cms_arm_read_deadline</a></div><div class="ttdeci">void ngx_brix_cms_arm_read_deadline(ngx_brix_cms_ctx_t *ctx)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2connect_8c_source.html#l00040">connect.c:40</a></div></div>
+<div class="ttc" id="acms__internal_8h_html_a873f3f4f20b953dc154b465ad18fa10b"><div class="ttname"><a href="cms__internal_8h.html#a873f3f4f20b953dc154b465ad18fa10b">ngx_brix_cms_arm_read_deadline</a></div><div class="ttdeci">void ngx_brix_cms_arm_read_deadline(ngx_brix_cms_ctx_t *ctx)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2connect_8c_source.html#l00134">connect.c:134</a></div></div>
+<div class="ttc" id="acms__internal_8h_html_a90ce1ed8b63e053286a655f7c286dd6b"><div class="ttname"><a href="cms__internal_8h.html#a90ce1ed8b63e053286a655f7c286dd6b">ngx_brix_cms_set_end_hint</a></div><div class="ttdeci">void ngx_brix_cms_set_end_hint(ngx_brix_cms_ctx_t *ctx, brix_sess_end_t why)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2connect_8c_source.html#l00036">connect.c:36</a></div></div>
 <div class="ttc" id="acms__internal_8h_html_aa0f6cd1d93b17866252ea886b0f47cd4"><div class="ttname"><a href="cms__internal_8h.html#aa0f6cd1d93b17866252ea886b0f47cd4">CMS_RR_MV</a></div><div class="ttdeci">#define CMS_RR_MV</div><div class="ttdef"><b>Definition</b> <a href="cms__internal_8h_source.html#l00061">cms_internal.h:61</a></div></div>
-<div class="ttc" id="acms__internal_8h_html_aa33d7c5c3748ac1942434f97facfd57e"><div class="ttname"><a href="cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e">ngx_brix_cms_disconnect</a></div><div class="ttdeci">void ngx_brix_cms_disconnect(ngx_brix_cms_ctx_t *ctx)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2connect_8c_source.html#l00161">connect.c:161</a></div></div>
+<div class="ttc" id="acms__internal_8h_html_aa33d7c5c3748ac1942434f97facfd57e"><div class="ttname"><a href="cms__internal_8h.html#aa33d7c5c3748ac1942434f97facfd57e">ngx_brix_cms_disconnect</a></div><div class="ttdeci">void ngx_brix_cms_disconnect(ngx_brix_cms_ctx_t *ctx)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2connect_8c_source.html#l00255">connect.c:255</a></div></div>
 <div class="ttc" id="acms__internal_8h_html_abd3b3d947f52779aee07965b494b280c"><div class="ttname"><a href="cms__internal_8h.html#abd3b3d947f52779aee07965b494b280c">ngx_brix_cms_send_pong</a></div><div class="ttdeci">ngx_int_t ngx_brix_cms_send_pong(ngx_brix_cms_ctx_t *ctx, uint32_t streamid)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2send_8c_source.html#l00321">send.c:321</a></div></div>
 <div class="ttc" id="acms__internal_8h_html_ac6147c03c99fdf46581e6afe10e0be3c"><div class="ttname"><a href="cms__internal_8h.html#ac6147c03c99fdf46581e6afe10e0be3c">ngx_brix_cms_send_error</a></div><div class="ttdeci">ngx_int_t ngx_brix_cms_send_error(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, uint32_t ecode, const char *text)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2send_8c_source.html#l00032">send.c:32</a></div></div>
 <div class="ttc" id="acms__internal_8h_html_acbdff4a429d2f938bc3692e40474074f"><div class="ttname"><a href="cms__internal_8h.html#acbdff4a429d2f938bc3692e40474074f">NGX_BRIX_CMS_MAX_FRAMES_PER_WAKEUP</a></div><div class="ttdeci">#define NGX_BRIX_CMS_MAX_FRAMES_PER_WAKEUP</div><div class="ttdef"><b>Definition</b> <a href="cms__internal_8h_source.html#l00049">cms_internal.h:49</a></div></div>
@@ -824,12 +833,13 @@ $(document).ready(function(){initNavTree('net_2cms_2recv_8c_source.html',''); in
 <div class="ttc" id="anet_2cms_2recv_8c_html_a9a237a1e915c42bf327a6025542da78b"><div class="ttname"><a href="net_2cms_2recv_8c.html#a9a237a1e915c42bf327a6025542da78b">cms_find_client_connection</a></div><div class="ttdeci">static ngx_connection_t * cms_find_client_connection(int fd)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2recv_8c_source.html#l00288">recv.c:288</a></div></div>
 <div class="ttc" id="anet_2cms_2recv_8c_html_ad7b2400d83358b70ae33daea9614cf38"><div class="ttname"><a href="net_2cms_2recv_8c.html#ad7b2400d83358b70ae33daea9614cf38">cms_node_exec_driver</a></div><div class="ttdeci">static int cms_node_exec_driver(brix_sd_instance_t *sd, const char *root_canon, const brix_cms_node_plan_t *plan, ngx_log_t *log, int *handled)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2recv_8c_source.html#l00029">recv.c:29</a></div></div>
 <div class="ttc" id="anet_2cms_2recv_8c_html_ad990b999725b31e86b7f2384ec8b6e83"><div class="ttname"><a href="net_2cms_2recv_8c.html#ad990b999725b31e86b7f2384ec8b6e83">ngx_brix_cms_process_frame</a></div><div class="ttdeci">static ngx_int_t ngx_brix_cms_process_frame(ngx_brix_cms_ctx_t *ctx)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2recv_8c_source.html#l00321">recv.c:321</a></div></div>
-<div class="ttc" id="anet_2cms_2recv_8c_html_adc1b65b0001521639efbb96df91a480a"><div class="ttname"><a href="net_2cms_2recv_8c.html#adc1b65b0001521639efbb96df91a480a">ngx_brix_cms_read_handler</a></div><div class="ttdeci">void ngx_brix_cms_read_handler(ngx_event_t *ev)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2recv_8c_source.html#l00550">recv.c:550</a></div></div>
+<div class="ttc" id="anet_2cms_2recv_8c_html_adc1b65b0001521639efbb96df91a480a"><div class="ttname"><a href="net_2cms_2recv_8c.html#adc1b65b0001521639efbb96df91a480a">ngx_brix_cms_read_handler</a></div><div class="ttdeci">void ngx_brix_cms_read_handler(ngx_event_t *ev)</div><div class="ttdef"><b>Definition</b> <a href="net_2cms_2recv_8c_source.html#l00551">recv.c:551</a></div></div>
 <div class="ttc" id="anet_2manager_2registry_8h_html"><div class="ttname"><a href="net_2manager_2registry_8h.html">registry.h</a></div></div>
 <div class="ttc" id="anet_2manager_2registry_8h_html_a3239940eb727df4b789fccf11a394ba9"><div class="ttname"><a href="net_2manager_2registry_8h.html#a3239940eb727df4b789fccf11a394ba9">brix_srv_select</a></div><div class="ttdeci">int brix_srv_select(const char *path, int for_write, char *host_out, size_t host_size, uint16_t *port_out)</div><div class="ttdef"><b>Definition</b> <a href="registry__select_8c_source.html#l00187">registry_select.c:187</a></div></div>
 <div class="ttc" id="anet__target_8c_html_a3a5d828e3af16d6f82ebaacf7122f1f6"><div class="ttname"><a href="net__target_8c.html#a3a5d828e3af16d6f82ebaacf7122f1f6">brix_net_host_chars_valid</a></div><div class="ttdeci">int brix_net_host_chars_valid(const char *host, size_t len)</div><div class="ttdef"><b>Definition</b> <a href="net__target_8c_source.html#l00509">net_target.c:509</a></div></div>
 <div class="ttc" id="anet__target_8h_html"><div class="ttname"><a href="net__target_8h.html">net_target.h</a></div></div>
 <div class="ttc" id="angx__brix__module_8h_html_a05c4e5ac379ae60715b73cca5b1ebe88"><div class="ttname"><a href="ngx__brix__module_8h.html#a05c4e5ac379ae60715b73cca5b1ebe88">ngx_stream_brix_module</a></div><div class="ttdeci">ngx_module_t ngx_stream_brix_module</div><div class="ttdef"><b>Definition</b> <a href="module__definition_8c_source.html#l00029">module_definition.c:29</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="anode__ops_8c_html_a205941b846c68b07d8af0ef6b3e43f9c"><div class="ttname"><a href="node__ops_8c.html#a205941b846c68b07d8af0ef6b3e43f9c">brix_cms_node_plan</a></div><div class="ttdeci">int brix_cms_node_plan(unsigned char code, const brix_cms_rrdata_t *d, brix_cms_node_plan_t *plan)</div><div class="ttdef"><b>Definition</b> <a href="node__ops_8c_source.html#l00031">node_ops.c:31</a></div></div>
 <div class="ttc" id="anode__ops_8h_html"><div class="ttname"><a href="node__ops_8h.html">node_ops.h</a></div></div>
 <div class="ttc" id="anode__ops_8h_html_aac5b828a1171150b2c14ac459c58b9dfa004b544b55a54e3533c4367caf9ca99b"><div class="ttname"><a href="node__ops_8h.html#aac5b828a1171150b2c14ac459c58b9dfa004b544b55a54e3533c4367caf9ca99b">XRDCMS_NACT_TRUNC</a></div><div class="ttdeci">@ XRDCMS_NACT_TRUNC</div><div class="ttdef"><b>Definition</b> <a href="node__ops_8h_source.html#l00032">node_ops.h:31</a></div></div>
@@ -852,6 +862,9 @@ $(document).ready(function(){initNavTree('net_2cms_2recv_8c_source.html',''); in
 <div class="ttc" id="arrdata_8h_html"><div class="ttname"><a href="rrdata_8h.html">rrdata.h</a></div></div>
 <div class="ttc" id="asd_8h_html_a2930ffbaed75ae0f6e3c9a024a08c54b"><div class="ttname"><a href="sd_8h.html#a2930ffbaed75ae0f6e3c9a024a08c54b">brix_sd_default_driver</a></div><div class="ttdeci">const brix_sd_driver_t * brix_sd_default_driver(void)</div><div class="ttdef"><b>Definition</b> <a href="sd__registry_8c_source.html#l00060">sd_registry.c:60</a></div></div>
 <div class="ttc" id="asd_8h_html_aa9cc60930f39f1dd9ed1e04e2f8346ed"><div class="ttname"><a href="sd_8h.html#aa9cc60930f39f1dd9ed1e04e2f8346ed">BRIX_SD_O_WRITE</a></div><div class="ttdeci">#define BRIX_SD_O_WRITE</div><div class="ttdef"><b>Definition</b> <a href="sd_8h_source.html#l00109">sd.h:109</a></div></div>
+<div class="ttc" id="asesslog_8h_html_af296b50cd276eda633454fac47fd3fc7a465146a3074cc8057c1bedbd9e8c8392"><div class="ttname"><a href="sesslog_8h.html#af296b50cd276eda633454fac47fd3fc7a465146a3074cc8057c1bedbd9e8c8392">BRIX_SESS_END_TIMEOUT</a></div><div class="ttdeci">@ BRIX_SESS_END_TIMEOUT</div><div class="ttdef"><b>Definition</b> <a href="sesslog_8h_source.html#l00064">sesslog.h:64</a></div></div>
+<div class="ttc" id="asesslog_8h_html_af296b50cd276eda633454fac47fd3fc7a8f8644deff7c202fec2694ba268b7059"><div class="ttname"><a href="sesslog_8h.html#af296b50cd276eda633454fac47fd3fc7a8f8644deff7c202fec2694ba268b7059">BRIX_SESS_END_ERROR</a></div><div class="ttdeci">@ BRIX_SESS_END_ERROR</div><div class="ttdef"><b>Definition</b> <a href="sesslog_8h_source.html#l00067">sesslog.h:66</a></div></div>
+<div class="ttc" id="asesslog_8h_html_af296b50cd276eda633454fac47fd3fc7ae401bbd1b727468a011c0252736018af"><div class="ttname"><a href="sesslog_8h.html#af296b50cd276eda633454fac47fd3fc7ae401bbd1b727468a011c0252736018af">BRIX_SESS_END_SERVER</a></div><div class="ttdeci">@ BRIX_SESS_END_SERVER</div><div class="ttdef"><b>Definition</b> <a href="sesslog_8h_source.html#l00063">sesslog.h:63</a></div></div>
 <div class="ttc" id="asrc_2core_2compat_2checksum_8c_html_ade2ba9452b028791d351ff1b15877c43"><div class="ttname"><a href="src_2core_2compat_2checksum_8c.html#ade2ba9452b028791d351ff1b15877c43">brix_sanitize_log_string</a></div><div class="ttdeci">size_t brix_sanitize_log_string(const char *in, char *out, size_t outsz)</div><div class="ttdef"><b>Definition</b> <a href="fs_2path_2helpers_8c_source.html#l00046">helpers.c:46</a></div></div>
 <div class="ttc" id="asrc_2fs_2vfs_2vfs_8h_html"><div class="ttname"><a href="src_2fs_2vfs_2vfs_8h.html">vfs.h</a></div></div>
 <div class="ttc" id="asrc_2fs_2vfs_2vfs_8h_html_a6b94938d9f38d1bc972da6746125764c"><div class="ttname"><a href="src_2fs_2vfs_2vfs_8h.html#a6b94938d9f38d1bc972da6746125764c">brix_vfs_open_fd_at</a></div><div class="ttdeci">int brix_vfs_open_fd_at(int rootfd, const char *logical, int flags, mode_t mode)</div><div class="ttdef"><b>Definition</b> <a href="vfs__walk_8c_source.html#l00239">vfs_walk.c:239</a></div></div>

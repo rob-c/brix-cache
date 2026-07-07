@@ -203,7 +203,7 @@ $(document).ready(function(){initNavTree('mapping_8c_source.html',''); initResiz
 <div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>    <span class="keywordflow">if</span> (n == 0 || n &gt;= outlen) {</div>
 <div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>        <span class="keywordflow">return</span> 0;</div>
 <div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>    }</div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    ngx_memcpy(out, r, n);</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(out, r, n);</div>
 <div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>    out[n] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>    <span class="keywordflow">return</span> 1;</div>
 <div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span>}</div>
@@ -234,10 +234,10 @@ $(document).ready(function(){initNavTree('mapping_8c_source.html',''); initResiz
 <div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>        u_char *rb = ngx_strlchr(spec-&gt;data, end, <span class="charliteral">&#39;]&#39;</span>);</div>
 <div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>        colon = (rb &amp;&amp; rb + 1 &lt; end &amp;&amp; rb[1] == <span class="charliteral">&#39;:&#39;</span>) ? rb + 1 : NULL;</div>
 <div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>        hlen = rb ? (size_t) (rb - spec-&gt;data - 1) : spec-&gt;len;</div>
-<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>        ngx_memcpy(host, spec-&gt;data + 1, hlen);</div>
+<div class="line"><a id="l00130" name="l00130"></a><span class="lineno">  130</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(host, spec-&gt;data + 1, hlen);</div>
 <div class="line"><a id="l00131" name="l00131"></a><span class="lineno">  131</span>    } <span class="keywordflow">else</span> {</div>
 <div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>        hlen = colon ? (size_t) (colon - spec-&gt;data) : spec-&gt;len;</div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>        ngx_memcpy(host, spec-&gt;data, hlen);</div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(host, spec-&gt;data, hlen);</div>
 <div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    }</div>
 <div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>    host[hlen] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span> </div>
@@ -246,7 +246,7 @@ $(document).ready(function(){initNavTree('mapping_8c_source.html',''); initResiz
 <div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span>        <span class="keywordflow">if</span> (plen &gt;= <span class="keyword">sizeof</span>(port)) {</div>
 <div class="line"><a id="l00140" name="l00140"></a><span class="lineno">  140</span>            <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00141" name="l00141"></a><span class="lineno">  141</span>        }</div>
-<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>        ngx_memcpy(port, colon + 1, plen);</div>
+<div class="line"><a id="l00142" name="l00142"></a><span class="lineno">  142</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(port, colon + 1, plen);</div>
 <div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span>        port[plen] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span>    } <span class="keywordflow">else</span> {</div>
 <div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span>        ngx_snprintf((u_char *) port, <span class="keyword">sizeof</span>(port), <span class="stringliteral">&quot;%d%Z&quot;</span>, <a class="code hl_define" href="pmark_8h.html#a24f46e4f142f78439b03f8530f61a38b">BRIX_PMARK_FF_PORT</a>);</div>
@@ -265,7 +265,7 @@ $(document).ready(function(){initNavTree('mapping_8c_source.html',''); initResiz
 <div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>    }</div>
 <div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span> </div>
 <div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>    ngx_memzero(dst, <span class="keyword">sizeof</span>(*dst));</div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>    ngx_memcpy(&amp;dst-&gt;<a class="code hl_variable" href="structbrix__pmark__dest__t.html#ae24ac1a93ee329084482516c1c17cc90">ss</a>, res-&gt;ai_addr, res-&gt;ai_addrlen);</div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(&amp;dst-&gt;<a class="code hl_variable" href="structbrix__pmark__dest__t.html#ae24ac1a93ee329084482516c1c17cc90">ss</a>, res-&gt;ai_addr, res-&gt;ai_addrlen);</div>
 <div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>    dst-&gt;<a class="code hl_variable" href="structbrix__pmark__dest__t.html#a6009d5df2a597ed4e3143c5d0ce1abbf">len</a>    = res-&gt;ai_addrlen;</div>
 <div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>    dst-&gt;<a class="code hl_variable" href="structbrix__pmark__dest__t.html#a44828a2b56a8d5d1f6699a9f2f4b2735">family</a> = res-&gt;ai_family;</div>
 <div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>    freeaddrinfo(res);</div>
@@ -498,6 +498,7 @@ $(document).ready(function(){initNavTree('mapping_8c_source.html',''); initResiz
 <div class="ttc" id="amapping_8c_html_a9eaaf19213fc4f37e7e66da70a935091"><div class="ttname"><a href="mapping_8c.html#a9eaaf19213fc4f37e7e66da70a935091">pmark_path_match</a></div><div class="ttdeci">static int pmark_path_match(const char *path, ngx_str_t *pat)</div><div class="ttdef"><b>Definition</b> <a href="mapping_8c_source.html#l00033">mapping.c:33</a></div></div>
 <div class="ttc" id="amapping_8c_html_aa634e2c161388848b9aa0764531e4996"><div class="ttname"><a href="mapping_8c.html#aa634e2c161388848b9aa0764531e4996">brix_pmark_map_codes</a></div><div class="ttdeci">ngx_int_t brix_pmark_map_codes(brix_pmark_conf_t *pm, const char *vo_csv, const char *user, const char *path, const char *cgi, ngx_uint_t *exp, ngx_uint_t *act)</div><div class="ttdef"><b>Definition</b> <a href="mapping_8c_source.html#l00285">mapping.c:285</a></div></div>
 <div class="ttc" id="amapping_8c_html_ad57e7f951c92bec9c27c64a47d2a1f16"><div class="ttname"><a href="mapping_8c.html#ad57e7f951c92bec9c27c64a47d2a1f16">brix_pmark_runtime_ensure</a></div><div class="ttdeci">ngx_int_t brix_pmark_runtime_ensure(brix_pmark_conf_t *pm, ngx_pool_t *pool, ngx_log_t *log)</div><div class="ttdef"><b>Definition</b> <a href="mapping_8c_source.html#l00170">mapping.c:170</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="apki__check_8h_html_ac08d621cd366ef68ad85972de09dc827"><div class="ttname"><a href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a></div><div class="ttdeci">BRIX_LOG_T * log</div><div class="ttdef"><b>Definition</b> <a href="pki__check_8h_source.html#l00035">pki_check.h:35</a></div></div>
 <div class="ttc" id="apmark_8h_html"><div class="ttname"><a href="pmark_8h.html">pmark.h</a></div></div>
 <div class="ttc" id="apmark_8h_html_a24f46e4f142f78439b03f8530f61a38b"><div class="ttname"><a href="pmark_8h.html#a24f46e4f142f78439b03f8530f61a38b">BRIX_PMARK_FF_PORT</a></div><div class="ttdeci">#define BRIX_PMARK_FF_PORT</div><div class="ttdef"><b>Definition</b> <a href="pmark_8h_source.html#l00040">pmark.h:40</a></div></div>

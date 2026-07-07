@@ -93,12 +93,12 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2ssi_2README.html','
   <div class="headertitle"><div class="title">&lt;tt&gt;src/protocols/ssi/&lt;/tt&gt; — XrdSsi request/response service over &lt;tt&gt;root://&lt;/tt&gt;</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md446"></a> </p>
-<h1><a class="anchor" id="autotoc_md447"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md447"></a> </p>
+<h1><a class="anchor" id="autotoc_md448"></a>
 Overview</h1>
 <p>An <code>XrdSsi</code>-style request/response service carried over the ordinary <code>root://</code> file protocol. A client opens an SSI resource path (<code>/.ssi/&lt;service&gt;</code>), submits a request via <code>kXR_write</code> whose offset carries an <code>XrdSsiRRInfo{Rxq, reqId, size}</code>, waits for the response via <code><a class="el" href="opcodes_8h.html#a790b43be43892c812f9f587a216d7774">kXR_query(kXR_Qopaqug)</a></code> (or pulls a large/streamed response with <code>kXR_read</code>), and closes. Requests are dispatched to a compiled-in native service handler.</p>
 <p>It exists for <b>wire parity</b> with <code>XrdSsi</code> without requiring a C++ plugin ABI: services are built in (the reference one is <code>echo</code>). The transport is the unmodified XRootD open/write/query/read/close path — an SSI handle is a <em>virtual</em> handle that carries no real fd, and the hooks are clean early-returns keyed on <code>ctx-&gt;files[idx].ssi</code>, so the normal file data path is <b>byte-for-byte unchanged for every non-SSI handle</b>.</p>
-<h1><a class="anchor" id="autotoc_md448"></a>
+<h1><a class="anchor" id="autotoc_md449"></a>
 Phase 1: session multiplexing (implemented)</h1>
 <p>One open <code>/.ssi/&lt;service&gt;</code> handle is an <code><a class="el" href="structbrix__ssi__session__t.html">brix_ssi_session_t</a></code> that multiplexes up to <code>BRIX_SSI_MAX_INFLIGHT</code> (8) concurrent requests, each keyed by the <code>reqId</code> carried in the <code>XrdSsiRRInfo</code>. The session holds the resolved service provider and a fixed table (<code>rrtable</code>) of per-<code>reqId</code> request slots:</p>
 <ul>
@@ -109,7 +109,7 @@ Phase 1: session multiplexing (implemented)</h1>
 <li><code>kXR_close</code> → free the session.</li>
 </ul>
 <p>Service resolution goes through <code><a class="el" href="provider_8c.html">provider.c</a></code> — the no-plugin-ABI stand-in for <code>XrdSsiProvider</code>/<code>XrdSsiService</code>.</p>
-<h1><a class="anchor" id="autotoc_md449"></a>
+<h1><a class="anchor" id="autotoc_md450"></a>
 Phase 2: async server-push via &lt;tt&gt;kXR_attn&lt;/tt&gt; (implemented)</h1>
 <p>A service can answer <b>later</b> instead of inline. It calls <code>responder-&gt;defer()</code>; the submit is acked with <code>kXR_waitresp</code> (capturing its streamid), and the response is pushed unsolicited as a <code>kXR_attn + kXR_asynresp</code> frame — what a real <code>libXrdSsi</code> client awaits — built by <code><a class="el" href="deliver_8c.html">deliver.c</a></code> on top of <code>brix_send_attn_asynresp</code>. The reference deferred service is <code>echo-async</code> (the <code>defer</code>-or-respond shape every async service follows).</p>
 <p><b>Delivery is event-loop only and use-after-free safe:</b></p><ul>
@@ -117,19 +117,19 @@ Phase 2: async server-push via &lt;tt&gt;kXR_attn&lt;/tt&gt; (implemented)</h1>
 <li><code>registry.c</code> maps <code>{session-address → session}</code> validated by a per-session <code>generation</code>; <code>deliver</code>/the timer resolve a <em>live</em> session through it or drop.</li>
 <li><code>brix_ssi_handle_cleanup</code> (called from <code>brix_free_fhandle</code> on both <code>kXR_close</code> and disconnect, before the pool is freed) cancels armed timers and unregisters the session, so no completion can run against freed memory.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md450"></a>
+<h1><a class="anchor" id="autotoc_md451"></a>
 Phase 3: streamed responses + delivered alerts (implemented)</h1>
 <ul>
 <li><b>Streaming.</b> The response lives in a grow-on-append buffer (<code><a class="el" href="respbuf_8c.html">respbuf.c</a></code>), so a service can emit it in chunks (<code>set_response(..., last=0)</code>). A streamed async response is signalled to the client as <code>pendResp</code> (<code>*</code>) and drained via <code>kXR_read</code>. Reference service: <code>stream-async</code>.</li>
 <li><b>Alerts.</b> <code>responder-&gt;alert()</code> is now delivered (was dropped) as an out-of-band <code>alrtResp</code> (<code>!</code>) push via <code>brix_ssi_deliver_alert</code>; the client handles it and keeps awaiting the response. Alerts are pushed only when a push channel exists (the deferred completion phase); the synchronous core still drops them. Reference service: <code>alert-async</code>.</li>
 </ul>
 <p>The responder carries an <code><a class="el" href="structssi__resp__state__t.html">ssi_resp_state_t</a></code> (<code>rq</code> + optional <code>ctx</code>/<code>c</code>): the submit phase has no push channel (alerts drop), the completion phase does (alerts deliver live, before the terminal response).</p>
-<h1><a class="anchor" id="autotoc_md451"></a>
+<h1><a class="anchor" id="autotoc_md452"></a>
 Phases 4–5: CTA flagship service (implemented)</h1>
 <p>The <code>cta</code> provider (<code>svc_cta/</code>) is a byte-compatible CERN Tape Archive frontend: a minimal C protobuf codec (<code>pb_wire</code> + <code>cta_pb</code>, real CTA field numbers) over a request-queue state machine (<code>cta_queue</code>) and a pluggable executor (<code>cta_exec</code>, simulated tape backend + tier/frm production seam). Archive/retrieve defer and push progress alerts + a <code>cta.xrd.Response</code>; query answers synchronously. See <a class="el" href="md_src_2protocols_2ssi_2svc__cta_2README.html">`svc_cta/README.md`</a>.</p>
-<h1><a class="anchor" id="autotoc_md452"></a>
+<h1><a class="anchor" id="autotoc_md453"></a>
 Phase 6: config, metrics, conformance (implemented)</h1>
-<h2><a class="anchor" id="autotoc_md453"></a>
+<h2><a class="anchor" id="autotoc_md454"></a>
 Directives (&lt;tt&gt;NGX_STREAM_SRV_CONF&lt;/tt&gt;)</h2>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -149,14 +149,14 @@ Directives (&lt;tt&gt;NGX_STREAM_SRV_CONF&lt;/tt&gt;)</h2>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyNone"><code>brix_ssi_cta_executor test\|prod</code>   </td><td class="markdownTableBodyNone">test   </td><td class="markdownTableBodyNone">CTA executor backend (simulated vs real tier/frm).   </td></tr>
 </table>
-<h2><a class="anchor" id="autotoc_md454"></a>
+<h2><a class="anchor" id="autotoc_md455"></a>
 Metrics (low-cardinality — &lt;tt&gt;{port,auth}&lt;/tt&gt; only)</h2>
 <p><code>brix_ssi_requests_total</code>, <code>brix_ssi_errors_total</code>, <code>brix_ssi_alerts_pushed_total</code>, <code>brix_ssi_attn_push_failures_total</code> — exported per listener via the <code>/metrics</code> endpoint.</p>
-<h2><a class="anchor" id="autotoc_md455"></a>
+<h2><a class="anchor" id="autotoc_md456"></a>
 Conformance</h2>
 <p>The gold-standard proof is the real <code>libXrdSsi</code> C++ client (<code>tests/ssi_client.cc</code>, driven by <code>test_ssi_wire.py::TestSsiRealClient</code>): echo / metadata / stream / error all round-trip against the module. Async push, streaming, alerts, multiplex, and the CTA protocol are proven with raw-wire + golden-vector tests (<code>test_ssi_async/stream/alerts/multiplex/cta.py</code>). Limitation: there is no standalone <code>xrdssi</code> CLI, so byte-level golden vectors back the cases the stock client cannot drive directly.</p>
 <p>The full XrdSsi framework + CTA tape service is complete. Design spec: `docs/superpowers/specs/2026-06-30-full-ssi-framework-cta-service-design.md`; per-phase plans in <code>docs/superpowers/plans/</code>.</p>
-<h1><a class="anchor" id="autotoc_md456"></a>
+<h1><a class="anchor" id="autotoc_md457"></a>
 RRInfo wire layout</h1>
 <p><code>XrdSsiRRInfo</code> serializes (verified against live <code>libXrdSsi</code> traffic) as:</p>
 <table class="markdownTable">
@@ -170,7 +170,7 @@ RRInfo wire layout</h1>
 <td class="markdownTableBodyNone">4–7   </td><td class="markdownTableBodyNone"><code>reqSize</code>, little-endian   </td></tr>
 </table>
 <p>The codec lives in <code><a class="el" href="ssi__rrinfo_8c.html">ssi_rrinfo.c</a></code> (golden-validated in <code><a class="el" href="ssi__rrinfo__unittest_8c.html">ssi_rrinfo_unittest.c</a></code>). The reply prefix <code>XrdSsiRRInfoAttn</code> is built in <code><a class="el" href="ssi__reply_8c.html">ssi_reply.c</a></code>.</p>
-<h1><a class="anchor" id="autotoc_md457"></a>
+<h1><a class="anchor" id="autotoc_md458"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -196,7 +196,7 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="ssi__reply_8h.html">ssi_reply.h</a></code> / <code><a class="el" href="ssi__reply_8c.html">ssi_reply.c</a></code>   </td><td class="markdownTableBodyNone"><code>kXR_query</code> reply framing (<code>[RRInfoAttn][metadata][data]</code>).   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md458"></a>
+<h1><a class="anchor" id="autotoc_md459"></a>
 See also</h1>
 <ul>
 <li><code>../connection/fd_table.h</code> — the virtual-handle slot the SSI session hangs off.</li>

@@ -93,13 +93,13 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2cvmfs_2README.html'
   <div class="headertitle"><div class="title">cvmfs — the cvmfs:// site cache (+ experimental scvmfs:// TLS variant)</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md299"></a> </p>
-<h1><a class="anchor" id="autotoc_md300"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md300"></a> </p>
+<h1><a class="anchor" id="autotoc_md301"></a>
 Overview</h1>
 <p>A CVMFS site cache: clients (Frontier/CVMFS HTTP clients, or the native brixMount cvmfs client) hit an <code>brix_cvmfs</code>-enabled location, and the server proxies + caches content-addressed objects from upstream stratum origins. The server side is a transparent byte proxy — CVMFS semantics (catalogs, signatures) live in the client; here the job is fast, resilient, verified object delivery.</p>
 <p><code>module.c</code> owns the config lifecycle and installs the location handler; <code>handler.c</code> is the request entry point. A request passes <code><a class="el" href="secure_8c.html">secure.c</a></code> (transport + client-authz gate) then <code><a class="el" href="gate_8c.html">gate.c</a></code> (access restriction), is classified (<code><a class="el" href="classify_8h.html">classify.h</a></code>), and is forwarded by <code><a class="el" href="geo_8c.html">geo.c</a></code> to an upstream chosen by measured RTT ranking (<code><a class="el" href="geo__answer_8c.html">geo_answer.c</a></code>), with haversine distance + stable argsort (<code><a class="el" href="origin__geo_8c.html">origin_geo.c</a></code>) as the geographic prior and a repeating per-worker probe timer (<code><a class="el" href="origin__probe_8c.html">origin_probe.c</a></code>) keeping latencies fresh. <code><a class="el" href="upstreams_8c.html">upstreams.c</a></code> maps each <code>(host, port)</code> upstream to a synthetic VFS backend export, so fills flow through the standard cache tier (<code><a class="el" href="http__cache__fill_8c.html">src/protocols/shared/http_cache_fill.c</a></code> — coalescing + hold timers) and objects are verified content-addressed (<code><a class="el" href="verify_8c.html">src/fs/cache/verify.c</a></code>, cvmfs-cas).</p>
 <p>Operational resilience: stall detection (connect + low-speed timeouts), force-primary retry, stale-if-error serving, and single-line operational logging of fill/origin/client events (retry / recovered / hold-expired / client-gone / degraded / absorbed-404).</p>
-<h1><a class="anchor" id="autotoc_md301"></a>
+<h1><a class="anchor" id="autotoc_md302"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -129,7 +129,7 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="cvmfs_8h.html">cvmfs.h</a></code>   </td><td class="markdownTableBodyNone">loc-conf + request-ctx types; handler/gate/geo APIs   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md302"></a>
+<h1><a class="anchor" id="autotoc_md303"></a>
 Invariants, security &amp; gotchas</h1>
 <ol type="1">
 <li>Objects are content-addressed: cache verification (cvmfs-cas) must pass before a fill is served — a hash mismatch is a fill failure, never a serve.</li>
@@ -137,7 +137,7 @@ Invariants, security &amp; gotchas</h1>
 <li>A broken upstream connection mid-fill maps to the right client error (EIO ≠ ENOENT — a torn connection must not become a 404).</li>
 <li>Storage directives are the unified <code>brix_export</code>/<code>brix_cache_store</code> family owned by <code><a class="el" href="http__common_8c.html">src/core/config/http_common.c</a></code> — nothing cvmfs-private.</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md303"></a>
+<h1><a class="anchor" id="autotoc_md304"></a>
 See also</h1>
 <ul>
 <li><a href="../shared/">../shared/</a> — <code><a class="el" href="http__cache__fill_8c.html">http_cache_fill.c</a></code>, the coalescing fill engine</li>

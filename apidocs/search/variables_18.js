@@ -20,11 +20,12 @@ var searchData=
   ['xfer_5fsweep_5fev_17',['xfer_sweep_ev',['../xfer__resume__sweep_8c.html#a000993ad608e7c75fce37171733ec9a0',1,'xfer_resume_sweep.c']]],
   ['xfer_5fsweep_5flog_18',['xfer_sweep_log',['../xfer__resume__sweep_8c.html#a544c869d82d89c6371c59b7254b5c052',1,'xfer_resume_sweep.c']]],
   ['xfer_5fsweep_5fttl_19',['xfer_sweep_ttl',['../xfer__resume__sweep_8c.html#accf6b98f96c1698fb698f76d4a6ccc76',1,'xfer_resume_sweep.c']]],
-  ['xfrhold_5fms_20',['xfrhold_ms',['../structbrix__frm__conf__t.html#a00484e7296a435a165e978325103d117',1,'brix_frm_conf_t']]],
-  ['xfs_5fops_21',['xfs_ops',['../xrootdfs__legacy_8c.html#af392879b26166874e3668cfc25c9c81b',1,'xfs_ops:&#160;xrootdfs_legacy.c'],['../xrootdfs__internal_8h.html#af392879b26166874e3668cfc25c9c81b',1,'xfs_ops:&#160;xrootdfs.c'],['../xrootdfs_8c.html#af392879b26166874e3668cfc25c9c81b',1,'xfs_ops:&#160;xrootdfs.c']]],
-  ['xkey_22',['xkey',['../structbrix__fattr__entry__t.html#ad212a48cfdd6a4abe7861b84c96356fa',1,'brix_fattr_entry_t']]],
-  ['xml_23',['xml',['../structpropfind__unknown__t.html#a8892650ec401188e71266f0bc7d1c46d',1,'propfind_unknown_t']]],
-  ['xrd_5fcap_5fkeys_24',['xrd_cap_keys',['../xrd_8c.html#a2eefcb25df9d295f753399f077545c12',1,'XRD_CAP_KEYS:&#160;xrd.c'],['../xrd__internal_8h.html#a2eefcb25df9d295f753399f077545c12',1,'XRD_CAP_KEYS:&#160;xrd.c']]],
-  ['xrd_5ferror_25',['xrd_error',['../structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671',1,'brix_tpc_pull_t::xrd_error'],['../structbrix__wt__flush__t.html#a063d9153a7ece029aaa386b335c058ae',1,'brix_wt_flush_t::xrd_error'],['../structbrix__cache__fill__t.html#a9a7354881521bc606cb9240f61c173bc',1,'brix_cache_fill_t::xrd_error']]],
-  ['xrdhttp_26',['xrdhttp',['../structngx__http__brix__webdav__req__ctx__t.html#ab9a8c0331e39066c095444f78c2302b2',1,'ngx_http_brix_webdav_req_ctx_t']]]
+  ['xfers_20',['xfers',['../structbrix__sess__t.html#ae56d41897d7f683bf99c4a6a647a72d2',1,'brix_sess_t']]],
+  ['xfrhold_5fms_21',['xfrhold_ms',['../structbrix__frm__conf__t.html#a00484e7296a435a165e978325103d117',1,'brix_frm_conf_t']]],
+  ['xfs_5fops_22',['xfs_ops',['../xrootdfs_8c.html#af392879b26166874e3668cfc25c9c81b',1,'xfs_ops:&#160;xrootdfs.c'],['../xrootdfs__internal_8h.html#af392879b26166874e3668cfc25c9c81b',1,'xfs_ops:&#160;xrootdfs.c'],['../xrootdfs__legacy_8c.html#af392879b26166874e3668cfc25c9c81b',1,'xfs_ops:&#160;xrootdfs_legacy.c']]],
+  ['xkey_23',['xkey',['../structbrix__fattr__entry__t.html#ad212a48cfdd6a4abe7861b84c96356fa',1,'brix_fattr_entry_t']]],
+  ['xml_24',['xml',['../structpropfind__unknown__t.html#a8892650ec401188e71266f0bc7d1c46d',1,'propfind_unknown_t']]],
+  ['xrd_5fcap_5fkeys_25',['xrd_cap_keys',['../xrd_8c.html#a2eefcb25df9d295f753399f077545c12',1,'XRD_CAP_KEYS:&#160;xrd.c'],['../xrd__internal_8h.html#a2eefcb25df9d295f753399f077545c12',1,'XRD_CAP_KEYS:&#160;xrd.c']]],
+  ['xrd_5ferror_26',['xrd_error',['../structbrix__tpc__pull__t.html#ae1232e70e07d575a86ead894eec93671',1,'brix_tpc_pull_t::xrd_error'],['../structbrix__wt__flush__t.html#a063d9153a7ece029aaa386b335c058ae',1,'brix_wt_flush_t::xrd_error'],['../structbrix__cache__fill__t.html#a9a7354881521bc606cb9240f61c173bc',1,'brix_cache_fill_t::xrd_error']]],
+  ['xrdhttp_27',['xrdhttp',['../structngx__http__brix__webdav__req__ctx__t.html#ab9a8c0331e39066c095444f78c2302b2',1,'ngx_http_brix_webdav_req_ctx_t']]]
 ];

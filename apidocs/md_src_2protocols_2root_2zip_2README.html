@@ -93,8 +93,8 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2root_2zip_2README.h
   <div class="headertitle"><div class="title">src/protocols/root/zip — ZIP member access (phase-57 W2)</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md420"></a> Serve one file inside a ZIP archive as a standalone object across root://, WebDAV, and S3 GET (opaque <code>xrdcl.unzip=&lt;member&gt;</code>). Read-only; matches XrdZip semantics (stored + deflate members).</p>
-<h1><a class="anchor" id="autotoc_md421"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md421"></a> Serve one file inside a ZIP archive as a standalone object across root://, WebDAV, and S3 GET (opaque <code>xrdcl.unzip=&lt;member&gt;</code>). Read-only; matches XrdZip semantics (stored + deflate members).</p>
+<h1><a class="anchor" id="autotoc_md422"></a>
 Status</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -135,7 +135,7 @@ Status</h1>
 <p><b>W2 status: COMPLETE.</b> root:// (stored+deflate, raw-wire verified), WebDAV GET and S3 GetObject (stored sendfile / deflate memory / single Range), all opt-in and verified by <code>tests/test_zip_member.py</code> (20 tests).</p>
 <p><b>Note on <code>root://</code> vs HTTP.</b> The native/stock XrdCl client handles <code>?xrdcl.unzip=</code> <b>client-side</b> (reads the archive's central directory + member bytes and inflates locally), so a native <code>xrdcp</code> never hits the server member path — verified via the access log (it opens the archive and does partial reads). The server-side <code>root://</code> path therefore serves raw/non-plugin clients and is the shared foundation for the <b>HTTP/WebDAV/S3 GET</b> surface, where clients cannot self-inflate — that is the higher-value remaining work.</p>
 <p>Status (stored): a <code>kXR_open</code> carrying <code>?xrdcl.unzip=&lt;member&gt;</code> opens the archive, resolves the member, and serves its bytes by offset translation; a bad member name → kXR_ArgInvalid; a missing member → kXR_NotFound; a deflate member opens but reads return kXR_Unsupported pending streaming inflate. Gated by <code>brix_zip_access</code> (default off).</p>
-<h1><a class="anchor" id="autotoc_md422"></a>
+<h1><a class="anchor" id="autotoc_md423"></a>
 zip_dir.c — the parser</h1>
 <p>Pure C (no nginx / OpenSSL), <code>pread</code>-only, fully bounds-checked. Entry point:</p>
 <div class="fragment"><div class="line"><span class="keywordtype">int</span> <a class="code hl_function" href="zip__dir_8c.html#a679d4116c1254f7dfa06f20dcd6a7124">brix_zip_find_member</a>(<span class="keywordtype">int</span> fd, off_t archive_size, <span class="keyword">const</span> <span class="keywordtype">char</span> *member,</div>
@@ -143,7 +143,7 @@ zip_dir.c — the parser</h1>
 <div class="ttc" id="astructbrix__zip__member__t_html"><div class="ttname"><a href="structbrix__zip__member__t.html">brix_zip_member_t</a></div><div class="ttdef"><b>Definition</b> <a href="zip__dir_8h_source.html#l00034">zip_dir.h:34</a></div></div>
 <div class="ttc" id="azip__dir_8c_html_a679d4116c1254f7dfa06f20dcd6a7124"><div class="ttname"><a href="zip__dir_8c.html#a679d4116c1254f7dfa06f20dcd6a7124">brix_zip_find_member</a></div><div class="ttdeci">int brix_zip_find_member(int fd, off_t archive_size, const char *member, size_t cd_max, brix_zip_member_t *out)</div><div class="ttdef"><b>Definition</b> <a href="zip__dir_8c_source.html#l00075">zip_dir.c:75</a></div></div>
 </div><!-- fragment --><p>Resolves a member name → <code>{method, comp_size, uncomp_size, data_off, crc32}</code> by reading EOCD → (ZIP64 locator/EOCD when 32-bit fields saturate) → central directory → the member's local file header (for the true data offset). Rejects encrypted entries, data-descriptor entries (size unknown at open), methods other than store(0)/deflate(8), and any out-of-bounds field. <code>cd_max</code> caps the central-directory read (bomb guard). On duplicate names the last entry wins.</p>
-<h1><a class="anchor" id="autotoc_md423"></a>
+<h1><a class="anchor" id="autotoc_md424"></a>
 Running the unit test (standalone, no nginx build)</h1>
 <div class="fragment"><div class="line">cd src/protocols/root/zip</div>
 <div class="line">python3 - &lt;&lt;&#39;PY&#39;</div>

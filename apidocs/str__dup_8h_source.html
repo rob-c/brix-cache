@@ -140,14 +140,14 @@ $(document).ready(function(){initNavTree('str__dup_8h_source.html',''); initResi
 <div class="foldopen" id="foldopen00040" data-start="{" data-end="}">
 <div class="line"><a id="l00040" name="l00040"></a><span class="lineno"><a class="line" href="str__dup_8h.html#a34e3593e143a36304e409145a234191d">   40</a></span><a class="code hl_function" href="str__dup_8h.html#a34e3593e143a36304e409145a234191d">brix_pstrdupz</a>(ngx_pool_t *pool, ngx_str_t *dst, <span class="keyword">const</span> u_char *src, <span class="keywordtype">size_t</span> len)</div>
 <div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>{</div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>    u_char *buf = ngx_pnalloc(pool, len + 1);</div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>    u_char *buf = <a class="code hl_function" href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a>(pool, len + 1);</div>
 <div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span> </div>
 <div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    <span class="keywordflow">if</span> (buf == NULL) {</div>
 <div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    }</div>
 <div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span> </div>
 <div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    <span class="keywordflow">if</span> (len != 0) {</div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>        ngx_memcpy(buf, src, len);</div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(buf, src, len);</div>
 <div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>    }</div>
 <div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    buf[len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span> </div>
@@ -158,6 +158,8 @@ $(document).ready(function(){initNavTree('str__dup_8h_source.html',''); initResi
 </div>
 <div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span> </div>
 <div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="preprocessor">#endif </span><span class="comment">/* BRIX_COMPAT_STR_DUP_H */</span><span class="preprocessor"></span></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_ae28be76366886c36db56889cfc779768"><div class="ttname"><a href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a></div><div class="ttdeci">void * ngx_pnalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00043">xrdceph_migrate.c:43</a></div></div>
 <div class="ttc" id="astr__dup_8h_html_a34e3593e143a36304e409145a234191d"><div class="ttname"><a href="str__dup_8h.html#a34e3593e143a36304e409145a234191d">brix_pstrdupz</a></div><div class="ttdeci">static ngx_int_t brix_pstrdupz(ngx_pool_t *pool, ngx_str_t *dst, const u_char *src, size_t len)</div><div class="ttdef"><b>Definition</b> <a href="str__dup_8h_source.html#l00040">str_dup.h:40</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->

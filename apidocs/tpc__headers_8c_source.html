@@ -173,7 +173,7 @@ $(document).ready(function(){initNavTree('tpc__headers_8c_source.html',''); init
 <div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>                <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>            }</div>
 <div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span> </div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>            dst-&gt;data = ngx_pnalloc(r-&gt;pool, total_len + 1);</div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>            dst-&gt;data = <a class="code hl_function" href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a>(r-&gt;pool, total_len + 1);</div>
 <div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>            <span class="keywordflow">if</span> (dst-&gt;data == NULL) {</div>
 <div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>                <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>            }</div>
@@ -199,9 +199,10 @@ $(document).ready(function(){initNavTree('tpc__headers_8c_source.html',''); init
 <div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>}</div>
 </div>
 <div class="ttc" id="aauth__sigv4__verify_8c_html_a91f1654aa13d644161fff5a633b51665"><div class="ttname"><a href="auth__sigv4__verify_8c.html#a91f1654aa13d644161fff5a633b51665">key</a></div><div class="ttdeci">u_char key[32]</div><div class="ttdef"><b>Definition</b> <a href="auth__sigv4__verify_8c_source.html#l00241">auth_sigv4_verify.c:241</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_ae28be76366886c36db56889cfc779768"><div class="ttname"><a href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a></div><div class="ttdeci">void * ngx_pnalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00043">xrdceph_migrate.c:43</a></div></div>
 <div class="ttc" id="atpc__headers_8c_html_a8f0ef42f257d0e4e80bc3b977cf10b77"><div class="ttname"><a href="tpc__headers_8c.html#a8f0ef42f257d0e4e80bc3b977cf10b77">webdav_tpc_collect_transfer_headers</a></div><div class="ttdeci">ngx_int_t webdav_tpc_collect_transfer_headers(ngx_http_request_t *r, ngx_array_t **out)</div><div class="ttdef"><b>Definition</b> <a href="tpc__headers_8c_source.html#l00020">tpc_headers.c:20</a></div></div>
 <div class="ttc" id="awebdav_8h_html"><div class="ttname"><a href="webdav_8h.html">webdav.h</a></div></div>
-<div class="ttc" id="awebdav_8h_html_adababd5d199d627e5ad58645a8f0cf4e"><div class="ttname"><a href="webdav_8h.html#adababd5d199d627e5ad58645a8f0cf4e">WEBDAV_TPC_MAX_HEADERS</a></div><div class="ttdeci">#define WEBDAV_TPC_MAX_HEADERS</div><div class="ttdef"><b>Definition</b> <a href="webdav_8h_source.html#l00082">webdav.h:82</a></div></div>
+<div class="ttc" id="awebdav_8h_html_adababd5d199d627e5ad58645a8f0cf4e"><div class="ttname"><a href="webdav_8h.html#adababd5d199d627e5ad58645a8f0cf4e">WEBDAV_TPC_MAX_HEADERS</a></div><div class="ttdeci">#define WEBDAV_TPC_MAX_HEADERS</div><div class="ttdef"><b>Definition</b> <a href="webdav_8h_source.html#l00083">webdav.h:83</a></div></div>
 <div class="ttc" id="awebdav__tpc_8h_html_a459902765ece8212d388d3fba606bc84"><div class="ttname"><a href="webdav__tpc_8h.html#a459902765ece8212d388d3fba606bc84">webdav_tpc_str_has_ctl</a></div><div class="ttdeci">#define webdav_tpc_str_has_ctl(data, len)</div><div class="ttdef"><b>Definition</b> <a href="webdav__tpc_8h_source.html#l00048">webdav_tpc.h:48</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->

@@ -1,7 +1,7 @@
 var dir_46b9bea7627dc0c8b1801e4e7006ce05 =
 [
     [ "access_log.c", "metrics_2access__log_8c.html", "metrics_2access__log_8c" ],
-    [ "access_log.h", "access__log_8h.html", "access__log_8h" ],
+    [ "access_log.h", "metrics_2access__log_8h.html", "metrics_2access__log_8h" ],
     [ "cluster.c", "cluster_8c.html", "cluster_8c" ],
     [ "config.c", "observability_2metrics_2config_8c.html", "observability_2metrics_2config_8c" ],
     [ "cvmfs.c", "cvmfs_8c.html", "cvmfs_8c" ],

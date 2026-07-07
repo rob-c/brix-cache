@@ -127,6 +127,10 @@ Functions</h2></td></tr>
 <tr class="memitem:a19394613ef929e7d0594a1a2daf9eea5" id="r_a19394613ef929e7d0594a1a2daf9eea5"><td class="memItemLeft" align="right" valign="top">ngx_int_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__metrics_8h.html#a19394613ef929e7d0594a1a2daf9eea5">webdav_metrics_return</a> (ngx_http_request_t *r, ngx_int_t rc)</td></tr>
 <tr class="memdesc:a19394613ef929e7d0594a1a2daf9eea5"><td class="mdescLeft">&#160;</td><td class="mdescRight">WHAT: Wrapper helper — records response metrics then returns the original rc value.  <br /></td></tr>
 <tr class="separator:a19394613ef929e7d0594a1a2daf9eea5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aea4c48428aaa17efacd66e936626fe64" id="r_aea4c48428aaa17efacd66e936626fe64"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__metrics_8h.html#aea4c48428aaa17efacd66e936626fe64">webdav_sess_begin_request</a> (ngx_http_request_t *r)</td></tr>
+<tr class="separator:aea4c48428aaa17efacd66e936626fe64"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a421410f5ef5efa0639fc7d54998bc72c" id="r_a421410f5ef5efa0639fc7d54998bc72c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__metrics_8h.html#a421410f5ef5efa0639fc7d54998bc72c">webdav_sess_attempt_request</a> (ngx_http_request_t *r)</td></tr>
+<tr class="separator:a421410f5ef5efa0639fc7d54998bc72c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa94679bce9d9c385cb067eac0283477d" id="r_aa94679bce9d9c385cb067eac0283477d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="webdav__metrics_8h.html#aa94679bce9d9c385cb067eac0283477d">webdav_send_status_only</a> (ngx_http_request_t *r, ngx_uint_t status)</td></tr>
 <tr class="memdesc:aa94679bce9d9c385cb067eac0283477d"><td class="mdescLeft">&#160;</td><td class="mdescRight">WHAT: Emit a status-only (empty-body) response and finalize the request.  <br /></td></tr>
 <tr class="separator:aa94679bce9d9c385cb067eac0283477d"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -164,11 +168,11 @@ Functions</h2></td></tr>
 <p>WHAT: Wrapper helper — records response metrics then finalizes the nginx request. </p>
 <p>Convenience function that calls webdav_metrics_response(r, rc) followed by ngx_http_finalize_request(r, rc). Used by handlers that want to record metrics and complete the request lifecycle in a single call. Equivalent to: webdav_metrics_response(r, rc); ngx_http_finalize_request(r, rc); </p>
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00127">127</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">355</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00083">webdav_metrics_response()</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00299">webdav_metrics_response()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tape__rest_8c_source.html#l00728">tape_post_body_handler()</a>, <a class="el" href="tpc__thread_8c_source.html#l00272">tpc_thread_done()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00159">webdav_copy_collection_done()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00475">webdav_handle_lock_inner()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00610">webdav_handle_macaroon_request()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00271">webdav_handle_macaroon_token()</a>, <a class="el" href="move_8c_source.html#l00127">webdav_move_collection_done()</a>, <a class="el" href="methods__basic_8c_source.html#l00485">webdav_proppatch_body_handler()</a>, <a class="el" href="webdav_2put_8c_source.html#l00149">webdav_put_aio_done()</a>, <a class="el" href="webdav_2put_8c_source.html#l00364">webdav_put_body_inner()</a>, <a class="el" href="webdav_2put_8c_source.html#l00271">webdav_put_ranged_resume()</a>, <a class="el" href="search_8c_source.html#l00428">webdav_search_body_handler()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00150">webdav_send_status_only()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tape__rest_8c_source.html#l00728">tape_post_body_handler()</a>, <a class="el" href="tpc__thread_8c_source.html#l00272">tpc_thread_done()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00159">webdav_copy_collection_done()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00475">webdav_handle_lock_inner()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00610">webdav_handle_macaroon_request()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00271">webdav_handle_macaroon_token()</a>, <a class="el" href="move_8c_source.html#l00127">webdav_move_collection_done()</a>, <a class="el" href="methods__basic_8c_source.html#l00485">webdav_proppatch_body_handler()</a>, <a class="el" href="webdav_2put_8c_source.html#l00149">webdav_put_aio_done()</a>, <a class="el" href="webdav_2put_8c_source.html#l00364">webdav_put_body_inner()</a>, <a class="el" href="webdav_2put_8c_source.html#l00271">webdav_put_ranged_resume()</a>, <a class="el" href="search_8c_source.html#l00428">webdav_search_body_handler()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00378">webdav_send_status_only()</a>.</p>
 
 </div>
 </div>
@@ -191,11 +195,11 @@ Functions</h2></td></tr>
 <p>WHAT: Map nginx HTTP method to the WebDAV metric enum for Prometheus request counting. </p>
 <p>Returns a value from BRIX_WEBDAV_METHOD_* enum corresponding to the incoming request's HTTP method. Uses r-&gt;method (nginx internal enum) for OPTIONS/HEAD/GET/ PUT/DELETE; uses r-&gt;method_name string comparison for WebDAV-specific methods MKCOL, COPY, and PROPFIND (which nginx doesn't have built-in enums for). Returns BRIX_WEBDAV_METHOD_OTHER as fallback for unknown or custom methods. All callers use this to index into the requests_total[METHOD] metric counter before processing begins or after completing an operation. </p>
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00045">45</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00261">261</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocol__caps_8c_source.html#l00014">brix_http_operation_find()</a>, <a class="el" href="metrics__webdav_8h_source.html#l00031">BRIX_WEBDAV_METHOD_OTHER</a>, <a class="el" href="webdav_2operation__table_8c_source.html#l00018">brix_webdav_operations</a>, <a class="el" href="webdav_2operation__table_8c_source.html#l00050">brix_webdav_operations_count</a>, and <a class="el" href="protocol__caps_8h_source.html#l00042">brix_http_operation_t::metric_slot</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00065">webdav_metrics_request()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00083">webdav_metrics_response()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00281">webdav_metrics_request()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00299">webdav_metrics_response()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00235">webdav_sess_attempt_request()</a>.</p>
 
 </div>
 </div>
@@ -218,9 +222,9 @@ Functions</h2></td></tr>
 <p>WHAT: Increment the WebDAV requests_total counter for this request's method. </p>
 <p>Called early in each handler to record that a request arrived for a specific HTTP method. Uses <a class="el" href="protocols_2webdav_2metrics_8c.html#a08e21a2a23db4bfd04a5ba7ebe615584" title="WHAT: Map nginx HTTP method to the WebDAV metric enum for Prometheus request counting.">webdav_metrics_method()</a> to classify the method, then increments the requests_total[method] Prometheus metric via <a class="el" href="metrics__macros_8h.html#a793c70437e65456a3ec7e77bf13fb915">BRIX_WEBDAV_METRIC_INC()</a>. This is typically called at the start of every WebDAV operation handler (GET, PUT, DELETE, etc.) before any processing begins. Does not track status — only counts request arrivals. </p>
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00065">65</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00281">281</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00045">webdav_metrics_method()</a>.</p>
+<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00261">webdav_metrics_method()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2webdav_2access_8c_source.html#l00127">ngx_http_brix_webdav_access_handler()</a>.</p>
 
@@ -255,11 +259,11 @@ Functions</h2></td></tr>
 <p>WHAT: Increment the WebDAV responses_total counter by method and status class. </p>
 <p>Called at end of each handler to record the outcome of processing. Determines the HTTP status from either rc (error code), r-&gt;headers_out.status (explicitly set response), or defaults to NGX_HTTP_OK if no status was set. Maps to a low-cardinality status class via webdav_metrics_status_class(), then increments responses_total[method][status_class]. Returns immediately if rc == NGX_DONE (request already finalized, metrics should not be double-counted). Used by all handlers after completing their operation logic. </p>
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00083">83</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00299">299</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00255">brix_http_effective_status()</a>, <a class="el" href="observability_2metrics_2http__common_8h_source.html#l00032">brix_http_status_class()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00187">brix_metric_err_from_http_status()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00212">brix_metric_op_done()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_WEBDAV</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00045">webdav_metrics_method()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00011">webdav_unified_op()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00255">brix_http_effective_status()</a>, <a class="el" href="sesslog__conn_8c_source.html#l00210">brix_http_sess_uri()</a>, <a class="el" href="observability_2metrics_2http__common_8h_source.html#l00032">brix_http_status_class()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00187">brix_metric_err_from_http_status()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00212">brix_metric_op_done()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_WEBDAV</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00353">brix_sess_result()</a>, <a class="el" href="sesslog_8c_source.html#l00557">brix_sesslog_err_from_http()</a>, <a class="el" href="sesslog_8h_source.html#l00014">BRIX_SESSLOG_ERR_MAX</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00261">webdav_metrics_method()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00113">webdav_sess()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00189">webdav_sess_finish_xfer()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00035">webdav_sess_mode()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00012">webdav_unified_op()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00127">webdav_metrics_finalize_request()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00112">webdav_metrics_return()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00340">webdav_metrics_return()</a>.</p>
 
 </div>
 </div>
@@ -292,9 +296,9 @@ Functions</h2></td></tr>
 <p>WHAT: Wrapper helper — records response metrics then returns the original rc value. </p>
 <p>Convenience function that calls webdav_metrics_response(r, rc) and immediately returns rc to the caller. Used by handlers that want to record metrics before returning an nginx result code without needing two separate statement lines. Equivalent to: webdav_metrics_response(r, rc); return rc; </p>
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00112">112</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00340">340</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00083">webdav_metrics_response()</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00299">webdav_metrics_response()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2webdav_2access_8c_source.html#l00127">ngx_http_brix_webdav_access_handler()</a>, and <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
 
@@ -330,11 +334,59 @@ Functions</h2></td></tr>
 <p>Captures the recurring four-line tail used by status-only outcomes (201/204/… with no body): set the status and a zero content length, send the header, then finalize via the send_special result so response metrics are recorded. Equivalent to: r-&gt;headers_out.status = status; r-&gt;headers_out.content_length_n = 0; ngx_http_send_header(r); webdav_metrics_finalize_request(r, ngx_http_send_special(r, NGX_HTTP_LAST));</p>
 <p>The caller still owns flow control: this finalizes the request, so it must be the last action on <code>r</code> and the caller should return immediately after. Add any response headers (e.g. Location for 201) before calling. </p>
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00150">150</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00378">378</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00127">webdav_metrics_finalize_request()</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00272">tpc_thread_done()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00159">webdav_copy_collection_done()</a>, <a class="el" href="move_8c_source.html#l00127">webdav_move_collection_done()</a>, <a class="el" href="webdav_2put_8c_source.html#l00149">webdav_put_aio_done()</a>, and <a class="el" href="webdav_2put_8c_source.html#l00271">webdav_put_ranged_resume()</a>.</p>
+
+</div>
+</div>
+<a id="a421410f5ef5efa0639fc7d54998bc72c" name="a421410f5ef5efa0639fc7d54998bc72c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a421410f5ef5efa0639fc7d54998bc72c">&#9670;&#160;</a></span>webdav_sess_attempt_request()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void webdav_sess_attempt_request </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00235">235</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sesslog__conn_8c_source.html#l00210">brix_http_sess_uri()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00327">brix_sess_attempt()</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00261">webdav_metrics_method()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00113">webdav_sess()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00035">webdav_sess_mode()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00170">webdav_sess_start_xfer()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
+
+</div>
+</div>
+<a id="aea4c48428aaa17efacd66e936626fe64" name="aea4c48428aaa17efacd66e936626fe64"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aea4c48428aaa17efacd66e936626fe64">&#9670;&#160;</a></span>webdav_sess_begin_request()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void webdav_sess_begin_request </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00221">221</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sesslog__ngx_8c_source.html#l00305">brix_sess_auth_once()</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00113">webdav_sess()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00064">webdav_sess_auth_method()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00082">webdav_sess_user()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00100">webdav_sess_vo()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
 
 </div>
 </div>

@@ -141,11 +141,11 @@ $(document).ready(function(){initNavTree('authfile_8c_source.html',''); initResi
 <div class="foldopen" id="foldopen00039" data-start="{" data-end="}">
 <div class="line"><a id="l00039" name="l00039"></a><span class="lineno"><a class="line" href="authfile_8c.html#a2aada350d4c6e6e83da90d18ffc5e19a">   39</a></span><a class="code hl_function" href="authfile_8c.html#a2aada350d4c6e6e83da90d18ffc5e19a">acc_pstrdup</a>(ngx_pool_t *pool, <span class="keyword">const</span> u_char *<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, <span class="keywordtype">size_t</span> len)</div>
 <div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>{</div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    <span class="keywordtype">char</span> *d = ngx_pnalloc(pool, len + 1);</div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    <span class="keywordtype">char</span> *d = <a class="code hl_function" href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a>(pool, len + 1);</div>
 <div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>    <span class="keywordflow">if</span> (d == NULL) {</div>
 <div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>        <span class="keywordflow">return</span> NULL;</div>
 <div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    }</div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    ngx_memcpy(d, <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, len);</div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(d, <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>, len);</div>
 <div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    d[len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    <span class="keywordflow">return</span> d;</div>
 <div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>}</div>
@@ -240,7 +240,7 @@ $(document).ready(function(){initNavTree('authfile_8c_source.html',''); initResi
 <div class="line"><a id="l00131" name="l00131"></a><span class="lineno"><a class="line" href="authfile_8c.html#a8f6d1f2a65b61fadb835b79263e1f849">  131</a></span><a class="code hl_function" href="authfile_8c.html#a8f6d1f2a65b61fadb835b79263e1f849">acc_uri_decode</a>(ngx_pool_t *pool, <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>)</div>
 <div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>{</div>
 <div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>    <span class="keywordtype">size_t</span>  n = ngx_strlen(<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>);</div>
-<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    <span class="keywordtype">char</span>   *out = ngx_pnalloc(pool, n + 1);</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    <span class="keywordtype">char</span>   *out = <a class="code hl_function" href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a>(pool, n + 1);</div>
 <div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>    <span class="keywordtype">char</span>   *w;</div>
 <div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    <span class="keywordtype">size_t</span>  i;</div>
 <div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span> </div>
@@ -269,7 +269,7 @@ $(document).ready(function(){initNavTree('authfile_8c_source.html',''); initResi
 <div class="line"><a id="l00158" name="l00158"></a><span class="lineno"><a class="line" href="authfile_8c.html#a8f38eaec5ce8a99d7924bf4d54a1c80b">  158</a></span><a class="code hl_function" href="authfile_8c.html#a8f38eaec5ce8a99d7924bf4d54a1c80b">acc_named_prepend</a>(ngx_pool_t *pool, <a class="code hl_struct" href="structbrix__acc__named__t.html">brix_acc_named_t</a> **head,</div>
 <div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>                  <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, <a class="code hl_struct" href="structbrix__acc__cap__t.html">brix_acc_cap_t</a> *caps)</div>
 <div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>{</div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>    <a class="code hl_struct" href="structbrix__acc__named__t.html">brix_acc_named_t</a> *n = ngx_pcalloc(pool, <span class="keyword">sizeof</span>(*n));</div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>    <a class="code hl_struct" href="structbrix__acc__named__t.html">brix_acc_named_t</a> *n = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(pool, <span class="keyword">sizeof</span>(*n));</div>
 <div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>    <span class="keywordflow">if</span> (n == NULL) {</div>
 <div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>        <span class="keywordflow">return</span> NULL;</div>
 <div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>    }</div>
@@ -717,7 +717,7 @@ $(document).ready(function(){initNavTree('authfile_8c_source.html',''); initResi
 <div class="line"><a id="l00586" name="l00586"></a><span class="lineno">  586</span>        ngx_close_file(fd);</div>
 <div class="line"><a id="l00587" name="l00587"></a><span class="lineno">  587</span>        <span class="keywordflow">return</span> NULL;</div>
 <div class="line"><a id="l00588" name="l00588"></a><span class="lineno">  588</span>    }</div>
-<div class="line"><a id="l00589" name="l00589"></a><span class="lineno">  589</span>    tabs = ngx_pcalloc(pool, <span class="keyword">sizeof</span>(*tabs));</div>
+<div class="line"><a id="l00589" name="l00589"></a><span class="lineno">  589</span>    tabs = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(pool, <span class="keyword">sizeof</span>(*tabs));</div>
 <div class="line"><a id="l00590" name="l00590"></a><span class="lineno">  590</span>    <span class="keywordflow">if</span> (tabs == NULL) {</div>
 <div class="line"><a id="l00591" name="l00591"></a><span class="lineno">  591</span>        ngx_destroy_pool(pool);</div>
 <div class="line"><a id="l00592" name="l00592"></a><span class="lineno">  592</span>        ngx_close_file(fd);</div>
@@ -733,7 +733,7 @@ $(document).ready(function(){initNavTree('authfile_8c_source.html',''); initResi
 <div class="line"><a id="l00602" name="l00602"></a><span class="lineno">  602</span>        <span class="keywordflow">return</span> tabs;   <span class="comment">/* empty authdb = deny-all, valid */</span></div>
 <div class="line"><a id="l00603" name="l00603"></a><span class="lineno">  603</span>    }</div>
 <div class="line"><a id="l00604" name="l00604"></a><span class="lineno">  604</span> </div>
-<div class="line"><a id="l00605" name="l00605"></a><span class="lineno">  605</span>    buf = ngx_pnalloc(pool, fsize);</div>
+<div class="line"><a id="l00605" name="l00605"></a><span class="lineno">  605</span>    buf = <a class="code hl_function" href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a>(pool, fsize);</div>
 <div class="line"><a id="l00606" name="l00606"></a><span class="lineno">  606</span>    <span class="keywordflow">if</span> (buf == NULL) {</div>
 <div class="line"><a id="l00607" name="l00607"></a><span class="lineno">  607</span>        ngx_destroy_pool(pool);</div>
 <div class="line"><a id="l00608" name="l00608"></a><span class="lineno">  608</span>        ngx_close_file(fd);</div>
@@ -816,6 +816,9 @@ $(document).ready(function(){initNavTree('authfile_8c_source.html',''); initResi
 <div class="ttc" id="aauthfile_8c_html_ac88b3338b752b196873d68350d8231f4"><div class="ttname"><a href="authfile_8c.html#ac88b3338b752b196873d68350d8231f4">acc_selector_ok</a></div><div class="ttdeci">static int acc_selector_ok(char c)</div><div class="ttdef"><b>Definition</b> <a href="authfile_8c_source.html#l00282">authfile.c:282</a></div></div>
 <div class="ttc" id="alog__diag_8h_html"><div class="ttname"><a href="log__diag_8h.html">log_diag.h</a></div></div>
 <div class="ttc" id="alog__diag_8h_html_a1bb0636417fb338abbbeb47df7e469fc"><div class="ttname"><a href="log__diag_8h.html#a1bb0636417fb338abbbeb47df7e469fc">BRIX_DIAG_EMERG</a></div><div class="ttdeci">#define BRIX_DIAG_EMERG(log, err, summary, cause, fix,...)</div><div class="ttdef"><b>Definition</b> <a href="log__diag_8h_source.html#l00064">log_diag.h:64</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a0de53ece62d31e30ec1e1cd815b57267"><div class="ttname"><a href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a></div><div class="ttdeci">void * ngx_pcalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00042">xrdceph_migrate.c:42</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_ae28be76366886c36db56889cfc779768"><div class="ttname"><a href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a></div><div class="ttdeci">void * ngx_pnalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00043">xrdceph_migrate.c:43</a></div></div>
 <div class="ttc" id="apki__check_8h_html_ac08d621cd366ef68ad85972de09dc827"><div class="ttname"><a href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a></div><div class="ttdeci">BRIX_LOG_T * log</div><div class="ttdef"><b>Definition</b> <a href="pki__check_8h_source.html#l00035">pki_check.h:35</a></div></div>
 <div class="ttc" id="aprivs_8c_html_a73cdfd1f254b4eac1919e52a19023206"><div class="ttname"><a href="privs_8c.html#a73cdfd1f254b4eac1919e52a19023206">brix_acc_parse_privs</a></div><div class="ttdeci">int brix_acc_parse_privs(const char *s, size_t len, brix_acc_priv_caps_t *caps)</div><div class="ttdef"><b>Definition</b> <a href="privs_8c_source.html#l00082">privs.c:82</a></div></div>
 <div class="ttc" id="aprotocols_2ssi_2registry_8c_html_acd3d5832e08669d2a41d61c045abc1fd"><div class="ttname"><a href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a></div><div class="ttdeci">brix_ssi_session_t * s</div><div class="ttdef"><b>Definition</b> <a href="protocols_2ssi_2registry_8c_source.html#l00016">registry.c:16</a></div></div>

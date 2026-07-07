@@ -267,7 +267,7 @@ $(document).ready(function(){initNavTree('aws__chunked_8c_source.html',''); init
 <div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span>        <span class="keywordflow">return</span> -1;</div>
 <div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>    }</div>
 <div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span> </div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>    ngx_memcpy(<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;prev_sig, provided, 65);      <span class="comment">/* roll forward */</span></div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;prev_sig, provided, 65);      <span class="comment">/* roll forward */</span></div>
 <div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>    <span class="keywordflow">return</span> 0;</div>
 <div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span>}</div>
 </div>
@@ -351,7 +351,7 @@ $(document).ready(function(){initNavTree('aws__chunked_8c_source.html',''); init
 <div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>        <span class="keywordflow">if</span> (vlen &gt;= <span class="keyword">sizeof</span>(<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;trailer-&gt;value)) {</div>
 <div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>            vlen = <span class="keyword">sizeof</span>(<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;trailer-&gt;value) - 1;</div>
 <div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span>        }</div>
-<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>        ngx_memcpy(<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;trailer-&gt;value, v, vlen);</div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(<a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;trailer-&gt;value, v, vlen);</div>
 <div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>        <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;trailer-&gt;value[vlen] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span>    }</div>
 <div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>}</div>
@@ -711,6 +711,7 @@ $(document).ready(function(){initNavTree('aws__chunked_8c_source.html',''); init
 <div class="ttc" id="ahex_8h_html"><div class="ttname"><a href="hex_8h.html">hex.h</a></div></div>
 <div class="ttc" id="ahttp__headers_8c_html_af44cbcd95d2967de3ea081ce217cdf9d"><div class="ttname"><a href="http__headers_8c.html#af44cbcd95d2967de3ea081ce217cdf9d">brix_http_find_header</a></div><div class="ttdeci">ngx_table_elt_t * brix_http_find_header(ngx_http_request_t *r, const char *name, size_t name_len)</div><div class="ttdef"><b>Definition</b> <a href="http__headers_8c_source.html#l00041">http_headers.c:41</a></div></div>
 <div class="ttc" id="ahttp__headers_8h_html"><div class="ttname"><a href="http__headers_8h.html">http_headers.h</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="aroot_2session_2session_8h_html_a6273d27020935469383109889e654dfc"><div class="ttname"><a href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a></div><div class="ttdeci">ngx_connection_t * c</div><div class="ttdef"><b>Definition</b> <a href="root_2session_2session_8h_source.html#l00059">session.h:59</a></div></div>
 <div class="ttc" id="as3_8h_html"><div class="ttname"><a href="s3_8h.html">s3.h</a></div></div>
 <div class="ttc" id="asrc_2fs_2vfs_2vfs_8h_html"><div class="ttname"><a href="src_2fs_2vfs_2vfs_8h.html">vfs.h</a></div></div>

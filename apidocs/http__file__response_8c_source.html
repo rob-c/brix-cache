@@ -136,13 +136,13 @@ $(document).ready(function(){initNavTree('http__file__response_8c_source.html','
 <div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>    <span class="keywordtype">size_t</span>                   path_len;</div>
 <div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span> </div>
 <div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    <a class="code hl_define" href="alloc__guard_8h.html#aa37b1d99f961047ee2754193a1cfaf7c">BRIX_PCALLOC_OR_RETURN</a>(b, r-&gt;pool, <span class="keyword">sizeof</span>(ngx_buf_t), NGX_ERROR);</div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    b-&gt;file = ngx_pcalloc(r-&gt;pool, <span class="keyword">sizeof</span>(ngx_file_t));</div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    b-&gt;file = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(r-&gt;pool, <span class="keyword">sizeof</span>(ngx_file_t));</div>
 <div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>    <span class="keywordflow">if</span> (b-&gt;file == NULL) {</div>
 <div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    }</div>
 <div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span> </div>
 <div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    path_len = ngx_strlen(path);</div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    b-&gt;file-&gt;name.data = ngx_pnalloc(r-&gt;pool, path_len + 1);</div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    b-&gt;file-&gt;name.data = <a class="code hl_function" href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a>(r-&gt;pool, path_len + 1);</div>
 <div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>    <span class="keywordflow">if</span> (b-&gt;file-&gt;name.data == NULL) {</div>
 <div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    }</div>
@@ -330,7 +330,7 @@ $(document).ready(function(){initNavTree('http__file__response_8c_source.html','
 <div class="line"><a id="l00221" name="l00221"></a><span class="lineno">  221</span>    ngx_memzero(&amp;out, <span class="keyword">sizeof</span>(out));</div>
 <div class="line"><a id="l00222" name="l00222"></a><span class="lineno">  222</span> </div>
 <div class="line"><a id="l00223" name="l00223"></a><span class="lineno">  223</span>    <span class="keywordflow">if</span> (len &gt; 0) {</div>
-<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>        b = ngx_pcalloc(r-&gt;pool, <span class="keyword">sizeof</span>(ngx_buf_t));</div>
+<div class="line"><a id="l00224" name="l00224"></a><span class="lineno">  224</span>        b = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(r-&gt;pool, <span class="keyword">sizeof</span>(ngx_buf_t));</div>
 <div class="line"><a id="l00225" name="l00225"></a><span class="lineno">  225</span>        <span class="keywordflow">if</span> (b == NULL) {</div>
 <div class="line"><a id="l00226" name="l00226"></a><span class="lineno">  226</span>            <span class="keywordflow">if</span> (close_fd) {</div>
 <div class="line"><a id="l00227" name="l00227"></a><span class="lineno">  227</span>                ngx_close_file(fd);</div>
@@ -338,7 +338,7 @@ $(document).ready(function(){initNavTree('http__file__response_8c_source.html','
 <div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>            <span class="keywordflow">return</span> NGX_HTTP_INTERNAL_SERVER_ERROR;</div>
 <div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>        }</div>
 <div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span> </div>
-<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>        b-&gt;file = ngx_pcalloc(r-&gt;pool, <span class="keyword">sizeof</span>(ngx_file_t));</div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span>        b-&gt;file = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(r-&gt;pool, <span class="keyword">sizeof</span>(ngx_file_t));</div>
 <div class="line"><a id="l00233" name="l00233"></a><span class="lineno">  233</span>        <span class="keywordflow">if</span> (b-&gt;file == NULL) {</div>
 <div class="line"><a id="l00234" name="l00234"></a><span class="lineno">  234</span>            <span class="keywordflow">if</span> (close_fd) {</div>
 <div class="line"><a id="l00235" name="l00235"></a><span class="lineno">  235</span>                ngx_close_file(fd);</div>
@@ -347,7 +347,7 @@ $(document).ready(function(){initNavTree('http__file__response_8c_source.html','
 <div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span>        }</div>
 <div class="line"><a id="l00239" name="l00239"></a><span class="lineno">  239</span> </div>
 <div class="line"><a id="l00240" name="l00240"></a><span class="lineno">  240</span>        b-&gt;file-&gt;name.len = ngx_strlen(path);</div>
-<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>        b-&gt;file-&gt;name.data = ngx_pnalloc(r-&gt;pool, b-&gt;file-&gt;name.len + 1);</div>
+<div class="line"><a id="l00241" name="l00241"></a><span class="lineno">  241</span>        b-&gt;file-&gt;name.data = <a class="code hl_function" href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a>(r-&gt;pool, b-&gt;file-&gt;name.len + 1);</div>
 <div class="line"><a id="l00242" name="l00242"></a><span class="lineno">  242</span>        <span class="keywordflow">if</span> (b-&gt;file-&gt;name.data == NULL) {</div>
 <div class="line"><a id="l00243" name="l00243"></a><span class="lineno">  243</span>            <span class="keywordflow">if</span> (close_fd) {</div>
 <div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span>                ngx_close_file(fd);</div>
@@ -417,6 +417,8 @@ $(document).ready(function(){initNavTree('http__file__response_8c_source.html','
 <div class="ttc" id="ahttp__file__response_8h_html"><div class="ttname"><a href="http__file__response_8h.html">http_file_response.h</a></div></div>
 <div class="ttc" id="ahttp__file__response_8h_html_a003b84cfa9137bcdf3b77927381f59c1"><div class="ttname"><a href="http__file__response_8h.html#a003b84cfa9137bcdf3b77927381f59c1">brix_http_set_header</a></div><div class="ttdeci">ngx_int_t brix_http_set_header(ngx_http_request_t *r, const char *key, const char *value, ngx_table_elt_t **out)</div><div class="ttdef"><b>Definition</b> <a href="http__headers_8c_source.html#l00344">http_headers.c:344</a></div></div>
 <div class="ttc" id="ahttp__headers_8h_html"><div class="ttname"><a href="http__headers_8h.html">http_headers.h</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a0de53ece62d31e30ec1e1cd815b57267"><div class="ttname"><a href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a></div><div class="ttdeci">void * ngx_pcalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00042">xrdceph_migrate.c:42</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_ae28be76366886c36db56889cfc779768"><div class="ttname"><a href="ngx__shim_8h.html#ae28be76366886c36db56889cfc779768">ngx_pnalloc</a></div><div class="ttdeci">void * ngx_pnalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00043">xrdceph_migrate.c:43</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

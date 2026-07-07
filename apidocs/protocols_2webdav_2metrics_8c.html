@@ -97,6 +97,7 @@ $(document).ready(function(){initNavTree('protocols_2webdav_2metrics_8c.html',''
 <div class="contents">
 <div class="textblock"><code>#include &quot;<a class="el" href="webdav_8h_source.html">webdav.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="http__headers_8h_source.html">core/http/http_headers.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="sesslog__conn_8h_source.html">core/http/sesslog_conn.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="observability_2metrics_2http__common_8h_source.html">observability/metrics/http_common.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="observability_2metrics_2unified_8h_source.html">observability/metrics/unified.h</a>&quot;</code><br />
 </div><div class="textblock"><div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
@@ -113,6 +114,30 @@ $(document).ready(function(){initNavTree('protocols_2webdav_2metrics_8c.html',''
 Functions</h2></td></tr>
 <tr class="memitem:a288f20f9517d5851db9695eabdd75687" id="r_a288f20f9517d5851db9695eabdd75687"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="observability_2metrics_2unified_8h.html#ad374041df577f4adf3585b57b6a1b80f">brix_metric_op_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2metrics_8c.html#a288f20f9517d5851db9695eabdd75687">webdav_unified_op</a> (ngx_uint_t method)</td></tr>
 <tr class="separator:a288f20f9517d5851db9695eabdd75687"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa36290b79df1aab61e0c4b21fc892002" id="r_aa36290b79df1aab61e0c4b21fc892002"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2metrics_8c.html#aa36290b79df1aab61e0c4b21fc892002">webdav_sess_mode</a> (ngx_http_request_t *r, ngx_uint_t method)</td></tr>
+<tr class="separator:aa36290b79df1aab61e0c4b21fc892002"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4dedcefa43be4c35e99ff2d34d5cb476" id="r_a4dedcefa43be4c35e99ff2d34d5cb476"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="sesslog_8h.html#a423ea74f1f8a2e20c2e6c87f5c12113f">brix_sess_am_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2metrics_8c.html#a4dedcefa43be4c35e99ff2d34d5cb476">webdav_sess_auth_method</a> (<a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *ctx)</td></tr>
+<tr class="separator:a4dedcefa43be4c35e99ff2d34d5cb476"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9d9d1401913f7269da4c98e2aa2a275d" id="r_a9d9d1401913f7269da4c98e2aa2a275d"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2metrics_8c.html#a9d9d1401913f7269da4c98e2aa2a275d">webdav_sess_user</a> (<a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *ctx)</td></tr>
+<tr class="separator:a9d9d1401913f7269da4c98e2aa2a275d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aecb639fb7f908b8f62bf6339f0aef333" id="r_aecb639fb7f908b8f62bf6339f0aef333"><td class="memItemLeft" align="right" valign="top">static const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2metrics_8c.html#aecb639fb7f908b8f62bf6339f0aef333">webdav_sess_vo</a> (<a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *ctx)</td></tr>
+<tr class="separator:aecb639fb7f908b8f62bf6339f0aef333"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7a6921e56277489b0714c5f824193f58" id="r_a7a6921e56277489b0714c5f824193f58"><td class="memItemLeft" align="right" valign="top">static <a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2metrics_8c.html#a7a6921e56277489b0714c5f824193f58">webdav_sess</a> (ngx_http_request_t *r)</td></tr>
+<tr class="separator:a7a6921e56277489b0714c5f824193f58"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6e38543c12c9ee06a8ef91c7ea69ae73" id="r_a6e38543c12c9ee06a8ef91c7ea69ae73"><td class="memItemLeft" align="right" valign="top">static int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2metrics_8c.html#a6e38543c12c9ee06a8ef91c7ea69ae73">webdav_sess_mode_has_xfer</a> (<a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a> <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="separator:a6e38543c12c9ee06a8ef91c7ea69ae73"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a516fbf197fed2ba7c96a762ed5568d2b" id="r_a516fbf197fed2ba7c96a762ed5568d2b"><td class="memItemLeft" align="right" valign="top">static int64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2metrics_8c.html#a516fbf197fed2ba7c96a762ed5568d2b">webdav_sess_xfer_expected</a> (ngx_http_request_t *r, <a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a> <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="separator:a516fbf197fed2ba7c96a762ed5568d2b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a82f4333dc5bdf74faa5bd5087e39599b" id="r_a82f4333dc5bdf74faa5bd5087e39599b"><td class="memItemLeft" align="right" valign="top">static uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2metrics_8c.html#a82f4333dc5bdf74faa5bd5087e39599b">webdav_sess_xfer_bytes</a> (ngx_http_request_t *r, <a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a> <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, int64_t expected)</td></tr>
+<tr class="separator:a82f4333dc5bdf74faa5bd5087e39599b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aacf7dff4348ef4d9b234beb4180f46c0" id="r_aacf7dff4348ef4d9b234beb4180f46c0"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2metrics_8c.html#aacf7dff4348ef4d9b234beb4180f46c0">webdav_sess_start_xfer</a> (ngx_http_request_t *r, <a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *sess, const char *path, <a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a> <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>)</td></tr>
+<tr class="separator:aacf7dff4348ef4d9b234beb4180f46c0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a12e2ec0653fb811a0524dfd0e91a3b77" id="r_a12e2ec0653fb811a0524dfd0e91a3b77"><td class="memItemLeft" align="right" valign="top">static void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2metrics_8c.html#a12e2ec0653fb811a0524dfd0e91a3b77">webdav_sess_finish_xfer</a> (ngx_http_request_t *r, <a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *sess, <a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a> <a class="el" href="auth_2impersonate_2lifecycle_8c.html#a1ea5d0cb93f22f7d0fdf804bd68c3326">mode</a>, ngx_uint_t status)</td></tr>
+<tr class="separator:a12e2ec0653fb811a0524dfd0e91a3b77"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aea4c48428aaa17efacd66e936626fe64" id="r_aea4c48428aaa17efacd66e936626fe64"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2metrics_8c.html#aea4c48428aaa17efacd66e936626fe64">webdav_sess_begin_request</a> (ngx_http_request_t *r)</td></tr>
+<tr class="separator:aea4c48428aaa17efacd66e936626fe64"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a421410f5ef5efa0639fc7d54998bc72c" id="r_a421410f5ef5efa0639fc7d54998bc72c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2metrics_8c.html#a421410f5ef5efa0639fc7d54998bc72c">webdav_sess_attempt_request</a> (ngx_http_request_t *r)</td></tr>
+<tr class="separator:a421410f5ef5efa0639fc7d54998bc72c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a08e21a2a23db4bfd04a5ba7ebe615584" id="r_a08e21a2a23db4bfd04a5ba7ebe615584"><td class="memItemLeft" align="right" valign="top">ngx_uint_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="protocols_2webdav_2metrics_8c.html#a08e21a2a23db4bfd04a5ba7ebe615584">webdav_metrics_method</a> (ngx_http_request_t *r)</td></tr>
 <tr class="memdesc:a08e21a2a23db4bfd04a5ba7ebe615584"><td class="mdescLeft">&#160;</td><td class="mdescRight">WHAT: Map nginx HTTP method to the WebDAV metric enum for Prometheus request counting.  <br /></td></tr>
 <tr class="separator:a08e21a2a23db4bfd04a5ba7ebe615584"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -162,11 +187,11 @@ Functions</h2></td></tr>
 <p>WHAT: Wrapper helper — records response metrics then finalizes the nginx request. </p>
 <p>Convenience function that calls webdav_metrics_response(r, rc) followed by ngx_http_finalize_request(r, rc). Used by handlers that want to record metrics and complete the request lifecycle in a single call. Equivalent to: webdav_metrics_response(r, rc); ngx_http_finalize_request(r, rc); </p>
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00127">127</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">355</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00083">webdav_metrics_response()</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00299">webdav_metrics_response()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="tape__rest_8c_source.html#l00728">tape_post_body_handler()</a>, <a class="el" href="tpc__thread_8c_source.html#l00272">tpc_thread_done()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00159">webdav_copy_collection_done()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00475">webdav_handle_lock_inner()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00610">webdav_handle_macaroon_request()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00271">webdav_handle_macaroon_token()</a>, <a class="el" href="move_8c_source.html#l00127">webdav_move_collection_done()</a>, <a class="el" href="methods__basic_8c_source.html#l00485">webdav_proppatch_body_handler()</a>, <a class="el" href="webdav_2put_8c_source.html#l00149">webdav_put_aio_done()</a>, <a class="el" href="webdav_2put_8c_source.html#l00364">webdav_put_body_inner()</a>, <a class="el" href="webdav_2put_8c_source.html#l00271">webdav_put_ranged_resume()</a>, <a class="el" href="search_8c_source.html#l00428">webdav_search_body_handler()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00150">webdav_send_status_only()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="tape__rest_8c_source.html#l00728">tape_post_body_handler()</a>, <a class="el" href="tpc__thread_8c_source.html#l00272">tpc_thread_done()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00159">webdav_copy_collection_done()</a>, <a class="el" href="protocols_2webdav_2lock_8c_source.html#l00475">webdav_handle_lock_inner()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00610">webdav_handle_macaroon_request()</a>, <a class="el" href="macaroon__endpoint_8c_source.html#l00271">webdav_handle_macaroon_token()</a>, <a class="el" href="move_8c_source.html#l00127">webdav_move_collection_done()</a>, <a class="el" href="methods__basic_8c_source.html#l00485">webdav_proppatch_body_handler()</a>, <a class="el" href="webdav_2put_8c_source.html#l00149">webdav_put_aio_done()</a>, <a class="el" href="webdav_2put_8c_source.html#l00364">webdav_put_body_inner()</a>, <a class="el" href="webdav_2put_8c_source.html#l00271">webdav_put_ranged_resume()</a>, <a class="el" href="search_8c_source.html#l00428">webdav_search_body_handler()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00378">webdav_send_status_only()</a>.</p>
 
 </div>
 </div>
@@ -189,11 +214,11 @@ Functions</h2></td></tr>
 <p>WHAT: Map nginx HTTP method to the WebDAV metric enum for Prometheus request counting. </p>
 <p>Returns a value from BRIX_WEBDAV_METHOD_* enum corresponding to the incoming request's HTTP method. Uses r-&gt;method (nginx internal enum) for OPTIONS/HEAD/GET/ PUT/DELETE; uses r-&gt;method_name string comparison for WebDAV-specific methods MKCOL, COPY, and PROPFIND (which nginx doesn't have built-in enums for). Returns BRIX_WEBDAV_METHOD_OTHER as fallback for unknown or custom methods. All callers use this to index into the requests_total[METHOD] metric counter before processing begins or after completing an operation. </p>
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00045">45</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00261">261</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
 
 <p class="reference">References <a class="el" href="protocol__caps_8c_source.html#l00014">brix_http_operation_find()</a>, <a class="el" href="metrics__webdav_8h_source.html#l00031">BRIX_WEBDAV_METHOD_OTHER</a>, <a class="el" href="webdav_2operation__table_8c_source.html#l00018">brix_webdav_operations</a>, <a class="el" href="webdav_2operation__table_8c_source.html#l00050">brix_webdav_operations_count</a>, and <a class="el" href="protocol__caps_8h_source.html#l00042">brix_http_operation_t::metric_slot</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00065">webdav_metrics_request()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00083">webdav_metrics_response()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00281">webdav_metrics_request()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00299">webdav_metrics_response()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00235">webdav_sess_attempt_request()</a>.</p>
 
 </div>
 </div>
@@ -216,9 +241,9 @@ Functions</h2></td></tr>
 <p>WHAT: Increment the WebDAV requests_total counter for this request's method. </p>
 <p>Called early in each handler to record that a request arrived for a specific HTTP method. Uses <a class="el" href="protocols_2webdav_2metrics_8c.html#a08e21a2a23db4bfd04a5ba7ebe615584" title="WHAT: Map nginx HTTP method to the WebDAV metric enum for Prometheus request counting.">webdav_metrics_method()</a> to classify the method, then increments the requests_total[method] Prometheus metric via <a class="el" href="metrics__macros_8h.html#a793c70437e65456a3ec7e77bf13fb915">BRIX_WEBDAV_METRIC_INC()</a>. This is typically called at the start of every WebDAV operation handler (GET, PUT, DELETE, etc.) before any processing begins. Does not track status — only counts request arrivals. </p>
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00065">65</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00281">281</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00045">webdav_metrics_method()</a>.</p>
+<p class="reference">References <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00261">webdav_metrics_method()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2webdav_2access_8c_source.html#l00127">ngx_http_brix_webdav_access_handler()</a>.</p>
 
@@ -253,11 +278,11 @@ Functions</h2></td></tr>
 <p>WHAT: Increment the WebDAV responses_total counter by method and status class. </p>
 <p>Called at end of each handler to record the outcome of processing. Determines the HTTP status from either rc (error code), r-&gt;headers_out.status (explicitly set response), or defaults to NGX_HTTP_OK if no status was set. Maps to a low-cardinality status class via webdav_metrics_status_class(), then increments responses_total[method][status_class]. Returns immediately if rc == NGX_DONE (request already finalized, metrics should not be double-counted). Used by all handlers after completing their operation logic. </p>
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00083">83</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00299">299</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00255">brix_http_effective_status()</a>, <a class="el" href="observability_2metrics_2http__common_8h_source.html#l00032">brix_http_status_class()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00187">brix_metric_err_from_http_status()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00212">brix_metric_op_done()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_WEBDAV</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00045">webdav_metrics_method()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00011">webdav_unified_op()</a>.</p>
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00255">brix_http_effective_status()</a>, <a class="el" href="sesslog__conn_8c_source.html#l00210">brix_http_sess_uri()</a>, <a class="el" href="observability_2metrics_2http__common_8h_source.html#l00032">brix_http_status_class()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00187">brix_metric_err_from_http_status()</a>, <a class="el" href="observability_2metrics_2unified_8c_source.html#l00212">brix_metric_op_done()</a>, <a class="el" href="proto__exclusive_8c_source.html#l00038">BRIX_PROTO_WEBDAV</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00353">brix_sess_result()</a>, <a class="el" href="sesslog_8c_source.html#l00557">brix_sesslog_err_from_http()</a>, <a class="el" href="sesslog_8h_source.html#l00014">BRIX_SESSLOG_ERR_MAX</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="metrics__macros_8h_source.html#l00072">BRIX_WEBDAV_METRIC_INC</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00261">webdav_metrics_method()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00113">webdav_sess()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00189">webdav_sess_finish_xfer()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00035">webdav_sess_mode()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00012">webdav_unified_op()</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00127">webdav_metrics_finalize_request()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00112">webdav_metrics_return()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00340">webdav_metrics_return()</a>.</p>
 
 </div>
 </div>
@@ -290,9 +315,9 @@ Functions</h2></td></tr>
 <p>WHAT: Wrapper helper — records response metrics then returns the original rc value. </p>
 <p>Convenience function that calls webdav_metrics_response(r, rc) and immediately returns rc to the caller. Used by handlers that want to record metrics before returning an nginx result code without needing two separate statement lines. Equivalent to: webdav_metrics_response(r, rc); return rc; </p>
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00112">112</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00340">340</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00083">webdav_metrics_response()</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00299">webdav_metrics_response()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="protocols_2webdav_2access_8c_source.html#l00127">ngx_http_brix_webdav_access_handler()</a>, and <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
 
@@ -328,11 +353,459 @@ Functions</h2></td></tr>
 <p>Captures the recurring four-line tail used by status-only outcomes (201/204/… with no body): set the status and a zero content length, send the header, then finalize via the send_special result so response metrics are recorded. Equivalent to: r-&gt;headers_out.status = status; r-&gt;headers_out.content_length_n = 0; ngx_http_send_header(r); webdav_metrics_finalize_request(r, ngx_http_send_special(r, NGX_HTTP_LAST));</p>
 <p>The caller still owns flow control: this finalizes the request, so it must be the last action on <code>r</code> and the caller should return immediately after. Add any response headers (e.g. Location for 201) before calling. </p>
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00150">150</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00378">378</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
 
-<p class="reference">References <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00127">webdav_metrics_finalize_request()</a>.</p>
+<p class="reference">References <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00355">webdav_metrics_finalize_request()</a>.</p>
 
 <p class="reference">Referenced by <a class="el" href="tpc__thread_8c_source.html#l00272">tpc_thread_done()</a>, <a class="el" href="src_2protocols_2webdav_2copy_8c_source.html#l00159">webdav_copy_collection_done()</a>, <a class="el" href="move_8c_source.html#l00127">webdav_move_collection_done()</a>, <a class="el" href="webdav_2put_8c_source.html#l00149">webdav_put_aio_done()</a>, and <a class="el" href="webdav_2put_8c_source.html#l00271">webdav_put_ranged_resume()</a>.</p>
+
+</div>
+</div>
+<a id="a7a6921e56277489b0714c5f824193f58" name="a7a6921e56277489b0714c5f824193f58"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7a6921e56277489b0714c5f824193f58">&#9670;&#160;</a></span>webdav_sess()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="structbrix__sess__t.html">brix_sess_t</a> * webdav_sess </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00113">113</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sesslog__conn_8c_source.html#l00166">brix_http_sess()</a>, <a class="el" href="sesslog_8h_source.html#l00018">BRIX_SESS_PROTO_WEBDAV</a>, <a class="el" href="webdav_8h_source.html#l00135">ngx_http_brix_webdav_loc_conf_t::common</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00064">webdav_sess_auth_method()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00299">webdav_metrics_response()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00235">webdav_sess_attempt_request()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00221">webdav_sess_begin_request()</a>.</p>
+
+</div>
+</div>
+<a id="a421410f5ef5efa0639fc7d54998bc72c" name="a421410f5ef5efa0639fc7d54998bc72c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a421410f5ef5efa0639fc7d54998bc72c">&#9670;&#160;</a></span>webdav_sess_attempt_request()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void webdav_sess_attempt_request </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00235">235</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sesslog__conn_8c_source.html#l00210">brix_http_sess_uri()</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00327">brix_sess_attempt()</a>, <a class="el" href="sesslog_8h_source.html#l00009">BRIX_SESSLOG_PATH_MAX</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00261">webdav_metrics_method()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00113">webdav_sess()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00035">webdav_sess_mode()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00170">webdav_sess_start_xfer()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
+
+</div>
+</div>
+<a id="a4dedcefa43be4c35e99ff2d34d5cb476" name="a4dedcefa43be4c35e99ff2d34d5cb476"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4dedcefa43be4c35e99ff2d34d5cb476">&#9670;&#160;</a></span>webdav_sess_auth_method()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="sesslog_8h.html#a423ea74f1f8a2e20c2e6c87f5c12113f">brix_sess_am_t</a> webdav_sess_auth_method </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00064">64</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00041">BRIX_SESS_AM_ANON</a>, <a class="el" href="sesslog_8h_source.html#l00033">BRIX_SESS_AM_GSI</a>, <a class="el" href="sesslog_8h_source.html#l00034">BRIX_SESS_AM_TOKEN</a>, <a class="el" href="webdav_8h_source.html#l00339">ngx_http_brix_webdav_req_ctx_t::token_auth</a>, and <a class="el" href="webdav_8h_source.html#l00333">ngx_http_brix_webdav_req_ctx_t::verified</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00113">webdav_sess()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00221">webdav_sess_begin_request()</a>.</p>
+
+</div>
+</div>
+<a id="aea4c48428aaa17efacd66e936626fe64" name="aea4c48428aaa17efacd66e936626fe64"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aea4c48428aaa17efacd66e936626fe64">&#9670;&#160;</a></span>webdav_sess_begin_request()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void webdav_sess_begin_request </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00221">221</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sesslog__ngx_8c_source.html#l00305">brix_sess_auth_once()</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00113">webdav_sess()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00064">webdav_sess_auth_method()</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00082">webdav_sess_user()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00100">webdav_sess_vo()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="webdav_2dispatch_8c_source.html#l00050">webdav_dispatch_inner()</a>.</p>
+
+</div>
+</div>
+<a id="a12e2ec0653fb811a0524dfd0e91a3b77" name="a12e2ec0653fb811a0524dfd0e91a3b77"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a12e2ec0653fb811a0524dfd0e91a3b77">&#9670;&#160;</a></span>webdav_sess_finish_xfer()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void webdav_sess_finish_xfer </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *&#160;</td>
+          <td class="paramname"><em>sess</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a>&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>status</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00189">189</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00051">BRIX_SESS_MODE_COPY</a>, <a class="el" href="sesslog_8h_source.html#l00057">BRIX_SESS_XFER_ABORTED</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00399">brix_sess_xfer_add()</a>, <a class="el" href="sesslog_8h_source.html#l00056">BRIX_SESS_XFER_COMPLETE</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00408">brix_sess_xfer_end()</a>, <a class="el" href="sesslog_8h_source.html#l00077">brix_sess_xfer_t::bytes</a>, <a class="el" href="sesslog_8h_source.html#l00078">brix_sess_xfer_t::expected</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="webdav_8h_source.html#l00372">ngx_http_brix_webdav_req_ctx_t::sess_xfer</a>, <a class="el" href="webdav_8h_source.html#l00373">ngx_http_brix_webdav_req_ctx_t::sess_xfer_started</a>, <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00153">webdav_sess_xfer_bytes()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00133">webdav_sess_xfer_expected()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00299">webdav_metrics_response()</a>.</p>
+
+</div>
+</div>
+<a id="aa36290b79df1aab61e0c4b21fc892002" name="aa36290b79df1aab61e0c4b21fc892002"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa36290b79df1aab61e0c4b21fc892002">&#9670;&#160;</a></span>webdav_sess_mode()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static <a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a> webdav_sess_mode </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">ngx_uint_t&#160;</td>
+          <td class="paramname"><em>method</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00035">35</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+
+<p class="reference">References <a class="el" href="http__headers_8c_source.html#l00091">brix_http_get_header()</a>, <a class="el" href="sesslog_8h_source.html#l00051">BRIX_SESS_MODE_COPY</a>, <a class="el" href="sesslog_8h_source.html#l00049">BRIX_SESS_MODE_DELETE</a>, <a class="el" href="sesslog_8h_source.html#l00050">BRIX_SESS_MODE_LIST</a>, <a class="el" href="sesslog_8h_source.html#l00048">BRIX_SESS_MODE_META</a>, <a class="el" href="sesslog_8h_source.html#l00046">BRIX_SESS_MODE_READ</a>, <a class="el" href="sesslog_8h_source.html#l00047">BRIX_SESS_MODE_WRITE</a>, <a class="el" href="metrics__webdav_8h_source.html#l00029">BRIX_WEBDAV_METHOD_COPY</a>, <a class="el" href="metrics__webdav_8h_source.html#l00027">BRIX_WEBDAV_METHOD_DELETE</a>, <a class="el" href="metrics__webdav_8h_source.html#l00025">BRIX_WEBDAV_METHOD_GET</a>, <a class="el" href="metrics__webdav_8h_source.html#l00028">BRIX_WEBDAV_METHOD_MKCOL</a>, <a class="el" href="metrics__webdav_8h_source.html#l00030">BRIX_WEBDAV_METHOD_PROPFIND</a>, and <a class="el" href="metrics__webdav_8h_source.html#l00026">BRIX_WEBDAV_METHOD_PUT</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00299">webdav_metrics_response()</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00235">webdav_sess_attempt_request()</a>.</p>
+
+</div>
+</div>
+<a id="a6e38543c12c9ee06a8ef91c7ea69ae73" name="a6e38543c12c9ee06a8ef91c7ea69ae73"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6e38543c12c9ee06a8ef91c7ea69ae73">&#9670;&#160;</a></span>webdav_sess_mode_has_xfer()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int webdav_sess_mode_has_xfer </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a>&#160;</td>
+          <td class="paramname"><em>mode</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00126">126</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00051">BRIX_SESS_MODE_COPY</a>, <a class="el" href="sesslog_8h_source.html#l00046">BRIX_SESS_MODE_READ</a>, <a class="el" href="sesslog_8h_source.html#l00047">BRIX_SESS_MODE_WRITE</a>, and <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00170">webdav_sess_start_xfer()</a>.</p>
+
+</div>
+</div>
+<a id="aacf7dff4348ef4d9b234beb4180f46c0" name="aacf7dff4348ef4d9b234beb4180f46c0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aacf7dff4348ef4d9b234beb4180f46c0">&#9670;&#160;</a></span>webdav_sess_start_xfer()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static void webdav_sess_start_xfer </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structbrix__sess__t.html">brix_sess_t</a> *&#160;</td>
+          <td class="paramname"><em>sess</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a>&#160;</td>
+          <td class="paramname"><em>mode</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00170">170</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00080">brix_sess_xfer_t::active</a>, <a class="el" href="sesslog__ngx_8c_source.html#l00375">brix_sess_xfer_start()</a>, <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>, <a class="el" href="protocols_2webdav_2module_8c_source.html#l00548">ngx_http_brix_webdav_module</a>, <a class="el" href="webdav_8h_source.html#l00372">ngx_http_brix_webdav_req_ctx_t::sess_xfer</a>, <a class="el" href="webdav_8h_source.html#l00373">ngx_http_brix_webdav_req_ctx_t::sess_xfer_started</a>, and <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00126">webdav_sess_mode_has_xfer()</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00235">webdav_sess_attempt_request()</a>.</p>
+
+</div>
+</div>
+<a id="a9d9d1401913f7269da4c98e2aa2a275d" name="a9d9d1401913f7269da4c98e2aa2a275d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9d9d1401913f7269da4c98e2aa2a275d">&#9670;&#160;</a></span>webdav_sess_user()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static const char * webdav_sess_user </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00082">82</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+
+<p class="reference">References <a class="el" href="identity_8c_source.html#l00432">brix_identity_dn_cstr()</a>, <a class="el" href="identity_8c_source.html#l00439">brix_identity_subject_cstr()</a>, and <a class="el" href="webdav_8h_source.html#l00334">ngx_http_brix_webdav_req_ctx_t::identity</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00221">webdav_sess_begin_request()</a>.</p>
+
+</div>
+</div>
+<a id="aecb639fb7f908b8f62bf6339f0aef333" name="aecb639fb7f908b8f62bf6339f0aef333"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aecb639fb7f908b8f62bf6339f0aef333">&#9670;&#160;</a></span>webdav_sess_vo()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static const char * webdav_sess_vo </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structngx__http__brix__webdav__req__ctx__t.html">ngx_http_brix_webdav_req_ctx_t</a> *&#160;</td>
+          <td class="paramname"><em>ctx</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00100">100</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+
+<p class="reference">References <a class="el" href="identity_8c_source.html#l00447">brix_identity_vo_csv_cstr()</a>, and <a class="el" href="webdav_8h_source.html#l00334">ngx_http_brix_webdav_req_ctx_t::identity</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00221">webdav_sess_begin_request()</a>.</p>
+
+</div>
+</div>
+<a id="a82f4333dc5bdf74faa5bd5087e39599b" name="a82f4333dc5bdf74faa5bd5087e39599b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a82f4333dc5bdf74faa5bd5087e39599b">&#9670;&#160;</a></span>webdav_sess_xfer_bytes()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static uint64_t webdav_sess_xfer_bytes </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a>&#160;</td>
+          <td class="paramname"><em>mode</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int64_t&#160;</td>
+          <td class="paramname"><em>expected</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00153">153</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00051">BRIX_SESS_MODE_COPY</a>, <a class="el" href="sesslog_8h_source.html#l00046">BRIX_SESS_MODE_READ</a>, <a class="el" href="sesslog_8h_source.html#l00047">BRIX_SESS_MODE_WRITE</a>, and <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00189">webdav_sess_finish_xfer()</a>.</p>
+
+</div>
+</div>
+<a id="a516fbf197fed2ba7c96a762ed5568d2b" name="a516fbf197fed2ba7c96a762ed5568d2b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a516fbf197fed2ba7c96a762ed5568d2b">&#9670;&#160;</a></span>webdav_sess_xfer_expected()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">static int64_t webdav_sess_xfer_expected </td>
+          <td>(</td>
+          <td class="paramtype">ngx_http_request_t *&#160;</td>
+          <td class="paramname"><em>r</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="sesslog_8h.html#a4e31e9ce109cbe1f2d65a603857294f5">brix_sess_mode_t</a>&#160;</td>
+          <td class="paramname"><em>mode</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">static</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00133">133</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+
+<p class="reference">References <a class="el" href="sesslog_8h_source.html#l00051">BRIX_SESS_MODE_COPY</a>, <a class="el" href="sesslog_8h_source.html#l00046">BRIX_SESS_MODE_READ</a>, <a class="el" href="sesslog_8h_source.html#l00047">BRIX_SESS_MODE_WRITE</a>, and <a class="el" href="auth_2impersonate_2lifecycle_8c_source.html#l00042">mode</a>.</p>
+
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00189">webdav_sess_finish_xfer()</a>.</p>
 
 </div>
 </div>
@@ -360,11 +833,11 @@ Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00011">11</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
+<p class="definition">Definition at line <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00012">12</a> of file <a class="el" href="protocols_2webdav_2metrics_8c_source.html">metrics.c</a>.</p>
 
 <p class="reference">References <a class="el" href="observability_2metrics_2unified_8h_source.html#l00043">BRIX_METRIC_OP_DELETE</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00046">BRIX_METRIC_OP_DIRLIST</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00044">BRIX_METRIC_OP_MKDIR</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00040">BRIX_METRIC_OP_READ</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00042">BRIX_METRIC_OP_STAT</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00047">BRIX_METRIC_OP_TPC</a>, <a class="el" href="observability_2metrics_2unified_8h_source.html#l00041">BRIX_METRIC_OP_WRITE</a>, <a class="el" href="metrics__webdav_8h_source.html#l00029">BRIX_WEBDAV_METHOD_COPY</a>, <a class="el" href="metrics__webdav_8h_source.html#l00027">BRIX_WEBDAV_METHOD_DELETE</a>, <a class="el" href="metrics__webdav_8h_source.html#l00025">BRIX_WEBDAV_METHOD_GET</a>, <a class="el" href="metrics__webdav_8h_source.html#l00024">BRIX_WEBDAV_METHOD_HEAD</a>, <a class="el" href="metrics__webdav_8h_source.html#l00028">BRIX_WEBDAV_METHOD_MKCOL</a>, <a class="el" href="metrics__webdav_8h_source.html#l00030">BRIX_WEBDAV_METHOD_PROPFIND</a>, and <a class="el" href="metrics__webdav_8h_source.html#l00026">BRIX_WEBDAV_METHOD_PUT</a>.</p>
 
-<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00083">webdav_metrics_response()</a>.</p>
+<p class="reference">Referenced by <a class="el" href="protocols_2webdav_2metrics_8c_source.html#l00299">webdav_metrics_response()</a>.</p>
 
 </div>
 </div>

@@ -63,6 +63,8 @@ var s3_8h =
     [ "s3_put_trailer_checksum_apply", "s3_8h.html#a84a6c1c8536fad5c0b434be40eacd969", null ],
     [ "s3_resolve_key", "s3_8h.html#aac0b604ca0c44328fd5176ee0ce2c6ab", null ],
     [ "s3_send_xml_error", "s3_8h.html#a3368c90fa0a471d25ffcd5b9a7b4e123", null ],
+    [ "s3_sess_attempt_request", "s3_8h.html#a833eddbc91835ffb332b1a6cd05e7cab", null ],
+    [ "s3_sess_begin_request", "s3_8h.html#a9a50120529becf4eeffaf37791a138b8", null ],
     [ "s3_set_header", "s3_8h.html#a413977d789cba0c471ab23de8713f28a", null ],
     [ "s3_thread_pool", "s3_8h.html#aee8f124d06ee39038cd4959a21dfddd4", null ],
     [ "s3_verify_sigv4", "s3_8h.html#adad8c5bf65ef8c9e466a445bc88a2752", null ],

@@ -155,7 +155,7 @@ $(document).ready(function(){initNavTree('file_8c_source.html',''); initResizabl
 <div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span>        <span class="keywordflow">return</span> NGX_ERROR;</div>
 <div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>    }</div>
 <div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span> </div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>    ngx_memcpy(pathz, path-&gt;data, path-&gt;len);</div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(pathz, path-&gt;data, path-&gt;len);</div>
 <div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span>    pathz[path-&gt;len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span> </div>
 <div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    fp = fopen(pathz, <span class="stringliteral">&quot;rb&quot;</span>);</div>
@@ -207,6 +207,7 @@ $(document).ready(function(){initNavTree('file_8c_source.html',''); initResizabl
 </div>
 <div class="ttc" id="acore_2types_2file_8h_html"><div class="ttname"><a href="core_2types_2file_8h.html">file.h</a></div></div>
 <div class="ttc" id="afile_8c_html_ada5899fcbd61429e689dea61508d0c22"><div class="ttname"><a href="file_8c.html#ada5899fcbd61429e689dea61508d0c22">brix_token_read_file</a></div><div class="ttdeci">ngx_int_t brix_token_read_file(const ngx_str_t *path, u_char *buf, size_t buf_sz, size_t *out_len, ngx_log_t *log, const char *label)</div><div class="ttdef"><b>Definition</b> <a href="file_8c_source.html#l00034">file.c:34</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="apki__check_8h_html_ac08d621cd366ef68ad85972de09dc827"><div class="ttname"><a href="pki__check_8h.html#ac08d621cd366ef68ad85972de09dc827">log</a></div><div class="ttdeci">BRIX_LOG_T * log</div><div class="ttdef"><b>Definition</b> <a href="pki__check_8h_source.html#l00035">pki_check.h:35</a></div></div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->

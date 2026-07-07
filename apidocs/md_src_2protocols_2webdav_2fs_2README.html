@@ -93,14 +93,14 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2webdav_2fs_2README.
   <div class="headertitle"><div class="title">webdav/fs — Confined local-filesystem copy engine for WebDAV COPY/MOVE</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md469"></a> </p>
-<h1><a class="anchor" id="autotoc_md470"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md470"></a> </p>
+<h1><a class="anchor" id="autotoc_md471"></a>
 Overview</h1>
 <p>This subsystem implements the <b>byte-and-metadata copy primitives</b> used by the WebDAV <code>COPY</code> (and <code>MOVE</code>-via-copy-fallback) handler when both the source and the destination live under the same local export root. It is deliberately <em>not</em> a remote transfer engine: cross-server transfers are HTTP-TPC (<code>../tpc.c</code> / native <code>../../tpc/</code>). This code only duplicates a file or a directory tree <b>within one filesystem namespace</b>, doing so with kernel-side zero-copy when the filesystem supports it and a portable <code>pread</code>/<code>pwrite</code> fallback when it does not.</p>
 <p>It exists because RFC 4918 <code>COPY</code> requires an atomic, metadata-preserving duplication of a resource, and a naive "open + loop + write" loses two things HEP/grid clients care about: (1) kernel zero-copy performance on large physics files, and (2) the XRootD extended attributes (<code>user.xrd.*</code>) and WebDAV dead-properties that carry checksums and custom metadata across protocol boundaries. Both functions here preserve those xattrs on every successful copy.</p>
 <p>In the request lifecycle this subsystem sits <b>below</b> the WebDAV method router. The HTTP <code>COPY</code> handler (<code>../copy.c</code>) does all the protocol work — parses the <code>Destination</code>, <code>Overwrite</code>, and <code>Depth</code> headers, resolves and confines both paths via <code>resolve_path()</code>, runs <code><a class="el" href="protocols_2webdav_2lock_8c.html#aa3e3a619f4000469da46470424ebcdfe">webdav_check_locks()</a></code> and the <code>If-Match</code>/<code>If-None-Match</code> conditionals, and stages a temp path for atomic commit. It then calls into this subsystem to move the actual bytes: <code><a class="el" href="copy__engine_8c.html#a00d5b3c660c99751a7df7a5de4772ee2">webdav_copy_file()</a></code> for a single resource (<code>Depth: 0</code>) and <code><a class="el" href="copy__engine_8c.html#aea80c1b8f82fb1e3f0fd7563fe42cc93">webdav_copy_dir_recursive()</a></code> for a collection (<code>Depth: infinity</code>). The result is committed back to the destination by <code>../copy.c</code> via a confined <code>rename</code>.</p>
 <p>Only the WebDAV protocol uses this code. The S3 <code>CopyObject</code> path and XRootD <code>kXR_clone</code>/<code>kXR_chkpoint</code> share the lower-level <code><a class="el" href="copy__range_8c.html#aca065823b4708547bdb48ee44cce42fd">brix_copy_range()</a></code> engine in <code>../../compat/copy_range.c</code> directly but do not enter this subsystem.</p>
-<h1><a class="anchor" id="autotoc_md471"></a>
+<h1><a class="anchor" id="autotoc_md472"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -110,7 +110,7 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="copy__engine_8h.html">copy_engine.h</a></code>   </td><td class="markdownTableBodyNone">Public prototypes: <code><a class="el" href="copy__engine_8c.html#a00d5b3c660c99751a7df7a5de4772ee2">webdav_copy_file()</a></code> and <code><a class="el" href="copy__engine_8c.html#aea80c1b8f82fb1e3f0fd7563fe42cc93">webdav_copy_dir_recursive()</a></code>, both <code>(log, root_canon, src, dst) -&gt; ngx_int_t</code>. Pulls in <code>../webdav.h</code> for shared types and the confined-helper declarations.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md472"></a>
+<h1><a class="anchor" id="autotoc_md473"></a>
 Key types &amp; data structures</h1>
 <p>This subsystem defines <b>no structs of its own</b> — it is pure procedural glue over already canonicalized C-string paths. The relevant types it operates on are:</p>
 <ul>
@@ -119,7 +119,7 @@ Key types &amp; data structures</h1>
 <li><code>WEBDAV_MAX_PATH</code> (== <code>BRIX_PATH_MAX</code>, <code>../webdav.h:77</code>) — the size of the on-stack <code>src_child</code> / <code>dst_child</code> buffers in the recursive walk; child-path composition is bounds- checked against it with <code>snprintf</code> truncation detection.</li>
 <li><code>struct stat</code> / <code>struct dirent</code> — POSIX classification primitives; <code>S_ISDIR</code>/<code>S_ISREG</code> gate the recursion vs. file-copy branch.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md473"></a>
+<h1><a class="anchor" id="autotoc_md474"></a>
 Control &amp; data flow</h1>
 <p><b>Entry.</b> Called only from <code>../copy.c</code>:</p><ul>
 <li><code><a class="el" href="copy__engine_8c.html#a00d5b3c660c99751a7df7a5de4772ee2">webdav_copy_file()</a></code> — file copies and the per-file leaf of a recursive copy.</li>
@@ -132,7 +132,7 @@ Control &amp; data flow</h1>
 </ul>
 <p><b>Returns</b> <code>NGX_OK</code> / <code>NGX_ERROR</code> to <code>../copy.c</code>, which translates failures into HTTP status (typically <code>500</code>, or the staged temp tree is cleaned up before a retryable status). This subsystem itself runs synchronously; see the blocking-I/O note below.</p>
 <p>Related upstream context: WebDAV method routing lives in <a class="el" href="md_src_2protocols_2webdav_2README.html">../README.md</a>; path canonicalization/confinement in <a class="el" href="md_src_2fs_2path_2README.html">../../path/README.md</a>; the async data plane for <em>reads/writes</em> (not used here) in <a class="el" href="md_src_2core_2aio_2README.html">../../aio/README.md</a>.</p>
-<h1><a class="anchor" id="autotoc_md474"></a>
+<h1><a class="anchor" id="autotoc_md475"></a>
 Invariants, security &amp; gotchas</h1>
 <ol type="1">
 <li><b>Kernel confinement is mandatory and never bypassed for opens.</b> Every <code>open</code> and <code>mkdir</code> of a client-influenced path goes through <code>brix_open_confined_canon</code> / <code>brix_mkdir_confined_canon</code>, which use <code>openat2</code> with <code>RESOLVE_BENEATH</code> anchored to the per-worker export root. A <code>..</code>/symlink escape is refused with <code>EXDEV</code> rather than falling through to a raw syscall (<code>../../compat/namespace_ops.c:67</code>, <code>:88</code>). Do <b>not</b> add a raw <code>open</code>/<code>mkdir</code> on a wire path here.</li>
@@ -144,7 +144,7 @@ Invariants, security &amp; gotchas</h1>
 <li>**<code>EEXIST</code> on subdirectory <code>mkdir</code> is tolerated; any other error aborts.** This makes the recursive copy idempotent over a partially pre-existing destination tree (<code><a class="el" href="copy__engine_8c.html">copy_engine.c</a>:124-128</code>). Non-<code>EEXIST</code> mkdir failures stop the walk.</li>
 <li><b>Special files are skipped, not errored.</b> Only <code>S_ISDIR</code> and <code>S_ISREG</code> entries are acted on; symlinks, devices, sockets, and FIFOs are silently ignored by the walk. A failed <code>lstat</code> on a child is also skipped (<code>continue</code>), not fatal.</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md475"></a>
+<h1><a class="anchor" id="autotoc_md476"></a>
 Entry points / extending</h1>
 <ul>
 <li><b>To add a new local copy variant</b> (e.g. preserving timestamps, or sparse-aware copy): add the function to <code><a class="el" href="copy__engine_8c.html">copy_engine.c</a></code>, declare it in <code><a class="el" href="copy__engine_8h.html">copy_engine.h</a></code>, keep the <code>(log, root_canon, src, dst)</code> signature shape, and route confined opens exclusively through the <code>*_confined_canon</code> helpers. Register the byte mover via <code><a class="el" href="copy__range_8c.html#aca065823b4708547bdb48ee44cce42fd">brix_copy_range()</a></code> rather than reimplementing <code>copy_file_range</code>.</li>
@@ -152,7 +152,7 @@ Entry points / extending</h1>
 <li><b>Build registration:</b> both files are already listed in the top-level <code>config</code> (<code>$ngx_addon_dir/src/protocols/webdav/fs/copy_engine.{c,h}</code>). A new <code>.c</code> in this directory must be added to that list and <code>./configure</code> re-run; an incremental edit needs only <code>make</code>.</li>
 <li><b>Testing:</b> every change needs the standard three tests — success (file + recursive), error (e.g. mkdir failure, copy_range failure), and a security-negative (a <code>..</code>/symlink destination that must be refused with <code>EXDEV</code> and never written outside the export root).</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md476"></a>
+<h1><a class="anchor" id="autotoc_md477"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2protocols_2webdav_2README.html">../README.md</a> — WebDAV method router and <code>COPY</code>/<code>MOVE</code> handlers (<code>../copy.c</code>).</li>

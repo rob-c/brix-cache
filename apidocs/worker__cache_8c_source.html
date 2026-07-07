@@ -145,12 +145,12 @@ $(document).ready(function(){initNavTree('worker__cache_8c_source.html',''); ini
 <div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>        slots = 64;</div>
 <div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>    }</div>
 <div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span> </div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    cache = ngx_pcalloc(pool, <span class="keyword">sizeof</span>(*cache));</div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>    cache = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(pool, <span class="keyword">sizeof</span>(*cache));</div>
 <div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>    <span class="keywordflow">if</span> (cache == NULL) {</div>
 <div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span>        <span class="keywordflow">return</span> NULL;</div>
 <div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>    }</div>
 <div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span> </div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    cache-&gt;slots = ngx_pcalloc(pool, slots * <span class="keyword">sizeof</span>(<a class="code hl_struct" href="structbrix__token__l1__slot__t.html">brix_token_l1_slot_t</a>));</div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>    cache-&gt;slots = <a class="code hl_function" href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a>(pool, slots * <span class="keyword">sizeof</span>(<a class="code hl_struct" href="structbrix__token__l1__slot__t.html">brix_token_l1_slot_t</a>));</div>
 <div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    <span class="keywordflow">if</span> (cache-&gt;slots == NULL) {</div>
 <div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>        <span class="keywordflow">return</span> NULL;</div>
 <div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span>    }</div>
@@ -243,13 +243,15 @@ $(document).ready(function(){initNavTree('worker__cache_8c_source.html',''); ini
 <div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span>    }</div>
 <div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span> </div>
 <div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    slot = &amp;cache-&gt;slots[idx];</div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>    ngx_memcpy(slot-&gt;<a class="code hl_variable" href="structbrix__token__l1__slot__t.html#a42f2ced27097b91bf884f62ef9c1c848">fp</a>, fp, <span class="keyword">sizeof</span>(fp));</div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(slot-&gt;<a class="code hl_variable" href="structbrix__token__l1__slot__t.html#a42f2ced27097b91bf884f62ef9c1c848">fp</a>, fp, <span class="keyword">sizeof</span>(fp));</div>
 <div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    slot-&gt;<a class="code hl_variable" href="structbrix__token__l1__slot__t.html#a6574630f0949dc3d44cbe58bbb0d6d50">claims</a>    = *claims;</div>
 <div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span>    slot-&gt;<a class="code hl_variable" href="structbrix__token__l1__slot__t.html#a3e95fcb81f4f53785404293c5c2e32a2">expire_at</a> = expire_at;</div>
 <div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>}</div>
 </div>
 <div class="ttc" id="acrypto_8c_html_a367c7aabfa175484e4eead3856117587"><div class="ttname"><a href="crypto_8c.html#a367c7aabfa175484e4eead3856117587">brix_sha256</a></div><div class="ttdeci">int brix_sha256(const uint8_t *data, size_t len, uint8_t out[32])</div><div class="ttdef"><b>Definition</b> <a href="crypto_8c_source.html#l00067">crypto.c:67</a></div></div>
 <div class="ttc" id="acrypto_8h_html"><div class="ttname"><a href="crypto_8h.html">crypto.h</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a0de53ece62d31e30ec1e1cd815b57267"><div class="ttname"><a href="ngx__shim_8h.html#a0de53ece62d31e30ec1e1cd815b57267">ngx_pcalloc</a></div><div class="ttdeci">void * ngx_pcalloc(ngx_pool_t *pool, size_t size)</div><div class="ttdef"><b>Definition</b> <a href="xrdceph__migrate_8c_source.html#l00042">xrdceph_migrate.c:42</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="astructbrix__token__claims__t_html"><div class="ttname"><a href="structbrix__token__claims__t.html">brix_token_claims_t</a></div><div class="ttdef"><b>Definition</b> <a href="token_8h_source.html#l00062">token.h:62</a></div></div>
 <div class="ttc" id="astructbrix__token__claims__t_html_aa4811eff3a79f70368f25a4ee36a0de9"><div class="ttname"><a href="structbrix__token__claims__t.html#aa4811eff3a79f70368f25a4ee36a0de9">brix_token_claims_t::exp</a></div><div class="ttdeci">int64_t exp</div><div class="ttdef"><b>Definition</b> <a href="token_8h_source.html#l00066">token.h:66</a></div></div>
 <div class="ttc" id="astructbrix__token__l1__s_html"><div class="ttname"><a href="structbrix__token__l1__s.html">brix_token_l1_s</a></div><div class="ttdef"><b>Definition</b> <a href="worker__cache_8c_source.html#l00029">worker_cache.c:29</a></div></div>

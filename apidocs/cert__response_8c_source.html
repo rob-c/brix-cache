@@ -134,7 +134,7 @@ $(document).ready(function(){initNavTree('cert__response_8c_source.html',''); in
 <div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>    {</div>
 <div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>        <span class="keywordflow">return</span> 0;</div>
 <div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>    }</div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>    ngx_memcpy(&amp;raw, vb, 4);            <span class="comment">/* host-order as written by stock XrdSut */</span></div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(&amp;raw, vb, 4);            <span class="comment">/* host-order as written by stock XrdSut */</span></div>
 <div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    be = ntohl(raw);                   <span class="comment">/* big-endian as written by our client   */</span></div>
 <div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>    <span class="keywordflow">if</span> (be &gt;= 10000 &amp;&amp; be &lt;= 99999) {</div>
 <div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>        <span class="keywordflow">return</span> be;</div>
@@ -165,7 +165,7 @@ $(document).ready(function(){initNavTree('cert__response_8c_source.html',''); in
 <div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    {</div>
 <div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>        <span class="keywordflow">return</span> 0;</div>
 <div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    }</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    ngx_memcpy(&amp;raw, ob, 4);</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(&amp;raw, ob, 4);</div>
 <div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>    be = ntohl(raw);</div>
 <div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span>    <span class="keywordflow">if</span> (be != 0 &amp;&amp; be &lt; 4096) {</div>
 <div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span>        <span class="keywordflow">return</span> be;</div>
@@ -225,12 +225,12 @@ $(document).ready(function(){initNavTree('cert__response_8c_source.html',''); in
 <div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>        <span class="keywordflow">while</span> (*p &amp;&amp; *p != <span class="charliteral">&#39;:&#39;</span>) { p++; }</div>
 <div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span>        n = (size_t) (p - start);</div>
 <div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>        <span class="keywordflow">if</span> (n &gt; 0 &amp;&amp; n &lt; <span class="keyword">sizeof</span>(<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>)) {</div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>            ngx_memcpy(<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, start, n);</div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>            <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, start, n);</div>
 <div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>            <a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>[n] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>            <span class="keywordflow">if</span> (<a class="code hl_function" href="gsi__cipher_8c.html#a08243446485c0fd2fb729bd4ee464f2f">brix_gsi_cipher_lookup</a>(<a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, &amp;tmp)</div>
 <div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>                &amp;&amp; out_n + n + 1 &lt; outsz) {</div>
 <div class="line"><a id="l00125" name="l00125"></a><span class="lineno">  125</span>                <span class="keywordflow">if</span> (out_n &gt; 0) { out[out_n++] = <span class="charliteral">&#39;:&#39;</span>; }</div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>                ngx_memcpy(out + out_n, <a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, n);</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span>                <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(out + out_n, <a class="code hl_variable" href="ssi__service_8c.html#a8f8f80d37794cde9472343e4487ba3eb">name</a>, n);</div>
 <div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span>                out_n += n;</div>
 <div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span>                out[out_n] = <span class="charliteral">&#39;\0&#39;</span>;</div>
 <div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span>            }</div>
@@ -365,7 +365,7 @@ $(document).ready(function(){initNavTree('cert__response_8c_source.html',''); in
 <div class="line"><a id="l00256" name="l00256"></a><span class="lineno">  256</span>    puk_len = (size_t) puk_written;</div>
 <div class="line"><a id="l00257" name="l00257"></a><span class="lineno">  257</span> </div>
 <div class="line"><a id="l00258" name="l00258"></a><span class="lineno">  258</span>    <a class="code hl_define" href="alloc__guard_8h.html#a3d87614c6444b57961be7c8a60391912">BRIX_PALLOC_OR_RETURN</a>(puk_blob, <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;pool, puk_len, NGX_ERROR);</div>
-<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>    ngx_memcpy(puk_blob, puk_buf, puk_len);</div>
+<div class="line"><a id="l00259" name="l00259"></a><span class="lineno">  259</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(puk_blob, puk_buf, puk_len);</div>
 <div class="line"><a id="l00260" name="l00260"></a><span class="lineno">  260</span> </div>
 <div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span>    <span class="comment">/*</span></div>
 <div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span><span class="comment">     * Choose the DH-public bucket.  Unsigned (default): the bare Public() blob</span></div>
@@ -455,7 +455,7 @@ $(document).ready(function(){initNavTree('cert__response_8c_source.html',''); in
 <div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>            mp += 4;</div>
 <div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span>            *(uint32_t *) mp = htonl((uint32_t) signed_rtag_len);</div>
 <div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span>            mp += 4;</div>
-<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>            ngx_memcpy(mp, signed_rtag, signed_rtag_len);</div>
+<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>            <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(mp, signed_rtag, signed_rtag_len);</div>
 <div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span>            mp += signed_rtag_len;</div>
 <div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>        }</div>
 <div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>        *(uint32_t *) mp = htonl(<a class="code hl_define" href="gsi_8h.html#a4af223afff51a2cc9598aa4cf5aa1ecd">kXRS_none</a>);</div>
@@ -494,35 +494,35 @@ $(document).ready(function(){initNavTree('cert__response_8c_source.html',''); in
 <div class="line"><a id="l00385" name="l00385"></a><span class="lineno">  385</span>    p += 4;</div>
 <div class="line"><a id="l00386" name="l00386"></a><span class="lineno">  386</span>    *(uint32_t *) p = htonl((uint32_t) pub_len);</div>
 <div class="line"><a id="l00387" name="l00387"></a><span class="lineno">  387</span>    p += 4;</div>
-<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span>    ngx_memcpy(p, pub_data, pub_len);</div>
+<div class="line"><a id="l00388" name="l00388"></a><span class="lineno">  388</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, pub_data, pub_len);</div>
 <div class="line"><a id="l00389" name="l00389"></a><span class="lineno">  389</span>    p += pub_len;</div>
 <div class="line"><a id="l00390" name="l00390"></a><span class="lineno">  390</span> </div>
 <div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span>    *(uint32_t *) p = htonl(<a class="code hl_define" href="gsi_8h.html#a762cb31766cd53d7bdbd77d07de8c46e">kXRS_cipher_alg</a>);</div>
 <div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span>    p += 4;</div>
 <div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span>    *(uint32_t *) p = htonl((uint32_t) calg_len);</div>
 <div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span>    p += 4;</div>
-<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>    ngx_memcpy(p, cipher_alg, calg_len);</div>
+<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, cipher_alg, calg_len);</div>
 <div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>    p += calg_len;</div>
 <div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span> </div>
 <div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span>    *(uint32_t *) p = htonl(<a class="code hl_define" href="gsi_8h.html#a04b56d01a159aea79c3cbdf5403ec5e7">kXRS_md_alg</a>);</div>
 <div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span>    p += 4;</div>
 <div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span>    *(uint32_t *) p = htonl((uint32_t) malg_len);</div>
 <div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span>    p += 4;</div>
-<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span>    ngx_memcpy(p, md_alg, malg_len);</div>
+<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, md_alg, malg_len);</div>
 <div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span>    p += malg_len;</div>
 <div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span> </div>
 <div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span>    *(uint32_t *) p = htonl(<a class="code hl_define" href="gsi_8h.html#a93290034001280800fe12a354a0cead7">kXRS_x509</a>);</div>
 <div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span>    p += 4;</div>
 <div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span>    *(uint32_t *) p = htonl((uint32_t) cert_len);</div>
 <div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span>    p += 4;</div>
-<div class="line"><a id="l00409" name="l00409"></a><span class="lineno">  409</span>    ngx_memcpy(p, cert_pem, cert_len);</div>
+<div class="line"><a id="l00409" name="l00409"></a><span class="lineno">  409</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, cert_pem, cert_len);</div>
 <div class="line"><a id="l00410" name="l00410"></a><span class="lineno">  410</span>    p += cert_len;</div>
 <div class="line"><a id="l00411" name="l00411"></a><span class="lineno">  411</span> </div>
 <div class="line"><a id="l00412" name="l00412"></a><span class="lineno">  412</span>    *(uint32_t *) p = htonl(<a class="code hl_define" href="gsi_8h.html#a2a93beeda8cca101d242af533fca8ece">kXRS_main</a>);</div>
 <div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span>    p += 4;</div>
 <div class="line"><a id="l00414" name="l00414"></a><span class="lineno">  414</span>    *(uint32_t *) p = htonl((uint32_t) main_len);</div>
 <div class="line"><a id="l00415" name="l00415"></a><span class="lineno">  415</span>    p += 4;</div>
-<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span>    ngx_memcpy(p, main_buf, main_len);</div>
+<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, main_buf, main_len);</div>
 <div class="line"><a id="l00417" name="l00417"></a><span class="lineno">  417</span>    p += main_len;</div>
 <div class="line"><a id="l00418" name="l00418"></a><span class="lineno">  418</span> </div>
 <div class="line"><a id="l00419" name="l00419"></a><span class="lineno">  419</span>    *(uint32_t *) p = htonl(<a class="code hl_define" href="gsi_8h.html#a4af223afff51a2cc9598aa4cf5aa1ecd">kXRS_none</a>);</div>
@@ -565,6 +565,7 @@ $(document).ready(function(){initNavTree('cert__response_8c_source.html',''); in
 <div class="ttc" id="akeypool_8c_html_a52b235c8078f14edd3e3bd2d7280400d"><div class="ttname"><a href="keypool_8c.html#a52b235c8078f14edd3e3bd2d7280400d">brix_gsi_keypool_pop</a></div><div class="ttdeci">ngx_int_t brix_gsi_keypool_pop(ngx_thread_pool_t *pool, ngx_log_t *log, EVP_PKEY **out)</div><div class="ttdef"><b>Definition</b> <a href="keypool_8c_source.html#l00182">keypool.c:182</a></div></div>
 <div class="ttc" id="akeypool_8h_html"><div class="ttname"><a href="keypool_8h.html">keypool.h</a></div></div>
 <div class="ttc" id="angx__brix__module_8h_html_a05c4e5ac379ae60715b73cca5b1ebe88"><div class="ttname"><a href="ngx__brix__module_8h.html#a05c4e5ac379ae60715b73cca5b1ebe88">ngx_stream_brix_module</a></div><div class="ttdeci">ngx_module_t ngx_stream_brix_module</div><div class="ttdef"><b>Definition</b> <a href="module__definition_8c_source.html#l00029">module_definition.c:29</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_a0e192a3406da0e5f4a0ad3afc5597627"><div class="ttname"><a href="opcodes_8h.html#a0e192a3406da0e5f4a0ad3afc5597627">kXR_authmore</a></div><div class="ttdeci">#define kXR_authmore</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00110">opcodes.h:110</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_ac6212490ba324bfa5ad70df6753b23fe"><div class="ttname"><a href="opcodes_8h.html#ac6212490ba324bfa5ad70df6753b23fe">XRD_RESPONSE_HDR_LEN</a></div><div class="ttdeci">#define XRD_RESPONSE_HDR_LEN</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00028">opcodes.h:28</a></div></div>
 <div class="ttc" id="aroot_2session_2session_8h_html_a6273d27020935469383109889e654dfc"><div class="ttname"><a href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a></div><div class="ttdeci">ngx_connection_t * c</div><div class="ttdef"><b>Definition</b> <a href="root_2session_2session_8h_source.html#l00059">session.h:59</a></div></div>
@@ -578,10 +579,10 @@ $(document).ready(function(){initNavTree('cert__response_8c_source.html',''); in
 <div class="ttc" id="astructbrix__ctx__recv__t_html_aeff530ba9fbf23e6838d581b1df1efb0"><div class="ttname"><a href="structbrix__ctx__recv__t.html#aeff530ba9fbf23e6838d581b1df1efb0">brix_ctx_recv_t::cur_streamid</a></div><div class="ttdeci">u_char cur_streamid[2]</div><div class="ttdef"><b>Definition</b> <a href="ctx__structs_8h_source.html#l00175">ctx_structs.h:175</a></div></div>
 <div class="ttc" id="astructbrix__ctx__t_html"><div class="ttname"><a href="structbrix__ctx__t.html">brix_ctx_t</a></div><div class="ttdef"><b>Definition</b> <a href="context_8h_source.html#l00091">context.h:91</a></div></div>
 <div class="ttc" id="astructbrix__ctx__t_html_a4be10ceb67310175e3daff824dc8b4ff"><div class="ttname"><a href="structbrix__ctx__t.html#a4be10ceb67310175e3daff824dc8b4ff">brix_ctx_t::session</a></div><div class="ttdeci">ngx_stream_session_t * session</div><div class="ttdef"><b>Definition</b> <a href="context_8h_source.html#l00092">context.h:92</a></div></div>
-<div class="ttc" id="astructbrix__ctx__t_html_aa08e13c1ab776dcd24bb457a233761c6"><div class="ttname"><a href="structbrix__ctx__t.html#aa08e13c1ab776dcd24bb457a233761c6">brix_ctx_t::gsi</a></div><div class="ttdeci">brix_ctx_gsi_t gsi</div><div class="ttdef"><b>Definition</b> <a href="context_8h_source.html#l00153">context.h:153</a></div></div>
+<div class="ttc" id="astructbrix__ctx__t_html_aa08e13c1ab776dcd24bb457a233761c6"><div class="ttname"><a href="structbrix__ctx__t.html#aa08e13c1ab776dcd24bb457a233761c6">brix_ctx_t::gsi</a></div><div class="ttdeci">brix_ctx_gsi_t gsi</div><div class="ttdef"><b>Definition</b> <a href="context_8h_source.html#l00156">context.h:156</a></div></div>
 <div class="ttc" id="astructbrix__ctx__t_html_ac5adca8dc46053f3a0b71dba0ddf1efd"><div class="ttname"><a href="structbrix__ctx__t.html#ac5adca8dc46053f3a0b71dba0ddf1efd">brix_ctx_t::recv</a></div><div class="ttdeci">brix_ctx_recv_t recv</div><div class="ttdef"><b>Definition</b> <a href="context_8h_source.html#l00097">context.h:97</a></div></div>
 <div class="ttc" id="astructbrix__gsi__cipher__t_html"><div class="ttname"><a href="structbrix__gsi__cipher__t.html">brix_gsi_cipher_t</a></div><div class="ttdef"><b>Definition</b> <a href="gsi__core_8h_source.html#l00070">gsi_core.h:70</a></div></div>
-<div class="ttc" id="astructngx__http__brix__shared__conf__t_html_a22842bb7d808f3a1b9ae0d8c9640f00e"><div class="ttname"><a href="structngx__http__brix__shared__conf__t.html#a22842bb7d808f3a1b9ae0d8c9640f00e">ngx_http_brix_shared_conf_t::thread_pool</a></div><div class="ttdeci">ngx_thread_pool_t * thread_pool</div><div class="ttdef"><b>Definition</b> <a href="shared__conf_8h_source.html#l00108">shared_conf.h:108</a></div></div>
+<div class="ttc" id="astructngx__http__brix__shared__conf__t_html_a22842bb7d808f3a1b9ae0d8c9640f00e"><div class="ttname"><a href="structngx__http__brix__shared__conf__t.html#a22842bb7d808f3a1b9ae0d8c9640f00e">ngx_http_brix_shared_conf_t::thread_pool</a></div><div class="ttdeci">ngx_thread_pool_t * thread_pool</div><div class="ttdef"><b>Definition</b> <a href="shared__conf_8h_source.html#l00117">shared_conf.h:117</a></div></div>
 <div class="ttc" id="astructngx__stream__brix__srv__conf__t_html"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html">ngx_stream_brix_srv_conf_t</a></div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00112">config.h:112</a></div></div>
 <div class="ttc" id="astructngx__stream__brix__srv__conf__t_html_a0cb6eab544d68810b0f52e3dd8da730c"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html#a0cb6eab544d68810b0f52e3dd8da730c">ngx_stream_brix_srv_conf_t::common</a></div><div class="ttdeci">ngx_http_brix_shared_conf_t common</div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00113">config.h:113</a></div></div>
 <div class="ttc" id="astructngx__stream__brix__srv__conf__t_html_a1ce0a383aeef792ac40ddb578945997d"><div class="ttname"><a href="structngx__stream__brix__srv__conf__t.html#a1ce0a383aeef792ac40ddb578945997d">ngx_stream_brix_srv_conf_t::gsi_signed_dh</a></div><div class="ttdeci">ngx_uint_t gsi_signed_dh</div><div class="ttdef"><b>Definition</b> <a href="types_2config_8h_source.html#l00178">config.h:178</a></div></div>

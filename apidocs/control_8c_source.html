@@ -130,9 +130,9 @@ $(document).ready(function(){initNavTree('control_8c_source.html',''); initResiz
 <div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span>        (<a class="code hl_struct" href="structServerResponseHdr.html">ServerResponseHdr</a> *) buf);</div>
 <div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span> </div>
 <div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span>    pbe = htonl((uint32_t) port);</div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>    ngx_memcpy(buf + <a class="code hl_define" href="opcodes_8h.html#ac6212490ba324bfa5ad70df6753b23fe">XRD_RESPONSE_HDR_LEN</a>, &amp;pbe, <span class="keyword">sizeof</span>(pbe));</div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(buf + <a class="code hl_define" href="opcodes_8h.html#ac6212490ba324bfa5ad70df6753b23fe">XRD_RESPONSE_HDR_LEN</a>, &amp;pbe, <span class="keyword">sizeof</span>(pbe));</div>
 <div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>    <span class="keywordflow">if</span> (hostlen &gt; 0) {</div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>        ngx_memcpy(buf + <a class="code hl_define" href="opcodes_8h.html#ac6212490ba324bfa5ad70df6753b23fe">XRD_RESPONSE_HDR_LEN</a> + <span class="keyword">sizeof</span>(pbe), hostbuf, hostlen);</div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(buf + <a class="code hl_define" href="opcodes_8h.html#ac6212490ba324bfa5ad70df6753b23fe">XRD_RESPONSE_HDR_LEN</a> + <span class="keyword">sizeof</span>(pbe), hostbuf, hostlen);</div>
 <div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span>    }</div>
 <div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span> </div>
 <div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;log, 0,</div>
@@ -177,14 +177,14 @@ $(document).ready(function(){initNavTree('control_8c_source.html',''); initResiz
 <div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span> </div>
 <div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>    p   = buf + <a class="code hl_define" href="opcodes_8h.html#ac6212490ba324bfa5ad70df6753b23fe">XRD_RESPONSE_HDR_LEN</a>;</div>
 <div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>    pbe = htonl((uint32_t) port);</div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    ngx_memcpy(p, &amp;pbe, <span class="keyword">sizeof</span>(pbe));</div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, &amp;pbe, <span class="keyword">sizeof</span>(pbe));</div>
 <div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>    p += <span class="keyword">sizeof</span>(pbe);</div>
 <div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span> </div>
 <div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>    <span class="keywordflow">if</span> (hostlen &gt; 0) {</div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>        ngx_memcpy(p, hostbuf, hostlen);</div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, hostbuf, hostlen);</div>
 <div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>        p += hostlen;</div>
 <div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>    }</div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>    ngx_memcpy(p, opaque, opaquelen);</div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, opaque, opaquelen);</div>
 <div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span> </div>
 <div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>    ngx_log_debug3(NGX_LOG_DEBUG_STREAM, <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;log, 0,</div>
 <div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>        <span class="stringliteral">&quot;brix: sending TPC redirect to %s:%d key=%s&quot;</span>,</div>
@@ -215,7 +215,7 @@ $(document).ready(function(){initNavTree('control_8c_source.html',''); initResiz
 <div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>        (uint32_t) <span class="keyword">sizeof</span>(uint32_t), (<a class="code hl_struct" href="structServerResponseHdr.html">ServerResponseHdr</a> *) buf);</div>
 <div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span> </div>
 <div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span>    sbe = htonl(seconds);</div>
-<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    ngx_memcpy(buf + <a class="code hl_define" href="opcodes_8h.html#ac6212490ba324bfa5ad70df6753b23fe">XRD_RESPONSE_HDR_LEN</a>, &amp;sbe, <span class="keyword">sizeof</span>(sbe));</div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(buf + <a class="code hl_define" href="opcodes_8h.html#ac6212490ba324bfa5ad70df6753b23fe">XRD_RESPONSE_HDR_LEN</a>, &amp;sbe, <span class="keyword">sizeof</span>(sbe));</div>
 <div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span> </div>
 <div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span>    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;log, 0,</div>
 <div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span>        <span class="stringliteral">&quot;brix: sending kXR_wait %u seconds&quot;</span>, (<span class="keywordtype">unsigned</span>) seconds);</div>
@@ -253,6 +253,7 @@ $(document).ready(function(){initNavTree('control_8c_source.html',''); initResiz
 <div class="ttc" id="ahost__format_8c_html_a783d37953a9f0ada2a7dde2bd2ffe5ad"><div class="ttname"><a href="host__format_8c.html#a783d37953a9f0ada2a7dde2bd2ffe5ad">brix_format_host</a></div><div class="ttdeci">size_t brix_format_host(const char *host, char *out, size_t sz)</div><div class="ttdef"><b>Definition</b> <a href="host__format_8c_source.html#l00025">host_format.c:25</a></div></div>
 <div class="ttc" id="ahost__format_8h_html"><div class="ttname"><a href="host__format_8h.html">host_format.h</a></div></div>
 <div class="ttc" id="angx__brix__module_8h_html"><div class="ttname"><a href="ngx__brix__module_8h.html">ngx_brix_module.h</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_a1c14f57153501ec1a8b2693121ef4098"><div class="ttname"><a href="opcodes_8h.html#a1c14f57153501ec1a8b2693121ef4098">kXR_redirect</a></div><div class="ttdeci">#define kXR_redirect</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00112">opcodes.h:112</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_ac6212490ba324bfa5ad70df6753b23fe"><div class="ttname"><a href="opcodes_8h.html#ac6212490ba324bfa5ad70df6753b23fe">XRD_RESPONSE_HDR_LEN</a></div><div class="ttdeci">#define XRD_RESPONSE_HDR_LEN</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00028">opcodes.h:28</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_ac9592878b57fc80e1f0f3c4b9ff4c1bb"><div class="ttname"><a href="opcodes_8h.html#ac9592878b57fc80e1f0f3c4b9ff4c1bb">kXR_waitresp</a></div><div class="ttdeci">#define kXR_waitresp</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00114">opcodes.h:114</a></div></div>

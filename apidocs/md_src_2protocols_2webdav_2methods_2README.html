@@ -93,13 +93,13 @@ $(document).ready(function(){initNavTree('md_src_2protocols_2webdav_2methods_2RE
   <div class="headertitle"><div class="title">webdav/methods — Per-method WebDAV precondition helpers</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="autotoc_md485"></a> </p>
-<h1><a class="anchor" id="autotoc_md486"></a>
+<div class="textblock"><p><a class="anchor" id="autotoc_md486"></a> </p>
+<h1><a class="anchor" id="autotoc_md487"></a>
 Overview</h1>
 <p>This subsystem holds small, method-specific helper logic that the main WebDAV method handlers (<code>../get.c</code>, <code>../put.c</code>, <code>../copy.c</code>, <code>../move.c</code>, …) factor out when the rule is too specialized to live in the generic <code>compat</code> HTTP layer but too narrow to belong in the handler body. Today it contains exactly one helper: the RFC 9110 / RFC 7232 conditional-precondition check for the <b>COPY</b> method's <em>destination</em> resource.</p>
 <p>It sits late in the WebDAV request lifecycle: after the access-phase auth/CORS/ write/scope checks and after <code>../dispatch.c</code> has routed the request to the COPY content handler, <code>../copy.c</code> resolves and <code>stat</code>s both source and destination under the export root, runs lock checks (<code>webdav_check_locks_tree</code>) and the <code>Overwrite:</code> header check, then calls into this subsystem to evaluate <code>If-Match</code> / <code>If-None-Match</code> against the destination before any bytes are copied. The point is optimistic concurrency control: a COPY that ignores conditionals can silently clobber a destination another client just modified.</p>
 <p>This is a thin, deliberately-dumb wrapper. The actual ETag generation, list parsing, and wildcard (<code>*</code>) semantics live in the shared <code>../../compat/http_conditionals.c</code> / <code>../../compat/etag.c</code> helpers so that WebDAV and S3 agree on conditional-request behaviour. This file's only added value is to invoke that helper with COPY's policy (weak ETags, no weak-equiv comparison flag) and to emit COPY-specific debug logging naming the destination path on failure.</p>
-<h1><a class="anchor" id="autotoc_md487"></a>
+<h1><a class="anchor" id="autotoc_md488"></a>
 Files</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -109,7 +109,7 @@ Files</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone"><code><a class="el" href="copy__conditionals_8h.html">copy_conditionals.h</a></code>   </td><td class="markdownTableBodyNone">Prototype for <code><a class="el" href="copy__conditionals_8c.html#a17902551dcda209fbe1deeaface51a22">webdav_check_copy_conditionals()</a></code>; pulls in <code>../webdav.h</code> and <code>&lt;sys/stat.h&gt;</code> for the <code>struct stat *</code> destination metadata.   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md488"></a>
+<h1><a class="anchor" id="autotoc_md489"></a>
 Key types &amp; data structures</h1>
 <p>This subsystem defines no types of its own. It operates on caller-supplied state:</p>
 <ul>
@@ -119,7 +119,7 @@ Key types &amp; data structures</h1>
 <li><code>const struct stat *dst_sb</code> — destination <code>stat</code> metadata; its <code>st_mtime</code> + <code>st_size</code> are what the shared helper turns into the destination ETag.</li>
 </ul>
 <p>Relevant shared constants it passes through: <code>BRIX_ETAG_WEAK</code> (<code>../../compat/etag.h</code>) selects an RFC 7232 §2.1 weak ETag (<code>W/"mtime-size"</code>); the final <code>condition_flags</code> argument is <code>0</code> (the <code>BRIX_HTTP_COND_WEAK_EQUIV</code> weak-equivalence flag is intentionally <em>not</em> set for COPY).</p>
-<h1><a class="anchor" id="autotoc_md489"></a>
+<h1><a class="anchor" id="autotoc_md490"></a>
 Control &amp; data flow</h1>
 <p><b>Entry:</b> the single public function</p>
 <div class="fragment"><div class="line">ngx_int_t <a class="code hl_function" href="copy__conditionals_8c.html#a17902551dcda209fbe1deeaface51a22">webdav_check_copy_conditionals</a>(ngx_http_request_t *r,</div>
@@ -135,7 +135,7 @@ Control &amp; data flow</h1>
 </ul>
 <p><b>Returns to caller:</b> the helper's return code is propagated verbatim. In <code>../copy.c</code>, any non-<code>NGX_OK</code> result short-circuits the COPY before the collection/file copy path (<code>webdav_copy_collection_*</code> / <code>../io.c</code>/<code>../resource.c</code>) runs, so a failed precondition means nothing is written.</p>
 <p>Sibling subsystems in the same request: <a class="el" href="md_src_2protocols_2webdav_2README.html">../README.md</a> (WebDAV method router and handlers), <a class="el" href="md_src_2core_2compat_2README.html">../../compat/README.md</a> (shared ETag / conditional / header helpers), <a class="el" href="md_src_2fs_2path_2README.html">../../path/README.md</a> (the confinement that produced <code>dst_path</code> before this runs).</p>
-<h1><a class="anchor" id="autotoc_md490"></a>
+<h1><a class="anchor" id="autotoc_md491"></a>
 Invariants, security &amp; gotchas</h1>
 <ul>
 <li><b>This file does no path confinement and no syscalls of its own.</b> It trusts that <code>dst_path</code> / <code>dst_sb</code> were already produced by the confined resolve + <code>stat</code> in <code>../copy.c</code>. Do not add a raw <code>stat</code>/<code>open</code> on a client path here — per the module-wide invariant, all client paths must pass through <code>../../path/beneath.c</code> (<code>RESOLVE_BENEATH</code>) before any syscall.</li>
@@ -145,7 +145,7 @@ Invariants, security &amp; gotchas</h1>
 <li><b>Fail-closed ordering.</b> This check runs <em>after</em> lock checks and the <code>Overwrite:</code> check in <code>../copy.c</code>, and <em>before</em> any data is copied. The ordering matters: never copy first and validate later.</li>
 <li>**<code>dst_path</code> is for logging only.** It is not re-validated here; do not start trusting it as a syscall target.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md491"></a>
+<h1><a class="anchor" id="autotoc_md492"></a>
 Entry points / extending</h1>
 <p>To add another method's precondition/policy helper here, follow the <code>copy_conditionals</code> shape:</p>
 <ol type="1">
@@ -155,7 +155,7 @@ Entry points / extending</h1>
 <li>Call it from the relevant handler in <code>../&lt;method&gt;.c</code>, short-circuiting on any non-<code>NGX_OK</code> return before mutating state.</li>
 <li>Per project rule, ship three tests with the change: success, precondition failure (e.g. 412), and a security/negative case.</li>
 </ol>
-<h1><a class="anchor" id="autotoc_md492"></a>
+<h1><a class="anchor" id="autotoc_md493"></a>
 See also</h1>
 <ul>
 <li><a class="el" href="md_src_2protocols_2webdav_2README.html">../README.md</a> — WebDAV method router, dispatch, and handlers (<code>copy.c</code>, <code><a class="el" href="move_8c.html">move.c</a></code>, <code>put.c</code>, <code>get.c</code>, <code><a class="el" href="propfind_8c.html">propfind.c</a></code>, <code>lock.c</code>).</li>

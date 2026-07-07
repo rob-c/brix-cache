@@ -82,5 +82,6 @@ var cms__internal_8h =
     [ "ngx_brix_cms_send_login", "cms__internal_8h.html#a95ffc066a1bb391e982d53c83eb46808", null ],
     [ "ngx_brix_cms_send_pong", "cms__internal_8h.html#abd3b3d947f52779aee07965b494b280c", null ],
     [ "ngx_brix_cms_send_status", "cms__internal_8h.html#a348f0b39f400e396c942268c7468737d", null ],
+    [ "ngx_brix_cms_set_end_hint", "cms__internal_8h.html#a90ce1ed8b63e053286a655f7c286dd6b", null ],
     [ "ngx_brix_cms_stat_space", "cms__internal_8h.html#a8751b17198c7d8a0862172ae51c89481", null ]
 ];

@@ -116,6 +116,7 @@ var structngx__stream__brix__srv__conf__t =
     [ "rootfd", "structngx__stream__brix__srv__conf__t.html#a219a2ff5ad38250678392412243efe4e", null ],
     [ "security_level", "structngx__stream__brix__srv__conf__t.html#af3c65f2f94e11aa1551488aea9d751f4", null ],
     [ "send_timeout", "structngx__stream__brix__srv__conf__t.html#ad48e508df195783685a661df2f1521ce", null ],
+    [ "session_log", "structngx__stream__brix__srv__conf__t.html#a178113c3e54afed815cb7d131c31968c", null ],
     [ "session_slots", "structngx__stream__brix__srv__conf__t.html#a70cfe1d3b44ce7da124c47a6a71eeafc", null ],
     [ "signing_policy_mode", "structngx__stream__brix__srv__conf__t.html#ae72b2e042914e3f5e9c506874b5d29a8", null ],
     [ "ssi_cta_enable", "structngx__stream__brix__srv__conf__t.html#aa2f97c7050cef58cde6d971463e72715", null ],

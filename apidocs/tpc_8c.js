@@ -6,6 +6,7 @@ var tpc_8c =
     [ "webdav_tpc_authorize", "tpc_8c.html#a307ff48ca9f78c1fc0ff4bd9c06bd039", null ],
     [ "webdav_tpc_extract_subject_token", "tpc_8c.html#a2d5297cf99438b241b17ea48136a9e70", null ],
     [ "webdav_tpc_handle_push", "tpc_8c.html#abb655e8c7439795f829f4693f4eec35e", null ],
+    [ "webdav_tpc_note_client_copy_xfer", "tpc_8c.html#a0c8213c43c8234fc3a0d86c7153c03f8", null ],
     [ "webdav_tpc_probe", "tpc_8c.html#abe803cd8d20b788181a36e3377b237ea", null ],
     [ "webdav_tpc_register_transfer", "tpc_8c.html#a015c96116dc7363d5e585442912a45db", null ],
     [ "webdav_tpc_request_identity", "tpc_8c.html#ae8444b89808517c4df3226475852b7f8", null ],

@@ -95,7 +95,7 @@ $(document).ready(function(){initNavTree('index.html',''); initResizable(); });
 <div class="contents">
 <div class="textblock"><p><a class="anchor" id="md_docs_209-developer-guide_2nginx-idioms-for-cpp-reviewers"></a> A one-page Rosetta Stone for engineers fluent in C++ reading this C codebase. The language is C, but most of the "what am I looking at?" friction is <b>nginx</b>, not C. This page maps the nginx idioms (and this module's own conventions) to their C++ equivalents so you can review at speed. Pairs with the authoritative coding-standards.md; browse the API with Doxygen.</p>
 <hr  />
-<h1><a class="anchor" id="autotoc_md607"></a>
+<h1><a class="anchor" id="autotoc_md610"></a>
 1. Mental model</h1>
 <p>This is an <b>nginx module</b>, not a standalone server. nginx owns <code><a class="el" href="proxy__req__unittest_8c.html#a840291bc02cba5474a4cb46a9b9566fe">main()</a></code>, the listening sockets, the epoll <b>event loop</b>, and the worker-process model; our code is a set of <b>callbacks</b> nginx invokes (on connect, on readable, on timer). Think of it as writing handlers for a single-threaded async framework (closer to Node/asio than to a thread-per-connection server):</p>
 <ul>
@@ -139,7 +139,7 @@ $(document).ready(function(){initNavTree('index.html',''); initResizable(); });
 <td class="markdownTableBodyNone">S3 (HTTP)   </td><td class="markdownTableBodyNone"><code><a class="el" href="protocols_2s3_2handler_8c.html">src/protocols/s3/handler.c</a></code>   </td></tr>
 </table>
 <hr  />
-<h1><a class="anchor" id="autotoc_md609"></a>
+<h1><a class="anchor" id="autotoc_md612"></a>
 2. Type cheat-sheet</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -167,7 +167,7 @@ $(document).ready(function(){initNavTree('index.html',''); initResizable(); });
 </table>
 <p><code>ngx_</code> = nginx core. <code>brix_</code> / <code>BRIX_</code> = this module.</p>
 <hr  />
-<h1><a class="anchor" id="autotoc_md611"></a>
+<h1><a class="anchor" id="autotoc_md614"></a>
 3. Return codes — the status "enum"</h1>
 <p>nginx functions return a small set of sentinels instead of throwing. Treat them as a status enum (<code>std::expected</code>-style, error-as-value — there are <b>no exceptions</b>):</p>
 <table class="markdownTable">
@@ -188,7 +188,7 @@ $(document).ready(function(){initNavTree('index.html',''); initResizable(); });
 what's available; call me again when there's more"* and returns to the loop. A function that returns <code>NGX_AGAIN</code> has <b>suspended a coroutine by hand</b>.</p>
 <p>The wire protocol has its own error space (<code>kXR_*</code> codes in <code><a class="el" href="opcodes_8h.html">src/protocols/root/protocol/opcodes.h</a></code>); the boundary maps <code>errno → kXR → HTTP</code> (<code><a class="el" href="error__mapping_8c.html">src/core/compat/error_mapping.c</a></code>, table in the coding standard).</p>
 <hr  />
-<h1><a class="anchor" id="autotoc_md613"></a>
+<h1><a class="anchor" id="autotoc_md616"></a>
 4. Memory — pools, not RAII</h1>
 <p>There is no destructor; you allocate from a <b>pool</b> whose lifetime nginx owns, and the whole pool is released at once (request end / connection close).</p>
 <table class="markdownTable">
@@ -209,17 +209,18 @@ what's available; call me again when there's more"* and returns to the loop. A f
 <li>For OpenSSL / fd / temp-file cleanup that must run deterministically, use <code>ngx_pool_cleanup_add</code> (the manual equivalent of a destructor) — see <code><a class="el" href="scoped_8h.html">src/auth/crypto/scoped.h</a></code>.</li>
 </ul>
 <hr  />
-<h1><a class="anchor" id="autotoc_md615"></a>
+<h1><a class="anchor" id="autotoc_md618"></a>
 5. Strings — &lt;tt&gt;ngx_str_t&lt;/tt&gt; is a view, not owned</h1>
 <p><code>ngx_str_t</code> carries an explicit length and is <b>not</b> NUL-terminated. Do not pass <code>.data</code> to <code>strlen</code>/<code>strcpy</code>/<code>printf("%s")</code>.</p>
 <div class="fragment"><div class="line">ngx_str_t <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a> = ...;</div>
 <div class="line"><span class="comment">/* compare: */</span>            <span class="keywordflow">if</span> (<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>.len == 4 &amp;&amp; ngx_strncmp(<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>.data, <span class="stringliteral">&quot;root&quot;</span>, 4) == 0)</div>
-<div class="line"><span class="comment">/* copy n bytes: */</span>       ngx_memcpy(dst, <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>.data, <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>.len);</div>
+<div class="line"><span class="comment">/* copy n bytes: */</span>       <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(dst, <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>.data, <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>.len);</div>
 <div class="line"><span class="comment">/* need a C string? copy + terminate on the stack: */</span></div>
-<div class="line"><span class="keywordtype">char</span> z[<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>.len + 1]; ngx_memcpy(z, <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>.data, <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>.len); z[<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>.len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="line"><span class="keywordtype">char</span> z[<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>.len + 1]; <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(z, <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>.data, <a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>.len); z[<a class="code hl_variable" href="protocols_2ssi_2registry_8c.html#acd3d5832e08669d2a41d61c045abc1fd">s</a>.len] = <span class="charliteral">&#39;\0&#39;</span>;</div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 </div><!-- fragment --><p><code>ngx_memcpy</code>/<code>ngx_memzero</code>/<code>ngx_cpystrn</code> are thin wrappers over libc with nginx bounds conventions; prefer them for consistency.</p>
 <hr  />
-<h1><a class="anchor" id="autotoc_md617"></a>
+<h1><a class="anchor" id="autotoc_md620"></a>
 6. This module's own conventions</h1>
 <p><b>Helpers first (mandatory).</b> Path confinement, auth, metrics, and wire framing have canonical helpers — never re-implement them. The authoritative list is in [CLAUDE.md / AGENTS.md "HELPERS"]. The ones you'll see most:</p>
 <table class="markdownTable">
@@ -253,7 +254,7 @@ what's available; call me again when there's more"* and returns to the loop. A f
 <p>They exist to make every handler's success/error/metric/log path uniform and one-line. When reviewing a handler, read them as <code>return Error(...)</code> / <code>return Ok(...)</code>.</p>
 <p><b>Naming:</b> <code>snake_case</code> throughout (as in the C++ standard library). <code>ngx_</code> prefix = nginx core; <code>brix_</code> = module functions; <code>BRIX_</code> = macros/constants; <code>kXR_*</code> = on-the-wire protocol constants (from the XRootD spec, kept verbatim).</p>
 <hr  />
-<h1><a class="anchor" id="autotoc_md619"></a>
+<h1><a class="anchor" id="autotoc_md622"></a>
 7. Things that look wrong to a C++ reviewer but aren't</h1>
 <ul>
 <li><b>No exceptions, no RAII</b> — by design (nginx is C; errors are values, cleanup is pool- or <code>cleanup_add</code>-driven).</li>
@@ -263,7 +264,7 @@ what's available; call me again when there's more"* and returns to the loop. A f
 <li><b>Big section-banner doc comments</b> — being trimmed to concise Doxygen headers; treat the first sentence of each as the brief.</li>
 </ul>
 <hr  />
-<h1><a class="anchor" id="autotoc_md621"></a>
+<h1><a class="anchor" id="autotoc_md624"></a>
 Browsing the code with Doxygen</h1>
 <p>A <code>Doxyfile</code> is checked in at the repo root, tuned for C (static functions included, macro expansion on, include/dir graphs via graphviz). Generate the browsable HTML (output is git-ignored under <code>docs/doxygen/html/</code>):</p>
 <div class="fragment"><div class="line">doxygen Doxyfile          # or: tools/gen-docs.sh</div>

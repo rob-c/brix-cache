@@ -16,6 +16,10 @@ var structngx__brix__cms__ctx__s =
     [ "logged_in", "structngx__brix__cms__ctx__s.html#aa97cad4bd58b2167d23651c8384c11d6", null ],
     [ "next_streamid", "structngx__brix__cms__ctx__s.html#acfe77b7a744dbd0d3a3d3c2487d403c1", null ],
     [ "peer", "structngx__brix__cms__ctx__s.html#a96a88c28d33053ecaccdb7fad461333f", null ],
+    [ "sess", "structngx__brix__cms__ctx__s.html#a94cd9fab0979c3327887a6fcc0548708", null ],
+    [ "sess_attempt_logged", "structngx__brix__cms__ctx__s.html#ad90d441538c6d0288c8f8cbd220dd22d", null ],
+    [ "sess_end_hint", "structngx__brix__cms__ctx__s.html#a716fb974e78bd1abb042c1bb712b1039", null ],
+    [ "sess_end_hint_set", "structngx__brix__cms__ctx__s.html#a648acc91fb5ec30236cd42b22e411254", null ],
     [ "start_ns", "structngx__brix__cms__ctx__s.html#a523c7134bd777e69e76e0d1a87d93f6d", null ],
     [ "timer", "structngx__brix__cms__ctx__s.html#a8afef8d56f019d61b11f73012e472b66", null ]
 ];

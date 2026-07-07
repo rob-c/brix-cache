@@ -163,7 +163,7 @@ $(document).ready(function(){initNavTree('async_8c_source.html',''); initResizab
 <div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    p += <a class="code hl_define" href="opcodes_8h.html#ac6212490ba324bfa5ad70df6753b23fe">XRD_RESPONSE_HDR_LEN</a>;</div>
 <div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span> </div>
 <div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span>    <span class="comment">/* actnum = kXR_asyncms */</span></div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    ngx_memcpy(p, &amp;act_be, 4);</div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, &amp;act_be, 4);</div>
 <div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    p += 4;</div>
 <div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span> </div>
 <div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span>    <span class="comment">/* reserved[4] */</span></div>
@@ -177,7 +177,7 @@ $(document).ready(function(){initNavTree('async_8c_source.html',''); initResizab
 <div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span> </div>
 <div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>    <span class="comment">/* Notification text */</span></div>
 <div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span>    <span class="keywordflow">if</span> (msglen &gt; 0 &amp;&amp; msg != NULL) {</div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>        ngx_memcpy(p, msg, msglen);</div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, msg, msglen);</div>
 <div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>    }</div>
 <div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>}</div>
 </div>
@@ -225,7 +225,7 @@ $(document).ready(function(){initNavTree('async_8c_source.html',''); initResizab
 <div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span>    p += <a class="code hl_define" href="opcodes_8h.html#ac6212490ba324bfa5ad70df6753b23fe">XRD_RESPONSE_HDR_LEN</a>;</div>
 <div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span> </div>
 <div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>    <span class="comment">/* actnum = kXR_asynresp */</span></div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>    ngx_memcpy(p, &amp;act_be, 4);</div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, &amp;act_be, 4);</div>
 <div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span>    p += 4;</div>
 <div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span> </div>
 <div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span>    <span class="comment">/* reserved[4] */</span></div>
@@ -239,7 +239,7 @@ $(document).ready(function(){initNavTree('async_8c_source.html',''); initResizab
 <div class="line"><a id="l00132" name="l00132"></a><span class="lineno">  132</span> </div>
 <div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span>    <span class="comment">/* Response body */</span></div>
 <div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span>    <span class="keywordflow">if</span> (bodylen &gt; 0 &amp;&amp; body != NULL) {</div>
-<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>        ngx_memcpy(p, body, bodylen);</div>
+<div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(p, body, bodylen);</div>
 <div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>    }</div>
 <div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span> </div>
 <div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span>    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>-&gt;log, 0,</div>
@@ -265,9 +265,9 @@ $(document).ready(function(){initNavTree('async_8c_source.html',''); initResizab
 <div class="line"><a id="l00156" name="l00156"></a><span class="lineno">  156</span>    <a class="code hl_function" href="basic_8c.html#a919558d7a05c6e3ebe008a450bab70b5">brix_build_resp_hdr</a>(ctx-&gt;<a class="code hl_variable" href="structbrix__ctx__t.html#ac5adca8dc46053f3a0b71dba0ddf1efd">recv</a>.<a class="code hl_variable" href="structbrix__ctx__recv__t.html#aeff530ba9fbf23e6838d581b1df1efb0">cur_streamid</a>, <a class="code hl_define" href="opcodes_8h.html#aca84332dab92f63fc318400c2e3c9c8b">kXR_attn</a>, bodylen,</div>
 <div class="line"><a id="l00157" name="l00157"></a><span class="lineno">  157</span>                          (<a class="code hl_struct" href="structServerResponseHdr.html">ServerResponseHdr</a> *) buf);</div>
 <div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span> </div>
-<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>    ngx_memcpy(buf + <a class="code hl_define" href="opcodes_8h.html#ac6212490ba324bfa5ad70df6753b23fe">XRD_RESPONSE_HDR_LEN</a>, &amp;act_be, 4);</div>
+<div class="line"><a id="l00159" name="l00159"></a><span class="lineno">  159</span>    <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(buf + <a class="code hl_define" href="opcodes_8h.html#ac6212490ba324bfa5ad70df6753b23fe">XRD_RESPONSE_HDR_LEN</a>, &amp;act_be, 4);</div>
 <div class="line"><a id="l00160" name="l00160"></a><span class="lineno">  160</span>    <span class="keywordflow">if</span> (msglen &gt; 0 &amp;&amp; msg != NULL) {</div>
-<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>        ngx_memcpy(buf + <a class="code hl_define" href="opcodes_8h.html#ac6212490ba324bfa5ad70df6753b23fe">XRD_RESPONSE_HDR_LEN</a> + 4, msg, msglen);</div>
+<div class="line"><a id="l00161" name="l00161"></a><span class="lineno">  161</span>        <a class="code hl_define" href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a>(buf + <a class="code hl_define" href="opcodes_8h.html#ac6212490ba324bfa5ad70df6753b23fe">XRD_RESPONSE_HDR_LEN</a> + 4, msg, msglen);</div>
 <div class="line"><a id="l00162" name="l00162"></a><span class="lineno">  162</span>    }</div>
 <div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span> </div>
 <div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span>    <span class="keywordflow">return</span> <a class="code hl_function" href="write__helpers_8c.html#acff66d4590ac686b00c600ad86e69627">brix_queue_response</a>(ctx, <a class="code hl_variable" href="root_2session_2session_8h.html#a6273d27020935469383109889e654dfc">c</a>, buf, total);</div>
@@ -367,6 +367,7 @@ $(document).ready(function(){initNavTree('async_8c_source.html',''); initResizab
 <div class="ttc" id="abasic_8c_html_a3bb0965e1cf62be0fa2a2681fdb9095d"><div class="ttname"><a href="basic_8c.html#a3bb0965e1cf62be0fa2a2681fdb9095d">brix_send_error</a></div><div class="ttdeci">ngx_int_t brix_send_error(brix_ctx_t *ctx, ngx_connection_t *c, uint16_t errcode, const char *msg)</div><div class="ttdef"><b>Definition</b> <a href="basic_8c_source.html#l00067">basic.c:67</a></div></div>
 <div class="ttc" id="abasic_8c_html_a919558d7a05c6e3ebe008a450bab70b5"><div class="ttname"><a href="basic_8c.html#a919558d7a05c6e3ebe008a450bab70b5">brix_build_resp_hdr</a></div><div class="ttdeci">void brix_build_resp_hdr(const u_char *streamid, uint16_t status, uint32_t dlen, ServerResponseHdr *out)</div><div class="ttdef"><b>Definition</b> <a href="basic_8c_source.html#l00033">basic.c:33</a></div></div>
 <div class="ttc" id="angx__brix__module_8h_html"><div class="ttname"><a href="ngx__brix__module_8h.html">ngx_brix_module.h</a></div></div>
+<div class="ttc" id="angx__shim_8h_html_a60b750d18990a6932eb08eb6ce61bd1b"><div class="ttname"><a href="ngx__shim_8h.html#a60b750d18990a6932eb08eb6ce61bd1b">ngx_memcpy</a></div><div class="ttdeci">#define ngx_memcpy(dst, src, n)</div><div class="ttdef"><b>Definition</b> <a href="ngx__shim_8h_source.html#l00019">ngx_shim.h:19</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_a278699929ef8ff8f31d283b26f1cde76"><div class="ttname"><a href="opcodes_8h.html#a278699929ef8ff8f31d283b26f1cde76">kXR_ok</a></div><div class="ttdeci">#define kXR_ok</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00107">opcodes.h:107</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_a6d66eb06f70a90238e43a813088735a2"><div class="ttname"><a href="opcodes_8h.html#a6d66eb06f70a90238e43a813088735a2">kXR_asyncms</a></div><div class="ttdeci">#define kXR_asyncms</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00134">opcodes.h:134</a></div></div>
 <div class="ttc" id="aopcodes_8h_html_a9a47d787a58910193af847806b3f8090"><div class="ttname"><a href="opcodes_8h.html#a9a47d787a58910193af847806b3f8090">kXR_Unsupported</a></div><div class="ttdeci">#define kXR_Unsupported</div><div class="ttdef"><b>Definition</b> <a href="opcodes_8h_source.html#l00159">opcodes.h:159</a></div></div>
