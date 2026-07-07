@@ -1,11 +1,14 @@
-# Build the BriX-Cache marketing site (site/) and publish it to the gh-pages branch.
+# Build the BriX-Cache marketing site (site/) plus the Doxygen API docs
+# (published under /apidocs) and publish both to the gh-pages branch.
 # GitHub Pages is configured (Settings → Pages) to serve from gh-pages / root.
+# The peaceiris publish step replaces branch content, so the API docs must
+# ride in the same publish — never add a second workflow that pushes gh-pages.
 name: site
 
 on:
   push:
     branches: [main]
-    paths: ['site/**', '.github/workflows/site.yml']
+    paths: ['site/**', 'src/**', 'client/**', 'shared/**', 'Doxyfile', '.github/workflows/site.yml']
   workflow_dispatch:
 
 # Allow the action to push the built output to the gh-pages branch.
@@ -35,6 +38,17 @@ jobs:
       - name: Build
         working-directory: site
         run: npm run build
+
+      - name: Install doxygen
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends doxygen graphviz
+
+      - name: Build API docs
+        run: doxygen Doxyfile
+
+      - name: Stage API docs under /apidocs
+        run: |
+          mkdir -p site/dist/apidocs
+          cp -r docs/doxygen/html/. site/dist/apidocs/
 
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@v4
