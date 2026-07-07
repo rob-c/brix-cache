@@ -1,0 +1,13 @@
+<map id="src/protocols/root/connection/deadline.h" name="src/protocols/root/connection/deadline.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="166,5,335,45"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,93,99,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="204,48,95,91,93,86,202,43"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="123,93,226,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="234,47,198,85,194,81,230,44"/>
+<area shape="rect" id="Node000004" href="$context_8h.html" title=" " alt="" coords="251,93,405,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="271,44,309,82,305,85,267,47"/>
+<area shape="rect" id="Node000006" href="$state_8h.html" title=" " alt="" coords="429,93,568,119"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="311,43,450,87,449,92,309,48"/>
+<area shape="rect" id="Node000005" href="$ctx__structs_8h.html" title=" " alt="" coords="275,167,381,192"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="331,119,331,153,325,153,325,119"/>
+</map>

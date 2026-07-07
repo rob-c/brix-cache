@@ -1,0 +1,17 @@
+<map id="src/protocols/s3/tagging.h" name="src/protocols/s3/tagging.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="256,5,445,31"/>
+<area shape="rect" id="Node000002" href="$protocols_2s3_2handler_8c.html" title=" " alt="" coords="68,86,255,111"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="311,38,190,88,188,84,309,33"/>
+<area shape="rect" id="Node000003" href="$s3__put__internal_8h.html" title=" " alt="" coords="279,79,422,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="353,44,353,79,348,79,348,44"/>
+<area shape="rect" id="Node000008" href="$tagging_8c.html" title=" " alt="" coords="446,86,634,111"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="392,33,513,84,511,88,390,38"/>
+<area shape="rect" id="Node000004" href="$s3_2put_8c.html" title=" " alt="" coords="5,174,165,199"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="281,125,121,177,120,171,279,120"/>
+<area shape="rect" id="Node000005" href="$put__aio_8c.html" title=" " alt="" coords="189,167,339,207"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="324,130,285,168,281,165,320,127"/>
+<area shape="rect" id="Node000006" href="$put__chunk_8c.html" title=" " alt="" coords="363,167,512,207"/>
+<area shape="poly" id="edge5_Node000003_Node000006" title=" " alt="" coords="381,127,420,165,416,168,378,130"/>
+<area shape="rect" id="Node000007" href="$put__finalize_8c.html" title=" " alt="" coords="536,167,685,207"/>
+<area shape="poly" id="edge6_Node000003_Node000007" title=" " alt="" coords="422,121,555,164,553,169,420,126"/>
+</map>

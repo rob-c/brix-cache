@@ -1,0 +1,17 @@
+<map id="src/protocols/s3/multipart_internal.h" name="src/protocols/s3/multipart_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="641,5,829,45"/>
+<area shape="rect" id="Node000002" href="$multipart__abort_8c.html" title=" " alt="" coords="5,93,193,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="628,41,431,65,205,96,194,98,193,92,204,91,430,60,627,36"/>
+<area shape="rect" id="Node000003" href="$multipart__complete__body_8c.html" title=" " alt="" coords="217,93,405,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="630,51,405,96,404,91,629,45"/>
+<area shape="rect" id="Node000004" href="$multipart__complete__list__parts_8c.html" title=" " alt="" coords="429,93,617,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="677,53,571,96,569,91,675,48"/>
+<area shape="rect" id="Node000005" href="$multipart__complete__list__uploads_8c.html" title=" " alt="" coords="641,93,829,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="738,59,738,93,733,93,733,59"/>
+<area shape="rect" id="Node000006" href="$multipart__complete__upload__part__copy_8c.html" title=" " alt="" coords="854,93,1075,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="799,48,915,91,914,96,797,53"/>
+<area shape="rect" id="Node000007" href="$multipart__helpers_8c.html" title=" " alt="" coords="1100,93,1288,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="844,44,1100,92,1099,97,843,49"/>
+<area shape="rect" id="Node000008" href="$multipart__initiate_8c.html" title=" " alt="" coords="1312,93,1500,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="843,35,1055,58,1301,91,1312,92,1311,98,1300,96,1055,64,843,40"/>
+</map>

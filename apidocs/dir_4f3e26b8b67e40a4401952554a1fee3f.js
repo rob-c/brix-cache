@@ -1,0 +1,25 @@
+var dir_4f3e26b8b67e40a4401952554a1fee3f =
+[
+    [ "fd_cache.c", "fd__cache_8c.html", null ],
+    [ "vfs.h", "src_2fs_2vfs_2vfs_8h.html", "src_2fs_2vfs_2vfs_8h" ],
+    [ "vfs_backend_config.c", "vfs__backend__config_8c.html", "vfs__backend__config_8c" ],
+    [ "vfs_backend_internal.h", "vfs__backend__internal_8h.html", "vfs__backend__internal_8h" ],
+    [ "vfs_backend_registry.c", "vfs__backend__registry_8c.html", "vfs__backend__registry_8c" ],
+    [ "vfs_backend_registry.h", "vfs__backend__registry_8h.html", "vfs__backend__registry_8h" ],
+    [ "vfs_copy.c", "vfs__copy_8c.html", "vfs__copy_8c" ],
+    [ "vfs_dir.c", "vfs__dir_8c.html", "vfs__dir_8c" ],
+    [ "vfs_internal.h", "vfs__internal_8h.html", "vfs__internal_8h" ],
+    [ "vfs_io_core.c", "vfs__io__core_8c.html", "vfs__io__core_8c" ],
+    [ "vfs_io_core.h", "vfs__io__core_8h.html", "vfs__io__core_8h" ],
+    [ "vfs_mkdir.c", "vfs__mkdir_8c.html", "vfs__mkdir_8c" ],
+    [ "vfs_open.c", "vfs__open_8c.html", "vfs__open_8c" ],
+    [ "vfs_read.c", "vfs__read_8c.html", "vfs__read_8c" ],
+    [ "vfs_rename.c", "vfs__rename_8c.html", "vfs__rename_8c" ],
+    [ "vfs_staged.c", "vfs__staged_8c.html", "vfs__staged_8c" ],
+    [ "vfs_stat.c", "vfs__stat_8c.html", "vfs__stat_8c" ],
+    [ "vfs_sync.c", "vfs__sync_8c.html", "vfs__sync_8c" ],
+    [ "vfs_unlink.c", "vfs__unlink_8c.html", "vfs__unlink_8c" ],
+    [ "vfs_walk.c", "vfs__walk_8c.html", "vfs__walk_8c" ],
+    [ "vfs_write.c", "vfs__write_8c.html", "vfs__write_8c" ],
+    [ "vfs_xattr.c", "vfs__xattr_8c.html", "vfs__xattr_8c" ]
+];

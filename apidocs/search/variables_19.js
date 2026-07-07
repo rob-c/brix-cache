@@ -1,0 +1,23 @@
+var searchData=
+[
+  ['z_5flist_0',['z_list',['../structbrix__acc__tables__t.html#a99e0c6adb712ef3f17f9bfe8764d715c',1,'brix_acc_tables_t']]],
+  ['zip_1',['zip',['../structbrix__copy__opts.html#a66208605b605abc76d228b3b262cf6e4',1,'brix_copy_opts']]],
+  ['zip_5faccess_2',['zip_access',['../structngx__stream__brix__srv__conf__t.html#a57886e804af8337fdcc35fb0ab5241e9',1,'ngx_stream_brix_srv_conf_t::zip_access'],['../structngx__http__s3__loc__conf__t.html#a962a274e4f94eef1a994426aed0c96f7',1,'ngx_http_s3_loc_conf_t::zip_access'],['../structngx__http__brix__webdav__loc__conf__t.html#aed9b9a62a8ec122d22074fca1e9887c8',1,'ngx_http_brix_webdav_loc_conf_t::zip_access']]],
+  ['zip_5fappend_3',['zip_append',['../structbrix__copy__opts.html#a07f6d87b224132481c61f91298b331c0',1,'brix_copy_opts']]],
+  ['zip_5fcd_5fmax_5fbytes_4',['zip_cd_max_bytes',['../structngx__stream__brix__srv__conf__t.html#aa21ef7b4ac19e35b47979af36af52514',1,'ngx_stream_brix_srv_conf_t::zip_cd_max_bytes'],['../structngx__http__s3__loc__conf__t.html#ad145e1057e8e3198e5adfd29cafd6e7c',1,'ngx_http_s3_loc_conf_t::zip_cd_max_bytes'],['../structngx__http__brix__webdav__loc__conf__t.html#a4574a632f2a2e3a15cf8ea3a9a1c4837',1,'ngx_http_brix_webdav_loc_conf_t::zip_cd_max_bytes']]],
+  ['zip_5fcomp_5fpos_5',['zip_comp_pos',['../structbrix__file__t.html#a274e63876830e522dbcd8df2113c0374',1,'brix_file_t']]],
+  ['zip_5fcomp_5fsize_6',['zip_comp_size',['../structbrix__file__t.html#a864b75cbeec75f1916c6c25c19886af9',1,'brix_file_t']]],
+  ['zip_5fcrc32_7',['zip_crc32',['../structbrix__file__t.html#a42ed12c1340e1e7e7cac49a2532916ba',1,'brix_file_t']]],
+  ['zip_5fdata_5foff_8',['zip_data_off',['../structbrix__file__t.html#a2a89245e2458e3710209a2fee2e6d2af',1,'brix_file_t']]],
+  ['zip_5fforce_5fscratch_9',['zip_force_scratch',['../structngx__stream__brix__srv__conf__t.html#ad90f2b682cc0eec1433d7b04f28a89c1',1,'ngx_stream_brix_srv_conf_t']]],
+  ['zip_5finflate_10',['zip_inflate',['../structbrix__file__t.html#a2c86f8ede9d28da64646072ded2e7db8',1,'brix_file_t']]],
+  ['zip_5flogical_5fpos_11',['zip_logical_pos',['../structbrix__file__t.html#a4cfe1b452369abb83c927f448b980f21',1,'brix_file_t']]],
+  ['zip_5fmethod_12',['zip_method',['../structbrix__file__t.html#a25613df503a19c0682bcabede947727c',1,'brix_file_t']]],
+  ['zip_5fmode_13',['zip_mode',['../structbrix__file__t.html#a6a4cc8c55b257caf1453bb1ae19d19a7',1,'brix_file_t']]],
+  ['zip_5fstage_5fdir_14',['zip_stage_dir',['../structngx__stream__brix__srv__conf__t.html#a1001fedcab4dd1e3b7c35e24680e89df',1,'ngx_stream_brix_srv_conf_t']]],
+  ['zip_5fstage_5fmax_5fbytes_15',['zip_stage_max_bytes',['../structngx__stream__brix__srv__conf__t.html#af0e441f9cc9a45d7de279b85e19e97ee',1,'ngx_stream_brix_srv_conf_t']]],
+  ['zip_5funcomp_5fsize_16',['zip_uncomp_size',['../structbrix__file__t.html#a6fc16a8298dcb5ae5b4accd3548ab339',1,'brix_file_t']]],
+  ['zone_17',['zone',['../structbrix__kv__t.html#a5e8870912b7158fc3d90046352d7bea8',1,'brix_kv_t::zone'],['../structbrix__throttle__conf__t.html#abb70e24a3c0158b40b518e2137db2d99',1,'brix_throttle_conf_t::zone'],['../structbrix__rl__rule__t.html#a463c15b4087b3ecef77144e12fa5788f',1,'brix_rl_rule_t::zone']]],
+  ['zone_5fname_18',['zone_name',['../structbrix__throttle__conf__t.html#aeb878d8b84799b5a56597dae561b7cca',1,'brix_throttle_conf_t']]],
+  ['zs_19',['zs',['../structzip__infl__t.html#a3f05dbae99e3eaf25dfcde5f10fec62a',1,'zip_infl_t']]]
+];

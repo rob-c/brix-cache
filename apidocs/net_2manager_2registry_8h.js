@@ -1,0 +1,28 @@
+var net_2manager_2registry_8h =
+[
+    [ "brix_srv_entry_t", "structbrix__srv__entry__t.html", "structbrix__srv__entry__t" ],
+    [ "brix_srv_table_t", "structbrix__srv__table__t.html", "structbrix__srv__table__t" ],
+    [ "brix_srv_snapshot_entry_t", "structbrix__srv__snapshot__entry__t.html", "structbrix__srv__snapshot__entry__t" ],
+    [ "BRIX_SRV_MAX_PATHS", "net_2manager_2registry_8h.html#a647683e11346693b3314f8d1e9cc8205", null ],
+    [ "BRIX_SRV_REGISTRY_SLOTS", "net_2manager_2registry_8h.html#a9a99f61c42263dd107463509d3f903de", null ],
+    [ "brix_manager_tried_exhausted", "net_2manager_2registry_8h.html#a03ffa07e037c74dc37b8bba720ae2df8", null ],
+    [ "brix_srv_aggregate_space", "net_2manager_2registry_8h.html#a53e7524a13a949ef69cd24e6e24bc78f", null ],
+    [ "brix_srv_blacklist", "net_2manager_2registry_8h.html#a344c117dd9940e47dec2d71242ae9116", null ],
+    [ "brix_srv_configure_registry", "net_2manager_2registry_8h.html#a1a39955e800e2a4b799e72eed764ef68", null ],
+    [ "brix_srv_count_matching", "net_2manager_2registry_8h.html#adde892d67f034583e7cd05951046f700", null ],
+    [ "brix_srv_hc_claim", "net_2manager_2registry_8h.html#a00fb5082fa315d9eb74bf8206689bbd3", null ],
+    [ "brix_srv_hc_fail", "net_2manager_2registry_8h.html#a7d7c87ccb620f4c78e2862be58a6e270", null ],
+    [ "brix_srv_hc_pass", "net_2manager_2registry_8h.html#aba7cbcfe30e91120ca9cae19b1a0c5d0", null ],
+    [ "brix_srv_locate_all", "net_2manager_2registry_8h.html#af8ba6c820f5011754b69aafc262fc7c5", null ],
+    [ "brix_srv_register", "net_2manager_2registry_8h.html#ac80bd1f335aaabd5c2db3f09b99b9da9", null ],
+    [ "brix_srv_select", "net_2manager_2registry_8h.html#a3239940eb727df4b789fccf11a394ba9", null ],
+    [ "brix_srv_select_or_blacklisted", "net_2manager_2registry_8h.html#a8c4db2364b03e310f60c8e47661ddd3c", null ],
+    [ "brix_srv_set_stale_after", "net_2manager_2registry_8h.html#a1035eb817169f50d77ec565a16bd8c30", null ],
+    [ "brix_srv_shm_init_zone", "net_2manager_2registry_8h.html#ab8955d0ff0907fae2fa28259abe5806a", null ],
+    [ "brix_srv_snapshot", "net_2manager_2registry_8h.html#ad57cc515b14060981dca9bf85ffac56e", null ],
+    [ "brix_srv_undrain", "net_2manager_2registry_8h.html#a7236d13a3f672ec443df07b5d46736df", null ],
+    [ "brix_srv_unregister", "net_2manager_2registry_8h.html#a584737bc6b4b9cbb0efc0f577a6d22a1", null ],
+    [ "brix_srv_unregister_path", "net_2manager_2registry_8h.html#ac5c8af0959956091410a7926ff75f01a", null ],
+    [ "brix_srv_update_load", "net_2manager_2registry_8h.html#ab71b185d47699e0464313ac9d7fe0822", null ],
+    [ "brix_srv_shm_zone", "net_2manager_2registry_8h.html#ae1e2eb85c77f4712dd998dc637f3868d", null ]
+];

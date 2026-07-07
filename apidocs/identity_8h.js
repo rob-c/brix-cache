@@ -1,0 +1,27 @@
+var identity_8h =
+[
+    [ "brix_identity_t", "structbrix__identity__t.html", "structbrix__identity__t" ],
+    [ "BRIX_AUTHN_GSI", "identity_8h.html#a86d9270f37d721c70622168573a76845", null ],
+    [ "BRIX_AUTHN_HOST", "identity_8h.html#a39a260624a5e5907c7d6d2bc06d344db", null ],
+    [ "BRIX_AUTHN_KRB5", "identity_8h.html#a3e31d6f0b7d0f0e278c2116c2fd8ddaf", null ],
+    [ "BRIX_AUTHN_NONE", "identity_8h.html#a969d73f2e7d975ccacff0052ec73a41d", null ],
+    [ "BRIX_AUTHN_PWD", "identity_8h.html#a2f6ae2b7c9d76c959903009dcbd86ce3", null ],
+    [ "BRIX_AUTHN_S3KEY", "identity_8h.html#a54ede9f334efebdf4699a3d64c1f4b31", null ],
+    [ "BRIX_AUTHN_SSS", "identity_8h.html#ae8c5aeb1f5d3fa1973fc4dc213d076cd", null ],
+    [ "BRIX_AUTHN_TOKEN", "identity_8h.html#a0bff0bccdf1791bf9e5e6c4553b2b38b", null ],
+    [ "BRIX_AUTHN_UNIX", "identity_8h.html#a5b0e7df7ad9452eac15dbdb5b9c8438c", null ],
+    [ "brix_identity_acc_group_cstr", "identity_8h.html#a1413f719a2b22ed947ea06fb32488fd6", null ],
+    [ "brix_identity_acc_role_cstr", "identity_8h.html#ae6a1a8469ad965a14e76950bae7ea541", null ],
+    [ "brix_identity_acc_vorg_cstr", "identity_8h.html#a85e11081c17e88fe1635bb51eede4963", null ],
+    [ "brix_identity_alloc", "identity_8h.html#a5be313b3b846deb19cecb043a14cdcbf", null ],
+    [ "brix_identity_check_token_scope", "identity_8h.html#af0564cceee3b50c1d41046d464fd96df", null ],
+    [ "brix_identity_describe", "identity_8h.html#a2de49133f34cfe341fb7d945c09e4df3", null ],
+    [ "brix_identity_dn_cstr", "identity_8h.html#ac0080bd8274794cae0a58e4430bb6a54", null ],
+    [ "brix_identity_set_cstr", "identity_8h.html#a2634a3b3bb7798495f89fa69e8840ab8", null ],
+    [ "brix_identity_set_dn", "identity_8h.html#a4c055ec83a24b9bb0c22e80cb72f086b", null ],
+    [ "brix_identity_set_subject", "identity_8h.html#ad057f18088b97e7792aec529dee0dd63", null ],
+    [ "brix_identity_set_token_claims", "identity_8h.html#a9434bee6b6c043137a1622bbe7df4b0e", null ],
+    [ "brix_identity_set_vos_csv", "identity_8h.html#a18d6564299f36c6e1c150442fc649e8c", null ],
+    [ "brix_identity_subject_cstr", "identity_8h.html#a69a8f659422a02391675d4fc28331a41", null ],
+    [ "brix_identity_vo_csv_cstr", "identity_8h.html#ac0abf7cb8084f3d2c5265933f6f2e5a8", null ]
+];

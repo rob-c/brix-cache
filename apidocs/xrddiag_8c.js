@@ -1,0 +1,26 @@
+var xrddiag_8c =
+[
+    [ "dx_b64url_enc", "xrddiag_8c.html#a6ba6542797c717fcdfb011c7b0d55668", null ],
+    [ "dx_connect_as", "xrddiag_8c.html#a59ba6213607064e57ea37e4d31e3a6d4", null ],
+    [ "dx_http_fail", "xrddiag_8c.html#a092a7c4856a11356be9f6d3cf7a61d12", null ],
+    [ "dx_http_status", "xrddiag_8c.html#ad07898d493c89e5bc498478b15820438", null ],
+    [ "dx_is_loopback", "xrddiag_8c.html#a91fbf5b482d7aa24257358a39c421a94", null ],
+    [ "dx_make_jwt", "xrddiag_8c.html#a955ec09cfb71895309c575286b0b4b87", null ],
+    [ "dx_proto_name", "xrddiag_8c.html#afcdde58ada9e5adcae9737881b1704e6", null ],
+    [ "dx_record", "xrddiag_8c.html#a0352aaf5704f17066360a1557615bb6d", null ],
+    [ "dx_record_status", "xrddiag_8c.html#a664536b19d60e114b9711adf414f746e", null ],
+    [ "dx_url_parse", "xrddiag_8c.html#a2d8ecb0d2f8dd251c02ef659ccd4c066", null ],
+    [ "dx_verdict_name", "xrddiag_8c.html#a466ea8f44ff09b9fb0f98dae1232976c", null ],
+    [ "fjson_str", "xrddiag_8c.html#aa163d0bb9d4363f8ab84ae89c6629304", null ],
+    [ "js_count", "xrddiag_8c.html#a972c9c16a83ff189053bcb86ab056019", null ],
+    [ "js_str", "xrddiag_8c.html#a61d4a94d99a2b9df8eae086c990629d2", null ],
+    [ "js_sum", "xrddiag_8c.html#ac13075d0e0fd8e994c2fdd753608d03a", null ],
+    [ "main", "xrddiag_8c.html#a3c04138a5bfe5d72780bb7e82a18e627", null ],
+    [ "note", "xrddiag_8c.html#a765b6415d22c7b26f0bba2a2ae0087de", null ],
+    [ "s3_sign", "xrddiag_8c.html#a7f955086cd2a6c2c4b39c8277d5f01c8", null ],
+    [ "usage", "xrddiag_8c.html#ae8605e2b78cd4a81b6c6b5c30cb7366a", null ],
+    [ "usage_fp", "xrddiag_8c.html#a28999b7bf77e817ab21c70002c3ad233", null ],
+    [ "DX_RULES", "xrddiag_8c.html#acf8b9715ab793c1527136fa5e17e0146", null ],
+    [ "g_fails", "xrddiag_8c.html#a7fca9b8cd3eefffb159037c7f4b5213f", null ],
+    [ "g_watch_stop", "xrddiag_8c.html#a2522f8e2075d1834b7bef60f6dbf6bed", null ]
+];

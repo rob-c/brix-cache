@@ -1,0 +1,24 @@
+var structngx__http__brix__webdav__req__ctx__t =
+[
+    [ "auth_source", "structngx__http__brix__webdav__req__ctx__t.html#a73b041ed4e7a160713ae533a5607cde6", null ],
+    [ "dn", "structngx__http__brix__webdav__req__ctx__t.html#a102518b83b59f2a2f159970b6e020a4a", null ],
+    [ "identity", "structngx__http__brix__webdav__req__ctx__t.html#a5234f208453ec6c81b4598d9ad548d69", null ],
+    [ "introspect_active", "structngx__http__brix__webdav__req__ctx__t.html#ade8f55ccb62bf1ef3197cba20676364f", null ],
+    [ "introspect_done", "structngx__http__brix__webdav__req__ctx__t.html#ae2a33ff9d8b0de12f57f9ddfbf452daa", null ],
+    [ "is_mirror", "structngx__http__brix__webdav__req__ctx__t.html#af4b51a546c8ea5a7d77295b35cb115c9", null ],
+    [ "lock_depth_infinity", "structngx__http__brix__webdav__req__ctx__t.html#a95dcf05f2a2898bf2ccf7471c311d09c", null ],
+    [ "lock_owner", "structngx__http__brix__webdav__req__ctx__t.html#ab56ff11577f80f3c186935c80cd2d094", null ],
+    [ "mirror_fired", "structngx__http__brix__webdav__req__ctx__t.html#aac63327fffb588abb3a5bed07ff80f0f", null ],
+    [ "mirror_status", "structngx__http__brix__webdav__req__ctx__t.html#a30d9d676590df891ab3edabd5544b714", null ],
+    [ "mirror_target_idx", "structngx__http__brix__webdav__req__ctx__t.html#aaee86357b9d4763278ea89a10a9b4b08", null ],
+    [ "primary_status", "structngx__http__brix__webdav__req__ctx__t.html#af7a5cb5485bbc77dd2a7601c61f583ca", null ],
+    [ "rl_bw_rule", "structngx__http__brix__webdav__req__ctx__t.html#a0f16225b28e0af2fbabcfc5a57710a84", null ],
+    [ "rl_conc_key", "structngx__http__brix__webdav__req__ctx__t.html#a86bdc87ebd0052a5f49c9bde611f27a6", null ],
+    [ "rl_conc_rule", "structngx__http__brix__webdav__req__ctx__t.html#afd5d53bd5c90108b70caaeba4055cd5b", null ],
+    [ "rl_key_str", "structngx__http__brix__webdav__req__ctx__t.html#a9cedea914e29079aab346d0c622eebb7", null ],
+    [ "token_auth", "structngx__http__brix__webdav__req__ctx__t.html#aa221fe141d5998f1936deb875aa6b0bf", null ],
+    [ "token_scope_count", "structngx__http__brix__webdav__req__ctx__t.html#a46b89755c7fb77bae1132c1bb8d3a1c3", null ],
+    [ "token_scopes", "structngx__http__brix__webdav__req__ctx__t.html#a894bf85418428597e3115563490c5287", null ],
+    [ "verified", "structngx__http__brix__webdav__req__ctx__t.html#a7d6490284dabc5022fe623367f23f903", null ],
+    [ "xrdhttp", "structngx__http__brix__webdav__req__ctx__t.html#ab9a8c0331e39066c095444f78c2302b2", null ]
+];

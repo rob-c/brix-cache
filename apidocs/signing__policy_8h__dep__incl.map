@@ -1,0 +1,33 @@
+<map id="src/auth/crypto/signing_policy.h" name="src/auth/crypto/signing_policy.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="541,5,711,45"/>
+<area shape="rect" id="Node000002" href="$pki__build_8h.html" title=" " alt="" coords="273,181,416,221"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="585,55,377,183,374,179,582,50"/>
+<area shape="rect" id="Node000008" href="$signing__policy_8c.html" title=" " alt="" coords="541,93,711,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="629,59,629,93,623,93,623,59"/>
+<area shape="rect" id="Node000009" href="$store__policy_8h.html" title=" " alt="" coords="789,93,945,133"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="693,47,815,91,814,96,691,52"/>
+<area shape="rect" id="Node000003" href="$pki__build_8c.html" title=" " alt="" coords="1063,269,1205,309"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="430,219,612,243,789,262,1063,282,1062,287,788,267,611,249,429,224"/>
+<area shape="rect" id="Node000004" href="$auth_2gsi_2config_8c.html" title=" " alt="" coords="5,277,156,302"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="274,228,117,279,115,274,273,223"/>
+<area shape="rect" id="Node000005" href="$sd__xroot_8c.html" title=" " alt="" coords="180,269,333,309"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="317,233,278,271,274,267,313,229"/>
+<area shape="rect" id="Node000006" href="$sd__xroot__ns_8c.html" title=" " alt="" coords="357,269,511,309"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="376,229,416,267,412,271,373,233"/>
+<area shape="rect" id="Node000007" href="$auth__store_8c.html" title=" " alt="" coords="535,269,695,309"/>
+<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="418,223,557,267,555,272,416,228"/>
+<area shape="poly" id="edge11_Node000009_Node000002" title=" " alt="" coords="776,129,613,153,428,184,417,186,416,181,427,179,613,147,775,124"/>
+<area shape="poly" id="edge10_Node000009_Node000003" title=" " alt="" coords="959,114,1118,121,1301,133,1458,152,1512,164,1541,179,1548,190,1551,201,1541,223,1519,241,1485,255,1396,274,1296,285,1206,290,1205,284,1296,280,1395,269,1483,249,1516,236,1537,220,1545,201,1544,192,1538,183,1510,169,1457,157,1300,138,1118,126,959,120"/>
+<area shape="rect" id="Node000010" href="$gsi__verify_8c.html" title=" " alt="" coords="440,181,583,221"/>
+<area shape="poly" id="edge9_Node000009_Node000010" title=" " alt="" coords="777,139,584,185,583,180,775,134"/>
+<area shape="rect" id="Node000011" href="$store__policy_8c.html" title=" " alt="" coords="607,181,763,221"/>
+<area shape="poly" id="edge12_Node000009_Node000011" title=" " alt="" coords="816,142,726,184,724,179,814,137"/>
+<area shape="rect" id="Node000012" href="$server__conf_8c.html" title=" " alt="" coords="787,181,948,221"/>
+<area shape="poly" id="edge13_Node000009_Node000012" title=" " alt="" coords="870,147,870,181,865,181,865,147"/>
+<area shape="rect" id="Node000013" href="$module__enums_8c.html" title=" " alt="" coords="973,181,1159,221"/>
+<area shape="poly" id="edge14_Node000009_Node000013" title=" " alt="" coords="925,136,1024,179,1021,184,922,141"/>
+<area shape="rect" id="Node000014" href="$protocols_2webdav_2config_8c.html" title=" " alt="" coords="1183,181,1343,221"/>
+<area shape="poly" id="edge15_Node000009_Node000014" title=" " alt="" coords="959,132,1184,180,1183,185,958,137"/>
+<area shape="rect" id="Node000015" href="$protocols_2webdav_2module_8c.html" title=" " alt="" coords="1367,181,1527,221"/>
+<area shape="poly" id="edge16_Node000009_Node000015" title=" " alt="" coords="960,123,1143,146,1356,179,1368,181,1367,186,1355,184,1142,152,959,128"/>
+</map>

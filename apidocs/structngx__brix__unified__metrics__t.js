@@ -1,0 +1,24 @@
+var structngx__brix__unified__metrics__t =
+[
+    [ "auth_total", "structngx__brix__unified__metrics__t.html#acee4349dfc4514564216e5d74a8de59d", null ],
+    [ "cache_bytes_evicted", "structngx__brix__unified__metrics__t.html#a2e761de422ce2b7db2a5195c3bedf023", null ],
+    [ "cache_hits", "structngx__brix__unified__metrics__t.html#a4e93a164e38500949621b75809d84aef", null ],
+    [ "cache_misses", "structngx__brix__unified__metrics__t.html#a00e70e88c3488c9b1a567b791b9f0af4", null ],
+    [ "cache_usage_ratio_ppm", "structngx__brix__unified__metrics__t.html#a9990a1495fa020bc47e6bd1b8b65a1b9", null ],
+    [ "cache_watermark_evicted_bytes", "structngx__brix__unified__metrics__t.html#acdb4b8f56818b032acd00bf8020c4213", null ],
+    [ "cache_watermark_evicted_files", "structngx__brix__unified__metrics__t.html#a3ee610a4f130c5e521e0bf78efa7e867", null ],
+    [ "cache_watermark_purges", "structngx__brix__unified__metrics__t.html#a2c871f2ab4aa99cc6b6f53ca0ba59b78", null ],
+    [ "io_bytes_read", "structngx__brix__unified__metrics__t.html#a0ff1c2e4b0c65c430090febaefd92ee7", null ],
+    [ "io_bytes_read_backend", "structngx__brix__unified__metrics__t.html#a4a8afea38e8750c108cb11c261c9f6e7", null ],
+    [ "io_bytes_written", "structngx__brix__unified__metrics__t.html#a59089fe4deb63b4068f0bd08e93ca7e2", null ],
+    [ "io_bytes_written_backend", "structngx__brix__unified__metrics__t.html#a369735114996a06689738518b82513e1", null ],
+    [ "io_latency_bucket", "structngx__brix__unified__metrics__t.html#a7e3d9b5304148b2e61c62454f71678ac", null ],
+    [ "io_latency_count", "structngx__brix__unified__metrics__t.html#ad37d6cc429f14cd3a7d922775a2c5cb6", null ],
+    [ "io_latency_sum_usec", "structngx__brix__unified__metrics__t.html#af8e3202ba638e3fef1fe3c790af4c018", null ],
+    [ "io_ops_total", "structngx__brix__unified__metrics__t.html#a4e3c775134f7e5b1fa4c0736f81177fe", null ],
+    [ "tpc_bytes", "structngx__brix__unified__metrics__t.html#a633c74e480dfd402fb18a39238726edb", null ],
+    [ "tpc_transfers", "structngx__brix__unified__metrics__t.html#aeca51346fee176a02c6a1fe81b033266", null ],
+    [ "wt_stage_throttled_reject", "structngx__brix__unified__metrics__t.html#a8f22247dd0ceaaeb9d2192ec771e3849", null ],
+    [ "wt_stage_throttled_wait", "structngx__brix__unified__metrics__t.html#a641d379d1151d315dcf66445ef5d7e05", null ],
+    [ "wt_stage_usage_ratio_ppm", "structngx__brix__unified__metrics__t.html#a7f372514cfc9ce72557fa05a2c9e7930", null ]
+];

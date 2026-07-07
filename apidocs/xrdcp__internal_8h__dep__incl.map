@@ -1,0 +1,9 @@
+<map id="client/apps/copy/xrdcp_internal.h" name="client/apps/copy/xrdcp_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="208,5,376,45"/>
+<area shape="rect" id="Node000002" href="$xrdcp_8c.html" title=" " alt="" coords="5,101,184,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="237,53,122,103,120,98,235,48"/>
+<area shape="rect" id="Node000003" href="$xrdcp__recursive_8c.html" title=" " alt="" coords="208,93,376,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="295,59,295,93,289,93,289,59"/>
+<area shape="rect" id="Node000004" href="$xrdcp__transfer_8c.html" title=" " alt="" coords="400,93,568,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="348,49,443,91,441,96,346,53"/>
+</map>

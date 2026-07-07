@@ -1,0 +1,22 @@
+<map id="src/fs/backend/s3/sd_s3_internal.h" name="src/fs/backend/s3/sd_s3_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="118,5,271,45"/>
+<area shape="rect" id="Node000002" href="$sd__s3_8h.html" title=" " alt="" coords="231,93,302,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="214,44,249,81,245,85,210,47"/>
+<area shape="rect" id="Node000003" href="$sd__s3__transport_8h.html" title=" " alt="" coords="22,167,159,192"/>
+<area shape="poly" id="edge11_Node000001_Node000003" title=" " alt="" coords="184,47,109,157,104,154,179,44"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="107,240,181,265"/>
+<area shape="poly" id="edge13_Node000001_Node000004" title=" " alt="" coords="152,48,115,68,76,94,40,128,12,168,8,181,10,192,17,203,28,212,59,228,94,239,93,244,57,233,25,217,13,206,5,194,3,181,7,166,36,124,73,90,113,63,150,43"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="513,167,583,192"/>
+<area shape="poly" id="edge12_Node000001_Node000007" title=" " alt="" coords="240,43,510,159,508,164,237,48"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="240,121,133,164,131,159,238,116"/>
+<area shape="poly" id="edge8_Node000002_Node000004" title=" " alt="" coords="259,121,165,231,161,228,255,117"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="288,240,384,265"/>
+<area shape="poly" id="edge10_Node000002_Node000005" title=" " alt="" coords="303,105,339,108,380,118,420,136,437,149,452,165,457,177,457,189,444,209,419,225,390,238,388,233,417,220,440,205,452,187,452,178,447,168,433,153,417,140,379,123,338,114,302,110"/>
+<area shape="rect" id="Node000006" href="$meta__advisory_8h.html" title=" " alt="" coords="235,167,437,192"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="280,117,317,155,314,159,276,121"/>
+<area shape="poly" id="edge9_Node000002_Node000007" title=" " alt="" coords="303,114,500,163,499,168,302,119"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="102,191,130,228,125,231,98,194"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="131,189,284,234,283,239,130,195"/>
+<area shape="poly" id="edge7_Node000006_Node000004" title=" " alt="" coords="306,195,189,237,188,232,304,190"/>
+<area shape="poly" id="edge6_Node000006_Node000005" title=" " alt="" coords="339,192,339,226,333,226,333,192"/>
+</map>

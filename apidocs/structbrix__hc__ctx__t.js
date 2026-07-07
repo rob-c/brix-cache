@@ -1,0 +1,23 @@
+var structbrix__hc__ctx__t =
+[
+    [ "blacklist_ms", "structbrix__hc__ctx__t.html#a89d0e2fa55b152f9ae6481e3cff2b529", null ],
+    [ "conn", "structbrix__hc__ctx__t.html#a0243df568c6f9b6f3bc330ba1996a7f5", null ],
+    [ "connecting", "structbrix__hc__ctx__t.html#aa4c764b0894e28b8debc377189518cdd", null ],
+    [ "host", "structbrix__hc__ctx__t.html#ac2cf7eed237c5b2adf3df5e12f7c9e54", null ],
+    [ "log", "structbrix__hc__ctx__t.html#a8f63abb465ca20a9f0ecde71dc07ded6", null ],
+    [ "phase", "structbrix__hc__ctx__t.html#a7487805ad4e6eaeee6396852a8c54f61", null ],
+    [ "pool", "structbrix__hc__ctx__t.html#a4dc79276b0b2eb246d9c0588cdc5872e", null ],
+    [ "port", "structbrix__hc__ctx__t.html#a7a20b59ce49358fd5e7cdec3bd9e4a50", null ],
+    [ "probe_type", "structbrix__hc__ctx__t.html#abe11148737a35be0b8694bd5997ce299", null ],
+    [ "resp_body", "structbrix__hc__ctx__t.html#a31ebab4dcd806244cf3046e3e9605d4d", null ],
+    [ "resp_body_pos", "structbrix__hc__ctx__t.html#a7b053a6a60d890b1e049368224e0dd75", null ],
+    [ "resp_dlen", "structbrix__hc__ctx__t.html#a601f04c0f223e9a022d3f116bc64553c", null ],
+    [ "resp_status", "structbrix__hc__ctx__t.html#a29e06f9364c538e48cf3d67f72fb42e3", null ],
+    [ "rhdr", "structbrix__hc__ctx__t.html#ad4cbb9fa3aa8c0cfe0a11698d8424d35", null ],
+    [ "rhdr_pos", "structbrix__hc__ctx__t.html#a2fb5cdf417fbc6026cee1d3d28783d55", null ],
+    [ "tev", "structbrix__hc__ctx__t.html#a82d9c081bcfbab7e445ad18e766ad067", null ],
+    [ "threshold", "structbrix__hc__ctx__t.html#ae478bf2f251d1218dca3541815445dbb", null ],
+    [ "wbuf", "structbrix__hc__ctx__t.html#a264960702ac6a53d5f53581ecd0f2724", null ],
+    [ "wbuf_len", "structbrix__hc__ctx__t.html#ab284212b79e3d6333b5d04fe1ce11a30", null ],
+    [ "wbuf_pos", "structbrix__hc__ctx__t.html#ab14d3015d626ccf916dbf921083b9c30", null ]
+];

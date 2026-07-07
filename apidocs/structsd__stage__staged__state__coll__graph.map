@@ -1,0 +1,7 @@
+<map id="sd_stage_staged_state" name="sd_stage_staged_state">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,181,176,207"/>
+<area shape="rect" id="Node000002" href="$structsd__stage__inst__state.html" title=" " alt="" coords="15,93,166,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="93,133,93,181,88,181,88,133"/>
+<area shape="rect" id="Node000003" href="$structbrix__stage__policy__t.html" title=" " alt="" coords="17,5,165,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="93,45,93,93,88,93,88,45"/>
+</map>

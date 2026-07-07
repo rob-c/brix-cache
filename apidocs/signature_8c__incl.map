@@ -1,0 +1,16 @@
+<map id="src/auth/token/signature.c" name="src/auth/token/signature.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="126,5,317,31"/>
+<area shape="rect" id="Node000002" href="$token__internal_8h.html" title=" " alt="" coords="158,79,285,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="224,31,224,65,219,65,219,31"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,152,109,177"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="196,106,98,149,95,144,194,102"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="133,152,227,177"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="217,106,196,141,191,139,212,103"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="208,225,320,251"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="227,104,259,211,254,213,222,105"/>
+<area shape="rect" id="Node000006" href="$token_8h.html" title=" " alt="" coords="302,152,373,177"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="241,102,308,142,305,147,239,106"/>
+<area shape="poly" id="edge6_Node000006_Node000005" title=" " alt="" coords="327,180,288,218,284,214,323,176"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="343,225,414,251"/>
+<area shape="poly" id="edge7_Node000006_Node000007" title=" " alt="" coords="346,176,367,212,363,215,342,179"/>
+</map>

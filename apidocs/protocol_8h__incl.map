@@ -1,0 +1,30 @@
+<map id="src/protocols/root/protocol/protocol.h" name="src/protocols/root/protocol/protocol.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="463,5,611,45"/>
+<area shape="rect" id="Node000002" href="$types_8h.html" title=" " alt="" coords="538,269,608,295"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="543,45,550,93,572,256,567,256,545,94,538,46"/>
+<area shape="rect" id="Node000004" href="$opcodes_8h.html" title=" " alt="" coords="85,269,173,295"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="463,40,345,61,209,93,145,112,89,134,44,157,15,183,8,201,15,220,26,234,40,246,73,263,70,268,37,250,23,238,11,223,3,201,11,180,41,153,86,129,143,107,208,87,344,56,462,35"/>
+<area shape="rect" id="Node000005" href="$flags_8h.html" title=" " alt="" coords="470,101,535,126"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="532,47,515,89,510,87,527,45"/>
+<area shape="rect" id="Node000006" href="$wire_8h.html" title=" " alt="" coords="311,101,374,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="495,48,382,98,380,93,493,43"/>
+<area shape="rect" id="Node000010" href="$wire__codec_8h.html" title=" " alt="" coords="611,93,780,133"/>
+<area shape="poly" id="edge11_Node000001_Node000010" title=" " alt="" coords="573,43,650,85,648,89,570,48"/>
+<area shape="rect" id="Node000013" href="$gsi_8h.html" title=" " alt="" coords="805,101,858,126"/>
+<area shape="poly" id="edge15_Node000001_Node000013" title=" " alt="" coords="612,39,700,61,794,91,798,92,796,97,792,96,698,66,611,45"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="672,343,743,368"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="596,292,675,334,672,338,593,297"/>
+<area shape="rect" id="Node000007" href="$wire__core__requests_8h.html" title=" " alt="" coords="192,189,352,214"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="335,128,292,179,288,176,331,124"/>
+<area shape="rect" id="Node000008" href="$wire__write__extended__requests_8h.html" title=" " alt="" coords="376,181,535,221"/>
+<area shape="poly" id="edge9_Node000006_Node000008" title=" " alt="" coords="359,124,421,171,418,175,356,128"/>
+<area shape="rect" id="Node000009" href="$wire__vendor__ext_8h.html" title=" " alt="" coords="24,189,167,214"/>
+<area shape="poly" id="edge10_Node000006_Node000009" title=" " alt="" coords="311,128,142,187,141,182,310,123"/>
+<area shape="poly" id="edge7_Node000007_Node000002" title=" " alt="" coords="316,211,525,266,524,271,315,217"/>
+<area shape="poly" id="edge8_Node000007_Node000004" title=" " alt="" coords="252,217,163,265,160,260,249,212"/>
+<area shape="poly" id="edge12_Node000010_Node000003" title=" " alt="" coords="758,131,792,151,807,164,819,180,827,202,827,225,820,247,807,269,773,307,738,336,734,332,770,303,803,266,815,245,822,224,822,203,815,183,803,168,789,155,756,136"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="730,189,805,214"/>
+<area shape="poly" id="edge13_Node000010_Node000011" title=" " alt="" coords="714,132,751,176,747,179,710,135"/>
+<area shape="rect" id="Node000012" title=" " alt="" coords="610,189,706,214"/>
+<area shape="poly" id="edge14_Node000010_Node000012" title=" " alt="" coords="690,135,671,177,666,175,685,133"/>
+</map>

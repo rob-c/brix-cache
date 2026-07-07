@@ -1,0 +1,19 @@
+<map id="src/protocols/s3/usermeta.h" name="src/protocols/s3/usermeta.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="277,5,480,31"/>
+<area shape="rect" id="Node000002" href="$src_2protocols_2s3_2copy_8c.html" title=" " alt="" coords="5,86,173,111"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="324,37,132,89,131,83,323,32"/>
+<area shape="rect" id="Node000003" href="$object_8c.html" title=" " alt="" coords="197,86,376,111"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="356,42,302,88,299,84,353,38"/>
+<area shape="rect" id="Node000004" href="$s3__put__internal_8h.html" title=" " alt="" coords="401,79,543,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="405,38,451,76,448,81,401,42"/>
+<area shape="rect" id="Node000009" href="$usermeta_8c.html" title=" " alt="" coords="567,86,769,111"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="435,32,627,83,625,89,433,37"/>
+<area shape="rect" id="Node000005" href="$s3_2put_8c.html" title=" " alt="" coords="127,174,287,199"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="402,125,243,177,241,171,400,120"/>
+<area shape="rect" id="Node000006" href="$put__aio_8c.html" title=" " alt="" coords="311,167,460,207"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="445,130,406,168,403,165,441,127"/>
+<area shape="rect" id="Node000007" href="$put__chunk_8c.html" title=" " alt="" coords="484,167,633,207"/>
+<area shape="poly" id="edge6_Node000004_Node000007" title=" " alt="" coords="503,127,541,165,538,168,499,130"/>
+<area shape="rect" id="Node000008" href="$put__finalize_8c.html" title=" " alt="" coords="657,167,807,207"/>
+<area shape="poly" id="edge7_Node000004_Node000008" title=" " alt="" coords="543,121,676,164,674,169,541,126"/>
+</map>

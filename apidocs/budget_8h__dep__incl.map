@@ -1,0 +1,13 @@
+<map id="src/protocols/root/connection/budget.h" name="src/protocols/root/connection/budget.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="375,5,533,45"/>
+<area shape="rect" id="Node000002" href="$reads_8c.html" title=" " alt="" coords="5,101,153,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="362,50,130,103,129,98,361,45"/>
+<area shape="rect" id="Node000003" href="$disconnect_8c.html" title=" " alt="" coords="177,93,360,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="402,54,310,96,308,91,400,49"/>
+<area shape="rect" id="Node000004" href="$protocols_2root_2connection_2recv_8c.html" title=" " alt="" coords="385,93,523,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="457,59,457,93,451,93,451,59"/>
+<area shape="rect" id="Node000005" href="$read_8c.html" title=" " alt="" coords="548,93,683,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="503,49,581,91,579,96,500,54"/>
+<area shape="rect" id="Node000006" href="$protocols_2root_2read_2readv_8c.html" title=" " alt="" coords="707,93,841,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="538,46,707,91,705,96,537,51"/>
+</map>

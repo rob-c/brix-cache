@@ -1,0 +1,7 @@
+<map id="brix_file_t" name="brix_file_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="116,93,203,119"/>
+<area shape="rect" id="Node000002" href="$structbrix__wrts__entry__t.html" title=" " alt="" coords="5,5,140,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="96,38,149,91,145,95,92,42"/>
+<area shape="rect" id="Node000003" href="$structbrix__pgw__fob__entry__t.html" title=" " alt="" coords="165,5,327,31"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="235,45,215,71,182,95,179,91,211,67,231,41"/>
+</map>

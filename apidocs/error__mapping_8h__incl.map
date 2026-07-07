@@ -1,0 +1,15 @@
+<map id="src/core/compat/error_mapping.h" name="src/core/compat/error_mapping.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="104,5,265,45"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,101,76,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="154,48,73,96,70,91,152,43"/>
+<area shape="rect" id="Node000003" href="$opcodes_8h.html" title=" " alt="" coords="100,93,269,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="187,46,187,79,182,79,182,46"/>
+<area shape="rect" id="Node000004" href="$namespace__ops_8h.html" title=" " alt="" coords="294,101,433,126"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="225,43,328,92,326,97,223,48"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="189,181,293,207"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="347,128,272,176,269,172,344,124"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="317,181,410,207"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="366,126,366,167,361,167,361,126"/>
+<area shape="rect" id="Node000007" href="$ns__status_8h.html" title=" " alt="" coords="434,181,530,207"/>
+<area shape="poly" id="edge6_Node000004_Node000007" title=" " alt="" coords="382,124,454,171,451,176,379,128"/>
+</map>

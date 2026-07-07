@@ -1,0 +1,21 @@
+<map id="src/core/http/http_xml.c" name="src/core/http/http_xml.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="467,5,600,45"/>
+<area shape="rect" id="Node000002" href="$http__xml_8h.html" title=" " alt="" coords="250,93,342,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="477,48,344,92,343,87,476,43"/>
+<area shape="rect" id="Node000007" href="$core_2compat_2xml_8h.html" title=" " alt="" coords="397,93,541,119"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="520,47,490,84,486,81,516,44"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="565,93,632,119"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="551,44,582,81,578,84,547,47"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="657,93,727,119"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="573,43,658,85,655,90,570,48"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,167,109,192"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="258,121,110,165,108,160,257,116"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="133,167,227,192"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="279,121,212,162,209,157,276,116"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="251,167,341,192"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="299,119,299,153,293,153,293,119"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="365,167,440,192"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="315,116,375,157,372,161,312,121"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="464,167,539,192"/>
+<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="477,118,493,153,488,155,472,120"/>
+</map>

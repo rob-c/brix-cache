@@ -1,0 +1,11 @@
+<map id="src/protocols/cvmfs/origin_geo.h" name="src/protocols/cvmfs/origin_geo.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="265,5,415,45"/>
+<area shape="rect" id="Node000002" href="$geo__answer_8c.html" title=" " alt="" coords="5,93,155,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="271,52,138,96,136,91,269,47"/>
+<area shape="rect" id="Node000003" href="$protocols_2cvmfs_2module_8c.html" title=" " alt="" coords="179,93,328,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="313,57,274,95,271,91,309,53"/>
+<area shape="rect" id="Node000004" href="$origin__geo_8c.html" title=" " alt="" coords="352,93,501,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="371,53,409,91,406,95,367,57"/>
+<area shape="rect" id="Node000005" href="$origin__probe_8c.html" title=" " alt="" coords="525,93,675,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="411,47,544,91,542,96,409,52"/>
+</map>

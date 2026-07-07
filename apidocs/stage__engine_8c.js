@@ -1,0 +1,25 @@
+var stage__engine_8c =
+[
+    [ "stage_pending_t", "structstage__pending__t.html", "structstage__pending__t" ],
+    [ "STAGE_ENGINE_CHUNK", "stage__engine_8c.html#a67e63f7dad01e4f62ee036109bfc3269", null ],
+    [ "STAGE_TICK_BUDGET", "stage__engine_8c.html#a61b3169d1fa64feb55049791dfd616dd", null ],
+    [ "brix_stage_engine_init", "stage__engine_8c.html#a4e65b53a38ab5edfc3f9f391d192db59", null ],
+    [ "brix_stage_kind_str", "stage__engine_8c.html#afe93f72cc1a9c2dfd3c4f619b8f52683", null ],
+    [ "brix_stage_reconcile", "stage__engine_8c.html#a2573183a9cf8f22590a304e27a3836cc", null ],
+    [ "brix_stage_run_inline", "stage__engine_8c.html#a44299274fb70de2b162ec878e789e24e", null ],
+    [ "brix_stage_scheduler_tick", "stage__engine_8c.html#a4e8b3dcbdc9675c8a9f2106b2890c762", null ],
+    [ "brix_stage_submit", "stage__engine_8c.html#a57881cdab786c0baf7e2c97968ef4d75", null ],
+    [ "stage_complete", "stage__engine_8c.html#ab0c65aad58f37fd81b6b2f5a229223e9", null ],
+    [ "stage_engine_move", "stage__engine_8c.html#a99c18e80d7fba16633314c2e9cc992d8", null ],
+    [ "stage_engine_run", "stage__engine_8c.html#a688f23ab6150b5c324e21f7313555057", null ],
+    [ "stage_journal_remove", "stage__engine_8c.html#a50983ef91ada06e838286670a871da0f", null ],
+    [ "stage_journal_write", "stage__engine_8c.html#aed792a34ebea180bdc1d5d6411d5b5a1", null ],
+    [ "stage_kind_dir", "stage__engine_8c.html#af6b5f05b2835099c6d9c44396536190a", null ],
+    [ "stage_kind_to_xfer", "stage__engine_8c.html#a1577c5e90929d5b186d543f2638730cc", null ],
+    [ "stage_reconcile_one", "stage__engine_8c.html#ab75b510fb82fe9db992bc49f0715196b", null ],
+    [ "stage_reqid_mint", "stage__engine_8c.html#af011cd294794d33e6b109b2db83c309f", null ],
+    [ "stage_journal_dir", "stage__engine_8c.html#a297daf869bffceb56ae56d35dd546879", null ],
+    [ "stage_pending_head", "stage__engine_8c.html#a6a0dbec3bbc305037e1bfc15cedf50f7", null ],
+    [ "stage_pending_tail", "stage__engine_8c.html#a305e609248acc990c187c988c59322ef", null ],
+    [ "stage_reqid_seq", "stage__engine_8c.html#afeca0b98d9ac8f38c30daa6f079fef96", null ]
+];

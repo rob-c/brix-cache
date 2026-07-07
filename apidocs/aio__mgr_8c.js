@@ -1,0 +1,24 @@
+var aio__mgr_8c =
+[
+    [ "brix_mgr", "structbrix__mgr.html", "structbrix__mgr" ],
+    [ "mgr_connect_job", "structmgr__connect__job.html", "structmgr__connect__job" ],
+    [ "brix_mfile", "structbrix__mfile.html", "structbrix__mfile" ],
+    [ "brix_mfile_close", "aio__mgr_8c.html#a9f7c9299e112a17d57b8bc520d445e29", null ],
+    [ "brix_mfile_open", "aio__mgr_8c.html#a5880e565459f6962fc16bf996a3d68cb", null ],
+    [ "brix_mfile_pread", "aio__mgr_8c.html#ab48ec2c8fb09e95b099ebd3ce0d96f22", null ],
+    [ "brix_mfile_pwrite", "aio__mgr_8c.html#a881e8929cdbe329af700da67f4d3dd33", null ],
+    [ "brix_mfile_sync", "aio__mgr_8c.html#a40f577665db4051fd8b3917cab58874f", null ],
+    [ "brix_mgr_call", "aio__mgr_8c.html#ad1652dab16eaf9a63902e6f7192a15d8", null ],
+    [ "brix_mgr_create", "aio__mgr_8c.html#aff4b4271b492db51daaac9e21acf7a36", null ],
+    [ "brix_mgr_destroy", "aio__mgr_8c.html#a4f11f4ec08bc9b7e46f240192f72ce94", null ],
+    [ "brix_mgr_pick", "aio__mgr_8c.html#afb5942babe2fcdbdb2bcec565f1aaae7", null ],
+    [ "mfile_do_open", "aio__mgr_8c.html#ab5afe993782a85ee4ffd138da1e7a043", null ],
+    [ "mfile_reopen", "aio__mgr_8c.html#ad7ac14314c25ce514e6536a09a4289ce", null ],
+    [ "mfile_should_reopen", "aio__mgr_8c.html#a5d147c7fb49cab8db832ef1e095e59b2", null ],
+    [ "mfile_snapshot", "aio__mgr_8c.html#a87047f75c0d12dc27dec9ead4fe2d13e", null ],
+    [ "mgr_connect_parallel", "aio__mgr_8c.html#a48ff86596568156362f72ebd9aed95bf", null ],
+    [ "mgr_connect_worker", "aio__mgr_8c.html#afa56d16a4b0226c784aa63da6148fffc", null ],
+    [ "mgr_ensure_slot", "aio__mgr_8c.html#ac6ea60e20e130418becaffeb42935de9", null ],
+    [ "mgr_free", "aio__mgr_8c.html#aa5e3df7cd22b0135717d9ae9817533b7", null ],
+    [ "now_ns", "aio__mgr_8c.html#a76216c2b088e0c1b1cac18f413ba848c", null ]
+];

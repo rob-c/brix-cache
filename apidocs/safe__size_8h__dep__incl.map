@@ -1,0 +1,19 @@
+<map id="src/core/compat/safe_size.h" name="src/core/compat/safe_size.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="581,5,739,45"/>
+<area shape="rect" id="Node000002" href="$proxy__req_8c.html" title=" " alt="" coords="5,93,144,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="567,39,377,62,156,96,145,98,144,93,156,91,376,57,566,34"/>
+<area shape="rect" id="Node000003" href="$jwks_8c.html" title=" " alt="" coords="169,101,327,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="568,48,303,103,302,98,567,43"/>
+<area shape="rect" id="Node000004" href="$uring__submit_8c.html" title=" " alt="" coords="351,93,486,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="595,52,472,96,471,91,593,47"/>
+<area shape="rect" id="Node000005" href="$evict__candidates_8c.html" title=" " alt="" coords="510,93,645,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="634,57,598,95,594,91,630,54"/>
+<area shape="rect" id="Node000006" href="$src_2net_2proxy_2pool_8c.html" title=" " alt="" coords="669,101,819,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="690,53,734,98,730,102,686,57"/>
+<area shape="rect" id="Node000007" href="$protocols_2root_2read_2readv_8c.html" title=" " alt="" coords="843,93,978,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="729,47,857,91,855,96,727,52"/>
+<area shape="rect" id="Node000008" href="$zip__dir_8c.html" title=" " alt="" coords="1002,93,1137,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="754,42,991,91,1003,93,1001,98,990,96,752,47"/>
+<area shape="rect" id="Node000009" href="$tape__rest_8c.html" title=" " alt="" coords="1161,93,1321,133"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="753,35,937,59,1150,91,1162,93,1161,98,1149,96,936,64,753,40"/>
+</map>

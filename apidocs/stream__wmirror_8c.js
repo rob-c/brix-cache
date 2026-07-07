@@ -1,0 +1,37 @@
+var stream__wmirror_8c =
+[
+    [ "brix_wmirror_file_t", "structbrix__wmirror__file__t.html", "structbrix__wmirror__file__t" ],
+    [ "brix_wmirror_conn_t", "structbrix__wmirror__conn__t.html", "structbrix__wmirror__conn__t" ],
+    [ "brix_wmirror_replay_t", "structbrix__wmirror__replay__t.html", "structbrix__wmirror__replay__t" ],
+    [ "BRIX_WMIR_METRIC_INC", "stream__wmirror_8c.html#ab9109167d7752aebd5524e630e136432", null ],
+    [ "BRIX_WMIRROR_CONN_CAP", "stream__wmirror_8c.html#aaf6bc35c63deb74260412e648650d88f", null ],
+    [ "BRIX_WMIRROR_FILE_CAP", "stream__wmirror_8c.html#a0285a30a175c26a643d4eb4773614bc8", null ],
+    [ "wmir_phase_t", "stream__wmirror_8c.html#af848fa23c6917e5c2460fe5ad4ddcbba", [
+      [ "WMIR_HANDSHAKE", "stream__wmirror_8c.html#af848fa23c6917e5c2460fe5ad4ddcbbaa493b5b72ec871da74f6fc9928074ca2e", null ],
+      [ "WMIR_PROTOCOL", "stream__wmirror_8c.html#af848fa23c6917e5c2460fe5ad4ddcbbaa6154937d0e09bbc0e2ea7738759cb3c4", null ],
+      [ "WMIR_LOGIN", "stream__wmirror_8c.html#af848fa23c6917e5c2460fe5ad4ddcbbaaadf47cef92eb08077531ecee5830d19a", null ],
+      [ "WMIR_OPEN", "stream__wmirror_8c.html#af848fa23c6917e5c2460fe5ad4ddcbbaa45bacf89c0f07423d2c78af7f778ddbd", null ],
+      [ "WMIR_WRITE", "stream__wmirror_8c.html#af848fa23c6917e5c2460fe5ad4ddcbbaaec584f6b15002e014ecb36aa4fe5dd0a", null ],
+      [ "WMIR_CLOSE", "stream__wmirror_8c.html#af848fa23c6917e5c2460fe5ad4ddcbbaaead3ac807c244dbcb24bb16ab1252dfe", null ]
+    ] ],
+    [ "brix_stream_wmirror_cleanup", "stream__wmirror_8c.html#ac18a65748ead107a573ae3df0fa1a388", null ],
+    [ "brix_stream_wmirror_observe", "stream__wmirror_8c.html#a8c2cd88bc99168eee70234fa9e4b8240", null ],
+    [ "brix_stream_wmirror_on_open", "stream__wmirror_8c.html#a010465834302d273acacc5ee25389503", null ],
+    [ "brix_upstream_build_bootstrap", "stream__wmirror_8c.html#ae710b61b62fec14972c4be7b3aaca8c4", null ],
+    [ "wmir_dispatch", "stream__wmirror_8c.html#a1b54a4557e4b42274cde410e7aeb6ea7", null ],
+    [ "wmir_file_reset", "stream__wmirror_8c.html#a1427ea4cf5db575c6d8afff2fcfe11c4", null ],
+    [ "wmir_finish", "stream__wmirror_8c.html#a212f41a3f4058ce0738ea931753e4fca", null ],
+    [ "wmir_flush", "stream__wmirror_8c.html#a27f25acdadc8f6fc18eff588bf2c9096", null ],
+    [ "wmir_gate", "stream__wmirror_8c.html#abdb3dcc0cd33e9488476b07218eef87e", null ],
+    [ "wmir_launch", "stream__wmirror_8c.html#a892ff3c71c57ee2623d52354b568a01a", null ],
+    [ "wmir_read_handler", "stream__wmirror_8c.html#a1d8b4b3844aac91034ceeb58c2f0047a", null ],
+    [ "wmir_recv_frame", "stream__wmirror_8c.html#a9dbadeea77bc222ef2c786cf3a119f52", null ],
+    [ "wmir_reset_frame", "stream__wmirror_8c.html#aa5e4dcbb2ef26c48b135d24853222df3", null ],
+    [ "wmir_send_close", "stream__wmirror_8c.html#a8451807595f6cad3059e812b0dd72f21", null ],
+    [ "wmir_send_open", "stream__wmirror_8c.html#aa058e0d1a62841f4ee8212f8616a57bd", null ],
+    [ "wmir_send_write", "stream__wmirror_8c.html#ac388e28791a3fca8eab9804e7ab99acc", null ],
+    [ "wmir_start", "stream__wmirror_8c.html#aeb0c23b72c6dce52389f0b3460e073ce", null ],
+    [ "wmir_status_ok", "stream__wmirror_8c.html#ae96fa35d1e46434ebf433de4709d627b", null ],
+    [ "wmir_timeout_handler", "stream__wmirror_8c.html#ace1468c605782197ad716839d49b9e07", null ],
+    [ "wmir_write_handler", "stream__wmirror_8c.html#ac368856dcd69db273b24dad2d0e86cd4", null ]
+];

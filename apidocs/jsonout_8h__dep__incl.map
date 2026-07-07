@@ -1,0 +1,25 @@
+<map id="client/lib/cli/jsonout.h" name="client/lib/cli/jsonout.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="382,5,543,31"/>
+<area shape="rect" id="Node000002" href="$diag__check_8c.html" title=" " alt="" coords="5,79,163,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="395,36,163,84,162,78,394,31"/>
+<area shape="rect" id="Node000003" href="$diag__topology_8c.html" title=" " alt="" coords="187,79,344,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="422,38,314,81,312,76,420,33"/>
+<area shape="rect" id="Node000004" href="$xrddiag_8c.html" title=" " alt="" coords="368,86,557,111"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="465,44,465,86,460,86,460,44"/>
+<area shape="rect" id="Node000005" href="$xrdfs__internal_8h.html" title=" " alt="" coords="581,79,728,119"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="504,33,610,76,608,81,502,38"/>
+<area shape="rect" id="Node000012" href="$jsonout_8c.html" title=" " alt="" coords="752,86,912,111"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="530,31,779,83,778,89,529,36"/>
+<area shape="rect" id="Node000006" href="$xrdfs_8c.html" title=" " alt="" coords="144,174,301,199"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="568,122,314,169,278,177,277,171,313,164,567,116"/>
+<area shape="rect" id="Node000007" href="$xrdfs__data_8c.html" title=" " alt="" coords="325,167,472,207"/>
+<area shape="poly" id="edge6_Node000005_Node000007" title=" " alt="" coords="586,126,456,169,454,164,585,121"/>
+<area shape="rect" id="Node000008" href="$xrdfs__fmt_8c.html" title=" " alt="" coords="496,167,643,207"/>
+<area shape="poly" id="edge7_Node000005_Node000008" title=" " alt="" coords="628,130,590,168,586,165,624,127"/>
+<area shape="rect" id="Node000009" href="$xrdfs__meta_8c.html" title=" " alt="" coords="667,167,813,207"/>
+<area shape="poly" id="edge8_Node000005_Node000009" title=" " alt="" coords="685,127,723,165,719,168,681,130"/>
+<area shape="rect" id="Node000010" href="$xrdfs__walk_8c.html" title=" " alt="" coords="837,167,984,207"/>
+<area shape="poly" id="edge9_Node000005_Node000010" title=" " alt="" coords="725,121,855,164,854,169,723,126"/>
+<area shape="rect" id="Node000011" href="$xrdfs__web_8c.html" title=" " alt="" coords="1008,167,1155,207"/>
+<area shape="poly" id="edge10_Node000005_Node000011" title=" " alt="" coords="742,116,997,164,1008,166,1007,172,995,169,741,122"/>
+</map>

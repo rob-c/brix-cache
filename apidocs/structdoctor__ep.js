@@ -1,0 +1,28 @@
+var structdoctor__ep =
+[
+    [ "auth", "structdoctor__ep.html#a19727cb851cd796e8de0d0a07570f0e7", null ],
+    [ "caps", "structdoctor__ep.html#a41a969e1cdef8864d737e60c2efd92d4", null ],
+    [ "connected", "structdoctor__ep.html#a0ef8451a215950d7f460b73c57d70a5d", null ],
+    [ "dx", "structdoctor__ep.html#a9a1d35a10469b918ce01b282fcd3198b", null ],
+    [ "ghost", "structdoctor__ep.html#af6ed2efe4c182cc123ff1cdd2488aca9", null ],
+    [ "gototls", "structdoctor__ep.html#aa7992190a9107fc2e030d113ad9f5bcb", null ],
+    [ "have_xfer", "structdoctor__ep.html#a8830d5aad7d2408ac081d2ec72d5f254", null ],
+    [ "holders", "structdoctor__ep.html#aa47c0f201318f9a3ed9a87669772aab8", null ],
+    [ "host", "structdoctor__ep.html#af720ba7467ca5c22fa62f9558355eb0b", null ],
+    [ "issues", "structdoctor__ep.html#a012c7ffab38c458ea2aeb3bebe5c5b2f", null ],
+    [ "mbps", "structdoctor__ep.html#a57b34fdf1f0864d8c5fa3197f4591976", null ],
+    [ "metrics_http", "structdoctor__ep.html#a217c39e46aa6f532998edacf5ba95808", null ],
+    [ "ndx", "structdoctor__ep.html#a1e53af144004df3d1487f4c4276ec9ec", null ],
+    [ "nf", "structdoctor__ep.html#a30aa0be6154fc3ccddfd3c3c3c86217e", null ],
+    [ "nissues", "structdoctor__ep.html#a246845b6de6899267044861a634c2e19", null ],
+    [ "offline_seen", "structdoctor__ep.html#a3616a5b31a6d01e2762ae3eb67d20a62", null ],
+    [ "port", "structdoctor__ep.html#af0dd1979532f878779bc664ec2120add", null ],
+    [ "proto", "structdoctor__ep.html#a92d853d4b81b0c40e8e1991567a3cfac", null ],
+    [ "shedding", "structdoctor__ep.html#ab2040a09a33a95df03a81a4019518526", null ],
+    [ "status", "structdoctor__ep.html#a036d1a8492d840c526e468d63e69ba35", null ],
+    [ "tls_active", "structdoctor__ep.html#aa4b2c711e1e5c1ab72c3b214c7dfe989", null ],
+    [ "tls_cipher", "structdoctor__ep.html#a27cfb88b26b018c5137dce052bb198b8", null ],
+    [ "tls_ver", "structdoctor__ep.html#a8bc8936ff878c82f4e703f119fd76d6e", null ],
+    [ "ttfb_ms", "structdoctor__ep.html#a8b47e6c962f10d4448e6b30865aea568", null ],
+    [ "xfer_bytes", "structdoctor__ep.html#a740cb31f5c880b863ed99e2c46c6d167", null ]
+];

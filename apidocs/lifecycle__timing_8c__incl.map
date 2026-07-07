@@ -1,0 +1,14 @@
+<map id="src/core/compat/lifecycle_timing.c" name="src/core/compat/lifecycle_timing.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="114,5,299,45"/>
+<area shape="rect" id="Node000002" href="$lifecycle__timing_8h.html" title=" " alt="" coords="75,93,213,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="194,47,164,84,160,81,189,44"/>
+<area shape="rect" id="Node000005" href="$time_8h.html" title=" " alt="" coords="237,93,301,119"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="224,44,253,81,249,84,220,47"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,167,99,192"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="131,121,79,160,76,156,128,117"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="123,167,194,192"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="149,118,156,153,151,154,144,120"/>
+<area shape="poly" id="edge6_Node000005_Node000005" title=" " alt="" coords="296,91,317,92,325,97,328,106,323,117,310,122,309,117,319,113,323,106,321,101,315,97,296,96"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="232,167,307,192"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="272,119,272,153,267,153,267,119"/>
+</map>

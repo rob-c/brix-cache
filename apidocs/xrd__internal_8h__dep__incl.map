@@ -1,0 +1,13 @@
+<map id="client/apps/diag/xrd_internal.h" name="client/apps/diag/xrd_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="365,5,516,45"/>
+<area shape="rect" id="Node000002" href="$xrd_8c.html" title=" " alt="" coords="5,101,167,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="353,51,134,103,133,98,351,45"/>
+<area shape="rect" id="Node000003" href="$xrd__battery_8c.html" title=" " alt="" coords="191,93,341,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="391,54,305,96,303,91,389,49"/>
+<area shape="rect" id="Node000004" href="$xrd__clockskew_8c.html" title=" " alt="" coords="365,93,516,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="443,59,443,93,438,93,438,59"/>
+<area shape="rect" id="Node000005" href="$xrd__doctor_8c.html" title=" " alt="" coords="540,93,691,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="492,49,578,91,576,96,490,54"/>
+<area shape="rect" id="Node000006" href="$xrd__mount_8c.html" title=" " alt="" coords="715,93,865,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="530,46,715,91,714,96,528,51"/>
+</map>

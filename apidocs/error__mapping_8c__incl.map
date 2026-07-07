@@ -1,0 +1,19 @@
+<map id="src/core/compat/error_mapping.c" name="src/core/compat/error_mapping.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="165,5,327,45"/>
+<area shape="rect" id="Node000002" href="$error__mapping_8h.html" title=" " alt="" coords="120,93,249,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="233,47,204,84,200,81,229,44"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="273,93,341,119"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="263,44,292,81,288,84,259,47"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,174,76,199"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="165,121,75,170,73,165,162,116"/>
+<area shape="rect" id="Node000004" href="$opcodes_8h.html" title=" " alt="" coords="100,167,269,207"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="187,119,187,153,182,153,182,119"/>
+<area shape="rect" id="Node000005" href="$namespace__ops_8h.html" title=" " alt="" coords="294,174,433,199"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="212,116,326,166,324,171,210,121"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="189,255,293,280"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="347,202,272,249,269,245,344,197"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="317,255,410,280"/>
+<area shape="poly" id="edge6_Node000005_Node000007" title=" " alt="" coords="366,200,366,241,361,241,361,200"/>
+<area shape="rect" id="Node000008" href="$ns__status_8h.html" title=" " alt="" coords="434,255,530,280"/>
+<area shape="poly" id="edge7_Node000005_Node000008" title=" " alt="" coords="382,197,454,245,451,249,379,202"/>
+</map>

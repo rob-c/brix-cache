@@ -1,0 +1,19 @@
+<map id="src/net/upstream/upstream_internal.h" name="src/net/upstream/upstream_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="769,5,967,45"/>
+<area shape="rect" id="Node000002" href="$src_2net_2upstream_2auth_8c.html" title=" " alt="" coords="5,93,181,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="755,40,194,96,182,97,181,92,193,91,755,35"/>
+<area shape="rect" id="Node000003" href="$net_2upstream_2bootstrap_8c.html" title=" " alt="" coords="206,93,415,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="755,45,392,96,391,91,754,40"/>
+<area shape="rect" id="Node000004" href="$net_2upstream_2events_8c.html" title=" " alt="" coords="439,93,630,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="776,51,584,96,583,91,775,46"/>
+<area shape="rect" id="Node000005" href="$net_2upstream_2lifecycle_8c.html" title=" " alt="" coords="655,93,857,119"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="831,55,774,95,771,91,828,51"/>
+<area shape="rect" id="Node000006" href="$net_2upstream_2request_8c.html" title=" " alt="" coords="882,93,1078,119"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="908,51,965,91,962,95,905,55"/>
+<area shape="rect" id="Node000007" href="$response_8c.html" title=" " alt="" coords="1102,93,1309,119"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="963,46,1157,91,1155,96,961,51"/>
+<area shape="rect" id="Node000008" href="$start_8c.html" title=" " alt="" coords="1333,93,1510,119"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="981,40,1341,91,1340,96,981,45"/>
+<area shape="rect" id="Node000009" href="$src_2net_2upstream_2tls_8c.html" title=" " alt="" coords="1535,93,1697,119"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="982,35,1523,91,1535,92,1534,97,1522,96,981,40"/>
+</map>

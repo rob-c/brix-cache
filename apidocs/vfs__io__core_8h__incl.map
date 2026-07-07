@@ -1,0 +1,21 @@
+<map id="src/fs/vfs/vfs_io_core.h" name="src/fs/vfs/vfs_io_core.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="187,5,357,31"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,152,109,177"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="256,33,88,146,85,142,253,29"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="133,152,227,177"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="267,33,197,142,192,139,262,30"/>
+<area shape="rect" id="Node000004" href="$sd_8h.html" title=" " alt="" coords="309,79,432,104"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="289,29,345,68,342,73,286,33"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="251,152,322,177"/>
+<area shape="poly" id="edge10_Node000001_Node000005" title=" " alt="" coords="276,31,287,138,281,139,271,31"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="560,152,656,177"/>
+<area shape="poly" id="edge11_Node000001_Node000007" title=" " alt="" coords="311,28,374,49,445,76,517,110,578,143,575,148,515,115,443,81,373,54,309,33"/>
+<area shape="poly" id="edge4_Node000004_Node000002" title=" " alt="" coords="321,107,122,152,121,146,320,101"/>
+<area shape="poly" id="edge5_Node000004_Node000003" title=" " alt="" coords="341,107,225,149,223,144,339,102"/>
+<area shape="poly" id="edge6_Node000004_Node000005" title=" " alt="" coords="359,106,313,145,309,141,355,102"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="347,152,432,177"/>
+<area shape="poly" id="edge7_Node000004_Node000006" title=" " alt="" coords="376,104,385,138,380,140,371,105"/>
+<area shape="poly" id="edge8_Node000004_Node000007" title=" " alt="" coords="410,101,557,145,556,151,408,107"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="456,152,536,177"/>
+<area shape="poly" id="edge9_Node000004_Node000008" title=" " alt="" coords="392,102,465,143,462,147,389,106"/>
+</map>

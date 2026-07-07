@@ -1,0 +1,25 @@
+var protocols_2root_2session_2registry_8h =
+[
+    [ "brix_session_entry_t", "structbrix__session__entry__t.html", "structbrix__session__entry__t" ],
+    [ "brix_shared_handle_entry_t", "structbrix__shared__handle__entry__t.html", "structbrix__shared__handle__entry__t" ],
+    [ "brix_session_table_t", "structbrix__session__table__t.html", "structbrix__session__table__t" ],
+    [ "brix_shared_handle_table_t", "structbrix__shared__handle__table__t.html", "structbrix__shared__handle__table__t" ],
+    [ "BRIX_SESSION_HANDLE_SESSIONS", "protocols_2root_2session_2registry_8h.html#adbdd58bb3c475c18a7dc1de9babcc7a6", null ],
+    [ "BRIX_SESSION_HANDLE_SLOTS", "protocols_2root_2session_2registry_8h.html#ab0b506155ae19ecc1f03fb26e7bb1979", null ],
+    [ "BRIX_SESSION_HANDLES_PER_SESSION", "protocols_2root_2session_2registry_8h.html#a32bee3a95b3fce292bcbad26e074aa1b", null ],
+    [ "BRIX_SESSION_REAP_MIN_AGE_MS", "protocols_2root_2session_2registry_8h.html#a3deee1b1423125e38232ff9c1dbc5d60", null ],
+    [ "BRIX_SESSION_REGISTRY_SLOTS", "protocols_2root_2session_2registry_8h.html#a6cdd31a71bb9bf5f54ae20e2ecebf5ed", null ],
+    [ "brix_configure_session_registry", "protocols_2root_2session_2registry_8h.html#ad9ce963149cfc41f14664020bdd8a81d", null ],
+    [ "brix_handle_shm_init_zone", "protocols_2root_2session_2registry_8h.html#a5aed299d5c71f85d4a931f7074647911", null ],
+    [ "brix_session_handle_lookup", "protocols_2root_2session_2registry_8h.html#a464bfdd22f0d7130248304f026c2ff28", null ],
+    [ "brix_session_handle_lookup_hint", "protocols_2root_2session_2registry_8h.html#a517af31c69d8e27fa6eff336457a12f4", null ],
+    [ "brix_session_handle_publish", "protocols_2root_2session_2registry_8h.html#afb3da768fd7c9411fa1b93f7992b7832", null ],
+    [ "brix_session_handle_unpublish", "protocols_2root_2session_2registry_8h.html#a1b68552dc693df7ea280f14749d510fd", null ],
+    [ "brix_session_handle_unpublish_all", "protocols_2root_2session_2registry_8h.html#afb7fef7e504a88f5272b1509a75f02ab", null ],
+    [ "brix_session_lookup", "protocols_2root_2session_2registry_8h.html#a355ec180b00e14c71214afc5209e69f1", null ],
+    [ "brix_session_register", "protocols_2root_2session_2registry_8h.html#ac47718cea8621f0186689cb8f839d71d", null ],
+    [ "brix_session_shm_init_zone", "protocols_2root_2session_2registry_8h.html#a73b62e13edeba66c924a2c325099a26f", null ],
+    [ "brix_session_unregister", "protocols_2root_2session_2registry_8h.html#ab8d523d6ae21fce531d9eb7c14ff2183", null ],
+    [ "brix_handle_shm_zone", "protocols_2root_2session_2registry_8h.html#a6a5d3d69ee68a3dbefcdaa807e75882d", null ],
+    [ "brix_session_shm_zone", "protocols_2root_2session_2registry_8h.html#a9d849f1a0360f9149286ac96672851fb", null ]
+];

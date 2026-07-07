@@ -1,0 +1,30 @@
+var server_8h =
+[
+    [ "brix_cms_srv_ctx_t", "structbrix__cms__srv__ctx__t.html", "structbrix__cms__srv__ctx__t" ],
+    [ "ngx_stream_brix_cms_srv_conf_t", "structngx__stream__brix__cms__srv__conf__s.html", "structngx__stream__brix__cms__srv__conf__s" ],
+    [ "brix_cms_auth_state_t", "server_8h.html#aa088a4989e046ecb939aa98569d982aa", [
+      [ "CMS_AUTH_NONE", "server_8h.html#aa088a4989e046ecb939aa98569d982aaa49e058a8f1a6b58605c238cbc11bb58a", null ],
+      [ "CMS_AUTH_REQUESTED", "server_8h.html#aa088a4989e046ecb939aa98569d982aaa1abf93ddceb4434c073d2a093224e539", null ],
+      [ "CMS_AUTH_CHALLENGED", "server_8h.html#aa088a4989e046ecb939aa98569d982aaa8f7a52f8ac35ed26af072a1f098d125f", null ],
+      [ "CMS_AUTH_DONE", "server_8h.html#aa088a4989e046ecb939aa98569d982aaae0e6e8f1ed7bd8ebfc83e2a4cb4b1a98", null ]
+    ] ],
+    [ "brix_cms_srv_check_peer", "server_8h.html#a4a878fa6f354154a93256a4774c0cf58", null ],
+    [ "brix_cms_srv_close", "server_8h.html#a6aaba9378247d34d26205805661cb23d", null ],
+    [ "brix_cms_srv_conn_count", "server_8h.html#a51924a38c9d4c85932187a577c8e8684", null ],
+    [ "brix_cms_srv_conn_dec", "server_8h.html#ae54ca5b2bbf172955ad42f71e813fa96", null ],
+    [ "brix_cms_srv_conn_inc", "server_8h.html#a7716314a16359aab43b7312bfee822e4", null ],
+    [ "brix_cms_srv_handler", "server_8h.html#a68276b65f6ad5d03b5f1d739aff1327a", null ],
+    [ "brix_cms_srv_ip_count", "server_8h.html#aa534eeb6b7c916f5982e373e56cec55d", null ],
+    [ "brix_cms_srv_ip_dec", "server_8h.html#aa2bed0e05dad4ca684931a9c769744cd", null ],
+    [ "brix_cms_srv_ip_inc", "server_8h.html#aa782c0dbde172e484bb46af6868660e6", null ],
+    [ "brix_cms_srv_read", "server_8h.html#a887cfd233a0c7626ba5057b8c72bbfe1", null ],
+    [ "brix_cms_srv_send_data", "server_8h.html#a5ca72a83c9aefb7fb1fb20367ad1d895", null ],
+    [ "brix_cms_srv_send_disc", "server_8h.html#a4db06d6978ea54881c3ff56c69d79381", null ],
+    [ "brix_cms_srv_send_ping", "server_8h.html#a3e6794c1b031140ee2557e6bb55bb063", null ],
+    [ "brix_cms_srv_send_pong", "server_8h.html#a9003f0125034d670ed3cada345ebd5fc", null ],
+    [ "brix_cms_srv_send_status", "server_8h.html#ac17c089a3c63f4e9f739863ded64f7d8", null ],
+    [ "brix_cms_srv_send_xauth", "server_8h.html#a28afe7f1c13b73ac5ce9411c83eb17e3", null ],
+    [ "brix_cms_srv_verify_xauth", "server_8h.html#ada0cbac515207d89ab8df979b52f5f4e", null ],
+    [ "brix_cms_srv_write", "server_8h.html#a2b993910d7f982032d51fa57710798fe", null ],
+    [ "ngx_stream_brix_cms_srv_module", "server_8h.html#ad25c0cdc98bd3193c6b2990e97f92d3c", null ]
+];

@@ -1,0 +1,11 @@
+<map id="brix_vfs_backend_entry_t" name="brix_vfs_backend_entry_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="134,196,322,221"/>
+<area shape="rect" id="Node000002" href="$structbrix__tier__cfg__t.html" title=" " alt="" coords="13,93,128,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="95,126,152,170,200,194,197,198,149,174,91,130"/>
+<area shape="rect" id="Node000003" href="$structbrix__credential__t.html" title=" " alt="" coords="5,5,136,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="73,45,73,93,68,93,68,45"/>
+<area shape="rect" id="Node000004" href="$structbrix__cache__policy__t.html" title=" " alt="" coords="153,93,303,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="231,133,231,196,225,196,225,133"/>
+<area shape="rect" id="Node000005" href="$structbrix__stage__policy__t.html" title=" " alt="" coords="327,93,475,119"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="382,130,355,153,324,174,268,198,266,194,321,170,352,149,378,126"/>
+</map>

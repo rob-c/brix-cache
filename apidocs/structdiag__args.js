@@ -1,0 +1,25 @@
+var structdiag__args =
+[
+    [ "allow_write", "structdiag__args.html#a17b8ce4af1e3597d36448f9dd70ecf4b", null ],
+    [ "auth_suite", "structdiag__args.html#a192d60a07dcd8c7c0671ba78bb285526", null ],
+    [ "authorized", "structdiag__args.html#ae178389a86b128f701455c212fdad3d6", null ],
+    [ "cluster_url", "structdiag__args.html#ae181f47aca6ce12335dc6d9fd6d7b639", null ],
+    [ "conn", "structdiag__args.html#a671b963d2d95c48e680d5f79423c6922", null ],
+    [ "count", "structdiag__args.html#adb95574ca7bf3a17e6ab1522cc0e7900", null ],
+    [ "dashboard_port", "structdiag__args.html#a2aba8832d3c9c0077c9d499907afe96f", null ],
+    [ "davs", "structdiag__args.html#a790405525d372c7d0ba8be3d197f781e", null ],
+    [ "interval_s", "structdiag__args.html#a989955884756c7e3a8a7491acc2e1e96", null ],
+    [ "json", "structdiag__args.html#accdcd28c18462c4ecc6dd2dee2016fc3", null ],
+    [ "metrics_port", "structdiag__args.html#a06a62c02616bb866b209ded27ff5415a", null ],
+    [ "nurls", "structdiag__args.html#a0a8c148029a0ae53e5933505a3338135", null ],
+    [ "playback_url", "structdiag__args.html#a2b9677d34190461feee68ca86fd9ba23", null ],
+    [ "probe_timeout_ms", "structdiag__args.html#a8c87a4c576a341db1dc848b692ac11f5", null ],
+    [ "prom_path", "structdiag__args.html#a730be49f56ce635efda46f3733299818", null ],
+    [ "ref_url", "structdiag__args.html#a12434c96321c66d5eb82929880d2749a", null ],
+    [ "streams", "structdiag__args.html#ac8e3cc7e70bd7318f9cfe8d882d3c150", null ],
+    [ "sweep", "structdiag__args.html#aff8207587e3c68bc78493cfa6f4208bc", null ],
+    [ "url", "structdiag__args.html#a6a292e0a5a05ebff78040b425224a348", null ],
+    [ "urls", "structdiag__args.html#a0d44c1d4b8c3e6ff6ae592514f8f65aa", null ],
+    [ "verify_tls", "structdiag__args.html#aacdb270f62128bbfab52ff7440e18bf0", null ],
+    [ "watch_prom", "structdiag__args.html#a5360b9d4c9f1482f0225381c03a69931", null ]
+];

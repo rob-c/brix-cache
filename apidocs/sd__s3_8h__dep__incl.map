@@ -1,0 +1,22 @@
+<map id="src/fs/backend/s3/sd_s3.h" name="src/fs/backend/s3/sd_s3.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="623,5,809,31"/>
+<area shape="rect" id="Node000002" href="$vfs__s3__internal_8h.html" title=" " alt="" coords="355,79,511,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="663,37,502,81,501,76,661,32"/>
+<area shape="rect" id="Node000007" href="$sd__remote_8c.html" title=" " alt="" coords="573,79,739,119"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="701,43,673,80,668,77,697,40"/>
+<area shape="rect" id="Node000008" href="$sd__s3_8c.html" title=" " alt="" coords="723,174,909,199"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="732,41,811,172,807,175,728,44"/>
+<area shape="rect" id="Node000009" href="$sd__s3__internal_8h.html" title=" " alt="" coords="815,79,969,119"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="755,34,851,76,849,81,753,39"/>
+<area shape="rect" id="Node000003" href="$vfs__s3_8c.html" title=" " alt="" coords="5,167,157,207"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="344,124,158,169,157,164,342,119"/>
+<area shape="rect" id="Node000004" href="$vfs__s3__http_8c.html" title=" " alt="" coords="181,167,333,207"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="384,127,297,169,295,164,381,122"/>
+<area shape="rect" id="Node000005" href="$vfs__s3__io_8c.html" title=" " alt="" coords="357,167,509,207"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="436,133,436,166,431,166,431,133"/>
+<area shape="rect" id="Node000006" href="$vfs__s3__transport_8c.html" title=" " alt="" coords="534,167,698,207"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="487,122,577,164,575,169,485,127"/>
+<area shape="poly" id="edge9_Node000009_Node000008" title=" " alt="" coords="868,131,828,175,825,172,864,127"/>
+<area shape="rect" id="Node000010" href="$sd__s3__meta_8c.html" title=" " alt="" coords="934,167,1087,207"/>
+<area shape="poly" id="edge10_Node000009_Node000010" title=" " alt="" coords="931,125,986,164,983,169,928,129"/>
+</map>

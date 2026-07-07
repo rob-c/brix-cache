@@ -1,0 +1,25 @@
+var vfs_8c =
+[
+    [ "VFS_MAX_BACKENDS", "vfs_8c.html#a96a09a1b9f49a70d31a527085fc4889a", null ],
+    [ "brix_vfs_abort", "vfs_8c.html#af4f59bf7aa4de8e6eb70e6235fe9a386", null ],
+    [ "brix_vfs_block_backend", "vfs_8c.html#adceea1ead08458591ef707abb946f883", null ],
+    [ "brix_vfs_close", "vfs_8c.html#a77c7890caa24c2efded63d2d2c02a965", null ],
+    [ "brix_vfs_commit", "vfs_8c.html#a6d487d7d9e39a53c6f60bb641c17b87c", null ],
+    [ "brix_vfs_fstat", "vfs_8c.html#a5f202954aacc23272649d87000f27a96", null ],
+    [ "brix_vfs_get_caps", "vfs_8c.html#a7c32afc9f1a9768b44fa5ea7f4fb49d3", null ],
+    [ "brix_vfs_open", "vfs_8c.html#ad1bff8e2fcfa1cb3f4b7298a42c7b6b6", null ],
+    [ "brix_vfs_posix_backend", "vfs_8c.html#a3a44b3b8014b7b2451f027f0038c1750", null ],
+    [ "brix_vfs_pread", "vfs_8c.html#a7629efa3c83e98673eca1138caf2b250", null ],
+    [ "brix_vfs_pwrite", "vfs_8c.html#a910feddd7f2ac6ed695818f30258d79b", null ],
+    [ "brix_vfs_register_backend", "vfs_8c.html#a9f026a85e4cd8ffb0adbc8c7c0d3e63f", null ],
+    [ "brix_vfs_s3_backend", "vfs_8c.html#af86e0a68cbeaa7d031b02db4a6505fc2", null ],
+    [ "brix_vfs_stat_url", "vfs_8c.html#a0704b4fc9439ce0037f4505319c4f121", null ],
+    [ "brix_vfs_sync", "vfs_8c.html#a832486c44a0e8805af0a5f302b21dd50", null ],
+    [ "brix_vfs_truncate", "vfs_8c.html#a3035f3e3a3aaf395986965062a4407b3", null ],
+    [ "vfs_find_backend", "vfs_8c.html#aff5d137fc9932a8daf5b01e50a6350e3", null ],
+    [ "vfs_init_backends", "vfs_8c.html#a2defb97dc849cca8add46a66a2d610c0", null ],
+    [ "vfs_url_to_scheme", "vfs_8c.html#ae8dcabf914b32814be921e4089d3deb0", null ],
+    [ "g_backends", "vfs_8c.html#a1dfc7300eeff8925c5fcdb363f782a71", null ],
+    [ "g_init_once", "vfs_8c.html#a0862fc41f1f0b18308f5b36d7b20efe3", null ],
+    [ "g_n_backends", "vfs_8c.html#a78e3d1df3684e71f5e61314f7df7fe64", null ]
+];

@@ -1,0 +1,9 @@
+<map id="src/protocols/root/zip/zip_http.h" name="src/protocols/root/zip/zip_http.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="187,5,321,45"/>
+<area shape="rect" id="Node000002" href="$zip__http_8c.html" title=" " alt="" coords="5,93,140,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="203,54,114,96,111,91,201,49"/>
+<area shape="rect" id="Node000003" href="$object_8c.html" title=" " alt="" coords="165,101,343,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="257,59,257,100,251,100,251,59"/>
+<area shape="rect" id="Node000004" href="$webdav_2get_8c.html" title=" " alt="" coords="367,93,527,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="310,49,406,91,404,96,308,53"/>
+</map>

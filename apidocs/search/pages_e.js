@@ -1,0 +1,26 @@
+var searchData=
+[
+  ['layer_0',['layer',['../md_src_2fs_2backend_2README.html',1,'fs/backend — Storage Driver (SD) layer'],['../md_src_2fs_2core_2README.html',1,'src/fs/core — the shared &lt;tt&gt;vfs&lt;/tt&gt; I/O verb layer']]],
+  ['ld_5fpreload_20posix_20→_20xrootd_20shim_1',['&lt;tt&gt;client/preload/&lt;/tt&gt; — LD_PRELOAD POSIX → XRootD shim',['../md_client_2preload_2README.html',1,'']]],
+  ['leaky_20bucket_20rate_20bandwidth_20concurrency_20limiting_20phase_2025_2',['ratelimit — identity-aware leaky-bucket rate, bandwidth &amp; concurrency limiting (Phase 25)',['../md_src_2net_2ratelimit_2README.html',1,'']]],
+  ['level_20authorization_3a_20acl_20rules_20authdb_20and_20the_20auth_20gate_3',['authz — path-level authorization: ACL rules, authdb, and the auth gate',['../md_src_2auth_2authz_2README.html',1,'']]],
+  ['lib_20sec_20tt_20—_20native_20client_20authentication_20modules_4',['&lt;tt&gt;client/lib/sec/&lt;/tt&gt; — native client authentication modules',['../md_client_2lib_2auth_2sec_2README.html',1,'']]],
+  ['lib_20tt_20—_20native_20xrootd_20client_20library_20tt_20libbrix_20tt_5',['&lt;tt&gt;client/lib/&lt;/tt&gt; — native XRootD client library (&lt;tt&gt;libbrix&lt;/tt&gt;)',['../md_client_2lib_2README.html',1,'']]],
+  ['libbrix_20tt_6',['&lt;tt&gt;client/lib/&lt;/tt&gt; — native XRootD client library (&lt;tt&gt;libbrix&lt;/tt&gt;)',['../md_client_2lib_2README.html',1,'']]],
+  ['library_20http_20file_20serving_20overflow_20safe_20size_20math_7',['shared — cross-protocol helper library (HTTP file serving + overflow-safe size math)',['../md_src_2protocols_2shared_2README.html',1,'']]],
+  ['library_20tt_20libbrix_20tt_8',['&lt;tt&gt;client/lib/&lt;/tt&gt; — native XRootD client library (&lt;tt&gt;libbrix&lt;/tt&gt;)',['../md_client_2lib_2README.html',1,'']]],
+  ['lifecycle_9',['read — XRootD read-side opcodes and the file-handle lifecycle',['../md_src_2protocols_2root_2read_2README.html',1,'']]],
+  ['lifecycle_20framing_20and_20the_20async_20i_20o_20state_20machine_20for_20tt_20root_3a_20tt_10',['connection — TCP connection lifecycle, framing, and the async I/O state machine for &lt;tt&gt;root://&lt;/tt&gt;',['../md_src_2protocols_2root_2connection_2README.html',1,'']]],
+  ['lifecycle_20identity_20binding_20cross_20worker_20registry_11',['session — XRootD session lifecycle, identity binding &amp; cross-worker registry',['../md_src_2protocols_2root_2session_2README.html',1,'']]],
+  ['lifecycle_20startup_20validation_20and_20per_20worker_20resource_20init_12',['config — directive lifecycle, startup validation, and per-worker resource init',['../md_src_2core_2config_2README.html',1,'']]],
+  ['limiter_20in_20nginx_20shared_20memory_13',['shm — generic cross-worker key/value store and token-bucket rate limiter in nginx shared memory',['../md_src_2core_2shm_2README.html',1,'']]],
+  ['limiting_20phase_2025_14',['ratelimit — identity-aware leaky-bucket rate, bandwidth &amp; concurrency limiting (Phase 25)',['../md_src_2net_2ratelimit_2README.html',1,'']]],
+  ['listener_15',['handoff — single-port protocol handoff for the stream xrootd listener',['../md_src_2protocols_2root_2handoff_2README.html',1,'']]],
+  ['live_20https_20transfer_20monitor_20rest_20admin_20write_20api_16',['dashboard — live HTTPS transfer monitor + REST admin write API',['../md_src_2observability_2dashboard_2README.html',1,'']]],
+  ['local_20export_20root_17',['s3 — S3-compatible REST endpoint over the local export root',['../md_src_2protocols_2s3_2README.html',1,'']]],
+  ['local_20filesystem_20copy_20engine_20for_20webdav_20copy_20move_18',['webdav/fs — Confined local-filesystem copy engine for WebDAV COPY/MOVE',['../md_src_2protocols_2webdav_2fs_2README.html',1,'']]],
+  ['lock_20request_20header_20body_20parsers_19',['webdav/locks — WebDAV LOCK request-header &amp; body parsers',['../md_src_2protocols_2webdav_2locks_2README.html',1,'']]],
+  ['locks_20—_20webdav_20lock_20request_20header_20body_20parsers_20',['webdav/locks — WebDAV LOCK request-header &amp; body parsers',['../md_src_2protocols_2webdav_2locks_2README.html',1,'']]],
+  ['logging_21',['path — untrusted-path confinement, resolution, ACL/auth gating, and access logging',['../md_src_2fs_2path_2README.html',1,'']]],
+  ['logs_22',['observability — metrics, packet marking, dashboard, and access logs',['../md_src_2observability_2README.html',1,'']]]
+];

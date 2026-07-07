@@ -1,0 +1,15 @@
+<map id="src/protocols/root/protocol/wire.h" name="src/protocols/root/protocol/wire.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="209,5,344,45"/>
+<area shape="rect" id="Node000002" href="$wire__core__requests_8h.html" title=" " alt="" coords="13,101,173,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="237,48,131,97,128,92,235,43"/>
+<area shape="rect" id="Node000006" href="$wire__write__extended__requests_8h.html" title=" " alt="" coords="197,93,356,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="279,46,279,79,274,79,274,46"/>
+<area shape="rect" id="Node000007" href="$wire__vendor__ext_8h.html" title=" " alt="" coords="380,101,523,126"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="316,43,417,92,415,97,314,48"/>
+<area shape="rect" id="Node000003" href="$types_8h.html" title=" " alt="" coords="5,181,76,207"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="87,128,58,171,54,168,83,125"/>
+<area shape="rect" id="Node000005" href="$opcodes_8h.html" title=" " alt="" coords="101,181,189,207"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="103,125,132,168,127,171,98,128"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="5,255,76,280"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="43,207,43,241,38,241,38,207"/>
+</map>

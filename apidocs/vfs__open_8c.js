@@ -1,0 +1,26 @@
+var vfs__open_8c =
+[
+    [ "brix_vfs_adopt_fd", "vfs__open_8c.html#a5b5d5e577095180fb12918fea77a45fe", null ],
+    [ "brix_vfs_adopt_obj", "vfs__open_8c.html#a9a490b54301194e4ad6b7bae331f1215", null ],
+    [ "brix_vfs_close", "vfs__open_8c.html#aa79c4914106c61b8d70a3d836fc033b6", null ],
+    [ "brix_vfs_copy_path", "vfs__open_8c.html#ac8cb8302cccd54fba34f4ceb1b85fb14", null ],
+    [ "brix_vfs_ctx_init", "vfs__open_8c.html#a3f50a1f2cddbeae1c90811800cb6b8ca", null ],
+    [ "brix_vfs_export_relative", "vfs__open_8c.html#a19f963da3bee83d17232bf90d7b994c0", null ],
+    [ "brix_vfs_export_relative_root", "vfs__open_8c.html#afee34912923fee10db9903d7f1f45b42", null ],
+    [ "brix_vfs_file_backend_name", "vfs__open_8c.html#a959e44f8f8dd57fdbd37519e9a7772bb", null ],
+    [ "brix_vfs_file_can_sendfile", "vfs__open_8c.html#ab9eba3074b946bba50c331a32f54c7d7", null ],
+    [ "brix_vfs_file_fd", "vfs__open_8c.html#a1b8fc31f828136cd340fa873c9b170d2", null ],
+    [ "brix_vfs_file_from_cache", "vfs__open_8c.html#a6afc82e33ee2cc090a866474b35e33e9", null ],
+    [ "brix_vfs_file_mtime", "vfs__open_8c.html#aae1bd755f56793476801e35a41914ba9", null ],
+    [ "brix_vfs_file_path", "vfs__open_8c.html#a8624f191d8d0d21f18656e685eaaa448", null ],
+    [ "brix_vfs_file_pread", "vfs__open_8c.html#a95e843f2c2c963647e3b3079e976964f", null ],
+    [ "brix_vfs_file_sd_obj", "vfs__open_8c.html#a6408ce9c1f39f6d8cdd249050c161ec0", null ],
+    [ "brix_vfs_file_sendfile_fd", "vfs__open_8c.html#a83f6e427a283eb2a3f323acbe6b71c03", null ],
+    [ "brix_vfs_file_size", "vfs__open_8c.html#a8489164ebd9f32bd34231f243777d61c", null ],
+    [ "brix_vfs_file_stat", "vfs__open_8c.html#a16f0ced4de7104f0842121e3f90c1beb", null ],
+    [ "brix_vfs_fill_stat", "vfs__open_8c.html#a93b9df9840f35c72f49c911c149a32b6", null ],
+    [ "brix_vfs_mkdir_parent_path", "vfs__open_8c.html#af775ec06e1b7a191281e6fcb3800f34c", null ],
+    [ "brix_vfs_open", "vfs__open_8c.html#a174d31a3afe398c0723d47727dcf2fcb", null ],
+    [ "brix_vfs_open_flags", "vfs__open_8c.html#a4e44119ea618c02b5e71eaa8107c1d9e", null ],
+    [ "brix_vfs_to_sd_flags", "vfs__open_8c.html#a83faf8d231282aaca5804a989dde5055", null ]
+];

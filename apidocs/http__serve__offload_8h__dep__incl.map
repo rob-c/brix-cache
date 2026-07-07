@@ -1,0 +1,11 @@
+<map id="src/protocols/shared/http_serve_offload.h" name="src/protocols/shared/http_serve_offload.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="285,5,443,45"/>
+<area shape="rect" id="Node000002" href="$protocols_2cvmfs_2handler_8c.html" title=" " alt="" coords="5,93,155,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="289,52,143,96,141,91,288,47"/>
+<area shape="rect" id="Node000003" href="$object_8c.html" title=" " alt="" coords="179,101,357,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="334,57,283,102,279,98,331,53"/>
+<area shape="rect" id="Node000004" href="$http__serve__offload_8c.html" title=" " alt="" coords="382,93,541,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="397,52,442,91,438,95,394,56"/>
+<area shape="rect" id="Node000005" href="$webdav_2get_8c.html" title=" " alt="" coords="565,93,725,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="440,47,585,91,583,96,438,52"/>
+</map>

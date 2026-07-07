@@ -1,0 +1,28 @@
+var cinfo_8c =
+[
+    [ "brix_cache_cinfo_bitmap_len", "cinfo_8c.html#aa94d284bde88c136d9595de05f803e9a", null ],
+    [ "brix_cache_cinfo_block_present", "cinfo_8c.html#ab0e3ed372f9e3cad2221ebc857bfcc20", null ],
+    [ "brix_cache_cinfo_dirty_extent", "cinfo_8c.html#aa2b3795be2d1ff890c5718e485b7497f", null ],
+    [ "brix_cache_cinfo_expired", "cinfo_8c.html#a1b527ba13e473c4e84b57913c4ad4e98", null ],
+    [ "brix_cache_cinfo_from_meta", "cinfo_8c.html#a24d32b2af91b4ea5a955c0ddff096db5", null ],
+    [ "brix_cache_cinfo_from_xmeta", "cinfo_8c.html#a80e935037451cdec9f336b0170e8c35d", null ],
+    [ "brix_cache_cinfo_load", "cinfo_8c.html#a8740b27eaf25dd8e09e70af74648c91e", null ],
+    [ "brix_cache_cinfo_mark_block", "cinfo_8c.html#ad0e6760476f18c8b0f5ac675cc3b5051", null ],
+    [ "brix_cache_cinfo_mark_clean", "cinfo_8c.html#acad09c05a9ed4b99b2c6eb910588bc04", null ],
+    [ "brix_cache_cinfo_mark_dirty", "cinfo_8c.html#ae0d6ba2d7b5a92c18067219277ee8aab", null ],
+    [ "brix_cache_cinfo_nblocks", "cinfo_8c.html#ad111bda1b335217b5c1bcd61626eebe8", null ],
+    [ "brix_cache_cinfo_path", "cinfo_8c.html#a171f44c423885b6be0c0c866dcfd300d", null ],
+    [ "brix_cache_cinfo_present_count", "cinfo_8c.html#a8b80e7524a627d20fb9b01fa9128216c", null ],
+    [ "brix_cache_cinfo_record_block", "cinfo_8c.html#a1d18e15230679d9e3a1e15f2223b471c", null ],
+    [ "brix_cache_cinfo_refresh_flags", "cinfo_8c.html#ab5c16825cb124543da97715c46d57870", null ],
+    [ "brix_cache_cinfo_set_expires", "cinfo_8c.html#ab9ffbfdda9aed1bc9c1f90d4091d8a4f", null ],
+    [ "brix_cache_cinfo_state", "cinfo_8c.html#a8a0c9ed4ebea6d0a876a9406df4bcb50", null ],
+    [ "brix_cache_cinfo_store", "cinfo_8c.html#ab1fc95bb2c829995b0778e682db398a1", null ],
+    [ "brix_cache_cinfo_to_xmeta", "cinfo_8c.html#a09de79d7304c7d639a0383fa0a5dd030", null ],
+    [ "cinfo_init", "cinfo_8c.html#a4cf0b861e79ec9cfc34ff51addeabdb8", null ],
+    [ "cinfo_rmw_load", "cinfo_8c.html#a2ef052b58b4731f6325245a4ce64aedb", null ],
+    [ "cinfo_rmw_lock", "cinfo_8c.html#afe063563d7374d7bb3d95b56a9baeecd", null ],
+    [ "cinfo_rmw_unlock", "cinfo_8c.html#a9d20ade3d4588b76b75fb3e32dc37632", null ],
+    [ "cinfo_xmeta_read", "cinfo_8c.html#ad2d70146cd39621c68ae5f3ba2fbf105", null ],
+    [ "cinfo_xmeta_write", "cinfo_8c.html#ace3611c9809864836b46af5a7937745f", null ]
+];

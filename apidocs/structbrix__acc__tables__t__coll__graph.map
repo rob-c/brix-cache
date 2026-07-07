@@ -1,0 +1,13 @@
+<map id="brix_acc_tables_t" name="brix_acc_tables_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="65,376,200,401"/>
+<area shape="rect" id="Node000002" href="$structbrix__acc__named__t.html" title=" " alt="" coords="62,183,202,209"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="135,223,135,376,130,376,130,223"/>
+<area shape="rect" id="Node000003" href="$structbrix__acc__cap__t.html" title=" " alt="" coords="73,93,192,119"/>
+<area shape="poly" id="edge4_Node000001_Node000003" title=" " alt="" coords="83,126,43,149,26,164,12,182,8,196,12,210,35,262,66,309,97,347,122,374,118,378,93,351,61,312,30,264,7,212,3,196,7,180,22,161,40,145,80,122"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="135,132,135,183,130,183,130,132"/>
+<area shape="rect" id="Node000005" href="$structbrix__acc__idrule__t.html" title=" " alt="" coords="226,183,358,209"/>
+<area shape="poly" id="edge6_Node000005_Node000003" title=" " alt="" coords="166,123,273,181,270,186,164,128"/>
+<area shape="rect" id="Node000004" href="$structbrix__acc__priv__caps__t.html" title=" " alt="" coords="54,5,211,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="135,45,135,93,130,93,130,45"/>
+<area shape="poly" id="edge5_Node000001_Node000005" title=" " alt="" coords="280,222,238,284,179,354,151,378,147,374,176,350,233,281,276,219"/>
+</map>

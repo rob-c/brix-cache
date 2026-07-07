@@ -1,0 +1,15 @@
+<map id="src/auth/impersonate/impersonate_proto.h" name="src/auth/impersonate/impersonate_proto.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="373,5,534,45"/>
+<area shape="rect" id="Node000002" href="$broker__internal_8h.html" title=" " alt="" coords="189,93,349,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="402,54,311,96,308,91,399,49"/>
+<area shape="rect" id="Node000006" href="$client_8c.html" title=" " alt="" coords="373,93,533,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="456,59,456,93,451,93,451,59"/>
+<area shape="rect" id="Node000007" href="$auth_2impersonate_2lifecycle_8c.html" title=" " alt="" coords="557,93,717,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="507,49,598,91,596,96,505,54"/>
+<area shape="rect" id="Node000003" href="$broker_8c.html" title=" " alt="" coords="5,181,165,221"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="218,142,127,184,124,179,215,137"/>
+<area shape="rect" id="Node000004" href="$broker__creds_8c.html" title=" " alt="" coords="189,181,349,221"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="272,147,272,181,267,181,267,147"/>
+<area shape="rect" id="Node000005" href="$broker__ops_8c.html" title=" " alt="" coords="373,181,533,221"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="323,137,414,179,412,184,321,142"/>
+</map>

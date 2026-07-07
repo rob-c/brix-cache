@@ -1,0 +1,28 @@
+var structsd__s3__file =
+[
+    [ "ak", "structsd__s3__file.html#ac97d61055f7b935388a6570cac116075", null ],
+    [ "etag_cap", "structsd__s3__file.html#affd7413283cfcc9f4c8d0b1063508e11", null ],
+    [ "etags", "structsd__s3__file.html#a885a57283c36f2df236cbf7b1eda2fc2", null ],
+    [ "host", "structsd__s3__file.html#a4cc5600d7b02d54db62f8dcb97d12ffc", null ],
+    [ "is_mpu", "structsd__s3__file.html#a54318edeff603d6a3144ec775460648b", null ],
+    [ "is_write", "structsd__s3__file.html#a012a28996d001eb7fe9ddaf4196a0ecd", null ],
+    [ "key", "structsd__s3__file.html#a131e4121ea4582eb4e1e77169bbf5dd7", null ],
+    [ "mpu_write_off", "structsd__s3__file.html#ac1d7fa2d22bb0f575803267554a128cd", null ],
+    [ "obj_size", "structsd__s3__file.html#a0167563433748db524da3d487b04e96a", null ],
+    [ "part_buf", "structsd__s3__file.html#a366fb5681bdc08edc1c8681f24ec4f0f", null ],
+    [ "part_buf_len", "structsd__s3__file.html#a9f0c6d24c671edcb86f9ff816e53f531", null ],
+    [ "part_count", "structsd__s3__file.html#a69bf731149d70c7e91d0a256a0482d9b", null ],
+    [ "part_size", "structsd__s3__file.html#a7194a5a0e73b2ac1fcd4a3024c147a25", null ],
+    [ "port", "structsd__s3__file.html#a9532841a09610883abdb438620ec8c35", null ],
+    [ "put_buf", "structsd__s3__file.html#a0c7c1aeb44cb93d85e9955d1fe6ce0aa", null ],
+    [ "put_cap", "structsd__s3__file.html#af860a7da5fe4fbcedeaec016ff60e875", null ],
+    [ "put_len", "structsd__s3__file.html#a316dec3eec8a3829cd420c94d9e4915e", null ],
+    [ "put_write_off", "structsd__s3__file.html#a30db39205f59da05d08f338cabd75751", null ],
+    [ "region", "structsd__s3__file.html#ab75fd16d090feac9bac6dfcf8c323cbe", null ],
+    [ "sk", "structsd__s3__file.html#ab92fbafd697245f9cac85eb687b19f6d", null ],
+    [ "tctx", "structsd__s3__file.html#a6f04217a59019a3b52120a24033cacb5", null ],
+    [ "timeout_ms", "structsd__s3__file.html#a41b7a2b89a4580a62eb575c6de4d3a02", null ],
+    [ "tls", "structsd__s3__file.html#a71c36f783e0daaa8afa9dc7d9fafe780", null ],
+    [ "transport", "structsd__s3__file.html#a3d26e9172afc93ad0135f322aa0976d4", null ],
+    [ "upload_id", "structsd__s3__file.html#a18dd3d41cc9c4cab078ce6f66677c03e", null ]
+];

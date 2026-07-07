@@ -1,0 +1,19 @@
+var tagging_8c =
+[
+    [ "S3_TAG_MAX", "tagging_8c.html#a8eade7225e59ef20cbd0a0c95ce82c2c", null ],
+    [ "S3_TAG_XATTR", "tagging_8c.html#a02e78305884f0333ec8780cd2933080e", null ],
+    [ "S3_TAG_XML_MAX", "tagging_8c.html#aef8c22622a9715635cd9a58d4729c6ea", null ],
+    [ "s3_apply_put_tagging_header", "tagging_8c.html#a0501910b2f70bb8e0195e3bc5bb1ae0f", null ],
+    [ "s3_handle_delete_object_tagging", "tagging_8c.html#a2b9d438670f3e64c06800a979ba99b8f", null ],
+    [ "s3_handle_get_acl", "tagging_8c.html#a47bfb3b004133cdc47fe17621d279414", null ],
+    [ "s3_handle_get_bucket_versioning", "tagging_8c.html#a9453d7f1bf9c27fc7627f8a39730e54d", null ],
+    [ "s3_handle_get_cors", "tagging_8c.html#a3167fea7d81d4b674938f1f44f565626", null ],
+    [ "s3_handle_get_object_tagging", "tagging_8c.html#ae82d09bdd4a8a6c05b6f58a776c2d433", null ],
+    [ "s3_put_object_tagging_body_handler", "tagging_8c.html#a55743444479a64ef11d6fd3ab2927ed3", null ],
+    [ "s3_send_xml_literal", "tagging_8c.html#a902f477c6f5477f4f2b98fd700fd7e45", null ],
+    [ "s3_tag_blob_from_xml", "tagging_8c.html#a01f722cfc7f5599e075463eea3484f1e", null ],
+    [ "s3_tag_blob_valid", "tagging_8c.html#a73dfc3b3ca4b56a016924f24a0b1fcb9", null ],
+    [ "s3_tag_load", "tagging_8c.html#aff113a0b53163ebc2427e8c98401c133", null ],
+    [ "s3_tag_store", "tagging_8c.html#a3acda84ec554d1d77be6252650007a9d", null ],
+    [ "s3_tag_vfs_ctx", "tagging_8c.html#a923eea9e0e81f945e144b8c3e4b7c43f", null ]
+];

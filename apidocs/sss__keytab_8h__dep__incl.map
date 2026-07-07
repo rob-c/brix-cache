@@ -1,0 +1,11 @@
+<map id="client/lib/auth/sss/sss_keytab.h" name="client/lib/auth/sss/sss_keytab.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="337,5,473,45"/>
+<area shape="rect" id="Node000002" href="$xrdsssadmin_8c.html" title=" " alt="" coords="5,101,229,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="330,52,156,103,155,98,328,47"/>
+<area shape="rect" id="Node000003" href="$cred__sss_8c.html" title=" " alt="" coords="253,93,395,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="380,57,344,95,340,91,376,54"/>
+<area shape="rect" id="Node000004" href="$sec__sss_8c.html" title=" " alt="" coords="419,93,557,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="435,54,472,91,468,95,431,57"/>
+<area shape="rect" id="Node000005" href="$sss__keytab_8c.html" title=" " alt="" coords="581,93,717,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="473,47,597,91,595,96,471,52"/>
+</map>

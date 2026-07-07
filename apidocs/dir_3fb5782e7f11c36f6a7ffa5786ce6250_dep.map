@@ -1,0 +1,13 @@
+<map id="src/net/mirror" name="src/net/mirror">
+<area shape="rect" id="node1" href="dir_3fb5782e7f11c36f6a7ffa5786ce6250.html" title="mirror" alt="" coords="106,52,169,77"/>
+<area shape="rect" id="node2" href="dir_79690749eba542503bb1a9a3dbb495e1.html" title="protocols" alt="" coords="5,125,88,151"/>
+<area shape="poly" id="edge1" href="dir_000065_000082.html" alt="" coords="124,79,74,119,71,114,121,75"/>
+<area shape="rect" id="edge1-headlabel" href="dir_000065_000082.html" title="1" alt="" coords="76,113,86,128"/>
+<area shape="rect" id="node3" href="dir_aebb8dcc11953d78e620bbef0b9e2183.html" title="core" alt="" coords="112,125,163,151"/>
+<area shape="poly" id="edge2" href="dir_000065_000027.html" alt="" coords="140,78,140,112,135,112,135,78"/>
+<area shape="rect" id="edge2-headlabel" href="dir_000065_000027.html" title="5" alt="" coords="141,100,150,114"/>
+<area shape="rect" id="node4" href="dir_b74ed0efa461d1dc3d2a2bcdca1c8270.html" title="observability" alt="" coords="187,125,293,151"/>
+<area shape="poly" id="edge3" href="dir_000065_000069.html" alt="" coords="155,75,213,115,210,119,152,80"/>
+<area shape="rect" id="edge3-headlabel" href="dir_000065_000069.html" title="2" alt="" coords="208,101,218,115"/>
+<area shape="rect" id="clust1" href="dir_c72b25b75abe208498b36a3e44a3726c.html" title="net" alt="" coords="95,16,180,88"/>
+</map>

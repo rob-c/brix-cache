@@ -1,0 +1,33 @@
+<map id="src/observability/dashboard/dashboard_tracking.h" name="src/observability/dashboard/dashboard_tracking.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="977,5,1180,45"/>
+<area shape="rect" id="Node000002" href="$http__tracking_8c.html" title=" " alt="" coords="5,93,208,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="964,35,630,57,425,74,220,96,209,97,208,92,220,91,425,69,629,52,964,30"/>
+<area shape="rect" id="Node000003" href="$observability_2dashboard_2noop_8c.html" title=" " alt="" coords="232,93,435,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="964,39,725,63,447,96,436,98,435,92,446,91,725,58,963,34"/>
+<area shape="rect" id="Node000004" href="$protocols_2cvmfs_2handler_8c.html" title=" " alt="" coords="459,93,608,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="964,44,801,67,620,96,609,98,608,93,620,91,800,61,963,39"/>
+<area shape="rect" id="Node000005" href="$object_8c.html" title=" " alt="" coords="632,101,811,126"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="988,51,770,103,768,98,986,46"/>
+<area shape="rect" id="Node000006" href="$s3__put__internal_8h.html" title=" " alt="" coords="835,93,978,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="1030,54,946,96,943,91,1027,49"/>
+<area shape="rect" id="Node000011" href="$file__serve_8c.html" title=" " alt="" coords="1002,93,1155,133"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="1081,59,1081,93,1076,93,1076,59"/>
+<area shape="rect" id="Node000012" href="$webdav_2get_8c.html" title=" " alt="" coords="1180,93,1340,133"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="1132,49,1221,91,1219,96,1130,54"/>
+<area shape="rect" id="Node000013" href="$webdav_2put_8c.html" title=" " alt="" coords="1364,93,1524,133"/>
+<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="1173,46,1365,91,1363,96,1171,51"/>
+<area shape="rect" id="Node000014" href="$tpc_8c.html" title=" " alt="" coords="1548,93,1708,133"/>
+<area shape="poly" id="edge13_Node000001_Node000014" title=" " alt="" coords="1194,39,1536,91,1548,93,1547,98,1536,96,1193,44"/>
+<area shape="rect" id="Node000015" href="$tpc__marker_8c.html" title=" " alt="" coords="1732,93,1892,133"/>
+<area shape="poly" id="edge14_Node000001_Node000015" title=" " alt="" coords="1194,33,1437,55,1720,91,1732,93,1731,98,1720,96,1436,60,1193,38"/>
+<area shape="rect" id="Node000016" href="$tpc__thread_8c.html" title=" " alt="" coords="1916,93,2076,133"/>
+<area shape="poly" id="edge15_Node000001_Node000016" title=" " alt="" coords="1194,29,1515,49,1709,67,1904,91,1916,93,1915,98,1904,96,1709,72,1514,55,1194,34"/>
+<area shape="rect" id="Node000007" href="$s3_2put_8c.html" title=" " alt="" coords="561,189,721,214"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="837,140,677,191,676,186,835,135"/>
+<area shape="rect" id="Node000008" href="$put__aio_8c.html" title=" " alt="" coords="745,181,895,221"/>
+<area shape="poly" id="edge7_Node000006_Node000008" title=" " alt="" coords="880,145,841,183,837,179,876,141"/>
+<area shape="rect" id="Node000009" href="$put__chunk_8c.html" title=" " alt="" coords="919,181,1068,221"/>
+<area shape="poly" id="edge8_Node000006_Node000009" title=" " alt="" coords="937,141,976,179,972,183,934,145"/>
+<area shape="rect" id="Node000010" href="$put__finalize_8c.html" title=" " alt="" coords="1092,181,1241,221"/>
+<area shape="poly" id="edge9_Node000006_Node000010" title=" " alt="" coords="978,135,1111,179,1109,184,976,140"/>
+</map>

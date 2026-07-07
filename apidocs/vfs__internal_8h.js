@@ -1,0 +1,26 @@
+var vfs__internal_8h =
+[
+    [ "brix_vfs_file_t", "structbrix__vfs__file__s.html", "structbrix__vfs__file__s" ],
+    [ "brix_vfs_dir_t", "structbrix__vfs__dir__s.html", "structbrix__vfs__dir__s" ],
+    [ "brix_vfs_staged_t", "structbrix__vfs__staged__s.html", "structbrix__vfs__staged__s" ],
+    [ "brix_vfs_adopt_fd", "vfs__internal_8h.html#a5b5d5e577095180fb12918fea77a45fe", null ],
+    [ "brix_vfs_copy_path", "vfs__internal_8h.html#ac8cb8302cccd54fba34f4ceb1b85fb14", null ],
+    [ "brix_vfs_ctx_driver", "vfs__internal_8h.html#a23f403a637e4ed999144ffad7715af90", null ],
+    [ "brix_vfs_ctx_path", "vfs__internal_8h.html#ade9fadd2fca862021377cd489f513d71", null ],
+    [ "brix_vfs_ctx_sd_obj", "vfs__internal_8h.html#ab39b480559601b6a076f8af0b2e3a4ab", null ],
+    [ "brix_vfs_elapsed_usec", "vfs__internal_8h.html#a407d6831f0e8a1c521ddb5a3261ab5be", null ],
+    [ "brix_vfs_export_relative", "vfs__internal_8h.html#a19f963da3bee83d17232bf90d7b994c0", null ],
+    [ "brix_vfs_export_relative_root", "vfs__internal_8h.html#afee34912923fee10db9903d7f1f45b42", null ],
+    [ "brix_vfs_fill_stat", "vfs__internal_8h.html#a93b9df9840f35c72f49c911c149a32b6", null ],
+    [ "brix_vfs_handle_sd_obj", "vfs__internal_8h.html#aac798cc4e16b6684c72696dbde614f17", null ],
+    [ "brix_vfs_handle_sendfile_fd", "vfs__internal_8h.html#a674c11c23ee252783b1f3003927b3ab4", null ],
+    [ "brix_vfs_metrics_proto", "vfs__internal_8h.html#adebba47f1f20eafb0ac9f575e2a66dac", null ],
+    [ "brix_vfs_now_ns", "vfs__internal_8h.html#a40a573de446599553ab058560735ac9d", null ],
+    [ "brix_vfs_ns_status_errno", "vfs__internal_8h.html#ae8608819198cf7fc8368388d05f5b36b", null ],
+    [ "brix_vfs_observe_ctx_op", "vfs__internal_8h.html#a7578e7619006374c08e0c1fadb8114b3", null ],
+    [ "brix_vfs_observe_file_op", "vfs__internal_8h.html#aee4ac5c4c44da05e989e83a09f86866c", null ],
+    [ "brix_vfs_require_confined", "vfs__internal_8h.html#a167afe0ba96740212bcb3d1500c26c66", null ],
+    [ "brix_vfs_require_write", "vfs__internal_8h.html#af99717551be0a1b22680b48dbc55ad09", null ],
+    [ "brix_vfs_sd_stat_fill", "vfs__internal_8h.html#a820cf603d54afed9e0f8a82e6a4fe467", null ],
+    [ "brix_vfs_sd_stat_to_vfs", "vfs__internal_8h.html#a3d7c79f672def2c7ae70a32a0987a7fb", null ]
+];

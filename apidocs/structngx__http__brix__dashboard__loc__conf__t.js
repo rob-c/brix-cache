@@ -1,0 +1,22 @@
+var structngx__http__brix__dashboard__loc__conf__t =
+[
+    [ "admin_allow", "structngx__http__brix__dashboard__loc__conf__t.html#a0a2b1a6d04d4fcf5a5454b2014d55288", null ],
+    [ "admin_proxy_allow", "structngx__http__brix__dashboard__loc__conf__t.html#a8e10cfa9b8f2cfedc065624e83379ef2", null ],
+    [ "admin_require_both", "structngx__http__brix__dashboard__loc__conf__t.html#a09a5afc4432088a49b80036086772715", null ],
+    [ "admin_secret", "structngx__http__brix__dashboard__loc__conf__t.html#a86a799ee0c9a9ef0cfbe7a8cfcc7c25a", null ],
+    [ "anonymous", "structngx__http__brix__dashboard__loc__conf__t.html#aa67ef9b0f4e07e838d0816b7b4b65083", null ],
+    [ "browse_root", "structngx__http__brix__dashboard__loc__conf__t.html#aa32b64f3db63ec95087c4372c22eb78f", null ],
+    [ "browse_root_canon", "structngx__http__brix__dashboard__loc__conf__t.html#a9f56b3c3ca6ef327da499eaa4e60134c", null ],
+    [ "cluster_stale_after_ms", "structngx__http__brix__dashboard__loc__conf__t.html#a5e3f40dec394df521d0e44db55db1bb5", null ],
+    [ "cookie_path", "structngx__http__brix__dashboard__loc__conf__t.html#a4dcc14153f246885f137085c061308e4", null ],
+    [ "enable", "structngx__http__brix__dashboard__loc__conf__t.html#aeb39bfa9db6f91515b6cb24d257c61bb", null ],
+    [ "idle_threshold_ms", "structngx__http__brix__dashboard__loc__conf__t.html#aaa698c6b338882b03de2237172fb7a64", null ],
+    [ "password", "structngx__http__brix__dashboard__loc__conf__t.html#aea19401376d9449ecc7dbe08e7c5808b", null ],
+    [ "scan_max_files", "structngx__http__brix__dashboard__loc__conf__t.html#aa6a3eb777010fb700b703395c050606d", null ],
+    [ "scan_root", "structngx__http__brix__dashboard__loc__conf__t.html#a3169fc8dc2b48a1f7fc324e4f23f00b3", null ],
+    [ "scan_root_canon", "structngx__http__brix__dashboard__loc__conf__t.html#a89cc20c4fff0984718d1e34214ad7c1d", null ],
+    [ "session_ttl", "structngx__http__brix__dashboard__loc__conf__t.html#abb232da8526cada4622df2c62b330b92", null ],
+    [ "stalled_threshold_ms", "structngx__http__brix__dashboard__loc__conf__t.html#ac86547025da8ae7cad70f29ebf56cff4", null ],
+    [ "users", "structngx__http__brix__dashboard__loc__conf__t.html#a9aa3aee742274dc7dcec41e9b90ecb98", null ],
+    [ "vfs_browse", "structngx__http__brix__dashboard__loc__conf__t.html#aad55d6442eabf9a07dc42c78cb0dbba0", null ]
+];

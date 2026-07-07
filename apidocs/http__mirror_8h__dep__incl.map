@@ -1,0 +1,17 @@
+<map id="src/net/mirror/http_mirror.h" name="src/net/mirror/http_mirror.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="272,5,412,45"/>
+<area shape="rect" id="Node000002" href="$http__mirror_8c.html" title=" " alt="" coords="5,93,145,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="271,52,135,96,133,91,270,47"/>
+<area shape="rect" id="Node000003" href="$protocols_2webdav_2config_8c.html" title=" " alt="" coords="170,93,330,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="314,57,272,95,269,91,310,53"/>
+<area shape="rect" id="Node000004" href="$postconfig_8c.html" title=" " alt="" coords="354,93,514,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="374,53,415,91,412,95,370,57"/>
+<area shape="rect" id="Node000005" href="$webdav__module__internal_8h.html" title=" " alt="" coords="538,93,741,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="421,47,575,91,573,96,420,52"/>
+<area shape="rect" id="Node000006" href="$protocols_2webdav_2module_8c.html" title=" " alt="" coords="375,181,535,221"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="588,142,497,184,494,179,585,137"/>
+<area shape="rect" id="Node000007" href="$module__directives_8c.html" title=" " alt="" coords="559,181,719,221"/>
+<area shape="poly" id="edge6_Node000005_Node000007" title=" " alt="" coords="642,147,642,181,637,181,637,147"/>
+<area shape="rect" id="Node000008" href="$module__init_8c.html" title=" " alt="" coords="743,181,903,221"/>
+<area shape="poly" id="edge7_Node000005_Node000008" title=" " alt="" coords="693,137,784,179,782,184,691,142"/>
+</map>

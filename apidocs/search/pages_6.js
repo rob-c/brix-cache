@@ -1,0 +1,25 @@
+var searchData=
+[
+  ['dashboard_20—_20live_20https_20transfer_20monitor_20rest_20admin_20write_20api_0',['dashboard — live HTTPS transfer monitor + REST admin write API',['../md_src_2observability_2dashboard_2README.html',1,'']]],
+  ['dashboard_20and_20access_20logs_1',['observability — metrics, packet marking, dashboard, and access logs',['../md_src_2observability_2README.html',1,'']]],
+  ['data_20plane_2',['fs — Unified VFS: the single POSIX-filesystem data plane',['../md_src_2fs_2README.html',1,'']]],
+  ['davs_3a_20tt_20tt_20http_3a_20tt_20over_20the_20export_20root_3',['webdav — HTTP/WebDAV/HTTPS gateway (&lt;tt&gt;davs://&lt;/tt&gt;, &lt;tt&gt;http://&lt;/tt&gt;) over the export root',['../md_src_2protocols_2webdav_2README.html',1,'']]],
+  ['decode_20sink_20fan_20out_4',['tap — ngx-free protocol observation tap (decode + sink fan-out)',['../md_src_2net_2tap_2README.html',1,'']]],
+  ['decoding_20and_20xml_20escaping_20helpers_5',['webdav/util — WebDAV URI decoding and XML escaping helpers',['../md_src_2protocols_2webdav_2util_2README.html',1,'']]],
+  ['decorators_20over_20backends_6',['tier — composable storage tiers (cache/stage decorators over backends)',['../md_src_2fs_2tier_2README.html',1,'']]],
+  ['defense_7',['net — clustering, proxying, shadowing, and connection defense',['../md_src_2net_2README.html',1,'']]],
+  ['definitions_20tunables_20and_20the_20canonical_20identity_20object_8',['src/core/types — Core type definitions, tunables, and the canonical identity object',['../md_src_2core_2types_2README.html',1,'']]],
+  ['descriptor_20directive_20table_9',['stream — &lt;tt&gt;ngx_stream_brix_module&lt;/tt&gt; descriptor &amp; directive table',['../md_src_2protocols_2root_2stream_2README.html',1,'']]],
+  ['destination_20side_10',['engine — native-TPC control plane (destination side)',['../md_src_2tpc_2engine_2README.html',1,'']]],
+  ['destination_20side_20pull_11',['tpc — Native XRootD third-party-copy (destination-side pull)',['../md_src_2tpc_2README.html',1,'']]],
+  ['diagnostics_12',['&lt;tt&gt;src/protocols/dig/&lt;/tt&gt; — XrdDig-style remote diagnostics',['../md_src_2protocols_2dig_2README.html',1,'']]],
+  ['dig_20tt_20—_20xrddig_20style_20remote_20diagnostics_13',['&lt;tt&gt;src/protocols/dig/&lt;/tt&gt; — XrdDig-style remote diagnostics',['../md_src_2protocols_2dig_2README.html',1,'']]],
+  ['directive_20lifecycle_20startup_20validation_20and_20per_20worker_20resource_20init_14',['config — directive lifecycle, startup validation, and per-worker resource init',['../md_src_2core_2config_2README.html',1,'']]],
+  ['directive_20table_15',['stream — &lt;tt&gt;ngx_stream_brix_module&lt;/tt&gt; descriptor &amp; directive table',['../md_src_2protocols_2root_2stream_2README.html',1,'']]],
+  ['directory_20enumeration_20stream_20protocol_16',['dirlist — XRootD &lt;tt&gt;kXR_dirlist&lt;/tt&gt; directory enumeration (stream protocol)',['../md_src_2protocols_2root_2dirlist_2README.html',1,'']]],
+  ['dirlist_20—_20xrootd_20tt_20kxr_5fdirlist_20tt_20directory_20enumeration_20stream_20protocol_17',['dirlist — XRootD &lt;tt&gt;kXR_dirlist&lt;/tt&gt; directory enumeration (stream protocol)',['../md_src_2protocols_2root_2dirlist_2README.html',1,'']]],
+  ['dispatcher_18',['handshake — XRootD stream request entry point and opcode dispatcher',['../md_src_2protocols_2root_2handshake_2README.html',1,'']]],
+  ['dispatcher_20and_20gsi_20x509_20proxy_20certificate_20authentication_19',['gsi — XRootD &lt;tt&gt;kXR_auth&lt;/tt&gt; dispatcher and GSI/x509 proxy-certificate authentication',['../md_src_2auth_2gsi_2README.html',1,'']]],
+  ['driver_20sd_20layer_20',['fs/backend — Storage Driver (SD) layer',['../md_src_2fs_2backend_2README.html',1,'']]],
+  ['durable_20transfer_20engine_21',['&lt;tt&gt;src/fs/xfer/&lt;/tt&gt; — unified durable-transfer engine',['../md_src_2fs_2xfer_2README.html',1,'']]]
+];

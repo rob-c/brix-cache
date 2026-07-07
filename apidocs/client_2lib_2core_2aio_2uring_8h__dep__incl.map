@@ -1,0 +1,17 @@
+<map id="client/lib/core/aio/uring.h" name="client/lib/core/aio/uring.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="401,5,536,45"/>
+<area shape="rect" id="Node000002" href="$aio__internal_8h.html" title=" " alt="" coords="323,93,457,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="444,57,409,95,405,91,440,54"/>
+<area shape="rect" id="Node000008" href="$client_2lib_2core_2aio_2uring_8c.html" title=" " alt="" coords="481,93,616,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="498,54,533,91,529,95,494,57"/>
+<area shape="rect" id="Node000003" href="$aio_8c.html" title=" " alt="" coords="5,181,140,221"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="310,139,141,184,140,179,309,134"/>
+<area shape="rect" id="Node000004" href="$aio__buffers_8c.html" title=" " alt="" coords="164,181,299,221"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="344,142,267,184,265,179,342,138"/>
+<area shape="rect" id="Node000005" href="$aio__conn_8c.html" title=" " alt="" coords="323,181,457,221"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="393,147,393,181,387,181,387,147"/>
+<area shape="rect" id="Node000006" href="$aio__engine_8c.html" title=" " alt="" coords="481,181,616,221"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="438,138,515,179,513,184,436,142"/>
+<area shape="rect" id="Node000007" href="$aio__io_8c.html" title=" " alt="" coords="640,181,775,221"/>
+<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="471,134,640,179,639,184,470,139"/>
+</map>

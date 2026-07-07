@@ -1,0 +1,27 @@
+var structbrix__cvmfs__conf__t =
+[
+    [ "client_hold", "structbrix__cvmfs__conf__t.html#a82ea503596c782d36022a0fa0fd67a5f", null ],
+    [ "enable", "structbrix__cvmfs__conf__t.html#ab6575ef2ce50243070be300b8a15e714", null ],
+    [ "fill_max_life", "structbrix__cvmfs__conf__t.html#ad82d1c7d65cfca67592321d8e94a545a", null ],
+    [ "fill_retry_policy", "structbrix__cvmfs__conf__t.html#a6e3761e448d0aaaaf0e7459dd28f0b2c", null ],
+    [ "geo_answer", "structbrix__cvmfs__conf__t.html#aa55fb8faedb68718dbefd47c368689ee", null ],
+    [ "geo_cache_ttl", "structbrix__cvmfs__conf__t.html#a3ceede0e059e491bdf1edf23b0eb71f2", null ],
+    [ "geo_max_servers", "structbrix__cvmfs__conf__t.html#afc66b5f8c1f5afdb187058d49e588f6a", null ],
+    [ "here", "structbrix__cvmfs__conf__t.html#a1ac6f5b9f7b89190984c01cf22fa0e31", null ],
+    [ "manifest_ttl", "structbrix__cvmfs__conf__t.html#a9ec0e89044beabfe7b416169d684060c", null ],
+    [ "negative_ttl", "structbrix__cvmfs__conf__t.html#aa61d222eefc08e9fa3ef158f9eb1078d", null ],
+    [ "origin_attempt_timeout", "structbrix__cvmfs__conf__t.html#a2aa222a5fa958ab917fd581c3c2c23d5", null ],
+    [ "origin_connect_timeout", "structbrix__cvmfs__conf__t.html#aa89ce11c5bb2ab08f793e5823c76c3a2", null ],
+    [ "origin_coords", "structbrix__cvmfs__conf__t.html#a76230c6aa9941cd235d35032bd362edb", null ],
+    [ "origin_reuse_conn", "structbrix__cvmfs__conf__t.html#a5d5e0bf31f1cffd4151bdfc23cfac5e7", null ],
+    [ "origin_select", "structbrix__cvmfs__conf__t.html#a715f0189d4acf49e6eb589f2b3877745", null ],
+    [ "origin_stall_bytes", "structbrix__cvmfs__conf__t.html#a4deaebabe6c159f526feda707a432eea", null ],
+    [ "origin_stall_timeout", "structbrix__cvmfs__conf__t.html#a791e4f002f4a4625db34bb15f6430c3d", null ],
+    [ "quarantine_dir", "structbrix__cvmfs__conf__t.html#aff041135eff72a80f1602e92ea14bfae", null ],
+    [ "rtt_interval", "structbrix__cvmfs__conf__t.html#a1692cc0c3a1c3f73224324e97e648b00", null ],
+    [ "shared_cache", "structbrix__cvmfs__conf__t.html#a1f00bbc4f856fe19e49a8a0a398a8770", null ],
+    [ "trace", "structbrix__cvmfs__conf__t.html#acb2839c44f46d797ac4bd93a9567cc0d", null ],
+    [ "unified_origin", "structbrix__cvmfs__conf__t.html#ae7db16c99ee4a0b0bfb9f85b8555ce4b", null ],
+    [ "upstream_allow", "structbrix__cvmfs__conf__t.html#abcb9f6ac6a1559e9eb259a1d257446e4", null ],
+    [ "upstream_max", "structbrix__cvmfs__conf__t.html#afbb8d7dced210dae1ec44b55bef89aaa", null ]
+];

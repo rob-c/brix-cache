@@ -1,0 +1,46 @@
+var webdav_8h =
+[
+    [ "webdav_lock_xattr_t", "structwebdav__lock__xattr__t.html", "structwebdav__lock__xattr__t" ],
+    [ "brix_dig_export_t", "structbrix__dig__export__t.html", "structbrix__dig__export__t" ],
+    [ "ngx_http_brix_webdav_loc_conf_t", "structngx__http__brix__webdav__loc__conf__t.html", "structngx__http__brix__webdav__loc__conf__t" ],
+    [ "ngx_http_brix_webdav_req_ctx_t", "structngx__http__brix__webdav__req__ctx__t.html", "structngx__http__brix__webdav__req__ctx__t" ],
+    [ "BRIX_WEBDAV_ALLOW_FLAGS", "webdav_8h.html#a28477c205ce530d03408a3e0e36eee2f", null ],
+    [ "WEBDAV_FD_TABLE_SIZE", "webdav_8h.html#a0ff8dd8d7073207b0df03a3b175de2a1", null ],
+    [ "WEBDAV_LOCK_XATTR_KEY", "webdav_8h.html#a618f0e9eb6fe5470f6e997dc8614c86f", null ],
+    [ "WEBDAV_LOCK_XATTR_MAXLEN", "webdav_8h.html#a5f8dc1cc5e653db6c00c9730007cf9d1", null ],
+    [ "WEBDAV_MAX_PATH", "webdav_8h.html#ad5ea05a590eed9a936ba03bdb6a2c84d", null ],
+    [ "WEBDAV_PUT_COPY_BUFSZ", "webdav_8h.html#a6f97954810215bc3cba2e7c871929441", null ],
+    [ "WEBDAV_PUT_COPY_CHUNK", "webdav_8h.html#a4c9998bb481c28f9884599cec435c663", null ],
+    [ "WEBDAV_TPC_MAX_HEADERS", "webdav_8h.html#adababd5d199d627e5ad58645a8f0cf4e", null ],
+    [ "X509_STORE", "webdav_8h.html#a3a2b800bae08729d11bc28f12b795597", null ],
+    [ "webdav_auth_t", "webdav_8h.html#a84d207a732230743f000c54abb8dc9f5", [
+      [ "WEBDAV_AUTH_NONE", "webdav_8h.html#a84d207a732230743f000c54abb8dc9f5aa58bc7a44b32bc0ead845c4a2fe1917f", null ],
+      [ "WEBDAV_AUTH_OPTIONAL", "webdav_8h.html#a84d207a732230743f000c54abb8dc9f5aff141e81fffb3be524b1bf4d91d43694", null ],
+      [ "WEBDAV_AUTH_REQUIRED", "webdav_8h.html#a84d207a732230743f000c54abb8dc9f5a4a4d22220e1f7e008b64a80e51c7ecb6", null ]
+    ] ],
+    [ "webdav_proxy_auth_t", "webdav_8h.html#a17ed46d3666b5e6bf05aad20d6653daa", [
+      [ "WEBDAV_PROXY_AUTH_ANONYMOUS", "webdav_8h.html#a17ed46d3666b5e6bf05aad20d6653daaab361b074273b2b6ec8b1714feb029260", null ],
+      [ "WEBDAV_PROXY_AUTH_FORWARD", "webdav_8h.html#a17ed46d3666b5e6bf05aad20d6653daaacbcaccbf6ef5ff32530f03cfcf411e53", null ],
+      [ "WEBDAV_PROXY_AUTH_TOKEN", "webdav_8h.html#a17ed46d3666b5e6bf05aad20d6653daaa518cc9548995863fa2a575496c618025", null ]
+    ] ],
+    [ "brix_link_confined_canon", "webdav_8h.html#a9f19a15ede784e28be8218682eed012c", null ],
+    [ "brix_mkdir_confined_canon", "webdav_8h.html#a5f804b93c7ad896ae3c9e851e2aea47c", null ],
+    [ "brix_open_confined_canon", "webdav_8h.html#a942cdb2e7943b0680d3183f43fd513d5", null ],
+    [ "brix_rename_confined_canon", "webdav_8h.html#ad8c47b75c65fdfce2395b0209046685f", null ],
+    [ "brix_sanitize_log_string", "webdav_8h.html#ade2ba9452b028791d351ff1b15877c43", null ],
+    [ "brix_unlink_confined_canon", "webdav_8h.html#a6ff119aaf639c96ec2d6166e4221d84d", null ],
+    [ "brix_webdav_backend_instance", "webdav_8h.html#a221b5a93b07534609671dbac0f0d19c7", null ],
+    [ "ngx_http_brix_webdav_access_handler", "webdav_8h.html#a1aa752fcdfecef59e18ed6de06309148", null ],
+    [ "ngx_http_brix_webdav_create_loc_conf", "webdav_8h.html#a27a1babfc440ffaebb9f26dff7aa497f", null ],
+    [ "ngx_http_brix_webdav_handler", "webdav_8h.html#a612f5658e52c9514fbb4bd41eb4dc866", null ],
+    [ "ngx_http_brix_webdav_merge_loc_conf", "webdav_8h.html#a88f7b304ebfacd2556299c811fc15f62", null ],
+    [ "ngx_http_brix_webdav_postconfiguration", "webdav_8h.html#ac83d906dd98db673aed10a71d7fcf9ef", null ],
+    [ "webdav_conf_authdb", "webdav_8h.html#a21883798319947f434a55de678fd209b", null ],
+    [ "webdav_conf_require_vo", "webdav_8h.html#a305ec103e9ea655351b698a97b2d75b8", null ],
+    [ "webdav_conf_revoke_cache", "webdav_8h.html#aac002871d048c02b22b6328e60aee27e", null ],
+    [ "webdav_introspect_access_handler", "webdav_8h.html#ac10b6c8c73a3cceb05e2b1ff98e72b1e", null ],
+    [ "webdav_send_no_body", "webdav_8h.html#af4778bd1f832e71bc81cb07f9884167e", null ],
+    [ "brix_webdav_operations", "webdav_8h.html#a614a4d1b542ad053dcd9656ba0e0d842", null ],
+    [ "brix_webdav_operations_count", "webdav_8h.html#a453755058ca53e33487a22e7db3ab74c", null ],
+    [ "ngx_http_brix_webdav_module", "webdav_8h.html#ac0d274f302a4c56fb72c0077d7a8d2d8", null ]
+];

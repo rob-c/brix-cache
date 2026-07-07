@@ -1,0 +1,25 @@
+var cstore_8h =
+[
+    [ "brix_cstore_t", "structbrix__cstore__t.html", "structbrix__cstore__t" ],
+    [ "BRIX_CMETA_AUTO", "cstore_8h.html#aa632b569e3fe772b93c0f1f684d213f8", null ],
+    [ "BRIX_CMETA_LOCAL", "cstore_8h.html#a5507b29b941ee49dbb7ccfacd9e6fab4", null ],
+    [ "BRIX_CMETA_SIDECAR", "cstore_8h.html#aed6e84c90fd5c3e20de489a0316af6e0", null ],
+    [ "BRIX_CMETA_XATTR", "cstore_8h.html#af583a4550b557795594b77df9384a377", null ],
+    [ "brix_cstore_fill_block_fn", "cstore_8h.html#a2fac780bd876a947118a30508c54a8a0", null ],
+    [ "brix_cstore_visit_fn", "cstore_8h.html#a6b9ddff7ad0ae43765e3f38e1f725dfa", null ],
+    [ "brix_cstore_cinfo_load", "cstore_8h.html#a2e90d0b3f2f7f9d889872af49e812358", null ],
+    [ "brix_cstore_cinfo_store", "cstore_8h.html#ae9c23e33674cbd88e24495e400ecf80a", null ],
+    [ "brix_cstore_cleanup", "cstore_8h.html#ab7b0f1f7d1c083d0e811d58576aa5ec3", null ],
+    [ "brix_cstore_evict", "cstore_8h.html#a87732d50a1140bea8d8504aff69870ba", null ],
+    [ "brix_cstore_fill_abort", "cstore_8h.html#a42a9e7b562c6c01f0cbd6039926a592f", null ],
+    [ "brix_cstore_fill_commit", "cstore_8h.html#a41eaeca6e4789a9ec148fd633576e2ac", null ],
+    [ "brix_cstore_fill_open", "cstore_8h.html#a5189e67a7dbc3afd1492344280e5e80b", null ],
+    [ "brix_cstore_fill_write", "cstore_8h.html#a5ed4ffeb65a1526ce7a55cc541d625f5", null ],
+    [ "brix_cstore_freespace", "cstore_8h.html#a785415c392bf0230daf14ce03fcd106d", null ],
+    [ "brix_cstore_init", "cstore_8h.html#a84d1629a0a4b38d5d74d70e6cf59f5ed", null ],
+    [ "brix_cstore_local_root", "cstore_8h.html#ab3216586928939c8563c1d835562d25d", null ],
+    [ "brix_cstore_partial_open", "cstore_8h.html#a9900d06afe776606553a11d8a0fa192e", null ],
+    [ "brix_cstore_scan", "cstore_8h.html#abf03f3a3924b8fe91d8718ba229c35a5", null ],
+    [ "brix_cstore_serve_open", "cstore_8h.html#a626bd22b2a12db35dcef06fbacafa8a4", null ],
+    [ "brix_cstore_serve_pread", "cstore_8h.html#a46809638ded5b6e1f4935b48977e8bb9", null ]
+];

@@ -1,0 +1,29 @@
+<map id="src/fs/xfer/xfer.h" name="src/fs/xfer/xfer.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1221,5,1349,31"/>
+<area shape="rect" id="Node000002" href="$staged__file_8c.html" title=" " alt="" coords="5,79,180,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1207,23,1026,27,775,36,486,53,193,81,181,83,180,78,192,76,485,48,774,31,1026,21,1207,17"/>
+<area shape="rect" id="Node000003" href="$process_8c.html" title=" " alt="" coords="205,86,386,111"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="1207,24,856,41,628,58,398,81,352,89,351,83,398,76,628,52,856,36,1207,19"/>
+<area shape="rect" id="Node000004" href="$vfs__staged_8c.html" title=" " alt="" coords="411,86,577,111"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="1207,26,934,45,762,61,590,81,548,89,547,83,590,76,762,55,933,39,1207,21"/>
+<area shape="rect" id="Node000005" href="$stage__engine_8c.html" title=" " alt="" coords="602,86,791,111"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="1207,30,1023,52,804,81,759,89,758,83,803,76,1022,47,1206,25"/>
+<area shape="rect" id="Node000006" href="$xfer__core_8c.html" title=" " alt="" coords="815,86,978,111"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="1215,36,954,89,953,83,1214,31"/>
+<area shape="rect" id="Node000007" href="$xfer__ledger_8c.html" title=" " alt="" coords="1003,86,1177,111"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="1245,38,1119,88,1117,84,1243,33"/>
+<area shape="rect" id="Node000008" href="$xfer__mover__agent_8c.html" title=" " alt="" coords="1201,79,1368,119"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1287,44,1287,79,1282,79,1282,44"/>
+<area shape="rect" id="Node000009" href="$xfer__mover__pump_8c.html" title=" " alt="" coords="1392,79,1559,119"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1326,33,1431,76,1428,81,1324,38"/>
+<area shape="rect" id="Node000010" href="$xfer__resume__sweep_8c.html" title=" " alt="" coords="1583,79,1757,119"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="1354,31,1584,77,1583,82,1353,36"/>
+<area shape="rect" id="Node000011" href="$close_8c.html" title=" " alt="" coords="1781,79,1916,119"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="1363,24,1548,44,1769,76,1782,78,1781,84,1768,81,1548,49,1362,29"/>
+<area shape="rect" id="Node000012" href="$put__finalize_8c.html" title=" " alt="" coords="1941,79,2090,119"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="1363,21,1615,39,1772,55,1929,76,1941,78,1940,83,1928,81,1771,61,1615,45,1362,26"/>
+<area shape="rect" id="Node000013" href="$tpc_8c.html" title=" " alt="" coords="2114,79,2274,119"/>
+<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="1363,19,1686,36,1893,52,2102,76,2114,78,2113,83,2102,81,1893,58,1686,41,1362,24"/>
+<area shape="rect" id="Node000014" href="$tpc__thread_8c.html" title=" " alt="" coords="2298,79,2458,119"/>
+<area shape="poly" id="edge13_Node000001_Node000014" title=" " alt="" coords="1363,18,1530,22,1759,31,2021,48,2286,76,2298,78,2297,83,2286,81,2021,54,1759,36,1530,27,1362,23"/>
+</map>

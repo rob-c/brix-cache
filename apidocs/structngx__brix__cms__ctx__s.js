@@ -1,0 +1,21 @@
+var structngx__brix__cms__ctx__s =
+[
+    [ "backoff", "structngx__brix__cms__ctx__s.html#aca295d28e631f3693e3faf465cb89ecd", null ],
+    [ "conf", "structngx__brix__cms__ctx__s.html#acf7574bff2539d4676e7cd7c3ab6f08b", null ],
+    [ "connect_attempts", "structngx__brix__cms__ctx__s.html#a165b1722dd3c4b2369833af337256dac", null ],
+    [ "connection", "structngx__brix__cms__ctx__s.html#a594bcfbcbe3d9239e6b1d76bbbd699f1", null ],
+    [ "cycle", "structngx__brix__cms__ctx__s.html#a950384f2bfbc8a8200f51b2b67542e8c", null ],
+    [ "ever_logged_in", "structngx__brix__cms__ctx__s.html#a68cfe215268eb8b422afc848c40e4e21", null ],
+    [ "fast_deadline", "structngx__brix__cms__ctx__s.html#a3c221093bf8d3b1ff98bfa912716e0a6", null ],
+    [ "fast_retry", "structngx__brix__cms__ctx__s.html#a544c75660af48e97ec3b3f4ab0f1180e", null ],
+    [ "fast_window", "structngx__brix__cms__ctx__s.html#a6c2763edb75cfbc976b0be3fd821ae5c", null ],
+    [ "in_need", "structngx__brix__cms__ctx__s.html#ae5ff4ece21e25ea3e14a1e8e0c102363", null ],
+    [ "in_pos", "structngx__brix__cms__ctx__s.html#a97daf81cdf9c4e1577fbba5b78a84824", null ],
+    [ "inbuf", "structngx__brix__cms__ctx__s.html#a2831c765832ec5f78e09f92397d2cb3a", null ],
+    [ "is_loopback", "structngx__brix__cms__ctx__s.html#a3192eea4e286f78ca26768d385418767", null ],
+    [ "logged_in", "structngx__brix__cms__ctx__s.html#aa97cad4bd58b2167d23651c8384c11d6", null ],
+    [ "next_streamid", "structngx__brix__cms__ctx__s.html#acfe77b7a744dbd0d3a3d3c2487d403c1", null ],
+    [ "peer", "structngx__brix__cms__ctx__s.html#a96a88c28d33053ecaccdb7fad461333f", null ],
+    [ "start_ns", "structngx__brix__cms__ctx__s.html#a523c7134bd777e69e76e0d1a87d93f6d", null ],
+    [ "timer", "structngx__brix__cms__ctx__s.html#a8afef8d56f019d61b11f73012e472b66", null ]
+];

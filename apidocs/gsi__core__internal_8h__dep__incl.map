@@ -1,0 +1,13 @@
+<map id="src/auth/gsi/gsi_core_internal.h" name="src/auth/gsi/gsi_core_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="395,5,550,45"/>
+<area shape="rect" id="Node000002" href="$gsi__buf_8c.html" title=" " alt="" coords="5,93,164,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="383,48,142,96,141,91,381,42"/>
+<area shape="rect" id="Node000003" href="$gsi__cipher_8c.html" title=" " alt="" coords="188,93,365,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="414,53,307,96,305,91,412,48"/>
+<area shape="rect" id="Node000004" href="$gsi__core_8c.html" title=" " alt="" coords="389,93,556,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="475,59,475,93,470,93,470,59"/>
+<area shape="rect" id="Node000005" href="$gsi__dh_8c.html" title=" " alt="" coords="581,93,735,119"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="531,48,632,91,630,96,528,53"/>
+<area shape="rect" id="Node000006" href="$gsi__rsa_8c.html" title=" " alt="" coords="760,93,919,119"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="564,43,787,91,785,96,563,49"/>
+</map>

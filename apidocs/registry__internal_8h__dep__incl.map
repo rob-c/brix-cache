@@ -1,0 +1,9 @@
+<map id="src/net/manager/registry_internal.h" name="src/net/manager/registry_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="220,5,403,45"/>
+<area shape="rect" id="Node000002" href="$net_2manager_2registry_8c.html" title=" " alt="" coords="5,101,196,126"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="253,53,130,103,128,98,251,48"/>
+<area shape="rect" id="Node000003" href="$registry__health_8c.html" title=" " alt="" coords="220,93,403,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="314,59,314,93,309,93,309,59"/>
+<area shape="rect" id="Node000004" href="$registry__select_8c.html" title=" " alt="" coords="427,93,609,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="370,48,474,91,472,96,368,53"/>
+</map>

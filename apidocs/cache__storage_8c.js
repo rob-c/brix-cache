@@ -1,0 +1,28 @@
+var cache__storage_8c =
+[
+    [ "cs_root_entry_t", "structcs__root__entry__t.html", "structcs__root__entry__t" ],
+    [ "BRIX_CACHE_STORAGE_MAX", "cache__storage_8c.html#a43ac9e9c9d4ba9ec934242ab15acc984", null ],
+    [ "brix_cache_key", "cache__storage_8c.html#a5c782eb3ad3e52c12995c10f3ee18d6d", null ],
+    [ "brix_cache_key_under_root", "cache__storage_8c.html#acddc8099f0246333938bc7ef5919deb6", null ],
+    [ "brix_cache_ready", "cache__storage_8c.html#a6ab5e06b8c56747d057078651d8aaa6a", null ],
+    [ "brix_cache_sidecar_path", "cache__storage_8c.html#a64fc6e4f7969571114a58c6f7580bc0b", null ],
+    [ "brix_cache_source_inst", "cache__storage_8c.html#a1a2616ad4ffd6864322cdf97a0a91fc6", null ],
+    [ "brix_cache_state_by_root", "cache__storage_8c.html#a6cefc3d05408b960803a7359d99a9e8a", null ],
+    [ "brix_cache_state_root_by_root", "cache__storage_8c.html#a5ca08ef9cfcd2beab7485ed65dad432e", null ],
+    [ "brix_cache_state_storage", "cache__storage_8c.html#a8d6d9bb5faff46691c428df4b3d0a1ba", null ],
+    [ "brix_cache_storage", "cache__storage_8c.html#ab756b709ec8a65917af9770ed0c55ec3", null ],
+    [ "brix_cache_storage_by_root", "cache__storage_8c.html#a84b346a4c6ade0410642c51c353a8166", null ],
+    [ "brix_cache_storage_cleanup", "cache__storage_8c.html#a86e8d6fe5af2067cfa625745ba4366fd", null ],
+    [ "brix_cache_storage_cstore", "cache__storage_8c.html#a52049244721db78795a0d6ebd329eba6", null ],
+    [ "brix_cache_storage_init", "cache__storage_8c.html#aa9dcea3200b8451209f4ef15d243a01c", null ],
+    [ "brix_cache_wt_stage", "cache__storage_8c.html#ace0d21d0248ca6677557990953b8d091", null ],
+    [ "brix_cache_wt_stage_sd_inst", "cache__storage_8c.html#aeb8cb307c03f1c30a59b4269901d5e92", null ],
+    [ "cache_build_instance", "cache__storage_8c.html#a48880a10f1bc1a683ec12b96149f4227", null ],
+    [ "cache_build_wt_stage", "cache__storage_8c.html#ad9485be3cbd04d36205a5c6bbaa876af", null ],
+    [ "cache_open_rootfd", "cache__storage_8c.html#a5f68ced6fa01d2bfc671a3a287b8343d", null ],
+    [ "cs_root_find", "cache__storage_8c.html#ad34c8eee47b9584b0b7a979a903faf2b", null ],
+    [ "cs_root_lazy_posix", "cache__storage_8c.html#a12c9d036eef3494af4ce147b46b504a0", null ],
+    [ "cs_root_register", "cache__storage_8c.html#aad2c6774a597b49ca557f44c06fb4911", null ],
+    [ "cs_root_count", "cache__storage_8c.html#a0af81f76edf59ab6f7a8d173c4c4bb1b", null ],
+    [ "cs_root_table", "cache__storage_8c.html#a27ee2f30f415f4536c4983c10ca5c58c", null ]
+];
