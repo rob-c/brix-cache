@@ -2,442 +2,447 @@
 
 **Purpose:** Track which `src/*.c` and `src/*.h` files have been reviewed/checked for documentation accuracy.
 
-| File | Source Check 1 | Source Check 2 | Verified |
-|---|---|---|---|
-| `src/core/aio/aio.h` | [✓] | [ ] | ✓ |
-| `src/core/aio/buffers.c` | [x] | [ ] | ✓ |
-| `src/core/aio/config.c` | [✓] | [ ] | ✓ |
-| `src/core/aio/dirlist.c` | [✓] | [ ] | ✓ |
-| `src/core/aio/pgread.c` | [✓] | [ ] | ✓ |
-| `src/core/aio/read.c` | [✓] | [ ] | ✓ |
-| `src/core/aio/readv.c` | [✓] | [ ] | ✓ |
-| `src/core/aio/resume.c` | [✓] | [ ] | ✓ |
-| `src/core/aio/write.c` | [✓] | [ ] | ✓ |
-| `src/fs/cache/cache_internal.h` | [✓] | [ ] | ✓ |
-| `src/fs/cache/directives.c` | [✓] | [ ] | ✓ |
-| `src/fs/cache/errors.c` | [✓] | [ ] | ✓ |
-| `src/fs/cache/evict_candidates.c` | [✓] | [ ] | ✓ |
-| `src/fs/cache/evict_internal.h` | [✓] | [ ] | ✓ |
-| `src/fs/cache/evict_policy.c` | [✓] | [ ] | ✓ |
-| `src/fs/cache/fetch.c` | [✓] | [ ] | ✓ |
-| `src/fs/cache/io.c` | [✓] | [ ] | ✓ |
-| `src/fs/cache/lock.c` | [✓] | [ ] | ✓ |
-| `src/fs/cache/open_or_fill.c` | [✓] | [ ] | ✓ |
-| `src/fs/cache/origin_connection.c` | [✓] | [ ] | ✓ |
-| `src/fs/cache/origin_protocol.c` | [✓] | [ ] | ✓ |
-| `src/fs/cache/origin_response.c` | [✓] | [ ] | ✓ |
-| `src/fs/cache/paths.c` | [✓] | [ ] | ✓ |
-| `src/fs/cache/thread.c` | [✓] | [ ] | ✓ |
-| `src/fs/cache/writethrough_decision.c` | [✓] | [ ] | ✓ |
-| `src/fs/cache/writethrough_decision.h` | [✓] | [ ] | ✓ |
-| `src/fs/cache/writethrough_flush.c` | [✓] | [ ] | ✓ |
-| `src/net/cms/cms_internal.h` | [✓] | [ ] | ✓ |
-| `src/net/cms/config.c` | [✓] | [ ] | ✓ |
-| `src/net/cms/connect.c` | [✓] | [ ] | ✓ |
-| `src/net/cms/frame_io.c` | [✓] | [ ] | ✓ |
-| `src/net/cms/frame_io.h` | [✓] | [ ] | ✓ |
-| `src/net/cms/recv.c` | [✓] | [ ] | ✓ |
-| `src/net/cms/send.c` | [✓] | [ ] | ✓ |
-| `src/net/cms/server.h` | [✓] | [ ] | ✓ |
-| `src/net/cms/server_handler.c` | [✓] | [ ] | ✓ |
-| `src/net/cms/server_module.c` | [✓] | [ ] | ✓ |
-| `src/net/cms/server_recv.c` | [✓] | [ ] | ✓ |
-| `src/net/cms/server_send.c` | [✓] | [ ] | ✓ |
-| `src/net/cms/space.c` | [✓] | [ ] | ✓ |
-| `src/net/cms/wire.c` | [✓] | [ ] | ✓ |
-| `src/core/compat/checksum.c` | [x] | [ ] | ✓ |
-| `src/core/compat/checksum.h` | [x] | [ ] | ✓ |
-| `src/core/compat/copy_range.c` | [x] | [ ] | ✓ |
-| `src/core/compat/copy_range.h` | [x] | [ ] | ✓ |
-| `src/core/compat/crc32c.c` | [x] | [ ] | ✓ |
-| `src/core/compat/crc32c.h` | [x] | [ ] | ✓ |
-| `src/core/compat/crypto.c` | [x] | [ ] | ✓ |
-| `src/core/compat/crypto.h` | [x] | [ ] | ✓ |
-| `src/core/compat/etag.c` | [x] | [ ] | ✓ |
-| `src/core/compat/etag.h` | [x] | [ ] | ✓ |
-| `src/core/compat/fs_usage.c` | [x] | [ ] | ✓ |
-| `src/core/compat/fs_usage.h` | [x] | [ ] | ✓ |
-| `src/core/compat/fs_walk.c` | [x] | [ ] | ✓ |
-| `src/core/compat/fs_walk.h` | [x] | [ ] | ✓ |
-| `src/core/compat/hex.c` | [x] | [ ] | ✓ |
-| `src/core/compat/hex.h` | [x] | [ ] | ✓ |
-| `src/core/compat/http_body.c` | [x] | [ ] | ✓ |
-| `src/core/compat/http_body.h` | [x] | [ ] | ✓ |
-| `src/core/compat/http_conditionals.c` | [x] | [ ] | ✓ |
-| `src/core/compat/http_conditionals.h` | [x] | [ ] | ✓ |
-| `src/core/compat/http_errno.c` | [x] | [ ] | ✓ |
-| `src/core/compat/http_errno.h` | [x] | [ ] | ✓ |
-| `src/core/compat/http_file_response.c` | [x] | [ ] | ✓ |
-| `src/core/compat/http_file_response.h` | [x] | [ ] | ✓ |
-| `src/core/compat/http_headers.c` | [x] | [ ] | ✓ |
-| `src/core/compat/http_headers.h` | [x] | [ ] | ✓ |
-| `src/core/compat/http_query.c` | [x] | [ ] | ✓ |
-| `src/core/compat/http_query.h` | [x] | [ ] | ✓ |
-| `src/core/compat/http_xml.c` | [x] | [ ] | ✓ |
-| `src/core/compat/http_xml.h` | [x] | [ ] | ✓ |
-| `src/core/compat/io.c` | [x] | [ ] | ✓ |
-| `src/core/compat/io.h` | [x] | [ ] | ✓ |
-| `src/core/compat/kxr_errno.c` | [x] | [ ] | ✓ |
-| `src/core/compat/kxr_errno.h` | [x] | [ ] | ✓ |
-| `src/core/compat/path.c` | [x] | [ ] | ✓ |
-| `src/core/compat/path.h` | [x] | [ ] | ✓ |
-| `src/core/compat/range.c` | [x] | [ ] | ✓ |
-| `src/core/compat/range.h` | [x] | [ ] | ✓ |
-| `src/core/compat/shm_slots.h` | [x] | [ ] | ✓ |
-| `src/core/compat/staged_file.c` | [x] | [ ] | ✓ |
-| `src/core/compat/staged_file.h` | [x] | [ ] | ✓ |
-| `src/core/compat/time.c` | [x] | [ ] | ✓ |
-| `src/core/compat/time.h` | [x] | [ ] | ✓ |
-| `src/core/compat/tmp_path.c` | [x] | [ ] | ✓ |
-| `src/core/compat/tmp_path.h` | [x] | [ ] | ✓ |
-| `src/core/compat/uri.c` | [x] | [ ] | ✓ |
-| `src/core/compat/uri.h` | [x] | [ ] | ✓ |
-| `src/core/compat/xml.c` | [x] | [ ] | ✓ |
-| `src/core/compat/xml.h` | [x] | [ ] | ✓ |
-| `src/core/config/config.h` | [x] | [ ] | ✓ |
-| `src/core/config/helpers.c` | [x] | [ ] | ✓ |
-| `src/core/config/manager_map.c` | [x] | [ ] | ✓ |
-| `src/core/config/policy.c` | [x] | [ ] | ✓ |
-| `src/core/config/postconfiguration.c` | [x] | [ ] | ✓ |
-| `src/core/config/process.c` | [x] | [ ] | ✓ |
-| `src/core/config/runtime_server.c` | [x] | [ ] | ✓ |
-| `src/core/config/server_conf.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/connection/chain_helpers.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/connection/chain_helpers.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/connection/disconnect.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/connection/disconnect.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/connection/event_sched.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/connection/event_sched.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/connection/fd_table.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/connection/fd_table.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/connection/handler.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/connection/handler.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/connection/recv.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/connection/send.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/connection/tls.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/connection/tls.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/connection/write_helpers.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/connection/write_helpers.h` | [x] | [ ] | ✓ |
-| `src/auth/crypto/gsi_verify.c` | [x] | [ ] | ✓ |
-| `src/auth/crypto/gsi_verify.h` | [x] | [ ] | ✓ |
-| `src/auth/crypto/ocsp.c` | [x] | [ ] | ✓ |
-| `src/auth/crypto/ocsp.h` | [x] | [ ] | ✓ |
-| `src/auth/crypto/pki_check.c` | [x] | [ ] | ✓ |
-| `src/auth/crypto/pki_check.h` | [x] | [ ] | ✓ |
-| `src/auth/crypto/pki_load.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/dirlist/dcksm.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/dirlist/dcksm.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/dirlist/dirlist.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/dirlist/handler.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/fattr/del.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/fattr/dispatch.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/fattr/get.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/fattr/helpers.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/fattr/list.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/fattr/ngx_brix_fattr.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/fattr/set.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/auth.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/buffer.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/cert_response.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/config.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/gsi_internal.h` | [x] | [ ] | ✓ |
-| `src/auth/gsi/parse_crypto_helpers.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/parse_x509.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/pki.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/token.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/handshake/client_hello.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/handshake/dispatch.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/handshake/dispatch_read.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/handshake/dispatch_session.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/handshake/dispatch_signing.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/handshake/dispatch_write.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/handshake/handshake.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/handshake/policy.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/handshake/sigver.c` | [x] | [ ] | ✓ |
-| `src/net/manager/pending.c` | [x] | [ ] | ✓ |
-| `src/net/manager/pending.h` | [x] | [ ] | ✓ |
-| `src/net/manager/registry.c` | [x] | [ ] | ✓ |
-| `src/net/manager/registry.h` | [x] | [ ] | ✓ |
-| `src/observability/metrics/config.c` | [x] | [ ] | ✓ |
-| `src/observability/metrics/handler.c` | [x] | [ ] | ✓ |
-| `src/observability/metrics/http_common.h` | [x] | [ ] | ✓ |
-| `src/observability/metrics/metrics.h` | [x] | [ ] | ✓ |
-| `src/observability/metrics/metrics_internal.h` | [x] | [ ] | ✓ |
-| `src/observability/metrics/metrics_macros.h` | [x] | [ ] | ✓ |
-| `src/observability/metrics/module.c` | [x] | [ ] | ✓ |
-| `src/observability/metrics/s3.c` | [x] | [ ] | ✓ |
-| `src/observability/metrics/stream.c` | [x] | [ ] | ✓ |
-| `src/observability/metrics/stream_cache.c` | [x] | [ ] | ✓ |
-| `src/observability/metrics/stream_proxy.c` | [x] | [ ] | ✓ |
-| `src/observability/metrics/stream_tracking.c` | [x] | [ ] | ✓ |
-| `src/observability/metrics/tracking.c` | [x] | [ ] | ✓ |
-| `src/observability/metrics/webdav.c` | [x] | [ ] | ✓ |
-| `src/observability/metrics/writer.c` | [x] | [ ] | ✓ |
-| `src/core/ngx_brix_module.h` | [x] | [ ] | ✓ |
-| `src/observability/accesslog/access_log.c` | [x] | [ ] | ✓ |
-| `src/auth/authz/acl.c` | [x] | [ ] | ✓ |
-| `src/auth/authz/authdb.c` | [x] | [ ] | ✓ |
-| `src/fs/path/canonical.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/path/extract.c` | [x] | [ ] | ✓ |
-| `src/auth/authz/find_rule.c` | [x] | [ ] | ✓ |
-| `src/auth/authz/group_policy.c` | [x] | [ ] | ✓ |
-| `src/fs/path/helpers.c` | [x] | [ ] | ✓ |
-| `src/core/config/merge.c` | [x] | [ ] | ✓ |
-| `src/fs/path/mkdir.c` | [x] | [ ] | ✓ |
-| `src/fs/path/normalize.c` | [x] | [ ] | ✓ |
-| `src/fs/path/path.h` | [x] | [ ] | ✓ |
-| `src/fs/path/path_internal.h` | [x] | [ ] | ✓ |
-| `src/fs/path/resolve_confined_helpers.c` | [x] | [ ] | ✓ |
-| `src/fs/path/resolve_confined_ops.c` | [x] | [ ] | ✓ |
-| `src/fs/path/resolve_path_variants.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/path/stat_body.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/path/strip_cgi.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/protocol/flags.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/protocol/gsi.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/protocol/opcodes.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/protocol/protocol.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/protocol/types.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/protocol/wire_core_requests.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/protocol/wire.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/protocol/wire_write_extended_requests.h` | [x] | [ ] | ✓ |
-| `src/net/proxy/connect_lifecycle.c` | [x] | [ ] | ✓ |
-| `src/net/proxy/connect_upstream.c` | [x] | [ ] | ✓ |
-| `src/net/proxy/directives.c` | [x] | [ ] | ✓ |
-| `src/net/proxy/pool.c` | [x] | [ ] | ✓ |
-| `src/net/proxy/forward_relay_dispatch.c` | [x] | [ ] | ✓ |
-| `src/net/proxy/forward_rewrite_helpers.c` | [x] | [ ] | ✓ |
-| `src/net/proxy/forward_session_helpers.c` | [x] | [ ] | ✓ |
-| `src/net/proxy/events_bootstrap.c` | [x] | [ ] | ✓ |
-| `src/net/proxy/forward_relay.c` | [x] | [ ] | ✓ |
-| `src/net/proxy/forward_relay_dispatch.c` | [x] | [ ] | ✓ |
-| `src/net/proxy/forward_relay_response.c` | [x] | [ ] | ✓ |
-| `src/net/proxy/forward_request.c` | [x] | [ ] | ✓ |
-| `src/net/proxy/forward_rewrite_helpers.c` | [x] | [ ] | ✓ |
-| `src/net/proxy/forward_session_helpers.c` | [x] | [ ] | ✓ |
-| `src/net/proxy/pool.c` | [x] | [ ] | ✓ |
-| `src/net/proxy/proxy.h` | [x] | [ ] | ✓ |
-| `src/net/proxy/proxy_internal.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/query/checksum_ckscan_async.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/query/checksum_ckscan_common.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/query/checksum_ckscan_dispatch.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/query/checksum_qcksum_async.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/query/checksum_qcksum.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/query/config.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/query/dispatch.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/query/metadata.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/query/prepare.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/query/prepare_cmd.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/query/query_internal.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/query/set.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/query/space.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/query/util.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/clone.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/clone.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/close.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/close.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/locate.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/locate.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/open_cache.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/open.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/open_overview.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/open_request.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/open_resolved_file.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/pgread.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/prefetch.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/prefetch.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/read.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/read.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/readv.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/stat.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/stat.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/statx.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/read/statx.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/response/basic.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/response/control.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/response/crc32c.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/response/response.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/response/status.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/auth_sigv4_canonical.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/auth_sigv4_headers.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/auth_sigv4_parse.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/auth_sigv4_verify.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/copy.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/delete_objects.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/handler.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/list_objects_v2.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/list_query_helpers.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/list_walk.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/metrics.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/module.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/multipart_abort.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/multipart_complete_body.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/multipart_complete.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/multipart_complete_list_parts.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/multipart_complete_list_uploads.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/multipart_complete_upload_part_copy.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/multipart_helpers.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/multipart_initiate.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/multipart_internal.h` | [x] | [ ] | ✓ |
-| `src/protocols/s3/object.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/put.c` | [x] | [ ] | ✓ |
-| `src/protocols/s3/s3_auth_internal.h` | [x] | [ ] | ✓ |
-| `src/protocols/s3/s3.h` | [x] | [ ] | ✓ |
-| `src/protocols/s3/util.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/session/bind.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/session/handles.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/session/lifecycle.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/session/login.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/session/protocol.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/session/registry.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/session/registry.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/session/session.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/session/signing.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/session/tls_config.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/auth.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/buffer.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/cert_response.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/config.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/pki.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/parse_crypto_helpers.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/parse_x509.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/token.c` | [x] | [ ] | ✓ |
-| `src/auth/gsi/gsi_internal.h` | [x] | [ ] | ✓ |
-| `src/auth/sss/auth_crypto_helpers.c` | [x] | [ ] | ✓ |
-| `src/auth/sss/auth_identity_challenge.c` | [x] | [ ] | ✓ |
-| `src/auth/sss/auth_proxy_credential.c` | [x] | [ ] | ✓ |
-| `src/auth/sss/auth_request.c` | [x] | [ ] | ✓ |
-| `src/auth/sss/config.c` | [x] | [ ] | ✓ |
-| `src/auth/sss/sss_internal.h` | [x] | [ ] | ✓ |
-| `src/protocols/root/stream/module.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/stream/module_cache_proxy_directives.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/stream/module_core_directives.c` | [x] | [ ] | ✓ |
-| `src/protocols/root/stream/module_definition.c` | [x] | [ ] | ✓ |
-| `src/auth/token/b64url.c` | [x] | [ ] | ✓ |
-| `src/auth/token/b64url.h` | [x] | [ ] | ✓ |
-| `src/auth/token/config.c` | [x] | [ ] | ✓ |
-| `src/auth/token/file.c` | [x] | [ ] | ✓ |
-| `src/auth/token/file.h` | [x] | [ ] | ✓ |
-| `src/auth/token/json.c` | [x] | [ ] | ✓ |
-| `src/auth/token/json.h` | [x] | [ ] | ✓ |
-| `src/auth/token/jwks.c` | [x] | [ ] | ✓ |
-| `src/auth/token/keys.c` | [x] | [ ] | ✓ |
-| `src/auth/token/macaroon.c` | [x] | [ ] | ✓ |
-| `src/auth/token/macaroon.h` | [x] | [ ] | ✓ |
-| `src/auth/token/oauth2.c` | [x] | [ ] | ✓ |
-| `src/auth/token/oauth2.h` | [x] | [ ] | ✓ |
-| `src/auth/token/refresh.c` | [x] | [ ] | ✓ |
-| `src/auth/token/scopes.c` | [x] | [ ] | ✓ |
-| `src/auth/token/scopes.h` | [x] | [ ] | ✓ |
-| `src/auth/token/signature.c` | [x] | [ ] | ✓ |
-| `src/auth/token/token.h` | [x] | [ ] | ✓ |
-| `src/auth/token/token_internal.h` | [x] | [ ] | ✓ |
-| `src/auth/token/validate.c` | [x] | [ ] | ✓ |
-| `src/tpc/outbound/bootstrap.c` | [x] | [ ] | ✓ |
-| `src/tpc/outbound/connect.c` | [x] | [ ] | ✓ |
-| `src/tpc/engine/done.c` | [x] | [ ] | ✓ |
-| `src/tpc/gsi/gsi_outbound_certreq.c` | [x] | [ ] | ✓ |
-| `src/tpc/gsi/gsi_outbound_common.c` | [x] | [ ] | ✓ |
-| `src/tpc/gsi_outbound_dh_helpers.c` | [x] | [ ] | ✓ |
-| `src/tpc/gsi/gsi_outbound_exchange.c` | [x] | [ ] | ✓ |
-| `src/tpc/gsi/gsi_outbound_finish.c` | [x] | [ ] | ✓ |
-| `src/tpc/outbound/io.c` | [x] | [ ] | ✓ |
-| `src/tpc/engine/key_registry.c` | [x] | [ ] | ✓ |
-| `src/tpc/engine/key_registry.h` | [x] | [ ] | ✓ |
-| `src/tpc/engine/launch.c` | [✓] | [ ] | ✓ |
-| `src/tpc/engine/parse.c` | [✓] | [ ] | ✓ |
-| `src/tpc/outbound/source.c` | [✓] | [ ] | ✓ |
-| `src/tpc/outbound/thread.c` | [✓] | [ ] | ✓ |
-| `src/tpc/engine/tpc_internal.h` | [✓] | [ ] | ✓ |
-| `src/tpc/outbound/tpc_token.c` | [✓] | [ ] | ✓ |
-| `src/core/types/config.h` | [✓] | [ ] | ✓ |
-| `src/core/types/context.h` | [✓] | [ ] | ✓ |
-| `src/core/types/file.h` | [✓] | [ ] | ✓ |
-| `src/core/types/state.h` | [✓] | [ ] | ✓ |
-| `src/core/types/tunables.h` | [✓] | [ ] | ✓ |
-| `src/net/upstream/auth.c` | [✓] | [ ] | ✓ |
-| `src/net/upstream/bootstrap.c` | [✓] | [ ] | ✓ |
-| `src/net/upstream/directives.c` | [✓] | [ ] | ✓ |
-| `src/net/upstream/events.c` | [✓] | [ ] | ✓ |
-| `src/net/upstream/lifecycle.c` | [✓] | [ ] | ✓ |
-| `src/net/upstream/request.c` | [✓] | [ ] | ✓ |
-| `src/net/upstream/response.c` | [✓] | [ ] | ✓ |
-| `src/net/upstream/start.c` | [✓] | [ ] | ✓ |
-| `src/net/upstream/tls.c` | [✓] | [ ] | ✓ |
-| `src/net/upstream/upstream.h` | [✓] | [ ] | ✓ |
-| `src/net/upstream/upstream_internal.h` | [✓] | [ ] | ✓ |
-| `src/auth/voms/collect.c` | [✓] | [ ] | ✓ |
-| `src/auth/voms/extract.c` | [✓] | [ ] | ✓ |
-| `src/auth/voms/loader.c` | [✓] | [ ] | ✓ |
-| `src/auth/voms/voms_internal.h` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/access.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/auth_cert.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/auth_store.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/auth_token.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/config.c` | [✓] | [✓] | ✓ |
-| `src/protocols/webdav/copy.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/cors.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/dispatch.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/fs/copy_engine.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/fs/copy_engine.h` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/get.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/headers.c` | [ ] | [ ] | ✓ |
-| `src/protocols/webdav/io.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/lock.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/locks/request.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/locks/request.h` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/methods_basic.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/methods/copy_conditionals.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/methods/copy_conditionals.h` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/metrics.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/module.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/move.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/namespace.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/path.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/pki.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/postconfig.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/propfind.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/proxy.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/proxy_config.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/proxy_internal.h` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/proxy_request.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/proxy_response.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/put.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/resource.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/tpc.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/tpc_config.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/tpc_config.h` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/tpc_cred.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/tpc_cred.h` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/tpc_cred_internal.h` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/tpc_cred_parse.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/tpc_curl.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/tpc_headers.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/tpc_marker.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/tpc_thread.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/util/logging.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/util/logging.h` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/util/uri.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/util/uri.h` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/util/xml.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/util/xml.h` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/webdav.h` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/xrdhttp.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/xrdhttp.h` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/xrdhttp_multipart.c` | [✓] | [ ] | ✓ |
-| `src/protocols/webdav/xrdhttp_stats.c` | [✓] | [ ] | ✓ |
-| `src/protocols/root/write/chkpoint.c` | [✓] | [ ] | ✓ |
-| `src/protocols/root/write/chkpoint.h` | [✓] | [ ] | ✓ |
-| `src/protocols/root/write/chkpoint_xeq.c` | [✓] | [ ] | ✓ |
-| `src/protocols/root/write/chkpoint_xeq.h` | [✓] | [ ] | ✓ |
-| `src/protocols/root/write/chmod.c` | [✓] | [ ] | ✓ |
-| `src/protocols/root/write/common.c` | [✓] | [ ] | ✓ |
-| `src/protocols/root/write/mkdir.c` | [✓] | [ ] | ✓ |
-| `src/protocols/root/write/mv.c` | [✓] | [ ] | ✓ |
-| `src/protocols/root/write/pgwrite.c` | [✓] | [ ] | ✓ |
-| `src/protocols/root/write/rm.c` | [✓] | [ ] | ✓ |
-| `src/protocols/root/write/rmdir.c` | [✓] | [ ] | ✓ |
-| `src/protocols/root/write/sync.c` | [✓] | [ ] | ✓ |
-| `src/protocols/root/write/truncate.c` | [✓] | [ ] | ✓ |
-| `src/protocols/root/write/write.c` | [✓] | [ ] | ✓ |
-| `src/protocols/root/write/write.h` | [✓] | [ ] | ✓ |
-| `src/protocols/root/write/writev.c` | [✓] | [ ] | ✓ |
+> **Status (2026-07-07):** the planned second verification pass never ran and
+> its column has been removed. Every file below has one completed source check.
+> Re-verification now happens opportunistically: when you materially edit a
+> file, re-check its docs and update its row.
+
+| File | Source Check 1 | Verified |
+|---|---|---|
+| `src/core/aio/aio.h` | [✓] | ✓ |
+| `src/core/aio/buffers.c` | [x] | ✓ |
+| `src/core/aio/config.c` | [✓] | ✓ |
+| `src/core/aio/dirlist.c` | [✓] | ✓ |
+| `src/core/aio/pgread.c` | [✓] | ✓ |
+| `src/core/aio/read.c` | [✓] | ✓ |
+| `src/core/aio/readv.c` | [✓] | ✓ |
+| `src/core/aio/resume.c` | [✓] | ✓ |
+| `src/core/aio/write.c` | [✓] | ✓ |
+| `src/fs/cache/cache_internal.h` | [✓] | ✓ |
+| `src/fs/cache/directives.c` | [✓] | ✓ |
+| `src/fs/cache/errors.c` | [✓] | ✓ |
+| `src/fs/cache/evict_candidates.c` | [✓] | ✓ |
+| `src/fs/cache/evict_internal.h` | [✓] | ✓ |
+| `src/fs/cache/evict_policy.c` | [✓] | ✓ |
+| `src/fs/cache/fetch.c` | [✓] | ✓ |
+| `src/fs/cache/io.c` | [✓] | ✓ |
+| `src/fs/cache/lock.c` | [✓] | ✓ |
+| `src/fs/cache/open_or_fill.c` | [✓] | ✓ |
+| `src/fs/cache/origin_connection.c` | [✓] | ✓ |
+| `src/fs/cache/origin_protocol.c` | [✓] | ✓ |
+| `src/fs/cache/origin_response.c` | [✓] | ✓ |
+| `src/fs/cache/paths.c` | [✓] | ✓ |
+| `src/fs/cache/thread.c` | [✓] | ✓ |
+| `src/fs/cache/writethrough_decision.c` | [✓] | ✓ |
+| `src/fs/cache/writethrough_decision.h` | [✓] | ✓ |
+| `src/fs/cache/writethrough_flush.c` | [✓] | ✓ |
+| `src/net/cms/cms_internal.h` | [✓] | ✓ |
+| `src/net/cms/config.c` | [✓] | ✓ |
+| `src/net/cms/connect.c` | [✓] | ✓ |
+| `src/net/cms/frame_io.c` | [✓] | ✓ |
+| `src/net/cms/frame_io.h` | [✓] | ✓ |
+| `src/net/cms/recv.c` | [✓] | ✓ |
+| `src/net/cms/send.c` | [✓] | ✓ |
+| `src/net/cms/server.h` | [✓] | ✓ |
+| `src/net/cms/server_handler.c` | [✓] | ✓ |
+| `src/net/cms/server_module.c` | [✓] | ✓ |
+| `src/net/cms/server_recv.c` | [✓] | ✓ |
+| `src/net/cms/server_send.c` | [✓] | ✓ |
+| `src/net/cms/space.c` | [✓] | ✓ |
+| `src/net/cms/wire.c` | [✓] | ✓ |
+| `src/core/compat/checksum.c` | [x] | ✓ |
+| `src/core/compat/checksum.h` | [x] | ✓ |
+| `src/core/compat/copy_range.c` | [x] | ✓ |
+| `src/core/compat/copy_range.h` | [x] | ✓ |
+| `src/core/compat/crc32c.c` | [x] | ✓ |
+| `src/core/compat/crc32c.h` | [x] | ✓ |
+| `src/core/compat/crypto.c` | [x] | ✓ |
+| `src/core/compat/crypto.h` | [x] | ✓ |
+| `src/core/compat/etag.c` | [x] | ✓ |
+| `src/core/compat/etag.h` | [x] | ✓ |
+| `src/core/compat/fs_usage.c` | [x] | ✓ |
+| `src/core/compat/fs_usage.h` | [x] | ✓ |
+| `src/core/compat/fs_walk.c` | [x] | ✓ |
+| `src/core/compat/fs_walk.h` | [x] | ✓ |
+| `src/core/compat/hex.c` | [x] | ✓ |
+| `src/core/compat/hex.h` | [x] | ✓ |
+| `src/core/compat/http_body.c` | [x] | ✓ |
+| `src/core/compat/http_body.h` | [x] | ✓ |
+| `src/core/compat/http_conditionals.c` | [x] | ✓ |
+| `src/core/compat/http_conditionals.h` | [x] | ✓ |
+| `src/core/compat/http_errno.c` | [x] | ✓ |
+| `src/core/compat/http_errno.h` | [x] | ✓ |
+| `src/core/compat/http_file_response.c` | [x] | ✓ |
+| `src/core/compat/http_file_response.h` | [x] | ✓ |
+| `src/core/compat/http_headers.c` | [x] | ✓ |
+| `src/core/compat/http_headers.h` | [x] | ✓ |
+| `src/core/compat/http_query.c` | [x] | ✓ |
+| `src/core/compat/http_query.h` | [x] | ✓ |
+| `src/core/compat/http_xml.c` | [x] | ✓ |
+| `src/core/compat/http_xml.h` | [x] | ✓ |
+| `src/core/compat/io.c` | [x] | ✓ |
+| `src/core/compat/io.h` | [x] | ✓ |
+| `src/core/compat/kxr_errno.c` | [x] | ✓ |
+| `src/core/compat/kxr_errno.h` | [x] | ✓ |
+| `src/core/compat/path.c` | [x] | ✓ |
+| `src/core/compat/path.h` | [x] | ✓ |
+| `src/core/compat/range.c` | [x] | ✓ |
+| `src/core/compat/range.h` | [x] | ✓ |
+| `src/core/compat/shm_slots.h` | [x] | ✓ |
+| `src/core/compat/staged_file.c` | [x] | ✓ |
+| `src/core/compat/staged_file.h` | [x] | ✓ |
+| `src/core/compat/time.c` | [x] | ✓ |
+| `src/core/compat/time.h` | [x] | ✓ |
+| `src/core/compat/tmp_path.c` | [x] | ✓ |
+| `src/core/compat/tmp_path.h` | [x] | ✓ |
+| `src/core/compat/uri.c` | [x] | ✓ |
+| `src/core/compat/uri.h` | [x] | ✓ |
+| `src/core/compat/xml.c` | [x] | ✓ |
+| `src/core/compat/xml.h` | [x] | ✓ |
+| `src/core/config/config.h` | [x] | ✓ |
+| `src/core/config/helpers.c` | [x] | ✓ |
+| `src/core/config/manager_map.c` | [x] | ✓ |
+| `src/core/config/policy.c` | [x] | ✓ |
+| `src/core/config/postconfiguration.c` | [x] | ✓ |
+| `src/core/config/process.c` | [x] | ✓ |
+| `src/core/config/runtime_server.c` | [x] | ✓ |
+| `src/core/config/server_conf.c` | [x] | ✓ |
+| `src/protocols/root/connection/chain_helpers.c` | [x] | ✓ |
+| `src/protocols/root/connection/chain_helpers.h` | [x] | ✓ |
+| `src/protocols/root/connection/disconnect.c` | [x] | ✓ |
+| `src/protocols/root/connection/disconnect.h` | [x] | ✓ |
+| `src/protocols/root/connection/event_sched.c` | [x] | ✓ |
+| `src/protocols/root/connection/event_sched.h` | [x] | ✓ |
+| `src/protocols/root/connection/fd_table.c` | [x] | ✓ |
+| `src/protocols/root/connection/fd_table.h` | [x] | ✓ |
+| `src/protocols/root/connection/handler.c` | [x] | ✓ |
+| `src/protocols/root/connection/handler.h` | [x] | ✓ |
+| `src/protocols/root/connection/recv.c` | [x] | ✓ |
+| `src/protocols/root/connection/send.c` | [x] | ✓ |
+| `src/protocols/root/connection/tls.c` | [x] | ✓ |
+| `src/protocols/root/connection/tls.h` | [x] | ✓ |
+| `src/protocols/root/connection/write_helpers.c` | [x] | ✓ |
+| `src/protocols/root/connection/write_helpers.h` | [x] | ✓ |
+| `src/auth/crypto/gsi_verify.c` | [x] | ✓ |
+| `src/auth/crypto/gsi_verify.h` | [x] | ✓ |
+| `src/auth/crypto/ocsp.c` | [x] | ✓ |
+| `src/auth/crypto/ocsp.h` | [x] | ✓ |
+| `src/auth/crypto/pki_check.c` | [x] | ✓ |
+| `src/auth/crypto/pki_check.h` | [x] | ✓ |
+| `src/auth/crypto/pki_load.c` | [x] | ✓ |
+| `src/protocols/root/dirlist/dcksm.c` | [x] | ✓ |
+| `src/protocols/root/dirlist/dcksm.h` | [x] | ✓ |
+| `src/protocols/root/dirlist/dirlist.h` | [x] | ✓ |
+| `src/protocols/root/dirlist/handler.c` | [x] | ✓ |
+| `src/protocols/root/fattr/del.c` | [x] | ✓ |
+| `src/protocols/root/fattr/dispatch.c` | [x] | ✓ |
+| `src/protocols/root/fattr/get.c` | [x] | ✓ |
+| `src/protocols/root/fattr/helpers.c` | [x] | ✓ |
+| `src/protocols/root/fattr/list.c` | [x] | ✓ |
+| `src/protocols/root/fattr/ngx_brix_fattr.h` | [x] | ✓ |
+| `src/protocols/root/fattr/set.c` | [x] | ✓ |
+| `src/auth/gsi/auth.c` | [x] | ✓ |
+| `src/auth/gsi/buffer.c` | [x] | ✓ |
+| `src/auth/gsi/cert_response.c` | [x] | ✓ |
+| `src/auth/gsi/config.c` | [x] | ✓ |
+| `src/auth/gsi/gsi_internal.h` | [x] | ✓ |
+| `src/auth/gsi/parse_crypto_helpers.c` | [x] | ✓ |
+| `src/auth/gsi/parse_x509.c` | [x] | ✓ |
+| `src/auth/gsi/pki.c` | [x] | ✓ |
+| `src/auth/gsi/token.c` | [x] | ✓ |
+| `src/protocols/root/handshake/client_hello.c` | [x] | ✓ |
+| `src/protocols/root/handshake/dispatch.c` | [x] | ✓ |
+| `src/protocols/root/handshake/dispatch_read.c` | [x] | ✓ |
+| `src/protocols/root/handshake/dispatch_session.c` | [x] | ✓ |
+| `src/protocols/root/handshake/dispatch_signing.c` | [x] | ✓ |
+| `src/protocols/root/handshake/dispatch_write.c` | [x] | ✓ |
+| `src/protocols/root/handshake/handshake.h` | [x] | ✓ |
+| `src/protocols/root/handshake/policy.c` | [x] | ✓ |
+| `src/protocols/root/handshake/sigver.c` | [x] | ✓ |
+| `src/net/manager/pending.c` | [x] | ✓ |
+| `src/net/manager/pending.h` | [x] | ✓ |
+| `src/net/manager/registry.c` | [x] | ✓ |
+| `src/net/manager/registry.h` | [x] | ✓ |
+| `src/observability/metrics/config.c` | [x] | ✓ |
+| `src/observability/metrics/handler.c` | [x] | ✓ |
+| `src/observability/metrics/http_common.h` | [x] | ✓ |
+| `src/observability/metrics/metrics.h` | [x] | ✓ |
+| `src/observability/metrics/metrics_internal.h` | [x] | ✓ |
+| `src/observability/metrics/metrics_macros.h` | [x] | ✓ |
+| `src/observability/metrics/module.c` | [x] | ✓ |
+| `src/observability/metrics/s3.c` | [x] | ✓ |
+| `src/observability/metrics/stream.c` | [x] | ✓ |
+| `src/observability/metrics/stream_cache.c` | [x] | ✓ |
+| `src/observability/metrics/stream_proxy.c` | [x] | ✓ |
+| `src/observability/metrics/stream_tracking.c` | [x] | ✓ |
+| `src/observability/metrics/tracking.c` | [x] | ✓ |
+| `src/observability/metrics/webdav.c` | [x] | ✓ |
+| `src/observability/metrics/writer.c` | [x] | ✓ |
+| `src/core/ngx_brix_module.h` | [x] | ✓ |
+| `src/observability/accesslog/access_log.c` | [x] | ✓ |
+| `src/auth/authz/acl.c` | [x] | ✓ |
+| `src/auth/authz/authdb.c` | [x] | ✓ |
+| `src/fs/path/canonical.c` | [x] | ✓ |
+| `src/protocols/root/path/extract.c` | [x] | ✓ |
+| `src/auth/authz/find_rule.c` | [x] | ✓ |
+| `src/auth/authz/group_policy.c` | [x] | ✓ |
+| `src/fs/path/helpers.c` | [x] | ✓ |
+| `src/core/config/merge.c` | [x] | ✓ |
+| `src/fs/path/mkdir.c` | [x] | ✓ |
+| `src/fs/path/normalize.c` | [x] | ✓ |
+| `src/fs/path/path.h` | [x] | ✓ |
+| `src/fs/path/path_internal.h` | [x] | ✓ |
+| `src/fs/path/resolve_confined_helpers.c` | [x] | ✓ |
+| `src/fs/path/resolve_confined_ops.c` | [x] | ✓ |
+| `src/fs/path/resolve_path_variants.c` | [x] | ✓ |
+| `src/protocols/root/path/stat_body.c` | [x] | ✓ |
+| `src/protocols/root/path/strip_cgi.c` | [x] | ✓ |
+| `src/protocols/root/protocol/flags.h` | [x] | ✓ |
+| `src/protocols/root/protocol/gsi.h` | [x] | ✓ |
+| `src/protocols/root/protocol/opcodes.h` | [x] | ✓ |
+| `src/protocols/root/protocol/protocol.h` | [x] | ✓ |
+| `src/protocols/root/protocol/types.h` | [x] | ✓ |
+| `src/protocols/root/protocol/wire_core_requests.h` | [x] | ✓ |
+| `src/protocols/root/protocol/wire.h` | [x] | ✓ |
+| `src/protocols/root/protocol/wire_write_extended_requests.h` | [x] | ✓ |
+| `src/net/proxy/connect_lifecycle.c` | [x] | ✓ |
+| `src/net/proxy/connect_upstream.c` | [x] | ✓ |
+| `src/net/proxy/directives.c` | [x] | ✓ |
+| `src/net/proxy/pool.c` | [x] | ✓ |
+| `src/net/proxy/forward_relay_dispatch.c` | [x] | ✓ |
+| `src/net/proxy/forward_rewrite_helpers.c` | [x] | ✓ |
+| `src/net/proxy/forward_session_helpers.c` | [x] | ✓ |
+| `src/net/proxy/events_bootstrap.c` | [x] | ✓ |
+| `src/net/proxy/forward_relay.c` | [x] | ✓ |
+| `src/net/proxy/forward_relay_dispatch.c` | [x] | ✓ |
+| `src/net/proxy/forward_relay_response.c` | [x] | ✓ |
+| `src/net/proxy/forward_request.c` | [x] | ✓ |
+| `src/net/proxy/forward_rewrite_helpers.c` | [x] | ✓ |
+| `src/net/proxy/forward_session_helpers.c` | [x] | ✓ |
+| `src/net/proxy/pool.c` | [x] | ✓ |
+| `src/net/proxy/proxy.h` | [x] | ✓ |
+| `src/net/proxy/proxy_internal.h` | [x] | ✓ |
+| `src/protocols/root/query/checksum_ckscan_async.c` | [x] | ✓ |
+| `src/protocols/root/query/checksum_ckscan_common.c` | [x] | ✓ |
+| `src/protocols/root/query/checksum_ckscan_dispatch.c` | [x] | ✓ |
+| `src/protocols/root/query/checksum_qcksum_async.c` | [x] | ✓ |
+| `src/protocols/root/query/checksum_qcksum.c` | [x] | ✓ |
+| `src/protocols/root/query/config.c` | [x] | ✓ |
+| `src/protocols/root/query/dispatch.c` | [x] | ✓ |
+| `src/protocols/root/query/metadata.c` | [x] | ✓ |
+| `src/protocols/root/query/prepare.c` | [x] | ✓ |
+| `src/protocols/root/query/prepare_cmd.c` | [x] | ✓ |
+| `src/protocols/root/query/query_internal.h` | [x] | ✓ |
+| `src/protocols/root/query/set.c` | [x] | ✓ |
+| `src/protocols/root/query/space.c` | [x] | ✓ |
+| `src/protocols/root/query/util.c` | [x] | ✓ |
+| `src/protocols/root/read/clone.c` | [x] | ✓ |
+| `src/protocols/root/read/clone.h` | [x] | ✓ |
+| `src/protocols/root/read/close.c` | [x] | ✓ |
+| `src/protocols/root/read/close.h` | [x] | ✓ |
+| `src/protocols/root/read/locate.c` | [x] | ✓ |
+| `src/protocols/root/read/locate.h` | [x] | ✓ |
+| `src/protocols/root/read/open_cache.c` | [x] | ✓ |
+| `src/protocols/root/read/open.h` | [x] | ✓ |
+| `src/protocols/root/read/open_overview.c` | [x] | ✓ |
+| `src/protocols/root/read/open_request.c` | [x] | ✓ |
+| `src/protocols/root/read/open_resolved_file.c` | [x] | ✓ |
+| `src/protocols/root/read/pgread.c` | [x] | ✓ |
+| `src/protocols/root/read/prefetch.c` | [x] | ✓ |
+| `src/protocols/root/read/prefetch.h` | [x] | ✓ |
+| `src/protocols/root/read/read.c` | [x] | ✓ |
+| `src/protocols/root/read/read.h` | [x] | ✓ |
+| `src/protocols/root/read/readv.c` | [x] | ✓ |
+| `src/protocols/root/read/stat.c` | [x] | ✓ |
+| `src/protocols/root/read/stat.h` | [x] | ✓ |
+| `src/protocols/root/read/statx.c` | [x] | ✓ |
+| `src/protocols/root/read/statx.h` | [x] | ✓ |
+| `src/protocols/root/response/basic.c` | [x] | ✓ |
+| `src/protocols/root/response/control.c` | [x] | ✓ |
+| `src/protocols/root/response/crc32c.c` | [x] | ✓ |
+| `src/protocols/root/response/response.h` | [x] | ✓ |
+| `src/protocols/root/response/status.c` | [x] | ✓ |
+| `src/protocols/s3/auth_sigv4_canonical.c` | [x] | ✓ |
+| `src/protocols/s3/auth_sigv4_headers.c` | [x] | ✓ |
+| `src/protocols/s3/auth_sigv4_parse.c` | [x] | ✓ |
+| `src/protocols/s3/auth_sigv4_verify.c` | [x] | ✓ |
+| `src/protocols/s3/copy.c` | [x] | ✓ |
+| `src/protocols/s3/delete_objects.c` | [x] | ✓ |
+| `src/protocols/s3/handler.c` | [x] | ✓ |
+| `src/protocols/s3/list_objects_v2.c` | [x] | ✓ |
+| `src/protocols/s3/list_query_helpers.c` | [x] | ✓ |
+| `src/protocols/s3/list_walk.c` | [x] | ✓ |
+| `src/protocols/s3/metrics.c` | [x] | ✓ |
+| `src/protocols/s3/module.c` | [x] | ✓ |
+| `src/protocols/s3/multipart_abort.c` | [x] | ✓ |
+| `src/protocols/s3/multipart_complete_body.c` | [x] | ✓ |
+| `src/protocols/s3/multipart_complete.c` | [x] | ✓ |
+| `src/protocols/s3/multipart_complete_list_parts.c` | [x] | ✓ |
+| `src/protocols/s3/multipart_complete_list_uploads.c` | [x] | ✓ |
+| `src/protocols/s3/multipart_complete_upload_part_copy.c` | [x] | ✓ |
+| `src/protocols/s3/multipart_helpers.c` | [x] | ✓ |
+| `src/protocols/s3/multipart_initiate.c` | [x] | ✓ |
+| `src/protocols/s3/multipart_internal.h` | [x] | ✓ |
+| `src/protocols/s3/object.c` | [x] | ✓ |
+| `src/protocols/s3/put.c` | [x] | ✓ |
+| `src/protocols/s3/s3_auth_internal.h` | [x] | ✓ |
+| `src/protocols/s3/s3.h` | [x] | ✓ |
+| `src/protocols/s3/util.c` | [x] | ✓ |
+| `src/protocols/root/session/bind.c` | [x] | ✓ |
+| `src/protocols/root/session/handles.c` | [x] | ✓ |
+| `src/protocols/root/session/lifecycle.c` | [x] | ✓ |
+| `src/protocols/root/session/login.c` | [x] | ✓ |
+| `src/protocols/root/session/protocol.c` | [x] | ✓ |
+| `src/protocols/root/session/registry.c` | [x] | ✓ |
+| `src/protocols/root/session/registry.h` | [x] | ✓ |
+| `src/protocols/root/session/session.h` | [x] | ✓ |
+| `src/protocols/root/session/signing.c` | [x] | ✓ |
+| `src/protocols/root/session/tls_config.c` | [x] | ✓ |
+| `src/auth/gsi/auth.c` | [x] | ✓ |
+| `src/auth/gsi/buffer.c` | [x] | ✓ |
+| `src/auth/gsi/cert_response.c` | [x] | ✓ |
+| `src/auth/gsi/config.c` | [x] | ✓ |
+| `src/auth/gsi/pki.c` | [x] | ✓ |
+| `src/auth/gsi/parse_crypto_helpers.c` | [x] | ✓ |
+| `src/auth/gsi/parse_x509.c` | [x] | ✓ |
+| `src/auth/gsi/token.c` | [x] | ✓ |
+| `src/auth/gsi/gsi_internal.h` | [x] | ✓ |
+| `src/auth/sss/auth_crypto_helpers.c` | [x] | ✓ |
+| `src/auth/sss/auth_identity_challenge.c` | [x] | ✓ |
+| `src/auth/sss/auth_proxy_credential.c` | [x] | ✓ |
+| `src/auth/sss/auth_request.c` | [x] | ✓ |
+| `src/auth/sss/config.c` | [x] | ✓ |
+| `src/auth/sss/sss_internal.h` | [x] | ✓ |
+| `src/protocols/root/stream/module.c` | [x] | ✓ |
+| `src/protocols/root/stream/module_cache_proxy_directives.c` | [x] | ✓ |
+| `src/protocols/root/stream/module_core_directives.c` | [x] | ✓ |
+| `src/protocols/root/stream/module_definition.c` | [x] | ✓ |
+| `src/auth/token/b64url.c` | [x] | ✓ |
+| `src/auth/token/b64url.h` | [x] | ✓ |
+| `src/auth/token/config.c` | [x] | ✓ |
+| `src/auth/token/file.c` | [x] | ✓ |
+| `src/auth/token/file.h` | [x] | ✓ |
+| `src/auth/token/json.c` | [x] | ✓ |
+| `src/auth/token/json.h` | [x] | ✓ |
+| `src/auth/token/jwks.c` | [x] | ✓ |
+| `src/auth/token/keys.c` | [x] | ✓ |
+| `src/auth/token/macaroon.c` | [x] | ✓ |
+| `src/auth/token/macaroon.h` | [x] | ✓ |
+| `src/auth/token/oauth2.c` | [x] | ✓ |
+| `src/auth/token/oauth2.h` | [x] | ✓ |
+| `src/auth/token/refresh.c` | [x] | ✓ |
+| `src/auth/token/scopes.c` | [x] | ✓ |
+| `src/auth/token/scopes.h` | [x] | ✓ |
+| `src/auth/token/signature.c` | [x] | ✓ |
+| `src/auth/token/token.h` | [x] | ✓ |
+| `src/auth/token/token_internal.h` | [x] | ✓ |
+| `src/auth/token/validate.c` | [x] | ✓ |
+| `src/tpc/outbound/bootstrap.c` | [x] | ✓ |
+| `src/tpc/outbound/connect.c` | [x] | ✓ |
+| `src/tpc/engine/done.c` | [x] | ✓ |
+| `src/tpc/gsi/gsi_outbound_certreq.c` | [x] | ✓ |
+| `src/tpc/gsi/gsi_outbound_common.c` | [x] | ✓ |
+| `src/tpc/gsi_outbound_dh_helpers.c` | [x] | ✓ |
+| `src/tpc/gsi/gsi_outbound_exchange.c` | [x] | ✓ |
+| `src/tpc/gsi/gsi_outbound_finish.c` | [x] | ✓ |
+| `src/tpc/outbound/io.c` | [x] | ✓ |
+| `src/tpc/engine/key_registry.c` | [x] | ✓ |
+| `src/tpc/engine/key_registry.h` | [x] | ✓ |
+| `src/tpc/engine/launch.c` | [✓] | ✓ |
+| `src/tpc/engine/parse.c` | [✓] | ✓ |
+| `src/tpc/outbound/source.c` | [✓] | ✓ |
+| `src/tpc/outbound/thread.c` | [✓] | ✓ |
+| `src/tpc/engine/tpc_internal.h` | [✓] | ✓ |
+| `src/tpc/outbound/tpc_token.c` | [✓] | ✓ |
+| `src/core/types/config.h` | [✓] | ✓ |
+| `src/core/types/context.h` | [✓] | ✓ |
+| `src/core/types/file.h` | [✓] | ✓ |
+| `src/core/types/state.h` | [✓] | ✓ |
+| `src/core/types/tunables.h` | [✓] | ✓ |
+| `src/net/upstream/auth.c` | [✓] | ✓ |
+| `src/net/upstream/bootstrap.c` | [✓] | ✓ |
+| `src/net/upstream/directives.c` | [✓] | ✓ |
+| `src/net/upstream/events.c` | [✓] | ✓ |
+| `src/net/upstream/lifecycle.c` | [✓] | ✓ |
+| `src/net/upstream/request.c` | [✓] | ✓ |
+| `src/net/upstream/response.c` | [✓] | ✓ |
+| `src/net/upstream/start.c` | [✓] | ✓ |
+| `src/net/upstream/tls.c` | [✓] | ✓ |
+| `src/net/upstream/upstream.h` | [✓] | ✓ |
+| `src/net/upstream/upstream_internal.h` | [✓] | ✓ |
+| `src/auth/voms/collect.c` | [✓] | ✓ |
+| `src/auth/voms/extract.c` | [✓] | ✓ |
+| `src/auth/voms/loader.c` | [✓] | ✓ |
+| `src/auth/voms/voms_internal.h` | [✓] | ✓ |
+| `src/protocols/webdav/access.c` | [✓] | ✓ |
+| `src/protocols/webdav/auth_cert.c` | [✓] | ✓ |
+| `src/protocols/webdav/auth_store.c` | [✓] | ✓ |
+| `src/protocols/webdav/auth_token.c` | [✓] | ✓ |
+| `src/protocols/webdav/config.c` | [✓] | ✓ |
+| `src/protocols/webdav/copy.c` | [✓] | ✓ |
+| `src/protocols/webdav/cors.c` | [✓] | ✓ |
+| `src/protocols/webdav/dispatch.c` | [✓] | ✓ |
+| `src/protocols/webdav/fs/copy_engine.c` | [✓] | ✓ |
+| `src/protocols/webdav/fs/copy_engine.h` | [✓] | ✓ |
+| `src/protocols/webdav/get.c` | [✓] | ✓ |
+| `src/protocols/webdav/headers.c` | [ ] | ✓ |
+| `src/protocols/webdav/io.c` | [✓] | ✓ |
+| `src/protocols/webdav/lock.c` | [✓] | ✓ |
+| `src/protocols/webdav/locks/request.c` | [✓] | ✓ |
+| `src/protocols/webdav/locks/request.h` | [✓] | ✓ |
+| `src/protocols/webdav/methods_basic.c` | [✓] | ✓ |
+| `src/protocols/webdav/methods/copy_conditionals.c` | [✓] | ✓ |
+| `src/protocols/webdav/methods/copy_conditionals.h` | [✓] | ✓ |
+| `src/protocols/webdav/metrics.c` | [✓] | ✓ |
+| `src/protocols/webdav/module.c` | [✓] | ✓ |
+| `src/protocols/webdav/move.c` | [✓] | ✓ |
+| `src/protocols/webdav/namespace.c` | [✓] | ✓ |
+| `src/protocols/webdav/path.c` | [✓] | ✓ |
+| `src/protocols/webdav/pki.c` | [✓] | ✓ |
+| `src/protocols/webdav/postconfig.c` | [✓] | ✓ |
+| `src/protocols/webdav/propfind.c` | [✓] | ✓ |
+| `src/protocols/webdav/proxy.c` | [✓] | ✓ |
+| `src/protocols/webdav/proxy_config.c` | [✓] | ✓ |
+| `src/protocols/webdav/proxy_internal.h` | [✓] | ✓ |
+| `src/protocols/webdav/proxy_request.c` | [✓] | ✓ |
+| `src/protocols/webdav/proxy_response.c` | [✓] | ✓ |
+| `src/protocols/webdav/put.c` | [✓] | ✓ |
+| `src/protocols/webdav/resource.c` | [✓] | ✓ |
+| `src/protocols/webdav/tpc.c` | [✓] | ✓ |
+| `src/protocols/webdav/tpc_config.c` | [✓] | ✓ |
+| `src/protocols/webdav/tpc_config.h` | [✓] | ✓ |
+| `src/protocols/webdav/tpc_cred.c` | [✓] | ✓ |
+| `src/protocols/webdav/tpc_cred.h` | [✓] | ✓ |
+| `src/protocols/webdav/tpc_cred_internal.h` | [✓] | ✓ |
+| `src/protocols/webdav/tpc_cred_parse.c` | [✓] | ✓ |
+| `src/protocols/webdav/tpc_curl.c` | [✓] | ✓ |
+| `src/protocols/webdav/tpc_headers.c` | [✓] | ✓ |
+| `src/protocols/webdav/tpc_marker.c` | [✓] | ✓ |
+| `src/protocols/webdav/tpc_thread.c` | [✓] | ✓ |
+| `src/protocols/webdav/util/logging.c` | [✓] | ✓ |
+| `src/protocols/webdav/util/logging.h` | [✓] | ✓ |
+| `src/protocols/webdav/util/uri.c` | [✓] | ✓ |
+| `src/protocols/webdav/util/uri.h` | [✓] | ✓ |
+| `src/protocols/webdav/util/xml.c` | [✓] | ✓ |
+| `src/protocols/webdav/util/xml.h` | [✓] | ✓ |
+| `src/protocols/webdav/webdav.h` | [✓] | ✓ |
+| `src/protocols/webdav/xrdhttp.c` | [✓] | ✓ |
+| `src/protocols/webdav/xrdhttp.h` | [✓] | ✓ |
+| `src/protocols/webdav/xrdhttp_multipart.c` | [✓] | ✓ |
+| `src/protocols/webdav/xrdhttp_stats.c` | [✓] | ✓ |
+| `src/protocols/root/write/chkpoint.c` | [✓] | ✓ |
+| `src/protocols/root/write/chkpoint.h` | [✓] | ✓ |
+| `src/protocols/root/write/chkpoint_xeq.c` | [✓] | ✓ |
+| `src/protocols/root/write/chkpoint_xeq.h` | [✓] | ✓ |
+| `src/protocols/root/write/chmod.c` | [✓] | ✓ |
+| `src/protocols/root/write/common.c` | [✓] | ✓ |
+| `src/protocols/root/write/mkdir.c` | [✓] | ✓ |
+| `src/protocols/root/write/mv.c` | [✓] | ✓ |
+| `src/protocols/root/write/pgwrite.c` | [✓] | ✓ |
+| `src/protocols/root/write/rm.c` | [✓] | ✓ |
+| `src/protocols/root/write/rmdir.c` | [✓] | ✓ |
+| `src/protocols/root/write/sync.c` | [✓] | ✓ |
+| `src/protocols/root/write/truncate.c` | [✓] | ✓ |
+| `src/protocols/root/write/write.c` | [✓] | ✓ |
+| `src/protocols/root/write/write.h` | [✓] | ✓ |
+| `src/protocols/root/write/writev.c` | [✓] | ✓ |
