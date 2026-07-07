@@ -95,9 +95,9 @@ kXR error itself on failure) and `brix_auth_gate()` (the three-tier authz check,
 ## Control & data flow
 
 **Stream (`root://`) namespace op (the common path):**
-1. A handler in [../read/](../read/README.md), [../write/](../write/README.md),
-   [../dirlist/](../dirlist/README.md), [../query/](../query/README.md), or
-   [../fattr/](../fattr/README.md) calls `brix_resolve_op_path(ctx, c, OP, "VERB", conf, MODE,
+1. A handler in [../read/](../../protocols/root/read/README.md), [../write/](../../protocols/root/write/README.md),
+   [../dirlist/](../../protocols/root/dirlist/README.md), [../query/](../../protocols/root/query/README.md), or
+   [../fattr/](../../protocols/root/fattr/README.md) calls `brix_resolve_op_path(ctx, c, OP, "VERB", conf, MODE,
    reqpath, …, resolved, …)`.
 2. That runs `brix_extract_path` (`extract.c`) → `brix_path_resolve_beneath` (`op_path.c`):
    `brix_count_path_depth` + `brix_op_path_forbidden_component` (`helpers.c`), per-mode
@@ -107,17 +107,17 @@ kXR error itself on failure) and `brix_auth_gate()` (the three-tier authz check,
 3. The handler then calls `brix_auth_gate(ctx, c, OP, "VERB", reqpath, resolved, conf,
    AUTH_LEVEL, need_write)` (`auth_gate.c`): auth-cache fast path, then `brix_check_authdb`
    (`authdb.c`) → `brix_check_vo_acl_identity` (`acl.c`, via `find_rule.c`) →
-   `brix_check_token_scope` ([../token/](../token/README.md)).
+   `brix_check_token_scope` ([../token/](../../auth/token/README.md)).
 4. The actual syscall runs through the beneath API (`brix_open_beneath` etc.) anchored to
    `conf->rootfd`; an escape returns `EXDEV` → mapped to `kXR_NotAuthorized` by
-   `brix_kxr_from_errno`. File data then flows out via [../aio/](../aio/README.md) +
-   [../response/](../response/README.md) / [../fs/](../fs/README.md).
+   `brix_kxr_from_errno`. File data then flows out via [../aio/](../../core/aio/README.md) +
+   [../response/](../../protocols/root/response/README.md) / [../fs/](../README.md).
 5. `brix_log_access` (`access_log.c`) records the result; `brix_access_log_flush` is called
    on disconnect.
 
-**HTTP / S3:** WebDAV ([../webdav/](../webdav/README.md)) and S3 ([../s3/](../s3/README.md))
+**HTTP / S3:** WebDAV ([../webdav/](../../protocols/webdav/README.md)) and S3 ([../s3/](../../protocols/s3/README.md))
 handlers reach the same primitives — `brix_beneath_full_path`, the beneath ops, and the
-confined `*_canon` ops — through the [../compat/](../compat/README.md) adapter
+confined `*_canon` ops — through the [../compat/](../../core/compat/README.md) adapter
 (`namespace_ops.c`). They use `brix_get_canonical_root` / `brix_open_confined_canon` and
 `brix_sanitize_log_string` directly.
 
@@ -125,10 +125,10 @@ confined `*_canon` ops — through the [../compat/](../compat/README.md) adapter
 (`helpers.c`) canonicalises every VO/authdb/group rule path via the surviving
 `brix_resolve_path_noexist` (`resolve_path_variants.c` → `unified.c`); `merge.c` merges
 inherited rule arrays; `normalize.c` canonicalises directive policy paths; `auth_cache.c` binds
-the gate cache to an `brix_kv` SHM zone ([../shm/](../shm/README.md)).
+the gate cache to an `brix_kv` SHM zone ([../shm/](../../core/shm/README.md)).
 
 **Cluster:** `brix_find_manager_map` (`find_rule.c`) feeds path→server routing used by the
-[../manager/](../manager/README.md) / [../cms/](../cms/README.md) redirector.
+[../manager/](../../net/manager/README.md) / [../cms/](../../net/cms/README.md) redirector.
 
 ## Invariants, security & gotchas
 
@@ -204,22 +204,22 @@ the gate cache to an `brix_kv` SHM zone ([../shm/](../shm/README.md)).
   in the correct fail-closed order.
 - **New authdb privilege char:** extend `brix_parse_privs` (`authdb.c`) and add the
   `BRIX_AUTH_*` bit; pass it as `needed_privs` at the relevant gate call sites.
-- **HTTP/S3 caller:** go through [../compat/](../compat/README.md) (`namespace_ops.c`) rather than
+- **HTTP/S3 caller:** go through [../compat/](../../core/compat/README.md) (`namespace_ops.c`) rather than
   duplicating extraction/confinement; reuse `brix_get_canonical_root` + `brix_open_confined_canon`
   / `brix_beneath_full_path`.
 
 ## See also
 
 - [../README.md](../README.md) — master subsystem index.
-- [../read/README.md](../read/README.md), [../write/README.md](../write/README.md),
-  [../dirlist/README.md](../dirlist/README.md), [../query/README.md](../query/README.md),
-  [../fattr/README.md](../fattr/README.md) — handlers that call `brix_resolve_op_path` + `brix_auth_gate`.
-- [../aio/README.md](../aio/README.md) / [../fs/README.md](../fs/README.md) — where the confined fd is
+- [../read/README.md](../../protocols/root/read/README.md), [../write/README.md](../../protocols/root/write/README.md),
+  [../dirlist/README.md](../../protocols/root/dirlist/README.md), [../query/README.md](../../protocols/root/query/README.md),
+  [../fattr/README.md](../../protocols/root/fattr/README.md) — handlers that call `brix_resolve_op_path` + `brix_auth_gate`.
+- [../aio/README.md](../../core/aio/README.md) / [../fs/README.md](../README.md) — where the confined fd is
   read/written off the event loop.
-- [../token/README.md](../token/README.md) / [../gsi/README.md](../gsi/README.md) /
-  [../voms/README.md](../voms/README.md) — identity sources feeding the auth gate (scope, DN, VO list).
-- [../compat/README.md](../compat/README.md) — HTTP/S3 adapter that reuses these primitives.
-- [../shm/README.md](../shm/README.md) — `brix_kv` zone backing the auth-result cache.
-- [../manager/README.md](../manager/README.md) / [../cms/README.md](../cms/README.md) — consumers of
+- [../token/README.md](../../auth/token/README.md) / [../gsi/README.md](../../auth/gsi/README.md) /
+  [../voms/README.md](../../auth/voms/README.md) — identity sources feeding the auth gate (scope, DN, VO list).
+- [../compat/README.md](../../core/compat/README.md) — HTTP/S3 adapter that reuses these primitives.
+- [../shm/README.md](../../core/shm/README.md) — `brix_kv` zone backing the auth-result cache.
+- [../manager/README.md](../../net/manager/README.md) / [../cms/README.md](../../net/cms/README.md) — consumers of
   `brix_find_manager_map` for cluster routing.
-- [../response/README.md](../response/README.md) — wire framing for stat bodies and errors.
+- [../response/README.md](../../protocols/root/response/README.md) — wire framing for stat bodies and errors.

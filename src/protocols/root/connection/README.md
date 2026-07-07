@@ -115,7 +115,7 @@ installed by postconfiguration. It sets `state = XRD_ST_HANDSHAKE` and calls
 **Outbound (responses).** Opcode handlers build responses and hand them to
 `write_helpers.c` (`brix_queue_response*`). Bulk file reads come from
 [../read/README.md](../read/README.md) and the thread-pool in
-[../aio/README.md](../aio/README.md): cleartext reads use file-backed
+[../aio/README.md](../../../core/aio/README.md): cleartext reads use file-backed
 chains + `sendfile`; TLS reads use memory-backed buffers (see invariants). When
 `c->send`/`c->send_chain` returns `EAGAIN`, the unsent tail is parked in an
 `out_ring` slot, the connection moves to `XRD_ST_SENDING`, and `send.c` resumes
@@ -123,18 +123,18 @@ it on the next write-ready event via `brix_flush_pending`.
 
 **Suspend / resume to siblings.** Each suspend state hands the connection to a
 sibling and returns to the event loop:
-- `XRD_ST_AIO` → [../aio/README.md](../aio/README.md) thread pool; the completion
+- `XRD_ST_AIO` → [../aio/README.md](../../../core/aio/README.md) thread pool; the completion
   callback re-arms via `event_sched.c`.
-- `XRD_ST_UPSTREAM` → [../upstream/README.md](../upstream/README.md) redirector query.
-- `XRD_ST_PROXY` → [../proxy/README.md](../proxy/README.md) transparent forwarding.
+- `XRD_ST_UPSTREAM` → [../upstream/README.md](../../../net/upstream/README.md) redirector query.
+- `XRD_ST_PROXY` → [../proxy/README.md](../../../net/proxy/README.md) transparent forwarding.
 - `XRD_ST_WAITING_CMS` → manager locate via the CMS pending table
-  ([../manager/README.md](../manager/README.md), [../cms/README.md](../cms/README.md));
+  ([../manager/README.md](../../../net/manager/README.md), [../cms/README.md](../../../net/cms/README.md));
   on timeout `recv.c` replies `kXR_wait` so the client retries.
 - `XRD_ST_TLS_HANDSHAKE` → `tls.c`.
 
 **Path & confinement.** This subsystem itself never resolves client paths for
 I/O — dispatch and the op handlers do, always through
-[../path/README.md](../path/README.md) before any syscall. The one place
+[../path/README.md](../../../fs/path/README.md) before any syscall. The one place
 `fd_table.c` opens a path directly is the bound-secondary reopen, and it does so
 via `brix_open_beneath(conf->rootfd, rel, ...)` (RESOLVE_BENEATH) for exactly
 that reason.
@@ -156,7 +156,7 @@ rejection, fatal dispatch error) funnels through `disconnect.c::brix_on_disconne
    actor is the AIO thread pool, and the `ctx->destroyed = 1` flag set first in
    `brix_on_disconnect` is the guard a late AIO completion checks before
    touching freed state. Do not introduce blocking calls (`sleep`/blocking
-   `read`/`pread`) in any handler — offload to [../aio/README.md](../aio/README.md).
+   `read`/`pread`) in any handler — offload to [../aio/README.md](../../../core/aio/README.md).
 3. **Heap (not pool) for cross-request buffers.** `payload_buf`, `prepare_paths`,
    the read/write scratch buffers, the `rd_pool` read buffers, and per-slot
    `owned_base` are raw `ngx_alloc`/`ngx_free` (so repeated large requests don't
@@ -174,7 +174,7 @@ rejection, fatal dispatch error) funnels through `disconnect.c::brix_on_disconne
 5. **TLS vs. cleartext buffers never mix.** The cleartext read path parks
    file-backed chains for `sendfile`; the TLS path must use memory-backed buffers
    (that distinction lives in [../read/README.md](../read/README.md) /
-   [../aio/README.md](../aio/README.md), but `recv.c`'s `resp_pipelinable` /
+   [../aio/README.md](../../../core/aio/README.md), but `recv.c`'s `resp_pipelinable` /
    `rd_win_active` gating depends on it — windowed/TLS reads are kept
    non-pipelinable because their data lives in shared scratch).
 6. **TLS upgrade hygiene.** `brix_start_tls` calls `ERR_clear_error()` first
@@ -237,11 +237,11 @@ rejection, fatal dispatch error) funnels through `disconnect.c::brix_on_disconne
 
 - [../handshake/README.md](../handshake/README.md) — opcode dispatcher this loop hands off to.
 - [../read/README.md](../read/README.md), [../write/README.md](../write/README.md) — opcode bodies that build responses.
-- [../aio/README.md](../aio/README.md) — thread-pool offload that drives `XRD_ST_AIO`.
-- [../path/README.md](../path/README.md) — RESOLVE_BENEATH confinement used by dispatch + bound reopen.
+- [../aio/README.md](../../../core/aio/README.md) — thread-pool offload that drives `XRD_ST_AIO`.
+- [../path/README.md](../../../fs/path/README.md) — RESOLVE_BENEATH confinement used by dispatch + bound reopen.
 - [../session/README.md](../session/README.md) — login/auth/bind + the shared session registry `disconnect.c` unregisters from.
-- [../upstream/README.md](../upstream/README.md), [../proxy/README.md](../proxy/README.md) — drive `XRD_ST_UPSTREAM`/`XRD_ST_PROXY`.
-- [../manager/README.md](../manager/README.md), [../cms/README.md](../cms/README.md) — drive `XRD_ST_WAITING_CMS` (locate/redirect).
-- [../metrics/README.md](../metrics/README.md) — SHM counters `handler.c` binds and `disconnect.c` finalizes.
-- [../types/README.md](../types/README.md) — `brix_ctx_t`, `brix_state_t`, `brix_file_t`, `brix_resp_slot_t`, tunables.
+- [../upstream/README.md](../../../net/upstream/README.md), [../proxy/README.md](../../../net/proxy/README.md) — drive `XRD_ST_UPSTREAM`/`XRD_ST_PROXY`.
+- [../manager/README.md](../../../net/manager/README.md), [../cms/README.md](../../../net/cms/README.md) — drive `XRD_ST_WAITING_CMS` (locate/redirect).
+- [../metrics/README.md](../../../observability/metrics/README.md) — SHM counters `handler.c` binds and `disconnect.c` finalizes.
+- [../types/README.md](../../../core/types/README.md) — `brix_ctx_t`, `brix_state_t`, `brix_file_t`, `brix_resp_slot_t`, tunables.
 - [../README.md](../README.md) — master subsystem index.

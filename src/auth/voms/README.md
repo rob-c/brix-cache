@@ -157,13 +157,13 @@ indirectly via `brix_track_vo_activity()` (VO-keyed activity, low cardinality).
 
 - [`../gsi/README.md`](../gsi/README.md) — X.509 proxy verification; primary
   stream caller of `brix_extract_voms_info`.
-- [`../webdav/README.md`](../webdav/README.md) — `auth_cert.c`, the HTTP caller
+- [`../webdav/README.md`](../../protocols/webdav/README.md) — `auth_cert.c`, the HTTP caller
   (via `voms_http.h`).
-- [`../path/README.md`](../path/README.md) — `acl.c` / `auth_gate.c` consume the
+- [`../path/README.md`](../../fs/path/README.md) — `acl.c` / `auth_gate.c` consume the
   VO strings to enforce `brix_require_vo`.
-- [`../config/README.md`](../config/README.md) — `postconfiguration.c` calls
+- [`../config/README.md`](../../core/config/README.md) — `postconfiguration.c` calls
   `brix_voms_init`; `policy.c` validates `brix_require_vo`, `brix_vomsdir`,
   `brix_voms_cert_dir`.
-- [`../types/README.md`](../types/README.md) — `brix_ctx_t` and the request
+- [`../types/README.md`](../../core/types/README.md) — `brix_ctx_t` and the request
   identity that store `primary_vo` / `vo_list`.
 - [`../README.md`](../README.md) — master subsystem index.

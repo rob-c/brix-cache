@@ -102,20 +102,20 @@ registry (`brix_tpc_key_consume`) on the source side. `kXR_sync`
 `brix_tpc_start_pull()`.
 
 **Calls out to:**
-- [`../path/`](../path/README.md) — destination open is confined via
+- [`../path/`](../fs/path/README.md) — destination open is confined via
   `brix_open_beneath(conf->rootfd, ...)` against the per-worker root fd
   (`RESOLVE_BENEATH`); `launch.c` strips the `root_canon` prefix to pass the
   *logical* path so the root is not doubled.
-- [`../aio/`](../aio/README.md) — the thread→event-loop handoff reuses the same
+- [`../aio/`](../core/aio/README.md) — the thread→event-loop handoff reuses the same
   `brix_aio_restore_request` / `brix_aio_resume` machinery; the connection
   enters `XRD_ST_AIO` while the pull runs.
-- [`../read/`](../read/README.md) / [`../write/`](../write/README.md) — open
+- [`../read/`](../protocols/root/read/README.md) / [`../write/`](../protocols/root/write/README.md) — open
   request decode and the `kXR_sync` arm/flush trigger.
-- [`../compat/`](../compat/README.md) — `net_target` SSRF policy
+- [`../compat/`](../core/compat/README.md) — `net_target` SSRF policy
   (`brix_net_target_check_addr`/`_dns`) and `shm_slots` expiry helpers.
-- [`../token/`](../token/README.md) — bearer-file reads and OAuth2 access-token
+- [`../token/`](../auth/token/README.md) — bearer-file reads and OAuth2 access-token
   JSON parsing for delegated source auth.
-- [`../session/`](../session/README.md) — handle publish for bound sessions
+- [`../session/`](../protocols/root/session/README.md) — handle publish for bound sessions
   (`brix_session_handle_publish`).
 - [`common/`](common/README.md) — credential validate, transfer registry
   add/update/remove, metrics, progress emit.
@@ -189,9 +189,9 @@ with `tpc.key` appended for client extraction) or `kXR_*` error in `done.c`, the
 ## See also
 
 - [`common/README.md`](common/README.md) — shared TPC authz/credential/registry/metrics core.
-- [`../webdav/README.md`](../webdav/README.md) — the other TPC transport (HTTP `COPY`).
-- [`../path/README.md`](../path/README.md) — `RESOLVE_BENEATH` confinement.
-- [`../aio/README.md`](../aio/README.md) — thread-pool / event-loop handoff pattern.
-- [`../read/README.md`](../read/README.md) · [`../write/README.md`](../write/README.md) — open decode and `kXR_sync` arm/flush trigger.
-- [`../token/README.md`](../token/README.md) — bearer files and OAuth2 token parsing.
+- [`../webdav/README.md`](../protocols/webdav/README.md) — the other TPC transport (HTTP `COPY`).
+- [`../path/README.md`](../fs/path/README.md) — `RESOLVE_BENEATH` confinement.
+- [`../aio/README.md`](../core/aio/README.md) — thread-pool / event-loop handoff pattern.
+- [`../read/README.md`](../protocols/root/read/README.md) · [`../write/README.md`](../protocols/root/write/README.md) — open decode and `kXR_sync` arm/flush trigger.
+- [`../token/README.md`](../auth/token/README.md) — bearer files and OAuth2 token parsing.
 - [`../README.md`](../README.md) — master subsystem index.

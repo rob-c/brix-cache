@@ -230,9 +230,9 @@ empty-key rejection → `s3_resolve_key` → per-method dispatch. Async write pa
 
 - [`../README.md`](../README.md) — master subsystem index
 - [`../webdav/README.md`](../webdav/README.md) — sibling HTTP protocol (WebDAV/HTTPS)
-- [`../path/README.md`](../path/README.md) — confinement & canonical path resolution
-- [`../fs/README.md`](../fs/README.md) — cache-aware VFS (open/read/stat)
-- [`../cache/README.md`](../cache/README.md) — read-through / write-through cache
-- [`../aio/README.md`](../aio/README.md) — thread-pool I/O offload
-- [`../metrics/README.md`](../metrics/README.md) — Prometheus counters & unified metrics
-- [`../compat/README.md`](../compat/README.md) — staged-file, HTTP, XML, crypto, namespace helpers
+- [`../path/README.md`](../../fs/path/README.md) — confinement & canonical path resolution
+- [`../fs/README.md`](../../fs/README.md) — cache-aware VFS (open/read/stat)
+- [`../cache/README.md`](../../fs/cache/README.md) — read-through / write-through cache
+- [`../aio/README.md`](../../core/aio/README.md) — thread-pool I/O offload
+- [`../metrics/README.md`](../../observability/metrics/README.md) — Prometheus counters & unified metrics
+- [`../compat/README.md`](../../core/compat/README.md) — staged-file, HTTP, XML, crypto, namespace helpers

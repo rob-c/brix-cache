@@ -92,7 +92,7 @@ with length `ctx->cur_dlen`.
    - **Payload begins with `0x00`**: file-handle form — `fhandle[0]` selects the
      fd, any trailing bytes are the argument vector.
    - **Otherwise**: path form — `brix_extract_path()` extracts the request
-     path, `brix_beneath_full_path()` (see [../path/README.md](../path/README.md))
+     path, `brix_beneath_full_path()` (see [../path/README.md](../../../fs/path/README.md))
      joins it under `conf->common.root_canon`, `brix_auth_gate()`
      (`BRIX_AUTH_UPDATE` for Set/Del else `BRIX_AUTH_READ`) authorizes it,
      and a probe `brix_open_beneath()` confirms the path is confined before any
@@ -115,7 +115,7 @@ in `attrs[]`, then:
 shared response framer `brix_send_ok()`/`brix_send_error()`, and the kernel
 `<sys/xattr.h>` syscalls directly. It reads file descriptors from
 `ctx->files[]` (see [../connection/README.md](../connection/README.md) /
-`fd_table.c`). It does **not** use [../aio/README.md](../aio/README.md) — xattr
+`fd_table.c`). It does **not** use [../aio/README.md](../../../core/aio/README.md) — xattr
 ops run inline.
 
 ## Invariants, security & gotchas
@@ -179,9 +179,9 @@ ops run inline.
 
 ## See also
 
-- [../path/README.md](../path/README.md) — path extraction, `brix_beneath_full_path`, `brix_open_beneath`, and `brix_auth_gate` confinement/authorization.
+- [../path/README.md](../../../fs/path/README.md) — path extraction, `brix_beneath_full_path`, `brix_open_beneath`, and `brix_auth_gate` confinement/authorization.
 - [../handshake/README.md](../handshake/README.md) — opcode dispatch that routes `kXR_fattr` here.
 - [../connection/README.md](../connection/README.md) — `ctx->files[]` fd table backing handle-form requests.
-- [../metrics/README.md](../metrics/README.md) — the `BRIX_OP_FATTR` counter slot.
+- [../metrics/README.md](../../../observability/metrics/README.md) — the `BRIX_OP_FATTR` counter slot.
 - [../protocol/README.md](../protocol/README.md) — `ClientFattrRequest`, sub-code and flag constants.
 - [../README.md](../README.md) — master subsystem index.

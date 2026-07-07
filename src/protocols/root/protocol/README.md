@@ -27,7 +27,7 @@ XRootD itself is independent software distributed by its authors under the
 **LGPL-3.0** (see <https://github.com/xrootd/xrootd>); LGPL-3.0 is compatible with
 this project's **AGPL-3.0** license. The XRootD relationship and the licenses of
 all third-party components linked into the built binary are recorded in the
-repo-root [`THIRD-PARTY-NOTICES`](../../THIRD-PARTY-NOTICES) file.
+repo-root [`THIRD-PARTY-NOTICES`](../../../../THIRD-PARTY-NOTICES) file.
 
 It exists so that opcodes, status/error codes, option bitmasks, and on-the-wire
 byte layouts are declared **once** and shared by every consumer instead of being

@@ -6,9 +6,9 @@ object to an admin. Drives POSIX, pblock, S3 and **Ceph/RADOS** identically,
 because every filesystem touch goes through the VFS seam (`brix_vfs_*`) — no
 backend symbol appears here.
 
-Design: [`../../docs/superpowers/specs/2026-06-29-storage-scan-verify-design.md`](../../docs/superpowers/specs/2026-06-29-storage-scan-verify-design.md)
+Design: [`../../docs/superpowers/specs/2026-06-29-storage-scan-verify-design.md`](../../../docs/superpowers/specs/2026-06-29-storage-scan-verify-design.md)
 and the folded sysadmin-tooling menu
-[`../../docs/superpowers/specs/2026-06-29-client-backend-sysadmin-tooling-design.md`](../../docs/superpowers/specs/2026-06-29-client-backend-sysadmin-tooling-design.md).
+[`../../docs/superpowers/specs/2026-06-29-client-backend-sysadmin-tooling-design.md`](../../../docs/superpowers/specs/2026-06-29-client-backend-sysadmin-tooling-design.md).
 
 ## Layering
 

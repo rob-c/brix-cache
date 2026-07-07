@@ -206,8 +206,8 @@ SSS verification delegates to `../sss`.
 ## See also
 
 - [../manager/README.md](../manager/README.md) — SHM server registry, blacklist, `brix_srv_select`, and the pending-locate table this subsystem wakes.
-- [../read/README.md](../read/README.md) — `locate`/`open`/`stat` handlers that originate `kYR_locate` and consume `kXR_redirect`.
-- [../path/README.md](../path/README.md) — `brix_stat_beneath` / RESOLVE_BENEATH confinement used by the `kYR_state` probe.
-- [../sss/README.md](../sss/README.md) — shared SSS keytab loader and credential verifier used for cluster auth (W1a).
-- [../handshake/README.md](../handshake/README.md) and [../connection/README.md](../connection/README.md) — the stream client lifecycle whose sessions are suspended/redirected here.
+- [../read/README.md](../../protocols/root/read/README.md) — `locate`/`open`/`stat` handlers that originate `kYR_locate` and consume `kXR_redirect`.
+- [../path/README.md](../../fs/path/README.md) — `brix_stat_beneath` / RESOLVE_BENEATH confinement used by the `kYR_state` probe.
+- [../sss/README.md](../../auth/sss/README.md) — shared SSS keytab loader and credential verifier used for cluster auth (W1a).
+- [../handshake/README.md](../../protocols/root/handshake/README.md) and [../connection/README.md](../../protocols/root/connection/README.md) — the stream client lifecycle whose sessions are suspended/redirected here.
 - [../README.md](../README.md) — master subsystem index.

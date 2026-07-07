@@ -66,7 +66,7 @@ This subsystem defines no types of its own; it reads/writes shared ones:
 **Entry:** `brix_handle_unix_auth(ctx, c, conf)` is called only from
 `brix_handle_auth_inner()` in [`../gsi/auth.c`](../gsi/auth.c) (the kXR_auth
 credtype router), which is itself reached from the stream handshake dispatcher
-[`../handshake/dispatch.c`](../handshake/dispatch.c) after `kXR_login`.
+[`../handshake/dispatch.c`](../../protocols/root/handshake/dispatch.c) after `kXR_login`.
 
 **Wire payload parsed:** the kXR_auth body for this scheme is
 `"unix\0"` followed by `user[ group]` (space-separated). The handler validates
@@ -90,8 +90,8 @@ optional group token.
 **Return:** `NGX_OK`-class wire reply (`kXR_ok`) on success; a `kXR_error`
 reply (always `kXR_NotAuthorized`, or `kXR_NoMemory` on alloc failure) on any
 rejection. After success the connection proceeds to the normal opcode handlers
-([`../read/`](../read/), [`../write/`](../write/), etc.), where the identity this
-handler set drives [`../path/`](../path/) ACL/VO authorization.
+([`../read/`](../../protocols/root/read/), [`../write/`](../../protocols/root/write/), etc.), where the identity this
+handler set drives [`../path/`](../../fs/path/) ACL/VO authorization.
 
 ## Invariants, security & gotchas
 
@@ -129,7 +129,7 @@ handler set drives [`../path/`](../path/) ACL/VO authorization.
   they already passed the allow-list — keeping the audit log injection-proof.
 - **Event-loop safe.** This handler does only in-memory parsing and SHM metric
   bumps — no blocking I/O — so it runs inline on the stream worker with no AIO
-  offload (cf. [`../aio/`](../aio/)).
+  offload (cf. [`../aio/`](../../core/aio/)).
 
 ## Entry points / extending
 
@@ -139,9 +139,9 @@ handler set drives [`../path/`](../path/) ACL/VO authorization.
   setters — do not relax `brix_unix_name_byte_ok()` without a security review.
 - **Adjust the trust policy:** the directive `brix_unix_trust_remote` is wired
   in the live `ngx_stream_brix_commands[]` table in
-  [`../stream/module.c`](../stream/module.c)
+  [`../stream/module.c`](../../protocols/root/stream/module.c)
   → field `unix_trust_remote` in `../types/config.h`, defaulted in
-  [`../config/server_conf.c`](../config/server_conf.c). To add finer-grained
+  [`../config/server_conf.c`](../../core/config/server_conf.c). To add finer-grained
   trust (e.g. a CIDR allow-list) extend `brix_unix_peer_is_loopback()` and the
   config plumbing — keep the default fail-closed.
 - **Add a sibling auth scheme:** mirror this file's shape (peer gate → parse →
@@ -155,12 +155,12 @@ handler set drives [`../path/`](../path/) ACL/VO authorization.
 - [`../sss/`](../sss/) and [`../krb5/`](../krb5/) — peer auth schemes routed from
   the same dispatcher; `unix` reuses the SSS size caps (`BRIX_SSS_*`).
 - [`../token/`](../token/) — WLCG/JWT bearer auth (HTTP + stream `ztn`).
-- [`../session/`](../session/) — `brix_session_register()` and the session
+- [`../session/`](../../protocols/root/session/) — `brix_session_register()` and the session
   registry that `kXR_bind`/cluster mode read.
-- [`../metrics/`](../metrics/) — `brix_metric_auth`, VO-activity and
+- [`../metrics/`](../../observability/metrics/) — `brix_metric_auth`, VO-activity and
   unique-user tracking.
-- [`../path/`](../path/) — consumes the identity (`dn`/`vo_list`) for ACL/VO
+- [`../path/`](../../fs/path/) — consumes the identity (`dn`/`vo_list`) for ACL/VO
   authorization on every subsequent operation.
-- [`../types/`](../types/) — `brix_ctx_t`, `brix_identity_t`, config fields,
+- [`../types/`](../../core/types/) — `brix_ctx_t`, `brix_identity_t`, config fields,
   and `BRIX_SSS_*` / `BRIX_AUTHN_UNIX` constants.
 - [`../README.md`](../README.md) — master subsystem index.

@@ -185,9 +185,9 @@ won't compile it.
 
 - [`../gsi/README.md`](../gsi/README.md) — stream GSI auth; primary consumer of
   `gsi_verify` + `ocsp` + the CA store.
-- [`../webdav/README.md`](../webdav/README.md) — DAVS client-cert auth
+- [`../webdav/README.md`](../../protocols/webdav/README.md) — DAVS client-cert auth
   (`auth_store.c` builds the store, `auth_cert.c` verifies the chain).
-- [`../session/README.md`](../session/README.md) — TLS config and the OCSP
+- [`../session/README.md`](../../protocols/root/session/README.md) — TLS config and the OCSP
   status-request callback that delivers the cached staple.
 - [`../token/README.md`](../token/README.md) / [`../sss/README.md`](../sss/README.md)
   / [`../krb5/README.md`](../krb5/README.md) — sibling auth domains (distinct

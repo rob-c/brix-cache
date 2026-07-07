@@ -85,8 +85,8 @@ written.
 
 Sibling subsystems in the same request:
 [../README.md](../README.md) (WebDAV method router and handlers),
-[../../compat/README.md](../../compat/README.md) (shared ETag / conditional /
-header helpers), [../../path/README.md](../../path/README.md) (the confinement
+[../../compat/README.md](../../../core/compat/README.md) (shared ETag / conditional /
+header helpers), [../../path/README.md](../../../fs/path/README.md) (the confinement
 that produced `dst_path` before this runs).
 
 ## Invariants, security & gotchas
@@ -140,8 +140,8 @@ To add another method's precondition/policy helper here, follow the
 
 - [../README.md](../README.md) — WebDAV method router, dispatch, and handlers
   (`copy.c`, `move.c`, `put.c`, `get.c`, `propfind.c`, `lock.c`).
-- [../../compat/README.md](../../compat/README.md) — shared HTTP conditional,
+- [../../compat/README.md](../../../core/compat/README.md) — shared HTTP conditional,
   ETag, header, and body helpers (`http_conditionals.c`, `etag.c`).
-- [../../path/README.md](../../path/README.md) — path canonicalization and
+- [../../path/README.md](../../../fs/path/README.md) — path canonicalization and
   `RESOLVE_BENEATH` confinement that resolves COPY source/destination paths.
 - [../../README.md](../../README.md) — master subsystem index.

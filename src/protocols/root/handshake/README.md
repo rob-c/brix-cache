@@ -27,12 +27,12 @@ the stream protocol: they are invoked *before* any handler runs, so a handler is
 only ever reached for a session that has logged in, authenticated, and (for
 mutations) been granted write access and a valid signature where policy demands
 one. This is the stream-side analogue of the HTTP access-phase checks in
-[`../webdav/`](../webdav/README.md) and [`../s3/`](../s3/README.md).
+[`../webdav/`](../../webdav/README.md) and [`../s3/`](../../s3/README.md).
 
 This subsystem is used by every `root://` request lifecycle: anonymous,
 GSI-proxy, WLCG-token, SSS, and Kerberos sessions, as well as proxy/redirector
-deployments (it hands off to [`../proxy/`](../proxy/README.md) and
-[`../manager/`](../manager/README.md) once login completes in those modes).
+deployments (it hands off to [`../proxy/`](../../../net/proxy/README.md) and
+[`../manager/`](../../../net/manager/README.md) once login completes in those modes).
 
 ## Files
 
@@ -51,7 +51,7 @@ deployments (it hands off to [`../proxy/`](../proxy/README.md) and
 ## Key types & data structures
 
 This subsystem owns no struct of its own; it manipulates the per-connection
-`brix_ctx_t` (defined in [`../types/context.h`](../types/README.md)) and the
+`brix_ctx_t` (defined in [`../types/context.h`](../../../core/types/README.md)) and the
 stream server config `ngx_stream_brix_srv_conf_t`. The fields it reads/writes:
 
 - **Routing input:** `ctx->cur_reqid` (parsed opcode, host byte order, e.g.
@@ -112,22 +112,22 @@ siblings:
   [`../query/`](../query/README.md) (query/prepare), [`../fattr/`](../fattr/README.md).
 - write opcodes → [`../write/`](../write/README.md)
   (write/pgwrite/writev/sync/truncate/mkdir/rm/rmdir/mv/chmod/chkpoint).
-- proxy mode → [`../proxy/`](../proxy/README.md); rate limiting →
-  [`../ratelimit/`](../ratelimit/README.md); shadow replay →
-  [`../mirror/`](../mirror/README.md); responses framed via
+- proxy mode → [`../proxy/`](../../../net/proxy/README.md); rate limiting →
+  [`../ratelimit/`](../../../net/ratelimit/README.md); shadow replay →
+  [`../mirror/`](../../../net/mirror/README.md); responses framed via
   [`../response/`](../response/README.md) (`brix_send_error`,
   `brix_queue_response`).
 - handlers themselves resolve client paths beneath the export root via
-  [`../path/`](../path/README.md) and offload blocking I/O through
-  [`../aio/`](../aio/README.md); this subsystem does neither directly.
+  [`../path/`](../../../fs/path/README.md) and offload blocking I/O through
+  [`../aio/`](../../../core/aio/README.md); this subsystem does neither directly.
 
 **Auth happens elsewhere; gating happens here.** `dispatch_session.c` routes
 `kXR_auth` to its handler `brix_handle_auth()`, which lives in
-[`../gsi/`](../gsi/README.md) (`gsi/auth.c` — the credential-type front door),
+[`../gsi/`](../../../auth/gsi/README.md) (`gsi/auth.c` — the credential-type front door),
 *not* in `session/`. From there it dispatches by credential type to
-[`../gsi/`](../gsi/README.md) (GSI proxy chains), [`../token/`](../token/README.md)
-(JWT/WLCG bearer), [`../sss/`](../sss/README.md) (shared secret), and
-[`../krb5/`](../krb5/README.md) (Kerberos). `session/` owns the *other*
+[`../gsi/`](../../../auth/gsi/README.md) (GSI proxy chains), [`../token/`](../../../auth/token/README.md)
+(JWT/WLCG bearer), [`../sss/`](../../../auth/sss/README.md) (shared secret), and
+[`../krb5/`](../../../auth/krb5/README.md) (Kerberos). `session/` owns the *other*
 session-lifecycle opcodes (login, bind, ping, set, endsess). The handshake gates
 here only *enforce* the resulting `ctx->logged_in` / `ctx->auth_done` flags.
 
@@ -175,7 +175,7 @@ here only *enforce* the resulting `ctx->logged_in` / `ctx->auth_done` flags.
   of the trailing bytes is `recv.c`'s job, not this file's.
 - **Single-threaded, no blocking here.** Dispatch runs on the worker event loop;
   it never sleeps, reads, or does filesystem I/O. Blocking work belongs to the
-  handlers it routes to, which offload via [`../aio/`](../aio/README.md).
+  handlers it routes to, which offload via [`../aio/`](../../../core/aio/README.md).
 
 ## Entry points / extending
 
@@ -208,13 +208,13 @@ requests): add a phase in `brix_dispatch` (`dispatch.c`) returning
   [`../dirlist/README.md`](../dirlist/README.md),
   [`../query/README.md`](../query/README.md),
   [`../fattr/README.md`](../fattr/README.md) — opcode handlers.
-- [`../proxy/README.md`](../proxy/README.md),
-  [`../manager/README.md`](../manager/README.md) — proxy/redirector handoff.
-- [`../ratelimit/README.md`](../ratelimit/README.md),
-  [`../mirror/README.md`](../mirror/README.md) — the rate-limit gate and
+- [`../proxy/README.md`](../../../net/proxy/README.md),
+  [`../manager/README.md`](../../../net/manager/README.md) — proxy/redirector handoff.
+- [`../ratelimit/README.md`](../../../net/ratelimit/README.md),
+  [`../mirror/README.md`](../../../net/mirror/README.md) — the rate-limit gate and
   shadow-replay hooks fired inside `brix_dispatch`.
 - [`../protocol/README.md`](../protocol/README.md),
-  [`../types/README.md`](../types/README.md) — wire structs/opcodes and
+  [`../types/README.md`](../../../core/types/README.md) — wire structs/opcodes and
   `brix_ctx_t`.
 - [`../response/README.md`](../response/README.md) — `brix_send_error` /
   `brix_queue_response` framing helpers.

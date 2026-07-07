@@ -22,7 +22,7 @@ single-threaded event loop and must never block — blocking `pread`/`preadv` is
 to the thread pool in `../aio/`, with the completion callback rebuilding the response
 chain identically to the synchronous path. Since phase-54 the AIO-offloaded and the
 window-pump inline-fallback read/pgread/readv bodies run through the VFS-owned
-thread-safe core `brix_vfs_io_execute()` ([`../fs/vfs_io_core.c`](../fs/README.md))
+thread-safe core `brix_vfs_io_execute()` ([`../fs/vfs_io_core.c`](../../../fs/README.md))
 rather than a `pread` reimplemented here; these handlers own validation, framing, and
 scheduling. The zero-copy `sendfile` branch and the `preadv2(RWF_NOWAIT)` warm-cache
 probe stay separate by design (they move bytes without a core buffer). Responses are
@@ -105,7 +105,7 @@ Entry is always `brix_dispatch_read_opcode()` in
 [`../handshake/dispatch_read.c`](../handshake/README.md), which validates the session is
 bound and calls one `brix_handle_*()`. From there:
 
-- **Path confinement & resolution** → [`../path/`](../path/README.md):
+- **Path confinement & resolution** → [`../path/`](../../../fs/path/README.md):
   `brix_extract_path` (strip CGI query), `brix_count_path_depth`,
   `brix_beneath_full_path` / `brix_beneath_rel` / `brix_open_beneath` /
   `brix_stat_beneath` (`openat2 RESOLVE_BENEATH`), and the `brix_auth_gate`
@@ -115,7 +115,7 @@ bound and calls one `brix_handle_*()`. From there:
   `brix_validate_read_handle` / `brix_validate_file_handle` /
   `brix_validate_write_handle`, plus the memory budget (`../connection/budget.h`,
   `brix_budget_admit`/`_sync`) gating large allocations.
-- **Async I/O** → [`../aio/`](../aio/README.md): `brix_aio_post_task`,
+- **Async I/O** → [`../aio/`](../../../core/aio/README.md): `brix_aio_post_task`,
   `brix_read_aio_thread`/`_done` (and the readv/pgread variants), `brix_task_bind`,
   `brix_aio_restore_request`/`brix_aio_resume` for suspend/resume.
 - **Response framing** → [`../response/`](../response/README.md):
@@ -123,18 +123,18 @@ bound and calls one `brix_handle_*()`. From there:
   `brix_build_pgread_status`, `brix_make_stat_body`,
   `brix_send_ok`/`_error`/`_wait`/`_redirect`/`_redirect_tpc`,
   `brix_queue_response`/`_chain`, `brix_release_read_buffer`.
-- **Caching** → [`../cache/`](../cache/README.md): `brix_cache_open_or_fill`,
+- **Caching** → [`../cache/`](../../../fs/cache/README.md): `brix_cache_open_or_fill`,
   `brix_cache_slice_fill_thread`, slice enumeration (`brix_slice_enumerate`,
   `brix_slice_path`, `../cache/slice.h`); and the write-through decision/flush
   (`../cache/writethrough_*`, `conf->wt_decision.fn`).
-- **Cluster** → [`../manager/`](../manager/README.md) (`brix_srv_select`,
+- **Cluster** → [`../manager/`](../../../net/manager/README.md) (`brix_srv_select`,
   `brix_redir_cache_lookup`/`_insert`, `brix_manager_tried_exhausted`,
-  `brix_find_manager_map`) and [`../cms/`](../cms/README.md)
+  `brix_find_manager_map`) and [`../cms/`](../../../net/cms/README.md)
   (`ngx_brix_cms_send_locate` + `../manager/pending.c` for the suspended-request table).
-- **TPC** → [`../tpc/`](../tpc/README.md): `brix_tpc_parse_opaque`,
+- **TPC** → [`../tpc/`](../../../tpc/README.md): `brix_tpc_parse_opaque`,
   `brix_tpc_key_register`/`_consume`/`_generate_key`, `brix_tpc_prepare_pull`,
   `brix_tpc_check_authz`, plus `brix_send_redirect_tpc`.
-- **Upstream proxy** → [`../upstream/`](../upstream/README.md): `brix_upstream_start`
+- **Upstream proxy** → [`../upstream/`](../../../net/upstream/README.md): `brix_upstream_start`
   when a local read/stat/locate misses but an upstream origin is configured.
 - **Cross-cutting** → write-recovery journal (`../write/wrts_journal.h`,
   `brix_wrts_open`/`_flush`), POSC temp paths (`../compat/tmp_path.h`,
@@ -231,11 +231,11 @@ write-through decision engine in `../cache/` rather than threading new state thr
 - [`../README.md`](../README.md) — master subsystem index.
 - [`../handshake/README.md`](../handshake/README.md) — opcode dispatch into this module.
 - [`../write/README.md`](../write/README.md) — sibling write opcodes sharing the handle table.
-- [`../path/README.md`](../path/README.md) — confinement, resolution, and the auth gate.
-- [`../aio/README.md`](../aio/README.md) — thread-pool offload and suspend/resume.
+- [`../path/README.md`](../../../fs/path/README.md) — confinement, resolution, and the auth gate.
+- [`../aio/README.md`](../../../core/aio/README.md) — thread-pool offload and suspend/resume.
 - [`../response/README.md`](../response/README.md) — wire framing and response chains.
-- [`../cache/README.md`](../cache/README.md) — XCache fill, slice cache, write-through.
+- [`../cache/README.md`](../../../fs/cache/README.md) — XCache fill, slice cache, write-through.
 - [`../connection/README.md`](../connection/README.md) — fd table, budget, send/recv.
-- [`../manager/README.md`](../manager/README.md) / [`../cms/README.md`](../cms/README.md) — cluster redirect & locate.
-- [`../tpc/README.md`](../tpc/README.md) — native third-party-copy key registry.
-- [`../upstream/README.md`](../upstream/README.md) — upstream-origin fallthrough.
+- [`../manager/README.md`](../../../net/manager/README.md) / [`../cms/README.md`](../../../net/cms/README.md) — cluster redirect & locate.
+- [`../tpc/README.md`](../../../tpc/README.md) — native third-party-copy key registry.
+- [`../upstream/README.md`](../../../net/upstream/README.md) — upstream-origin fallthrough.

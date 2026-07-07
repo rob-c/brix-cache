@@ -30,11 +30,11 @@ allocation to the request path.
 This subsystem sits *beside* the request lifecycle rather than inside any one
 protocol handler: it is shared infrastructure (peer of `compat`, `crypto`, and
 `metrics`). Its consumers are the token cache
-([../token/token_cache.c](../token/token_cache.c)), the auth-result cache
-([../path/auth_cache.c](../path/auth_cache.c) / `auth_gate.c`), the GSI/stream
-rate-limit entry point ([../gsi/auth.c](../gsi/auth.c)), the HTTP rate-limit
+([../token/token_cache.c](../../auth/token/token_cache.c)), the auth-result cache
+([../path/auth_cache.c](../../auth/authz/auth_cache.c) / `auth_gate.c`), the GSI/stream
+rate-limit entry point ([../gsi/auth.c](../../auth/gsi/auth.c)), the HTTP rate-limit
 entry point (`../webdav/access.c`), and the metrics writer
-([../metrics/writer.c](../metrics/writer.c)) which exports each zone's counters.
+([../metrics/writer.c](../../observability/metrics/writer.c)) which exports each zone's counters.
 
 ## Files
 
@@ -103,22 +103,22 @@ re-creates this process's handle to the already-initialized shared lock — it d
 bounded linear-probe sequence (capped at `capacity/2` probes), and releases it;
 there is no I/O or allocation inside the critical section. `get` lazily evicts an
 entry it finds expired and reports a miss. Token caching
-([../token/token_cache.c](../token/token_cache.c)) keys by a 32-byte token
+([../token/token_cache.c](../../auth/token/token_cache.c)) keys by a 32-byte token
 fingerprint and stores the whole `brix_token_claims_t`, with a TTL derived from
 the token's own `exp` and capped at `BRIX_TOKEN_CACHE_MAX_TTL_MS` (5 min);
-auth caching ([../path/auth_cache.c](../path/auth_cache.c)) stores
+auth caching ([../path/auth_cache.c](../../auth/authz/auth_cache.c)) stores
 `brix_auth_cache_val_t` with a short configured TTL (default 30 s).
 
 `brix_rate_limit_check` is called at admission: it loads the bucket (defaulting
 to a full bucket if absent), refills by elapsed time, and either
 decrements-and-admits (`NGX_OK`) or rejects (`NGX_DECLINED`). Callers turn
 `NGX_DECLINED` into the appropriate protocol response — stream `kXR_wait` from
-[../gsi/auth.c](../gsi/auth.c) (keyed by authenticated DN), HTTP 429 from
+[../gsi/auth.c](../../auth/gsi/auth.c) (keyed by authenticated DN), HTTP 429 from
 `../webdav/access.c` (keyed by client IP). (The richer leaky-bucket / bandwidth /
-concurrency limiter lives in [../ratelimit/](../ratelimit/); this
+concurrency limiter lives in [../ratelimit/](../../net/ratelimit/); this
 `shm/rate_limit.c` is the simple per-request token-bucket variant.)
 
-**Export.** [../metrics/writer.c](../metrics/writer.c) (`brix_kv_metrics_emit`)
+**Export.** [../metrics/writer.c](../../observability/metrics/writer.c) (`brix_kv_metrics_emit`)
 iterates `brix_kv_zone_count()` / `brix_kv_zone_get(i)`, calls
 `brix_kv_stats`, and emits `brix_kv_hits_total{zone="..."}` and its siblings.
 
@@ -181,14 +181,14 @@ iterates `brix_kv_zone_count()` / `brix_kv_zone_get(i)`, calls
   register `brix_kv_zone` and `brix_rate_limit`), then parse it in the
   corresponding `_directive` setter.
 - **Expose per-zone stats:** they are already exported automatically by
-  `brix_kv_metrics_emit` in [../metrics/writer.c](../metrics/writer.c) for every
+  `brix_kv_metrics_emit` in [../metrics/writer.c](../../observability/metrics/writer.c) for every
   registered zone — no per-feature wiring needed.
 
 ## See also
 
-- [../token/README.md](../token/README.md) — JWT/bearer validation cache built on a KV zone.
-- [../path/README.md](../path/README.md) — auth-result cache (`auth_cache.c`/`auth_gate.c`) built on a KV zone.
-- [../ratelimit/README.md](../ratelimit/README.md) — the full leaky-bucket / bandwidth / concurrency limiter (this dir is the simple token-bucket variant).
-- [../metrics/README.md](../metrics/README.md) — Prometheus exporter that emits per-zone KV counters.
+- [../token/README.md](../../auth/token/README.md) — JWT/bearer validation cache built on a KV zone.
+- [../path/README.md](../../fs/path/README.md) — auth-result cache (`auth_cache.c`/`auth_gate.c`) built on a KV zone.
+- [../ratelimit/README.md](../../net/ratelimit/README.md) — the full leaky-bucket / bandwidth / concurrency limiter (this dir is the simple token-bucket variant).
+- [../metrics/README.md](../../observability/metrics/README.md) — Prometheus exporter that emits per-zone KV counters.
 - [../config/README.md](../config/README.md) — directive parsing and conf-merge conventions.
 - [../README.md](../README.md) — master subsystem index.
