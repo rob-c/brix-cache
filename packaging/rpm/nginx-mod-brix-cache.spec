@@ -1,19 +1,32 @@
-%global upstream_name nginx-xrootd
-%global upstream_version %{?version_override}%{!?version_override:0.1.0}
+%global upstream_name brix
+# Version: the single source of truth is BRIX_SERVER_VERSION_BARE in
+# src/core/ident.h (what the server reports at runtime).
+# build-rpm-container.sh and the builder Dockerfiles derive version_override
+# from it automatically; the literal fallback below is only for a bare
+# rpmbuild invocation and must be kept in sync with ident.h.
+%global upstream_version %{?version_override}%{!?version_override:1.1.1}
 
 # --- phase-42 optional compression codecs (gzip/deflate via zlib are always on) ---
 # Each non-zlib codec is compile-gated by ./configure's pkg-config probe and
 # degrades to available=0 when absent, so the SRPM builds on minimal hosts.
-# Enable extra codecs with: rpmbuild --with zstd --with lzma --with brotli --with bzip2 --with lz4
-%bcond_with zstd
+# zstd and lz4 default ON (disable with rpmbuild --without zstd --without lz4);
+# enable the rest with: rpmbuild --with lzma --with brotli --with bzip2
+%bcond_without zstd
 %bcond_with lzma
 %bcond_with brotli
 %bcond_with bzip2
-%bcond_with lz4
+%bcond_without lz4
+
+# --- phase-44 io_uring disk-I/O + loop engine (default ON; disable with
+# rpmbuild --without uring). Compiles the io_uring backends into both the
+# nginx modules (via the BRIX_ENABLE_IO_URING configure gate) and the client
+# tools (client Makefile pkg-config probe); runtime selection still defaults
+# to the thread-pool/epoll paths.
+%bcond_without uring
 
 Name:           nginx-mod-brix-cache
 Version:        %{upstream_version}
-Release:        8%{?dist}
+Release:        1%{?dist}
 Summary:        BriX-Cache — XRootD, WebDAV, S3, CMS, and metrics dynamic modules for nginx
 
 # Rebrand (gnuBall -> BriX-Cache, 0.1.0-5): same modules, new product name.
@@ -50,6 +63,7 @@ BuildRequires:  sqlite-devel
 %{?with_brotli:BuildRequires:  libbrotli-devel}
 %{?with_bzip2:BuildRequires:  bzip2-devel}
 %{?with_lz4:BuildRequires:  lz4-devel}
+%{?with_uring:BuildRequires:  liburing-devel}
 # --- native client (brix-cache-client subpackage) extra link deps ---
 # fuse3-devel: the xrootdfs and brixMount FUSE mounts; libcom_err-devel above
 # resolves the -lcom_err pulled in by `pkg-config --libs krb5`; sqlite-devel
@@ -75,6 +89,12 @@ Requires:       nginx-mod-stream%{?_isa}
 Requires:       openssl-libs%{?_isa}
 Requires:       voms-libs%{?_isa}
 Requires:       curl
+# Ceph storage backends (sd_ceph / sd_cephfs_ro) are always compiled in.
+# find-requires already turns the linked sonames (librados.so.2,
+# libradosstriper.so.1) into deps, but the library packages are listed
+# explicitly so Ceph support is a stated contract of this RPM.
+Requires:       librados2%{?_isa}
+Requires:       libradosstriper1%{?_isa}
 
 %description
 BriX-Cache: dynamic nginx modules that serve files over the native XRootD
@@ -129,8 +149,8 @@ Recommends:     python3-xrootd
 %description -n brix-cache-tests
 The full pytest integration, conformance, and adversarial test-suite for
 BriX-Cache (root://, WebDAV, S3, CMS, metrics, FRM, TPC, ...), installed under
-%{_datadir}/nginx-xrootd.  Run with, e.g.:
-    cd %{_datadir}/nginx-xrootd && PYTHONPATH=tests python3 -m pytest tests/ -v
+%{_datadir}/brix.  Run with, e.g.:
+    cd %{_datadir}/brix && PYTHONPATH=tests python3 -m pytest tests/ -v
 
 # ---------------------------------------------------------------------------
 # Subpackage 4: Ceph/XrdCeph migration operator tools
@@ -139,6 +159,12 @@ BriX-Cache (root://, WebDAV, S3, CMS, metrics, FRM, TPC, ...), installed under
 Summary:        XrdCeph/CephFS migration + rescue operator tools for BriX-Cache
 Provides:       brix-cache-ceph-tools = %{version}-%{release}
 Obsoletes:      brix-cache-ceph-tools <= %{version}-%{release}
+# The compiled tools link the Ceph client libraries directly; find-requires
+# already adds the sonames (librados.so.2, libradosstriper.so.1,
+# libcephfs.so.2), but the packages are listed explicitly as a stated contract.
+Requires:       librados2%{?_isa}
+Requires:       libradosstriper1%{?_isa}
+Requires:       libcephfs2%{?_isa}
 # The .py tool variants import the distro rados/cephfs python bindings at run
 # time; the compiled tools need neither.
 Recommends:     python3-rados
@@ -158,6 +184,9 @@ client/apps/ceph/ (build: make -C client ceph-tools).
 
 %build
 # --- nginx dynamic modules ---
+# The io_uring backend is double-gated in ./config: the env opt-in below plus a
+# liburing pkg-config probe (BuildRequires above guarantees it when with_uring).
+%{?with_uring:export BRIX_ENABLE_IO_URING=1}
 %nginx_modconfigure --with-threads --with-stream=dynamic --with-stream_ssl_module --with-http_ssl_module --with-http_dav_module
 %nginx_modbuild
 
@@ -210,14 +239,14 @@ mkdir -p %{buildroot}%{nginx_modconfdir}
 # and a logrotate rule for the module's access logs.
 install -Dpm0644 contrib/brix-cache.conf.example \
     %{buildroot}%{_sysconfdir}/nginx/conf.d/brix-cache.conf.example
-install -Dpm0644 contrib/logrotate.d/nginx-xrootd \
-    %{buildroot}%{_sysconfdir}/logrotate.d/nginx-xrootd
+install -Dpm0644 contrib/logrotate.d/brix \
+    %{buildroot}%{_sysconfdir}/logrotate.d/brix
 
 # phase-47 W4: ship a ready-made Grafana dashboard + Prometheus alert rules.
 install -Dpm0644 contrib/grafana-dashboard.json \
-    %{buildroot}%{_datadir}/nginx-xrootd/grafana-dashboard.json
+    %{buildroot}%{_datadir}/brix/grafana-dashboard.json
 install -Dpm0644 contrib/prometheus-alerts.yml \
-    %{buildroot}%{_datadir}/nginx-xrootd/prometheus-alerts.yml
+    %{buildroot}%{_datadir}/brix/prometheus-alerts.yml
 
 # --- native client tools (brix-cache-client) ---
 # Use the in-tree install target so the RPM follows the current client tool set
@@ -228,19 +257,19 @@ make -C client install-bin \
     LIBDIR=%{_libdir}
 
 # --- test-suite (brix-cache-tests, noarch data) ---
-install -d %{buildroot}%{_datadir}/nginx-xrootd
-cp -a tests %{buildroot}%{_datadir}/nginx-xrootd/tests
+install -d %{buildroot}%{_datadir}/brix
+cp -a tests %{buildroot}%{_datadir}/brix/tests
 # Never ship the prebuilt test nginx binary, any python bytecode caches, or
 # stray compiled test helpers (e.g. tests/fuzz/*) — the package is noarch, so
 # any ELF object in the payload fails the build.
-rm -f %{buildroot}%{_datadir}/nginx-xrootd/tests/nginx-bin
-find %{buildroot}%{_datadir}/nginx-xrootd/tests -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || :
-find %{buildroot}%{_datadir}/nginx-xrootd/tests -name '*.pyc' -delete
-find %{buildroot}%{_datadir}/nginx-xrootd/tests -type f \
+rm -f %{buildroot}%{_datadir}/brix/tests/nginx-bin
+find %{buildroot}%{_datadir}/brix/tests -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || :
+find %{buildroot}%{_datadir}/brix/tests -name '*.pyc' -delete
+find %{buildroot}%{_datadir}/brix/tests -type f \
     -exec sh -c 'head -c4 "$1" | od -An -tx1 | grep -q "7f 45 4c 46"' _ {} \; -delete
-install -Dpm0644 conftest.py      %{buildroot}%{_datadir}/nginx-xrootd/conftest.py
-install -Dpm0644 pytest.ini       %{buildroot}%{_datadir}/nginx-xrootd/pytest.ini
-install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/nginx-xrootd/requirements.txt
+install -Dpm0644 conftest.py      %{buildroot}%{_datadir}/brix/conftest.py
+install -Dpm0644 pytest.ini       %{buildroot}%{_datadir}/brix/pytest.ini
+install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/brix/requirements.txt
 
 # --- Ceph/XrdCeph migration + rescue operator tools (brix-tools) ---
 # Already staged by `make -C client install-bin` above: the compiled tools via
@@ -256,9 +285,9 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/nginx-xrootd/requireme
 %{nginx_moddir}/ngx_http_brix_xrdhttp_filter_module.so
 %{nginx_modconfdir}/mod-xrootd.conf
 %config(noreplace) %{_sysconfdir}/nginx/conf.d/brix-cache.conf.example
-%config(noreplace) %{_sysconfdir}/logrotate.d/nginx-xrootd
-%{_datadir}/nginx-xrootd/grafana-dashboard.json
-%{_datadir}/nginx-xrootd/prometheus-alerts.yml
+%config(noreplace) %{_sysconfdir}/logrotate.d/brix
+%{_datadir}/brix/grafana-dashboard.json
+%{_datadir}/brix/prometheus-alerts.yml
 
 %files -n brix-cache-client
 %license LICENSE
@@ -321,11 +350,11 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/nginx-xrootd/requireme
 
 %files -n brix-cache-tests
 %license LICENSE
-%dir %{_datadir}/nginx-xrootd
-%{_datadir}/nginx-xrootd/tests
-%{_datadir}/nginx-xrootd/conftest.py
-%{_datadir}/nginx-xrootd/pytest.ini
-%{_datadir}/nginx-xrootd/requirements.txt
+%dir %{_datadir}/brix
+%{_datadir}/brix/tests
+%{_datadir}/brix/conftest.py
+%{_datadir}/brix/pytest.ini
+%{_datadir}/brix/requirements.txt
 
 %files -n brix-tools
 %license LICENSE
@@ -362,6 +391,51 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/nginx-xrootd/requireme
 %{_datadir}/bash-completion/completions/xrdceph_migrate
 
 %changelog
+* Tue Jul 07 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-1
+- Version 1.1.1; RPM version now derives from src/core/ident.h (-v overrides).
+- cvmfs:// site-cache protocol: CAS verify-on-fill + quarantine, multi-origin
+  geo/RTT selection with health failover, forward-proxy mode, never-drop
+  fills, per-repository metrics; experimental scvmfs:// (TLS).
+- brixMount native CVMFS FUSE client, including a writable overlay (cvmfs-rw).
+- Bad-actor guard: HTTP + stream request classification with fail2ban jails.
+- WLCG conformance hardening: 510-case token RFC suite and 500+ clause x509
+  suite; new signing_policy/crl_mode directives, RFC 3820 limited-proxy
+  monotonicity, token crit/NumericDate/aud-wildcard/kid-rotation fixes.
+- S3: WLCG bearer-token authentication with scope enforcement.
+- WebDAV: native authdb + VO-ACL read authorization (root:// parity), VOMS VO
+  extraction, RFC 3820 proxy acceptance on davs://.
+- Cache/stage serve now runs full per-user authorization (no cross-user leak).
+- io_uring disk-I/O and event-loop engines (server modules + client tools),
+  compiled in by default (rpmbuild --without uring to disable).
+- kTLS on by default across root://, WebDAV, S3; CSI checksum-at-rest on by
+  default with the record cached at open.
+- xmeta unified cache-metadata record (cinfo, CSI block CRCs, sidecars).
+- Pluggable storage-driver seam under the VFS; Ceph RADOS backend data plane;
+  writable remote root:// backend.
+- Ceph operator tools (brix-tools): striper<->CephFS migration + rescue,
+  compiled C++ and Python variants.
+- Client suite: xrdcp sync/mirror/resume journal/filters, xrdfs rm -r,
+  tail -f, --json, recursive checksum manifests, shell completions, man
+  pages, ~/.xrdrc defaults.
+- Session lifecycle logging across all protocol handlers.
+- Unified brix configuration grammar (xrootd_* -> brix_* directives) with
+  one-protocol-per-port enforcement.
+- zstd and lz4 codecs enabled by default; --without zstd/lz4 to disable.
+- Ceph client libraries are explicit Requires (librados2, libradosstriper1;
+  brix-tools also libcephfs2).
+- Fix container RPM builds: missing errno.h in sd_ceph_striper, io_uring
+  helpers now gated on BRIX_HAVE_LIBURING, spec payload files restored to
+  the docker build context.
+
+* Tue Jul 07 2026 Rob Currie <rob.currie@ed.ac.uk> - 0.1.0-9
+- Rename source tree and install paths from nginx-xrootd to brix: upstream_name
+  is now brix (tarballs unpack as brix-{version}/), installed data lands under
+  %%{_datadir}/brix, and the logrotate rule is %%{_sysconfdir}/logrotate.d/brix.
+- Remove unused sd_ceph_is_striped static function (dead code since open path
+  inlines the striper-stat probe directly); eliminates -Wunused-function warning.
+- Add -D_FILE_OFFSET_BITS=64 to the Ceph module CFLAGS so libcephfs/librados
+  headers compile correctly on all targets.
+
 * Tue Jul 07 2026 Rob Currie <rob.currie@ed.ac.uk> - 0.1.0-8
 - Ceph operator tools promoted to client/apps/ceph/: brix-tools now builds via
   the dep-gated `make -C client ceph-tools` target and is staged by the client

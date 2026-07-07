@@ -24,6 +24,8 @@
 
 
 
+#if (BRIX_HAVE_LIBURING)
+
 /* epoll interest mask -> poll(2) mask for io_uring_prep_poll_*. */
 unsigned
 uring_pollmask(int want)
@@ -94,6 +96,8 @@ uring_poll_cancel(brix_loop *l, brix_aconn *ac, int freeing)
         ac->uring_slot = -1;
     }
 }
+
+#endif /* BRIX_HAVE_LIBURING */
 
 
 

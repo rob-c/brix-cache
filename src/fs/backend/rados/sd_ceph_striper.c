@@ -12,6 +12,7 @@
 
 #if defined(BRIX_HAVE_RADOSSTRIPER)
 
+#include <errno.h>
 #include <string.h>
 
 int

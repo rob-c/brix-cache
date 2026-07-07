@@ -232,18 +232,6 @@ sd_ceph_striper(sd_ceph_state_t *st)
     return st->striper;
 }
 
-/* 1 iff a striper-format object exists for `name` (its libradosstriper metadata
- * is present), i.e. it was written by stock XrdCeph and must be read striped. */
-static int
-sd_ceph_is_striped(sd_ceph_state_t *st, const char *name)
-{
-    rados_striper_t s = sd_ceph_striper(st);
-    uint64_t        size = 0;
-    time_t          mtime = 0;
-
-    return (s != NULL && sd_ceph_striper_stat(s, name, &size, &mtime) == 0)
-           ? 1 : 0;
-}
 #endif /* BRIX_HAVE_RADOSSTRIPER */
 
 /* sd_ceph_pread — read at off from the object. A striper-format object (stock

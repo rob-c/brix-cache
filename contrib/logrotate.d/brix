@@ -1,0 +1,23 @@
+# Log rotation for brix access logs (brix_access_log / S3 / WebDAV).
+# The main nginx error/access logs are handled by the stock nginx logrotate
+# file; this covers the module's own access logs written via brix_access_log
+# and the per-protocol access_log directives in the example config.
+#
+# nginx reopens its log files on SIGUSR1 (USR1) — the postrotate sends it via
+# the pid file so rotation never restarts the service or drops connections.
+
+/var/log/nginx/brix_*.log {
+    daily
+    missingok
+    rotate 14
+    compress
+    delaycompress
+    notifempty
+    nodateext
+    sharedscripts
+    postrotate
+        if [ -f /run/nginx.pid ]; then
+            kill -USR1 "$(cat /run/nginx.pid)"
+        fi
+    endscript
+}
