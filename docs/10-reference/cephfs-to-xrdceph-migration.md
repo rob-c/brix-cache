@@ -1,7 +1,7 @@
 # Migrating a CephFS to stock XrdCeph (libradosstriper) — runbook
 
 Operator runbook for `xrdceph_cephfs_to_striper`
-(`tests/ceph/xrdceph_cephfs_to_striper.cpp`) — the **reverse** of the Glasgow/RAL
+(`client/apps/ceph/xrdceph_cephfs_to_striper.cpp`) — the **reverse** of the Glasgow/RAL
 tool: it exposes an existing **CephFS** as stock-XrdCeph (libradosstriper) storage,
 zero-move via RADOS redirects, then finalizes to a self-owned XrdCeph layout so
 CephFS can be torn down. For sites (e.g. Lancaster/Manchester) moving from CephFS
@@ -46,12 +46,14 @@ data movement) or **copy**. Both are in-cluster (no external uplink). This tool 
 ## Build
 
 ```bash
+make -C client ceph-tools        # dep-gated; binary lands in client/bin/
+# or by hand (the decoders MUST compile as C — g++ would break their extern "C" boundary):
 gcc -c -D_FILE_OFFSET_BITS=64 -I src/fs/backend/rados \
     src/fs/backend/rados/cephfs_layout.c -o cephfs_layout.o
 gcc -c -D_FILE_OFFSET_BITS=64 -I src/fs/backend/rados \
     src/fs/backend/rados/cephfs_denc.c  -o cephfs_denc.o
 g++ -std=c++17 -D_FILE_OFFSET_BITS=64 -I src/fs/backend/rados \
-    tests/ceph/xrdceph_cephfs_to_striper.cpp cephfs_layout.o cephfs_denc.o \
+    client/apps/ceph/xrdceph_cephfs_to_striper.cpp cephfs_layout.o cephfs_denc.o \
     -lrados -lradosstriper -o xrdceph_cephfs_to_striper
 ```
 

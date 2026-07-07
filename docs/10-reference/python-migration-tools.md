@@ -21,12 +21,12 @@ the Python tools.
 
 | Change | Where | Commits |
 |---|---|---|
-| Pure-Python decoders + namespace walker (port of `cephfs_denc`/`cephfs_layout`) | `tests/ceph/pymigrate/cephfs_meta.py` | `11afa81` |
-| Shared CLI plumbing: worklist filters, state manifest, JSON, progress, thread runner | `tests/ceph/pymigrate/common.py` | `e683ac6` |
-| ctypes bridge to librados's C++-only manifest ops + libradosstriper reader | `tests/ceph/pymigrate/radosbridge.py` | `00263dc` |
-| Compiled C-ABI shim fallback for the manifest ops | `tests/ceph/pymigrate/shim/rados_manifest_shim.cpp` | `9b05eee` |
-| **Tool 1 (Python):** striper → CephFS | `tests/ceph/xrdceph_striper_migrate.py` | `c97c4c1` |
-| **Tool 2 (Python):** CephFS → striper | `tests/ceph/xrdceph_cephfs_to_striper.py` | `da9cfef` |
+| Pure-Python decoders + namespace walker (port of `cephfs_denc`/`cephfs_layout`) | `client/apps/ceph/pymigrate/cephfs_meta.py` | `11afa81` |
+| Shared CLI plumbing: worklist filters, state manifest, JSON, progress, thread runner | `client/apps/ceph/pymigrate/common.py` | `e683ac6` |
+| ctypes bridge to librados's C++-only manifest ops + libradosstriper reader | `client/apps/ceph/pymigrate/radosbridge.py` | `00263dc` |
+| Compiled C-ABI shim fallback for the manifest ops | `client/apps/ceph/pymigrate/shim/rados_manifest_shim.cpp` | `9b05eee` |
+| **Tool 1 (Python):** striper → CephFS | `client/apps/ceph/xrdceph_striper_migrate.py` | `c97c4c1` |
+| **Tool 2 (Python):** CephFS → striper | `client/apps/ceph/xrdceph_cephfs_to_striper.py` | `da9cfef` |
 | Docker e2e runner (both directions, all modes) + **delete-through fix** | `tests/ceph/run_py_migrate.sh` | `0bcc290` |
 | C++ tool: `--dry-run` wall-clock estimator (real sample migrate, scaled) | `xrdceph_striper_migrate.cpp` | `d210a2c` |
 | C++ tool: O(N) source index + progress line + **delete-through fix** (detach before every unlink) | `xrdceph_striper_migrate.cpp` | `01c1583` |
@@ -46,7 +46,7 @@ on-cluster state.
 
 | | Forward | Reverse |
 |---|---|---|
-| Script | `tests/ceph/xrdceph_striper_migrate.py` | `tests/ceph/xrdceph_cephfs_to_striper.py` |
+| Script | `client/apps/ceph/xrdceph_striper_migrate.py` | `client/apps/ceph/xrdceph_cephfs_to_striper.py` |
 | Direction | libradosstriper (stock XrdCeph) pool → CephFS | quiesced CephFS → libradosstriper |
 | Namespace side | created by the **MDS** via libcephfs (mount) | walked from **pure RADOS** (no mount, no MDS) |
 | Default mode | zero-move **redirect** (no bytes copied) | zero-move **redirect** |
@@ -63,17 +63,19 @@ stdlib. No pip. No compile step (the shim fallback is optional, §4).
 ## 3. Package layout
 
 ```
-tests/ceph/
+client/apps/ceph/                   (official client tools since 2026-07-07;
+                                     build: make -C client ceph-tools)
   xrdceph_striper_migrate.py        forward tool (executable)
   xrdceph_cephfs_to_striper.py      reverse tool (executable)
   xrdceph_migrate_config.h          --config parser for the C++ tools (header-only)
-  run_py_migrate.sh                 Docker e2e runner (host side)
-  test_cephfs_meta.py               unit tests (no cluster required)
   pymigrate/
     cephfs_meta.py                  CephFS on-RADOS metadata decoders + walker
     common.py                       shared CLI plumbing + --config parser
     radosbridge.py                  ctypes manifest-op bridge + striper reader
     shim/rados_manifest_shim.cpp    C-ABI fallback shim
+tests/ceph/
+  run_py_migrate.sh                 Docker e2e runner (host side)
+  test_cephfs_meta.py               unit tests (no cluster required)
 ```
 
 - **`cephfs_meta.py`** — a faithful Python port of the C decode core
@@ -261,8 +263,8 @@ Rules (identical everywhere):
   `ceph_select_filesystem` / `LibCephFS.mount(filesystem_name=…)`.
 
 Parsers: `pymigrate.common.load_tool_config()` (Python),
-`tests/ceph/xrdceph_migrate_config.h` (C++, header-only — compile with
-`-I tests/ceph`).
+`client/apps/ceph/xrdceph_migrate_config.h` (C++, header-only — compile with
+`-I client/apps/ceph`).
 
 ---
 

@@ -10,10 +10,10 @@ Companion operational runbooks:
 
 > **Python implementations** (full reference + operator guide:
 > [`python-migration-tools.md`](python-migration-tools.md)). Both tools also exist as pure-Python 3 CLIs with
-> identical semantics and CLI grammar — `tests/ceph/xrdceph_striper_migrate.py`
-> and `tests/ceph/xrdceph_cephfs_to_striper.py` — needing only the distro
+> identical semantics and CLI grammar — `client/apps/ceph/xrdceph_striper_migrate.py`
+> and `client/apps/ceph/xrdceph_cephfs_to_striper.py` — needing only the distro
 > `python3-rados` / `python3-cephfs` packages (the C++-only redirect ops are
-> reached through `tests/ceph/pymigrate/radosbridge.py`; see the "Python
+> reached through `client/apps/ceph/pymigrate/radosbridge.py`; see the "Python
 > migration tools" section of [`tests/ceph/README.md`](../../tests/ceph/README.md)).
 > They add `--json` machine output, a resumable `--state` manifest,
 > `--prefix`/`--match` worklist filters, progress reporting, and an O(N)
@@ -26,7 +26,7 @@ Companion operational runbooks:
 > the full positional arity or none. This also makes the ceph **client id**
 > (previously hardcoded `admin`) and the CephFS **fs name** (multi-fs
 > clusters, forward direction) configurable. C++ parser:
-> `tests/ceph/xrdceph_migrate_config.h`; Python:
+> `client/apps/ceph/xrdceph_migrate_config.h`; Python:
 > `pymigrate.common.load_tool_config`. e2e coverage: `tests/ceph/run_py_migrate.sh`. Two fixes
 > beyond C++ parity: forced re-migrate/rollback detach stubs via a
 > **data-pool ino index** (the source-index detach loses stubs once sources
@@ -281,7 +281,7 @@ while writing, and never drop the source before OWNED + verified.**
 
 ## 8. Tool 1 — `xrdceph_striper_migrate`  (XrdCeph → CephFS)
 
-`tests/ceph/xrdceph_striper_migrate.cpp`.
+`client/apps/ceph/xrdceph_striper_migrate.cpp`.
 
 [KEY INSIGHT] CephFS data objects are named by MDS-allocated inode, and inodes +
 dentries + backtraces are MDS-owned. So **let the MDS build the namespace**: create
@@ -321,7 +321,7 @@ idempotent re-run; dry-run; delete-source.
 
 ## 9. Tool 2 — `xrdceph_cephfs_to_striper`  (CephFS → XrdCeph)
 
-`tests/ceph/xrdceph_cephfs_to_striper.cpp`.
+`client/apps/ceph/xrdceph_cephfs_to_striper.cpp`.
 
 [REQUIREMENT] **The CephFS must be UNMOUNTED / quiesced** (stop clients, `ceph fs
 fail`, flush the journal). The MDS actively owns the data objects, so it must not be
@@ -630,8 +630,8 @@ striper data with it is off the well-trodden path.
 ```
  COMPONENT                          FILE
  ────────────────────────────────  ───────────────────────────────────────────────
- forward tool  XrdCeph->CephFS      tests/ceph/xrdceph_striper_migrate.cpp
- reverse tool  CephFS->XrdCeph      tests/ceph/xrdceph_cephfs_to_striper.cpp
+ forward tool  XrdCeph->CephFS      client/apps/ceph/xrdceph_striper_migrate.cpp
+ reverse tool  CephFS->XrdCeph      client/apps/ceph/xrdceph_cephfs_to_striper.cpp
  CephFS-from-RADOS decoder          src/fs/backend/rados/cephfs_layout.{c,h}
                                     src/fs/backend/rados/cephfs_denc.{c,h}
  forward runbook                    docs/10-reference/cephfs-migration-glasgow-ral.md
