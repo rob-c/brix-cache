@@ -7,7 +7,11 @@ import x509forge
 from clauses import ALL_CLAUSES
 from wlcg_conformance_fleet import ConformanceFleet
 
-pytestmark = [pytest.mark.x509conf, pytest.mark.slow]
+# build_all(ALL_CLAUSES) materialises ~560 scenarios (~80s of keygen + openssl
+# forks), so this needs a realistic timeout and must run serially rather than
+# 12-wide in a parallel lane where the concurrent keygens crash xdist workers.
+pytestmark = [pytest.mark.x509conf, pytest.mark.slow, pytest.mark.serial,
+              pytest.mark.timeout(240)]
 
 
 def test_fleet_serves_smoke(tmp_path):
