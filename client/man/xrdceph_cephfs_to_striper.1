@@ -1,0 +1,68 @@
+.TH XRDCEPH_CEPHFS_TO_STRIPER 1 "July 2026" "brix client tools" "User Commands"
+.SH NAME
+xrdceph_cephfs_to_striper \- expose an unmounted CephFS as libradosstriper (XrdCeph) storage
+.SH SYNOPSIS
+.B xrdceph_cephfs_to_striper
+.I meta_pool cephfs_data_pool striper_pool
+.B \-\-assume\-quiesced
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+Reverse migration: walks the CephFS namespace directly from RADOS (no mount,
+no MDS) and creates striper-named redirect stubs in the target pool pointing
+at the CephFS data objects, stamping the striper layout and size xattrs so
+libradosstriper (XrdCeph) can read each file. Zero-move by default; reversible
+with \fB\-\-rollback\fR (stubs are detached first, CephFS data intact).
+.PP
+\fBREQUIRES THE CEPHFS TO BE QUIESCED\fR (MDS down or fs failed, journal
+flushed): the mandatory \fB\-\-assume\-quiesced\fR flag is the operator's
+assertion of that state.
+.SH OPTIONS
+.TP
+.B \-\-assume\-quiesced
+REQUIRED safety assertion: the filesystem is unmounted and its journal is
+flushed.
+.TP
+.B \-\-rollback
+Remove the striper overlay. Each stub is detached (unset_manifest) before
+removal; the CephFS data is left intact.
+.TP
+.B \-\-finalize
+Materialize redirects into owned striper objects (tier_promote, in-cluster)
+so the whole CephFS (metadata + data pools) can be torn down.
+.TP
+.B \-\-report\-only
+Walk and report what would be migrated; write nothing.
+.TP
+.BI \-\-strip " PFX"
+Strip a leading path prefix when forming the striper soid.
+.TP
+.BI \-\-threads " N"
+Parallel workers (default 4).
+.TP
+.B \-\-verify
+Read the migrated file back via libradosstriper and compare it against the
+carried adler32 checksum.
+.TP
+.B \-\-delete\-source
+(finalize only) Remove the CephFS data objects after materialization and
+verify.
+.TP
+.B \-\-dry\-run
+Print what would be done without writing.
+.TP
+.BI \-\-conf " PATH"
+Ceph configuration file (default /etc/ceph/ceph.conf).
+.TP
+.BI \-\-config " PATH"
+Site-profile tool configuration (pool names, prefixes).
+.SH PYTHON VARIANT
+.B xrdceph_cephfs_to_striper.py
+is the pure-Python implementation with identical semantics plus
+.BR \-\-json ", " \-\-state ", " \-\-list ", " \-\-prefix ", " \-\-match ", and " \-\-progress .
+It requires python3-rados; the namespace walk uses the pure-Python
+pymigrate.cephfs_meta decoders (no libcephfs needed).
+.SH EXIT STATUS
+0 all ok/skipped, 1 any per-file failure, 2 usage or guard error.
+.SH SEE ALSO
+.BR xrdceph_striper_migrate (1),
+.BR xrdcephfs_rescue (1)

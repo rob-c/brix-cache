@@ -1,0 +1,26 @@
+.TH XRDCEPH_MIGRATE 1 "July 2026" "brix client tools" "User Commands"
+.SH NAME
+xrdceph_migrate \- copy a flat RADOS pool into a filesystem tree (copy-through-mount)
+.SH SYNOPSIS
+.B xrdceph_migrate
+.I pool dest_dir
+.SH DESCRIPTION
+Reads every object from a flat `ceph`-backend pool (object key = logical
+path) and writes it as a file at the corresponding path beneath
+\fIdest_dir\fR, recreating parent directories and carrying user xattrs
+(including user.XrdCks.* checksums-at-rest). When \fIdest_dir\fR is a mounted
+CephFS the MDS allocates inodes and builds the namespace \(em the
+copy-through-mount migration (the only sound flat-pool to CephFS upgrade:
+CephFS keys data by MDS-allocated inode, so an in-place conversion is
+impossible; the bytes must be rewritten through the fs).
+.PP
+The destination is treated as a plain directory, so the run is verifiable
+against a local folder; pointing it at a CephFS mount is what makes it a
+migration.
+.SH ENVIRONMENT
+.TP
+.B CEPH_CONF
+Overrides /etc/ceph/ceph.conf.
+.SH SEE ALSO
+.BR xrdrados_rescue (1),
+.BR xrdceph_striper_migrate (1)

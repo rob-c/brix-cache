@@ -158,6 +158,47 @@ _xrdstorascan() {
     --json --summary --path --password --insecure -q"
 }
 
+_xrdceph_striper_migrate() {
+  local opts="--mode --rollback --finalize --list --strip --threads --verify
+    --delete-source --force --dry-run --conf --config --sample-mb --progress
+    --json --state --prefix --match --help"
+  _brix_opts_filter "$opts" && return
+  local prev="${COMP_WORDS[COMP_CWORD-1]}"
+  case "$prev" in
+    --mode) COMPREPLY=($(compgen -W "redirect copy" -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
+    --list|--conf|--config|--state) COMPREPLY=($(compgen -f -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
+  esac
+  COMPREPLY=()
+}
+
+_xrdceph_cephfs_to_striper() {
+  local opts="--assume-quiesced --report-only --rollback --finalize --strip
+    --threads --verify --delete-source --dry-run --conf --config
+    --json --state --list --prefix --match --progress --help"
+  _brix_opts_filter "$opts" && return
+  local prev="${COMP_WORDS[COMP_CWORD-1]}"
+  case "$prev" in
+    --list|--conf|--config|--state) COMPREPLY=($(compgen -f -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
+  esac
+  COMPREPLY=()
+}
+
+_xrdrados_rescue() {
+  if [[ $COMP_CWORD -eq 2 ]]; then
+    COMPREPLY=($(compgen -W "ls stat get cp" -- "${COMP_WORDS[COMP_CWORD]}"))
+    return
+  fi
+  COMPREPLY=($(compgen -f -- "${COMP_WORDS[COMP_CWORD]}"))
+}
+
+_xrdcephfs_rescue() {
+  if [[ $COMP_CWORD -eq 3 ]]; then
+    COMPREPLY=($(compgen -W "ls stat cat get cp" -- "${COMP_WORDS[COMP_CWORD]}"))
+    return
+  fi
+  COMPREPLY=($(compgen -f -- "${COMP_WORDS[COMP_CWORD]}"))
+}
+
 complete -F _xrdcp xrdcp
 complete -F _xrdfs xrdfs
 complete -F _xrddiag xrddiag
@@ -169,3 +210,8 @@ complete -F _xrdsssadmin xrdsssadmin
 complete -F _xrootdfs xrootdfs
 complete -F _brixmount brixMount
 complete -F _xrdstorascan xrdstorascan
+complete -F _xrdceph_striper_migrate xrdceph_striper_migrate xrdceph_striper_migrate.py
+complete -F _xrdceph_cephfs_to_striper xrdceph_cephfs_to_striper xrdceph_cephfs_to_striper.py
+complete -F _xrdrados_rescue xrdrados_rescue
+complete -F _xrdcephfs_rescue xrdcephfs_rescue
+complete -o default xrdceph_migrate
