@@ -34,6 +34,9 @@ __pycache__/
 # local scratch output
 .tmp/
 .rpmbuild/
+# CMake out-of-source build tree (see CMakeLists.txt / BUILD.md)
+/build/
+/build-*/
 
 # local agent and test caches
 .aider*
