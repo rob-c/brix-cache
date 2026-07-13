@@ -294,17 +294,26 @@ tpc_register_stream_transfer(ngx_connection_t *c, brix_file_t *file)
     return brix_tpc_registry_add(&transfer, c->log);
 }
 
-/* WHAT: Derive O_CREAT/O_EXCL/O_TRUNC flags from options bitmask — kXR_new → O_CREAT+O_EXCL, kXR_delete → O_CREAT+O_TRUNC, neither → O_CREAT+O_TRUNC (default create-new). Always includes O_RDWR|O_NOCTTY. Caller: brix_tpc_prepare_pull (open flags step). */
-ngx_int_t
-brix_tpc_prepare_pull(brix_ctx_t *ctx, ngx_connection_t *c,
+/* WHAT: Validate the pull preconditions before any state is allocated — a
+ * configured thread pool, a non-empty TPC source host+path, and an SSRF-safe
+ * source address per the loopback/private allow flags. Sends the matching kXR
+ * error (and logs it) and returns non-NGX_OK on the first failure; returns
+ * NGX_OK when the request may proceed to fhandle allocation.
+ * WHY: prepare_pull's guard ladder is the security-load-bearing front door
+ * (SSRF gate included); isolating it keeps the orchestrator a flat sequence and
+ * the checks independently reviewable. Behaviour (order, codes, log strings) is
+ * unchanged.
+ * HOW: thread_pool NULL → kXR_ServerError; empty src host/path → kXR_ArgInvalid;
+ * brix_tpc_check_src_policy != 0 → kXR_NotAuthorized with its filled err text.
+ * Each failure routes through the same BRIX_RETURN_ERR / brix_send_error edges
+ * the inline code used. */
+static ngx_int_t
+tpc_prepare_check_preconditions(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc,
-    const char *dst_path, uint16_t options, uint16_t mode_bits)
+    const char *dst_path)
 {
-    brix_file_t *file;
-    struct stat    st;
-    mode_t         create_mode;
-    int            idx;
-    int            fd;
+    char     policy_err[512];
+    uint16_t sport;
 
     if (conf->common.thread_pool == NULL) {
         brix_log_access(ctx, c, "OPEN", dst_path, "tpc-pull",
@@ -328,76 +337,74 @@ brix_tpc_prepare_pull(brix_ctx_t *ctx, ngx_connection_t *c,
      * allow flags. A destination server must not be coercible into pulling from
      * internal addresses unless the operator explicitly permits it.
      */
+    sport = tpc->src_port ? tpc->src_port : 1094;
+    if (brix_tpc_check_src_policy(tpc->src_host, sport,
+            conf->tpc_allow_local, conf->tpc_allow_private,
+            policy_err, sizeof(policy_err))
+        != 0)
     {
-        char      policy_err[512];
-        uint16_t  sport;
-
-        sport = tpc->src_port ? tpc->src_port : 1094;
-        if (brix_tpc_check_src_policy(tpc->src_host, sport,
-                conf->tpc_allow_local, conf->tpc_allow_private,
-                policy_err, sizeof(policy_err))
-            != 0)
-        {
-            BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", dst_path,
-                              "tpc-pull", kXR_NotAuthorized, policy_err);
-        }
-    }
-
-    idx = brix_alloc_fhandle(ctx);
-    if (idx < 0) {
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", dst_path,
-                          "tpc-pull", kXR_ServerError, "too many open files");
+                          "tpc-pull", kXR_NotAuthorized, policy_err);
     }
 
-    create_mode = (mode_bits & 0777) ? (mode_t) (mode_bits & 0777) : 0644;
+    return NGX_OK;
+}
 
-    /*
-     * brix_vfs_open_fd_at() resolves its path relative to conf->rootfd (it
-     * strips the leading '/' via brix_beneath_rel), so it must receive the
-     * LOGICAL export path — not the root_canon-prefixed absolute path that
-     * dst_path carries for authz/logging/fhandle metadata.  Passing the
-     * absolute path here doubles the root prefix and openat2() fails with
-     * ENOENT.  Recover the logical path by stripping the root_canon prefix.
-     */
+/* WHAT: Open the TPC destination file relative to the export root, returning the
+ * new fd (or -1 with errno set). Strips the root_canon prefix off the absolute
+ * dst_path first so brix_vfs_open_fd_at() receives the LOGICAL export path.
+ * WHY: brix_vfs_open_fd_at() resolves relative to conf->rootfd (it strips the
+ * leading '/' via brix_beneath_rel), so it must be handed the logical path —
+ * passing the absolute root_canon-prefixed path doubles the root prefix and
+ * openat2() fails with ENOENT. dst_path itself must stay absolute for
+ * authz/logging/fhandle metadata, so the strip is confined here.
+ * HOW: if root_canon (len>1) is a prefix of dst_path at a '/' or end boundary,
+ * advance past it; open with tpc_destination_open_flags(options) + create_mode. */
+static int
+tpc_open_dst_logical(ngx_stream_brix_srv_conf_t *conf, const char *dst_path,
+    uint16_t options, mode_t create_mode)
+{
+    const char *dst_logical = dst_path;
+    size_t      root_len = ngx_strlen(conf->common.root_canon);
+
+    if (root_len > 1
+        && ngx_strncmp(dst_path, conf->common.root_canon, root_len) == 0
+        && (dst_path[root_len] == '/' || dst_path[root_len] == '\0'))
     {
-        const char *dst_logical = dst_path;
-        size_t      root_len = ngx_strlen(conf->common.root_canon);
-
-        if (root_len > 1
-            && ngx_strncmp(dst_path, conf->common.root_canon, root_len) == 0
-            && (dst_path[root_len] == '/' || dst_path[root_len] == '\0'))
-        {
-            dst_logical = dst_path + root_len;
-        }
-
-        fd = brix_vfs_open_fd_at(conf->rootfd, dst_logical,
-                                 tpc_destination_open_flags(options),
-                                 create_mode);
-    }
-    if (fd < 0) {
-        int err = errno;
-
-        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", dst_path,
-                          "tpc-pull", kXR_IOError, strerror(err));
+        dst_logical = dst_path + root_len;
     }
 
-    if (fstat(fd, &st) != 0) {
-        int err = errno;
+    return brix_vfs_open_fd_at(conf->rootfd, dst_logical,
+                               tpc_destination_open_flags(options),
+                               create_mode);
+}
 
-        close(fd);
-        BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
-        return brix_send_error(ctx, c, kXR_IOError, strerror(err));
-    }
-
-    file = &ctx->files[idx];
-    file->fd = fd;
+/* WHAT: Populate a freshly-allocated ctx->files[] slot as a TPC destination:
+ * base file metadata from the fstat result, the TPC destination flags, the
+ * rendezvous key (echoed from tpc->key or freshly minted), the origin id, the
+ * stored source host/path, and the token_mode.
+ * WHY: prepare_pull's per-field initialisation is a long, purely-local block; a
+ * dedicated helper keeps the orchestrator flat while the field assignment order
+ * and values (and therefore behaviour) stay byte-for-byte identical.
+ * HOW: set rw/cache/size/time scalars → tpc_destination=1 → echo-or-generate
+ * tpc_key → tpc_build_origin_id → cpystrn src_host/src_path → store token_mode
+ * from tpc->token_mode when has_token_mode, else the opportunistic
+ * "passthrough-opt" when conf->tpc_outbound_passthrough is enabled (default on),
+ * else empty. The caller sets
+ * file->fd before calling. Pure side-effect on *file (no I/O beyond the
+ * origin-id host lookup already isolated in its own helper). */
+static void
+tpc_init_dst_file(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, brix_file_t *file,
+    const brix_tpc_params_t *tpc, const struct stat *st)
+{
     file->writable = 1;
     file->readable = 0;
     file->from_cache = 0;
-    file->is_regular = S_ISREG(st.st_mode) ? 1 : 0;
-    file->device = st.st_dev;
-    file->inode = st.st_ino;
-    file->cached_size = (off_t) st.st_size;
+    file->is_regular = S_ISREG(st->st_mode) ? 1 : 0;
+    file->device = st->st_dev;
+    file->inode = st->st_ino;
+    file->cached_size = (off_t) st->st_size;
     file->read_last_end = -1;
     file->read_ahead_end = 0;
     file->bytes_read = 0;
@@ -425,6 +432,76 @@ brix_tpc_prepare_pull(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_cpystrn((u_char *) file->tpc_src_path, (u_char *) tpc->src_path,
                 sizeof(file->tpc_src_path));
 
+    /*
+     * Store token_mode for use during pull task execution. There are two distinct
+     * passthrough flavours so a default-on flag never creates a new denial:
+     *   - An explicit tpc.token_mode= in the client's opaque wins VERBATIM. A
+     *     client that explicitly requests "passthrough" gets STRICT/fail-closed
+     *     semantics (no inbound token → kXR_AuthFailed).
+     *   - Otherwise, when brix_tpc_outbound_passthrough is enabled (default on),
+     *     select the OPPORTUNISTIC internal mode "passthrough-opt": the client's
+     *     inbound bearer JWT is forwarded when present, but its absence falls back
+     *     to GSI proxy delegation / static bearer file / anonymous — never denied.
+     *   - Disabled → empty (no token_mode).
+     * See tpc_pull_capture_passthrough_token for the actual inbound-token capture.
+     */
+    if (tpc->has_token_mode && tpc->token_mode[0] != '\0') {
+        ngx_cpystrn((u_char *) file->tpc_token_mode,
+                    (u_char *) tpc->token_mode, sizeof(file->tpc_token_mode));
+    } else if (conf->tpc_outbound_passthrough) {
+        ngx_cpystrn((u_char *) file->tpc_token_mode,
+                    (u_char *) "passthrough-opt", sizeof(file->tpc_token_mode));
+    } else {
+        file->tpc_token_mode[0] = '\0';
+    }
+}
+
+/* WHAT: Derive O_CREAT/O_EXCL/O_TRUNC flags from options bitmask — kXR_new → O_CREAT+O_EXCL, kXR_delete → O_CREAT+O_TRUNC, neither → O_CREAT+O_TRUNC (default create-new). Always includes O_RDWR|O_NOCTTY. Caller: brix_tpc_prepare_pull (open flags step). */
+ngx_int_t
+brix_tpc_prepare_pull(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc,
+    const char *dst_path, uint16_t options, uint16_t mode_bits)
+{
+    brix_file_t *file;
+    struct stat    st;
+    mode_t         create_mode;
+    ngx_int_t      pre;
+    int            idx;
+    int            fd;
+
+    pre = tpc_prepare_check_preconditions(ctx, c, conf, tpc, dst_path);
+    if (pre != NGX_OK) {
+        return pre;
+    }
+
+    idx = brix_alloc_fhandle(ctx);
+    if (idx < 0) {
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", dst_path,
+                          "tpc-pull", kXR_ServerError, "too many open files");
+    }
+
+    create_mode = (mode_bits & 0777) ? (mode_t) (mode_bits & 0777) : 0644;
+
+    fd = tpc_open_dst_logical(conf, dst_path, options, create_mode);
+    if (fd < 0) {
+        int err = errno;
+
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", dst_path,
+                          "tpc-pull", kXR_IOError, strerror(err));
+    }
+
+    if (fstat(fd, &st) != 0) {
+        int err = errno;
+
+        close(fd);
+        BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
+        return brix_send_error(ctx, c, kXR_IOError, strerror(err));
+    }
+
+    file = &ctx->files[idx];
+    file->fd = fd;
+    tpc_init_dst_file(ctx, c, conf, file, tpc, &st);
+
     if (brix_set_fhandle_path(ctx, c, idx, dst_path) != NGX_OK) {
         brix_free_fhandle(ctx, idx);
         return NGX_ERROR;
@@ -434,18 +511,172 @@ brix_tpc_prepare_pull(brix_ctx_t *ctx, ngx_connection_t *c,
         brix_session_handle_publish(ctx->login.sessid, idx, file);
     }
 
-    /* Store token_mode for use during pull task execution. */
-    if (tpc->has_token_mode && tpc->token_mode[0] != '\0') {
-        ngx_cpystrn((u_char *) file->tpc_token_mode,
-                    (u_char *) tpc->token_mode, sizeof(file->tpc_token_mode));
-    } else {
-        file->tpc_token_mode[0] = '\0';
-    }
-
     brix_log_access(ctx, c, "OPEN", dst_path, "tpc-pull", 1, 0, NULL, 0);
     BRIX_OP_OK(ctx, BRIX_OP_OPEN_WR);
 
     return tpc_send_open_response(ctx, c, idx, fd, options);
+}
+
+/* WHAT: Copy every field the off-thread worker needs out of the connection and
+ * the ctx->files[] slot into the freshly-allocated task context t (by value).
+ * WHY: The worker runs on a thread-pool thread and must NOT touch ctx->files or
+ * the connection's mutable state, so all source/dest info is snapshotted here on
+ * the event loop. The streamid is captured so done.c can re-bind the deferred
+ * request on completion. Isolating the copy keeps start_pull's orchestrator flat
+ * and the field set (and behaviour) unchanged.
+ * HOW: memzero t → set connection/ctx/conf refs, streamid, dst_fd, reply_kind,
+ * src_port, transfer_id scalars → cpystrn src_host/src_path/tpc_key/tpc_org/
+ * token_mode/dst_path from the file's stored fields. The caller sets
+ * t->fhandle_idx (the slot index it already holds) after this returns. */
+static void
+tpc_populate_pull_task(brix_tpc_pull_t *t, brix_ctx_t *ctx,
+    ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
+    brix_file_t *file)
+{
+    ngx_memzero(t, sizeof(*t));
+    t->c = c;
+    t->ctx = ctx;
+    t->conf = conf;
+    t->streamid[0] = ctx->recv.cur_streamid[0];
+    t->streamid[1] = ctx->recv.cur_streamid[1];
+    t->dst_fd = file->fd;
+    t->reply_kind = BRIX_TPC_REPLY_SYNC;
+    t->src_port = file->tpc_src_port;
+    t->transfer_id = file->tpc_transfer_id;
+
+    ngx_cpystrn((u_char *) t->src_host, (u_char *) file->tpc_src_host,
+                sizeof(t->src_host));
+    ngx_cpystrn((u_char *) t->src_path, (u_char *) file->tpc_src_path,
+                sizeof(t->src_path));
+    ngx_cpystrn((u_char *) t->tpc_key, (u_char *) file->tpc_key,
+                sizeof(t->tpc_key));
+    ngx_cpystrn((u_char *) t->tpc_org, (u_char *) file->tpc_org,
+                sizeof(t->tpc_org));
+    ngx_cpystrn((u_char *) t->token_mode, (u_char *) file->tpc_token_mode,
+                sizeof(t->token_mode));
+    ngx_cpystrn((u_char *) t->dst_path, (u_char *) file->path,
+                sizeof(t->dst_path));
+}
+
+/* WHAT: For either passthrough token_mode ("passthrough" strict or
+ * "passthrough-opt" opportunistic), snapshot the client's own inbound bearer JWT
+ * (ctx->bearer_token, captured at login by the token auth path) into
+ * t->delegated_token so the outbound ztn leg forwards it verbatim to the source.
+ * WHY (phase-70): passthrough makes the SOURCE authenticate the END USER, not a
+ * static service credential. The capture MUST happen here on the event loop — the
+ * off-thread worker must never touch ctx — and the token must be snapshotted by
+ * value into the task before hand-off. An empty (or over-length) inbound token is
+ * left empty: the downstream fetch/dispatch then denies cleanly for the strict
+ * "passthrough" mode (kXR_AuthFailed) but opportunistically falls back to
+ * GSI/bearer-file/anonymous for the default "passthrough-opt" mode. Capture is
+ * identical for both — the divergence lives entirely in tpc_fetch_delegated_token.
+ * HOW: only when t->token_mode is "passthrough" or "passthrough-opt"; measure
+ * ctx->bearer_token; on a non-empty token that fits (with its NUL) memcpy it into
+ * t->delegated_token, else leave t->delegated_token empty. Pure side-effect on *t. */
+static void
+tpc_pull_capture_passthrough_token(brix_tpc_pull_t *t, brix_ctx_t *ctx)
+{
+    size_t token_len;
+
+    if (ngx_strcmp(t->token_mode, "passthrough") != 0
+        && ngx_strcmp(t->token_mode, "passthrough-opt") != 0) {
+        return;
+    }
+
+    token_len = ngx_strlen(ctx->bearer_token);
+    if (token_len == 0 || token_len >= sizeof(t->delegated_token)) {
+        /* No inbound token (or one too large): leave delegated_token empty so
+         * have_ztn_cred is false and the pull is denied cleanly. */
+        t->delegated_token[0] = '\0';
+        return;
+    }
+
+    ngx_memcpy(t->delegated_token, ctx->bearer_token, token_len + 1);
+}
+
+/* WHAT: Attach outbound source-auth credentials to the pull task — the captured
+ * delegated proxy (§F6) when delegation is enabled and a proxy was captured, the
+ * passthrough inbound bearer JWT when token_mode is "passthrough" or
+ * "passthrough-opt", and the configured token exchange scope.
+ * WHY: These auth inputs are conditional and were inline branch blocks in
+ * start_pull; grouping them keeps the orchestrator flat. Behaviour is unchanged
+ * for GSI/scope: the delegated proxy is malloc'd (thread-owned, freed in
+ * thread.c) only when brix_tpc_delegate is set AND a proxy was actually captured
+ * during inbound GSI login; the scope is copied only when configured. The
+ * passthrough capture (phase-70) snapshots ctx->bearer_token into the task on the
+ * event loop so the worker never touches ctx.
+ * HOW: on delegate+captured-proxy, malloc + memcpy the PEM and set deleg_cred_len
+ * (malloc failure leaves deleg_cred_pem NULL → fall back to the gateway cert);
+ * tpc_pull_capture_passthrough_token for the inbound-token snapshot; token_scope
+ * defaults to empty then filled from conf->tpc_outbound_scope. */
+static void
+tpc_pull_attach_creds(brix_tpc_pull_t *t, brix_ctx_t *ctx,
+    ngx_stream_brix_srv_conf_t *conf)
+{
+    /*
+     * §F6: if proxy delegation captured the user's proxy during the inbound GSI
+     * login, hand the full credential (proxy cert + key + chain) to the pull so it
+     * authenticates to the source AS THE USER. malloc (thread-owned, freed in
+     * thread.c). Off unless brix_tpc_delegate + a proxy was actually captured.
+     */
+    if (conf->tpc_delegate && ctx->gsi.deleg_proxy_pem != NULL
+        && ctx->gsi.deleg_proxy_len > 0) {
+        t->deleg_cred_pem = malloc(ctx->gsi.deleg_proxy_len);
+        if (t->deleg_cred_pem != NULL) {
+            ngx_memcpy(t->deleg_cred_pem, ctx->gsi.deleg_proxy_pem,
+                       ctx->gsi.deleg_proxy_len);
+            t->deleg_cred_len = ctx->gsi.deleg_proxy_len;
+        }
+    }
+
+    tpc_pull_capture_passthrough_token(t, ctx);
+
+    t->token_scope[0] = '\0';
+    if (conf->tpc_outbound_scope.len > 0) {
+        (void) brix_str_cbuf(t->token_scope, sizeof(t->token_scope),
+                             &conf->tpc_outbound_scope);
+    }
+}
+
+/* WHAT: Resolve the SciTags (experiment, activity) codes for this pull on the
+ * event loop and stash them on the task (0/0 when not applicable).
+ * WHY (phase-34): identity + path are available here and pmark runtime init is
+ * single-threaded, so the resolve must happen on the event loop; the thread
+ * (connect.c) only reads the codes and stamps the outbound socket's IPv6 flow
+ * label. Fail-open: 0/0 means the outbound socket is not labelled. Extracting it
+ * removes the pull's most branch-dense block from the orchestrator unchanged.
+ * HOW: default 0/0 → only when pmark.enable && pmark.flowlabel && runtime ensure
+ * succeeds, build a flow_id from the identity VO/DN + dst_path and map codes;
+ * on success store pmark_exp / pmark_act. */
+static void
+tpc_pull_resolve_pmark(brix_tpc_pull_t *t, brix_ctx_t *ctx,
+    ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf)
+{
+    ngx_uint_t e, a;
+    brix_pmark_flow_id_t flow_id;
+
+    t->pmark_exp = 0;
+    t->pmark_act = 0;
+
+    if (!conf->common.pmark.enable || !conf->common.pmark.flowlabel
+        || brix_pmark_runtime_ensure(&conf->common.pmark, ngx_cycle->pool,
+                                       c->log) != NGX_OK)
+    {
+        return;
+    }
+
+    ngx_memzero(&flow_id, sizeof(flow_id));
+    flow_id.vo_csv = ctx->identity
+                   ? brix_identity_vo_csv_cstr(ctx->identity) : "";
+    flow_id.user   = ctx->identity
+                   ? brix_identity_dn_cstr(ctx->identity) : "";
+    flow_id.path   = t->dst_path;
+    flow_id.cgi    = NULL;
+
+    if (brix_pmark_map_codes(&conf->common.pmark, &flow_id, &e, &a) == NGX_OK) {
+        t->pmark_exp = e;
+        t->pmark_act = a;
+    }
 }
 
 /* WHAT: Allocate ngx_thread_task(sizeof(brix_tpc_pull_t)) → populate struct from file fields (src_host/path/key/org/token_mode/dst_path) → set handler=brix_tpc_pull_thread, event.handler=brix_tpc_pull_done → post to thread pool. Returns NGX_OK or error on alloc/post failure. Caller: dispatch.c (kXR_sync TPC launch path). */
@@ -490,83 +721,12 @@ brix_tpc_start_pull(brix_ctx_t *ctx, ngx_connection_t *c,
         return NGX_ERROR;
     }
 
-    /*
-     * Snapshot everything the worker thread needs into the task ctx. The worker
-     * runs off-thread and must NOT touch ctx->files or the connection's mutable
-     * state, so all source/dest fields are copied by value here. The streamid
-     * is captured so done.c can re-bind the deferred request when it completes.
-     */
     t = task->ctx;
-    ngx_memzero(t, sizeof(*t));
-    t->c = c;
-    t->ctx = ctx;
-    t->conf = conf;
-    t->streamid[0] = ctx->recv.cur_streamid[0];
-    t->streamid[1] = ctx->recv.cur_streamid[1];
-    t->dst_fd = file->fd;
+    tpc_populate_pull_task(t, ctx, c, conf, file);
     t->fhandle_idx = fhandle_idx;
-    t->reply_kind = BRIX_TPC_REPLY_SYNC;
-    t->src_port = file->tpc_src_port;
-    t->transfer_id = file->tpc_transfer_id;
-
-    ngx_cpystrn((u_char *) t->src_host, (u_char *) file->tpc_src_host,
-                sizeof(t->src_host));
-    ngx_cpystrn((u_char *) t->src_path, (u_char *) file->tpc_src_path,
-                sizeof(t->src_path));
-    ngx_cpystrn((u_char *) t->tpc_key, (u_char *) file->tpc_key,
-                sizeof(t->tpc_key));
-    ngx_cpystrn((u_char *) t->tpc_org, (u_char *) file->tpc_org,
-                sizeof(t->tpc_org));
-    ngx_cpystrn((u_char *) t->token_mode, (u_char *) file->tpc_token_mode,
-                sizeof(t->token_mode));
-    /*
-     * §F6: if proxy delegation captured the user's proxy during the inbound GSI
-     * login, hand the full credential (proxy cert + key + chain) to the pull so it
-     * authenticates to the source AS THE USER. malloc (thread-owned, freed in
-     * thread.c). Off unless brix_tpc_delegate + a proxy was actually captured.
-     */
-    if (conf->tpc_delegate && ctx->gsi.deleg_proxy_pem != NULL
-        && ctx->gsi.deleg_proxy_len > 0) {
-        t->deleg_cred_pem = malloc(ctx->gsi.deleg_proxy_len);
-        if (t->deleg_cred_pem != NULL) {
-            ngx_memcpy(t->deleg_cred_pem, ctx->gsi.deleg_proxy_pem,
-                       ctx->gsi.deleg_proxy_len);
-            t->deleg_cred_len = ctx->gsi.deleg_proxy_len;
-        }
-    }
-
-    t->token_scope[0] = '\0';
-    if (conf->tpc_outbound_scope.len > 0) {
-        (void) brix_str_cbuf(t->token_scope, sizeof(t->token_scope),
-                             &conf->tpc_outbound_scope);
-    }
-    ngx_cpystrn((u_char *) t->dst_path, (u_char *) file->path,
-                sizeof(t->dst_path));
+    tpc_pull_attach_creds(t, ctx, conf);
     tpc_sess_begin_pull(t);
-
-    /*
-     * SciTags packet marking (phase-34): resolve the (experiment, activity) for
-     * this pull HERE on the event loop — where identity + path are available and
-     * pmark runtime init is single-threaded — and stash on the task.  The thread
-     * (connect.c) only reads the codes and stamps the outbound socket's IPv6 flow
-     * label.  Fail-open: 0/0 means the outbound socket is not labelled.
-     */
-    t->pmark_exp = 0;
-    t->pmark_act = 0;
-    if (conf->common.pmark.enable && conf->common.pmark.flowlabel
-        && brix_pmark_runtime_ensure(&conf->common.pmark, ngx_cycle->pool,
-                                       c->log) == NGX_OK)
-    {
-        ngx_uint_t e, a;
-        if (brix_pmark_map_codes(&conf->common.pmark,
-                ctx->identity ? brix_identity_vo_csv_cstr(ctx->identity) : "",
-                ctx->identity ? brix_identity_dn_cstr(ctx->identity) : "",
-                t->dst_path, NULL, &e, &a) == NGX_OK)
-        {
-            t->pmark_exp = e;
-            t->pmark_act = a;
-        }
-    }
+    tpc_pull_resolve_pmark(t, ctx, c, conf);
 
     brix_task_bind(task, brix_tpc_pull_thread, brix_tpc_pull_done);
 

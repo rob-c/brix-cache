@@ -59,6 +59,36 @@ admin_validate_hostname(const char *host)
 }
 
 
+/*
+ * WHAT: True (1) if `c` is an ASCII letter or digit, else 0.
+ * WHY:  The three admin whitelist validators (hostname/paths/url) all share this
+ *       alphanumeric base class; naming it once keeps each per-char predicate a
+ *       flat OR of named checks instead of an inline char-range ladder (§8.6).
+ * HOW:  Pure range test over the case letters and the digit run.
+ */
+static int
+admin_char_is_alnum(unsigned char c)
+{
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+        || (c >= '0' && c <= '9');
+}
+
+
+/*
+ * WHAT: True (1) if `c` is legal inside a namespace path-list value, else 0.
+ * WHY:  Factoring the per-character class out of admin_validate_paths drops that
+ *       function's branch count below the gate while leaving the accepted set
+ *       byte-identical (alnum plus '/', '.', '-', '_', ':').
+ * HOW:  Alnum base class OR the small set of allowed punctuation.
+ */
+static int
+admin_path_char_ok(unsigned char c)
+{
+    return admin_char_is_alnum(c)
+        || c == '/' || c == '.' || c == '-' || c == '_' || c == ':';
+}
+
+
 /* Whitelist-validate a comma/colon-separated namespace path list (1=ok,
  * 0=reject). Bounded by BRIX_SRV_MAX_PATHS, the registry's storage cap. */
 int
@@ -74,11 +104,7 @@ admin_validate_paths(const char *paths)
         return 0;
     }
     for (i = 0; i < n; i++) {
-        unsigned char c = (unsigned char) paths[i];
-        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
-              || (c >= '0' && c <= '9') || c == '/' || c == '.'
-              || c == '-' || c == '_' || c == ':'))
-        {
+        if (!admin_path_char_ok((unsigned char) paths[i])) {
             return 0;
         }
     }
@@ -99,6 +125,72 @@ admin_validate_paths(const char *paths)
  *         require_both ON  -> every CONFIGURED factor must pass (AND);
  *         require_both OFF -> either configured factor passing is enough (OR).
  */
+/*
+ * WHAT: True (1) if the request's source IP matches the admin CIDR allowlist.
+ * WHY:  One of the two independent admin auth factors; naming it keeps the
+ *       orchestrator flat and the sockaddr-null guard co-located with its use.
+ * HOW:  Require a resolved peer sockaddr, then ngx_cidr_match against the
+ *       configured allow array. Frozen: a missing sockaddr never matches.
+ */
+static int
+admin_auth_cidr_ok(ngx_http_request_t *r,
+    const ngx_http_brix_dashboard_loc_conf_t *conf)
+{
+    return r->connection->sockaddr != NULL
+        && ngx_cidr_match(r->connection->sockaddr, conf->admin_allow) == NGX_OK;
+}
+
+
+/*
+ * WHAT: True (1) if the request carries a bearer token equal to the admin
+ *       secret, else 0.
+ * WHY:  The second independent admin auth factor. Kept a pure predicate so the
+ *       constant-time comparison and its length pre-gate live in one place.
+ * HOW:  Extract the bearer, length-gate before the constant-time compare so
+ *       unequal lengths short-circuit without a content-dependent comparison,
+ *       then CRYPTO_memcmp against the configured secret. Frozen: no Authorization
+ *       header never matches.
+ */
+static int
+admin_auth_secret_ok(ngx_http_request_t *r,
+    const ngx_http_brix_dashboard_loc_conf_t *conf)
+{
+    ngx_str_t bearer;
+    ngx_str_t hdr;
+
+    if (r->headers_in.authorization == NULL) {
+        return 0;
+    }
+    hdr = r->headers_in.authorization->value;
+    return brix_http_extract_bearer(&hdr, &bearer) == NGX_OK
+        && bearer.len == conf->admin_secret.len
+        && bearer.len > 0
+        && CRYPTO_memcmp(bearer.data, conf->admin_secret.data, bearer.len) == 0;
+}
+
+
+/*
+ * WHAT: Combine the two configured/passed auth factors into a final verdict.
+ * WHY:  Isolates the AND/OR combination rule from the factor evaluation so the
+ *       verdict logic is reviewable on its own; behavior byte-frozen.
+ * HOW:  require_both ON -> every CONFIGURED factor must pass (an unconfigured
+ *       factor is not required); OFF -> any single configured factor passing is
+ *       enough (OR).
+ */
+static brix_admin_auth_result_t
+admin_auth_combine(const ngx_http_brix_dashboard_loc_conf_t *conf,
+    int has_allow, int cidr_ok, int has_secret, int secret_ok)
+{
+    if (conf->admin_require_both) {
+        if (has_allow && !cidr_ok)    return BRIX_ADMIN_AUTH_DENIED;
+        if (has_secret && !secret_ok) return BRIX_ADMIN_AUTH_DENIED;
+        return BRIX_ADMIN_AUTH_OK;
+    }
+    return (cidr_ok || secret_ok)
+           ? BRIX_ADMIN_AUTH_OK : BRIX_ADMIN_AUTH_DENIED;
+}
+
+
 brix_admin_auth_result_t
 brix_admin_check_auth(ngx_http_request_t *r,
     const ngx_http_brix_dashboard_loc_conf_t *conf)
@@ -112,37 +204,14 @@ brix_admin_check_auth(ngx_http_request_t *r,
         return BRIX_ADMIN_AUTH_DENIED;   /* admin API not configured */
     }
 
-    if (has_allow && r->connection->sockaddr != NULL
-        && ngx_cidr_match(r->connection->sockaddr, conf->admin_allow) == NGX_OK)
-    {
+    if (has_allow && admin_auth_cidr_ok(r, conf)) {
         cidr_ok = 1;
     }
-
-    /* Bearer check: length-gate before the constant-time compare so unequal
-     * lengths short-circuit without a content-dependent comparison. */
-    if (has_secret && r->headers_in.authorization != NULL) {
-        ngx_str_t bearer;
-        ngx_str_t hdr = r->headers_in.authorization->value;
-        if (brix_http_extract_bearer(&hdr, &bearer) == NGX_OK
-            && bearer.len == conf->admin_secret.len
-            && bearer.len > 0
-            && CRYPTO_memcmp(bearer.data, conf->admin_secret.data,
-                             bearer.len) == 0)
-        {
-            secret_ok = 1;
-        }
+    if (has_secret && admin_auth_secret_ok(r, conf)) {
+        secret_ok = 1;
     }
 
-    /* AND mode: a configured factor that fails is fatal; an unconfigured factor
-     * is simply not required. */
-    if (conf->admin_require_both) {
-        if (has_allow && !cidr_ok)   return BRIX_ADMIN_AUTH_DENIED;
-        if (has_secret && !secret_ok) return BRIX_ADMIN_AUTH_DENIED;
-        return BRIX_ADMIN_AUTH_OK;
-    }
-    /* OR mode: any single configured factor passing grants access. */
-    return (cidr_ok || secret_ok)
-           ? BRIX_ADMIN_AUTH_OK : BRIX_ADMIN_AUTH_DENIED;
+    return admin_auth_combine(conf, has_allow, cidr_ok, has_secret, secret_ok);
 }
 
 
@@ -264,6 +333,44 @@ brix_admin_read_body(ngx_http_request_t *r,
 
 
 /*
+ * WHAT: True (1) if `c` is legal inside a backend URL authority/path, else 0.
+ * WHY:  Extracting the per-character class out of admin_validate_url drops that
+ *       function's branch count below the gate while leaving the accepted set
+ *       byte-identical (alnum plus '.', '-', '_', ':', '/').
+ * HOW:  Alnum base class OR the small set of allowed URL punctuation.
+ */
+static int
+admin_url_char_ok(unsigned char c)
+{
+    return admin_char_is_alnum(c)
+        || c == '.' || c == '-' || c == '_' || c == ':' || c == '/';
+}
+
+
+/*
+ * WHAT: Match the required "http://" or "https://" scheme prefix; on success
+ *       store the offset of the first host byte in *off and return 1, else 0.
+ * WHY:  Isolating the scheme decision keeps admin_validate_url a flat sequence
+ *       of named guards; the two-arm scheme test is the bulk of its branching.
+ * HOW:  Longest-prefix first (https before http) so "https://" is not
+ *       mis-parsed as "http://" + a leading 's'; offsets frozen at 8 / 7.
+ */
+static int
+admin_url_scheme_off(const char *url, size_t *off)
+{
+    if (ngx_strncmp(url, "https://", 8) == 0) {
+        *off = 8;
+        return 1;
+    }
+    if (ngx_strncmp(url, "http://", 7) == 0) {
+        *off = 7;
+        return 1;
+    }
+    return 0;
+}
+
+
+/*
  * Whitelist-validate a backend URL: "http://" or "https://" followed by a
  * host[:port][/path] composed only of safe characters.  Reject — never
  * sanitise — before handing the string to ngx_parse_url() / the SHM pool.
@@ -271,7 +378,7 @@ brix_admin_read_body(ngx_http_request_t *r,
 int
 admin_validate_url(const char *url)
 {
-    size_t       i, n, off;
+    size_t       i, n, off = 0;
     const char  *host;
 
     if (url == NULL) {
@@ -281,11 +388,7 @@ admin_validate_url(const char *url)
     if (n < 9 || n >= 512) {     /* shortest is "http://h" + something */
         return 0;
     }
-    if (ngx_strncmp(url, "https://", 8) == 0) {
-        off = 8;
-    } else if (ngx_strncmp(url, "http://", 7) == 0) {
-        off = 7;
-    } else {
+    if (!admin_url_scheme_off(url, &off)) {
         return 0;
     }
     host = url + off;
@@ -293,11 +396,7 @@ admin_validate_url(const char *url)
         return 0;                /* empty host */
     }
     for (i = off; i < n; i++) {
-        unsigned char c = (unsigned char) url[i];
-        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
-              || (c >= '0' && c <= '9') || c == '.' || c == '-'
-              || c == '_' || c == ':' || c == '/'))
-        {
+        if (!admin_url_char_ok((unsigned char) url[i])) {
             return 0;
         }
     }
@@ -324,65 +423,136 @@ admin_uri_has_action(ngx_http_request_t *r, const char *action)
 }
 
 
-ngx_int_t
-brix_admin_dispatch(ngx_http_request_t *r)
+/*
+ * WHAT: True (1) if the request URI has ADMIN_PREFIX + `sub` as a strict prefix
+ *       (i.e. a sub-resource path, not the exact collection), else 0.
+ * WHY:  Both the cluster and proxy route groups gate their sub-resource block on
+ *       the same len>prefix + ngx_strncmp idiom; naming it removes a duplicated
+ *       sizeof/strncmp pair from the router and reads as one predicate.
+ * HOW:  Compare against the compile-time length of ADMIN_PREFIX concatenated
+ *       with `sub` via a caller-supplied precomputed length (plen), matching the
+ *       original sizeof(literal)-1 bounds exactly.
+ */
+static int
+admin_uri_under(ngx_http_request_t *r, const char *pfx, size_t plen)
 {
-    ngx_http_brix_dashboard_loc_conf_t *conf;
+    return r->uri.len > plen && ngx_strncmp(r->uri.data, pfx, plen) == 0;
+}
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
 
-    if (brix_admin_check_auth(r, conf) != BRIX_ADMIN_AUTH_OK) {
-        admin_audit(r, "auth", NULL, "forbidden");
-        return admin_send_error(r, NGX_HTTP_FORBIDDEN, "forbidden");
+/*
+ * WHAT: Route the io_uring runtime kill-switch endpoint. Sets *matched=1 and
+ *       returns the response status when the URI is this endpoint; leaves
+ *       *matched=0 (return value unused) otherwise.
+ * WHY:  Splitting each endpoint group out of brix_admin_dispatch keeps the
+ *       router a flat sequence of match-or-fall-through steps under the gate.
+ * HOW:  Exact-match the URI; when enabled, dispatch by method (POST reads body
+ *       into admin_io_uring_set, GET serves admin_io_uring_get), else 404/405.
+ *       Behavior byte-frozen.
+ */
+static ngx_int_t
+admin_route_io_uring(ngx_http_request_t *r, int *matched)
+{
+    if (!admin_uri_eq(r, ADMIN_PREFIX "io_uring")) {
+        *matched = 0;
+        return NGX_OK;
     }
+    *matched = 1;
 
-    /* Phase 44: io_uring runtime kill switch (only when enabled) */    if (admin_uri_eq(r, ADMIN_PREFIX "io_uring")) {
-        if (!brix_uring_admin_enabled()) {
-            return admin_send_error(r, NGX_HTTP_NOT_FOUND, "not_found");
-        }
-        if (r->method == NGX_HTTP_POST) {
-            return brix_admin_read_body(r, admin_io_uring_set);
-        }
-        if (r->method == NGX_HTTP_GET) {
-            return admin_io_uring_get(r);
-        }
-        return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
+    /* Phase 44: io_uring runtime kill switch (only when enabled) */
+    if (!brix_uring_admin_enabled()) {
+        return admin_send_error(r, NGX_HTTP_NOT_FOUND, "not_found");
     }
+    if (r->method == NGX_HTTP_POST) {
+        return brix_admin_read_body(r, admin_io_uring_set);
+    }
+    if (r->method == NGX_HTTP_GET) {
+        return admin_io_uring_get(r);
+    }
+    return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
+}
 
-    /* cluster registry */    if (admin_uri_eq(r, ADMIN_PREFIX "cluster/servers")) {
+
+/*
+ * WHAT: Route the "/cluster/servers/{host}/{port}[/action]" sub-resource. Sets
+ *       *matched per whether the URI is under that prefix.
+ * WHY:  Isolates the per-server sub-action ladder (drain/undrain/delete/upsert)
+ *       from the router so each stays independently reviewable.
+ * HOW:  Prefix-match, then branch on the trailing action or HTTP method.
+ *       Behavior byte-frozen.
+ */
+static ngx_int_t
+admin_route_cluster_server(ngx_http_request_t *r, int *matched)
+{
+    if (!admin_uri_under(r, ADMIN_PREFIX "cluster/servers/",
+                         sizeof(ADMIN_PREFIX "cluster/servers/") - 1))
+    {
+        *matched = 0;
+        return NGX_OK;
+    }
+    *matched = 1;
+
+    if (admin_uri_has_action(r, "/drain")) {
+        if (r->method != NGX_HTTP_POST) {
+            return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
+        }
+        return brix_admin_read_body(r, admin_cluster_drain);
+    }
+    if (admin_uri_has_action(r, "/undrain")) {
+        if (r->method != NGX_HTTP_POST) {
+            return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
+        }
+        return admin_cluster_undrain(r);
+    }
+    if (r->method == NGX_HTTP_DELETE) {
+        return admin_cluster_delete(r);
+    }
+    /* PUT to a specific server path is an upsert — same body handler as
+     * POST to the collection; brix_srv_register replaces if it exists. */
+    if (r->method == NGX_HTTP_PUT) {
+        return brix_admin_read_body(r, admin_cluster_register);  /* upsert */
+    }
+    return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
+}
+
+
+/*
+ * WHAT: Route the cluster registry endpoints (collection + sub-resource). Sets
+ *       *matched per whether a cluster route handled the request.
+ * WHY:  Groups the two cluster URIs behind one match so the top-level router
+ *       reads as one line per endpoint family.
+ * HOW:  Try the exact collection URI first (POST registers, else 405), then
+ *       delegate the "{host}/{port}" sub-resource. Behavior byte-frozen.
+ */
+static ngx_int_t
+admin_route_cluster(ngx_http_request_t *r, int *matched)
+{
+    if (admin_uri_eq(r, ADMIN_PREFIX "cluster/servers")) {
+        *matched = 1;
         if (r->method == NGX_HTTP_POST) {
             return brix_admin_read_body(r, admin_cluster_register);
         }
         return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
     }
-    if (r->uri.len > sizeof(ADMIN_PREFIX "cluster/servers/") - 1
-        && ngx_strncmp(r->uri.data, ADMIN_PREFIX "cluster/servers/",
-                       sizeof(ADMIN_PREFIX "cluster/servers/") - 1) == 0)
-    {
-        if (admin_uri_has_action(r, "/drain")) {
-            if (r->method != NGX_HTTP_POST) {
-                return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
-            }
-            return brix_admin_read_body(r, admin_cluster_drain);
-        }
-        if (admin_uri_has_action(r, "/undrain")) {
-            if (r->method != NGX_HTTP_POST) {
-                return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
-            }
-            return admin_cluster_undrain(r);
-        }
-        if (r->method == NGX_HTTP_DELETE) {
-            return admin_cluster_delete(r);
-        }
-        /* PUT to a specific server path is an upsert — same body handler as
-         * POST to the collection; brix_srv_register replaces if it exists. */
-        if (r->method == NGX_HTTP_PUT) {
-            return brix_admin_read_body(r, admin_cluster_register);  /* upsert */
-        }
-        return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
-    }
+    return admin_route_cluster_server(r, matched);
+}
 
-    /* dynamic proxy pool */    if (admin_uri_eq(r, ADMIN_PREFIX "proxy/backends")) {
+
+/*
+ * WHAT: Route the dynamic proxy pool endpoints (collection + "{id}[/action]").
+ *       Sets *matched per whether a proxy route handled the request.
+ * WHY:  Groups the two proxy URIs behind one match, mirroring admin_route_cluster.
+ * HOW:  Exact collection URI (POST adds, GET lists, else 405), then the id
+ *       sub-resource parsed via admin_parse_proxy_uri. Behavior byte-frozen.
+ */
+static ngx_int_t
+admin_route_proxy(ngx_http_request_t *r, int *matched)
+{
+    uint32_t id = 0;
+    char     action[16];
+
+    if (admin_uri_eq(r, ADMIN_PREFIX "proxy/backends")) {
+        *matched = 1;
         if (r->method == NGX_HTTP_POST) {
             return brix_admin_read_body(r, admin_proxy_add);
         }
@@ -391,16 +561,55 @@ brix_admin_dispatch(ngx_http_request_t *r)
         }
         return admin_send_error(r, NGX_HTTP_NOT_ALLOWED, "method_not_allowed");
     }
-    if (r->uri.len > sizeof(ADMIN_PREFIX "proxy/backends/") - 1
-        && ngx_strncmp(r->uri.data, ADMIN_PREFIX "proxy/backends/",
-                       sizeof(ADMIN_PREFIX "proxy/backends/") - 1) == 0)
+    if (admin_uri_under(r, ADMIN_PREFIX "proxy/backends/",
+                        sizeof(ADMIN_PREFIX "proxy/backends/") - 1))
     {
-        uint32_t id = 0;
-        char     action[16];
+        *matched = 1;
         if (admin_parse_proxy_uri(r, &id, action, sizeof(action)) != NGX_OK) {
             return admin_send_error(r, NGX_HTTP_BAD_REQUEST, "bad_uri");
         }
         return admin_proxy_one(r, action, id);
+    }
+
+    *matched = 0;
+    return NGX_OK;
+}
+
+
+/*
+ * WHAT: Type of an admin endpoint-group router: on a URI match it sets *matched
+ *       and returns the response status; otherwise it clears *matched.
+ * WHY:  Lets brix_admin_dispatch drive the endpoint groups as a static table
+ *       (§8.6 table-driven dispatch) instead of a branch ladder.
+ * HOW:  Uniform (request, matched) -> status signature shared by every group.
+ */
+typedef ngx_int_t (*admin_route_fn)(ngx_http_request_t *r, int *matched);
+
+
+ngx_int_t
+brix_admin_dispatch(ngx_http_request_t *r)
+{
+    static const admin_route_fn routes[] = {
+        admin_route_io_uring,
+        admin_route_cluster,
+        admin_route_proxy,
+    };
+    ngx_http_brix_dashboard_loc_conf_t *conf;
+    ngx_uint_t                          i;
+
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
+
+    if (brix_admin_check_auth(r, conf) != BRIX_ADMIN_AUTH_OK) {
+        admin_audit(r, "auth", NULL, "forbidden");
+        return admin_send_error(r, NGX_HTTP_FORBIDDEN, "forbidden");
+    }
+
+    for (i = 0; i < sizeof(routes) / sizeof(routes[0]); i++) {
+        int       matched = 0;
+        ngx_int_t rc = routes[i](r, &matched);
+        if (matched) {
+            return rc;
+        }
     }
 
     return admin_send_error(r, NGX_HTTP_NOT_FOUND, "not_found");

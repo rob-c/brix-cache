@@ -93,36 +93,55 @@ ngx_int_t brix_token_registry_build(ngx_conf_t *cf, const char *cfg_path,
     uint32_t default_strategy, brix_token_registry_t **out);
 
 /*
+ * brix_token_registry_args_t — caller-supplied state shared by the two
+ * registry validation entry points.
+ *
+ * WHAT: Bundles the token-and-trust inputs common to registry authN
+ *       (brix_token_validate_registry_authn) and combined authN+authZ
+ *       (brix_token_validate_registry): log sink, raw token bytes, the
+ *       issuer registry, macaroon secret, clock-skew window, and the claims
+ *       output buffer.
+ * WHY:  The registry validators took 9 and 11 positional parameters; one
+ *       named-field carrier shared by both keeps each extern at <= 5
+ *       parameters while leaving the per-call variation (request path, op
+ *       class, out-pointers) as explicit arguments.
+ * HOW:  Populated field-by-field at each callsite (NULL/0 for unused
+ *       macaroon fields) and passed read-only; the validators write only
+ *       through ->claims and their own out-parameters.
+ */
+typedef struct {
+    ngx_log_t                    *log;             /* error/audit log sink     */
+    const char                   *token;           /* raw bearer token bytes   */
+    size_t                        token_len;       /* length of token          */
+    const brix_token_registry_t  *reg;             /* loaded issuer registry   */
+    const u_char                 *macaroon_secret; /* macaroon HMAC key/NULL   */
+    size_t                        secret_len;      /* macaroon_secret length   */
+    int                           clock_skew;      /* exp/nbf tolerance (secs) */
+    brix_token_claims_t          *claims;          /* OUT: verified claims     */
+} brix_token_registry_args_t;
+
+/*
  * Validate a bearer token against the multi-issuer registry:
  *   1. peek iss → select issuer (deny if unknown)
  *   2. verify signature/exp/nbf with THAT issuer's keys + audiences
  *   3. enforce base_path / restricted_path against req_path
  *   4. run the issuer's authorization_strategy ladder (capability now;
  *      group/mapping land in W1b)
- * On ALLOW returns 0, fills *claims, and sets *out_issuer_bucket to the issuer's
- * low-cardinality metric id; on DENY returns -1.  `op` selects read vs write
- * scope direction.  macaroon_secret/secret_len are forwarded for macaroon
- * tokens (NULL/0 if unused).
+ * On ALLOW returns 0, fills *a->claims, and sets *out_issuer_bucket to the
+ * issuer's low-cardinality metric id; on DENY returns -1.  `op` selects read
+ * vs write scope direction.  a->macaroon_secret/secret_len are forwarded for
+ * macaroon tokens (NULL/0 if unused).
  */
-int brix_token_validate_registry(ngx_log_t *log,
-    const char *token, size_t token_len,
-    const brix_token_registry_t *reg, const char *req_path,
-    brix_token_op_e op,
-    const u_char *macaroon_secret, size_t secret_len,
-    int clock_skew,
-    brix_token_claims_t *claims, int *out_issuer_bucket);
+int brix_token_validate_registry(const brix_token_registry_args_t *a,
+    const char *req_path, brix_token_op_e op, int *out_issuer_bucket);
 
 /*
  * AuthN-only half (issuer selection + signature/audience), for the stream
  * path where kXR_auth precedes any path. On success sets *out_issuer to the
  * matched issuer (whose base_path the per-path check then enforces).
  */
-int brix_token_validate_registry_authn(ngx_log_t *log,
-    const char *token, size_t token_len,
-    const brix_token_registry_t *reg,
-    const u_char *macaroon_secret, size_t secret_len,
-    int clock_skew,
-    brix_token_claims_t *claims, const brix_token_issuer_t **out_issuer);
+int brix_token_validate_registry_authn(const brix_token_registry_args_t *a,
+    const brix_token_issuer_t **out_issuer);
 
 /*
  * Per-path issuer authorization: base_path/restricted_path gate + the

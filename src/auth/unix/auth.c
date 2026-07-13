@@ -139,6 +139,179 @@ brix_unix_track_identity(brix_ctx_t *ctx)
 }
 
 /*
+ * Parsed result of an asserted `unix` credential: the validated, NUL-terminated
+ * user name and the optional group (empty string when the client sent none).
+ * Populated by brix_unix_parse_cred(); consumed by brix_unix_apply_identity().
+ */
+typedef struct {
+    char user[BRIX_SSS_USER_MAX];
+    char group[BRIX_SSS_GROUP_MAX];
+} brix_unix_names_t;
+
+/*
+ * WHAT: Confirm the credential blob opens with the expected "unix\0" tag.
+ * WHY:  The `unix` scheme is unverified, so the one structural guarantee we
+ *       insist on is the leading protocol tag; anything shorter or mistagged is
+ *       a malformed credential and must be rejected before we parse names.
+ * HOW:  Returns NGX_OK when payload is non-NULL, at least 6 bytes, begins with
+ *       "unix", and byte 4 is NUL; otherwise NGX_DECLINED. No side effects.
+ */
+static ngx_int_t
+brix_unix_tag_ok(const brix_ctx_t *ctx)
+{
+    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen < 6
+        || ngx_strncmp(ctx->recv.payload, "unix", 4) != 0
+        || ctx->recv.payload[4] != '\0')
+    {
+        return NGX_DECLINED;
+    }
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Advance `*p` over any run of ASCII spaces, then return the extent of the
+ *       next space/NUL-delimited token as [start, *p).
+ * WHY:  Both the user and the optional group are parsed with identical
+ *       skip-spaces-then-take-a-token logic; centralising it keeps the parser
+ *       linear and removes duplicated pointer walks.
+ * HOW:  Pure cursor arithmetic over the half-open [*p, end) range: skip spaces,
+ *       record the token start, advance to the first space/NUL/end, and report
+ *       the token start plus its length via the out-params.
+ */
+static void
+brix_unix_next_token(const u_char **p, const u_char *end,
+    const u_char **tok_start, size_t *tok_len)
+{
+    const u_char *cur = *p;
+
+    while (cur < end && *cur == ' ') {
+        cur++;
+    }
+    *tok_start = cur;
+    while (cur < end && *cur != '\0' && *cur != ' ') {
+        cur++;
+    }
+    *tok_len = (size_t) (cur - *tok_start);
+    *p = cur;
+}
+
+/*
+ * WHAT: Parse the space/NUL-delimited user (mandatory) and group (optional) out
+ *       of the credential payload and character-validate both into `names`.
+ * WHY:  Isolating the untrusted-name parse keeps the single choke point for the
+ *       safe-byte allow-list (brix_unix_copy_name) in one auditable place and
+ *       out of the top-level control flow.
+ * HOW:  Skips the "unix\0" tag, reads the user token, then (only if a further
+ *       space-separated token follows) the group token. Each non-empty token is
+ *       copied through brix_unix_copy_name(); on any validation failure returns
+ *       NGX_DECLINED and writes the reject reason to *msg. Returns NGX_OK with
+ *       names->group left "" when no group was asserted.
+ */
+static ngx_int_t
+brix_unix_parse_cred(const brix_ctx_t *ctx, brix_unix_names_t *names,
+    const char **msg)
+{
+    const u_char *p, *end, *user_start, *group_start;
+    size_t        user_len = 0, group_len = 0;
+
+    names->user[0] = '\0';
+    names->group[0] = '\0';
+
+    p = ctx->recv.payload + 5;
+    end = ctx->recv.payload + ctx->recv.cur_dlen;
+
+    brix_unix_next_token(&p, end, &user_start, &user_len);
+
+    if (p < end && *p == ' ') {
+        brix_unix_next_token(&p, end, &group_start, &group_len);
+        if (group_len > 0
+            && brix_unix_copy_name(names->group, sizeof(names->group),
+                                     group_start, group_len) != NGX_OK)
+        {
+            *msg = "invalid unix group";
+            return NGX_DECLINED;
+        }
+    }
+
+    if (brix_unix_copy_name(names->user, sizeof(names->user), user_start,
+                              user_len) != NGX_OK)
+    {
+        *msg = "invalid unix user";
+        return NGX_DECLINED;
+    }
+
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Stamp the validated user/group onto the per-connection identity and
+ *       mark the session authenticated (unverified, non-token).
+ * WHY:  Populating ctx->login and the canonical ctx->identity is the load-
+ *       bearing state transition; keeping it in one helper preserves the exact
+ *       field-fill ordering that downstream ACL/session code depends on.
+ * HOW:  Sets auth_done/token flags, copies user→login.dn and (when present)
+ *       group→login.vo_list + login.primary_vo via ngx_cpystrn, then mirrors dn
+ *       and the VO CSV into ctx->identity. Returns NGX_OK on success, or
+ *       NGX_ABORT (with *code = kXR_NoMemory) if identity allocation fails.
+ */
+static ngx_int_t
+brix_unix_apply_identity(brix_ctx_t *ctx, ngx_connection_t *c,
+    const brix_unix_names_t *names, int *code)
+{
+    ctx->login.auth_done = 1;
+    ctx->token.auth = 0;
+    ngx_cpystrn((u_char *) ctx->login.dn, (u_char *) names->user,
+                sizeof(ctx->login.dn));
+    if (names->group[0] != '\0') {
+        ngx_cpystrn((u_char *) ctx->login.vo_list, (u_char *) names->group,
+                    sizeof(ctx->login.vo_list));
+        ngx_cpystrn((u_char *) ctx->login.primary_vo, (u_char *) names->group,
+                    sizeof(ctx->login.primary_vo));
+    }
+
+    if (ctx->identity != NULL) {
+        if (brix_identity_set_dn(ctx->identity, c->pool, ctx->login.dn,
+                                   BRIX_AUTHN_UNIX) != NGX_OK
+            || brix_identity_set_vos_csv(ctx->identity, c->pool,
+                                           ctx->login.vo_list) != NGX_OK)
+        {
+            *code = kXR_NoMemory;
+            return NGX_ABORT;
+        }
+    }
+
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Finalise a successful `unix` auth: register the session, bump identity
+ *       metrics, and emit the sanitised audit line.
+ * WHY:  The success epilogue is a fixed, side-effect-only sequence; separating
+ *       it keeps the top-level function focused on validation control flow.
+ * HOW:  Registers the session under login.sessid, calls brix_unix_track_identity
+ *       for VO/unique-user metrics, then logs user/group through
+ *       brix_sanitize_log_string (group shown as "-" when empty). No return.
+ */
+static void
+brix_unix_finalize(brix_ctx_t *ctx, ngx_connection_t *c,
+    const brix_unix_names_t *names)
+{
+    char safe_user[BRIX_SSS_USER_MAX * 4];
+    char safe_group[BRIX_SSS_GROUP_MAX * 4];
+
+    brix_session_register(ctx->login.sessid, ctx->login.dn,
+                            ctx->login.vo_list, 0);
+    brix_unix_track_identity(ctx);
+
+    brix_sanitize_log_string(names->user, safe_user, sizeof(safe_user));
+    brix_sanitize_log_string(names->group[0] ? names->group : "-", safe_group,
+                               sizeof(safe_group));
+    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                  "brix: unix auth OK user=\"%s\" group=\"%s\"",
+                  safe_user, safe_group);
+}
+
+/*
  * Public entry point for the XRootD `unix` auth scheme, called from the GSI
  * auth dispatcher (../gsi/auth.c) once it has matched the "unix" credtype and
  * confirmed conf->auth == BRIX_AUTH_UNIX.
@@ -157,12 +330,9 @@ ngx_int_t
 brix_handle_unix_auth(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
 {
-    const u_char *p, *end, *user_start, *group_start;
-    size_t        user_len, group_len;
-    char          user[BRIX_SSS_USER_MAX];
-    char          group[BRIX_SSS_GROUP_MAX];
-    char          safe_user[BRIX_SSS_USER_MAX * 4];
-    char          safe_group[BRIX_SSS_GROUP_MAX * 4];
+    brix_unix_names_t names;
+    const char       *reject = NULL;
+    int               err_code = kXR_NoMemory;
 
     if (!conf->unix_trust_remote && !brix_unix_peer_is_loopback(c)) {
         brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_UNIX, 0);
@@ -171,84 +341,24 @@ brix_handle_unix_auth(brix_ctx_t *ctx, ngx_connection_t *c,
                           "unix auth is restricted to loopback peers");
     }
 
-    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen < 6
-        || ngx_strncmp(ctx->recv.payload, "unix", 4) != 0
-        || ctx->recv.payload[4] != '\0')
-    {
+    if (brix_unix_tag_ok(ctx) != NGX_OK) {
         brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_UNIX, 0);
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "unix",
                           kXR_NotAuthorized, "malformed unix credential");
     }
 
-    p = ctx->recv.payload + 5;
-    end = ctx->recv.payload + ctx->recv.cur_dlen;
-    while (p < end && *p == ' ') {
-        p++;
-    }
-    user_start = p;
-    while (p < end && *p != '\0' && *p != ' ') {
-        p++;
-    }
-    user_len = (size_t) (p - user_start);
-
-    group[0] = '\0';
-    if (p < end && *p == ' ') {
-        while (p < end && *p == ' ') {
-            p++;
-        }
-        group_start = p;
-        while (p < end && *p != '\0' && *p != ' ') {
-            p++;
-        }
-        group_len = (size_t) (p - group_start);
-        if (group_len > 0
-            && brix_unix_copy_name(group, sizeof(group), group_start,
-                                     group_len) != NGX_OK)
-        {
-            brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_UNIX, 0);
-            BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "unix",
-                              kXR_NotAuthorized, "invalid unix group");
-        }
-    }
-
-    if (brix_unix_copy_name(user, sizeof(user), user_start, user_len)
-        != NGX_OK)
-    {
+    if (brix_unix_parse_cred(ctx, &names, &reject) != NGX_OK) {
         brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_UNIX, 0);
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "unix",
-                          kXR_NotAuthorized, "invalid unix user");
+                          kXR_NotAuthorized, reject);
     }
 
-    ctx->login.auth_done = 1;
-    ctx->token.auth = 0;
-    ngx_cpystrn((u_char *) ctx->login.dn, (u_char *) user, sizeof(ctx->login.dn));
-    if (group[0] != '\0') {
-        ngx_cpystrn((u_char *) ctx->login.vo_list, (u_char *) group,
-                    sizeof(ctx->login.vo_list));
-        ngx_cpystrn((u_char *) ctx->login.primary_vo, (u_char *) group,
-                    sizeof(ctx->login.primary_vo));
+    if (brix_unix_apply_identity(ctx, c, &names, &err_code) != NGX_OK) {
+        return brix_send_error(ctx, c, err_code,
+                                 "identity allocation failed");
     }
 
-    if (ctx->identity != NULL) {
-        if (brix_identity_set_dn(ctx->identity, c->pool, ctx->login.dn,
-                                   BRIX_AUTHN_UNIX) != NGX_OK
-            || brix_identity_set_vos_csv(ctx->identity, c->pool,
-                                           ctx->login.vo_list) != NGX_OK)
-        {
-            return brix_send_error(ctx, c, kXR_NoMemory,
-                                     "identity allocation failed");
-        }
-    }
-
-    brix_session_register(ctx->login.sessid, ctx->login.dn, ctx->login.vo_list, 0);
-    brix_unix_track_identity(ctx);
-
-    brix_sanitize_log_string(user, safe_user, sizeof(safe_user));
-    brix_sanitize_log_string(group[0] ? group : "-", safe_group,
-                               sizeof(safe_group));
-    ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                  "brix: unix auth OK user=\"%s\" group=\"%s\"",
-                  safe_user, safe_group);
+    brix_unix_finalize(ctx, c, &names);
 
     brix_metric_auth(BRIX_PROTO_ROOT, BRIX_AUTHN_UNIX, 1);
     BRIX_RETURN_OK(ctx, c, BRIX_OP_AUTH, "AUTH", "-", "unix", 0);

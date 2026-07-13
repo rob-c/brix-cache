@@ -20,56 +20,66 @@
 
 /* ---- kXR_* request opcode -> guard op-class ----
  *
- * WHAT: maps the wire requestid to the guard's protocol-agnostic op-class;
- *   unlisted opcodes are GUARD_OP_UNKNOWN.
+ * WHAT: dense op-class table over the legal request range [kXR_auth,
+ *   kXR_clone], indexed by opcode - kXR_auth; unlisted/off-spec opcodes are
+ *   GUARD_OP_UNKNOWN.
  *
  * WHY: the "root" grammar profile permits op-classes, not raw opcodes, so
- *   ruleset semantics stay identical across the three guarded surfaces.
+ *   ruleset semantics stay identical across the three guarded surfaces; a
+ *   static const table (phase-72 D4 kxr_names pattern) reads as a flat spec
+ *   instead of a branch ladder and keeps the mapping auditable at a glance.
  *
- * HOW: 1. switch over the opcodes the relay can meaningfully classify
- *         (session/handshake ops map to HANDSHAKE so login flows are never
- *         grammar-bounced).
- *      2. Every other opcode inside the legal request range (kXR_auth ..
- *         kXR_clone: ping/close/sync/bind/fattr/prepare/…) is legitimate
- *         housekeeping -> INFO; only out-of-range requestids are UNKNOWN
- *         (a non-XRootD client talking to the port).
+ * HOW: 1. Every opcode inside the legal request range carries an explicit
+ *         entry — the read/write/list/delete data ops map to their action
+ *         classes, session/handshake ops map to HANDSHAKE (login flows are
+ *         never grammar-bounced), and the remaining housekeeping ops
+ *         (ping/close/sync/gpfile/set/fattr/clone) map to INFO.
+ *      2. opcode_to_op() indexes the table; anything outside the range is a
+ *         non-XRootD client talking to the port -> GUARD_OP_UNKNOWN.
  */
+static const guard_op_class_t  opcode_op_class[kXR_clone - kXR_auth + 1] = {
+    [kXR_auth     - kXR_auth] = GUARD_OP_HANDSHAKE,
+    [kXR_query    - kXR_auth] = GUARD_OP_INFO,
+    [kXR_chmod    - kXR_auth] = GUARD_OP_WRITE,
+    [kXR_close    - kXR_auth] = GUARD_OP_INFO,
+    [kXR_dirlist  - kXR_auth] = GUARD_OP_LIST,
+    [kXR_gpfile   - kXR_auth] = GUARD_OP_INFO,
+    [kXR_protocol - kXR_auth] = GUARD_OP_HANDSHAKE,
+    [kXR_login    - kXR_auth] = GUARD_OP_HANDSHAKE,
+    [kXR_mkdir    - kXR_auth] = GUARD_OP_WRITE,
+    [kXR_mv       - kXR_auth] = GUARD_OP_WRITE,
+    [kXR_open     - kXR_auth] = GUARD_OP_READ,
+    [kXR_ping     - kXR_auth] = GUARD_OP_INFO,
+    [kXR_chkpoint - kXR_auth] = GUARD_OP_WRITE,
+    [kXR_read     - kXR_auth] = GUARD_OP_READ,
+    [kXR_rm       - kXR_auth] = GUARD_OP_DELETE,
+    [kXR_rmdir    - kXR_auth] = GUARD_OP_DELETE,
+    [kXR_sync     - kXR_auth] = GUARD_OP_INFO,
+    [kXR_stat     - kXR_auth] = GUARD_OP_INFO,
+    [kXR_set      - kXR_auth] = GUARD_OP_INFO,
+    [kXR_write    - kXR_auth] = GUARD_OP_WRITE,
+    [kXR_fattr    - kXR_auth] = GUARD_OP_INFO,
+    [kXR_prepare  - kXR_auth] = GUARD_OP_STAGE,
+    [kXR_statx    - kXR_auth] = GUARD_OP_READ,
+    [kXR_endsess  - kXR_auth] = GUARD_OP_HANDSHAKE,
+    [kXR_bind     - kXR_auth] = GUARD_OP_HANDSHAKE,
+    [kXR_readv    - kXR_auth] = GUARD_OP_READ,
+    [kXR_pgwrite  - kXR_auth] = GUARD_OP_WRITE,
+    [kXR_locate   - kXR_auth] = GUARD_OP_READ,
+    [kXR_truncate - kXR_auth] = GUARD_OP_WRITE,
+    [kXR_sigver   - kXR_auth] = GUARD_OP_HANDSHAKE,
+    [kXR_pgread   - kXR_auth] = GUARD_OP_READ,
+    [kXR_writev   - kXR_auth] = GUARD_OP_WRITE,
+    [kXR_clone    - kXR_auth] = GUARD_OP_INFO,
+};
+
 static guard_op_class_t
 opcode_to_op(uint16_t opcode)
 {
-    switch (opcode) {
-    case kXR_open:
-    case kXR_read:
-    case kXR_readv:
-    case kXR_pgread:
-    case kXR_locate:
-    case kXR_statx:    return GUARD_OP_READ;
-    case kXR_write:
-    case kXR_pgwrite:
-    case kXR_writev:
-    case kXR_mkdir:
-    case kXR_mv:
-    case kXR_chmod:
-    case kXR_chkpoint:
-    case kXR_truncate: return GUARD_OP_WRITE;
-    case kXR_dirlist:  return GUARD_OP_LIST;
-    case kXR_rm:
-    case kXR_rmdir:    return GUARD_OP_DELETE;
-    case kXR_stat:
-    case kXR_query:    return GUARD_OP_INFO;
-    case kXR_prepare:  return GUARD_OP_STAGE;
-    case kXR_login:
-    case kXR_auth:
-    case kXR_protocol:
-    case kXR_bind:
-    case kXR_endsess:
-    case kXR_sigver:   return GUARD_OP_HANDSHAKE;
-    default:
-        if (opcode >= kXR_auth && opcode <= kXR_clone) {
-            return GUARD_OP_INFO;     /* legal housekeeping (ping/close/…) */
-        }
+    if (opcode < kXR_auth || opcode > kXR_clone) {
         return GUARD_OP_UNKNOWN;      /* off-spec requestid */
     }
+    return opcode_op_class[opcode - kXR_auth];
 }
 
 /* ---- kXR_error errnum -> guard outcome ----

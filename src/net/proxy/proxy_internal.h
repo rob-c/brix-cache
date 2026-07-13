@@ -337,10 +337,28 @@ void      brix_proxy_splice_fallback_finish(brix_proxy_ctx_t *proxy);
 /* Build the upstream request from the client's current frame (ctx->recv.hdr_buf + payload),
  * applying fhandle translation, path rewriting, audit capture and kXR_wait-retry setup,
  * then send it. Allocates the request buffer (ngx_alloc, freed on send/cleanup) and may
- * pre-allocate a local fh for kXR_open. NGX_OK on send/queue; NGX_ERROR after the helper
- * has already replied to the client with a kXR error. Borrows ctx and c. */
+ * pre-allocate a local fh for kXR_open. NGX_OK on send/queue AND when the request was
+ * rejected with a kXR_error already queued to the client (session continues); NGX_ERROR
+ * only on a hard failure. Borrows ctx and c. */
 ngx_int_t brix_proxy_forward_request(brix_proxy_ctx_t *proxy,
     brix_ctx_t *ctx, ngx_connection_t *c);
+
+/* forward_fh_translate.c — file handle translation helpers (called from forward_request.c). */
+/* Translate file handle for opcodes with a single fhandle at body[0], plus kXR_chkpoint
+ * kXR_ckpXeq nested requests. Returns NGX_OK, NGX_DONE (bound-secondary lazy-open initiated),
+ * NGX_ABORT (request rejected via proxy_reject_request — req freed, kXR_error queued), or
+ * NGX_ERROR. When NGX_DONE is returned, req ownership has transferred to lazy_open. */
+ngx_int_t brix_proxy_fh_translate_single(brix_proxy_ctx_t *proxy,
+    brix_ctx_t *ctx, ngx_connection_t *c, u_char *req, size_t total,
+    uint16_t reqid, size_t body_len);
+/* Translate file handles in readv or writev descriptor arrays. Returns NGX_OK, NGX_DONE
+ * (bound-secondary lazy-open queue initiated), NGX_ABORT (request rejected — req freed,
+ * kXR_error queued), or NGX_ERROR. When NGX_DONE is returned, req ownership has transferred
+ * to lazy_open. */
+ngx_int_t brix_proxy_fh_translate_vector(brix_proxy_ctx_t *proxy,
+    brix_ctx_t *ctx, ngx_connection_t *c, u_char *req, size_t total,
+    uint16_t reqid, uint32_t cur_dlen);
+
 /* Relay the accumulated upstream response (resp_status/resp_dlen/resp_body) back to the
  * client, transparently handling lazy-open completion, kXR_wait retry, kXR_redirect
  * follow-through, upstream->local fhandle translation, path audit and oksofar streaming.
@@ -373,6 +391,15 @@ u_char *proxy_rewrite_prepare_payload(ngx_connection_t *c,
  * fh_map. Returns 0 on success, -1 if the local handle is out of range or maps to a free
  * slot (caller should reject the request). */
 int proxy_translate_fh(brix_proxy_ctx_t *proxy, u_char *buf, size_t offset);
+/* Reject an in-flight forwarded request: free the request buffer and queue a kXR_error
+ * back to the client. Returns NGX_ABORT when the error response was queued (the request
+ * is fully handled — the session lives on but NOTHING may touch req again), or NGX_ERROR
+ * when queueing the error itself failed. NEVER returns NGX_OK: brix_send_error() returns
+ * NGX_OK on a queued error, and returning that directly from a translate handler made
+ * brix_proxy_forward_request() keep forwarding the freed buffer (use-after-free +
+ * double-free via wbuf_owned). */
+ngx_int_t proxy_reject_request(brix_ctx_t *ctx, ngx_connection_t *c,
+    u_char *req, uint16_t errcode, const char *msg);
 /*
  * Issue a synthetic kXR_open on the upstream for a handle that was opened
  * lazily (open-on-read).  Called from both forward.c and forward_relay.c.

@@ -30,25 +30,59 @@
 #include <fcntl.h>
 #include <stdio.h>
 
-ngx_int_t
-brix_token_read_file(const ngx_str_t *path, u_char *buf, size_t buf_sz,
-    size_t *out_len, ngx_log_t *log, const char *label)
+/*
+ * brix_token_diag_t - diagnostic context bundling the log sink and its label.
+ *
+ * WHAT: Pairs the optional ngx_log_t and the caller's context label so every
+ *       stage receives error-reporting state as a single argument.
+ * WHY:  log and label travel together to every failure path; bundling them
+ *       keeps each helper at or below the five-parameter limit without adding
+ *       a global or duplicating the NULL-label fallback per call site.
+ * HOW:  Plain-old-data value; callers pass it by const pointer.
+ */
+typedef struct {
+    ngx_log_t  *log;
+    const char *label;
+} brix_token_diag_t;
+
+/*
+ * brix_token_label - resolve the diagnostic label with a default.
+ *
+ * WHAT: Returns diag->label, or "xrootd" when the caller left it NULL.
+ * WHY:  Every error path prefixes its message with the caller's context; a
+ *       single resolver keeps the fallback identical across all call sites.
+ * HOW:  Ternary select — no allocation, no side effects.
+ */
+static const char *
+brix_token_label(const brix_token_diag_t *diag)
 {
-    char   pathz[NGX_MAX_PATH];
-    FILE  *fp;
-    size_t n;
+    return diag->label ? diag->label : "xrootd";
+}
 
-    if (out_len != NULL) {
-        *out_len = 0;
-    }
-
-    if (path == NULL || path->len == 0 || path->len >= sizeof(pathz)
+/*
+ * brix_token_validate_args - reject malformed arguments and build a C path.
+ *
+ * WHAT: Validates path/buffer arguments and copies path into a NUL-terminated
+ *       pathz buffer (size NGX_MAX_PATH) on success.
+ * WHY:  Bounds must be checked before any file access; concentrating the guard
+ *       in one helper keeps the reader loop free of validation branches while
+ *       preserving the original EINVAL semantics and log message.
+ * HOW:  Rejects NULL/empty/over-long path, NULL buf, or capacity < 2 bytes.
+ *       On rejection logs (when log != NULL), sets errno=EINVAL, returns
+ *       NGX_ERROR. On success copies path->data + NUL terminator into pathz
+ *       (a fixed NGX_MAX_PATH-byte buffer owned by the caller).
+ */
+static ngx_int_t
+brix_token_validate_args(const ngx_str_t *path, const u_char *buf,
+    size_t buf_sz, char *pathz, const brix_token_diag_t *diag)
+{
+    if (path == NULL || path->len == 0 || path->len >= NGX_MAX_PATH
         || buf == NULL || buf_sz < 2)
     {
-        if (log != NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, 0,
+        if (diag->log != NULL) {
+            ngx_log_error(NGX_LOG_ERR, diag->log, 0,
                           "%s token file path missing or too long",
-                          label ? label : "xrootd");
+                          brix_token_label(diag));
         }
         errno = EINVAL;
         return NGX_ERROR;
@@ -56,13 +90,33 @@ brix_token_read_file(const ngx_str_t *path, u_char *buf, size_t buf_sz,
 
     ngx_memcpy(pathz, path->data, path->len);
     pathz[path->len] = '\0';
+    return NGX_OK;
+}
+
+/*
+ * brix_token_slurp - bounded read of a token file into buf.
+ *
+ * WHAT: Opens pathz, reads up to buf_sz-1 bytes into buf, and returns the byte
+ *       count via *n_out. Does not NUL-terminate or trim (caller's job).
+ * WHY:  Isolates all stdio + errno handling (open failure, read error with
+ *       errno preservation across fclose) so the top-level flow stays linear.
+ * HOW:  fopen("rb"), set FD_CLOEXEC, fread. On ferror, saves errno across
+ *       fclose, logs, returns NGX_ERROR. On success closes and reports count.
+ *       Read-only stream: fclose status cannot affect already-consumed data.
+ */
+static ngx_int_t
+brix_token_slurp(const char *pathz, u_char *buf, size_t buf_sz, size_t *n_out,
+    const brix_token_diag_t *diag)
+{
+    FILE  *fp;
+    size_t n;
 
     fp = fopen(pathz, "rb");
     if (fp == NULL) {
-        if (log != NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        if (diag->log != NULL) {
+            ngx_log_error(NGX_LOG_ERR, diag->log, ngx_errno,
                           "%s cannot open token file \"%s\"",
-                          label ? label : "xrootd", pathz);
+                          brix_token_label(diag), pathz);
         }
         return NGX_ERROR;
     }
@@ -71,27 +125,71 @@ brix_token_read_file(const ngx_str_t *path, u_char *buf, size_t buf_sz,
     n = fread(buf, 1, buf_sz - 1, fp);
     if (ferror(fp)) {
         int saved = errno;
-        fclose(fp);
+        (void) fclose(fp); /* phase74-fp: read-only stream, ferror already latched the read failure being reported */
         errno = saved;
-        if (log != NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        if (diag->log != NULL) {
+            ngx_log_error(NGX_LOG_ERR, diag->log, ngx_errno,
                           "%s cannot read token file \"%s\"",
-                          label ? label : "xrootd", pathz);
+                          brix_token_label(diag), pathz);
         }
         return NGX_ERROR;
     }
-    fclose(fp);
+    (void) fclose(fp); /* phase74-fp: read-only stream fully consumed, ferror checked above — close status cannot affect the data */
 
+    *n_out = n;
+    return NGX_OK;
+}
+
+/*
+ * brix_token_trim - NUL-terminate and strip trailing whitespace in place.
+ *
+ * WHAT: NUL-terminates buf at n, then removes trailing isspace() bytes,
+ *       returning the trimmed length.
+ * WHY:  Token files commonly carry trailing CR/LF/space; trimming is a pure
+ *       string transform best kept out of the I/O and validation stages.
+ * HOW:  Terminates at n, then walks back over isspace() bytes, NUL-terminating
+ *       as it shrinks. Returns the resulting length.
+ */
+static size_t
+brix_token_trim(u_char *buf, size_t n)
+{
     buf[n] = '\0';
     while (n > 0 && isspace((unsigned char) buf[n - 1])) {
         buf[--n] = '\0';
     }
+    return n;
+}
+
+ngx_int_t
+brix_token_read_file(const ngx_str_t *path, u_char *buf, size_t buf_sz,
+    size_t *out_len, ngx_log_t *log, const char *label)
+{
+    char              pathz[NGX_MAX_PATH];
+    size_t            n = 0;
+    brix_token_diag_t diag;
+
+    diag.log = log;
+    diag.label = label;
+
+    if (out_len != NULL) {
+        *out_len = 0;
+    }
+
+    if (brix_token_validate_args(path, buf, buf_sz, pathz, &diag) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    if (brix_token_slurp(pathz, buf, buf_sz, &n, &diag) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    n = brix_token_trim(buf, n);
 
     if (n == 0) {
-        if (log != NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, 0,
+        if (diag.log != NULL) {
+            ngx_log_error(NGX_LOG_ERR, diag.log, 0,
                           "%s token file \"%s\" is empty",
-                          label ? label : "xrootd", pathz);
+                          brix_token_label(&diag), pathz);
         }
         errno = EINVAL;
         return NGX_ERROR;

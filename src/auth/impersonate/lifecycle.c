@@ -298,7 +298,7 @@ imp_kill_stale_broker(ngx_log_t *log)
         ngx_log_error(NGX_LOG_NOTICE, log, 0,
                       "impersonate: terminated stale broker pid %ld", pid);
     }
-    fclose(fp);
+    (void) fclose(fp); /* phase74-fp: read-only pidfile stream, pid already parsed and acted on */
     unlink(pf);
 }
 
@@ -314,35 +314,205 @@ imp_broker_child(int lfd, int rootfd, ngx_log_t *log)
     fp = fopen(pf, "we");
     if (fp != NULL) {
         fprintf(fp, "%ld\n", (long) getpid());
-        fclose(fp);
+        (void) fclose(fp); /* phase74-fp: best-effort pidfile write by design — fopen failure is tolerated the same way */
     }
     /* broker_run drops caps to {SETUID,SETGID} then serves until killed. */
     _exit(brix_imp_broker_run(lfd, rootfd, NULL, log) == 0 ? 0 : 1);
 }
 
-ngx_int_t
-brix_imp_init_module(ngx_cycle_t *cycle)
+/*
+ * WHAT: Resolve the nginx worker uid the broker will be gated to.
+ * WHY:  The broker socket is chowned to this uid and the broker refuses any
+ *       caller uid but this one — defence in depth atop path confinement.  A
+ *       missing/unset `user` directive means "no gate" ((uid_t)-1).
+ * HOW:  Read ngx_core_module's parsed conf; treat NGX_CONF_UNSET_UINT as none.
+ */
+static uid_t
+imp_worker_uid(ngx_cycle_t *cycle)
 {
-    ngx_core_conf_t   *ccf;
-    brix_idmap_conf_t idc;
-    sigset_t           block, prev;
-    char               sockbuf[256], rootbuf[1024];
-    uid_t              wuid;
-    int                lfd, rootfd;
-    pid_t              inter;
+    ngx_core_conf_t *ccf;
 
-    /*
-     * Publish the config/reload fingerprint on every real config load (this is
-     * the module's single init_module hook, so it runs once per cycle in the
-     * master regardless of impersonation mode).  Skipped under `nginx -t`, which
-     * only validates the config and must not bump the live generation counter.
-     */
+    ccf = (ngx_core_conf_t *) ngx_get_conf(cycle->conf_ctx, ngx_core_module);
+    return (ccf && ccf->user != (uid_t) NGX_CONF_UNSET_UINT) ? ccf->user
+                                                             : (uid_t) -1;
+}
+
+/*
+ * WHAT: Resolve the optional non-root broker service account into the broker
+ *       globals (brix_imp_broker_user_uid/gid).
+ * WHY:  When configured, the broker drops its real uid/gid to this account
+ *       (keeping only CAP_SETUID/CAP_SETGID) so nothing runs as root after
+ *       startup.  The account must be real, non-root, and differ from the
+ *       worker uid so a compromise cannot escalate.  Globals must be set BEFORE
+ *       the fork so the broker inherits them.
+ * HOW:  Default the globals to "none"; if a name is configured, look it up and
+ *       validate it, returning NGX_ERROR (with a diagnostic) on any problem.
+ */
+static ngx_int_t
+imp_resolve_broker_user(ngx_cycle_t *cycle, uid_t wuid)
+{
+    char           nm[256];
+    struct passwd *pw;
+
+    brix_imp_broker_user_uid = (uid_t) -1;
+    brix_imp_broker_user_gid = (gid_t) -1;
+    if (imp_settings.broker_user.len == 0) {
+        return NGX_OK;
+    }
+
+    ngx_snprintf((u_char *) nm, sizeof(nm), "%V%Z", &imp_settings.broker_user);
+    pw = getpwnam(nm);
+    if (pw == NULL) {
+        BRIX_DIAG_EMERG(cycle->log, 0,
+            "impersonate: broker user \"%s\" does not exist",
+            "brix_impersonation_broker_user names a local account that "
+            "is not present in /etc/passwd (or NSS)",
+            "create the dedicated service account first, or correct the "
+            "name in the directive",
+            nm);
+        return NGX_ERROR;
+    }
+    if (pw->pw_uid == 0 || (wuid != (uid_t) -1 && pw->pw_uid == wuid)) {
+        BRIX_DIAG_EMERG(cycle->log, 0,
+            "impersonate: broker user \"%s\" is not a safe choice",
+            "the broker account must NOT be root and must differ from the "
+            "nginx worker user, so a compromise cannot escalate",
+            "point brix_impersonation_broker_user at a dedicated, "
+            "unprivileged account used for nothing else",
+            nm);
+        return NGX_ERROR;
+    }
+    brix_imp_broker_user_uid = pw->pw_uid;
+    brix_imp_broker_user_gid = pw->pw_gid;
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Load the identity map (gridmap + policy) into THIS master process.
+ * WHY:  The broker forks from the master and inherits the parsed map, so it
+ *       must be installed before the fork.  A load failure is fatal.
+ * HOW:  Fill an brix_idmap_conf_t from imp_settings and call brix_idmap_init.
+ */
+static ngx_int_t
+imp_load_idmap(ngx_cycle_t *cycle, uid_t wuid)
+{
+    brix_idmap_conf_t idc;
+
+    imp_fill_idmap_conf(&idc, wuid);
+    if (brix_idmap_init(&idc, cycle->log) != NGX_OK) {
+        BRIX_DIAG_EMERG(cycle->log, 0,
+            "impersonate: identity map failed to load",
+            "the grid-mapfile is missing, unreadable, or malformed",
+            "check brix_impersonation_gridmap points at a readable "
+            "grid-mapfile with valid \"<DN>\" <user> lines");
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Bring up the broker's two file descriptors — the listening AF_UNIX
+ *       socket (*lfd) and the O_PATH export-root handle (*rootfd).
+ * WHY:  Both must exist before the fork; the broker inherits them and confines
+ *       all impersonated I/O beneath the export root.
+ * HOW:  Bind the 0600 socket (chowned to the worker uid), then open the root;
+ *       on root-open failure close the socket so nothing leaks.  fds->lfd /
+ *       fds->rootfd are written only on full success.
+ */
+typedef struct {
+    int lfd;
+    int rootfd;
+} imp_broker_fds_t;
+
+static ngx_int_t
+imp_open_broker_fds(const char *sockbuf, const char *rootbuf, uid_t wuid,
+                    ngx_log_t *log, imp_broker_fds_t *fds)
+{
+    int l, r;
+
+    l = imp_make_listen(sockbuf, wuid, log);
+    if (l < 0) {
+        return NGX_ERROR;
+    }
+    r = open(rootbuf, O_PATH | O_DIRECTORY | O_CLOEXEC);
+    if (r < 0) {
+        BRIX_DIAG_EMERG(log, ngx_errno,
+            "impersonate: cannot open export root \"%s\"",
+            "the export root directory is missing or unreadable by the master",
+            "create the directory and ensure the master can open it; the OS "
+            "reason is appended below",
+            rootbuf);
+        close(l);
+        return NGX_ERROR;
+    }
+    fds->lfd    = l;
+    fds->rootfd = r;
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Double-fork the privileged broker off the master, closing the passed
+ *       fds in the master afterwards.
+ * WHY:  Double-fork reparents the broker to init so nginx never reaps it
+ *       (SHM-safe; the FRM pattern).  SIGCHLD is blocked around the fork and
+ *       the intermediate reaped so the master's signal handling is undisturbed.
+ * HOW:  Block SIGCHLD, fork the intermediate (which forks the broker child and
+ *       exits), close the master's fd copies, wait the intermediate, restore
+ *       the signal mask.  The master's fds are closed on the fork-failure path
+ *       too.  The broker child never returns from imp_broker_child.
+ */
+static ngx_int_t
+imp_spawn_broker(int lfd, int rootfd, ngx_log_t *log)
+{
+    sigset_t block, prev;
+    pid_t    inter;
+
+    sigemptyset(&block);
+    sigaddset(&block, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &block, &prev);
+
+    inter = fork();
+    if (inter < 0) {
+        sigprocmask(SIG_SETMASK, &prev, NULL);
+        close(lfd);
+        close(rootfd);
+        ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
+                      "impersonate: broker fork failed");
+        return NGX_ERROR;
+    }
+    if (inter == 0) {
+        if (fork() == 0) {
+            imp_broker_child(lfd, rootfd, log);   /* never returns */
+        }
+        _exit(0);                        /* intermediate -> broker reparents */
+    }
+
+    close(lfd);
+    close(rootfd);
+    while (waitpid(inter, NULL, 0) < 0 && errno == EINTR) { }
+    sigprocmask(SIG_SETMASK, &prev, NULL);
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Master-side guard — publish the config fingerprint every real load and
+ *       decide whether the privileged-broker path should run at all.
+ * WHY:  init_module is the module's single per-cycle master hook, so it owns
+ *       the version publish (skipped under `nginx -t`, which must not bump the
+ *       live generation counter).  The broker is only built in `map` mode, and
+ *       only when the master is genuinely root.
+ * HOW:  Publish unless testing; then return NGX_DECLINED when the broker path
+ *       must be skipped (non-map or `nginx -t`), NGX_OK to proceed, or
+ *       NGX_ERROR if `map` was requested without a root master.
+ */
+static ngx_int_t
+imp_init_module_gate(ngx_cycle_t *cycle)
+{
     if (!ngx_test_config) {
         brix_config_version_publish(cycle);
     }
-
     if (imp_settings.mode != BRIX_IMP_MAP || ngx_test_config) {
-        return NGX_OK;
+        return NGX_DECLINED;
     }
     if (geteuid() != 0) {
         BRIX_DIAG_EMERG(cycle->log, 0,
@@ -353,111 +523,52 @@ brix_imp_init_module(ngx_cycle_t *cycle)
             "or change brix_impersonation away from 'map'");
         return NGX_ERROR;
     }
+    return NGX_OK;
+}
+
+ngx_int_t
+brix_imp_init_module(ngx_cycle_t *cycle)
+{
+    char             sockbuf[256], rootbuf[1024];
+    uid_t            wuid;
+    imp_broker_fds_t fds = { -1, -1 };
+    ngx_int_t        gate;
+
+    gate = imp_init_module_gate(cycle);
+    if (gate == NGX_DECLINED) {
+        return NGX_OK;
+    }
+    if (gate != NGX_OK) {
+        return NGX_ERROR;
+    }
 
     ngx_snprintf((u_char *) sockbuf, sizeof(sockbuf), "%V%Z",
                  &imp_settings.socket);
     ngx_snprintf((u_char *) rootbuf, sizeof(rootbuf), "%V%Z",
                  &imp_settings.export_root);
 
-    ccf = (ngx_core_conf_t *) ngx_get_conf(cycle->conf_ctx, ngx_core_module);
-    wuid = (ccf && ccf->user != (uid_t) NGX_CONF_UNSET_UINT) ? ccf->user
-                                                             : (uid_t) -1;
+    wuid = imp_worker_uid(cycle);
 
-    /*
-     * Resolve the optional non-root broker service account.  When configured, the
-     * broker drops its real uid/gid to it (keeping only CAP_SETUID/CAP_SETGID), so
-     * nothing runs as root after startup.  Must be a real, non-root, non-worker
-     * account.  Set the broker globals BEFORE the fork so the broker inherits them.
-     */
-    brix_imp_broker_user_uid = (uid_t) -1;
-    brix_imp_broker_user_gid = (gid_t) -1;
-    if (imp_settings.broker_user.len > 0) {
-        char           nm[256];
-        struct passwd *pw;
-        ngx_snprintf((u_char *) nm, sizeof(nm), "%V%Z", &imp_settings.broker_user);
-        pw = getpwnam(nm);
-        if (pw == NULL) {
-            BRIX_DIAG_EMERG(cycle->log, 0,
-                "impersonate: broker user \"%s\" does not exist",
-                "brix_impersonation_broker_user names a local account that "
-                "is not present in /etc/passwd (or NSS)",
-                "create the dedicated service account first, or correct the "
-                "name in the directive",
-                nm);
-            return NGX_ERROR;
-        }
-        if (pw->pw_uid == 0 || (wuid != (uid_t) -1 && pw->pw_uid == wuid)) {
-            BRIX_DIAG_EMERG(cycle->log, 0,
-                "impersonate: broker user \"%s\" is not a safe choice",
-                "the broker account must NOT be root and must differ from the "
-                "nginx worker user, so a compromise cannot escalate",
-                "point brix_impersonation_broker_user at a dedicated, "
-                "unprivileged account used for nothing else",
-                nm);
-            return NGX_ERROR;
-        }
-        brix_imp_broker_user_uid = pw->pw_uid;
-        brix_imp_broker_user_gid = pw->pw_gid;
+    if (imp_resolve_broker_user(cycle, wuid) != NGX_OK) {
+        return NGX_ERROR;
     }
 
     imp_kill_stale_broker(cycle->log);
 
-    /* Install mapping config in THIS (master) process; the broker forks from
-     * here and inherits the parsed gridmap + policy. */
-    imp_fill_idmap_conf(&idc, wuid);
-    if (brix_idmap_init(&idc, cycle->log) != NGX_OK) {
-        BRIX_DIAG_EMERG(cycle->log, 0,
-            "impersonate: identity map failed to load",
-            "the grid-mapfile is missing, unreadable, or malformed",
-            "check brix_impersonation_gridmap points at a readable "
-            "grid-mapfile with valid \"<DN>\" <user> lines");
+    if (imp_load_idmap(cycle, wuid) != NGX_OK) {
         return NGX_ERROR;
     }
 
-    lfd = imp_make_listen(sockbuf, wuid, cycle->log);
-    if (lfd < 0) {
-        return NGX_ERROR;
-    }
-    rootfd = open(rootbuf, O_PATH | O_DIRECTORY | O_CLOEXEC);
-    if (rootfd < 0) {
-        BRIX_DIAG_EMERG(cycle->log, ngx_errno,
-            "impersonate: cannot open export root \"%s\"",
-            "the export root directory is missing or unreadable by the master",
-            "create the directory and ensure the master can open it; the OS "
-            "reason is appended below",
-            rootbuf);
-        close(lfd);
+    if (imp_open_broker_fds(sockbuf, rootbuf, wuid, cycle->log, &fds) != NGX_OK) {
         return NGX_ERROR;
     }
 
     /* Gate the broker to the worker uid (defence in depth atop confinement). */
     brix_imp_broker_allow_uid = (wuid != (uid_t) -1) ? wuid : 0;
 
-    /* Double-fork so nginx never reaps the broker (SHM-safe; FRM pattern). */
-    sigemptyset(&block);
-    sigaddset(&block, SIGCHLD);
-    sigprocmask(SIG_BLOCK, &block, &prev);
-
-    inter = fork();
-    if (inter < 0) {
-        sigprocmask(SIG_SETMASK, &prev, NULL);
-        close(lfd);
-        close(rootfd);
-        ngx_log_error(NGX_LOG_EMERG, cycle->log, ngx_errno,
-                      "impersonate: broker fork failed");
+    if (imp_spawn_broker(fds.lfd, fds.rootfd, cycle->log) != NGX_OK) {
         return NGX_ERROR;
     }
-    if (inter == 0) {
-        if (fork() == 0) {
-            imp_broker_child(lfd, rootfd, cycle->log);   /* never returns */
-        }
-        _exit(0);                        /* intermediate -> broker reparents */
-    }
-
-    close(lfd);
-    close(rootfd);
-    while (waitpid(inter, NULL, 0) < 0 && errno == EINTR) { }
-    sigprocmask(SIG_SETMASK, &prev, NULL);
 
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
                   "impersonate: started privileged broker on \"%s\" "

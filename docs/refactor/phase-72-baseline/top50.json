@@ -1,0 +1,693 @@
+[
+ {
+  "rank": 1,
+  "total": 138.8,
+  "lizard_debt": 138.8,
+  "codechecker_debt": 0,
+  "file": "client/apps/diag/xrddiag.c",
+  "functions": 20,
+  "bad_functions": 5,
+  "worst_ccn": 67,
+  "nloc": 464,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 2,
+  "total": 136.0,
+  "lizard_debt": 136.0,
+  "codechecker_debt": 0,
+  "file": "client/lib/xfer/copy_recursive.c",
+  "functions": 11,
+  "bad_functions": 7,
+  "worst_ccn": 34,
+  "nloc": 535,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 3,
+  "total": 132.1,
+  "lizard_debt": 132.1,
+  "codechecker_debt": 0,
+  "file": "client/apps/fs/xrootdfs.c",
+  "functions": 11,
+  "bad_functions": 1,
+  "worst_ccn": 77,
+  "nloc": 281,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 4,
+  "total": 129.3,
+  "lizard_debt": 127.3,
+  "codechecker_debt": 2.0,
+  "file": "src/auth/impersonate/broker_ops.c",
+  "functions": 8,
+  "bad_functions": 1,
+  "worst_ccn": 71,
+  "nloc": 319,
+  "severities": {
+   "LOW": 2
+  },
+  "checkers": {
+   "readability-suspicious-call-argument": 2
+  }
+ },
+ {
+  "rank": 5,
+  "total": 123.4,
+  "lizard_debt": 123.4,
+  "codechecker_debt": 0,
+  "file": "client/apps/diag/xrd_doctor.c",
+  "functions": 6,
+  "bad_functions": 2,
+  "worst_ccn": 58,
+  "nloc": 354,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 6,
+  "total": 114.0,
+  "lizard_debt": 4.0,
+  "codechecker_debt": 110.0,
+  "file": "src/fs/backend/sd.h",
+  "functions": 14,
+  "bad_functions": 3,
+  "worst_ccn": 8,
+  "nloc": 212,
+  "severities": {
+   "HIGH": 11
+  },
+  "checkers": {
+   "core.CallAndMessage": 11
+  }
+ },
+ {
+  "rank": 7,
+  "total": 109.9,
+  "lizard_debt": 109.9,
+  "codechecker_debt": 0,
+  "file": "src/auth/gsi/auth.c",
+  "functions": 6,
+  "bad_functions": 1,
+  "worst_ccn": 64,
+  "nloc": 392,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 8,
+  "total": 107.4,
+  "lizard_debt": 107.4,
+  "codechecker_debt": 0,
+  "file": "src/protocols/webdav/macaroon_endpoint.c",
+  "functions": 10,
+  "bad_functions": 5,
+  "worst_ccn": 31,
+  "nloc": 607,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 9,
+  "total": 105.1,
+  "lizard_debt": 105.1,
+  "codechecker_debt": 0,
+  "file": "client/apps/scan/xrdstorascan.c",
+  "functions": 17,
+  "bad_functions": 7,
+  "worst_ccn": 35,
+  "nloc": 813,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 10,
+  "total": 100.0,
+  "lizard_debt": 80.0,
+  "codechecker_debt": 20.0,
+  "file": "src/protocols/root/read/open_resolved_file.c",
+  "functions": 26,
+  "bad_functions": 18,
+  "worst_ccn": 15,
+  "nloc": 763,
+  "severities": {
+   "HIGH": 2
+  },
+  "checkers": {
+   "unix.StdCLibraryFunctions": 1,
+   "core.UndefinedBinaryOperatorResult": 1
+  }
+ },
+ {
+  "rank": 11,
+  "total": 98.0,
+  "lizard_debt": 98.0,
+  "codechecker_debt": 0,
+  "file": "client/lib/protocols/root/frame.c",
+  "functions": 11,
+  "bad_functions": 9,
+  "worst_ccn": 36,
+  "nloc": 456,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 12,
+  "total": 97.0,
+  "lizard_debt": 57.0,
+  "codechecker_debt": 40.0,
+  "file": "src/tpc/engine/done.c",
+  "functions": 2,
+  "bad_functions": 1,
+  "worst_ccn": 39,
+  "nloc": 208,
+  "severities": {
+   "HIGH": 4
+  },
+  "checkers": {
+   "core.NullDereference": 4
+  }
+ },
+ {
+  "rank": 13,
+  "total": 94.0,
+  "lizard_debt": 94.0,
+  "codechecker_debt": 0,
+  "file": "client/apps/diag/diag_doctor.c",
+  "functions": 16,
+  "bad_functions": 7,
+  "worst_ccn": 32,
+  "nloc": 738,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 14,
+  "total": 93.2,
+  "lizard_debt": 93.2,
+  "codechecker_debt": 0,
+  "file": "client/apps/diag/xrd.c",
+  "functions": 6,
+  "bad_functions": 1,
+  "worst_ccn": 58,
+  "nloc": 266,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 15,
+  "total": 90.3,
+  "lizard_debt": 90.3,
+  "codechecker_debt": 0,
+  "file": "src/protocols/root/session/protocol.c",
+  "functions": 1,
+  "bad_functions": 1,
+  "worst_ccn": 58,
+  "nloc": 143,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 16,
+  "total": 87.2,
+  "lizard_debt": 87.2,
+  "codechecker_debt": 0,
+  "file": "src/auth/token/validate.c",
+  "functions": 9,
+  "bad_functions": 4,
+  "worst_ccn": 44,
+  "nloc": 426,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 17,
+  "total": 86.7,
+  "lizard_debt": 86.7,
+  "codechecker_debt": 0,
+  "file": "src/core/config/process.c",
+  "functions": 7,
+  "bad_functions": 1,
+  "worst_ccn": 53,
+  "nloc": 314,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 18,
+  "total": 86.3,
+  "lizard_debt": 86.3,
+  "codechecker_debt": 0,
+  "file": "src/protocols/root/read/read.c",
+  "functions": 3,
+  "bad_functions": 2,
+  "worst_ccn": 50,
+  "nloc": 318,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 19,
+  "total": 86.2,
+  "lizard_debt": 86.2,
+  "codechecker_debt": 0,
+  "file": "client/apps/cksum/xrdcktree.c",
+  "functions": 10,
+  "bad_functions": 3,
+  "worst_ccn": 37,
+  "nloc": 427,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 20,
+  "total": 85.5,
+  "lizard_debt": 85.5,
+  "codechecker_debt": 0,
+  "file": "src/core/config/postconfiguration.c",
+  "functions": 3,
+  "bad_functions": 1,
+  "worst_ccn": 54,
+  "nloc": 247,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 21,
+  "total": 82.0,
+  "lizard_debt": 82.0,
+  "codechecker_debt": 0,
+  "file": "client/apps/fs/brixcvmfs_rw.c",
+  "functions": 48,
+  "bad_functions": 5,
+  "worst_ccn": 37,
+  "nloc": 541,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 22,
+  "total": 81.3,
+  "lizard_debt": 81.3,
+  "codechecker_debt": 0,
+  "file": "src/protocols/root/read/stat.c",
+  "functions": 4,
+  "bad_functions": 1,
+  "worst_ccn": 50,
+  "nloc": 262,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 23,
+  "total": 80.2,
+  "lizard_debt": 80.2,
+  "codechecker_debt": 0,
+  "file": "src/auth/gsi/proxy_req.c",
+  "functions": 14,
+  "bad_functions": 4,
+  "worst_ccn": 37,
+  "nloc": 459,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 24,
+  "total": 80.0,
+  "lizard_debt": 80.0,
+  "codechecker_debt": 0,
+  "file": "src/core/compat/json_min.c",
+  "functions": 8,
+  "bad_functions": 3,
+  "worst_ccn": 38,
+  "nloc": 221,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 25,
+  "total": 78.6,
+  "lizard_debt": 78.6,
+  "codechecker_debt": 0,
+  "file": "src/protocols/root/query/config.c",
+  "functions": 4,
+  "bad_functions": 1,
+  "worst_ccn": 52,
+  "nloc": 191,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 26,
+  "total": 76.9,
+  "lizard_debt": 76.9,
+  "codechecker_debt": 0,
+  "file": "src/protocols/root/dirlist/handler.c",
+  "functions": 2,
+  "bad_functions": 1,
+  "worst_ccn": 46,
+  "nloc": 259,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 27,
+  "total": 76.0,
+  "lizard_debt": 76.0,
+  "codechecker_debt": 0,
+  "file": "src/observability/pmark/mapping.c",
+  "functions": 6,
+  "bad_functions": 2,
+  "worst_ccn": 38,
+  "nloc": 295,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 28,
+  "total": 75.6,
+  "lizard_debt": 75.6,
+  "codechecker_debt": 0,
+  "file": "src/core/aio/uring.c",
+  "functions": 18,
+  "bad_functions": 2,
+  "worst_ccn": 47,
+  "nloc": 500,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 29,
+  "total": 74.7,
+  "lizard_debt": 74.7,
+  "codechecker_debt": 0,
+  "file": "src/net/cms/recv.c",
+  "functions": 6,
+  "bad_functions": 4,
+  "worst_ccn": 35,
+  "nloc": 461,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 30,
+  "total": 74.0,
+  "lizard_debt": 74.0,
+  "codechecker_debt": 0,
+  "file": "src/net/proxy/events_read.c",
+  "functions": 1,
+  "bad_functions": 1,
+  "worst_ccn": 47,
+  "nloc": 200,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 31,
+  "total": 73.3,
+  "lizard_debt": 73.3,
+  "codechecker_debt": 0,
+  "file": "src/net/cms/server_recv.c",
+  "functions": 16,
+  "bad_functions": 3,
+  "worst_ccn": 34,
+  "nloc": 541,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 32,
+  "total": 72.1,
+  "lizard_debt": 72.1,
+  "codechecker_debt": 0,
+  "file": "src/fs/vfs/vfs_dir.c",
+  "functions": 8,
+  "bad_functions": 3,
+  "worst_ccn": 29,
+  "nloc": 309,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 33,
+  "total": 71.6,
+  "lizard_debt": 71.6,
+  "codechecker_debt": 0,
+  "file": "src/protocols/webdav/access.c",
+  "functions": 5,
+  "bad_functions": 1,
+  "worst_ccn": 48,
+  "nloc": 241,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 34,
+  "total": 70.2,
+  "lizard_debt": 70.2,
+  "codechecker_debt": 0,
+  "file": "src/observability/dashboard/auth.c",
+  "functions": 12,
+  "bad_functions": 4,
+  "worst_ccn": 28,
+  "nloc": 506,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 35,
+  "total": 70.0,
+  "lizard_debt": 70.0,
+  "codechecker_debt": 0,
+  "file": "src/net/cms/rrdata.c",
+  "functions": 7,
+  "bad_functions": 3,
+  "worst_ccn": 39,
+  "nloc": 171,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 36,
+  "total": 70.0,
+  "lizard_debt": 70.0,
+  "codechecker_debt": 0,
+  "file": "src/core/compat/kxr_names.c",
+  "functions": 3,
+  "bad_functions": 2,
+  "worst_ccn": 34,
+  "nloc": 90,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 37,
+  "total": 69.3,
+  "lizard_debt": 69.3,
+  "codechecker_debt": 0,
+  "file": "src/net/proxy/events_bootstrap.c",
+  "functions": 5,
+  "bad_functions": 2,
+  "worst_ccn": 42,
+  "nloc": 397,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 38,
+  "total": 69.3,
+  "lizard_debt": 69.3,
+  "codechecker_debt": 0,
+  "file": "src/fs/meta/xmeta.c",
+  "functions": 16,
+  "bad_functions": 3,
+  "worst_ccn": 33,
+  "nloc": 501,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 39,
+  "total": 69.0,
+  "lizard_debt": 29.0,
+  "codechecker_debt": 40.0,
+  "file": "src/fs/backend/s3/sd_s3_meta.c",
+  "functions": 7,
+  "bad_functions": 2,
+  "worst_ccn": 28,
+  "nloc": 251,
+  "severities": {
+   "HIGH": 4
+  },
+  "checkers": {
+   "bugprone-misplaced-widening-cast": 4
+  }
+ },
+ {
+  "rank": 40,
+  "total": 65.0,
+  "lizard_debt": 65.0,
+  "codechecker_debt": 0,
+  "file": "client/apps/copy/xrdcp_recursive.c",
+  "functions": 11,
+  "bad_functions": 5,
+  "worst_ccn": 27,
+  "nloc": 452,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 41,
+  "total": 65.0,
+  "lizard_debt": 61.0,
+  "codechecker_debt": 4.0,
+  "file": "src/fs/tier/tier_config.c",
+  "functions": 8,
+  "bad_functions": 2,
+  "worst_ccn": 35,
+  "nloc": 324,
+  "severities": {
+   "MEDIUM": 1
+  },
+  "checkers": {
+   "cert-err33-c": 1
+  }
+ },
+ {
+  "rank": 42,
+  "total": 64.3,
+  "lizard_debt": 63.3,
+  "codechecker_debt": 1.0,
+  "file": "src/protocols/root/fattr/dispatch.c",
+  "functions": 1,
+  "bad_functions": 1,
+  "worst_ccn": 42,
+  "nloc": 193,
+  "severities": {
+   "LOW": 1
+  },
+  "checkers": {
+   "readability-suspicious-call-argument": 1
+  }
+ },
+ {
+  "rank": 43,
+  "total": 64.0,
+  "lizard_debt": 52.0,
+  "codechecker_debt": 12.0,
+  "file": "src/auth/impersonate/idmap.c",
+  "functions": 16,
+  "bad_functions": 5,
+  "worst_ccn": 21,
+  "nloc": 420,
+  "severities": {
+   "MEDIUM": 3
+  },
+  "checkers": {
+   "cert-err33-c": 3
+  }
+ },
+ {
+  "rank": 44,
+  "total": 63.8,
+  "lizard_debt": 63.8,
+  "codechecker_debt": 0,
+  "file": "src/fs/backend/cache/sd_cache.c",
+  "functions": 37,
+  "bad_functions": 6,
+  "worst_ccn": 30,
+  "nloc": 706,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 45,
+  "total": 63.6,
+  "lizard_debt": 63.6,
+  "codechecker_debt": 0,
+  "file": "src/fs/cache/origin_protocol.c",
+  "functions": 5,
+  "bad_functions": 3,
+  "worst_ccn": 38,
+  "nloc": 390,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 46,
+  "total": 62.5,
+  "lizard_debt": 32.5,
+  "codechecker_debt": 30.0,
+  "file": "src/protocols/root/read/pgread.c",
+  "functions": 3,
+  "bad_functions": 2,
+  "worst_ccn": 25,
+  "nloc": 248,
+  "severities": {
+   "HIGH": 3
+  },
+  "checkers": {
+   "clang-diagnostic-conditional-uninitialized": 3
+  }
+ },
+ {
+  "rank": 47,
+  "total": 62.3,
+  "lizard_debt": 62.3,
+  "codechecker_debt": 0,
+  "file": "src/protocols/root/zip/zip_http.c",
+  "functions": 4,
+  "bad_functions": 1,
+  "worst_ccn": 44,
+  "nloc": 187,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 48,
+  "total": 62.2,
+  "lizard_debt": 62.2,
+  "codechecker_debt": 0,
+  "file": "src/observability/metrics/stream.c",
+  "functions": 3,
+  "bad_functions": 1,
+  "worst_ccn": 34,
+  "nloc": 399,
+  "severities": {},
+  "checkers": {}
+ },
+ {
+  "rank": 49,
+  "total": 62.1,
+  "lizard_debt": 61.1,
+  "codechecker_debt": 1.0,
+  "file": "src/protocols/root/write/mv.c",
+  "functions": 1,
+  "bad_functions": 1,
+  "worst_ccn": 42,
+  "nloc": 171,
+  "severities": {
+   "LOW": 1
+  },
+  "checkers": {
+   "readability-suspicious-call-argument": 1
+  }
+ },
+ {
+  "rank": 50,
+  "total": 62.0,
+  "lizard_debt": 62.0,
+  "codechecker_debt": 0,
+  "file": "src/observability/dashboard/config_download.c",
+  "functions": 12,
+  "bad_functions": 2,
+  "worst_ccn": 39,
+  "nloc": 340,
+  "severities": {},
+  "checkers": {}
+ }
+]

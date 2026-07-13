@@ -25,6 +25,7 @@
  */
 #include "vfs_internal.h"
 #include "vfs_backend_registry.h"
+#include <sys/mman.h>   /* memfd_create (phase-71 step 2 memfd sendfile proxy) */
 #include "fs/cache/open.h"
 #include "fs/path/beneath.h"
 #include "core/compat/log_diag.h"
@@ -118,12 +119,12 @@ brix_vfs_copy_path(ngx_pool_t *pool, const char *path)
 }
 
 /* Wrap an already-open fd in a freshly pcalloc'd brix_vfs_file_t: fstat the
- * fd into the cached metadata, dup the path, and record from_cache/is_tls.
- * `writable` gates the stat_current fast path (set only for read-only handles).
- * Used by both brix_vfs_open() and the cache layer's open path. */
+ * fd into the cached metadata, dup the path, and record attrs.from_cache/is_tls.
+ * attrs.writable gates the stat_current fast path (set only for read-only
+ * handles). Used by both brix_vfs_open() and the cache layer's open path. */
 ngx_int_t
 brix_vfs_adopt_fd(brix_vfs_ctx_t *ctx, const char *path, ngx_fd_t fd,
-    unsigned from_cache, unsigned writable, brix_vfs_file_t **out)
+    brix_vfs_adopt_attrs_t attrs, brix_vfs_file_t **out)
 {
     brix_sd_stat_t    st;
     brix_sd_obj_t     obj;
@@ -168,13 +169,14 @@ brix_vfs_adopt_fd(brix_vfs_ctx_t *ctx, const char *path, ngx_fd_t fd,
     fh->ctime = st.ctime;
     fh->ino = st.ino;
     fh->mode = st.mode;
-    fh->from_cache = from_cache ? 1 : 0;
+    fh->from_cache = attrs.from_cache ? 1 : 0;
     fh->is_tls = ctx->is_tls;
     /* Trust the open-time metadata for stat() only on a read-only handle: the
      * file cannot change through it, so the fstat above stays authoritative for
      * the handle's lifetime. A writable handle leaves this 0 so brix_vfs_file_stat()
      * always issues a live fstat (its bytes/mtime/size move as it is written). */
-    fh->stat_current = writable ? 0 : 1;
+    fh->stat_current = attrs.writable ? 0 : 1;
+    fh->memfd = NGX_INVALID_FILE;
 
     *out = fh;
     return NGX_OK;
@@ -271,6 +273,7 @@ brix_vfs_adopt_obj(brix_vfs_ctx_t *ctx, const char *path,
     fh->from_cache = 0;
     fh->is_tls = ctx->is_tls;
     fh->stat_current = writable ? 0 : 1;
+    fh->memfd = NGX_INVALID_FILE;
 
     *out = fh;
     return NGX_OK;
@@ -368,126 +371,181 @@ brix_vfs_mkdir_parent_path(brix_vfs_ctx_t *ctx, const char *path)
     return NGX_OK;
 }
 
-/* Open the resolved ctx path under the confinement cascade. Returns a handle
- * or NULL with the syscall errno in *err_out. Cache hits short-circuit; writes
- * require ctx->allow_write. See the file header for the full open sequence. */
-brix_vfs_file_t *
-brix_vfs_open(brix_vfs_ctx_t *ctx, ngx_uint_t flags, int *err_out)
+/* brix_vfs_open_set_err — record the current (or supplied) errno into the
+ * optional *err_out out-param.
+ *
+ * WHAT: Copy `err` into *err_out when the caller passed one.
+ * WHY:  brix_vfs_open() threads a syscall errno back to the caller through an
+ *       optional pointer at a dozen return sites; centralising the NULL-guard
+ *       keeps each early-return to a single line and removes the repeated
+ *       `if (err_out != NULL) *err_out = ...;` boilerplate.
+ * HOW:  Pure store behind a NULL check; no other side effects. */
+static void
+brix_vfs_open_set_err(int *err_out, int err)
 {
-    const char         *path;
-    int                 oflags;
-    ngx_fd_t            fd;
-    brix_vfs_file_t  *fh;
-    ngx_int_t           rc;
-
     if (err_out != NULL) {
-        *err_out = 0;
+        *err_out = err;
     }
+}
 
+/* brix_vfs_open_precheck — enforce the invariants every open must satisfy
+ * before any storage is touched: confinement, the global write gate, and the
+ * optional parent-dir pre-create.
+ *
+ * WHAT: Re-verify ctx confinement, deny a write open unless ctx->allow_write,
+ *       and (for BRIX_VFS_O_MKDIRPATH) build the target's parent dir chain.
+ * WHY:  These three gates are policy, not storage: they run identically for the
+ *       driver and POSIX paths, so hoisting them keeps the orchestrator flat and
+ *       keeps the confinement/write-gate decision in exactly one place.
+ * HOW:  Early-return NGX_ERROR with errno set on the first failing gate (errno
+ *       from require_confined / mkdir; EACCES for the write gate). NGX_OK ⇒ the
+ *       caller may proceed to open `path`. */
+static ngx_int_t
+brix_vfs_open_precheck(brix_vfs_ctx_t *ctx, ngx_uint_t flags, const char *path)
+{
     if (brix_vfs_require_confined(ctx) != NGX_OK) {
-        if (err_out != NULL) {
-            *err_out = errno;
-        }
-        return NULL;
+        return NGX_ERROR;
     }
 
     if ((flags & BRIX_VFS_O_WRITE) && !ctx->allow_write) {
         errno = EACCES;
-        if (err_out != NULL) {
-            *err_out = errno;
-        }
-        return NULL;
+        return NGX_ERROR;
     }
 
-    path = brix_vfs_ctx_path(ctx);
     if ((flags & BRIX_VFS_O_MKDIRPATH)
         && brix_vfs_mkdir_parent_path(ctx, path) != NGX_OK)
     {
-        if (err_out != NULL) {
-            *err_out = errno;
-        }
-        return NULL;
+        return NGX_ERROR;
     }
 
-    rc = brix_cache_open(ctx, flags, &fh);
+    return NGX_OK;
+}
+
+/* brix_vfs_open_try_cache — consult the read-through cache and account the
+ * hit/miss metric.
+ *
+ * WHAT: Call brix_cache_open(); on a hit build *fh and count a cache hit; on a
+ *       hard error propagate it; on a plain miss count the miss (only for a
+ *       cacheable read) and signal the caller to fall through to a real open.
+ * WHY:  Isolates the cache decision + its metric bookkeeping from the open
+ *       cascade so the orchestrator reads as one linear step.
+ * HOW:  Returns NGX_OK (hit, *fh set), NGX_ERROR (cache error, errno set), or
+ *       NGX_DECLINED (miss — caller opens the backing store). No behaviour
+ *       change: same brix_metric_cache_result() calls in the same order. */
+static ngx_int_t
+brix_vfs_open_try_cache(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
+    brix_vfs_file_t **fh)
+{
+    ngx_int_t rc;
+
+    rc = brix_cache_open(ctx, flags, fh);
     if (rc == NGX_OK) {
         brix_metric_cache_result(brix_vfs_metrics_proto(ctx), 1, 0);
-        return fh;
+        return NGX_OK;
     }
     if (rc == NGX_ERROR) {
-        if (err_out != NULL) {
-            *err_out = errno;
-        }
-        return NULL;
+        return NGX_ERROR;
     }
+
     if (ctx->cache_enabled && !(flags & BRIX_VFS_O_WRITE)
         && !(flags & BRIX_VFS_O_NOCACHE))
     {
         brix_metric_cache_result(brix_vfs_metrics_proto(ctx), 0, 0);
     }
 
-    oflags = brix_vfs_open_flags(flags);
+    return NGX_DECLINED;
+}
 
-    /*
-     * A non-POSIX storage backend (e.g. pblock) owns its own namespace and
-     * confinement, so route EVERY open through its driver and adopt the returned
-     * object (carrying its per-open state). This must run before the POSIX
-     * confinement cascade below: that cascade opens a bare POSIX fd (via
-     * open_beneath / confined_canon / raw open) which this backend's fstat/read
-     * slots cannot interpret — adopting such an fd under a non-POSIX driver would
-     * dereference a NULL per-open state. POSIX (the default driver, or an unset
-     * backend) falls through to the cascade unchanged.
-     */
-    if (ctx->sd != NULL && ctx->sd->driver != brix_sd_default_driver()
-        && ctx->sd->driver->open != NULL)
+/* brix_vfs_open_via_driver — open through a non-POSIX storage backend's own
+ * namespace and adopt the object it returns.
+ *
+ * WHAT: For a non-default driver with an open slot, resolve the per-user cred,
+ *       call the driver open on the export-relative path, and wrap the returned
+ *       object (preserving its per-open state) in a handle.
+ * WHY:  A non-POSIX backend (e.g. pblock) owns its own confinement and returns
+ *       an object the POSIX fd cascade cannot interpret; it must therefore run
+ *       BEFORE that cascade, and adopting the object (not a bare fd) keeps the
+ *       backend's per-open state alive. Encapsulating it here keeps the POSIX
+ *       cascade untouched.
+ * HOW:  Returns NGX_OK with *fh set on success; NGX_DECLINED (leaving *fh) when
+ *       this ctx is not driver-routed so the caller runs the POSIX cascade;
+ *       NGX_ERROR with errno + *err_out set on driver/adopt failure (the driver
+ *       object is closed and any heap shell freed before returning). */
+static ngx_int_t
+brix_vfs_open_via_driver(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
+    const char *path, int *err_out, brix_vfs_file_t **fh)
+{
+    brix_sd_obj_t   *o;
+    int              sderr = 0;
+    brix_sd_ucred_t  ustore;
+    brix_sd_cred_t   ucred;
+    int              use_cred = 0;
+
+    if (ctx->sd == NULL || ctx->sd->driver == brix_sd_default_driver()
+        || ctx->sd->driver->open == NULL)
     {
-        brix_sd_obj_t *o;
-        int              sderr = 0;
-
-        o = ctx->sd->driver->open(ctx->sd,
-                                  brix_vfs_export_relative(ctx, path),
-                                  brix_vfs_to_sd_flags(flags), 0644, &sderr);
-        if (o == NULL) {
-            if (err_out != NULL) {
-                *err_out = sderr;
-            }
-            errno = sderr;
-            return NULL;
-        }
-        if (brix_vfs_adopt_obj(ctx, path, o,
-                (flags & BRIX_VFS_O_WRITE) ? 1u : 0u, &fh) != NGX_OK)
-        {
-            int err = errno;
-
-            o->driver->close(o);
-            if (o->heap_shell) {
-                free(o);
-            }
-            if (err_out != NULL) {
-                *err_out = err;
-            }
-            errno = err;
-            return NULL;
-        }
-        return fh;
+        return NGX_DECLINED;
     }
 
-    /*
-     * Confinement cascade, strongest first:
-     *   1. ctx->rootfd >= 0  → brix_open_beneath(): persistent per-worker
-     *      O_PATH fd + openat2(RESOLVE_BENEATH).  This is the Phase 8 path and
-     *      the case every real data-server request takes.
-     *   2. root_canon only   → brix_open_confined_canon(): same openat2
-     *      RESOLVE_BENEATH semantics but opens the rootfd per call.  Reached only
-     *      by contexts that have a root string but no persistent fd (legacy
-     *      callers being retired); still fully confined.
-     *   3. neither            → raw open().  NOT a confinement bypass: this branch
-     *      is only taken when the VFS ctx carries no root at all (e.g. an
-     *      already-absolute, server-constructed path in a non-export context).
-     *      `path` here is never a raw client path — client requests always set a
-     *      root and therefore take branch 1 or 2.  If a root is present the raw
-     *      open is unreachable.
-     */
+    ngx_memzero(&ucred, sizeof(ucred));
+    if (brix_vfs_backend_cred(ctx, &ustore, &ucred, &use_cred, err_out)
+        != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    o = brix_sd_open_maybe_cred(ctx->sd,
+                                brix_vfs_export_relative(ctx, path),
+                                brix_vfs_to_sd_flags(flags), 0644,
+                                use_cred ? &ucred : NULL, &sderr);
+    if (o == NULL) {
+        brix_vfs_open_set_err(err_out, sderr);
+        errno = sderr;
+        return NGX_ERROR;
+    }
+
+    if (brix_vfs_adopt_obj(ctx, path, o,
+            (flags & BRIX_VFS_O_WRITE) ? 1u : 0u, fh) != NGX_OK)
+    {
+        int err = errno;
+
+        o->driver->close(o);
+        if (o->heap_shell) {
+            free(o);
+        }
+        brix_vfs_open_set_err(err_out, err);
+        errno = err;
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}
+
+/* brix_vfs_open_confined_fd — open a bare POSIX fd for `path` under the
+ * confinement cascade, strongest first.
+ *
+ * WHAT: Return an open fd (or NGX_INVALID_FILE with errno) for the default-POSIX
+ *       export using the strongest available confinement mechanism.
+ * WHY:  This is the security seam: the openat2(RESOLVE_BENEATH) confinement must
+ *       stay in exactly ONE place so an outward symlink can never be followed
+ *       out of the export. Splitting it out keeps that guarantee auditable.
+ * HOW:  Cascade, strongest first —
+ *         1. ctx->rootfd >= 0  → the borrowed-instance POSIX driver open (which
+ *            does openat2 RESOLVE_BENEATH), else brix_open_beneath() directly.
+ *         2. root_canon only   → brix_open_confined_canon() (same RESOLVE_BENEATH
+ *            semantics, rootfd opened per call).
+ *         3. neither            → raw open(): NOT a bypass — reached only for a
+ *            server-constructed absolute path in a non-export ctx (no root at
+ *            all); a client request always sets a root and takes branch 1 or 2.
+ *       The O_* set for the raw/beneath branches is derived from `flags` here;
+ *       driver-routed opens re-derive SD flags. errno is the syscall's own on a
+ *       failed open. */
+static ngx_fd_t
+brix_vfs_open_confined_fd(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
+    const char *path, int *err_out)
+{
+    int oflags = brix_vfs_open_flags(flags);
+
     if (ctx->rootfd >= 0) {
         /*
          * Hot path: route the confined open through the Storage Driver. A
@@ -504,46 +562,113 @@ brix_vfs_open(brix_vfs_ctx_t *ctx, ngx_uint_t flags, int *err_out)
         }
         if (ctx->sd != NULL && ctx->sd->driver->open != NULL) {
             brix_sd_obj_t *o;
-            int              sderr = 0;
+            int            sderr = 0;
 
             o = ctx->sd->driver->open(ctx->sd, path,
                                       brix_vfs_to_sd_flags(flags), 0644,
                                       &sderr);
             if (o == NULL) {
-                if (err_out != NULL) {
-                    *err_out = sderr;
-                }
+                brix_vfs_open_set_err(err_out, sderr);
                 errno = sderr;
-                return NULL;
+                return NGX_INVALID_FILE;
             }
-            fd = o->fd;
-        } else {
-            fd = brix_open_beneath(ctx->rootfd, path, oflags, 0644);
+            return o->fd;
         }
-    } else if (ctx->root_canon != NULL) {
-        fd = brix_open_confined_canon(ctx->log, ctx->root_canon, path,
-                                        oflags, 0644);
-    } else {
-        fd = open(path, oflags, 0644);
+        return brix_open_beneath(ctx->rootfd, path, oflags, 0644);
     }
 
+    if (ctx->root_canon != NULL) {
+        return brix_open_confined_canon(ctx->log, ctx->root_canon, path,
+                                        oflags, 0644);
+    }
+
+    return open(path, oflags, 0644);
+}
+
+/* brix_vfs_open_via_posix — the default-POSIX open path: obtain a confined fd
+ * then wrap it in a handle.
+ *
+ * WHAT: Open `path` through brix_vfs_open_confined_fd() and adopt the resulting
+ *       fd into *fh, closing it on an adopt failure.
+ * WHY:  Pairs the confinement cascade with the single handle-build path so the
+ *       orchestrator's POSIX branch is one call, and fd ownership on failure is
+ *       handled in one place.
+ * HOW:  Returns NGX_OK with *fh set, or NGX_ERROR with errno + *err_out set. */
+static ngx_int_t
+brix_vfs_open_via_posix(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
+    const char *path, int *err_out, brix_vfs_file_t **fh)
+{
+    ngx_fd_t                fd;
+    brix_vfs_adopt_attrs_t  attrs;
+
+    fd = brix_vfs_open_confined_fd(ctx, flags, path, err_out);
     if (fd == NGX_INVALID_FILE) {
-        if (err_out != NULL) {
-            *err_out = errno;
-        }
+        brix_vfs_open_set_err(err_out, errno);
+        return NGX_ERROR;
+    }
+
+    attrs.from_cache = 0;
+    attrs.writable   = (flags & BRIX_VFS_O_WRITE) ? 1u : 0u;
+    if (brix_vfs_adopt_fd(ctx, path, fd, attrs, fh) != NGX_OK) {
+        int err = errno;
+
+        ngx_close_file(fd);
+        brix_vfs_open_set_err(err_out, err);
+        errno = err;
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}
+
+/* Open the resolved ctx path under the confinement cascade. Returns a handle
+ * or NULL with the syscall errno in *err_out. Cache hits short-circuit; writes
+ * require ctx->allow_write. See the file header for the full open sequence.
+ *
+ * Orchestrator: a flat sequence of named steps — precheck (confinement + write
+ * gate + mkdir), cache, then either the non-POSIX driver open or the POSIX
+ * confinement cascade. Each step reports NGX_OK / NGX_ERROR / NGX_DECLINED. */
+brix_vfs_file_t *
+brix_vfs_open(brix_vfs_ctx_t *ctx, ngx_uint_t flags, int *err_out)
+{
+    const char       *path;
+    brix_vfs_file_t  *fh = NULL;
+    ngx_int_t         rc;
+
+    brix_vfs_open_set_err(err_out, 0);
+
+    path = brix_vfs_ctx_path(ctx);
+    if (brix_vfs_open_precheck(ctx, flags, path) != NGX_OK) {
+        brix_vfs_open_set_err(err_out, errno);
         return NULL;
     }
 
-    if (brix_vfs_adopt_fd(ctx, path, fd, 0,
-                            (flags & BRIX_VFS_O_WRITE) ? 1u : 0u, &fh)
-        != NGX_OK)
-    {
-        int err = errno;
-        ngx_close_file(fd);
-        if (err_out != NULL) {
-            *err_out = err;
-        }
-        errno = err;
+    rc = brix_vfs_open_try_cache(ctx, flags, &fh);
+    if (rc == NGX_OK) {
+        return fh;
+    }
+    if (rc == NGX_ERROR) {
+        brix_vfs_open_set_err(err_out, errno);
+        return NULL;
+    }
+
+    /*
+     * A non-POSIX storage backend (e.g. pblock) owns its own namespace and
+     * confinement, so route EVERY open through its driver and adopt the returned
+     * object (carrying its per-open state). This runs before the POSIX cascade:
+     * that cascade opens a bare POSIX fd this backend's fstat/read slots cannot
+     * interpret. POSIX (default driver, or unset backend) declines and falls
+     * through to the cascade unchanged.
+     */
+    rc = brix_vfs_open_via_driver(ctx, flags, path, err_out, &fh);
+    if (rc == NGX_OK) {
+        return fh;
+    }
+    if (rc == NGX_ERROR) {
+        return NULL;
+    }
+
+    if (brix_vfs_open_via_posix(ctx, flags, path, err_out, &fh) != NGX_OK) {
         return NULL;
     }
 
@@ -553,9 +678,19 @@ brix_vfs_open(brix_vfs_ctx_t *ctx, ngx_uint_t flags, int *err_out)
 ngx_int_t
 brix_vfs_close(brix_vfs_file_t *fh, ngx_log_t *log)
 {
-    if (fh == NULL || fh->obj.driver == NULL
-        || fh->obj.fd == NGX_INVALID_FILE)
-    {
+    if (fh == NULL) {
+        return NGX_OK;
+    }
+
+    /* phase-71 step 2: release a materialised memfd sendfile proxy, if any. This
+     * runs before the fd-based early-out below because a CAP_MEMFILE backend has
+     * obj.fd == NGX_INVALID_FILE yet may still own a memfd. */
+    if (fh->memfd != NGX_INVALID_FILE) {
+        (void) ngx_close_file(fh->memfd);
+        fh->memfd = NGX_INVALID_FILE;
+    }
+
+    if (fh->obj.driver == NULL || fh->obj.fd == NGX_INVALID_FILE) {
         return NGX_OK;
     }
 
@@ -603,18 +738,88 @@ brix_vfs_file_pread(brix_vfs_file_t *fh, void *buf, size_t len, off_t off)
     return fh->obj.driver->pread(&fh->obj, buf, len, off);
 }
 
+/* brix_vfs_memfile_materialize — phase-71 step 2 memfd sendfile proxy.
+ *
+ * WHAT: For a CAP_MEMFILE backend that exposes no kernel fd (obj.fd invalid,
+ *       read_sendfile_fd declines), pread the whole object into an anonymous
+ *       memfd ONCE and cache it on fh->memfd, so the VFS can hand every backend
+ *       a uniform seekable fd for the sendfile / file-backed serve path.
+ * WHY:  Removes the last backend-identity branch in the serve path: callers stop
+ *       special-casing "no fd → build a memory buffer myself" and use one fd path.
+ * HOW:  memfd_create + a pread→write loop through the driver's worker-safe pread
+ *       slot; the fd is owned by the handle and closed in brix_vfs_close. Returns
+ *       the cached fd on repeat calls. NGX_INVALID_FILE on any failure (the caller
+ *       then falls back to its legacy memory-backed path — no behaviour change). */
+static ngx_fd_t
+brix_vfs_memfile_materialize(brix_vfs_file_t *fh)
+{
+    brix_sd_obj_t obj;
+    ngx_fd_t      fd;
+    off_t         off;
+    u_char        buf[65536];
+
+    if (fh->memfd != NGX_INVALID_FILE) {
+        return fh->memfd;              /* already materialised */
+    }
+
+    brix_vfs_handle_sd_obj(fh, &obj);
+    if (obj.driver == NULL || obj.driver->pread == NULL
+        || !(brix_sd_caps(obj.inst) & BRIX_SD_CAP_MEMFILE))
+    {
+        return NGX_INVALID_FILE;
+    }
+
+    fd = (ngx_fd_t) memfd_create("brix-vfs-memfile", MFD_CLOEXEC);
+    if (fd == NGX_INVALID_FILE) {
+        return NGX_INVALID_FILE;
+    }
+
+    for (off = 0; off < fh->size; /* advanced below */) {
+        size_t  want = (size_t) ngx_min((off_t) sizeof(buf), fh->size - off);
+        ssize_t n = obj.driver->pread(&obj, buf, want, off);
+
+        if (n <= 0) {
+            (void) ngx_close_file(fd);
+            return NGX_INVALID_FILE;
+        }
+        if (write(fd, buf, (size_t) n) != n) {
+            (void) ngx_close_file(fd);
+            return NGX_INVALID_FILE;
+        }
+        off += n;
+    }
+
+    if (lseek(fd, 0, SEEK_SET) == (off_t) -1) {
+        (void) ngx_close_file(fd);
+        return NGX_INVALID_FILE;
+    }
+
+    fh->memfd = fd;
+    return fd;
+}
+
 /* The fd only when the backend elects to back a zero-copy transfer of the whole
  * object, else NGX_INVALID_FILE. The decision is delegated to the backend's
  * read_sendfile_fd slot (want_zerocopy=1: the HTTP serve helper applies the
- * TLS/cleartext choice itself). The contract gate for callers that build a
- * sendfile / file-backed response. */
+ * TLS/cleartext choice itself). For a fd-less CAP_MEMFILE backend the VFS
+ * materialises a handle-owned memfd (phase-71 step 2) so the serve path is a
+ * uniform seekable fd for every backend. The contract gate for callers that
+ * build a sendfile / file-backed response. */
 ngx_fd_t
 brix_vfs_file_sendfile_fd(const brix_vfs_file_t *fh)
 {
+    ngx_fd_t fd;
+
     if (fh == NULL) {
         return NGX_INVALID_FILE;
     }
-    return brix_vfs_handle_sendfile_fd(fh, 0, (size_t) fh->size, 1);
+    fd = brix_vfs_handle_sendfile_fd(fh, 0, (size_t) fh->size, 1);
+    if (fd != NGX_INVALID_FILE) {
+        return fd;
+    }
+    /* fh is const by contract, but the memfd cache is an internal materialisation
+     * that does not change the observable file — safe to fill lazily here. */
+    return brix_vfs_memfile_materialize((brix_vfs_file_t *) fh);
 }
 
 /* Predicate form: 1 iff the backend will provide a sendfile fd for this handle. */

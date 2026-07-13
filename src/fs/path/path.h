@@ -74,11 +74,36 @@ ngx_int_t brix_check_vo_acl_identity(ngx_log_t *log,
  * NGX_ERROR on deny (logs sanitised WARN). Empty rule set => allow-all. */
 ngx_int_t brix_check_authdb(brix_ctx_t *ctx, const char *resolved_path,
     uint32_t needed_privs);
-/* As above with explicit <rules>, <identity> and <peer_ip>; <log> is the sink
- * for the deny WARN. NGX_OK / NGX_ERROR; empty/NULL rules => allow-all. */
-ngx_int_t brix_check_authdb_identity(ngx_log_t *log, ngx_array_t *rules,
-    const brix_identity_t *identity, const char *peer_ip,
-    const char *resolved_path, uint32_t needed_privs);
+/*
+ * brix_authdb_query_t — one authdb authorization query (the "who + what" of a
+ * single access decision), grouped so the check takes a single descriptor.
+ *
+ * WHAT: Bundles the five inputs that identify an authdb access decision — the
+ * candidate <rules>, the requesting <identity>, its <peer_ip> (for host rules),
+ * the <resolved_path> being accessed, and the <needed_privs> bitmask.
+ *
+ * WHY: These fields always travel together as an immutable query; passing them
+ * as one descriptor keeps the check's arity low and its call sites readable
+ * without changing any value or its meaning. The log sink is deliberately NOT
+ * a member — it is a side-effecting output, hoisted to its own parameter.
+ *
+ * HOW: Fill each field 1:1 from the former positional arguments (no defaults,
+ * no derivation) and pass &query to brix_check_authdb_identity(). Borrows every
+ * pointer for the duration of the synchronous call; owns nothing.
+ */
+typedef struct {
+    ngx_array_t             *rules;
+    const brix_identity_t   *identity;
+    const char              *peer_ip;
+    const char              *resolved_path;
+    uint32_t                 needed_privs;
+} brix_authdb_query_t;
+
+/* As above with an explicit <query> (rules/identity/peer_ip/resolved_path/
+ * needed_privs); <log> is the sink for the deny WARN. NGX_OK / NGX_ERROR;
+ * empty/NULL rules => allow-all. */
+ngx_int_t brix_check_authdb_identity(ngx_log_t *log,
+    const brix_authdb_query_t *query);
 
 /* Parse an XRootD authdb file into rules. */
 ngx_int_t brix_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename,

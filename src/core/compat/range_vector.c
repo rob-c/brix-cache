@@ -51,7 +51,7 @@ range_vector_parse_one(const u_char *p, const u_char *comma, off_t file_size,
 
     } else {
         start = (off_t) ngx_atoof((u_char *) p, dash - p);
-        if (start == (off_t) NGX_ERROR || start < 0) {
+        if (start < 0) {   /* covers the NGX_ERROR (-1) parse-failure sentinel */
             return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
         }
 
@@ -64,7 +64,7 @@ range_vector_parse_one(const u_char *p, const u_char *comma, off_t file_size,
             last = file_size - 1;
         } else {
             last = (off_t) ngx_atoof((u_char *)(dash + 1), comma - (dash + 1));
-            if (last == (off_t) NGX_ERROR || last < 0) {
+            if (last < 0) {   /* covers the NGX_ERROR (-1) parse-failure sentinel */
                 return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
             }
             if (last >= file_size) {

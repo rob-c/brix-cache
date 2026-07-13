@@ -141,8 +141,12 @@ ngx_int_t ngx_brix_metrics_shm_init(ngx_shm_zone_t *shm_zone, void *data);
 /* (Re)build the GSI X509_STORE from xcf->trusted_ca + xcf->crl and atomically
  * swap it into xcf->gsi_store (old store freed; left intact on failure).
  * NGX_OK / NGX_ERROR. Safe to call at runtime for CRL reload. */
+/* cache_scope: a per-config-parse token (pass cf->cycle) that lets identical
+ * GSI blocks share one built CA/CRL store instead of each reloading the IGTF
+ * CRL directory (~1s each) at startup. Pass NULL from the CRL hot-reload timer
+ * so it always rebuilds from fresh CRLs. */
 ngx_int_t brix_rebuild_gsi_store(ngx_stream_brix_srv_conf_t *xcf,
-    ngx_log_t *log);
+    ngx_log_t *log, void *cache_scope);
 /* Validate CA/CRL cross-consistency for the stream config; logs mismatches as
  * warnings. Always NGX_OK (server starts even with a broken CRL). */
 ngx_int_t brix_check_pki_consistency_stream(ngx_log_t *log,

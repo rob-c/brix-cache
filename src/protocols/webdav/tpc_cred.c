@@ -95,6 +95,287 @@ resolve_oidc_token_binary(void)
 }
 
 
+/*
+ * WHAT: Resolve the oidc-agent UNIX-socket path from the environment.
+ * WHY:  A per-user oidc-agent exports its control socket via $OIDC_SOCK; when
+ *       unset we fall back to the conventional systemd user-runtime location so
+ *       the helper still has a well-known path to try.
+ * HOW:  Return $OIDC_SOCK verbatim when non-empty, else the fixed default; the
+ *       result aliases process-owned storage, so the caller must not free it.
+ */
+static ngx_str_t
+oidc_resolve_socket_path(const char *sock_env)
+{
+    ngx_str_t sock_path;
+
+    if (sock_env != NULL && *sock_env != '\0') {
+        sock_path.data = (u_char *) sock_env;
+        sock_path.len = strlen(sock_env);
+        return sock_path;
+    }
+
+    /* Default oidc-agent socket location. */
+    sock_path.data = (u_char *) "/run/user/1000/oidc/oidc_agent.sock";
+    sock_path.len = strlen((char *) sock_path.data);
+    return sock_path;
+}
+
+
+/*
+ * WHAT: Choose the executable that fetches the token — the dedicated helper if
+ *       installed, otherwise the `oidc-token` CLI on $PATH.
+ * WHY:  Deployments that ship the packaged helper get the socket-IPC path; a
+ *       plain oidc-agent install still works through the CLI fallback.
+ * HOW:  Probe TPC_CRED_HELPER_PATH with access(X_OK); on failure return the
+ *       literal "oidc-token" so the child branch can exec it via $PATH.
+ */
+static ngx_str_t
+oidc_resolve_helper_path(void)
+{
+    ngx_str_t helper_path;
+
+    helper_path.data = (u_char *) TPC_CRED_HELPER_PATH;
+    helper_path.len = strlen(TPC_CRED_HELPER_PATH);
+
+    if (access((char *) helper_path.data, X_OK) == 0) {
+        return helper_path;
+    }
+
+    /* Fall back to oidc-token CLI (must be in PATH). */
+    helper_path.data = (u_char *) "oidc-token";
+    helper_path.len = 10;
+    return helper_path;
+}
+
+
+/*
+ * WHAT: Derive the oidc-agent client name from a source URL's host, with an
+ *       option-injection guard, into the caller-provided buffer.
+ * WHY:  oidc-agent clients are conventionally named by host, but that host
+ *       becomes the value of oidc-token's "-c" flag; a host beginning with '-'
+ *       (impossible under RFC 952/1123) would be reparsed by getopt as a flag.
+ * HOW:  Copy the URL authority up to the first '/', clamp to the buffer, then
+ *       replace any leading-'-'/empty result with the safe literal "default".
+ */
+static void
+oidc_derive_client_name(const char *source_url, char *out, size_t out_sz)
+{
+    const char *host_start = strstr(source_url, "://");
+
+    if (host_start != NULL) {
+        const char *host_end;
+        size_t host_len;
+
+        host_start += 3;
+        host_end = strchr(host_start, '/');
+        if (host_end != NULL) {
+            host_len = (size_t) (host_end - host_start);
+        } else {
+            host_len = strlen(host_start);
+        }
+
+        if (host_len >= out_sz) {
+            host_len = out_sz - 1;
+        }
+        ngx_memcpy(out, host_start, host_len);
+        out[host_len] = '\0';
+    } else {
+        ngx_memcpy(out, "default", sizeof("default"));
+    }
+
+    /*
+     * W3 — option-injection guard.  A legitimate hostname never begins with '-'
+     * (RFC 952/1123), so reject one that does and fall back to "default".
+     */
+    if (out[0] == '-' || out[0] == '\0') {
+        ngx_memcpy(out, "default", sizeof("default"));
+    }
+}
+
+
+/*
+ * WHAT: In the forked child, exec the `oidc-token` CLI fallback for a client.
+ * WHY:  The CLI must run with an absolute binary path and a minimal controlled
+ *       environment — a compromised $PATH or inherited env in the daemon could
+ *       otherwise shadow the binary or influence its behaviour.
+ * HOW:  Resolve the absolute oidc-token binary, build "-c <client>" argv and a
+ *       PATH/HOME/OIDC_SOCK/XDG_RUNTIME_DIR envp, then execve; return on failure
+ *       so the caller can _exit (this runs only in the child, never returns on
+ *       success).
+ */
+static void
+oidc_child_exec_cli(const char *source_url, const char *sock_env)
+{
+    const char *fb_bin = resolve_oidc_token_binary();
+    char cli_client[64];
+    char cli_flag[3];
+
+    if (fb_bin == NULL) {
+        return;
+    }
+
+    oidc_derive_client_name(source_url, cli_client, sizeof(cli_client));
+
+    cli_flag[0] = '-';
+    cli_flag[1] = 'c';
+    cli_flag[2] = '\0';
+
+    {
+        const char *home_val = getenv("HOME");
+        const char *xdg_val  = getenv("XDG_RUNTIME_DIR");
+        char  home_buf[280], oidc_buf[280], xdg_buf[280];
+        char *fb_argv[4] = { (char *) fb_bin, cli_flag, cli_client, NULL };
+        char *fb_envp[5];
+        int   ei = 0;
+
+        fb_envp[ei++] = "PATH=/usr/bin:/bin";
+        if (home_val != NULL) {
+            snprintf(home_buf, sizeof(home_buf), "HOME=%s", home_val);
+            fb_envp[ei++] = home_buf;
+        }
+        if (sock_env != NULL && *sock_env != '\0') {
+            snprintf(oidc_buf, sizeof(oidc_buf), "OIDC_SOCK=%s", sock_env);
+            fb_envp[ei++] = oidc_buf;
+        }
+        if (xdg_val != NULL) {
+            snprintf(xdg_buf, sizeof(xdg_buf), "XDG_RUNTIME_DIR=%s", xdg_val);
+            fb_envp[ei++] = xdg_buf;
+        }
+        fb_envp[ei] = NULL;
+        execve(fb_bin, fb_argv, fb_envp);
+    }
+}
+
+
+/*
+ * WHAT: The child half of the fork — wire stdout to the pipe and exec either the
+ *       dedicated helper or the oidc-token CLI.  Never returns.
+ * WHY:  Isolating the child path keeps the parent orchestrator linear and makes
+ *       the exec choices auditable in one place.
+ * HOW:  dup2 the write end onto STDOUT, then dispatch on helper_path: CLI branch
+ *       delegates to oidc_child_exec_cli, helper branch execs the packaged
+ *       binary with "<sock> <url>" argv; _exit(127) if any exec fails.
+ */
+static void
+oidc_run_child(int pipefd[2], ngx_str_t helper_path, ngx_str_t sock_path,
+               const char *source_url, const char *sock_env)
+{
+    close(pipefd[0]);
+    dup2(pipefd[1], STDOUT_FILENO);
+    close(pipefd[1]);
+
+    if (ngx_strcmp((char *) helper_path.data, "oidc-token") == 0) {
+        oidc_child_exec_cli(source_url, sock_env);
+    } else {
+        /* Exec the dedicated helper: <helper> <sock-path> <source-url>. */
+        char helper_buf[512];
+        char *argv[4];
+
+        ngx_snprintf((u_char *) helper_buf, sizeof(helper_buf),
+                     "%s", (char *) sock_path.data);
+        argv[0] = (char *) helper_path.data;
+        argv[1] = helper_buf;          /* socket path */
+        argv[2] = (char *) source_url; /* source URL (for issuer) */
+        argv[3] = NULL;
+
+        execve(argv[0], argv, NULL);
+    }
+
+    _exit(127);
+}
+
+
+/*
+ * WHAT: Drain a pipe read end fully into buf, NUL-terminating it, and close it.
+ * WHY:  The child's token can arrive in several read() chunks; a single owned
+ *       loop keeps the parent orchestrator flat.
+ * HOW:  Read until EOF/error or the buffer is one byte from full, NUL-terminate
+ *       at the byte count, close read_fd, and return the count.  buf_sz >= 1.
+ */
+static ssize_t
+oidc_drain_pipe(int read_fd, char *buf, size_t buf_sz)
+{
+    ssize_t nread = 0;
+
+    while (nread < (ssize_t) buf_sz - 1) {
+        ssize_t nr = read(read_fd, buf + nread,
+                          buf_sz - 1 - (size_t) nread);
+        if (nr <= 0) {
+            break;
+        }
+        nread += nr;
+    }
+    buf[nread] = '\0';
+    close(read_fd);
+    return nread;
+}
+
+
+/*
+ * WHAT: Reap the child and restore the pre-fork signal mask, mapping its exit to
+ *       NGX_OK / NGX_ERROR.
+ * WHY:  SIGCHLD is blocked across the fork so nginx's handler cannot reap our
+ *       PID first; the wait + mask restore must happen together, exactly once.
+ * HOW:  waitpid, restore old_mask, then treat any non-zero / signalled exit as a
+ *       fetch failure.
+ */
+static ngx_int_t
+oidc_reap_child(ngx_http_request_t *r, ngx_pid_t pid, const sigset_t *old_mask)
+{
+    int wstatus = 0;
+
+    waitpid(pid, &wstatus, 0);
+    sigprocmask(SIG_SETMASK, old_mask, NULL);
+
+    if (!WIFEXITED(wstatus) || WEXITSTATUS(wstatus) != 0) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "tpc_cred(oidc): helper exited with status %d",
+                      WIFEXITED(wstatus) ? WEXITSTATUS(wstatus) : -1);
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+
+/*
+ * WHAT: Turn the child's raw stdout into a token in *token_out.
+ * WHY:  The helper may emit either a JSON access-token response or a bare token
+ *       string; both must resolve to the same ngx_str_t token result.
+ * HOW:  Strip trailing whitespace, then parse as JSON when it opens with '{',
+ *       else pool-copy the trimmed bytes as the literal token.
+ */
+static ngx_int_t
+oidc_finalize_token(ngx_http_request_t *r, char *buf, ssize_t nread,
+                    ngx_str_t *token_out)
+{
+    while (nread > 0 &&
+           (buf[nread - 1] == '\n' || buf[nread - 1] == '\r' ||
+            buf[nread - 1] == ' '))
+    {
+        nread--;
+    }
+    buf[nread] = '\0';
+
+    /* Try to parse as JSON first (helper may return JSON). */
+    if (buf[0] == '{') {
+        return tpc_cred_parse_token_response(r, buf, token_out);
+    }
+
+    /* Fallback: treat as raw token string. */
+    token_out->len = (size_t) nread;
+    token_out->data = ngx_pnalloc(r->pool, nread + 1);
+    if (token_out->data == NULL) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "tpc_cred(oidc): pnalloc failed for token");
+        return NGX_ERROR;
+    }
+    memcpy(token_out->data, buf, nread);
+    token_out->data[nread] = '\0';
+
+    return NGX_OK;
+}
+
+
 /**
  * Send a JSON request to the oidc-agent UNIX socket and read the token.
  *
@@ -117,48 +398,26 @@ tpc_cred_oidc_agent_fetch(ngx_http_request_t *r,
     ngx_pid_t pid;
     int pipefd[2];
     char buf[TPC_CRED_MAX_TOKEN_LEN + 64];
-    ssize_t nread;
-    const char *sock_env;
-    ngx_str_t sock_path;
-    ngx_str_t helper_path;
-    char *argv[4];
-    char helper_buf[512];
+    ssize_t nread = 0;
+    const char *sock_env = getenv("OIDC_SOCK");
+    ngx_str_t sock_path = oidc_resolve_socket_path(sock_env);
+    ngx_str_t helper_path = oidc_resolve_helper_path();
+    sigset_t old_mask, blk_mask;
+    ngx_int_t rc;
 
-    /* Determine the OIDC socket path. */
-    sock_env = getenv("OIDC_SOCK");
-    if (sock_env && *sock_env) {
-        sock_path.data = (u_char *) sock_env;
-        sock_path.len = strlen(sock_env);
-    } else {
-        /* Default oidc-agent socket location. */
-        sock_path.data = (u_char *) "/run/user/1000/oidc/oidc_agent.sock";
-        sock_path.len = strlen((char *) sock_path.data);
-    }
-
-    /* Try the dedicated helper binary first. */
-    helper_path.data = (u_char *) TPC_CRED_HELPER_PATH;
-    helper_path.len = strlen(TPC_CRED_HELPER_PATH);
-
-    if (access((char *) helper_path.data, X_OK) == 0) {
-        /* Helper exists — use it. */
-    } else {
-        /* Fall back to oidc-token CLI (must be in PATH). */
-        helper_path.data = (u_char *) "oidc-token";
-        helper_path.len = 10;
-    }
+    (void) scope;
 
     /* Block SIGCHLD before fork so nginx's handler can't reap our child
      * before we do.  We restore the mask after waitpid(). */
-    sigset_t _old_mask_oidc, _blk_mask_oidc;
-    sigemptyset(&_blk_mask_oidc);
-    sigaddset(&_blk_mask_oidc, SIGCHLD);
-    sigprocmask(SIG_BLOCK, &_blk_mask_oidc, &_old_mask_oidc);
+    sigemptyset(&blk_mask);
+    sigaddset(&blk_mask, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &blk_mask, &old_mask);
 
     /* Create a pipe for the child's stdout → parent's read end. */
     if (pipe(pipefd) == -1) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, errno,
                       "tpc_cred(oidc): pipe() failed");
-        sigprocmask(SIG_SETMASK, &_old_mask_oidc, NULL);
+        sigprocmask(SIG_SETMASK, &old_mask, NULL);
         return NGX_ERROR;
     }
 
@@ -168,159 +427,26 @@ tpc_cred_oidc_agent_fetch(ngx_http_request_t *r,
                       "tpc_cred(oidc): fork() failed");
         close(pipefd[0]);
         close(pipefd[1]);
-        sigprocmask(SIG_SETMASK, &_old_mask_oidc, NULL);
+        sigprocmask(SIG_SETMASK, &old_mask, NULL);
         return NGX_ERROR;
     }
 
     if (pid == 0) {
-        /* Child process. */
-        close(pipefd[0]);
-        dup2(pipefd[1], STDOUT_FILENO);
-        close(pipefd[1]);
-
-        /* Re-exec: either the helper binary or oidc-token CLI. */
-        if (ngx_strcmp((char *) helper_path.data, "oidc-token") == 0) {
-            /* Use oidc-token CLI: oidc-token -c <client> */
-            /* For simplicity, use the source URL host as the client name.
-             * oidc-agent clients are typically named by host. */
-            const char *host_start = strstr((char *) source_url, "://");
-            char cli_argv[3][64];
-
-            if (host_start) {
-                host_start += 3;
-                const char *host_end = strchr(host_start, '/');
-                size_t host_len;
-                if (host_end)
-                    host_len = (size_t)(host_end - host_start);
-                else
-                    host_len = strlen(host_start);
-
-                if (host_len >= sizeof(cli_argv[0]))
-                    host_len = sizeof(cli_argv[0]) - 1;
-                ngx_memcpy(cli_argv[0], host_start, host_len);
-                cli_argv[0][host_len] = '\0';
-            } else {
-                ngx_memcpy(cli_argv[0], "default", sizeof("default"));
-            }
-
-            /*
-             * W3 — option-injection guard.  cli_argv[0] is the client-derived
-             * host passed as the value of oidc-token's "-c" flag.  oidc-token
-             * parses options with getopt, so a host like "-x" or "--config"
-             * would be misinterpreted as a flag.  A legitimate hostname never
-             * begins with '-' (RFC 952/1123), so reject one that does and fall
-             * back to the safe literal "default".
-             */
-            if (cli_argv[0][0] == '-' || cli_argv[0][0] == '\0') {
-                ngx_memcpy(cli_argv[0], "default", sizeof("default"));
-            }
-
-            cli_argv[1][0] = '-';
-            cli_argv[1][1] = 'c';
-            cli_argv[1][2] = '\0';
-
-            /* Resolve to an absolute path — avoid $PATH substitution risk in
-             * the daemon's potentially untrusted environment.  Build a minimal
-             * controlled envp: PATH + HOME + OIDC_SOCK + XDG_RUNTIME_DIR only. */
-            {
-                const char *fb_bin = resolve_oidc_token_binary();
-                if (fb_bin != NULL) {
-                    const char *home_val = getenv("HOME");
-                    const char *xdg_val  = getenv("XDG_RUNTIME_DIR");
-                    const char *oidc_val = sock_env;  /* already resolved above */
-                    char  home_buf[280], oidc_buf[280], xdg_buf[280];
-                    char *fb_argv[4] = {
-                        (char *) fb_bin, cli_argv[1], cli_argv[0], NULL
-                    };
-                    char *fb_envp[5];
-                    int   ei = 0;
-
-                    fb_envp[ei++] = "PATH=/usr/bin:/bin";
-                    if (home_val != NULL) {
-                        snprintf(home_buf, sizeof(home_buf), "HOME=%s", home_val);
-                        fb_envp[ei++] = home_buf;
-                    }
-                    if (oidc_val != NULL && *oidc_val != '\0') {
-                        snprintf(oidc_buf, sizeof(oidc_buf),
-                                 "OIDC_SOCK=%s", oidc_val);
-                        fb_envp[ei++] = oidc_buf;
-                    }
-                    if (xdg_val != NULL) {
-                        snprintf(xdg_buf, sizeof(xdg_buf),
-                                 "XDG_RUNTIME_DIR=%s", xdg_val);
-                        fb_envp[ei++] = xdg_buf;
-                    }
-                    fb_envp[ei] = NULL;
-                    execve(fb_bin, fb_argv, fb_envp);
-                }
-            }
-            _exit(127);
-        } else {
-            /* Exec the dedicated helper. */
-            /* Build a null-terminated argv array. */
-            ngx_snprintf((u_char *) helper_buf, sizeof(helper_buf),
-                         "%s", (char *) sock_path.data);
-            argv[0] = (char *) helper_path.data;
-            argv[1] = helper_buf;          /* socket path */
-            argv[2] = (char *) source_url; /* source URL (for issuer) */
-            argv[3] = NULL;
-
-            execve(argv[0], argv, NULL);
-            _exit(127);
-        }
+        /* Child process — never returns. */
+        oidc_run_child(pipefd, helper_path, sock_path, source_url, sock_env);
     }
 
-    /* Parent: read child's stdout. */
+    /* Parent: read child's stdout, then reap it. */
     close(pipefd[1]);
 
-    nread = 0;
-    while (nread < (ssize_t) sizeof(buf) - 1) {
-        ssize_t nr = read(pipefd[0], buf + nread, sizeof(buf) - 1 - (size_t) nread);
-        if (nr <= 0)
-            break;
-        nread += nr;
-    }
-    buf[nread] = '\0';
-    close(pipefd[0]);
+    nread = oidc_drain_pipe(pipefd[0], buf, sizeof(buf));
 
-    /* Wait for child.  SIGCHLD is still blocked so nginx's signal handler
-     * cannot reap this PID out from under us.  Restore mask afterwards. */
-    {
-        int wstatus;
-        waitpid(pid, &wstatus, 0);
-        sigprocmask(SIG_SETMASK, &_old_mask_oidc, NULL);
-        if (!WIFEXITED(wstatus) || WEXITSTATUS(wstatus) != 0) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                          "tpc_cred(oidc): helper exited with status %d",
-                          WIFEXITED(wstatus) ? WEXITSTATUS(wstatus) : -1);
-            return NGX_ERROR;
-        }
+    rc = oidc_reap_child(r, pid, &old_mask);
+    if (rc != NGX_OK) {
+        return rc;
     }
 
-    /* Strip trailing whitespace/newlines. */
-    while (nread > 0 &&
-           (buf[nread - 1] == '\n' || buf[nread - 1] == '\r' ||
-            buf[nread - 1] == ' '))
-        nread--;
-    buf[nread] = '\0';
-
-    /* Try to parse as JSON first (helper may return JSON). */
-    if (buf[0] == '{') {
-        return tpc_cred_parse_token_response(r, buf, token_out);
-    }
-
-    /* Fallback: treat as raw token string. */
-    token_out->len = (size_t) nread;
-    token_out->data = ngx_pnalloc(r->pool, nread + 1);
-    if (token_out->data == NULL) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "tpc_cred(oidc): pnalloc failed for token");
-        return NGX_ERROR;
-    }
-    memcpy(token_out->data, buf, nread);
-    token_out->data[nread] = '\0';
-
-    return NGX_OK;
+    return oidc_finalize_token(r, buf, nread, token_out);
 }
 
 
@@ -457,6 +583,106 @@ webdav_tpc_cred_parse_mode(const char *value, size_t len)
     return BRIX_TPC_CRED_UNKNOWN;
 }
 
+/*
+ * WHAT: Immutable bundle of the inputs a single credential-obtain attempt needs.
+ * WHY:  It threads the request/URL/subject-token/scope plus the resolved output
+ *       slot through the per-mode helpers without re-plumbing the frozen
+ *       6-parameter public entry point's argument list at each step.
+ * HOW:  Populated once in webdav_tpc_cred_obtain_token and passed by const
+ *       pointer; token_out is the caller-owned result slot (mutated in place).
+ */
+typedef struct {
+    ngx_http_request_t *r;
+    const char         *source_url;
+    const char         *subject_token;
+    const char         *scope;
+    ngx_str_t          *token_out;
+} tpc_cred_request_t;
+
+
+/*
+ * WHAT: Record the success/error metric for a completed obtain attempt.
+ * WHY:  Both mode paths share the same "validate on OK, then count" tail, so it
+ *       lives once to keep the metric labels identical across modes.
+ * HOW:  On NGX_OK re-validate the fetched token, then bump NSUCCESS/NERROR by
+ *       the (possibly downgraded) result and return it.
+ */
+static ngx_int_t
+tpc_cred_finish(ngx_http_request_t *r, ngx_str_t *token_out, ngx_int_t rc)
+{
+    if (rc == NGX_OK) {
+        rc = webdav_tpc_cred_validate_token(r, token_out);
+    }
+    if (rc == NGX_OK) {
+        webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NSUCCESS);
+    } else {
+        webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NERROR);
+    }
+    return rc;
+}
+
+
+/*
+ * WHAT: Run the oidc-agent delegation mode for one request.
+ * WHY:  Isolates the OIDC branch so the public dispatcher stays a flat switch.
+ * HOW:  Fetch via the oidc-agent pipeline, then fold into the shared
+ *       validate-and-count tail.
+ */
+static ngx_int_t
+tpc_cred_run_oidc_agent(const tpc_cred_request_t *req)
+{
+    ngx_int_t rc = tpc_cred_oidc_agent_fetch(req->r, req->source_url,
+                                             req->scope, req->token_out);
+    return tpc_cred_finish(req->r, req->token_out, rc);
+}
+
+
+/*
+ * WHAT: Run the RFC 8693 token-exchange delegation mode for one request.
+ * WHY:  Isolates the exchange branch — config presence, subject-token presence,
+ *       then the curl exchange — from the dispatcher.
+ * HOW:  Fail-closed (NERROR + diagnostic) when the token endpoint or subject
+ *       token is missing; otherwise exchange and fold into the shared tail.
+ */
+static ngx_int_t
+tpc_cred_run_token_exchange(const tpc_cred_request_t *req,
+                            ngx_http_brix_webdav_loc_conf_t *wconf)
+{
+    ngx_http_request_t *r = req->r;
+    ngx_int_t rc;
+
+    if (wconf->tpc_cred.token_endpoint.len == 0
+        || wconf->tpc_cred.token_endpoint.data == NULL) {
+        BRIX_DIAG_ERR(r->connection->log, 0,
+            "tpc_cred: token-exchange is selected but no token endpoint "
+            "is configured",
+            "third-party-copy credential mode is token-exchange, but "
+            "brix_webdav_tpc_token_endpoint is unset",
+            "set the OAuth token endpoint for your IdP, or switch the TPC "
+            "credential mode away from token-exchange");
+        webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NERROR);
+        return NGX_ERROR;
+    }
+    if (req->subject_token == NULL || *req->subject_token == '\0') {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "tpc_cred: no subject token for token-exchange");
+        webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NERROR);
+        return NGX_ERROR;
+    }
+
+    rc = tpc_cred_rfc8693_exchange(
+        r, req->subject_token, req->source_url, req->scope,
+        (const char *) wconf->tpc_cred.token_endpoint.data,
+        wconf->tpc_cred.token_client_id.len > 0 ?
+            (const char *) wconf->tpc_cred.token_client_id.data : NULL,
+        wconf->tpc_cred.token_client_secret.len > 0 ?
+            (const char *) wconf->tpc_cred.token_client_secret.data : NULL,
+        req->token_out);
+
+    return tpc_cred_finish(r, req->token_out, rc);
+}
+
+
 ngx_int_t
 webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
                              brix_tpc_cred_mode_e mode,
@@ -466,7 +692,9 @@ webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
                              ngx_str_t *token_out)
 {
     ngx_http_brix_webdav_loc_conf_t *wconf;
-    ngx_int_t rc;
+    tpc_cred_request_t req = {
+        r, source_url, subject_token, scope, token_out
+    };
 
     wconf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     if (wconf == NULL) {
@@ -476,58 +704,14 @@ webdav_tpc_cred_obtain_token(ngx_http_request_t *r,
     }
 
     /* Increment started counter. */
-    rc = webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NSTARTED);
-    (void) rc;
+    (void) webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NSTARTED);
 
     switch (mode) {
     case BRIX_TPC_CRED_OIDC_AGENT:
-        rc = tpc_cred_oidc_agent_fetch(r, source_url, scope, token_out);
-        if (rc == NGX_OK) {
-            rc = webdav_tpc_cred_validate_token(r, token_out);
-        }
-        if (rc == NGX_OK) {
-            webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NSUCCESS);
-        } else {
-            webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NERROR);
-        }
-        return rc;
+        return tpc_cred_run_oidc_agent(&req);
 
     case BRIX_TPC_CRED_TOKEN_EXCHANGE:
-        if (wconf->tpc_cred.token_endpoint.len == 0
-            || wconf->tpc_cred.token_endpoint.data == NULL) {
-            BRIX_DIAG_ERR(r->connection->log, 0,
-                "tpc_cred: token-exchange is selected but no token endpoint "
-                "is configured",
-                "third-party-copy credential mode is token-exchange, but "
-                "brix_webdav_tpc_token_endpoint is unset",
-                "set the OAuth token endpoint for your IdP, or switch the TPC "
-                "credential mode away from token-exchange");
-            webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NERROR);
-            return NGX_ERROR;
-        }
-        if (subject_token == NULL || *subject_token == '\0') {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                          "tpc_cred: no subject token for token-exchange");
-            webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NERROR);
-            return NGX_ERROR;
-        }
-        rc = tpc_cred_rfc8693_exchange(
-            r, subject_token, source_url, scope,
-            (const char *) wconf->tpc_cred.token_endpoint.data,
-            wconf->tpc_cred.token_client_id.len > 0 ?
-                (const char *) wconf->tpc_cred.token_client_id.data : NULL,
-            wconf->tpc_cred.token_client_secret.len > 0 ?
-                (const char *) wconf->tpc_cred.token_client_secret.data : NULL,
-            token_out);
-        if (rc == NGX_OK) {
-            rc = webdav_tpc_cred_validate_token(r, token_out);
-        }
-        if (rc == NGX_OK) {
-            webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NSUCCESS);
-        } else {
-            webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NERROR);
-        }
-        return rc;
+        return tpc_cred_run_token_exchange(&req, wconf);
 
     default:
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,

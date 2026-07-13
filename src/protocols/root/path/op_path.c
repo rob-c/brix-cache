@@ -306,3 +306,60 @@ brix_resolve_op_path(brix_ctx_t *ctx, ngx_connection_t *c,
 
     return NGX_OK;
 }
+
+/* ---- brix_root_vfs_bind_deleg ----------------------------------------------
+ *
+ * WHAT: Bind the session's captured raw bearer JWT onto a cred-bound VFS ctx for
+ *       backend PASSTHROUGH. See op_path.h for the full contract.
+ *
+ * WHY:  Lets a remote-backed root:// export authenticate the backend leg AS the
+ *       inbound user. Two forwardable credentials ride the GSI login: the raw
+ *       bearer JWT (ctx->bearer_token) and — when the client opts in and the DN
+ *       is proven (phase-70 §5.1, gsi_promote_fullproxy) — a full x509 proxy
+ *       (ctx->deleg_proxy_pem, chain + private key) for backend PASSTHROUGH.
+ *
+ * HOW:  No-op on the default SELECT export. Otherwise wraps whichever
+ *       credential(s) the session captured as ngx_str_t (bytes owned by the
+ *       session ctx, outliving the op) and hands them to brix_vfs_deleg_bind on
+ *       the VFS ctx's pool. The full proxy is forwarded only in PASSTHROUGH
+ *       mode — the only strategy that replays the user's own credential
+ *       verbatim. If neither credential is present, nothing is bound. */
+void
+brix_root_vfs_bind_deleg(brix_ctx_t *ctx,
+                           ngx_stream_brix_srv_conf_t *conf,
+                           brix_vfs_ctx_t *vctx)
+{
+    ngx_str_t  bearer;
+    ngx_str_t *bearer_arg = NULL;
+    ngx_str_t *proxy_arg = NULL;
+
+    if (ctx == NULL || conf == NULL || vctx == NULL
+        || conf->common.backend_delegation == BRIX_CRED_SELECT)
+    {
+        return;
+    }
+
+    bearer.data = (u_char *) ctx->bearer_token;
+    bearer.len  = ngx_strlen(ctx->bearer_token);
+    if (bearer.len > 0) {
+        bearer_arg = &bearer;
+    }
+
+    /* A full proxy is a PASSTHROUGH-only credential: it is presented to the
+     * upstream unmodified, so it makes sense only when the resolved mode replays
+     * the user's own credential. */
+    if (ctx->deleg_proxy_pem.len > 0
+        && (enum brix_cred_mode) conf->common.backend_delegation
+               == BRIX_CRED_PASSTHROUGH)
+    {
+        proxy_arg = &ctx->deleg_proxy_pem;
+    }
+
+    if (bearer_arg == NULL && proxy_arg == NULL) {
+        return;
+    }
+
+    (void) brix_vfs_deleg_bind(vctx->pool, vctx,
+        (enum brix_cred_mode) conf->common.backend_delegation,
+        bearer_arg, proxy_arg);
+}

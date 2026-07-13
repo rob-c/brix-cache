@@ -106,6 +106,75 @@ typedef struct brix_sess_s {
 } brix_sess_t;
 
 /*
+ * WHAT: The variable fields of an AUTH event — outcome, method, and the
+ * identity/error strings — bundled for the fmt_auth formatter.
+ * WHY: Passing these as one struct keeps the formatter's arity at or below five
+ * parameters and lets the field grammar (order, meaning) live beside the wire
+ * spelling instead of being spread across a long argument list.
+ * HOW: Plain value struct filled by the caller and passed by const pointer; the
+ * formatter reads every field and never retains the pointer.
+ */
+typedef struct {
+    int             ok;
+    brix_sess_am_t  method;
+    const char     *user;
+    const char     *vo;
+    const char     *err;
+} brix_sesslog_auth_fields_t;
+
+/*
+ * WHAT: The variable fields of an ATTEMPT event — the target path and access
+ * mode — bundled for the fmt_attempt formatter.
+ * WHY: Grouping the pair keeps the formatter's arity below five and colocates
+ * the field grammar with the emitted-line contract.
+ * HOW: Plain value struct passed by const pointer; read-only to the formatter.
+ */
+typedef struct {
+    const char        *path;
+    brix_sess_mode_t   mode;
+} brix_sesslog_attempt_fields_t;
+
+/*
+ * WHAT: The variable fields of a RESULT event — outcome, path, mode, and the
+ * failure token — bundled for the fmt_result formatter.
+ * WHY: Bundling holds the formatter at or below five parameters and keeps the
+ * field order and quoting rules in one place next to the wire spec.
+ * HOW: Plain value struct passed by const pointer; read-only to the formatter.
+ */
+typedef struct {
+    int                ok;
+    const char        *path;
+    brix_sess_mode_t   mode;
+    const char        *err;
+} brix_sesslog_result_fields_t;
+
+/*
+ * WHAT: The variable fields of an XFER event — the transfer record, its final
+ * status, and the sampling clock — bundled for the fmt_xfer formatter.
+ * WHY: Bundling holds the formatter at or below five parameters and colocates
+ * the byte/duration/rate grammar with the emitted-line contract.
+ * HOW: Plain value struct passed by const pointer; the referenced xfer record
+ * is read-only to the formatter, which never retains either pointer.
+ */
+typedef struct {
+    const brix_sess_xfer_t   *x;
+    brix_sess_xfer_status_t   st;
+    uint64_t                  now_msec;
+} brix_sesslog_xfer_fields_t;
+
+/*
+ * WHAT: The variable fields of an END event — the close reason and the sampling
+ * clock — bundled for the fmt_end formatter.
+ * WHY: Bundling holds the formatter at or below five parameters and keeps the
+ * duration grammar beside the emitted-line contract.
+ * HOW: Plain value struct passed by const pointer; read-only to the formatter.
+ */
+typedef struct {
+    brix_sess_end_t   why;
+    uint64_t          now_msec;
+} brix_sesslog_end_fields_t;
+
+/*
  * WHAT: Render one session-lifecycle event, excluding the timestamp prefix and
  * including the trailing newline.
  * WHY: Keeping the grammar in one ngx-free formatter prevents protocol hooks
@@ -116,21 +185,19 @@ typedef struct brix_sess_s {
 size_t brix_sesslog_fmt_connect(char *line, size_t line_max,
     const brix_sess_t *s, brix_sess_sanitize_fn san);
 size_t brix_sesslog_fmt_auth(char *line, size_t line_max,
-    const brix_sess_t *s, int ok, brix_sess_am_t method,
-    const char *user, const char *vo, const char *err,
+    const brix_sess_t *s, const brix_sesslog_auth_fields_t *f,
     brix_sess_sanitize_fn san);
 size_t brix_sesslog_fmt_attempt(char *line, size_t line_max,
-    const brix_sess_t *s, const char *path, brix_sess_mode_t mode,
+    const brix_sess_t *s, const brix_sesslog_attempt_fields_t *f,
     brix_sess_sanitize_fn san);
 size_t brix_sesslog_fmt_result(char *line, size_t line_max,
-    const brix_sess_t *s, int ok, const char *path,
-    brix_sess_mode_t mode, const char *err, brix_sess_sanitize_fn san);
+    const brix_sess_t *s, const brix_sesslog_result_fields_t *f,
+    brix_sess_sanitize_fn san);
 size_t brix_sesslog_fmt_xfer(char *line, size_t line_max,
-    const brix_sess_t *s, const brix_sess_xfer_t *x,
-    brix_sess_xfer_status_t st, uint64_t now_msec,
+    const brix_sess_t *s, const brix_sesslog_xfer_fields_t *f,
     brix_sess_sanitize_fn san);
 size_t brix_sesslog_fmt_end(char *line, size_t line_max,
-    const brix_sess_t *s, brix_sess_end_t why, uint64_t now_msec,
+    const brix_sess_t *s, const brix_sesslog_end_fields_t *f,
     brix_sess_sanitize_fn san);
 
 const char *brix_sesslog_proto_label(brix_sess_proto_t p);

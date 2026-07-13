@@ -54,12 +54,16 @@ webdav_tpc_pmark_attach(CURL *curl, webdav_tpc_pmark_rec_t *rec,
     ngx_uint_t           e, a;
     size_t               n;
 
+    brix_pmark_flow_id_t flow_id = {
+        .vo_csv = "", .user = "", .path = file_path, .cgi = NULL,
+    };
+
     ngx_memzero(rec, sizeof(*rec));
     rec->fd = -1;
 
     if (!pm->enable
         || brix_pmark_runtime_ensure(pm, ngx_cycle->pool, log) != NGX_OK
-        || brix_pmark_map_codes(pm, "", "", file_path, NULL, &e, &a) != NGX_OK)
+        || brix_pmark_map_codes(pm, &flow_id, &e, &a) != NGX_OK)
     {
         return;
     }
@@ -175,7 +179,10 @@ webdav_tpc_curl_finish(ngx_int_t rc, CURL *curl, struct curl_slist *hdrs,
     struct curl_slist *resolve, FILE *fp)
 {
     if (fp != NULL) {
-        fclose(fp);
+        /* Cleanup-only close: rc already encodes the transfer outcome and the
+         * stream's data (if any) was consumed by libcurl; nothing actionable
+         * remains on a close error. */
+        (void) fclose(fp);
     }
     if (hdrs != NULL) {
         curl_slist_free_all(hdrs);

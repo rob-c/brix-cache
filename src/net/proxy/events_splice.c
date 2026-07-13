@@ -82,6 +82,146 @@ brix_proxy_splice_done(brix_proxy_ctx_t *proxy)
 }
 
 /*
+ * Pump-stage outcome — steers the pump loop after a fill/drain stage.
+ *   BRIX_SPLICE_STEP_CONTINUE — stage made progress; re-run the loop body.
+ *   BRIX_SPLICE_STEP_DONE     — all splice_total bytes transferred; finish.
+ *   BRIX_SPLICE_STEP_RETURN   — stage armed an event or aborted; pump returns
+ *                               immediately without touching `proxy`.
+ */
+typedef enum {
+    BRIX_SPLICE_STEP_CONTINUE = 0,
+    BRIX_SPLICE_STEP_DONE,
+    BRIX_SPLICE_STEP_RETURN
+} brix_splice_step_e;
+
+/*
+ * brix_proxy_splice_fill — WHAT: move upstream-socket bytes into pipe[1].
+ * WHY: the pipe must hold data before it can be drained to the client; filling
+ * only when the pipe is empty keeps splice(upstream→pipe) EAGAIN meaningful
+ * (upstream readiness, never pipe-capacity).  HOW: splice at most the residual
+ * body; on EAGAIN with body still outstanding hand off to the buffered relay,
+ * else arm upstream-read; on 0/error abort.  Returns a pump-step outcome.
+ */
+static brix_splice_step_e
+brix_proxy_splice_fill(brix_proxy_ctx_t *proxy, ngx_connection_t *uconn)
+{
+    size_t in_pipe_now;
+    size_t want;
+    ssize_t r;
+
+    if (proxy->splice_upstream >= proxy->splice_total) {
+        return BRIX_SPLICE_STEP_CONTINUE;
+    }
+
+    in_pipe_now = proxy->splice_upstream - proxy->splice_downstream;
+    if (in_pipe_now != 0) {
+        /*
+         * Pipe still holds data (full) — attempting splice(upstream→pipe) would
+         * return EAGAIN for the wrong reason (pipe capacity, not upstream
+         * readiness) and arm the upstream-read event prematurely.  Fall through
+         * and drain the pipe to the client first.
+         */
+        return BRIX_SPLICE_STEP_CONTINUE;
+    }
+
+    want = proxy->splice_total - proxy->splice_upstream;
+    r = splice(uconn->fd, NULL, proxy->splice_pipe[1], NULL, want,
+               SPLICE_F_MOVE | SPLICE_F_NONBLOCK);
+
+    if (r > 0) {
+        proxy->splice_upstream += (size_t) r;
+        return BRIX_SPLICE_STEP_CONTINUE;
+    }
+
+    if (r == 0) {
+        /* Upstream closed during splice (peer sent FIN). */
+        brix_proxy_abort(proxy, "proxy: upstream closed during splice");
+        return BRIX_SPLICE_STEP_RETURN;
+    }
+
+    if (ngx_errno != NGX_EAGAIN) {
+        brix_proxy_abort(proxy, "proxy: splice upstream→pipe failed");
+        return BRIX_SPLICE_STEP_RETURN;
+    }
+
+    /*
+     * The pump always drains everything currently in the upstream socket
+     * (looping pipe-fill/pipe-drain) before splice(upstream→pipe) reports
+     * EAGAIN.  So reaching EAGAIN with body still outstanding means the
+     * remainder has not all arrived yet (or the kernel under-drains socket
+     * splice, as WSL2 does — moving a trickle per call and stalling a large
+     * read into a 60s client timeout).  Either way the reliable, edge-efficient
+     * choice is to relay the remaining body via the buffered recv path, which
+     * drains the whole socket buffer per wakeup as data arrives.  (When the
+     * entire body was already buffered, the pump finishes via splice_done and
+     * never reaches here — so the zero-copy fast path is preserved for the
+     * in-buffer case.)
+     */
+    if (proxy->splice_downstream < proxy->splice_total) {
+        brix_proxy_splice_to_buffered(proxy);
+        return BRIX_SPLICE_STEP_RETURN;
+    }
+
+    /* Body complete — nothing left; arm read and let the loop end. */
+    if (ngx_handle_read_event(uconn->read, 0) != NGX_OK) {
+        brix_proxy_abort(proxy, "proxy: splice read arm failed");
+    }
+    return BRIX_SPLICE_STEP_RETURN;
+}
+
+/*
+ * brix_proxy_splice_drain — WHAT: move pipe[0] bytes into the client socket.
+ * WHY: this is the client-facing half of the transfer; a full client send
+ * buffer must park on the write event, NOT arm upstream-read (that just spins
+ * on a full pipe and deadlocks).  HOW: if the pipe is empty, either the body is
+ * done or we loop back to refill; on EAGAIN/0 arm the client-write handler; on
+ * error abort.  Returns a pump-step outcome.
+ */
+static brix_splice_step_e
+brix_proxy_splice_drain(brix_proxy_ctx_t *proxy, ngx_connection_t *cconn)
+{
+    size_t in_pipe = proxy->splice_upstream - proxy->splice_downstream;
+    ssize_t r;
+
+    if (in_pipe == 0) {
+        if (proxy->splice_downstream >= proxy->splice_total) {
+            return BRIX_SPLICE_STEP_DONE;
+        }
+        return BRIX_SPLICE_STEP_CONTINUE;
+    }
+
+    r = splice(proxy->splice_pipe[0], NULL, cconn->fd, NULL, in_pipe,
+               SPLICE_F_MOVE | SPLICE_F_NONBLOCK);
+
+    if (r > 0) {
+        proxy->splice_downstream += (size_t) r;
+        if (proxy->splice_downstream >= proxy->splice_total) {
+            return BRIX_SPLICE_STEP_DONE;
+        }
+        return BRIX_SPLICE_STEP_CONTINUE;
+    }
+
+    if (r == 0 || ngx_errno == NGX_EAGAIN) {
+        /*
+         * Client send buffer full.  Arm the client-write event and wait.  Do
+         * NOT arm upstream-read here: any unread upstream data sits in the
+         * kernel TCP receive buffer and will be drained by splice_pump (via
+         * splice(upstream→pipe)) once the pipe has room — no epoll wakeup
+         * required for that.  Arming upstream-read while the pipe is full just
+         * causes spurious wakeups that retry a full pipe and deadlock.
+         */
+        cconn->write->handler = brix_proxy_splice_wev;
+        if (ngx_handle_write_event(cconn->write, 0) != NGX_OK) {
+            brix_proxy_abort(proxy, "proxy: splice client write arm failed");
+        }
+        return BRIX_SPLICE_STEP_RETURN;
+    }
+
+    brix_proxy_abort(proxy, "proxy: splice pipe→client failed");
+    return BRIX_SPLICE_STEP_RETURN;
+}
+
+/*
  * brix_proxy_splice_pump — drive splice transfers between upstream socket
  * and client socket via the kernel pipe in proxy->splice_pipe[].
  *
@@ -100,102 +240,17 @@ brix_proxy_splice_pump(brix_proxy_ctx_t *proxy)
     }
 
     for (;;) {
-        /* upstream fd → pipe[1] */        if (proxy->splice_upstream < proxy->splice_total) {
-            size_t in_pipe_now = proxy->splice_upstream - proxy->splice_downstream;
-            if (in_pipe_now == 0) {
-                /*
-                 * Pipe is empty — safe to fill from upstream.
-                 * When in_pipe_now > 0 the pipe is full; attempting
-                 * splice(upstream→pipe) would return EAGAIN for the wrong
-                 * reason (pipe capacity, not upstream readiness) and we
-                 * would arm the upstream-read event prematurely.  Instead,
-                 * fall through and drain the pipe to the client first.
-                 */
-                size_t   want = proxy->splice_total - proxy->splice_upstream;
-                ssize_t  r    = splice(uconn->fd, NULL,
-                                       proxy->splice_pipe[1], NULL,
-                                       want,
-                                       SPLICE_F_MOVE | SPLICE_F_NONBLOCK);
-                if (r > 0) {
-                    proxy->splice_upstream += (size_t) r;
-                } else if (r < 0 && ngx_errno == NGX_EAGAIN) {
-                    /*
-                     * The pump always drains everything currently in the upstream
-                     * socket (looping pipe-fill/pipe-drain) before splice(upstream→
-                     * pipe) reports EAGAIN.  So reaching EAGAIN with body still
-                     * outstanding means the remainder has not all arrived yet (or
-                     * the kernel under-drains socket splice, as WSL2 does — moving a
-                     * trickle per call and stalling a large read into a 60s client
-                     * timeout).  Either way the reliable, edge-efficient choice is
-                     * to relay the remaining body via the buffered recv path, which
-                     * drains the whole socket buffer per wakeup as data arrives.
-                     * (When the entire body was already buffered, the pump finishes
-                     * via splice_done and never reaches here — so the zero-copy fast
-                     * path is preserved for the in-buffer case.)
-                     */
-                    if (proxy->splice_downstream < proxy->splice_total) {
-                        brix_proxy_splice_to_buffered(proxy);
-                        return;
-                    }
-                    /* Body complete — nothing left; arm read and let the loop end. */
-                    if (ngx_handle_read_event(uconn->read, 0) != NGX_OK) {
-                        brix_proxy_abort(proxy,
-                            "proxy: splice read arm failed");
-                    }
-                    return;
-                } else if (r == 0) {
-                    /* Upstream closed during splice (peer sent FIN). */
-                    brix_proxy_abort(proxy,
-                        "proxy: upstream closed during splice");
-                    return;
-                } else {
-                    brix_proxy_abort(proxy,
-                        "proxy: splice upstream→pipe failed");
-                    return;
-                }
-            }
+        brix_splice_step_e step = brix_proxy_splice_fill(proxy, uconn);
+        if (step == BRIX_SPLICE_STEP_RETURN) {
+            return;
         }
+        /* fill never signals DONE — only drain does. */
 
-        /* pipe[0] → client fd */        {
-            size_t  in_pipe = proxy->splice_upstream - proxy->splice_downstream;
-            if (in_pipe == 0) {
-                if (proxy->splice_downstream >= proxy->splice_total) {
-                    break;
-                }
-                continue;
-            }
-
-            ssize_t r = splice(proxy->splice_pipe[0], NULL,
-                               cconn->fd, NULL,
-                               in_pipe,
-                               SPLICE_F_MOVE | SPLICE_F_NONBLOCK);
-            if (r > 0) {
-                proxy->splice_downstream += (size_t) r;
-            } else if (r == 0 || (r < 0 && ngx_errno == NGX_EAGAIN)) {
-                /*
-                 * Client send buffer full.  Arm the client-write event and
-                 * wait.  Do NOT arm upstream-read here: any unread upstream
-                 * data sits in the kernel TCP receive buffer and will be
-                 * drained by splice_pump (via splice(upstream→pipe)) once
-                 * the pipe has room — no epoll wakeup required for that.
-                 * Arming upstream-read while the pipe is full just causes
-                 * spurious wakeups that retry a full pipe and deadlock.
-                 */
-                cconn->write->handler = brix_proxy_splice_wev;
-                if (ngx_handle_write_event(cconn->write, 0) != NGX_OK) {
-                    brix_proxy_abort(proxy,
-                        "proxy: splice client write arm failed");
-                    return;
-                }
-                return;
-            } else {
-                brix_proxy_abort(proxy,
-                    "proxy: splice pipe→client failed");
-                return;
-            }
+        step = brix_proxy_splice_drain(proxy, cconn);
+        if (step == BRIX_SPLICE_STEP_RETURN) {
+            return;
         }
-
-        if (proxy->splice_downstream >= proxy->splice_total) {
+        if (step == BRIX_SPLICE_STEP_DONE) {
             break;
         }
     }
@@ -320,38 +375,36 @@ brix_proxy_splice_fallback_finish(brix_proxy_ctx_t *proxy)
 }
 
 /*
- * brix_proxy_try_splice — attempt to start a zero-copy splice for the
- * current read response.  Returns NGX_OK if splice was started (the caller
- * must NOT allocate resp_body or loop for body data).  Returns NGX_DECLINED
- * if the conditions are not met and the caller should use the normal path.
- * Returns NGX_ERROR if it had to abort the session (PXY-6 partial-header case);
- * the proxy has been torn down and the caller MUST return immediately without
- * touching `proxy`.
+ * brix_proxy_splice_eligible — WHAT: gate the zero-copy splice fast-path for
+ * the current response.  WHY: splice bypasses TLS and only makes sense for a
+ * fully-buffered read/pgread OK(sofar) body — splicing a still-streaming body
+ * causes a fragile mid-transfer EAGAIN handoff with rare lost-wakeup stalls.
+ * HOW: reject TLS, wrong state/opcode/status, empty body, and (via FIONREAD) a
+ * body not yet fully in the upstream socket buffer.  Returns 1 if eligible.
  */
-ngx_int_t
-brix_proxy_try_splice(brix_proxy_ctx_t *proxy)
+static int
+brix_proxy_splice_eligible(brix_proxy_ctx_t *proxy)
 {
-    u_char            hdr[XRD_RESPONSE_HDR_LEN];
-    ssize_t           sent;
+    int avail = 0;
 
 #if (NGX_SSL)
     /* Splice bypasses the TLS layer — only valid for plain-text connections. */
     if (proxy->conn->ssl != NULL || proxy->client_conn->ssl != NULL) {
-        return NGX_DECLINED;
+        return 0;
     }
 #endif
 
     if (proxy->state != XRD_PX_FORWARDING) {
-        return NGX_DECLINED;
+        return 0;
     }
     if (proxy->fwd_reqid != kXR_read && proxy->fwd_reqid != kXR_pgread) {
-        return NGX_DECLINED;
+        return 0;
     }
     if (proxy->resp_status != kXR_ok && proxy->resp_status != kXR_oksofar) {
-        return NGX_DECLINED;
+        return 0;
     }
     if (proxy->resp_dlen == 0) {
-        return NGX_DECLINED;
+        return 0;
     }
 
     /*
@@ -367,87 +420,128 @@ brix_proxy_try_splice(brix_proxy_ctx_t *proxy)
      * This keeps zero-copy for the fully-buffered common case while removing the
      * stall-prone streaming-splice handoff entirely.
      */
-    {
-        int avail = 0;
-        if (ioctl(proxy->conn->fd, FIONREAD, &avail) != 0
-            || (size_t) avail < (size_t) proxy->resp_dlen) {
-            return NGX_DECLINED;
-        }
+    if (ioctl(proxy->conn->fd, FIONREAD, &avail) != 0
+        || (size_t) avail < (size_t) proxy->resp_dlen) {
+        return 0;
     }
 
-    /* Lazy-create the kernel pipe. */
-    if (proxy->splice_pipe[0] == -1) {
-        if (pipe2(proxy->splice_pipe, O_NONBLOCK) < 0) {
-            ngx_log_error(NGX_LOG_WARN, proxy->client_conn->log, ngx_errno,
-                          "xrootd proxy: pipe2 failed, using buffered path");
-            return NGX_DECLINED;
-        }
+    return 1;
+}
 
-        /*
-         * Enlarge the pipe to 1 MiB (default is 64 KiB).  splice() pumps at most
-         * one pipe-buffer per syscall, so a larger pipe cuts the syscall count on
-         * big relayed bodies by ~16x.  Best-effort: F_SETPIPE_SZ can fail if it
-         * exceeds /proc/sys/fs/pipe-max-size for an unprivileged process, in which
-         * case the kernel keeps the default size and splice still works correctly.
-         */
-        if (fcntl(proxy->splice_pipe[1], F_SETPIPE_SZ, 1 << 20) < 0) {
-            ngx_log_debug1(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log,
-                           ngx_errno,
-                           "xrootd proxy: F_SETPIPE_SZ(1MiB) failed (errno=%d), "
-                           "using default pipe size", ngx_errno);
-        }
+/*
+ * brix_proxy_splice_pipe_ensure — WHAT: lazily create the kernel pipe used as
+ * the splice conduit.  WHY: the pipe is per-proxy and only needed on the splice
+ * path; a larger pipe cuts syscalls on big bodies.  HOW: pipe2(O_NONBLOCK) once,
+ * best-effort F_SETPIPE_SZ(1 MiB).  Returns NGX_OK, or NGX_DECLINED if the pipe
+ * could not be created (caller falls back to the buffered path).
+ */
+static ngx_int_t
+brix_proxy_splice_pipe_ensure(brix_proxy_ctx_t *proxy)
+{
+    if (proxy->splice_pipe[0] != -1) {
+        return NGX_OK;
     }
 
-    /* Send the 8-byte response header (with client's stream ID) to the client
-     * now, before splicing the body.  This is a small send that almost always
-     * completes immediately. */
-    brix_build_resp_hdr(proxy->fwd_streamid,
-                           proxy->resp_status,
-                           proxy->resp_dlen,
-                           (ServerResponseHdr *)(void *) hdr);
+    if (pipe2(proxy->splice_pipe, O_NONBLOCK) < 0) {
+        ngx_log_error(NGX_LOG_WARN, proxy->client_conn->log, ngx_errno,
+                      "xrootd proxy: pipe2 failed, using buffered path");
+        return NGX_DECLINED;
+    }
 
     /*
-     * Phase 39 (PXY-6): send the full 8-byte header before splicing the body.
-     * We must NOT fall back to the buffered relay path once ANY header byte is on
-     * the wire — that path rebuilds and re-sends the WHOLE header, duplicating the
-     * already-sent bytes and corrupting the client's frame stream.  Therefore:
-     *   - nothing sent yet (NGX_AGAIN at off==0): decline → the buffered path
-     *     safely sends the whole header;
-     *   - a partial send: complete the (<=7-byte) remainder here — the loop is
-     *     bounded because every positive send advances off (capped at 8);
-     *   - a socket error, or the buffer filling mid-remainder: abort cleanly
-     *     (returns NGX_ERROR) rather than corrupt the stream.  This is
-     *     astronomically rare for an 8-byte header.
+     * Enlarge the pipe to 1 MiB (default is 64 KiB).  splice() pumps at most
+     * one pipe-buffer per syscall, so a larger pipe cuts the syscall count on
+     * big relayed bodies by ~16x.  Best-effort: F_SETPIPE_SZ can fail if it
+     * exceeds /proc/sys/fs/pipe-max-size for an unprivileged process, in which
+     * case the kernel keeps the default size and splice still works correctly.
      */
-    {
-        size_t off = 0;
+    if (fcntl(proxy->splice_pipe[1], F_SETPIPE_SZ, 1 << 20) < 0) {
+        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log,
+                       ngx_errno,
+                       "xrootd proxy: F_SETPIPE_SZ(1MiB) failed (errno=%d), "
+                       "using default pipe size", ngx_errno);
+    }
 
-        for ( ;; ) {
-            sent = proxy->client_conn->send(proxy->client_conn,
-                                            hdr + off,
-                                            XRD_RESPONSE_HDR_LEN - off);
-            if (sent > 0) {
-                off += (size_t) sent;
-                if (off == XRD_RESPONSE_HDR_LEN) {
-                    break;                 /* fully sent — proceed to splice */
-                }
-                continue;                  /* partial — send the remainder */
+    return NGX_OK;
+}
+
+/*
+ * brix_proxy_splice_send_hdr — WHAT: send the full 8-byte response header (with
+ * the client's stream ID) before splicing the body.  WHY (Phase 39 / PXY-6):
+ * once ANY header byte is on the wire we must not fall back to the buffered
+ * relay — it rebuilds and re-sends the WHOLE header, duplicating bytes and
+ * corrupting the client frame stream.  HOW: a bounded send loop —
+ *   - nothing sent yet (NGX_AGAIN at off==0): decline → buffered path sends it;
+ *   - partial: complete the (<=7-byte) remainder here (bounded, off caps at 8);
+ *   - NGX_AGAIN mid-remainder or a socket error: abort cleanly (NGX_ERROR).
+ * Returns NGX_OK (fully sent), NGX_DECLINED (nothing sent), or NGX_ERROR
+ * (aborted — caller must return immediately without touching `proxy`).
+ */
+static ngx_int_t
+brix_proxy_splice_send_hdr(brix_proxy_ctx_t *proxy)
+{
+    u_char hdr[XRD_RESPONSE_HDR_LEN];
+    size_t off = 0;
+    ssize_t sent;
+
+    brix_build_resp_hdr(proxy->fwd_streamid,
+                        proxy->resp_status,
+                        proxy->resp_dlen,
+                        (ServerResponseHdr *)(void *) hdr);
+
+    for ( ;; ) {
+        sent = proxy->client_conn->send(proxy->client_conn,
+                                        hdr + off,
+                                        XRD_RESPONSE_HDR_LEN - off);
+        if (sent > 0) {
+            off += (size_t) sent;
+            if (off == XRD_RESPONSE_HDR_LEN) {
+                return NGX_OK;             /* fully sent — proceed to splice */
             }
-            if (sent == NGX_AGAIN && off == 0) {
-                ngx_log_debug0(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
-                               "xrootd proxy: splice header would block, "
-                               "using buffered path");
-                return NGX_DECLINED;
-            }
-            /* NGX_AGAIN after a partial header, or a socket error: cannot fall
-             * back without duplicating on-wire bytes, and the splice path has no
-             * deferred-header state.  Abort rather than corrupt. */
-            ngx_log_debug1(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
-                           "xrootd proxy: splice header send incomplete (%z), "
-                           "aborting to avoid frame corruption", sent);
-            brix_proxy_abort(proxy, "proxy: splice header send incomplete");
-            return NGX_ERROR;
+            continue;                      /* partial — send the remainder */
         }
+        if (sent == NGX_AGAIN && off == 0) {
+            ngx_log_debug0(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
+                           "xrootd proxy: splice header would block, "
+                           "using buffered path");
+            return NGX_DECLINED;
+        }
+        /* NGX_AGAIN after a partial header, or a socket error: cannot fall
+         * back without duplicating on-wire bytes, and the splice path has no
+         * deferred-header state.  Abort rather than corrupt. */
+        ngx_log_debug1(NGX_LOG_DEBUG_STREAM, proxy->client_conn->log, 0,
+                       "xrootd proxy: splice header send incomplete (%z), "
+                       "aborting to avoid frame corruption", sent);
+        brix_proxy_abort(proxy, "proxy: splice header send incomplete");
+        return NGX_ERROR;
+    }
+}
+
+/*
+ * brix_proxy_try_splice — attempt to start a zero-copy splice for the
+ * current read response.  Returns NGX_OK if splice was started (the caller
+ * must NOT allocate resp_body or loop for body data).  Returns NGX_DECLINED
+ * if the conditions are not met and the caller should use the normal path.
+ * Returns NGX_ERROR if it had to abort the session (PXY-6 partial-header case);
+ * the proxy has been torn down and the caller MUST return immediately without
+ * touching `proxy`.
+ */
+ngx_int_t
+brix_proxy_try_splice(brix_proxy_ctx_t *proxy)
+{
+    ngx_int_t rc;
+
+    if (!brix_proxy_splice_eligible(proxy)) {
+        return NGX_DECLINED;
+    }
+
+    if (brix_proxy_splice_pipe_ensure(proxy) != NGX_OK) {
+        return NGX_DECLINED;
+    }
+
+    rc = brix_proxy_splice_send_hdr(proxy);
+    if (rc != NGX_OK) {
+        return rc;                 /* NGX_DECLINED or NGX_ERROR (aborted) */
     }
 
     proxy->splice_active     = 1;

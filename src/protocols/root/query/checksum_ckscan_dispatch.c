@@ -187,7 +187,8 @@ brix_query_ckscan(brix_ctx_t *ctx, ngx_connection_t *c,
                           "-", "ckscan", kXR_ArgInvalid, "invalid path payload");
     }
 
-    brix_beneath_full_path(conf->common.root_canon, pathbuf,
+    /* phase74-fp: pathbuf is the request path, full_path the output buf. */
+    brix_beneath_full_path(conf->common.root_canon, pathbuf,  /* NOLINT(readability-suspicious-call-argument) */
                              full_path, sizeof(full_path));
 
     if (brix_auth_gate(ctx, c, BRIX_OP_QUERY_CKSCAN, "QUERY",

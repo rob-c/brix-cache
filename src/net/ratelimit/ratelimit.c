@@ -52,11 +52,11 @@ brix_rl_check(brix_rl_rule_t *rule, const char *key_str,
     excess  = (rln->req_excess > drain) ? (rln->req_excess - drain) : 0;
 
     /* burst headroom in the same ×1000 unit as req_rate / excess. */
-    burst_units = rule->req_burst * 1000;
+    burst_units = rule->req_burst * BRIX_RL_REQ_SCALE;
 
-    if (excess + 1000 > burst_units) {
+    if (excess + BRIX_RL_REQ_SCALE > burst_units) {
         /* Throttled — seconds to drain back under the burst ceiling (ceil). */
-        ngx_uint_t over = excess + 1000 - burst_units;
+        ngx_uint_t over = excess + BRIX_RL_REQ_SCALE - burst_units;
         *wait_seconds = (uint32_t) ((over + rule->req_rate - 1) / rule->req_rate);
         if (*wait_seconds == 0) { *wait_seconds = 1; }
         /*
@@ -74,7 +74,7 @@ brix_rl_check(brix_rl_rule_t *rule, const char *key_str,
         rln->last = now;
         rc = NGX_AGAIN;
     } else {
-        rln->req_excess = excess + 1000;
+        rln->req_excess = excess + BRIX_RL_REQ_SCALE;
         rln->last       = now;
         rln->req_total++;
     }

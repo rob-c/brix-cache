@@ -255,6 +255,129 @@ dashboard_keep_value(const u_char *name, size_t len)
 }
 
 /*
+ * Query-string credential keys whose value is scrubbed inside surviving URLs
+ * ("?token=..." / "&sig=..."). Matched case-insensitively at a '?'/'&'
+ * boundary; first hit wins (behavior-frozen table — do not reorder).
+ */
+static const char *const dashboard_cred_query_keys[] = {
+    "token=", "access_token=", "secret=", "client_secret=", "password=",
+    "passwd=", "apikey=", "api_key=", "key=", "sig=", "signature=",
+    "x-amz-credential=", "x-amz-signature=", "x-amz-security-token=", NULL
+};
+
+/*
+ * Overwrite the secret region [vs,ve) with the redaction marker. NEVER grow
+ * the buffer: write min(marker,old) bytes (a sub-marker-length secret is
+ * fully covered by a marker prefix), and only shrink (memmove the tail left)
+ * when the secret is longer than the marker. Returns the new end pointer.
+ */
+static u_char *
+dashboard_redact_region(u_char *vs, u_char *ve, u_char *end)
+{
+    size_t rep = ngx_strlen(DASHBOARD_REDACTED);
+    size_t old = (size_t) (ve - vs);
+    size_t n   = (rep < old) ? rep : old;
+
+    ngx_memcpy(vs, DASHBOARD_REDACTED, n);
+    if (old > rep) {
+        ngx_memmove(vs + rep, ve, (size_t) (end - ve));
+        end -= (old - rep);
+    }
+    return end;
+}
+
+/*
+ * Scan the URL authority starting at `auth` (just past "://") for a
+ * "user:pass@" userinfo block. Returns the '@' pointer when one is found
+ * before the authority ends (path/query/fragment/whitespace/quote/';'),
+ * else NULL. *colon receives the first ':' seen inside the scanned span
+ * (may be set even when NULL is returned).
+ */
+static u_char *
+dashboard_userinfo_at(u_char *auth, u_char *end, u_char **colon)
+{
+    u_char *q = auth;
+
+    *colon = NULL;
+    while (q < end && *q != '/' && *q != '?' && *q != '#'
+           && *q != ' ' && *q != '\t' && *q != '"' && *q != '\''
+           && *q != ';')
+    {
+        if (*q == ':' && *colon == NULL) { *colon = q; }
+        if (*q == '@') { return q; }
+        q++;
+    }
+    return NULL;
+}
+
+/*
+ * Redact "scheme://user:pass@host" userinfo when `s` points at "://": both a
+ * ':' and a later '@' must occur before the authority ends. On a rewrite,
+ * *endp is updated (the buffer may shrink) and the resume pointer (start of
+ * the rewritten authority) is returned so the caller re-scans from there;
+ * otherwise NULL (no rewrite, caller advances normally).
+ */
+static u_char *
+dashboard_scrub_userinfo(u_char *s, u_char **endp)
+{
+    u_char *end = *endp;
+    u_char *auth, *at, *colon;
+
+    if (s + 3 > end || s[0] != ':' || s[1] != '/' || s[2] != '/') {
+        return NULL;
+    }
+    auth = s + 3;
+    at = dashboard_userinfo_at(auth, end, &colon);
+    if (at == NULL || colon == NULL || colon >= at) {
+        return NULL;
+    }
+    *endp = dashboard_redact_region(auth, at, end);
+    return auth;
+}
+
+/* End of a query-param value: up to '&' or a value delimiter. */
+static u_char *
+dashboard_query_value_end(u_char *vs, u_char *end)
+{
+    u_char *ve = vs;
+
+    while (ve < end && *ve != '&' && *ve != ' ' && *ve != '\t'
+           && *ve != '"' && *ve != '\'' && *ve != ';' && *ve != '#') {
+        ve++;
+    }
+    return ve;
+}
+
+/*
+ * Scrub one query parameter starting at `kv` (the byte after '?'/'&'): if it
+ * matches a credential key from the table, overwrite its value with the
+ * redaction marker (never growing — see dashboard_redact_region). Returns the
+ * (possibly shrunk) new end pointer; first table hit wins.
+ */
+static u_char *
+dashboard_scrub_query_param(u_char *kv, u_char *end)
+{
+    size_t i;
+
+    for (i = 0; dashboard_cred_query_keys[i] != NULL; i++) {
+        size_t kl = ngx_strlen(dashboard_cred_query_keys[i]);
+
+        if (kv + kl <= end
+            && dashboard_name_eq(kv, kl, dashboard_cred_query_keys[i]))
+        {
+            u_char *vs = kv + kl;
+            u_char *ve = dashboard_query_value_end(vs, end);
+
+            if (ve > vs) {
+                end = dashboard_redact_region(vs, ve, end);
+            }
+            return end;
+        }
+    }
+    return end;
+}
+
+/*
  * In-place scrub of embedded credentials in a surviving value region [p,end):
  *   scheme://user:pass@host          -> scheme://[redacted]@host
  *   ...?token=v / &secret=v / &sig=v -> ...?token=[redacted]&...
@@ -264,72 +387,20 @@ dashboard_keep_value(const u_char *name, size_t len)
 static u_char *
 dashboard_scrub_value_creds(u_char *p, u_char *end)
 {
-    static const char *const qkeys[] = {
-        "token=", "access_token=", "secret=", "client_secret=", "password=",
-        "passwd=", "apikey=", "api_key=", "key=", "sig=", "signature=",
-        "x-amz-credential=", "x-amz-signature=", "x-amz-security-token=", NULL
-    };
     u_char *s = p;
 
     while (s < end) {
-        /* userinfo: "://" ... ':' ... '@' before the authority ends */        if (s + 3 <= end && s[0] == ':' && s[1] == '/' && s[2] == '/') {
-            u_char *auth = s + 3;
-            u_char *q = auth;
-            u_char *at = NULL;
-            u_char *colon = NULL;
-            while (q < end && *q != '/' && *q != '?' && *q != '#'
-                   && *q != ' ' && *q != '\t' && *q != '"' && *q != '\''
-                   && *q != ';')
-            {
-                if (*q == ':' && colon == NULL) { colon = q; }
-                if (*q == '@') { at = q; break; }
-                q++;
-            }
-            if (at != NULL && colon != NULL && colon < at) {
-                /* Fully overwrite the userinfo [auth,at). NEVER grow the buffer:
-                 * write min(marker,old) bytes (a sub-marker-length secret is
-                 * fully covered by a marker prefix), and only shrink (memmove the
-                 * tail left) when the secret is longer than the marker. */
-                size_t rep = ngx_strlen(DASHBOARD_REDACTED);
-                size_t old = (size_t) (at - auth);
-                size_t n   = (rep < old) ? rep : old;
-                ngx_memcpy(auth, DASHBOARD_REDACTED, n);
-                if (old > rep) {
-                    ngx_memmove(auth + rep, at, (size_t) (end - at));
-                    end -= (old - rep);
-                }
-                s = auth;   /* continue scanning after the rewrite */
-                continue;
-            }
+        /* userinfo: "://" ... ':' ... '@' before the authority ends */
+        u_char *resume = dashboard_scrub_userinfo(s, &end);
+
+        if (resume != NULL) {
+            s = resume;   /* continue scanning after the rewrite */
+            continue;
         }
 
-        /* query credential params: <key>=<value> up to & / delimiter */        if (*s == '?' || *s == '&') {
-            u_char *kv = s + 1;
-            size_t  i;
-            for (i = 0; qkeys[i] != NULL; i++) {
-                size_t kl = ngx_strlen(qkeys[i]);
-                if (kv + kl <= end && dashboard_name_eq(kv, kl, qkeys[i])) {
-                    u_char *vs = kv + kl;
-                    u_char *ve = vs;
-                    while (ve < end && *ve != '&' && *ve != ' ' && *ve != '\t'
-                           && *ve != '"' && *ve != '\'' && *ve != ';'
-                           && *ve != '#') {
-                        ve++;
-                    }
-                    if (ve > vs) {
-                        /* Fully overwrite the value; never grow (see userinfo). */
-                        size_t rep = ngx_strlen(DASHBOARD_REDACTED);
-                        size_t old = (size_t) (ve - vs);
-                        size_t n   = (rep < old) ? rep : old;
-                        ngx_memcpy(vs, DASHBOARD_REDACTED, n);
-                        if (old > rep) {
-                            ngx_memmove(vs + rep, ve, (size_t) (end - ve));
-                            end -= (old - rep);
-                        }
-                    }
-                    break;
-                }
-            }
+        /* query credential params: <key>=<value> up to & / delimiter */
+        if (*s == '?' || *s == '&') {
+            end = dashboard_scrub_query_param(s + 1, end);
         }
         s++;
     }
@@ -378,6 +449,66 @@ dashboard_emit_masked(u_char *out, const u_char *line, const u_char *line_end,
 }
 
 /*
+ * Emit one line verbatim (plus '\n'), then scrub embedded URL credentials in
+ * the copied bytes. Used for pass-through lines: blank/comment/brace lines
+ * and directives whose value passed the fail-closed keep test
+ * (belt-and-suspenders — a secret hiding inside a "safe" URL is still masked).
+ * Returns the new write pointer.
+ */
+static u_char *
+dashboard_emit_scrubbed(u_char *w, const u_char *line, const u_char *line_end)
+{
+    u_char *seg = w;
+
+    ngx_memcpy(w, line, (size_t) (line_end - line));
+    w += (line_end - line);
+    w = dashboard_scrub_value_creds(seg, w);
+    *w++ = '\n';
+    return w;
+}
+
+/* End of the directive-name token starting at q (space/tab/';'/'{'/'#'). */
+static const u_char *
+dashboard_name_token_end(const u_char *q, const u_char *line_end)
+{
+    while (q < line_end && *q != ' ' && *q != '\t'
+           && *q != ';' && *q != '{' && *q != '#') {
+        q++;
+    }
+    return q;
+}
+
+/*
+ * Redact a single config line [line,line_end) (excluding the '\n') into w:
+ * blank/comment/brace-only lines pass through cred-scrubbed; directives on
+ * the fail-closed allowlist keep their value (also cred-scrubbed); everything
+ * else has its value masked. Returns the new write pointer.
+ */
+static u_char *
+dashboard_redact_line(u_char *w, const u_char *line, const u_char *line_end)
+{
+    const u_char *q = line;
+    const u_char *name, *name_end;
+
+    /* leading whitespace */
+    while (q < line_end && (*q == ' ' || *q == '\t')) { q++; }
+
+    /* blank / comment / brace-only -> pass through, but scrub creds. */
+    if (q >= line_end || *q == '#' || *q == '{' || *q == '}') {
+        return dashboard_emit_scrubbed(w, line, line_end);
+    }
+
+    /* directive name token */
+    name = q;
+    name_end = dashboard_name_token_end(q, line_end);
+
+    if (dashboard_keep_value(name, (size_t) (name_end - name))) {
+        return dashboard_emit_scrubbed(w, line, line_end);
+    }
+    return dashboard_emit_masked(w, line, line_end, name, name_end);
+}
+
+/*
  * Redact a whole config buffer. Allocates and fills out_buf / out_len from
  * r->pool. Returns NGX_OK or NGX_ERROR (alloc failure).
  *
@@ -421,8 +552,6 @@ dashboard_redact_config(ngx_http_request_t *r, const u_char *in, size_t in_len,
         const u_char *line = p;
         const u_char *nl = ngx_strlchr((u_char *) p, (u_char *) end, '\n');
         const u_char *line_end = (nl != NULL) ? nl : end;
-        const u_char *q = line;
-        const u_char *name, *name_end;
 
         p = (nl != NULL) ? nl + 1 : end;
 
@@ -434,36 +563,7 @@ dashboard_redact_config(ngx_http_request_t *r, const u_char *in, size_t in_len,
             return NGX_ERROR;
         }
 
-        /* leading whitespace */
-        while (q < line_end && (*q == ' ' || *q == '\t')) { q++; }
-
-        /* blank / comment / brace-only -> pass through, but scrub creds. */
-        if (q >= line_end || *q == '#' || *q == '{' || *q == '}') {
-            u_char *seg = w;
-            ngx_memcpy(w, line, (size_t) (line_end - line));
-            w += (line_end - line);
-            w = dashboard_scrub_value_creds(seg, w);
-            *w++ = '\n';
-            continue;
-        }
-
-        /* directive name token */
-        name = q;
-        name_end = q;
-        while (name_end < line_end && *name_end != ' ' && *name_end != '\t'
-               && *name_end != ';' && *name_end != '{' && *name_end != '#') {
-            name_end++;
-        }
-
-        if (dashboard_keep_value(name, (size_t) (name_end - name))) {
-            u_char *seg = w;
-            ngx_memcpy(w, line, (size_t) (line_end - line));
-            w += (line_end - line);
-            w = dashboard_scrub_value_creds(seg, w);   /* belt-and-suspenders */
-            *w++ = '\n';
-        } else {
-            w = dashboard_emit_masked(w, line, line_end, name, name_end);
-        }
+        w = dashboard_redact_line(w, line, line_end);
     }
 
     *out_buf = out;

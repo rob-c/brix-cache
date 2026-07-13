@@ -5,6 +5,106 @@
 #include "xrdcp_internal.h"
 #include "core/version.h"
 
+#define XRDCP_PARSE_EXIT_OK 100
+
+/* A growable, strdup-owned string list (source/positional/exclude/include/
+ * expanded-source vectors main threads through the pipeline). */
+typedef struct {
+    char  **items;
+    size_t  n;
+    size_t  cap;
+} xrdcp_strlist;
+
+/*
+ * WHAT: The complete parsed-option + connection state main threads through the
+ *       parse → credential → dispatch pipeline.
+ * WHY:  These flags and pointers were passed loose (up to 29 parameters), which
+ *       is unreviewable and trips the parameter gate. Bundling them keeps every
+ *       pipeline helper at a reviewable arity with explicit, single-owner data
+ *       flow; `copt`/`conn` point at main's stack objects, the rest are the
+ *       parse outputs that live beyond `brix_copy_opts`.
+ * HOW:  main zero-inits one instance, points `copt`/`conn` at its locals, and
+ *       hands the address to each pipeline stage. Parse writes the scalars;
+ *       later stages read them. Byte-frozen: same values, same order.
+ */
+typedef struct {
+    brix_copy_opts *copt;          /* the parsed brix_copy_opts (main's local) */
+    brix_opts      *conn;          /* the connection opts (main's local) */
+    struct brix_cred_store *cred_store; /* built by the credential stage; INERT */
+    const char     *from;          /* --from manifest path (NULL = none) */
+    const char     *journal_path;  /* --journal <path> or derived from --resume */
+    const char     *oidc_account;  /* --oidc-account (or $OIDC_ACCOUNT) */
+    const char     *proxy;         /* --proxy X.509 proxy path override */
+    const char     *dst;           /* resolved destination (last positional) */
+    int             resume;        /* --resume: derive journal from --from */
+    int             retries;       /* --retry <n> budget */
+    int             jobs;          /* -j/--jobs concurrency */
+    int             force_progress;/* --progress */
+    int             no_progress;   /* -N/--no-progress */
+    int             verify;        /* --verify */
+    int             auto_refresh;  /* --auto-refresh */
+    int             sync_mode;     /* --sync / --sync-check */
+} xrdcp_opts_t;
+
+/*
+ * WHAT: The set of strdup-owned string vectors main owns for one invocation.
+ * WHY:  The positional/source/expanded/exclude/include lists were passed as
+ *       five (array,count,cap) triples — 15 loose parameters — through the same
+ *       helpers. One struct keeps the pipeline signatures under the gate and
+ *       makes ownership (main frees them all) explicit.
+ * HOW:  main zero-inits it; parse fills `pos` (+ srcs via the manifest), the
+ *       credential stage fills `exp`, and main frees every vector on exit.
+ */
+typedef struct {
+    xrdcp_strlist pos;    /* positional args (sources + dst) */
+    xrdcp_strlist srcs;   /* sources after manifest merge, pre-glob */
+    xrdcp_strlist exp;    /* sources after glob expansion */
+    xrdcp_strlist excl;   /* --exclude patterns */
+    xrdcp_strlist incl;   /* --include patterns */
+} xrdcp_lists_t;
+
+/*
+ * WHAT: Per-CLI-parse scratch: the option target (`o`), list target (`l`), and
+ *       a sticky out-of-memory flag the str_append callsites set.
+ * WHY:  The option-parser fan-out (basic/manifest/sync/auth/transport/remote)
+ *       all need the same two targets plus a shared OOM latch; a small state
+ *       struct keeps each parser helper at three parameters.
+ * HOW:  parse_and_validate_args builds it once and passes its address to every
+ *       xrdcp_parse_* helper; `oom` is checked after the argv loop.
+ */
+typedef struct {
+    xrdcp_opts_t  *o;
+    xrdcp_lists_t *l;
+    int            oom;
+} xrdcp_cli_state;
+
+typedef struct {
+    brix_copy_opts          *opts;
+    brix_opts               *conn;
+    struct brix_cred_store  *cred_store;
+    char                   **exp;
+    size_t                   nexp;
+    const char              *dst;
+    const char              *from;
+    const char              *journal_path;
+    int                      retries;
+    int                      jobs;
+    int                      sync_mode;
+    int                      force_progress;
+    int                      no_progress;
+} xrdcp_transfer_ctx;
+
+/* Running batch outcome counters + the reusable status buffer for one
+ * sequential batch pass. Bundled so the per-item worker stays under the
+ * parameter gate; `batch_parallel` (extern) still takes the three counters by
+ * address (&t.ok/&t.skip/&t.fail), so the wire-visible tally is unchanged. */
+typedef struct {
+    size_t      ok;
+    size_t      skip;
+    size_t      fail;
+    brix_status st;
+} xrdcp_tally_t;
+
 /*
  * usage_fp — print usage text to the given stream.
  * WHY: --help (spec WS-2) prints usage to stdout; no-arg / unknown-option
@@ -108,50 +208,73 @@ str_free(char **list, size_t n)
 }
 
 
+/* Extract the alias name from `arg` (the part before the first ':') into name[sz].
+ * Returns 1 if `arg` looks like an alias reference, 0 otherwise (no colon, empty or
+ * oversized name, or a scheme:// URL). */
+static int
+alias_name_of(const char *arg, char *name, size_t sz)
+{
+    const char *colon = strchr(arg, ':');
+    size_t      nlen;
+
+    if (colon == NULL) { return 0; }
+    nlen = (size_t) (colon - arg);
+    if (nlen == 0 || nlen >= sz) { return 0; }
+    if (colon[1] == '/' && colon[2] == '/') { return 0; }   /* scheme:// — not an alias */
+    memcpy(name, arg, nlen);
+    name[nlen] = '\0';
+    return 1;
+}
+
+
+/* Fold the alias `info`'s per-endpoint credentials into `o` — a value already set
+ * (CLI flag or earlier alias) always wins. The opt pointers are backed by static
+ * storage for the process lifetime. PII: creds are never logged. */
+static void
+fold_alias_creds(const brix_alias_info *info, brix_copy_opts *o)
+{
+    static char s_bearer[8192], s_access[256], s_secret[256], s_region[64];
+
+    if (o->bearer == NULL && info->bearer[0] != '\0') {
+        snprintf(s_bearer, sizeof(s_bearer), "%s", info->bearer);
+        o->bearer = s_bearer;
+    }
+    /* Fold the S3 access/secret as ONE unit so a mismatched key pair can never be
+     * assembled from two different aliases. */
+    if (o->s3_access == NULL && o->s3_secret == NULL
+        && info->s3_access[0] != '\0' && info->s3_secret[0] != '\0') {
+        snprintf(s_access, sizeof(s_access), "%s", info->s3_access);
+        snprintf(s_secret, sizeof(s_secret), "%s", info->s3_secret);
+        o->s3_access = s_access;
+        o->s3_secret = s_secret;
+    }
+    if (o->s3_region == NULL && info->s3_region[0] != '\0') {
+        snprintf(s_region, sizeof(s_region), "%s", info->s3_region);
+        o->s3_region = s_region;
+    }
+    if (info->proxy[0] != '\0') {
+        setenv("X509_USER_PROXY", info->proxy, 0);   /* 0 = don't clobber an existing env */
+    }
+}
+
+
 /* If `arg` names a ~/.xrdrc alias, fold its per-endpoint credentials into `o` — a
  * value already set (CLI flag or earlier alias) always wins. The opt pointers are
  * backed by static storage for the process lifetime. PII: creds are never logged. */
 void
 merge_alias_auth(const char *arg, brix_copy_opts *o)
 {
-    const char     *colon = strchr(arg, ':');
     char            name[256];
-    size_t          nlen;
     brix_alias_info info;
-    static char     s_bearer[8192], s_access[256], s_secret[256], s_region[64];
 
-    if (colon == NULL) { return; }
-    nlen = (size_t) (colon - arg);
-    if (nlen == 0 || nlen >= sizeof(name)) { return; }
-    if (colon[1] == '/' && colon[2] == '/') { return; }   /* scheme:// — not an alias */
-    memcpy(name, arg, nlen);
-    name[nlen] = '\0';
+    if (!alias_name_of(arg, name, sizeof(name))) { return; }
     if (!brix_alias_lookup(name, &info)) { return; }
 
     if (info.token_file_failed) {
         fprintf(stderr, "xrdcp: alias %s: token_file %s missing or empty\n",
                 name, info.token_file);
     }
-    if (o->bearer == NULL && info.bearer[0] != '\0') {
-        snprintf(s_bearer, sizeof(s_bearer), "%s", info.bearer);
-        o->bearer = s_bearer;
-    }
-    /* Fold the S3 access/secret as ONE unit so a mismatched key pair can never be
-     * assembled from two different aliases. */
-    if (o->s3_access == NULL && o->s3_secret == NULL
-        && info.s3_access[0] != '\0' && info.s3_secret[0] != '\0') {
-        snprintf(s_access, sizeof(s_access), "%s", info.s3_access);
-        snprintf(s_secret, sizeof(s_secret), "%s", info.s3_secret);
-        o->s3_access = s_access;
-        o->s3_secret = s_secret;
-    }
-    if (o->s3_region == NULL && info.s3_region[0] != '\0') {
-        snprintf(s_region, sizeof(s_region), "%s", info.s3_region);
-        o->s3_region = s_region;
-    }
-    if (info.proxy[0] != '\0') {
-        setenv("X509_USER_PROXY", info.proxy, 0);   /* 0 = don't clobber an existing env */
-    }
+    fold_alias_creds(&info, o);
 }
 
 
@@ -172,6 +295,21 @@ path_basename(const char *p, char *out, size_t sz)
 }
 
 
+/* Trim leading/trailing whitespace (and CR/LF) from `line` in place and return a
+ * pointer to the first non-blank char. The returned string is "" for a blank line. */
+static char *
+manifest_trim(char *line)
+{
+    char *s = line, *e;
+    while (*s == ' ' || *s == '\t') { s++; }
+    e = s + strlen(s);
+    while (e > s && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' ' || e[-1] == '\t')) {
+        *--e = '\0';
+    }
+    return s;
+}
+
+
 /* Read a manifest (one source per line; '#' comments + blank lines skipped) and
  * append each entry to the source list. 0 / -1. */
 int
@@ -185,12 +323,7 @@ read_manifest(const char *file, char ***list, size_t *n, size_t *cap)
         return -1;
     }
     while (fgets(line, sizeof(line), f) != NULL) {
-        char *s = line, *e;
-        while (*s == ' ' || *s == '\t') { s++; }
-        e = s + strlen(s);
-        while (e > s && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' ' || e[-1] == '\t')) {
-            *--e = '\0';
-        }
+        char *s = manifest_trim(line);
         if (*s == '\0' || *s == '#') { continue; }
         if (str_append(list, n, cap, s) != 0) {
             if (f != stdin) { fclose(f); }
@@ -345,289 +478,551 @@ xrdcp_progress(void *arg, long long done, long long total)
 }
 
 
-int
-main(int argc, char **argv)
+/* ========================================================================
+ * WHAT: Validate argument combinations and build source/destination lists
+ * WHY:  Many flag combinations are invalid (--delete requires -r+--sync,
+ *       --delete conflicts with --remove-source, --verify implies --cksum, etc.)
+ * HOW:  Check constraints, derive implicit settings, build srcs list from pos
+ *       and --from manifest, derive journal path from --resume+--from
+ * PARAMS: All the parsed values from parse_and_validate_args
+ * RETURNS: 0 on success, 50 on usage error, 51 on OOM
+ * ======================================================================== */
+static int
+xrdcp_validate_flag_matrix(brix_copy_opts *opts, int sync_mode, int verify)
 {
-    brix_copy_opts opts;
-    brix_opts      conn;
-    brix_status    st;
-    char         **pos = NULL, **srcs = NULL, **exp = NULL;
-    char         **excl = NULL, **incl = NULL;
-    size_t         npos = 0, poscap = 0, nsrc = 0, srccap = 0, nexp = 0, expcap = 0, i;
-    size_t         nexcl = 0, exclcap = 0, nincl = 0, inclcap = 0;
-    const char    *from = NULL, *dst = NULL, *oidc_account = NULL;
-    const char    *proxy = NULL;          /* --proxy: explicit X.509 proxy path override */
-    const char    *journal_path = NULL;   /* --journal <path> or derived from --resume */
-    int            retries = 0, jobs = 1, sync_mode = 0, force_progress = 0, no_progress = 0, verify = 0, rc = 0, oom = 0;
-    int            auto_refresh = 0;   /* Phase 40 (b): --auto-refresh */
-    int            resume = 0;         /* --resume: derive journal path from --from */
-    /* C1: credential store built from CLI values after arg parsing; INERT until C2
-     * threads it through the auth path.  NULL until brix_cli_cred_store_build runs;
-     * freed on every exit path after construction. */
-    struct brix_cred_store *cred_store = NULL;
-    brix_journal  *jrn = NULL;   /* completion journal; NULL = journalling disabled */
-
-    memset(&opts, 0, sizeof(opts));
-    memset(&conn, 0, sizeof(conn));
-    conn.verify_host = 1;
-
-    /* Phase 44: XRDC_IO_URING env is the default (auto) for the local-disk
-     * overlap ring; --io-uring overrides it below.  auto = 0 = memset default. */
-    {
-        const char *e = getenv("XRDC_IO_URING");
-        if (e != NULL) {
-            if (strcmp(e, "on") == 0)       { opts.io_uring = XRDC_IO_URING_ON; }
-            else if (strcmp(e, "off") == 0) { opts.io_uring = XRDC_IO_URING_OFF; }
-            else                            { opts.io_uring = XRDC_IO_URING_AUTO; }
-        }
-    }
-    brix_crypto_init();   /* arm libxrdproto SHA-256/HMAC for GSI + sigver */
-    brix_copy_install_signal_handlers();   /* Phase 40 (a): drop partial dest on
-                                            * SIGINT/SIGTERM instead of leaving it */
-
-    for (i = 1; i < (size_t) argc; i++) {
-        const char *a = argv[i];
-        if (a[0] == '-' && a[1] != '\0' && strcmp(a, "-") != 0) {
-            int oi = (int) i;   /* shared parser uses int*; bridge from size_t */
-            {
-                int pr = brix_opts_parse_arg(&conn, argc, argv, &oi);
-                if (pr == 2) { usage_fp(stdout); return 0; }  /* --help */
-                if (pr)      { i = (size_t) oi; continue; }
-            }
-            if (strcmp(a, "-f") == 0)       { opts.force = 1; }
-            else if (strcmp(a, "-r") == 0 || strcmp(a, "-R") == 0) { opts.recursive = 1; }
-            else if (strcmp(a, "-P") == 0 || strcmp(a, "--posc") == 0) { opts.posc = 1; }
-            else if (strcmp(a, "-s") == 0)  { opts.silent = 1; }
-            else if (strcmp(a, "-v") == 0 || strcmp(a, "-d") == 0
-                     || strcmp(a, "--verbose") == 0 || strcmp(a, "--debug") == 0) {
-                opts.verbose = 1;
-            }
-            else if (strcmp(a, "-N") == 0 || strcmp(a, "--no-progress") == 0) {
-                no_progress = 1;   /* suppress TTY auto-enable; --progress wins */
-            }
-            else if (strcmp(a, "--from") == 0 && i + 1 < (size_t) argc) { from = argv[++i]; }
-            else if (strcmp(a, "--journal") == 0 && i + 1 < (size_t) argc) { journal_path = argv[++i]; }
-            else if (strcmp(a, "--resume") == 0) { resume = 1; }
-            else if (strcmp(a, "--retry") == 0 && i + 1 < (size_t) argc) {
-                retries = atoi(argv[++i]);
-                if (retries <= 0) { retries = 0; opts.no_retry = 1; }  /* 0 ⇒ fail fast */
-            }
-            else if (strcmp(a, "--no-retry") == 0) { opts.no_retry = 1; }
-            else if ((strcmp(a, "-j") == 0 || strcmp(a, "--jobs") == 0) && i + 1 < (size_t) argc) { jobs = atoi(argv[++i]); }
-            else if (strcmp(a, "--sync") == 0) { sync_mode = 1; }
-            else if (strcmp(a, "--sync-check") == 0 && i + 1 < (size_t) argc) {
-                const char *m = argv[++i];
-                sync_mode = 1;
-                if (strcmp(m, "size") == 0)       { opts.sync_cmp = XRDC_SYNC_SIZE; }
-                else if (strcmp(m, "mtime") == 0) { opts.sync_cmp = XRDC_SYNC_MTIME; }
-                else if (strncmp(m, "cksum", 5) == 0
-                         && (m[5] == '\0' || m[5] == ':')) {
-                    opts.sync_cmp = XRDC_SYNC_CKSUM;
-                    opts.sync_cksum_algo = (m[5] == ':' && m[6] != '\0') ? m + 6 : "adler32";
-                } else {
-                    fprintf(stderr, "xrdcp: --sync-check needs size|mtime|cksum[:algo]\n");
-                    usage();
-                    return 50;
-                }
-            }
-            else if (strcmp(a, "--dry-run") == 0 || strcmp(a, "-n") == 0) { opts.dry_run = 1; }
-            else if (strcmp(a, "--exclude") == 0 && i + 1 < (size_t) argc) {
-                if (str_append(&excl, &nexcl, &exclcap, argv[++i]) != 0) { oom = 1; }
-            }
-            else if (strcmp(a, "--include") == 0 && i + 1 < (size_t) argc) {
-                if (str_append(&incl, &nincl, &inclcap, argv[++i]) != 0) { oom = 1; }
-            }
-            else if (strcmp(a, "--delete") == 0) { opts.sync_delete = 1; }
-            else if (strcmp(a, "--remove-source") == 0) { opts.remove_source = 1; }
-            else if (strcmp(a, "--progress") == 0) { force_progress = 1; }
-            else if (strcmp(a, "--verify") == 0) { verify = 1; }
-            else if (strcmp(a, "--auto-refresh") == 0) { auto_refresh = 1; }
-            else if (strcmp(a, "--oidc-account") == 0 && i + 1 < (size_t) argc) { oidc_account = argv[++i]; }
-            else if (strcmp(a, "--proxy") == 0 && i + 1 < (size_t) argc) { proxy = argv[++i]; }
-            else if (strcmp(a, "--pgrw") == 0)  { opts.pgrw = 1; }
-            else if (strcmp(a, "--cksum") == 0 && i + 1 < (size_t) argc) { opts.cksum = argv[++i]; }
-            else if (strcmp(a, "--compress") == 0 && i + 1 < (size_t) argc) { opts.compress = argv[++i]; }
-            else if (strcmp(a, "--zip") == 0)         { opts.zip = 1; }
-            else if (strcmp(a, "--zip-append") == 0)  { opts.zip_append = 1; }
-            else if ((strcmp(a, "-S") == 0 || strcmp(a, "--streams") == 0) && i + 1 < (size_t) argc) { opts.streams = atoi(argv[++i]); }
-            else if (strcmp(a, "--max-stall") == 0 && i + 1 < (size_t) argc) {
-                int v = atoi(argv[++i]);
-                if (v > 0) { opts.max_stall_ms = v; opts.no_retry = 0; }
-                else       { opts.no_retry = 1; }   /* 0/negative ⇒ fail fast */
-            }
-            else if (strncmp(a, "--io-uring=", 11) == 0) {
-                int v = brix_cli_parse_io_uring(a + 11);
-                if (v < 0) {
-                    fprintf(stderr, "xrdcp: --io-uring: invalid mode '%s' (use on|off|auto)\n",
-                            a + 11);
-                    usage();
-                    return 50;
-                }
-                opts.io_uring = v;
-            }
-            else if (strcmp(a, "--io-uring") == 0 && i + 1 < (size_t) argc) {
-                const char *m = argv[++i];
-                int v = brix_cli_parse_io_uring(m);
-                if (v < 0) {
-                    fprintf(stderr, "xrdcp: --io-uring: invalid mode '%s' (use on|off|auto)\n",
-                            m);
-                    usage();
-                    return 50;
-                }
-                opts.io_uring = v;
-            }
-            else if (strcmp(a, "--tpc") == 0 && i + 1 < (size_t) argc) {
-                const char *m = argv[++i];
-                if (strcmp(m, "first") == 0)         { opts.tpc_mode = XRDC_TPC_FIRST; }
-                else if (strcmp(m, "only") == 0)     { opts.tpc_mode = XRDC_TPC_ONLY; }
-                else if (strcmp(m, "delegate") == 0) { opts.tpc_mode = XRDC_TPC_DELEGATE; }
-                else { fprintf(stderr, "xrdcp: --tpc needs first|only|delegate\n"); usage(); return 50; }
-            }
-            else if (strcmp(a, "--tpc-token-mode") == 0 && i + 1 < (size_t) argc) { opts.tpc_token_mode = argv[++i]; }
-            else if ((strcmp(a, "-T") == 0 || strcmp(a, "--token") == 0) && i + 1 < (size_t) argc) { opts.bearer = argv[++i]; }
-            else if (strcmp(a, "--s3-access") == 0 && i + 1 < (size_t) argc) { opts.s3_access = argv[++i]; }
-            else if (strcmp(a, "--s3-secret") == 0 && i + 1 < (size_t) argc) { opts.s3_secret = argv[++i]; }
-            else if (strcmp(a, "--s3-region") == 0 && i + 1 < (size_t) argc) { opts.s3_region = argv[++i]; }
-            else if (strcmp(a, "-V") == 0)  {
-                /* -V is xrdcp's legacy version flag; --version is handled by the
-                 * shared parser above (exits inside brix_opts_parse_arg). */
-                printf("xrdcp (BriX-Cache client) %s\n", brix_client_version());
-                return 0;
-            }
-            else if (strcmp(a, "-h") == 0) { usage(); return 0; }  /* -h → stderr (C1) */
-            else {
-                fprintf(stderr, "xrdcp: unknown option '%s'\n", a);
-                usage();
-                return 50;
-            }
-        } else if (str_append(&pos, &npos, &poscap, a) != 0) {
-            fprintf(stderr, "xrdcp: out of memory\n");
-            return 51;
-        }
-    }
-
-    opts.excludes   = (const char *const *) excl;
-    opts.n_excludes = nexcl;
-    opts.includes   = (const char *const *) incl;
-    opts.n_includes = nincl;
-
     /* --sync replaces destinations that differ, so the files it does copy must be
      * allowed to overwrite (skipped ones are left untouched by the size check). */
     if (sync_mode) {
-        opts.force = 1;
+        opts->force = 1;
     }
-    opts.sync = sync_mode;   /* recursive walkers read o->sync (+ sync_cmp/algo) */
+    opts->sync = sync_mode;   /* recursive walkers read o->sync (+ sync_cmp/algo) */
+    
     /* --delete (mirror: make the destination match the source) and
      * --remove-source (move: delete each source once its transfer succeeds) are
      * contradictory.  Run together they destroy BOTH trees: on an upload the
      * per-file source unlink runs before the mirror-delete pass, which then sees
      * the now-missing local files and purges the freshly-uploaded remote copies.
      * Reject the pair before any bytes (or unlinks) move. */
-    if (opts.sync_delete && opts.remove_source) {
+    if (opts->sync_delete && opts->remove_source) {
         fprintf(stderr, "xrdcp: --delete and --remove-source are contradictory "
                         "(mirror vs move)\n");
-        str_free(pos, npos); str_free(excl, nexcl); str_free(incl, nincl);
         return 50;
     }
+    
     /* --delete requires -r and --sync: without a recursive pass there is no
      * listing to diff against; without --sync the extra-deletion semantics are
      * ill-defined (we might delete a destination the caller wanted to keep). */
-    if (opts.sync_delete && !(opts.recursive && sync_mode)) {
+    if (opts->sync_delete && !(opts->recursive && sync_mode)) {
         fprintf(stderr, "xrdcp: --delete requires -r and --sync\n");
-        str_free(pos, npos); str_free(excl, nexcl); str_free(incl, nincl);
         return 50;
     }
+    
     /* --verify: post-transfer checksum against the server. An explicit --cksum wins. */
-    if (verify && opts.cksum == NULL) {
-        opts.cksum = "adler32:source";
+    if (verify && opts->cksum == NULL) {
+        opts->cksum = "adler32:source";
     }
 
-    /* Need a destination (the last positional) and at least one source. */
-    if (npos < 1) {
-        usage();
-        str_free(pos, npos); str_free(excl, nexcl); str_free(incl, nincl);
-        return 50;
+    return 0;
+}
+
+
+static int
+xrdcp_collect_sources(const xrdcp_strlist *pos, const char *from,
+                      xrdcp_strlist *srcs)
+{
+    size_t i;
+    int    oom = 0;
+
+    for (i = 0; i + 1 < pos->n; i++) {
+        if (str_append(&srcs->items, &srcs->n, &srcs->cap, pos->items[i]) != 0) {
+            oom = 1;
+        }
     }
-    {
-        static char dstbuf[XRDC_PATH_MAX];
-        brix_alias_resolve(pos[npos - 1], dstbuf, sizeof(dstbuf));   /* ~/.xrdrc */
-        dst = dstbuf;
-    }
-    for (i = 0; i + 1 < npos; i++) {
-        if (str_append(&srcs, &nsrc, &srccap, pos[i]) != 0) { oom = 1; }
-    }
-    if (from != NULL && read_manifest(from, &srcs, &nsrc, &srccap) != 0) {
-        str_free(pos, npos); str_free(srcs, nsrc);
-        str_free(excl, nexcl); str_free(incl, nincl);
+    if (from != NULL
+        && read_manifest(from, &srcs->items, &srcs->n, &srcs->cap) != 0) {
         return 51;
     }
     if (oom) {
         fprintf(stderr, "xrdcp: out of memory\n");
-        str_free(pos, npos); str_free(srcs, nsrc);
-        str_free(excl, nexcl); str_free(incl, nincl);
         return 51;
     }
+
+    return 0;
+}
+
+
+static int
+xrdcp_finalize_journal(xrdcp_opts_t *o)
+{
+    static char jbuf[XRDC_PATH_MAX];
+
+    if (!o->resume || o->journal_path != NULL) {
+        return 0;
+    }
+    if (o->from == NULL || strcmp(o->from, "-") == 0) {
+        fprintf(stderr, "xrdcp: --resume needs --from <file> (not stdin) "
+                        "or an explicit --journal <path>\n");
+        return 50;
+    }
+    if ((size_t) snprintf(jbuf, sizeof(jbuf), "%s.journal", o->from)
+            >= sizeof(jbuf)) {
+        fprintf(stderr, "xrdcp: journal path too long\n");
+        return 50;
+    }
+    o->journal_path = jbuf;
+    return 0;
+}
+
+
+static int
+validate_and_finalize_args(xrdcp_opts_t *o, xrdcp_lists_t *l)
+{
+    static char dstbuf[XRDC_PATH_MAX];
+    int rc;
+
+    rc = xrdcp_validate_flag_matrix(o->copt, o->sync_mode, o->verify);
+    if (rc != 0) {
+        return rc;
+    }
+
+    /* Need a destination (the last positional) and at least one source. */
+    if (l->pos.n < 1) {
+        usage();
+        return 50;
+    }
+    brix_alias_resolve(l->pos.items[l->pos.n - 1], dstbuf, sizeof(dstbuf)); /* ~/.xrdrc */
+    o->dst = dstbuf;
+
+    rc = xrdcp_collect_sources(&l->pos, o->from, &l->srcs);
+    if (rc != 0) {
+        return rc;
+    }
+
     /* --resume shorthand: derive journal path from the manifest path.  Must come
      * before nsrc==0 so the specific error fires even when there are no sources. */
-    if (resume && journal_path == NULL) {
-        if (from == NULL || strcmp(from, "-") == 0) {
-            fprintf(stderr, "xrdcp: --resume needs --from <file> (not stdin) "
-                            "or an explicit --journal <path>\n");
-            str_free(pos, npos); str_free(srcs, nsrc);
-            str_free(excl, nexcl); str_free(incl, nincl);
-            return 50;
-        }
-        {
-            static char jbuf[XRDC_PATH_MAX];
-            if ((size_t) snprintf(jbuf, sizeof(jbuf), "%s.journal", from)
-                    >= sizeof(jbuf)) {
-                fprintf(stderr, "xrdcp: journal path too long\n");
-                str_free(pos, npos); str_free(srcs, nsrc);
-                str_free(excl, nexcl); str_free(incl, nincl);
-                return 50;
-            }
-            journal_path = jbuf;
-        }
+    rc = xrdcp_finalize_journal(o);
+    if (rc != 0) {
+        return rc;
     }
-    if (nsrc == 0) {
+    if (l->srcs.n == 0) {
         fprintf(stderr, "xrdcp: no source given\n");
         usage();
-        str_free(pos, npos); str_free(excl, nexcl); str_free(incl, nincl);
         return 50;
     }
 
-    /* Fold any ~/.xrdrc per-endpoint credentials (the dst + every source alias) into
-     * opts so `xrdcp s3lab:/obj .` authenticates with no flags. */
-    merge_alias_auth(pos[npos - 1], &opts);
-    for (i = 0; i < nsrc; i++) {
-        merge_alias_auth(srcs[i], &opts);
+    return 0;
+}
+
+
+static int
+xrdcp_parse_basic_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
+{
+    const char     *a = argv[*i];
+    brix_copy_opts *o = s->o->copt;
+
+    (void) argc;
+    if (strcmp(a, "-f") == 0) { o->force = 1; return 1; }
+    if (strcmp(a, "-r") == 0 || strcmp(a, "-R") == 0) {
+        o->recursive = 1;
+        return 1;
+    }
+    if (strcmp(a, "-P") == 0 || strcmp(a, "--posc") == 0) {
+        o->posc = 1;
+        return 1;
+    }
+    if (strcmp(a, "-s") == 0) { o->silent = 1; return 1; }
+    if (strcmp(a, "-v") == 0 || strcmp(a, "-d") == 0
+        || strcmp(a, "--verbose") == 0 || strcmp(a, "--debug") == 0) {
+        o->verbose = 1;
+        return 1;
+    }
+    if (strcmp(a, "-N") == 0 || strcmp(a, "--no-progress") == 0) {
+        s->o->no_progress = 1;
+        return 1;
+    }
+    if (strcmp(a, "--dry-run") == 0 || strcmp(a, "-n") == 0) {
+        o->dry_run = 1;
+        return 1;
+    }
+    return 0;
+}
+
+
+static int
+xrdcp_parse_manifest_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
+{
+    const char   *a = argv[*i];
+    xrdcp_opts_t *o = s->o;
+
+    if (strcmp(a, "--from") == 0 && *i + 1 < (size_t) argc) {
+        o->from = argv[++(*i)];
+        return 1;
+    }
+    if (strcmp(a, "--journal") == 0 && *i + 1 < (size_t) argc) {
+        o->journal_path = argv[++(*i)];
+        return 1;
+    }
+    if (strcmp(a, "--resume") == 0) { o->resume = 1; return 1; }
+    if (strcmp(a, "--retry") == 0 && *i + 1 < (size_t) argc) {
+        o->retries = atoi(argv[++(*i)]);
+        if (o->retries <= 0) {
+            o->retries = 0;
+            o->copt->no_retry = 1;
+        }
+        return 1;
+    }
+    if (strcmp(a, "--no-retry") == 0) { o->copt->no_retry = 1; return 1; }
+    if ((strcmp(a, "-j") == 0 || strcmp(a, "--jobs") == 0)
+        && *i + 1 < (size_t) argc) {
+        o->jobs = atoi(argv[++(*i)]);
+        return 1;
+    }
+    return 0;
+}
+
+
+static int
+xrdcp_parse_sync_check(brix_copy_opts *opts, const char *mode)
+{
+    if (strcmp(mode, "size") == 0) {
+        opts->sync_cmp = XRDC_SYNC_SIZE;
+        return 1;
+    }
+    if (strcmp(mode, "mtime") == 0) {
+        opts->sync_cmp = XRDC_SYNC_MTIME;
+        return 1;
+    }
+    if (strncmp(mode, "cksum", 5) == 0
+        && (mode[5] == '\0' || mode[5] == ':')) {
+        opts->sync_cmp = XRDC_SYNC_CKSUM;
+        opts->sync_cksum_algo = (mode[5] == ':' && mode[6] != '\0')
+                                ? mode + 6 : "adler32";
+        return 1;
+    }
+    fprintf(stderr, "xrdcp: --sync-check needs size|mtime|cksum[:algo]\n");
+    usage();
+    return 50;
+}
+
+
+static int
+xrdcp_parse_pattern_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
+{
+    const char *a = argv[*i];
+
+    if (strcmp(a, "--exclude") == 0 && *i + 1 < (size_t) argc) {
+        if (str_append(&s->l->excl.items, &s->l->excl.n, &s->l->excl.cap,
+                       argv[++(*i)]) != 0) { s->oom = 1; }
+        return 1;
+    }
+    if (strcmp(a, "--include") == 0 && *i + 1 < (size_t) argc) {
+        if (str_append(&s->l->incl.items, &s->l->incl.n, &s->l->incl.cap,
+                       argv[++(*i)]) != 0) { s->oom = 1; }
+        return 1;
+    }
+    return 0;
+}
+
+
+static int
+xrdcp_parse_sync_filter_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
+{
+    const char *a = argv[*i];
+
+    if (strcmp(a, "--sync") == 0) { s->o->sync_mode = 1; return 1; }
+    if (strcmp(a, "--sync-check") == 0 && *i + 1 < (size_t) argc) {
+        int rc = xrdcp_parse_sync_check(s->o->copt, argv[++(*i)]);
+        s->o->sync_mode = 1;
+        return rc;
+    }
+    if (xrdcp_parse_pattern_option(s, argc, argv, i)) { return 1; }
+    if (strcmp(a, "--delete") == 0) { s->o->copt->sync_delete = 1; return 1; }
+    if (strcmp(a, "--remove-source") == 0) { s->o->copt->remove_source = 1; return 1; }
+    return 0;
+}
+
+
+static int
+xrdcp_parse_auth_data_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
+{
+    const char   *a = argv[*i];
+    xrdcp_opts_t *o = s->o;
+
+    if (strcmp(a, "--progress") == 0) { o->force_progress = 1; return 1; }
+    if (strcmp(a, "--verify") == 0) { o->verify = 1; return 1; }
+    if (strcmp(a, "--auto-refresh") == 0) { o->auto_refresh = 1; return 1; }
+    if (strcmp(a, "--oidc-account") == 0 && *i + 1 < (size_t) argc) {
+        o->oidc_account = argv[++(*i)];
+        return 1;
+    }
+    if (strcmp(a, "--proxy") == 0 && *i + 1 < (size_t) argc) {
+        o->proxy = argv[++(*i)];
+        return 1;
+    }
+    if (strcmp(a, "--pgrw") == 0) { o->copt->pgrw = 1; return 1; }
+    if (strcmp(a, "--cksum") == 0 && *i + 1 < (size_t) argc) {
+        o->copt->cksum = argv[++(*i)];
+        return 1;
+    }
+    if (strcmp(a, "--compress") == 0 && *i + 1 < (size_t) argc) {
+        o->copt->compress = argv[++(*i)];
+        return 1;
+    }
+    return 0;
+}
+
+
+static int
+xrdcp_parse_transport_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
+{
+    const char     *a = argv[*i];
+    brix_copy_opts *o = s->o->copt;
+
+    if (strcmp(a, "--zip") == 0) { o->zip = 1; return 1; }
+    if (strcmp(a, "--zip-append") == 0) { o->zip_append = 1; return 1; }
+    if ((strcmp(a, "-S") == 0 || strcmp(a, "--streams") == 0)
+        && *i + 1 < (size_t) argc) {
+        o->streams = atoi(argv[++(*i)]);
+        return 1;
+    }
+    if (strcmp(a, "--max-stall") == 0 && *i + 1 < (size_t) argc) {
+        int v = atoi(argv[++(*i)]);
+        if (v > 0) { o->max_stall_ms = v; o->no_retry = 0; }
+        else       { o->no_retry = 1; }
+        return 1;
+    }
+    if (strncmp(a, "--io-uring=", 11) == 0) {
+        int v = brix_cli_parse_io_uring(a + 11);
+        if (v < 0) {
+            fprintf(stderr, "xrdcp: --io-uring: invalid mode '%s' (use on|off|auto)\n",
+                    a + 11);
+            usage();
+            return 50;
+        }
+        o->io_uring = v;
+        return 1;
+    }
+    if (strcmp(a, "--io-uring") == 0 && *i + 1 < (size_t) argc) {
+        const char *m = argv[++(*i)];
+        int v = brix_cli_parse_io_uring(m);
+        if (v < 0) {
+            fprintf(stderr, "xrdcp: --io-uring: invalid mode '%s' (use on|off|auto)\n",
+                    m);
+            usage();
+            return 50;
+        }
+        o->io_uring = v;
+        return 1;
+    }
+    return 0;
+}
+
+
+static int
+xrdcp_parse_tpc_mode(brix_copy_opts *opts, const char *mode)
+{
+    if (strcmp(mode, "first") == 0) {
+        opts->tpc_mode = XRDC_TPC_FIRST;
+        return 1;
+    }
+    if (strcmp(mode, "only") == 0) {
+        opts->tpc_mode = XRDC_TPC_ONLY;
+        return 1;
+    }
+    if (strcmp(mode, "delegate") == 0) {
+        opts->tpc_mode = XRDC_TPC_DELEGATE;
+        return 1;
+    }
+    fprintf(stderr, "xrdcp: --tpc needs first|only|delegate\n");
+    usage();
+    return 50;
+}
+
+
+static int
+xrdcp_parse_remote_auth_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
+{
+    const char     *a = argv[*i];
+    brix_copy_opts *o = s->o->copt;
+
+    if (strcmp(a, "--tpc") == 0 && *i + 1 < (size_t) argc) {
+        return xrdcp_parse_tpc_mode(o, argv[++(*i)]);
+    }
+    if (strcmp(a, "--tpc-token-mode") == 0 && *i + 1 < (size_t) argc) {
+        o->tpc_token_mode = argv[++(*i)];
+        return 1;
+    }
+    if ((strcmp(a, "-T") == 0 || strcmp(a, "--token") == 0)
+        && *i + 1 < (size_t) argc) {
+        o->bearer = argv[++(*i)];
+        return 1;
+    }
+    if (strcmp(a, "--s3-access") == 0 && *i + 1 < (size_t) argc) {
+        o->s3_access = argv[++(*i)];
+        return 1;
+    }
+    if (strcmp(a, "--s3-secret") == 0 && *i + 1 < (size_t) argc) {
+        o->s3_secret = argv[++(*i)];
+        return 1;
+    }
+    if (strcmp(a, "--s3-region") == 0 && *i + 1 < (size_t) argc) {
+        o->s3_region = argv[++(*i)];
+        return 1;
+    }
+    return 0;
+}
+
+
+static int
+xrdcp_parse_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
+{
+    int oi = (int) *i;
+    int pr = brix_opts_parse_arg(s->o->conn, argc, argv, &oi);
+    int rc;
+
+    if (pr == 2) { usage_fp(stdout); return 2; }
+    if (pr) { *i = (size_t) oi; return 1; }
+    rc = xrdcp_parse_basic_option(s, argc, argv, i);
+    if (rc) { return rc; }
+    rc = xrdcp_parse_manifest_option(s, argc, argv, i);
+    if (rc) { return rc; }
+    rc = xrdcp_parse_sync_filter_option(s, argc, argv, i);
+    if (rc) { return rc; }
+    rc = xrdcp_parse_auth_data_option(s, argc, argv, i);
+    if (rc) { return rc; }
+    rc = xrdcp_parse_transport_option(s, argc, argv, i);
+    if (rc) { return rc; }
+    rc = xrdcp_parse_remote_auth_option(s, argc, argv, i);
+    if (rc) { return rc; }
+    if (strcmp(argv[*i], "-V") == 0) {
+        printf("xrdcp (BriX-Cache client) %s\n", brix_client_version());
+        return 2;
+    }
+    if (strcmp(argv[*i], "-h") == 0) { usage(); return 2; }
+
+    fprintf(stderr, "xrdcp: unknown option '%s'\n", argv[*i]);
+    usage();
+    return 50;
+}
+
+
+/*
+ * WHAT: Parse and validate command-line arguments.
+ *
+ * WHY:  The main() function is CCN 187 (527 lines). Extracting the argument
+ *       parsing and validation logic reduces complexity and improves testability.
+ *
+ * HOW:  Parse all CLI flags into the provided structures, validate flag
+ *       interactions (--sync implies --force, --delete requires -r + --sync,
+ *       etc.), build positional/exclusion/inclusion lists, and derive defaults.
+ *       Returns 0 on success, 50 on usage error, 51 on OOM.
+ */
+static int
+parse_and_validate_args(int argc, char **argv, xrdcp_opts_t *o, xrdcp_lists_t *l)
+{
+    size_t          i;
+    xrdcp_cli_state state;
+
+    memset(&state, 0, sizeof(state));
+    state.o = o;
+    state.l = l;
+
+    /* Phase 44: XRDC_IO_URING env is the default (auto) for the local-disk
+     * overlap ring; --io-uring overrides it below.  auto = 0 = memset default. */
+    {
+        const char *e = getenv("XRDC_IO_URING");
+        if (e != NULL) {
+            if (strcmp(e, "on") == 0)       { o->copt->io_uring = XRDC_IO_URING_ON; }
+            else if (strcmp(e, "off") == 0) { o->copt->io_uring = XRDC_IO_URING_OFF; }
+            else                            { o->copt->io_uring = XRDC_IO_URING_AUTO; }
+        }
     }
 
-    /* Expand globs (root:// + local) into the final source list. */
-    for (i = 0; i < nsrc; i++) {
-        if (expand_source(srcs[i], &conn, &exp, &nexp, &expcap) != 0) {
+    for (i = 1; i < (size_t) argc; i++) {
+        const char *a = argv[i];
+        if (a[0] == '-' && a[1] != '\0' && strcmp(a, "-") != 0) {
+            int parsed = xrdcp_parse_option(&state, argc, argv, &i);
+            if (parsed == 2) { return XRDCP_PARSE_EXIT_OK; }
+            if (parsed == 50) { return 50; }
+        } else if (str_append(&l->pos.items, &l->pos.n, &l->pos.cap, a) != 0) {
             fprintf(stderr, "xrdcp: out of memory\n");
-            str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
-            str_free(excl, nexcl); str_free(incl, nincl);
             return 51;
         }
     }
-    if (nexp == 0) {
+    if (state.oom) {
+        fprintf(stderr, "xrdcp: out of memory\n");
+        return 51;
+    }
+
+    o->copt->excludes   = (const char *const *) l->excl.items;
+    o->copt->n_excludes = l->excl.n;
+    o->copt->includes   = (const char *const *) l->incl.items;
+    o->copt->n_includes = l->incl.n;
+
+    return validate_and_finalize_args(o, l);
+}
+
+
+/*
+ * WHAT: Build credential store after alias resolution, glob expansion, and pre-flight.
+ *
+ * WHY:  Credential store construction requires expanded sources to determine auth
+ *       needs, plus pre-flight validation to warn about expired/read-only credentials.
+ *
+ * HOW:  Merge ~/.xrdrc alias credentials, expand globs, validate --remove-source
+ *       compatibility with web sources, run credential pre-flight (auto-refresh +
+ *       diagnose), then build the credential store. Returns store on success,
+ *       NULL on error (with cleanup of passed-in arrays).
+ */
+/* Free every strdup-owned vector main threads through the pipeline. Called on
+ * the credential-build error paths and (via main) on normal exit. */
+static void
+xrdcp_lists_free(xrdcp_lists_t *l)
+{
+    str_free(l->pos.items, l->pos.n);
+    str_free(l->srcs.items, l->srcs.n);
+    str_free(l->exp.items, l->exp.n);
+    str_free(l->excl.items, l->excl.n);
+    str_free(l->incl.items, l->incl.n);
+}
+
+
+static struct brix_cred_store *
+build_and_preflight_credentials(xrdcp_opts_t *o, xrdcp_lists_t *l)
+{
+    brix_copy_opts *opts = o->copt;
+    size_t          i;
+
+    /* Fold any ~/.xrdrc per-endpoint credentials (the dst + every source alias) into
+     * opts so `xrdcp s3lab:/obj .` authenticates with no flags. */
+    merge_alias_auth(l->pos.items[l->pos.n - 1], opts);
+    for (i = 0; i < l->srcs.n; i++) {
+        merge_alias_auth(l->srcs.items[i], opts);
+    }
+
+    /* Expand globs (root:// + local) into the final source list. */
+    for (i = 0; i < l->srcs.n; i++) {
+        if (expand_source(l->srcs.items[i], o->conn,
+                          &l->exp.items, &l->exp.n, &l->exp.cap) != 0) {
+            fprintf(stderr, "xrdcp: out of memory\n");
+            xrdcp_lists_free(l);
+            return NULL;
+        }
+    }
+    if (l->exp.n == 0) {
         fprintf(stderr, "xrdcp: no sources after expansion\n");
-        str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
-        str_free(excl, nexcl); str_free(incl, nincl);
-        return 50;
+        xrdcp_lists_free(l);
+        return NULL;
     }
     /* --remove-source supports local and root:// sources only: web/S3 sources
      * have no cheap post-transfer delete path and cannot be safely removed. */
-    if (opts.remove_source) {
-        for (i = 0; i < nexp; i++) {
-            if (brix_is_web_url(exp[i])) {
+    if (opts->remove_source) {
+        for (i = 0; i < l->exp.n; i++) {
+            if (brix_is_web_url(l->exp.items[i])) {
                 fprintf(stderr, "xrdcp: --remove-source supports local and "
                                 "root:// sources only\n");
-                str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
-                str_free(excl, nexcl); str_free(incl, nincl);
-                return 50;
+                xrdcp_lists_free(l);
+                return NULL;
             }
         }
     }
@@ -643,17 +1038,17 @@ main(int argc, char **argv)
         /* Only the GSI/token credential family is diagnosable here — an s3://
          * endpoint authenticates with AWS SigV4 keys, so it must not trip the
          * "GSI proxy expired" / "bearer token" pre-flight. */
-        int dst_cred = uses_cred_auth(dst);
+        int dst_cred = uses_cred_auth(o->dst);
         int any_cred = dst_cred;
-        for (i = 0; i < nexp && !any_cred; i++) {
-            if (uses_cred_auth(exp[i])) { any_cred = 1; }
+        for (i = 0; i < l->exp.n && !any_cred; i++) {
+            if (uses_cred_auth(l->exp.items[i])) { any_cred = 1; }
         }
         if (any_cred) {
             /* Phase 40 (b): if asked, proactively (re)acquire a stale token/proxy
              * BEFORE diagnosing — so a healthy refresh leaves nothing to warn. */
-            if (auto_refresh) {
-                (void) brix_cred_autorefresh(dst_cred, oidc_account,
-                                             !opts.silent, stderr);
+            if (o->auto_refresh) {
+                (void) brix_cred_autorefresh(dst_cred, o->oidc_account,
+                                             !opts->silent, stderr);
             }
             (void) brix_cred_diagnose(dst_cred, "xrdcp: ", stderr);
         }
@@ -664,212 +1059,340 @@ main(int argc, char **argv)
      * yet; C2 will thread it through the auth/token handshake path.  Building
      * it now (before the transfer) means C2 only needs to consume conn.cred,
      * not rebuild it.  NULL/empty args fall back to per-handler env discovery. */
-    cred_store = brix_cli_cred_store_build(proxy, opts.bearer, NULL,
-                                            opts.s3_access, opts.s3_secret,
-                                            oidc_account, auto_refresh);
-    conn.cred = cred_store;
+    return brix_cli_cred_store_build(o->proxy, opts->bearer, NULL,
+                                      opts->s3_access, opts->s3_secret,
+                                      o->oidc_account, o->auto_refresh);
+}
+
+
+static void
+xrdcp_hint_failed_source(const char *src, const char *dst, const brix_status *st)
+{
+    brix_url    u_src;
+    brix_status ps;
+
+    brix_cred_hint_for_status_url(st, is_root_url(dst) || brix_is_web_url(dst),
+                                  stderr, src);
+    brix_status_clear(&ps);
+    if (brix_url_parse(src, &u_src, &ps) == 0) {
+        brix_hint_url_double_slash(st, &u_src);
+    }
+}
+
+
+static int
+xrdcp_dispatch_recursive_web_download(const xrdcp_transfer_ctx *ctx)
+{
+    brix_status st;
+    size_t      i;
+    size_t      bad = 0;
 
     brix_status_clear(&st);
-    /* Recursive copy of a web (davs/http) collection: list it client-side and copy
-     * each file (the wire has no recursive transfer op). root:// and local -r are
-     * handled inside brix_copy, so only intercept web sources here. */
-    if (opts.recursive) {
-        int any_web = 0;
-        for (i = 0; i < nexp; i++) {
-            if (brix_is_web_url(exp[i])) { any_web = 1; }
-        }
-        if (any_web) {
-            size_t bad = 0;
-            for (i = 0; i < nexp; i++) {
-                if (brix_is_web_url(exp[i])) {
-                    if (recursive_web_download(exp[i], dst, &opts, &conn, retries) != 0) {
-                        bad++;
-                    }
-                } else if (copy_one_with_retry(exp[i], dst, &opts, &conn, retries, &st) != 0) {
-                    bad++;
-                    fprintf(stderr, "xrdcp: %s: %s\n", exp[i], st.msg);
-                    brix_cred_hint_for_status_url(&st, is_root_url(dst)
-                                                  || brix_is_web_url(dst),
-                                                  stderr, exp[i]);   /* WS-7 */
-                    {   /* WS-3: double-slash hint on single-slash root:// source */
-                        brix_url    u_src;
-                        brix_status ps;
-                        brix_status_clear(&ps);
-                        if (brix_url_parse(exp[i], &u_src, &ps) == 0) {
-                            brix_hint_url_double_slash(&st, &u_src);
-                        }
-                    }
-                }
+    for (i = 0; i < ctx->nexp; i++) {
+        if (brix_is_web_url(ctx->exp[i])) {
+            if (recursive_web_download(ctx->exp[i], ctx->dst, ctx->opts,
+                                       ctx->conn, ctx->retries) != 0) {
+                bad++;
             }
-            brix_cred_store_free(cred_store);
-            str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
-            str_free(excl, nexcl); str_free(incl, nincl);
-            return (bad == 0) ? 0 : 1;
-        }
-        /* Symmetric case: local directory tree(s) → a web (davs/http/s3)
-         * collection. Walk each local dir, MKCOL + PUT; a plain local file with
-         * -r to a web dst is just a single copy. */
-        if (brix_is_web_url(dst)) {
-            int has_dir = 0;
-            for (i = 0; i < nexp; i++) {
-                if (is_local_dir(exp[i])) { has_dir = 1; }
-            }
-            if (has_dir) {
-                size_t bad = 0;
-                /* --delete mirrors a listing back onto the destination, which the
-                 * web (davs/http/s3) upload path does not implement.  Warn once
-                 * so the caller is not misled into thinking stale remote objects
-                 * were pruned; the flag is otherwise ignored here. */
-                if (opts.sync_delete) {
-                    fprintf(stderr, "xrdcp: --delete is not supported for web "
-                                    "destinations (ignored)\n");
-                }
-                for (i = 0; i < nexp; i++) {
-                    if (is_local_dir(exp[i])) {
-                        if (recursive_web_upload(exp[i], dst, &opts, &conn, retries) != 0) {
-                            bad++;
-                        }
-                    } else if (copy_one_with_retry(exp[i], dst, &opts, &conn,
-                                                   retries, &st) != 0) {
-                        bad++;
-                        fprintf(stderr, "xrdcp: %s: %s\n", exp[i], st.msg);
-                    }
-                }
-                brix_cred_store_free(cred_store);
-                str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
-                str_free(excl, nexcl); str_free(incl, nincl);
-                return (bad == 0) ? 0 : 1;
-            }
+        } else if (copy_one_with_retry(ctx->exp[i], ctx->dst, ctx->opts,
+                                       ctx->conn, ctx->retries, &st) != 0) {
+            bad++;
+            fprintf(stderr, "xrdcp: %s: %s\n", ctx->exp[i], st.msg);
+            xrdcp_hint_failed_source(ctx->exp[i], ctx->dst, &st);
         }
     }
-    if (nexp == 1 && from == NULL) {
-        /* Classic single copy — dst may be a file, directory, or '-'. */
-        char       label[XRDC_NAME_MAX];
-        xrdcp_prog ps;
-        int        one;
-        /* Show a progress bar when asked (--progress) or on an interactive stderr
-         * (unless -N/--no-progress), but never to a piped stdout transfer ('-')
-         * and never when silent.  --progress wins over -N. */
-        if ((force_progress || (isatty(STDERR_FILENO) && !no_progress)) && !opts.silent
-            && !(exp[0][0] == '-' && exp[0][1] == '\0')) {
-            path_basename(exp[0], label, sizeof(label));
-            ps.label = (label[0] != '\0') ? label : "transfer";
-            ps.start_ns = brix_mono_ns();
-            ps.last_ns = 0;
-            opts.progress = xrdcp_progress;
-            opts.progress_arg = &ps;
-        }
-        one = transfer_one(exp[0], dst, &opts, &conn, retries, sync_mode, &st);
-        if (one == 1 && !opts.silent) {
-            fprintf(stderr, "xrdcp: %s up-to-date, skipped\n", dst);
-        } else if (one < 0 && !opts.silent) {
-            fprintf(stderr, "xrdcp: %s\n", st.msg);
-            brix_cred_hint_for_status_url(&st, is_root_url(dst)
-                                          || brix_is_web_url(dst),
-                                          stderr, exp[0]);   /* WS-7 */
-            {   /* WS-3: double-slash hint on single-slash root:// source */
-                brix_url    u_src;
-                brix_status ps;
-                brix_status_clear(&ps);
-                if (brix_url_parse(exp[0], &u_src, &ps) == 0) {
-                    brix_hint_url_double_slash(&st, &u_src);
-                }
+    return (bad == 0) ? 0 : 1;
+}
+
+
+static int
+xrdcp_dispatch_recursive_web_upload(const xrdcp_transfer_ctx *ctx)
+{
+    brix_status st;
+    size_t      i;
+    size_t      bad = 0;
+
+    brix_status_clear(&st);
+    if (ctx->opts->sync_delete) {
+        fprintf(stderr, "xrdcp: --delete is not supported for web "
+                        "destinations (ignored)\n");
+    }
+    for (i = 0; i < ctx->nexp; i++) {
+        if (is_local_dir(ctx->exp[i])) {
+            if (recursive_web_upload(ctx->exp[i], ctx->dst, ctx->opts,
+                                     ctx->conn, ctx->retries) != 0) {
+                bad++;
             }
+        } else if (copy_one_with_retry(ctx->exp[i], ctx->dst, ctx->opts,
+                                       ctx->conn, ctx->retries, &st) != 0) {
+            bad++;
+            fprintf(stderr, "xrdcp: %s: %s\n", ctx->exp[i], st.msg);
         }
-        rc = (one >= 0) ? 0 : brix_shellcode(&st);
-    } else {
-        /* Batch copy into a destination directory. */
-        size_t ok = 0, skip = 0, fail = 0;
-        if (dest_is_dir(dst, &conn) != 1) {
-            fprintf(stderr, "xrdcp: destination must be an existing directory for "
-                            "multi-source copy: %s\n", dst);
-            brix_journal_close(jrn);   /* jrn is NULL here; close is a no-op */
-            brix_cred_store_free(cred_store);
-            str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
-            str_free(excl, nexcl); str_free(incl, nincl);
-            return 50;
-        }
-        /* Open the completion journal for the batch path only.  A journal on a
-         * single-file copy is meaningless (no resumable item list), and a
-         * dry-run completes nothing so opening the file would create an empty
-         * journal and mislead subsequent runs.  Journal writes are serialized
-         * internally so both the sequential and parallel paths share one handle. */
-        if (journal_path != NULL && !opts.dry_run) {
-            brix_status_clear(&st);
-            jrn = brix_journal_open(journal_path, &st);
-            if (jrn == NULL) {
-                fprintf(stderr, "xrdcp: %s\n", st.msg);
-                brix_cred_store_free(cred_store);
-                str_free(pos, npos); str_free(srcs, nsrc); str_free(exp, nexp);
-                str_free(excl, nexcl); str_free(incl, nincl);
-                return 51;
-            }
-        }
-        if (jobs > (int) nexp) { jobs = (int) nexp; }
-        if (jobs > 1) {
-            batch_parallel(exp, nexp, dst, &opts, &conn, retries, sync_mode,
-                           jobs, jrn, &ok, &skip, &fail);
-        } else {
-            for (i = 0; i < nexp; i++) {
-                char dpath[XRDC_PATH_MAX];
-                int  one;
-                /* journal skip: already-completed sources need no reprocessing */
-                if (jrn != NULL && brix_journal_has(jrn, exp[i])) {
-                    skip++;
-                    if (!opts.silent) {
-                        fprintf(stderr, "[%zu/%zu] %s (already transferred)\n",
-                                ok + skip + fail, nexp, exp[i]);
-                    }
-                    continue;
-                }
-                one = batch_copy_one(exp[i], dst, &opts, &conn, retries,
-                                     sync_mode, dpath, sizeof(dpath), &st);
-                if (one == 0) {
-                    ok++;
-                    if (!opts.silent) {
-                        fprintf(stderr, "[%zu/%zu] %s -> %s\n",
-                                ok + skip + fail, nexp, exp[i], dpath);
-                    }
-                    /* mark only on real success; dry-run completes nothing */
-                    if (jrn != NULL && !opts.dry_run) {
-                        (void) brix_journal_mark(jrn, exp[i]);
-                    }
-                } else if (one == 1) {
-                    skip++;
-                    if (!opts.silent) {
-                        fprintf(stderr, "[%zu/%zu] %s (up-to-date)\n",
-                                ok + skip + fail, nexp, exp[i]);
-                    }
-                } else {
-                    fail++;
-                    fprintf(stderr, "xrdcp: %s: %s\n", exp[i], st.msg);
-                    brix_cred_hint_for_status_url(&st, is_root_url(dst)
-                                                  || brix_is_web_url(dst),
-                                                  stderr, exp[i]);   /* WS-7 */
-                    {   /* WS-3: double-slash hint on single-slash root:// source */
-                        brix_url    u_src;
-                        brix_status ps;
-                        brix_status_clear(&ps);
-                        if (brix_url_parse(exp[i], &u_src, &ps) == 0) {
-                            brix_hint_url_double_slash(&st, &u_src);
-                        }
-                    }
-                }
-            }
-        }
-        if (!opts.silent) {
-            fprintf(stderr, "xrdcp: %zu copied, %zu skipped, %zu failed\n",
-                    ok, skip, fail);
-        }
-        rc = (fail == 0) ? 0 : 1;
+    }
+    return (bad == 0) ? 0 : 1;
+}
+
+
+static int
+xrdcp_try_recursive_web(const xrdcp_transfer_ctx *ctx, int *handled)
+{
+    size_t i;
+    int    any_web = 0;
+    int    has_dir = 0;
+
+    *handled = 0;
+    if (!ctx->opts->recursive) {
+        return 0;
+    }
+    for (i = 0; i < ctx->nexp; i++) {
+        if (brix_is_web_url(ctx->exp[i])) { any_web = 1; }
+        if (is_local_dir(ctx->exp[i])) { has_dir = 1; }
+    }
+    if (any_web) {
+        *handled = 1;
+        return xrdcp_dispatch_recursive_web_download(ctx);
+    }
+    if (brix_is_web_url(ctx->dst) && has_dir) {
+        *handled = 1;
+        return xrdcp_dispatch_recursive_web_upload(ctx);
+    }
+    return 0;
+}
+
+
+static void
+xrdcp_enable_progress_if_needed(xrdcp_transfer_ctx *ctx, xrdcp_prog *ps,
+                                char *label, size_t label_len)
+{
+    if (!((ctx->force_progress || (isatty(STDERR_FILENO) && !ctx->no_progress))
+          && !ctx->opts->silent
+          && !(ctx->exp[0][0] == '-' && ctx->exp[0][1] == '\0'))) {
+        return;
     }
 
-    brix_journal_close(jrn);
-    brix_cred_store_free(cred_store);
-    str_free(pos, npos);
-    str_free(srcs, nsrc);
-    str_free(exp, nexp);
-    str_free(excl, nexcl);
-    str_free(incl, nincl);
+    path_basename(ctx->exp[0], label, label_len);
+    ps->label = (label[0] != '\0') ? label : "transfer";
+    ps->start_ns = brix_mono_ns();
+    ps->last_ns = 0;
+    ctx->opts->progress = xrdcp_progress;
+    ctx->opts->progress_arg = ps;
+}
+
+
+static int
+xrdcp_dispatch_single(xrdcp_transfer_ctx *ctx)
+{
+    brix_status st;
+    char        label[XRDC_NAME_MAX];
+    xrdcp_prog  ps;
+    int         one;
+
+    brix_status_clear(&st);
+    xrdcp_enable_progress_if_needed(ctx, &ps, label, sizeof(label));
+    one = transfer_one(ctx->exp[0], ctx->dst, ctx->opts, ctx->conn,
+                       ctx->retries, ctx->sync_mode, &st);
+    if (one == 1 && !ctx->opts->silent) {
+        fprintf(stderr, "xrdcp: %s up-to-date, skipped\n", ctx->dst);
+    } else if (one < 0 && !ctx->opts->silent) {
+        fprintf(stderr, "xrdcp: %s\n", st.msg);
+        xrdcp_hint_failed_source(ctx->exp[0], ctx->dst, &st);
+    }
+    return (one >= 0) ? 0 : brix_shellcode(&st);
+}
+
+
+static brix_journal *
+xrdcp_open_batch_journal(const xrdcp_transfer_ctx *ctx, brix_status *st,
+                         int *rc)
+{
+    *rc = 0;
+    if (ctx->journal_path == NULL || ctx->opts->dry_run) {
+        return NULL;
+    }
+    brix_status_clear(st);
+    {
+        brix_journal *jrn = brix_journal_open(ctx->journal_path, st);
+        if (jrn == NULL) {
+            fprintf(stderr, "xrdcp: %s\n", st->msg);
+            *rc = 51;
+        }
+        return jrn;
+    }
+}
+
+
+static void
+xrdcp_batch_one(const xrdcp_transfer_ctx *ctx, brix_journal *jrn,
+                xrdcp_tally_t *t, size_t idx)
+{
+    char dpath[XRDC_PATH_MAX];
+    int  one;
+
+    if (jrn != NULL && brix_journal_has(jrn, ctx->exp[idx])) {
+        t->skip++;
+        if (!ctx->opts->silent) {
+            fprintf(stderr, "[%zu/%zu] %s (already transferred)\n",
+                    t->ok + t->skip + t->fail, ctx->nexp, ctx->exp[idx]);
+        }
+        return;
+    }
+    one = batch_copy_one(ctx->exp[idx], ctx->dst, ctx->opts, ctx->conn,
+                         ctx->retries, ctx->sync_mode, dpath, sizeof(dpath), &t->st);
+    if (one == 0) {
+        t->ok++;
+        if (!ctx->opts->silent) {
+            fprintf(stderr, "[%zu/%zu] %s -> %s\n",
+                    t->ok + t->skip + t->fail, ctx->nexp, ctx->exp[idx], dpath);
+        }
+        if (jrn != NULL && !ctx->opts->dry_run) {
+            (void) brix_journal_mark(jrn, ctx->exp[idx]);
+        }
+    } else if (one == 1) {
+        t->skip++;
+        if (!ctx->opts->silent) {
+            fprintf(stderr, "[%zu/%zu] %s (up-to-date)\n",
+                    t->ok + t->skip + t->fail, ctx->nexp, ctx->exp[idx]);
+        }
+    } else {
+        t->fail++;
+        fprintf(stderr, "xrdcp: %s: %s\n", ctx->exp[idx], t->st.msg);
+        xrdcp_hint_failed_source(ctx->exp[idx], ctx->dst, &t->st);
+    }
+}
+
+
+static int
+xrdcp_dispatch_batch(xrdcp_transfer_ctx *ctx)
+{
+    xrdcp_tally_t t;
+    brix_journal *jrn;
+    size_t        i;
+    int           rc;
+    int           jobs = ctx->jobs;
+
+    memset(&t, 0, sizeof(t));
+    brix_status_clear(&t.st);
+    if (dest_is_dir(ctx->dst, ctx->conn) != 1) {
+        fprintf(stderr, "xrdcp: destination must be an existing directory for "
+                        "multi-source copy: %s\n", ctx->dst);
+        return 50;
+    }
+    jrn = xrdcp_open_batch_journal(ctx, &t.st, &rc);
+    if (rc != 0) {
+        return rc;
+    }
+    if (jobs > (int) ctx->nexp) { jobs = (int) ctx->nexp; }
+    if (jobs > 1) {
+        batch_parallel(ctx->exp, ctx->nexp, ctx->dst, ctx->opts, ctx->conn,
+                       ctx->retries, ctx->sync_mode, jobs, jrn,
+                       &t.ok, &t.skip, &t.fail);
+    } else {
+        for (i = 0; i < ctx->nexp; i++) {
+            xrdcp_batch_one(ctx, jrn, &t, i);
+        }
+    }
+    if (!ctx->opts->silent) {
+        fprintf(stderr, "xrdcp: %zu copied, %zu skipped, %zu failed\n",
+                t.ok, t.skip, t.fail);
+    }
+    return (t.fail == 0) ? 0 : 1;
+}
+
+
+/*
+ * WHAT: Dispatch transfer based on mode (web recursive, single, or batch).
+ *
+ * WHY:  Main() had CCN 187 with complex mode routing. Extracting the dispatch
+ *       logic (web recursive download/upload, single transfer with progress,
+ *       batch sequential/parallel, journal lifecycle) reduces complexity.
+ *
+ * HOW:  Determine transfer mode from source types and flags. Route to:
+ *       - Web recursive download/upload (davs/http collections)
+ *       - Single transfer with progress bar (nexp==1)
+ *       - Batch transfer with journal support (nexp>1)
+ *       Returns 0 on success, 1 on partial failure, 50 on usage error, 51 on OOM.
+ */
+static int
+dispatch_transfer(xrdcp_opts_t *o, xrdcp_lists_t *l)
+{
+    xrdcp_transfer_ctx ctx;
+    int                handled;
+    int                rc;
+
+    ctx.opts = o->copt;
+    ctx.conn = o->conn;
+    ctx.cred_store = o->cred_store;
+    ctx.exp = l->exp.items;
+    ctx.nexp = l->exp.n;
+    ctx.dst = o->dst;
+    ctx.from = o->from;
+    ctx.journal_path = o->journal_path;
+    ctx.retries = o->retries;
+    ctx.jobs = o->jobs;
+    ctx.sync_mode = o->sync_mode;
+    ctx.force_progress = o->force_progress;
+    ctx.no_progress = o->no_progress;
+
+    rc = xrdcp_try_recursive_web(&ctx, &handled);
+    if (handled) {
+        return rc;
+    }
+    if (l->exp.n == 1 && o->from == NULL) {
+        return xrdcp_dispatch_single(&ctx);
+    }
+
+    return xrdcp_dispatch_batch(&ctx);
+}
+
+
+int
+main(int argc, char **argv)
+{
+    brix_copy_opts opts;
+    brix_opts      conn;
+    xrdcp_opts_t   o;
+    xrdcp_lists_t  l;
+    int            rc = 0;
+
+    memset(&opts, 0, sizeof(opts));
+    memset(&conn, 0, sizeof(conn));
+    conn.verify_host = 1;
+
+    memset(&o, 0, sizeof(o));
+    memset(&l, 0, sizeof(l));
+    o.copt = &opts;
+    o.conn = &conn;
+    o.jobs = 1;   /* default: one file at a time (batch concurrency opt-in) */
+
+    brix_crypto_init();   /* arm libxrdproto SHA-256/HMAC for GSI + sigver */
+    brix_copy_install_signal_handlers();   /* Phase 40 (a): drop partial dest on
+                                            * SIGINT/SIGTERM instead of leaving it */
+
+    /* Parse and validate command-line arguments. */
+    rc = parse_and_validate_args(argc, argv, &o, &l);
+    if (rc != 0) {
+        xrdcp_lists_free(&l);
+        if (rc == XRDCP_PARSE_EXIT_OK) {
+            return 0;
+        }
+        return rc;
+    }
+
+    /* Build credential store with alias resolution, glob expansion, and pre-flight.
+     * C1: the store is INERT until C2 threads it through the auth path; NULL until
+     * brix_cli_cred_store_build runs; freed on every exit path after construction. */
+    o.cred_store = build_and_preflight_credentials(&o, &l);
+    if (o.cred_store == NULL) {
+        /* Cleanup already done inside helper; arrays freed */
+        return 50;
+    }
+    conn.cred = o.cred_store;
+
+
+    /* Dispatch to the appropriate transfer mode (web recursive, single, or batch). */
+    rc = dispatch_transfer(&o, &l);
+
+    brix_cred_store_free(o.cred_store);
+    xrdcp_lists_free(&l);
     return rc;
 }

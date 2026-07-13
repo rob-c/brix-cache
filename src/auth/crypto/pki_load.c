@@ -109,7 +109,7 @@ brix_pki_load_certs_from_file(STACK_OF(X509) *certs, const char *path,
         loaded++;
     }
 
-    fclose(fp);
+    (void) fclose(fp); /* phase74-fp: read-only stream, close failure cannot lose data */
     return loaded;
 }
 
@@ -147,7 +147,7 @@ brix_pki_load_crls_from_file(STACK_OF(X509_CRL) *crls, const char *path,
         loaded++;
     }
 
-    fclose(fp);
+    (void) fclose(fp); /* phase74-fp: read-only stream, close failure cannot lose data */
     return loaded;
 }
 

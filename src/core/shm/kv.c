@@ -78,7 +78,9 @@ brix_kv_floor_pow2(size_t n)
     if (n == 0) {
         return 0;
     }
-    while ((size_t) (p << 1) <= n && (p << 1) != 0) {
+    /* Widen BEFORE shifting so the doubling cannot wrap in uint32; the
+     * p < 2^31 gate preserves the old wrap-guard's cap of 2^31. */
+    while (p < 0x80000000u && ((size_t) p << 1) <= n) {
         p <<= 1;
     }
     return p;

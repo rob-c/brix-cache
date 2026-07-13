@@ -142,7 +142,8 @@ brix_query_xattr(brix_ctx_t *ctx, ngx_connection_t *c,
         return brix_send_error(ctx, c, kXR_ArgInvalid, "invalid path");
     }
 
-    brix_beneath_full_path(conf->common.root_canon, pathbuf,
+    /* phase74-fp: pathbuf is the request path, full_path the output buf. */
+    brix_beneath_full_path(conf->common.root_canon, pathbuf,  /* NOLINT(readability-suspicious-call-argument) */
                               full_path, sizeof(full_path));
 
     if (brix_auth_gate(ctx, c, BRIX_OP_QUERY_XATTR, "QUERY",
@@ -275,7 +276,8 @@ brix_query_opaquf(brix_ctx_t *ctx, ngx_connection_t *c,
                           "opaquf", kXR_ArgInvalid, "invalid path");
     }
 
-    brix_beneath_full_path(conf->common.root_canon, pathbuf,
+    /* phase74-fp: pathbuf is the request path, full_path the output buf. */
+    brix_beneath_full_path(conf->common.root_canon, pathbuf,  /* NOLINT(readability-suspicious-call-argument) */
                               full_path, sizeof(full_path));
 
     if (brix_auth_gate(ctx, c, BRIX_OP_QUERY_OPAQUF, "QUERY",

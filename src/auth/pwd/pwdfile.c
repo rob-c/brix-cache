@@ -32,7 +32,9 @@ pwd_from_hex(const char *hex, size_t hexlen, uint8_t *out, size_t outcap)
         return -1;
     }
     for (i = 0; i < hexlen; i += 2) {
-        int hi = hex[i], lo = hex[i + 1];
+        /* Cast via unsigned char so high-bit input bytes stay non-negative
+         * (signed-char-misuse); they still fail every hex range check. */
+        int hi = (unsigned char) hex[i], lo = (unsigned char) hex[i + 1];
 
         hi = (hi >= '0' && hi <= '9') ? hi - '0'
            : (hi >= 'a' && hi <= 'f') ? hi - 'a' + 10
@@ -115,7 +117,7 @@ brix_pwd_file_lookup(const char *path, const char *user, uint8_t *salt,
             break;
         }
     }
-    fclose(f);
+    (void) fclose(f); /* phase74-fp: read-only stream, lookup outcome already decided from parsed lines */
     return found ? NGX_OK : NGX_DECLINED;
 }
 

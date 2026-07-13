@@ -61,9 +61,29 @@ brix_vfs_getxattr(brix_vfs_ctx_t *ctx, const char *name,
         const brix_sd_driver_t *drv = brix_vfs_ctx_driver(ctx);
 
         if (drv != NULL) {
+            brix_sd_ucred_t store;
+            brix_sd_cred_t  cred;
+            int             use_cred = 0, cred_err = 0;
+
+            /* Zero before the gate: it fills only the active credential kind;
+             * an unzeroed cred hands a garbage inactive pointer to the driver
+             * cred slot (bearer PASSTHROUGH would leave x509_proxy dangling). */
+            ngx_memzero(&cred, sizeof(cred));
+
+            if (brix_vfs_cred_gate_active(ctx)) {
+                if (brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err)
+                    != NGX_OK)
+                {
+                    errno = cred_err ? cred_err : EACCES;
+                    return brix_vfs_xattr_observe_count(ctx, path, -1, start);
+                }
+            }
+            /* Dispatch on the leaf so *_maybe_cred finds the leaf driver's
+             * getxattr_cred slot (decorators have only plain relays). */
             n = (drv->getxattr != NULL)
-                ? drv->getxattr(ctx->sd, brix_vfs_export_relative(ctx, path),
-                                name, buf, bufsz)
+                ? brix_sd_getxattr_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
+                      brix_vfs_export_relative(ctx, path),
+                      name, buf, bufsz, use_cred ? &cred : NULL)
                 : (errno = ENOTSUP, (ssize_t) -1);
             return brix_vfs_xattr_observe_count(ctx, path, n, start);
         }
@@ -92,9 +112,29 @@ brix_vfs_listxattr(brix_vfs_ctx_t *ctx, void *buf, size_t bufsz)
         const brix_sd_driver_t *drv = brix_vfs_ctx_driver(ctx);
 
         if (drv != NULL) {
+            brix_sd_ucred_t store;
+            brix_sd_cred_t  cred;
+            int             use_cred = 0, cred_err = 0;
+
+            /* Zero before the gate: it fills only the active credential kind;
+             * an unzeroed cred hands a garbage inactive pointer to the driver
+             * cred slot (bearer PASSTHROUGH would leave x509_proxy dangling). */
+            ngx_memzero(&cred, sizeof(cred));
+
+            if (brix_vfs_cred_gate_active(ctx)) {
+                if (brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err)
+                    != NGX_OK)
+                {
+                    errno = cred_err ? cred_err : EACCES;
+                    return brix_vfs_xattr_observe_count(ctx, path, -1, start);
+                }
+            }
+            /* Dispatch on the leaf so *_maybe_cred finds the leaf driver's
+             * listxattr_cred slot (decorators have only plain relays). */
             n = (drv->listxattr != NULL)
-                ? drv->listxattr(ctx->sd, brix_vfs_export_relative(ctx, path),
-                                 buf, bufsz)
+                ? brix_sd_listxattr_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
+                      brix_vfs_export_relative(ctx, path),
+                      buf, bufsz, use_cred ? &cred : NULL)
                 : (errno = ENOTSUP, (ssize_t) -1);
             return brix_vfs_xattr_observe_count(ctx, path, n, start);
         }
@@ -103,6 +143,61 @@ brix_vfs_listxattr(brix_vfs_ctx_t *ctx, void *buf, size_t bufsz)
     n = brix_listxattr_confined_canon(ctx->log, ctx->root_canon, path,
                                         buf, bufsz);
     return brix_vfs_xattr_observe_count(ctx, path, n, start);
+}
+
+/* Observe a mutation (set/remove) result: translate an rc (0 ok, non-0 error
+ * with errno already set) into an OP_XATTR metric + access-log line, reporting
+ * `nbytes` on success and 0 on error, and return NGX_OK/NGX_ERROR. Shared by
+ * the set/remove entry points so the observe tail is identical for both. */
+static ngx_int_t
+brix_vfs_xattr_observe_mut(const brix_vfs_ctx_t *ctx, const char *path,
+    int rc, size_t nbytes, ngx_msec_t start)
+{
+    int saved_errno = (rc != 0) ? errno : 0;
+
+    brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_XATTR, NULL,
+                              (rc == 0) ? nbytes : 0,
+                              (rc != 0) ? NGX_ERROR : NGX_OK, saved_errno,
+                              start);
+    return (rc != 0) ? NGX_ERROR : NGX_OK;
+}
+
+/* Run the shared set/remove driver-path gates: the phase-71 write-capability
+ * gate (CAP_XATTR_WRITE required) then the per-user credential gate. On success
+ * returns NGX_OK with use_cred/cred populated for the dispatch; on failure
+ * sets errno, emits the OP_XATTR error observation, and returns NGX_ERROR so the
+ * caller can early-return without duplicating the observe tail. Byte-identical
+ * to the inline gates the set/remove paths previously carried. */
+static ngx_int_t
+brix_vfs_xattr_write_gate(brix_vfs_ctx_t *ctx, const char *path,
+    const brix_sd_driver_t *drv, brix_sd_ucred_t *store, brix_sd_cred_t *cred,
+    int *use_cred, ngx_msec_t start)
+{
+    int cred_err = 0;
+
+    /* Zero before the gate: it fills only the active credential kind; an
+     * unzeroed cred hands a garbage inactive pointer to the driver cred slot
+     * (bearer PASSTHROUGH would leave x509_proxy dangling). */
+    ngx_memzero(cred, sizeof(*cred));
+
+    /* phase-71: capability gate — a backend that can read xattrs but not write
+     * them (CAP_XATTR without CAP_XATTR_WRITE) rejects set/remove uniformly,
+     * regardless of whether the vtable slot is populated. */
+    if (!(drv->caps & BRIX_SD_CAP_XATTR_WRITE)) {
+        errno = ENOTSUP;
+        (void) brix_vfs_xattr_observe_mut(ctx, path, -1, 0, start);
+        return NGX_ERROR;
+    }
+
+    if (brix_vfs_cred_gate_active(ctx)) {
+        if (brix_vfs_ns_cred(ctx, store, cred, use_cred, &cred_err) != NGX_OK) {
+            errno = cred_err ? cred_err : EACCES;
+            (void) brix_vfs_xattr_observe_mut(ctx, path, -1, 0, start);
+            return NGX_ERROR;
+        }
+    }
+
+    return NGX_OK;
 }
 
 /* Set attribute `name` to value[len] on the resolved ctx path. `flags` are the
@@ -116,40 +211,39 @@ brix_vfs_setxattr(brix_vfs_ctx_t *ctx, const char *name,
     const char *path = brix_vfs_ctx_path(ctx);
     uint64_t    start = brix_vfs_now_ns();
     int         rc;
-    int         saved_errno;
 
     if (brix_vfs_require_confined(ctx) != NGX_OK) {
-        saved_errno = errno;
-        brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_XATTR, NULL, 0,
-                                  NGX_ERROR, saved_errno, start);
-        return NGX_ERROR;
+        return brix_vfs_xattr_observe_mut(ctx, path, -1, 0, start);
     }
 
     {
         const brix_sd_driver_t *drv = brix_vfs_ctx_driver(ctx);
 
         if (drv != NULL) {
+            brix_sd_ucred_t store;
+            brix_sd_cred_t  cred;
+            int             use_cred = 0;
+
+            if (brix_vfs_xattr_write_gate(ctx, path, drv, &store, &cred,
+                                            &use_cred, start) != NGX_OK)
+            {
+                return NGX_ERROR;
+            }
+            /* Dispatch on the leaf so *_maybe_cred finds the leaf driver's
+             * setxattr_cred slot (decorators have only plain relays). */
             rc = (drv->setxattr != NULL
-                  && drv->setxattr(ctx->sd, brix_vfs_export_relative(ctx, path),
-                                   name, value, len, flags) == NGX_OK)
+                  && brix_sd_setxattr_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
+                         brix_vfs_export_relative(ctx, path),
+                         name, value, len, flags,
+                         use_cred ? &cred : NULL) == NGX_OK)
                  ? 0 : (errno = (drv->setxattr ? errno : ENOTSUP), -1);
-            saved_errno = (rc != 0) ? errno : 0;
-            brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_XATTR, NULL,
-                                      (rc == 0) ? len : 0,
-                                      (rc != 0) ? NGX_ERROR : NGX_OK,
-                                      saved_errno, start);
-            return (rc != 0) ? NGX_ERROR : NGX_OK;
+            return brix_vfs_xattr_observe_mut(ctx, path, rc, len, start);
         }
     }
 
     rc = brix_setxattr_confined_canon(ctx->log, ctx->root_canon, path, name,
                                         value, len, flags);
-    saved_errno = (rc != 0) ? errno : 0;
-    brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_XATTR, NULL,
-                              (rc == 0) ? len : 0,
-                              (rc != 0) ? NGX_ERROR : NGX_OK, saved_errno,
-                              start);
-    return (rc != 0) ? NGX_ERROR : NGX_OK;
+    return brix_vfs_xattr_observe_mut(ctx, path, rc, len, start);
 }
 
 /* Remove attribute `name` from the resolved ctx path. Returns NGX_OK or
@@ -161,38 +255,38 @@ brix_vfs_removexattr(brix_vfs_ctx_t *ctx, const char *name)
     const char *path = brix_vfs_ctx_path(ctx);
     uint64_t    start = brix_vfs_now_ns();
     int         rc;
-    int         saved_errno;
 
     if (brix_vfs_require_confined(ctx) != NGX_OK) {
-        saved_errno = errno;
-        brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_XATTR, NULL, 0,
-                                  NGX_ERROR, saved_errno, start);
-        return NGX_ERROR;
+        return brix_vfs_xattr_observe_mut(ctx, path, -1, 0, start);
     }
 
     {
         const brix_sd_driver_t *drv = brix_vfs_ctx_driver(ctx);
 
         if (drv != NULL) {
+            brix_sd_ucred_t store;
+            brix_sd_cred_t  cred;
+            int             use_cred = 0;
+
+            if (brix_vfs_xattr_write_gate(ctx, path, drv, &store, &cred,
+                                            &use_cred, start) != NGX_OK)
+            {
+                return NGX_ERROR;
+            }
+            /* Dispatch on the leaf so *_maybe_cred finds the leaf driver's
+             * removexattr_cred slot (decorators have only plain relays). */
             rc = (drv->removexattr != NULL
-                  && drv->removexattr(ctx->sd,
-                         brix_vfs_export_relative(ctx, path), name) == NGX_OK)
+                  && brix_sd_removexattr_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
+                         brix_vfs_export_relative(ctx, path), name,
+                         use_cred ? &cred : NULL) == NGX_OK)
                  ? 0 : (errno = (drv->removexattr ? errno : ENOTSUP), -1);
-            saved_errno = (rc != 0) ? errno : 0;
-            brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_XATTR, NULL, 0,
-                                      (rc != 0) ? NGX_ERROR : NGX_OK,
-                                      saved_errno, start);
-            return (rc != 0) ? NGX_ERROR : NGX_OK;
+            return brix_vfs_xattr_observe_mut(ctx, path, rc, 0, start);
         }
     }
 
     rc = brix_removexattr_confined_canon(ctx->log, ctx->root_canon, path,
                                            name);
-    saved_errno = (rc != 0) ? errno : 0;
-    brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_XATTR, NULL, 0,
-                              (rc != 0) ? NGX_ERROR : NGX_OK, saved_errno,
-                              start);
-    return (rc != 0) ? NGX_ERROR : NGX_OK;
+    return brix_vfs_xattr_observe_mut(ctx, path, rc, 0, start);
 }
 
 /* --- open-handle (fd) variants --------------------------------------------

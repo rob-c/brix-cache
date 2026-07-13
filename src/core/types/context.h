@@ -238,6 +238,18 @@ typedef struct {
     char  bearer_token[4096];
 
     /*
+     * Optional client-supplied FULL x509 proxy (cert chain + private key, PEM),
+     * captured during the GSI kXGC_cert exchange when the client opts in
+     * (phase-70 §5.1, kXRS_x509_fullproxy). Empty len when absent. Populated
+     * ONLY after (a) the transport is TLS, (b) the PEM parses to a chain + key,
+     * and (c) the leaf/EEC DN equals the GSI-authenticated ctx->login.dn — so a
+     * session can never present a proxy for a different identity. The root://
+     * VFS binder forwards these bytes to brix_vfs_deleg_bind for backend
+     * PASSTHROUGH. Bytes live in c->pool. NEVER logged.
+     */
+    ngx_str_t  deleg_proxy_pem;
+
+    /*
      * kXR_sigver request-signing state (GSI sessions only).
      *
      * When the server advertises kXR_secreqs in kXR_protocol, the GSI

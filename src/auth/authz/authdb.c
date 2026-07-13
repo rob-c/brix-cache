@@ -47,18 +47,37 @@ brix_parse_privs(const char *p, size_t len)
 
     return privs;
 }
-/* Parse the authdb file into `rules`: one rule per line (path + identity matcher
- * + privileges).  Returns NGX_CONF_OK / NGX_CONF_ERROR. */
-ngx_int_t
-brix_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
+/* One tokenized authdb line: the four field slices [start,end) carved out of the
+ * source buffer. `valid` is 0 for a blank/comment/truncated line the caller must
+ * skip (no rule to push). Slices point into the caller's buffer — no ownership. */
+typedef struct {
+    ngx_flag_t  valid;
+    u_char     *type_p;
+    u_char     *id_p,    *id_end;
+    u_char     *path_p,  *path_end;
+    u_char     *privs_p, *privs_end;
+} adb_line_t;
+
+/* WHAT: read a full authdb file into a heap buffer, enforcing the size policy.
+ * WHY:  isolates the file/stat/read/limit I/O so the parser proper is pure over
+ *       an in-memory buffer. On the empty-file fast path returns NGX_OK with
+ *       *out_buf==NULL and *out_len==0 (caller has nothing to parse).
+ * HOW:  open → fstat → size-guard (0 = ok/empty, >1 MiB = reject) → alloc+read.
+ *       On any error logs via cf and closes the fd; the fd is always closed here.
+ *       On success *out_buf is a heap block the caller must ngx_free(). */
+static ngx_int_t
+adb_read_file(ngx_conf_t *cf, ngx_str_t *filename, u_char **out_buf,
+              size_t *out_len)
 {
-    ngx_fd_t              fd;
-    ngx_file_t            file;
-    ngx_file_info_t       fi;
-    u_char               *buf, *p, *end, *line_start, *line_end;
-    ssize_t               n;
-    size_t                buf_size;
-    (void) ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_brix_module);
+    ngx_fd_t         fd;
+    ngx_file_t       file;
+    ngx_file_info_t  fi;
+    u_char          *buf;
+    ssize_t          n;
+    size_t           buf_size;
+
+    *out_buf = NULL;
+    *out_len = 0;
 
     fd = ngx_open_file(filename->data, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
     if (fd == NGX_INVALID_FILE) {
@@ -82,7 +101,7 @@ brix_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
     buf_size = (size_t) ngx_file_size(&fi);
     if (buf_size == 0) {
         ngx_close_file(fd);
-        return NGX_OK;
+        return NGX_OK;                 /* empty file: nothing to parse */
     }
     if (buf_size > 1024 * 1024) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
@@ -105,114 +124,178 @@ brix_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
         return NGX_ERROR;
     }
 
+    ngx_close_file(fd);
+    *out_buf = buf;
+    *out_len = (size_t) n;
+    return NGX_OK;
+}
+
+/* WHAT: carve [line_start,line_end) for the next line from *cursor and advance
+ *       *cursor past its EOL; return the leading-whitespace-trimmed start.
+ * WHY:  isolates line-splitting + EOL handling from field tokenization.
+ * HOW:  scan from *cursor to the first CR/LF for the line end, then consume the
+ *       EOL (LF, CR, or CRLF — no double-count) so the next call resumes on the
+ *       following line. *line_start_out is the first non-whitespace byte (may
+ *       equal *line_end_out for a blank line). */
+static void
+adb_next_line(u_char **cursor, u_char *end, u_char **line_start_out,
+              u_char **line_end_out)
+{
+    u_char *p = *cursor;
+    u_char *line_start = p;
+
+    while (p < end && *p != '\n' && *p != '\r') {
+        p++;
+    }
+    *line_end_out = p;
+
+    if (p < end && *p == '\r') p++;
+    if (p < end && *p == '\n') p++;
+    *cursor = p;                        /* carries the loop forward */
+
+    while (line_start < *line_end_out && isspace(*line_start)) {
+        line_start++;
+    }
+    *line_start_out = line_start;
+}
+
+/* WHAT: scan one whitespace-delimited field from *p within [.,line_end); on
+ *       return *field_p is the field start and *p is the field end (first
+ *       trailing whitespace or line_end). Returns 1 if a following field can
+ *       still exist (*p < line_end), 0 if the field ran to line_end.
+ * WHY:  the four authdb fields share one (skip-ws, scan-to-ws, truncation-guard)
+ *       pattern; expressing it once keeps the tokenizer flat and uniform.
+ * HOW:  advance *p over leading whitespace to *field_p, then scan to the next
+ *       whitespace. The boolean return lets the caller reject a line truncated
+ *       before a still-required field (return 0) while allowing the final field
+ *       to legitimately end at line_end. */
+static ngx_flag_t
+adb_scan_field(u_char **p, u_char *line_end, u_char **field_p)
+{
+    while (*p < line_end && isspace(**p)) (*p)++;
+    *field_p = *p;
+    while (*p < line_end && !isspace(**p)) (*p)++;
+    return *p < line_end;
+}
+
+/* WHAT: tokenize one authdb line into its four fields, advancing *cursor past
+ *       the line (including its EOL) for the next call.
+ * WHY:  splits the line-carving + field-scanning grammar out of the parse loop
+ *       so the loop body reads as tokenize → append. Pure over the buffer.
+ * HOW:  adb_next_line carves the trimmed line; a blank line or one starting '#'
+ *       yields out->valid=0. Otherwise scan four space-delimited fields with
+ *       adb_scan_field: a line truncated before path/privs (scan returns 0 on a
+ *       non-final field) yields out->valid=0 (rejected). The last field (privs)
+ *       may be empty. Field slices point into the caller's buffer. */
+static void
+adb_tokenize_line(u_char **cursor, u_char *end, adb_line_t *out)
+{
+    u_char *line_start;
+    u_char *line_end;
+    u_char *p;
+
+    ngx_memzero(out, sizeof(*out));
+    adb_next_line(cursor, end, &line_start, &line_end);
+
+    /* Skip comments and empty lines. */
+    if (line_start == line_end || *line_start == '#') {
+        return;                         /* out->valid stays 0 */
+    }
+
+    /* Format: [u|g|p|a] <id> <path> <privs>. Field 1 (type): only type_p[0] is
+     * read later; the rest of the token (if any) is scanned over but ignored.
+     * Fields 1-3 must be followed by another field, so a 0 return rejects the
+     * line. Field 4 (privs) is last, so its scan return is not required. */
+    p = line_start;
+    if (!adb_scan_field(&p, line_end, &out->type_p)) return;
+
+    if (!adb_scan_field(&p, line_end, &out->id_p)) return;
+    out->id_end = p;
+
+    if (!adb_scan_field(&p, line_end, &out->path_p)) return;
+    out->path_end = p;
+
+    (void) adb_scan_field(&p, line_end, &out->privs_p);
+    out->privs_end = p;
+
+    out->valid = 1;
+}
+
+/* WHAT: push one parsed line as a rule into `rules`, copying id/path into the
+ *       config pool. Returns NGX_OK, or NGX_ERROR on allocation failure.
+ * WHY:  isolates the array-push + pool ownership from the tokenizer so both are
+ *       independently testable and the loop body stays flat.
+ * HOW:  ngx_array_push, then set type from field-1's lead byte only, copy id and
+ *       path into cf->pool (NUL-terminated — the source buffer is freed at
+ *       function exit so rules must own their strings), parse privs, and zero
+ *       resolved[] (filled later by brix_finalize_authdb_rules — deferred
+ *       realpath). */
+static ngx_int_t
+adb_append(ngx_conf_t *cf, ngx_array_t *rules, const adb_line_t *line)
+{
+    brix_authdb_rule_t *rule = ngx_array_push(rules);
+
+    if (rule == NULL) {
+        return NGX_ERROR;
+    }
+
+    /* Rule type is the first byte of field 1 only (e.g. 'u','g','p','a'); a
+     * multi-char first token is effectively truncated to its lead char. */
+    rule->type = (brix_auth_type_t) line->type_p[0];
+
+    rule->id.len = line->id_end - line->id_p;
+    rule->id.data = ngx_palloc(cf->pool, rule->id.len + 1);
+    ngx_memcpy(rule->id.data, line->id_p, rule->id.len);
+    rule->id.data[rule->id.len] = '\0';
+
+    rule->path.len = line->path_end - line->path_p;
+    rule->path.data = ngx_palloc(cf->pool, rule->path.len + 1);
+    ngx_memcpy(rule->path.data, line->path_p, rule->path.len);
+    rule->path.data[rule->path.len] = '\0';
+
+    rule->privs = brix_parse_privs((const char *) line->privs_p,
+                                    line->privs_end - line->privs_p);
+
+    ngx_memzero(rule->resolved, sizeof(rule->resolved));
+    return NGX_OK;
+}
+
+/* Parse the authdb file into `rules`: one rule per line (path + identity matcher
+ * + privileges).  Returns NGX_CONF_OK / NGX_CONF_ERROR. */
+ngx_int_t
+brix_parse_authdb(ngx_conf_t *cf, ngx_str_t *filename, ngx_array_t *rules)
+{
+    u_char      *buf = NULL;
+    u_char      *p;
+    u_char      *end;
+    size_t       buf_len = 0;
+    adb_line_t   line;
+
+    (void) ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_brix_module);
+
+    if (adb_read_file(cf, filename, &buf, &buf_len) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (buf == NULL) {
+        return NGX_OK;                 /* empty file: no rules */
+    }
+
+    /* Line loop: p is the running cursor over the whole buffer. adb_tokenize_line
+     * carves one line and advances p past its EOL; a valid line is appended. */
     p = buf;
-    end = buf + n;
-
-    /* Line loop: p is the running cursor over the whole buffer. Each iteration
-     * carves out one line [line_start, line_end), advances p past the EOL
-     * terminator, then re-tokenizes within that line. line_start/line_end are
-     * mutated below for trimming, so p (not line_end) is what carries the loop
-     * forward to the next line. */
+    end = buf + buf_len;
     while (p < end) {
-        line_start = p;
-        while (p < end && *p != '\n' && *p != '\r') {
-            p++;
-        }
-        line_end = p;
-
-        /* Consume the EOL so the next iteration starts on the following line.
-         * Handles LF, CR, and CRLF (CR then LF) without double-counting. */
-        if (p < end && *p == '\r') p++;
-        if (p < end && *p == '\n') p++;
-
-        /* Skip leading whitespace */
-        while (line_start < line_end && isspace(*line_start)) {
-            line_start++;
-        }
-
-        /* Skip comments and empty lines */
-        if (line_start == line_end || *line_start == '#') {
+        adb_tokenize_line(&p, end, &line);
+        if (!line.valid) {
             continue;
         }
-
-        /* Format: [u|g|p|a] <id> <path> <privs>
-         *
-         * Four space-delimited fields, tokenized left-to-right with the same
-         * two-step pattern per field: (1) skip leading whitespace to the field
-         * start, (2) scan to the next whitespace for the field end. Each
-         * "if (p == line_end) continue" guards against a truncated line that
-         * lacks the field still to come — a missing trailing field aborts the
-         * whole line (the rule is never pushed). NOTE: privs is the last field,
-         * so it has no "p == line_end" guard: an empty privs string is allowed
-         * and parses to a zero (no-permission) bitmask. */
-        u_char *type_p, *id_p, *path_p, *privs_p;
-        u_char *id_end, *path_end, *privs_end;
-
-        /* Field 1: type char. Only type_p[0] is read later; the rest of the
-         * token (if any) is scanned over but ignored. */
-        type_p = line_start;
-        p = type_p;
-        while (p < line_end && !isspace(*p)) p++;
-        if (p == line_end) continue;   /* no id/path/privs follow -> reject */
-
-        /* Field 2: identity id (DN, VO, host/CIDR, or '*'). */
-        id_p = p;
-        while (id_p < line_end && isspace(*id_p)) id_p++;
-        p = id_p;
-        while (p < line_end && !isspace(*p)) p++;
-        if (p == line_end) continue;   /* no path/privs follow -> reject */
-        id_end = p;
-
-        /* Field 3: path prefix this rule applies to. */
-        path_p = id_end;
-        while (path_p < line_end && isspace(*path_p)) path_p++;
-        p = path_p;
-        while (p < line_end && !isspace(*p)) p++;
-        if (p == line_end) continue;   /* no privs follow -> reject */
-        path_end = p;
-
-        /* Field 4: privilege chars. Last field, so reaching line_end here is
-         * fine — privs_p..privs_end may be empty. */
-        privs_p = path_end;
-        while (privs_p < line_end && isspace(*privs_p)) privs_p++;
-        p = privs_p;
-        while (p < line_end && !isspace(*p)) p++;
-        privs_end = p;
-
-        brix_authdb_rule_t *rule = ngx_array_push(rules);
-        if (rule == NULL) {
+        if (adb_append(cf, rules, &line) != NGX_OK) {
             ngx_free(buf);
-            ngx_close_file(fd);
             return NGX_ERROR;
         }
-
-        /* Rule type is the first byte of field 1 only (e.g. 'u','g','p','a');
-         * a multi-char first token is effectively truncated to its lead char. */
-        rule->type = (brix_auth_type_t) type_p[0];
-
-        /* id and path are copied into the config pool (NUL-terminated) because
-         * the source buf is freed at function exit — rules must own their
-         * strings for the lifetime of the config. resolved[] is zeroed now and
-         * filled later by brix_finalize_authdb_rules() (deferred realpath). */
-
-        rule->id.len = id_end - id_p;
-        rule->id.data = ngx_palloc(cf->pool, rule->id.len + 1);
-        ngx_memcpy(rule->id.data, id_p, rule->id.len);
-        rule->id.data[rule->id.len] = '\0';
-
-        rule->path.len = path_end - path_p;
-        rule->path.data = ngx_palloc(cf->pool, rule->path.len + 1);
-        ngx_memcpy(rule->path.data, path_p, rule->path.len);
-        rule->path.data[rule->path.len] = '\0';
-
-        rule->privs = brix_parse_privs((const char *) privs_p,
-                                        privs_end - privs_p);
-        
-        ngx_memzero(rule->resolved, sizeof(rule->resolved));
     }
 
     ngx_free(buf);
-    ngx_close_file(fd);
     return NGX_OK;
 }
 /* Return 1 if `path` is at or beneath `prefix` (component-aligned prefix match). */
@@ -343,6 +426,59 @@ brix_authdb_host_match(const ngx_str_t *rule_id, const char *peer_ip)
     return brix_authdb_host_cidr_match((const char *) rule_id->data,
                                          peer_ip);
 }
+/* WHAT: 1 if a user-type rule's id matches this identity's DN (wildcard or exact).
+ * WHY:  isolates the USER matcher (exact/'*' split) from the dispatch switch.
+ * HOW:  a bare '*' id matches any DN; otherwise require an exact string compare
+ *       of the rule id against dn. dn may be an empty string (no match). */
+static ngx_flag_t
+adb_user_matches(const ngx_str_t *rule_id, const char *dn)
+{
+    if (rule_id->len == 1 && rule_id->data[0] == '*') {
+        return 1;
+    }
+    return ngx_strcmp(rule_id->data, dn) == 0;
+}
+
+/* WHAT: 1 if a group-type rule's id matches this identity's VO list (wildcard or
+ *       membership).
+ * WHY:  isolates the GROUP matcher ('*'/VO-membership split) from the switch.
+ * HOW:  a bare '*' id matches any VO list; otherwise the rule id (a VO name) must
+ *       appear in the comma-separated vo_list. */
+static ngx_flag_t
+adb_group_matches(const ngx_str_t *rule_id, const char *vo_list)
+{
+    if (rule_id->len == 1 && rule_id->data[0] == '*') {
+        return 1;
+    }
+    return brix_vo_list_contains(vo_list, (const char *) rule_id->data);
+}
+
+/* WHAT: 1 if `rule` applies to this identity by its matcher type; else 0.
+ * WHY:  table-flat dispatch over the four rule kinds (all/user/group/host),
+ *       keeping the caller's loop body linear. Pure — no I/O, no mutation.
+ * HOW:  branch on rule->type: ALL matches unconditionally; USER splits to
+ *       adb_user_matches(dn); GROUP to adb_group_matches(vo_list); HOST to
+ *       brix_authdb_host_match(peer_ip). Any unknown type does not match
+ *       (default-deny). Semantics are frozen against the multi-user conformance
+ *       suite; do not alter the per-type rules. */
+static ngx_flag_t
+adb_identity_matches(const brix_authdb_rule_t *rule, const char *dn,
+                     const char *vo_list, const char *peer_ip)
+{
+    switch (rule->type) {
+    case BRIX_AUTH_ALL:
+        return 1;
+    case BRIX_AUTH_USER:
+        return adb_user_matches(&rule->id, dn);
+    case BRIX_AUTH_GROUP:
+        return adb_group_matches(&rule->id, vo_list);
+    case BRIX_AUTHDB_HOST:
+        return brix_authdb_host_match(&rule->id, peer_ip);
+    default:
+        return 0;
+    }
+}
+
 /* Find the authdb rule granting `needed_privs` on resolved_path for `identity`;
  * returns the matching rule or NULL. */
 const brix_authdb_rule_t *
@@ -372,49 +508,15 @@ brix_find_authdb_rule_identity(const char *resolved_path, ngx_array_t *rules,
             continue;
         }
 
-        /* Check identity */
-        ngx_flag_t match = 0;
-        switch (rule[i].type) {
-        case BRIX_AUTH_ALL:
-            match = 1;
-            break;
-        case BRIX_AUTH_USER:
-            if (rule[i].id.len == 1 && rule[i].id.data[0] == '*') {
-                match = 1;
-            } else if (ngx_strcmp(rule[i].id.data, dn) == 0) {
-                match = 1;
-            }
-            break;
-        case BRIX_AUTH_GROUP:
-            if (rule[i].id.len == 1 && rule[i].id.data[0] == '*') {
-                match = 1;
-            } else if (brix_vo_list_contains(vo_list,
-                                               (const char *) rule[i].id.data))
-            {
-                match = 1;
-            }
-            break;
-        case BRIX_AUTHDB_HOST:
-            match = brix_authdb_host_match(&rule[i].id, peer_ip);
-            break;
-        default:
-            break;
-        }
-
-        if (!match) {
+        if (!adb_identity_matches(&rule[i], dn, vo_list, peer_ip)) {
             continue;
         }
 
-        /* If identity matches, but doesn't have enough privs, we keep looking
-         * for a more specific rule? Or does XRootD stop at the first match?
-         * XRootD usually uses longest prefix. If multiple rules have same
-         * length, it depends on order. Here we take the longest prefix that
-         * matches identity AND has the required privs. */
-        
         /* Path + identity match: now require the rule to grant ALL needed bits
          * ((privs & needed) == needed). Only sufficient rules compete; among
          * them the longest prefix wins, with >= letting a later equal-length
-         * rule override an earlier one (config last-wins on ties). */
+         * rule override an earlier one (config last-wins on ties). This is the
+         * XRootD longest-prefix semantics — frozen against the conformance suite. */
         if ((rule[i].privs & needed_privs) == needed_privs) {
             if (rule_len >= best_len) {
                 best = &rule[i];
@@ -456,12 +558,10 @@ brix_find_authdb_rule(const char *resolved_path, ngx_array_t *rules,
                                             &fallback, ctx->login.peer_ip,
                                             needed_privs);
 }
-/* Authorize `identity` for needed_privs on resolved_path against the rules.
- * Returns NGX_OK (granted) or NGX_ERROR (denied). */
+/* Authorize `query->identity` for query->needed_privs on query->resolved_path
+ * against query->rules. Returns NGX_OK (granted) or NGX_ERROR (denied). */
 ngx_int_t
-brix_check_authdb_identity(ngx_log_t *log, ngx_array_t *rules,
-                    const brix_identity_t *identity, const char *peer_ip,
-                    const char *resolved_path, uint32_t needed_privs)
+brix_check_authdb_identity(ngx_log_t *log, const brix_authdb_query_t *query)
 {
     const brix_authdb_rule_t   *rule;
     char                          safe_path[512];
@@ -469,26 +569,28 @@ brix_check_authdb_identity(ngx_log_t *log, ngx_array_t *rules,
     const char                   *vo_list;
 
     /* No rules loaded == no authdb policy == unrestricted (allow-all). */
-    if (rules == NULL || rules->nelts == 0) {
+    if (query->rules == NULL || query->rules->nelts == 0) {
         return NGX_OK;
     }
 
-    rule = brix_find_authdb_rule_identity(resolved_path, rules, identity,
-                                            peer_ip, needed_privs);
+    rule = brix_find_authdb_rule_identity(query->resolved_path, query->rules,
+                                            query->identity, query->peer_ip,
+                                            query->needed_privs);
     if (rule != NULL) {
         return NGX_OK;
     }
 
-    dn = brix_identity_dn_cstr(identity);
-    vo_list = brix_identity_vo_csv_cstr(identity);
-    brix_sanitize_log_string(resolved_path, safe_path, sizeof(safe_path));
+    dn = brix_identity_dn_cstr(query->identity);
+    vo_list = brix_identity_vo_csv_cstr(query->identity);
+    brix_sanitize_log_string(query->resolved_path, safe_path, sizeof(safe_path));
 
     ngx_log_error(NGX_LOG_WARN, log, 0,
                   "brix: authdb denied path=\"%s\" privs=0x%02xd "
                   "dn=\"%s\" vos=\"%s\" peer=\"%s\"",
-                  safe_path, needed_privs, dn,
+                  safe_path, query->needed_privs, dn,
                   vo_list[0] ? vo_list : "-",
-                  (peer_ip != NULL && peer_ip[0]) ? peer_ip : "-");
+                  (query->peer_ip != NULL && query->peer_ip[0])
+                      ? query->peer_ip : "-");
 
     return NGX_ERROR;
 }
@@ -505,10 +607,15 @@ brix_check_authdb(brix_ctx_t *ctx, const char *resolved_path,
     conf = ngx_stream_get_module_srv_conf(ctx->session, ngx_stream_brix_module);
 
     if (ctx->identity != NULL) {
+        brix_authdb_query_t query = {
+            .rules         = conf->authdb_rules,
+            .identity      = ctx->identity,
+            .peer_ip       = ctx->login.peer_ip,
+            .resolved_path = resolved_path,
+            .needed_privs  = needed_privs,
+        };
         return brix_check_authdb_identity(ctx->session->connection->log,
-                                            conf->authdb_rules, ctx->identity,
-                                            ctx->login.peer_ip, resolved_path,
-                                            needed_privs);
+                                            &query);
     }
 
     ngx_memzero(&fallback, sizeof(fallback));
@@ -517,8 +624,12 @@ brix_check_authdb(brix_ctx_t *ctx, const char *resolved_path,
     fallback.vo_csv.data = (u_char *) ctx->login.vo_list;
     fallback.vo_csv.len = strlen(ctx->login.vo_list);
 
-    return brix_check_authdb_identity(ctx->session->connection->log,
-                                        conf->authdb_rules, &fallback,
-                                        ctx->login.peer_ip, resolved_path,
-                                        needed_privs);
+    brix_authdb_query_t query = {
+        .rules         = conf->authdb_rules,
+        .identity      = &fallback,
+        .peer_ip       = ctx->login.peer_ip,
+        .resolved_path = resolved_path,
+        .needed_privs  = needed_privs,
+    };
+    return brix_check_authdb_identity(ctx->session->connection->log, &query);
 }

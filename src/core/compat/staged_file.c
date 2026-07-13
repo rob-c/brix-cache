@@ -48,24 +48,21 @@
  *
  * Parameters:
  *   log — nginx log for error reporting
- *   root_canon — canonical root directory the temp file must reside within
- *   final_path — destination path (used to derive tmp_path name prefix)
- *   open_flags — base open flags (O_WRONLY typically; O_EXCL is added internally)
- *   mode — file creation mode (e.g. 0644)
- *   attempts — max retry count on EEXIST (0 → defaults to 16)
+ *   req — request description: root_canon / final_path / open_flags / mode /
+ *         attempts (see brix_staged_open_req_t)
  *   staged — output struct: fd, tmp_path, active flag populated on success
  */
 ngx_int_t
-brix_staged_open(ngx_log_t *log, const char *root_canon,
-    const char *final_path, int open_flags, mode_t mode, ngx_uint_t attempts,
+brix_staged_open(ngx_log_t *log, const brix_staged_open_req_t *req,
     brix_staged_file_t *staged)
 {
+    ngx_uint_t  attempts;
     ngx_uint_t  i;
     int         rootfd;
 
     (void) log;
 
-    if (staged == NULL || final_path == NULL) {
+    if (staged == NULL || req == NULL || req->final_path == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }
@@ -75,13 +72,14 @@ brix_staged_open(ngx_log_t *log, const char *root_canon,
     /* SECURITY: the temp is created PRIVATE (0600) so another mapped uid on a
      * shared filesystem cannot read an in-progress upload; the caller's intended
      * final mode is restored at commit (staged_commit_internal). */
-    staged->final_mode = mode;
+    staged->final_mode = req->mode;
 
+    attempts = req->attempts;
     if (attempts == 0) {
         attempts = 16;
     }
 
-    rootfd = brix_beneath_open_root(root_canon);
+    rootfd = brix_beneath_open_root(req->root_canon);
     if (rootfd < 0) {
         return NGX_ERROR;
     }
@@ -89,7 +87,7 @@ brix_staged_open(ngx_log_t *log, const char *root_canon,
     for (i = 0; i < attempts; i++) {
         const char *rel;
 
-        if (brix_make_tmp_path(final_path, staged->tmp_path,
+        if (brix_make_tmp_path(req->final_path, staged->tmp_path,
                                  sizeof(staged->tmp_path)) != NGX_OK)
         {
             errno = ENAMETOOLONG;
@@ -97,7 +95,7 @@ brix_staged_open(ngx_log_t *log, const char *root_canon,
             return NGX_ERROR;
         }
 
-        rel = brix_beneath_strip_root(root_canon, staged->tmp_path);
+        rel = brix_beneath_strip_root(req->root_canon, staged->tmp_path);
         if (rel == NULL) {
             errno = EXDEV;
             close(rootfd);
@@ -105,7 +103,8 @@ brix_staged_open(ngx_log_t *log, const char *root_canon,
         }
 
         staged->fd = brix_open_beneath(rootfd, rel,
-                                         open_flags | O_CREAT | O_EXCL, 0600);
+                                         req->open_flags | O_CREAT | O_EXCL,
+                                         0600);
         if (staged->fd != NGX_INVALID_FILE) {
             staged->active = 1;
             close(rootfd);
@@ -137,19 +136,26 @@ brix_staged_open(ngx_log_t *log, const char *root_canon,
  *       random staged_open so security and glob-clean are identical.
  *
  * Returns NGX_OK with staged->active=1, or NGX_ERROR (errno set).
+ *
+ * Parameters:
+ *   log — nginx log for error reporting
+ *   req — request description: root_canon / final_path / principal / stage_dir /
+ *         mode (see brix_staged_open_req_t)
+ *   staged — output struct populated on success
+ *   cur_size — output: current partial size (resume offset), 0 if fresh
  */
 ngx_int_t
-brix_staged_open_resume(ngx_log_t *log, const char *root_canon,
-    const char *final_path, const char *principal, const char *stage_dir,
-    mode_t mode, brix_staged_file_t *staged, off_t *cur_size)
+brix_staged_open_resume(ngx_log_t *log, const brix_staged_open_req_t *req,
+    brix_staged_file_t *staged, off_t *cur_size)
 {
+    const char  *stage_dir;
     int          rootfd, fd;
     const char  *rel;
     struct stat  sb;
 
     (void) log;
 
-    if (staged == NULL || final_path == NULL) {
+    if (staged == NULL || req == NULL || req->final_path == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }
@@ -158,12 +164,12 @@ brix_staged_open_resume(ngx_log_t *log, const char *root_canon,
     /* SECURITY: the resume partial is created PRIVATE (0600) and stays private
      * across requests/restarts (it persists between range chunks); the intended
      * final mode is restored at commit. */
-    staged->final_mode = mode;
+    staged->final_mode = req->mode;
     if (cur_size != NULL) {
         *cur_size = 0;
     }
 
-    if (brix_make_resume_path(final_path, principal, stage_dir,
+    if (brix_make_resume_path(req->final_path, req->principal, req->stage_dir,
                                 staged->tmp_path, sizeof(staged->tmp_path))
         != NGX_OK)
     {
@@ -171,6 +177,7 @@ brix_staged_open_resume(ngx_log_t *log, const char *root_canon,
         return NGX_ERROR;
     }
 
+    stage_dir = req->stage_dir;
     if (stage_dir != NULL && stage_dir[0] != '\0') {
         /* Partial lives on the configured fast device (outside root_canon).  The
          * basename is a server-generated hash inside the operator-trusted stage
@@ -181,11 +188,11 @@ brix_staged_open_resume(ngx_log_t *log, const char *root_canon,
             return NGX_ERROR;
         }
     } else {
-        rootfd = brix_beneath_open_root(root_canon);
+        rootfd = brix_beneath_open_root(req->root_canon);
         if (rootfd < 0) {
             return NGX_ERROR;
         }
-        rel = brix_beneath_strip_root(root_canon, staged->tmp_path);
+        rel = brix_beneath_strip_root(req->root_canon, staged->tmp_path);
         if (rel == NULL) {
             close(rootfd);
             errno = EXDEV;
@@ -244,6 +251,116 @@ commit_be_logical(const char *abs, const char *root)
 }
 
 /*
+ * WHAT: Resolve the read side of a backend commit — reuse the caller's still-open
+ *       staged fd, or open the partial O_RDONLY, and report the mode to publish.
+ *
+ * WHY:  commit_staged_to_backend can be reached with the partial fd still held
+ *       (synchronous close) or already closed (crash-recovery reap), and the
+ *       ownership decision governs whether the read fd must be closed on exit. A
+ *       single resolver keeps that decision out of the copy loop.
+ *
+ * HOW:  If fd is valid, borrow it (*owned=0); else open stage_path O_RDONLY
+ *       (*owned=1). Derive the publish mode from fstat (default 0644). Returns the
+ *       read fd, or NGX_INVALID_FILE with errno set on open failure.
+ *
+ * Parameters:
+ *   fd — caller's staged fd, or NGX_INVALID_FILE
+ *   stage_path — partial path to open when fd is closed
+ *   owned — output: 1 if the returned fd must be closed by the caller
+ *   mode — output: file mode to publish into the backend
+ */
+static ngx_fd_t
+cstb_open_source(ngx_fd_t fd, const char *stage_path, int *owned, mode_t *mode)
+{
+    struct stat  sb;
+    ngx_fd_t     rfd;
+
+    *owned = 0;
+    *mode = 0644;
+
+    if (fd != NGX_INVALID_FILE) {
+        rfd = fd;
+    } else {
+        rfd = open(stage_path, O_RDONLY | O_CLOEXEC);
+        if (rfd < 0) {
+            return NGX_INVALID_FILE;
+        }
+        *owned = 1;
+    }
+
+    if (fstat(rfd, &sb) == 0) {
+        *mode = sb.st_mode & 07777;
+    }
+    return rfd;
+}
+
+/*
+ * WHAT: Stream a POSIX-read partial (via the SD seam) into an open driver-staged
+ *       blob, whole-object, and atomically publish it.
+ *
+ * WHY:  The read→write pump is the body of the cross-backend commit; isolating it
+ *       keeps commit_staged_to_backend a flat acquire/pump/cleanup orchestrator
+ *       and confines the per-chunk error handling to one place.
+ *
+ * HOW:  Wrap rfd as a POSIX source object, positional-read 64 KiB chunks, and
+ *       staged_write each fully before advancing the offset. On any read/write
+ *       error, or a failing staged_commit, abort the driver blob (releasing it)
+ *       and return NGX_ERROR with the originating errno preserved. On success the
+ *       blob is committed (partial NOT unlinked here — the caller owns that).
+ *
+ * Parameters:
+ *   rfd — open read fd for the staged partial (positional reads)
+ *   dst — destination backend instance (driver vtable)
+ *   st — open driver-staged blob to fill and commit
+ */
+static ngx_int_t
+cstb_pump_and_commit(ngx_fd_t rfd, brix_sd_instance_t *dst,
+    brix_sd_staged_t *st)
+{
+    brix_sd_obj_t  src_obj;
+    off_t          off = 0;
+
+    brix_sd_posix_wrap(&src_obj, rfd);   /* read the partial via the SD seam */
+    for ( ;; ) {
+        char    buf[65536];
+        ssize_t r = src_obj.driver->pread(&src_obj, buf, sizeof(buf), off);
+        ssize_t w = 0;
+
+        if (r < 0) {
+            int e = errno;
+            dst->driver->staged_abort(st);
+            errno = e;
+            return NGX_ERROR;
+        }
+        if (r == 0) {
+            break;                          /* EOF: whole partial consumed */
+        }
+        while (w < r) {
+            ssize_t k = dst->driver->staged_write(st, buf + w,
+                                                  (size_t) (r - w), off + w);
+            if (k <= 0) {
+                int e = errno;
+                dst->driver->staged_abort(st);
+                errno = e ? e : EIO;
+                return NGX_ERROR;
+            }
+            w += k;
+        }
+        off += r;
+    }
+
+    /* Atomic publish. On failure staged_commit leaves the handle valid, so abort
+     * to release it; KEEP the POSIX partial so a resume retry can republish. */
+    if (dst->driver->staged_commit(st, 0 /* replace allowed */) != NGX_OK) {
+        int e = errno;
+        dst->driver->staged_abort(st);
+        errno = e ? e : EIO;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/*
  * commit_staged_to_backend — publish a POSIX-staged partial INTO a non-POSIX
  * storage backend (e.g. pblock) by streaming it through that driver's staged
  * write→commit state machine. This is the cross-FILESYSTEM atomic commit that
@@ -261,13 +378,11 @@ commit_staged_to_backend(ngx_fd_t fd, const char *stage_path,
     const char *final_path, brix_sd_instance_t *dst, const char *root_canon,
     ngx_log_t *log)
 {
-    const char         *logical = commit_be_logical(final_path, root_canon);
-    brix_sd_obj_t     src_obj;
-    brix_sd_staged_t *st;
-    struct stat         sb;
-    mode_t              mode;
-    int                 rfd, owned = 0, serr = 0;
-    off_t               off = 0;
+    const char        *logical = commit_be_logical(final_path, root_canon);
+    brix_sd_staged_t  *st;
+    mode_t             mode = 0644;
+    int                rfd, owned = 0, serr = 0;
+    ngx_int_t          rc;
 
     (void) log;
 
@@ -281,16 +396,10 @@ commit_staged_to_backend(ngx_fd_t fd, const char *stage_path,
 
     /* Source: the open staged partial if we still hold it, else open it O_RDONLY.
      * Reads are positional (pread), so the fd's file position is irrelevant. */
-    if (fd != NGX_INVALID_FILE) {
-        rfd = fd;
-    } else {
-        rfd = open(stage_path, O_RDONLY | O_CLOEXEC);
-        if (rfd < 0) {
-            return NGX_ERROR;
-        }
-        owned = 1;
+    rfd = cstb_open_source(fd, stage_path, &owned, &mode);
+    if (rfd == NGX_INVALID_FILE) {
+        return NGX_ERROR;
     }
-    mode = (fstat(rfd, &sb) == 0) ? (sb.st_mode & 07777) : 0644;
 
     st = dst->driver->staged_open(dst, logical, mode, &serr);
     if (st == NULL) {
@@ -299,124 +408,82 @@ commit_staged_to_backend(ngx_fd_t fd, const char *stage_path,
         return NGX_ERROR;
     }
 
-    brix_sd_posix_wrap(&src_obj, rfd);   /* read the partial via the SD seam */
-    for ( ;; ) {
-        char    buf[65536];
-        ssize_t r = src_obj.driver->pread(&src_obj, buf, sizeof(buf), off);
-        ssize_t w = 0;
-
-        if (r < 0) {
-            int e = errno;
-            dst->driver->staged_abort(st);
-            if (owned) { (void) close(rfd); }
-            errno = e;
-            return NGX_ERROR;
-        }
-        if (r == 0) {
-            break;                          /* EOF: whole partial consumed */
-        }
-        while (w < r) {
-            ssize_t k = dst->driver->staged_write(st, buf + w,
-                                                  (size_t) (r - w), off + w);
-            if (k <= 0) {
-                int e = errno;
-                dst->driver->staged_abort(st);
-                if (owned) { (void) close(rfd); }
-                errno = e ? e : EIO;
-                return NGX_ERROR;
-            }
-            w += k;
-        }
-        off += r;
-    }
-
-    /* Atomic publish. On failure staged_commit leaves the handle valid, so abort
-     * to release it; KEEP the POSIX partial so a resume retry can republish. */
-    if (dst->driver->staged_commit(st, 0 /* replace allowed */) != NGX_OK) {
-        int e = errno;
-        dst->driver->staged_abort(st);
-        if (owned) { (void) close(rfd); }
-        errno = e ? e : EIO;
-        return NGX_ERROR;
-    }
-
+    rc = cstb_pump_and_commit(rfd, dst, st);   /* aborts st itself on failure */
     if (owned) { (void) close(rfd); }
+    if (rc != NGX_OK) {
+        return NGX_ERROR;                       /* errno set by the pump */
+    }
+
     (void) unlink(stage_path);              /* published → drop the partial */
     return NGX_OK;
 }
 
 /*
- * WHAT: Commit a staged file onto its final path — atomically and across
- *       filesystems.  When the final export uses a NON-POSIX storage backend
- *       (e.g. pblock), the partial is uploaded INTO that backend via the driver's
- *       staged write→commit state machine (commit_staged_to_backend).  Otherwise
- *       it tries rename(2) first (atomic, same-FS, the fast path); on
- *       EXDEV (the staged file is on a configured fast-cache device different from
- *       the storage, e.g. CEPHFS) it copies the data to a temp ON THE FINAL
- *       filesystem, fsync()s, atomically renames that temp onto the final path,
- *       and unlinks the staged copy.  Either way a concurrent reader sees only the
- *       old object or the complete new one — never a partial.
+ * WHAT: Make the still-open staged fd durable and publish the caller's intended
+ *       mode on it, just before any commit path reads it.
  *
- * WHY:  Upload staging on a fast device + final storage on a POSIX mount means the
- *       commit can be a cross-device move, which rename(2) cannot do.  Centralising
- *       this lets both root:// (close) and WebDAV (PUT) commit identically.
+ * WHY:  close() alone does not flush, and a crash / power loss / ENOSPC mid-write
+ *       must not expose a torn object — so the data must be fsync'd BEFORE the
+ *       commit publishes it. The temp is written 0600 (private); the final mode is
+ *       restored here so every downstream commit path derives the object's mode
+ *       from the fd.
  *
- * fd: the open staged-file descriptor (for the durability fsync before commit), or
- *     NGX_INVALID_FILE if already closed.  Returns NGX_OK / NGX_ERROR (errno set).
+ * HOW:  Wrap fd as a POSIX object and fsync via the backend; a failing fsync means
+ *       "not durable" → NGX_ERROR (do not publish). Then fchmod to final_mode when
+ *       non-zero (0 means "leave the temp's current mode", e.g. root:// POSC temps
+ *       that already carry the client's create mode). No-op for a closed fd.
+ *
+ * Parameters:
+ *   fd — open staged fd, or NGX_INVALID_FILE (crash-recovery reap)
+ *   final_mode — mode to publish, or 0 to keep the temp's mode
  */
-ngx_int_t
-brix_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path,
-                     mode_t final_mode, ngx_log_t *log)
+static ngx_int_t
+commit_flush_and_chmod(ngx_fd_t fd, mode_t final_mode)
+{
+    brix_sd_obj_t  sobj;
+
+    if (fd == NGX_INVALID_FILE) {
+        return NGX_OK;
+    }
+
+    brix_sd_posix_wrap(&sobj, fd);   /* durability flush via the backend */
+    if (sobj.driver->fsync(&sobj) != NGX_OK) {
+        return NGX_ERROR;   /* not durable — do not publish */
+    }
+    /* SECURITY: publish the caller's intended mode on the still-open fd before any
+     * commit path reads it. */
+    if (final_mode != 0) {
+        (void) fchmod(fd, final_mode);
+    }
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Cross-device commit — copy the staged partial to a temp ON THE FINAL
+ *       filesystem, fsync it, atomically rename it onto the final path, and drop
+ *       the staged copy.
+ *
+ * WHY:  When the staged partial sits on a configured fast-cache device different
+ *       from the storage (e.g. CEPHFS), rename(2) returns EXDEV and cannot publish
+ *       it, so the bytes must be moved before the (now same-FS) atomic rename.
+ *
+ * HOW:  Derive a temp adjacent to final_path, open the partial O_RDONLY, create
+ *       the temp preserving the partial's mode, VFS↔VFS move + fsync, close, then
+ *       rename temp→final and unlink the staged copy. Every error path unlinks the
+ *       temp and restores the originating errno.
+ *
+ * Parameters:
+ *   stage_path — the staged partial (cross-device source)
+ *   final_path — destination path (drives the adjacent temp + final rename)
+ */
+static ngx_int_t
+commit_cross_device(const char *stage_path, const char *final_path)
 {
     char         tmp[PATH_MAX];
     int          rfd, dfd, e;
     struct stat  sb;
+    mode_t       mode;
 
-    if (fd != NGX_INVALID_FILE) {
-        brix_sd_obj_t sobj;
-        brix_sd_posix_wrap(&sobj, fd);   /* durability flush via the backend */
-        if (sobj.driver->fsync(&sobj) != NGX_OK) {
-            return NGX_ERROR;   /* not durable — do not publish */
-        }
-        /* SECURITY: publish the caller's intended mode on the still-open fd
-         * before any commit path reads it. The temp may have been written 0600
-         * (private); each downstream path — driver upload (fstats stage_path),
-         * same-FS rename (preserves the fd mode), cross-device copy (fstat at
-         * :411) — then derives the final object's mode from this. final_mode==0
-         * means "leave the temp's current mode as-is" (e.g. root:// POSC temps,
-         * which already carry the client's create mode). */
-        if (final_mode != 0) {
-            (void) fchmod(fd, final_mode);
-        }
-    }
-
-    /* Non-POSIX final export (e.g. pblock): the staged POSIX partial lives on an
-     * independent staging mount and the final namespace is driver-owned, so
-     * rename(2) cannot publish it. Upload the partial INTO the backend via its
-     * staged write→commit state machine (a cross-filesystem atomic publish).
-     * POSIX exports (the common case) skip this and take the rename path below. */
-    {
-        const char           *be_root = NULL;
-        brix_sd_instance_t *dst =
-            brix_vfs_backend_resolve_for_path(final_path, &be_root, log);
-
-        if (dst != NULL && dst->driver != NULL
-            && dst->driver != brix_sd_default_driver())
-        {
-            return commit_staged_to_backend(fd, stage_path, final_path, dst,
-                                            be_root, log);
-        }
-    }
-
-    if (rename(stage_path, final_path) == 0) {
-        return NGX_OK;          /* same filesystem: atomic, zero-copy */
-    }
-    if (errno != EXDEV) {
-        return NGX_ERROR;
-    }
-
-    /* Cross-device commit: copy the staged data to a temp adjacent to (and on the
-     * same filesystem as) the final path, then atomically rename it into place. */
     if (brix_make_tmp_path(final_path, tmp, sizeof(tmp)) != NGX_OK) {
         errno = ENAMETOOLONG;
         return NGX_ERROR;
@@ -426,7 +493,7 @@ brix_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path,
         return NGX_ERROR;
     }
     /* Preserve the staged file's mode on the committed object. */
-    mode_t mode = (fstat(rfd, &sb) == 0) ? (sb.st_mode & 07777) : 0644;
+    mode = (fstat(rfd, &sb) == 0) ? (sb.st_mode & 07777) : 0644;
     dfd = open(tmp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode);
     if (dfd < 0) {
         e = errno; close(rfd); errno = e; return NGX_ERROR;
@@ -453,6 +520,61 @@ brix_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path,
     }
     (void) unlink(stage_path);   /* drop the cache copy; commit succeeded */
     return NGX_OK;
+}
+
+/*
+ * WHAT: Commit a staged file onto its final path — atomically and across
+ *       filesystems.  When the final export uses a NON-POSIX storage backend
+ *       (e.g. pblock), the partial is uploaded INTO that backend via the driver's
+ *       staged write→commit state machine (commit_staged_to_backend).  Otherwise
+ *       it tries rename(2) first (atomic, same-FS, the fast path); on
+ *       EXDEV (the staged file is on a configured fast-cache device different from
+ *       the storage, e.g. CEPHFS) it copies the data to a temp ON THE FINAL
+ *       filesystem, fsync()s, atomically renames that temp onto the final path,
+ *       and unlinks the staged copy.  Either way a concurrent reader sees only the
+ *       old object or the complete new one — never a partial.
+ *
+ * WHY:  Upload staging on a fast device + final storage on a POSIX mount means the
+ *       commit can be a cross-device move, which rename(2) cannot do.  Centralising
+ *       this lets both root:// (close) and WebDAV (PUT) commit identically.
+ *
+ * fd: the open staged-file descriptor (for the durability fsync before commit), or
+ *     NGX_INVALID_FILE if already closed.  Returns NGX_OK / NGX_ERROR (errno set).
+ */
+ngx_int_t
+brix_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path,
+                     mode_t final_mode, ngx_log_t *log)
+{
+    const char          *be_root = NULL;
+    brix_sd_instance_t  *dst;
+
+    if (commit_flush_and_chmod(fd, final_mode) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    /* Non-POSIX final export (e.g. pblock): the staged POSIX partial lives on an
+     * independent staging mount and the final namespace is driver-owned, so
+     * rename(2) cannot publish it. Upload the partial INTO the backend via its
+     * staged write→commit state machine (a cross-filesystem atomic publish).
+     * POSIX exports (the common case) skip this and take the rename path below. */
+    dst = brix_vfs_backend_resolve_for_path(final_path, &be_root, log);
+    if (dst != NULL && dst->driver != NULL
+        && dst->driver != brix_sd_default_driver())
+    {
+        return commit_staged_to_backend(fd, stage_path, final_path, dst,
+                                        be_root, log);
+    }
+
+    if (rename(stage_path, final_path) == 0) {
+        return NGX_OK;          /* same filesystem: atomic, zero-copy */
+    }
+    if (errno != EXDEV) {
+        return NGX_ERROR;
+    }
+
+    /* Cross-device commit: copy the staged data to a temp adjacent to (and on the
+     * same filesystem as) the final path, then atomically rename it into place. */
+    return commit_cross_device(stage_path, final_path);
 }
 
 /*
@@ -537,31 +659,43 @@ brix_stage_unmark_pending(const char *stage_partial)
     }
 }
 
-/* Finish every pending stage-out recorded in stage_dir.  Returns the count of
- * commits completed this pass.  Idempotent and crash-safe: a marker whose partial
- * is already gone (committed by a racing pass / a client retry) is just dropped. */
-ngx_uint_t
-brix_stage_reap_dir(const char *stage_dir, ngx_log_t *log)
+/* Maximum stage-out markers snapshotted per reap pass, and the per-basename cap. */
+#define BRIX_STAGE_REAP_MAX_MARKERS  256
+#define BRIX_STAGE_REAP_NAME_MAX     256
+
+/*
+ * WHAT: Snapshot the basenames of every ".commit" marker in stage_dir into names[]
+ *       (returns the count captured, capped at max).
+ *
+ * WHY:  The reap loop unlinks markers while it works, which would make a live
+ *       readdir skip entries — so the directory is scanned into a snapshot FIRST,
+ *       then the snapshot is processed.
+ *
+ * HOW:  opendir + readdir, keeping only names that end in BRIX_STAGE_COMMIT_SUFFIX
+ *       and fit the basename buffer; copy each (with its NUL) into names[]. A
+ *       missing / unopenable dir yields 0.
+ *
+ * Parameters:
+ *   stage_dir — directory to scan
+ *   names — output array of NUL-terminated basenames
+ *   max — capacity of names[] (entries beyond it are ignored)
+ */
+static ngx_uint_t
+reap_collect_markers(const char *stage_dir,
+    char names[][BRIX_STAGE_REAP_NAME_MAX], ngx_uint_t max)
 {
     DIR           *d;
     struct dirent *de;
-    ngx_uint_t     done = 0;
     size_t         slen = sizeof(BRIX_STAGE_COMMIT_SUFFIX) - 1;
-    /* Snapshot marker basenames first — we unlink while iterating, which would
-     * otherwise make readdir skip entries. */
-    char           names[256][256];
-    ngx_uint_t     ncount = 0, i;
+    ngx_uint_t     ncount = 0;
 
-    if (stage_dir == NULL || stage_dir[0] == '\0') {
-        return 0;
-    }
     d = opendir(stage_dir);
     if (d == NULL) {
         return 0;
     }
-    while ((de = readdir(d)) != NULL && ncount < 256) {
+    while ((de = readdir(d)) != NULL && ncount < max) {
         size_t nlen = strlen(de->d_name);
-        if (nlen > slen && nlen < sizeof(names[0])
+        if (nlen > slen && nlen < BRIX_STAGE_REAP_NAME_MAX
             && strcmp(de->d_name + nlen - slen, BRIX_STAGE_COMMIT_SUFFIX) == 0)
         {
             ngx_memcpy(names[ncount], de->d_name, nlen + 1);
@@ -569,52 +703,131 @@ brix_stage_reap_dir(const char *stage_dir, ngx_log_t *log)
         }
     }
     closedir(d);
+    return ncount;
+}
+
+/*
+ * WHAT: Read a marker's recorded final path into *final (NUL-terminated, trailing
+ *       whitespace trimmed), validating it is a sane absolute path.
+ *
+ * WHY:  A marker's content is the final absolute path to publish the partial to;
+ *       an unreadable, empty, or non-absolute marker is corrupt and must not drive
+ *       a commit.
+ *
+ * HOW:  open O_RDONLY|O_NOFOLLOW, read up to cap-1 bytes, trim trailing CR/LF/space,
+ *       and require a leading '/'. Returns NGX_OK with *final populated, or
+ *       NGX_ERROR (the caller drops the marker).
+ *
+ * Parameters:
+ *   marker — absolute path to the ".commit" marker file
+ *   final — output buffer for the recorded path
+ *   cap — size of final
+ */
+static ngx_int_t
+reap_read_marker_target(const char *marker, char *final, size_t cap)
+{
+    int      mfd;
+    ssize_t  r;
+
+    mfd = open(marker, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (mfd < 0) {
+        return NGX_ERROR;
+    }
+    r = read(mfd, final, cap - 1);
+    close(mfd);
+    if (r <= 0) {
+        return NGX_ERROR;
+    }
+    final[r] = '\0';
+    while (r > 0 && (final[r - 1] == '\n' || final[r - 1] == '\r'
+                     || final[r - 1] == ' ')) {
+        final[--r] = '\0';
+    }
+    if (final[0] != '/') {                 /* sanity: must be absolute */
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Reap one snapshotted marker basename — finish its pending stage-out and
+ *       remove the marker. Returns 1 if a commit completed this call, else 0.
+ *
+ * WHY:  Isolating the per-marker decision (build paths, read target, check the
+ *       partial still exists, commit) keeps brix_stage_reap_dir a flat scan+loop.
+ *       Idempotent: a marker whose partial is gone (committed by a racing pass or
+ *       a client retry) is just dropped.
+ *
+ * HOW:  Build the marker + partial paths under stage_dir; read the target; if the
+ *       partial is missing drop the marker; else brix_commit_staged (no fd →
+ *       final_mode unused, fchmod is fd-guarded, partial keeps its on-disk mode).
+ *       On success unlink the marker + NOTICE-log; on failure WARN and keep it for
+ *       retry.
+ *
+ * Parameters:
+ *   stage_dir — directory holding the marker + partial
+ *   name — ".commit" marker basename to reap
+ *   log — nginx log for the NOTICE / WARN result line
+ */
+static ngx_uint_t
+reap_one_marker(const char *stage_dir, const char *name, ngx_log_t *log)
+{
+    char         marker[PATH_MAX], partial[PATH_MAX], final[PATH_MAX];
+    size_t       slen = sizeof(BRIX_STAGE_COMMIT_SUFFIX) - 1;
+    size_t       nlen = strlen(name);
+    int          n;
+    struct stat  sb;
+
+    n = snprintf(marker, sizeof(marker), "%s/%s", stage_dir, name);
+    if (n < 0 || (size_t) n >= sizeof(marker)) { return 0; }
+    n = snprintf(partial, sizeof(partial), "%s/%.*s", stage_dir,
+                 (int) (nlen - slen), name);
+    if (n < 0 || (size_t) n >= sizeof(partial)) { return 0; }
+
+    if (reap_read_marker_target(marker, final, sizeof(final)) != NGX_OK) {
+        (void) unlink(marker);
+        return 0;
+    }
+
+    if (stat(partial, &sb) != 0) {
+        /* Partial already gone (committed elsewhere) — drop the marker. */
+        (void) unlink(marker);
+        return 0;
+    }
+    /* Crash-recovery: no open fd, so final_mode is unused (fchmod is fd-guarded);
+     * the recovered partial keeps its on-disk mode. */
+    if (brix_commit_staged(NGX_INVALID_FILE, partial, final, 0, log) == NGX_OK) {
+        (void) unlink(marker);
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: completed pending stage-out \"%s\" -> \"%s\"",
+            partial, final);
+        return 1;
+    }
+    ngx_log_error(NGX_LOG_WARN, log, errno,
+        "brix: pending stage-out \"%s\" -> \"%s\" failed; will retry",
+        partial, final);
+    return 0;
+}
+
+/* Finish every pending stage-out recorded in stage_dir.  Returns the count of
+ * commits completed this pass.  Idempotent and crash-safe: a marker whose partial
+ * is already gone (committed by a racing pass / a client retry) is just dropped. */
+ngx_uint_t
+brix_stage_reap_dir(const char *stage_dir, ngx_log_t *log)
+{
+    /* Snapshot marker basenames first — we unlink while iterating, which would
+     * otherwise make readdir skip entries. */
+    char        names[BRIX_STAGE_REAP_MAX_MARKERS][BRIX_STAGE_REAP_NAME_MAX];
+    ngx_uint_t  done = 0, ncount, i;
+
+    if (stage_dir == NULL || stage_dir[0] == '\0') {
+        return 0;
+    }
+    ncount = reap_collect_markers(stage_dir, names,
+                                  BRIX_STAGE_REAP_MAX_MARKERS);
 
     for (i = 0; i < ncount; i++) {
-        char        marker[PATH_MAX], partial[PATH_MAX], final[PATH_MAX];
-        size_t      nlen = strlen(names[i]);
-        int         mfd, n;
-        ssize_t     r;
-        struct stat sb;
-
-        n = snprintf(marker, sizeof(marker), "%s/%s", stage_dir, names[i]);
-        if (n < 0 || (size_t) n >= sizeof(marker)) { continue; }
-        n = snprintf(partial, sizeof(partial), "%s/%.*s", stage_dir,
-                     (int) (nlen - slen), names[i]);
-        if (n < 0 || (size_t) n >= sizeof(partial)) { continue; }
-
-        mfd = open(marker, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-        if (mfd < 0) { continue; }
-        r = read(mfd, final, sizeof(final) - 1);
-        close(mfd);
-        if (r <= 0) { (void) unlink(marker); continue; }
-        final[r] = '\0';
-        while (r > 0 && (final[r - 1] == '\n' || final[r - 1] == '\r'
-                         || final[r - 1] == ' ')) {
-            final[--r] = '\0';
-        }
-        if (final[0] != '/') { (void) unlink(marker); continue; }  /* sanity */
-
-        if (stat(partial, &sb) != 0) {
-            /* Partial already gone (committed elsewhere) — drop the marker. */
-            (void) unlink(marker);
-            continue;
-        }
-        /* Crash-recovery: no open fd, so final_mode is unused (fchmod is
-         * fd-guarded); the recovered partial keeps its on-disk mode. */
-        if (brix_commit_staged(NGX_INVALID_FILE, partial, final, 0, log)
-            == NGX_OK)
-        {
-            (void) unlink(marker);
-            done++;
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "brix: completed pending stage-out \"%s\" -> \"%s\"",
-                partial, final);
-        } else {
-            ngx_log_error(NGX_LOG_WARN, log, errno,
-                "brix: pending stage-out \"%s\" -> \"%s\" failed; will retry",
-                partial, final);
-        }
+        done += reap_one_marker(stage_dir, names[i], log);
     }
     return done;
 }

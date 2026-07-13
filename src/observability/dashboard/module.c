@@ -88,12 +88,65 @@ ngx_http_brix_dashboard_create_loc_conf(ngx_conf_t *cf)
     return conf;
 }
 
+/*
+ * One confinement-root canonicalization request: the merged `root` value, this
+ * level's `canon` buffer to fill, the parent's `prev_canon` to inherit from, the
+ * directive name for the "not accessible" log line, and the config-error string
+ * to surface when the path is too long. `canon`/`prev_canon` are char[PATH_MAX].
+ */
+typedef struct {
+    ngx_str_t  *root;
+    char       *canon;
+    const char *prev_canon;
+    const char *directive;
+    char       *too_long_msg;
+} dashboard_canon_root_t;
+
+/*
+ * WHAT: Resolve a confinement root directive's realpath into req->canon, or
+ *       inherit the parent's already-resolved canon when this level left it unset.
+ * WHY:  browse_root and scan_root share identical canonicalize-once-or-inherit
+ *       logic (a configured-but-bad path fails config loudly, like an export
+ *       root); one helper removes the duplicate block and its branch count.
+ * HOW:  If canon is empty and root is set, copy root to a NUL-terminated buffer
+ *       and realpath() it into canon; on failure log with directive + root and
+ *       return NGX_CONF_ERROR (via *err). If canon is empty but the parent's is
+ *       set, inherit it. Returns NGX_OK on success; NGX_ERROR with *err set to
+ *       the config-error string on failure (too_long_msg for an over-length
+ *       path). Empty root => feature off.
+ */
+static ngx_int_t
+dashboard_merge_canon_root(ngx_conf_t *cf, const dashboard_canon_root_t *req,
+    char **err)
+{
+    if (req->canon[0] == '\0' && req->root->len > 0) {
+        char tmp[PATH_MAX];
+
+        if (brix_str_cbuf(tmp, sizeof(tmp), req->root) == NULL) {
+            *err = req->too_long_msg;
+            return NGX_ERROR;
+        }
+        if (realpath(tmp, req->canon) == NULL) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+                "%s \"%V\" is not accessible", req->directive, req->root);
+            *err = NGX_CONF_ERROR;
+            return NGX_ERROR;
+        }
+        return NGX_OK;
+    }
+    if (req->canon[0] == '\0' && req->prev_canon[0] != '\0') {
+        ngx_memcpy(req->canon, req->prev_canon, PATH_MAX);
+    }
+    return NGX_OK;
+}
+
 static char *
 ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf,
     void *parent, void *child)
 {
     ngx_http_brix_dashboard_loc_conf_t *prev = parent;
     ngx_http_brix_dashboard_loc_conf_t *conf = child;
+    char                               *err = NULL;
 
     ngx_conf_merge_value(conf->enable, prev->enable, 0);
     ngx_conf_merge_value(conf->anonymous, prev->anonymous, 0);
@@ -120,21 +173,15 @@ ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf,
      * so request-time confinement has a stable anchor.  Empty => feature off.  A
      * configured-but-bad path fails config loudly (like an export root). */
     ngx_conf_merge_str_value(conf->browse_root, prev->browse_root, "");
-    if (conf->browse_root_canon[0] == '\0' && conf->browse_root.len > 0) {
-        char tmp[PATH_MAX];
-        if (brix_str_cbuf(tmp, sizeof(tmp), &conf->browse_root) == NULL) {
-            return "brix_dashboard_browse_root path too long";
+    {
+        dashboard_canon_root_t browse = {
+            &conf->browse_root, conf->browse_root_canon,
+            prev->browse_root_canon, "brix_dashboard_browse_root",
+            "brix_dashboard_browse_root path too long"
+        };
+        if (dashboard_merge_canon_root(cf, &browse, &err) != NGX_OK) {
+            return err;
         }
-        if (realpath(tmp, conf->browse_root_canon) == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                "brix_dashboard_browse_root \"%V\" is not accessible",
-                &conf->browse_root);
-            return NGX_CONF_ERROR;
-        }
-    } else if (conf->browse_root_canon[0] == '\0'
-               && prev->browse_root_canon[0] != '\0') {
-        ngx_memcpy(conf->browse_root_canon, prev->browse_root_canon,
-                   sizeof(conf->browse_root_canon));
     }
 
     /* Storage-scan root: canonicalize once (realpath) into scan_root_canon, the
@@ -142,20 +189,14 @@ ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_str_value(conf->scan_root, prev->scan_root, "");
     ngx_conf_merge_value(conf->vfs_browse, prev->vfs_browse, 0);
     ngx_conf_merge_uint_value(conf->scan_max_files, prev->scan_max_files, 100000);
-    if (conf->scan_root_canon[0] == '\0' && conf->scan_root.len > 0) {
-        char tmp[PATH_MAX];
-        if (brix_str_cbuf(tmp, sizeof(tmp), &conf->scan_root) == NULL) {
-            return "brix_scan_root path too long";
+    {
+        dashboard_canon_root_t scan = {
+            &conf->scan_root, conf->scan_root_canon, prev->scan_root_canon,
+            "brix_scan_root", "brix_scan_root path too long"
+        };
+        if (dashboard_merge_canon_root(cf, &scan, &err) != NGX_OK) {
+            return err;
         }
-        if (realpath(tmp, conf->scan_root_canon) == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                "brix_scan_root \"%V\" is not accessible", &conf->scan_root);
-            return NGX_CONF_ERROR;
-        }
-    } else if (conf->scan_root_canon[0] == '\0'
-               && prev->scan_root_canon[0] != '\0') {
-        ngx_memcpy(conf->scan_root_canon, prev->scan_root_canon,
-                   sizeof(conf->scan_root_canon));
     }
     /* Cross-field invariant: a transfer cannot become "stalled" before it is
      * even "idle", so reject a config that inverts the two thresholds. */
@@ -218,7 +259,8 @@ ngx_http_brix_dashboard_set_session_ttl(ngx_conf_t *cf,
 
     value = cf->args->elts;
     seconds = ngx_parse_time(&value[1], 1);
-    if (seconds == (time_t) NGX_ERROR || seconds <= 0) {
+    /* seconds <= 0 already covers the NGX_ERROR (-1) parse-failure sentinel. */
+    if (seconds <= 0) {
         return "invalid time value";
     }
 
@@ -274,6 +316,69 @@ ngx_http_brix_dashboard_set_cookie_path(ngx_conf_t *cf,
  *       A malformed entry (no ':', empty name, empty hash) aborts config load.
  * NOTE: Every early return after fopen() closes fp to avoid leaking the FILE*.
  */
+/* Outcome of parsing one line of a brix_dashboard_users file. */
+typedef enum {
+    DASH_USER_LINE_SKIP = 0,   /* blank or '#'-comment: ignore, keep going */
+    DASH_USER_LINE_OK,         /* one user pushed into the array           */
+    DASH_USER_LINE_MALFORMED,  /* no ':', empty name, or empty hash        */
+    DASH_USER_LINE_OOM         /* pool allocation / array push failed      */
+} dashboard_user_line_t;
+
+/*
+ * WHAT: Parse ONE htpasswd-style "username:hash" line into a new user entry in
+ *       `users`.  Blank and '#'-comment lines are skipped.
+ * WHY:  Isolating the per-line logic keeps the file loop flat (open/read/close
+ *       only) and removes its nested branch count, with no behavior change.
+ * HOW:  Trim trailing CR/LF in place; skip blank/comment; split on the first
+ *       ':' (reject absent / leading / empty-hash as MALFORMED); copy both
+ *       halves into pool memory (OOM on any allocation failure). The '\0' NUL
+ *       written over ':' makes `line` the username and colon+1 the hash.
+ */
+static dashboard_user_line_t
+dashboard_parse_user_line(ngx_conf_t *cf, char *line, ngx_array_t *users)
+{
+    char                           *colon, *end;
+    ngx_http_brix_dashboard_user_t *user;
+    size_t                          name_len, hash_len;
+
+    /* Trim trailing CR/LF in place. */
+    end = line + strlen(line);
+    while (end > line && (end[-1] == '\n' || end[-1] == '\r')) {
+        *--end = '\0';
+    }
+    if (line[0] == '\0' || line[0] == '#') {
+        return DASH_USER_LINE_SKIP;
+    }
+
+    /* Split on the first ':'. Reject if absent, leading (empty username),
+     * or with nothing after it (empty hash). */
+    colon = strchr(line, ':');
+    if (colon == NULL || colon == line || colon[1] == '\0') {
+        return DASH_USER_LINE_MALFORMED;
+    }
+
+    /* NUL the ':' so `line` is the username; colon+1 is the hash. */
+    *colon = '\0';
+    name_len = strlen(line);
+    hash_len = strlen(colon + 1);
+
+    user = ngx_array_push(users);
+    if (user == NULL) {
+        return DASH_USER_LINE_OOM;
+    }
+
+    user->username.data = ngx_pnalloc(cf->pool, name_len);
+    user->password_hash.data = ngx_pnalloc(cf->pool, hash_len);
+    if (user->username.data == NULL || user->password_hash.data == NULL) {
+        return DASH_USER_LINE_OOM;
+    }
+    ngx_memcpy(user->username.data, line, name_len);
+    ngx_memcpy(user->password_hash.data, colon + 1, hash_len);
+    user->username.len = name_len;
+    user->password_hash.len = hash_len;
+    return DASH_USER_LINE_OK;
+}
+
 static char *
 ngx_http_brix_dashboard_set_users(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf)
@@ -282,6 +387,7 @@ ngx_http_brix_dashboard_set_users(ngx_conf_t *cf,
     ngx_str_t                            *value;
     FILE                                 *fp;
     char                                  line[2048];
+    char                                 *err = NULL;
 
     /* Mutually exclusive with single-user password mode (see auth.c). */
     if (lcf->password.len != 0) {
@@ -303,56 +409,26 @@ ngx_http_brix_dashboard_set_users(ngx_conf_t *cf,
     lcf->users = ngx_array_create(cf->pool, 4,
         sizeof(ngx_http_brix_dashboard_user_t));
     if (lcf->users == NULL) {
-        fclose(fp);
+        (void) fclose(fp);  /* read-only stream; nothing to recover on close */
         return NGX_CONF_ERROR;
     }
 
     while (fgets(line, sizeof(line), fp) != NULL) {
-        char *colon, *end;
-        ngx_http_brix_dashboard_user_t *user;
-        size_t name_len, hash_len;
-
-        /* Trim trailing CR/LF in place. */
-        end = line + strlen(line);
-        while (end > line && (end[-1] == '\n' || end[-1] == '\r')) {
-            *--end = '\0';
-        }
-        if (line[0] == '\0' || line[0] == '#') {
+        switch (dashboard_parse_user_line(cf, line, lcf->users)) {
+        case DASH_USER_LINE_MALFORMED:
+            err = "contains a malformed user entry";
+            break;
+        case DASH_USER_LINE_OOM:
+            err = NGX_CONF_ERROR;
+            break;
+        default:            /* SKIP or OK: continue reading */
             continue;
         }
-
-        /* Split on the first ':'. Reject if absent, leading (empty username),
-         * or with nothing after it (empty hash). */
-        colon = strchr(line, ':');
-        if (colon == NULL || colon == line || colon[1] == '\0') {
-            fclose(fp);
-            return "contains a malformed user entry";
-        }
-
-        /* NUL the ':' so `line` is the username; colon+1 is the hash. */
-        *colon = '\0';
-        name_len = strlen(line);
-        hash_len = strlen(colon + 1);
-
-        user = ngx_array_push(lcf->users);
-        if (user == NULL) {
-            fclose(fp);
-            return NGX_CONF_ERROR;
-        }
-
-        user->username.data = ngx_pnalloc(cf->pool, name_len);
-        user->password_hash.data = ngx_pnalloc(cf->pool, hash_len);
-        if (user->username.data == NULL || user->password_hash.data == NULL) {
-            fclose(fp);
-            return NGX_CONF_ERROR;
-        }
-        ngx_memcpy(user->username.data, line, name_len);
-        ngx_memcpy(user->password_hash.data, colon + 1, hash_len);
-        user->username.len = name_len;
-        user->password_hash.len = hash_len;
+        (void) fclose(fp);  /* read-only stream; close failure irrelevant */
+        return err;
     }
 
-    fclose(fp);
+    (void) fclose(fp);  /* read-only stream; nothing to recover on close */
     return NGX_CONF_OK;
 }
 
@@ -507,11 +583,144 @@ ngx_module_t ngx_http_brix_dashboard_module = {
     NGX_MODULE_V1_PADDING
 };
 
+/*
+ * Route-table dispatch (main_handler decomposition).
+ *
+ * Two ordered `static const` tables replace the former if-ladder while keeping
+ * byte-identical routing.  Every match test is either `dashboard_uri_eq` (exact)
+ * or `dashboard_uri_prefix` (strictly-longer prefix); both are mutually
+ * exclusive across distinct literals, so within a table order does not change
+ * which literal a URI matches.  The ORDER BETWEEN groups is what stays frozen:
+ * concrete API/handler routes first, then the admin prefix, then the generic
+ * "/api/v1/" catch-all, then the page/login tail — most-specific first.
+ */
+
+/* How a route row matches its literal against the request URI. */
+typedef enum {
+    DASH_MATCH_EQ = 0,   /* exact match  (dashboard_uri_eq)     */
+    DASH_MATCH_PREFIX    /* strict prefix (dashboard_uri_prefix) */
+} dashboard_match_kind_t;
+
+/* A route that dispatches into the versioned JSON API by endpoint id. */
+typedef struct {
+    dashboard_match_kind_t         match;
+    const char                    *literal;
+    brix_dashboard_api_endpoint_e  endpoint;
+} dashboard_api_route_t;
+
+/* A route that dispatches to a dedicated per-endpoint handler (exact match). */
+typedef struct {
+    const char *literal;
+    ngx_int_t (*handler)(ngx_http_request_t *r);
+} dashboard_handler_route_t;
+
+/*
+ * Concrete versioned-API routes (compat + /api/v1/ *).  Exact rows are mutually
+ * exclusive; the single PREFIX row (".../transfers/") is exclusive from the
+ * exact ".../transfers" because prefix requires uri STRICTLY longer.
+ */
+static const dashboard_api_route_t dashboard_api_routes[] = {
+    { DASH_MATCH_EQ,     "/brix/transfers",             BRIX_DASHBOARD_API_COMPAT_TRANSFERS },
+    { DASH_MATCH_EQ,     "/brix/api/v1/transfers",      BRIX_DASHBOARD_API_V1_TRANSFERS },
+    { DASH_MATCH_PREFIX, "/brix/api/v1/transfers/",     BRIX_DASHBOARD_API_V1_TRANSFER_DETAIL },
+    { DASH_MATCH_EQ,     "/brix/api/v1/snapshot",       BRIX_DASHBOARD_API_V1_SNAPSHOT },
+    { DASH_MATCH_EQ,     "/brix/api/v1/events",         BRIX_DASHBOARD_API_V1_EVENTS },
+    { DASH_MATCH_EQ,     "/brix/api/v1/history",        BRIX_DASHBOARD_API_V1_HISTORY },
+    { DASH_MATCH_EQ,     "/brix/api/v1/cluster",        BRIX_DASHBOARD_API_V1_CLUSTER },
+    { DASH_MATCH_EQ,     "/brix/api/v1/cache",          BRIX_DASHBOARD_API_V1_CACHE },
+    { DASH_MATCH_EQ,     "/brix/api/v1/ratelimit",      BRIX_DASHBOARD_API_V1_RATELIMIT },  /* Phase 25 */
+    { DASH_MATCH_EQ,     "/brix/api/v1/cvmfs",          BRIX_DASHBOARD_API_V1_CVMFS },      /* phase-68 */
+};
+
+/*
+ * Dedicated-handler routes (exact match).  All ALWAYS auth-only inside their
+ * handler and 404 when the backing feature is unconfigured:
+ *   config   text/plain config download (never anonymous)
+ *   files/download    admin file browser, confined to browse_root
+ *   vfs*     VFS export browser (brix_dashboard_vfs_browse), all via brix_vfs_*
+ *   scan     storage scan/verify/fill engine, confined to scan_root
+ * These must all precede the generic "/api/v1/" catch-all.
+ */
+static const dashboard_handler_route_t dashboard_handler_routes[] = {
+    { "/brix/api/v1/config",       ngx_http_brix_dashboard_config_download_handler },
+    { "/brix/api/v1/files",        ngx_http_brix_dashboard_files_handler },
+    { "/brix/api/v1/download",     ngx_http_brix_dashboard_download_handler },
+    { "/brix/api/v1/vfs",          ngx_http_brix_dashboard_vfs_exports_handler },
+    { "/brix/api/v1/vfs/files",    ngx_http_brix_dashboard_vfs_files_handler },
+    { "/brix/api/v1/vfs/download", ngx_http_brix_dashboard_vfs_download_handler },
+    { "/brix/api/v1/scan",         ngx_http_brix_dashboard_scan_handler },
+};
+
+/*
+ * WHAT: True when `uri` matches `route`'s literal under its match kind.
+ * WHY:  Single predicate keeps the two dispatch loops branch-free of the
+ *       eq-vs-prefix distinction, preserving the exact original semantics.
+ * HOW:  Delegate to the same _eq/_prefix helpers the if-ladder used.
+ */
+static ngx_int_t
+dashboard_api_route_matches(ngx_str_t uri, const dashboard_api_route_t *route)
+{
+    if (route->match == DASH_MATCH_PREFIX) {
+        return dashboard_uri_prefix(uri, route->literal);
+    }
+    return dashboard_uri_eq(uri, route->literal);
+}
+
+/*
+ * WHAT: Try the concrete versioned-API routes; on the first match, dispatch to
+ *       the JSON API handler for that endpoint and store the result in *out.
+ * WHY:  Collapses ten identical eq/prefix -> api_handler branches into one
+ *       ordered scan without changing which URI hits which endpoint id.
+ * HOW:  Linear scan of dashboard_api_routes (exact rows are mutually exclusive;
+ *       order is irrelevant within them). Returns NGX_OK on a match, NGX_DECLINED
+ *       when no API route applies so the caller falls through to later groups.
+ */
+static ngx_int_t
+dashboard_dispatch_api_route(ngx_http_request_t *r, ngx_str_t uri,
+    ngx_int_t *out)
+{
+    size_t i;
+
+    for (i = 0; i < sizeof(dashboard_api_routes)
+                        / sizeof(dashboard_api_routes[0]); i++) {
+        if (dashboard_api_route_matches(uri, &dashboard_api_routes[i])) {
+            *out = ngx_http_brix_dashboard_api_handler(r,
+                dashboard_api_routes[i].endpoint);
+            return NGX_OK;
+        }
+    }
+    return NGX_DECLINED;
+}
+
+/*
+ * WHAT: Try the dedicated-handler routes; on the first exact match, invoke that
+ *       handler and store its result in *out.
+ * WHY:  Collapses the config/files/download/vfs* / scan exact-match branches into
+ *       one scan; all rows are exact and mutually exclusive.
+ * HOW:  Linear scan of dashboard_handler_routes. Returns NGX_OK on a match,
+ *       NGX_DECLINED otherwise (caller continues to the prefix/catch-all/tail).
+ */
+static ngx_int_t
+dashboard_dispatch_handler_route(ngx_http_request_t *r, ngx_str_t uri,
+    ngx_int_t *out)
+{
+    size_t i;
+
+    for (i = 0; i < sizeof(dashboard_handler_routes)
+                        / sizeof(dashboard_handler_routes[0]); i++) {
+        if (dashboard_uri_eq(uri, dashboard_handler_routes[i].literal)) {
+            *out = dashboard_handler_routes[i].handler(r);
+            return NGX_OK;
+        }
+    }
+    return NGX_DECLINED;
+}
+
 /* Main content handler dispatcher */
 /*
  * WHAT: Content handler installed at the dashboard location; routes the request
  *       URI to the page, login, compat-JSON, versioned-API, or admin handler.
- * HOW:  Tests are ordered MOST-SPECIFIC FIRST so exact matches win over prefix
+ * HOW:  Groups are tried MOST-SPECIFIC FIRST so exact matches win over prefix
  *       matches (e.g. ".../transfers" before ".../transfers/<id>", and the
  *       known v1 endpoints before the catch-all "/api/v1/" 404). Per-endpoint
  *       auth lives inside the called handlers, not here. Unmatched -> 404.
@@ -520,7 +729,8 @@ ngx_int_t
 ngx_http_brix_dashboard_main_handler(ngx_http_request_t *r)
 {
     ngx_http_brix_dashboard_loc_conf_t *conf;
-    ngx_str_t                             uri;
+    ngx_str_t                           uri;
+    ngx_int_t                           rc = NGX_DECLINED;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_dashboard_module);
     if (!conf->enable) {
@@ -532,88 +742,11 @@ ngx_http_brix_dashboard_main_handler(ngx_http_request_t *r)
 
     uri = r->uri;
 
-    if (dashboard_uri_eq(uri, "/brix/transfers")) {
-        return ngx_http_brix_dashboard_api_handler(r,
-            BRIX_DASHBOARD_API_COMPAT_TRANSFERS);
+    if (dashboard_dispatch_api_route(r, uri, &rc) == NGX_OK) {
+        return rc;
     }
-
-    if (dashboard_uri_eq(uri, "/brix/api/v1/transfers")) {
-        return ngx_http_brix_dashboard_api_handler(r,
-            BRIX_DASHBOARD_API_V1_TRANSFERS);
-    }
-
-    if (dashboard_uri_prefix(uri, "/brix/api/v1/transfers/")) {
-        return ngx_http_brix_dashboard_api_handler(r,
-            BRIX_DASHBOARD_API_V1_TRANSFER_DETAIL);
-    }
-
-    if (dashboard_uri_eq(uri, "/brix/api/v1/snapshot")) {
-        return ngx_http_brix_dashboard_api_handler(r,
-            BRIX_DASHBOARD_API_V1_SNAPSHOT);
-    }
-
-    if (dashboard_uri_eq(uri, "/brix/api/v1/events")) {
-        return ngx_http_brix_dashboard_api_handler(r,
-            BRIX_DASHBOARD_API_V1_EVENTS);
-    }
-
-    if (dashboard_uri_eq(uri, "/brix/api/v1/history")) {
-        return ngx_http_brix_dashboard_api_handler(r,
-            BRIX_DASHBOARD_API_V1_HISTORY);
-    }
-
-    if (dashboard_uri_eq(uri, "/brix/api/v1/cluster")) {
-        return ngx_http_brix_dashboard_api_handler(r,
-            BRIX_DASHBOARD_API_V1_CLUSTER);
-    }
-
-    if (dashboard_uri_eq(uri, "/brix/api/v1/cache")) {
-        return ngx_http_brix_dashboard_api_handler(r,
-            BRIX_DASHBOARD_API_V1_CACHE);
-    }
-
-    if (dashboard_uri_eq(uri, "/brix/api/v1/ratelimit")) {   /* Phase 25 */
-        return ngx_http_brix_dashboard_api_handler(r,
-            BRIX_DASHBOARD_API_V1_RATELIMIT);
-    }
-
-    if (dashboard_uri_eq(uri, "/brix/api/v1/cvmfs")) {   /* phase-68 */
-        return ngx_http_brix_dashboard_api_handler(r,
-            BRIX_DASHBOARD_API_V1_CVMFS);
-    }
-
-    /* Config download — own handler (text/plain attachment); ALWAYS auth-only,
-     * never anonymous.  Must precede the generic /api/v1/ catch-all below. */
-    if (dashboard_uri_eq(uri, "/brix/api/v1/config")) {
-        return ngx_http_brix_dashboard_config_download_handler(r);
-    }
-
-    /* Admin file browser (list + download); ALWAYS auth-only, confined to
-     * brix_dashboard_browse_root.  404 when the feature is not configured. */
-    if (dashboard_uri_eq(uri, "/brix/api/v1/files")) {
-        return ngx_http_brix_dashboard_files_handler(r);
-    }
-    if (dashboard_uri_eq(uri, "/brix/api/v1/download")) {
-        return ngx_http_brix_dashboard_download_handler(r);
-    }
-
-    /* VFS export browser (census + listing + download); ALWAYS auth-only,
-     * every op routed through brix_vfs_* (logical namespace of ANY
-     * backend, pblock/ceph included). 404 unless brix_dashboard_vfs_browse. */
-    if (dashboard_uri_eq(uri, "/brix/api/v1/vfs")) {
-        return ngx_http_brix_dashboard_vfs_exports_handler(r);
-    }
-    if (dashboard_uri_eq(uri, "/brix/api/v1/vfs/files")) {
-        return ngx_http_brix_dashboard_vfs_files_handler(r);
-    }
-    if (dashboard_uri_eq(uri, "/brix/api/v1/vfs/download")) {
-        return ngx_http_brix_dashboard_vfs_download_handler(r);
-    }
-
-    /* Storage scan/verify/fill engine; ALWAYS auth-only, confined to
-     * brix_scan_root.  404 when the feature is not configured. */
-    if (dashboard_uri_eq(uri, "/brix/api/v1/scan")) {
-        return ngx_http_brix_dashboard_scan_handler(r);
+    if (dashboard_dispatch_handler_route(r, uri, &rc) == NGX_OK) {
+        return rc;
     }
 
     /* Phase 23: admin write API (auth + method routing inside dispatch). */

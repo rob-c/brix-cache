@@ -299,7 +299,10 @@ raw_send_expect_reject(brix_conn *c, const uint8_t hdr24[24],
             return -1;
         }
     }
-    rc = brix_recv(c, 0xffff, &status, &rb, &rl, &st);
+    {
+        brix_resp_out out = { &status, &rb, &rl };
+        rc = brix_recv(c, 0xffff, &out, &st);
+    }
     free(rb);
     if (rc != 0) {
         return 1;   /* kXR_error / closed / timeout → rejected cleanly */

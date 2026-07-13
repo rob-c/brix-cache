@@ -330,14 +330,21 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
         return NGX_ERROR;
     }
 
-    if (brix_staged_open(log, root_canon, orig_path, O_WRONLY, 0600, 16,
-                           &staged) != NGX_OK)
     {
-        ngx_close_file(ckp_fd);
-        brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
-                             "brix: checkpoint recovery cannot stage "
-                             "\"%s\"", orig_path);
-        return NGX_ERROR;
+        brix_staged_open_req_t  oreq = {
+            .root_canon = root_canon,
+            .final_path = orig_path,
+            .open_flags = O_WRONLY,
+            .mode       = 0600,
+            .attempts   = 16,
+        };
+        if (brix_staged_open(log, &oreq, &staged) != NGX_OK) {
+            ngx_close_file(ckp_fd);
+            brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+                                 "brix: checkpoint recovery cannot stage "
+                                 "\"%s\"", orig_path);
+            return NGX_ERROR;
+        }
     }
 
     if (st.st_size > 0
@@ -385,20 +392,25 @@ ckp_recover_one(ngx_log_t *log, const char *root_canon,
     return NGX_OK;
 }
 
-static ngx_int_t
-ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
-    ngx_uint_t depth)
-{
-    DIR           *dp;
-    int            dfd;
-    struct dirent *de;
+/* One opened recovery-scan directory: the stream plus its validated fd. */
+typedef struct {
+    DIR *dp;        /* open stream — caller owns/closes it */
+    int  scan_fd;   /* dirfd(dp), validated >= 0 (safe for fstatat) */
+} ckp_scan_dir_t;
 
-    if (depth > 128) {
-        brix_log_safe_path(log, NGX_LOG_ERR, 0,
-                             "brix: checkpoint recovery depth exceeded at "
-                             "\"%s\"", dir);
-        return NGX_ERROR;
-    }
+/*
+ * Open one recovery-scan directory confined to the export root and hand back
+ * the DIR stream plus its validated directory fd (used for fstatat).  Returns
+ * NGX_OK (caller owns out->dp), NGX_DECLINED for a skippable subdirectory
+ * (private/racing-removed — recovery must continue past it), or NGX_ERROR for
+ * a fatal condition (inaccessible export root or stream setup failure).
+ */
+static ngx_int_t
+ckp_recover_open_dir(ngx_log_t *log, const char *root_canon, const char *dir,
+    ngx_uint_t depth, ckp_scan_dir_t *out)
+{
+    DIR *dp;
+    int  dfd, scan_fd;
 
     dfd = brix_vfs_open_fd(log, root_canon, dir,
                                      O_RDONLY | O_DIRECTORY | O_CLOEXEC
@@ -418,7 +430,7 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
             brix_log_safe_path(log, NGX_LOG_INFO, ngx_errno,
                                  "brix: checkpoint recovery skipping "
                                  "inaccessible dir \"%s\"", dir);
-            return NGX_OK;
+            return NGX_DECLINED;
         }
         brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
                              "brix: checkpoint recovery cannot scan \"%s\"",
@@ -435,7 +447,46 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
         return NGX_ERROR;
     }
 
-    while ((de = readdir(dp)) != NULL) {
+    /* fdopendir owns dfd now; re-derive the scan fd once and refuse to walk on
+     * a failed dirfd() so fstatat never sees a negative directory fd. */
+    scan_fd = dirfd(dp);
+    if (scan_fd < 0) {
+        closedir(dp);
+        brix_log_safe_path(log, NGX_LOG_ERR, ngx_errno,
+                             "brix: checkpoint recovery cannot scan \"%s\"",
+                             dir);
+        return NGX_ERROR;
+    }
+
+    out->dp      = dp;
+    out->scan_fd = scan_fd;
+    return NGX_OK;
+}
+
+static ngx_int_t
+ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
+    ngx_uint_t depth)
+{
+    ckp_scan_dir_t sd;
+    struct dirent *de;
+    ngx_int_t      rc;
+
+    if (depth > 128) {
+        brix_log_safe_path(log, NGX_LOG_ERR, 0,
+                             "brix: checkpoint recovery depth exceeded at "
+                             "\"%s\"", dir);
+        return NGX_ERROR;
+    }
+
+    rc = ckp_recover_open_dir(log, root_canon, dir, depth, &sd);
+    if (rc == NGX_DECLINED) {
+        return NGX_OK;   /* skippable subdirectory — logged by the helper */
+    }
+    if (rc != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    while ((de = readdir(sd.dp)) != NULL) {
         char        path[PATH_MAX];
         size_t      dlen, nlen;
         struct stat st;
@@ -447,7 +498,7 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
         dlen = strlen(dir);
         nlen = strlen(de->d_name);
         if (dlen + 1 + nlen >= sizeof(path)) {
-            closedir(dp);
+            closedir(sd.dp);
             return NGX_ERROR;
         }
 
@@ -455,7 +506,7 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
         path[dlen] = '/';
         ngx_memcpy(path + dlen + 1, de->d_name, nlen + 1);
 
-        if (fstatat(dirfd(dp), de->d_name, &st, AT_SYMLINK_NOFOLLOW) != 0) {
+        if (fstatat(sd.scan_fd, de->d_name, &st, AT_SYMLINK_NOFOLLOW) != 0) {
             /* A transiently-removed or inaccessible entry: skip it, don't abort
              * the whole recovery (and thus the worker). */
             brix_log_safe_path(log, NGX_LOG_INFO, ngx_errno,
@@ -466,7 +517,7 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
 
         if (S_ISDIR(st.st_mode)) {
             if (ckp_recover_scan(log, root_canon, path, depth + 1) != NGX_OK) {
-                closedir(dp);
+                closedir(sd.dp);
                 return NGX_ERROR;
             }
             continue;
@@ -474,13 +525,13 @@ ckp_recover_scan(ngx_log_t *log, const char *root_canon, const char *dir,
 
         if (S_ISREG(st.st_mode) && ckp_name_has_suffix(de->d_name)) {
             if (ckp_recover_one(log, root_canon, path) != NGX_OK) {
-                closedir(dp);
+                closedir(sd.dp);
                 return NGX_ERROR;
             }
         }
     }
 
-    closedir(dp);
+    closedir(sd.dp);
     return NGX_OK;
 }
 

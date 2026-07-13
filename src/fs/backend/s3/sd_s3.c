@@ -39,7 +39,9 @@ sd_s3_set_err(char *errbuf, size_t errcap, const char *fmt, ...)
         return;
     }
     va_start(ap, fmt);
-    vsnprintf(errbuf, errcap, fmt, ap);
+    /* Truncation is acceptable for a best-effort error message; vsnprintf
+     * always NUL-terminates within errcap. */
+    (void) vsnprintf(errbuf, errcap, fmt, ap);
     va_end(ap);
 }
 

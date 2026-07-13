@@ -35,6 +35,27 @@ typedef struct {
 
 enum { ACC_TOK_EOF = -1, ACC_TOK_EOR = 0, ACC_TOK_WORD = 1 };
 
+/*
+ * acc_parse_ctx_t — the parse-wide state threaded through the record dispatch
+ * chain.
+ *
+ * WHAT: bundles the destination tables, the running id-definition tail, the
+ *   exclusive-rule sequence counter and the log so that the record helpers take
+ *   one context pointer instead of five loose scalars.
+ * WHY: the XrdAcc record handlers all read `tabs`/`log` and mutate the same
+ *   `id_tail`/`excl_seq` cursors; passing them as a unit keeps signatures small
+ *   (≤5 params) and makes the shared mutable cursors explicit at every call.
+ * HOW: created once on the parse stack in brix_acc_authfile_parse() and passed
+ *   by address down through acc_dispatch_record() and the per-type helpers; the
+ *   pool/spacechar/uridecode inputs live on `tabs` and are read via it.
+ */
+typedef struct {
+    brix_acc_tables_t   *tabs;
+    brix_acc_idrule_t   *id_tail;    /* tail of id_defs, appended in file order */
+    int                  excl_seq;   /* next exclusive-rule order number */
+    ngx_log_t           *log;
+} acc_parse_ctx_t;
+
 static char *
 acc_pstrdup(ngx_pool_t *pool, const u_char *s, size_t len)
 {
@@ -45,6 +66,66 @@ acc_pstrdup(ngx_pool_t *pool, const u_char *s, size_t len)
     ngx_memcpy(d, s, len);
     d[len] = '\0';
     return d;
+}
+
+/* Outcome of skipping inter-token gap: what the scanner is now positioned on. */
+enum { ACC_GAP_EOF = 0, ACC_GAP_EOR, ACC_GAP_WORD };
+
+/*
+ * acc_tok_bslash_is_cont — is the '\' at t->p an end-of-line continuation
+ * (`\<newline>` or `\<cr><newline>`) rather than the start of an escaped path
+ * word?  Advances t->p past the continuation and returns 1 when it is; leaves
+ * t->p untouched and returns 0 otherwise.
+ */
+static int
+acc_tok_bslash_is_cont(acc_tok_t *t)
+{
+    if (t->p + 1 < t->end && t->p[1] == '\n') {
+        t->p += 2;
+        return 1;
+    }
+    if (t->p + 2 < t->end && t->p[1] == '\r' && t->p[2] == '\n') {
+        t->p += 3;
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * acc_tok_skip_gap — advance t->p over separators (space/tab/cr), `\`-newline
+ * continuations and `#` comments, stopping at the first byte that starts a word,
+ * a record-terminating newline, or end of input.  Returns ACC_GAP_WORD /
+ * ACC_GAP_EOR (having consumed the newline) / ACC_GAP_EOF accordingly.  Split
+ * out of acc_tok_next so the classify step is separate from word scanning.
+ */
+static int
+acc_tok_skip_gap(acc_tok_t *t)
+{
+    for (;;) {
+        if (t->p >= t->end) {
+            return ACC_GAP_EOF;
+        }
+        switch (*t->p) {
+        case ' ': case '\t': case '\r':
+            t->p++;
+            continue;
+        case '\\':
+            if (acc_tok_bslash_is_cont(t)) {
+                continue;
+            }
+            return ACC_GAP_WORD;   /* literal '\' begins a word (path escape) */
+        case '#':
+            while (t->p < t->end && *t->p != '\n') {
+                t->p++;
+            }
+            continue;
+        case '\n':
+            t->p++;
+            return ACC_GAP_EOR;
+        default:
+            return ACC_GAP_WORD;
+        }
+    }
 }
 
 /*
@@ -58,37 +139,10 @@ acc_tok_next(acc_tok_t *t, char **word)
 {
     u_char *start;
 
-    for (;;) {
-        if (t->p >= t->end) {
-            return ACC_TOK_EOF;
-        }
-        switch (*t->p) {
-        case ' ': case '\t': case '\r':
-            t->p++;
-            continue;
-        case '\\':
-            /* Backslash at end of line continues the record (join lines). */
-            if (t->p + 1 < t->end && t->p[1] == '\n') {
-                t->p += 2;
-                continue;
-            }
-            if (t->p + 2 < t->end && t->p[1] == '\r' && t->p[2] == '\n') {
-                t->p += 3;
-                continue;
-            }
-            break;  /* otherwise a literal '\' begins a word (path escape) */
-        case '#':
-            while (t->p < t->end && *t->p != '\n') {
-                t->p++;
-            }
-            continue;
-        case '\n':
-            t->p++;
-            return ACC_TOK_EOR;
-        default:
-            break;
-        }
-        break;  /* a word starts here */
+    switch (acc_tok_skip_gap(t)) {
+    case ACC_GAP_EOF: return ACC_TOK_EOF;
+    case ACC_GAP_EOR: return ACC_TOK_EOR;
+    default:          break;   /* ACC_GAP_WORD: a word starts at t->p */
     }
 
     start = t->p;
@@ -209,15 +263,18 @@ acc_cap_path(ngx_pool_t *pool, const char *path, const char *privs,
 /*
  * acc_build_caps — parse the trailing `<path|template> <priv>` pairs of a record
  * (words[start..n]) into a capability list.  Returns NGX_OK and sets *out, or
- * NGX_ERROR (logged).  Mirrors the getPP loop in ConfigDBrec.
+ * NGX_ERROR (logged).  Mirrors the getPP loop in ConfigDBrec.  Pool/tables/log
+ * travel on the parse context so the signature stays ≤5 params.
  */
 static ngx_int_t
-acc_build_caps(ngx_pool_t *pool, brix_acc_tables_t *tabs,
-               char **words, ngx_uint_t start, ngx_uint_t n,
-               brix_acc_cap_t **out, ngx_log_t *log)
+acc_build_caps(acc_parse_ctx_t *pc, char **words, ngx_uint_t start,
+               ngx_uint_t n, brix_acc_cap_t **out)
 {
-    brix_acc_cap_t  *head = NULL, *tail = NULL, *cap;
-    ngx_uint_t         i = start;
+    brix_acc_tables_t *tabs = pc->tabs;
+    ngx_pool_t        *pool = tabs->pool;
+    ngx_log_t         *log  = pc->log;
+    brix_acc_cap_t    *head = NULL, *tail = NULL, *cap;
+    ngx_uint_t          i = start;
 
     while (i < n) {
         char *path = words[i++];
@@ -287,42 +344,76 @@ acc_selector_ok(char c)
 /*
  * acc_iddef_set — bind one `=` selector value into its slot, rejecting a
  * duplicate selector and applying spacechar to identity values (all but host).
- * Returns NGX_OK or NGX_ERROR (logged) — replaces the former `goto dup`.
+ * Returns NGX_OK or NGX_ERROR (logged) — replaces the former `goto dup`.  The
+ * log and spacechar travel on the parse context; only the per-selector slot/
+ * value/letter and the def name are passed loose.
  */
 static ngx_int_t
-acc_iddef_set(char **slot, char *val, char sel, const char *defname,
-              char spacechar, ngx_log_t *log)
+acc_iddef_set(acc_parse_ctx_t *pc, char **slot, char *val, char sel,
+              const char *defname)
 {
     if (*slot != NULL) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
+        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: id selector '%c' twice for %s",
                       sel, defname);
         return NGX_ERROR;
     }
     if (sel != 'h') {               /* spacechar: identity names only, not host */
-        acc_subspace(val, spacechar);
+        acc_subspace(val, pc->tabs->parse_spacechar);
     }
     *slot = val;
     return NGX_OK;
 }
 
+/*
+ * acc_iddef_bind_selector — bind one `<selector> <value>` pair of a `=` record
+ * into the matching slot of `id`, validating the one-letter selector and setting
+ * host length for `h`.  Returns NGX_OK or NGX_ERROR (logged).  Split out of the
+ * iddef loop so the record handler stays a flat scan.
+ */
+static ngx_int_t
+acc_iddef_bind_selector(acc_parse_ctx_t *pc, brix_acc_idrule_t *id,
+                        char **w, const char *defname)
+{
+    char sel = w[0][0];
+    char *val = w[1];
+
+    if (w[0][1] != '\0' || !acc_selector_ok(sel)) {
+        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
+                      "xrootd authdb: invalid id selector \"%s\" for %s",
+                      w[0], defname);
+        return NGX_ERROR;
+    }
+    switch (sel) {
+    case 'g': return acc_iddef_set(pc, &id->grp,  val, sel, defname);
+    case 'h': {
+        ngx_int_t rc = acc_iddef_set(pc, &id->host, val, sel, defname);
+        if (rc == NGX_OK) { id->hlen = (int) ngx_strlen(val); }
+        return rc;
+    }
+    case 'o': return acc_iddef_set(pc, &id->org,  val, sel, defname);
+    case 'r': return acc_iddef_set(pc, &id->role, val, sel, defname);
+    default:  return acc_iddef_set(pc, &id->user, val, sel, defname);
+    }
+}
+
 /* `=` record: define a compound identity (selectors only, caps filled by x/s). */
 static ngx_int_t
-acc_record_iddef(brix_acc_tables_t *tabs, char **w, ngx_uint_t n,
-                 brix_acc_idrule_t **id_tail, ngx_log_t *log)
+acc_record_iddef(acc_parse_ctx_t *pc, char **w, ngx_uint_t n)
 {
+    brix_acc_tables_t *tabs = pc->tabs;
     brix_acc_idrule_t *id;
     ngx_uint_t           i;
 
     if ((n - 2) % 2 != 0 || n < 4) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
+        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: `= %s` needs <selector value> pairs",
                       w[1]);
         return NGX_ERROR;
     }
     for (id = tabs->id_defs; id != NULL; id = id->next) {
         if (ngx_strcmp(id->name, w[1]) == 0) {
-            ngx_log_error(NGX_LOG_EMERG, log, 0,
+            ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
                           "xrootd authdb: duplicate id definition \"%s\"", w[1]);
             return NGX_ERROR;
         }
@@ -333,132 +424,166 @@ acc_record_iddef(brix_acc_tables_t *tabs, char **w, ngx_uint_t n,
     id->rule = INT_MIN;   /* "no x/s rule attached yet" */
 
     for (i = 2; i + 1 < n; i += 2) {
-        char       sel = w[i][0];
-        char      *val = w[i + 1];
-        char       sc  = tabs->parse_spacechar;
-        ngx_int_t  rc;
-
-        if (w[i][1] != '\0' || !acc_selector_ok(sel)) {
-            ngx_log_error(NGX_LOG_EMERG, log, 0,
-                          "xrootd authdb: invalid id selector \"%s\" for %s",
-                          w[i], w[1]);
-            return NGX_ERROR;
-        }
-        switch (sel) {
-        case 'g': rc = acc_iddef_set(&id->grp,  val, sel, w[1], sc, log); break;
-        case 'h': rc = acc_iddef_set(&id->host, val, sel, w[1], sc, log);
-                  if (rc == NGX_OK) { id->hlen = (int) ngx_strlen(val); }
-                  break;
-        case 'o': rc = acc_iddef_set(&id->org,  val, sel, w[1], sc, log); break;
-        case 'r': rc = acc_iddef_set(&id->role, val, sel, w[1], sc, log); break;
-        default:  rc = acc_iddef_set(&id->user, val, sel, w[1], sc, log); break;
-        }
-        if (rc != NGX_OK) {
+        if (acc_iddef_bind_selector(pc, id, &w[i], w[1]) != NGX_OK) {
             return NGX_ERROR;
         }
     }
 
     /* Append in file order. */
-    if (*id_tail == NULL) {
+    if (pc->id_tail == NULL) {
         tabs->id_defs = id;
     } else {
-        (*id_tail)->next = id;
+        pc->id_tail->next = id;
     }
-    *id_tail = id;
+    pc->id_tail = id;
     return NGX_OK;
 }
 
 /* `x`/`s` record: attach capabilities (and exclusive/inclusive flag) to a def. */
 static ngx_int_t
-acc_record_rule(brix_acc_tables_t *tabs, char **w, ngx_uint_t n,
-                int exclusive, int *excl_seq, ngx_log_t *log)
+acc_record_rule(acc_parse_ctx_t *pc, char **w, ngx_uint_t n, int exclusive)
 {
     brix_acc_idrule_t *id;
 
-    for (id = tabs->id_defs; id != NULL; id = id->next) {
+    for (id = pc->tabs->id_defs; id != NULL; id = id->next) {
         if (ngx_strcmp(id->name, w[1]) == 0) {
             break;
         }
     }
     if (id == NULL) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
+        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: missing id definition \"%s\"", w[1]);
         return NGX_ERROR;
     }
     if (id->caps != NULL) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
+        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: duplicate rule for id \"%s\"", w[1]);
         return NGX_ERROR;
     }
-    if (acc_build_caps(tabs->pool, tabs, w, 2, n, &id->caps, log) != NGX_OK) {
+    if (acc_build_caps(pc, w, 2, n, &id->caps) != NGX_OK) {
         return NGX_ERROR;
     }
-    id->rule = exclusive ? (*excl_seq)++ : -1;
+    id->rule = exclusive ? (pc->excl_seq)++ : -1;
     return NGX_OK;
+}
+
+/*
+ * acc_named_t — the resolved placement of one g/h/n/o/r/t/u record: which name
+ * list it prepends to, and whether it is one of the two `u` wildcards (`u *` →
+ * default z_list, `u =` → fungible x_list) which store a bare cap list instead.
+ */
+typedef struct {
+    brix_acc_named_t **head;     /* target name list, or NULL for a wildcard */
+    int                alluser;  /* the `u *` default record */
+    int                anyuser;  /* the `u =` fungible record */
+} acc_named_t;
+
+/*
+ * acc_named_resolve — classify a g/h/n/o/r/t/u record by its type letter and
+ * name into an acc_named_t placement.  Ports the head-selection switch of
+ * ConfigDBrec: `h .suffix` → domain list, `u *`/`u =` → the wildcard slots.
+ * Returns NGX_OK (out filled) or NGX_ERROR for an unknown type.
+ */
+static ngx_int_t
+acc_named_resolve(brix_acc_tables_t *tabs, char rtype, const char *name,
+                  acc_named_t *out)
+{
+    out->head = NULL;
+    out->alluser = 0;
+    out->anyuser = 0;
+
+    switch (rtype) {
+    case 'g': out->head = &tabs->g_list; return NGX_OK;
+    case 'n': out->head = &tabs->n_list; return NGX_OK;
+    case 'o': out->head = &tabs->o_list; return NGX_OK;
+    case 'r': out->head = &tabs->r_list; return NGX_OK;
+    case 't': out->head = &tabs->t_list; return NGX_OK;
+    case 'h':
+        out->head = (name[0] == '.') ? &tabs->d_list : &tabs->h_list;
+        return NGX_OK;
+    case 'u':
+        out->alluser = (name[0] == '*' && name[1] == '\0');
+        out->anyuser = (name[0] == '=' && name[1] == '\0');
+        out->head = &tabs->u_list;
+        return NGX_OK;
+    default:
+        return NGX_ERROR;
+    }
+}
+
+/*
+ * acc_named_is_dup — has this named record already been defined?  A `u *`/`u =`
+ * wildcard is duplicate when its dedicated slot is set; any other name is a
+ * duplicate when already present in its list.  Read-only classification helper.
+ */
+static int
+acc_named_is_dup(brix_acc_tables_t *tabs, const acc_named_t *nc,
+                 const char *name)
+{
+    if (nc->alluser) {
+        return tabs->z_list != NULL;
+    }
+    if (nc->anyuser) {
+        return tabs->x_list != NULL;
+    }
+    return brix_acc_named_find(*nc->head, name) != NULL;
+}
+
+/*
+ * acc_named_store — install the built capability list at its resolved slot: the
+ * default (z), fungible (x), or the prepended name list.  Returns NGX_OK or
+ * NGX_ERROR on alloc failure of the name node.
+ */
+static ngx_int_t
+acc_named_store(brix_acc_tables_t *tabs, const acc_named_t *nc,
+                const char *name, brix_acc_cap_t *caps)
+{
+    if (nc->alluser) {
+        tabs->z_list = caps;
+        return NGX_OK;
+    }
+    if (nc->anyuser) {
+        tabs->x_list = caps;
+        return NGX_OK;
+    }
+    return acc_named_prepend(tabs->pool, nc->head, name, caps) == NULL
+           ? NGX_ERROR : NGX_OK;
 }
 
 /* g/h/n/o/r/t/u record: bind a name to a capability list. */
 static ngx_int_t
-acc_record_named(brix_acc_tables_t *tabs, char rtype, char **w, ngx_uint_t n,
-                 ngx_log_t *log)
+acc_record_named(acc_parse_ctx_t *pc, char rtype, char **w, ngx_uint_t n)
 {
-    brix_acc_named_t **head = NULL;
+    brix_acc_tables_t *tabs = pc->tabs;
     brix_acc_cap_t    *caps;
     char                *name = w[1];
-    int                  alluser = 0, anyuser = 0, domain = 0;
+    acc_named_t          nc;
 
-    switch (rtype) {
-    case 'g': head = &tabs->g_list; break;
-    case 'n': head = &tabs->n_list; break;
-    case 'o': head = &tabs->o_list; break;
-    case 'r': head = &tabs->r_list; break;
-    case 't': head = &tabs->t_list; break;
-    case 'h':
-        domain = (name[0] == '.');
-        head = domain ? &tabs->d_list : &tabs->h_list;
-        break;
-    case 'u':
-        alluser = (name[0] == '*' && name[1] == '\0');
-        anyuser = (name[0] == '=' && name[1] == '\0');
-        head = &tabs->u_list;
-        break;
-    default:
+    if (acc_named_resolve(tabs, rtype, name, &nc) != NGX_OK) {
         return NGX_ERROR;
     }
 
     /* spacechar: substitute in identity names only (g/o/r/u), never the `u *`/
      * `u =` wildcards, host, netgroup or template names (XrdAcc ConfigDBrec). */
     if (rtype == 'g' || rtype == 'o' || rtype == 'r'
-        || (rtype == 'u' && !alluser && !anyuser))
+        || (rtype == 'u' && !nc.alluser && !nc.anyuser))
     {
         acc_subspace(name, tabs->parse_spacechar);
     }
 
-    /* Duplicate detection. */
-    if ((alluser && tabs->z_list != NULL)
-        || (anyuser && tabs->x_list != NULL)
-        || (!alluser && !anyuser
-            && brix_acc_named_find(*head, name) != NULL))
-    {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
+    if (acc_named_is_dup(tabs, &nc, name)) {
+        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: duplicate rule for id \"%s\"", name);
         return NGX_ERROR;
     }
 
-    if (acc_build_caps(tabs->pool, tabs, w, 2, n, &caps, log) != NGX_OK) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
+    if (acc_build_caps(pc, w, 2, n, &caps) != NGX_OK) {
+        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: no capabilities for \"%s\"", name);
         return NGX_ERROR;
     }
 
-    if (alluser) {
-        tabs->z_list = caps;
-    } else if (anyuser) {
-        tabs->x_list = caps;
-    } else if (acc_named_prepend(tabs->pool, head, name, caps) == NULL) {
-        return NGX_ERROR;
-    }
-    return NGX_OK;
+    return acc_named_store(tabs, &nc, name, caps);
 }
 
 
@@ -498,13 +623,12 @@ acc_finalize_rules(brix_acc_tables_t *tabs, ngx_log_t *log)
 
 
 static ngx_int_t
-acc_dispatch_record(brix_acc_tables_t *tabs, char **w, ngx_uint_t n,
-                    brix_acc_idrule_t **id_tail, int *excl_seq, ngx_log_t *log)
+acc_dispatch_record(acc_parse_ctx_t *pc, char **w, ngx_uint_t n)
 {
     char rtype;
 
     if (w[0][0] == '\0' || w[0][1] != '\0') {
-        BRIX_DIAG_EMERG(log, 0,
+        BRIX_DIAG_EMERG(pc->log, 0,
             "xrootd authdb: invalid record type \"%s\"",
             "each record must begin with a single-letter type in column 1",
             "valid record types are = x s g h n o r t u; fix this line in "
@@ -515,43 +639,52 @@ acc_dispatch_record(brix_acc_tables_t *tabs, char **w, ngx_uint_t n,
     rtype = w[0][0];
 
     if (n < 2) {
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
+        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: record name missing after '%c'", rtype);
         return NGX_ERROR;
     }
 
-    tabs->rule_count++;
+    pc->tabs->rule_count++;
 
     switch (rtype) {
-    case '=': return acc_record_iddef(tabs, w, n, id_tail, log);
-    case 'x': return acc_record_rule(tabs, w, n, 1, excl_seq, log);
-    case 's': return acc_record_rule(tabs, w, n, 0, excl_seq, log);
+    case '=': return acc_record_iddef(pc, w, n);
+    case 'x': return acc_record_rule(pc, w, n, 1);
+    case 's': return acc_record_rule(pc, w, n, 0);
     case 'g': case 'h': case 'n': case 'o':
     case 'r': case 't': case 'u':
-        return acc_record_named(tabs, rtype, w, n, log);
+        return acc_record_named(pc, rtype, w, n);
     default:
-        ngx_log_error(NGX_LOG_EMERG, log, 0,
+        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
                       "xrootd authdb: invalid id type \"%c\"", rtype);
         return NGX_ERROR;
     }
 }
 
-brix_acc_tables_t *
-brix_acc_authfile_parse(ngx_log_t *log, const char *file,
-                          char spacechar, ngx_int_t uri_decode)
+/* Outcome of loading the authdb file into memory. */
+enum { ACC_LOAD_OK = 0, ACC_LOAD_EMPTY, ACC_LOAD_ERROR };
+
+/* The slurped authdb file: buffer, byte count and mtime (load out-params). */
+typedef struct {
+    u_char  *buf;
+    size_t   fsize;
+    time_t   mtime;
+} acc_loaded_t;
+
+/*
+ * acc_load_authfile — open, size-check (max 1 MiB) and slurp the authdb `file`
+ * into a fresh pool buffer.  On success fills `ld` (buf/fsize/mtime) and returns
+ * ACC_LOAD_OK; an empty file returns ACC_LOAD_EMPTY (a valid deny-all db, mtime
+ * still set); any error returns ACC_LOAD_ERROR (logged).  Split out of the
+ * parser so the main function is just load then tokenize then finalize.
+ */
+static int
+acc_load_authfile(ngx_log_t *log, const char *file, ngx_pool_t *pool,
+                  acc_loaded_t *ld)
 {
-    brix_acc_tables_t  *tabs;
-    brix_acc_idrule_t  *id_tail = NULL;
-    ngx_pool_t           *pool;
-    ngx_fd_t              fd;
-    ngx_file_info_t       fi;
-    u_char               *buf;
-    ssize_t               nread;
-    size_t                fsize;
-    acc_tok_t             tok;
-    ngx_array_t          *words;       /* of char* for the current record */
-    int                   excl_seq = 0, rc, tok_rc;
-    ngx_int_t             status = NGX_OK;
+    ngx_fd_t         fd;
+    ngx_file_info_t  fi;
+    ssize_t          nread;
+    size_t           n;
 
     fd = ngx_open_file((u_char *) file, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
     if (fd == NGX_INVALID_FILE) {
@@ -562,14 +695,14 @@ brix_acc_authfile_parse(ngx_log_t *log, const char *file,
             "check the path exists and the nginx master/worker user can read "
             "it (the OS reason is appended below)",
             file);
-        return NULL;
+        return ACC_LOAD_ERROR;
     }
     if (ngx_fd_info(fd, &fi) == NGX_FILE_ERROR) {
         ngx_close_file(fd);
-        return NULL;
+        return ACC_LOAD_ERROR;
     }
-    fsize = (size_t) ngx_file_size(&fi);
-    if (fsize > BRIX_ACC_AUTHDB_MAX) {
+    n = (size_t) ngx_file_size(&fi);
+    if (n > BRIX_ACC_AUTHDB_MAX) {
         BRIX_DIAG_EMERG(log, 0,
             "xrootd authdb \"%s\" exceeds the 1 MiB limit",
             "the file is larger than the parser accepts — usually a wrong "
@@ -578,58 +711,57 @@ brix_acc_authfile_parse(ngx_log_t *log, const char *file,
             "something else; split or trim it below 1 MiB",
             file);
         ngx_close_file(fd);
-        return NULL;
+        return ACC_LOAD_ERROR;
     }
 
-    pool = ngx_create_pool(16 * 1024, log);
-    if (pool == NULL) {
-        ngx_close_file(fd);
-        return NULL;
-    }
-    tabs = ngx_pcalloc(pool, sizeof(*tabs));
-    if (tabs == NULL) {
-        ngx_destroy_pool(pool);
-        ngx_close_file(fd);
-        return NULL;
-    }
-    tabs->pool = pool;
-    tabs->mtime = ngx_file_mtime(&fi);
-    tabs->parse_spacechar = spacechar;
-    tabs->parse_uridecode = uri_decode;
+    ld->mtime = ngx_file_mtime(&fi);
+    ld->fsize = n;
 
-    if (fsize == 0) {
+    if (n == 0) {
         ngx_close_file(fd);
-        return tabs;   /* empty authdb = deny-all, valid */
+        return ACC_LOAD_EMPTY;   /* empty authdb = deny-all, valid */
     }
 
-    buf = ngx_pnalloc(pool, fsize);
-    if (buf == NULL) {
-        ngx_destroy_pool(pool);
+    ld->buf = ngx_pnalloc(pool, n);
+    if (ld->buf == NULL) {
         ngx_close_file(fd);
-        return NULL;
+        return ACC_LOAD_ERROR;
     }
-    nread = ngx_read_fd(fd, buf, fsize);
+    nread = ngx_read_fd(fd, ld->buf, n);
     ngx_close_file(fd);
-    if (nread < 0 || (size_t) nread != fsize) {
+    if (nread < 0 || (size_t) nread != n) {
         BRIX_DIAG_EMERG(log, 0,
             "xrootd authdb: short read of \"%s\"",
             "the file changed size or an I/O error occurred while reading it",
             "make sure the authdb is written atomically (write-then-rename), "
             "then re-run nginx -t",
             file);
-        ngx_destroy_pool(pool);
-        return NULL;
+        return ACC_LOAD_ERROR;
     }
+    return ACC_LOAD_OK;
+}
 
-    words = ngx_array_create(pool, 16, sizeof(char *));
+/*
+ * acc_tokenize_and_dispatch — run the tokenizer over `buf`/`fsize`, accumulating
+ * each logical record's words and dispatching them through the parse context.
+ * Returns NGX_OK when the whole buffer parsed, or NGX_ERROR on the first
+ * tokenizer alloc failure or record error (which is already logged).
+ */
+static ngx_int_t
+acc_tokenize_and_dispatch(acc_parse_ctx_t *pc, u_char *buf, size_t fsize)
+{
+    acc_tok_t     tok;
+    ngx_array_t  *words;       /* of char* for the current record */
+    int           tok_rc;
+
+    words = ngx_array_create(pc->tabs->pool, 16, sizeof(char *));
     if (words == NULL) {
-        ngx_destroy_pool(pool);
-        return NULL;
+        return NGX_ERROR;
     }
 
     tok.p = buf;
     tok.end = buf + fsize;
-    tok.pool = pool;
+    tok.pool = pc->tabs->pool;
 
     do {
         char  *w;
@@ -637,21 +769,66 @@ brix_acc_authfile_parse(ngx_log_t *log, const char *file,
 
         if (tok_rc == ACC_TOK_WORD) {
             char **slot = ngx_array_push(words);
-            if (slot == NULL) { status = NGX_ERROR; break; }
+            if (slot == NULL) { return NGX_ERROR; }
             *slot = w;
             continue;
         }
 
         /* End of record or EOF: dispatch any accumulated words. */
         if (words->nelts > 0) {
-            rc = acc_dispatch_record(tabs, (char **) words->elts, words->nelts,
-                                     &id_tail, &excl_seq, log);
-            if (rc != NGX_OK) { status = NGX_ERROR; break; }
+            if (acc_dispatch_record(pc, (char **) words->elts, words->nelts)
+                != NGX_OK)
+            {
+                return NGX_ERROR;
+            }
             words->nelts = 0;
         }
     } while (tok_rc != ACC_TOK_EOF);
 
-    if (status != NGX_OK) {
+    return NGX_OK;
+}
+
+brix_acc_tables_t *
+brix_acc_authfile_parse(ngx_log_t *log, const char *file,
+                          char spacechar, ngx_int_t uri_decode)
+{
+    brix_acc_tables_t  *tabs;
+    ngx_pool_t          *pool;
+    acc_parse_ctx_t      pc;
+    acc_loaded_t         ld = { NULL, 0, 0 };
+    int                  load;
+
+    pool = ngx_create_pool(16 * 1024, log);
+    if (pool == NULL) {
+        return NULL;
+    }
+    tabs = ngx_pcalloc(pool, sizeof(*tabs));
+    if (tabs == NULL) {
+        ngx_destroy_pool(pool);
+        return NULL;
+    }
+
+    load = acc_load_authfile(log, file, pool, &ld);
+    if (load == ACC_LOAD_ERROR) {
+        ngx_destroy_pool(pool);
+        return NULL;
+    }
+
+    tabs->pool = pool;
+    tabs->mtime = ld.mtime;
+    tabs->parse_spacechar = spacechar;
+    tabs->parse_uridecode = uri_decode;
+
+    if (load == ACC_LOAD_EMPTY) {
+        return tabs;   /* empty authdb = deny-all, valid */
+    }
+
+    pc.tabs = tabs;
+    pc.id_tail = NULL;
+    pc.excl_seq = 0;
+    pc.log = log;
+
+    if (acc_tokenize_and_dispatch(&pc, ld.buf, ld.fsize) != NGX_OK) {
         ngx_destroy_pool(pool);
         return NULL;
     }

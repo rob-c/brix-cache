@@ -65,8 +65,11 @@ void *brix_sd_cache_source_instance(void *inst)
 { (void) inst; g_unexpected_stub++; return NULL; }
 unsigned brix_sd_stage_instance_is(void *inst)
 { (void) inst; g_unexpected_stub++; return 0; }
-ngx_int_t brix_sd_stage_reflush(void *inst, const char *key)
-{ (void) inst; (void) key; g_unexpected_stub++; return NGX_ERROR; }
+ngx_int_t brix_sd_stage_reflush(void *inst, const char *key, const void *cred)
+{ (void) inst; (void) key; (void) cred; g_unexpected_stub++; return NGX_ERROR; }
+/* brix_sd_ucred_resolve: added by stage_engine.c (never reached for corrupt recs) */
+ngx_int_t brix_sd_ucred_resolve(const char *dir, const char *key, void *out)
+{ (void) dir; (void) key; (void) out; g_unexpected_stub++; return NGX_ERROR; }
 void brix_xfer_finish(int kind, const char *dir, const char *src,
     const char *dst, size_t bytes, int result, int err, void *log)
 { (void) kind; (void) dir; (void) src; (void) dst; (void) bytes;

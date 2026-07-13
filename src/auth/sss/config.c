@@ -162,7 +162,7 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
 
     keys = ngx_array_create(cf->pool, 4, sizeof(brix_sss_key_t));
     if (keys == NULL) {
-        fclose(fp);
+        (void) fclose(fp); /* phase74-fp: read-only stream on an error path already returning NGX_ERROR */
         return NGX_ERROR;
     }
 
@@ -170,7 +170,7 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
     while (fgets(line, sizeof(line), fp) != NULL) {
         line_no++;
         if (brix_sss_parse_key_line(cf, keys, line, line_no) != NGX_OK) {
-            fclose(fp);
+            (void) fclose(fp); /* phase74-fp: read-only stream on an error path already returning NGX_ERROR */
             return NGX_ERROR;
         }
     }
@@ -178,11 +178,11 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
     if (ferror(fp)) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
                            "brix: cannot read SSS keytab \"%V\"", path);
-        fclose(fp);
+        (void) fclose(fp); /* phase74-fp: read-only stream on an error path already returning NGX_ERROR */
         return NGX_ERROR;
     }
 
-    fclose(fp);
+    (void) fclose(fp); /* phase74-fp: read-only stream fully consumed, ferror checked above */
 
     if (keys->nelts == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,

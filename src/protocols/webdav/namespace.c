@@ -33,6 +33,13 @@ webdav_ns_vfs_ctx_init(ngx_http_request_t *r, const char *path,
         BRIX_PROTO_WEBDAV, conf->common.root_canon,
         conf->cache_root_canon, conf->common.allow_write, is_tls,
         (wctx != NULL) ? wctx->identity : NULL, path);
+    /* Wire per-user backend credential gate (Phase 2 Task 1) so that
+     * DELETE/MKCOL namespace ops on a remote backend use the per-user
+     * credential and deny mode rejects before opening any origin session. */
+    brix_vfs_ctx_bind_backend_cred(vctx,
+        &conf->common.storage_credential_dir,
+        conf->common.storage_credential_fallback);
+    webdav_vfs_bind_deleg(r, conf, vctx);
 }
 
 /*
@@ -96,14 +103,18 @@ webdav_handle_delete(ngx_http_request_t *r)
         return webdav_send_no_body(r, NGX_HTTP_NO_CONTENT);
     }
 
-    /* Preserve the prior status mapping: ENOTEMPTY (BRIX_NS_NOT_EMPTY) -> 409,
-     * ENOENT (BRIX_NS_NOT_FOUND) -> 404, anything else -> 500. */
+    /* Status mapping: ENOTEMPTY -> 409, ENOENT -> 404, EACCES -> 403 (deny-mode
+     * credential gate rejection from per-user backend cred gate), else 500. */
     if (errno == ENOTEMPTY) {
         return NGX_HTTP_CONFLICT;
     }
 
     if (errno == ENOENT) {
         return NGX_HTTP_NOT_FOUND;
+    }
+
+    if (errno == EACCES) {
+        return NGX_HTTP_FORBIDDEN;
     }
 
     return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -150,6 +161,10 @@ webdav_handle_mkcol(ngx_http_request_t *r)
 
     if (errno == ENOENT) {
         return NGX_HTTP_CONFLICT;
+    }
+
+    if (errno == EACCES) {
+        return NGX_HTTP_FORBIDDEN;
     }
 
     return NGX_HTTP_INTERNAL_SERVER_ERROR;

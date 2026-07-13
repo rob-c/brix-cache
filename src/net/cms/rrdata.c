@@ -89,6 +89,82 @@ read_int(const unsigned char **p, const unsigned char *end, uint32_t *v)
     return 0;
 }
 
+/*
+ * Per-arg-group decoders. Each mirrors one XrdCmsParser Pup arg vector
+ * (fwdArgA/B/C, padArgs, pdlArgs, locArgs); field order is wire-frozen.
+ * All take the shared cursor (*p advanced in place, bounded by end) and fill
+ * the matching fields of *out. Return 0 on success, -1 on a short buffer.
+ */
+
+/* fwdArgA: ident, mode, path, [opaque] — kYR_chmod/mkdir/mkpath/trunc. */
+static int
+parse_fwd_a(const unsigned char **p, const unsigned char *end,
+            brix_cms_rrdata_t *out)
+{
+    if (read_str(p, end, &out->ident, &out->ident_len) != 0) return -1;
+    if (read_str(p, end, &out->mode,  &out->mode_len)  != 0) return -1;
+    if (read_str(p, end, &out->path,  &out->path_len)  != 0) return -1;
+    return read_opt_str(p, end, &out->opaque, &out->opaque_len);
+}
+
+/* fwdArgB: ident, path, path2, [opaque, opaque2] — kYR_mv. */
+static int
+parse_fwd_b(const unsigned char **p, const unsigned char *end,
+            brix_cms_rrdata_t *out)
+{
+    if (read_str(p, end, &out->ident, &out->ident_len) != 0) return -1;
+    if (read_str(p, end, &out->path,  &out->path_len)  != 0) return -1;
+    if (read_str(p, end, &out->path2, &out->path2_len) != 0) return -1;
+    if (read_opt_str(p, end, &out->opaque, &out->opaque_len) != 0) return -1;
+    return read_opt_str(p, end, &out->opaque2, &out->opaque2_len);
+}
+
+/* fwdArgC: ident, path, [opaque] — kYR_rm/rmdir/statfs. */
+static int
+parse_fwd_c(const unsigned char **p, const unsigned char *end,
+            brix_cms_rrdata_t *out)
+{
+    if (read_str(p, end, &out->ident, &out->ident_len) != 0) return -1;
+    if (read_str(p, end, &out->path,  &out->path_len)  != 0) return -1;
+    return read_opt_str(p, end, &out->opaque, &out->opaque_len);
+}
+
+/* padArgs: ident, reqid, notify, prty, mode, path, [opaque] — kYR_prepadd. */
+static int
+parse_pad(const unsigned char **p, const unsigned char *end,
+          brix_cms_rrdata_t *out)
+{
+    if (read_str(p, end, &out->ident,  &out->ident_len)  != 0) return -1;
+    if (read_str(p, end, &out->reqid,  &out->reqid_len)  != 0) return -1;
+    if (read_str(p, end, &out->notify, &out->notify_len) != 0) return -1;
+    if (read_str(p, end, &out->prty,   &out->prty_len)   != 0) return -1;
+    if (read_str(p, end, &out->mode,   &out->mode_len)   != 0) return -1;
+    if (read_str(p, end, &out->path,   &out->path_len)   != 0) return -1;
+    return read_opt_str(p, end, &out->opaque, &out->opaque_len);
+}
+
+/* pdlArgs: ident, reqid — kYR_prepdel. */
+static int
+parse_pdl(const unsigned char **p, const unsigned char *end,
+          brix_cms_rrdata_t *out)
+{
+    if (read_str(p, end, &out->ident, &out->ident_len) != 0) return -1;
+    return read_str(p, end, &out->reqid, &out->reqid_len);
+}
+
+/* locArgs: ident, opts(int), path, [opaque, avoid] — kYR_locate/select. */
+static int
+parse_loc(const unsigned char **p, const unsigned char *end,
+          brix_cms_rrdata_t *out)
+{
+    if (read_str(p, end, &out->ident, &out->ident_len) != 0) return -1;
+    if (read_int(p, end, &out->opts) != 0) return -1;
+    out->has_opts = 1;
+    if (read_str(p, end, &out->path, &out->path_len) != 0) return -1;
+    if (read_opt_str(p, end, &out->opaque, &out->opaque_len) != 0) return -1;
+    return read_opt_str(p, end, &out->avoid, &out->avoid_len);
+}
+
 int
 brix_cms_rrdata_parse(unsigned char code,
                         const unsigned char *payload, size_t len,
@@ -105,58 +181,25 @@ brix_cms_rrdata_parse(unsigned char code,
     case K_MKDIR:
     case K_MKPATH:
     case K_TRUNC:
-        /* fwdArgA: ident, mode, path, [opaque] */
-        if (read_str(&p, end, &out->ident, &out->ident_len) != 0) return -1;
-        if (read_str(&p, end, &out->mode,  &out->mode_len)  != 0) return -1;
-        if (read_str(&p, end, &out->path,  &out->path_len)  != 0) return -1;
-        if (read_opt_str(&p, end, &out->opaque, &out->opaque_len) != 0) return -1;
-        return 0;
+        return parse_fwd_a(&p, end, out);
 
     case K_MV:
-        /* fwdArgB: ident, path, path2, [opaque, opaque2] */
-        if (read_str(&p, end, &out->ident, &out->ident_len) != 0) return -1;
-        if (read_str(&p, end, &out->path,  &out->path_len)  != 0) return -1;
-        if (read_str(&p, end, &out->path2, &out->path2_len) != 0) return -1;
-        if (read_opt_str(&p, end, &out->opaque,  &out->opaque_len)  != 0) return -1;
-        if (read_opt_str(&p, end, &out->opaque2, &out->opaque2_len) != 0) return -1;
-        return 0;
+        return parse_fwd_b(&p, end, out);
 
     case K_RM:
     case K_RMDIR:
     case K_STATFS:
-        /* fwdArgC: ident, path, [opaque] */
-        if (read_str(&p, end, &out->ident, &out->ident_len) != 0) return -1;
-        if (read_str(&p, end, &out->path,  &out->path_len)  != 0) return -1;
-        if (read_opt_str(&p, end, &out->opaque, &out->opaque_len) != 0) return -1;
-        return 0;
+        return parse_fwd_c(&p, end, out);
 
     case K_PREPADD:
-        /* padArgs: ident, reqid, notify, prty, mode, path, [opaque] */
-        if (read_str(&p, end, &out->ident,  &out->ident_len)  != 0) return -1;
-        if (read_str(&p, end, &out->reqid,  &out->reqid_len)  != 0) return -1;
-        if (read_str(&p, end, &out->notify, &out->notify_len) != 0) return -1;
-        if (read_str(&p, end, &out->prty,   &out->prty_len)   != 0) return -1;
-        if (read_str(&p, end, &out->mode,   &out->mode_len)   != 0) return -1;
-        if (read_str(&p, end, &out->path,   &out->path_len)   != 0) return -1;
-        if (read_opt_str(&p, end, &out->opaque, &out->opaque_len) != 0) return -1;
-        return 0;
+        return parse_pad(&p, end, out);
 
     case K_PREPDEL:
-        /* pdlArgs: ident, reqid */
-        if (read_str(&p, end, &out->ident, &out->ident_len) != 0) return -1;
-        if (read_str(&p, end, &out->reqid, &out->reqid_len) != 0) return -1;
-        return 0;
+        return parse_pdl(&p, end, out);
 
     case K_LOCATE:
     case K_SELECT:
-        /* locArgs: ident, opts(int), path, [opaque, avoid] */
-        if (read_str(&p, end, &out->ident, &out->ident_len) != 0) return -1;
-        if (read_int(&p, end, &out->opts) != 0) return -1;
-        out->has_opts = 1;
-        if (read_str(&p, end, &out->path, &out->path_len) != 0) return -1;
-        if (read_opt_str(&p, end, &out->opaque, &out->opaque_len) != 0) return -1;
-        if (read_opt_str(&p, end, &out->avoid,  &out->avoid_len)  != 0) return -1;
-        return 0;
+        return parse_loc(&p, end, out);
 
     default:
         return -1;
@@ -190,14 +233,38 @@ enc_str(unsigned char **p, unsigned char *end, const char *s)
     return 0;
 }
 
+/*
+ * Encode a fixed sequence of mandatory Pup strings followed by an optional
+ * trailing opaque (omitted entirely when opaque==NULL — the wire form for an
+ * absent optional field). Shared body of every rrdata_encode arg group; the
+ * caller supplies the group's field order. Returns 0 / -1 on overflow.
+ */
+static int
+enc_seq(unsigned char **p, unsigned char *end,
+        const char *const *fields, size_t nfields, const char *opaque)
+{
+    size_t i;
+
+    for (i = 0; i < nfields; i++) {
+        if (enc_str(p, end, fields[i]) != 0) {
+            return -1;
+        }
+    }
+    if (opaque != NULL && enc_str(p, end, opaque) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
 int
-brix_cms_rrdata_encode(unsigned char code, const char *ident,
-                         const char *path, const char *path2,
-                         const char *mode, const char *opaque,
+brix_cms_rrdata_encode(unsigned char code,
+                         const brix_cms_fwd_fields_t *fields,
                          unsigned char *buf, size_t buflen)
 {
     unsigned char *p   = buf;
     unsigned char *end = buf + buflen;
+    const char    *seq[3];
+    size_t         nseq;
 
     switch (code) {
 
@@ -206,37 +273,36 @@ brix_cms_rrdata_encode(unsigned char code, const char *ident,
     case K_MKPATH:
     case K_TRUNC:
         /* fwdArgA: ident, mode, path, [opaque] */
-        if (enc_str(&p, end, ident) != 0) return -1;
-        if (enc_str(&p, end, mode)  != 0) return -1;
-        if (enc_str(&p, end, path)  != 0) return -1;
-        if (opaque != NULL && enc_str(&p, end, opaque) != 0) return -1;
-        return (int) (p - buf);
+        seq[0] = fields->ident; seq[1] = fields->mode; seq[2] = fields->path;
+        nseq = 3;
+        break;
 
     case K_MV:
         /* fwdArgB: ident, path, path2, [opaque] */
-        if (enc_str(&p, end, ident) != 0) return -1;
-        if (enc_str(&p, end, path)  != 0) return -1;
-        if (enc_str(&p, end, path2) != 0) return -1;
-        if (opaque != NULL && enc_str(&p, end, opaque) != 0) return -1;
-        return (int) (p - buf);
+        seq[0] = fields->ident; seq[1] = fields->path; seq[2] = fields->path2;
+        nseq = 3;
+        break;
 
     case K_RM:
     case K_RMDIR:
     case K_STATFS:
         /* fwdArgC: ident, path, [opaque] */
-        if (enc_str(&p, end, ident) != 0) return -1;
-        if (enc_str(&p, end, path)  != 0) return -1;
-        if (opaque != NULL && enc_str(&p, end, opaque) != 0) return -1;
-        return (int) (p - buf);
+        seq[0] = fields->ident; seq[1] = fields->path;
+        nseq = 2;
+        break;
 
     default:
         return -1;
     }
+
+    if (enc_seq(&p, end, seq, nseq, fields->opaque) != 0) {
+        return -1;
+    }
+    return (int) (p - buf);
 }
 
 int
-brix_cms_statfs_encode(uint32_t w_num, uint32_t w_free, uint32_t w_util,
-                         uint32_t s_num, uint32_t s_free, uint32_t s_util,
+brix_cms_statfs_encode(const brix_cms_statfs_fields_t *space,
                          unsigned char *buf, size_t buflen)
 {
     int n;
@@ -246,7 +312,8 @@ brix_cms_statfs_encode(uint32_t w_num, uint32_t w_free, uint32_t w_util,
     }
     buf[0] = buf[1] = buf[2] = buf[3] = 0;
     n = snprintf((char *) buf + 4, buflen - 4, "%u %u %u %u %u %u",
-                 w_num, w_free, w_util, s_num, s_free, s_util);
+                 space->w_num, space->w_free, space->w_util,
+                 space->s_num, space->s_free, space->s_util);
     if (n < 0 || (size_t) n >= buflen - 4) {
         return -1;
     }

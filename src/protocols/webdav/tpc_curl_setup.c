@@ -117,10 +117,49 @@ tpc_curl_apply_stall_bounds(CURL *curl, ngx_http_brix_webdav_loc_conf_t *conf)
 }
 
 
+/*
+ * tpc_curl_apply_client_cred — install the pull leg's client cert + key on the
+ * handle, preferring the requesting user's delegated proxy over the static
+ * service cert.
+ *
+ * WHAT: when user_cert/user_key are non-NULL (a per-user delegated proxy the
+ *       resolver materialised or found in the store), point CURLOPT_SSLCERT /
+ *       CURLOPT_SSLKEY at THEM so the source authenticates the end user;
+ *       otherwise fall back to conf->tpc_cert/_key (the service identity) exactly
+ *       as before, for non-delegated setups.
+ * WHY:  the whole gap this closes — a TPC PULL must present the user's own x509
+ *       to the source, not the destination's service cert (CN=localhost).  The
+ *       bearer path is untouched (it is an Authorization header, applied
+ *       elsewhere).
+ * HOW:  user_cert wins the SSLCERT slot; user_key (which equals user_cert for a
+ *       combined-PEM proxy) wins the SSLKEY slot; each falls back independently
+ *       to the matching conf field only when its override is NULL.
+ */
+static void
+tpc_curl_apply_client_cred(CURL *curl,
+    ngx_http_brix_webdav_loc_conf_t *conf,
+    const char *user_cert, const char *user_key)
+{
+    if (user_cert != NULL) {
+        curl_easy_setopt(curl, CURLOPT_SSLCERT, user_cert);
+    } else if (conf->tpc_cert.len > 0) {
+        curl_easy_setopt(curl, CURLOPT_SSLCERT,
+                         (const char *) conf->tpc_cert.data);
+    }
+    if (user_key != NULL) {
+        curl_easy_setopt(curl, CURLOPT_SSLKEY, user_key);
+    } else if (conf->tpc_key.len > 0) {
+        curl_easy_setopt(curl, CURLOPT_SSLKEY,
+                         (const char *) conf->tpc_key.data);
+    }
+}
+
+
 int
 tpc_curl_apply_conf(CURL *curl,
     ngx_http_brix_webdav_loc_conf_t *conf,
     const char *url, ngx_array_t *transfer_headers, ngx_log_t *log,
+    const char *user_cert, const char *user_key,
     struct curl_slist **hdrs_out, struct curl_slist **resolve_out)
 {
     ngx_uint_t         i;
@@ -147,12 +186,7 @@ tpc_curl_apply_conf(CURL *curl,
     if (conf->tpc_timeout > 0)
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long) conf->tpc_timeout);
     tpc_curl_apply_stall_bounds(curl, conf);   /* Phase 39 (WS4) */
-    if (conf->tpc_cert.len > 0)
-        curl_easy_setopt(curl, CURLOPT_SSLCERT,
-                         (const char *) conf->tpc_cert.data);
-    if (conf->tpc_key.len > 0)
-        curl_easy_setopt(curl, CURLOPT_SSLKEY,
-                         (const char *) conf->tpc_key.data);
+    tpc_curl_apply_client_cred(curl, conf, user_cert, user_key);
     if (conf->tpc_cafile.len > 0)
         curl_easy_setopt(curl, CURLOPT_CAINFO,
                          (const char *) conf->tpc_cafile.data);
@@ -189,7 +223,8 @@ tpc_curl_apply_conf(CURL *curl,
 off_t
 tpc_curl_head_size(ngx_log_t *log,
     ngx_http_brix_webdav_loc_conf_t *conf,
-    const char *url, ngx_array_t *transfer_headers)
+    const char *url, ngx_array_t *transfer_headers,
+    const char *user_cert, const char *user_key)
 {
     CURL              *curl;
     struct curl_slist *hdrs = NULL;
@@ -205,7 +240,7 @@ tpc_curl_head_size(ngx_log_t *log,
     }
 
     if (tpc_curl_apply_conf(curl, conf, url, transfer_headers, log,
-                            &hdrs, &resolve) < 0) {
+                            user_cert, user_key, &hdrs, &resolve) < 0) {
         if (resolve) curl_slist_free_all(resolve);
         curl_easy_cleanup(curl);
         return -1;

@@ -8,13 +8,14 @@
 set -u
 NGINX="${1:-/tmp/nginx-1.28.3/objs/nginx}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"; XRDFS="$HERE/client/bin/xrdfs"
-OPORT=11704; BPORT=11705; NPORT=11706; VPORT=11707; PFX="$(mktemp -d /tmp/cred_gsi.XXXXXX)"; fail=0
+OPORT=11704; BPORT=11705; NPORT=11706; VPORT=11707; CPORT=11708; PFX="$(mktemp -d /tmp/cred_gsi.XXXXXX)"; fail=0
 ok(){ printf '  ok   %s\n' "$1"; }; bad(){ printf '  FAIL %s\n' "$1"; fail=1; }
-cleanup(){ for r in o b n v; do [ -f "$PFX/$r/nginx.pid" ] && kill "$(cat "$PFX/$r/nginx.pid")" 2>/dev/null; done; rm -rf "$PFX" /tmp/cred_gsi_*.got; }
+cleanup(){ for r in o b n v c; do [ -f "$PFX/$r/nginx.pid" ] && kill "$(cat "$PFX/$r/nginx.pid")" 2>/dev/null; done; rm -rf "$PFX" /tmp/cred_gsi_*.got; }
 trap cleanup EXIT
 mkdir -p "$PFX/o/root" "$PFX/o/logs" "$PFX/b/export" "$PFX/b/cache" "$PFX/b/logs" \
          "$PFX/n/export" "$PFX/n/cache" "$PFX/n/logs" \
-         "$PFX/v/export" "$PFX/v/cache" "$PFX/v/logs" "$PFX/badca"
+         "$PFX/v/export" "$PFX/v/cache" "$PFX/v/logs" "$PFX/badca" \
+         "$PFX/c/export" "$PFX/c/cache" "$PFX/c/logs"
 
 TEST_ROOT="${TEST_ROOT:-/tmp/xrd-test}"
 CA_CERT="$TEST_ROOT/pki/ca/ca.pem"; CA_DIR="$TEST_ROOT/pki/ca"
@@ -72,6 +73,28 @@ stream {
     }
 }
 EOF
+# Node C — SEPARATE x509_cert + x509_key (not a combined proxy).  Split the standard
+# proxy PEM into its cert chain and its private key; brix must reassemble them into a
+# GSI credential.  Before the cert/key plumbing fix these fields were silently dead, so
+# this node would fall back to anonymous and the GSI origin would reject the fill.
+CERT_PART="$PFX/c/cert.pem"; KEY_PART="$PFX/c/key.pem"
+awk '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/' "$PROXY_STD" > "$CERT_PART"
+awk '/-----BEGIN[A-Z ]*PRIVATE KEY-----/,/-----END[A-Z ]*PRIVATE KEY-----/' "$PROXY_STD" > "$KEY_PART"
+chmod 600 "$KEY_PART"
+cat > "$PFX/c/nginx.conf" <<EOF
+daemon on; error_log $PFX/c/logs/e.log info; pid $PFX/c/nginx.pid;
+thread_pool default threads=2;
+events { worker_connections 64; }
+stream {
+    brix_credential origin { x509_cert $CERT_PART; x509_key $KEY_PART; ca_dir $CA_DIR; }
+    server {
+        listen 127.0.0.1:${CPORT}; brix_root on; brix_export $PFX/c/export; brix_auth none;
+        brix_storage_backend root://127.0.0.1:${OPORT};
+        brix_storage_credential origin;
+        brix_cache on; brix_cache_export $PFX/c/cache;
+    }
+}
+EOF
 # Node N — no credential (negative control: anonymous login rejected by the GSI origin).
 cat > "$PFX/n/nginx.conf" <<EOF
 daemon on; error_log $PFX/n/logs/e.log info; pid $PFX/n/nginx.pid;
@@ -90,6 +113,7 @@ head -c 2600000 /dev/urandom > "$PFX/o/root/big.bin"
 "$NGINX" -p "$PFX/b" -c "$PFX/b/nginx.conf" 2>"$PFX/b/err" || { echo "B start failed"; cat "$PFX/b/err"; exit 2; }
 "$NGINX" -p "$PFX/n" -c "$PFX/n/nginx.conf" 2>"$PFX/n/err" || { echo "N start failed"; cat "$PFX/n/err"; exit 2; }
 "$NGINX" -p "$PFX/v" -c "$PFX/v/nginx.conf" 2>"$PFX/v/err" || { echo "V start failed"; cat "$PFX/v/err"; exit 2; }
+"$NGINX" -p "$PFX/c" -c "$PFX/c/nginx.conf" 2>"$PFX/c/err" || { echo "C start failed"; cat "$PFX/c/err"; exit 2; }
 sleep 1
 
 echo "== with X.509 proxy + the right CA: GSI verifies the origin cert AND fills =="
@@ -99,6 +123,11 @@ cmp -s "$PFX/o/root/small.bin" /tmp/cred_gsi_s.got && ok "byte-exact serve (GSI-
 "$XRDFS" root://127.0.0.1:${BPORT} cat /big.bin > /tmp/cred_gsi_b.got 2>/dev/null
 cmp -s "$PFX/o/root/big.bin" /tmp/cred_gsi_b.got && ok "multi-chunk GSI-authenticated fill byte-exact" \
   || bad "multi-chunk differs (got=$(stat -c%s /tmp/cred_gsi_b.got 2>/dev/null))"
+
+echo "== separate x509_cert + x509_key (no combined proxy): GSI fills =="
+"$XRDFS" root://127.0.0.1:${CPORT} cat /small.bin > /tmp/cred_gsi_c.got 2>"$PFX/c/logs/cat.err"
+cmp -s "$PFX/o/root/small.bin" /tmp/cred_gsi_c.got && ok "cert+key credential authenticated the GSI fill" \
+  || { bad "cert+key fill differs/empty (x509_cert/x509_key not wired to GSI)"; grep -iE 'gsi|proxy|auth|origin|cache|error' "$PFX/c/logs/e.log" | tail -10; }
 
 echo "== negative control: no credential ⇒ anonymous login rejected by the GSI origin =="
 "$XRDFS" root://127.0.0.1:${NPORT} cat /small.bin > /tmp/cred_gsi_n.got 2>/dev/null

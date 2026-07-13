@@ -36,6 +36,7 @@ brix_file_close(brix_conn *c, brix_file *f, brix_status *st)
     uint16_t           sid, status;
     uint8_t           *body = NULL;
     uint32_t           blen = 0;
+    brix_resp_out      out = { &status, &body, &blen };
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_close);
@@ -45,10 +46,10 @@ brix_file_close(brix_conn *c, brix_file *f, brix_status *st)
         xrdw_close_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
 
-    if (brix_send(c, &req, NULL, 0, &sid, st) != 0) {
+    if (brix_send(c, &req, NULL, &sid, st) != 0) {
         return -1;
     }
-    if (brix_recv(c, sid, &status, &body, &blen, st) != 0) {
+    if (brix_recv(c, sid, &out, st) != 0) {
         return -1;
     }
     free(body);
@@ -98,10 +99,13 @@ brix_file_open_opaque(brix_conn *c, const char *path, const char *opaque,
         xrdw_open_req_pack(&o, ((ClientRequestHdr *) &req)->body);
     }
 
-    if (brix_roundtrip(c, &req, payload, (uint32_t) plen,
-                       &status, &body, &blen, st) != 0) {
-        free(payload);
-        return -1;
+    {
+        brix_payload  pl  = { payload, (uint32_t) plen };
+        brix_resp_out out = { &status, &body, &blen };
+        if (brix_roundtrip(c, &req, &pl, &out, st) != 0) {
+            free(payload);
+            return -1;
+        }
     }
     free(payload);
 
@@ -176,6 +180,7 @@ brix_file_sync(brix_conn *c, brix_file *f, brix_status *st)
     uint16_t          sid, status;
     uint8_t          *body = NULL;
     uint32_t          blen = 0;
+    brix_resp_out     out = { &status, &body, &blen };
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_sync);
@@ -185,10 +190,10 @@ brix_file_sync(brix_conn *c, brix_file *f, brix_status *st)
         xrdw_sync_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
 
-    if (brix_send(c, &req, NULL, 0, &sid, st) != 0) {
+    if (brix_send(c, &req, NULL, &sid, st) != 0) {
         return -1;
     }
-    if (brix_recv(c, sid, &status, &body, &blen, st) != 0) {
+    if (brix_recv(c, sid, &out, st) != 0) {
         return -1;
     }
     free(body);

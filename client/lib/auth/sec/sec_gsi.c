@@ -313,16 +313,25 @@ gsi_sigpxy(brix_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
     proxy_key = load_proxy_key(proxy);
     proxy_pem = load_proxy_pem(proxy, &proxy_pem_len);
     err[0] = '\0';
-    if (proxy_key == NULL || proxy_pem == NULL
-        || brix_gsi_sign_pxyreq(proxy_pem, proxy_pem_len, proxy_key,
-                                  reqder, reqderlen, &signed_pem, &siglen,
-                                  err, sizeof(err)) != 0) {
-        brix_status_set(st, XRDC_EAUTH, 0,
-                        err[0] != '\0' ? err : "gsi: cannot sign proxy request");
-        free(reqder);
-        free(proxy_pem);
-        EVP_PKEY_free(proxy_key);
-        return -1;
+    {
+        const brix_gsi_blob_t signer_blob = { proxy_pem, proxy_pem_len };
+        const brix_gsi_blob_t req_blob    = { reqder, reqderlen };
+        const brix_gsi_err_t  err_sink    = { err, sizeof(err) };
+        brix_gsi_buf_t        signed_out  = { NULL, 0 };
+
+        if (proxy_key == NULL || proxy_pem == NULL
+            || brix_gsi_sign_pxyreq(&signer_blob, proxy_key, &req_blob,
+                                      &signed_out, &err_sink) != 0) {
+            brix_status_set(st, XRDC_EAUTH, 0,
+                            err[0] != '\0' ? err
+                                           : "gsi: cannot sign proxy request");
+            free(reqder);
+            free(proxy_pem);
+            EVP_PKEY_free(proxy_key);
+            return -1;
+        }
+        signed_pem = signed_out.data;
+        siglen     = signed_out.len;
     }
     free(reqder);
     free(proxy_pem);

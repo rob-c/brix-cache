@@ -119,6 +119,15 @@ typedef struct {
 typedef struct {
     char               fs_path[PATH_MAX];
     brix_identity_t *identity;
+    /* Raw JWT bytes captured verbatim for backend PASSTHROUGH (phase-70 §5.4);
+     * borrowed into r->pool by s3_verify_bearer, valid for the request. Empty
+     * unless bearer auth succeeded. Never logged. */
+    ngx_str_t          bearer_token;
+    /* User-supplied full x509 proxy PEM (chain + key) captured from the
+     * X-Brix-Delegate-Proxy header for backend PASSTHROUGH (phase-70 §5.1);
+     * validated (TLS-only + leaf-DN==identity) at the auth gate, borrowed into
+     * r->pool. Empty unless the client opted in. Never logged. */
+    ngx_str_t          deleg_proxy_pem;
     /* W6b: PutObject with `If-None-Match: *` — commit must be atomic
      * create-if-absent (renameat2 RENAME_NOREPLACE); EEXIST → 412. */
     unsigned           exclusive_create:1;
@@ -452,6 +461,15 @@ void s3_etag(const struct stat *st, char *buf, size_t bufsz);
  * already-resolved confined path fs_path, taking pool/log/TLS/identity from r
  * and roots/write-gate from cf.  Shared by the PUT and POST-object write paths. */
 void s3_build_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
+    ngx_http_s3_loc_conf_t *cf, brix_vfs_ctx_t *vctx);
+
+/* Phase-70 §5.1/§5.4: bind the request's captured forwardable credential
+ * (raw bearer JWT and/or user-supplied full x509 proxy PEM, both lifted onto the
+ * S3 req ctx at the auth gate) onto an already-cred-bound VFS ctx, using the
+ * export's resolved mode (cf->common.backend_delegation). A no-op on the default
+ * SELECT path or when nothing forwardable was captured. Called at every S3
+ * brix_vfs_ctx_bind_backend_cred site. */
+void s3_vfs_bind_deleg(ngx_http_request_t *r,
     ngx_http_s3_loc_conf_t *cf, brix_vfs_ctx_t *vctx);
 
 /* AWS S3 full-object checksum headers (this gateway supports CRC-64/NVME). */

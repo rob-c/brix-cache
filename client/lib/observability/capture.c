@@ -163,19 +163,124 @@ static uint32_t rd_u32(FILE *fp) {
 }
 
 /*
+ * Per-record outcome shared by the replay/playback loops.
+ *
+ * WHAT: the three ways a single M/F record read can end.
+ * WHY:  lets each per-record helper return a typed verdict so the driving loop
+ *       stays a flat early-return sequence (no truncated flag threaded by hand,
+ *       no goto) while preserving the exact "truncated or corrupt → exit
+ *       nonzero" contract the security test depends on.
+ * HOW:  OK continues the loop, END stops it cleanly, TRUNC stops it as an error.
+ */
+typedef enum {
+    XRDCAP_REC_OK = 0,     /* record consumed; keep looping */
+    XRDCAP_REC_END,        /* clean end of stream */
+    XRDCAP_REC_TRUNC       /* short/corrupt record — caller reports the error */
+} xrdcap_rec_t;
+
+/*
+ * replay_meta_record — decode one 'M' metadata record and print key/value.
+ *
+ * WHAT: reads klen:1 key[klen] vlen:2BE val[vlen], prints "  key  val", counts it.
+ * WHY:  isolates the metadata branch of the replay loop so the driver stays flat.
+ * HOW:  every read is bounds-checked; any short read returns TRUNC and frees the
+ *       value buffer, matching the original inline break-on-truncation behaviour.
+ */
+static xrdcap_rec_t
+replay_meta_record(FILE *fp, FILE *out, int *metas)
+{
+    int      kl = fgetc(fp);
+    char     key[256];
+    uint16_t vl;
+    char    *val;
+
+    if (kl < 0 || fread(key, 1, (size_t) kl, fp) != (size_t) kl) {
+        return XRDCAP_REC_TRUNC;
+    }
+    key[kl] = '\0';
+    vl = rd_u16(fp);
+    val = (char *) malloc((size_t) vl + 1);
+    if (val == NULL || fread(val, 1, vl, fp) != vl) {
+        free(val);
+        return XRDCAP_REC_TRUNC;
+    }
+    val[vl] = '\0';
+    fprintf(out, "  %-10s %s\n", key, val);
+    free(val);
+    (*metas)++;
+    return XRDCAP_REC_OK;
+}
+
+/*
+ * replay_hexdump_wire — print up to the first 64 wire bytes, 16 per line.
+ *
+ * WHAT: verbose-mode hex dump of a frame's captured on-the-wire bytes.
+ * WHY:  separates the pure formatting from the frame record's read/verify logic.
+ * HOW:  side-effect at the edge (fprintf only); wire bytes/length are inputs.
+ */
+static void
+replay_hexdump_wire(FILE *out, const uint8_t *w, uint32_t wlen)
+{
+    uint32_t i;
+
+    for (i = 0; i < wlen && i < 64; i++) {
+        fprintf(out, "%02x%s", w[i], (i % 16 == 15) ? "\n" : " ");
+    }
+    if (wlen > 0 && (i % 16) != 0) { fprintf(out, "\n"); }
+}
+
+/*
+ * replay_frame_record — decode one 'F' frame record and print (+optional hexdump).
+ *
+ * WHAT: reads dir:1 isreq:1 sid:2BE code:2BE wirelen:4BE wire[], prints a summary
+ *       line and (verbose) a hex dump, counting the frame.
+ * WHY:  isolates the frame branch so the driver stays a flat dispatch.
+ * HOW:  rejects EOF fields or an over-long wire as truncated; the wire buffer is
+ *       malloc'd (min 1 byte) and freed on every exit — same as the original.
+ */
+static xrdcap_rec_t
+replay_frame_record(FILE *fp, int verbose, FILE *out, int *frames)
+{
+    int      dir = fgetc(fp), isreq = fgetc(fp);
+    uint16_t sid = rd_u16(fp);
+    uint16_t code = rd_u16(fp);
+    uint32_t wlen = rd_u32(fp);
+    uint8_t *w;
+
+    if (dir == EOF || isreq == EOF || wlen > XRDCAP_WIRE_MAX) {
+        return XRDCAP_REC_TRUNC;
+    }
+    w = (uint8_t *) malloc(wlen ? wlen : 1);
+    if (w == NULL || fread(w, 1, wlen, fp) != wlen) {
+        free(w);
+        return XRDCAP_REC_TRUNC;
+    }
+    fprintf(out, "%c sid=%u %-14s wire=%u\n", dir, sid,
+            isreq ? brix_reqid_name(code) : brix_status_name(code), wlen);
+    if (verbose >= 1) {
+        replay_hexdump_wire(out, w, wlen);
+    }
+    free(w);
+    (*frames)++;
+    return XRDCAP_REC_OK;
+}
+
+/*
  * brix_capture_replay — decode a .xrdcap file offline and print a human-readable log.
  *
  * WHAT: reads the magic header then a stream of M/F records, printing each to out.
  * WHY:  offline decode lets engineers inspect captured sessions without a live server.
- * HOW:  each inner read is bounds-checked; a premature EOF or corrupt record sets
- *       truncated=1 so the caller gets a clean error rather than silent partial output.
- *       This matters for the security test case: a truncated file must exit nonzero.
+ * HOW:  dispatches each record to a per-type helper; a premature EOF or corrupt
+ *       record yields XRDCAP_REC_TRUNC so the caller gets a clean error rather
+ *       than silent partial output. This matters for the security test case: a
+ *       truncated file must exit nonzero.
  */
 int
 brix_capture_replay(const char *path, int verbose, FILE *out, brix_status *st)
 {
-    FILE *fp = fopen(path, "rb");
-    int   type, frames = 0, metas = 0, truncated = 0;
+    FILE        *fp = fopen(path, "rb");
+    int          type, frames = 0, metas = 0, truncated = 0;
+    xrdcap_rec_t rc = XRDCAP_REC_OK;
 
     if (fp == NULL) {
         brix_status_set(st, XRDC_EUSAGE, 0, "cannot open %s", path);
@@ -188,55 +293,14 @@ brix_capture_replay(const char *path, int verbose, FILE *out, brix_status *st)
     fprintf(out, "capture: %s\n", path);
     while ((type = fgetc(fp)) != EOF) {
         if (type == 'M') {
-            int      kl = fgetc(fp);
-            char     key[256];
-            uint16_t vl;
-            char    *val;
-            if (kl < 0 || fread(key, 1, (size_t) kl, fp) != (size_t) kl) {
-                truncated = 1;
-                break;
-            }
-            key[kl] = '\0';
-            vl = rd_u16(fp);
-            val = (char *) malloc((size_t) vl + 1);
-            if (val == NULL || fread(val, 1, vl, fp) != vl) {
-                free(val);
-                truncated = 1;
-                break;
-            }
-            val[vl] = '\0';
-            fprintf(out, "  %-10s %s\n", key, val);
-            free(val);
-            metas++;
+            rc = replay_meta_record(fp, out, &metas);
         } else if (type == 'F') {
-            int      dir = fgetc(fp), isreq = fgetc(fp);
-            uint16_t sid = rd_u16(fp);
-            uint16_t code = rd_u16(fp);
-            uint32_t wlen = rd_u32(fp);
-            uint8_t *w;
-            if (dir == EOF || isreq == EOF || wlen > XRDCAP_WIRE_MAX) {
-                truncated = 1;
-                break;
-            }
-            w = (uint8_t *) malloc(wlen ? wlen : 1);
-            if (w == NULL || fread(w, 1, wlen, fp) != wlen) {
-                free(w);
-                truncated = 1;
-                break;
-            }
-            fprintf(out, "%c sid=%u %-14s wire=%u\n", dir, sid,
-                    isreq ? brix_reqid_name(code) : brix_status_name(code), wlen);
-            if (verbose >= 1) {
-                uint32_t i;
-                for (i = 0; i < wlen && i < 64; i++) {
-                    fprintf(out, "%02x%s", w[i], (i % 16 == 15) ? "\n" : " ");
-                }
-                if (wlen > 0 && (i % 16) != 0) { fprintf(out, "\n"); }
-            }
-            free(w);
-            frames++;
+            rc = replay_frame_record(fp, verbose, out, &frames);
         } else {
-            truncated = 1;   /* unknown record type = corrupted or truncated at boundary */
+            rc = XRDCAP_REC_TRUNC;   /* unknown record type = corrupt/truncated at boundary */
+        }
+        if (rc != XRDCAP_REC_OK) {
+            truncated = (rc == XRDCAP_REC_TRUNC);
             break;
         }
     }
@@ -258,14 +322,120 @@ is_session_op(int reqid)
         || reqid == kXR_bind || reqid == kXR_endsess || reqid == kXR_sigver;
 }
 
+/*
+ * playback_skip_meta — consume one 'M' record without decoding it.
+ *
+ * WHAT: reads klen:1 then discards key[klen] vlen:2BE val[vlen].
+ * WHY:  playback ignores metadata but must still walk past it exactly, and detect
+ *       a truncation inside it (a short capture must fail, not silently stop).
+ * HOW:  fread-based skip (not fseek): fseek past EOF succeeds on a regular file,
+ *       so it cannot tell a complete record from one truncated mid-body.
+ */
+static xrdcap_rec_t
+playback_skip_meta(FILE *fp)
+{
+    int      kl = fgetc(fp);
+    uint16_t vl;
+
+    if (kl < 0) { return XRDCAP_REC_TRUNC; }
+    if (skip_bytes(fp, (size_t) kl) != 0) { return XRDCAP_REC_TRUNC; }
+    vl = rd_u16(fp);
+    if (skip_bytes(fp, vl) != 0) { return XRDCAP_REC_TRUNC; }
+    return XRDCAP_REC_OK;
+}
+
+/*
+ * playback_ctx — live-playback loop state passed to the per-record helpers.
+ *
+ * WHAT: the connection to re-issue against, the human-readable output stream, and
+ *       the issued/ok tallies accumulated across frames.
+ * WHY:  bundles the four pieces of driver state so the re-issue helper takes one
+ *       context rather than a long parameter list (keeps every helper <= 5 params).
+ * HOW:  the driver owns one on the stack; helpers mutate issued/ok through it.
+ */
+typedef struct {
+    brix_conn *conn;
+    FILE      *out;
+    int        issued;
+    int        ok;
+} playback_ctx;
+
+/*
+ * playback_reissue_wire — send one recorded request frame and read its reply.
+ *
+ * WHAT: writes the exact captured wire bytes, receives the response, prints the
+ *       re-issue line, and bumps the issued/ok counters.
+ * WHY:  isolates the live-connection side effect (the only I/O against the server)
+ *       from the frame's parse/verify, keeping the driver flat.
+ * HOW:  pure write+recv over conn->io; the response body is discarded (free rb). A
+ *       failed write is silent (matches the original: no line, no counter bump).
+ */
+static void
+playback_reissue_wire(playback_ctx *pc, uint16_t code, const uint8_t *w, uint32_t wlen)
+{
+    brix_status   rst;
+    uint16_t      rstat = 0;
+    uint8_t      *rb = NULL;
+    uint32_t      rl = 0;
+    int           rc;
+    brix_resp_out rout = { &rstat, &rb, &rl };
+
+    brix_status_clear(&rst);
+    if (brix_write_full(&pc->conn->io, w, wlen, &rst) != 0) {
+        return;
+    }
+    rc = brix_recv(pc->conn, 0xffff, &rout, &rst);
+    free(rb);
+    pc->issued++;
+    if (rc == 0) { pc->ok++; }
+    fprintf(pc->out, "  re-issue %-14s -> %s\n", brix_reqid_name(code),
+            rc == 0 ? brix_status_name(rstat) : rst.msg);
+}
+
+/*
+ * playback_frame_record — decode one 'F' record and re-issue it if it is a real op.
+ *
+ * WHAT: reads the frame header + wire bytes; if it is a client REQUEST for a real
+ *       operation (>= 24 bytes, not a session op), re-issues it against the live
+ *       connection.
+ * WHY:  isolates the frame branch (parse + selective re-issue) from the driver.
+ * HOW:  rejects EOF dir or an over-long wire as truncated; the wire buffer is
+ *       malloc'd (min 1 byte) and freed on every exit — same as the original.
+ */
+static xrdcap_rec_t
+playback_frame_record(FILE *fp, playback_ctx *pc)
+{
+    int      dir = fgetc(fp), isreq = fgetc(fp);
+    uint16_t sid = rd_u16(fp);
+    uint16_t code = rd_u16(fp);
+    uint32_t wlen = rd_u32(fp);
+    uint8_t *w;
+
+    (void) sid;
+    if (dir == EOF || wlen > XRDCAP_WIRE_MAX) { return XRDCAP_REC_TRUNC; }
+    w = (uint8_t *) malloc(wlen ? wlen : 1);
+    if (w == NULL || fread(w, 1, wlen, fp) != wlen) {
+        free(w);
+        return XRDCAP_REC_TRUNC;
+    }
+    /* Replay only client REQUEST frames that are real operations. */
+    if (isreq == 1 && dir == '>' && wlen >= 24 && !is_session_op(code)) {
+        playback_reissue_wire(pc, code, w, wlen);
+    }
+    free(w);
+    return XRDCAP_REC_OK;
+}
+
 int
 brix_capture_playback(const char *path, const char *url, const brix_opts *co,
                       FILE *out, brix_status *st)
 {
-    FILE     *fp;
-    brix_url  u;
-    brix_conn c;
-    int       type, issued = 0, ok = 0, truncated = 0;
+    FILE        *fp;
+    brix_url     u;
+    brix_conn    c;
+    playback_ctx pc = {0};
+    int          type, truncated = 0;
+    xrdcap_rec_t rc = XRDCAP_REC_OK;
 
     fp = fopen(path, "rb");
     if (fp == NULL) {
@@ -282,55 +452,24 @@ brix_capture_playback(const char *path, const char *url, const brix_opts *co,
     }
     fprintf(out, "playback: %s -> %s:%d\n", path, u.host, u.port);
 
+    pc.conn = &c;
+    pc.out = out;
     while ((type = fgetc(fp)) != EOF) {
-        if (type == 'M') {                       /* skip metadata */
-            int kl = fgetc(fp);
-            uint16_t vl;
-            if (kl < 0) { truncated = 1; break; }
-            /* fread-based skip (not fseek): a mid-M truncation must fail, and
-             * fseek past EOF succeeds on a regular file. */
-            if (skip_bytes(fp, (size_t) kl) != 0) { truncated = 1; break; }
-            vl = rd_u16(fp);
-            if (skip_bytes(fp, vl) != 0) { truncated = 1; break; }
-            continue;
+        if (type == 'M') {
+            rc = playback_skip_meta(fp);
+        } else if (type == 'F') {
+            rc = playback_frame_record(fp, &pc);
+        } else {
+            rc = XRDCAP_REC_TRUNC;
         }
-        if (type != 'F') {
-            truncated = 1;
+        if (rc != XRDCAP_REC_OK) {
+            truncated = (rc == XRDCAP_REC_TRUNC);
             break;
-        }
-        {
-            int      dir = fgetc(fp), isreq = fgetc(fp);
-            uint16_t sid = rd_u16(fp);
-            uint16_t code = rd_u16(fp);
-            uint32_t wlen = rd_u32(fp);
-            uint8_t *w;
-            (void) sid;
-            if (dir == EOF || wlen > XRDCAP_WIRE_MAX) { truncated = 1; break; }
-            w = (uint8_t *) malloc(wlen ? wlen : 1);
-            if (w == NULL || fread(w, 1, wlen, fp) != wlen) { free(w); truncated = 1; break; }
-            /* Replay only client REQUEST frames that are real operations. */
-            if (isreq == 1 && dir == '>' && wlen >= 24 && !is_session_op(code)) {
-                brix_status rst;
-                uint16_t    rstat = 0;
-                uint8_t    *rb = NULL;
-                uint32_t    rl = 0;
-                int         rc;
-                brix_status_clear(&rst);
-                if (brix_write_full(&c.io, w, wlen, &rst) == 0) {
-                    rc = brix_recv(&c, 0xffff, &rstat, &rb, &rl, &rst);
-                    free(rb);
-                    issued++;
-                    if (rc == 0) { ok++; }
-                    fprintf(out, "  re-issue %-14s -> %s\n", brix_reqid_name(code),
-                            rc == 0 ? brix_status_name(rstat) : rst.msg);
-                }
-            }
-            free(w);
         }
     }
     fclose(fp);
     brix_close(&c);
-    fprintf(out, "(%d request(s) re-issued, %d ok)\n", issued, ok);
+    fprintf(out, "(%d request(s) re-issued, %d ok)\n", pc.issued, pc.ok);
     if (truncated) {
         brix_status_set(st, XRDC_EPROTO, 0, "truncated or corrupted capture");
         return -1;

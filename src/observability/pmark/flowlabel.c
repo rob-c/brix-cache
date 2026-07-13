@@ -52,7 +52,7 @@ struct pmark_flowlabel_req {
     uint16_t         flr_flags;
     uint16_t         flr_expires;
     uint16_t         flr_linger;
-    uint32_t         __flr_pad;
+    uint32_t         flr_pad;       /* kernel ABI __flr_pad (reserved) */
 };
 
 /* Per-worker probe cache: -1 unknown, 0 unusable, 1 usable. */
@@ -158,6 +158,11 @@ brix_pmark_flowlabel_apply(ngx_connection_t *c, int fd, ngx_uint_t exp,
     if (fd < 0 || brix_pmark_flowlabel_usable(log) != NGX_OK) {
         return NGX_DECLINED;
     }
+
+    /* Zero-init so ss_family is well-defined even if getpeername() leaves the
+     * buffer partially written (analyzer-proven read of an indeterminate value
+     * otherwise). */
+    ngx_memzero(&ss, sizeof(ss));
     if (getpeername(fd, (struct sockaddr *) &ss, &len) != 0
         || ss.ss_family != AF_INET6)
     {

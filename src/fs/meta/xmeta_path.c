@@ -31,7 +31,10 @@ xmeta_path_xattr_unfit(int err)
     return err == E2BIG || err == ERANGE || err == ENOSPC || err == ENOTSUP
         || err == EACCES || err == EPERM || err == ENOENT
 #ifdef EOPNOTSUPP
-        || err == EOPNOTSUPP
+        /* phase74-fp: ENOTSUP == EOPNOTSUPP on Linux so the operands are
+         * equivalent HERE, but POSIX allows them to differ — the second test
+         * is deliberate portability, not a typo. */
+        || err == EOPNOTSUPP  /* NOLINT(misc-redundant-expression) */
 #endif
         ;
 }

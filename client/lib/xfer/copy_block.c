@@ -61,8 +61,10 @@ copy_remote_to_block(const char *src_url, const char *dst_url,
     }
 
     lc.vf = vf;
-    rc = download_stream_body(&c, &su, &si, pump_sink_local_vfs, &lc,
-                              o, &ss, st);
+    {
+    download_body_ctx dj = { &c, &su, &si, o, &ss };
+    rc = download_stream_body(&dj, pump_sink_local_vfs, &lc, st);
+    }
 
     if (rc == 0) {
         rc = brix_vfs_commit(vf, st);
@@ -131,8 +133,10 @@ copy_block_to_remote(const char *src_url, const char *dst_url,
     snprintf(fake_su.path, sizeof(fake_su.path), "%s", src_url);
 
     lc.vf = vf;
-    rc = upload_stream_body(&fake_su, &du, o, co, pump_src_local_vfs, &lc,
-                            total, st);
+    {
+    upload_body_ctx uj = { &fake_su, &du, o, co, total };
+    rc = upload_stream_body(&uj, pump_src_local_vfs, &lc, st);
+    }
     brix_vfs_close(vf);
     return rc;
 }

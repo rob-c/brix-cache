@@ -181,142 +181,260 @@ brix_proxy_tls_handshake_done(ngx_connection_t *uconn)
 
 #endif /* NGX_SSL */
 
-/* public: connect and start bootstrap */
-ngx_int_t
-brix_proxy_connect(brix_proxy_ctx_t *proxy,
-                     ngx_connection_t   *client_conn,
-                     ngx_stream_brix_srv_conf_t *conf)
+/* upstream connect phases */
+
+/*
+ * Chosen upstream target: host/port plus the resolved sockaddr that the
+ * async connect() will use.  Purely a value carrier passed between the
+ * endpoint-selection, resolve, and arm-events phases — it holds NO ngx_log_t
+ * pointer, so it is safe to stack-allocate per connect (see the stale-handler
+ * SIGSEGV postmortem: never park a c->log in a long-lived struct).
+ */
+typedef struct {
+    ngx_str_t               *host;      /* borrowed: conf / redirect / ups elt */
+    ngx_int_t                port;
+    struct sockaddr_storage  addr;
+    socklen_t                addrlen;
+    int                      fd;        /* resolved socket for this target */
+} pc_target_t;
+
+/*
+ * WHAT: Picks a healthy upstream index from the round-robin array, honouring
+ *       the lazily-allocated proxy_up_status health table.
+ *
+ * WHY: When every upstream is marked down (and none has aged past the retry
+ *      window) we must fail the connect rather than fall through to a known-dead
+ *      endpoint and hammer it in a tight loop.
+ *
+ * HOW: Advances the shared RR counter, then walks up to nelts entries from that
+ *      start looking for one that is up (or stale enough to retry). A NULL
+ *      health table means "all healthy" — the RR pick stands. Returns NGX_OK
+ *      with *idx_out set, or NGX_ERROR when all are down.
+ */
+static ngx_int_t
+pc_pick_healthy_upstream(ngx_stream_brix_srv_conf_t *conf,
+                         ngx_uint_t *idx_out)
 {
-    struct sockaddr_storage  chosen_addr;
-    socklen_t                chosen_addrlen;
-    int                      fd;
-    ngx_connection_t        *uconn;
-    u_char                  *bsbuf;
-    size_t                   bslen;
-    ngx_int_t                rc;
-    ngx_str_t               *use_host;
-    ngx_int_t                use_port;
-    int                      pooled_idx = -1;
+    ngx_uint_t  nelts = conf->proxy.upstreams->nelts;
+    ngx_uint_t  idx;
+    ngx_uint_t  i;
+    int         found = 0;
 
-    /* Select upstream: redirected host > pool > round-robin array > single host */
+    idx = ngx_atomic_fetch_add(&proxy_upstream_rr, 1) % nelts;
+
+    /* proxy_up_status is lazily allocated by the health-tracking path and is
+     * NULL until a failure marks an upstream down (the mark_fail/is_down
+     * accessors are all NULL-tolerant no-ops). Treat a NULL table as "every
+     * upstream healthy" so the round-robin pick stands — same semantics,
+     * without dereferencing a NULL array. */
+    for (i = 0; proxy_up_status != NULL && i < nelts; i++) {
+        ngx_uint_t cur = (idx + i) % nelts;
+        if (!proxy_up_status[cur].down ||
+            ngx_time() - proxy_up_status[cur].checked >= BRIX_PROXY_FAIL_TIMEOUT)
+        {
+            idx = cur;
+            found = 1;
+            break;
+        }
+    }
+    if (proxy_up_status == NULL) {
+        found = 1;      /* no health table → RR pick is authoritative */
+    }
+
+    if (!found) {
+        return NGX_ERROR;
+    }
+
+    *idx_out = idx;
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Chooses the upstream endpoint into *tgt (host+port) with priority
+ *       redirect > pooled connection > round-robin healthy array > single host.
+ *
+ * WHY: A pooled connection short-circuits the whole connect: it is already
+ *      authenticated and bootstrapped, so we adopt it and either dispatch the
+ *      saved request or resume the client read loop. GSI-as-user connections
+ *      are per-user authenticated and must never reuse a pooled (foreign
+ *      identity) connection.
+ *
+ * HOW: Returns NGX_OK when a pooled connection was adopted (caller returns OK to
+ *      its own caller — connect is complete), NGX_DECLINED when *tgt was filled
+ *      and the caller must proceed to resolve/connect, or NGX_ERROR when all
+ *      upstreams are down.
+ */
+static ngx_int_t
+pc_select_endpoint(brix_proxy_ctx_t *proxy, ngx_connection_t *client_conn,
+                   ngx_stream_brix_srv_conf_t *conf, pc_target_t *tgt)
+{
+    ngx_connection_t *uconn;
+    int               pooled_idx = -1;
+    ngx_uint_t        idx;
+
     if (proxy->redirect_host.len > 0) {
-        use_host = &proxy->redirect_host;
-        use_port = (ngx_int_t) proxy->redirect_port;
+        tgt->host = &proxy->redirect_host;
+        tgt->port = (ngx_int_t) proxy->redirect_port;
         /* upstream_idx stays what it was, or -1 if we started redirected */
-    } else {
-        /* GSI-as-user connections are per-user authenticated — never reuse a
-         * pooled connection (it carries a different identity). */
-        uconn = (conf->proxy.auth == BRIX_PROXY_AUTH_GSI)
-                ? NULL : brix_proxy_pool_get(proxy, conf, &pooled_idx);
-        if (uconn != NULL) {
-            proxy->conn         = uconn;
-            proxy->upstream_idx = pooled_idx;
-            proxy->state        = XRD_PX_IDLE;
-            proxy->from_pool    = 1;
-            uconn->data         = proxy;
-            uconn->log          = client_conn->log;
-            uconn->read->log    = client_conn->log;
-            uconn->write->log   = client_conn->log;
+        return NGX_DECLINED;
+    }
 
-            if (proxy->saved_req != NULL) {
-                brix_proxy_dispatch_pending(proxy);
-            } else {
-                proxy->client_ctx->state = XRD_ST_REQ_HEADER;
-                brix_schedule_read_resume(client_conn);
-            }
-            return NGX_OK;
-        }
+    /* GSI-as-user connections are per-user authenticated — never reuse a
+     * pooled connection (it carries a different identity). */
+    uconn = (conf->proxy.auth == BRIX_PROXY_AUTH_GSI)
+            ? NULL : brix_proxy_pool_get(proxy, conf, &pooled_idx);
+    if (uconn != NULL) {
+        proxy->conn         = uconn;
+        proxy->upstream_idx = pooled_idx;
+        proxy->state        = XRD_PX_IDLE;
+        proxy->from_pool    = 1;
+        uconn->data         = proxy;
+        uconn->log          = client_conn->log;
+        uconn->read->log    = client_conn->log;
+        uconn->write->log   = client_conn->log;
 
-        if (conf->proxy.upstreams != NULL && conf->proxy.upstreams->nelts > 0) {
-            brix_proxy_upstream_t *ups = conf->proxy.upstreams->elts;
-            ngx_atomic_uint_t        idx, i;
-
-            /* Select a healthy upstream.  If EVERY upstream is currently marked
-             * down (and none has aged past the retry window) do NOT fall through
-             * to a known-dead endpoint — fail the connect so the caller returns a
-             * clean error instead of hammering a dead upstream in a tight loop. */
-            int found = 0;
-            idx = ngx_atomic_fetch_add(&proxy_upstream_rr, 1) % conf->proxy.upstreams->nelts;
-            /* proxy_up_status is lazily allocated by the health-tracking path and
-             * is NULL until a failure marks an upstream down (the mark_fail/is_down
-             * accessors are all NULL-tolerant no-ops).  Treat a NULL table as
-             * "every upstream healthy" so the round-robin pick stands — the same
-             * semantics, without dereferencing a NULL array. */
-            for (i = 0; proxy_up_status != NULL
-                        && i < conf->proxy.upstreams->nelts; i++) {
-                ngx_uint_t cur = (idx + i) % conf->proxy.upstreams->nelts;
-                if (!proxy_up_status[cur].down ||
-                    ngx_time() - proxy_up_status[cur].checked >= BRIX_PROXY_FAIL_TIMEOUT)
-                {
-                    idx = cur;
-                    found = 1;
-                    break;
-                }
-            }
-            if (proxy_up_status == NULL) {
-                found = 1;      /* no health table → RR pick is authoritative */
-            }
-
-            if (!found) {
-                ngx_log_error(NGX_LOG_ERR, client_conn->log, 0,
-                              "xrootd proxy: all %ui upstream(s) down — "
-                              "failing request",
-                              (ngx_uint_t) conf->proxy.upstreams->nelts);
-                return NGX_ERROR;
-            }
-
-            use_host = &ups[idx].host;
-            use_port = (ngx_int_t) ups[idx].port;
-            proxy->upstream_idx = (int) idx;
+        if (proxy->saved_req != NULL) {
+            brix_proxy_dispatch_pending(proxy);
         } else {
-            use_host = &conf->proxy.host;
-            use_port = conf->proxy.port;
-            proxy->upstream_idx = -1;
+            proxy->client_ctx->state = XRD_ST_REQ_HEADER;
+            brix_schedule_read_resume(client_conn);
         }
+        return NGX_OK;
     }
 
-    /* GSI delegation: log in to the upstream AS THE USER in a thread (the blocking
-     * in-process GSI client), then hand the authenticated fd to the relay. */
-    if (conf->proxy.auth == BRIX_PROXY_AUTH_GSI) {
-        return brix_proxy_gsi_connect_async(proxy, conf, use_host,
-                                              (uint16_t) use_port);
-    }
+    if (conf->proxy.upstreams != NULL && conf->proxy.upstreams->nelts > 0) {
+        brix_proxy_upstream_t *ups = conf->proxy.upstreams->elts;
 
-    {
-        brix_resolve_status_t rstatus;
-
-        fd = brix_resolve_connect_socket((const char *) use_host->data,
-                                           (unsigned) use_port,
-                                           BRIX_AF_AUTO,
-                                           &chosen_addr, &chosen_addrlen,
-                                           &rstatus);
-        if (fd == (int) NGX_INVALID_FILE) {
-            if (rstatus == BRIX_RESOLVE_ERR_DNS) {
-                ngx_log_error(NGX_LOG_ERR, client_conn->log, 0,
-                              "xrootd proxy: cannot resolve \"%s\"",
-                              use_host->data);
-                return NGX_ERROR;
-            }
+        if (pc_pick_healthy_upstream(conf, &idx) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, client_conn->log, 0,
-                          "xrootd proxy: no usable address for \"%s\"",
-                          use_host->data);
-            BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
-            BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
+                          "xrootd proxy: all %ui upstream(s) down — "
+                          "failing request",
+                          (ngx_uint_t) conf->proxy.upstreams->nelts);
             return NGX_ERROR;
         }
+
+        tgt->host = &ups[idx].host;
+        tgt->port = (ngx_int_t) ups[idx].port;
+        proxy->upstream_idx = (int) idx;
+    } else {
+        tgt->host = &conf->proxy.host;
+        tgt->port = conf->proxy.port;
+        proxy->upstream_idx = -1;
     }
+
+    return NGX_DECLINED;
+}
+
+/*
+ * WHAT: Resolves tgt->host:port (AF policy) into a non-blocking socket fd and
+ *       records the chosen sockaddr in tgt->addr/addrlen.
+ *
+ * WHY: Endpoint selection yields a host string; the async connect() needs a
+ *      concrete socket and address. AF selection is BRIX_AF_AUTO (try every
+ *      family) here — the proxy does not constrain the upstream family.
+ *
+ * HOW: Delegates to brix_resolve_connect_socket() and maps its status to the
+ *      proxy's own log message (DNS failure vs no-usable-socket, the latter
+ *      also bumping connect-error metrics). Stores the fd in tgt->fd and
+ *      returns NGX_OK, or NGX_ERROR on failure (nothing left open).
+ */
+static ngx_int_t
+pc_resolve_target(brix_proxy_ctx_t *proxy, ngx_connection_t *client_conn,
+                  pc_target_t *tgt)
+{
+    brix_resolve_status_t rstatus = BRIX_RESOLVE_OK;
+
+    tgt->fd = brix_resolve_connect_socket((const char *) tgt->host->data,
+                                           (unsigned) tgt->port,
+                                           BRIX_AF_AUTO,
+                                           &tgt->addr, &tgt->addrlen,
+                                           &rstatus);
+    if (tgt->fd == (int) NGX_INVALID_FILE) {
+        if (rstatus == BRIX_RESOLVE_ERR_DNS) {
+            ngx_log_error(NGX_LOG_ERR, client_conn->log, 0,
+                          "xrootd proxy: cannot resolve \"%s\"",
+                          tgt->host->data);
+            return NGX_ERROR;
+        }
+        ngx_log_error(NGX_LOG_ERR, client_conn->log, 0,
+                      "xrootd proxy: no usable address for \"%s\"",
+                      tgt->host->data);
+        BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
+        BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Resolves the upstream login username from the configured policy into
+ *       user_out (a >= 9-byte buffer).
+ *
+ * WHY: The kXR_login bootstrap request carries a username; policy decides
+ *      whether it passes through the client's login name, uses a fixed
+ *      configured name, or stays anonymous (empty → "xrd" default downstream).
+ *
+ * HOW: Switches on conf->proxy.login_user; ngx_cpystrn truncates to the buffer
+ *      size. Passthrough with no client username falls back to empty.
+ */
+static void
+pc_resolve_login_user(brix_proxy_ctx_t *proxy,
+                      ngx_stream_brix_srv_conf_t *conf, char *user_out)
+{
+    switch (conf->proxy.login_user) {
+    case BRIX_PROXY_LOGIN_PASSTHROUGH:
+        if (proxy->client_ctx != NULL
+            && proxy->client_ctx->login.user[0] != '\0')
+        {
+            ngx_cpystrn((u_char *) user_out,
+                        (u_char *) proxy->client_ctx->login.user, 9);
+        } else {
+            user_out[0] = '\0'; /* no client username → fall back to "xrd" */
+        }
+        break;
+    case BRIX_PROXY_LOGIN_FIXED:
+        ngx_cpystrn((u_char *) user_out,
+                    (u_char *) conf->proxy.login_user_name, 9);
+        break;
+    default: /* BRIX_PROXY_LOGIN_ANONYMOUS */
+        user_out[0] = '\0';
+        break;
+    }
+}
+
+/*
+ * WHAT: Wraps a connected-ready fd in an nginx connection with its own pool,
+ *       builds the bootstrap buffer, and wires up the proxy send/recv handlers.
+ *
+ * WHY: Every upstream connection needs a dedicated pool (for the bootstrap
+ *      frames), the standard ngx send/recv vtable, and the proxy read/write
+ *      handlers before connect() is armed.
+ *
+ * HOW: ngx_get_connection + ngx_create_pool + ngx_palloc for the 68-byte
+ *      bootstrap; fills it via pc_resolve_login_user + brix_proxy_build_bootstrap;
+ *      points proxy->wbuf at the pool-owned buffer (wbuf_owned=0). Returns the
+ *      connection, or NULL after closing the fd / freeing partial state.
+ */
+static ngx_connection_t *
+pc_open_socket(brix_proxy_ctx_t *proxy, ngx_connection_t *client_conn,
+               ngx_stream_brix_srv_conf_t *conf, int fd)
+{
+    ngx_connection_t *uconn;
+    u_char           *bsbuf;
+    char              upstream_user[9] = { 0 };
 
     uconn = ngx_get_connection(fd, client_conn->log);
     if (uconn == NULL) {
         ngx_close_socket(fd);
-        return NGX_ERROR;
+        return NULL;
     }
 
     uconn->pool = ngx_create_pool(512, client_conn->log);
     if (uconn->pool == NULL) {
         ngx_free_connection(uconn);
         ngx_close_socket(fd);
-        return NGX_ERROR;
+        return NULL;
     }
 
     /* Build bootstrap buffer in the upstream connection pool */
@@ -328,36 +446,10 @@ brix_proxy_connect(brix_proxy_ctx_t *proxy,
         ngx_destroy_pool(uconn->pool);
         ngx_free_connection(uconn);
         ngx_close_socket(fd);
-        return NGX_ERROR;
+        return NULL;
     }
-    /* Resolve the upstream login username from the configured policy. */
-    {
-        char upstream_user[9];
 
-        switch (conf->proxy.login_user) {
-        case BRIX_PROXY_LOGIN_PASSTHROUGH:
-            if (proxy->client_ctx != NULL
-                && proxy->client_ctx->login.user[0] != '\0')
-            {
-                ngx_cpystrn((u_char *) upstream_user,
-                            (u_char *) proxy->client_ctx->login.user,
-                            sizeof(upstream_user));
-            } else {
-                upstream_user[0] = '\0'; /* no client username → fall back to "xrd" */
-            }
-            break;
-        case BRIX_PROXY_LOGIN_FIXED:
-            ngx_cpystrn((u_char *) upstream_user,
-                        (u_char *) conf->proxy.login_user_name,
-                        sizeof(upstream_user));
-            break;
-        default: /* BRIX_PROXY_LOGIN_ANONYMOUS */
-            upstream_user[0] = '\0';
-            break;
-        }
-
-        bslen = brix_proxy_build_bootstrap(bsbuf, upstream_user);
-    }
+    pc_resolve_login_user(proxy, conf, upstream_user);
 
     uconn->data                = proxy;
     uconn->recv                = ngx_recv;
@@ -372,21 +464,89 @@ brix_proxy_connect(brix_proxy_ctx_t *proxy,
 
     proxy->conn       = uconn;
     proxy->wbuf       = bsbuf;
-    proxy->wbuf_len   = bslen;
+    proxy->wbuf_len   = brix_proxy_build_bootstrap(bsbuf, upstream_user);
     proxy->wbuf_pos   = 0;
     proxy->wbuf_owned = 0;   /* Phase 39: bsbuf is pool-allocated — pool owns it */
     proxy->state      = XRD_PX_CONNECTING;
 
+    return uconn;
+}
+
+#if (NGX_SSL)
+/*
+ * WHAT: Starts the upstream TLS handshake on an already-connected socket.
+ *
+ * WHY: On an immediate (rc==0) connect to a TLS upstream we begin the client
+ *      TLS handshake right away; the async callback finishes the bootstrap.
+ *
+ * HOW: ngx_ssl_create_connection + SNI (explicit name directive, else host) +
+ *      ngx_ssl_handshake. NGX_AGAIN leaves the callback to continue; a synchronous
+ *      completion invokes brix_proxy_tls_handshake_done() inline. Returns NGX_OK
+ *      on success (connect continues via callback/inline), NGX_ERROR after
+ *      cleanup on failure.
+ */
+static ngx_int_t
+pc_start_tls(brix_proxy_ctx_t *proxy, ngx_stream_brix_srv_conf_t *conf,
+             ngx_connection_t *uconn)
+{
+    const char *sni;
+
+    if (ngx_ssl_create_connection(conf->proxy.tls_ctx, uconn,
+                                  NGX_SSL_BUFFER | NGX_SSL_CLIENT)
+        != NGX_OK)
+    {
+        BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
+        BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
+        brix_proxy_cleanup(proxy);
+        return NGX_ERROR;
+    }
+
+    /* SNI: prefer explicit name directive, fall back to configured host */
+    sni = (conf->proxy.upstream_tls_name.len > 0)
+          ? (const char *) conf->proxy.upstream_tls_name.data
+          : (const char *) conf->proxy.host.data;
+    SSL_set_tlsext_host_name(uconn->ssl->connection, sni);
+
+    uconn->ssl->handler = brix_proxy_tls_handshake_done;
+    proxy->state = XRD_PX_TLS_HANDSHAKE;
+    if (ngx_ssl_handshake(uconn) == NGX_AGAIN) {
+        return NGX_OK; /* TLS callback will continue */
+    }
+    brix_proxy_tls_handshake_done(uconn);
+    return NGX_OK;
+}
+#endif /* NGX_SSL */
+
+/*
+ * WHAT: Fires the async connect() on fd, arms the write event / connect timer,
+ *       and — on an immediate connect — either starts TLS or flushes bootstrap.
+ *
+ * WHY: nginx drives outbound connects under the event loop: connect() returns
+ *      EINPROGRESS and the write_handler completes it, unless the peer is local
+ *      (rc==0) in which case we proceed to TLS or bootstrap flush immediately.
+ *
+ * HOW: connect() (EINPROGRESS is expected/OK), ngx_handle_write_event, optional
+ *      connect timer; on rc==0 dispatches to pc_start_tls (TLS upstreams) or sets
+ *      BOOTSTRAP state + brix_proxy_flush. Any failure cleans up. Returns NGX_OK
+ *      or NGX_ERROR.
+ */
+static ngx_int_t
+pc_arm_events(brix_proxy_ctx_t *proxy, ngx_connection_t *client_conn,
+              ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *uconn,
+              pc_target_t *tgt)
+{
+    ngx_int_t rc;
+
     ngx_log_debug(NGX_LOG_DEBUG_STREAM, client_conn->log, 0,
                   "xrootd proxy: connect() to %s:%d",
-                  use_host->data, (int) use_port);
+                  tgt->host->data, (int) tgt->port);
 
-    rc = connect(fd, (struct sockaddr *)(void *) &chosen_addr,
-                 chosen_addrlen);
+    rc = connect(tgt->fd, (struct sockaddr *)(void *) &tgt->addr,
+                 tgt->addrlen);
     if (rc == -1 && ngx_socket_errno != NGX_EINPROGRESS) {
         ngx_log_error(NGX_LOG_ERR, client_conn->log, ngx_socket_errno,
                       "xrootd proxy: connect to %s:%d failed",
-                      use_host->data, (int) use_port);
+                      tgt->host->data, (int) tgt->port);
         BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
         BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
         brix_proxy_cleanup(proxy);
@@ -409,29 +569,7 @@ brix_proxy_connect(brix_proxy_ctx_t *proxy,
         /* Immediate connect (local loopback etc.) */
 #if (NGX_SSL)
         if (conf->proxy.upstream_tls && conf->proxy.tls_ctx != NULL) {
-            if (ngx_ssl_create_connection(conf->proxy.tls_ctx, uconn,
-                                          NGX_SSL_BUFFER | NGX_SSL_CLIENT)
-                != NGX_OK)
-            {
-                BRIX_PROXY_METRIC_INC(proxy->client_ctx, upstream_connect_errors);
-                BRIX_PROXY_UP_INC(proxy, upstream_connect_errors);
-                brix_proxy_cleanup(proxy);
-                return NGX_ERROR;
-            }
-            /* SNI: prefer explicit name directive, fall back to configured host */
-            {
-                const char *sni = (conf->proxy.upstream_tls_name.len > 0)
-                                  ? (const char *) conf->proxy.upstream_tls_name.data
-                                  : (const char *) conf->proxy.host.data;
-                SSL_set_tlsext_host_name(uconn->ssl->connection, sni);
-            }
-            uconn->ssl->handler = brix_proxy_tls_handshake_done;
-            proxy->state = XRD_PX_TLS_HANDSHAKE;
-            if (ngx_ssl_handshake(uconn) == NGX_AGAIN) {
-                return NGX_OK; /* TLS callback will continue */
-            }
-            brix_proxy_tls_handshake_done(uconn);
-            return NGX_OK;
+            return pc_start_tls(proxy, conf, uconn);
         }
 #endif
         proxy->state    = XRD_PX_BOOTSTRAP;
@@ -448,8 +586,46 @@ brix_proxy_connect(brix_proxy_ctx_t *proxy,
 
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, client_conn->log, 0,
                    "xrootd proxy: connecting to %s:%d",
-                   use_host->data, (int) use_port);
+                   tgt->host->data, (int) tgt->port);
     return NGX_OK;
+}
+
+/* public: connect and start bootstrap */
+ngx_int_t
+brix_proxy_connect(brix_proxy_ctx_t *proxy,
+                     ngx_connection_t   *client_conn,
+                     ngx_stream_brix_srv_conf_t *conf)
+{
+    pc_target_t       tgt;
+    ngx_connection_t *uconn;
+    ngx_int_t         rc;
+
+    ngx_memzero(&tgt, sizeof(tgt));
+
+    /* Select upstream: redirected host > pool > round-robin array > single host.
+     * NGX_OK = a pooled connection was adopted (connect complete). */
+    rc = pc_select_endpoint(proxy, client_conn, conf, &tgt);
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
+
+    /* GSI delegation: log in to the upstream AS THE USER in a thread (the blocking
+     * in-process GSI client), then hand the authenticated fd to the relay. */
+    if (conf->proxy.auth == BRIX_PROXY_AUTH_GSI) {
+        return brix_proxy_gsi_connect_async(proxy, conf, tgt.host,
+                                              (uint16_t) tgt.port);
+    }
+
+    if (pc_resolve_target(proxy, client_conn, &tgt) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    uconn = pc_open_socket(proxy, client_conn, conf, tgt.fd);
+    if (uconn == NULL) {
+        return NGX_ERROR;
+    }
+
+    return pc_arm_events(proxy, client_conn, conf, uconn, &tgt);
 }
 /*
  * WHAT: Selects an upstream endpoint, resolves DNS, creates a non-blocking
@@ -461,11 +637,10 @@ brix_proxy_connect(brix_proxy_ctx_t *proxy,
  *      redirected host > pooled connection > round-robin healthy upstreams >
  *      single configured host. This avoids idle sockets and distributes load.
  *
- * HOW: Selects endpoint from redirect/pool/rr/single, resolves via getaddrinfo()
- *      loop (tries each address until a socket succeeds), creates non-blocking
- *      socket with ngx_nonblocking(), arms write event for async connect,
- *      optionally performs TLS via ngx_ssl_create_connection + ngx_ssl_handshake,
- *      builds bootstrap buffer in upstream pool, sets proxy state to
- *      XRD_PX_CONNECTING or XRD_PX_BOOTSTRAP depending on TLS status.
+ * HOW: Orchestrates the connect phases in sequence — pc_select_endpoint (which
+ *      may short-circuit on a pooled connection), pc_resolve_target (AF policy),
+ *      pc_open_socket (connection + pool + bootstrap buffer), and pc_arm_events
+ *      (async connect + optional TLS via pc_start_tls). GSI-delegated connects
+ *      hand off to brix_proxy_gsi_connect_async before the socket phases.
  */
 

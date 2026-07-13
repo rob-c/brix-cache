@@ -2,10 +2,86 @@
 #include "core/config/http_common.h"
 #include "core/config/tier_directives.h"
 #include "fs/cache/verify.h"               /* brix_cache_verify_mode_e */
+#include "fs/backend/sd.h"                 /* BRIX_CRED_* (phase-70 §4) */
+
+#include <stdio.h>
+#include <openssl/pem.h>
+#include <openssl/x509.h>
+#include <openssl/evp.h>                   /* phase-2 T9 mint-CA config-time validation */
 
 static void *brix_http_common_create_loc_conf(ngx_conf_t *cf);
 static char *brix_http_common_merge_loc_conf(ngx_conf_t *cf,
                                              void *parent, void *child);
+
+static ngx_conf_enum_t  brix_http_ucred_fallback_enum[] = {
+    { ngx_string("allow"), 0 },
+    { ngx_string("deny"),  1 },
+    { ngx_null_string, 0 }
+};
+
+/* brix_backend_delegation mode names → BRIX_CRED_* (phase-70 §4). Shared by the
+ * HTTP plane here and mirrored by the root:// stream directive table. */
+static ngx_conf_enum_t  brix_backend_delegation_enum[] = {
+    { ngx_string("select"),      BRIX_CRED_SELECT },
+    { ngx_string("passthrough"), BRIX_CRED_PASSTHROUGH },
+    { ngx_string("exchange"),    BRIX_CRED_EXCHANGE },
+    { ngx_string("delegate"),    BRIX_CRED_DELEGATE },
+    { ngx_string("mint"),        BRIX_CRED_MINT },
+    { ngx_string("auto"),        BRIX_CRED_AUTO },
+    { ngx_null_string, 0 }
+};
+
+/*
+ * brix_conf_set_mint_ca — setter for "brix_storage_credential_mint_ca <cert>
+ * <key>" (phase-2 T9). Validates both PEM files load-parse at config time
+ * (nginx -t fails loudly on a bad mint CA instead of every mint request
+ * failing at runtime) and stores their paths into the shared preamble's
+ * storage_credential_mint_ca_cert / _key fields. TRUST NOTE: configuring this
+ * directive means the frontend will sign per-user x509 proxies with this CA
+ * key — the ORIGIN must trust this CA for minted credentials to be usable;
+ * see src/fs/backend/cred_mint.h for the full trust-model note.
+ */
+static char *
+brix_conf_set_mint_ca(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_http_brix_common_conf_t *c = conf;
+    ngx_str_t                   *value = cf->args->elts;
+    FILE                         *f;
+    X509                         *cert;
+    EVP_PKEY                     *key;
+
+    (void) cmd;
+
+    f = fopen((const char *) value[1].data, "r");
+    cert = (f != NULL) ? PEM_read_X509(f, NULL, NULL, NULL) : NULL;
+    if (f != NULL) {
+        (void) fclose(f);   /* read-only stream: close failure cannot lose data */
+    }
+    if (cert == NULL) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_storage_credential_mint_ca: cannot parse CA cert \"%V\"",
+            &value[1]);
+        return NGX_CONF_ERROR;
+    }
+    X509_free(cert);
+
+    f = fopen((const char *) value[2].data, "r");
+    key = (f != NULL) ? PEM_read_PrivateKey(f, NULL, NULL, NULL) : NULL;
+    if (f != NULL) {
+        (void) fclose(f);   /* read-only stream: close failure cannot lose data */
+    }
+    if (key == NULL) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_storage_credential_mint_ca: cannot parse CA key \"%V\"",
+            &value[2]);
+        return NGX_CONF_ERROR;
+    }
+    EVP_PKEY_free(key);
+
+    c->common.storage_credential_mint_ca_cert = value[1];
+    c->common.storage_credential_mint_ca_key  = value[2];
+    return NGX_CONF_OK;
+}
 
 /*
  * brix_cache_verify values on the HTTP plane.  Only the self-verifying
@@ -44,6 +120,97 @@ static ngx_command_t  brix_http_common_commands[] = {
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_common_conf_t, common.storage_credential),
+      NULL },
+
+    { ngx_string("brix_storage_credential_dir"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.storage_credential_dir),
+      NULL },
+
+    { ngx_string("brix_storage_credential_fallback"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.storage_credential_fallback),
+      &brix_http_ucred_fallback_enum },
+
+    { ngx_string("brix_storage_credential_mint_ca"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE2,
+      brix_conf_set_mint_ca,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("brix_storage_credential_mint_ttl"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.storage_credential_mint_ttl),
+      NULL },
+
+    { ngx_string("brix_backend_delegation"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.backend_delegation),
+      &brix_backend_delegation_enum },
+
+    { ngx_string("brix_backend_token_audience_ok"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_1MORE,
+      ngx_conf_set_str_array_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.backend_token_aud),
+      NULL },
+
+    { ngx_string("brix_backend_token_exchange_endpoint"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.backend_tx_endpoint),
+      NULL },
+
+    { ngx_string("brix_backend_token_exchange_client_id"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.backend_tx_client_id),
+      NULL },
+
+    { ngx_string("brix_backend_token_exchange_client_secret"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.backend_tx_client_secret),
+      NULL },
+
+    { ngx_string("brix_backend_s3_sts_endpoint"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.backend_sts_endpoint),
+      NULL },
+
+    { ngx_string("brix_backend_s3_sts_role"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.backend_sts_role),
+      NULL },
+
+    { ngx_string("brix_backend_krb5_forwardable"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.backend_krb5_forwardable),
+      NULL },
+
+    { ngx_string("brix_backend_passthrough_persist"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.backend_passthrough_persist),
       NULL },
 
     { ngx_string("brix_allow_write"),
@@ -172,6 +339,19 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_STR(root);
     BRIX_ADOPT_STR(storage_backend);
     BRIX_ADOPT_STR(storage_credential);
+    BRIX_ADOPT_STR(storage_credential_dir);
+    BRIX_ADOPT_VAL(storage_credential_fallback, NGX_CONF_UNSET_UINT);
+    BRIX_ADOPT_STR(storage_credential_mint_ca_cert);
+    BRIX_ADOPT_STR(storage_credential_mint_ca_key);
+    BRIX_ADOPT_VAL(storage_credential_mint_ttl, NGX_CONF_UNSET_UINT);
+    BRIX_ADOPT_VAL(backend_delegation, NGX_CONF_UNSET_UINT);
+    BRIX_ADOPT_STR(backend_tx_endpoint);
+    BRIX_ADOPT_STR(backend_tx_client_id);
+    BRIX_ADOPT_STR(backend_tx_client_secret);
+    BRIX_ADOPT_STR(backend_sts_endpoint);
+    BRIX_ADOPT_STR(backend_sts_role);
+    BRIX_ADOPT_VAL(backend_krb5_forwardable, NGX_CONF_UNSET);
+    BRIX_ADOPT_VAL(backend_passthrough_persist, NGX_CONF_UNSET);
     BRIX_ADOPT_STR(thread_pool_name);
     BRIX_ADOPT_STR(access_log);
     BRIX_ADOPT_STR(cache_store);

@@ -53,6 +53,10 @@ typedef struct {
                                     failover); pairs with last_origin.       */
     unsigned                     probe_tick;  /* half-open recovery probe clock */
     char                         auth_hdr[SD_HTTP_AUTH_MAX]; /* §14 bearer hdr or "" */
+    char                         ca_path[1024]; /* §14/C-3 operator trusted CA (file
+                                    or hashed dir) for origin TLS; "" = system
+                                    bundle. Handed to the curl transport as its
+                                    tctx (phase-70 https backend leg). */
     ngx_log_t                   *log;         /* selection diagnostics (create-
                                     time log; the registry builds instances
                                     with the cycle log, which outlives any

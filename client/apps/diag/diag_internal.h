@@ -74,6 +74,22 @@ typedef enum {
     DXP_CMS         /* cms:// (cluster manager: locate + redirect trace) */
 } dx_proto;
 
+/*
+ * WHAT: a parsed deep-dive URL — scheme battery + TLS flag + authority + path.
+ * WHY:  dx_url_parse used to fill five separate out-parameters (8 params
+ *       total); the out-struct carries the same fields as one unit and travels
+ *       whole into the protocol batteries (doctor_http / doctor_s3).
+ * HOW:  filled only by dx_url_parse: proto/tls/port start from the matched
+ *       DX_SCHEMES row, host/port come from the authority, path defaults "/".
+ */
+typedef struct {
+    dx_proto proto;               /* protocol battery to route to           */
+    int      tls;                 /* 1 = the scheme implies TLS             */
+    char     host[256];           /* host name or IPv6 literal (unbracketed)*/
+    int      port;                /* explicit, or the per-scheme default    */
+    char     path[XRDC_PATH_MAX]; /* absolute request path ("/" if absent)  */
+} dx_url_t;
+
 typedef struct {
     dx_proto      proto;             /* which protocol battery produced this endpoint */
     char          host[256];
@@ -110,6 +126,64 @@ typedef struct {
 } dx_rule;
 
 extern const dx_rule DX_RULES[];
+
+/*
+ * WHAT: one classified finding, by reference — the argument block of dx_record().
+ * WHY:  dx_record used to take the five finding fields positionally (6 params,
+ *       over the parameter gate); one descriptor keeps every callsite a single
+ *       expression with the fields in dx_finding storage order.
+ * HOW:  callsites pass a compound literal ordered exactly as dx_finding stores
+ *       it: probe, verdict, kxr, cause, remedy. cause/remedy may be NULL
+ *       (recorded as ""). dx_record copies everything, so temporaries are safe.
+ */
+typedef struct {
+    const char *probe;    /* subsystem id (see dx_finding.probe)     */
+    int         verdict;  /* DX_OK / DX_WARN / DX_FAIL               */
+    int         kxr;      /* the kXR_* code observed (0 if none)     */
+    const char *cause;    /* root-cause classification (PII-free)    */
+    const char *remedy;   /* operator remediation (PII-free)         */
+} dx_note;
+
+/*
+ * WHAT: credential selection for one scoped diagnostic connection.
+ * WHY:  dx_connect_as took the three selection knobs positionally (7 params);
+ *       grouping them names each knob at the callsite.
+ * HOW:  force_anon suppresses credentials entirely; token_override (NULL =
+ *       use the environment as-is) is swapped into $BEARER_TOKEN around the
+ *       connect; auth_force (NULL = negotiate) pins the auth protocol.
+ */
+typedef struct {
+    int         force_anon;      /* 1 = login with NO credential            */
+    const char *token_override;  /* bearer token to present (NULL = env)    */
+    const char *auth_force;      /* forced auth protocol (NULL = negotiate) */
+} dx_cred_sel;
+
+/*
+ * WHAT: the resolved probe target (a readable remote file), if any.
+ * WHY:  doctor_diagnose took the (target, have_target) split pair (6 params);
+ *       the pair is one fact — "a target path, possibly absent".
+ * HOW:  filled by doctor_one from its xfer-probe resolution; path is only
+ *       meaningful when have is 1.
+ */
+typedef struct {
+    const char *path;   /* resolved file path (valid only when have == 1) */
+    int         have;   /* 1 = a readable target was resolved             */
+} dx_target;
+
+/*
+ * WHAT: the request identity to sign — every SigV4 input except the payload.
+ * WHY:  s3_sign took the six signing inputs positionally (8 params); the
+ *       descriptor keeps the signer call within the parameter gate.
+ * HOW:  host must be the exact Host header value sent (host:port) — the
+ *       server canonicalises it verbatim, so a bare host would mismatch.
+ */
+typedef struct {
+    const char *method;   /* HTTP method to sign                    */
+    const char *host;     /* exact Host header value (host:port)    */
+    const char *uri;      /* path-style request URI                 */
+    const char *ak, *sk;  /* AWS access key id / secret             */
+    const char *region;   /* signing region (e.g. "us-east-1")      */
+} s3_sign_req;
 typedef struct {
     int         up;                 /* 1 = connected, 0 = down/unreachable */
     double      connect_ms;         /* full connect (TCP+TLS+login+auth) */
@@ -179,7 +253,7 @@ int doctor_xfer(brix_conn *c, const char *path, double *ttfb_ms, double *mbps, i
 void doctor_metrics(const char *host, int port, doctor_ep *e);
 
 /* xrddiag.c */
-void dx_record(doctor_ep *e, const char *probe, int verdict, int kxr, const char *cause, const char *remedy);
+void dx_record(doctor_ep *e, const dx_note *n);
 void dx_record_status(doctor_ep *e, const char *probe, const brix_status *st);
 int dx_is_loopback(const char *host);
 
@@ -194,7 +268,7 @@ void dx_probe_stage(brix_conn *c, const char *target, doctor_ep *e);
 /* xrddiag.c */
 int dx_b64url_enc(const unsigned char *in, size_t n, char *out, size_t outsz);
 int dx_make_jwt(const char *header, const char *payload, const char *sig, char *out, size_t outsz);
-int dx_connect_as(const diag_args *a, const brix_url *u, int force_anon, const char *token_override, const char *auth_force, brix_conn *c, brix_status *st);
+int dx_connect_as(const diag_args *a, const brix_url *u, const dx_cred_sel *sel, brix_conn *c, brix_status *st);
 
 /* diag_check.c */
 int dx_authz_anon(const diag_args *a, const brix_url *u, const char *target, int have_target, char *sec_out, size_t sec_sz, doctor_ep *e);
@@ -204,22 +278,22 @@ void dx_authz_scope(const diag_args *a, const brix_url *u, const char *tok, doct
 
 /* diag_doctor.c */
 void doctor_auth_suite(const diag_args *a, const brix_url *u, const char *target, int have_target, doctor_ep *e);
-void doctor_diagnose(const diag_args *a, brix_conn *c, const brix_url *u, const char *target, int have_target, doctor_ep *e);
+void doctor_diagnose(const diag_args *a, brix_conn *c, const brix_url *u, const dx_target *t, doctor_ep *e);
 
 /* xrddiag.c */
 const char * dx_proto_name(dx_proto p);
-int dx_url_parse(const char *url, dx_proto *proto, int *tls, char *host, size_t hsz, int *port, char *path, size_t psz);
+int dx_url_parse(const char *url, dx_url_t *u);
 void dx_http_status(doctor_ep *e, const char *probe, int status);
 void dx_http_fail(doctor_ep *e, int tls, const brix_status *st);
 
 /* diag_doctor.c */
-void doctor_http(const diag_args *a, dx_proto proto, int tls, const char *host, int port, const char *path, doctor_ep *e);
+void doctor_http(const diag_args *a, const dx_url_t *u, doctor_ep *e);
 
 /* xrddiag.c */
-int s3_sign(const char *method, const char *host, const char *uri, const char *ak, const char *sk, const char *region, char *hdrs, size_t hdrsz);
+int s3_sign(const s3_sign_req *q, char *hdrs, size_t hdrsz);
 
 /* diag_doctor.c */
-void doctor_s3(const diag_args *a, int tls, const char *host, int port, const char *uri, doctor_ep *e);
+void doctor_s3(const diag_args *a, const dx_url_t *u, doctor_ep *e);
 void doctor_cms(const diag_args *a, const char *host, int port, const char *path, doctor_ep *e);
 void doctor_one(const diag_args *a, const char *url, doctor_ep *e);
 const char * doc_color(int s);

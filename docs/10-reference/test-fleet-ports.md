@@ -185,5 +185,7 @@ nginx proxy in front.
 | Band | Owner | What |
 |---|---|---|
 | 21610–21749 | `tests/cms_mesh_lib.py` | 18 self-contained CMS mesh topologies (real xrootd ↔ nginx interop: managers, pools, write-through pairs, failover, tri-protocol) |
+| 21900–21959 | `tests/lib/tpc_fwd.sh` + `tests/run_tpc_fwd_{webdav,root}.sh` | TPC credential-forwarding suite (proves a user's GSI proxy / WLCG token is delegated through a third-party COPY so the SOURCE authenticates the end user). WebDAV flavor 21900–21929, native root:// flavor 21930–21959; each driver allocates a monotonic source/dest port pair per cell from its base (`FWD_PORT_BASE`). Reuses the OIDC discovery server on 21999. Self-contained, non-persistent; per-cell pidfile-scoped teardown; `fuser -k` cleanup. Disjoint from the normal-access forwarding matrix (21960–21999) |
 | 11300–11330 | `tests/hybrid_mesh_lib.py` | 2-tier hybrid mesh: tier-1 nginx redirector + S3/WebDAV front doors → tier-2 xrootd hierarchy (env-overridable `HYBRID_*_PORT`) |
 | 12831–12904 | `tests/run_cvmfs_*.sh` | ad-hoc cvmfs suite ports (reverse/select/holdopen/keepalive/upstream-metrics/scvmfs), fixed per script, non-persistent |
+| 21960–21999 | `tests/lib/fwd_matrix.sh` + `tests/run_fwd_{brix_xrootd,xrootd_brix,brix_brix}.sh` | credential-forwarding matrix suite. Each driver allocates a monotonic pair of front/backend ports per cell from its base (A=21960, B=21970, C=21980; env `FWD_PORT_BASE`). Self-contained, non-persistent; per-cell pidfile-scoped teardown. Reserved contiguous block, disjoint from all above |

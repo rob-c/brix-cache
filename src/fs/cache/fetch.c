@@ -141,19 +141,159 @@ brix_cache_build_wt_origin(const ngx_stream_brix_srv_conf_t *conf, ngx_log_t *lo
     }
     ngx_cpystrn((u_char *) host_z, conf->wt.origin_host.data,
                 ngx_min(conf->wt.origin_host.len + 1, sizeof(host_z)));
-    return brix_sd_xroot_create_origin(host_z, (int) conf->wt.origin_port,
-        0 /* tls: legacy cache_origin_tls retired */,
-        (int) conf->cache_origin_family,
-        (conf->cache_origin_bearer.len > 0)
+    brix_sd_xroot_origin_cfg_t cfg = {
+        .host      = host_z,
+        .port      = (int) conf->wt.origin_port,
+        .tls       = 0, /* tls: legacy cache_origin_tls retired */
+        .af_policy = (int) conf->cache_origin_family,
+        .bearer    = (conf->cache_origin_bearer.len > 0)
             ? (const char *) conf->cache_origin_bearer.data : NULL,
-        (conf->cache_origin_x509_proxy.len > 0)
+        .x509_proxy = (conf->cache_origin_x509_proxy.len > 0)
             ? (const char *) conf->cache_origin_x509_proxy.data : NULL,
-        (conf->cache_origin_ca_dir.len > 0)
+        .x509_key  = (conf->cache_origin_x509_key.len > 0)
+            ? (const char *) conf->cache_origin_x509_key.data : NULL,
+        .ca_dir    = (conf->cache_origin_ca_dir.len > 0)
             ? (const char *) conf->cache_origin_ca_dir.data : NULL,
-        NULL /* sss_keytab: SSS is a tier-grammar credential, not legacy */,
-        log);
+        .sss_keytab = NULL, /* SSS is a tier-grammar credential, not legacy */
+    };
+    return brix_sd_xroot_create_origin(&cfg, log);
 }
 
+
+/* brix_cache_src_close — WHAT: release a SD source object opened for a fill.
+ * WHY: the driver hands back either a pool-owned object or a heap "shell" that
+ * the caller must free; every fill-error path must release both identically, so
+ * this single-job helper keeps that contract in one place (no per-branch
+ * duplication, no leak drift). HOW: driver->close then free() iff heap_shell. */
+static void
+brix_cache_src_close(brix_sd_instance_t *source, brix_sd_obj_t *src)
+{
+    source->driver->close(src);
+    if (src->heap_shell) {
+        free(src);
+    }
+}
+
+/* brix_cache_fill_admitted — WHAT: apply the cache admission policy to an
+ * opened source. WHY: admission (deny/allow prefixes, size cap, include regex)
+ * is a decision stage distinct from I/O; isolating it keeps the spine linear.
+ * HOW: build the admit cfg from conf and return 1 iff the file is DECLINEd. */
+static int
+brix_cache_fill_admitted(ngx_stream_brix_srv_conf_t *conf,
+    const char *clean_path, off_t file_size)
+{
+    brix_cache_admit_cfg_t admit = {
+        .deny_prefixes  = conf->cache_deny_prefixes,
+        .allow_prefixes = conf->cache_allow_prefixes,
+        .size_limit     = conf->cache_max_file_size,
+        .include_regex  = conf->include_regex.set
+                          ? &conf->include_regex.re : NULL,
+    };
+    return brix_cache_admit(&admit, clean_path, file_size, 0)
+           == BRIX_CACHE_DECLINE;
+}
+
+/* brix_cache_fill_copy — WHAT: stream the source object into the staged sink.
+ * WHY: the sequential pread→pwrite copy loop is the single hot data-moving stage
+ * and its exact fill-range math (off advances by n; short read == EOF) must be
+ * preserved verbatim; extracting it drops the loop's error branches out of the
+ * spine's cyclomatic count. HOW: chunked pread from `src` at `off`, pwrite the
+ * same bytes at the same `off` into `sink`; 0 on success, -1 on read/write error
+ * (errno set by the failing call, as before). Caller owns buf lifetime. */
+static int
+brix_cache_fill_copy(brix_sd_obj_t *src, brix_cache_sink_t *sink, u_char *buf)
+{
+    off_t off = 0;
+
+    for (;;) {
+        ssize_t n = src->driver->pread(src, buf, BRIX_CACHE_FETCH_CHUNK, off);
+
+        if (n < 0
+            || (n > 0
+                && brix_cache_sink_pwrite(sink, buf, (size_t) n, off) != 0))
+        {
+            return -1;
+        }
+        off += n;
+        if ((size_t) n < BRIX_CACHE_FETCH_CHUNK) {
+            break;                               /* short read = EOF */
+        }
+    }
+    return 0;
+}
+
+/* brix_cache_fill_body — WHAT: the staged-write body of a fill: open the cache
+ * staged sink, allocate the copy buffer, run the copy loop, capture the
+ * on-fill checksum, then commit the staged bytes. WHY: pulling the staged
+ * lifecycle out of the spine keeps each function under the CCN cap while holding
+ * the sink/buf ownership contract (abort on any failure) in one place; the src
+ * object is closed by this function on every exit (the caller must not). HOW:
+ * staged_open (0600) → malloc → copy → xroot checksum query → src close →
+ * staged_commit. Returns 0 (bytes committed) / -1 (error; t error fields set,
+ * staged aborted). */
+static int
+brix_cache_fill_body(brix_cache_fill_t *t, brix_sd_instance_t *source,
+    brix_sd_obj_t *src, brix_sd_instance_t *cache_inst, const char *key)
+{
+    ngx_stream_brix_srv_conf_t *conf = t->conf;
+    brix_sd_staged_t           *staged;
+    brix_cache_sink_t             sink;
+    u_char                       *buf;
+    int                           e = 0;
+
+    /* SECURITY: cache-store files hold many users' bytes under one service-owned
+     * tree and are created + served AS THE WORKER (open_resolved_file.c from_cache
+     * branch, not the impersonation VFS). 0600 (not 0644) so a mapped low-priv uid
+     * cannot read another user's cached bytes by direct filesystem access; the
+     * per-user protocol gate (open_cache.c) already fronts the served path. */
+    staged = cache_inst->driver->staged_open(cache_inst, key, 0600, &e);
+    if (staged == NULL) {
+        brix_cache_src_close(source, src);
+        brix_cache_set_error(t, kXR_IOError, e, "cache staged open failed");
+        return -1;
+    }
+    sink.fd = -1;
+    sink.staged = staged;
+    sink.mem = NULL;
+    sink.mem_cap = 0;
+
+    buf = malloc(BRIX_CACHE_FETCH_CHUNK);
+    if (buf == NULL) {
+        cache_inst->driver->staged_abort(staged);
+        brix_cache_src_close(source, src);
+        brix_cache_set_error(t, kXR_NoMemory, 0,
+                               "cache fill buffer alloc failed");
+        return -1;
+    }
+
+    if (brix_cache_fill_copy(src, &sink, buf) != 0) {
+        free(buf);
+        cache_inst->driver->staged_abort(staged);
+        brix_cache_src_close(source, src);
+        brix_cache_set_error(t, kXR_IOError, errno,
+                               "cache source read / cache write failed");
+        return -1;
+    }
+    free(buf);
+
+    /* Checksum-on-fill is the xroot source's kXR_Qcksum; other sources (http) offer
+     * no in-band digest here, so the verify policy decides on the local bytes. */
+    if (conf->cache_verify != BRIX_CACHE_VERIFY_OFF
+        && ngx_strcmp(brix_sd_backend_name(source), "xroot") == 0)
+    {
+        brix_sd_xroot_query_checksum(src, t->origin_cks_alg,
+            sizeof(t->origin_cks_alg), t->origin_cks_hex,
+            sizeof(t->origin_cks_hex));
+    }
+
+    brix_cache_src_close(source, src);
+
+    if (cache_inst->driver->staged_commit(staged, 0) != NGX_OK) {
+        brix_cache_set_error(t, kXR_IOError, 0, "cache staged commit failed");
+        return -1;
+    }
+    return 0;
+}
 
 /* brix_cache_fill_from_source — THE single cache-fill spine (phase-63): fill from
  * any SD source instance generically — `source->driver->open` → `pread` loop →
@@ -169,10 +309,6 @@ brix_cache_fill_from_source(brix_cache_fill_t *t,
     brix_sd_instance_t         *cache_inst = brix_cache_storage(conf);
     const char                   *key = brix_cache_fill_key(t);
     brix_sd_obj_t              *src;
-    brix_sd_staged_t           *staged;
-    brix_cache_sink_t           sink;
-    u_char                       *buf;
-    off_t                         off = 0;
     int                           e = 0;
 
     if (source == NULL || cache_inst == NULL || key == NULL) {
@@ -189,88 +325,13 @@ brix_cache_fill_from_source(brix_cache_fill_t *t,
     }
     t->file_size = (uint64_t) src->snap.size;
 
-    {
-        brix_cache_admit_cfg_t admit = {
-            .deny_prefixes  = conf->cache_deny_prefixes,
-            .allow_prefixes = conf->cache_allow_prefixes,
-            .size_limit     = conf->cache_max_file_size,
-            .include_regex  = conf->include_regex.set
-                              ? &conf->include_regex.re : NULL,
-        };
-        if (brix_cache_admit(&admit, t->clean_path, (off_t) t->file_size, 0)
-            == BRIX_CACHE_DECLINE)
-        {
-            source->driver->close(src);
-            if (src->heap_shell) { free(src); }
-            t->result = NGX_DECLINED;
-            return 1;
-        }
+    if (brix_cache_fill_admitted(conf, t->clean_path, (off_t) t->file_size)) {
+        brix_cache_src_close(source, src);
+        t->result = NGX_DECLINED;
+        return 1;
     }
 
-    /* SECURITY: cache-store files hold many users' bytes under one service-owned
-     * tree and are created + served AS THE WORKER (open_resolved_file.c from_cache
-     * branch, not the impersonation VFS). 0600 (not 0644) so a mapped low-priv uid
-     * cannot read another user's cached bytes by direct filesystem access; the
-     * per-user protocol gate (open_cache.c) already fronts the served path. */
-    staged = cache_inst->driver->staged_open(cache_inst, key, 0600, &e);
-    if (staged == NULL) {
-        source->driver->close(src);
-        if (src->heap_shell) { free(src); }
-        brix_cache_set_error(t, kXR_IOError, e, "cache staged open failed");
-        return -1;
-    }
-    sink.fd = -1;
-    sink.staged = staged;
-    sink.mem = NULL;
-    sink.mem_cap = 0;
-
-    buf = malloc(BRIX_CACHE_FETCH_CHUNK);
-    if (buf == NULL) {
-        cache_inst->driver->staged_abort(staged);
-        source->driver->close(src);
-        if (src->heap_shell) { free(src); }
-        brix_cache_set_error(t, kXR_NoMemory, 0,
-                               "cache fill buffer alloc failed");
-        return -1;
-    }
-
-    for (;;) {
-        ssize_t n = src->driver->pread(src, buf, BRIX_CACHE_FETCH_CHUNK, off);
-
-        if (n < 0
-            || (n > 0
-                && brix_cache_sink_pwrite(&sink, buf, (size_t) n, off) != 0))
-        {
-            free(buf);
-            cache_inst->driver->staged_abort(staged);
-            source->driver->close(src);
-            if (src->heap_shell) { free(src); }
-            brix_cache_set_error(t, kXR_IOError, errno,
-                                   "cache source read / cache write failed");
-            return -1;
-        }
-        off += n;
-        if ((size_t) n < BRIX_CACHE_FETCH_CHUNK) {
-            break;                               /* short read = EOF */
-        }
-    }
-    free(buf);
-
-    /* Checksum-on-fill is the xroot source's kXR_Qcksum; other sources (http) offer
-     * no in-band digest here, so the verify policy decides on the local bytes. */
-    if (conf->cache_verify != BRIX_CACHE_VERIFY_OFF
-        && ngx_strcmp(brix_sd_backend_name(source), "xroot") == 0)
-    {
-        brix_sd_xroot_query_checksum(src, t->origin_cks_alg,
-            sizeof(t->origin_cks_alg), t->origin_cks_hex,
-            sizeof(t->origin_cks_hex));
-    }
-
-    source->driver->close(src);
-    if (src->heap_shell) { free(src); }
-
-    if (cache_inst->driver->staged_commit(staged, 0) != NGX_OK) {
-        brix_cache_set_error(t, kXR_IOError, 0, "cache staged commit failed");
+    if (brix_cache_fill_body(t, source, src, cache_inst, key) != 0) {
         return -1;
     }
     return brix_cache_commit_staged(t, cache_inst, key);

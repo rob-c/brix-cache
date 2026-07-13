@@ -523,33 +523,56 @@ void        brix_trace_frame(brix_conn *c, int dir, uint16_t sid, int code,
 void        brix_timing_report(const brix_conn *c);
 
 /* ---- frame.c ---- */
+/* One outbound request payload: the bytes written after the 24-byte header.
+ * A NULL brix_payload argument means "no payload" ({NULL, 0}). */
+typedef struct {
+    const void *data;   /* payload bytes (may be NULL when len == 0) */
+    uint32_t    len;    /* payload byte count (brix_send frames dlen == len) */
+} brix_payload;
+
+/* brix_send_ext payload: `dlen` — the wire dlen written into hdr[20..23] (also
+ * the sigver-signed span) — may be smaller than `len`, the payload bytes
+ * actually written.  Needed by kXR_writev, whose dlen frames only the 16-byte
+ * descriptor block while the segment data streams after the frame (stock
+ * XrdXrootdProtocol::do_WriteV).  brix_send == brix_send_ext with dlen == len. */
+typedef struct {
+    const void *data;   /* payload bytes (may be NULL when len == 0) */
+    uint32_t    len;    /* payload bytes actually written after the header */
+    uint32_t    dlen;   /* wire dlen framed in the header */
+} brix_payload_ext;
+
+/* Caller-provided response out-params. The struct pointer itself must be
+ * non-NULL; any field may be NULL to decline that value. *body receives a
+ * malloc'd buffer the caller frees (NULL when the reply has no body). */
+typedef struct {
+    uint16_t *status;
+    uint8_t **body;
+    uint32_t *blen;
+} brix_resp_out;
+
 /* Assign a fresh streamid into hdr[0..1] and write dlen into hdr[20..23] (the
  * caller has already filled requestid + the 16-byte body). Sends header+payload. */
-int brix_send(brix_conn *c, void *hdr24, const void *payload, uint32_t plen,
+int brix_send(brix_conn *c, void *hdr24, const brix_payload *pl,
               uint16_t *out_sid, brix_status *st);
-/* As brix_send, but the wire dlen (hdr[20..23], also the sigver-signed span)
- * may be smaller than send_len, the payload bytes actually written.  Needed by
- * kXR_writev, whose dlen frames only the 16-byte descriptor block while the
- * segment data streams after the frame (stock XrdXrootdProtocol::do_WriteV).
- * brix_send == brix_send_ext with dlen == send_len. */
-int brix_send_ext(brix_conn *c, void *hdr24, const void *payload,
-                  uint32_t send_len, uint32_t dlen, uint16_t *out_sid,
-                  brix_status *st);
-/* Read one response frame for streamid want_sid. Returns 0 with *status set and a
- * malloc'd body/blen (caller frees) for kXR_ok/oksofar/authmore AND kXR_redirect/
- * kXR_wait (so the roundtrip wrapper can act on them). Returns -1 on kXR_error
- * (st filled from errnum+errmsg) or any other status / transport fault. */
-int brix_recv(brix_conn *c, uint16_t want_sid, uint16_t *status,
-              uint8_t **body, uint32_t *blen, brix_status *st);
+/* As brix_send, but with independent wire dlen (see brix_payload_ext). */
+int brix_send_ext(brix_conn *c, void *hdr24, const brix_payload_ext *pl,
+                  uint16_t *out_sid, brix_status *st);
+/* Read one response frame for streamid want_sid. Returns 0 with *out->status set
+ * and a malloc'd *out->body / *out->blen (caller frees) for kXR_ok/oksofar/authmore
+ * AND kXR_redirect/kXR_wait (so the roundtrip wrapper can act on them). Returns
+ * -1 on kXR_error (st filled from errnum+errmsg) or any other status / transport
+ * fault. */
+int brix_recv(brix_conn *c, uint16_t want_sid, brix_resp_out *out,
+              brix_status *st);
 
 /* Send a request and read its reply, transparently following kXR_redirect
  * (reconnect+replay, bounded by XRDC_REDIR_MAX + a visited-set loop guard) and
  * honoring kXR_wait (sleep+resend). Use this for path-based ops so cluster
- * redirectors work. hdr24 is re-stamped (streamid/dlen) on each attempt. Returns 0
- * with *status = kXR_ok/oksofar + body/blen; -1 (st set) on error. */
-int brix_roundtrip(brix_conn *c, void *hdr24, const void *payload, uint32_t plen,
-                   uint16_t *status, uint8_t **body, uint32_t *blen,
-                   brix_status *st);
+ * redirectors work. hdr24 is re-stamped (streamid/dlen) on each attempt.
+ * out->body and out->blen must be non-NULL here. Returns 0 with *out->status =
+ * kXR_ok/oksofar + body/blen; -1 (st set) on error. */
+int brix_roundtrip(brix_conn *c, void *hdr24, const brix_payload *pl,
+                   brix_resp_out *out, brix_status *st);
 
 /* ---- conn.c ---- */
 /* connect → handshake → [TLS upgrade] → kXR_protocol → kXR_login → [auth].

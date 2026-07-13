@@ -51,4 +51,23 @@ X509_STORE *brix_build_ca_store(ngx_log_t *log,
     brix_sp_mode_t sp_mode,
     int crl_mode);
 
+/* brix_build_ca_store_cached — like brix_build_ca_store, but memoises the built
+ * store within one config parse.  Loading the IGTF CA directory's hundreds of
+ * *.r0 CRLs takes ~1s, and it was paid ONCE PER GSI SERVER BLOCK (root://,
+ * davs://, …) at startup — several seconds of dead time.  `scope` is a
+ * per-config-parse token (pass cf->cycle): stores with identical inputs AND the
+ * same scope are built once and ref-counted-shared; a different scope (a reload
+ * re-parse) rebuilds, and a NULL scope disables caching entirely (used by the
+ * per-worker CRL hot-reload timer, which MUST rebuild from fresh CRLs).  On a
+ * cache hit the returned store is X509_STORE_up_ref'd, so callers free their ref
+ * exactly as with brix_build_ca_store. */
+X509_STORE *brix_build_ca_store_cached(void *scope, ngx_log_t *log,
+    const char *cadir,
+    const char *cafile,
+    const char *crl_path,
+    unsigned long extra_flags,
+    int *crl_count_out,
+    brix_sp_mode_t sp_mode,
+    int crl_mode);
+
 #endif /* CRYPTO_PKI_BUILD_H */

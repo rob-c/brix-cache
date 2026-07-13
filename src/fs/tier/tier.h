@@ -128,17 +128,29 @@ typedef enum {
     BRIX_TIER_NEEDS_DEV = 1    /* a slot/cap is missing — tracked dev task (P1)  */
 } brix_tier_status_t;
 
+/* ---- store-URL parse context ------------------------------------------------
+ * Bundles the config handle (for [emerg] emission — may be NULL), the tier cfg
+ * being populated and the caller's error buffer. Promoted from a tier_config.c
+ * file-local (phase-73) so brix_tier_parse_store takes ONE context instead of
+ * the (cf, out, err, errcap) quartet every parse helper threads. */
+typedef struct {
+    ngx_conf_t        *cf;       /* for [emerg] emission (may be NULL)   */
+    brix_tier_cfg_t   *out;      /* the tier cfg being populated         */
+    char              *err;      /* caller's error-message buffer        */
+    size_t             errcap;   /* capacity of err                      */
+} brix_tier_parse_t;
+
 /* ---- public API ----------------------------------------------------------- */
 
 /* Parse a "<scheme>:<location> [credential=<n>] [block_size=<n>]" store URL into
- * *out (§4.2, Appendix L). `url` is the store-url token; `args` (may be NULL)
+ * p->out (§4.2, Appendix L). `url` is the store-url token; `args` (may be NULL)
  * carries the trailing credential=/block_size= params. On a malformed URL,
  * unknown scheme, or unknown/absent credential this writes a message into
- * err[errcap] and returns NGX_ERROR (operator error, Appendix F). On success it
- * sets out->configured and returns NGX_OK. Pure parse — no instance is built. */
-ngx_int_t brix_tier_parse_store(ngx_conf_t *cf, ngx_str_t *url,
-    ngx_array_t *args, brix_tier_role_t role, brix_tier_cfg_t *out,
-    char *err, size_t errcap);
+ * p->err[p->errcap] and returns NGX_ERROR (operator error, Appendix F). On
+ * success it sets p->out->configured and returns NGX_OK. Pure parse — no
+ * instance is built. */
+ngx_int_t brix_tier_parse_store(brix_tier_parse_t *p, ngx_str_t *url,
+    ngx_array_t *args, brix_tier_role_t role);
 
 /* Report whether the driver bound for tier `t` satisfies its role's capability
  * contract (§2.2). `probe` is a built instance of the tier's driver. Returns

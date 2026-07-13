@@ -138,6 +138,7 @@ ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->token_clock_skew = NGX_CONF_UNSET;
     conf->macaroon_max_validity = NGX_CONF_UNSET;
     conf->dig_enable = NGX_CONF_UNSET;
+    conf->delegation_endpoint = NGX_CONF_UNSET;
     conf->dig_exports = NGX_CONF_UNSET_PTR;
     conf->authdb_rules = NGX_CONF_UNSET_PTR;   /* created on first brix_webdav_authdb */
     conf->vo_rules = NGX_CONF_UNSET_PTR;       /* created on first brix_webdav_require_vo */
@@ -248,6 +249,10 @@ webdav_summary_is_new(ngx_http_brix_webdav_loc_conf_t *conf,
  *   off, anonymous writes, auth-required-but-no-credentials. Logged at merge
  *   time (per location), the only hook that reliably sees every WebDAV location.
  */
+static void webdav_log_endpoint_warnings(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf, ngx_uint_t has_x509,
+    ngx_uint_t has_token);
+
 static void
 webdav_log_endpoint_summary(ngx_conf_t *cf,
                             ngx_http_brix_webdav_loc_conf_t *conf)
@@ -282,7 +287,18 @@ webdav_log_endpoint_summary(ngx_conf_t *cf,
             &conf->upstream_url);
     }
 
-    /* Valid-but-noteworthy settings, surfaced explicitly for a first-time admin. */
+    webdav_log_endpoint_warnings(cf, conf, has_x509, has_token);
+}
+
+/* Valid-but-noteworthy settings, surfaced explicitly for a first-time admin so
+ * that permissive-by-configuration setups (revocation off, anonymous writes,
+ * auth-required-but-no-verifier) are never silent. Split out of the endpoint
+ * summary to keep each function's branching within the readability gate. */
+static void
+webdav_log_endpoint_warnings(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf, ngx_uint_t has_x509,
+    ngx_uint_t has_token)
+{
     if (has_x509 && conf->crl.len == 0) {
         ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
             "brix:   NOTE: x509/GSI is accepted but no CRL is configured — "
@@ -304,13 +320,10 @@ webdav_log_endpoint_summary(ngx_conf_t *cf,
     }
 }
 
-char *
-ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
-                                      void *parent, void *child)
+static char *
+webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
+    ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    ngx_http_brix_webdav_loc_conf_t *prev = parent;
-    ngx_http_brix_webdav_loc_conf_t *conf = child;
-
     /* Unified directives (brix_export, brix_cache_store, ...) live in the
      * common module; pull the merged values for this location into our
      * embedded preamble before protocol merge applies defaults. */
@@ -366,6 +379,8 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_value(conf->dig_enable, prev->dig_enable, 0);
     ngx_conf_merge_ptr_value(conf->dig_exports, prev->dig_exports, NULL);
     ngx_conf_merge_str_value(conf->dig_auth_file, prev->dig_auth_file, "");
+    ngx_conf_merge_value(conf->delegation_endpoint,
+                         prev->delegation_endpoint, 0);
     ngx_conf_merge_size_value(conf->zip_cd_max_bytes, prev->zip_cd_max_bytes,
                               16 * 1024 * 1024);
 
@@ -415,299 +430,315 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
     ngx_conf_merge_str_value(conf->token_macaroon_secret_old,
                              prev->token_macaroon_secret_old, "");
 
-    if (conf->common.enable) {
-        {
-            brix_export_root_opts_t root_opts;
 
-            /* posix:<path> backend → the local export tree (composable brix_export). */
-            brix_storage_backend_posix_root(&conf->common);
+    return NGX_CONF_OK;
+}
 
-            root_opts.directive_name = "brix_export";
-            root_opts.allow_write    = conf->common.allow_write
-                                     && !brix_storage_backend_is_remote(&conf->common);
-            root_opts.required       = 1;
-            root_opts.canon_size     = sizeof(conf->common.root_canon);
-            if (brix_prepare_export_root(cf, &conf->common.root, &root_opts,
-                                           conf->common.root_canon) != NGX_CONF_OK)
-            {
-                return NGX_CONF_ERROR;
-            }
-            /* SP4: reap interrupted NON-staged direct-write temps under this root. */
-            brix_tmp_reap_register(conf->common.root_canon);
-        }
+static const char *
+webdav_cred_str_or_null(const ngx_str_t *s)
+{
+    return (s->len > 0) ? (const char *) s->data : NULL;
+}
 
-        /* Load libvomsapi if this WebDAV location extracts VOMS VOs. A
-         * WebDAV-only deployment (no stream{} block) would otherwise never load
-         * it — brix_voms_init runs only from the stream postconfig for root://,
-         * leaving brix_voms_available() false so VOMS extraction (auth_cert.c)
-         * silently returns no VOs. Idempotent + graceful when the library is
-         * absent. */
-        if (conf->vomsdir.len > 0) {
-            (void) brix_voms_init(cf->log);
-        }
+static char *
+webdav_prepare_export_root(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    brix_export_root_opts_t root_opts;
 
-        /* Finalize native authz rule paths (realpath under the export root) now
-         * that the root is prepared — mirrors the stream side. nginx -t rejects a
-         * rule whose path cannot be resolved. */
-        if (conf->authdb_rules != NULL
-            && brix_finalize_authdb_rules(cf->log, &conf->common.root,
-                                            conf->authdb_rules) != NGX_OK)
-        {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix_webdav_authdb: failed to finalize rules for root \"%V\"",
-                &conf->common.root);
-            return NGX_CONF_ERROR;
-        }
-        if (conf->vo_rules != NULL
-            && brix_finalize_vo_rules(cf->log, &conf->common.root,
-                                        conf->vo_rules) != NGX_OK)
-        {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix_webdav_require_vo: failed to finalize rules for root \"%V\"",
-                &conf->common.root);
-            return NGX_CONF_ERROR;
-        }
+    brix_storage_backend_posix_root(&conf->common);
+    root_opts.directive_name = "brix_export";
+    root_opts.allow_write    = conf->common.allow_write
+                             && !brix_storage_backend_is_remote(&conf->common);
+    root_opts.required       = 1;
+    root_opts.canon_size     = sizeof(conf->common.root_canon);
+    if (brix_prepare_export_root(cf, &conf->common.root, &root_opts,
+                                   conf->common.root_canon) != NGX_CONF_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    brix_tmp_reap_register(conf->common.root_canon);
+    return NGX_CONF_OK;
+}
 
-        /* Register the export's selected storage backend so every VFS op resolves
-         * to it at request time (brix_vfs_ctx_init): a "root://host:port" URL =
-         * a remote root:// primary (WebDAV PUT staged-writes stream through to it);
-         * a driver name (pblock) = a local backend; default POSIX is a no-op. */
-        if (brix_vfs_backend_config_str(cf, conf->common.root_canon,
-                &conf->common.storage_backend, conf->common.pblock_block_size,
-                BRIX_AF_AUTO)
-            != NGX_OK)
-        {
-            return NGX_CONF_ERROR;
-        }
-        if (conf->common.storage_staging) {
-            brix_vfs_backend_set_staging(conf->common.root_canon, 1);
-        }
+static char *
+webdav_finalize_authz_rules(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    if (conf->vomsdir.len > 0) {
+        (void) brix_voms_init(cf->log);
+    }
+    if (conf->authdb_rules != NULL
+        && brix_finalize_authdb_rules(cf->log, &conf->common.root,
+                                        conf->authdb_rules) != NGX_OK)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_webdav_authdb: failed to finalize rules for root \"%V\"",
+            &conf->common.root);
+        return NGX_CONF_ERROR;
+    }
+    if (conf->vo_rules != NULL
+        && brix_finalize_vo_rules(cf->log, &conf->common.root,
+                                    conf->vo_rules) != NGX_OK)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_webdav_require_vo: failed to finalize rules for root \"%V\"",
+            &conf->common.root);
+        return NGX_CONF_ERROR;
+    }
+    return NGX_CONF_OK;
+}
 
-        /* §14: attach the named brix_credential's bearer to the source backend
-         * (consumed by sd_http / sd_xroot). Resolved at config time; a missing
-         * credential or unreadable token_file fails loudly. Mirrors runtime_server.c
-         * for the stream scope. No brix_webdav_storage_credential ⇒ anonymous. */
-        if (conf->common.storage_credential.len > 0) {
-            char                       cred_z[256];
-            char                       bearer[4096];
-            const brix_credential_t *cred;
+static char *
+webdav_set_storage_credential(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    char                     cred_z[256];
+    char                     bearer[4096];
+    const brix_credential_t *cred;
+    brix_vfs_backend_cred_t  bcred;
 
-            ngx_cpystrn((u_char *) cred_z, conf->common.storage_credential.data,
-                        ngx_min(conf->common.storage_credential.len + 1,
-                                sizeof(cred_z)));
-            cred = brix_credential_lookup(cred_z);
-            if (cred == NULL) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "brix_webdav_storage_credential: no brix_credential \"%V\"",
-                    &conf->common.storage_credential);
-                return NGX_CONF_ERROR;
-            }
-            if (brix_credential_bearer(cred, bearer, sizeof(bearer), cf->log)
-                != NGX_OK)
-            {
-                return NGX_CONF_ERROR;
-            }
-            {
-                brix_vfs_backend_cred_t bcred;
+    if (conf->common.storage_credential.len == 0) {
+        return NGX_CONF_OK;
+    }
+    ngx_cpystrn((u_char *) cred_z, conf->common.storage_credential.data,
+                ngx_min(conf->common.storage_credential.len + 1,
+                        sizeof(cred_z)));
+    cred = brix_credential_lookup(cred_z);
+    if (cred == NULL) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_webdav_storage_credential: no brix_credential \"%V\"",
+            &conf->common.storage_credential);
+        return NGX_CONF_ERROR;
+    }
+    if (brix_credential_bearer(cred, bearer, sizeof(bearer), cf->log)
+        != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    ngx_memzero(&bcred, sizeof(bcred));
+    bcred.bearer = (bearer[0] != '\0') ? bearer : NULL;
+    bcred.x509_proxy = webdav_cred_str_or_null(&cred->x509_proxy);
+    bcred.ca_dir = webdav_cred_str_or_null(&cred->ca_dir);
+    bcred.s3_access_key = webdav_cred_str_or_null(&cred->s3_access_key);
+    bcred.s3_secret_key = webdav_cred_str_or_null(&cred->s3_secret_key);
+    bcred.s3_region = webdav_cred_str_or_null(&cred->s3_region);
+    bcred.sss_keytab = webdav_cred_str_or_null(&cred->sss_keytab);
+    brix_vfs_backend_set_credential(conf->common.root_canon, &bcred);
+    return NGX_CONF_OK;
+}
 
-                ngx_memzero(&bcred, sizeof(bcred));
-                bcred.bearer = (bearer[0] != '\0') ? bearer : NULL;
-                bcred.x509_proxy = (cred->x509_proxy.len > 0)
-                    ? (const char *) cred->x509_proxy.data : NULL;
-                bcred.ca_dir = (cred->ca_dir.len > 0)
-                    ? (const char *) cred->ca_dir.data : NULL;
-                bcred.s3_access_key = (cred->s3_access_key.len > 0)
-                    ? (const char *) cred->s3_access_key.data : NULL;
-                bcred.s3_secret_key = (cred->s3_secret_key.len > 0)
-                    ? (const char *) cred->s3_secret_key.data : NULL;
-                bcred.s3_region = (cred->s3_region.len > 0)
-                    ? (const char *) cred->s3_region.data : NULL;
-                bcred.sss_keytab = (cred->sss_keytab.len > 0)
-                    ? (const char *) cred->sss_keytab.data : NULL;
-                brix_vfs_backend_set_credential(conf->common.root_canon, &bcred);
-            }
-        }
+static char *
+webdav_configure_storage_backend(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    if (brix_vfs_backend_config_str(cf, conf->common.root_canon,
+            &conf->common.storage_backend, conf->common.pblock_block_size,
+            BRIX_AF_AUTO) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    if (conf->common.storage_staging) {
+        brix_vfs_backend_set_staging(conf->common.root_canon, 1);
+    }
+    return webdav_set_storage_credential(cf, conf);
+}
 
-        /* Open the persistent confinement rootfd on the freshly-resolved
-         * export root (kernel openat2 RESOLVE_BENEATH anchor). */
-        if (brix_http_open_rootfd(cf, &conf->common) != NGX_CONF_OK) {
-            return NGX_CONF_ERROR;
-        }
-
-        /* Phase-64: register the composable cache/stage tiers (§4.4 mirror). */
-        if (brix_tier_register_stores(cf, &conf->common) != NGX_OK) {
-            return NGX_CONF_ERROR;
-        }
-
-        /* Optional fast-cache upload staging device (cross-device commit). */
-        if (conf->upload_stage_dir.len > 0) {
-            brix_export_root_opts_t stage_opts;
-            stage_opts.directive_name = "brix_webdav_stage_dir";
-            stage_opts.allow_write    = 1;
-            stage_opts.required       = 0;
-            stage_opts.canon_size     = sizeof(conf->upload_stage_dir_canon);
-            if (brix_prepare_export_root(cf, &conf->upload_stage_dir,
-                    &stage_opts, conf->upload_stage_dir_canon) != NGX_CONF_OK)
-            {
-                return NGX_CONF_ERROR;
-            }
-            brix_stage_dir_register(conf->upload_stage_dir_canon);
-        }
-
-        /* HARD config guard: the upload stage dir must live OUTSIDE the export,
-         * or upload temps would be exposed in the client namespace. A nesting is
-         * a deploy-blocking error. (cache_root is checked below, once resolved.) */
-        if (brix_assert_dir_outside_export(cf, "brix_webdav_stage_dir",
-                conf->common.root_canon, conf->upload_stage_dir_canon) != NGX_OK)
+static char *
+webdav_prepare_stage_and_cache(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    if (conf->upload_stage_dir.len > 0) {
+        brix_export_root_opts_t stage_opts;
+        stage_opts.directive_name = "brix_webdav_stage_dir";
+        stage_opts.allow_write    = 1;
+        stage_opts.required       = 0;
+        stage_opts.canon_size     = sizeof(conf->upload_stage_dir_canon);
+        if (brix_prepare_export_root(cf, &conf->upload_stage_dir,
+                &stage_opts, conf->upload_stage_dir_canon) != NGX_CONF_OK)
         {
             return NGX_CONF_ERROR;
         }
-
-        /*
-         * Optional startup lock sweep: when brix_webdav_lock_startup_sweep is
-         * on, clear every persisted lock xattr under the freshly-resolved
-         * export root so locks do not survive a restart (ephemeral RFC 4918
-         * §10.1 semantics).  Done here rather than in postconfiguration because
-         * root_canon is resolved per-location at merge time.  Skipped under
-         * `nginx -t` so a config test never mutates the filesystem.
-         */
-        if (conf->lock_startup_sweep && !ngx_test_config
-            && conf->common.root_canon[0] != '\0')
-        {
-            ngx_uint_t removed = webdav_lock_startup_sweep(
-                cf->pool, cf->log, conf->common.root_canon);
-            ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-                "brix_webdav: lock startup sweep removed %ui persisted "
-                "lock(s) under \"%s\"", removed, conf->common.root_canon);
-        }
-
-        if (conf->cache_root.len > 0) {
-            brix_export_root_opts_t cache_opts;
-            cache_opts.directive_name = "brix_webdav_cache_root";
-            cache_opts.allow_write    = 0;
-            cache_opts.required       = 0;
-            cache_opts.canon_size     = sizeof(conf->cache_root_canon);
-            if (brix_prepare_export_root(cf, &conf->cache_root, &cache_opts,
-                                           conf->cache_root_canon) != NGX_CONF_OK)
-            {
-                return NGX_CONF_ERROR;
-            }
-            /* HARD guard: the read-through cache root must be OUTSIDE the export
-             * or cache sidecars would land in the client namespace. */
-            if (brix_assert_dir_outside_export(cf, "brix_webdav_cache_root",
-                    conf->common.root_canon, conf->cache_root_canon) != NGX_OK)
-            {
-                return NGX_CONF_ERROR;
-            }
-        }
-
-        if (conf->auth == WEBDAV_AUTH_OPTIONAL
-            || conf->auth == WEBDAV_AUTH_REQUIRED)
-        {
-            if (conf->cadir.len == 0 && conf->cafile.len == 0) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                                   "brix_webdav: auth optional/required needs brix_webdav_cadir or brix_webdav_cafile");
-                return NGX_CONF_ERROR;
-            }
-        }
-
-        if (webdav_validate_path(cf, "brix_webdav_cadir", &conf->cadir,
-                                 WEBDAV_PATH_DIRECTORY, R_OK | X_OK)
-            != NGX_OK
-            || webdav_validate_path(cf, "brix_webdav_cafile", &conf->cafile,
-                                    WEBDAV_PATH_REGULAR_FILE, R_OK)
-               != NGX_OK
-            || webdav_validate_path(cf, "brix_webdav_crl", &conf->crl,
-                                    WEBDAV_PATH_FILE_OR_DIRECTORY, R_OK)
-               != NGX_OK)
+        brix_stage_dir_register(conf->upload_stage_dir_canon);
+    }
+    if (brix_assert_dir_outside_export(cf, "brix_webdav_stage_dir",
+            conf->common.root_canon, conf->upload_stage_dir_canon) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    if (conf->cache_root.len > 0) {
+        brix_export_root_opts_t cache_opts;
+        cache_opts.directive_name = "brix_webdav_cache_root";
+        cache_opts.allow_write    = 0;
+        cache_opts.required       = 0;
+        cache_opts.canon_size     = sizeof(conf->cache_root_canon);
+        if (brix_prepare_export_root(cf, &conf->cache_root, &cache_opts,
+                                       conf->cache_root_canon) != NGX_CONF_OK)
         {
             return NGX_CONF_ERROR;
         }
-
-        if (webdav_validate_cors_origins(cf, conf) != NGX_OK) {
-            return NGX_CONF_ERROR;
-        }
-
-        /* Build the X509 trust store once at config time (not per request) when
-         * cert auth is in play, and tie its lifetime to the conf pool via a
-         * cleanup handler so it is freed exactly once on worker exit. */
-        if (conf->auth == WEBDAV_AUTH_OPTIONAL
-            || conf->auth == WEBDAV_AUTH_REQUIRED)
+        if (brix_assert_dir_outside_export(cf, "brix_webdav_cache_root",
+                conf->common.root_canon, conf->cache_root_canon) != NGX_OK)
         {
-            X509_STORE         *store;
-            ngx_pool_cleanup_t *cln;
-            int                 crl_count = 0;
-
-            store = webdav_build_ca_store(cf->log, conf, &crl_count);
-            if (store == NULL) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                                   "brix_webdav: failed to build cached CA store");
-                return NGX_CONF_ERROR;
-            }
-
-            (void) webdav_check_pki_consistency(cf->log, conf);
-
-            cln = ngx_pool_cleanup_add(cf->pool, 0);
-            if (cln == NULL) {
-                X509_STORE_free(store);
-                return NGX_CONF_ERROR;
-            }
-
-            cln->handler = webdav_x509_store_cleanup;
-            cln->data = store;
-            conf->ca_store = store;
-
-            ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-                               "brix_webdav: cached CA store built"
-                               " for root=\"%V\" crls=%d",
-                               &conf->common.root, crl_count);
-        }
-
-        if (conf->token_jwks.len > 0) {
-            if (conf->token_issuer.len == 0
-                || conf->token_audience.len == 0)
-            {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                                   "brix_webdav: brix_webdav_token_jwks requires brix_webdav_token_issuer and brix_webdav_token_audience");
-                return NGX_CONF_ERROR;
-            }
-
-            if (webdav_validate_path(cf, "brix_webdav_token_jwks",
-                                     &conf->token_jwks,
-                                     WEBDAV_PATH_REGULAR_FILE, R_OK)
-                != NGX_OK)
-            {
-                return NGX_CONF_ERROR;
-            }
-        }
-
-        if (conf->tpc) {
-            if (webdav_validate_path(cf, "brix_webdav_tpc_curl",
-                                     &conf->tpc_curl,
-                                     WEBDAV_PATH_REGULAR_FILE, X_OK)
-                != NGX_OK
-                || webdav_validate_path(cf, "brix_webdav_tpc_cert",
-                                        &conf->tpc_cert,
-                                        WEBDAV_PATH_REGULAR_FILE, R_OK)
-                   != NGX_OK
-                || webdav_validate_path(cf, "brix_webdav_tpc_key",
-                                        &conf->tpc_key,
-                                        WEBDAV_PATH_REGULAR_FILE, R_OK)
-                   != NGX_OK
-                || webdav_validate_path(cf, "brix_webdav_tpc_cadir",
-                                        &conf->tpc_cadir,
-                                        WEBDAV_PATH_DIRECTORY, R_OK | X_OK)
-                   != NGX_OK
-                || webdav_validate_path(cf, "brix_webdav_tpc_cafile",
-                                        &conf->tpc_cafile,
-                                        WEBDAV_PATH_REGULAR_FILE, R_OK)
-                   != NGX_OK)
-            {
-                return NGX_CONF_ERROR;
-            }
+            return NGX_CONF_ERROR;
         }
     }
+    return NGX_CONF_OK;
+}
 
+static void
+webdav_run_lock_startup_sweep(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    if (conf->lock_startup_sweep && !ngx_test_config
+        && conf->common.root_canon[0] != '\0')
+    {
+        ngx_uint_t removed = webdav_lock_startup_sweep(
+            cf->pool, cf->log, conf->common.root_canon);
+        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+            "brix_webdav: lock startup sweep removed %ui persisted "
+            "lock(s) under \"%s\"", removed, conf->common.root_canon);
+    }
+}
+
+static char *
+webdav_validate_auth_paths(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    if ((conf->auth == WEBDAV_AUTH_OPTIONAL
+         || conf->auth == WEBDAV_AUTH_REQUIRED)
+        && conf->cadir.len == 0 && conf->cafile.len == 0)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_webdav: auth optional/required needs brix_webdav_cadir or brix_webdav_cafile");
+        return NGX_CONF_ERROR;
+    }
+    if (webdav_validate_path(cf, "brix_webdav_cadir", &conf->cadir,
+                             WEBDAV_PATH_DIRECTORY, R_OK | X_OK) != NGX_OK
+        || webdav_validate_path(cf, "brix_webdav_cafile", &conf->cafile,
+                                WEBDAV_PATH_REGULAR_FILE, R_OK) != NGX_OK
+        || webdav_validate_path(cf, "brix_webdav_crl", &conf->crl,
+                                WEBDAV_PATH_FILE_OR_DIRECTORY, R_OK) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    if (webdav_validate_cors_origins(cf, conf) != NGX_OK) {
+        return NGX_CONF_ERROR;
+    }
+    return NGX_CONF_OK;
+}
+
+static char *
+webdav_build_ca_store_once(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    X509_STORE         *store;
+    ngx_pool_cleanup_t *cln;
+    int                 crl_count = 0;
+
+    if (conf->auth != WEBDAV_AUTH_OPTIONAL
+        && conf->auth != WEBDAV_AUTH_REQUIRED)
+    {
+        return NGX_CONF_OK;
+    }
+    store = webdav_build_ca_store(cf->log, conf, &crl_count);
+    if (store == NULL) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "brix_webdav: failed to build cached CA store");
+        return NGX_CONF_ERROR;
+    }
+    (void) webdav_check_pki_consistency(cf->log, conf);
+    cln = ngx_pool_cleanup_add(cf->pool, 0);
+    if (cln == NULL) {
+        X509_STORE_free(store);
+        return NGX_CONF_ERROR;
+    }
+    cln->handler = webdav_x509_store_cleanup;
+    cln->data = store;
+    conf->ca_store = store;
+    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+                       "brix_webdav: cached CA store built for root=\"%V\" crls=%d",
+                       &conf->common.root, crl_count);
+    return NGX_CONF_OK;
+}
+
+static char *
+webdav_validate_token_jwks_path(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    if (conf->token_jwks.len == 0) {
+        return NGX_CONF_OK;
+    }
+    if (conf->token_issuer.len == 0 || conf->token_audience.len == 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_webdav: brix_webdav_token_jwks requires brix_webdav_token_issuer and brix_webdav_token_audience");
+        return NGX_CONF_ERROR;
+    }
+    if (webdav_validate_path(cf, "brix_webdav_token_jwks", &conf->token_jwks,
+                             WEBDAV_PATH_REGULAR_FILE, R_OK) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    return NGX_CONF_OK;
+}
+
+static char *
+webdav_validate_tpc_paths(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    if (!conf->tpc) {
+        return NGX_CONF_OK;
+    }
+    if (webdav_validate_path(cf, "brix_webdav_tpc_curl", &conf->tpc_curl,
+                             WEBDAV_PATH_REGULAR_FILE, X_OK) != NGX_OK
+        || webdav_validate_path(cf, "brix_webdav_tpc_cert", &conf->tpc_cert,
+                                WEBDAV_PATH_REGULAR_FILE, R_OK) != NGX_OK
+        || webdav_validate_path(cf, "brix_webdav_tpc_key", &conf->tpc_key,
+                                WEBDAV_PATH_REGULAR_FILE, R_OK) != NGX_OK
+        || webdav_validate_path(cf, "brix_webdav_tpc_cadir", &conf->tpc_cadir,
+                                WEBDAV_PATH_DIRECTORY, R_OK | X_OK) != NGX_OK
+        || webdav_validate_path(cf, "brix_webdav_tpc_cafile", &conf->tpc_cafile,
+                                WEBDAV_PATH_REGULAR_FILE, R_OK) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    return NGX_CONF_OK;
+}
+
+static char *
+webdav_validate_webdav_enabled(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    (void) prev;
+
+    if (!conf->common.enable) {
+        return NGX_CONF_OK;
+    }
+    if (webdav_prepare_export_root(cf, conf) != NGX_CONF_OK
+        || webdav_finalize_authz_rules(cf, conf) != NGX_CONF_OK
+        || webdav_configure_storage_backend(cf, conf) != NGX_CONF_OK
+        || brix_http_open_rootfd(cf, &conf->common) != NGX_CONF_OK
+        || brix_tier_register_stores(cf, &conf->common) != NGX_OK
+        || webdav_prepare_stage_and_cache(cf, conf) != NGX_CONF_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    webdav_run_lock_startup_sweep(cf, conf);
+    if (webdav_validate_auth_paths(cf, conf) != NGX_CONF_OK
+        || webdav_build_ca_store_once(cf, conf) != NGX_CONF_OK
+        || webdav_validate_token_jwks_path(cf, conf) != NGX_CONF_OK
+        || webdav_validate_tpc_paths(cf, conf) != NGX_CONF_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    return NGX_CONF_OK;
+}
+
+
+static char *
+webdav_merge_auth_token_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
     if (conf->token_jwks.len > 0) {
         int rc;
 
@@ -745,6 +776,102 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
         conf->token_registry = reg;
     }
 
+
+    return NGX_CONF_OK;
+}
+
+static char *
+webdav_validate_proxy_token(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    if (conf->upstream_auth == WEBDAV_PROXY_AUTH_TOKEN
+        && conf->upstream_auth_token.len == 0)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "brix_webdav_proxy_auth token requires a"
+                           " non-empty token value");
+        return NGX_CONF_ERROR;
+    }
+    return NGX_CONF_OK;
+}
+
+static char *
+webdav_setup_dynamic_proxy_pool(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *prev,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    if (webdav_proxy_pool_setup(cf, conf, prev) != NGX_OK) {
+        return NGX_CONF_ERROR;
+    }
+    return webdav_validate_proxy_token(cf, conf);
+}
+
+static void
+webdav_try_inherit_static_backends(ngx_http_brix_webdav_loc_conf_t *prev,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    if (conf->upstream_urls == NULL && prev->upstream_urls != NULL) {
+        conf->upstream_urls = prev->upstream_urls;
+    }
+    if (conf->upstream_url.len == 0 && prev->upstream_url.len > 0) {
+        conf->upstream_url = prev->upstream_url;
+    }
+    if (prev->upstream_backends == NULL
+        || conf->upstream_urls != prev->upstream_urls
+        || prev->upstream_url.len != conf->upstream_url.len
+        || (conf->upstream_url.len > 0
+            && ngx_memcmp(prev->upstream_url.data, conf->upstream_url.data,
+                          conf->upstream_url.len) != 0))
+    {
+        return;
+    }
+    conf->upstream_backends  = prev->upstream_backends;
+    conf->upstream_resolved  = prev->upstream_resolved;
+    conf->upstream_host      = prev->upstream_host;
+    conf->upstream_url_base  = prev->upstream_url_base;
+    conf->upstream_ssl       = prev->upstream_ssl;
+    conf->upstream_conf      = prev->upstream_conf;
+#if (NGX_HTTP_SSL)
+    conf->upstream_ssl_ctx   = prev->upstream_ssl_ctx;
+#endif
+}
+
+static char *
+webdav_build_static_proxy_backends(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *prev,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    static ngx_str_t  webdav_proxy_hide_headers[] = {
+        ngx_null_string
+    };
+    ngx_hash_init_t   hh;
+
+    webdav_try_inherit_static_backends(prev, conf);
+    if (conf->upstream_backends != NULL) {
+        return webdav_validate_proxy_token(cf, conf);
+    }
+
+    if (webdav_proxy_build_backends(cf, conf) != NGX_OK) {
+        return NGX_CONF_ERROR;
+    }
+
+    hh.max_size     = 512;
+    hh.bucket_size  = ngx_align(64, ngx_cacheline_size);
+    hh.name         = "webdav_proxy_hide_headers_hash";
+    hh.pool         = cf->pool;
+    hh.temp_pool    = NULL;
+    if (ngx_http_upstream_hide_headers_hash(cf, &conf->upstream_conf,
+            &prev->upstream_conf, webdav_proxy_hide_headers, &hh) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    return webdav_validate_proxy_token(cf, conf);
+}
+
+static char *
+webdav_merge_upstream_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
     ngx_conf_merge_value(conf->upstream_proxy, prev->upstream_proxy, 0);
     ngx_conf_merge_str_value(conf->upstream_url, prev->upstream_url, "");
     ngx_conf_merge_uint_value(conf->upstream_auth, prev->upstream_auth,
@@ -757,97 +884,28 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
                               prev->upstream_conf.send_timeout, 0);
     ngx_conf_merge_msec_value(conf->upstream_conf.read_timeout,
                               prev->upstream_conf.read_timeout, 0);
-
     ngx_conf_merge_uint_value(conf->upstream_max_fails,
                               prev->upstream_max_fails, 3);
     ngx_conf_merge_msec_value(conf->upstream_fail_timeout,
                               prev->upstream_fail_timeout, 30000);
-
     ngx_conf_merge_value(conf->proxy_pool_enabled, prev->proxy_pool_enabled, 0);
 
-    if (conf->upstream_proxy && conf->proxy_pool_enabled) {
-        /* Phase 23 dynamic pool: backends live in shared memory, populated at
-         * runtime via the admin REST API — no static URL / build_backends. */
-        if (webdav_proxy_pool_setup(cf, conf, prev) != NGX_OK) {
-            return NGX_CONF_ERROR;
-        }
-
-        if (conf->upstream_auth == WEBDAV_PROXY_AUTH_TOKEN
-            && conf->upstream_auth_token.len == 0)
-        {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "brix_webdav_proxy_auth token requires a"
-                               " non-empty token value");
-            return NGX_CONF_ERROR;
-        }
-
-    } else if (conf->upstream_proxy && conf->upstream_backends == NULL) {
-        /* Inherit the configured URL list / built backends from the parent
-         * when this location did not declare its own. */
-        if (conf->upstream_urls == NULL && prev->upstream_urls != NULL) {
-            conf->upstream_urls = prev->upstream_urls;
-        }
-        if (conf->upstream_url.len == 0 && prev->upstream_url.len > 0) {
-            conf->upstream_url = prev->upstream_url;
-        }
-        /* Reuse the parent's already-built backends only if this location's
-         * effective URL list is identical to the parent's (same array pointer
-         * AND same primary URL bytes).  If they differ we must rebuild below so
-         * we never serve one location through another location's resolved
-         * backends. */
-        if (prev->upstream_backends != NULL
-            && conf->upstream_urls == prev->upstream_urls
-            && prev->upstream_url.len == conf->upstream_url.len
-            && (conf->upstream_url.len == 0
-                || ngx_memcmp(prev->upstream_url.data, conf->upstream_url.data,
-                              conf->upstream_url.len) == 0))
-        {
-            conf->upstream_backends  = prev->upstream_backends;
-            conf->upstream_resolved  = prev->upstream_resolved;
-            conf->upstream_host      = prev->upstream_host;
-            conf->upstream_url_base  = prev->upstream_url_base;
-            conf->upstream_ssl       = prev->upstream_ssl;
-            conf->upstream_conf      = prev->upstream_conf;
-#if (NGX_HTTP_SSL)
-            conf->upstream_ssl_ctx   = prev->upstream_ssl_ctx;
-#endif
-        }
-
-        if (conf->upstream_backends == NULL) {
-            static ngx_str_t  webdav_proxy_hide_headers[] = {
-                ngx_null_string
-            };
-            ngx_hash_init_t   hh;
-
-            if (webdav_proxy_build_backends(cf, conf) != NGX_OK) {
-                return NGX_CONF_ERROR;
-            }
-
-            /* Build hide_headers_hash so nginx's upstream header processing has
-             * a non-empty hash to probe (otherwise SIGFPE on first response). */
-            hh.max_size     = 512;
-            hh.bucket_size  = ngx_align(64, ngx_cacheline_size);
-            hh.name         = "webdav_proxy_hide_headers_hash";
-            hh.pool         = cf->pool;
-            hh.temp_pool    = NULL;
-            if (ngx_http_upstream_hide_headers_hash(cf, &conf->upstream_conf,
-                    &prev->upstream_conf, webdav_proxy_hide_headers, &hh)
-                != NGX_OK)
-            {
-                return NGX_CONF_ERROR;
-            }
-        }
-
-        if (conf->upstream_auth == WEBDAV_PROXY_AUTH_TOKEN
-            && conf->upstream_auth_token.len == 0)
-        {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "brix_webdav_proxy_auth token requires a"
-                               " non-empty token value");
-            return NGX_CONF_ERROR;
-        }
+    if (!conf->upstream_proxy) {
+        return NGX_CONF_OK;
     }
+    if (conf->proxy_pool_enabled) {
+        return webdav_setup_dynamic_proxy_pool(cf, prev, conf);
+    }
+    if (conf->upstream_backends == NULL) {
+        return webdav_build_static_proxy_backends(cf, prev, conf);
+    }
+    return NGX_CONF_OK;
+}
 
+static char *
+webdav_merge_mirror_and_summary(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
     /* Phase 24: traffic mirror — inherit parent targets, derive enabled, and
      * build the shadow upstream conf (timeouts/TLS/hide-headers) when active. */
     if (conf->mirror.targets == NULL) {
@@ -882,6 +940,33 @@ ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
      */
     if (conf->common.enable && webdav_summary_is_new(conf, prev)) {
         webdav_log_endpoint_summary(cf, conf);
+    }
+
+
+    return NGX_CONF_OK;
+}
+
+char *
+ngx_http_brix_webdav_merge_loc_conf(ngx_conf_t *cf,
+                                      void *parent, void *child)
+{
+    ngx_http_brix_webdav_loc_conf_t *prev = parent;
+    ngx_http_brix_webdav_loc_conf_t *conf = child;
+
+    if (webdav_merge_base_conf(cf, prev, conf) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+    if (webdav_validate_webdav_enabled(cf, prev, conf) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+    if (webdav_merge_auth_token_conf(cf, prev, conf) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+    if (webdav_merge_upstream_conf(cf, prev, conf) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+    if (webdav_merge_mirror_and_summary(cf, prev, conf) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
     }
 
     return NGX_CONF_OK;

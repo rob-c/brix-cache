@@ -14,6 +14,14 @@ typedef struct {
     unsigned  is_prefix;
 } s3_lc_entry_t;
 
+/* Cache identity: a listing is keyed by (root, prefix, delimiter). Grouped
+ * so file-local helpers pass one value instead of three parallel strings. */
+typedef struct {
+    const char *root;
+    const char *prefix;
+    const char *delimiter;
+} s3_lc_id_t;
+
 typedef struct {
     int            used;
     uint64_t       seq;          /* LRU recency (higher = more recent) */
@@ -60,13 +68,12 @@ s3_lc_slot_clear(s3_lc_slot_t *s)
 }
 
 static int
-s3_lc_matches(const s3_lc_slot_t *s, const char *root, const char *prefix,
-    const char *delimiter)
+s3_lc_matches(const s3_lc_slot_t *s, const s3_lc_id_t *id)
 {
     return s->used
-           && strcmp(s->root, root) == 0
-           && strcmp(s->prefix, prefix) == 0
-           && strcmp(s->delimiter, delimiter) == 0;
+           && strcmp(s->root, id->root) == 0
+           && strcmp(s->prefix, id->prefix) == 0
+           && strcmp(s->delimiter, id->delimiter) == 0;
 }
 
 int
@@ -74,12 +81,13 @@ s3_list_cache_get(ngx_http_request_t *r, const char *root,
     const char *prefix, const char *delimiter, time_t dir_mtime,
     ngx_msec_t ttl_ms, s3_entry_t **out_items, int *out_n)
 {
-    s3_lc_slot_t *s = NULL;
+    s3_lc_id_t    id = { root, prefix, delimiter };
+    s3_lc_slot_t *s  = NULL;
     s3_entry_t   *items;
     int           i;
 
     for (i = 0; i < S3_LIST_CACHE_SLOTS; i++) {
-        if (s3_lc_matches(&s3_lc_slots[i], root, prefix, delimiter)) {
+        if (s3_lc_matches(&s3_lc_slots[i], &id)) {
             s = &s3_lc_slots[i];
             break;
         }
@@ -119,54 +127,85 @@ s3_list_cache_get(ngx_http_request_t *r, const char *root,
     return 1;
 }
 
-void
-s3_list_cache_put(ngx_log_t *log, const char *root, const char *prefix,
-    const char *delimiter, time_t dir_mtime, const s3_entry_t *items, int n)
+/*
+ * WHAT: Decide whether an n-entry listing is cacheable, warning once if not.
+ * WHY:  A listing larger than the cap would evict the whole per-worker cache
+ *       for a single oversized directory; we skip it and log the reason once.
+ * HOW:  Compare against S3_LIST_CACHE_MAX_ENTRIES; emit an INFO log the first
+ *       time only (static latch) and report non-cacheable via the return.
+ */
+static int
+s3_lc_within_cap(ngx_log_t *log, int n)
 {
-    s3_lc_slot_t *victim = NULL;
-    s3_lc_entry_t *copy;
-    uint64_t       min_seq = (uint64_t) -1;
-    int            i;
+    static int  warned = 0;
 
-    if (n > S3_LIST_CACHE_MAX_ENTRIES) {
-        static int warned = 0;
-        if (!warned) {
-            warned = 1;
-            ngx_log_error(NGX_LOG_INFO, log, 0,
-                          "s3 list-cache: %d entries exceeds cap %d; "
-                          "this listing is not cached", n,
-                          S3_LIST_CACHE_MAX_ENTRIES);
-        }
-        return;
+    if (n <= S3_LIST_CACHE_MAX_ENTRIES) {
+        return 1;
     }
+    if (!warned) {
+        warned = 1;
+        ngx_log_error(NGX_LOG_INFO, log, 0,
+                      "s3 list-cache: %d entries exceeds cap %d; "
+                      "this listing is not cached", n,
+                      S3_LIST_CACHE_MAX_ENTRIES);
+    }
+    return 0;
+}
 
-    /* Reuse a matching slot, else a free slot, else evict the LRU. */
+/*
+ * WHAT: Pick the slot to (re)use for (root, prefix, delimiter).
+ * WHY:  Storing must reuse a matching slot in place, otherwise fill a free
+ *       slot, otherwise evict the least-recently-used one — this is the sole
+ *       eviction policy and must not change.
+ * HOW:  One pass prefers an identity match (early return) and otherwise
+ *       remembers a free slot; if none is free, a second pass selects the
+ *       minimum-seq used slot. Returns NULL only for an empty slot array.
+ */
+static s3_lc_slot_t *
+s3_lc_select_victim(const s3_lc_id_t *id)
+{
+    s3_lc_slot_t *victim  = NULL;
+    uint64_t      min_seq = (uint64_t) -1;
+    int           i;
+
     for (i = 0; i < S3_LIST_CACHE_SLOTS; i++) {
-        if (s3_lc_matches(&s3_lc_slots[i], root, prefix, delimiter)) {
-            victim = &s3_lc_slots[i];
-            break;
+        if (s3_lc_matches(&s3_lc_slots[i], id)) {
+            return &s3_lc_slots[i];
         }
         if (!s3_lc_slots[i].used) {
             victim = &s3_lc_slots[i];                /* prefer a free slot */
-        } else if (victim == NULL || !victim->used) {
-            /* keep the best free candidate; otherwise track LRU below */
         }
     }
-    if (victim == NULL || victim->used) {
-        for (i = 0; i < S3_LIST_CACHE_SLOTS; i++) {
-            if (s3_lc_slots[i].used && s3_lc_slots[i].seq < min_seq) {
-                min_seq = s3_lc_slots[i].seq;
-                victim  = &s3_lc_slots[i];
-            }
+    if (victim != NULL && !victim->used) {
+        return victim;
+    }
+
+    victim = NULL;
+    for (i = 0; i < S3_LIST_CACHE_SLOTS; i++) {
+        if (s3_lc_slots[i].used && s3_lc_slots[i].seq < min_seq) {
+            min_seq = s3_lc_slots[i].seq;
+            victim  = &s3_lc_slots[i];
         }
     }
-    if (victim == NULL) {
-        return;
-    }
+    return victim;
+}
+
+/*
+ * WHAT: Deep-copy [items, n) into a fresh heap array of s3_lc_entry_t.
+ * WHY:  Cached entries outlive the caller's request pool, so keys are strdup'd
+ *       into ngx_alloc'd storage owned by the slot.
+ * HOW:  Allocate the array, strdup each key; on any OOM, unwind the keys copied
+ *       so far, free the array, and return NULL — leaving no partial state.
+ */
+static s3_lc_entry_t *
+s3_lc_copy_entries(ngx_log_t *log, const s3_entry_t *items, int n)
+{
+    s3_lc_entry_t *copy;
+    int            i;
 
     copy = ngx_alloc(sizeof(s3_lc_entry_t) * (size_t) n, log);
     if (copy == NULL) {
-        return;
+        return NULL;
     }
     for (i = 0; i < n; i++) {
         copy[i].key       = s3_lc_strdup(items[i].key);
@@ -176,23 +215,36 @@ s3_list_cache_put(ngx_log_t *log, const char *root, const char *prefix,
                 ngx_free(copy[i].key);
             }
             ngx_free(copy);
-            return;
+            return NULL;
         }
     }
+    return copy;
+}
 
-    s3_lc_slot_clear(victim);                         /* free any prior content */
-    victim->root      = s3_lc_strdup(root);
-    victim->prefix    = s3_lc_strdup(prefix);
-    victim->delimiter = s3_lc_strdup(delimiter);
+/*
+ * WHAT: Populate an emptied victim slot with the copied listing + identity.
+ * WHY:  The slot is only marked used once all three identity strings are
+ *       strdup'd; a partial strdup must not leave a half-built live slot.
+ * HOW:  Copy identity strings; on any OOM free the entry array, clear the slot
+ *       and return 0. On success wire up metadata and mark used, returning 1.
+ */
+static int
+s3_lc_slot_store(s3_lc_slot_t *victim, const s3_lc_id_t *id, time_t dir_mtime,
+    s3_lc_entry_t *copy, int n)
+{
+    victim->root      = s3_lc_strdup(id->root);
+    victim->prefix    = s3_lc_strdup(id->prefix);
+    victim->delimiter = s3_lc_strdup(id->delimiter);
     if (victim->root == NULL || victim->prefix == NULL
         || victim->delimiter == NULL)
     {
+        int i;
         for (i = 0; i < n; i++) {
             ngx_free(copy[i].key);
         }
         ngx_free(copy);
         s3_lc_slot_clear(victim);
-        return;
+        return 0;
     }
     victim->dir_mtime = dir_mtime;
     victim->stored_at = ngx_current_msec;
@@ -200,4 +252,32 @@ s3_list_cache_put(ngx_log_t *log, const char *root, const char *prefix,
     victim->n         = n;
     victim->seq       = ++s3_lc_seq;
     victim->used      = 1;
+    return 1;
+}
+
+void
+s3_list_cache_put(ngx_log_t *log, const char *root, const char *prefix,
+    const char *delimiter, time_t dir_mtime, const s3_entry_t *items, int n)
+{
+    s3_lc_id_t     id = { root, prefix, delimiter };
+    s3_lc_slot_t  *victim;
+    s3_lc_entry_t *copy;
+
+    if (!s3_lc_within_cap(log, n)) {
+        return;
+    }
+
+    /* Reuse a matching slot, else a free slot, else evict the LRU. */
+    victim = s3_lc_select_victim(&id);
+    if (victim == NULL) {
+        return;
+    }
+
+    copy = s3_lc_copy_entries(log, items, n);
+    if (copy == NULL) {
+        return;
+    }
+
+    s3_lc_slot_clear(victim);                         /* free any prior content */
+    (void) s3_lc_slot_store(victim, &id, dir_mtime, copy, n);
 }

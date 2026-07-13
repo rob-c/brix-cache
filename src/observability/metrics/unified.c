@@ -321,6 +321,51 @@ brix_metric_cache_result(brix_proto_t proto, unsigned int hit,
 }
 
 /*
+ * brix_metric_cred_result — record a VFS credential-gate terminal outcome.
+ *
+ * WHAT: Bumps one of three per-proto counters in shm->unified:
+ *         USER     → cred_select_user_total[proto]
+ *         FALLBACK → cred_select_fallback_total[proto]
+ *         DENY     → cred_select_deny_total[proto]
+ *
+ * WHY:  Prometheus-grade observability for the credential gate without building
+ *       a per-connection reporting path.  Per-proto granularity mirrors
+ *       brix_metric_cache_result so operators can correlate with cache metrics.
+ *
+ * HOW:  Mirrors brix_metric_cache_result exactly: range-check proto, resolve the
+ *       SHM, switch on outcome, atomic-increment the matching counter.  Unknown
+ *       outcomes are silently dropped (defensive — callers use the enum).
+ */
+void
+brix_metric_cred_result(brix_proto_t proto, brix_cred_outcome_t outcome)
+{
+    ngx_brix_metrics_t *shm;
+
+    if (proto >= BRIX_PROTO_COUNT) {
+        return;
+    }
+
+    shm = brix_metrics_shared();
+    if (shm == NULL) {
+        return;
+    }
+
+    switch (outcome) {
+    case BRIX_CRED_OUTCOME_USER:
+        BRIX_ATOMIC_INC(&shm->unified.cred_select_user_total[proto]);
+        break;
+    case BRIX_CRED_OUTCOME_FALLBACK:
+        BRIX_ATOMIC_INC(&shm->unified.cred_select_fallback_total[proto]);
+        break;
+    case BRIX_CRED_OUTCOME_DENY:
+        BRIX_ATOMIC_INC(&shm->unified.cred_select_deny_total[proto]);
+        break;
+    default:
+        break;
+    }
+}
+
+/*
  * brix_metric_cache_usage_ratio — publish the current cache_root occupancy
  * (ppm, 0-1e6) as a process-wide gauge. Called from the watermark reaper timer
  * each tick. A plain aligned-word store is atomic on the platforms nginx targets;
@@ -594,18 +639,21 @@ brix_unified_legacy_auth(ngx_brix_metrics_t *shm, brix_proto_t proto,
 }
 
 /*
- * brix_export_unified_metrics — render all unified counter families to the
- * Prometheus text writer: io bytes read/written, io_ops_total, the io latency
- * histogram (cumulated from non-cumulative storage), cache hits/misses/evicted,
- * auth_total, and tpc transfers/bytes — each as HELP/TYPE plus per-label lines.
- * Legacy per-server stream counters are folded into the stream-protocol values.
+ * unified_emit_io_bytes — render the brix_io_bytes_read + brix_io_bytes_written
+ * families (per-protocol byte totals).
+ *
+ * WHAT: Emits both io_bytes_{read,written} HELP/TYPE + per-proto lines.
+ * WHY:  The two directions share the same shape (unified total + a per-proto
+ *       legacy/http fold), so one helper keeps their emission logic together.
+ * HOW:  For each proto, read the unified counter then fold in the legacy stream
+ *       bytes (root) or the webdav/s3 per-server tx/rx totals; note read folds
+ *       the *tx* side and written folds the *rx* side (client-perspective naming).
  */
-void
-brix_export_unified_metrics(metrics_writer_t *mw,
-    ngx_brix_metrics_t *shm)
+static void
+unified_emit_io_bytes(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
 {
-    ngx_uint_t       proto, op, err, bucket, method, status, direction;
-    unsigned long long value;
+    ngx_uint_t          proto;
+    unsigned long long  value;
 
     mw_printf(mw,
         "# HELP brix_io_bytes_read Total bytes read from storage, by protocol.\n"
@@ -638,6 +686,23 @@ brix_export_unified_metrics(metrics_writer_t *mw,
         mw_printf(mw, "brix_io_bytes_written{proto=\"%s\"} %llu\n",
                   brix_metric_proto_name((brix_proto_t) proto), value);
     }
+}
+
+/*
+ * unified_emit_io_ops — render the brix_io_ops_total family
+ * (per-proto/op/status operation counters).
+ *
+ * WHAT: Emits the HELP/TYPE header + one line per (proto, op, status) triple.
+ * WHY:  Isolates the triple-nested loop and the root:// legacy fold from the
+ *       exporter orchestrator.
+ * HOW:  For root:// the ok(err==NONE) and error(err==OTHER) legacy stream op
+ *       totals are added in — matching the legacy ok/err split — before printing.
+ */
+static void
+unified_emit_io_ops(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    ngx_uint_t          proto, op, err;
+    unsigned long long  value;
 
     mw_printf(mw,
         "# HELP brix_io_ops_total I/O operations completed, by protocol, operation, and status.\n"
@@ -666,83 +731,184 @@ brix_export_unified_metrics(metrics_writer_t *mw,
             }
         }
     }
+}
+
+/*
+ * unified_emit_io_latency_series — render the bucket/sum/count lines for ONE
+ * (proto, op) latency series.
+ *
+ * WHAT: Emits the cumulative le="…" buckets, the le="+Inf" bucket, and the
+ *       _sum/_count lines for a single protocol+operation.
+ * WHY:  The per-series cumulation is the only stateful part of the histogram;
+ *       confining it here keeps unified_emit_io_latency a flat double loop.
+ * HOW:  Storage is NON-cumulative (each I/O bumps only its own bucket), so the
+ *       running `value` accumulates lower buckets as they are emitted; the +Inf
+ *       bucket then equals the total count. Byte-frozen against the prior inline
+ *       form.
+ */
+static void
+unified_emit_io_latency_series(metrics_writer_t *mw, ngx_brix_metrics_t *shm,
+    ngx_uint_t proto, ngx_uint_t op)
+{
+    ngx_uint_t          bucket;
+    unsigned long long  value;
+
+    value = 0;
+    for (bucket = 0; bucket < BRIX_IO_LATENCY_BUCKETS - 1; bucket++) {
+        value += brix_metric_value(&shm->unified.io_latency_bucket
+            [proto][op][bucket]);
+        mw_printf(mw,
+            "brix_io_latency_usec_bucket"
+            "{proto=\"%s\",op=\"%s\",le=\"%llu\"} %llu\n",
+            brix_metric_proto_name((brix_proto_t) proto),
+            brix_metric_op_name((brix_metric_op_t) op),
+            (unsigned long long) brix_latency_bounds[bucket],
+            value);
+    }
+    value += brix_metric_value(&shm->unified.io_latency_bucket
+        [proto][op][BRIX_IO_LATENCY_BUCKETS - 1]);
+    mw_printf(mw,
+        "brix_io_latency_usec_bucket"
+        "{proto=\"%s\",op=\"%s\",le=\"+Inf\"} %llu\n",
+        brix_metric_proto_name((brix_proto_t) proto),
+        brix_metric_op_name((brix_metric_op_t) op),
+        value);
+    mw_printf(mw,
+        "brix_io_latency_usec_sum{proto=\"%s\",op=\"%s\"} %llu\n",
+        brix_metric_proto_name((brix_proto_t) proto),
+        brix_metric_op_name((brix_metric_op_t) op),
+        brix_metric_value(&shm->unified.io_latency_sum_usec[proto][op]));
+    mw_printf(mw,
+        "brix_io_latency_usec_count{proto=\"%s\",op=\"%s\"} %llu\n",
+        brix_metric_proto_name((brix_proto_t) proto),
+        brix_metric_op_name((brix_metric_op_t) op),
+        brix_metric_value(&shm->unified.io_latency_count[proto][op]));
+}
+
+/*
+ * unified_emit_io_latency — render the brix_io_latency_usec histogram family.
+ *
+ * WHAT: Emits the HELP/TYPE header then delegates each (proto, op) series to
+ *       unified_emit_io_latency_series.
+ * WHY:  Splitting the per-series cumulation out keeps this a flat iterator.
+ * HOW:  Double loop over proto × op; one helper call per series.
+ */
+static void
+unified_emit_io_latency(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    ngx_uint_t  proto, op;
 
     mw_printf(mw,
         "# HELP brix_io_latency_usec I/O operation latency in microseconds.\n"
         "# TYPE brix_io_latency_usec histogram\n");
     for (proto = 0; proto < BRIX_PROTO_COUNT; proto++) {
         for (op = 0; op < BRIX_METRIC_OP_COUNT; op++) {
-            /*
-             * The write side stores NON-cumulative per-bucket counts (each I/O
-             * increments only the bucket it lands in).  Prometheus histogram
-             * `le` buckets are cumulative, so accumulate as we emit: every
-             * bucket's reported value is the running sum of all lower buckets,
-             * and the +Inf bucket equals the total count.
-             */
-            value = 0;
-            for (bucket = 0; bucket < BRIX_IO_LATENCY_BUCKETS - 1; bucket++) {
-                value += brix_metric_value(&shm->unified.io_latency_bucket
-                    [proto][op][bucket]);
-                mw_printf(mw,
-                    "brix_io_latency_usec_bucket"
-                    "{proto=\"%s\",op=\"%s\",le=\"%llu\"} %llu\n",
-                    brix_metric_proto_name((brix_proto_t) proto),
-                    brix_metric_op_name((brix_metric_op_t) op),
-                    (unsigned long long) brix_latency_bounds[bucket],
-                    value);
-            }
-            value += brix_metric_value(&shm->unified.io_latency_bucket
-                [proto][op][BRIX_IO_LATENCY_BUCKETS - 1]);
-            mw_printf(mw,
-                "brix_io_latency_usec_bucket"
-                "{proto=\"%s\",op=\"%s\",le=\"+Inf\"} %llu\n",
-                brix_metric_proto_name((brix_proto_t) proto),
-                brix_metric_op_name((brix_metric_op_t) op),
-                value);
-            mw_printf(mw,
-                "brix_io_latency_usec_sum{proto=\"%s\",op=\"%s\"} %llu\n",
-                brix_metric_proto_name((brix_proto_t) proto),
-                brix_metric_op_name((brix_metric_op_t) op),
-                brix_metric_value(&shm->unified.io_latency_sum_usec[proto][op]));
-            mw_printf(mw,
-                "brix_io_latency_usec_count{proto=\"%s\",op=\"%s\"} %llu\n",
-                brix_metric_proto_name((brix_proto_t) proto),
-                brix_metric_op_name((brix_metric_op_t) op),
-                brix_metric_value(&shm->unified.io_latency_count[proto][op]));
+            unified_emit_io_latency_series(mw, shm, proto, op);
         }
     }
+}
 
-    mw_printf(mw,
+/*
+ * unified_emit_proto_counter — emit a single HELP/TYPE header followed by one
+ * per-protocol line reading counter values from `field`.
+ *
+ * WHAT: Generic per-proto counter renderer (proto label only, no fold).
+ * WHY:  The cred_select and cache hit/miss/evicted families are all identical
+ *       "HELP/TYPE + per-proto value" shapes; a shared emitter removes the
+ *       copy-paste while keeping exposition bytes frozen.
+ * HOW:  Caller passes the pre-formatted HELP/TYPE block and the per-proto
+ *       counter array base; we print `metric_name{proto="…"} <value>` per proto.
+ */
+static void
+unified_emit_proto_counter(metrics_writer_t *mw, const char *help_type,
+    const char *metric_name, ngx_atomic_t *field)
+{
+    ngx_uint_t  proto;
+
+    mw_printf(mw, "%s", help_type);
+    for (proto = 0; proto < BRIX_PROTO_COUNT; proto++) {
+        mw_printf(mw, "%s{proto=\"%s\"} %llu\n", metric_name,
+                  brix_metric_proto_name((brix_proto_t) proto),
+                  brix_metric_value(&field[proto]));
+    }
+}
+
+/*
+ * unified_emit_cred_select — render the three brix_cred_select_* families
+ * (user / fallback / deny), each a per-protocol counter (Phase 2 Task 3).
+ *
+ * WHAT: Emits user, fallback, and deny credential-gate outcome counters.
+ * WHY:  Groups the one credential-gate concern; labels stay low-cardinality
+ *       (proto only — no DNs, keys, or principals, INVARIANT #8).
+ * HOW:  Three unified_emit_proto_counter calls over the matching SHM arrays.
+ */
+static void
+unified_emit_cred_select(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    unified_emit_proto_counter(mw,
+        "# HELP brix_cred_select_user_total "
+            "Per-user backend credential selected and used, by protocol.\n"
+        "# TYPE brix_cred_select_user_total counter\n",
+        "brix_cred_select_user_total",
+        shm->unified.cred_select_user_total);
+
+    unified_emit_proto_counter(mw,
+        "# HELP brix_cred_select_fallback_total "
+            "Service-credential fallback allowed (no/expired user cred or driver "
+            "incapable; fallback_deny=0), by protocol.\n"
+        "# TYPE brix_cred_select_fallback_total counter\n",
+        "brix_cred_select_fallback_total",
+        shm->unified.cred_select_fallback_total);
+
+    unified_emit_proto_counter(mw,
+        "# HELP brix_cred_select_deny_total "
+            "Request rejected at the credential gate (EACCES; fallback_deny=1), "
+            "by protocol.\n"
+        "# TYPE brix_cred_select_deny_total counter\n",
+        "brix_cred_select_deny_total",
+        shm->unified.cred_select_deny_total);
+}
+
+/*
+ * unified_emit_cache — render the per-protocol cache families
+ * (hits / misses / bytes_evicted).
+ *
+ * WHAT: Emits the three per-proto cache counters.
+ * WHY:  Groups the cache-lookup outcome concern behind one call.
+ * HOW:  Three unified_emit_proto_counter calls over the matching SHM arrays.
+ */
+static void
+unified_emit_cache(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    unified_emit_proto_counter(mw,
         "# HELP brix_cache_hits_total Cache hits by protocol.\n"
-        "# TYPE brix_cache_hits_total counter\n");
-    for (proto = 0; proto < BRIX_PROTO_COUNT; proto++) {
-        mw_printf(mw, "brix_cache_hits_total{proto=\"%s\"} %llu\n",
-                  brix_metric_proto_name((brix_proto_t) proto),
-                  brix_metric_value(&shm->unified.cache_hits[proto]));
-    }
+        "# TYPE brix_cache_hits_total counter\n",
+        "brix_cache_hits_total", shm->unified.cache_hits);
 
-    mw_printf(mw,
+    unified_emit_proto_counter(mw,
         "# HELP brix_cache_misses_total Cache misses by protocol.\n"
-        "# TYPE brix_cache_misses_total counter\n");
-    for (proto = 0; proto < BRIX_PROTO_COUNT; proto++) {
-        mw_printf(mw, "brix_cache_misses_total{proto=\"%s\"} %llu\n",
-                  brix_metric_proto_name((brix_proto_t) proto),
-                  brix_metric_value(&shm->unified.cache_misses[proto]));
-    }
+        "# TYPE brix_cache_misses_total counter\n",
+        "brix_cache_misses_total", shm->unified.cache_misses);
 
-    mw_printf(mw,
+    unified_emit_proto_counter(mw,
         "# HELP brix_cache_bytes_evicted_total Cache bytes evicted, by protocol.\n"
-        "# TYPE brix_cache_bytes_evicted_total counter\n");
-    for (proto = 0; proto < BRIX_PROTO_COUNT; proto++) {
-        value = brix_metric_value(&shm->unified.cache_bytes_evicted[proto]);
-        mw_printf(mw,
-                  "brix_cache_bytes_evicted_total{proto=\"%s\"} %llu\n",
-                  brix_metric_proto_name((brix_proto_t) proto), value);
-    }
+        "# TYPE brix_cache_bytes_evicted_total counter\n",
+        "brix_cache_bytes_evicted_total", shm->unified.cache_bytes_evicted);
+}
 
-    /* Watermark-driven LRU reaper (background timer). usage_ratio is a gauge in
-     * 0-1 (stored as ppm); the rest are counters dedicated to the proactive
-     * reaper so they never collide with the per-proto/per-server eviction series. */
+/*
+ * unified_emit_cache_watermark — render the watermark-reaper cache families.
+ *
+ * WHAT: Emits the usage_ratio gauge plus the purges/evicted-files/evicted-bytes
+ *       counters produced by the background watermark reaper.
+ * WHY:  The connection-less reaper has a dedicated series so it never collides
+ *       with the per-proto/per-server eviction counters.
+ * HOW:  usage_ratio is a ppm-stored gauge rendered as a 0-1 double; the rest are
+ *       plain single-value counters.
+ */
+static void
+unified_emit_cache_watermark(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
     mw_printf(mw,
         "# HELP brix_cache_usage_ratio Cache filesystem occupancy (0-1).\n"
         "# TYPE brix_cache_usage_ratio gauge\n"
@@ -767,9 +933,20 @@ brix_export_unified_metrics(metrics_writer_t *mw,
         "# TYPE brix_cache_watermark_evicted_bytes_total counter\n"
         "brix_cache_watermark_evicted_bytes_total %llu\n",
         brix_metric_value(&shm->unified.cache_watermark_evicted_bytes));
+}
 
-    /* Write-back-staging backpressure. usage_ratio is a gauge (0-1, stored ppm);
-     * throttled_total is split by the action taken on the shed write. */
+/*
+ * unified_emit_wt_stage — render the write-back-staging backpressure families.
+ *
+ * WHAT: Emits the wt_stage usage_ratio gauge and the throttled_total counter
+ *       (split by wait vs reject action).
+ * WHY:  Groups the staging-backpressure concern behind one call.
+ * HOW:  usage_ratio is a ppm-stored gauge rendered 0-1; throttled_total carries
+ *       an action label for the two shed outcomes.
+ */
+static void
+unified_emit_wt_stage(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
     mw_printf(mw,
         "# HELP brix_wt_stage_usage_ratio Write-back staging filesystem occupancy (0-1).\n"
         "# TYPE brix_wt_stage_usage_ratio gauge\n"
@@ -784,6 +961,22 @@ brix_export_unified_metrics(metrics_writer_t *mw,
         "brix_wt_stage_throttled_total{action=\"reject\"} %llu\n",
         brix_metric_value(&shm->unified.wt_stage_throttled_wait),
         brix_metric_value(&shm->unified.wt_stage_throttled_reject));
+}
+
+/*
+ * unified_emit_auth — render the brix_auth_total family
+ * (per-proto/method/status authentication counters).
+ *
+ * WHAT: Emits the HELP/TYPE header + one line per (proto, method, status) cell.
+ * WHY:  Isolates the triple-nested loop and the root:// legacy auth fold.
+ * HOW:  Each cell folds in brix_unified_legacy_auth (non-zero for root:// only)
+ *       before printing; method/status labels come from the shared name tables.
+ */
+static void
+unified_emit_auth(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    ngx_uint_t          proto, method, status;
+    unsigned long long  value;
 
     mw_printf(mw,
         "# HELP brix_auth_total Authentication attempts by protocol, method, and status.\n"
@@ -805,6 +998,22 @@ brix_export_unified_metrics(metrics_writer_t *mw,
             }
         }
     }
+}
+
+/*
+ * unified_emit_tpc — render the brix_tpc_transfers_total + brix_tpc_bytes_total
+ * families (third-party-copy outcomes and successful bytes).
+ *
+ * WHAT: Emits the per-(proto, direction, status) transfer counters and the
+ *       per-(proto, direction) successful-byte counters.
+ * WHY:  The two TPC families share the proto × direction iteration, so one
+ *       helper keeps them together.
+ * HOW:  Two loops: transfers add the status dimension, bytes do not.
+ */
+static void
+unified_emit_tpc(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    ngx_uint_t  proto, direction, err;
 
     mw_printf(mw,
         "# HELP brix_tpc_transfers_total Third-party-copy transfer outcomes.\n"
@@ -840,4 +1049,28 @@ brix_export_unified_metrics(metrics_writer_t *mw,
                 brix_metric_value(&shm->unified.tpc_bytes[proto][direction]));
         }
     }
+}
+
+/*
+ * brix_export_unified_metrics — render all unified counter families to the
+ * Prometheus text writer: io bytes read/written, io_ops_total, the io latency
+ * histogram (cumulated from non-cumulative storage), cache hits/misses/evicted,
+ * auth_total, and tpc transfers/bytes — each as HELP/TYPE plus per-label lines.
+ * Legacy per-server stream counters are folded into the stream-protocol values.
+ * The body is a flat call sequence over one unified_emit_<family> helper per
+ * metric family; emission order and exposition bytes are frozen.
+ */
+void
+brix_export_unified_metrics(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm)
+{
+    unified_emit_io_bytes(mw, shm);
+    unified_emit_io_ops(mw, shm);
+    unified_emit_io_latency(mw, shm);
+    unified_emit_cred_select(mw, shm);
+    unified_emit_cache(mw, shm);
+    unified_emit_cache_watermark(mw, shm);
+    unified_emit_wt_stage(mw, shm);
+    unified_emit_auth(mw, shm);
+    unified_emit_tpc(mw, shm);
 }

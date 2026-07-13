@@ -195,8 +195,8 @@ static void
 test_encode_roundtrip_mkdir(void)
 {
     unsigned char buf[256];
-    int n = brix_cms_rrdata_encode(K_MKDIR, "ident.0", "/a/b", NULL,
-                                     "750", NULL, buf, sizeof(buf));
+    brix_cms_fwd_fields_t f = { "ident.0", "/a/b", NULL, "750", NULL };
+    int n = brix_cms_rrdata_encode(K_MKDIR, &f, buf, sizeof(buf));
     CHECK(n > 0);
     brix_cms_rrdata_t d;
     CHECK(brix_cms_rrdata_parse(K_MKDIR, buf, (size_t) n, &d) == 0);
@@ -209,8 +209,8 @@ static void
 test_encode_roundtrip_mv_with_opaque(void)
 {
     unsigned char buf[256];
-    int n = brix_cms_rrdata_encode(K_MV, "id", "/s", "/d",
-                                     NULL, "authz=x", buf, sizeof(buf));
+    brix_cms_fwd_fields_t f = { "id", "/s", "/d", NULL, "authz=x" };
+    int n = brix_cms_rrdata_encode(K_MV, &f, buf, sizeof(buf));
     CHECK(n > 0);
     brix_cms_rrdata_t d;
     CHECK(brix_cms_rrdata_parse(K_MV, buf, (size_t) n, &d) == 0);
@@ -223,8 +223,8 @@ static void
 test_encode_roundtrip_rm(void)
 {
     unsigned char buf[256];
-    int n = brix_cms_rrdata_encode(K_RM, "id", "/gone", NULL,
-                                     NULL, NULL, buf, sizeof(buf));
+    brix_cms_fwd_fields_t f = { "id", "/gone", NULL, NULL, NULL };
+    int n = brix_cms_rrdata_encode(K_RM, &f, buf, sizeof(buf));
     CHECK(n > 0);
     brix_cms_rrdata_t d;
     CHECK(brix_cms_rrdata_parse(K_RM, buf, (size_t) n, &d) == 0);
@@ -235,8 +235,8 @@ static void
 test_encode_overflow_rejected(void)
 {
     unsigned char small[4];
-    int n = brix_cms_rrdata_encode(K_MKDIR, "ident", "/path", NULL,
-                                     "755", NULL, small, sizeof(small));
+    brix_cms_fwd_fields_t f = { "ident", "/path", NULL, "755", NULL };
+    int n = brix_cms_rrdata_encode(K_MKDIR, &f, small, sizeof(small));
     CHECK(n == -1);
 }
 
@@ -244,7 +244,8 @@ static void
 test_statfs_encode(void)
 {
     unsigned char buf[64];
-    int n = brix_cms_statfs_encode(2, 1000, 50, 2, 1000, 50, buf, sizeof(buf));
+    brix_cms_statfs_fields_t sp = { 2, 1000, 50, 2, 1000, 50 };
+    int n = brix_cms_statfs_encode(&sp, buf, sizeof(buf));
     CHECK(n == 24);                                /* 4 + strlen("...")=19 + NUL */
     CHECK(buf[0] == 0 && buf[1] == 0 && buf[2] == 0 && buf[3] == 0);
     CHECK(strcmp((const char *) buf + 4, "2 1000 50 2 1000 50") == 0);
@@ -254,8 +255,8 @@ static void
 test_statfs_encode_overflow(void)
 {
     unsigned char small[6];
-    CHECK(brix_cms_statfs_encode(2, 1000, 50, 2, 1000, 50,
-                                   small, sizeof(small)) == -1);
+    brix_cms_statfs_fields_t sp = { 2, 1000, 50, 2, 1000, 50 };
+    CHECK(brix_cms_statfs_encode(&sp, small, sizeof(small)) == -1);
 }
 
 int

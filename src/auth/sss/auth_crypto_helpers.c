@@ -115,28 +115,62 @@ brix_sss_find_key(ngx_stream_brix_srv_conf_t *conf, int64_t id)
  * WHAT: Searches configured SSS key table for a matching key ID that is not expired. Returns pointer to first matching active key or NULL if no match found. Used by sss/auth.c during kXR_auth handler to select the correct shared secret for decrypting client challenge.
  */
 
-ngx_int_t
-brix_sss_verify_blob(ngx_array_t *keys, time_t lifetime,
-    const u_char *blob, size_t blob_len,
-    brix_sss_identity_t *id_out, const brix_sss_key_t **key_out,
-    char *err, size_t errsz)
-{
-    const brix_sss_key_t *key;
+/*
+ * WHAT: File-local working state for one SSS blob verification pass. Carries the
+ *       inputs (keytab, lifetime, wire blob) and the derived intermediates
+ *       (selected key, located cipher span, decrypted-plaintext scratch and its
+ *       length) between the verify sub-steps so each helper takes a single ctx
+ *       rather than a long parameter list.
+ *
+ * WHY:  brix_sss_verify_blob is an extern with an out-of-file caller
+ *       (net/cms/server_auth.c) so its signature is frozen at 8 params; the
+ *       decomposition threads this ctx internally instead. `clear` bounds the
+ *       decrypt scratch — SSS credentials over any transport (XRootD kXR_auth or
+ *       CMS kYR_xauth frame) are far smaller than this — and MUST be cleansed on
+ *       every exit that touched it.
+ *
+ * HOW:  brix_sss_verify_blob zero-inits one of these, then calls the header /
+ *       decrypt / crc-check / identity sub-steps in sequence, each reading and
+ *       writing only ctx fields. `clear_len` is the plaintext length with the
+ *       trailing 4-byte CRC stripped.
+ */
+typedef struct {
+    ngx_array_t            *keys;
+    time_t                  lifetime;
+    const u_char           *blob;
+    size_t                  blob_len;
+    const brix_sss_key_t   *key;
     const u_char           *cipher;
-    /* Bounds the decrypt scratch; SSS credentials over any transport (XRootD
-     * kXR_auth or CMS kYR_xauth frame) are far smaller than this. */
+    size_t                  cipher_len;
     u_char                  clear[8192];
-    size_t                  hdr_len, cipher_len, out_len, clear_len;
-    uint8_t                 kn_size, options;
-    int64_t                 key_id;
-    uint32_t                got_crc, want_crc, gen_time, now;
+    size_t                  clear_len;
+} brix_sss_blob_ctx_t;
 
-    if (key_out) {
-        *key_out = NULL;
-    }
+/*
+ * WHAT: Validates the SSS credential wire framing (minimum length, magic bytes,
+ *       encryption marker, key-name size, and header-length bound) and returns
+ *       the derived header length that separates the header from the ciphertext.
+ *
+ * WHY:  Isolating pure framing validation keeps the CCN of each verify sub-step
+ *       within the gate and lets the key-lookup step assume a well-formed header.
+ *       Every framing failure is a fail-closed deny.
+ *
+ * HOW:  Checks the "sss\0" magic and BRIX_SSS_ENC_BF32 enc marker, bounds the
+ *       key-name size (multiple-of-8, <= BRIX_SSS_NAME_MAX, NUL-terminated),
+ *       derives hdr_len = BRIX_SSS_HDR_LEN + kn_size, and bounds it against the
+ *       blob length. Writes the header length through *hdr_len_out. Returns
+ *       NGX_OK on a well-formed header, NGX_ERROR (with err populated) otherwise.
+ */
+static ngx_int_t
+brix_sss_blob_validate_framing(const brix_sss_blob_ctx_t *ctx,
+    size_t *hdr_len_out, char *err, size_t errsz)
+{
+    const u_char *blob = ctx->blob;
+    size_t        hdr_len;
+    uint8_t       kn_size;
 
     if (blob == NULL
-        || blob_len < BRIX_SSS_HDR_LEN + BRIX_SSS_DATA_HDR_LEN + 4)
+        || ctx->blob_len < BRIX_SSS_HDR_LEN + BRIX_SSS_DATA_HDR_LEN + 4)
     {
         snprintf(err, errsz, "sss credential too short");
         return NGX_ERROR;
@@ -156,27 +190,84 @@ brix_sss_verify_blob(ngx_array_t *keys, time_t lifetime,
     }
 
     hdr_len = BRIX_SSS_HDR_LEN + kn_size;
-    if (hdr_len >= blob_len || (kn_size && blob[hdr_len - 1] != '\0')) {
+    if (hdr_len >= ctx->blob_len || (kn_size && blob[hdr_len - 1] != '\0')) {
         snprintf(err, errsz, "sss credential malformed header");
         return NGX_ERROR;
     }
 
-    key_id = (int64_t) brix_sss_read_be64(blob + 8);
-    key = brix_sss_find_key_arr(keys, key_id);
-    if (key == NULL) {
+    *hdr_len_out = hdr_len;
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Validates the SSS credential wire header, then locates the matching
+ *       keytab entry by key id and records the ciphertext span into the ctx.
+ *
+ * WHY:  Every framing and key-lookup failure is a fail-closed deny; keeping them
+ *       in one linear step lets the orchestrator read as a sequence and lets the
+ *       decrypt step assume a validated cipher span.
+ *
+ * HOW:  Defers framing checks to brix_sss_blob_validate_framing, then reads the
+ *       big-endian key id, resolves it against the keytab, and sets ctx->cipher /
+ *       ctx->cipher_len (bounded against the scratch size). Returns NGX_OK on a
+ *       well-formed header with a live key, NGX_ERROR (with err populated) on any
+ *       framing or lookup failure.
+ */
+static ngx_int_t
+brix_sss_blob_parse_header(brix_sss_blob_ctx_t *ctx, char *err, size_t errsz)
+{
+    size_t    hdr_len = 0;
+    int64_t   key_id;
+    ngx_int_t rc;
+
+    rc = brix_sss_blob_validate_framing(ctx, &hdr_len, err, errsz);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
+    key_id = (int64_t) brix_sss_read_be64(ctx->blob + 8);
+    ctx->key = brix_sss_find_key_arr(ctx->keys, key_id);
+    if (ctx->key == NULL) {
         snprintf(err, errsz, "sss key id %lld not in keytab", (long long) key_id);
         return NGX_ERROR;
     }
 
-    cipher = blob + hdr_len;
-    cipher_len = blob_len - hdr_len;
-    if (cipher_len <= 4 || cipher_len > sizeof(clear)) {
+    ctx->cipher = ctx->blob + hdr_len;
+    ctx->cipher_len = ctx->blob_len - hdr_len;
+    if (ctx->cipher_len <= 4 || ctx->cipher_len > sizeof(ctx->clear)) {
         snprintf(err, errsz, "sss ciphertext length out of range");
         return NGX_ERROR;
     }
 
-    if (brix_sss_bf32_crypt(0, key->key, key->key_len,
-                              cipher, cipher_len, clear, sizeof(clear),
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Decrypts the located ciphertext span with the selected SSS key into the
+ *       ctx plaintext scratch and verifies the trailing CRC-32 over the payload.
+ *
+ * WHY:  A wrong key or tampered credential decrypts to garbage whose appended CRC
+ *       will not match — this is the security-load-bearing gate that turns a bad
+ *       key into a clean deny rather than a forged identity. On any failure that
+ *       has touched the scratch it must be cleansed by the caller.
+ *
+ * HOW:  Runs brix_sss_bf32_crypt in decrypt mode; on success strips the trailing
+ *       4-byte CRC to yield ctx->clear_len, reads the wire CRC big-endian, and
+ *       compares it to brix_sss_crc32 over the payload. Also enforces the minimum
+ *       data-header length. Returns NGX_OK when the CRC matches and the plaintext
+ *       is long enough, NGX_ERROR (with err populated) otherwise. The scratch is
+ *       left populated for the caller's cleanse on both paths.
+ */
+static ngx_int_t
+brix_sss_blob_decrypt_verify_crc(brix_sss_blob_ctx_t *ctx, char *err,
+    size_t errsz)
+{
+    size_t   out_len;
+    uint32_t got_crc, want_crc;
+
+    if (brix_sss_bf32_crypt(0, ctx->key->key, ctx->key->key_len,
+                              ctx->cipher, ctx->cipher_len,
+                              ctx->clear, sizeof(ctx->clear),
                               &out_len) != NGX_OK
         || out_len <= 4)
     {
@@ -184,47 +275,130 @@ brix_sss_verify_blob(ngx_array_t *keys, time_t lifetime,
         return NGX_ERROR;
     }
 
-    clear_len = out_len - 4;
-    got_crc  = brix_sss_read_be32(clear + clear_len);
-    want_crc = brix_sss_crc32(clear, clear_len);
-    if (got_crc != want_crc || clear_len < BRIX_SSS_DATA_HDR_LEN) {
-        OPENSSL_cleanse(clear, sizeof(clear));
+    ctx->clear_len = out_len - 4;
+    got_crc  = brix_sss_read_be32(ctx->clear + ctx->clear_len);
+    want_crc = brix_sss_crc32(ctx->clear, ctx->clear_len);
+    if (got_crc != want_crc || ctx->clear_len < BRIX_SSS_DATA_HDR_LEN) {
         snprintf(err, errsz, "sss CRC mismatch (wrong key or tampered)");
         return NGX_ERROR;
     }
 
-    gen_time = brix_sss_read_be32(clear + 32);
-    now = (uint32_t) (ngx_time() - BRIX_SSS_BASE_TIME);
-    if (gen_time + (uint32_t) lifetime <= now) {
-        OPENSSL_cleanse(clear, sizeof(clear));
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Enforces the SSS replay window on a CRC-verified plaintext by checking
+ *       its generation timestamp against the configured credential lifetime.
+ *
+ * WHY:  A CRC-valid credential minted long ago is a replay; the replay window is
+ *       frozen and rejecting the expired credential keeps stale captures from
+ *       authenticating. The caller cleanses the scratch on the reject path.
+ *
+ * HOW:  Reads the big-endian gen_time at offset 32, computes `now` relative to
+ *       BRIX_SSS_BASE_TIME, and denies when gen_time + lifetime has elapsed.
+ *       Returns NGX_OK if still within window, NGX_ERROR (with err populated) if
+ *       expired.
+ */
+static ngx_int_t
+brix_sss_blob_check_replay(brix_sss_blob_ctx_t *ctx, char *err, size_t errsz)
+{
+    uint32_t gen_time = brix_sss_read_be32(ctx->clear + 32);
+    uint32_t now = (uint32_t) (ngx_time() - BRIX_SSS_BASE_TIME);
+
+    if (gen_time + (uint32_t) ctx->lifetime <= now) {
         snprintf(err, errsz, "sss credential expired (replay window)");
         return NGX_ERROR;
     }
 
-    options = clear[39];
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Applies the credential options byte and, when requested, parses the
+ *       decrypted identity TLV block into the caller's identity struct.
+ *
+ * WHY:  SNDLID credentials are unsupported and must decline (not error) so the
+ *       caller can distinguish them; identity parsing is the last step before a
+ *       credential is trusted. The caller cleanses the scratch on every path.
+ *
+ * HOW:  Reads the options byte at offset 39; returns NGX_DECLINED for
+ *       BRIX_SSS_OPT_SNDLID. Otherwise, when id_out is non-NULL, forwards the
+ *       identity payload (past the data header) to brix_sss_parse_identity.
+ *       Returns NGX_OK on success, NGX_DECLINED for SNDLID, NGX_ERROR (with err
+ *       populated) on a parse failure.
+ */
+static ngx_int_t
+brix_sss_blob_finish_identity(brix_sss_blob_ctx_t *ctx,
+    brix_sss_identity_t *id_out, char *err, size_t errsz)
+{
+    uint8_t options = ctx->clear[39];
+
     if (options == BRIX_SSS_OPT_SNDLID) {
-        OPENSSL_cleanse(clear, sizeof(clear));
         snprintf(err, errsz, "sss SNDLID credential unsupported");
         return NGX_DECLINED;
     }
 
     if (id_out != NULL
-        && brix_sss_parse_identity(clear + BRIX_SSS_DATA_HDR_LEN,
-                                     clear_len - BRIX_SSS_DATA_HDR_LEN,
+        && brix_sss_parse_identity(ctx->clear + BRIX_SSS_DATA_HDR_LEN,
+                                     ctx->clear_len - BRIX_SSS_DATA_HDR_LEN,
                                      id_out) != NGX_OK)
     {
-        OPENSSL_cleanse(clear, sizeof(clear));
         snprintf(err, errsz, "sss identity parse failed");
         return NGX_ERROR;
     }
 
-    OPENSSL_cleanse(clear, sizeof(clear));
-    if (key_out) {
-        *key_out = key;
-    }
     return NGX_OK;
 }
+
+ngx_int_t
+brix_sss_verify_blob(ngx_array_t *keys, time_t lifetime,
+    const u_char *blob, size_t blob_len,
+    brix_sss_identity_t *id_out, const brix_sss_key_t **key_out,
+    char *err, size_t errsz)
+{
+    brix_sss_blob_ctx_t ctx = {0};
+    ngx_int_t           rc;
+
+    ctx.keys = keys;
+    ctx.lifetime = lifetime;
+    ctx.blob = blob;
+    ctx.blob_len = blob_len;
+
+    if (key_out) {
+        *key_out = NULL;
+    }
+
+    /* Header framing + key lookup + ciphertext location: no scratch touched yet. */
+    rc = brix_sss_blob_parse_header(&ctx, err, errsz);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
+    /* From here the plaintext scratch is populated on every path and MUST be
+     * cleansed before return. */
+    rc = brix_sss_blob_decrypt_verify_crc(&ctx, err, errsz);
+    if (rc == NGX_OK) {
+        rc = brix_sss_blob_check_replay(&ctx, err, errsz);
+    }
+    if (rc == NGX_OK) {
+        rc = brix_sss_blob_finish_identity(&ctx, id_out, err, errsz);
+    }
+
+    OPENSSL_cleanse(ctx.clear, sizeof(ctx.clear));
+
+    if (rc == NGX_OK && key_out) {
+        *key_out = ctx.key;
+    }
+    return rc;
+}
 /*
- * WHAT: Searches configured SSS key table for a matching key ID that is not expired. Returns pointer to first matching active key or NULL if no match found. Used by sss/auth.c during kXR_auth handler to select the correct shared secret for decrypting client challenge.
+ * WHAT: Validates a self-contained SSS credential blob against a keytab: parses
+ *       the wire header and selects the key, decrypts the ciphertext and verifies
+ *       its trailing CRC-32 (wrong key or tampering → clean deny), enforces the
+ *       replay window, and parses the identity. Returns NGX_OK with the resolved
+ *       key on success, NGX_DECLINED for unsupported SNDLID credentials, and
+ *       NGX_ERROR with a diagnostic in err for any framing, key, decrypt, CRC,
+ *       expiry, or identity-parse failure. Used by sss/auth.c (kXR_auth) and
+ *       net/cms/server_auth.c (kYR_xauth).
  */
 

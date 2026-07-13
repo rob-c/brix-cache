@@ -479,16 +479,51 @@ brix_mir_start(brix_stream_mirror_t *mir, ngx_msec_t timeout_ms)
 
 
 /* launch hook (called from dispatch.c) */
-void
-brix_stream_mirror_maybe(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *conf, ngx_int_t primary_rc)
+
+/*
+ * Is this write/mutation opcode cleared to proceed on the one-shot mirror?
+ *
+ * WHAT: for a WRITE-class @opbit, return 1 only when brix_mirror_writes is on
+ *       AND the op is a self-contained metadata mutation (not OP_WRITE); for
+ *       any non-write opcode return 1 unconditionally.
+ * WHY:  write mirroring needs a second, independent gate beyond the opcode
+ *       allowlist, and data writes (OP_WRITE) belong to the stateful write-
+ *       mirror, never this stateless path — factoring it keeps the driver flat.
+ * HOW:  short-circuits on the non-write case; otherwise checks the flag and
+ *       excludes OP_WRITE.
+ */
+static int
+brix_mirror_write_op_allowed(ngx_uint_t opbit,
+    ngx_stream_brix_srv_conf_t *conf)
 {
-    brix_mirror_target_t *targets;
-    ngx_uint_t              opbit, i;
-    int                     primary_ok;
+    if ((opbit & BRIX_MIRROR_OP_WRITE_ALL) == 0) {
+        return 1;
+    }
+    if (!conf->mirror.mirror_writes || opbit == BRIX_MIRROR_OP_WRITE) {
+        return 0;
+    }
+    return 1;
+}
+
+/*
+ * Decide whether the current request is eligible to be mirrored at all.
+ *
+ * WHAT: run every fast-reject gate (feature off, opcode filtered, write-gate,
+ *       non-replayable, oversized payload, sampling) and return 1 only when the
+ *       request should proceed to per-target launch.
+ * WHY:  collapses the whole guard ladder into one predicate so the launch
+ *       driver expresses just "eligible? then fan out", not the policy.
+ * HOW:  sequential early-returns; @opbit is returned to the caller so the launch
+ *       path need not recompute it.  Emits the drop metric on sample loss.
+ */
+static int
+brix_stream_mirror_eligible(brix_ctx_t *ctx,
+    ngx_stream_brix_srv_conf_t *conf, ngx_uint_t *opbit_out)
+{
+    ngx_uint_t  opbit;
 
     if (!conf->mirror.enabled || conf->mirror.targets == NULL) {
-        return;
+        return 0;
     }
 
     opbit = brix_mirror_opcode_bit(ctx->recv.cur_reqid);
@@ -498,7 +533,7 @@ brix_stream_mirror_maybe(brix_ctx_t *ctx, ngx_connection_t *c,
         || (conf->mirror.opcode_mask & opbit) == 0
         || (conf->mirror.opcode_exclude_mask & opbit) != 0)
     {
-        return;
+        return 0;
     }
 
     /* Second, independent guard for write/mutation opcodes: even if an operator
@@ -506,10 +541,8 @@ brix_stream_mirror_maybe(brix_ctx_t *ctx, ngx_connection_t *c,
      * brix_mirror_writes is explicitly on (and the shadow is an isolated
      * namespace).  OP_WRITE (data writes) is handled by the stateful write-mirror,
      * not this one-shot path, so it never proceeds here. */
-    if ((opbit & BRIX_MIRROR_OP_WRITE_ALL) != 0) {
-        if (!conf->mirror.mirror_writes || opbit == BRIX_MIRROR_OP_WRITE) {
-            return;
-        }
+    if (!brix_mirror_write_op_allowed(opbit, conf)) {
+        return 0;
     }
 
     /* Only replay requests the shadow can answer standalone (path-based reads,
@@ -517,65 +550,104 @@ brix_stream_mirror_maybe(brix_ctx_t *ctx, ngx_connection_t *c,
      * write opens are skipped so the mirror never spuriously diverges against an
      * official xrootd — see brix_mirror_request_replayable(). */
     if (!brix_mirror_request_replayable(ctx)) {
-        return;
+        return 0;
     }
 
     /* Skip oversized payloads (write bodies); also a sanity guard. */
     if (ctx->recv.cur_dlen > BRIX_MIRROR_MAX_PAYLOAD) {
-        return;
+        return 0;
     }
 
     if (!brix_mirror_should_sample(conf->mirror.sample_pct)) {
         BRIX_MIR_METRIC_INC(mirror_stream_dropped_total);
+        return 0;
+    }
+
+    *opbit_out = opbit;
+    return 1;
+}
+
+/*
+ * Allocate a mirror context, copy target + saved request into it, and start it.
+ *
+ * WHAT: for one resolved @target, create the mirror's private pool + ctx,
+ *       snapshot the primary request frame (header, opcode, payload), and kick
+ *       off brix_mir_start().  Unresolved targets and OOM are skipped silently.
+ * WHY:  isolates the per-target allocation/snapshot from the fan-out loop, so
+ *       the driver is a flat iteration and each launch owns its own cleanup.
+ * HOW:  a fresh cycle-pool ctx (outlives the client conn); the request payload
+ *       is copied now because ctx->recv.payload may be reused before the shadow
+ *       exchange completes.
+ */
+static void
+brix_stream_mirror_launch_target(brix_ctx_t *ctx,
+    brix_mirror_target_t *target, ngx_stream_brix_srv_conf_t *conf,
+    int primary_ok)
+{
+    ngx_pool_t            *pool;
+    brix_stream_mirror_t  *mir;
+
+    if (target->socklen == 0) {
+        return;   /* unresolved target */
+    }
+
+    pool = ngx_create_pool(2048, ngx_cycle->log);
+    if (pool == NULL) {
         return;
     }
+    mir = ngx_pcalloc(pool, sizeof(*mir));
+    if (mir == NULL) {
+        ngx_destroy_pool(pool);
+        return;
+    }
+    mir->pool        = pool;
+    mir->log         = ngx_cycle->log;   /* outlives the client connection */
+    mir->phase       = XRD_MIR_HANDSHAKE;
+    mir->primary_ok  = primary_ok;
+    mir->log_diverge = conf->mirror.log_diverge;
+    mir->port        = target->port;
+    mir->socklen     = target->socklen;
+    ngx_memcpy(&mir->sockaddr, &target->sockaddr, target->socklen);
+    ngx_cpystrn((u_char *) mir->host,
+                target->host.data ? target->host.data
+                                  : (u_char *) "?",
+                sizeof(mir->host));
+
+    /* Snapshot the request now — ctx->recv.payload may be reused by the next
+     * request before the shadow exchange completes. */
+    ngx_memcpy(mir->saved_hdr, ctx->recv.hdr_buf, 24);
+    mir->saved_opcode = ctx->recv.cur_reqid;
+    if (ctx->recv.payload != NULL && ctx->recv.cur_dlen > 0) {
+        mir->saved_payload = ngx_palloc(pool, ctx->recv.cur_dlen);
+        if (mir->saved_payload != NULL) {
+            ngx_memcpy(mir->saved_payload, ctx->recv.payload, ctx->recv.cur_dlen);
+            mir->saved_dlen = ctx->recv.cur_dlen;
+        }
+    }
+
+    brix_mir_start(mir, conf->mirror.timeout_ms);
+}
+
+void
+brix_stream_mirror_maybe(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, ngx_int_t primary_rc)
+{
+    brix_mirror_target_t *targets;
+    ngx_uint_t              opbit = 0, i;
+    int                     primary_ok;
+
+    (void) c;
+
+    if (!brix_stream_mirror_eligible(ctx, conf, &opbit)) {
+        return;
+    }
+    (void) opbit;   /* eligibility owns opcode policy; driver just fans out */
 
     primary_ok = (primary_rc != NGX_ERROR);
     targets    = conf->mirror.targets->elts;
 
     for (i = 0; i < conf->mirror.targets->nelts; i++) {
-        ngx_pool_t             *pool;
-        brix_stream_mirror_t *mir;
-
-        if (targets[i].socklen == 0) {
-            continue;   /* unresolved target */
-        }
-
-        pool = ngx_create_pool(2048, ngx_cycle->log);
-        if (pool == NULL) {
-            continue;
-        }
-        mir = ngx_pcalloc(pool, sizeof(*mir));
-        if (mir == NULL) {
-            ngx_destroy_pool(pool);
-            continue;
-        }
-        mir->pool        = pool;
-        mir->log         = ngx_cycle->log;   /* outlives the client connection */
-        mir->phase       = XRD_MIR_HANDSHAKE;
-        mir->primary_ok  = primary_ok;
-        mir->log_diverge = conf->mirror.log_diverge;
-        mir->port        = targets[i].port;
-        mir->socklen     = targets[i].socklen;
-        ngx_memcpy(&mir->sockaddr, &targets[i].sockaddr, targets[i].socklen);
-        ngx_cpystrn((u_char *) mir->host,
-                    targets[i].host.data ? targets[i].host.data
-                                         : (u_char *) "?",
-                    sizeof(mir->host));
-
-        /* Snapshot the request now — ctx->recv.payload may be reused by the next
-         * request before the shadow exchange completes. */
-        ngx_memcpy(mir->saved_hdr, ctx->recv.hdr_buf, 24);
-        mir->saved_opcode = ctx->recv.cur_reqid;
-        if (ctx->recv.payload != NULL && ctx->recv.cur_dlen > 0) {
-            mir->saved_payload = ngx_palloc(pool, ctx->recv.cur_dlen);
-            if (mir->saved_payload != NULL) {
-                ngx_memcpy(mir->saved_payload, ctx->recv.payload, ctx->recv.cur_dlen);
-                mir->saved_dlen = ctx->recv.cur_dlen;
-            }
-        }
-
-        brix_mir_start(mir, conf->mirror.timeout_ms);
+        brix_stream_mirror_launch_target(ctx, &targets[i], conf, primary_ok);
     }
 }
 
@@ -659,6 +731,61 @@ brix_stream_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 /*
+ * Opcode-name → bitmask table.
+ *
+ * WHAT: static lookup pairing each accepted brix_mirror_opcodes token with the
+ *       BRIX_MIRROR_OP_* bit(s) it selects.  "all" expands to the full set.
+ * WHY:  a data table replaces a 16-arm if/else ladder, keeping the parse loop
+ *       branch-flat and making the accepted vocabulary a single edit point.
+ * HOW:  terminated by a NULL name; brix_mirror_opcode_name_bit() scans it.
+ */
+typedef struct {
+    const char  *name;
+    ngx_uint_t   bit;
+} brix_mirror_opcode_name_t;
+
+static const brix_mirror_opcode_name_t  brix_mirror_opcode_names[] = {
+    { "all",      BRIX_MIRROR_OP_ALL      },
+    { "stat",     BRIX_MIRROR_OP_STAT     },
+    { "locate",   BRIX_MIRROR_OP_LOCATE   },
+    { "open",     BRIX_MIRROR_OP_OPEN     },
+    { "read",     BRIX_MIRROR_OP_READ     },
+    { "readv",    BRIX_MIRROR_OP_READV    },
+    { "dirlist",  BRIX_MIRROR_OP_DIRLIST  },
+    { "statx",    BRIX_MIRROR_OP_STATX    },
+    { "query",    BRIX_MIRROR_OP_QUERY    },
+    /* Write/mutation opcodes (require brix_mirror_writes on). */
+    { "mkdir",    BRIX_MIRROR_OP_MKDIR    },
+    { "rm",       BRIX_MIRROR_OP_RM       },
+    { "rmdir",    BRIX_MIRROR_OP_RMDIR    },
+    { "mv",       BRIX_MIRROR_OP_MV       },
+    { "truncate", BRIX_MIRROR_OP_TRUNCATE },
+    { "chmod",    BRIX_MIRROR_OP_CHMOD    },
+    { "write",    BRIX_MIRROR_OP_WRITE    },
+    { NULL,       0                       },
+};
+
+/*
+ * Map one opcode-name token to its bitmask.
+ *
+ * WHAT: return the BRIX_MIRROR_OP_* bit(s) for @name, or 0 if unrecognised.
+ * WHY:  isolates the table scan so the parse loop stays a flat data walk.
+ * HOW:  linear scan of brix_mirror_opcode_names (small, config-time only).
+ */
+static ngx_uint_t
+brix_mirror_opcode_name_bit(const u_char *name)
+{
+    const brix_mirror_opcode_name_t *e;
+
+    for (e = brix_mirror_opcode_names; e->name != NULL; e++) {
+        if (ngx_strcmp(name, e->name) == 0) {
+            return e->bit;
+        }
+    }
+    return 0;
+}
+
+/*
  * Parse opcode name args (cf->args[1..]) into a bitmask.  "all" expands to
  * BRIX_MIRROR_OP_ALL.  Shared by the allowlist and exclude setters.
  */
@@ -670,25 +797,10 @@ brix_mirror_parse_opcode_args(ngx_conf_t *cf, const char *directive,
     ngx_uint_t  i, mask = 0;
 
     for (i = 1; i < cf->args->nelts; i++) {
-        ngx_str_t *v = &value[i];
-        if      (ngx_strcmp(v->data, "all")     == 0) mask |= BRIX_MIRROR_OP_ALL;
-        else if (ngx_strcmp(v->data, "stat")    == 0) mask |= BRIX_MIRROR_OP_STAT;
-        else if (ngx_strcmp(v->data, "locate")  == 0) mask |= BRIX_MIRROR_OP_LOCATE;
-        else if (ngx_strcmp(v->data, "open")    == 0) mask |= BRIX_MIRROR_OP_OPEN;
-        else if (ngx_strcmp(v->data, "read")    == 0) mask |= BRIX_MIRROR_OP_READ;
-        else if (ngx_strcmp(v->data, "readv")   == 0) mask |= BRIX_MIRROR_OP_READV;
-        else if (ngx_strcmp(v->data, "dirlist") == 0) mask |= BRIX_MIRROR_OP_DIRLIST;
-        else if (ngx_strcmp(v->data, "statx")   == 0) mask |= BRIX_MIRROR_OP_STATX;
-        else if (ngx_strcmp(v->data, "query")   == 0) mask |= BRIX_MIRROR_OP_QUERY;
-        /* Write/mutation opcodes (require brix_mirror_writes on). */
-        else if (ngx_strcmp(v->data, "mkdir")    == 0) mask |= BRIX_MIRROR_OP_MKDIR;
-        else if (ngx_strcmp(v->data, "rm")       == 0) mask |= BRIX_MIRROR_OP_RM;
-        else if (ngx_strcmp(v->data, "rmdir")    == 0) mask |= BRIX_MIRROR_OP_RMDIR;
-        else if (ngx_strcmp(v->data, "mv")       == 0) mask |= BRIX_MIRROR_OP_MV;
-        else if (ngx_strcmp(v->data, "truncate") == 0) mask |= BRIX_MIRROR_OP_TRUNCATE;
-        else if (ngx_strcmp(v->data, "chmod")    == 0) mask |= BRIX_MIRROR_OP_CHMOD;
-        else if (ngx_strcmp(v->data, "write")    == 0) mask |= BRIX_MIRROR_OP_WRITE;
-        else {
+        ngx_str_t  *v   = &value[i];
+        ngx_uint_t  bit = brix_mirror_opcode_name_bit(v->data);
+
+        if (bit == 0) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "%s: unknown opcode \"%V\" (expected one of"
                 " all stat locate open read readv dirlist statx query"
@@ -696,6 +808,7 @@ brix_mirror_parse_opcode_args(ngx_conf_t *cf, const char *directive,
                 directive, v);
             return NGX_CONF_ERROR;
         }
+        mask |= bit;
     }
     *mask_out = mask;
     return NGX_CONF_OK;

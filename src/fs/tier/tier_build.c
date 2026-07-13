@@ -24,16 +24,26 @@
 
 #include <string.h>
 
-/* Resolve a tier's §14 credential into NUL-terminated bearer / proxy / ca-dir
- * strings (empty when the tier is anonymous or the field is unset). */
+/* Resolve a tier's §14 credential into NUL-terminated bearer / proxy / key /
+ * ca-dir strings (empty when the tier is anonymous or the field is unset).
+ *
+ * GSI: a combined x509_proxy (cert + key in one PEM) takes precedence and leaves
+ * `key` empty (the key lives in the proxy).  Otherwise a separate cert + key pair
+ * is used — `proxy` carries the cert chain, `key` the private key — so a plain
+ * host cert/key authenticates a tier-composed remote origin (cache/stage over a
+ * root:// backend) without hand-concatenating them.  Without this the cert/key
+ * fields were silently dropped on the tier path and the origin login failed with
+ * "no credential set". */
 static void
 tier_resolve_creds(const brix_tier_cfg_t *t, char *bearer, size_t bcap,
-    char *proxy, size_t pcap, char *cadir, size_t ccap, ngx_log_t *log)
+    char *proxy, size_t pcap, char *key, size_t kcap, char *cadir, size_t ccap,
+    ngx_log_t *log)
 {
     const brix_credential_t *c = t->credential;
 
     bearer[0] = '\0';
     proxy[0]  = '\0';
+    key[0]    = '\0';
     cadir[0]  = '\0';
     if (c == NULL) {
         return;
@@ -41,6 +51,11 @@ tier_resolve_creds(const brix_tier_cfg_t *t, char *bearer, size_t bcap,
     (void) brix_credential_bearer(c, bearer, bcap, log);   /* "" when none */
     if (c->x509_proxy.len > 0) {
         (void) brix_str_cbuf(proxy, pcap, &c->x509_proxy);
+    } else if (c->x509_cert.len > 0) {
+        (void) brix_str_cbuf(proxy, pcap, &c->x509_cert);
+        if (c->x509_key.len > 0) {
+            (void) brix_str_cbuf(key, kcap, &c->x509_key);
+        }
     }
     if (c->ca_dir.len > 0) {
         (void) brix_str_cbuf(cadir, ccap, &c->ca_dir);
@@ -66,6 +81,159 @@ tier_needs_dev(ngx_log_t *log, const char *driver, const char *sp)
 
 /* ---- the single driver-name dispatch (Appendix C) ------------------------- */
 
+/* WHAT: build a local posix backend from a tier cfg.
+ * WHY:  the default storage driver — a plain directory root.
+ * HOW:  hand the export path straight to the posix sd factory. */
+static brix_sd_instance_t *
+tier_build_posix(const brix_tier_cfg_t *t, ngx_log_t *log)
+{
+    int err = 0;
+
+    return brix_sd_instance_create(log, "posix", (void *) t->path, &err);
+}
+
+/* WHAT: build a pblock (sqlite-backed block store) backend from a tier cfg.
+ * WHY:  optional driver, present only when libsqlite3 is compiled in.
+ * HOW:  populate the conf from the tier path/block_size; without the library
+ *       report a tracked "needs development" so the export is held inactive. */
+static brix_sd_instance_t *
+tier_build_pblock(const brix_tier_cfg_t *t, ngx_log_t *log)
+{
+#if BRIX_HAVE_SQLITE
+    brix_sd_pblock_conf_t conf;
+    int                     err = 0;
+
+    ngx_memzero(&conf, sizeof(conf));
+    conf.root            = t->path;
+    conf.busy_timeout_ms = 5000;
+    conf.block_size      = (int64_t) t->block_size;
+    return brix_sd_instance_create(log, "pblock", &conf, &err);
+#else
+    (void) t;
+    return tier_needs_dev(log, "pblock (needs libsqlite3)", "build");
+#endif
+}
+
+/* WHAT: build a root:// (xroot) remote-origin backend from a tier cfg.
+ * WHY:  a tier composed over a remote xrootd origin (cache/stage source).
+ * HOW:  resolve the §14 credential to NUL-terminated strings, then hand the
+ *       host/port/tls plus optional bearer/x509/ca-dir to the xroot factory. */
+static brix_sd_instance_t *
+tier_build_xroot(const brix_tier_cfg_t *t, ngx_log_t *log)
+{
+    char bearer[4096];
+    char proxy[1024];
+    char key[1024];
+    char cadir[1024];
+
+    tier_resolve_creds(t, bearer, sizeof(bearer), proxy, sizeof(proxy),
+                       key, sizeof(key), cadir, sizeof(cadir), log);
+    brix_sd_xroot_origin_cfg_t cfg = {
+        .host       = t->host,
+        .port       = t->port,
+        .tls        = t->tls,
+        .af_policy  = BRIX_AF_AUTO,
+        .bearer     = (bearer[0] != '\0') ? bearer : NULL,
+        .x509_proxy = (proxy[0] != '\0') ? proxy : NULL,
+        .x509_key   = (key[0] != '\0') ? key : NULL,
+        .ca_dir     = (cadir[0] != '\0') ? cadir : NULL,
+        .sss_keytab = NULL,
+    };
+    return brix_sd_xroot_create_origin(&cfg, log);
+}
+
+/* WHAT: build an http(s) remote-origin backend from a tier cfg.
+ * WHY:  a tier composed over a plain HTTP origin (bearer-authenticated).
+ * HOW:  resolve the credential (http uses bearer, not x509), then fill the
+ *       http sd conf; the credential ca_dir verifies an https origin. */
+static brix_sd_instance_t *
+tier_build_http(const brix_tier_cfg_t *t, ngx_log_t *log)
+{
+    brix_sd_http_cfg_t cfg;
+    char                 bearer[4096];
+    char                 proxy[1024];
+    char                 key[1024];    /* http auth uses bearer, not x509 */
+    char                 cadir[1024];
+
+    tier_resolve_creds(t, bearer, sizeof(bearer), proxy, sizeof(proxy),
+                       key, sizeof(key), cadir, sizeof(cadir), log);
+    ngx_memzero(&cfg, sizeof(cfg));
+    cfg.host         = t->host;
+    cfg.port         = t->port;
+    cfg.tls          = t->tls;
+    cfg.base_path    = t->path;
+    cfg.transport    = &brix_s3_origin_curl_transport;
+    cfg.timeout_ms   = BRIX_SD_HTTP_DEFAULT_TIMEOUT_MS;
+    cfg.bearer_token = (bearer[0] != '\0') ? bearer : NULL;
+    /* §14/C-3: verify the https origin against the credential's ca_dir (file
+     * or hashed dir); "" system bundle (public-CA origin). */
+    cfg.ca_path      = (cadir[0] != '\0') ? cadir : NULL;
+    return brix_sd_http_create(&cfg, log);
+}
+
+/* WHAT: build an S3 remote-origin backend from a tier cfg.
+ * WHY:  a tier sourced from a public/anonymous S3 bucket (SP1).
+ * HOW:  copy host/port/tls and the leading-slash-stripped bucket into the
+ *       remote conf; no access/secret yet (that representation is SP3). */
+static brix_sd_instance_t *
+tier_build_s3(const brix_tier_cfg_t *t, ngx_log_t *log)
+{
+    brix_sd_remote_cfg_t cfg;
+    const char            *bucket = t->path;
+
+    /* The §14 credential block carries no S3 access/secret/region yet (that
+     * representation is SP3, section 21); SP1 builds an anonymous/public S3
+     * source - read works for public buckets. */
+    ngx_memzero(&cfg, sizeof(cfg));
+    cfg.scheme = BRIX_SD_REMOTE_S3;
+    ngx_cpystrn((u_char *) cfg.host, (u_char *) t->host, sizeof(cfg.host));
+    cfg.port = t->port;
+    cfg.tls  = t->tls;
+    if (bucket[0] == '/') {
+        bucket++;
+    }
+    ngx_cpystrn((u_char *) cfg.bucket, (u_char *) bucket, sizeof(cfg.bucket));
+    cfg.timeout_ms = BRIX_SD_HTTP_DEFAULT_TIMEOUT_MS;
+    cfg.transport  = &brix_s3_origin_curl_transport;
+    return brix_sd_remote_create(&cfg, log);
+}
+
+/* WHAT: build a rados/ceph (librados) backend from a tier cfg.
+ * WHY:  optional driver, present only when librados is compiled in.
+ * HOW:  the authority host is the pool, the path tail the key prefix; without
+ *       the library report a tracked "needs development" (export inactive). */
+static brix_sd_instance_t *
+tier_build_ceph(const brix_tier_cfg_t *t, ngx_log_t *log)
+{
+#if BRIX_HAVE_CEPH
+    /* rados://POOL[/namespace] / ceph://POOL[/namespace] -> the ceph (librados)
+     * driver; the path tail is the object key prefix. The cstore over it uses
+     * XATTR cinfo mode (the cache state lives on the RADOS object). */
+    brix_sd_ceph_conf_t conf;
+    const char           *prefix = (t->path[0] == '/') ? t->path + 1 : t->path;
+    int                   err = 0;
+
+    ngx_memzero(&conf, sizeof(conf));
+    conf.pool       = t->host;
+    conf.conf_file  = NULL;          /* default /etc/ceph/ceph.conf */
+    conf.key_prefix = (prefix[0] != '\0') ? prefix : NULL;
+    return brix_sd_instance_create(log, "ceph", &conf, &err);
+#else
+    (void) t;
+    return tier_needs_dev(log, "rados (needs librados at build time)", "SP3");
+#endif
+}
+
+/* WHAT: build a tape/frm (nearline MSS) backend from a tier cfg.
+ * WHY:  a nearline source recalled through the FRM adapter.
+ * HOW:  the authority host selects the MSS adapter ("" = stub); the path is
+ *       the adapter's MSS base. */
+static brix_sd_instance_t *
+tier_build_tape(const brix_tier_cfg_t *t, ngx_log_t *log)
+{
+    return brix_sd_frm_create(t->host, t->path, log);
+}
+
 brix_sd_instance_t *
 brix_tier_build(const brix_tier_cfg_t *t, ngx_log_t *log)
 {
@@ -74,107 +242,27 @@ brix_tier_build(const brix_tier_cfg_t *t, ngx_log_t *log)
     }
 
     if (ngx_strcmp(t->driver, "posix") == 0) {
-        int err = 0;
-
-        return brix_sd_instance_create(ngx_cycle->pool, log, "posix",
-                                         (void *) t->path, &err);
+        return tier_build_posix(t, log);
     }
-
     if (ngx_strcmp(t->driver, "pblock") == 0) {
-#if BRIX_HAVE_SQLITE
-        brix_sd_pblock_conf_t conf;
-        int                     err = 0;
-
-        ngx_memzero(&conf, sizeof(conf));
-        conf.root            = t->path;
-        conf.busy_timeout_ms = 5000;
-        conf.block_size      = (int64_t) t->block_size;
-        return brix_sd_instance_create(ngx_cycle->pool, log, "pblock", &conf,
-                                         &err);
-#else
-        return tier_needs_dev(log, "pblock (needs libsqlite3)", "build");
-#endif
+        return tier_build_pblock(t, log);
     }
-
     if (ngx_strcmp(t->driver, "xroot") == 0) {
-        char bearer[4096];
-        char proxy[1024];
-        char cadir[1024];
-
-        tier_resolve_creds(t, bearer, sizeof(bearer), proxy, sizeof(proxy),
-                           cadir, sizeof(cadir), log);
-        return brix_sd_xroot_create_origin(t->host, t->port, t->tls,
-            BRIX_AF_AUTO,
-            (bearer[0] != '\0') ? bearer : NULL,
-            (proxy[0] != '\0') ? proxy : NULL,
-            (cadir[0] != '\0') ? cadir : NULL, NULL /* sss_keytab */, log);
+        return tier_build_xroot(t, log);
     }
-
     if (ngx_strcmp(t->driver, "http") == 0) {
-        brix_sd_http_cfg_t cfg;
-        char                 bearer[4096];
-        char                 proxy[1024];
-        char                 cadir[1024];
-
-        tier_resolve_creds(t, bearer, sizeof(bearer), proxy, sizeof(proxy),
-                           cadir, sizeof(cadir), log);
-        ngx_memzero(&cfg, sizeof(cfg));
-        cfg.host         = t->host;
-        cfg.port         = t->port;
-        cfg.tls          = t->tls;
-        cfg.base_path    = t->path;
-        cfg.transport    = &brix_s3_origin_curl_transport;
-        cfg.timeout_ms   = 60000;
-        cfg.bearer_token = (bearer[0] != '\0') ? bearer : NULL;
-        return brix_sd_http_create(&cfg, log);
+        return tier_build_http(t, log);
     }
-
     if (ngx_strcmp(t->driver, "s3") == 0) {
-        brix_sd_remote_cfg_t cfg;
-        const char            *bucket = t->path;
-
-        /* The §14 credential block carries no S3 access/secret/region yet (that
-         * representation is SP3, section 21); SP1 builds an anonymous/public S3
-         * source - read works for public buckets. */
-        ngx_memzero(&cfg, sizeof(cfg));
-        cfg.scheme = BRIX_SD_REMOTE_S3;
-        ngx_cpystrn((u_char *) cfg.host, (u_char *) t->host, sizeof(cfg.host));
-        cfg.port = t->port;
-        cfg.tls  = t->tls;
-        if (bucket[0] == '/') {
-            bucket++;
-        }
-        ngx_cpystrn((u_char *) cfg.bucket, (u_char *) bucket, sizeof(cfg.bucket));
-        cfg.timeout_ms = 60000;
-        cfg.transport  = &brix_s3_origin_curl_transport;
-        return brix_sd_remote_create(&cfg, log);
+        return tier_build_s3(t, log);
     }
-
     if (ngx_strcmp(t->driver, "rados") == 0
         || ngx_strcmp(t->driver, "ceph") == 0) {
-#if BRIX_HAVE_CEPH
-        /* rados://POOL[/namespace] / ceph://POOL[/namespace] -> the ceph (librados)
-         * driver; the path tail is the object key prefix. The cstore over it uses
-         * XATTR cinfo mode (the cache state lives on the RADOS object). */
-        brix_sd_ceph_conf_t conf;
-        const char           *prefix = (t->path[0] == '/') ? t->path + 1 : t->path;
-        int                   err = 0;
-
-        ngx_memzero(&conf, sizeof(conf));
-        conf.pool       = t->host;
-        conf.conf_file  = NULL;          /* default /etc/ceph/ceph.conf */
-        conf.key_prefix = (prefix[0] != '\0') ? prefix : NULL;
-        return brix_sd_instance_create(ngx_cycle->pool, log, "ceph", &conf,
-                                         &err);
-#else
-        return tier_needs_dev(log, "rados (needs librados at build time)", "SP3");
-#endif
+        return tier_build_ceph(t, log);
     }
     if (ngx_strcmp(t->driver, "tape") == 0
         || ngx_strcmp(t->driver, "frm") == 0) {
-        /* the tape://|frm:// authority host selects the MSS adapter ("" = stub); the
-         * path is the adapter's MSS base (the stub's local tape dir). */
-        return brix_sd_frm_create(t->host, t->path, log);
+        return tier_build_tape(t, log);
     }
 
     ngx_log_error(NGX_LOG_ERR, log, 0,
@@ -184,11 +272,69 @@ brix_tier_build(const brix_tier_cfg_t *t, ngx_log_t *log)
 
 /* ---- compose the stack (cache outermost -> stage -> backend) -------------- */
 
+/* WHAT: wrap `top` in the stage decorator when a stage store is configured.
+ * WHY:  isolates the stage-tier composition (its own store build + errors).
+ * HOW:  no-op passthrough when stage is unconfigured/disabled; otherwise build
+ *       the stage store and decorate. Returns the (possibly wrapped) instance,
+ *       or NULL on failure (store build or decorator init). */
+static brix_sd_instance_t *
+tier_compose_stage(brix_tier_stack_t *s, brix_sd_instance_t *top,
+    ngx_log_t *log)
+{
+    brix_sd_instance_t *store;
+
+    if (!(s->stage_store.configured && s->stage.enabled)) {
+        return top;
+    }
+    store = brix_tier_build(&s->stage_store, log);
+    if (store == NULL) {
+        return NULL;
+    }
+    top = brix_sd_stage_create(top, store, &s->stage, NULL, log);
+    if (top == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+            "xrootd tier: stage decorator init failed");
+        return NULL;
+    }
+    return top;
+}
+
+/* WHAT: wrap `top` in the cache decorator when a cache store is configured.
+ * WHY:  isolates the cache-tier composition (its own store build + errors).
+ * HOW:  no-op passthrough when cache is unconfigured/disabled; otherwise build
+ *       the cache store and decorate. LOCAL cinfo only for a posix store; a
+ *       remote store keeps cinfo as a store xattr (SP2), so pass NULL there.
+ *       Returns the (possibly wrapped) instance, or NULL on failure. */
+static brix_sd_instance_t *
+tier_compose_cache(brix_tier_stack_t *s, brix_sd_instance_t *top,
+    ngx_log_t *log)
+{
+    brix_sd_instance_t *store;
+    const char          *local_root;
+
+    if (!(s->cache_store.configured && s->cache.enabled)) {
+        return top;
+    }
+    store = brix_tier_build(&s->cache_store, log);
+    if (store == NULL) {
+        return NULL;
+    }
+    local_root = (ngx_strcmp(s->cache_store.driver, "posix") == 0
+                  && s->cache_store.path[0] != '\0')
+               ? s->cache_store.path : NULL;
+    top = brix_sd_cache_create(top, store, &s->cache, local_root, log);
+    if (top == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+            "xrootd tier: cache decorator init failed");
+        return NULL;
+    }
+    return top;
+}
+
 brix_sd_instance_t *
 brix_tier_build_stack(brix_tier_stack_t *s, ngx_log_t *log)
 {
     brix_sd_instance_t *top;
-    brix_sd_instance_t *store;
 
     if (s == NULL) {
         return NULL;
@@ -212,37 +358,13 @@ brix_tier_build_stack(brix_tier_stack_t *s, ngx_log_t *log)
         return NULL;
     }
 
-    if (s->stage_store.configured && s->stage.enabled) {
-        store = brix_tier_build(&s->stage_store, log);
-        if (store == NULL) {
-            return NULL;
-        }
-        top = brix_sd_stage_create(top, store, &s->stage, NULL, log);
-        if (top == NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                "xrootd tier: stage decorator init failed");
-            return NULL;
-        }
+    top = tier_compose_stage(s, top, log);
+    if (top == NULL) {
+        return NULL;
     }
-
-    if (s->cache_store.configured && s->cache.enabled) {
-        const char *local_root;
-
-        store = brix_tier_build(&s->cache_store, log);
-        if (store == NULL) {
-            return NULL;
-        }
-        /* LOCAL cinfo only for a posix cache store; a remote store keeps cinfo as
-         * a store xattr (SP2), so pass NULL there. */
-        local_root = (ngx_strcmp(s->cache_store.driver, "posix") == 0
-                      && s->cache_store.path[0] != '\0')
-                   ? s->cache_store.path : NULL;
-        top = brix_sd_cache_create(top, store, &s->cache, local_root, log);
-        if (top == NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                "xrootd tier: cache decorator init failed");
-            return NULL;
-        }
+    top = tier_compose_cache(s, top, log);
+    if (top == NULL) {
+        return NULL;
     }
 
     s->composed = top;

@@ -25,7 +25,7 @@ brix_cache_watermark_purge(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log)
 
     if (conf == NULL || !cache_active || phys_root == NULL
         || conf->reaper.high_watermark == 0
-        || conf->reaper.high_watermark >= 1000000)
+        || conf->reaper.high_watermark >= BRIX_CACHE_PPM_FULL_SCALE)
     {
         return 0;
     }

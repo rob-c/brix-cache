@@ -54,6 +54,147 @@ srv_path_matches(const char *paths, const char *path)
 
 
 
+/*
+ * srv_sel_tier_t - one candidate tier in the three-tier selection ladder.
+ *
+ * Each tier tracks the single best slot seen so far by metric: `idx` is the slot
+ * index (-1 = none yet) and `val` is that slot's winning metric.  The three tiers
+ * are ranked fresh > any > black; the ladder resolves to the highest non-empty
+ * tier (see srv_sel_state_winner).
+ */
+typedef struct {
+    int      idx;   /* best slot index in this tier, or -1 if none */
+    uint32_t val;   /* metric of the best slot */
+} srv_sel_tier_t;
+
+
+/*
+ * srv_sel_state_t - full three-tier selection accumulator for one scan.
+ *   fresh - live: not stale AND not blacklisted (the preferred tier)
+ *   any   - not blacklisted, any staleness (stale-but-live fallback)
+ *   black - blacklisted last-resort candidate (only when allow_blacklisted)
+ * `for_write` fixes the metric direction for the whole scan: writes maximise
+ * free_mb, reads minimise util_pct.
+ */
+typedef struct {
+    srv_sel_tier_t fresh;
+    srv_sel_tier_t any;
+    srv_sel_tier_t black;
+    int            for_write;
+} srv_sel_state_t;
+
+
+/* WHAT: Seed one tier to "empty" with the sentinel metric for the scan direction.
+ * WHY:  A write scan improves upward from 0; a read scan improves downward from
+ *       UINT32_MAX.  Seeding the val to the worst possible value lets the first
+ *       real candidate always win without a separate "first" special-case.
+ * HOW:  idx = -1 (no candidate); val = 0 for writes, (uint32_t)-1 for reads. */
+static void
+srv_sel_tier_init(srv_sel_tier_t *tier, int for_write)
+{
+    tier->idx = -1;
+    tier->val = for_write ? 0 : (uint32_t) -1;
+}
+
+
+/* WHAT: Initialise all three selection tiers and record the scan direction.
+ * WHY:  Centralises the fresh/any/black seeding so the scan loop starts clean.
+ * HOW:  Store for_write, then seed each tier via srv_sel_tier_init. */
+static void
+srv_sel_state_init(srv_sel_state_t *st, int for_write)
+{
+    st->for_write = for_write;
+    srv_sel_tier_init(&st->fresh, for_write);
+    srv_sel_tier_init(&st->any, for_write);
+    srv_sel_tier_init(&st->black, for_write);
+}
+
+
+/* WHAT: Report whether `metric` beats a tier's current best for this direction.
+ * WHY:  Encapsulates the single tie-break rule shared by every tier: writes
+ *       prefer a strictly greater free_mb, reads a strictly lesser util_pct.
+ *       Using strict comparison preserves first-seen determinism on ties —
+ *       identical to the original inlined tests.
+ * HOW:  Empty tier (idx == -1) always loses; otherwise compare by direction. */
+static int
+srv_sel_metric_better(const srv_sel_tier_t *tier, uint32_t metric, int for_write)
+{
+    if (tier->idx == -1) {
+        return 1;
+    }
+    return for_write ? (metric > tier->val) : (metric < tier->val);
+}
+
+
+/* WHAT: Offer slot `idx` (metric `metric`) to a single tier, updating if better.
+ * WHY:  One place owns the "is this a new tier winner?" decision, so fresh/any/
+ *       black all apply exactly the same tie-break.
+ * HOW:  If srv_sel_metric_better says yes, record idx+metric as the new best. */
+static void
+srv_sel_tier_offer(srv_sel_tier_t *tier, int idx, uint32_t metric, int for_write)
+{
+    if (srv_sel_metric_better(tier, metric, for_write)) {
+        tier->idx = idx;
+        tier->val = metric;
+    }
+}
+
+
+/* WHAT: Classify one matched slot and fold it into the right selection tier(s).
+ * WHY:  Isolates the per-slot policy — blacklisted → black tier only; live →
+ *       always the `any` tier, and additionally the `fresh` tier when not stale.
+ *       Staleness uses a signed msec diff so ngx_current_msec wrap is tolerated.
+ * HOW:  Compute metric by direction, then route: black slots update only black;
+ *       live slots update any, and fresh when not stale. */
+static void
+srv_sel_state_consider(srv_sel_state_t *st, int idx, const brix_srv_entry_t *e,
+    int is_black)
+{
+    uint32_t   metric;
+    ngx_uint_t is_stale;
+
+    metric = st->for_write ? e->free_mb : e->util_pct;
+
+    if (is_black) {
+        /* allow_blacklisted only — a last-resort tier below live servers. */
+        srv_sel_tier_offer(&st->black, idx, metric, st->for_write);
+        return;
+    }
+
+    srv_sel_tier_offer(&st->any, idx, metric, st->for_write);
+
+    /*
+     * Phase 39 (WS7): a server that has not heartbeated within stale_after_ms is
+     * de-preferred but still tracked as a fallback, so an all-stale storm
+     * degrades to the freshest stale server rather than a false NotFound.  The
+     * signed diff tolerates ngx_current_msec wrap.
+     */
+    is_stale = (brix_srv_stale_after_ms > 0
+                && (ngx_msec_int_t) (ngx_current_msec - e->last_seen)
+                   > (ngx_msec_int_t) brix_srv_stale_after_ms);
+    if (!is_stale) {
+        srv_sel_tier_offer(&st->fresh, idx, metric, st->for_write);
+    }
+}
+
+
+/* WHAT: Resolve the accumulated tiers to the winning slot index (or -1).
+ * WHY:  Fixes the tier priority in one place: a live-fresh server always beats a
+ *       stale-live one, which always beats a blacklisted last-resort one.
+ * HOW:  Prefer fresh, then any, then black. */
+static int
+srv_sel_state_winner(const srv_sel_state_t *st)
+{
+    if (st->fresh.idx >= 0) {
+        return st->fresh.idx;
+    }
+    if (st->any.idx >= 0) {
+        return st->any.idx;
+    }
+    return st->black.idx;
+}
+
+
 /* WHAT
  * Selects the best data server for a given path from the registry table.
  * Used by kXR_locate and kXR_open to redirect clients to optimal servers.
@@ -72,9 +213,10 @@ srv_path_matches(const char *paths, const char *path)
 
  * HOW
  * Locks mutex → scans all occupied slots → filters by srv_path_matches() →
- * picks best by for_write (free_mb max for writes, util_pct min for reads),
- * preferring fresh→stale→(blacklisted, only if allow_blacklisted).  Writes
- * host+port to output buffers. Unlocks and returns 1/0.
+ * folds each match into the three-tier accumulator (srv_sel_state_consider) →
+ * resolves the winner (srv_sel_state_winner), preferring fresh→stale→
+ * (blacklisted, only if allow_blacklisted).  Writes host+port to output
+ * buffers. Unlocks and returns 1/0.
  */
 int
 srv_select_core(const char *path, int for_write, int allow_blacklisted,
@@ -83,12 +225,7 @@ srv_select_core(const char *path, int for_write, int allow_blacklisted,
     brix_srv_table_t *tbl;
     brix_srv_entry_t *e;
     ngx_uint_t          i;
-    int                 best_fresh;     /* live: not stale AND not blacklisted */
-    int                 best_any;       /* not blacklisted, any staleness */
-    int                 best_black;     /* blacklisted last-resort candidate */
-    uint32_t            best_fresh_val;
-    uint32_t            best_any_val;
-    uint32_t            best_black_val;
+    srv_sel_state_t     st;
     int                 best;
 
     tbl = srv_table();
@@ -96,19 +233,12 @@ srv_select_core(const char *path, int for_write, int allow_blacklisted,
         return 0;
     }
 
-    best_fresh     = -1;
-    best_any       = -1;
-    best_black     = -1;
-    best_fresh_val = for_write ? 0 : (uint32_t) -1;
-    best_any_val   = for_write ? 0 : (uint32_t) -1;
-    best_black_val = for_write ? 0 : (uint32_t) -1;
+    srv_sel_state_init(&st, for_write);
 
     ngx_shmtx_lock(&brix_srv_mutex);
 
     for (i = 0; i < tbl->capacity; i++) {
-        ngx_uint_t is_stale;
-        ngx_uint_t is_black;
-        uint32_t   metric;
+        int is_black;
 
         e = &tbl->slots[i];
         if (!e->in_use) {
@@ -125,49 +255,10 @@ srv_select_core(const char *path, int for_write, int allow_blacklisted,
             continue;           /* strict callers (e.g. locate) skip blacklisted */
         }
 
-        /*
-         * Phase 39 (WS7): a server that has not heartbeated within
-         * stale_after_ms is de-preferred but still tracked as a fallback, so an
-         * all-stale storm degrades to the freshest stale server rather than a
-         * false NotFound.  The signed diff tolerates ngx_current_msec wrap.
-         */
-        is_stale = (brix_srv_stale_after_ms > 0
-                    && (ngx_msec_int_t) (ngx_current_msec - e->last_seen)
-                       > (ngx_msec_int_t) brix_srv_stale_after_ms);
-
-        metric = for_write ? e->free_mb : e->util_pct;
-
-        if (is_black) {
-            /* allow_blacklisted only — a last-resort tier below live servers. */
-            if (best_black == -1
-                || (for_write ? (metric > best_black_val)
-                              : (metric < best_black_val)))
-            {
-                best_black     = (int) i;
-                best_black_val = metric;
-            }
-            continue;
-        }
-
-        if (best_any == -1
-            || (for_write ? (metric > best_any_val) : (metric < best_any_val)))
-        {
-            best_any     = (int) i;
-            best_any_val = metric;
-        }
-        if (!is_stale
-            && (best_fresh == -1
-                || (for_write ? (metric > best_fresh_val)
-                              : (metric < best_fresh_val))))
-        {
-            best_fresh     = (int) i;
-            best_fresh_val = metric;
-        }
+        srv_sel_state_consider(&st, (int) i, e, is_black);
     }
 
-    best = (best_fresh >= 0) ? best_fresh
-         : (best_any   >= 0) ? best_any
-         :                     best_black;
+    best = srv_sel_state_winner(&st);
 
     if (best >= 0) {
         e = &tbl->slots[best];

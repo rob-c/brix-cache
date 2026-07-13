@@ -1,5 +1,10 @@
 #include "core/ngx_brix_module.h"
 #include "uring.h"
+#include "protocols/root/connection/disconnect.h"
+#include "protocols/root/connection/fd_table.h"
+
+static void brix_aio_resume_fail(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_session_t *s);
 
 
 /*
@@ -159,14 +164,40 @@ brix_aio_resume(ngx_connection_t *c)
                    (int) c->write->posted);
 
     if (ctx->state == XRD_ST_SENDING) {
-        if (brix_schedule_write_resume(c) != NGX_OK) {
-            ngx_stream_finalize_session(c->data, NGX_STREAM_INTERNAL_SERVER_ERROR);
+        /* Resuming a suspended sender — force the write event to run so the
+         * parked out_ring drains even if wev->ready is a stale 0 (the pipeline
+         * saturation stall).  brix_send() re-arms via schedule_write_resume on
+         * a genuine NGX_AGAIN, so this cannot busy-loop. */
+        if (brix_ensure_write_event(c) != NGX_OK) {
+            brix_aio_resume_fail(ctx, c, s);
         }
         return;
     }
 
     if (brix_schedule_read_resume(c) != NGX_OK) {
-        ngx_stream_finalize_session(c->data, NGX_STREAM_INTERNAL_SERVER_ERROR);
+        brix_aio_resume_fail(ctx, c, s);
     }
+}
+
+/*
+ * brix_aio_resume_fail — finalize after a resume-scheduling failure (epoll
+ * re-arm error), honouring the deferred-teardown guard.  brix_aio_resume runs
+ * inside an AIO done handler: sibling completions for this connection (e.g.
+ * further pipelined pwrites) may still sit in ngx_posted_events behind us, and
+ * their events live in c->pool — finalizing here without the guard destroys
+ * that pool and corrupts the posted queue when the loop reaches them.
+ */
+static void
+brix_aio_resume_fail(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_session_t *s)
+{
+    if (brix_defer_teardown_if_writing(ctx, c,
+                                         NGX_STREAM_INTERNAL_SERVER_ERROR))
+    {
+        return;
+    }
+    brix_on_disconnect(ctx, c);
+    brix_close_all_files(ctx);
+    ngx_stream_finalize_session(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
 }
 

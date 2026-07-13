@@ -182,9 +182,10 @@ brix_pmark_flow_begin(brix_pmark_conf_t *pm, ngx_pool_t *pool,
     if (brix_pmark_runtime_ensure(pm, ngx_cycle->pool, log) != NGX_OK) {
         return NULL;
     }
-    if (brix_pmark_map_codes(pm, vo_csv, user, path, cgi, &exp, &act)
-        != NGX_OK)
-    {
+    brix_pmark_flow_id_t flow_id = {
+        .vo_csv = vo_csv, .user = user, .path = path, .cgi = cgi,
+    };
+    if (brix_pmark_map_codes(pm, &flow_id, &exp, &act) != NGX_OK) {
         BRIX_PMARK_METRIC_INC(pmark_map_unresolved_total);
         return NULL;                 /* nothing maps → not marked */
     }

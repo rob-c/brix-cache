@@ -161,7 +161,12 @@ typedef struct {
     X509_STORE  *gsi_store;    /* combined CA + CRL trust store for verification */
     u_char      *gsi_cert_pem; /* PEM form cached for kXGS_cert responses */
     size_t       gsi_cert_pem_len;
-    uint32_t     gsi_ca_hash;  /* subject name hash of our CA cert (sent to clients) */
+    /* CA name-hash list advertised in the kXGS_init sec token
+     * ("ca:hash1|hash2", NUL-terminated).  Stock XrdSecgsi clients look these
+     * hashes up in their own CA directory and abort with "unknown CA" when
+     * none match, so this must name the real issuer chain of gsi_cert
+     * (intermediates + root), not a placeholder. */
+    char         gsi_ca_hashes[80];
 
     /*
      * GSI signed-DH policy [brix_gsi_signed_dh off|auto|require] (phase-48).
@@ -394,6 +399,22 @@ typedef struct {
                                             JWT for outbound TPC kXR_auth ztn when
                                             the remote source advertises token auth. */
 
+    ngx_flag_t  tpc_outbound_passthrough; /* [brix_tpc_outbound_passthrough on|off]
+                                             Phase-70: forward the client's own
+                                             inbound bearer JWT (ctx->bearer_token)
+                                             verbatim to the TPC source, so the
+                                             source authenticates the END USER — not
+                                             a static service credential. Selects the
+                                             OPPORTUNISTIC "passthrough-opt" token_mode
+                                             for every native root:// TPC pull opened
+                                             on this server: an inbound token is
+                                             forwarded when present, but its absence
+                                             falls back to bearer-file/GSI proxy
+                                             delegation/anonymous — never a new denial.
+                                             (An explicit client tpc.token_mode=
+                                             passthrough is still STRICT/fail-closed.)
+                                             Default ON; set `off` to disable. */
+
     /* ---- TPC OAuth2/OIDC token delegation ---- */
     ngx_str_t   tpc_outbound_token_endpoint; /* [brix_tpc_outbound_token_endpoint URL]
                                                  OAuth2 token endpoint for RFC 8693
@@ -437,7 +458,15 @@ typedef struct {
     ngx_str_t   cache_origin_x509_proxy;    /* §14/C-3 GSI: X.509 proxy PEM path the
                                                root:// origin login presents via the
                                                in-process XrdSecgsi handshake; "" = no
-                                               GSI. Set on sd_xroot's synthetic conf. */
+                                               GSI. Set on sd_xroot's synthetic conf.
+                                               Holds the cert (chain) source: a combined
+                                               proxy PEM, OR a cert-only PEM paired with
+                                               cache_origin_x509_key below. */
+    ngx_str_t   cache_origin_x509_key;      /* §14/C-3 GSI: separate private-key PEM,
+                                               used when the credential supplies
+                                               x509_cert + x509_key rather than a single
+                                               combined x509_proxy; "" = the key lives in
+                                               cache_origin_x509_proxy (combined proxy). */
     ngx_str_t   cache_origin_ca_dir;        /* §14/C-3 GSI: CA file/hashed-dir used to
                                                VERIFY the origin's server cert (MITM
                                                protection); "" = no verification. */

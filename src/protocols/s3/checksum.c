@@ -26,6 +26,7 @@
 #include "core/http/http_headers.h"
 #include "core/http/http_query.h"
 #include "core/compat/integrity_info.h"
+#include "core/compat/hex.h"
 #include "fs/vfs/vfs.h"
 
 #include <fcntl.h>
@@ -112,15 +113,6 @@ s3_cksum_vfs_open(ngx_http_request_t *r, const char *fs_path,
     return brix_vfs_open(&vctx, BRIX_VFS_O_READ, NULL);
 }
 
-static int
-s3_hexval(unsigned char c)
-{
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return -1;
-}
-
 /*
  * s3_checksum_b64 — base64 wire value of one algorithm for an open fd.
  *
@@ -160,8 +152,8 @@ s3_checksum_b64(ngx_http_request_t *r, int fd, const char *path,
     }
     nbytes = hexlen / 2;
     for (i = 0; i < nbytes; i++) {
-        int hi = s3_hexval((unsigned char) info.hex[2 * i]);
-        int lo = s3_hexval((unsigned char) info.hex[2 * i + 1]);
+        int hi = brix_hex_from_char((unsigned char) info.hex[2 * i]);
+        int lo = brix_hex_from_char((unsigned char) info.hex[2 * i + 1]);
         if (hi < 0 || lo < 0) {
             return NGX_ERROR;
         }

@@ -67,7 +67,9 @@ ssize_t b64url_decode(const char *in, size_t in_len, uint8_t *out, size_t out_ma
         return -1;
     }
     EVP_ENCODE_CTX_free(ctx);
-    return (ssize_t)(out_len + tmp_len);
+    /* Widen each operand BEFORE the add so the sum is computed in ssize_t,
+     * not int (bugprone-misplaced-widening-cast). */
+    return (ssize_t) out_len + (ssize_t) tmp_len;
 }
 /* HOW: Computes padded_len = in_len + (4 - in_len % 4) % 4 — rejects if > 8192. Declares stack tmp[8192]. Iterates i=0→in_len: replaces '-' with '+' and '_' with '/' in tmp[i], copies others unchanged. Pads remainder from i→padded_len with '=' characters. Counts pad by scanning backwards from padded_len-1 for trailing '=' chars. Computes decoded_max = padded_len/4*3 - pad — rejects if > out_max. Allocates EVP_ENCODE_CTX via new() — returns -1 on NULL. Calls EVP_DecodeInit(ctx), then EVP_DecodeUpdate(ctx,out,&out_len,tmp,(int)padded_len) — returns -1 on error (frees ctx). Calls EVP_DecodeFinal(ctx,out+out_len,&tmp_len) — returns -1 on error (frees ctx). Frees ctx via EVP_ENCODE_CTX_free(). Returns out_len + tmp_len as ssize_t. */
 

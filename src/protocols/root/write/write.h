@@ -16,6 +16,34 @@ ngx_int_t brix_handle_write(brix_ctx_t *ctx, ngx_connection_t *c);
 ngx_int_t brix_write_compressed(brix_ctx_t *ctx, ngx_connection_t *c,
                                   int idx, int64_t offset, size_t wlen);
 
+/* Whole-object staged-commit adapter (phase-70) — append one kXR_write/pgwrite
+ * block to the handle's VFS staged handle at the running sequential offset, then
+ * reply. Invoked ONLY when ctx->files[idx].staged != NULL (a write open that
+ * resolved to a backend LEAF with no random write, e.g. sd_http). Enforces
+ * sequential append: an out-of-order offset is refused with kXR_Unsupported
+ * (random-offset write to a whole-object backend is unsupported). `flat`/`flen`
+ * carry the already-decoded plaintext bytes for pgwrite; a plain kXR_write passes
+ * flat=NULL and the recv payload is used. */
+ngx_int_t brix_write_staged(brix_ctx_t *ctx, ngx_connection_t *c,
+                              int idx, int64_t offset, size_t wlen);
+ngx_int_t brix_write_staged_buf(brix_ctx_t *ctx, ngx_connection_t *c,
+                                  int idx, int64_t offset,
+                                  const u_char *buf, size_t len);
+/* Append core WITHOUT a success reply — the pgwrite path appends then sends its
+ * own kXR_status frame. On any failure the error reply is sent and *rc holds it;
+ * returns NGX_ERROR then (caller returns *rc), else NGX_OK (append done). */
+ngx_int_t brix_staged_append(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
+                               int64_t offset, const u_char *buf, size_t len,
+                               ngx_int_t *rc);
+
+/* Commit the handle's staged whole object (single backend PUT) — the kXR_sync /
+ * kXR_close hook for a staged write handle. Idempotent: a second call after a
+ * successful commit is a no-op success (sync-then-close). On commit failure sets
+ * *err_out to errno and returns NGX_ERROR (caller maps to kXR_IOError); the
+ * staged handle is left intact so no partial object is published. Returns NGX_OK
+ * on success (or nothing-to-commit) with staged_committed set. */
+ngx_int_t brix_staged_commit_handle(brix_ctx_t *ctx, int idx, int *err_out);
+
 /* kXR_pgwrite — page-aligned write with per-4096-byte CRC validation. */
 ngx_int_t brix_handle_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c);
 

@@ -281,34 +281,26 @@ fhandle_unlink_staging(const char *abs_path, const char *root_canon,
     (void) unlink(abs_path);  /* vfs-seam-allow: handle-owned staging temp not under the export root */
 }
 
-/* brix_free_fhandle — full teardown of one slot: close the fd, unpublish from
- * shared memory (unbound only), unlink checkpoint/POSC staging files, free the heap
- * path, and reset every field to its zero/null state. Called on session end, error
- * recovery, and kXR_close completion. */
-
-void
-brix_free_fhandle(brix_ctx_t *ctx, int handle_index)
+/* fhandle_release_descriptors — close the handle's byte-I/O descriptor(s) and the
+ * CSI engine. WHY: three mutually-exclusive descriptor owners must be torn down in
+ * one place so exactly one close runs: a phase-70 staged-write handle (abort — drop
+ * the temp unless already committed), a driver-backed object handle (its own close
+ * commits metadata and owns file->fd, so we must NOT also raw-close it), or a plain
+ * POSIX fd. HOW: staged first (independent of the fd owner), then the fd owner in
+ * strict driver-vs-raw priority, then the CSI flush+free. Fields are nulled as each
+ * resource is released so a later reset cannot double-free. */
+static void
+fhandle_release_descriptors(brix_file_t *file)
 {
-    brix_file_t                *file;
-    ngx_stream_brix_srv_conf_t *conf;
-    const char                   *root_canon;
-    ngx_log_t                    *tlog;
-
-    if (handle_index < 0 || handle_index >= BRIX_MAX_FILES) {
-        return;
-    }
-
-    file = &ctx->files[handle_index];
-
-    /* The teardown has no request ctx, but the srv conf still yields the export
-     * root_canon so handle-owned staging temps can be confined-unlinked. */
-    conf = ngx_stream_get_module_srv_conf(ctx->session, ngx_stream_brix_module);
-    root_canon = (conf != NULL) ? conf->common.root_canon : NULL;
-    tlog = (ctx->session != NULL && ctx->session->connection != NULL)
-           ? ctx->session->connection->log : NULL;
-
-    if (!ctx->is_bound && file->fd >= 0) {
-        brix_session_handle_unpublish(ctx->login.sessid, handle_index);
+    /* Whole-object staged write adapter (phase-70): release the staged handle.
+     * If it was never committed (kXR_sync/close did not run — a disconnect or an
+     * aborted upload) drop the staged temp so no partial object is published. A
+     * committed handle already consumed its staged state; abort is then a no-op. */
+    if (file->staged != NULL) {
+        brix_vfs_staged_abort(file->staged, file->staged_committed ? 0 : 1);
+        file->staged              = NULL;
+        file->staged_expected_off = 0;
+        file->staged_committed    = 0;
     }
 
     if (file->sd_obj.driver != NULL) {
@@ -331,7 +323,19 @@ brix_free_fhandle(brix_ctx_t *ctx, int handle_index)
         ngx_free(file->csi);
         file->csi = NULL;
     }
+}
 
+/* fhandle_release_staging_files — unlink + free the handle-owned staging temps and
+ * the heap path copy, and drop the TPC registry entry. WHY: checkpoint and POSC temps
+ * are rollback state owned by the handle; if still set at teardown the session ended
+ * without a clean kXR_close, so the partials must not be left on disk (except the
+ * deterministic identity-keyed resume partial, which is preserved for reconnect). HOW:
+ * confined-unlink each temp through the VFS seam, free every heap allocation, then
+ * remove any TPC transfer keyed on this handle. */
+static void
+fhandle_release_staging_files(brix_file_t *file, const char *root_canon,
+    ngx_log_t *tlog)
+{
     /*
      * Checkpoint files are temporary rollback state owned by the handle.
      * Normal close/free removes any abandoned checkpoint path.
@@ -366,9 +370,19 @@ brix_free_fhandle(brix_ctx_t *ctx, int handle_index)
     if (file->tpc_transfer_id != 0) {
         (void) brix_tpc_registry_remove(file->tpc_transfer_id, NULL);
     }
+}
 
-    brix_wt_mark_clean(ctx, handle_index);
-
+/* fhandle_reset_slot — zero every field of a freed slot back to its unused state,
+ * releasing the ZIP inflate stream and SSI timers/registration along the way. WHY:
+ * a slot is reused for the next kXR_open, so no stale pointer, capability bit, or
+ * TPC/write-tracking counter may survive — a reused slot must be indistinguishable
+ * from a never-used one. HOW: run the two pool-owned sub-cleanups (zip, ssi) that
+ * must precede their pointer being dropped, then set every scalar/pointer field to
+ * its zero/null/sentinel value; must run AFTER descriptor + staging release so their
+ * niling is not clobbered. */
+static void
+fhandle_reset_slot(brix_file_t *file)
+{
     /* ZIP member handle: release the deflate inflate stream (if any) and clear
      * the zip_* state so a reused slot cannot be mistaken for a zip handle. */
     brix_zip_handle_cleanup(file);
@@ -430,6 +444,42 @@ brix_free_fhandle(brix_ctx_t *ctx, int handle_index)
     brix_pgw_fob_reset(file);
 }
 
+/* brix_free_fhandle — full teardown of one slot: close the fd, unpublish from
+ * shared memory (unbound only), unlink checkpoint/POSC staging files, free the heap
+ * path, and reset every field to its zero/null state. Called on session end, error
+ * recovery, and kXR_close completion. */
+
+void
+brix_free_fhandle(brix_ctx_t *ctx, int handle_index)
+{
+    brix_file_t                *file;
+    ngx_stream_brix_srv_conf_t *conf;
+    const char                   *root_canon;
+    ngx_log_t                    *tlog;
+
+    if (handle_index < 0 || handle_index >= BRIX_MAX_FILES) {
+        return;
+    }
+
+    file = &ctx->files[handle_index];
+
+    /* The teardown has no request ctx, but the srv conf still yields the export
+     * root_canon so handle-owned staging temps can be confined-unlinked. */
+    conf = ngx_stream_get_module_srv_conf(ctx->session, ngx_stream_brix_module);
+    root_canon = (conf != NULL) ? conf->common.root_canon : NULL;
+    tlog = (ctx->session != NULL && ctx->session->connection != NULL)
+           ? ctx->session->connection->log : NULL;
+
+    if (!ctx->is_bound && file->fd >= 0) {
+        brix_session_handle_unpublish(ctx->login.sessid, handle_index);
+    }
+
+    fhandle_release_descriptors(file);
+    fhandle_release_staging_files(file, root_canon, tlog);
+    brix_wt_mark_clean(ctx, handle_index);
+    fhandle_reset_slot(file);
+}
+
 /* brix_close_all_files — brix_free_fhandle every slot; used at session
  * termination or error recovery when all handles must be released at once. */
 
@@ -453,10 +503,13 @@ brix_validate_file_handle(brix_ctx_t *ctx, ngx_connection_t *c,
 {
     if (handle_index < 0 || handle_index >= BRIX_MAX_FILES
         || (ctx->files[handle_index].fd < 0
-            && ctx->files[handle_index].sd_obj.driver == NULL))
+            && ctx->files[handle_index].sd_obj.driver == NULL
+            && ctx->files[handle_index].staged == NULL))
     {
         /* A driver-backed handle (object/remote backend) is "open" with no kernel
-         * fd — data I/O routes through sd_obj.driver, so fd < 0 is normal there. */
+         * fd — data I/O routes through sd_obj.driver, so fd < 0 is normal there.
+         * A whole-object staged write handle (staged != NULL) is likewise "open"
+         * with no fd — byte I/O routes through the staged handle (phase-70). */
         BRIX_BAIL_ERR(ctx, c, op, verb, "-", "-",
                         kXR_FileNotOpen, "invalid file handle", rc);
     }

@@ -17,6 +17,7 @@ ngx_http_brix_webdav_tpc_create_loc_conf(
     conf->tpc_allow_private = NGX_CONF_UNSET;
     conf->tpc_marker_interval = NGX_CONF_UNSET_UINT;
     conf->tpc_max_streams     = NGX_CONF_UNSET_UINT;
+    conf->tpc_credential_forward = NGX_CONF_UNSET;
 }
 
 void
@@ -49,6 +50,14 @@ ngx_http_brix_webdav_tpc_merge_loc_conf(
     ngx_conf_merge_uint_value(conf->tpc_marker_interval,
                               prev->tpc_marker_interval, 0);
     ngx_conf_merge_uint_value(conf->tpc_max_streams, prev->tpc_max_streams, 1);
+
+    /* Per-user TPC credential forwarding defaults ON — a PULL presents the
+     * requesting user's delegated proxy / forwards their bearer to the source by
+     * default (the HTTP equivalent of the native root:// bearer passthrough).
+     * Opportunistic: absence of a per-user credential silently falls back to the
+     * service cert, so enabling it by default never introduces a new denial. */
+    ngx_conf_merge_value(conf->tpc_credential_forward,
+                         prev->tpc_credential_forward, 1);
 
     /* Merge OAuth2/OIDC token-delegation config. */
     ngx_conf_merge_str_value(conf->tpc_cred.token_endpoint,

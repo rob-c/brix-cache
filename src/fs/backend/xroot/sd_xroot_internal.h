@@ -24,7 +24,8 @@ typedef struct {
     ngx_stream_brix_srv_conf_t *synth;   /* owned synthetic conf, or NULL */
     char                          host[256];
     char                          bearer[4096]; /* §14/C-3 ztn token ("" = anon) */
-    char                          x509_proxy[1024]; /* §14/C-3 GSI proxy path */
+    char                          x509_proxy[1024]; /* §14/C-3 GSI proxy (or cert) path */
+    char                          x509_key[1024];   /* §14/C-3 GSI key ("" = in proxy) */
     char                          ca_dir[1024];     /* §14/C-3 GSI origin-cert CA */
     char                          sss_keytab[1024]; /* §14 SSS shared-secret keytab */
 } sd_xroot_inst_state;
@@ -33,7 +34,7 @@ typedef struct {
 int sd_xroot_errno(const brix_cache_fill_t *t);
 
 /* Namespace + metadata vtable ops (sd_xroot_ns.c), wired into the driver struct
- * in sd_xroot.c. */
+ * in sd_xroot.c.  Plain ops (service credential / anonymous): */
 ssize_t   sd_xroot_getxattr(brix_sd_instance_t *inst, const char *path,
               const char *name, void *buf, size_t cap);
 ssize_t   sd_xroot_listxattr(brix_sd_instance_t *inst, const char *path,
@@ -47,5 +48,40 @@ ngx_int_t sd_xroot_rename(brix_sd_instance_t *inst, const char *src,
 ngx_int_t sd_xroot_unlink(brix_sd_instance_t *inst, const char *path, int is_dir);
 ngx_int_t sd_xroot_server_copy(brix_sd_instance_t *inst, const char *src,
               const char *dst, off_t *bytes_out);
+
+/* Credential-scoped namespace vtable ops — Phase 2 Task 1.
+ * stat_cred is in sd_xroot.c (reuses the file-open path); the remainder are in
+ * sd_xroot_ns.c.  Each mirrors the plain op but presents the per-user proxy. */
+ngx_int_t sd_xroot_stat_cred(brix_sd_instance_t *inst, const char *path,
+              brix_sd_stat_t *out, const brix_sd_cred_t *cred);
+ngx_int_t sd_xroot_unlink_cred(brix_sd_instance_t *inst, const char *path,
+              int is_dir, const brix_sd_cred_t *cred);
+ngx_int_t sd_xroot_rename_cred(brix_sd_instance_t *inst, const char *src,
+              const char *dst, int noreplace, const brix_sd_cred_t *cred);
+ngx_int_t sd_xroot_server_copy_cred(brix_sd_instance_t *inst,
+              const char *src, const char *dst, off_t *bytes_out,
+              const brix_sd_cred_t *cred);
+ssize_t   sd_xroot_getxattr_cred(brix_sd_instance_t *inst, const char *path,
+              const char *name, void *buf, size_t cap,
+              const brix_sd_cred_t *cred);
+ssize_t   sd_xroot_listxattr_cred(brix_sd_instance_t *inst, const char *path,
+              void *buf, size_t cap, const brix_sd_cred_t *cred);
+ngx_int_t sd_xroot_setxattr_cred(brix_sd_instance_t *inst, const char *path,
+              const char *name, const void *val, size_t len, int flags,
+              const brix_sd_cred_t *cred);
+ngx_int_t sd_xroot_removexattr_cred(brix_sd_instance_t *inst,
+              const char *path, const char *name,
+              const brix_sd_cred_t *cred);
+
+/* Directory listing (kXR_dirlist, fetch-all-then-iterate — sd_xroot_ns.c).
+ * opendir/readdir/closedir mirror the plain namespace ops (fresh session per
+ * opendir, closed before returning); opendir_cred presents the per-user
+ * credential so a remote dirlist authenticates as the requesting user. */
+brix_sd_dir_t *sd_xroot_opendir(brix_sd_instance_t *inst, const char *path,
+              int *err_out);
+brix_sd_dir_t *sd_xroot_opendir_cred(brix_sd_instance_t *inst,
+              const char *path, int *err_out, const brix_sd_cred_t *cred);
+ngx_int_t sd_xroot_readdir(brix_sd_dir_t *d, brix_sd_dirent_t *out);
+ngx_int_t sd_xroot_closedir(brix_sd_dir_t *d);
 
 #endif /* BRIX_FS_BACKEND_XROOT_SD_XROOT_INTERNAL_H */

@@ -45,6 +45,11 @@ typedef struct {
     ngx_str_t   s3_secret_key;   /* S3 SigV4 secret key         (s3:// backend)   */
     ngx_str_t   s3_region;       /* S3 SigV4 region scope       (s3:// backend)   */
     ngx_str_t   sss_keytab;      /* SSS shared-secret keytab    (root:// origin)  */
+    void       *last_def_cycle;  /* ngx_cycle* of the config parse that last defined
+                                  * this name — used ONLY to distinguish a benign
+                                  * reload re-parse (different cycle) from a genuine
+                                  * duplicate definition within one config (same
+                                  * cycle), which silently last-wins and must warn. */
 } brix_credential_t;
 
 /* The `brix_credential <name> { … }` block directive handler (stream scope). */

@@ -132,6 +132,18 @@
       offsetof(ngx_stream_brix_srv_conf_t, tpc_outbound_bearer_file),
       NULL },
 
+    /* Phase-70: forward the client's inbound bearer JWT verbatim to the TPC
+     * source (opportunistic "passthrough-opt" token_mode) so the source
+     * authenticates the end user. Default ON; an inbound token is forwarded when
+     * present, its absence falls back to bearer-file/GSI/anonymous (never a new
+     * denial). An explicit client tpc.token_mode=passthrough stays fail-closed. */
+    { ngx_string("brix_tpc_outbound_passthrough"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, tpc_outbound_passthrough),
+      NULL },
+
     /* OAuth2/OIDC token endpoint for RFC 8693 token exchange on TPC pulls. */
     { ngx_string("brix_tpc_outbound_token_endpoint"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,

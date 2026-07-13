@@ -107,28 +107,45 @@ rel_has_newline(const char *rel)
     return strchr(rel, '\n') != NULL || strchr(rel, '\r') != NULL;
 }
 
-/* ---- xrdcksum tree (local walk) ---- */
+/* ---- shared local-tree walk ---- */
 
-/* tree_ctx — shared state threaded through the recursive local walk. */
-typedef struct {
-    FILE            *out;          /* output stream (stdout or -o file) */
-    const char      *algo_name;    /* e.g. "adler32" */
-    brix_cksum_algo  algo;         /* enum */
-    int             *errors;       /* pointer to per-run error counter */
-} tree_ctx;
-
-/* walk_local_tree — recursive POSIX opendir/readdir walk.
+/* cktree_file_fn — per-regular-file callback for cktree_walk.
  *
- * WHAT: Visit every regular file under `lpath`, computing its checksum and
- *       emitting "<hex>  <rel>\n" to ctx->out.
- * WHY:  Mirrors copy_tree_upload discipline: lstat (not stat), skip symlinks,
- *       skip dot-entries, overflow-check every path join before use.
- * HOW:  opendir → readdir loop → lstat → classify → recurse or checksum.
- *       Returns 0 to continue, -1 on an unrecoverable structural error (path
- *       overflow or opendir failure on the root). Per-file errors are counted
- *       and continue. */
+ * WHAT: Invoked for every regular file found during the walk with the full
+ *       local path and the root-relative path.
+ * WHY:  Separates the traversal mechanics (one shared walker) from what is
+ *       done per file; per-file failures are the callback's business (count
+ *       and return 0 to keep walking).
+ * HOW:  Return 0 to continue the walk; nonzero aborts it structurally. */
+typedef int (*cktree_file_fn)(const char *lpath, const char *rel, void *u);
+
+/* entry_is_dot — recognise the "." and ".." directory entries.
+ *
+ * WHAT: Return 1 if `name` is exactly "." or "..", 0 otherwise.
+ * WHY:  Every readdir loop must skip these two to avoid infinite recursion;
+ *       naming the test keeps the walker's loop readable.
+ * HOW:  Byte comparison without strcmp calls (hot loop). */
 static int
-walk_local_tree(const char *lpath, const char *rel, tree_ctx *ctx)
+entry_is_dot(const char *name)
+{
+    return name[0] == '.'
+           && (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'));
+}
+
+/* cktree_walk — recursive POSIX opendir/readdir walk with per-file callback.
+ *
+ * WHAT: Visit every regular file under `lpath`, invoking cb(full, rel, u)
+ *       for each one.
+ * WHY:  Mirrors copy_tree_upload discipline: lstat (not stat), skip symlinks,
+ *       skip dot-entries, overflow-check every path join before use.  Shared
+ *       walker so callers only supply per-file behaviour.
+ * HOW:  opendir → readdir loop → lstat → classify → recurse or callback.
+ *       Returns 0 to continue, -1 on an unrecoverable structural error (path
+ *       overflow or opendir failure on the root).  Structural errors are
+ *       counted in *errors; per-file errors are the callback's business. */
+static int
+cktree_walk(const char *lpath, const char *rel,
+            cktree_file_fn cb, void *u, int *errors)
 {
     DIR           *d;
     struct dirent *de;
@@ -137,7 +154,7 @@ walk_local_tree(const char *lpath, const char *rel, tree_ctx *ctx)
     if (d == NULL) {
         fprintf(stderr, "xrdcksum tree: opendir %s: %s\n",
                 lpath, strerror(errno));
-        (*ctx->errors)++;
+        (*errors)++;
         /* Root opendir failure is fatal to the subtree but callers continue. */
         return -1;
     }
@@ -146,17 +163,14 @@ walk_local_tree(const char *lpath, const char *rel, tree_ctx *ctx)
         char        lc[XRDC_PATH_MAX];
         struct stat sb;
 
-        /* Skip "." and ".." */
-        if (de->d_name[0] == '.'
-            && (de->d_name[1] == '\0'
-                || (de->d_name[1] == '.' && de->d_name[2] == '\0'))) {
+        if (entry_is_dot(de->d_name)) {
             continue;
         }
         if (path_join(lpath, de->d_name, lc, sizeof(lc)) != 0
             || rel_join(rel, de->d_name, relc, sizeof(relc)) != 0) {
             fprintf(stderr,
                     "xrdcksum tree: path too long under %s\n", lpath);
-            (*ctx->errors)++;   /* a skipped file is an error, not clean output */
+            (*errors)++;   /* a skipped file is an error, not clean output */
             closedir(d);
             return -1;
         }
@@ -168,44 +182,74 @@ walk_local_tree(const char *lpath, const char *rel, tree_ctx *ctx)
             continue;   /* skip symlinks (loop-safety; mirrors -r copy default) */
         }
         if (S_ISDIR(sb.st_mode)) {
-            if (walk_local_tree(lc, relc, ctx) != 0) {
+            if (cktree_walk(lc, relc, cb, u, errors) != 0) {
                 closedir(d);
                 return -1;
             }
         } else if (S_ISREG(sb.st_mode)) {
-            char       hex[TREE_HEX_MAX];
-            brix_status st;
-            int        fd;
-
-            brix_status_clear(&st);
-            fd = open(lc, O_RDONLY);
-            if (fd < 0) {
-                fprintf(stderr, "xrdcksum tree: open %s: %s\n",
-                        lc, strerror(errno));
-                (*ctx->errors)++;
-                continue;
+            if (cb(lc, relc, u) != 0) {
+                closedir(d);
+                return -1;
             }
-            if (brix_cksum_fd(fd, ctx->algo, hex, sizeof(hex), &st) != 0) {
-                fprintf(stderr, "xrdcksum tree: %s: %s\n", lc,
-                        st.msg[0] ? st.msg : "checksum error");
-                close(fd);
-                (*ctx->errors)++;
-                continue;
-            }
-            close(fd);
-            /* Refuse to emit a record for a newline/CR-bearing name: it would
-             * forge an extra manifest line.  Skip-and-warn (counted). */
-            if (rel_has_newline(relc)) {
-                fprintf(stderr, "xrdcksum tree: %s: name contains newline/CR, "
-                        "skipping\n", lc);
-                (*ctx->errors)++;
-                continue;
-            }
-            fprintf(ctx->out, "%s  %s\n", hex, relc);
         }
         /* other file types (block/char/fifo/socket) are silently skipped */
     }
     closedir(d);
+    return 0;
+}
+
+/* ---- xrdcksum tree (local walk) ---- */
+
+/* tree_ctx — shared state threaded through the recursive local walk. */
+typedef struct {
+    FILE            *out;          /* output stream (stdout or -o file) */
+    const char      *algo_name;    /* e.g. "adler32" */
+    brix_cksum_algo  algo;         /* enum */
+    int             *errors;       /* pointer to per-run error counter */
+} tree_ctx;
+
+/* tree_emit_file — cktree_walk callback: checksum one file, emit its record.
+ *
+ * WHAT: Compute the checksum of the regular file at `lpath` and write
+ *       "<hex>  <rel>\n" to ctx->out.
+ * WHY:  The per-file half of `xrdcksum tree`'s local walk — the walker owns
+ *       traversal, this owns digest + manifest emission.
+ * HOW:  open O_RDONLY → brix_cksum_fd → refuse newline/CR-bearing names
+ *       (manifest-forgery guard) → fprintf.  Per-file errors go to stderr,
+ *       bump ctx->errors, and return 0 so the walk continues. */
+static int
+tree_emit_file(const char *lpath, const char *rel, void *u)
+{
+    tree_ctx   *ctx = (tree_ctx *) u;
+    char        hex[TREE_HEX_MAX];
+    brix_status st;
+    int         fd;
+
+    brix_status_clear(&st);
+    fd = open(lpath, O_RDONLY);
+    if (fd < 0) {
+        fprintf(stderr, "xrdcksum tree: open %s: %s\n",
+                lpath, strerror(errno));
+        (*ctx->errors)++;
+        return 0;
+    }
+    if (brix_cksum_fd(fd, ctx->algo, hex, sizeof(hex), &st) != 0) {
+        fprintf(stderr, "xrdcksum tree: %s: %s\n", lpath,
+                st.msg[0] ? st.msg : "checksum error");
+        close(fd);
+        (*ctx->errors)++;
+        return 0;
+    }
+    close(fd);
+    /* Refuse to emit a record for a newline/CR-bearing name: it would
+     * forge an extra manifest line.  Skip-and-warn (counted). */
+    if (rel_has_newline(rel)) {
+        fprintf(stderr, "xrdcksum tree: %s: name contains newline/CR, "
+                "skipping\n", lpath);
+        (*ctx->errors)++;
+        return 0;
+    }
+    fprintf(ctx->out, "%s  %s\n", hex, rel);
     return 0;
 }
 
@@ -294,6 +338,146 @@ usage_tree(const char *prog, int rc)
     return rc;
 }
 
+/* cktree_opts — parsed command line for `xrdcksum tree`. */
+typedef struct {
+    const char *root;       /* positional: local dir or root:// URL */
+    const char *algo_str;   /* --algo (default "adler32") */
+    const char *outpath;    /* -o FILE, or NULL for stdout */
+} cktree_opts;
+
+/* cktree_parse_args — decode the `xrdcksum tree` command line.
+ *
+ * WHAT: Fill *o from argv; on any usage error (or -h) set *rc to the exit
+ *       code and return -1; return 0 to proceed.
+ * WHY:  Keeps the option ladder out of the main flow so the main reads as
+ *       parse → plan → run → report.
+ * HOW:  Linear argv scan; --algo/-o consume the next argument; first
+ *       non-option is the root; anything else is a usage error. */
+static int
+cktree_parse_args(int argc, char **argv, cktree_opts *o, int *rc)
+{
+    int i;
+
+    o->root     = NULL;
+    o->algo_str = "adler32";
+    o->outpath  = NULL;
+
+    for (i = 1; i < argc; i++) {
+        const char *a = argv[i];
+
+        if (strcmp(a, "--algo") == 0) {
+            if (++i >= argc) {
+                *rc = usage_tree(argv[0], XRDC_EXIT_USAGE);
+                return -1;
+            }
+            o->algo_str = argv[i];
+        } else if (strcmp(a, "-o") == 0) {
+            if (++i >= argc) {
+                *rc = usage_tree(argv[0], XRDC_EXIT_USAGE);
+                return -1;
+            }
+            o->outpath = argv[i];
+        } else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) {
+            *rc = usage_tree(argv[0], 0);
+            return -1;
+        } else if (a[0] == '-') {
+            fprintf(stderr, "%s: unknown option '%s'\n", argv[0], a);
+            *rc = usage_tree(argv[0], XRDC_EXIT_USAGE);
+            return -1;
+        } else if (o->root == NULL) {
+            o->root = a;
+        } else {
+            fprintf(stderr, "%s: unexpected argument '%s'\n", argv[0], a);
+            *rc = usage_tree(argv[0], XRDC_EXIT_USAGE);
+            return -1;
+        }
+    }
+    if (o->root == NULL) {
+        *rc = usage_tree(argv[0], XRDC_EXIT_USAGE);
+        return -1;
+    }
+    return 0;
+}
+
+/* cktree_run_local — generate the manifest for a local directory tree.
+ *
+ * WHAT: Walk o->root with cktree_walk/tree_emit_file, writing records to out.
+ * WHY:  The local half of `xrdcksum tree`, isolated so the main only routes.
+ * HOW:  Build the tree_ctx and run the walk; a structural failure (root
+ *       opendir / path overflow) must land in the exit code — a partial
+ *       manifest is not clean — so ensure at least one counted error. */
+static void
+cktree_run_local(const cktree_opts *o, brix_cksum_algo algo,
+                 FILE *out, int *errors)
+{
+    tree_ctx ctx;
+
+    ctx.out       = out;
+    ctx.algo_name = o->algo_str;
+    ctx.algo      = algo;
+    ctx.errors    = errors;
+    if (cktree_walk(o->root, "", tree_emit_file, &ctx, errors) != 0
+        && *errors == 0) {
+        (*errors)++;
+    }
+}
+
+/* cktree_run_remote — generate the manifest for a root:// tree.
+ *
+ * WHAT: Parse the URL, connect once, and drive brix_tree_walk with
+ *       remote_tree_visitor.  Returns 0 when the run completed (per-file and
+ *       walk errors are counted in *errors), or a nonzero exit code when the
+ *       URL/connect failed before any work started.
+ * WHY:  The remote half of `xrdcksum tree`; keeps connection lifecycle and
+ *       prefix computation out of the main.
+ * HOW:  brix_url_parse + scheme check → brix_connect → strip trailing slashes
+ *       from the root path so `tree root://h//dir/` yields the same rel
+ *       prefixes as `.../dir` (a bare "/" export root collapses to a
+ *       zero-length prefix, keeping that case working) → walk → close. */
+static int
+cktree_run_remote(const char *prog, const cktree_opts *o,
+                  FILE *out, int *errors)
+{
+    brix_url        u;
+    brix_conn       c;
+    remote_tree_ctx ctx;
+    brix_status     st;
+    size_t          rlen;
+    int             wrc;
+
+    brix_status_clear(&st);
+    if (brix_url_parse(o->root, &u, &st) != 0
+        || (u.scheme != XRDC_SCHEME_ROOT
+            && u.scheme != XRDC_SCHEME_ROOTS)) {
+        fprintf(stderr, "%s: %s\n", prog,
+                st.msg[0] ? st.msg : "bad URL");
+        return XRDC_EXIT_USAGE;
+    }
+    if (brix_connect(&c, &u, NULL, &st) != 0) {
+        fprintf(stderr, "%s: connect: %s\n", prog, st.msg);
+        return XRDC_EXIT_USAGE;
+    }
+    ctx.c         = &c;
+    ctx.out       = out;
+    ctx.algo_name = o->algo_str;
+    ctx.root_path = u.path;
+    rlen = strlen(u.path);
+    while (rlen > 0 && u.path[rlen - 1] == '/') {
+        rlen--;
+    }
+    ctx.root_path_len = rlen;
+    ctx.errors        = errors;
+
+    wrc = brix_tree_walk(&c, u.path, remote_tree_visitor, &ctx, &st);
+    if (wrc < 0) {
+        fprintf(stderr, "%s: walk error: %s\n", prog,
+                st.msg[0] ? st.msg : "tree walk failed");
+        (*errors)++;
+    }
+    brix_close(&c);
+    return 0;
+}
+
 /*
  * brix_xrdcktree_main — xrdcksum tree: recursive checksum manifest generator.
  *
@@ -301,121 +485,46 @@ usage_tree(const char *prog, int rc)
  *       file's checksum, and emit one "<hex>  <rel>\n" line per file.
  * WHY:  Produces audit manifests compatible with sha256sum -c for ingestion
  *       verification and at-rest integrity checks.
- * HOW:  Parse args; detect local vs remote by "://"; local → walk_local_tree;
- *       remote → brix_tree_walk with remote_tree_visitor.  -o opens the output
- *       file; stdout is the default.  Exit 0 clean, 2 if any errors occurred.
+ * HOW:  Parse args (cktree_parse_args); detect local vs remote by "://";
+ *       local → cktree_run_local; remote → cktree_run_remote.  -o opens the
+ *       output file; stdout is the default.  Exit 0 clean, 2 if any errors
+ *       occurred.
  */
 int
 brix_xrdcktree_main(int argc, char **argv)
 {
-    const char      *root     = NULL;
-    const char      *algo_str = "adler32";
-    const char      *outpath  = NULL;
-    brix_cksum_algo  algo;
-    brix_status      st;
-    FILE            *out      = stdout;
-    int              errors   = 0;
-    int              i;
+    cktree_opts     o;
+    brix_cksum_algo algo;
+    FILE           *out    = stdout;
+    int             errors = 0;
+    int             rc     = 0;
 
-    for (i = 1; i < argc; i++) {
-        const char *a = argv[i];
-
-        if (strcmp(a, "--algo") == 0) {
-            if (++i >= argc) {
-                return usage_tree(argv[0], XRDC_EXIT_USAGE);
-            }
-            algo_str = argv[i];
-        } else if (strcmp(a, "-o") == 0) {
-            if (++i >= argc) {
-                return usage_tree(argv[0], XRDC_EXIT_USAGE);
-            }
-            outpath = argv[i];
-        } else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) {
-            return usage_tree(argv[0], 0);
-        } else if (a[0] == '-') {
-            fprintf(stderr, "%s: unknown option '%s'\n", argv[0], a);
-            return usage_tree(argv[0], XRDC_EXIT_USAGE);
-        } else if (root == NULL) {
-            root = a;
-        } else {
-            fprintf(stderr, "%s: unexpected argument '%s'\n", argv[0], a);
-            return usage_tree(argv[0], XRDC_EXIT_USAGE);
-        }
+    if (cktree_parse_args(argc, argv, &o, &rc) != 0) {
+        return rc;
     }
-    if (root == NULL) {
-        return usage_tree(argv[0], XRDC_EXIT_USAGE);
-    }
-    brix_status_clear(&st);
-    if (brix_cksum_algo_parse(algo_str, &algo) != 0) {
-        fprintf(stderr, "%s: unknown algorithm '%s'\n", argv[0], algo_str);
+    if (brix_cksum_algo_parse(o.algo_str, &algo) != 0) {
+        fprintf(stderr, "%s: unknown algorithm '%s'\n", argv[0], o.algo_str);
         return XRDC_EXIT_USAGE;
     }
-    if (outpath != NULL) {
-        out = fopen(outpath, "w");
+    if (o.outpath != NULL) {
+        out = fopen(o.outpath, "w");
         if (out == NULL) {
             fprintf(stderr, "%s: cannot open '%s': %s\n",
-                    argv[0], outpath, strerror(errno));
+                    argv[0], o.outpath, strerror(errno));
             return XRDC_EXIT_USAGE;
         }
     }
 
-    if (!is_root_url(root)) {
-        /* Local directory walk. */
-        tree_ctx ctx;
-        ctx.out       = out;
-        ctx.algo_name = algo_str;
-        ctx.algo      = algo;
-        ctx.errors    = &errors;
-        /* A structural failure (root opendir / path overflow) returns nonzero
-         * and must land in the exit code — a partial manifest is not clean. */
-        if (walk_local_tree(root, "", &ctx) != 0 && errors == 0) {
-            errors++;
-        }
+    if (!is_root_url(o.root)) {
+        cktree_run_local(&o, algo, out, &errors);
     } else {
-        /* Remote root:// tree walk. */
-        brix_url  u;
-        brix_conn c;
-        remote_tree_ctx ctx;
-        int             wrc;
-
-        if (brix_url_parse(root, &u, &st) != 0
-            || (u.scheme != XRDC_SCHEME_ROOT
-                && u.scheme != XRDC_SCHEME_ROOTS)) {
-            fprintf(stderr, "%s: %s\n", argv[0],
-                    st.msg[0] ? st.msg : "bad URL");
+        rc = cktree_run_remote(argv[0], &o, out, &errors);
+        if (rc != 0) {
             if (out != stdout) {
                 fclose(out);
             }
-            return XRDC_EXIT_USAGE;
+            return rc;
         }
-        if (brix_connect(&c, &u, NULL, &st) != 0) {
-            fprintf(stderr, "%s: connect: %s\n", argv[0], st.msg);
-            if (out != stdout) {
-                fclose(out);
-            }
-            return XRDC_EXIT_USAGE;
-        }
-        ctx.c            = &c;
-        ctx.out          = out;
-        ctx.algo_name    = algo_str;
-        ctx.root_path    = u.path;
-        /* Strip trailing slashes so `tree root://h//dir/` yields the same rel
-         * prefixes as `.../dir`; a bare "/" export root collapses to a
-         * zero-length prefix (rel = full path + 1), keeping that case working. */
-        {
-            size_t rlen = strlen(u.path);
-            while (rlen > 0 && u.path[rlen - 1] == '/') { rlen--; }
-            ctx.root_path_len = rlen;
-        }
-        ctx.errors       = &errors;
-
-        wrc = brix_tree_walk(&c, u.path, remote_tree_visitor, &ctx, &st);
-        if (wrc < 0) {
-            fprintf(stderr, "%s: walk error: %s\n", argv[0],
-                    st.msg[0] ? st.msg : "tree walk failed");
-            errors++;
-        }
-        brix_close(&c);
     }
 
     if (out != stdout) {
@@ -445,6 +554,264 @@ usage_check(const char *prog, int rc)
     return rc;
 }
 
+/* ckcheck_ctx — per-run state threaded through manifest verification. */
+typedef struct {
+    const char      *prog;        /* argv[0] for messages */
+    const char      *root;        /* local root dir (is_remote == 0) */
+    const char      *root_path;   /* remote URL path (is_remote == 1) */
+    brix_conn       *c;           /* open remote connection, or NULL */
+    int              is_remote;
+    const char      *algo_str;    /* --algo value, or NULL (infer per line) */
+    brix_cksum_algo  algo;        /* parsed --algo (valid iff algo_str set) */
+    int             *errors;
+    int             *mismatches;
+} ckcheck_ctx;
+
+/* ckcheck_parse_args — decode the `xrdcksum check` command line.
+ *
+ * WHAT: Validate argc and parse the optional --algo flag; on any usage error
+ *       (or -h) set *rc to the exit code and return -1; return 0 to proceed
+ *       (manifest = argv[1], root = argv[2]).
+ * WHY:  Keeps the option ladder out of the main flow.
+ * HOW:  argv[1]/argv[2] are positional; scan from argv[3]; --algo consumes
+ *       and validates the next argument via brix_cksum_algo_parse. */
+static int
+ckcheck_parse_args(int argc, char **argv, const char **algo_str,
+                   brix_cksum_algo *algo, int *rc)
+{
+    int i;
+
+    *algo_str = NULL;
+    if (argc < 3) {
+        *rc = usage_check(argv[0], XRDC_EXIT_USAGE);
+        return -1;
+    }
+    for (i = 3; i < argc; i++) {
+        if (strcmp(argv[i], "--algo") == 0) {
+            if (++i >= argc) {
+                *rc = usage_check(argv[0], XRDC_EXIT_USAGE);
+                return -1;
+            }
+            *algo_str = argv[i];
+            if (brix_cksum_algo_parse(*algo_str, algo) != 0) {
+                fprintf(stderr, "%s: unknown algorithm '%s'\n",
+                        argv[0], *algo_str);
+                *rc = XRDC_EXIT_USAGE;
+                return -1;
+            }
+        } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            *rc = usage_check(argv[0], 0);
+            return -1;
+        } else {
+            fprintf(stderr, "%s: unexpected argument '%s'\n", argv[0], argv[i]);
+            *rc = usage_check(argv[0], XRDC_EXIT_USAGE);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/* ckcheck_connect — parse the remote root URL and open the one connection.
+ *
+ * WHAT: Fill *u from `root`, enforce root/roots scheme, and connect *c.
+ *       Return 0 on success, -1 after printing the error.
+ * WHY:  One connection is reused across every manifest line; setup failures
+ *       must abort the whole run before any line is processed.
+ * HOW:  brix_url_parse + scheme check → brix_connect; messages match the
+ *       historical output exactly. */
+static int
+ckcheck_connect(const char *prog, const char *root, brix_url *u, brix_conn *c)
+{
+    brix_status st;
+
+    brix_status_clear(&st);
+    if (brix_url_parse(root, u, &st) != 0
+        || (u->scheme != XRDC_SCHEME_ROOT
+            && u->scheme != XRDC_SCHEME_ROOTS)) {
+        fprintf(stderr, "%s: bad root URL: %s\n",
+                prog, st.msg[0] ? st.msg : "parse error");
+        return -1;
+    }
+    if (brix_connect(c, u, NULL, &st) != 0) {
+        fprintf(stderr, "%s: connect: %s\n", prog, st.msg);
+        return -1;
+    }
+    return 0;
+}
+
+/* ckcheck_report_malformed — warn about a manifest line that failed to parse.
+ *
+ * WHAT: Strip the trailing newline/CR from `line` (in place) and print the
+ *       malformed-line message.
+ * WHY:  A clean single-line error message; the caller counts the error.
+ * HOW:  Trim terminator bytes from the end, then fprintf. */
+static void
+ckcheck_report_malformed(const char *prog, char *line)
+{
+    size_t ll = strlen(line);
+
+    while (ll > 0 && (line[ll - 1] == '\n' || line[ll - 1] == '\r')) {
+        line[--ll] = '\0';
+    }
+    fprintf(stderr, "%s: malformed manifest line: %s\n", prog, line);
+}
+
+/* ckcheck_line_algo — resolve the digest algorithm for one manifest line.
+ *
+ * WHAT: Set *out_algo/*out_name for the line: --algo when given, otherwise
+ *       inferred from the hex digest length.  Return 0 on success, -1 after
+ *       printing the unrecognised-length error (caller counts it).
+ * WHY:  Manifests do not record the algorithm; the historical inference is
+ *       part of the CLI contract and must stay EXACT: adler32 = 8 hex chars,
+ *       crc64 (CRC-64/XZ) = 16, md5 = 32.  crc32c and zcrc32 also produce
+ *       8 hex chars and are indistinguishable by length — they require
+ *       --algo.  CRITICAL (INVARIANT 9): crc64 and crc64nvme are DIFFERENT
+ *       polynomials; 16 hex maps to crc64 ONLY, and crc64nvme manifests must
+ *       use --algo.  Never merge or "normalize" the two.
+ * HOW:  --algo short-circuit, else switch on strlen(hex). */
+static int
+ckcheck_line_algo(const ckcheck_ctx *cx, const char *hex, const char *rel,
+                  brix_cksum_algo *out_algo, const char **out_name)
+{
+    size_t hexlen;
+
+    if (cx->algo_str != NULL) {
+        *out_algo = cx->algo;
+        *out_name = cx->algo_str;
+        return 0;
+    }
+    hexlen = strlen(hex);
+    switch (hexlen) {
+    case  8: *out_algo = XRDC_CK_ADLER32; *out_name = "adler32"; return 0;
+    case 16: *out_algo = XRDC_CK_CRC64;   *out_name = "crc64";   return 0;
+    case 32: *out_algo = XRDC_CK_MD5;     *out_name = "md5";     return 0;
+    default:
+        fprintf(stderr, "%s: unrecognised hex length %zu for '%s'\n",
+                cx->prog, hexlen, rel);
+        return -1;
+    }
+}
+
+/* ckcheck_digest_local — compute the actual digest of a local file.
+ *
+ * WHAT: Open cx->root/rel and compute its checksum into got (TREE_HEX_MAX
+ *       bytes).  Return 0 on success, -1 after printing the error.
+ * WHY:  The local half of per-line verification; every failure is one
+ *       stderr line and one counted error at the call site.
+ * HOW:  Overflow-checked path_join → open O_RDONLY → brix_cksum_fd. */
+static int
+ckcheck_digest_local(const ckcheck_ctx *cx, const char *rel,
+                     brix_cksum_algo algo, char *got)
+{
+    char        lpath[XRDC_PATH_MAX];
+    brix_status st;
+    int         fd;
+
+    if (path_join(cx->root, rel, lpath, sizeof(lpath)) != 0) {
+        fprintf(stderr, "%s: path too long: %s/%s\n",
+                cx->prog, cx->root, rel);
+        return -1;
+    }
+    fd = open(lpath, O_RDONLY);
+    if (fd < 0) {
+        fprintf(stderr, "%s: open %s: %s\n",
+                cx->prog, lpath, strerror(errno));
+        return -1;
+    }
+    brix_status_clear(&st);
+    if (brix_cksum_fd(fd, algo, got, TREE_HEX_MAX, &st) != 0) {
+        fprintf(stderr, "%s: %s: %s\n", cx->prog, lpath,
+                st.msg[0] ? st.msg : "checksum error");
+        close(fd);
+        return -1;
+    }
+    close(fd);
+    return 0;
+}
+
+/* ckcheck_digest_remote — query the server for a remote file's digest.
+ *
+ * WHAT: Build root_path + "/" + rel and ask the server (over the reused
+ *       connection) for its digest into got (TREE_HEX_MAX bytes).  Return 0
+ *       on success, -1 after printing the error.
+ * WHY:  The remote half of per-line verification; the server computes, we
+ *       compare.
+ * HOW:  Overflow-checked snprintf → brix_query_cksum with the per-line
+ *       algorithm name. */
+static int
+ckcheck_digest_remote(const ckcheck_ctx *cx, const char *rel,
+                      const char *algo_name, char *got)
+{
+    char        rpath[XRDC_PATH_MAX];
+    brix_status st;
+    int         n;
+
+    n = snprintf(rpath, sizeof(rpath), "%s/%s", cx->root_path, rel);
+    if (n <= 0 || (size_t) n >= sizeof(rpath)) {
+        fprintf(stderr, "%s: path too long: %s/%s\n",
+                cx->prog, cx->root_path, rel);
+        return -1;
+    }
+    brix_status_clear(&st);
+    if (brix_query_cksum(cx->c, rpath, algo_name,
+                         got, TREE_HEX_MAX, &st) != 0) {
+        fprintf(stderr, "%s: query_cksum %s: %s\n", cx->prog, rpath,
+                st.msg[0] ? st.msg : "query error");
+        return -1;
+    }
+    return 0;
+}
+
+/* ckcheck_process_line — verify one manifest line and print its verdict.
+ *
+ * WHAT: Parse "<hex>  <rel>" via brix_ckmf_parse_line, resolve the line's
+ *       algorithm, obtain the actual digest (local compute or remote query),
+ *       and print "OK <rel>" or "FAILED <rel>".
+ * WHY:  One line = one independent verification; every failure mode counts
+ *       an error and moves on so a single bad record never aborts the run.
+ * HOW:  brix_ckmf_parse_line is the sole gate on the check path (hostile
+ *       manifests cannot escape the root) → ckcheck_line_algo →
+ *       ckcheck_digest_local/_remote → case-insensitive compare. */
+static void
+ckcheck_process_line(const ckcheck_ctx *cx, char *line)
+{
+    char             hex[TREE_HEX_MAX];
+    char             rel[XRDC_PATH_MAX];
+    char             got[TREE_HEX_MAX];
+    brix_cksum_algo  line_algo;
+    const char      *line_algo_name;
+    int              drc;
+
+    if (brix_ckmf_parse_line(line, hex, sizeof(hex),
+                             rel, sizeof(rel)) != 0) {
+        ckcheck_report_malformed(cx->prog, line);
+        (*cx->errors)++;
+        return;
+    }
+    if (ckcheck_line_algo(cx, hex, rel, &line_algo, &line_algo_name) != 0) {
+        (*cx->errors)++;
+        return;
+    }
+
+    got[0] = '\0';
+    if (!cx->is_remote) {
+        drc = ckcheck_digest_local(cx, rel, line_algo, got);
+    } else {
+        drc = ckcheck_digest_remote(cx, rel, line_algo_name, got);
+    }
+    if (drc != 0) {
+        (*cx->errors)++;
+        return;
+    }
+
+    if (strcasecmp(hex, got) == 0) {
+        printf("OK %s\n", rel);
+    } else {
+        printf("FAILED %s\n", rel);
+        (*cx->mismatches)++;
+    }
+}
+
 /*
  * brix_xrdckcheck_main — xrdcksum check: manifest verification.
  *
@@ -452,189 +819,62 @@ usage_check(const char *prog, int rc)
  *       digest against the actual file content, local or remote.
  * WHY:  Periodic at-rest integrity checks without regenerating the full manifest;
  *       a single run covers the whole tree with one output line per file.
- * HOW:  Parse args; for each manifest line call brix_ckmf_parse_line (malformed →
- *       stderr + errors++). With --algo NAME, use it for both compute and query;
- *       without --algo, infer the algorithm from the hex length: adler32=8 hex
- *       chars, crc64=16, md5=32.  Note: crc32c and zcrc32 also produce 8 hex
- *       chars and are indistinguishable by length alone — they require --algo.
- *       For local root: open each rel path under root, call brix_cksum_fd.
- *       For remote root: open one connection, reuse it across all files, call
- *       brix_query_cksum.  Compare case-insensitively; print OK/FAILED.
+ * HOW:  Parse args (ckcheck_parse_args); open the manifest; for a remote root
+ *       open one connection reused across all files (ckcheck_connect); verify
+ *       every line with ckcheck_process_line (which owns algorithm inference —
+ *       adler32=8 hex, crc64=16, md5=32 — and the OK/FAILED verdicts).
  *       Exit 0 all-OK, 1 any mismatch, 2 on any parse/I/O error.
  */
 int
 brix_xrdckcheck_main(int argc, char **argv)
 {
-    const char      *manifest_path;
-    const char      *root;
-    const char      *algo_str = NULL;
-    brix_cksum_algo  algo;
+    const char      *algo_str   = NULL;
+    brix_cksum_algo  algo       = XRDC_CK_ADLER32;  /* valid iff algo_str set */
     FILE            *mf;
     char             line[XRDC_PATH_MAX + TREE_HEX_MAX + 8];
-    char             hex[TREE_HEX_MAX];
-    char             rel[XRDC_PATH_MAX];
-    char             got[TREE_HEX_MAX];
     int              mismatches = 0;
     int              errors     = 0;
-    int              is_remote  = 0;
+    int              rc         = 0;
     brix_url         u;
     brix_conn        c;
-    brix_status      st;
-    int              conn_open  = 0;
-    int              i;
+    ckcheck_ctx      cx;
 
-    if (argc < 3) {
-        return usage_check(argv[0], XRDC_EXIT_USAGE);
-    }
-    manifest_path = argv[1];
-    root          = argv[2];
-
-    /* Parse optional --algo flag. */
-    for (i = 3; i < argc; i++) {
-        if (strcmp(argv[i], "--algo") == 0) {
-            if (++i >= argc) {
-                return usage_check(argv[0], XRDC_EXIT_USAGE);
-            }
-            algo_str = argv[i];
-            brix_status_clear(&st);
-            if (brix_cksum_algo_parse(algo_str, &algo) != 0) {
-                fprintf(stderr, "%s: unknown algorithm '%s'\n",
-                        argv[0], algo_str);
-                return XRDC_EXIT_USAGE;
-            }
-        } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-            return usage_check(argv[0], 0);
-        } else {
-            fprintf(stderr, "%s: unexpected argument '%s'\n", argv[0], argv[i]);
-            return usage_check(argv[0], XRDC_EXIT_USAGE);
-        }
+    if (ckcheck_parse_args(argc, argv, &algo_str, &algo, &rc) != 0) {
+        return rc;
     }
 
-    mf = fopen(manifest_path, "r");
+    mf = fopen(argv[1], "r");
     if (mf == NULL) {
         fprintf(stderr, "%s: cannot open manifest '%s': %s\n",
-                argv[0], manifest_path, strerror(errno));
+                argv[0], argv[1], strerror(errno));
         return 2;
     }
 
-    is_remote = is_root_url(root);
-    brix_status_clear(&st);
+    cx.prog       = argv[0];
+    cx.root       = argv[2];
+    cx.root_path  = NULL;
+    cx.c          = NULL;
+    cx.is_remote  = is_root_url(argv[2]);
+    cx.algo_str   = algo_str;
+    cx.algo       = algo;
+    cx.errors     = &errors;
+    cx.mismatches = &mismatches;
 
-    if (is_remote) {
-        if (brix_url_parse(root, &u, &st) != 0
-            || (u.scheme != XRDC_SCHEME_ROOT
-                && u.scheme != XRDC_SCHEME_ROOTS)) {
-            fprintf(stderr, "%s: bad root URL: %s\n",
-                    argv[0], st.msg[0] ? st.msg : "parse error");
+    if (cx.is_remote) {
+        if (ckcheck_connect(argv[0], argv[2], &u, &c) != 0) {
             fclose(mf);
             return XRDC_EXIT_USAGE;
         }
-        if (brix_connect(&c, &u, NULL, &st) != 0) {
-            fprintf(stderr, "%s: connect: %s\n", argv[0], st.msg);
-            fclose(mf);
-            return XRDC_EXIT_USAGE;
-        }
-        conn_open = 1;
+        cx.root_path = u.path;
+        cx.c         = &c;
     }
 
     while (fgets(line, sizeof(line), mf) != NULL) {
-        brix_cksum_algo  line_algo;
-        const char      *line_algo_name;
-        size_t           hexlen;
-
-        if (brix_ckmf_parse_line(line, hex, sizeof(hex),
-                                 rel, sizeof(rel)) != 0) {
-            /* Strip trailing newline for a clean error message. */
-            size_t ll = strlen(line);
-            while (ll > 0 && (line[ll - 1] == '\n' || line[ll - 1] == '\r')) {
-                line[--ll] = '\0';
-            }
-            fprintf(stderr, "%s: malformed manifest line: %s\n",
-                    argv[0], line);
-            errors++;
-            continue;
-        }
-
-        /* Determine the algorithm: use --algo if given, else infer from hex length.
-         * Without --algo: adler32=8, crc64=16, md5=32.
-         * For 8-char digests we default to adler32 (the tree default). */
-        if (algo_str != NULL) {
-            line_algo = algo;
-            line_algo_name = algo_str;
-        } else {
-            hexlen = strlen(hex);
-            switch (hexlen) {
-            case  8: line_algo = XRDC_CK_ADLER32; line_algo_name = "adler32"; break;
-            case 16: line_algo = XRDC_CK_CRC64;   line_algo_name = "crc64";   break;
-            case 32: line_algo = XRDC_CK_MD5;     line_algo_name = "md5";     break;
-            default:
-                fprintf(stderr, "%s: unrecognised hex length %zu for '%s'\n",
-                        argv[0], hexlen, rel);
-                errors++;
-                continue;
-            }
-        }
-
-        brix_status_clear(&st);
-        got[0] = '\0';
-
-        if (!is_remote) {
-            /* Local: open root/rel and compute. */
-            char lpath[XRDC_PATH_MAX];
-            int  fd;
-
-            if (path_join(root, rel, lpath, sizeof(lpath)) != 0) {
-                fprintf(stderr, "%s: path too long: %s/%s\n",
-                        argv[0], root, rel);
-                errors++;
-                continue;
-            }
-            fd = open(lpath, O_RDONLY);
-            if (fd < 0) {
-                fprintf(stderr, "%s: open %s: %s\n",
-                        argv[0], lpath, strerror(errno));
-                errors++;
-                continue;
-            }
-            if (brix_cksum_fd(fd, line_algo, got, sizeof(got), &st) != 0) {
-                fprintf(stderr, "%s: %s: %s\n", argv[0], lpath,
-                        st.msg[0] ? st.msg : "checksum error");
-                close(fd);
-                errors++;
-                continue;
-            }
-            close(fd);
-        } else {
-            /* Remote: build full path = root_path + "/" + rel */
-            char rpath[XRDC_PATH_MAX];
-            int  n;
-
-            n = snprintf(rpath, sizeof(rpath), "%s/%s", u.path, rel);
-            if (n <= 0 || (size_t) n >= sizeof(rpath)) {
-                fprintf(stderr, "%s: path too long: %s/%s\n",
-                        argv[0], u.path, rel);
-                errors++;
-                continue;
-            }
-            if (brix_query_cksum(&c, rpath, line_algo_name,
-                                 got, sizeof(got), &st) != 0) {
-                fprintf(stderr, "%s: query_cksum %s: %s\n", argv[0], rpath,
-                        st.msg[0] ? st.msg : "query error");
-                errors++;
-                continue;
-            }
-        }
-
-        if (strcasecmp(hex, got) == 0) {
-            printf("OK %s\n", rel);
-        } else {
-            printf("FAILED %s\n", rel);
-            mismatches++;
-        }
+        ckcheck_process_line(&cx, line);
     }
 
     fclose(mf);
-    if (conn_open) {
+    if (cx.c != NULL) {
         brix_close(&c);
     }
 

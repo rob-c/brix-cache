@@ -51,6 +51,16 @@
 #define kXRS_x509_req    3024       /* X.509 certificate request (proxy delegation) */
 #define kXRS_cipher_alg  3025       /* supported cipher algorithms       */
 #define kXRS_md_alg      3026       /* supported digest algorithms       */
+/*
+ * brix extension (phase-70 §5.1): an OPTIONAL client-pushed FULL proxy
+ * (cert chain + private key, PEM) placed in the decrypted kXGC_cert inner
+ * buffer when the client opts in (XRD_DELEGATEFULLPROXY). Enables backend
+ * x509 PASSTHROUGH: the node presents the user's own short-lived proxy
+ * upstream. Never required; only captured when present, under TLS, and only
+ * after the leaf DN is proven to equal the GSI-authenticated DN. The id sits
+ * clear of the stock kXRS_* range to avoid collision with any future addition.
+ */
+#define kXRS_x509_fullproxy 3040    /* brix: client-supplied full proxy PEM */
 
 /* GSI protocol version sent in kXRS_version bucket. 20100 = 2.01.00 */
 #define kXGSI_VERSION    20100

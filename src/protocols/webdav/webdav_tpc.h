@@ -31,6 +31,30 @@ typedef struct {
     off_t                  total_size; /* from HEAD; -1 if unknown */
 } tpc_ms_progress_t;
 
+/*
+ * webdav_tpc_req_t — immutable request descriptor for a curl TPC transfer.
+ *
+ * WHAT: bundles the six invariant inputs every curl worker needs — the log, the
+ *       location config, the remote HTTPS URL, the local file path, the collected
+ *       TransferHeader array, and the live-transfer registry id.
+ * WHY:  the pull/push/pull_multi workers (and the shared core) each took these as
+ *       a 6-arg prefix; passing one const descriptor keeps every extern at <=5
+ *       params (INVARIANT: curl COPY + Source/Credential headers unchanged) while
+ *       making the shared request contract a single reviewable type.
+ * HOW:  callers stack-populate one and pass its address by const pointer; the
+ *       workers only read it (all mutable curl resources stay worker-local). For
+ *       pull, `url` is the source and `local_path` the staged temp; for push,
+ *       `url` is the destination and `local_path` the export file to read.
+ */
+typedef struct {
+    ngx_log_t                        *log;
+    ngx_http_brix_webdav_loc_conf_t  *conf;
+    const char                       *url;
+    const char                       *local_path;
+    ngx_array_t                      *transfer_headers;
+    uint64_t                          transfer_id;
+} webdav_tpc_req_t;
+
 /* HTTP-TPC */
 /* Set the TPC-related loc-conf fields to NGX_CONF_UNSET[_UINT] (called from the
  * module's create_loc_conf). */
@@ -67,19 +91,17 @@ webdav_tpc_pstrndup0(ngx_pool_t *pool, const u_char *data, size_t len)
  * name/value has control bytes or the cap is exceeded; NGX_ERROR on OOM. */
 ngx_int_t webdav_tpc_collect_transfer_headers(ngx_http_request_t *r,
     ngx_array_t **out);
-/* Blocking single-stream curl pull (source_url -> tmp_path); runs on a thread,
- * not the event loop.  transfer_id keys the live-transfer registry; bumps the
- * TPC success/error metric.  NGX_OK / NGX_HTTP_* on failure. */
+/* Blocking single-stream curl pull (req->url -> req->local_path); runs on a
+ * thread, not the event loop.  req->transfer_id keys the live-transfer registry;
+ * bumps the TPC success/error metric.  NGX_OK / NGX_HTTP_* on failure. */
 ngx_int_t webdav_tpc_run_curl_pull(ngx_log_t *log,
     ngx_http_brix_webdav_loc_conf_t *conf, const char *source_url,
-    const char *tmp_path, ngx_array_t *transfer_headers,
-    uint64_t transfer_id);
-/* Blocking curl push (local_path -> dest_url); thread-only, mirror of the pull
- * above.  NGX_OK / NGX_HTTP_* on failure. */
+    const char *tmp_path, ngx_array_t *transfer_headers, uint64_t transfer_id,
+    const char *user_cert, const char *user_key);
+/* Blocking curl push (local_path -> url); thread-only, mirror of the pull. */
 ngx_int_t webdav_tpc_run_curl_push(ngx_log_t *log,
     ngx_http_brix_webdav_loc_conf_t *conf, const char *dest_url,
-    const char *local_path, ngx_array_t *transfer_headers,
-    uint64_t transfer_id);
+    const char *local_path, ngx_array_t *transfer_headers, uint64_t transfer_id);
 /* Post a curl pull/push to conf->common.thread_pool (the 201 non-marker path).
  * local_path/dest_path are copied into the task ctx (caller stack buffers safe to
  * reuse).  On NGX_DONE it has taken a request ref (r->main->count++) and the
@@ -90,17 +112,19 @@ ngx_int_t webdav_tpc_post_thread_task(ngx_http_request_t *r,
     ngx_http_brix_webdav_loc_conf_t *conf,
     int is_push, ngx_flag_t existed, ngx_flag_t overwrite,
     const char *url, const char *local_path, const char *dest_path,
-    ngx_array_t *transfer_headers, ngx_uint_t n_streams);
-/* Blocking parallel-range curl_multi pull into tmp_path: HEADs for size, splits
- * into n_streams disjoint ranges each pwrite-ing in place (no merge), capped at
- * BRIX_TPC_MAX_STREAMS.  Falls back to single-stream when size is unknown or
- * n_streams <= 1.  progress may be NULL; when set, each stream atomically updates
- * bytes_per_stream[i] for the poll timer.  NGX_OK / NGX_HTTP_* on failure. */
-ngx_int_t webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
-    ngx_http_brix_webdav_loc_conf_t *conf,
-    const char *source_url, const char *tmp_path,
     ngx_array_t *transfer_headers, ngx_uint_t n_streams,
-    uint64_t transfer_id, tpc_ms_progress_t *progress);
+    const char *user_cert, const char *user_key);
+/* Blocking parallel-range curl_multi pull into req->local_path: HEADs for size,
+ * splits into n_streams disjoint ranges each pwrite-ing in place (no merge),
+ * capped at BRIX_TPC_MAX_STREAMS.  Falls back to single-stream when size is
+ * unknown or n_streams <= 1.  progress is hoisted (side-effecting: each stream
+ * atomically updates bytes_per_stream[i] for the poll timer); may be NULL.
+ * NGX_OK / NGX_HTTP_* on failure. */
+ngx_int_t webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *source_url,
+    const char *tmp_path, ngx_array_t *transfer_headers, ngx_uint_t n_streams,
+    uint64_t transfer_id, tpc_ms_progress_t *progress,
+    const char *user_cert, const char *user_key);
 /* 202-streaming TPC with Performance-Markers and optional multi-stream.
  * Returns NGX_DONE (202 sent, poll timer running) or NGX_DECLINED (no thread
  * pool configured; caller falls back to the 201 path). */
@@ -108,7 +132,8 @@ ngx_int_t webdav_tpc_marker_start(ngx_http_request_t *r,
     ngx_http_brix_webdav_loc_conf_t *conf, ngx_uint_t n_streams,
     const char *url, const char *tmp_path, const char *final_path,
     ngx_flag_t is_pull, ngx_flag_t overwrite, ngx_flag_t existed,
-    ngx_array_t *transfer_headers, uint64_t transfer_id);
+    ngx_array_t *transfer_headers, uint64_t transfer_id,
+    const char *user_cert, const char *user_key);
 /* HTTP-TPC COPY dispatcher: routes by Source (pull, https only) vs Destination
  * (push) header, parses X-Number-Of-Streams (capped at conf->tpc_max_streams),
  * stages a pull through a temp file (atomic rename/link on success, unlink on

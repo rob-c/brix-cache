@@ -28,7 +28,7 @@ adv_append(char *out, size_t cap, int *n, const char *fmt, ...)
     va_start(ap, fmt);
     r = vsnprintf(out + *n, cap - (size_t) *n, fmt, ap);
     va_end(ap);
-    if (r < 0 || (size_t) (*n + r) >= cap) {
+    if (r < 0 || (size_t) *n + (size_t) r >= cap) {
         return -1;
     }
     *n += r;

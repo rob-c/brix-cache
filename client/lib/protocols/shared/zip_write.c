@@ -47,16 +47,15 @@ brix_zip_writer_new(brix_zip_write_fn wr, void *ctx)
 
 brix_zip_writer *
 brix_zip_writer_new_append(brix_zip_write_fn wr, void *ctx, uint64_t base_offset,
-                           const uint8_t *seed_cd, size_t seed_cd_len,
-                           size_t seed_n)
+                           const brix_zip_seed *seed)
 {
     brix_zip_writer *w = brix_zip_writer_new(wr, ctx);
     if (w == NULL) {
         return NULL;
     }
     w->offset = base_offset;
-    w->n      = seed_n;
-    if (seed_cd_len > 0 && cd_append(w, seed_cd, seed_cd_len) != XRDC_ZIP_OK) {
+    w->n      = seed->n;
+    if (seed->cd_len > 0 && cd_append(w, seed->cd, seed->cd_len) != XRDC_ZIP_OK) {
         brix_zip_writer_free(w);
         return NULL;
     }
@@ -80,35 +79,47 @@ w_emit(brix_zip_writer *w, const void *p, size_t len)
 }
 
 
-int
-brix_zip_writer_add_fd(brix_zip_writer *w, const char *name, int fd)
+/*
+ * zw_entry - per-entry layout facts shared across the add-fd phases.
+ *
+ * WHAT: bundles the values computed once in the CRC pass (name, size, crc,
+ *       local-header offset, zip64 flag) so each layout-emitting helper takes
+ *       one struct instead of a long parameter list.
+ * WHY:  keeps the helper signatures ≤5 params and makes the frozen ZIP byte
+ *       layout the single source of truth passed down the phase sequence.
+ * HOW:  filled by zw_crc_pass(), then read-only for the header/data/central-dir
+ *       emitters — no phase mutates it after the CRC pass.
+ */
+typedef struct {
+    const char *name;
+    size_t      namelen;
+    uint64_t    size;       /* bytes actually CRC'd and written (STORE) */
+    uint64_t    lfh_off;    /* offset of this entry's local file header */
+    uint32_t    crc;        /* CRC-32 of the file data */
+    int         zip64;      /* wide fields needed for size/offset */
+} zw_entry;
+
+
+/*
+ * zw_crc_pass - CRC-32 the source file and freeze the entry's layout facts.
+ *
+ * WHAT: reads the whole fd once, accumulates the CRC-32, records the number of
+ *       bytes actually read (the file may shrink), and derives lfh_off/zip64.
+ * WHY:  STORE means comp == uncomp == the bytes we CRC'd, so this single pass
+ *       fixes every size/offset field the later phases emit.
+ * HOW:  streaming pread into `buf`; EINTR retried, short read ends the pass.
+ *       Latches w->any_zip64 exactly as the original inline code did.
+ * RETURNS: XRDC_ZIP_OK, or XRDC_ZIP_EIO on a read error.
+ */
+static int
+zw_crc_pass(brix_zip_writer *w, int fd, zw_entry *e,
+            unsigned char *buf, size_t bufsz)
 {
-    struct stat   stbuf;
-    uint64_t      size, lfh_off;
-    uint32_t      crc = (uint32_t) crc32(0L, Z_NULL, 0);
-    size_t        namelen;
-    int           zip64;
-    unsigned char buf[64 * 1024];
-    off_t         pos;
+    off_t pos;
 
-    if (w == NULL || name == NULL) {
-        return XRDC_ZIP_EBADF;
-    }
-    if (w->err != XRDC_ZIP_OK) {
-        return w->err;
-    }
-    namelen = strlen(name);
-    if (namelen == 0 || namelen > XRDC_ZIP_MAX_NAME) {
-        return XRDC_ZIP_EBADF;
-    }
-    if (fstat(fd, &stbuf) != 0) {
-        return XRDC_ZIP_EIO;
-    }
-    size = (uint64_t) stbuf.st_size;
-
-    /* Pass 1: CRC-32 over the whole file (STORE: comp == uncomp == size). */
-    for (pos = 0; (uint64_t) pos < size; ) {
-        ssize_t n = pread(fd, buf, sizeof(buf), pos); /* vfs-seam-allow: local zip-archive assembly, not export data */
+    e->crc = (uint32_t) crc32(0L, Z_NULL, 0);
+    for (pos = 0; (uint64_t) pos < e->size; ) {
+        ssize_t n = pread(fd, buf, bufsz, pos); /* vfs-seam-allow: local zip-archive assembly, not export data */
         if (n < 0) {
             if (errno == EINTR) { continue; }
             return XRDC_ZIP_EIO;
@@ -116,51 +127,83 @@ brix_zip_writer_add_fd(brix_zip_writer *w, const char *name, int fd)
         if (n == 0) {
             break;                       /* file shrank under us */
         }
-        crc = (uint32_t) crc32(crc, buf, (uInt) n);
+        e->crc = (uint32_t) crc32(e->crc, buf, (uInt) n);
         pos += n;
     }
-    size = (uint64_t) pos;               /* the bytes we actually CRC'd/will write */
-
-    lfh_off = w->offset;
-    zip64   = (size > 0xfffffffeULL) || (lfh_off > 0xfffffffeULL);
-    if (zip64) {
+    e->size    = (uint64_t) pos;         /* the bytes we actually CRC'd/will write */
+    e->lfh_off = w->offset;
+    e->zip64   = (e->size > 0xfffffffeULL) || (e->lfh_off > 0xfffffffeULL);
+    if (e->zip64) {
         w->any_zip64 = 1;
     }
+    return XRDC_ZIP_OK;
+}
 
-    /* Local file header */    {
-        uint8_t  lfh[30];
-        uint16_t extralen = zip64 ? 20 : 0;   /* 4 hdr + 16 (uncomp,comp) */
 
-        put32(lfh + 0,  SIG_LFH);
-        put16(lfh + 4,  zip64 ? 45 : 20);     /* version needed */
-        put16(lfh + 6,  0);                   /* flags */
-        put16(lfh + 8,  0);                   /* method = STORE */
-        put16(lfh + 10, 0);                   /* mod time */
-        put16(lfh + 12, 0);                   /* mod date */
-        put32(lfh + 14, crc);
-        put32(lfh + 18, zip64 ? ZIP_U32_MAX : (uint32_t) size);   /* comp */
-        put32(lfh + 22, zip64 ? ZIP_U32_MAX : (uint32_t) size);   /* uncomp */
-        put16(lfh + 26, (uint16_t) namelen);
-        put16(lfh + 28, extralen);
-        if (w_emit(w, lfh, sizeof(lfh)) != XRDC_ZIP_OK
-            || w_emit(w, name, namelen) != XRDC_ZIP_OK) {
+/*
+ * zw_write_local_header - emit the local file header, name and zip64 extra.
+ *
+ * WHAT: builds the 30-byte LFH (STORE method, zeroed dates), appends the name,
+ *       and, when zip64, the 20-byte zip64 extra field (uncomp,comp).
+ * WHY:  first bytes of every archive member; layout is frozen wire format.
+ * HOW:  put16/put32/put64 into fixed-size stack buffers, then w_emit each; any
+ *       emit error latches into w->err and short-circuits.
+ * RETURNS: XRDC_ZIP_OK, or the latched w->err on an emit failure.
+ */
+static int
+zw_write_local_header(brix_zip_writer *w, const zw_entry *e)
+{
+    uint8_t  lfh[30];
+    uint16_t extralen = e->zip64 ? 20 : 0;   /* 4 hdr + 16 (uncomp,comp) */
+
+    put32(lfh + 0,  SIG_LFH);
+    put16(lfh + 4,  e->zip64 ? 45 : 20);     /* version needed */
+    put16(lfh + 6,  0);                      /* flags */
+    put16(lfh + 8,  0);                      /* method = STORE */
+    put16(lfh + 10, 0);                      /* mod time */
+    put16(lfh + 12, 0);                      /* mod date */
+    put32(lfh + 14, e->crc);
+    put32(lfh + 18, e->zip64 ? ZIP_U32_MAX : (uint32_t) e->size);   /* comp */
+    put32(lfh + 22, e->zip64 ? ZIP_U32_MAX : (uint32_t) e->size);   /* uncomp */
+    put16(lfh + 26, (uint16_t) e->namelen);
+    put16(lfh + 28, extralen);
+    if (w_emit(w, lfh, sizeof(lfh)) != XRDC_ZIP_OK
+        || w_emit(w, e->name, e->namelen) != XRDC_ZIP_OK) {
+        return w->err;
+    }
+    if (e->zip64) {
+        uint8_t ex[20];
+        put16(ex + 0, 0x0001);
+        put16(ex + 2, 16);
+        put64(ex + 4,  e->size);             /* uncompressed */
+        put64(ex + 12, e->size);             /* compressed   */
+        if (w_emit(w, ex, sizeof(ex)) != XRDC_ZIP_OK) {
             return w->err;
         }
-        if (zip64) {
-            uint8_t ex[20];
-            put16(ex + 0, 0x0001);
-            put16(ex + 2, 16);
-            put64(ex + 4,  size);            /* uncompressed */
-            put64(ex + 12, size);            /* compressed   */
-            if (w_emit(w, ex, sizeof(ex)) != XRDC_ZIP_OK) {
-                return w->err;
-            }
-        }
     }
+    return XRDC_ZIP_OK;
+}
 
-    /* File data (STORE: verbatim) */    for (pos = 0; (uint64_t) pos < size; ) {
-        size_t want = (size - (uint64_t) pos < sizeof(buf))
-                      ? (size_t) (size - (uint64_t) pos) : sizeof(buf);
+
+/*
+ * zw_stream_deflate - stream the file data verbatim (STORE, no compression).
+ *
+ * WHAT: copies exactly e->size bytes from fd to the sink in buffer-sized chunks.
+ * WHY:  the archive stores files uncompressed, so the payload is the raw bytes
+ *       already accounted for by the CRC pass — must match e->size exactly.
+ * HOW:  streaming pread bounded by the remaining count; EINTR retried, a short
+ *       read ends the copy; each chunk emitted via w_emit (latches w->err).
+ * RETURNS: XRDC_ZIP_OK, or the latched w->err on a read/emit failure.
+ */
+static int
+zw_stream_deflate(brix_zip_writer *w, int fd, const zw_entry *e,
+                  unsigned char *buf, size_t bufsz)
+{
+    off_t pos;
+
+    for (pos = 0; (uint64_t) pos < e->size; ) {
+        size_t want = (e->size - (uint64_t) pos < bufsz)
+                      ? (size_t) (e->size - (uint64_t) pos) : bufsz;
         ssize_t n = pread(fd, buf, want, pos); /* vfs-seam-allow: local zip-archive assembly, not export data */
         if (n < 0) {
             if (errno == EINTR) { continue; }
@@ -175,45 +218,103 @@ brix_zip_writer_add_fd(brix_zip_writer *w, const char *name, int fd)
         }
         pos += n;
     }
+    return XRDC_ZIP_OK;
+}
 
-    /* Central-directory file header (accumulated, written at finish) */    {
-        uint8_t  cdfh[46];
-        uint16_t extralen = zip64 ? 28 : 0;   /* 4 hdr + 24 (uncomp,comp,off) */
 
-        put32(cdfh + 0,  SIG_CDFH);
-        put16(cdfh + 4,  zip64 ? 45 : 20);    /* version made by */
-        put16(cdfh + 6,  zip64 ? 45 : 20);    /* version needed */
-        put16(cdfh + 8,  0);                  /* flags */
-        put16(cdfh + 10, 0);                  /* method = STORE */
-        put16(cdfh + 12, 0);                  /* mod time */
-        put16(cdfh + 14, 0);                  /* mod date */
-        put32(cdfh + 16, crc);
-        put32(cdfh + 20, zip64 ? ZIP_U32_MAX : (uint32_t) size);   /* comp */
-        put32(cdfh + 24, zip64 ? ZIP_U32_MAX : (uint32_t) size);   /* uncomp */
-        put16(cdfh + 28, (uint16_t) namelen);
-        put16(cdfh + 30, extralen);
-        put16(cdfh + 32, 0);                  /* comment len */
-        put16(cdfh + 34, 0);                  /* disk number start */
-        put16(cdfh + 36, 0);                  /* internal attrs */
-        put32(cdfh + 38, 0);                  /* external attrs */
-        put32(cdfh + 42, zip64 ? ZIP_U32_MAX : (uint32_t) lfh_off);
-        if (cd_append(w, cdfh, sizeof(cdfh)) != XRDC_ZIP_OK
-            || cd_append(w, (const uint8_t *) name, namelen) != XRDC_ZIP_OK) {
+/*
+ * zw_update_central_dir - accumulate this entry's central-directory record.
+ *
+ * WHAT: builds the 46-byte CDFH, appends the name and (when zip64) the 28-byte
+ *       zip64 extra (uncomp,comp,off) into the in-memory central directory.
+ * WHY:  the central directory is written en bloc at finish; each add_fd must
+ *       stage its record now with the frozen field layout.
+ * HOW:  put16/put32/put64 into stack buffers, cd_append into w->cd; any append
+ *       failure latches XRDC_ZIP_ENOMEM into w->err.
+ * RETURNS: XRDC_ZIP_OK, or the latched w->err on an allocation failure.
+ */
+static int
+zw_update_central_dir(brix_zip_writer *w, const zw_entry *e)
+{
+    uint8_t  cdfh[46];
+    uint16_t extralen = e->zip64 ? 28 : 0;   /* 4 hdr + 24 (uncomp,comp,off) */
+
+    put32(cdfh + 0,  SIG_CDFH);
+    put16(cdfh + 4,  e->zip64 ? 45 : 20);    /* version made by */
+    put16(cdfh + 6,  e->zip64 ? 45 : 20);    /* version needed */
+    put16(cdfh + 8,  0);                     /* flags */
+    put16(cdfh + 10, 0);                     /* method = STORE */
+    put16(cdfh + 12, 0);                     /* mod time */
+    put16(cdfh + 14, 0);                     /* mod date */
+    put32(cdfh + 16, e->crc);
+    put32(cdfh + 20, e->zip64 ? ZIP_U32_MAX : (uint32_t) e->size);   /* comp */
+    put32(cdfh + 24, e->zip64 ? ZIP_U32_MAX : (uint32_t) e->size);   /* uncomp */
+    put16(cdfh + 28, (uint16_t) e->namelen);
+    put16(cdfh + 30, extralen);
+    put16(cdfh + 32, 0);                     /* comment len */
+    put16(cdfh + 34, 0);                     /* disk number start */
+    put16(cdfh + 36, 0);                     /* internal attrs */
+    put32(cdfh + 38, 0);                     /* external attrs */
+    put32(cdfh + 42, e->zip64 ? ZIP_U32_MAX : (uint32_t) e->lfh_off);
+    if (cd_append(w, cdfh, sizeof(cdfh)) != XRDC_ZIP_OK
+        || cd_append(w, (const uint8_t *) e->name, e->namelen) != XRDC_ZIP_OK) {
+        w->err = XRDC_ZIP_ENOMEM;
+        return w->err;
+    }
+    if (e->zip64) {
+        uint8_t ex[28];
+        put16(ex + 0, 0x0001);
+        put16(ex + 2, 24);
+        put64(ex + 4,  e->size);             /* uncompressed */
+        put64(ex + 12, e->size);             /* compressed   */
+        put64(ex + 20, e->lfh_off);          /* LFH offset    */
+        if (cd_append(w, ex, sizeof(ex)) != XRDC_ZIP_OK) {
             w->err = XRDC_ZIP_ENOMEM;
             return w->err;
         }
-        if (zip64) {
-            uint8_t ex[28];
-            put16(ex + 0, 0x0001);
-            put16(ex + 2, 24);
-            put64(ex + 4,  size);            /* uncompressed */
-            put64(ex + 12, size);            /* compressed   */
-            put64(ex + 20, lfh_off);         /* LFH offset    */
-            if (cd_append(w, ex, sizeof(ex)) != XRDC_ZIP_OK) {
-                w->err = XRDC_ZIP_ENOMEM;
-                return w->err;
-            }
-        }
+    }
+    return XRDC_ZIP_OK;
+}
+
+
+int
+brix_zip_writer_add_fd(brix_zip_writer *w, const char *name, int fd)
+{
+    struct stat   stbuf;
+    zw_entry      e = { 0 };
+    unsigned char buf[64 * 1024];
+    int           rc;
+
+    if (w == NULL || name == NULL) {
+        return XRDC_ZIP_EBADF;
+    }
+    if (w->err != XRDC_ZIP_OK) {
+        return w->err;
+    }
+    e.name    = name;
+    e.namelen = strlen(name);
+    if (e.namelen == 0 || e.namelen > XRDC_ZIP_MAX_NAME) {
+        return XRDC_ZIP_EBADF;
+    }
+    if (fstat(fd, &stbuf) != 0) {
+        return XRDC_ZIP_EIO;
+    }
+    e.size = (uint64_t) stbuf.st_size;
+
+    /* Pass 1: CRC-32 over the whole file (STORE: comp == uncomp == size). */
+    rc = zw_crc_pass(w, fd, &e, buf, sizeof(buf));
+    if (rc != XRDC_ZIP_OK) {
+        return rc;
+    }
+
+    if (zw_write_local_header(w, &e) != XRDC_ZIP_OK) {
+        return w->err;
+    }
+    if (zw_stream_deflate(w, fd, &e, buf, sizeof(buf)) != XRDC_ZIP_OK) {
+        return w->err;
+    }
+    if (zw_update_central_dir(w, &e) != XRDC_ZIP_OK) {
+        return w->err;
     }
 
     w->n++;

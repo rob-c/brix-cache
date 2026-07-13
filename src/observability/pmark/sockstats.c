@@ -123,6 +123,11 @@ brix_pmark_endpoint(int fd, int which, char *ip, size_t iplen, int *port,
         return NGX_DECLINED;
     }
 
+    /* Zero-init so ss_family is well-defined even if the kernel writes fewer
+     * bytes than sizeof(ss) (analyzer-proven read of an indeterminate value
+     * otherwise). */
+    ngx_memzero(&ss, sizeof(ss));
+
     rc = which == 0 ? getpeername(fd, (struct sockaddr *) &ss, &len)
                     : getsockname(fd, (struct sockaddr *) &ss, &len);
     if (rc != 0) {

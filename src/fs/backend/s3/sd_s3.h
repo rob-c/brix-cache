@@ -87,11 +87,15 @@ int sd_s3_delete(const sd_s3_open_params *p, char *errbuf, size_t errcap);
  * x-amz-meta-<BRIX_META_ADVISORY_S3META>. Attribute names are lowercased to
  * match the S3 user-metadata contract.                                      */
 
-/* Read user-metadata header x-amz-meta-<name> via a signed HEAD into buf[cap]
+/* Destination buffer for sd_s3_get_meta: the value lands NUL-terminated in
+ * buf[0..cap). */
+typedef struct { char *buf; size_t cap; } sd_s3_meta_buf;
+
+/* Read user-metadata header x-amz-meta-<name> via a signed HEAD into out
  * (NUL-terminated). Returns the value length (0 when the attribute is absent),
  * or -1 with errbuf on a transport/HTTP error. */
 ssize_t sd_s3_get_meta(sd_s3_file *f, const char *name,
-                       char *buf, size_t cap, char *errbuf, size_t errcap);
+                       const sd_s3_meta_buf *out, char *errbuf, size_t errcap);
 
 /* One x-amz-meta-<name>=value pair for sd_s3_set_meta. */
 typedef struct { const char *name; const char *value; } sd_s3_meta_kv;

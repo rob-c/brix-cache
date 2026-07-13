@@ -630,12 +630,18 @@ sd_posix_staged_open(brix_sd_instance_t *inst, const char *final_path,
         return NULL;
     }
 
-    if (brix_staged_open(inst->log, st->root_canon, abspath,
-                           O_WRONLY | O_CREAT | O_EXCL, mode, 8, &ps->staged)
-        != NGX_OK)
     {
-        if (err_out != NULL) { *err_out = errno; }
-        return NULL;
+        brix_staged_open_req_t  oreq = {
+            .root_canon = st->root_canon,
+            .final_path = abspath,
+            .open_flags = O_WRONLY | O_CREAT | O_EXCL,
+            .mode       = mode,
+            .attempts   = 8,
+        };
+        if (brix_staged_open(inst->log, &oreq, &ps->staged) != NGX_OK) {
+            if (err_out != NULL) { *err_out = errno; }
+            return NULL;
+        }
     }
 
     ngx_cpystrn((u_char *) ps->final_path, (u_char *) abspath,
@@ -707,6 +713,7 @@ const brix_sd_driver_t brix_sd_posix_driver = {
 #ifndef XRDPROTO_NO_NGX
           | BRIX_SD_CAP_SERVER_COPY | BRIX_SD_CAP_XATTR
           | BRIX_SD_CAP_HARD_RENAME | BRIX_SD_CAP_DIRS
+          | BRIX_SD_CAP_DIRS_WRITE | BRIX_SD_CAP_XATTR_WRITE
 #endif
           ,
 

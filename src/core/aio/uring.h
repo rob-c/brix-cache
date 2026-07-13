@@ -42,9 +42,11 @@
 typedef struct {
     void                 *task;       /* ngx_thread_task_t carrying the *_aio_t */
     ngx_event_handler_pt  done_fn;    /* brix_*_aio_done                      */
+    void                 *owner;      /* ngx_connection_t* whose pool holds task*/
     uint32_t              generation; /* bumped on free -> detects a stale CQE  */
     uint8_t               op_kind;    /* brix_uring_op_e; selects OUT xlation */
     uint8_t               in_use;     /* 1 = claimed & submitted, 0 = free      */
+    uint8_t               orphaned;   /* 1 = owner torn down; drop CQE unseen   */
 } brix_uring_slot_t;
 
 /*
@@ -187,6 +189,17 @@ brix_uring_op_e brix_uring_op_for(ngx_thread_task_t *task);
  */
 ngx_int_t brix_uring_submit(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_thread_task_t *task, brix_uring_op_e op, ngx_flag_t *posted);
+
+/*
+ * brix_uring_orphan_owner — sever every in-flight uring op owned by a dying
+ * connection.  Called from the disconnect path BEFORE the connection pool is
+ * destroyed: a late CQE for an orphaned slot is dropped by the reaper without
+ * dereferencing the task (whose memory dies with the pool) and without posting
+ * its completion event (whose ngx_event_t lives inside that task — posting it
+ * after the pool is gone corrupts ngx_posted_events, the xrd1 crash-loop).
+ * No-op when the ring is down or nothing is in flight for this owner.
+ */
+void brix_uring_orphan_owner(void *owner);
 #endif
 
 #endif /* BRIX_AIO_URING_H */

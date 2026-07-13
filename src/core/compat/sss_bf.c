@@ -81,7 +81,7 @@ brix_sss_bf_crypt(int encrypt, const uint8_t *key, size_t key_len,
     if (!ok) {
         return -1;
     }
-    *out_len = (size_t) (len1 + len2);
+    *out_len = (size_t) len1 + (size_t) len2;
     return 0;
 }
 

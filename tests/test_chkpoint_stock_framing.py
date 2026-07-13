@@ -473,7 +473,13 @@ class TestSourceContracts:
         (embedded header -> sub-body; embedded writev -> descriptors ->
         data).  Without this hook a stock client's streamed sub-body would be
         parsed as the next request header."""
-        recv = _src("src/protocols/root/connection/recv.c")
+        # The recv framing layer is split across the loop skeleton (recv.c), the
+        # read-side phases (recv_frame.c), and the process-side phases
+        # (recv_process.c); the ckpXeq body extension lives with the payload
+        # process phase in recv_process.c.
+        recv = _src("src/protocols/root/connection/recv.c") \
+            + _src("src/protocols/root/connection/recv_frame.c") \
+            + _src("src/protocols/root/connection/recv_process.c")
         assert "brix_ckpxeq_body_extra" in recv
         assert "kXR_ckpXeq" in recv
 

@@ -406,7 +406,81 @@ cstore_is_sidecar(const char *name)
         || (n >= 9 && strcmp(name + n - 9, ".xrdcinfo") == 0);
 }
 
-/* Recursively visit cached objects beneath `dirkey` on the store. */
+/*
+ * WHAT:  Decide whether a readdir entry name should be skipped by the scan.
+ * WHY:   The scan must never surface the "." / ".." pseudo-entries, empty
+ *        names, or metadata sidecars as cached objects.
+ * HOW:   Pure name predicate — true when the entry is not a cached object.
+ */
+static int
+cstore_scan_skip(const char *name)
+{
+    return name[0] == '\0' || strcmp(name, ".") == 0
+        || strcmp(name, "..") == 0 || cstore_is_sidecar(name);
+}
+
+/*
+ * WHAT:  Join `dirkey` and a child `name` into out[cap] (the child's store key).
+ * WHY:   Nested scan keys are built the same everywhere: exactly one '/' between
+ *        the parent key and the entry name, regardless of a trailing slash.
+ * HOW:   Snprintf with a conditional separator; returns 0 on success, -1 when
+ *        the result is empty or would overflow (caller skips the entry).
+ */
+static int
+cstore_scan_child_key(const char *dirkey, size_t dklen, const char *name,
+    char *out, size_t cap)
+{
+    int n = snprintf(out, cap, "%s%s%s", dirkey,
+                     (dklen > 0 && dirkey[dklen - 1] == '/') ? "" : "/", name);
+
+    return (n > 0 && (size_t) n < cap) ? 0 : -1;
+}
+
+/* Forward decl: cstore_scan_child recurses into subdirs via cstore_scan_dir. */
+static ngx_int_t cstore_scan_dir(brix_cstore_t *cs, const char *dirkey,
+    brix_cstore_visit_fn visit, void *ctx);
+
+/*
+ * WHAT:  Handle one already-keyed child: recurse into dirs, visit regulars.
+ * WHY:   Keeps the scan loop flat — the per-entry stat + dispatch (recurse vs
+ *        visit) is a single cohesive step with its own early-returns.
+ * HOW:   Stat the child through the store driver; a missing stat slot or a
+ *        failed stat is a silent skip (NGX_OK). Directories recurse; regular
+ *        objects are handed to the visitor with their cinfo when present (NULL
+ *        for orphan/partial) and always the store stat, so an eviction policy
+ *        sees the same set a raw driver scan would.
+ */
+static ngx_int_t
+cstore_scan_child(brix_cstore_t *cs, const char *childkey,
+    brix_cstore_visit_fn visit, void *ctx)
+{
+    brix_sd_stat_t stx;
+
+    if (cs->store->driver->stat == NULL
+        || cs->store->driver->stat(cs->store, childkey, &stx) != NGX_OK)
+    {
+        return NGX_OK;                          /* unstattable: skip, keep going */
+    }
+    if (stx.is_dir) {
+        return cstore_scan_dir(cs, childkey, visit, ctx);
+    }
+    if (stx.is_reg) {
+        brix_cache_cinfo_t ci;
+        int loaded = (brix_cstore_cinfo_load(cs, childkey, &ci) == NGX_OK);
+
+        return visit(childkey, loaded ? &ci : NULL, &stx, ctx);
+    }
+    return NGX_OK;                              /* neither dir nor regular: skip */
+}
+
+/*
+ * WHAT:  Recursively visit cached objects beneath `dirkey` on the store.
+ * WHY:   Sole namespace-walk for scan/evict; every cached object under the root
+ *        must be presented to the visitor exactly once.
+ * HOW:   Opendir (a missing dir is not an error), then for each non-skipped
+ *        entry build its child key and dispatch it via cstore_scan_child; stop
+ *        early when the visitor or a subdir returns non-OK.
+ */
 static ngx_int_t
 cstore_scan_dir(brix_cstore_t *cs, const char *dirkey,
     brix_cstore_visit_fn visit, void *ctx)
@@ -423,38 +497,17 @@ cstore_scan_dir(brix_cstore_t *cs, const char *dirkey,
     }
 
     while (cs->store->driver->readdir(d, &de) == NGX_OK) {
-        char             childkey[PATH_MAX];
-        brix_sd_stat_t stx;
-        int              n;
+        char childkey[PATH_MAX];
 
-        if (de.name[0] == '\0' || strcmp(de.name, ".") == 0
-            || strcmp(de.name, "..") == 0 || cstore_is_sidecar(de.name))
+        if (cstore_scan_skip(de.name)) {
+            continue;
+        }
+        if (cstore_scan_child_key(dirkey, dklen, de.name, childkey,
+                                  sizeof(childkey)) != 0)
         {
             continue;
         }
-        n = snprintf(childkey, sizeof(childkey), "%s%s%s", dirkey,
-                     (dklen > 0 && dirkey[dklen - 1] == '/') ? "" : "/",
-                     de.name);
-        if (n <= 0 || (size_t) n >= sizeof(childkey)) {
-            continue;
-        }
-        if (cs->store->driver->stat == NULL
-            || cs->store->driver->stat(cs->store, childkey, &stx) != NGX_OK)
-        {
-            continue;
-        }
-        if (stx.is_dir) {
-            rc = cstore_scan_dir(cs, childkey, visit, ctx);
-        } else if (stx.is_reg) {
-            brix_cache_cinfo_t ci;
-            int loaded = (brix_cstore_cinfo_load(cs, childkey, &ci) == NGX_OK);
-
-            /* Visit every regular object — with its cinfo when present, NULL when
-             * not (orphan/partial) — and always the store stat, so an eviction
-             * policy sees the same set a raw driver scan would and can sort by the
-             * object's own size/mtime. */
-            rc = visit(childkey, loaded ? &ci : NULL, &stx, ctx);
-        }
+        rc = cstore_scan_child(cs, childkey, visit, ctx);
         if (rc != NGX_OK) {
             break;                              /* visitor / subdir stopped early */
         }

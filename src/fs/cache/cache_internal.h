@@ -50,6 +50,9 @@ ngx_int_t   brix_cache_state_path(const ngx_stream_brix_srv_conf_t *conf,
 #define BRIX_CACHE_LOCK_SUFFIX      ".ngx-xrootd-lock"
 #define BRIX_CACHE_EVICT_LOCK_NAME  ".ngx-xrootd-evict-lock"
 
+/* Parts-per-million full scale (100% occupancy); PPM watermark/threshold cap. */
+#define BRIX_CACHE_PPM_FULL_SCALE   1000000
+
 /*
  * brix_cache_origin_conn_t — TCP/TLS connection to the origin XRootD server
  * for the cache-fill path.
@@ -110,6 +113,17 @@ typedef struct {
      * Resolved on the MAIN thread in open_or_fill (race-free) and used by the fill
      * worker via source_inst->driver->open/pread. NULL ⇒ the legacy origin paths. */
     brix_sd_instance_t *source_inst;
+    /* Phase-1 per-user backend credential: when cred_x509_proxy is non-empty the
+     * origin bootstrap authenticates with THIS proxy instead of the conf's static
+     * service credential.  Phase-2 T2: when cred_bearer is non-empty the bootstrap
+     * authenticates via WLCG bearer (ztn) as the requesting user instead.  Only one
+     * of {cred_x509_proxy, cred_bearer} is ever non-empty for a given open — they
+     * are mutually exclusive, matching the brix_sd_ucred_t/brix_sd_cred_t contract.
+     * Embedded copies — a fill task can outlive the request whose identity selected
+     * the credential. */
+    char      cred_x509_proxy[1024];
+    char      cred_principal[512];
+    char      cred_bearer[4096];
 } brix_cache_fill_t;
 
 /*
@@ -218,6 +232,15 @@ int brix_cache_origin_connect(brix_cache_fill_t *t,
  * set) oc may hold a live fd/ssl — caller must brix_cache_origin_close it. */
 int brix_cache_origin_connect_addr(brix_cache_fill_t *t,
     brix_cache_origin_conn_t *oc, const ngx_str_t *host, uint16_t port);
+/* In-place blocking TLS handshake over the already-connected oc->fd, storing the
+ * negotiated SSL on oc->ssl (every later frame then rides TLS via io.c). Verifies
+ * the origin cert against conf->trusted_ca (CAfile or hashed CApath, chosen by
+ * stat) and binds `host` as the expected name + SNI. Used by the root:// bootstrap
+ * to satisfy a kXR_gotoTLS advert after the cleartext kXR_protocol exchange, and
+ * by any TLS-from-connect caller. Returns 0 (oc->ssl live), -1 (t error set;
+ * caller must brix_cache_origin_close oc). */
+int brix_cache_origin_tls_upgrade(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const ngx_str_t *host);
 
 /* Read one XRootD ServerResponseHdr plus its body. On success returns 0 and
  * sets *status, *dlen, and *body: *body is malloc'd (dlen+1, NUL-terminated)
@@ -253,15 +276,24 @@ int brix_cache_origin_auth_sss(brix_cache_fill_t *t,
  * (origin must be a data server). Returns 0 on success, -1 on error (t error set). */
 int brix_cache_origin_open(brix_cache_fill_t *t,
     brix_cache_origin_conn_t *oc, u_char fhandle[XRD_FHANDLE_LEN]);
+/* Caller-provided output buffers for an origin checksum query: the algorithm
+ * name and hex digest halves of the origin's "<algo> <hexvalue>" reply, each
+ * with its buffer capacity. Both buffers are emptied ("" ) before the query. */
+typedef struct {
+    char    *alg;      /* out: NUL-terminated algorithm name  */
+    size_t   alg_sz;   /* capacity of alg (bytes, incl. NUL)  */
+    char    *hex;      /* out: NUL-terminated hex digest      */
+    size_t   hex_sz;   /* capacity of hex (bytes, incl. NUL)  */
+} brix_cache_cksum_out_t;
+
 /* kXR_query/kXR_Qcksum on t->clean_path (path-based). Writes the origin's
- * advertised "<algo> <hexvalue>" digest into alg_out[alg_sz]/hex_out[hex_sz]
+ * advertised "<algo> <hexvalue>" digest into out->alg/out->hex
  * (both emptied when the origin has no checksum). BEST-EFFORT: any wire/parse
  * failure or kXR_error leaves the outputs empty, restores t's error triple, and
  * returns 0 — a checksum query must never fail an already-complete fill. Used by
  * checksum-on-fill verification (verify.c). */
 int brix_cache_origin_query_checksum(brix_cache_fill_t *t,
-    brix_cache_origin_conn_t *oc, char *alg_out, size_t alg_sz,
-    char *hex_out, size_t hex_sz);
+    brix_cache_origin_conn_t *oc, const brix_cache_cksum_out_t *out);
 /* Namespace/metadata ops on the origin (path-based; used by the sd_xroot driver
  * when a remote root:// is the export's PRIMARY backend). Each returns 0 / -1
  * with errno set (get/list return the byte count, or -1). */
@@ -282,6 +314,49 @@ int     brix_cache_origin_setfattr(brix_cache_fill_t *t,
             const void *val, size_t vlen);
 int     brix_cache_origin_delfattr(brix_cache_fill_t *t,
             brix_cache_origin_conn_t *oc, const char *path, const char *name);
+
+/*
+ * brix_cache_dirlist_t — heap-owned result of a kXR_dirlist fetch: a growable
+ * array of heap-allocated (malloc/strdup) NUL-terminated entry names.
+ *
+ * WHAT: `names` is a malloc'd array of `count` char* (each entry itself
+ *       malloc'd), with `cap` tracking the current array capacity for
+ *       amortised-doubling growth.
+ * WHY:  sd_xroot's opendir fetches the WHOLE listing once (fetch-all-then-
+ *       iterate, matching the rest of the origin-session ops in this file,
+ *       which never hold a session open across VFS calls) and readdir then
+ *       yields one name per call from this buffer; closedir frees it. A
+ *       plain array of owned strings (rather than one flat buffer + offsets)
+ *       keeps the free path trivial and bounds each name independently.
+ * HOW:  brix_cache_dirlist_init zeroes the struct; brix_cache_dirlist_add
+ *       appends one strdup'd name (growing the array as needed); the caller
+ *       (sd_xroot_ns.c) reads names[i] directly and calls
+ *       brix_cache_dirlist_free exactly once when done.
+ */
+typedef struct {
+    char   **names;   /* malloc'd array of malloc'd NUL-terminated names */
+    size_t   count;    /* number of valid entries in names[]               */
+    size_t   cap;      /* allocated capacity of the names[] array           */
+} brix_cache_dirlist_t;
+
+/* Zero-initialise a dirlist result. No allocation performed here. */
+void brix_cache_dirlist_init(brix_cache_dirlist_t *dl);
+/* Free every entry name plus the array itself; resets *dl to empty so a
+ * double-free is harmless (idempotent). NULL-safe. */
+void brix_cache_dirlist_free(brix_cache_dirlist_t *dl);
+
+/* brix_cache_origin_dirlist — kXR_dirlist <path> against the origin (plain
+ * name listing, no per-entry stat). Loops over kXR_oksofar continuation
+ * frames until the final kXR_ok, splitting each frame's NUL/newline-
+ * delimited body into individual names and appending each into *dl via
+ * brix_cache_dirlist_add. Skips "." and ".." if the origin includes them
+ * (VFS readdir contract never yields them). Returns 0 on success (dl
+ * populated, caller must brix_cache_dirlist_free it), or -1 with t's error
+ * fields + errno set (dl left however far it got — caller still owns it and
+ * must free it). */
+int brix_cache_origin_dirlist(brix_cache_fill_t *t,
+    brix_cache_origin_conn_t *oc, const char *path,
+    brix_cache_dirlist_t *dl);
 /* kXR_open (update|delete|mkpath) on the borrowed absolute origin path for
  * write-through: truncates the destination and creates missing parents. mode_bits
  * applies to a newly created file (0644 when 0). Fills fhandle (caller-provided).
@@ -294,13 +369,11 @@ int brix_cache_origin_open_write(brix_cache_fill_t *t,
  * fetched data is already on disk). No return value, no t error set. */
 void brix_cache_origin_close_file(brix_cache_origin_conn_t *oc,
     const u_char fhandle[XRD_FHANDLE_LEN]);
-/* kXR_read of up to `want` bytes at `offset`, streaming each kXR_ok/kXR_oksofar
- * payload straight to outfd via brix_cache_fd_write_all; loops until the final
- * kXR_ok. Sets *got to bytes written (may be < want at EOF; never > want — over-
- * reads are rejected as kXR_ServerError). Returns 0 on success, -1 on error
- * (t error set). */
-/* Reads `want` bytes from the origin at `read_off` and writes them into outfd at
- * `dst_off` (+ progress). The two offsets are decoupled: the whole-file fetch
+/* kXR_read of up to rng->want bytes at rng->read_off, streaming each
+ * kXR_ok/kXR_oksofar payload straight to the sink; loops until the final
+ * kXR_ok. Sets rng->got to bytes written (may be < want at EOF; never > want —
+ * over-reads are rejected as kXR_ServerError). Returns 0 on success, -1 on
+ * error (t error set). Read/write offsets are decoupled: the whole-file fetch
  * passes dst_off==read_off (absolute), while a slice fill reads at an absolute
  * origin offset but writes into a 0-relative per-slice file (dst_off==0-based). */
 /* A fill write target: a raw POSIX fd (POSIX cache) OR a driver staged-write
@@ -317,10 +390,19 @@ typedef struct {
 int brix_cache_sink_pwrite(brix_cache_sink_t *sink, const void *buf,
     size_t len, off_t off);
 
+/* One origin read request: origin READ offset, decoupled sink WRITE base
+ * (whole-file fetch: dst_off==read_off; slice fill: 0-relative dst_off),
+ * requested byte count, and the bytes-written result. */
+typedef struct {
+    uint64_t  read_off;  /* origin offset to read at                       */
+    uint64_t  dst_off;   /* sink write base (decoupled from read_off)      */
+    size_t    want;      /* bytes requested (may get fewer at EOF)         */
+    size_t    got;       /* out: bytes actually written to the sink        */
+} brix_cache_read_range_t;
+
 int brix_cache_origin_read_chunk(brix_cache_fill_t *t,
     brix_cache_origin_conn_t *oc, const u_char fhandle[XRD_FHANDLE_LEN],
-    brix_cache_sink_t *sink, uint64_t read_off, uint64_t dst_off,
-    size_t want, size_t *got);
+    brix_cache_sink_t *sink, brix_cache_read_range_t *rng);
 /* kXR_write of len bytes from data at offset (write-through). Requires a kXR_ok
  * reply with zero data length. len>INT32_MAX is rejected (kXR_ArgTooLong).
  * Returns 0 on success, -1 on error (t error set). */

@@ -71,7 +71,7 @@ attacker or a handshake burst can impose.
   `logged_in`, `sessid`.
 - **`ngx_stream_brix_srv_conf_t`** (`../types/config.h`) — server config
   holding the GSI trust material: `auth` (`BRIX_AUTH_GSI/TOKEN/SSS/UNIX/KRB5/BOTH/NONE`),
-  `gsi_cert`/`gsi_key`/`gsi_store`/`gsi_cert_pem`(+`_len`)/`gsi_ca_hash`,
+  `gsi_cert`/`gsi_key`/`gsi_store`/`gsi_cert_pem`(+`_len`)/`gsi_ca_hashes`,
   `trusted_ca`/`crl`/`certificate`/`certificate_key`, `vomsdir`/`voms_cert_dir`,
   `ocsp_enable`/`ocsp_soft_fail`, JWKS/issuer/audience and macaroon-secret fields,
   `token_cache_kv`, and `rate_limit`.

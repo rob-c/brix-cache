@@ -29,6 +29,11 @@
 
 #define BRIX_MIRROR_MAX_TARGETS  4   /* up to 4 shadow backends per context */
 
+/* Fallback shadow connect/send/read timeout (ms) when mirror.timeout_ms is
+ * unset — the shadow is fire-and-forget, so a short bound keeps a slow backend
+ * from tying up mirror resources. */
+#define BRIX_MIRROR_DEFAULT_TIMEOUT_MS  5000
+
 /* ---- HTTP/WebDAV method bitmask (brix_mirror_methods) ---- */
 #define BRIX_MIRROR_M_GET       (1u << 0)
 #define BRIX_MIRROR_M_HEAD      (1u << 1)

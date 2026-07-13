@@ -83,9 +83,24 @@ webdav_resolve_stat(ngx_http_request_t *r, char *path, size_t pathsz,
         vctx.identity = wctx->identity;
     }
 
+    /* Wire the per-user backend credential gate (Phase 2 Task 1).  The gate
+     * fires in brix_vfs_stat when storage_cred_dir is non-NULL and the backend
+     * driver supports cred-scoped namespace ops (stat_cred slot populated).  A
+     * denied stat returns EACCES which maps here to 403 — the probe MUST NOT
+     * reach the remote origin under the service credential when fallback=deny. */
+    brix_vfs_ctx_bind_backend_cred(&vctx,
+        &conf->common.storage_credential_dir,
+        conf->common.storage_credential_fallback);
+    webdav_vfs_bind_deleg(r, conf, &vctx);
+
     if (brix_vfs_stat(&vctx, &vst) != NGX_OK) {
-        return (errno == ENOENT) ? NGX_HTTP_NOT_FOUND
-                                 : NGX_HTTP_INTERNAL_SERVER_ERROR;
+        if (errno == ENOENT) {
+            return NGX_HTTP_NOT_FOUND;
+        }
+        if (errno == EACCES) {
+            return NGX_HTTP_FORBIDDEN;
+        }
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
     ngx_memzero(sb, sizeof(*sb));

@@ -48,24 +48,25 @@ imp_capset_setuid_setgid(int with_effective, ngx_log_t *log)
 
 
 /*
- * Drop the broker's real uid/gid to the configured non-root service account while
- * retaining only CAP_SETUID/CAP_SETGID.  Must be called while still root and AFTER
- * the bounding set + permitted caps have been reduced to the two we keep.  Uses
- * PR_SET_KEEPCAPS so the permitted set survives the uid transition, then re-raises
- * the effective set.  No-op (returns 0) when no broker user is configured or we
- * are not root.  Returns -1 on a hard failure (fail closed).
+ * WHAT:  Resolve the configured service uid/gid and decide whether a drop applies.
+ * WHY:   Isolates the "should we drop, and to which ids" policy from the syscall
+ *        sequence, so the ordering-critical transition code stays small and the
+ *        fail-closed / no-op decisions are validated exactly once, up front.
+ * HOW:   Reads the module-global broker uid/gid.  Returns 1 (proceed) with *svc_uid
+ *        and *svc_gid populated (gid defaulting to uid when unset); returns 0 for a
+ *        no-op (no drop requested, or not root); returns -1 on a fatal policy error
+ *        (service account resolves to root).  Emits the diagnostic on the -1 path.
  */
-int
-imp_drop_to_service_user(ngx_log_t *log)
+static int
+imp_resolve_service_ids(ngx_log_t *log, uid_t *svc_uid, gid_t *svc_gid)
 {
-    uid_t svc_uid = brix_imp_broker_user_uid;
-    gid_t svc_gid = brix_imp_broker_user_gid;
-    gid_t one[1];
+    uid_t uid = brix_imp_broker_user_uid;
+    gid_t gid = brix_imp_broker_user_gid;
 
-    if (svc_uid == (uid_t) -1 || getuid() != 0) {
+    if (uid == (uid_t) -1 || getuid() != 0) {
         return 0;                        /* no drop requested, or not root */
     }
-    if (svc_uid == 0) {
+    if (uid == 0) {
         if (log) BRIX_DIAG_EMERG(log, 0,
             "impersonate broker: service user resolves to root (uid 0)",
             "the broker must run as an unprivileged account so it cannot be "
@@ -74,9 +75,29 @@ imp_drop_to_service_user(ngx_log_t *log)
             "account");
         return -1;
     }
-    if (svc_gid == (gid_t) -1) {
-        svc_gid = (gid_t) svc_uid;
+    if (gid == (gid_t) -1) {
+        gid = (gid_t) uid;
     }
+    *svc_uid = uid;
+    *svc_gid = gid;
+    return 1;
+}
+
+
+/*
+ * WHAT:  Perform the actual real/effective/saved uid+gid drop to the service id.
+ * WHY:   Concentrates the ORDERING-CRITICAL, SECURITY-SENSITIVE credential syscalls
+ *        (setgroups -> setresgid -> setresuid, guarded by PR_SET_KEEPCAPS) in one
+ *        place so the sequence and every errno check remain byte-identical.
+ * HOW:   Sets PR_SET_KEEPCAPS so the permitted caps survive the uid transition,
+ *        then applies setgroups(svc_gid), setresgid, setresuid in that exact order
+ *        (any failure is fatal -> -1), clears KEEPCAPS, and re-raises the two kept
+ *        effective caps.  Returns 0 on success, -1 on any hard failure.
+ */
+static int
+imp_apply_service_drop(ngx_log_t *log, uid_t svc_uid, gid_t svc_gid)
+{
+    gid_t one[1];
 
     if (prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0) != 0) {
         if (log) ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
@@ -104,28 +125,73 @@ imp_drop_to_service_user(ngx_log_t *log)
     if (imp_capset_setuid_setgid(1, log) != 0) {
         return -1;
     }
-    /*
-     * Verify the real, effective AND saved uids/gids all became the service id, so
-     * setresuid cannot be undone by a plain setuid()/setgid().  NOTE: we do NOT
-     * probe "can't regain root" — the broker MUST keep CAP_SETUID for setfsuid, and
-     * CAP_SETUID inherently lets a process setuid(0).  So the non-root base reduces
-     * incidental-root exposure (idle state, NSS, path bugs run as the service uid)
-     * but does NOT contain a code-execution exploit, which is root-equivalent via
-     * CAP_SETUID regardless of the base uid.  This is documented.
-     */
+    return 0;
+}
+
+
+/*
+ * WHAT:  Verify the real/effective/saved uid AND gid all equal the service id.
+ * WHY:   A drop that only altered some of r/e/s would leave a path to regain the
+ *        prior identity via a plain setuid()/setgid(); reading all three back
+ *        proves setresuid/setresgid actually stuck before we trust the base id.
+ * HOW:   Calls getresuid/getresgid and compares each of the six values to the
+ *        service uid/gid.  Returns 0 when all match, -1 (with diagnostic) otherwise.
+ *
+ * NOTE: we do NOT probe "can't regain root" — the broker MUST keep CAP_SETUID for
+ * setfsuid, and CAP_SETUID inherently lets a process setuid(0).  So the non-root
+ * base reduces incidental-root exposure (idle state, NSS, path bugs run as the
+ * service uid) but does NOT contain a code-execution exploit, which is
+ * root-equivalent via CAP_SETUID regardless of the base uid.  This is documented.
+ */
+static int
+imp_verify_service_drop(ngx_log_t *log, uid_t svc_uid, gid_t svc_gid)
+{
+    uid_t ru, eu, su;
+    gid_t rg, eg, sg;
+
+    if (getresuid(&ru, &eu, &su) != 0 || getresgid(&rg, &eg, &sg) != 0
+        || ru != svc_uid || eu != svc_uid || su != svc_uid
+        || rg != svc_gid || eg != svc_gid || sg != svc_gid)
     {
-        uid_t ru, eu, su;
-        gid_t rg, eg, sg;
-        if (getresuid(&ru, &eu, &su) != 0 || getresgid(&rg, &eg, &sg) != 0
-            || ru != svc_uid || eu != svc_uid || su != svc_uid
-            || rg != svc_gid || eg != svc_gid || sg != svc_gid)
-        {
-            if (log) ngx_log_error(NGX_LOG_EMERG, log, 0,
-                                   "impersonate broker: service-uid drop did not "
-                                   "stick (r/e/s mismatch)");
-            return -1;
-        }
+        if (log) ngx_log_error(NGX_LOG_EMERG, log, 0,
+                               "impersonate broker: service-uid drop did not "
+                               "stick (r/e/s mismatch)");
+        return -1;
     }
+    return 0;
+}
+
+
+/*
+ * Drop the broker's real uid/gid to the configured non-root service account while
+ * retaining only CAP_SETUID/CAP_SETGID.  Must be called while still root and AFTER
+ * the bounding set + permitted caps have been reduced to the two we keep.  Uses
+ * PR_SET_KEEPCAPS so the permitted set survives the uid transition, then re-raises
+ * the effective set.  No-op (returns 0) when no broker user is configured or we
+ * are not root.  Returns -1 on a hard failure (fail closed).
+ *
+ * Stages (order is security-critical, unchanged): resolve+validate the service id,
+ * apply the setgroups->setresgid->setresuid drop, then read-back verify it stuck.
+ */
+int
+imp_drop_to_service_user(ngx_log_t *log)
+{
+    uid_t svc_uid = (uid_t) -1;
+    gid_t svc_gid = (gid_t) -1;
+    int   decision;
+
+    decision = imp_resolve_service_ids(log, &svc_uid, &svc_gid);
+    if (decision <= 0) {
+        return decision;                 /* 0 = no-op, -1 = fatal policy error */
+    }
+
+    if (imp_apply_service_drop(log, svc_uid, svc_gid) != 0) {
+        return -1;
+    }
+    if (imp_verify_service_drop(log, svc_uid, svc_gid) != 0) {
+        return -1;
+    }
+
     if (log) ngx_log_error(NGX_LOG_NOTICE, log, 0,
                            "impersonate broker: running as non-root service uid %d "
                            "with only CAP_SETUID+CAP_SETGID", (int) svc_uid);
@@ -238,8 +304,12 @@ imp_become(const brix_idmap_creds_t *cr)
     /* Re-verify the realized fs-credentials are non-reserved before any file op. */
     got_uid = (uid_t) setfsuid((uid_t) -1);
     got_gid = (gid_t) setfsgid((gid_t) -1);
-    if (got_uid == 0 || got_uid < (uid_t) BRIX_IMP_HARD_MIN_ID
-        || got_gid == 0 || got_gid < (gid_t) BRIX_IMP_HARD_MIN_ID)
+    /* phase74-fp: the "== 0" clauses are subsumed by "< BRIX_IMP_HARD_MIN_ID"
+     * only while the floor stays above 0 — root exclusion is an independent
+     * invariant that must survive any future lowering of the floor, so the
+     * explicit checks are intentional defense-in-depth, not redundancy. */
+    if (got_uid == 0 || got_uid < (uid_t) BRIX_IMP_HARD_MIN_ID     /* NOLINT(misc-redundant-expression) */
+        || got_gid == 0 || got_gid < (gid_t) BRIX_IMP_HARD_MIN_ID) /* NOLINT(misc-redundant-expression) */
     {
         return IMP_REFUSE_PRIV;          /* realized fsuid/fsgid is reserved */
     }

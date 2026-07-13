@@ -293,8 +293,8 @@ copy_zip_store_local(const char *member, int srcfd, const brix_url *du,
     }
     sink.fd = dfd;
     sink.off = base;
-    w = seed ? brix_zip_writer_new_append(zipw_local_write, &sink, base,
-                                          seed, seed_len, seed_n)
+    brix_zip_seed zs = { seed, seed_len, seed_n };
+    w = seed ? brix_zip_writer_new_append(zipw_local_write, &sink, base, &zs)
              : brix_zip_writer_new(zipw_local_write, &sink);
     rc = zip_emit_member(w, member, srcfd, st);
     brix_zip_writer_free(w);
@@ -347,8 +347,8 @@ copy_zip_store_remote(const char *member, int srcfd, const brix_url *du,
     sink.f = &f;
     sink.off = base;
     sink.st = st;
-    w = seed ? brix_zip_writer_new_append(zipw_remote_write, &sink, base,
-                                          seed, seed_len, seed_n)
+    brix_zip_seed zs = { seed, seed_len, seed_n };
+    w = seed ? brix_zip_writer_new_append(zipw_remote_write, &sink, base, &zs)
              : brix_zip_writer_new(zipw_remote_write, &sink);
     rc = zip_emit_member(w, member, srcfd, st);
     brix_zip_writer_free(w);

@@ -34,6 +34,11 @@ jobs:
       - name: file-size ratchet (500-line soft cap)
         if: '!cancelled()'
         run: tools/ci/check_file_size.sh
+      - name: complexity ratchet (CCN 15 cap)
+        if: '!cancelled()'
+        run: |
+          pip install --quiet lizard
+          tools/ci/check_complexity.sh
       - name: doc path drift — CLAUDE.md/README/index reference real paths
         if: '!cancelled()'
         run: tools/ci/check_doc_paths.sh

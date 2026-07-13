@@ -54,9 +54,27 @@ sd_remote_s3_params(const brix_sd_remote_cfg_t *cfg, const char *objpath,
     p->timeout_ms = cfg->timeout_ms;
 }
 
+/* ---- sd_remote_open_impl (shared by the plain and cred-scoped open slots) --
+ *
+ * WHAT: Opens `path` for read against the S3 origin, using `ak`/`sk`/`region`
+ *       as the SigV4 credential instead of the instance's static
+ *       cfg->access_key/secret_key/region when they are non-NULL.
+ *
+ * WHY:  Phase-3 T3 per-user S3 credentials: a request whose identity resolves
+ *       to a `<key>.s3` file must sign against the ORIGIN with that user's
+ *       keys, not the export's shared service credential.  Sharing one open
+ *       body between sd_remote_open and sd_remote_open_cred keeps the object-
+ *       construction logic (size HEAD, obj/state alloc, snap fill) written
+ *       exactly once.
+ *
+ * HOW:  Builds the object path, then an sd_s3_open_params using the override
+ *       ak/sk/region when given (falling back to the instance's static
+ *       triple field-by-field when a pointer is NULL — region alone can be
+ *       overridden without ak/sk, though callers always pass all three or
+ *       none), and proceeds identically to the prior sd_remote_open body. */
 static brix_sd_obj_t *
-sd_remote_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
-    mode_t mode, int *err_out)
+sd_remote_open_impl(brix_sd_instance_t *inst, const char *path, int sd_flags,
+    const char *ak, const char *sk, const char *region, int *err_out)
 {
     const brix_sd_remote_cfg_t *cfg = inst->state;
     sd_s3_open_params             p;
@@ -67,8 +85,6 @@ sd_remote_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
     brix_sd_obj_t              *obj;
     int64_t                       size = 0;
 
-    (void) mode;
-
     /* Read-only origin: refuse any write/create/trunc intent up front. */
     if (sd_flags & (BRIX_SD_O_WRITE | BRIX_SD_O_CREATE | BRIX_SD_O_TRUNC
                     | BRIX_SD_O_APPEND)) {
@@ -78,6 +94,9 @@ sd_remote_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
 
     sd_remote_s3_key(cfg, path, objpath, sizeof(objpath));
     sd_remote_s3_params(cfg, objpath, &p);
+    if (ak != NULL)     { p.ak     = ak; }
+    if (sk != NULL)     { p.sk     = sk; }
+    if (region != NULL) { p.region = region; }
 
     s3 = sd_s3_open_read(&p, errbuf, sizeof(errbuf));
     if (s3 == NULL) {
@@ -113,6 +132,61 @@ sd_remote_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
     obj->snap.is_reg   = 1;
 
     return obj;
+}
+
+static brix_sd_obj_t *
+sd_remote_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
+    mode_t mode, int *err_out)
+{
+    (void) mode;
+    return sd_remote_open_impl(inst, path, sd_flags, NULL, NULL, NULL,
+                               err_out);
+}
+
+/* ---- sd_remote_open_cred — per-user SigV4 credential override (phase-3 T3) -
+ *
+ * WHAT: Like sd_remote_open, but when cred->s3_ak (and s3_sk) are set, signs
+ *       the request with the caller's per-user access key / secret key /
+ *       region instead of the instance's static service credential.
+ *
+ * WHY:  brix_sd_open_maybe_cred (sd.h) routes through this slot whenever the
+ *       VFS credential gate (vfs_cred.c) resolved a `<key>.s3` file for the
+ *       requesting identity — the origin must see THAT user's SigV4
+ *       signature, not the export's shared key.
+ *
+ * HOW:  A NULL cred, or a cred with s3_ak/s3_sk unset (a non-S3 credential
+ *       kind — x509 or bearer — was selected instead, which this backend
+ *       cannot use), falls back to the static instance credential via
+ *       sd_remote_open_impl(..., NULL, NULL, NULL, ...) — identical to the
+ *       plain open. EXCEPT when the operator set fallback_deny: an x509/
+ *       bearer-kind cred (missing ak or sk) reaching an S3-only backend under
+ *       deny mode must be refused rather than silently signed with the
+ *       export's shared service credential — that is exactly the fallback
+ *       the operator forbade. */
+static brix_sd_obj_t *
+sd_remote_open_cred(brix_sd_instance_t *inst, const char *path, int sd_flags,
+    mode_t mode, const brix_sd_cred_t *cred, int *err_out)
+{
+    (void) mode;
+
+    if (cred != NULL && cred->s3_ak != NULL && cred->s3_sk != NULL) {
+        return sd_remote_open_impl(inst, path, sd_flags,
+            cred->s3_ak, cred->s3_sk, cred->s3_region, err_out);
+    }
+
+    /* fallback_deny: cred kind unusable by this driver — refuse, don't fall
+     * back to service cred */
+    if (cred != NULL && cred->fallback_deny
+        && (cred->s3_ak == NULL || cred->s3_ak[0] == '\0'
+            || cred->s3_sk == NULL || cred->s3_sk[0] == '\0'))
+    {
+        if (err_out) { *err_out = EACCES; }
+        errno = EACCES;
+        return NULL;
+    }
+
+    return sd_remote_open_impl(inst, path, sd_flags, NULL, NULL, NULL,
+                               err_out);
 }
 
 static ngx_int_t
@@ -295,7 +369,10 @@ sd_remote_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
  * DELETE for eviction and post-flush stage cleanup). */
 static const brix_sd_driver_t brix_sd_remote_driver = {
     .name  = "remote",
-    .caps  = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_RANDOM_WRITE,
+    /* phase-71: read-only S3 primary — no .pwrite slot (writes are staged
+     * whole-object PUTs via .staged_*), so CAP_RANDOM_WRITE is NOT advertised. */
+    .caps  = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_MEMFILE,
+    .cred_accept = BRIX_SD_CRED_BEARER | BRIX_SD_CRED_PROXY_PEM,
     .open  = sd_remote_open,
     .close = sd_remote_close,
     .pread = sd_remote_pread,
@@ -306,6 +383,7 @@ static const brix_sd_driver_t brix_sd_remote_driver = {
     .staged_write  = sd_remote_staged_write,
     .staged_commit = sd_remote_staged_commit,
     .staged_abort  = sd_remote_staged_abort,
+    .open_cred     = sd_remote_open_cred,   /* phase-3 T3: per-user SigV4 */
 };
 
 brix_sd_instance_t *

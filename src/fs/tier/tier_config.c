@@ -52,7 +52,8 @@ tier_fail(ngx_conf_t *cf, int log_emerg, char *err, size_t errcap,
     char    buf[256];
 
     va_start(ap, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, ap);
+    /* phase72-fp: truncation of an operator-error message is acceptable */
+    (void) vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
 
     if (err != NULL && errcap > 0) {
@@ -101,21 +102,142 @@ tier_sp_for(const char *driver, brix_tier_role_t role)
     return "SP3";   /* writable http/s3 + rados stores */
 }
 
-/* Parse a remote "//host[:port][/path]" authority (IPv6-bracket aware) into out. */
+/* The parse context brix_tier_parse_t (config handle + cfg being built +
+ * caller's error buffer) lives in tier.h — promoted from a file-local in
+ * phase-73 so the extern brix_tier_parse_store takes the ONE context the
+ * static helpers already thread. Filled by the caller, threaded down. */
+
+/* Parse a port digit run into *portnum. WHY: the [v6]:port and host:port
+ * branches share the exact same validation and operator error. HOW: ngx_atoi
+ * + the 1..65535 range check; tier_fail on anything else. */
 static ngx_int_t
-tier_parse_authority(ngx_conf_t *cf, u_char *loc, size_t loclen,
-    brix_tier_cfg_t *out, char *err, size_t errcap)
+tier_parse_port(brix_tier_parse_t *p, u_char *digits, size_t len, ngx_int_t *portnum)
+{
+    *portnum = ngx_atoi(digits, len);
+    if (*portnum == NGX_ERROR || *portnum <= 0 || *portnum > 65535) {
+        return tier_fail(p->cf, 1, p->err, p->errcap, "invalid store port");
+    }
+    return NGX_OK;
+}
+
+/* Parse a bracketed "[v6][:port]" authority into out->host/out->port.
+ * WHY: IPv6 literals embed ':', so the bracket form gets its own scanner.
+ * HOW: find ']', take the bracket interior as the host, parse an optional
+ * ":port" suffix after the bracket. */
+static ngx_int_t
+tier_parse_host_v6(brix_tier_parse_t *p, u_char *authority, size_t authlen)
+{
+    brix_tier_cfg_t *out = p->out;
+    u_char          *rb = NULL;
+    size_t           i;
+    size_t           hostlen;
+    ngx_int_t        portnum = 0;
+
+    for (i = 1; i < authlen; i++) {
+        if (authority[i] == ']') { rb = authority + i; break; }
+    }
+    if (rb == NULL) {
+        return tier_fail(p->cf, 1, p->err, p->errcap,
+            "unbalanced \"[\" in store host");
+    }
+    hostlen = (size_t) (rb - (authority + 1));
+    if (rb + 1 < authority + authlen && rb[1] == ':') {
+        if (tier_parse_port(p, rb + 2,
+                (size_t) (authority + authlen - (rb + 2)), &portnum) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+    }
+    if (hostlen == 0 || hostlen >= sizeof(out->host)) {
+        return tier_fail(p->cf, 1, p->err, p->errcap, "invalid store host");
+    }
+    ngx_memcpy(out->host, authority + 1, hostlen);
+    out->host[hostlen] = '\0';
+    out->port = (portnum > 0) ? (int) portnum : 0;
+    return NGX_OK;
+}
+
+/* Parse a plain "host[:port]" authority into out->host/out->port.
+ * WHY: the non-bracket form splits on the LAST ':' (matching the historical
+ * scan direction); a trailing "host:" with no digits is accepted as port-less.
+ * HOW: scan for the last colon, validate the port when digits follow it. */
+static ngx_int_t
+tier_parse_host_plain(brix_tier_parse_t *p, u_char *authority, size_t authlen)
+{
+    brix_tier_cfg_t *out = p->out;
+    u_char          *colon = NULL;
+    size_t           i;
+    size_t           hostlen;
+    ngx_int_t        portnum = 0;
+
+    for (i = authlen; i > 0; i--) {
+        if (authority[i - 1] == ':') { colon = authority + i - 1; break; }
+    }
+    if (colon != NULL && colon + 1 < authority + authlen) {
+        hostlen = (size_t) (colon - authority);
+        if (tier_parse_port(p, colon + 1,
+                (size_t) (authority + authlen - (colon + 1)), &portnum) != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+    } else if (colon != NULL) {
+        hostlen = (size_t) (colon - authority);   /* "host:" trailing colon, no port */
+    } else {
+        hostlen = authlen;
+    }
+    if (hostlen == 0 || hostlen >= sizeof(out->host)) {
+        return tier_fail(p->cf, 1, p->err, p->errcap, "invalid store host");
+    }
+    ngx_memcpy(out->host, authority, hostlen);
+    out->host[hostlen] = '\0';
+    out->port = (portnum > 0) ? (int) portnum : 0;
+    return NGX_OK;
+}
+
+/* Copy the remainder after the authority into out->path.
+ * WHY: "host://path" and "host//path" delimiter styles must land on ONE
+ * canonical absolute path. HOW: collapse a leading "//" to one '/', bound the
+ * length against out->path, copy + NUL-terminate. */
+static ngx_int_t
+tier_copy_remote_path(brix_tier_parse_t *p, u_char *path, size_t pathlen)
+{
+    brix_tier_cfg_t *out = p->out;
+
+    /* Collapse a leading "//" (the "host://path" form) to one '/' so the path is a
+     * single canonical absolute path regardless of host/path delimiter style. */
+    while (pathlen >= 2 && path[0] == '/' && path[1] == '/') {
+        path++;
+        pathlen--;
+    }
+
+    if (pathlen >= sizeof(out->path)) {
+        return tier_fail(p->cf, 1, p->err, p->errcap, "store path too long");
+    }
+    if (pathlen > 0) {
+        ngx_memcpy(out->path, path, pathlen);
+        out->path[pathlen] = '\0';
+    }
+    return NGX_OK;
+}
+
+/* Parse a remote "//host[:port][/path]" authority (IPv6-bracket aware) into
+ * p->out. WHY: the remote grammar has three independent pieces — the "//"
+ * marker, the host[:port] (bracketed or plain) and the trailing path — each
+ * with its own operator errors. HOW: split the authority at the first '/',
+ * dispatch on the '[' bracket form, then copy the path remainder. */
+static ngx_int_t
+tier_parse_authority(brix_tier_parse_t *p, u_char *loc, size_t loclen)
 {
     u_char    *authority;
     u_char    *path;
     size_t     authlen;
-    size_t     hostlen;
     size_t     pathlen;
     size_t     i;
-    ngx_int_t  portnum = 0;
+    ngx_int_t  rc;
 
     if (loclen < 2 || loc[0] != '/' || loc[1] != '/') {
-        return tier_fail(cf, 1, err, errcap, "remote store needs \"//host\"");
+        return tier_fail(p->cf, 1, p->err, p->errcap,
+            "remote store needs \"//host\"");
     }
     authority = loc + 2;
     authlen   = loclen - 2;
@@ -129,66 +251,14 @@ tier_parse_authority(ngx_conf_t *cf, u_char *loc, size_t loclen,
     pathlen = (size_t) ((loc + loclen) - path);
 
     if (authlen > 0 && authority[0] == '[') {           /* [v6]:port */
-        u_char *rb = NULL;
-
-        for (i = 1; i < authlen; i++) {
-            if (authority[i] == ']') { rb = authority + i; break; }
-        }
-        if (rb == NULL) {
-            return tier_fail(cf, 1, err, errcap, "unbalanced \"[\" in store host");
-        }
-        hostlen = (size_t) (rb - (authority + 1));
-        if (rb + 1 < authority + authlen && rb[1] == ':') {
-            portnum = ngx_atoi(rb + 2, (size_t) (authority + authlen - (rb + 2)));
-            if (portnum == NGX_ERROR || portnum <= 0 || portnum > 65535) {
-                return tier_fail(cf, 1, err, errcap, "invalid store port");
-            }
-        }
-        if (hostlen == 0 || hostlen >= sizeof(out->host)) {
-            return tier_fail(cf, 1, err, errcap, "invalid store host");
-        }
-        ngx_memcpy(out->host, authority + 1, hostlen);
+        rc = tier_parse_host_v6(p, authority, authlen);
     } else {                                            /* host[:port] */
-        u_char *colon = NULL;
-
-        for (i = authlen; i > 0; i--) {
-            if (authority[i - 1] == ':') { colon = authority + i - 1; break; }
-        }
-        if (colon != NULL && colon + 1 < authority + authlen) {
-            hostlen = (size_t) (colon - authority);
-            portnum = ngx_atoi(colon + 1,
-                               (size_t) (authority + authlen - (colon + 1)));
-            if (portnum == NGX_ERROR || portnum <= 0 || portnum > 65535) {
-                return tier_fail(cf, 1, err, errcap, "invalid store port");
-            }
-        } else if (colon != NULL) {
-            hostlen = (size_t) (colon - authority);   /* "host:" trailing colon, no port */
-        } else {
-            hostlen = authlen;
-        }
-        if (hostlen == 0 || hostlen >= sizeof(out->host)) {
-            return tier_fail(cf, 1, err, errcap, "invalid store host");
-        }
-        ngx_memcpy(out->host, authority, hostlen);
+        rc = tier_parse_host_plain(p, authority, authlen);
     }
-    out->host[(hostlen < sizeof(out->host)) ? hostlen : sizeof(out->host) - 1] = '\0';
-    out->port = (portnum > 0) ? (int) portnum : 0;
-
-    /* Collapse a leading "//" (the "host://path" form) to one '/' so the path is a
-     * single canonical absolute path regardless of host/path delimiter style. */
-    while (pathlen >= 2 && path[0] == '/' && path[1] == '/') {
-        path++;
-        pathlen--;
+    if (rc != NGX_OK) {
+        return NGX_ERROR;
     }
-
-    if (pathlen >= sizeof(out->path)) {
-        return tier_fail(cf, 1, err, errcap, "store path too long");
-    }
-    if (pathlen > 0) {
-        ngx_memcpy(out->path, path, pathlen);
-        out->path[pathlen] = '\0';
-    }
-    return NGX_OK;
+    return tier_copy_remote_path(p, path, pathlen);
 }
 
 /* Parse the trailing "credential=<n>" / "block_size=<n>" params. */
@@ -246,37 +316,31 @@ tier_parse_args(ngx_conf_t *cf, ngx_array_t *args, brix_tier_cfg_t *out,
     return NGX_OK;
 }
 
-/* ---- public: parse a store URL -------------------------------------------- */
-
-ngx_int_t
-brix_tier_parse_store(ngx_conf_t *cf, ngx_str_t *url, ngx_array_t *args,
-    brix_tier_role_t role, brix_tier_cfg_t *out, char *err, size_t errcap)
+/* Split "<scheme>:<location>" and resolve the scheme via tier_schemes.
+ * WHY: the scheme is the ONLY driver selector; an unknown scheme is an
+ * operator error (Appendix F). HOW: find the first ':', match the prefix
+ * against the generated table, stamp driver/tls/nearline into p->out and
+ * return the location remainder through loc/loclen. */
+static ngx_int_t
+tier_split_scheme(brix_tier_parse_t *p, ngx_str_t *url, u_char **loc, size_t *loclen)
 {
-    const char *driver = NULL;
-    u_char     *loc;
-    size_t      schemelen;
-    size_t      loclen;
-    size_t      i;
-    int         tls = 0;
-    int         nearline = 0;
-    int         is_local;
-
-    if (out == NULL || url == NULL || url->len == 0) {
-        return tier_fail(cf, 1, err, errcap, "empty store url");
-    }
-    ngx_memzero(out, sizeof(*out));
-    out->role = role;
+    brix_tier_cfg_t *out = p->out;
+    const char      *driver = NULL;
+    size_t           schemelen;
+    size_t           i;
+    int              tls = 0;
+    int              nearline = 0;
 
     for (i = 0; i < url->len; i++) {
         if (url->data[i] == ':') { break; }
     }
     if (i == 0 || i >= url->len) {
-        return tier_fail(cf, 1, err, errcap,
+        return tier_fail(p->cf, 1, p->err, p->errcap,
             "store url \"%.*s\" has no scheme", (int) url->len, url->data);
     }
     schemelen = i;
-    loc       = url->data + i + 1;
-    loclen    = url->len - i - 1;
+    *loc      = url->data + i + 1;
+    *loclen   = url->len - i - 1;
 
     for (i = 0; i < sizeof(tier_schemes) / sizeof(tier_schemes[0]); i++) {
         if (ngx_strlen(tier_schemes[i].scheme) == schemelen
@@ -289,57 +353,111 @@ brix_tier_parse_store(ngx_conf_t *cf, ngx_str_t *url, ngx_array_t *args,
         }
     }
     if (driver == NULL) {
-        return tier_fail(cf, 1, err, errcap,
+        return tier_fail(p->cf, 1, p->err, p->errcap,
             "unknown driver scheme \"%.*s\"", (int) schemelen, url->data);
     }
     ngx_cpystrn((u_char *) out->driver, (u_char *) driver, sizeof(out->driver));
     out->tls      = tls;
     out->nearline = (unsigned) nearline;
+    return NGX_OK;
+}
 
-    is_local = (ngx_strcmp(driver, "posix") == 0
-                || ngx_strcmp(driver, "pblock") == 0);
+/* Resolve a LOCAL (posix/pblock) store location into a confined canonical
+ * path. WHY: local stores must go through brix_prepare_export_root so the
+ * store dir is validated/created exactly like an export root. HOW: wrap the
+ * location in an ngx_str_t, build the per-role opts, canonicalize into
+ * p->out->path. */
+static ngx_int_t
+tier_parse_local(brix_tier_parse_t *p, u_char *loc, size_t loclen)
+{
+    brix_tier_cfg_t         *out = p->out;
+    brix_export_root_opts_t  opts;
+    ngx_str_t                loc_str;
+    char                     canon[PATH_MAX];
 
-    if (is_local) {
-        brix_export_root_opts_t opts;
-        ngx_str_t                 loc_str;
-        char                      canon[PATH_MAX];
+    loc_str.len  = loclen;
+    loc_str.data = loc;
+    ngx_memzero(&opts, sizeof(opts));
+    opts.directive_name = tier_role_directive(out->role);
+    opts.allow_write    = (out->role != BRIX_TIER_BACKEND) ? 1 : 0;
+    opts.required       = 1;
+    opts.canon_size     = sizeof(canon);
 
-        loc_str.len  = loclen;
-        loc_str.data = loc;
-        ngx_memzero(&opts, sizeof(opts));
-        opts.directive_name = tier_role_directive(role);
-        opts.allow_write    = (role != BRIX_TIER_BACKEND) ? 1 : 0;
-        opts.required       = 1;
-        opts.canon_size     = sizeof(canon);
+    if (brix_prepare_export_root(p->cf, &loc_str, &opts, canon) != NGX_CONF_OK) {
+        /* prepare_export_root already emitted an [emerg]. */
+        return tier_fail(p->cf, 0, p->err, p->errcap,
+            "invalid local store path for %s", opts.directive_name);
+    }
+    if (ngx_strlen(canon) >= sizeof(out->path)) {
+        return tier_fail(p->cf, 1, p->err, p->errcap,
+            "local store path too long");
+    }
+    ngx_cpystrn((u_char *) out->path, (u_char *) canon, sizeof(out->path));
+    return NGX_OK;
+}
 
-        if (brix_prepare_export_root(cf, &loc_str, &opts, canon) != NGX_CONF_OK) {
-            /* prepare_export_root already emitted an [emerg]. */
-            return tier_fail(cf, 0, err, errcap,
-                "invalid local store path for %s", opts.directive_name);
-        }
-        if (ngx_strlen(canon) >= sizeof(out->path)) {
-            return tier_fail(cf, 1, err, errcap, "local store path too long");
-        }
-        ngx_cpystrn((u_char *) out->path, (u_char *) canon, sizeof(out->path));
-    } else {
-        if (tier_parse_authority(cf, loc, loclen, out, err, errcap) != NGX_OK) {
-            return NGX_ERROR;
-        }
-        if (out->port == 0) {
-            out->port = tier_default_port(driver, tls);
-        }
-        if (out->port == 0
-            && (ngx_strcmp(driver, "xroot") == 0
-                || ngx_strcmp(driver, "http") == 0
-                || ngx_strcmp(driver, "s3") == 0))
-        {
-            return tier_fail(cf, 1, err, errcap,
-                "remote store \"%.*s\" is missing a port", (int) url->len,
-                url->data);
-        }
+/* Resolve a REMOTE store location: authority parse + port defaulting.
+ * WHY: TCP-carrying schemes (xroot/http/s3) MUST end up with a port — either
+ * explicit or the scheme default; port-less schemes (rados pools, tape MSS)
+ * legitimately stay at 0. HOW: parse the //host[:port][/path] authority,
+ * apply tier_default_port, then reject a still-missing port for the TCP
+ * drivers (url kept only for the operator error text). */
+static ngx_int_t
+tier_parse_remote(brix_tier_parse_t *p, ngx_str_t *url, u_char *loc, size_t loclen)
+{
+    brix_tier_cfg_t *out = p->out;
+
+    if (tier_parse_authority(p, loc, loclen) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (out->port == 0) {
+        out->port = tier_default_port(out->driver, out->tls);
+    }
+    if (out->port == 0
+        && (ngx_strcmp(out->driver, "xroot") == 0
+            || ngx_strcmp(out->driver, "http") == 0
+            || ngx_strcmp(out->driver, "s3") == 0))
+    {
+        return tier_fail(p->cf, 1, p->err, p->errcap,
+            "remote store \"%.*s\" is missing a port", (int) url->len,
+            url->data);
+    }
+    return NGX_OK;
+}
+
+/* ---- public: parse a store URL -------------------------------------------- */
+
+ngx_int_t
+brix_tier_parse_store(brix_tier_parse_t *p, ngx_str_t *url, ngx_array_t *args,
+    brix_tier_role_t role)
+{
+    brix_tier_cfg_t *out = p->out;
+    u_char          *loc = NULL;
+    size_t           loclen = 0;
+    int              is_local;
+
+    if (out == NULL || url == NULL || url->len == 0) {
+        return tier_fail(p->cf, 1, p->err, p->errcap, "empty store url");
+    }
+    ngx_memzero(out, sizeof(*out));
+    out->role = role;
+
+    if (tier_split_scheme(p, url, &loc, &loclen) != NGX_OK) {
+        return NGX_ERROR;
     }
 
-    if (tier_parse_args(cf, args, out, err, errcap) != NGX_OK) {
+    is_local = (ngx_strcmp(out->driver, "posix") == 0
+                || ngx_strcmp(out->driver, "pblock") == 0);
+
+    if (is_local) {
+        if (tier_parse_local(p, loc, loclen) != NGX_OK) {
+            return NGX_ERROR;
+        }
+    } else if (tier_parse_remote(p, url, loc, loclen) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    if (tier_parse_args(p->cf, args, out, p->err, p->errcap) != NGX_OK) {
         return NGX_ERROR;
     }
 

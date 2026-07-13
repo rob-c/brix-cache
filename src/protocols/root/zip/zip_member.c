@@ -209,81 +209,266 @@ zip_pread_full(int fd, u_char *buf, size_t n, off_t off)
     return (ssize_t) done;
 }
 
+/*
+ * Invariant open-request context threaded through the zip-open helpers.  Bundles
+ * the session/connection/config handles plus the archive path pair so each helper
+ * stays ≤5 params.  All fields are read-only for the helpers; none is owned here.
+ */
+typedef struct {
+    brix_ctx_t                  *ctx;
+    ngx_connection_t            *c;
+    ngx_stream_brix_srv_conf_t  *conf;
+    const char                  *archive_logical;
+    const char                  *archive_full;
+    const char                  *member;
+} zip_open_req_t;
+
+/*
+ * WHAT: Emit a kXR open-error for the archive and return the send result.
+ * WHY:  The zip-open stage helpers signal a completed response to the
+ *       orchestrator via an out-param; they cannot use the BRIX_RETURN_ERR
+ *       statement-macro (which returns from its enclosing function) because they
+ *       must also set that out-param.  This mirrors the macro's exact three
+ *       actions (access log, op-error counter, send-error) in the same order.
+ * HOW:  Returns whatever brix_send_error returns; the caller stores it and
+ *       reports NGX_DONE so the orchestrator propagates it unchanged.
+ */
+static ngx_int_t
+zip_open_error(const zip_open_req_t *rq, int code, const char *msg)
+{
+    brix_log_access(rq->ctx, rq->c, "OPEN", rq->archive_full, "zip",
+                    0, code, msg, 0);
+    BRIX_OP_ERR(rq->ctx, BRIX_OP_OPEN_RD);
+    return brix_send_error(rq->ctx, rq->c, code, msg);
+}
+
+/*
+ * WHAT: Open the archive read-only, confined beneath the export root, and fstat
+ *       it, verifying it is a regular file.
+ * WHY:  The zip open path mirrors the read-only subset of the normal read open;
+ *       the RESOLVE_BENEATH confinement is the same the normal read open uses.
+ * HOW:  On success writes the fd into *fd_out and the stat into *ast_out and
+ *       returns NGX_OK.  On failure emits the mapped kXR error (closing any fd it
+ *       opened), stores the send result in *out and returns NGX_DONE.
+ */
+static ngx_int_t
+zip_open_archive_fd(const zip_open_req_t *rq, int *fd_out, struct stat *ast_out,
+    ngx_int_t *out)
+{
+    int fd = brix_vfs_open_fd_at(rq->conf->rootfd, rq->archive_logical,
+                                 O_RDONLY | O_CLOEXEC, 0);
+    if (fd < 0) {
+        int err = errno;
+        *out = zip_open_error(rq,
+                   (err == ENOENT || err == ENOTDIR) ? kXR_NotFound
+                   : (err == EACCES) ? kXR_NotAuthorized : kXR_IOError,
+                   "cannot open zip archive");
+        return NGX_DONE;
+    }
+    if (fstat(fd, ast_out) != 0 || !S_ISREG(ast_out->st_mode)) {
+        close(fd);
+        *out = zip_open_error(rq, kXR_IOError,
+                              "zip archive not a regular file");
+        return NGX_DONE;
+    }
+    *fd_out = fd;
+    return NGX_OK;
+}
+
+/*
+ * WHAT: When forced-scratch staging is in effect, materialize the archive into a
+ *       local POSIX scratch (anonymous fd) and swap *fd to read THAT.
+ * WHY:  zip is built on random-access pread over the archive fd (+ sendfile for
+ *       stored members), which a backend with no kernel fd cannot serve; POSIX
+ *       is a no-op (read the confined fd in place).  Config: brix_zip_stage_dir +
+ *       brix_zip_force_scratch + brix_zip_stage_max_bytes.
+ * HOW:  Capability + size gated.  On staging swaps *fd (same bytes/size — ast
+ *       still valid) and returns NGX_OK; on failure closes *fd, emits the kXR
+ *       error into *out and returns NGX_DONE.  No-op returns NGX_OK.
+ */
+static ngx_int_t
+zip_stage_archive_maybe(const zip_open_req_t *rq, int *fd,
+    const struct stat *ast, ngx_int_t *out)
+{
+    ngx_stream_brix_srv_conf_t *conf = rq->conf;
+    const char *sdir = (conf->zip_stage_dir.len > 0)
+                       ? (const char *) conf->zip_stage_dir.data : NULL;
+    off_t       maxb = (off_t) conf->zip_stage_max_bytes;
+    ngx_fd_t    sfd;
+
+    /* The default POSIX archive already has a kernel fd — only materialize a
+     * local scratch copy when explicitly forced (a backend without CAP_FD is the
+     * future case, but this open path only sees POSIX archives today). */
+    if (!conf->zip_force_scratch
+        || sdir == NULL || sdir[0] == '\0'
+        || ast->st_size > maxb)
+    {
+        return NGX_OK;
+    }
+
+    sfd = xvfs_stage_fd(*fd, sdir);
+    if (sfd == NGX_INVALID_FILE) {
+        close(*fd);
+        *out = zip_open_error(rq, kXR_IOError, "zip archive staging failed");
+        return NGX_DONE;
+    }
+    close(*fd);
+    *fd = sfd;                           /* same bytes/size — ast still valid */
+    ngx_log_error(NGX_LOG_INFO, rq->c->log, 0,
+                  "zip: archive staged to scratch (%O bytes)",
+                  (off_t) ast->st_size);
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Locate the requested member's central-directory record.
+ * WHY:  Isolates the CD-scan cap default and the zip-return-code → kXR error
+ *       mapping from the open orchestration.
+ * HOW:  On BRIX_ZIP_OK writes the member into *m_out and returns NGX_OK; on any
+ *       other code closes fd, emits the mapped kXR error into *out and returns
+ *       NGX_DONE.  ECORRUPT covers corrupt/oversize/unsupported (encrypted,
+ *       method, data-descriptor); EIO covers pread/alloc failure.
+ */
+static ngx_int_t
+zip_find_member_mapped(const zip_open_req_t *rq, int fd, const struct stat *ast,
+    brix_zip_member_t *m_out, ngx_int_t *out)
+{
+    size_t cd_max = rq->conf->zip_cd_max_bytes ? rq->conf->zip_cd_max_bytes
+                                               : (size_t) (16 * 1024 * 1024);
+    int    zrc = brix_zip_find_member(fd, (off_t) ast->st_size, rq->member,
+                                      cd_max, m_out);
+    if (zrc == BRIX_ZIP_OK) {
+        return NGX_OK;
+    }
+    close(fd);
+    if (zrc == BRIX_ZIP_NOMEMBER) {
+        *out = zip_open_error(rq, kXR_NotFound, "zip member not found");
+        return NGX_DONE;
+    }
+    *out = zip_open_error(rq,
+               (zrc == BRIX_ZIP_EIO) ? kXR_IOError : kXR_Unsupported,
+               "zip member unreadable");
+    return NGX_DONE;
+}
+
+/*
+ * WHAT: Populate a freshly-allocated file handle for a zip member.
+ * WHY:  The read-only handle fields + zip member byte-range bookkeeping mirror
+ *       the read-only subset of brix_open_resolved_file(); grouping them keeps
+ *       the open orchestration flat.
+ * HOW:  Writes every field of ctx->files[idx] the read path relies on from the
+ *       archive stat and the member descriptor.  Pure field assignment.
+ */
+static void
+zip_handle_populate(brix_ctx_t *ctx, int idx, int fd,
+    const struct stat *ast, const brix_zip_member_t *m)
+{
+    brix_file_t *f = &ctx->files[idx];
+
+    f->fd              = fd;
+    f->readable        = 1;
+    f->writable        = 0;
+    f->from_cache      = 0;
+    f->is_regular      = 1;              /* member reads behave as a file */
+    f->device          = ast->st_dev;
+    f->inode           = ast->st_ino;
+    f->cached_size     = (off_t) m->uncomp_size;
+    f->read_last_end   = -1;
+    f->read_ahead_end  = 0;
+    f->read_codec      = (uint8_t) BRIX_CODEC_IDENTITY;
+    f->write_codec     = (uint8_t) BRIX_CODEC_IDENTITY;
+    f->dashboard_slot  = -1;
+
+    f->zip_mode        = 1;
+    f->zip_method      = m->method;
+    f->zip_data_off    = m->data_off;
+    f->zip_comp_size   = m->comp_size;
+    f->zip_uncomp_size = m->uncomp_size;
+    f->zip_crc32       = m->crc32;
+    f->zip_inflate     = NULL;
+    f->zip_logical_pos = 0;
+    f->zip_comp_pos    = 0;
+
+    f->bytes_read      = 0;
+    f->bytes_written   = 0;
+    f->open_time       = ngx_current_msec;
+}
+
+/*
+ * WHAT: Build and queue the kXR_open reply for a successful member open.
+ * WHY:  Isolates the wire-framing (default 4-byte handle vs. full body + stat)
+ *       from the open orchestration.
+ * HOW:  Emits the 4-byte handle by default, or the full body + stat (member's
+ *       UNCOMPRESSED size) when the client set kXR_retstat.  Frees the handle on
+ *       allocation failure (returns NGX_ERROR); otherwise logs access, marks the
+ *       op OK and returns the queued-response result.
+ */
+static ngx_int_t
+zip_send_open_reply(const zip_open_req_t *rq, int idx, const struct stat *ast,
+    const brix_zip_member_t *m, uint16_t options)
+{
+    brix_ctx_t       *ctx = rq->ctx;
+    ngx_connection_t *c   = rq->c;
+    ServerOpenBody    body;
+    char              statbuf[256];
+    u_char           *buf;
+    size_t            hbytes, bodylen, total;
+    ngx_flag_t        want_stat = (options & kXR_retstat) ? 1 : 0;
+
+    ngx_memzero(&body, sizeof(body));
+    body.fhandle[0] = (u_char) idx;
+
+    statbuf[0] = '\0';
+    if (want_stat) {
+        snprintf(statbuf, sizeof(statbuf), "%llu %lld %d %ld",
+                 (unsigned long long) ast->st_ino,
+                 (long long) m->uncomp_size,
+                 kXR_readable,
+                 (long) ast->st_mtime);
+    }
+
+    hbytes  = want_stat ? sizeof(ServerOpenBody) : sizeof(body.fhandle);
+    bodylen = hbytes + (want_stat ? strlen(statbuf) + 1 : 0);
+    total   = XRD_RESPONSE_HDR_LEN + bodylen;
+
+    buf = ngx_palloc(c->pool, total);
+    if (buf == NULL) {
+        brix_free_fhandle(ctx, idx);
+        return NGX_ERROR;
+    }
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok, (uint32_t) bodylen,
+                          (ServerResponseHdr *) buf);
+    ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &body, hbytes);
+    if (want_stat) {
+        ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN + sizeof(ServerOpenBody),
+                   statbuf, strlen(statbuf) + 1);
+    }
+
+    brix_log_access(ctx, c, "OPEN", rq->archive_full, "zip", 1, 0, NULL, 0);
+    BRIX_OP_OK(ctx, BRIX_OP_OPEN_RD);
+    return brix_queue_response(ctx, c, buf, total);
+}
+
 ngx_int_t
 brix_zip_open_member(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, const char *archive_logical,
     const char *archive_full, const char *member, uint16_t options)
 {
-    int                  fd, idx, zrc;
-    struct stat          ast;
+    zip_open_req_t     rq = { ctx, c, conf, archive_logical, archive_full,
+                              member };
+    int                fd = -1, idx;
+    struct stat        ast;
     brix_zip_member_t  m;
-    size_t               cd_max;
+    ngx_int_t          resp;
 
-    /* Open the archive read-only, confined beneath the export root (same
-     * RESOLVE_BENEATH path the normal read open uses). */
-    fd = brix_vfs_open_fd_at(conf->rootfd, archive_logical,
-                             O_RDONLY | O_CLOEXEC, 0);
-    if (fd < 0) {
-        int err = errno;
-        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", archive_full,
-                          "zip",
-                          (err == ENOENT || err == ENOTDIR) ? kXR_NotFound
-                          : (err == EACCES) ? kXR_NotAuthorized : kXR_IOError,
-                          "cannot open zip archive");
+    if (zip_open_archive_fd(&rq, &fd, &ast, &resp) == NGX_DONE) {
+        return resp;
     }
-    if (fstat(fd, &ast) != 0 || !S_ISREG(ast.st_mode)) {
-        close(fd);
-        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", archive_full,
-                          "zip", kXR_IOError, "zip archive not a regular file");
+    if (zip_stage_archive_maybe(&rq, &fd, &ast, &resp) == NGX_DONE) {
+        return resp;
     }
-
-    /* CONSUME via the materialize-to-scratch seam: zip is built on random-access
-     * pread over the archive fd (+ sendfile for stored members), which a backend
-     * with no kernel fd cannot serve.  When staging is in effect, copy the archive
-     * into a local POSIX scratch (anonymous fd) and read THAT.  Capability + size
-     * gated; POSIX is a no-op (read the confined fd in place).  Config:
-     * brix_zip_stage_dir + brix_zip_force_scratch + brix_zip_stage_max_bytes. */
-    {
-        const char *sdir = (conf->zip_stage_dir.len > 0)
-                           ? (const char *) conf->zip_stage_dir.data : NULL;
-        off_t       maxb = (off_t) conf->zip_stage_max_bytes;
-
-        /* The default POSIX archive already has a kernel fd — only materialize a
-         * local scratch copy when explicitly forced (a backend without CAP_FD is
-         * the future case, but this open path only sees POSIX archives today). */
-        if (conf->zip_force_scratch
-            && sdir != NULL && sdir[0] != '\0'
-            && ast.st_size <= maxb)
-        {
-            ngx_fd_t sfd = xvfs_stage_fd(fd, sdir);
-            if (sfd == NGX_INVALID_FILE) {
-                close(fd);
-                BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", archive_full,
-                                  "zip", kXR_IOError, "zip archive staging failed");
-            }
-            close(fd);
-            fd = sfd;                        /* same bytes/size — ast still valid */
-            ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                          "zip: archive staged to scratch (%O bytes)",
-                          (off_t) ast.st_size);
-        }
-    }
-
-    cd_max = conf->zip_cd_max_bytes ? conf->zip_cd_max_bytes
-                                    : (size_t) (16 * 1024 * 1024);
-    zrc = brix_zip_find_member(fd, (off_t) ast.st_size, member, cd_max, &m);
-    if (zrc != BRIX_ZIP_OK) {
-        close(fd);
-        if (zrc == BRIX_ZIP_NOMEMBER) {
-            BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", archive_full,
-                              "zip", kXR_NotFound, "zip member not found");
-        }
-        /* ECORRUPT covers corrupt/oversize/unsupported (encrypted, method,
-         * data-descriptor); EIO covers pread/alloc failure. */
-        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", archive_full,
-                          "zip",
-                          (zrc == BRIX_ZIP_EIO) ? kXR_IOError : kXR_Unsupported,
-                          "zip member unreadable");
+    if (zip_find_member_mapped(&rq, fd, &ast, &m, &resp) == NGX_DONE) {
+        return resp;
     }
 
     idx = brix_alloc_fhandle(ctx);
@@ -293,85 +478,18 @@ brix_zip_open_member(brix_ctx_t *ctx, ngx_connection_t *c,
                           "zip", kXR_ServerError, "too many open files");
     }
 
-    ctx->files[idx].fd              = fd;
-    ctx->files[idx].readable        = 1;
-    ctx->files[idx].writable        = 0;
-    ctx->files[idx].from_cache      = 0;
-    ctx->files[idx].is_regular      = 1;       /* member reads behave as a file */
-    ctx->files[idx].device          = ast.st_dev;
-    ctx->files[idx].inode           = ast.st_ino;
-    ctx->files[idx].cached_size     = (off_t) m.uncomp_size;
-    ctx->files[idx].read_last_end   = -1;
-    ctx->files[idx].read_ahead_end  = 0;
-    ctx->files[idx].read_codec      = (uint8_t) BRIX_CODEC_IDENTITY;
-    ctx->files[idx].write_codec     = (uint8_t) BRIX_CODEC_IDENTITY;
-    ctx->files[idx].dashboard_slot  = -1;
-
-    ctx->files[idx].zip_mode        = 1;
-    ctx->files[idx].zip_method      = m.method;
-    ctx->files[idx].zip_data_off    = m.data_off;
-    ctx->files[idx].zip_comp_size   = m.comp_size;
-    ctx->files[idx].zip_uncomp_size = m.uncomp_size;
-    ctx->files[idx].zip_crc32       = m.crc32;
-    ctx->files[idx].zip_inflate     = NULL;
-    ctx->files[idx].zip_logical_pos = 0;
-    ctx->files[idx].zip_comp_pos    = 0;
+    zip_handle_populate(ctx, idx, fd, &ast, &m);
 
     if (brix_set_fhandle_path(ctx, c, idx, archive_full) != NGX_OK) {
         brix_free_fhandle(ctx, idx);
         return NGX_ERROR;
     }
 
-    ctx->files[idx].bytes_read    = 0;
-    ctx->files[idx].bytes_written = 0;
-    ctx->files[idx].open_time     = ngx_current_msec;
-
     if (!ctx->is_bound) {
         brix_session_handle_publish(ctx->login.sessid, idx, &ctx->files[idx]);
     }
 
-    /* Build the kXR_open reply: the 4-byte handle by default, the full body +
-     * stat (member's UNCOMPRESSED size) when the client set kXR_retstat. */
-    {
-        ServerOpenBody  body;
-        char            statbuf[256];
-        u_char         *buf;
-        size_t          hbytes, bodylen, total;
-        ngx_flag_t      want_stat = (options & kXR_retstat) ? 1 : 0;
-
-        ngx_memzero(&body, sizeof(body));
-        body.fhandle[0] = (u_char) idx;
-
-        statbuf[0] = '\0';
-        if (want_stat) {
-            snprintf(statbuf, sizeof(statbuf), "%llu %lld %d %ld",
-                     (unsigned long long) ast.st_ino,
-                     (long long) m.uncomp_size,
-                     kXR_readable,
-                     (long) ast.st_mtime);
-        }
-
-        hbytes  = want_stat ? sizeof(ServerOpenBody) : sizeof(body.fhandle);
-        bodylen = hbytes + (want_stat ? strlen(statbuf) + 1 : 0);
-        total   = XRD_RESPONSE_HDR_LEN + bodylen;
-
-        buf = ngx_palloc(c->pool, total);
-        if (buf == NULL) {
-            brix_free_fhandle(ctx, idx);
-            return NGX_ERROR;
-        }
-        brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok, (uint32_t) bodylen,
-                              (ServerResponseHdr *) buf);
-        ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &body, hbytes);
-        if (want_stat) {
-            ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN + sizeof(ServerOpenBody),
-                       statbuf, strlen(statbuf) + 1);
-        }
-
-        brix_log_access(ctx, c, "OPEN", archive_full, "zip", 1, 0, NULL, 0);
-        BRIX_OP_OK(ctx, BRIX_OP_OPEN_RD);
-        return brix_queue_response(ctx, c, buf, total);
-    }
+    return zip_send_open_reply(&rq, idx, &ast, &m, options);
 }
 
 ngx_int_t

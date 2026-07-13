@@ -22,33 +22,17 @@
 #include "net/manager/registry.h"     /* Phase 39 (WS7): srv staleness setter */
 
 /*
- * This function creates a new server-level configuration object for nginx.
- * It allocates memory and initializes every field to an "unset" or NULL state,
- * allowing the merge step later to distinguish between missing directives and
- * explicitly configured values.
+ * WHAT: initialise the identity + crypto fields (auth scheme, GSI/pwd, XrdAcc,
+ *       CSI, FRM prep, X.509 material + CRL, session/access logging).
+ * WHY:  keeps the create_srv_conf orchestrator short; each concern group is a
+ *       single-purpose initialiser so the "unset vs configured" contract for
+ *       these fields is reviewable in isolation.
+ * HOW:  assigns each merge-participating scalar its NGX_CONF_UNSET* sentinel and
+ *       leaves runtime-only objects NULL/invalid (pcalloc already zeroed them).
  */
-void *
-ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
+static void
+brix_create_srv_security(ngx_stream_brix_srv_conf_t *conf)
 {
-    ngx_stream_brix_srv_conf_t *conf;
-
-    /*
-     * nginx allocates one per-server config object during parsing and then
-     * merges parent/child scopes later. Start everything in an explicit
-     * "unset" or NULL state so the merge step can tell whether a directive
-     * was omitted or configured intentionally.
-     */
-    conf = ngx_pcalloc(cf->pool, sizeof(ngx_stream_brix_srv_conf_t));
-    if (conf == NULL) {
-        return NULL;
-    }
-
-    /*
-     * Scalar fields use nginx's UNSET sentinels when they participate in merge
-     * logic; runtime-only objects start out NULL/invalid and are created later
-     * during postconfiguration once parsing has finished.
-     */
-    ngx_http_brix_shared_init(&conf->common);
     conf->auth         = NGX_CONF_UNSET_UINT;
 
     /* XrdAcc engine (acc_tables / acc_timer / acc_nisdomain stay NULL/zero). */
@@ -65,7 +49,7 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->gsi_store    = NULL;
     conf->gsi_cert_pem = NULL;
     conf->gsi_cert_pem_len = 0;
-    conf->gsi_ca_hash  = 0;
+    conf->gsi_ca_hashes[0] = '\0';
     conf->gsi_signed_dh = NGX_CONF_UNSET_UINT;
     conf->signing_policy_mode = NGX_CONF_UNSET_UINT;
     conf->crl_mode     = NGX_CONF_UNSET_UINT;
@@ -79,6 +63,41 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->security_level = NGX_CONF_UNSET_UINT;
     conf->tls          = NGX_CONF_UNSET;
     conf->tls_ktls     = NGX_CONF_UNSET;
+    conf->gsi_keypool_size = NGX_CONF_UNSET_UINT;
+    conf->gsi_keypool_seed = NGX_CONF_UNSET_UINT;
+    conf->jwks_mtime                 = 0;
+    conf->token_jwks_refresh_interval = NGX_CONF_UNSET_MSEC;
+    conf->jwks_timer                  = NULL;
+    conf->token_clock_skew            = NGX_CONF_UNSET;
+    conf->sss_lifetime      = NGX_CONF_UNSET;
+    conf->sss_keys          = NULL;
+    brix_krb5_conf_init(&conf->krb5);
+    conf->unix_trust_remote = NGX_CONF_UNSET;
+    conf->host_allow        = NGX_CONF_UNSET_PTR;
+    brix_ocsp_conf_init(&conf->ocsp);
+
+    /* Phase 20 caches/limits: kv == NULL means the feature is disabled.  The
+     * directive setters fill these in; merge inherits the parent block. */
+    conf->token_cache_kv  = NULL;
+    conf->auth_cache.kv   = NULL;
+    conf->auth_cache.ttl_secs = 0;
+    conf->rate_limit.kv   = NULL;
+    conf->rate_limit.rate = 0;
+    conf->rate_limit.burst = 0;
+    conf->rate_limit.key_ip = 0;
+}
+
+/*
+ * WHAT: initialise the storage-plane fields (compression, ZIP, the read-through
+ *       cache sizing/eviction/verify, memory budget, readv sizing, io_uring).
+ * WHY:  isolates the storage concern group so its sentinels stay reviewable
+ *       against the matching brix_merge_srv_storage() defaults.
+ * HOW:  sentinels for merge-participating scalars; rootfds start -1 (pcalloc's 0
+ *       would collide with stdin); NULL arrays/regex mean "inherit from parent".
+ */
+static void
+brix_create_srv_storage(ngx_stream_brix_srv_conf_t *conf)
+{
     conf->read_compress = NGX_CONF_UNSET;
     conf->write_compress = NGX_CONF_UNSET;
     conf->zip_access   = NGX_CONF_UNSET;
@@ -117,6 +136,19 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->advertise.enable          = NGX_CONF_UNSET;
     conf->advertise.interval = NGX_CONF_UNSET_MSEC;
     brix_wt_conf_init(&conf->wt);
+}
+
+/*
+ * WHAT: initialise the cluster + TPC + session fields (manager mode, uploads,
+ *       pipeline/registry/session sizing, health checks, traffic mirror, CMS,
+ *       listen port, checksum-scan limits, SSI/CNS, and TPC outbound creds).
+ * WHY:  groups the clustering/TPC concern so it lines up with the
+ *       brix_merge_srv_cluster()/_tpc() merge helpers.
+ * HOW:  sentinels + NULL for arrays/addresses that mean "inherit from parent".
+ */
+static void
+brix_create_srv_cluster(ngx_stream_brix_srv_conf_t *conf)
+{
     conf->manager_mode       = NGX_CONF_UNSET;
     brix_node_caps_conf_init(&conf->caps);
     conf->upload_resume      = NGX_CONF_UNSET;
@@ -124,8 +156,6 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->pipeline_depth = NGX_CONF_UNSET_UINT;
     conf->registry_slots = NGX_CONF_UNSET_UINT;
     conf->session_slots  = NGX_CONF_UNSET_UINT;
-    conf->gsi_keypool_size = NGX_CONF_UNSET_UINT;
-    conf->gsi_keypool_seed = NGX_CONF_UNSET_UINT;
     conf->redir_cache_slots = NGX_CONF_UNSET_UINT;
     brix_hc_conf_init(&conf->hc);
 
@@ -140,24 +170,13 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->mirror.log_diverge = NGX_CONF_UNSET;
     conf->mirror.timeout_ms  = NGX_CONF_UNSET_MSEC;
     conf->mirror.mirror_writes = NGX_CONF_UNSET;
-    brix_proxy_conf_init(&conf->proxy);
     brix_cms_conf_init(&conf->cms);
     conf->http_handoff_addr = NULL;
     conf->relay_addr = NULL;
     conf->relay_guard_enable = NGX_CONF_UNSET;
-    conf->upstream_addr = NULL;
     conf->listen_port  = NGX_CONF_UNSET;
     conf->ckscan_max_depth = NGX_CONF_UNSET_UINT;
     conf->ckscan_max_files = NGX_CONF_UNSET_UINT;
-    conf->jwks_mtime                 = 0;
-    conf->token_jwks_refresh_interval = NGX_CONF_UNSET_MSEC;
-    conf->jwks_timer                  = NULL;
-    conf->token_clock_skew            = NGX_CONF_UNSET;
-    conf->sss_lifetime      = NGX_CONF_UNSET;
-    conf->sss_keys          = NULL;
-    brix_krb5_conf_init(&conf->krb5);
-    conf->unix_trust_remote = NGX_CONF_UNSET;
-    conf->host_allow        = NGX_CONF_UNSET_PTR;
     conf->tpc_allow_local   = NGX_CONF_UNSET;
     conf->tpc_allow_private = NGX_CONF_UNSET;
     conf->ssi_enable        = NGX_CONF_UNSET;
@@ -171,6 +190,7 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->tpc_max_transfer_secs = NGX_CONF_UNSET_UINT;
     conf->tpc_outbound_tls  = NGX_CONF_UNSET;
     conf->tpc_delegate      = NGX_CONF_UNSET;
+    conf->tpc_outbound_passthrough = NGX_CONF_UNSET;
     conf->tpc_transfer_max_age  = NGX_CONF_UNSET;
     conf->tpc_outbound_bearer_file.len = 0;
     conf->tpc_outbound_bearer_file.data = NULL;
@@ -182,7 +202,21 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->tpc_outbound_client_secret.data = NULL;
     conf->tpc_outbound_scope.len = 0;
     conf->tpc_outbound_scope.data = NULL;
+}
 
+/*
+ * WHAT: initialise the upstream/proxy + network-fault fields (upstream TLS +
+ *       token, transparent proxy, and the Phase-39 network deadlines).
+ * WHY:  isolates the proxy/net concern group so it matches
+ *       brix_merge_srv_proxy_net()'s defaults one-for-one.
+ * HOW:  sentinels for the deadlines/flags; NULL for arrays/addresses inherited
+ *       from the parent block during merge.
+ */
+static void
+brix_create_srv_proxy_net(ngx_stream_brix_srv_conf_t *conf)
+{
+    brix_proxy_conf_init(&conf->proxy);
+    conf->upstream_addr = NULL;
     conf->upstream_tls = NGX_CONF_UNSET;
 #if (NGX_SSL)
     conf->upstream_tls_ctx = NULL;
@@ -194,18 +228,6 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->upstream_token_file.len  = 0;
     conf->upstream_token_file.data = NULL;
 
-    brix_ocsp_conf_init(&conf->ocsp);
-
-    /* Phase 20 caches/limits: kv == NULL means the feature is disabled.  The
-     * directive setters fill these in; merge inherits the parent block. */
-    conf->token_cache_kv  = NULL;
-    conf->auth_cache.kv   = NULL;
-    conf->auth_cache.ttl_secs = 0;
-    conf->rate_limit.kv   = NULL;
-    conf->rate_limit.rate = 0;
-    conf->rate_limit.burst = 0;
-    conf->rate_limit.key_ip = 0;
-
     /* Phase 39: network-fault resilience (off by default). */
     conf->read_timeout      = NGX_CONF_UNSET_MSEC;
     conf->handshake_timeout = NGX_CONF_UNSET_MSEC;
@@ -214,6 +236,40 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
     conf->tcp_keepalive     = NGX_CONF_UNSET;
     conf->max_connections   = NGX_CONF_UNSET_UINT;
     conf->manager_stale_after = NGX_CONF_UNSET_MSEC;
+}
+
+/*
+ * This function creates a new server-level configuration object for nginx.
+ * It allocates memory and initializes every field to an "unset" or NULL state,
+ * allowing the merge step later to distinguish between missing directives and
+ * explicitly configured values.
+ */
+void *
+ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
+{
+    ngx_stream_brix_srv_conf_t *conf;
+
+    /*
+     * nginx allocates one per-server config object during parsing and then
+     * merges parent/child scopes later. Start everything in an explicit
+     * "unset" or NULL state so the merge step can tell whether a directive
+     * was omitted or configured intentionally.
+     *
+     * Scalar fields use nginx's UNSET sentinels when they participate in merge
+     * logic; runtime-only objects start out NULL/invalid and are created later
+     * during postconfiguration once parsing has finished. The per-field init is
+     * split into one helper per configuration area, mirroring the merge helpers.
+     */
+    conf = ngx_pcalloc(cf->pool, sizeof(ngx_stream_brix_srv_conf_t));
+    if (conf == NULL) {
+        return NULL;
+    }
+
+    ngx_http_brix_shared_init(&conf->common);
+    brix_create_srv_security(conf);
+    brix_create_srv_storage(conf);
+    brix_create_srv_cluster(conf);
+    brix_create_srv_proxy_net(conf);
 
     return conf;
 }
@@ -228,26 +284,19 @@ ngx_stream_brix_create_srv_conf(ngx_conf_t *cf)
  * (NGX_CONF_OK / NGX_CONF_ERROR); the rest return void.
  */
 
-/* Identity & crypto: auth scheme + GSI/pwd, XrdAcc engine (+ native-authdb
- * validation), SciTags/FRM, X.509 material + CRL, access log, tokens + L1/L2
- * caches, sss/krb5/unix/host, security level, and TLS toggles. */
+/*
+ * WHAT: merge the GSI/pwd + XrdAcc engine group and validate the native-authdb
+ *       auth-scheme requirement.
+ * WHY:  the native-authdb rule couples the merged `auth` scheme and `acc.format`
+ *       so it must run after both settle; grouping keeps that dependency local.
+ * HOW:  inherit the GSI/pwd/acc scalars child<-parent, then reject a native
+ *       authdb without an authenticating scheme (xrdacc is exempt: it authorizes
+ *       anonymous `u *` rules).
+ */
 static char *
-brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
+brix_merge_srv_gsi_acc(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
-    /*
-     * Standard nginx inheritance rules: values set on the current server
-     * override the parent, otherwise we fall back to the parent or the hard
-     * coded module default.
-     */
-    /* Shared common.* preamble (root defaults to "/": a pure cache node may
-     * omit brix_root and serve the whole namespace). Also covers the tier
-     * grammar + pmark + hard read-only enforcement — do not re-merge those. */
-    if (ngx_http_brix_shared_merge(cf, &prev->common, &conf->common, "/")
-        != NGX_CONF_OK)
-    {
-        return NGX_CONF_ERROR;
-    }
     ngx_conf_merge_uint_value(conf->auth,   prev->auth,        BRIX_AUTH_NONE);
     ngx_conf_merge_uint_value(conf->gsi_signed_dh, prev->gsi_signed_dh,
                               BRIX_GSI_SDH_OFF);
@@ -289,6 +338,21 @@ brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
         return NGX_CONF_ERROR;
     }
 
+    return NGX_CONF_OK;
+}
+
+/*
+ * WHAT: merge the FRM prepare command + the X.509 material (cert/key/CA, VOMS)
+ *       and CRL/signing-policy toggles, plus the access/session logging fields.
+ * WHY:  brix_frm_conf_merge() depends on the merged prepare_command; grouping
+ *       makes that ordering explicit and keeps the fallible FRM merge local.
+ * HOW:  merge prepare_command, delegate to brix_frm_conf_merge(), then inherit
+ *       the X.509/CRL/log scalars child<-parent.
+ */
+static char *
+brix_merge_srv_x509(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
     ngx_conf_merge_str_value(conf->prepare_command, prev->prepare_command, "");
     if (brix_frm_conf_merge(cf, &conf->frm, &prev->frm, &conf->prepare_command)
         != NGX_CONF_OK)
@@ -307,6 +371,23 @@ brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_uint_value(conf->crl_mode, prev->crl_mode, BRIX_CRL_MODE_TRY);
     ngx_conf_merge_str_value(conf->access_log,      prev->access_log,      "");
     ngx_conf_merge_value(conf->session_log, prev->session_log, 1);
+
+    return NGX_CONF_OK;
+}
+
+/*
+ * WHAT: merge the token group (JWKS, issuer/audience, config/registry, macaroon
+ *       secrets) and the throttle group (limits + named rate-limit zone), and
+ *       validate the clock-skew bound and throttle-zone reference.
+ * WHY:  both carry config-time validation (clock-skew range, zone existence);
+ *       keeping them together isolates the two failure paths.
+ * HOW:  inherit the token/throttle scalars, clamp-check clock skew to [0,300],
+ *       then resolve the named rate-limit zone, failing if it was not declared.
+ */
+static char *
+brix_merge_srv_tokens(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
     ngx_conf_merge_str_value(conf->token_jwks,      prev->token_jwks,      "");
     ngx_conf_merge_msec_value(conf->token_jwks_refresh_interval,
                               prev->token_jwks_refresh_interval,
@@ -342,11 +423,26 @@ brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
         }
     }
 
-    brix_csi_conf_merge(&conf->csi, &prev->csi);
     ngx_conf_merge_str_value(conf->token_macaroon_secret,
                              prev->token_macaroon_secret,     "");
     ngx_conf_merge_str_value(conf->token_macaroon_secret_old,
                              prev->token_macaroon_secret_old, "");
+    return NGX_CONF_OK;
+}
+
+/*
+ * WHAT: merge the CSI record cache, the Phase-20 L1/L2 caches (token/auth/rate),
+ *       the sss/krb5/unix/host schemes, the security level, and the TLS toggles.
+ * WHY:  a plain inheritance tail with no validation; a void helper trims the
+ *       orchestrator without splitting a decision.
+ * HOW:  whole-config inherit for the kv-backed caches (NULL == disabled), then
+ *       child<-parent for the remaining scheme/TLS scalars.
+ */
+static void
+brix_merge_srv_authtail(ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
+    brix_csi_conf_merge(&conf->csi, &prev->csi);
 
     /* Phase 20 caches/limits: inherit the parent's whole config when this
      * block did not declare its own (kv still NULL). */
@@ -371,33 +467,58 @@ brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     /* kTLS default ON (unified with the HTTP plane); SSL_OP_ENABLE_KTLS is a
      * transparent no-op when the negotiated cipher/kernel cannot offload. */
     ngx_conf_merge_value(conf->tls_ktls,        prev->tls_ktls,        1);
+}
+
+/* Identity & crypto: auth scheme + GSI/pwd, XrdAcc engine (+ native-authdb
+ * validation), SciTags/FRM, X.509 material + CRL, access log, tokens + L1/L2
+ * caches, sss/krb5/unix/host, security level, and TLS toggles. */
+static char *
+brix_merge_srv_security(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
+    /*
+     * Standard nginx inheritance rules: values set on the current server
+     * override the parent, otherwise we fall back to the parent or the hard
+     * coded module default. Each concern group is delegated to a helper below,
+     * invoked in the original linear order so cross-group derivations still see
+     * their already-merged inputs.
+     */
+    /* Shared common.* preamble (root defaults to "/": a pure cache node may
+     * omit brix_root and serve the whole namespace). Also covers the tier
+     * grammar + pmark + hard read-only enforcement — do not re-merge those. */
+    if (ngx_http_brix_shared_merge(cf, &prev->common, &conf->common, "/")
+        != NGX_CONF_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    if (brix_merge_srv_gsi_acc(cf, conf, prev) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+    if (brix_merge_srv_x509(cf, conf, prev) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+    if (brix_merge_srv_tokens(cf, conf, prev) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+    brix_merge_srv_authtail(conf, prev);
 
     return NGX_CONF_OK;
 }
 
-/* Storage: read/write compression, ZIP access, the read-through cache (origin,
- * sizing, eviction, slice validation, include-regex inheritance), the memory
- * budget, readv segment sizing, and the io_uring backend. */
-static char *
-brix_merge_srv_storage(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
+/*
+ * WHAT: merge the compression + ZIP-access group and the write-through staging
+ *       roots/backends + backpressure watermarks + dirty-reaper age + cache
+ *       allow/deny prefix inheritance.
+ * WHY:  the staging LOW watermark auto-derives from the just-merged HIGH; keeping
+ *       them adjacent makes the hysteresis default explicit.
+ * HOW:  inherit the compression/ZIP scalars, then the staging roots and the
+ *       HIGH/LOW watermark pair (LOW = HIGH − 5% when only HIGH is set), and
+ *       inherit the prefix arrays when the child left them NULL.
+ */
+static void
+brix_merge_srv_zip_stage(ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
-    /* common.* (storage backend, pblock stripe, tier grammar) is merged by
-     * ngx_http_brix_shared_merge() in brix_merge_srv_security — only the
-     * stream-specific validation below stays here. */
-
-    /* §6.5: the tier slice size must be 0 (off) or a positive multiple of the
-     * 1 MiB cinfo block granule (so a partial fill never records a mis-aligned
-     * block) — the same rule the legacy brix_cache_slice enforced. */
-    if (conf->common.cache_slice_size != 0
-        && (conf->common.cache_slice_size < (1024 * 1024)
-            || (conf->common.cache_slice_size % (1024 * 1024)) != 0))
-    {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_cache_slice_size must be a positive multiple of 1m");
-        return NGX_CONF_ERROR;
-    }
-
     ngx_conf_merge_value(conf->read_compress,   prev->read_compress,   0);
     ngx_conf_merge_value(conf->write_compress,  prev->write_compress,  0);
     ngx_conf_merge_value(conf->zip_access,      prev->zip_access,      0);
@@ -435,6 +556,21 @@ brix_merge_srv_storage(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     if (conf->cache_allow_prefixes == NULL) {
         conf->cache_allow_prefixes = prev->cache_allow_prefixes;
     }
+}
+
+/*
+ * WHAT: merge the read-through cache origin + eviction group — origin address/
+ *       TLS/family, lock timeout, the on-fill eviction threshold, the watermark
+ *       reaper, the file-size/memory budgets, and the readv segment size.
+ * WHY:  the reaper HIGH/LOW watermarks derive from the just-merged eviction
+ *       threshold; grouping keeps that dependency chain visible.
+ * HOW:  inherit the origin scalars, then the reaper watermarks (HIGH ← eviction
+ *       threshold, LOW ← HIGH − 5%) and the budget/segment defaults.
+ */
+static void
+brix_merge_srv_cache_origin(ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
     ngx_conf_merge_str_value(conf->cache_origin, prev->cache_origin,   "");
     ngx_conf_merge_value(conf->cache_origin_tls, prev->cache_origin_tls, 0);
     ngx_conf_merge_uint_value(conf->cache_origin_family,
@@ -466,12 +602,38 @@ brix_merge_srv_storage(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_size_value(conf->readv_segment_size,
                               prev->readv_segment_size,
                               (size_t) (2 * 1024 * 1024) - BRIX_READV_SEGSIZE);
+}
 
-    /* Phase 44: optional io_uring backend.  Default mode AUTO (enable iff the
-     * runtime probe passes, else silent thread-pool fallback); restrictions on;
-     * admin endpoint off; panic-file unset. */
+/*
+ * WHAT: merge the io_uring backend group, the checksum-on-fill verify mode, the
+ *       Pelican advertisement group, and inherit the compiled include-regex.
+ * WHY:  the advertisement interval is clamped to the federation minimum and the
+ *       regex inheritance is a struct-copy neither expressible via
+ *       ngx_conf_merge_*; grouping keeps both special cases together.
+ * HOW:  inherit the io_uring/verify/advertise scalars, floor the advertise
+ *       interval at 60s, and copy the parent's compiled regex when unset.
+ */
+static void
+brix_merge_srv_iouring_advertise(ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
+    /* Phase 44: optional io_uring backend — default OFF (strictly opt-in).
+     *
+     * WHY not AUTO: the startup probe can only prove the ring accepts opcodes
+     * and (SB-W hardening) that the registered eventfd delivers a NOP
+     * completion — neither of which proves real buffered file WRITES complete
+     * on THIS kernel + filesystem.  On at least one production host (EL9 elrepo
+     * 6.15, plain local fs) NOPs drained fine yet io_uring writes never
+     * completed: transfers wedged after exactly queue_depth in-flight ops
+     * (queue_depth x 32 KiB = 8 MiB) with a worker spinning, and a torn-down
+     * connection's still-in-flight ops became a late-CQE use-after-free.  The
+     * thread pool is both correct there and FASTER (50 vs stall).  io_uring is
+     * a performance option, not a correctness feature, so it must be an
+     * explicit, operator-verified `brix_io_uring on` — never silently engaged.
+     * `on` still fail-fasts if the backend is unavailable; `auto` remains for
+     * anyone who wants best-effort enable. */
     ngx_conf_merge_uint_value(conf->io_uring,
-                              prev->io_uring, BRIX_IO_URING_AUTO);
+                              prev->io_uring, BRIX_IO_URING_OFF);
     ngx_conf_merge_value(conf->io_uring_queue_depth,
                          prev->io_uring_queue_depth,
                          BRIX_IO_URING_QUEUE_DEPTH);
@@ -512,6 +674,34 @@ brix_merge_srv_storage(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
         conf->include_regex.re     = prev->include_regex.re;
         conf->include_regex.set = 1;
     }
+}
+
+/* Storage: read/write compression, ZIP access, the read-through cache (origin,
+ * sizing, eviction, slice validation, include-regex inheritance), the memory
+ * budget, readv segment sizing, and the io_uring backend. */
+static char *
+brix_merge_srv_storage(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
+    /* common.* (storage backend, pblock stripe, tier grammar) is merged by
+     * ngx_http_brix_shared_merge() in brix_merge_srv_security — only the
+     * stream-specific validation below stays here. */
+
+    /* §6.5: the tier slice size must be 0 (off) or a positive multiple of the
+     * 1 MiB cinfo block granule (so a partial fill never records a mis-aligned
+     * block) — the same rule the legacy brix_cache_slice enforced. */
+    if (conf->common.cache_slice_size != 0
+        && (conf->common.cache_slice_size < (1024 * 1024)
+            || (conf->common.cache_slice_size % (1024 * 1024)) != 0))
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cache_slice_size must be a positive multiple of 1m");
+        return NGX_CONF_ERROR;
+    }
+
+    brix_merge_srv_zip_stage(conf, prev);
+    brix_merge_srv_cache_origin(conf, prev);
+    brix_merge_srv_iouring_advertise(conf, prev);
 
     return NGX_CONF_OK;
 }
@@ -538,6 +728,16 @@ brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf,
     }
     ngx_conf_merge_value(conf->tpc_outbound_tls,  prev->tpc_outbound_tls,  0);
     ngx_conf_merge_value(conf->tpc_delegate,      prev->tpc_delegate,      0);
+    /* Phase-70/opportunistic: passthrough of the client's own inbound bearer JWT
+     * to the TPC source is ON by default so token-authenticated pulls forward the
+     * end-user identity without any per-server opt-in. The default path is
+     * OPPORTUNISTIC (token_mode "passthrough-opt", set in tpc_init_dst_file): an
+     * inbound token is used when present, but its ABSENCE falls back to GSI proxy
+     * delegation / static bearer file / anonymous exactly as before this default
+     * flip — never a new denial. Only an explicit client tpc.token_mode=passthrough
+     * stays STRICT/fail-closed. Operators can still set the directive to `off`. */
+    ngx_conf_merge_value(conf->tpc_outbound_passthrough,
+                         prev->tpc_outbound_passthrough, 1);
     ngx_conf_merge_msec_value(conf->tpc_key_ttl_ms, prev->tpc_key_ttl_ms,
                               BRIX_TPC_KEY_TTL_MS);
     /* Phase 51 (B2): default native-TPC absolute wall-clock cap to a generous
@@ -567,17 +767,19 @@ brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf,
                              prev->tpc_outbound_scope, "storage.read");
 }
 
-/* Cluster & sessions: manager/redirector mode, write recovery + staged uploads,
- * pipeline/registry/session sizing, active health checks, the traffic mirror,
- * the CMS client (+ resilience-timeout derivation), listen port, checksum-scan
- * limits, and the VO/group/manager-map rule arrays + redirector inheritance. */
-static char *
-brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
+/*
+ * WHAT: merge the node sizing group — manager mode, staged/resumable uploads,
+ *       and the pipeline/registry/session/redirector-cache slot counts.
+ * WHY:  the pipeline-window clamp is its own decision; isolating it keeps the
+ *       cluster orchestrator flat.
+ * HOW:  standard child<-parent inheritance, then clamp pipeline_depth into
+ *       [MIN, MAX] (the recv-loop ring arithmetic needs a positive bounded
+ *       modulus).
+ */
+static void
+brix_merge_srv_cluster_sizing(ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
-    ngx_array_t *child_vo_rules;
-    ngx_array_t *child_group_rules;
-
     ngx_conf_merge_value(conf->manager_mode,         prev->manager_mode,         0);
     brix_node_caps_conf_merge(&conf->caps, &prev->caps);
     /* Uploads are staged + resumable by DEFAULT (atomic commit-on-close, resume
@@ -601,15 +803,40 @@ brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
      * "use the compile-time default" (BRIX_REDIR_CACHE_SLOTS). */
     ngx_conf_merge_uint_value(conf->redir_cache_slots, prev->redir_cache_slots,
                               NGX_CONF_UNSET_UINT);
+}
 
-    /* Phase 22: active health checks — disabled by default (non-breaking). */
+/*
+ * WHAT: merge the active-health-check group (Phase 22) — enable, interval,
+ *       timeout, failure threshold, blacklist duration, and probe type.
+ * WHY:  a self-contained directive family; a dedicated helper keeps it out of
+ *       the orchestrator's flow.
+ * HOW:  plain child<-parent inheritance; disabled by default (non-breaking).
+ */
+static void
+brix_merge_srv_healthcheck(ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
     ngx_conf_merge_value(conf->hc.enabled,       prev->hc.enabled,       0);
     ngx_conf_merge_msec_value(conf->hc.interval_ms,  prev->hc.interval_ms,  30000);
     ngx_conf_merge_msec_value(conf->hc.timeout_ms,   prev->hc.timeout_ms,    5000);
     ngx_conf_merge_uint_value(conf->hc.threshold,    prev->hc.threshold,        3);
     ngx_conf_merge_msec_value(conf->hc.blacklist_ms, prev->hc.blacklist_ms, 60000);
     ngx_conf_merge_uint_value(conf->hc.type, prev->hc.type, BRIX_HC_TYPE_PING);
+}
 
+/*
+ * WHAT: merge the traffic-mirror group (Phase 24) — targets, sample rate, the
+ *       opcode/method include+exclude masks, auth-strip, divergence logging,
+ *       timeout, and write-mirroring; then derive the `enabled` flag.
+ * WHY:  the derived `enabled` (targets present ⇒ on) is a distinct rule worth
+ *       isolating.
+ * HOW:  inherit parent targets when unset, merge the tunables, then set
+ *       `enabled` from the presence of at least one target.
+ */
+static void
+brix_merge_srv_mirror(ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
     /* Phase 24: traffic mirror — inherit parent targets if none set locally,
      * then derive `enabled` from the presence of at least one target. */
     if (conf->mirror.targets == NULL) {
@@ -631,7 +858,22 @@ brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
                          prev->mirror.mirror_writes, 0);
     conf->mirror.enabled = (conf->mirror.targets != NULL
                             && conf->mirror.targets->nelts > 0) ? 1 : 0;
+}
 
+/*
+ * WHAT: merge the CMS client group (Phase 50) — locate timeout, paths, the
+ *       heartbeat interval, and the resilience deadlines (read/send/keepalive/
+ *       tcp_user + the connect-backoff pair left UNSET for worker-time choice).
+ * WHY:  the read-timeout auto-derivation depends on the just-merged interval;
+ *       isolating it keeps that ordering explicit.
+ * HOW:  merge interval (floored at 1s to avoid a busy-loop heartbeat), then
+ *       derive read_timeout = max(3×interval, 90s) when unset, and default
+ *       tcp_user_timeout to the read timeout.
+ */
+static void
+brix_merge_srv_cms(ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
     ngx_conf_merge_msec_value(conf->cms.locate_timeout, prev->cms.locate_timeout,
                               5000);
     ngx_conf_merge_str_value(conf->cms.paths,       prev->cms.paths,       "");
@@ -676,13 +918,19 @@ brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
                               NGX_CONF_UNSET_MSEC);
     ngx_conf_merge_msec_value(conf->cms.connect_retry, prev->cms.connect_retry,
                               NGX_CONF_UNSET_MSEC);
+}
 
-    ngx_conf_merge_value(conf->listen_port,         prev->listen_port,     BRIX_DEFAULT_PORT);
-    ngx_conf_merge_uint_value(conf->ckscan_max_depth,
-                              prev->ckscan_max_depth, 32);
-    ngx_conf_merge_uint_value(conf->ckscan_max_files,
-                              prev->ckscan_max_files, 100000);
-
+/*
+ * WHAT: inherit the resolved-address fields (CMS manager, HTTP handoff, relay,
+ *       and the upstream redirector host/port) from the parent scope.
+ * WHY:  these are already-resolved runtime addresses that ngx_conf_merge_* can't
+ *       express; grouping the NULL/len==0 guards keeps them together.
+ * HOW:  copy the parent's address family only when the child left it unset.
+ */
+static void
+brix_merge_srv_cluster_addrs(ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
     if (conf->cms.addr == NULL && prev->cms.addr != NULL) {
         conf->cms.addr = prev->cms.addr;
         conf->cms.manager = prev->cms.manager;
@@ -697,6 +945,29 @@ brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
         conf->relay_addr = prev->relay_addr;
         conf->relay_name = prev->relay_name;
     }
+
+    /* Inherit upstream redirector from parent scope if not set locally */
+    if (conf->upstream_host.len == 0 && prev->upstream_host.len > 0) {
+        conf->upstream_host = prev->upstream_host;
+        conf->upstream_port = prev->upstream_port;
+        conf->upstream_addr = prev->upstream_addr;
+    }
+}
+
+/*
+ * WHAT: merge the VO/group/manager-map rule arrays.
+ * WHY:  the three arrays share an identical merge-and-fail-check shape; a helper
+ *       keeps the NGX_CONF_ERROR handling out of the orchestrator.
+ * HOW:  brix_merge_arrays() each child array over the parent; a NULL result with
+ *       a non-empty parent or child signals allocation failure → NGX_CONF_ERROR.
+ */
+static char *
+brix_merge_srv_rules(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
+    ngx_array_t *child_vo_rules;
+    ngx_array_t *child_group_rules;
+    ngx_array_t *child_manager_map;
 
     child_vo_rules = conf->vo_rules;
     conf->vo_rules = brix_merge_arrays(cf, prev->vo_rules, child_vo_rules,
@@ -715,38 +986,55 @@ brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     }
 
     /* Merge manager_map entries (prefix -> backend mappings) */
-    {
-        ngx_array_t *child_manager_map = conf->manager_map;
-        conf->manager_map = brix_merge_arrays(cf, prev->manager_map,
-                                               child_manager_map,
-                                               sizeof(brix_manager_map_t));
-        if (conf->manager_map == NULL
-            && (prev->manager_map != NULL || child_manager_map != NULL)) {
-            return NGX_CONF_ERROR;
-        }
-    }
-
-    /* Inherit upstream redirector from parent scope if not set locally */
-    if (conf->upstream_host.len == 0 && prev->upstream_host.len > 0) {
-        conf->upstream_host = prev->upstream_host;
-        conf->upstream_port = prev->upstream_port;
-        conf->upstream_addr = prev->upstream_addr;
+    child_manager_map = conf->manager_map;
+    conf->manager_map = brix_merge_arrays(cf, prev->manager_map,
+                                           child_manager_map,
+                                           sizeof(brix_manager_map_t));
+    if (conf->manager_map == NULL
+        && (prev->manager_map != NULL || child_manager_map != NULL)) {
+        return NGX_CONF_ERROR;
     }
 
     return NGX_CONF_OK;
 }
 
-/* Upstream/proxy & network: upstream TLS + token, transparent proxy mode
- * (auth/login/timeouts/rewrite), the write-through origin + prefix rules +
- * decision struct, OCSP, the Phase-39 network-fault deadlines, and rate-limit
- * rule inheritance. */
+/* Cluster & sessions: manager/redirector mode, write recovery + staged uploads,
+ * pipeline/registry/session sizing, active health checks, the traffic mirror,
+ * the CMS client (+ resilience-timeout derivation), listen port, checksum-scan
+ * limits, and the VO/group/manager-map rule arrays + redirector inheritance. */
 static char *
-brix_merge_srv_proxy_net(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
+brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
-    ngx_array_t *child_wt_deny_prefixes;
-    ngx_array_t *child_wt_allow_prefixes;
+    brix_merge_srv_cluster_sizing(conf, prev);
+    brix_merge_srv_healthcheck(conf, prev);
+    brix_merge_srv_mirror(conf, prev);
+    brix_merge_srv_cms(conf, prev);
 
+    ngx_conf_merge_value(conf->listen_port,         prev->listen_port,     BRIX_DEFAULT_PORT);
+    ngx_conf_merge_uint_value(conf->ckscan_max_depth,
+                              prev->ckscan_max_depth, 32);
+    ngx_conf_merge_uint_value(conf->ckscan_max_files,
+                              prev->ckscan_max_files, 100000);
+
+    brix_merge_srv_cluster_addrs(conf, prev);
+
+    return brix_merge_srv_rules(cf, conf, prev);
+}
+
+/*
+ * WHAT: merge the upstream-TLS + transparent-proxy group (relay guard, proxy
+ *       enable/port/auth/login, TLS material, rewrite rules, and the connect/
+ *       read/write/keepalive timeouts).
+ * WHY:  the proxy login-user name is a fixed char buffer copied by ngx_cpystrn,
+ *       not a mergeable str; grouping keeps that special case local.
+ * HOW:  inherit the upstream/proxy scalars child<-parent and copy the parent's
+ *       login-user name only when the child left it empty.
+ */
+static void
+brix_merge_srv_proxy(ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
     ngx_conf_merge_value(conf->upstream_tls,          prev->upstream_tls,          0);
     ngx_conf_merge_str_value(conf->upstream_tls_ca,   prev->upstream_tls_ca,   "");
     ngx_conf_merge_str_value(conf->upstream_tls_name, prev->upstream_tls_name, "");
@@ -785,6 +1073,23 @@ brix_merge_srv_proxy_net(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     BRIX_MERGE_PTR(conf, prev, proxy.upstreams);
     ngx_conf_merge_str_value(conf->proxy.host, prev->proxy.host, "");
     BRIX_MERGE_HOSTPORT(conf, prev, cache_origin_host, cache_origin_port);
+}
+
+/*
+ * WHAT: merge the write-through group — enable/mode, origin host/port (falling
+ *       back to the cache origin), the deny/allow prefix arrays, and rebuild the
+ *       write-through decision struct from the merged inputs.
+ * WHY:  the decision struct references the just-merged prefix arrays, cache size
+ *       cap, and include-regex, so it must rebuild after they settle.
+ * HOW:  merge the wt scalars + prefix arrays (NULL result + non-empty parent/
+ *       child ⇒ NGX_CONF_ERROR), then point the decision fn/data/limits at them.
+ */
+static char *
+brix_merge_srv_writethrough(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
+    ngx_array_t *child_wt_deny_prefixes;
+    ngx_array_t *child_wt_allow_prefixes;
 
     ngx_conf_merge_value(conf->wt.enable, prev->wt.enable, 0);
     BRIX_MERGE_ENUM(conf, prev, wt.mode, BRIX_WT_MODE_UNSET, BRIX_WT_MODE_SYNC);
@@ -822,6 +1127,21 @@ brix_merge_srv_proxy_net(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     conf->wt.decision.include_regex = conf->include_regex.re;
     conf->wt.decision.include_regex_set = conf->include_regex.set;
 
+    return NGX_CONF_OK;
+}
+
+/*
+ * WHAT: merge OCSP, the Phase-39 network-fault deadlines, and inherit the
+ *       advanced rate-limit rule array; publish the manager staleness threshold.
+ * WHY:  the staleness publish is a config-time side effect (before fork) that
+ *       must run once inputs settle; grouping keeps it beside its merge.
+ * HOW:  delegate OCSP, inherit the deadline scalars (0 == disabled), publish the
+ *       staleness threshold when > 0, and inherit rl_rules when the child is NULL.
+ */
+static void
+brix_merge_srv_net_fault(ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
     brix_ocsp_conf_merge(&conf->ocsp, &prev->ocsp);
 
     /* ocsp.staple_data/len are populated at init_process, not here */
@@ -850,6 +1170,21 @@ brix_merge_srv_proxy_net(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     if (conf->rl_rules == NULL) {
         conf->rl_rules = prev->rl_rules;
     }
+}
+
+/* Upstream/proxy & network: upstream TLS + token, transparent proxy mode
+ * (auth/login/timeouts/rewrite), the write-through origin + prefix rules +
+ * decision struct, OCSP, the Phase-39 network-fault deadlines, and rate-limit
+ * rule inheritance. */
+static char *
+brix_merge_srv_proxy_net(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
+    brix_merge_srv_proxy(conf, prev);
+    if (brix_merge_srv_writethrough(cf, conf, prev) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+    brix_merge_srv_net_fault(conf, prev);
 
     return NGX_CONF_OK;
 }

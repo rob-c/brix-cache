@@ -308,7 +308,9 @@ brix_rename_beneath(int rootfd, const char *src, const char *dst)
     if (sbase[0] == '\0' || dbase[0] == '\0') {
         close(sfd); close(dfd); errno = EINVAL; return -1;
     }
-    rc = renameat(sfd, sbase, dfd, dbase);
+    /* phase74-fp: renameat(olddirfd, oldpath, newdirfd, newpath) — (sfd, sbase,
+     * dfd, dbase) IS the prototype order; same class as broker_ops.c. */
+    rc = renameat(sfd, sbase, dfd, dbase);  /* NOLINT(readability-suspicious-call-argument) */
     e = errno; close(sfd); close(dfd); errno = e;
     return rc;
 }
@@ -351,7 +353,8 @@ brix_rename_beneath_excl(int rootfd, const char *src, const char *dst)
                           "brix: renameat2(RENAME_NOREPLACE) unsupported; "
                           "create-if-absent falls back to non-atomic rename");
         }
-        rc = renameat(sfd, sbase, dfd, dbase);
+        /* phase74-fp: prototype order (olddirfd, oldpath, newdirfd, newpath). */
+        rc = renameat(sfd, sbase, dfd, dbase);  /* NOLINT(readability-suspicious-call-argument) */
     }
     e = errno; close(sfd); close(dfd); errno = e;
     return rc;

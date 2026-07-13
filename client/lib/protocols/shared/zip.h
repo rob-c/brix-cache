@@ -106,15 +106,34 @@ typedef struct brix_zip_writer brix_zip_writer;
  * offset for append — see brix_zip_writer_new_append). */
 brix_zip_writer *brix_zip_writer_new(brix_zip_write_fn wr, void *ctx);
 
-/* Append-mode writer: seeds the central directory with `seed_cd` (the verbatim
- * existing CD bytes, `seed_n` entries) and starts writing new local headers at
+/*
+ * brix_zip_seed - the existing archive's central directory, for append mode.
+ *
+ * WHAT: bundles the three verbatim-CD facts an append writer needs to resume an
+ *       archive — the raw central-directory bytes (`cd`), their length
+ *       (`cd_len`), and the entry count they describe (`n`).
+ * WHY:  these three values are one cohesive unit (a snapshot of the archive's
+ *       existing central directory) and are always produced/consumed together;
+ *       carrying them as a single struct keeps brix_zip_writer_new_append() at
+ *       ≤5 params without touching the frozen ZIP byte layout.
+ * HOW:  filled by the caller from brix_zip_read_eocd() + a read of the old CD,
+ *       then passed by const pointer to brix_zip_writer_new_append(), which
+ *       copies the bytes into its own buffer (the caller may free `cd` after).
+ */
+typedef struct {
+    const uint8_t *cd;       /* verbatim existing central-directory bytes    */
+    size_t         cd_len;   /* length of `cd` in bytes                      */
+    size_t         n;        /* number of entries `cd` describes             */
+} brix_zip_seed;
+
+/* Append-mode writer: seeds the central directory from `seed` (the verbatim
+ * existing CD bytes + entry count) and starts writing new local headers at
  * base_offset (the existing archive's old CD offset, which the new member data
  * overwrites).  Used by `xrdcp --zip-append`.  Rejects ZIP64 seed archives
  * (caller checks via brix_zip_read_eocd) — returns NULL on allocation failure. */
 brix_zip_writer *brix_zip_writer_new_append(brix_zip_write_fn wr, void *ctx,
                                             uint64_t base_offset,
-                                            const uint8_t *seed_cd,
-                                            size_t seed_cd_len, size_t seed_n);
+                                            const brix_zip_seed *seed);
 
 /* Add one STORE member named `name`, data streamed from `fd` (pread, two-pass).
  * Returns XRDC_ZIP_OK or a negative code. */

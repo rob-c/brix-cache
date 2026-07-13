@@ -20,8 +20,8 @@
  *       cvmfs deliberately exposes only cache_store and is NOT converted.
  */
 
-#ifndef _NGX_BRIX_TIER_DIRECTIVES_H
-#define _NGX_BRIX_TIER_DIRECTIVES_H
+#ifndef NGX_BRIX_TIER_DIRECTIVES_H
+#define NGX_BRIX_TIER_DIRECTIVES_H
 
 #include "core/config/shared_conf.h"   /* brix_conf_set_store_slot */
 
@@ -103,4 +103,4 @@ static ngx_conf_enum_t  brix_tier_cache_meta_enum[] = {
       offsetof(conf_t, common.cache_slice_size),                              \
       NULL }
 
-#endif /* _NGX_BRIX_TIER_DIRECTIVES_H */
+#endif /* NGX_BRIX_TIER_DIRECTIVES_H */

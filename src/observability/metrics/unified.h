@@ -142,6 +142,34 @@ void brix_metric_backend_bytes(const char *backend_name,
 void brix_metric_cache_result(brix_proto_t proto, unsigned int hit,
     size_t bytes_evicted);
 /*
+ * Credential-gate terminal outcomes (Phase 2 Task 3).
+ *
+ * BRIX_CRED_OUTCOME_USER     — a per-user credential was selected and used.
+ * BRIX_CRED_OUTCOME_FALLBACK — no valid user credential; service-cred fallback
+ *                              allowed (fallback_deny == 0).  Covers both the
+ *                              "driver incapable" and "missing/expired cred" branches.
+ * BRIX_CRED_OUTCOME_DENY     — request rejected (EACCES): fallback_deny == 1
+ *                              and either no/expired user cred or driver lacks the
+ *                              *_cred capability.
+ *
+ * Feature-off (storage_cred_dir unset) is NOT counted — not a credential decision.
+ * Flush-deny (stage_engine BRIX_XFER_DENIED) is observable via the xfer audit
+ * ledger result=denied line and is NOT counted here.
+ */
+typedef enum {
+    BRIX_CRED_OUTCOME_USER     = 0,
+    BRIX_CRED_OUTCOME_FALLBACK = 1,
+    BRIX_CRED_OUTCOME_DENY     = 2,
+    BRIX_CRED_OUTCOME_COUNT    = 3
+} brix_cred_outcome_t;
+/*
+ * Bump the per-proto credential-gate outcome counter for the given outcome.
+ * Mirrors brix_metric_cache_result: resolves shm->unified.cred_select_*[proto]
+ * and performs a lock-free atomic increment.  No-ops on out-of-range proto,
+ * unknown outcome, or detached SHM.
+ */
+void brix_metric_cred_result(brix_proto_t proto, brix_cred_outcome_t outcome);
+/*
  * Watermark-driven LRU reaper telemetry (connection-less, process-wide):
  *  - cache_usage_ratio publishes cache_root occupancy (ppm) as a gauge each tick;
  *  - cache_watermark_purge accounts one purge run that reclaimed `files`/`bytes`.

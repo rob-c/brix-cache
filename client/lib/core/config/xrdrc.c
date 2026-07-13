@@ -18,6 +18,7 @@
  */
 #include "brix.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -59,6 +60,204 @@ rstrip(char *s)
     }
 }
 
+/*
+ * Known-key descriptor tables (the "table-driven dispatch" for rc settings).
+ *
+ * WHAT: two static const tables mapping a config key to where its value is
+ *       stored: alias string fields (offset+size within xrdrc_alias) and the
+ *       four [defaults] positive-integer timeouts (address of the static int).
+ * WHY:  the parser used to be an if/else ladder per key; a descriptor table
+ *       makes each key one data row and keeps rc_apply_setting flat — the same
+ *       key names, the same destinations, the same precedence, no new keys.
+ * HOW:  rc_apply_setting() scans the table matching on the section, so behavior
+ *       is byte-identical to the former ladder (order of rows is immaterial —
+ *       keys are unique, last-writer-wins was never possible within one line).
+ */
+typedef struct {
+    const char *key;
+    size_t      off;   /* offset of the char[] field inside xrdrc_alias */
+    size_t      size;  /* size of that field (for snprintf bound)       */
+} rc_alias_field;
+
+static const rc_alias_field rc_alias_fields[] = {
+    { "url",               offsetof(xrdrc_alias, url),        sizeof(((xrdrc_alias *) 0)->url) },
+    { "token",             offsetof(xrdrc_alias, token),      sizeof(((xrdrc_alias *) 0)->token) },
+    { "token_file",        offsetof(xrdrc_alias, token_file), sizeof(((xrdrc_alias *) 0)->token_file) },
+    { "bearer_token_file", offsetof(xrdrc_alias, token_file), sizeof(((xrdrc_alias *) 0)->token_file) },
+    { "s3_access",         offsetof(xrdrc_alias, s3_access),  sizeof(((xrdrc_alias *) 0)->s3_access) },
+    { "s3_secret",         offsetof(xrdrc_alias, s3_secret),  sizeof(((xrdrc_alias *) 0)->s3_secret) },
+    { "s3_region",         offsetof(xrdrc_alias, s3_region),  sizeof(((xrdrc_alias *) 0)->s3_region) },
+    { "proxy",             offsetof(xrdrc_alias, proxy),      sizeof(((xrdrc_alias *) 0)->proxy) },
+};
+
+typedef struct {
+    const char *key;
+    int        *dst;
+} rc_default_field;
+
+static const rc_default_field rc_default_fields[] = {
+    { "connect_timeout_ms", &g_def_connect_ms },
+    { "io_timeout_ms",      &g_def_io_ms },
+    { "max_stall_ms",       &g_def_stall_ms },
+    { "backoff_base_ms",    &g_def_backoff_ms },
+};
+
+/*
+ * rc_next_line — trim one raw fgets() line to its significant content.
+ *
+ * WHAT: strips leading blanks and trailing whitespace/newline in place and
+ *       returns a pointer to the first significant char, or NULL when the line
+ *       should be skipped (empty or a '#' comment).
+ * WHY:  every parse path first needs the trimmed, comment-filtered text; pulling
+ *       it out keeps xrdrc_load() a flat section/line loop.
+ * HOW:  advance past spaces/tabs, rstrip(), then reject '\0'/'#' — identical to
+ *       the former inline preamble, so ignored lines stay ignored.
+ */
+static char *
+rc_next_line(char *line)
+{
+    char *s = line;
+    while (*s == ' ' || *s == '\t') { s++; }
+    rstrip(s);
+    if (*s == '\0' || *s == '#') {
+        return NULL;
+    }
+    return s;
+}
+
+/*
+ * rc_open_section — react to a "[...]" header line, updating the parser cursor.
+ *
+ * WHAT: given a header line, sets *in_defaults and *cur to reflect the section
+ *       just entered; registers a new alias slot on "[alias NAME]".
+ * WHY:  section switching was inlined in the loop; isolating it keeps the loop
+ *       linear and the [alias …] registration (name trim + bounds + slot reset)
+ *       in one testable place.
+ * HOW:  matches "[defaults]" and the "[alias " prefix exactly as before; unknown
+ *       or overflow sections clear the cursor (cur=-1) so their keys are dropped.
+ */
+static void
+rc_open_section(char *s, int *cur, int *in_defaults)
+{
+    *cur = -1;
+    *in_defaults = 0;
+    if (strcmp(s, "[defaults]") == 0) {
+        *in_defaults = 1;
+        return;
+    }
+    if (strncmp(s, "[alias ", 7) != 0) {
+        return;
+    }
+    char *nm = s + 7;
+    char *rb = strchr(nm, ']');
+    if (rb != NULL) { *rb = '\0'; }
+    while (*nm == ' ') { nm++; }
+    if (*nm != '\0' && g_nalias < XRDRC_MAX_ALIASES) {
+        *cur = g_nalias++;
+        snprintf(g_aliases[*cur].name, sizeof(g_aliases[*cur].name), "%s", nm);
+        g_aliases[*cur].url[0] = '\0';
+    }
+}
+
+/*
+ * rc_parse_kv — split a "key = value" line into trimmed key/value in place.
+ *
+ * WHAT: finds the first '=', null-terminates the key, right-trims the key and
+ *       left-trims the value, writing both back through *out_k / *out_v; returns
+ *       0 on success or -1 when the line has no '=' (nothing to apply).
+ * WHY:  key/value tokenisation is shared by the [defaults] and [alias] paths;
+ *       one pure splitter removes the duplicated pointer arithmetic.
+ * HOW:  mutates the caller's buffer exactly as the former inline code did — same
+ *       trimming rules, so keys and values are byte-identical.
+ */
+static int
+rc_parse_kv(char *s, char **out_k, char **out_v)
+{
+    char *eq = strchr(s, '=');
+    if (eq == NULL) {
+        return -1;
+    }
+    char *k = s, *v = eq + 1, *ke = eq;
+    *eq = '\0';
+    while (ke > k && (ke[-1] == ' ' || ke[-1] == '\t')) { *--ke = '\0'; }
+    while (*v == ' ' || *v == '\t') { v++; }
+    *out_k = k;
+    *out_v = v;
+    return 0;
+}
+
+/*
+ * rc_apply_default — store one [defaults] timeout if it names a known key.
+ *
+ * WHAT: looks k up in rc_default_fields and, when the value is a valid positive
+ *       integer, writes it to the matching static int; ignores everything else.
+ * WHY:  keeps the "positive-int only" rule in exactly one spot so garbage can
+ *       never become a giant unsigned timeout downstream.
+ * HOW:  strtol() with full-consume + n>0 validation identical to the old ladder;
+ *       unknown keys and invalid values leave the target untouched.
+ */
+static void
+rc_apply_default(const char *k, const char *v)
+{
+    char  *end;
+    long   n = strtol(v, &end, 10);
+    int    valid = (*v != '\0' && *end == '\0' && n > 0);
+    size_t i;
+
+    if (!valid) {
+        return;
+    }
+    for (i = 0; i < sizeof(rc_default_fields) / sizeof(rc_default_fields[0]); i++) {
+        if (strcmp(k, rc_default_fields[i].key) == 0) {
+            *rc_default_fields[i].dst = (int) n;
+            return;
+        }
+    }
+}
+
+/*
+ * rc_apply_alias — store one [alias] string field if it names a known key.
+ *
+ * WHAT: looks k up in rc_alias_fields and snprintf's v into the matching char[]
+ *       field of g_aliases[cur]; unknown keys are ignored.
+ * WHY:  replaces the per-key strcmp/snprintf ladder with a single table walk so
+ *       adding a field is a data row, not a new branch.
+ * HOW:  offset+size from the descriptor drive a bounded snprintf into the same
+ *       destination and with the same truncation bound as before.
+ */
+static void
+rc_apply_alias(int cur, const char *k, const char *v)
+{
+    size_t i;
+    for (i = 0; i < sizeof(rc_alias_fields) / sizeof(rc_alias_fields[0]); i++) {
+        if (strcmp(k, rc_alias_fields[i].key) == 0) {
+            char *dst = (char *) &g_aliases[cur] + rc_alias_fields[i].off;
+            snprintf(dst, rc_alias_fields[i].size, "%s", v);
+            return;
+        }
+    }
+}
+
+/*
+ * rc_apply_setting — route one parsed key/value to the active section's target.
+ *
+ * WHAT: dispatches to rc_apply_default (in [defaults]) or rc_apply_alias (in a
+ *       registered [alias]); no-op when outside any section.
+ * WHY:  a single seam between "which section" and "how to store" keeps
+ *       precedence — [defaults] never touches aliases and vice versa — explicit.
+ * HOW:  pure branch on the two cursor flags; preserves the original mutual
+ *       exclusivity (in_defaults handled before cur>=0).
+ */
+static void
+rc_apply_setting(int in_defaults, int cur, const char *k, const char *v)
+{
+    if (in_defaults) {
+        rc_apply_default(k, v);
+    } else if (cur >= 0) {
+        rc_apply_alias(cur, k, v);
+    }
+}
+
 /* Load $XRDRC (else ~/.xrdrc) once into g_aliases. Missing file → no aliases. */
 static void
 xrdrc_load(void)
@@ -88,72 +287,20 @@ xrdrc_load(void)
         return;
     }
     while (fgets(line, sizeof(line), f) != NULL) {
-        char *s = line;
-        while (*s == ' ' || *s == '\t') { s++; }
-        rstrip(s);
-        if (*s == '\0' || *s == '#') {
+        char *k = NULL;
+        char *v = NULL;
+        char *s = rc_next_line(line);
+        if (s == NULL) {
             continue;
         }
         if (*s == '[') {
-            cur = -1;
-            in_defaults = 0;
-            if (strcmp(s, "[defaults]") == 0) {
-                in_defaults = 1;
-            } else if (strncmp(s, "[alias ", 7) == 0) {
-                char *nm = s + 7;
-                char *rb = strchr(nm, ']');
-                if (rb != NULL) { *rb = '\0'; }
-                while (*nm == ' ') { nm++; }
-                if (*nm != '\0' && g_nalias < XRDRC_MAX_ALIASES) {
-                    cur = g_nalias++;
-                    snprintf(g_aliases[cur].name, sizeof(g_aliases[cur].name), "%s", nm);
-                    g_aliases[cur].url[0] = '\0';
-                }
-            }
+            rc_open_section(s, &cur, &in_defaults);
             continue;
         }
-        /* key = value lines */
-        char *eq = strchr(s, '=');
-        if (eq == NULL) {
+        if (rc_parse_kv(s, &k, &v) != 0) {
             continue;
         }
-        char *k = s, *v = eq + 1, *ke = eq;
-        *eq = '\0';
-        while (ke > k && (ke[-1] == ' ' || ke[-1] == '\t')) { *--ke = '\0'; }
-        while (*v == ' ' || *v == '\t') { v++; }
-
-        if (in_defaults) {
-            /* Parse positive integers only — negative/non-numeric are silently
-             * ignored so they cannot become giant unsigned timeouts. */
-            char  *end;
-            long   n = strtol(v, &end, 10);
-            int    valid = (*v != '\0' && *end == '\0' && n > 0);
-            if (strcmp(k, "connect_timeout_ms") == 0) {
-                if (valid) { g_def_connect_ms = (int) n; }
-            } else if (strcmp(k, "io_timeout_ms") == 0) {
-                if (valid) { g_def_io_ms = (int) n; }
-            } else if (strcmp(k, "max_stall_ms") == 0) {
-                if (valid) { g_def_stall_ms = (int) n; }
-            } else if (strcmp(k, "backoff_base_ms") == 0) {
-                if (valid) { g_def_backoff_ms = (int) n; }
-            }
-        } else if (cur >= 0) {
-            if (strcmp(k, "url") == 0) {
-                snprintf(g_aliases[cur].url, sizeof(g_aliases[cur].url), "%s", v);
-            } else if (strcmp(k, "token") == 0) {
-                snprintf(g_aliases[cur].token, sizeof(g_aliases[cur].token), "%s", v);
-            } else if (strcmp(k, "token_file") == 0 || strcmp(k, "bearer_token_file") == 0) {
-                snprintf(g_aliases[cur].token_file, sizeof(g_aliases[cur].token_file), "%s", v);
-            } else if (strcmp(k, "s3_access") == 0) {
-                snprintf(g_aliases[cur].s3_access, sizeof(g_aliases[cur].s3_access), "%s", v);
-            } else if (strcmp(k, "s3_secret") == 0) {
-                snprintf(g_aliases[cur].s3_secret, sizeof(g_aliases[cur].s3_secret), "%s", v);
-            } else if (strcmp(k, "s3_region") == 0) {
-                snprintf(g_aliases[cur].s3_region, sizeof(g_aliases[cur].s3_region), "%s", v);
-            } else if (strcmp(k, "proxy") == 0) {
-                snprintf(g_aliases[cur].proxy, sizeof(g_aliases[cur].proxy), "%s", v);
-            }
-        }
+        rc_apply_setting(in_defaults, cur, k, v);
     }
     fclose(f);
 }

@@ -127,6 +127,6 @@ brix_ini_parse_file(const char *path, brix_ini_cb cb, void *user,
         }
     }
 
-    fclose(f);
+    (void) fclose(f); /* phase74-fp: read-only stream, parse result rc already determined */
     return rc;
 }

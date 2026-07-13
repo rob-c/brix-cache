@@ -432,15 +432,52 @@ tpc_token_rfc8693(brix_tpc_pull_t *t, char *token_out, size_t token_out_sz)
 }
 
 
-/* WHAT: Public entry point that dispatches delegated token fetching based on t->token_mode. Returns 0 immediately for "none" or empty mode; delegates to tpc_token_oidc_agent() for "oidc-agent" mode (UNIX-socket JSON IPC); delegates to tpc_token_rfc8693() for "token-exchange" mode (RFC 8693 POST, validates token_endpoint configured first). Returns -1 with err_msg/xrd_error set on unknown mode or dispatch failure.
- * WHY: TPC source authentication requires delegated tokens when the destination server authenticates as a different identity to the remote origin. This dispatcher centralizes mode selection — callers pass t->token_mode and receive the fetched token in t->delegated_token without knowing which backend mechanism was used. Prevents callers from duplicating mode-switch logic across launch.c/thread.c.
- * HOW: token_mode=="none"/empty → return 0; "oidc-agent" → call tpc_token_oidc_agent(t, delegated_token, sizeof); "token-exchange" → validate conf->tpc_outbound_token_endpoint.len>0 else error → call tpc_token_rfc8693(t, delegated_token, sizeof); unknown mode → snprintf err_msg/xrd_error=kXR_ArgInvalid → return -1. */
+/* WHAT: Public entry point that dispatches delegated token fetching based on t->token_mode. Returns 0 immediately for "none" or empty mode; for "passthrough" (explicit/strict) validates the client's inbound bearer JWT already snapshotted into t->delegated_token (empty → kXR_AuthFailed); for "passthrough-opt" (default/opportunistic) validates the inbound JWT when present but returns 0 with no token when absent (fall back to bearer-file/GSI/anon); delegates to tpc_token_oidc_agent() for "oidc-agent" mode (UNIX-socket JSON IPC); delegates to tpc_token_rfc8693() for "token-exchange" mode (RFC 8693 POST, validates token_endpoint configured first). Returns -1 with err_msg/xrd_error set on unknown mode or dispatch failure.
+ * WHY: TPC source authentication requires delegated tokens when the destination server authenticates as a different identity to the remote origin. This dispatcher centralizes mode selection — callers pass t->token_mode and receive the fetched token in t->delegated_token without knowing which backend mechanism was used. Prevents callers from duplicating mode-switch logic across launch.c/thread.c. The passthrough modes differ: no fetch happens here — the token was captured on the event loop (launch.c) — so they only inspect the snapshot. "passthrough" (client asked for it) fails closed when it is empty; "passthrough-opt" (server default) instead returns 0 so the outbound auth path can fall back, so making passthrough the default never denies a previously-anonymous/GSI-only pull.
+ * HOW: token_mode=="none"/empty → return 0; "passthrough" → require t->delegated_token[0] set (else err_msg/xrd_error=kXR_AuthFailed) → tpc_token_validate_delegated; "passthrough-opt" → empty token → return 0, else tpc_token_validate_delegated; "oidc-agent" → call tpc_token_oidc_agent(t, delegated_token, sizeof); "token-exchange" → validate conf->tpc_outbound_token_endpoint.len>0 else error → call tpc_token_rfc8693(t, delegated_token, sizeof); unknown mode → snprintf err_msg/xrd_error=kXR_ArgInvalid → return -1. */
 int
 tpc_fetch_delegated_token(brix_tpc_pull_t *t)
 {
     if (t->token_mode[0] == '\0'
         || ngx_strcmp(t->token_mode, "none") == 0) {
         return 0;
+    }
+
+    /*
+     * passthrough (STRICT) — an explicit client tpc.token_mode=passthrough. The
+     * client's own inbound bearer JWT was already snapshotted into
+     * t->delegated_token on the event loop (tpc_pull_capture_passthrough_token in
+     * launch.c). There is nothing to fetch; just require the token to be present
+     * and valid so the source authenticates the end user. An empty token (no
+     * inbound bearer / one too large to forward) is a clean kXR_AuthFailed —
+     * never a silent anonymous/service fallback, because the client asked for it.
+     */
+    if (ngx_strcmp(t->token_mode, "passthrough") == 0) {
+        if (t->delegated_token[0] == '\0') {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC token: passthrough requested but no inbound bearer "
+                     "token was presented by the client");
+            t->xrd_error = kXR_AuthFailed;
+            return -1;
+        }
+        return tpc_token_validate_delegated(t);
+    }
+
+    /*
+     * passthrough-opt (OPPORTUNISTIC) — the default-on brix_tpc_outbound_passthrough
+     * mode. Same event-loop capture as strict passthrough, but the ABSENCE of an
+     * inbound token is NOT an error: return 0 with delegated_token left empty so
+     * the outbound auth path (gsi_outbound_finish) falls back to the static bearer
+     * file, then GSI proxy delegation, then anonymous — exactly as it did before
+     * this mode became the default. This guarantees a flipped default never turns
+     * a previously-succeeding GSI-only or anonymous TPC pull into a new denial.
+     * When an inbound token IS present, use it (validate + forward via ztn).
+     */
+    if (ngx_strcmp(t->token_mode, "passthrough-opt") == 0) {
+        if (t->delegated_token[0] == '\0') {
+            return 0;
+        }
+        return tpc_token_validate_delegated(t);
     }
 
     if (ngx_strcmp(t->token_mode, "oidc-agent") == 0) {

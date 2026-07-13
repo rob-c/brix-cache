@@ -72,6 +72,119 @@ brix_shared_handle_same_key(const brix_shared_handle_entry_t *entry,
 
 /*
  *
+ * WHAT: Locates the publish target for a (sessid, handle_index) pair: the
+ * existing entry if one is already published, otherwise the first free slot.
+ *
+ * WHY: Publish must reuse an entry for the same key (overwrite-in-place) and
+ * only fall back to a fresh slot when none exists.  Isolating the scan keeps
+ * the publish body free of the dual match/free-slot bookkeeping.
+ *
+ * HOW: Single pass over the slot array.  Returns the matching entry via *entry
+ * (NULL when absent) and the first free index via *free_slot
+ * (BRIX_SESSION_HANDLE_SLOTS when the table is full).  Caller holds the mutex.
+ */
+static void
+brix_shared_handle_find_slot(brix_shared_handle_table_t *tbl,
+    const u_char sessid[BRIX_SESSION_ID_LEN], int handle_index,
+    brix_shared_handle_entry_t **entry, ngx_uint_t *free_slot)
+{
+    ngx_uint_t i;
+
+    *entry = NULL;
+    *free_slot = BRIX_SESSION_HANDLE_SLOTS;
+
+    for (i = 0; i < BRIX_SESSION_HANDLE_SLOTS; i++) {
+        if (brix_shared_handle_same_key(&tbl->slots[i], sessid,
+                                          handle_index))
+        {
+            *entry = &tbl->slots[i];
+            return;
+        }
+
+        if (!tbl->slots[i].in_use
+            && *free_slot == BRIX_SESSION_HANDLE_SLOTS)
+        {
+            *free_slot = i;
+        }
+    }
+}
+
+/*
+ *
+ * WHAT: Copies validated primary-handle metadata into a shared table entry.
+ *
+ * WHY: The reopen validation on the secondary side depends on the exact
+ * device/inode/size/flag tuple; keeping the field copy in one place documents
+ * the published contract and keeps the publish body focused on control flow.
+ *
+ * HOW: Zeroes the entry, copies the key and metadata fields, truncates the
+ * path via ngx_cpystrn, and marks the entry in_use.  Caller holds the mutex.
+ */
+static void
+brix_shared_handle_store(brix_shared_handle_entry_t *entry,
+    const u_char sessid[BRIX_SESSION_ID_LEN], int handle_index,
+    const brix_file_t *file)
+{
+    ngx_memzero(entry, sizeof(*entry));
+    ngx_memcpy(entry->sessid, sessid, BRIX_SESSION_ID_LEN);
+    entry->handle_index = (uint8_t) handle_index;
+    entry->readable = file->readable ? 1 : 0;
+    entry->writable = file->writable ? 1 : 0;
+    entry->from_cache = file->from_cache ? 1 : 0;
+    entry->is_regular = file->is_regular ? 1 : 0;
+    entry->device = file->device;
+    entry->inode = file->inode;
+    entry->cached_size = file->cached_size;
+    ngx_cpystrn((u_char *) entry->path, (u_char *) file->path,
+                sizeof(entry->path));
+    entry->in_use = 1;
+}
+
+/*
+ *
+ * WHAT: Reports whether the primary handle is eligible for publication, and
+ * returns the target entry to write.
+ *
+ * WHY: A write-only or path-less handle, or an over-length path, must NOT be
+ * published — but must still evict any stale entry for the same key.  Folding
+ * the eligibility checks and target selection here keeps the publish body's
+ * happy path linear.
+ *
+ * HOW: On any ineligibility, zeroes *entry (when non-NULL) and returns 0.  When
+ * eligible, resolves *entry to the reuse entry or the free slot (returning 0 if
+ * the table is full) and returns 1.  Caller holds the mutex.
+ */
+static ngx_flag_t
+brix_shared_handle_select_target(brix_shared_handle_table_t *tbl,
+    const brix_file_t *file, ngx_uint_t free_slot,
+    brix_shared_handle_entry_t **entry)
+{
+    /*
+     * Bound streams are read-only data channels.  Publishing a write-only
+     * primary handle would create an attractive misuse path, so treat these
+     * cases as removal of any stale shared entry for the same slot.
+     */
+    if (!file->readable || file->path == NULL
+        || ngx_strlen(file->path) > BRIX_MAX_PATH)
+    {
+        if (*entry != NULL) {
+            ngx_memzero(*entry, sizeof(**entry));
+        }
+        return 0;
+    }
+
+    if (*entry == NULL) {
+        if (free_slot == BRIX_SESSION_HANDLE_SLOTS) {
+            return 0;
+        }
+        *entry = &tbl->slots[free_slot];
+    }
+
+    return 1;
+}
+
+/*
+ *
  * WHAT: Shares file handle metadata with other workers enabling bound stream
  * secondary connections to read primary-published handles.  Write-only
  * handles are not published because bound streams are read-only data channels.
@@ -85,9 +198,8 @@ brix_session_handle_publish(const u_char sessid[BRIX_SESSION_ID_LEN],
     int handle_index, const brix_file_t *file)
 {
     brix_shared_handle_table_t *tbl;
-    brix_shared_handle_entry_t *entry;
-    ngx_uint_t                    i, free_slot;
-    size_t                        path_len;
+    brix_shared_handle_entry_t *entry = NULL;
+    ngx_uint_t                    free_slot = 0;
 
     if (handle_index < 0 || handle_index >= BRIX_MAX_FILES
         || file == NULL || file->fd < 0)
@@ -102,67 +214,11 @@ brix_session_handle_publish(const u_char sessid[BRIX_SESSION_ID_LEN],
 
     ngx_shmtx_lock(&brix_handle_mutex);
 
-    free_slot = BRIX_SESSION_HANDLE_SLOTS;
-    entry = NULL;
+    brix_shared_handle_find_slot(tbl, sessid, handle_index, &entry, &free_slot);
 
-    for (i = 0; i < BRIX_SESSION_HANDLE_SLOTS; i++) {
-        if (brix_shared_handle_same_key(&tbl->slots[i], sessid,
-                                          handle_index))
-        {
-            entry = &tbl->slots[i];
-            break;
-        }
-
-        if (!tbl->slots[i].in_use
-            && free_slot == BRIX_SESSION_HANDLE_SLOTS)
-        {
-            free_slot = i;
-        }
+    if (brix_shared_handle_select_target(tbl, file, free_slot, &entry)) {
+        brix_shared_handle_store(entry, sessid, handle_index, file);
     }
-
-    /*
-     * Bound streams are read-only data channels.  Publishing a write-only
-     * primary handle would create an attractive misuse path, so treat it as
-     * removal of any stale shared entry for the same slot.
-     */
-    if (!file->readable || file->path == NULL) {
-        if (entry != NULL) {
-            ngx_memzero(entry, sizeof(*entry));
-        }
-        ngx_shmtx_unlock(&brix_handle_mutex);
-        return;
-    }
-
-    path_len = ngx_strlen(file->path);
-    if (path_len > BRIX_MAX_PATH) {
-        if (entry != NULL) {
-            ngx_memzero(entry, sizeof(*entry));
-        }
-        ngx_shmtx_unlock(&brix_handle_mutex);
-        return;
-    }
-
-    if (entry == NULL) {
-        if (free_slot == BRIX_SESSION_HANDLE_SLOTS) {
-            ngx_shmtx_unlock(&brix_handle_mutex);
-            return;
-        }
-        entry = &tbl->slots[free_slot];
-    }
-
-    ngx_memzero(entry, sizeof(*entry));
-    ngx_memcpy(entry->sessid, sessid, BRIX_SESSION_ID_LEN);
-    entry->handle_index = (uint8_t) handle_index;
-    entry->readable = file->readable ? 1 : 0;
-    entry->writable = file->writable ? 1 : 0;
-    entry->from_cache = file->from_cache ? 1 : 0;
-    entry->is_regular = file->is_regular ? 1 : 0;
-    entry->device = file->device;
-    entry->inode = file->inode;
-    entry->cached_size = file->cached_size;
-    ngx_cpystrn((u_char *) entry->path, (u_char *) file->path,
-                sizeof(entry->path));
-    entry->in_use = 1;
 
     ngx_shmtx_unlock(&brix_handle_mutex);
 }

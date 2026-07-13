@@ -25,8 +25,14 @@ brix_cache_open_or_fill(brix_ctx_t *ctx, ngx_connection_t *c,
 
     ready = brix_cache_ready(conf, cache_path);
     if (ready == 1) {
-        return brix_open_resolved_file(ctx, c, conf, cache_path,
-                                         options, mode_bits, 0, 0);
+        brix_open_request_t oreq = {
+            .resolved  = cache_path,
+            .options   = options,
+            .mode_bits = mode_bits,
+            .is_write  = 0,
+            .codec     = 0,
+        };
+        return brix_open_resolved_file(ctx, c, conf, &oreq);
     }
     if (ready < 0) {
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_RD, "OPEN", cache_path,
@@ -179,8 +185,14 @@ brix_cache_fill_composed_done(ngx_event_t *ev)
         brix_log_access(ctx, c, "CACHE", t->cache_path, "fill", 1, 0, NULL, 0);
     }
 
-    rc = brix_open_resolved_file(ctx, c, t->conf, t->cache_path,
-                                   t->options, t->mode_bits, 0, 0);
+    brix_open_request_t oreq = {
+        .resolved  = t->cache_path,
+        .options   = t->options,
+        .mode_bits = t->mode_bits,
+        .is_write  = 0,
+        .codec     = 0,
+    };
+    rc = brix_open_resolved_file(ctx, c, t->conf, &oreq);
     if (rc != NGX_OK && ctx->state != XRD_ST_SENDING) {
         brix_send_error(ctx, c, kXR_ServerError,
                           "open after cache fill failed");

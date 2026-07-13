@@ -123,7 +123,9 @@ brix_queue_response_base(brix_ctx_t *ctx, ngx_connection_t *c,
         slot->wbuf_base = owned_base;
         ctx->out.tail   = (ctx->out.tail + 1) % ctx->out.pipeline_depth;
         ctx->out.count++;
-        if (brix_schedule_write_resume(c) != NGX_OK) {
+        /* Park only — did NOT touch the socket, so force the write event
+         * (wev->ready may be a stale 0 while the socket is writable). */
+        if (brix_ensure_write_event(c) != NGX_OK) {
             return NGX_ERROR;
         }
         return NGX_OK;
@@ -143,7 +145,8 @@ brix_queue_response_base(brix_ctx_t *ctx, ngx_connection_t *c,
         ctx->out.tail   = (ctx->out.tail + 1) % ctx->out.pipeline_depth;
         ctx->out.count++;
         ctx->state      = XRD_ST_SENDING;
-        if (brix_schedule_write_resume(c) != NGX_OK) {
+        /* Park only (socket untouched) — force the write event; see above. */
+        if (brix_ensure_write_event(c) != NGX_OK) {
             return NGX_ERROR;
         }
         return NGX_OK;
@@ -216,7 +219,8 @@ brix_queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
         ctx->out.tail        = (ctx->out.tail + 1) % ctx->out.pipeline_depth;
         ctx->out.count++;
         ctx->state           = XRD_ST_SENDING;
-        if (brix_schedule_write_resume(c) != NGX_OK) {
+        /* Park only (socket untouched) — force the write event; see above. */
+        if (brix_ensure_write_event(c) != NGX_OK) {
             return NGX_ERROR;
         }
         return NGX_OK;

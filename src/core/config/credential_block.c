@@ -127,9 +127,20 @@ brix_conf_credential_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     brix_credential_t *cred;
     ngx_conf_t           save;
     char                *rv;
+    ngx_flag_t           dup_in_this_config = 0;
 
     /* Dedup by name (last write wins), so a reload re-parsing the whole conf
-     * updates the credential in place rather than appending or erroring. */
+     * updates the credential in place rather than appending or erroring.
+     *
+     * A name defined AGAIN within the SAME config parse (same cf->cycle) is a
+     * genuine duplicate, NOT a reload update: the second block silently zeroes
+     * and overrides the first, so any field the first set (e.g. x509_proxy) is
+     * lost if the second omits it.  brix_credential is a single GLOBAL,
+     * name-keyed registry — a block in stream{} and another in http{}/conf.d
+     * with the same name collapse to ONE entry.  This exact shape (stream block
+     * with x509_proxy, http/conf.d block with x509_cert+x509_key) silently broke
+     * remote-origin GSI auth for hours; warn loudly so it never recurs.  A
+     * reload re-parse has a different cf->cycle, so it does NOT warn. */
     {
         char                       name_z[256];
         const brix_credential_t *existing;
@@ -139,6 +150,7 @@ brix_conf_credential_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         existing = brix_credential_lookup(name_z);
         if (existing != NULL) {
             cred = (brix_credential_t *) existing;
+            dup_in_this_config = (existing->last_def_cycle == (void *) cf->cycle);
         } else if (brix_credential_count >= BRIX_CREDENTIAL_MAX) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "brix_credential: too many credential blocks (max %d)",
@@ -149,12 +161,24 @@ brix_conf_credential_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         }
     }
 
+    if (dup_in_this_config) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            "brix_credential \"%V\" is defined more than once in this "
+            "configuration. brix_credential is a single global name-keyed "
+            "registry (shared across stream{} and http{}), so the LAST "
+            "definition silently overrides the earlier one(s) — fields the "
+            "earlier block set are LOST if this block omits them. Make every "
+            "\"brix_credential %V { ... }\" block IDENTICAL, or give them "
+            "distinct names.", &value[1], &value[1]);
+    }
+
     ngx_memzero(cred, sizeof(*cred));
     cred->name.data = (u_char *) brix_pstrdup_z(cf->pool, &value[1]);
     if (cred->name.data == NULL) {
         return NGX_CONF_ERROR;
     }
     cred->name.len = value[1].len;
+    cred->last_def_cycle = (void *) cf->cycle;   /* stamp this parse's cycle */
 
     save = *cf;
     cf->handler = brix_credential_line;

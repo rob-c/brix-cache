@@ -55,11 +55,38 @@ brix_vfs_stat_impl(brix_vfs_ctx_t *ctx, brix_vfs_stat_t *stat_out,
      * nofollow is moot (an object/block backend has no symlinks). */
     drv = brix_vfs_ctx_driver(ctx);
     if (drv != NULL) {
-        brix_sd_stat_t sd_st;
+        brix_sd_ucred_t   store;
+        brix_sd_cred_t    cred;
+        brix_sd_stat_t    sd_st;
+        int               use_cred = 0, cred_err = 0;
+        ngx_int_t         grc;
 
+        /* Zero the cred before the gate: the gate fills only the ACTIVE kind
+         * (an x509 proxy path OR a bearer OR an s3/ceph tuple) and leaves the
+         * inactive pointers untouched, so an unzeroed struct hands a garbage
+         * pointer to the driver's stat_cred slot (a bearer-only PASSTHROUGH
+         * cred left a live-stack x509_proxy that sd_xroot dereferenced → SIGSEGV
+         * on the two-hop token read). Mirrors the data-plane callers, which all
+         * memzero their ucred before brix_vfs_backend_cred. */
+        ngx_memzero(&cred, sizeof(cred));
+
+        if (brix_vfs_cred_gate_active(ctx)) {
+            grc = brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err);
+            if (grc != NGX_OK) {
+                saved_errno = cred_err ? cred_err : EACCES;
+                errno = saved_errno;
+                brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_STAT, NULL,
+                                          0, NGX_ERROR, saved_errno, start);
+                return NGX_ERROR;
+            }
+        }
+
+        /* Dispatch on the leaf instance so brix_sd_stat_maybe_cred finds the
+         * leaf driver's stat_cred slot (decorators have only plain relays). */
         if (drv->stat == NULL
-            || drv->stat(ctx->sd, brix_vfs_export_relative(ctx, path), &sd_st)
-               != NGX_OK)
+            || brix_sd_stat_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
+                   brix_vfs_export_relative(ctx, path), &sd_st,
+                   use_cred ? &cred : NULL) != NGX_OK)
         {
             saved_errno = errno;
             brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_STAT, NULL, 0,
@@ -182,12 +209,36 @@ brix_vfs_probe(brix_vfs_ctx_t *ctx, int nofollow,
 
     drv = brix_vfs_ctx_driver(ctx);
     if (drv != NULL) {
-        brix_sd_stat_t sd_st;
+        brix_sd_ucred_t  store;
+        brix_sd_cred_t   cred;
+        brix_sd_stat_t   sd_st;
+        int              use_cred = 0, cred_err = 0;
 
+        /* Zero before the gate: it fills only the active credential kind and
+         * leaves the inactive pointers as-is, so an unzeroed cred would pass a
+         * garbage x509_proxy/bearer pointer to the driver (see the companion
+         * note in brix_vfs_stat_impl). */
+        ngx_memzero(&cred, sizeof(cred));
+
+        /* Credential gate for the probe: a denied pre-flight MUST return
+         * NGX_ERROR (EACCES), not NGX_DECLINED — a denied probe must not be
+         * silently treated as "absent", which would let the caller proceed.
+         * The caller maps EACCES → 403. */
+        if (brix_vfs_cred_gate_active(ctx)) {
+            if (brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err)
+                != NGX_OK)
+            {
+                errno = cred_err ? cred_err : EACCES;
+                return NGX_ERROR;
+            }
+        }
+
+        /* Dispatch on the leaf instance so brix_sd_stat_maybe_cred finds the
+         * leaf driver's stat_cred slot (decorators have only plain relays). */
         if (drv->stat == NULL
-            || drv->stat(ctx->sd,
-                         brix_vfs_export_relative(ctx, brix_vfs_ctx_path(ctx)),
-                         &sd_st) != NGX_OK)
+            || brix_sd_stat_maybe_cred(brix_vfs_ns_leaf(ctx->sd),
+                   brix_vfs_export_relative(ctx, brix_vfs_ctx_path(ctx)),
+                   &sd_st, use_cred ? &cred : NULL) != NGX_OK)
         {
             return NGX_DECLINED;   /* absent (or unsupported) — caller's errno */
         }

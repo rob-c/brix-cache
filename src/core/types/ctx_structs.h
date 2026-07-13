@@ -128,6 +128,12 @@ typedef struct {
     size_t     deleg_proxy_len;
     u_char     deleg_client_rtag[64]; /* client's kXGC_cert random tag */
     int        deleg_client_rtag_len;
+    /* phase-70 §5.1: raw client-pushed FULL proxy PEM (kXRS_x509_fullproxy)
+     * captured from the decrypted kXGC_cert inner buffer, BEFORE DN validation.
+     * auth.c validates (chain+key parse, leaf DN == authenticated DN) then
+     * promotes the bytes to ctx->deleg_proxy_pem; heap-owned, freed at cleanup. */
+    u_char    *client_fullproxy_pem;
+    size_t     client_fullproxy_len;
 } brix_ctx_gsi_t;
 
 /* Per-connection rate-limit state (Phase 25/33).  bw_* = the current request's

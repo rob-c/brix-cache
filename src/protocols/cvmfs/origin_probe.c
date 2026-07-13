@@ -247,9 +247,10 @@ cvmfs_probe_done(ngx_event_t *ev)
     ngx_thread_task_t     *task = ev->data;
     cvmfs_probe_ctx_t     *pc = task->ctx;
     brix_sd_instance_t  *inst;
-    double                 metric[SD_HTTP_EP_MAX];
+    double                 metric[SD_HTTP_EP_MAX] = { 0.0 };
     char                   tbl[1024];
-    int                    ranks[SD_HTTP_EP_MAX], i, best;
+    int                    ranks[SD_HTTP_EP_MAX] = { 0 };
+    int                    i, best;
     int                    first_tick, changed, prev_best;
 
     for (i = 0; i < pc->n; i++) {

@@ -354,6 +354,135 @@ dashboard_fill_history(json_t *target, ngx_pool_t *pool)
 
 
 /*
+ * WHAT: Write-through byte/handle counters, summed across all listener slots.
+ * WHY:  dashboard_fill_cache reports both the disabled (all-zero) and live
+ *       shapes of the write_through object; carrying the tallies in one struct
+ *       keeps the sum loop and the JSON builder decoupled.
+ */
+typedef struct {
+    uint64_t dirty;
+    uint64_t pending;
+    uint64_t success;
+    uint64_t errors;
+    uint64_t bytes;
+} dashboard_wt_totals_t;
+
+
+/*
+ * WHAT: Build the "write_through" JSON object from a set of counter totals.
+ * WHY:  Both the no-data path (all zero) and the live path emit an identical
+ *       key set; one builder guarantees byte-identical output for either.
+ * HOW:  "enabled" is inferred true iff any counter is non-zero (no dedicated
+ *       configured-flag lives in SHM). Returns NULL on OOM — the caller passes
+ *       that straight to json_object_set_new, which tolerates NULL.
+ */
+static json_t *
+dashboard_build_write_through(const dashboard_wt_totals_t *wt_t)
+{
+    json_t *wt = json_object();
+    if (!wt) { return NULL; }
+    json_object_set_new(wt, "enabled",
+        (wt_t->dirty || wt_t->pending || wt_t->success
+         || wt_t->errors || wt_t->bytes)
+        ? json_true() : json_false());
+    json_object_set_new(wt, "dirty_handles",       json_integer((json_int_t) wt_t->dirty));
+    json_object_set_new(wt, "flush_pending",       json_integer((json_int_t) wt_t->pending));
+    json_object_set_new(wt, "flush_success_total", json_integer((json_int_t) wt_t->success));
+    json_object_set_new(wt, "flush_errors_total",  json_integer((json_int_t) wt_t->errors));
+    json_object_set_new(wt, "flush_bytes_total",   json_integer((json_int_t) wt_t->bytes));
+    return wt;
+}
+
+
+/*
+ * WHAT: Emit the disabled cache shape (no SHM data) into `target`.
+ * WHY:  When the metrics zone is absent the panel still needs a stable
+ *       structure: cache disabled, empty listener list, all-zero write-through.
+ * HOW:  A zero-initialised totals struct drives the shared write_through
+ *       builder so the disabled object is byte-identical to a live-but-idle one.
+ */
+static void
+dashboard_fill_cache_empty(json_t *target)
+{
+    dashboard_wt_totals_t wt_t = { 0, 0, 0, 0, 0 };
+
+    json_object_set_new(target, "enabled",       json_false());
+    json_object_set_new(target, "listeners",     json_array());
+    json_object_set_new(target, "write_through", dashboard_build_write_through(&wt_t));
+}
+
+
+/*
+ * WHAT: Build the per-listener cache JSON entry for one in-use, cache-enabled
+ *       server slot.
+ * WHY:  Isolating the entry shape keeps the listener loop flat and lets the
+ *       stat/eviction fields live next to their comments.
+ * HOW:  Ratios are stored in SHM as parts-per-million integers (lock-free);
+ *       divide by 1e6 for a 0..1 float. `redact` drops the listen port (infra
+ *       detail) for the anonymous tier. Returns NULL on OOM.
+ */
+static json_t *
+dashboard_build_cache_listener(const ngx_brix_srv_metrics_t *srv,
+    ngx_uint_t redact)
+{
+    brix_fs_usage_t fsu;
+    json_t         *entry = json_object();
+
+    if (!entry) { return NULL; }
+    if (!redact) {   /* listen port is infra detail — omit for anonymous */
+        json_object_set_new(entry, "port", json_integer((json_int_t) srv->port));
+    }
+    json_object_set_new(entry, "auth", json_string(srv->auth));
+    json_object_set_new(entry, "eviction_threshold_ratio",
+        json_real((double) srv->cache_eviction_threshold / 1000000.0));
+    json_object_set_new(entry, "evictions_total",
+        json_integer((json_int_t) srv->cache_evictions_total));
+    json_object_set_new(entry, "evicted_bytes_total",
+        json_integer((json_int_t) srv->cache_evicted_bytes_total));
+    json_object_set_new(entry, "eviction_errors_total",
+        json_integer((json_int_t) srv->cache_eviction_errors_total));
+
+    if (brix_fs_usage_stat(srv->cache_root, &fsu) == NGX_OK) {
+        json_object_set_new(entry, "occupancy_ratio",
+            json_real((double) fsu.occupancy_ppm / 1000000.0));
+        json_object_set_new(entry, "bytes_total",
+            json_integer((json_int_t) fsu.total_bytes));
+        json_object_set_new(entry, "bytes_used",
+            json_integer((json_int_t) fsu.occupancy_bytes));
+        json_object_set_new(entry, "bytes_available",
+            json_integer((json_int_t) fsu.available_bytes));
+    }
+    return entry;
+}
+
+
+/*
+ * WHAT: Build the "listeners" array — one entry per in-use, cache-enabled slot.
+ * WHY:  Splits the array construction from the per-entry shape so the caller
+ *       stays a single set_new call.
+ * HOW:  Returns NULL on OOM of the array itself; per-entry OOM skips that slot.
+ */
+static json_t *
+dashboard_build_cache_listeners(const ngx_brix_metrics_t *met, ngx_uint_t redact)
+{
+    json_t     *listeners = json_array();
+    ngx_uint_t  i;
+
+    if (!listeners) { return NULL; }
+    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
+        const ngx_brix_srv_metrics_t *srv = &met->servers[i];
+        json_t                       *entry;
+
+        if (!srv->in_use || !srv->cache_enabled) { continue; }
+        entry = dashboard_build_cache_listener(srv, redact);
+        if (!entry) { continue; }
+        json_array_append_new(listeners, entry);
+    }
+    return listeners;
+}
+
+
+/*
  * dashboard_fill_cache — adds "enabled", "listeners", and "write_through"
  * directly to `target`.  Called with target=root for v1/cache (flat shape)
  * and with target=sub-object for snapshot (nested under "cache").
@@ -361,100 +490,32 @@ dashboard_fill_history(json_t *target, ngx_pool_t *pool)
 void
 dashboard_fill_cache(json_t *target, ngx_uint_t redact)
 {
-    ngx_brix_metrics_t *met;
+    ngx_brix_metrics_t   *met;
     ngx_uint_t            i;
     ngx_uint_t            enabled = 0;
-    uint64_t              wt_dirty = 0, wt_pending = 0;
-    uint64_t              wt_success = 0, wt_errors = 0, wt_bytes = 0;
-    json_t               *listeners, *wt;
+    dashboard_wt_totals_t wt_t = { 0, 0, 0, 0, 0 };
 
     if (ngx_brix_shm_zone == NULL
         || ngx_brix_shm_zone->data == NULL
         || ngx_brix_shm_zone->data == (void *) 1)
     {
-        wt = json_object();
-        if (wt) {
-            json_object_set_new(wt, "enabled",             json_false());
-            json_object_set_new(wt, "dirty_handles",       json_integer(0));
-            json_object_set_new(wt, "flush_pending",       json_integer(0));
-            json_object_set_new(wt, "flush_success_total", json_integer(0));
-            json_object_set_new(wt, "flush_errors_total",  json_integer(0));
-            json_object_set_new(wt, "flush_bytes_total",   json_integer(0));
-        }
-        json_object_set_new(target, "enabled",       json_false());
-        json_object_set_new(target, "listeners",     json_array());
-        json_object_set_new(target, "write_through", wt);
+        dashboard_fill_cache_empty(target);
         return;
     }
 
     met = ngx_brix_shm_zone->data;
     for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
         if (met->servers[i].in_use && met->servers[i].cache_enabled) { enabled = 1; }
-        wt_dirty   += (uint64_t) met->servers[i].wt_dirty_handles;
-        wt_pending += (uint64_t) met->servers[i].wt_flush_pending;
-        wt_success += (uint64_t) met->servers[i].wt_flush_success_total;
-        wt_errors  += (uint64_t) met->servers[i].wt_flush_error_total;
-        wt_bytes   += (uint64_t) met->servers[i].wt_flush_bytes_total;
-    }
-
-    listeners = json_array();
-    if (listeners) {
-        for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-            ngx_brix_srv_metrics_t *srv = &met->servers[i];
-            brix_fs_usage_t         fsu;
-            json_t                   *entry;
-
-            if (!srv->in_use || !srv->cache_enabled) { continue; }
-
-            entry = json_object();
-            if (!entry) { continue; }
-            if (!redact) {   /* listen port is infra detail — omit for anonymous */
-                json_object_set_new(entry, "port", json_integer((json_int_t) srv->port));
-            }
-            json_object_set_new(entry, "auth", json_string(srv->auth));
-            /* Ratios are stored in SHM as parts-per-million integers (so the
-             * counters stay lock-free); divide by 1e6 to expose a 0..1 float. */
-            json_object_set_new(entry, "eviction_threshold_ratio",
-                json_real((double) srv->cache_eviction_threshold / 1000000.0));
-            json_object_set_new(entry, "evictions_total",
-                json_integer((json_int_t) srv->cache_evictions_total));
-            json_object_set_new(entry, "evicted_bytes_total",
-                json_integer((json_int_t) srv->cache_evicted_bytes_total));
-            json_object_set_new(entry, "eviction_errors_total",
-                json_integer((json_int_t) srv->cache_eviction_errors_total));
-
-            if (brix_fs_usage_stat(srv->cache_root, &fsu) == NGX_OK) {
-                json_object_set_new(entry, "occupancy_ratio",
-                    json_real((double) fsu.occupancy_ppm / 1000000.0));
-                json_object_set_new(entry, "bytes_total",
-                    json_integer((json_int_t) fsu.total_bytes));
-                json_object_set_new(entry, "bytes_used",
-                    json_integer((json_int_t) fsu.occupancy_bytes));
-                json_object_set_new(entry, "bytes_available",
-                    json_integer((json_int_t) fsu.available_bytes));
-            }
-            json_array_append_new(listeners, entry);
-        }
-    }
-
-    wt = json_object();
-    if (wt) {
-        /* No dedicated "write-through configured" flag exists in SHM, so infer
-         * it: write-through is reported enabled if any of its counters are
-         * non-zero (i.e. it has done work). */
-        json_object_set_new(wt, "enabled",
-            (wt_dirty || wt_pending || wt_success || wt_errors || wt_bytes)
-            ? json_true() : json_false());
-        json_object_set_new(wt, "dirty_handles",       json_integer((json_int_t) wt_dirty));
-        json_object_set_new(wt, "flush_pending",       json_integer((json_int_t) wt_pending));
-        json_object_set_new(wt, "flush_success_total", json_integer((json_int_t) wt_success));
-        json_object_set_new(wt, "flush_errors_total",  json_integer((json_int_t) wt_errors));
-        json_object_set_new(wt, "flush_bytes_total",   json_integer((json_int_t) wt_bytes));
+        wt_t.dirty   += (uint64_t) met->servers[i].wt_dirty_handles;
+        wt_t.pending += (uint64_t) met->servers[i].wt_flush_pending;
+        wt_t.success += (uint64_t) met->servers[i].wt_flush_success_total;
+        wt_t.errors  += (uint64_t) met->servers[i].wt_flush_error_total;
+        wt_t.bytes   += (uint64_t) met->servers[i].wt_flush_bytes_total;
     }
 
     json_object_set_new(target, "enabled",       enabled ? json_true() : json_false());
-    json_object_set_new(target, "listeners",     listeners);
-    json_object_set_new(target, "write_through", wt);
+    json_object_set_new(target, "listeners",     dashboard_build_cache_listeners(met, redact));
+    json_object_set_new(target, "write_through", dashboard_build_write_through(&wt_t));
 }
 
 
@@ -466,88 +527,139 @@ dashboard_fill_cache(json_t *target, ngx_uint_t redact)
  * so it covers stream AND http exports. redact (anonymous tier) omits the
  * export root and origin host — numbers only, matching the cache panel.
  */
+/*
+ * WHAT: Build one "exports" entry from a VFS backend census record.
+ * WHY:  Keeps the per-export identity + capacity shape in one place so the
+ *       array loop stays flat.
+ * HOW:  "remote" is the inverse of a local (posix/pblock) backend; live-statvfs
+ *       capacity is only statted for local backends. `redact` drops the export
+ *       root and origin host (infra detail) for the anonymous tier. Returns
+ *       NULL on OOM.
+ */
+static json_t *
+dashboard_build_storage_export(const brix_vfs_backend_info_t *info,
+    ngx_uint_t redact)
+{
+    brix_fs_usage_t fsu;
+    json_t         *e = json_object();
+    int             local;
+
+    if (e == NULL) { return NULL; }
+
+    local = ngx_strcmp(info->backend, "posix") == 0
+            || ngx_strcmp(info->backend, "pblock") == 0;
+
+    json_object_set_new(e, "backend", json_string(info->backend));
+    json_object_set_new(e, "remote",  local ? json_false() : json_true());
+    json_object_set_new(e, "staging",
+        info->staging ? json_true() : json_false());
+    if (!redact) {   /* export path + upstream host are infra detail */
+        json_object_set_new(e, "root", json_string(info->root_canon));
+        if (info->host != NULL && info->host[0] != '\0') {
+            json_object_set_new(e, "origin_host", json_string(info->host));
+            json_object_set_new(e, "origin_port",
+                json_integer((json_int_t) info->port));
+        }
+    }
+    if (local
+        && brix_fs_usage_stat(info->root_canon, &fsu) == NGX_OK)
+    {
+        json_object_set_new(e, "bytes_total",
+            json_integer((json_int_t) fsu.total_bytes));
+        json_object_set_new(e, "bytes_used",
+            json_integer((json_int_t) fsu.occupancy_bytes));
+        json_object_set_new(e, "bytes_available",
+            json_integer((json_int_t) fsu.available_bytes));
+        json_object_set_new(e, "occupancy_ratio",
+            json_real((double) fsu.occupancy_ppm / 1000000.0));
+    }
+    return e;
+}
+
+
+/*
+ * WHAT: Build the "exports" array from the config-time VFS backend registry.
+ * WHY:  The identity census covers both stream and http exports; splitting the
+ *       loop out keeps dashboard_fill_storage a pair of set_new calls.
+ * HOW:  Returns NULL on OOM of the array; per-entry OOM/failed-info skips.
+ */
+static json_t *
+dashboard_build_storage_exports(ngx_uint_t redact)
+{
+    json_t     *exports = json_array();
+    ngx_uint_t  i, n;
+
+    if (exports == NULL) { return NULL; }
+    n = brix_vfs_backend_export_count();
+    for (i = 0; i < n; i++) {
+        brix_vfs_backend_info_t info;
+        json_t                 *e;
+
+        if (brix_vfs_backend_export_info(i, &info) != NGX_OK) {
+            continue;
+        }
+        e = dashboard_build_storage_export(&info, redact);
+        if (e == NULL) {
+            continue;
+        }
+        json_array_append_new(exports, e);
+    }
+    return exports;
+}
+
+
+/*
+ * WHAT: Build the "io" object — per-backend read/written byte totals.
+ * WHY:  Isolates the SHM read + idle-backend filtering from the export census.
+ * HOW:  Returns NULL on OOM of the object; when the metrics zone is absent the
+ *       object is emitted empty (no backends). Idle backends (0/0) are omitted.
+ */
+static json_t *
+dashboard_build_storage_io(void)
+{
+    json_t *io = json_object();
+
+    if (io == NULL) { return NULL; }
+    if (ngx_brix_shm_zone != NULL
+        && ngx_brix_shm_zone->data != NULL
+        && ngx_brix_shm_zone->data != (void *) 1)
+    {
+        ngx_brix_metrics_t *met = ngx_brix_shm_zone->data;
+        int                 id;
+
+        for (id = 0; id < BRIX_FS_ID_COUNT; id++) {
+            uint64_t rd = (uint64_t) met->unified.io_bytes_read_backend[id];
+            uint64_t wr = (uint64_t) met->unified.io_bytes_written_backend[id];
+            json_t  *b;
+
+            if (rd == 0 && wr == 0) {
+                continue;           /* idle backends stay out of the JSON */
+            }
+            b = json_object();
+            if (b == NULL) {
+                continue;
+            }
+            json_object_set_new(b, "bytes_read_total",
+                json_integer((json_int_t) rd));
+            json_object_set_new(b, "bytes_written_total",
+                json_integer((json_int_t) wr));
+            json_object_set_new(io, brix_fs_id_name(id), b);
+        }
+    }
+    return io;
+}
+
+
 static void
 dashboard_fill_storage(json_t *target, ngx_uint_t redact)
 {
-    ngx_uint_t  i, n;
-    json_t     *exports, *io;
+    json_t *exports = dashboard_build_storage_exports(redact);
+    json_t *io      = dashboard_build_storage_io();
 
-    exports = json_array();
     if (exports != NULL) {
-        n = brix_vfs_backend_export_count();
-        for (i = 0; i < n; i++) {
-            brix_vfs_backend_info_t info;
-            brix_fs_usage_t         fsu;
-            json_t                   *e;
-            int                       local;
-
-            if (brix_vfs_backend_export_info(i, &info) != NGX_OK) {
-                continue;
-            }
-            e = json_object();
-            if (e == NULL) {
-                continue;
-            }
-            local = ngx_strcmp(info.backend, "posix") == 0
-                    || ngx_strcmp(info.backend, "pblock") == 0;
-
-            json_object_set_new(e, "backend", json_string(info.backend));
-            json_object_set_new(e, "remote",  local ? json_false() : json_true());
-            json_object_set_new(e, "staging",
-                info.staging ? json_true() : json_false());
-            if (!redact) {   /* export path + upstream host are infra detail */
-                json_object_set_new(e, "root", json_string(info.root_canon));
-                if (info.host != NULL && info.host[0] != '\0') {
-                    json_object_set_new(e, "origin_host", json_string(info.host));
-                    json_object_set_new(e, "origin_port",
-                        json_integer((json_int_t) info.port));
-                }
-            }
-            if (local
-                && brix_fs_usage_stat(info.root_canon, &fsu) == NGX_OK)
-            {
-                json_object_set_new(e, "bytes_total",
-                    json_integer((json_int_t) fsu.total_bytes));
-                json_object_set_new(e, "bytes_used",
-                    json_integer((json_int_t) fsu.occupancy_bytes));
-                json_object_set_new(e, "bytes_available",
-                    json_integer((json_int_t) fsu.available_bytes));
-                json_object_set_new(e, "occupancy_ratio",
-                    json_real((double) fsu.occupancy_ppm / 1000000.0));
-            }
-            json_array_append_new(exports, e);
-        }
         json_object_set_new(target, "exports", exports);
     }
-
-    io = json_object();
     if (io != NULL) {
-        if (ngx_brix_shm_zone != NULL
-            && ngx_brix_shm_zone->data != NULL
-            && ngx_brix_shm_zone->data != (void *) 1)
-        {
-            ngx_brix_metrics_t *met = ngx_brix_shm_zone->data;
-            int                   id;
-
-            for (id = 0; id < BRIX_FS_ID_COUNT; id++) {
-                uint64_t rd = (uint64_t) met->unified.io_bytes_read_backend[id];
-                uint64_t wr = (uint64_t) met->unified.io_bytes_written_backend[id];
-                json_t  *b;
-
-                if (rd == 0 && wr == 0) {
-                    continue;           /* idle backends stay out of the JSON */
-                }
-                b = json_object();
-                if (b == NULL) {
-                    continue;
-                }
-                json_object_set_new(b, "bytes_read_total",
-                    json_integer((json_int_t) rd));
-                json_object_set_new(b, "bytes_written_total",
-                    json_integer((json_int_t) wr));
-                json_object_set_new(io, brix_fs_id_name(id), b);
-            }
-        }
         json_object_set_new(target, "io", io);
     }
 }

@@ -82,12 +82,23 @@ scvmfs_check_bearer(ngx_http_request_t *r,
     }
 
     /* read scope suffices for a read-only protocol */
-    if (brix_token_validate_registry(r->connection->log, token, token_len,
-            (const brix_token_registry_t *) lcf->scvmfs_registry,
-            uri_path, BRIX_TOKEN_OP_READ,
-            NULL, 0, BRIX_TOKEN_CLOCK_SKEW_SECS, &claims, &bucket) != 0)
     {
-        return NGX_HTTP_UNAUTHORIZED;      /* invalid/expired/out-of-scope */
+        brix_token_registry_args_t  ra;
+
+        ra.log             = r->connection->log;
+        ra.token           = token;
+        ra.token_len       = token_len;
+        ra.reg             = (const brix_token_registry_t *) lcf->scvmfs_registry;
+        ra.macaroon_secret = NULL;
+        ra.secret_len      = 0;
+        ra.clock_skew      = BRIX_TOKEN_CLOCK_SKEW_SECS;
+        ra.claims          = &claims;
+
+        if (brix_token_validate_registry(&ra, uri_path, BRIX_TOKEN_OP_READ,
+                                         &bucket) != 0)
+        {
+            return NGX_HTTP_UNAUTHORIZED;  /* invalid/expired/out-of-scope */
+        }
     }
     return NGX_DECLINED;                   /* authenticated: proceed        */
 }

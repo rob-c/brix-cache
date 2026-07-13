@@ -26,7 +26,7 @@
 
 Name:           nginx-mod-brix-cache
 Version:        %{upstream_version}
-Release:        1%{?dist}
+Release:        20%{?dist}
 Summary:        BriX-Cache — XRootD, WebDAV, S3, CMS, and metrics dynamic modules for nginx
 
 # Rebrand (gnuBall -> BriX-Cache, 0.1.0-5): same modules, new product name.
@@ -81,13 +81,15 @@ BuildRequires:  libcephfs-devel
 # nginx-mod-stream provides the stream {} core that our modules load into.
 # openssl-libs: directly linked (-lssl -lcrypto) — auto-detected by find-requires
 # but listed explicitly for clarity.
-# voms-libs: loaded at runtime via dlopen(libvomsapi.so.1); not a link-time dep
-# so find-requires cannot detect it.  Required for VOMS VO/FQAN ACL enforcement.
+# libvomsapi.so.1: loaded at runtime via dlopen(); not a link-time dep so
+# find-requires cannot detect it — required for VOMS VO/FQAN ACL enforcement.
+# Required by soname capability (EPEL 9 ships it in the `voms` package; the
+# old `voms-libs` package name does not exist on EL9).
 # curl: used to be fork/exec'd, now primarily used via libcurl, but kept for
 # compatibility with site scripts.
 Requires:       nginx-mod-stream%{?_isa}
 Requires:       openssl-libs%{?_isa}
-Requires:       voms-libs%{?_isa}
+Requires:       libvomsapi.so.1()(64bit)
 Requires:       curl
 # Ceph storage backends (sd_ceph / sd_cephfs_ro) are always compiled in.
 # find-requires already turns the linked sonames (librados.so.2,
@@ -391,6 +393,179 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/brix/requirements.txt
 %{_datadir}/bash-completion/completions/xrdceph_migrate
 
 %changelog
+* Thu Jul 09 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-20
+- Fast `systemctl restart`: mark every per-worker BriX maintenance timer
+  cancelable (CRL reload, stage scheduler, cache stale-dirty + watermark reapers,
+  pending-locate reaper, stage-out reaper). nginx's ngx_event_no_timers_left()
+  ignores cancelable timers, so on SIGQUIT a gracefully draining worker exits the
+  instant its real work is done instead of looping in ep_poll until
+  worker_shutdown_timeout. On xrd1 the STOP phase sat ~2-3s (workers idle-but-
+  armed, force-terminated at the timeout) — this drops it to sub-second, cutting a
+  full restart from ~9s toward ~2.5s. Pairs with the -19 config guidance to keep
+  worker_shutdown_timeout below the systemd unit's TimeoutStopSec.
+* Thu Jul 09 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-19
+- Faster startup + restart guidance. (1) Memoise the expensive IGTF CA/CRL
+  X509_STORE by its inputs (brix_build_ca_store_cached): a real grid CA
+  distribution's hundreds of *.r0 CRLs take ~1s to load, and BriX used to pay
+  that once PER brix_auth-gsi server block at config load; blocks sharing a
+  trusted_ca/CRL dir now build it once and share it (refcounted), while the
+  per-worker CRL hot-reload timer still rebuilds from fresh CRLs (uncached
+  scope). (2) contrib/brix-cache.conf.example now warns that
+  worker_shutdown_timeout MUST stay below the systemd unit's TimeoutStopSec
+  (stock nginx.service = 5s) or every restart is SIGKILLed at the timeout;
+  recommends worker_shutdown_timeout 2s for fast restarts and `systemctl reload`
+  for config-only changes. Regression guard: tests/run_gsi_store_memo.sh.
+* Thu Jul 09 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-18
+- Clean release closing the remote-origin credential saga (full writeup in
+  docs/09-developer-guide/postmortem-origin-credential-shadowing.md). Strips the
+  -14/-16/-17 diagnostic NOTICEs; adds coherent, actionable warnings instead:
+  (1) config load WARNs when a brix_credential NAME is defined more than once in
+  one configuration — brix_credential is a single global name-keyed registry
+  shared across stream{}/http{}, so the last block silently wins; this shadowing
+  (a stream x509_proxy block vs an http/conf.d x509_cert+key block) broke origin
+  GSI auth. A benign reload re-parse does NOT warn (cf->cycle scoped). (2) origin
+  GSI auth WARNs up-front when the credential is a single certificate (bare host
+  cert, not a proxy): a stock XRootD requires a >=2-cert proxy chain, so it names
+  the voms-proxy-init remedy rather than leaving the operator to decode
+  "received: 1, expected: >= 2". (3) the "no credential set" origin error now
+  points at the likely cause (unset or shadowed brix_storage_credential).
+  Retains the load-bearing fixes -12 (sd_xroot logs the real origin error), -13
+  (tier_resolve_creds honours x509_cert+x509_key), -16 (per-worker credential
+  re-apply in init_process). New regression guards: tests/run_credential_dup_warn.sh,
+  tests/run_credential_xroot_gsi_writeback.sh.
+
+* Wed Jul 08 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-13
+- Fix root:// remote-origin auth failing with "cache origin requires
+  authentication (no credential set)" (EIO on the write-back flush) when the
+  backend is composed as a cache/stage TIER over a storage_backend and the
+  brix_credential supplies a separate x509_cert + x509_key (rather than a single
+  combined x509_proxy).  The tier credential resolver (tier_resolve_creds) only
+  read x509_proxy and hardcoded the key to NULL, silently dropping cert+key on
+  the tier build path — so the sd_xroot origin login was attempted with no
+  credential and the origin rejected it.  tier_resolve_creds now applies the
+  same cert-chain + separate-key fallback used elsewhere and threads the key
+  into create_origin; all three origin-build paths (backend registry, tier
+  build, legacy cache fetch) now honour cert+key.  A one-line config-load NOTICE
+  reports the resolved backend credential so an empty/misconfigured origin
+  credential is obvious.  New e2e test: run_credential_xroot_gsi_writeback.sh
+  (write-through to a GSI origin with a cert+key credential; fails without the
+  fix).  Also carries the -12 diagnostics (sd_xroot now logs the real origin
+  failure reason).
+
+* Wed Jul 08 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-12
+- Diagnostics: sd_xroot now LOGS the real origin failure reason (the
+  brix_cache_fill err_msg + kXR code) when a remote root:// open or staged
+  flush to the origin fails, instead of hiding it behind the caller's generic
+  "Input/output error".  This surfaces auth/TLS/protocol failures (e.g. "cache
+  origin requires TLS", "no credential set", GSI handshake errors) in the nginx
+  error log so origin-side misconfigurations are diagnosable without guesswork.
+
+* Wed Jul 08 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-11
+- Fix root:// backend (sd_xroot) writes/flushes to a GSI origin failing with EIO:
+  a brix_credential that supplied x509_cert + x509_key SEPARATELY (rather than a
+  single combined x509_proxy PEM) was silently ignored — those two fields were
+  dead, so the origin GSI login was never attempted, the connection was dropped
+  before login, and staged flushes to the origin failed with "staged_open ...
+  Input/output error" (data stranded in the stage, never reaching the origin).
+  x509_cert (cert chain) + x509_key (private key) are now threaded through the
+  backend credential and the in-process XrdSecgsi handshake (separate key load),
+  so a plain host cert/key authenticates outbound without hand-concatenating them
+  into a proxy.  A combined x509_proxy still takes precedence.  Regression test:
+  tests/run_credential_xroot_gsi.sh gains a cert+key node (fills only with the fix).
+
+* Wed Jul 08 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-10
+- Fix the root:// upload wedge at pipeline_depth x write-chunk (the "8 MiB
+  stall" seen on a remote client): when the write pipeline saturates, recv
+  suspends into XRD_ST_SENDING and relies on the write event to drain the
+  parked acks and resume — but the ack-park path only POSTED the write event
+  when wev->ready was already set.  With a remote peer wev->ready can be a
+  stale 0 while the socket is writable, and under edge-triggered epoll no fresh
+  writable edge arrives for an already-writable socket, so the acks stranded
+  and recv never resumed (every worker idle in epoll_wait, the staged .part
+  frozen).  Parked output now forces the write event via a new
+  brix_ensure_write_event() (unconditional post); the post-real-send NGX_AGAIN
+  paths keep the wev->ready guard so they cannot busy-loop.  This is a
+  pipeline-layer fix and applies whether io_uring is on or off (io_uring stays
+  off by default per -9).  Diagnostic tooling added under tools/diag/.
+
+* Wed Jul 08 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-9
+- Default the io_uring backend to OFF (was auto): it is now strictly opt-in via
+  `brix_io_uring on`.  The startup probe cannot prove that real buffered file
+  writes complete on a given kernel+filesystem (only that opcodes and eventfd
+  NOP delivery work), and on an EL9 elrepo 6.15 host with plain local storage
+  io_uring writes never completed — transfers wedged after queue_depth in-flight
+  ops (8 MiB) and a torn-down connection's in-flight ops crashed the worker.
+  The thread pool is correct there and faster.  io_uring stays available for
+  operators who verify it on their platform; the earlier under-load self-test,
+  driver-backed guard, and teardown-orphan fixes remain for that opt-in path.
+
+* Wed Jul 08 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-8
+- io_uring: strengthen the startup self-test to an UNDER-LOAD burst — fill the
+  ring with queue_depth ops and require every completion to arrive via the
+  registered eventfd.  A kernel that signals the eventfd for a single op but
+  stops once the ring saturates (observed on an EL9 elrepo 6.15 host: transfers
+  wedged after exactly queue_depth x 32 KiB = 8 MiB, one worker spinning) now
+  fails the probe and falls back to the thread pool instead of hanging.
+- io_uring: orphan in-flight ops via a CONNECTION-POOL CLEANUP rather than only
+  brix_on_disconnect.  A connection torn down by an nginx-core path (read
+  error / RST / stream timeout / worker exit) bypassed the disconnect hook, so
+  a late CQE posted a completion event into the freed+reused pool and crashed
+  the worker in ngx_event_process_posted (confirmed by core inspection).  The
+  cleanup runs on ngx_destroy_pool, which every teardown path funnels through.
+
+* Wed Jul 08 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-7
+- Fix io_uring silent stall after queue_depth in-flight ops (256 x 32 KiB =
+  8 MiB): the startup self-test now proves the registered eventfd actually
+  delivers completions before enabling the backend, and falls back to the
+  thread pool on a kernel where it does not (the reaper would otherwise never
+  run and every transfer would wedge).
+- Fix io_uring data corruption on driver-backed backends: a write to a remote
+  root:// / HTTP / Ceph / pblock export with a thread pool configured was
+  routed onto a raw IORING_OP_WRITE against the handle's placeholder fd,
+  landing 0 bytes on the origin.  io_uring now handles only plain POSIX fds;
+  driver-backed handles fall to the thread pool (which routes through the
+  driver).  New coverage: tests/run_io_uring_backend.sh.
+
+* Wed Jul 08 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-6
+- Fix io_uring completion/teardown race (worker SIGSEGV in
+  ngx_event_process_posted): a late CQE for a connection already torn down
+  posted a completion event living in the freed connection pool, corrupting
+  the posted-event queue.  Slots now carry their owning connection and are
+  orphaned at disconnect; the reaper drops orphaned CQEs without touching the
+  dead task.  Also honour the deferred-teardown guard on the AIO
+  resume-failure path, which could previously finalize a session while
+  sibling completions were still queued.
+
+* Wed Jul 08 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-5
+- Fix worker SIGSEGV crash-loop on cache/stage-tier I/O: storage-driver
+  instances were allocated from ngx_cycle->pool, which during configuration
+  parse is the TRANSIENT init cycle destroyed at startup — the first request
+  through a composed tier then dereferenced freed memory.  Instances now come
+  from a private process-lifetime registry pool (brix_sd_instance_create no
+  longer takes a pool argument).
+
+* Wed Jul 08 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-4
+- Fix GSI against real-world CA chains: the kXGS_init sec token now advertises
+  the CA name-hash list derived from the server certificate's verified chain
+  (intermediates + root).  Previously the hash was PEM-parsed from
+  brix_trusted_ca — silently empty when that names a CA DIRECTORY — so the
+  token said ca:00000000 and stock XrdSecgsi clients aborted with "unknown CA:
+  cannot verify server certificate" whenever the host cert hangs off an
+  intermediate CA (the IGTF / UK eScience shape).  Regression test:
+  tests/run_gsi_intermediate_ca.sh (stock-client end-to-end).
+
+* Wed Jul 08 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-3
+- Fix the DYNAMIC combined module: ngx_http_brix_common_module (unified
+  brix_export/brix_storage_backend/tier grammar) and ngx_http_brix_guard_module
+  were compiled into the .so but missing from its module registration list, so
+  their directives were rejected ("not allowed here") on RPM installs while
+  static test builds worked.
+
+* Tue Jul 07 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-2
+- Fix the VOMS runtime dependency: require the libvomsapi.so.1 soname instead
+  of the voms-libs package name, which does not exist on EL9 (EPEL 9 ships
+  the library in the `voms` package). Fixes dnf install on stock EL9 hosts.
+
 * Tue Jul 07 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-1
 - Version 1.1.1; RPM version now derives from src/core/ident.h (-v overrides).
 - cvmfs:// site-cache protocol: CAS verify-on-fill + quarantine, multi-origin

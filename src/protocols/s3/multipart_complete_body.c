@@ -131,6 +131,11 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
         }
 
         if (pst.st_size > 0
+            /* phase74-fp: argument order is correct — brix_copy_range takes
+             * (log, src_fd, src_off, dst_fd, dst_off, len, src_path, dst_path);
+             * the part.* file IS the source and final_tmp the destination. The
+             * name-similarity heuristic misfires on part_path vs src_path. */
+            /* NOLINTNEXTLINE(bugprone-suspicious-call-argument) */
             && brix_copy_range(log, part_fd, 0, final_fd, dst_off,
                                  (size_t) pst.st_size, part_path,
                                  final_tmp) != NGX_OK)

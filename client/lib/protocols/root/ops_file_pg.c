@@ -135,7 +135,7 @@ brix_file_pgread(brix_conn *c, brix_file *f, int64_t offset, void *buf,
     }
     /* dlen (offset 20) is set to 0 by brix_send (no args payload). */
 
-    if (brix_send(c, &req, NULL, 0, &sid, st) != 0) {
+    if (brix_send(c, &req, NULL, &sid, st) != 0) {
         return -1;
     }
 
@@ -219,8 +219,11 @@ pgwrite_retry_one(brix_conn *c, brix_file *f, const uint8_t *buf, int64_t base,
         xrdw_pgwrite_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
 
-    if (brix_send(c, &req, rp, (uint32_t) rplen, &sid, st) != 0) {
-        return -1;
+    {
+        brix_payload pl = { rp, (uint32_t) rplen };
+        if (brix_send(c, &req, &pl, &sid, st) != 0) {
+            return -1;
+        }
     }
     if (read_status_frame(c, sid, &resptype, &pgdlen, &foff, st) != 0) {
         return -1;
@@ -270,9 +273,12 @@ brix_file_pgwrite(brix_conn *c, brix_file *f, int64_t offset, const void *buf,
     }
     /* dlen (offset 20) is set to plen by brix_send. */
 
-    if (brix_send(c, &req, payload, (uint32_t) plen, &sid, st) != 0) {
-        free(payload);
-        return -1;
+    {
+        brix_payload pl = { payload, (uint32_t) plen };
+        if (brix_send(c, &req, &pl, &sid, st) != 0) {
+            free(payload);
+            return -1;
+        }
     }
     if (read_status_frame(c, sid, &resptype, &pgdlen, &foff, st) != 0) {
         free(payload);   /* kXR_ChkSumErr (CRC rejected) surfaces here */

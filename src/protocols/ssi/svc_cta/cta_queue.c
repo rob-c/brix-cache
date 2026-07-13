@@ -16,10 +16,13 @@ journal_append(brix_cta_queue_t *q, const cta_req_t *e)
     if (f == NULL) {
         return;
     }
-    fprintf(f, "%llu\t%d\t%d\t%s\t%s\n",
+    /* Best-effort journal: a failed write/flush only degrades crash-replay
+     * fidelity; the in-memory queue stays authoritative, so there is no
+     * error to propagate from an append. */
+    (void) fprintf(f, "%llu\t%d\t%d\t%s\t%s\n",
             (unsigned long long) e->id, (int) e->req.op, (int) e->state,
             e->owner, e->req.path);
-    fflush(f);
+    (void) fflush(f);
 }
 
 /* Legal transitions, table-driven. A request may advance SUBMITTED→QUEUED→ACTIVE
@@ -64,7 +67,9 @@ void
 cta_queue_destroy(brix_cta_queue_t *q)
 {
     if (q != NULL && q->journal != NULL) {
-        fclose((FILE *) q->journal);
+        /* Teardown path: every append already fflush()ed, so a close error
+         * carries no unwritten data and there is no caller to report it to. */
+        (void) fclose((FILE *) q->journal);
     }
     free(q);
 }

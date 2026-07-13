@@ -16,8 +16,10 @@
  * HOW: `brix_export_prometheus_metrics()` iterates all server slots, reads
  *      each atomic counter via `ngx_atomic_fetch_add(..., 0)` for an
  *      eventually-consistent snapshot, and writes HELP/TYPE/value lines via
- *      the `metrics_writer_t` interface. Uses macro templates to reduce
- *      repetition. Calls protocol-specific exporters (webdav, s3, proxy,
+ *      the `metrics_writer_t` interface. Per-server families are described by
+ *      `srv_family_desc_t` tables (one table per metric family) fed through a
+ *      single slot-scan emitter, so the exporter itself is a flat call
+ *      sequence. Calls protocol-specific exporters (webdav, s3, proxy,
  *      tracking) at the end.
  */
 
@@ -71,364 +73,397 @@ static const char *brix_op_names[BRIX_NOPS] = {
     "chkpoint",     /* BRIX_OP_CHKPOINT     */
 };
 
-void
-brix_export_prometheus_metrics(metrics_writer_t *mw,
-    ngx_brix_metrics_t *shm)
+/*
+ * srv_family_desc_t — one per-server-slot Prometheus family.
+ *
+ * WHAT: Describes a family emitted once per in-use server slot with
+ *       {port,auth} labels: its verbatim HELP/TYPE preamble, its sample-line
+ *       metric name, and where its counter lives in the per-server struct.
+ * WHY: Every stream-layer per-server family repeats the identical
+ *      slot-scan/label/emit loop; descriptor tables plus one emitter keep the
+ *      exporter a flat call sequence with the output format frozen in one
+ *      place.
+ * HOW: `header` is printed verbatim (it may include a DEPRECATED notice
+ *      before the HELP line); `field_off` is the offsetof() of the family's
+ *      ngx_atomic_t counter inside ngx_brix_srv_metrics_t.
+ */
+typedef struct {
+    const char *header;    /* verbatim "# HELP…\n# TYPE…\n" preamble       */
+    const char *name;      /* metric name on each sample line              */
+    size_t      field_off; /* offsetof(ngx_brix_srv_metrics_t, <counter>)  */
+} srv_family_desc_t;
+
+/* Standard counter/gauge HELP+TYPE preambles (compile-time concatenation —
+ * byte-identical to the historical hand-written banners). */
+#define SRV_COUNTER_HDR(name, help)                                          \
+    "# HELP " name " " help "\n# TYPE " name " counter\n"
+#define SRV_GAUGE_HDR(name, help)                                            \
+    "# HELP " name " " help "\n# TYPE " name " gauge\n"
+
+/* Descriptor-table entry: preamble, sample-line name, counter field. */
+#define SRV_FAMILY(hdr, metric, field)                                      \
+    { hdr, metric, offsetof(ngx_brix_srv_metrics_t, field) }
+
+/*
+ * metrics_emit_srv_family() — emit one per-server family.
+ *
+ * WHAT: Prints the family's HELP/TYPE preamble, then one sample line per
+ *       in-use server slot, labelled {port,auth}.
+ * WHY: Single home for the slot-scan/label/emit loop shared by every
+ *      per-server counter and gauge in this exporter.
+ * HOW: Locates the descriptor's ngx_atomic_t via `field_off` and reads it
+ *      with an atomic fetch — an eventually-consistent snapshot, no lock.
+ */
+static void
+metrics_emit_srv_family(metrics_writer_t *mw, ngx_brix_metrics_t *shm,
+    const srv_family_desc_t *d)
 {
     ngx_brix_srv_metrics_t *srv;
-    ngx_uint_t                i, op;
+    ngx_atomic_t             *field;
+    ngx_uint_t                i;
     char                      port_str[16];
 
-    /*
-     * Export is intentionally eventually consistent rather than a single locked
-     * snapshot: each counter is read atomically, but different lines may observe
-     * slightly different moments in time while workers continue serving traffic.
-     */
+    mw_printf(mw, "%s", d->header);
 
-    /*
-     * Config-reload signal: steps by one on every `nginx -s reload` (published by
-     * the master in init_module).  Graph it to correlate behaviour changes with
-     * config reloads, or alert when it moves unexpectedly.
-     */
+    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
+        srv = &shm->servers[i];
+        if (!srv->in_use) { continue; }
+        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
+        field = (ngx_atomic_t *) ((char *) srv + d->field_off);
+        mw_printf(mw,
+            "%s{port=\"%s\",auth=\"%s\"} %lu\n",
+            d->name, port_str, srv->auth,
+            (unsigned long) ngx_atomic_fetch_add(field, 0));
+    }
+}
+
+/*
+ * metrics_emit_srv_families() — emit a descriptor table in order.
+ *
+ * WHAT: Runs metrics_emit_srv_family() over each entry of a family table.
+ * WHY: Lets each metric-family helper below be a table plus one call.
+ * HOW: Straight iteration; table order == exposition order (frozen).
+ */
+static void
+metrics_emit_srv_families(metrics_writer_t *mw, ngx_brix_metrics_t *shm,
+    const srv_family_desc_t *tab, ngx_uint_t n)
+{
+    ngx_uint_t k;
+
+    for (k = 0; k < n; k++) {
+        metrics_emit_srv_family(mw, shm, &tab[k]);
+    }
+}
+
+/*
+ * metrics_emit_config_generation() — config-reload signal gauge.
+ *
+ * WHAT: Emits `brix_config_generation`, stepping by one on every
+ *       `nginx -s reload` (published by the master in init_module).
+ * WHY: Graph it to correlate behaviour changes with config reloads, or
+ *      alert when it moves unexpectedly.
+ * HOW: Single unlabelled gauge line from the zone-global counter.
+ */
+static void
+metrics_emit_config_generation(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
     mw_printf(mw,
         "# HELP brix_config_generation "
             "Config loads since master start (steps on each reload).\n"
         "# TYPE brix_config_generation gauge\n"
         "brix_config_generation %lu\n",
         (unsigned long) ngx_atomic_fetch_add(&shm->config_generation, 0));
+}
 
-    mw_printf(mw,
-        "# HELP brix_connections_total "
-            "Total TCP connections accepted since process start.\n"
-        "# TYPE brix_connections_total counter\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        srv = &shm->servers[i];
-        if (!srv->in_use) { continue; }
-        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
-        mw_printf(mw,
-            "brix_connections_total{port=\"%s\",auth=\"%s\"} %lu\n",
-            port_str, srv->auth,
-            (unsigned long) ngx_atomic_fetch_add(&srv->connections_total, 0));
-    }
+/*
+ * metrics_emit_connections() — connection lifecycle families.
+ *
+ * WHAT: Total accepted connections (counter) and currently open
+ *       connections (gauge), per server slot.
+ * WHY: The basic capacity/health signals for every stream listener.
+ * HOW: Two-entry descriptor table through the shared slot-scan emitter.
+ */
+static void
+metrics_emit_connections(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    static const srv_family_desc_t tab[] = {
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_connections_total",
+                "Total TCP connections accepted since process start."),
+            "brix_connections_total", connections_total),
+        SRV_FAMILY(SRV_GAUGE_HDR("brix_connections_active",
+                "Currently open XRootD connections."),
+            "brix_connections_active", connections_active),
+    };
 
-    mw_printf(mw,
-        "# HELP brix_connections_active "
-            "Currently open XRootD connections.\n"
-        "# TYPE brix_connections_active gauge\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        srv = &shm->servers[i];
-        if (!srv->in_use) { continue; }
-        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
-        mw_printf(mw,
-            "brix_connections_active{port=\"%s\",auth=\"%s\"} %lu\n",
-            port_str, srv->auth,
-            (unsigned long) ngx_atomic_fetch_add(&srv->connections_active, 0));
-    }
+    metrics_emit_srv_families(mw, shm, tab,
+        sizeof(tab) / sizeof(tab[0]));
+}
 
-    /* Phase 31 W4 — transfer-heap memory budget gauges/counter. */
-    mw_printf(mw,
-        "# HELP brix_xfer_heap_bytes "
-            "Bytes currently held in per-connection transfer scratch buffers.\n"
-        "# TYPE brix_xfer_heap_bytes gauge\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        srv = &shm->servers[i];
-        if (!srv->in_use) { continue; }
-        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
-        mw_printf(mw,
-            "brix_xfer_heap_bytes{port=\"%s\",auth=\"%s\"} %lu\n",
-            port_str, srv->auth,
-            (unsigned long) ngx_atomic_fetch_add(&srv->xfer_heap_in_use, 0));
-    }
+/*
+ * metrics_emit_xfer_heap() — transfer-heap memory budget families.
+ *
+ * WHAT: Phase 31 W4 — current and peak transfer-scratch bytes (gauges) plus
+ *       reads deferred with kXR_wait by the memory budget (counter).
+ * WHY: Observability for the brix_memory_budget backpressure mechanism.
+ * HOW: Three-entry descriptor table through the shared slot-scan emitter.
+ */
+static void
+metrics_emit_xfer_heap(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    static const srv_family_desc_t tab[] = {
+        SRV_FAMILY(SRV_GAUGE_HDR("brix_xfer_heap_bytes",
+                "Bytes currently held in per-connection transfer scratch buffers."),
+            "brix_xfer_heap_bytes", xfer_heap_in_use),
+        SRV_FAMILY(SRV_GAUGE_HDR("brix_xfer_heap_high_water_bytes",
+                "Peak transfer-heap bytes observed since start."),
+            "brix_xfer_heap_high_water_bytes", xfer_heap_high_water),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_budget_waits_total",
+                "Reads deferred with kXR_wait because they would exceed "
+                "brix_memory_budget."),
+            "brix_budget_waits_total", budget_waits_total),
+    };
 
-    mw_printf(mw,
-        "# HELP brix_xfer_heap_high_water_bytes "
-            "Peak transfer-heap bytes observed since start.\n"
-        "# TYPE brix_xfer_heap_high_water_bytes gauge\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        srv = &shm->servers[i];
-        if (!srv->in_use) { continue; }
-        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
-        mw_printf(mw,
-            "brix_xfer_heap_high_water_bytes{port=\"%s\",auth=\"%s\"} %lu\n",
-            port_str, srv->auth,
-            (unsigned long) ngx_atomic_fetch_add(&srv->xfer_heap_high_water, 0));
-    }
+    metrics_emit_srv_families(mw, shm, tab,
+        sizeof(tab) / sizeof(tab[0]));
+}
 
-    mw_printf(mw,
-        "# HELP brix_budget_waits_total "
-            "Reads deferred with kXR_wait because they would exceed "
-            "brix_memory_budget.\n"
-        "# TYPE brix_budget_waits_total counter\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        srv = &shm->servers[i];
-        if (!srv->in_use) { continue; }
-        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
-        mw_printf(mw,
-            "brix_budget_waits_total{port=\"%s\",auth=\"%s\"} %lu\n",
-            port_str, srv->auth,
-            (unsigned long) ngx_atomic_fetch_add(&srv->budget_waits_total, 0));
-    }
+/*
+ * metrics_emit_bytes() — payload byte-count families.
+ *
+ * WHAT: Client payload rx/tx totals — legacy aggregate pair (DEPRECATED in
+ *       favour of the protocol-neutral brix_io_bytes_* series), the native
+ *       root:// per-protocol pair, and the per-IP-version split.
+ * WHY: Throughput accounting; the IPv4/IPv6 split avoids the
+ *      high-cardinality label explosion of per-client series.
+ * HOW: Eight-entry descriptor table; deprecated families carry their
+ *      DEPRECATED notice verbatim in the header preamble.
+ */
+static void
+metrics_emit_bytes(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    static const srv_family_desc_t tab[] = {
+        SRV_FAMILY(
+            "# DEPRECATED: use brix_io_bytes_written{proto=\"stream\"} "
+                "for protocol-neutral write throughput.\n"
+            SRV_COUNTER_HDR("brix_bytes_rx_total",
+                "Bytes received from clients (write payloads)."),
+            "brix_bytes_rx_total", bytes_rx_total),
+        SRV_FAMILY(
+            "# DEPRECATED: use brix_io_bytes_read{proto=\"stream\"} "
+                "for protocol-neutral read throughput.\n"
+            SRV_COUNTER_HDR("brix_bytes_tx_total",
+                "Bytes sent to clients (read data)."),
+            "brix_bytes_tx_total", bytes_tx_total),
 
-    mw_printf(mw,
-        "# DEPRECATED: use brix_io_bytes_written{proto=\"stream\"} "
-            "for protocol-neutral write throughput.\n"
-        "# HELP brix_bytes_rx_total "
-            "Bytes received from clients (write payloads).\n"
-        "# TYPE brix_bytes_rx_total counter\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        srv = &shm->servers[i];
-        if (!srv->in_use) { continue; }
-        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
-        mw_printf(mw,
-            "brix_bytes_rx_total{port=\"%s\",auth=\"%s\"} %lu\n",
-            port_str, srv->auth,
-            (unsigned long) ngx_atomic_fetch_add(&srv->bytes_rx_total, 0));
-    }
+        /* Per-protocol byte counters — native XRootD stream-layer data only. */
+        SRV_FAMILY(
+            "# DEPRECATED: use brix_io_bytes_written{proto=\"stream\"} "
+                "for protocol-neutral write throughput.\n"
+            SRV_COUNTER_HDR("brix_bytes_root_rx_total",
+                "Bytes received from clients via the native XRootD root:// protocol."),
+            "brix_bytes_root_rx_total", proto_root_bytes_rx_total),
+        SRV_FAMILY(
+            "# DEPRECATED: use brix_io_bytes_read{proto=\"stream\"} "
+                "for protocol-neutral read throughput.\n"
+            SRV_COUNTER_HDR("brix_bytes_root_tx_total",
+                "Bytes sent to clients via the native XRootD root:// protocol."),
+            "brix_bytes_root_tx_total", proto_root_bytes_tx_total),
 
-    mw_printf(mw,
-        "# DEPRECATED: use brix_io_bytes_read{proto=\"stream\"} "
-            "for protocol-neutral read throughput.\n"
-        "# HELP brix_bytes_tx_total "
-            "Bytes sent to clients (read data).\n"
-        "# TYPE brix_bytes_tx_total counter\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        srv = &shm->servers[i];
-        if (!srv->in_use) { continue; }
-        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
-        mw_printf(mw,
-            "brix_bytes_tx_total{port=\"%s\",auth=\"%s\"} %lu\n",
-            port_str, srv->auth,
-            (unsigned long) ngx_atomic_fetch_add(&srv->bytes_tx_total, 0));
-    }
+        /* Per-IP-version bandwidth counters — avoids high-cardinality label
+         * explosion. */
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_bytes_rx_ipv4_total",
+                "Bytes received from IPv4 clients (stream layer)."),
+            "brix_bytes_rx_ipv4_total", bytes_rx_ipv4_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_bytes_tx_ipv4_total",
+                "Bytes sent to IPv4 clients (stream layer)."),
+            "brix_bytes_tx_ipv4_total", bytes_tx_ipv4_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_bytes_rx_ipv6_total",
+                "Bytes received from IPv6 clients (stream layer)."),
+            "brix_bytes_rx_ipv6_total", bytes_rx_ipv6_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_bytes_tx_ipv6_total",
+                "Bytes sent to IPv6 clients (stream layer)."),
+            "brix_bytes_tx_ipv6_total", bytes_tx_ipv6_total),
+    };
 
-    /* Per-protocol byte counters — native XRootD stream-layer data only. */
-    mw_printf(mw,
-        "# DEPRECATED: use brix_io_bytes_written{proto=\"stream\"} "
-            "for protocol-neutral write throughput.\n"
-        "# HELP brix_bytes_root_rx_total "
-            "Bytes received from clients via the native XRootD root:// protocol.\n"
-        "# TYPE brix_bytes_root_rx_total counter\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        srv = &shm->servers[i];
-        if (!srv->in_use) { continue; }
-        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
-        mw_printf(mw,
-            "brix_bytes_root_rx_total{port=\"%s\",auth=\"%s\"} %lu\n",
-            port_str, srv->auth,
-            (unsigned long) ngx_atomic_fetch_add(&srv->proto_root_bytes_rx_total, 0));
-    }
+    metrics_emit_srv_families(mw, shm, tab,
+        sizeof(tab) / sizeof(tab[0]));
+}
 
-    mw_printf(mw,
-        "# DEPRECATED: use brix_io_bytes_read{proto=\"stream\"} "
-            "for protocol-neutral read throughput.\n"
-        "# HELP brix_bytes_root_tx_total "
-            "Bytes sent to clients via the native XRootD root:// protocol.\n"
-        "# TYPE brix_bytes_root_tx_total counter\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        srv = &shm->servers[i];
-        if (!srv->in_use) { continue; }
-        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
-        mw_printf(mw,
-            "brix_bytes_root_tx_total{port=\"%s\",auth=\"%s\"} %lu\n",
-            port_str, srv->auth,
-            (unsigned long) ngx_atomic_fetch_add(&srv->proto_root_bytes_tx_total, 0));
-    }
+/*
+ * metrics_emit_wire_frames() — raw wire and frame accounting families.
+ *
+ * WHAT: Raw socket byte totals plus request-frame parse and response-frame
+ *       send accounting (payload bytes, oversized rejects, write
+ *       stalls/errors).
+ * WHY: Distinguishes wire-level throughput from payload throughput and
+ *      surfaces framing/back-pressure problems.
+ * HOW: Eight-entry descriptor table through the shared slot-scan emitter.
+ */
+static void
+metrics_emit_wire_frames(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    static const srv_family_desc_t tab[] = {
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_wire_bytes_rx_total",
+                "Raw socket bytes received from native XRootD clients."),
+            "brix_wire_bytes_rx_total", wire_bytes_rx_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_wire_bytes_tx_total",
+                "Raw socket bytes sent to native XRootD clients."),
+            "brix_wire_bytes_tx_total", wire_bytes_tx_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_stream_request_frames_total",
+                "Native XRootD request headers parsed by the stream module."),
+            "brix_stream_request_frames_total", request_frames_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_stream_request_payload_bytes_total",
+                "Declared native XRootD request payload bytes parsed by the stream module."),
+            "brix_stream_request_payload_bytes_total",
+            request_payload_bytes_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_stream_oversized_payloads_total",
+                "Native XRootD requests rejected because their payload was too large."),
+            "brix_stream_oversized_payloads_total", oversized_payloads_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_stream_response_frames_total",
+                "Native XRootD response send attempts."),
+            "brix_stream_response_frames_total", response_frames_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_stream_response_write_stalls_total",
+                "Native XRootD response sends that had to wait for socket writability."),
+            "brix_stream_response_write_stalls_total",
+            response_write_stalls_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_stream_response_write_errors_total",
+                "Native XRootD response send or send_chain failures."),
+            "brix_stream_response_write_errors_total",
+            response_write_errors_total),
+    };
 
-    /* Per-IP-version bandwidth counters — avoids high-cardinality label explosion. */
-    mw_printf(mw,
-        "# HELP brix_bytes_rx_ipv4_total "
-            "Bytes received from IPv4 clients (stream layer).\n"
-        "# TYPE brix_bytes_rx_ipv4_total counter\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        srv = &shm->servers[i];
-        if (!srv->in_use) { continue; }
-        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
-        mw_printf(mw,
-            "brix_bytes_rx_ipv4_total{port=\"%s\",auth=\"%s\"} %lu\n",
-            port_str, srv->auth,
-            (unsigned long) ngx_atomic_fetch_add(&srv->bytes_rx_ipv4_total, 0));
-    }
+    metrics_emit_srv_families(mw, shm, tab,
+        sizeof(tab) / sizeof(tab[0]));
+}
 
-    mw_printf(mw,
-        "# HELP brix_bytes_tx_ipv4_total "
-            "Bytes sent to IPv4 clients (stream layer).\n"
-        "# TYPE brix_bytes_tx_ipv4_total counter\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        srv = &shm->servers[i];
-        if (!srv->in_use) { continue; }
-        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
-        mw_printf(mw,
-            "brix_bytes_tx_ipv4_total{port=\"%s\",auth=\"%s\"} %lu\n",
-            port_str, srv->auth,
-            (unsigned long) ngx_atomic_fetch_add(&srv->bytes_tx_ipv4_total, 0));
-    }
+/*
+ * metrics_emit_fault_timeouts() — network-fault resilience families.
+ *
+ * WHAT: Phase 39 — connections dropped by the handshake/read/send watchdog
+ *       timers plus accepts refused at the connection cap.
+ * WHY: All 0 unless the resilience directives are set; non-zero values show
+ *      which timeout is reaping clients.
+ * HOW: Four-entry descriptor table through the shared slot-scan emitter.
+ */
+static void
+metrics_emit_fault_timeouts(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    static const srv_family_desc_t tab[] = {
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_stream_handshake_timeouts_total",
+                "Connections dropped because the pre-auth handshake stalled past brix_handshake_timeout."),
+            "brix_stream_handshake_timeouts_total", handshake_timeouts_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_stream_read_pdu_timeouts_total",
+                "Connections dropped because an incomplete request PDU stalled past brix_read_timeout."),
+            "brix_stream_read_pdu_timeouts_total", read_pdu_timeouts_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_stream_send_drain_timeouts_total",
+                "Connections dropped because the response drain stalled past brix_send_timeout."),
+            "brix_stream_send_drain_timeouts_total", send_drain_timeouts_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_stream_connections_rejected_total",
+                "Connections refused at accept because the listener was at brix_max_connections."),
+            "brix_stream_connections_rejected_total",
+            connections_rejected_total),
+    };
 
-    mw_printf(mw,
-        "# HELP brix_bytes_rx_ipv6_total "
-            "Bytes received from IPv6 clients (stream layer).\n"
-        "# TYPE brix_bytes_rx_ipv6_total counter\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        srv = &shm->servers[i];
-        if (!srv->in_use) { continue; }
-        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
-        mw_printf(mw,
-            "brix_bytes_rx_ipv6_total{port=\"%s\",auth=\"%s\"} %lu\n",
-            port_str, srv->auth,
-            (unsigned long) ngx_atomic_fetch_add(&srv->bytes_rx_ipv6_total, 0));
-    }
+    metrics_emit_srv_families(mw, shm, tab,
+        sizeof(tab) / sizeof(tab[0]));
+}
 
-    mw_printf(mw,
-        "# HELP brix_bytes_tx_ipv6_total "
-            "Bytes sent to IPv6 clients (stream layer).\n"
-        "# TYPE brix_bytes_tx_ipv6_total counter\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        srv = &shm->servers[i];
-        if (!srv->in_use) { continue; }
-        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
-        mw_printf(mw,
-            "brix_bytes_tx_ipv6_total{port=\"%s\",auth=\"%s\"} %lu\n",
-            port_str, srv->auth,
-            (unsigned long) ngx_atomic_fetch_add(&srv->bytes_tx_ipv6_total, 0));
-    }
+/*
+ * metrics_emit_io_uring() — optional io_uring disk-I/O backend families.
+ *
+ * WHAT: Phase 44 — ops submitted via io_uring, thread-pool fallbacks, and
+ *       the per-listener "backend has been used" gauge (1 = a worker
+ *       fronting this listener used the ring; a kill-switch flip is
+ *       observable via the ops/fallback ratio).
+ * WHY: All 0 unless the io_uring backend is enabled; the fallback counter
+ *      shows ring saturation or runtime disablement.
+ * HOW: Three-entry descriptor table through the shared slot-scan emitter.
+ */
+static void
+metrics_emit_io_uring(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    static const srv_family_desc_t tab[] = {
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_stream_io_uring_ops_total",
+                "Mapped disk ops (read/write/single-group readv/writev) submitted via the io_uring backend."),
+            "brix_stream_io_uring_ops_total", io_uring_ops_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_stream_io_uring_fallback_total",
+                "Mapped disk ops that fell back to the thread pool because io_uring was full or runtime-disabled."),
+            "brix_stream_io_uring_fallback_total", io_uring_fallback_total),
+        SRV_FAMILY(SRV_GAUGE_HDR("brix_stream_io_uring_active",
+                "1 if a worker fronting this listener has used the io_uring backend."),
+            "brix_stream_io_uring_active", io_uring_active),
+    };
 
-#define BRIX_EXPORT_SRV_COUNTER(metric_name, help_text, field_name)        \
-    do {                                                                     \
-        mw_printf(mw, "# HELP " metric_name " " help_text "\n"            \
-                      "# TYPE " metric_name " counter\n");                 \
-        for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {                   \
-            srv = &shm->servers[i];                                          \
-            if (!srv->in_use) { continue; }                                  \
-            ngx_snprintf((u_char *) port_str, sizeof(port_str),              \
-                         "%ui%Z", srv->port);                               \
-            mw_printf(mw, metric_name "{port=\"%s\",auth=\"%s\"} %lu\n",   \
-                      port_str, srv->auth,                                   \
-                      (unsigned long) ngx_atomic_fetch_add(                  \
-                          &srv->field_name, 0));                             \
-        }                                                                    \
-    } while (0)
+    metrics_emit_srv_families(mw, shm, tab,
+        sizeof(tab) / sizeof(tab[0]));
+}
 
-    BRIX_EXPORT_SRV_COUNTER("brix_wire_bytes_rx_total",
-        "Raw socket bytes received from native XRootD clients.",
-        wire_bytes_rx_total);
-    BRIX_EXPORT_SRV_COUNTER("brix_wire_bytes_tx_total",
-        "Raw socket bytes sent to native XRootD clients.",
-        wire_bytes_tx_total);
-    BRIX_EXPORT_SRV_COUNTER("brix_stream_request_frames_total",
-        "Native XRootD request headers parsed by the stream module.",
-        request_frames_total);
-    BRIX_EXPORT_SRV_COUNTER("brix_stream_request_payload_bytes_total",
-        "Declared native XRootD request payload bytes parsed by the stream module.",
-        request_payload_bytes_total);
-    BRIX_EXPORT_SRV_COUNTER("brix_stream_oversized_payloads_total",
-        "Native XRootD requests rejected because their payload was too large.",
-        oversized_payloads_total);
-    BRIX_EXPORT_SRV_COUNTER("brix_stream_response_frames_total",
-        "Native XRootD response send attempts.",
-        response_frames_total);
-    BRIX_EXPORT_SRV_COUNTER("brix_stream_response_write_stalls_total",
-        "Native XRootD response sends that had to wait for socket writability.",
-        response_write_stalls_total);
-    BRIX_EXPORT_SRV_COUNTER("brix_stream_response_write_errors_total",
-        "Native XRootD response send or send_chain failures.",
-        response_write_errors_total);
+/*
+ * metrics_emit_path_depth() — path-depth violation family.
+ *
+ * WHAT: Requests rejected because path component count exceeded
+ *       BRIX_MAX_WALK_DEPTH.
+ * WHY: Prevents CPU exhaustion from malicious symlink traversal chains or
+ *      deep nesting; the counter shows whether the guard is firing.
+ * HOW: Single-entry descriptor through the shared slot-scan emitter.
+ */
+static void
+metrics_emit_path_depth(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    static const srv_family_desc_t tab[] = {
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_path_depth_violations_total",
+                "Requests rejected because path depth exceeded "
+                "BRIX_MAX_WALK_DEPTH. Prevents CPU exhaustion from "
+                "malicious symlink traversal chains or deep nesting."),
+            "brix_path_depth_violations_total", path_depth_violations_total),
+    };
 
-    /* Phase 39: network-fault resilience timeout reaps (0 unless directives set). */
-    BRIX_EXPORT_SRV_COUNTER("brix_stream_handshake_timeouts_total",
-        "Connections dropped because the pre-auth handshake stalled past brix_handshake_timeout.",
-        handshake_timeouts_total);
-    BRIX_EXPORT_SRV_COUNTER("brix_stream_read_pdu_timeouts_total",
-        "Connections dropped because an incomplete request PDU stalled past brix_read_timeout.",
-        read_pdu_timeouts_total);
-    BRIX_EXPORT_SRV_COUNTER("brix_stream_send_drain_timeouts_total",
-        "Connections dropped because the response drain stalled past brix_send_timeout.",
-        send_drain_timeouts_total);
-    BRIX_EXPORT_SRV_COUNTER("brix_stream_connections_rejected_total",
-        "Connections refused at accept because the listener was at brix_max_connections.",
-        connections_rejected_total);
+    metrics_emit_srv_families(mw, shm, tab,
+        sizeof(tab) / sizeof(tab[0]));
+}
 
-    /* Phase 44: optional io_uring disk-I/O backend (0 unless enabled). */
-    BRIX_EXPORT_SRV_COUNTER("brix_stream_io_uring_ops_total",
-        "Mapped disk ops (read/write/single-group readv/writev) submitted via the io_uring backend.",
-        io_uring_ops_total);
-    BRIX_EXPORT_SRV_COUNTER("brix_stream_io_uring_fallback_total",
-        "Mapped disk ops that fell back to the thread pool because io_uring was full or runtime-disabled.",
-        io_uring_fallback_total);
+/*
+ * metrics_emit_ssi() — §7 XrdSsi service families.
+ *
+ * WHAT: XrdSsi request/error totals plus out-of-band alert push accounting.
+ * WHY: Observability for the SSI request-response service plane.
+ * HOW: Four-entry descriptor table through the shared slot-scan emitter.
+ */
+static void
+metrics_emit_ssi(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    static const srv_family_desc_t tab[] = {
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_ssi_requests_total",
+                "XrdSsi requests dispatched."),
+            "brix_ssi_requests_total", ssi_requests_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_ssi_errors_total",
+                "XrdSsi error responses."),
+            "brix_ssi_errors_total", ssi_errors_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_ssi_alerts_pushed_total",
+                "XrdSsi out-of-band alerts pushed to clients."),
+            "brix_ssi_alerts_pushed_total", ssi_alerts_pushed_total),
+        SRV_FAMILY(SRV_COUNTER_HDR("brix_ssi_attn_push_failures_total",
+                "XrdSsi kXR_attn pushes that failed to queue."),
+            "brix_ssi_attn_push_failures_total", ssi_attn_push_failures_total),
+    };
 
-#undef BRIX_EXPORT_SRV_COUNTER
+    metrics_emit_srv_families(mw, shm, tab,
+        sizeof(tab) / sizeof(tab[0]));
+}
 
-    /* Phase 44: io_uring active gauge (1 = a worker fronting this listener used
-     * the ring; flips to 0 fleet-wide effect is observable via the ops/fallback
-     * ratio after a kill-switch flip). */
-    mw_printf(mw, "# HELP brix_stream_io_uring_active "
-                  "1 if a worker fronting this listener has used the io_uring backend.\n"
-                  "# TYPE brix_stream_io_uring_active gauge\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        srv = &shm->servers[i];
-        if (!srv->in_use) { continue; }
-        ngx_snprintf((u_char *) port_str, sizeof(port_str), "%ui%Z", srv->port);
-        mw_printf(mw,
-                  "brix_stream_io_uring_active{port=\"%s\",auth=\"%s\"} %lu\n",
-                  port_str, srv->auth,
-                  (unsigned long) ngx_atomic_fetch_add(&srv->io_uring_active, 0));
-    }
-
-    brix_export_stream_cache_metrics(mw, shm);
-
-    /* Path depth violation counter — requests rejected due to excessive component count. */
-#define BRIX_EXPORT_DEPTH_VIOLATIONS                                             \
-    do {                                                                         \
-        mw_printf(mw, "# HELP "                                                  \
-                     "brix_path_depth_violations_total "                       \
-                         "Requests rejected because path depth exceeded "         \
-                         "BRIX_MAX_WALK_DEPTH. Prevents CPU exhaustion from "   \
-                         "malicious symlink traversal chains or deep nesting.\n"  \
-                     "# TYPE brix_path_depth_violations_total counter\n");     \
-        for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {                        \
-            srv = &shm->servers[i];                                              \
-            if (!srv->in_use) { continue; }                                      \
-            ngx_snprintf((u_char *) port_str, sizeof(port_str),                  \
-                         "%ui%Z", srv->port);                                    \
-            mw_printf(mw,                                                      \
-                     "brix_path_depth_violations_total"                       \
-                         "{port=\"%s\",auth=\"%s\"} %lu\n",                    \
-                     port_str, srv->auth,                                       \
-                     (unsigned long) ngx_atomic_fetch_add(                      \
-                         &srv->path_depth_violations_total, 0));                 \
-        }                                                                        \
-    } while (0)
-
-    BRIX_EXPORT_DEPTH_VIOLATIONS;
-
-#undef BRIX_EXPORT_DEPTH_VIOLATIONS
-
-    /* §7 XrdSsi service counters. */
-#define BRIX_EXPORT_SSI_COUNTER(name, field, help)                          \
-    do {                                                                      \
-        mw_printf(mw, "# HELP " name " " help "\n# TYPE " name " counter\n"); \
-        for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {                    \
-            srv = &shm->servers[i];                                           \
-            if (!srv->in_use) { continue; }                                   \
-            ngx_snprintf((u_char *) port_str, sizeof(port_str),               \
-                         "%ui%Z", srv->port);                                 \
-            mw_printf(mw, name "{port=\"%s\",auth=\"%s\"} %lu\n",             \
-                      port_str, srv->auth,                                     \
-                      (unsigned long) ngx_atomic_fetch_add(&srv->field, 0));  \
-        }                                                                     \
-    } while (0)
-
-    BRIX_EXPORT_SSI_COUNTER("brix_ssi_requests_total", ssi_requests_total,
-                              "XrdSsi requests dispatched.");
-    BRIX_EXPORT_SSI_COUNTER("brix_ssi_errors_total", ssi_errors_total,
-                              "XrdSsi error responses.");
-    BRIX_EXPORT_SSI_COUNTER("brix_ssi_alerts_pushed_total",
-                              ssi_alerts_pushed_total,
-                              "XrdSsi out-of-band alerts pushed to clients.");
-    BRIX_EXPORT_SSI_COUNTER("brix_ssi_attn_push_failures_total",
-                              ssi_attn_push_failures_total,
-                              "XrdSsi kXR_attn pushes that failed to queue.");
-
-#undef BRIX_EXPORT_SSI_COUNTER
-
+/*
+ * metrics_emit_registry_health() — registry/session anti-exhaustion scalars.
+ *
+ * WHAT: Server registrations dropped at registry capacity, plus the
+ *       Phase 27 F4 session-registry pressure counters (logins rejected with
+ *       a full table, idle sessions LRU-reaped to admit a new login).
+ * WHY: Non-zero values mean the fixed-slot tables are undersized for the
+ *      deployment.
+ * HOW: Zone-global unlabelled counters, verbatim exposition text.
+ */
+static void
+metrics_emit_registry_health(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
     mw_printf(mw,
         "# HELP brix_registry_full_total "
             "Server registrations dropped because the registry was at capacity.\n"
@@ -436,7 +471,6 @@ brix_export_prometheus_metrics(metrics_writer_t *mw,
         "brix_registry_full_total %lu\n",
         (unsigned long) ngx_atomic_fetch_add(&shm->registry_full_total, 0));
 
-    /* Phase 27 F4 — session-registry anti-exhaustion. */
     mw_printf(mw,
         "# HELP brix_session_registry_full_total "
             "Logins rejected because the session table was full and nothing was reapable.\n"
@@ -448,6 +482,24 @@ brix_export_prometheus_metrics(metrics_writer_t *mw,
         "brix_session_evict_total %lu\n",
         (unsigned long) ngx_atomic_fetch_add(&shm->session_registry_full_total, 0),
         (unsigned long) ngx_atomic_fetch_add(&shm->session_evict_total, 0));
+}
+
+/*
+ * metrics_emit_request_ops() — per-operation request outcome family.
+ *
+ * WHAT: `brix_requests_total{port,auth,op,status}` — ok counts always, error
+ *       counts only for op slots that have recorded at least one error.
+ * WHY: The primary per-operation traffic/error breakdown; suppressing
+ *      zero-error rows keeps the scrape small.
+ * HOW: Outer loop over BRIX_NOPS name slots (NULL = unused trailing slot),
+ *      inner loop over in-use server slots.
+ */
+static void
+metrics_emit_request_ops(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    ngx_brix_srv_metrics_t *srv;
+    ngx_uint_t                i, op;
+    char                      port_str[16];
 
     mw_printf(mw,
         "# HELP brix_requests_total "
@@ -483,23 +535,21 @@ brix_export_prometheus_metrics(metrics_writer_t *mw,
             }
         }
     }
+}
 
-    brix_export_unified_metrics(mw, shm);
-
-    brix_export_stream_proxy_metrics(mw, shm);
-    brix_export_stream_tracking_metrics(mw, shm);
-
-    brix_export_webdav_metrics(mw, shm);
-    brix_export_s3_metrics(mw, shm);
-    brix_export_cvmfs_metrics(mw, shm);
-    brix_export_cluster_metrics(mw);
-    brix_export_ratelimit_metrics(mw, shm);
-    brix_export_pmark_metrics(mw, shm);
-    brix_export_frm_metrics(mw, shm);
-    brix_export_resilience_metrics(mw, shm);
-
-    /* Phase 24 — traffic-mirror counters (always exported; independent of the
-     * cluster registry, unlike the health-check block in cluster.c). */
+/*
+ * metrics_emit_mirror() — traffic-mirror counters.
+ *
+ * WHAT: Phase 24 — mirror request/error/dropped/divergence totals for both
+ *       the http and stream surfaces.
+ * WHY: Always exported (independent of the cluster registry, unlike the
+ *      health-check block in cluster.c) so shadow behaviour is graphable
+ *      even before any node registers.
+ * HOW: Zone-global counters, one verbatim exposition block.
+ */
+static void
+metrics_emit_mirror(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
     mw_printf(mw,
         "# HELP brix_mirror_requests_total Mirror requests the shadow answered.\n"
         "# TYPE brix_mirror_requests_total counter\n"
@@ -525,6 +575,50 @@ brix_export_prometheus_metrics(metrics_writer_t *mw,
         (unsigned long) ngx_atomic_fetch_add(&shm->mirror_stream_dropped_total, 0),
         (unsigned long) ngx_atomic_fetch_add(&shm->mirror_http_divergence_total, 0),
         (unsigned long) ngx_atomic_fetch_add(&shm->mirror_stream_divergence_total, 0));
+}
+
+void
+brix_export_prometheus_metrics(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm)
+{
+    /*
+     * Export is intentionally eventually consistent rather than a single locked
+     * snapshot: each counter is read atomically, but different lines may observe
+     * slightly different moments in time while workers continue serving traffic.
+     *
+     * Family emission order is FROZEN — dashboards parse this output.
+     */
+    metrics_emit_config_generation(mw, shm);
+    metrics_emit_connections(mw, shm);
+    metrics_emit_xfer_heap(mw, shm);       /* Phase 31 W4 memory budget */
+    metrics_emit_bytes(mw, shm);
+    metrics_emit_wire_frames(mw, shm);
+    metrics_emit_fault_timeouts(mw, shm);  /* Phase 39 resilience reaps */
+    metrics_emit_io_uring(mw, shm);        /* Phase 44 io_uring backend */
+
+    brix_export_stream_cache_metrics(mw, shm);
+
+    metrics_emit_path_depth(mw, shm);
+    metrics_emit_ssi(mw, shm);
+    metrics_emit_registry_health(mw, shm);
+    metrics_emit_request_ops(mw, shm);
+
+    brix_export_unified_metrics(mw, shm);
+
+    brix_export_stream_proxy_metrics(mw, shm);
+    brix_export_stream_tracking_metrics(mw, shm);
+
+    brix_export_webdav_metrics(mw, shm);
+    brix_export_s3_metrics(mw, shm);
+    brix_export_cvmfs_metrics(mw, shm);
+    brix_export_cluster_metrics(mw);
+    brix_export_ratelimit_metrics(mw, shm);
+    brix_export_pmark_metrics(mw, shm);
+    brix_export_frm_metrics(mw, shm);
+    brix_export_resilience_metrics(mw, shm);
+
+    /* Phase 24 — traffic-mirror counters. */
+    metrics_emit_mirror(mw, shm);
 }
 
 

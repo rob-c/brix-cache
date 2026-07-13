@@ -140,10 +140,411 @@ map_fs_arg(const char *arg, const char *ehost, int eport, int *mismatch)
 }
 
 
+/*
+ * WHAT: `xrd version` / `--version` / `-V` — print the client version to stdout.
+ * WHY:  table row for the version verb; keeps main() a pure dispatcher.
+ * HOW:  printf + return 0; args beyond the verb are ignored (as before).
+ */
+static int
+cmd_version(int argc, char **argv)
+{
+    (void) argc; (void) argv;
+    printf("xrd (BriX-Cache client) %s\n", brix_client_version());
+    return 0;
+}
+
+
+/*
+ * WHAT: `xrd -h` — usage to stderr, exit 0.
+ * WHY:  spec C1: bare -h keeps the historical stderr stream (vs --help/stdout).
+ * HOW:  usage() targets stderr; return 0.
+ */
+static int
+cmd_usage_stderr(int argc, char **argv)
+{
+    (void) argc; (void) argv;
+    usage();           /* -h → stderr (C1) */
+    return 0;
+}
+
+
+/*
+ * WHAT: `xrd --help` / `xrd help` — usage to stdout, exit 0.
+ * WHY:  spec WS-2: explicit help requests print to stdout for pager/grep use.
+ * HOW:  usage_fp(stdout); return 0.
+ */
+static int
+cmd_help(int argc, char **argv)
+{
+    (void) argc; (void) argv;
+    usage_fp(stdout);  /* --help/help → stdout (WS-2) */
+    return 0;
+}
+
+
+/*
+ * WHAT: `xrd cp|copy [args...]` -> exec `xrdcp [args...]`.
+ * WHY:  cp is a thin alias; the copy engine lives in xrdcp.
+ * HOW:  overwrite argv[1] with the tool name and exec from there.
+ */
+static int
+cmd_cp(int argc, char **argv)
+{
+    (void) argc;
+    argv[1] = (char *) "xrdcp";
+    exec_tool("xrdcp", &argv[1]);
+    return 127;   /* unreachable: exec_tool does not return */
+}
+
+
+/*
+ * WHAT: `xrd get <url> [dst=.]` -> exec `xrdcp <url> <dst>`.
+ * WHY:  convenience download verb with a cwd default destination.
+ * HOW:  build a fixed 4-slot argv; missing dst becomes ".".
+ */
+static int
+cmd_get(int argc, char **argv)
+{
+    char *nv[5];
+    int   k = 0;
+
+    if (argc < 3) { fprintf(stderr, "xrd get: needs a <url>\n"); return 50; }
+    nv[k++] = (char *) "xrdcp";
+    nv[k++] = argv[2];
+    nv[k++] = (argc >= 4) ? argv[3] : (char *) ".";
+    nv[k] = NULL;
+    exec_tool("xrdcp", nv);
+    return 127;   /* unreachable: exec_tool does not return */
+}
+
+
+/*
+ * WHAT: `xrd put <localfile> <url>` -> exec `xrdcp <localfile> <url>`.
+ * WHY:  convenience upload verb; both operands are mandatory.
+ * HOW:  fixed 4-slot argv, then exec.
+ */
+static int
+cmd_put(int argc, char **argv)
+{
+    char *nv[4];
+
+    if (argc < 4) { fprintf(stderr, "xrd put: needs <localfile> <url>\n"); return 50; }
+    nv[0] = (char *) "xrdcp";
+    nv[1] = argv[2];
+    nv[2] = argv[3];
+    nv[3] = NULL;
+    exec_tool("xrdcp", nv);
+    return 127;   /* unreachable: exec_tool does not return */
+}
+
+
+/*
+ * WHAT: `xrd diag ...` -> exec `xrddiag ...`.
+ * WHY:  the diagnostics busybox owns the check/bench/watch/srr/tape family.
+ * HOW:  overwrite argv[1] with the tool name and exec from there.
+ */
+static int
+cmd_diag(int argc, char **argv)
+{
+    (void) argc;
+    argv[1] = (char *) "xrddiag";
+    exec_tool("xrddiag", &argv[1]);
+    return 127;   /* unreachable: exec_tool does not return */
+}
+
+
+/*
+ * WHAT: `xrd replicas <url>` -> exec `xrdmapc <url>` (cluster holder + space map).
+ * WHY:  replica topology is xrdmapc's job; xrd only routes.
+ * HOW:  overwrite argv[1] with the tool name and exec from there.
+ */
+static int
+cmd_replicas(int argc, char **argv)
+{
+    (void) argc;
+    argv[1] = (char *) "xrdmapc";
+    exec_tool("xrdmapc", &argv[1]);
+    return 127;   /* unreachable: exec_tool does not return */
+}
+
+
+/*
+ * WHAT: `xrd sync <srcdir> <dstdir>` -> exec `xrdcp -r --sync <src> <dst>`
+ *       (recursive mirror, skip same-size).
+ * WHY:  sync is xrdcp recursion + the --sync skip filter; extra flags after the
+ *       two operands pass through to xrdcp.
+ * HOW:  malloc argc+3 slots; prepend the tool + fixed flags, copy the rest.
+ */
+static int
+cmd_sync(int argc, char **argv)
+{
+    char **nv;
+    int    k = 0, j;
+
+    if (argc < 4) {
+        fprintf(stderr, "xrd sync: needs <srcdir> <dstdir>\n");
+        return 50;
+    }
+    nv = (char **) malloc((size_t) (argc + 3) * sizeof(char *));
+    if (nv == NULL) { fprintf(stderr, "xrd: out of memory\n"); return 51; }
+    nv[k++] = (char *) "xrdcp";
+    nv[k++] = (char *) "-r";
+    nv[k++] = (char *) "--sync";
+    for (j = 2; j < argc; j++) { nv[k++] = argv[j]; }
+    nv[k] = NULL;
+    exec_tool("xrdcp", nv);
+    return 127;   /* unreachable: exec_tool does not return */
+}
+
+
+/*
+ * WHAT: `xrd mounts` — list active XRootD FUSE mounts.
+ * WHY:  adapter row: xrd_list_mounts() takes no args, the table fn type does.
+ * HOW:  ignore argc/argv (as before) and delegate.
+ */
+static int
+cmd_mounts(int argc, char **argv)
+{
+    (void) argc; (void) argv;
+    return xrd_list_mounts();
+}
+
+
+/*
+ * WHAT: backend-storage list/verify (incl. the Ceph/RADOS object catalog) ->
+ *       exec xrdstorascan. `inventory` dumps the objects the backend physically
+ *       holds; `verify` recomputes + compares their checksums (Ceph: over
+ *       libradosstriper-reassembled bytes); `drift` reconciles namespace vs
+ *       catalog; `inspect` reports one object's backend facts.
+ * WHY:  four verbs share one target tool; the subcommand stays at argv[1].
+ * HOW:  rewrite argv[0] to the tool name and exec the whole vector.
+ */
+static int
+cmd_storascan(int argc, char **argv)
+{
+    (void) argc;
+    argv[0] = (char *) "xrdstorascan";
+    exec_tool("xrdstorascan", argv);
+    return 127;   /* unreachable: exec_tool does not return */
+}
+
+
+/*
+ * xrd_dispatch_t — one named xrd subcommand: exact-match name -> handler.
+ * Busybox-style table (same pattern as the xrdcksum/xrddiag applet families).
+ * Non-flag names double as the did-you-mean suggestion corpus, so keep them in
+ * the historical XRD_CMDS order; flag aliases ('-'-prefixed) sit at the end and
+ * are skipped when building suggestions.
+ */
+typedef struct {
+    const char *name;
+    int       (*fn)(int argc, char **argv);
+} xrd_dispatch_t;
+
+static const xrd_dispatch_t XRD_DISPATCH[] = {
+    { "cp",        cmd_cp        },
+    { "copy",      cmd_cp        },
+    { "get",       cmd_get       },
+    { "put",       cmd_put       },
+    { "sync",      cmd_sync      },
+    { "ping",      xrd_ping      },   /* inline liveness + RTT probe */
+    { "certinfo",  xrd_certinfo  },   /* endpoint diagnostics: inline composition */
+    { "clockskew", xrd_clockskew },
+    { "whoami",    xrd_whoami    },
+    { "caps",      xrd_caps      },
+    { "doctor",    xrd_doctor    },   /* cross-tool verbs (composition, no exec) */
+    { "login",     xrd_login     },
+    { "mount",     xrd_mount     },   /* FUSE3 driver + fusermount */
+    { "mounts",    cmd_mounts    },
+    { "unmount",   xrd_unmount   },
+    { "umount",    xrd_unmount   },
+    { "inventory", cmd_storascan },
+    { "verify",    cmd_storascan },
+    { "drift",     cmd_storascan },
+    { "inspect",   cmd_storascan },
+    { "version",   cmd_version   },
+    { "help",      cmd_help      },
+    { "diag",      cmd_diag      },
+    { "replicas",  cmd_replicas  },
+    { "--version", cmd_version   },
+    { "-V",        cmd_version   },
+    { "-h",        cmd_usage_stderr },
+    { "--help",    cmd_help      },
+    { NULL,        NULL          }
+};
+
+
+/*
+ * fs_split_t — result of scanning an fs-verb arg vector for a root:// endpoint:
+ * the parsed URL, the reassembled connect endpoint, and which argv slot bore it.
+ */
+typedef struct {
+    brix_url u;
+    char     endpoint[320];
+    int      ep_idx;
+} fs_split_t;
+
+
+/*
+ * WHAT: find the FIRST arg (argv[2..]) that resolves to a root:// URL; it fixes
+ *       the connect endpoint (path depth doesn't matter — `root://h//` targets
+ *       the root). Returns 1 with *sp filled, else 0.
+ * WHY:  scanning (rather than assuming argv[2]) lets flags precede the endpoint,
+ *       e.g. `xrd df -h root://h//` or `xrd ln -s root://h//tgt root://h//link`.
+ * HOW:  alias-resolve + URL-parse each arg; on the first root/roots hit,
+ *       rebuild `scheme://host:port` (bracketing IPv6 hosts) into sp->endpoint.
+ */
+static int
+fs_find_endpoint(int argc, char **argv, fs_split_t *sp)
+{
+    char        resolved[XRDC_PATH_MAX];
+    brix_status st;
+    int         i;
+
+    sp->ep_idx = -1;
+    for (i = 2; i < argc; i++) {
+        brix_status_clear(&st);
+        brix_alias_resolve(argv[i], resolved, sizeof(resolved));
+        if (brix_url_parse(resolved, &sp->u, &st) == 0
+            && (sp->u.scheme == XRDC_SCHEME_ROOT
+                || sp->u.scheme == XRDC_SCHEME_ROOTS)) {
+            const char *scheme =
+                (sp->u.scheme == XRDC_SCHEME_ROOTS) ? "roots" : "root";
+            int         v6 = (strchr(sp->u.host, ':') != NULL);
+            snprintf(sp->endpoint, sizeof(sp->endpoint), "%s://%s%s%s:%d", scheme,
+                     v6 ? "[" : "", sp->u.host, v6 ? "]" : "", sp->u.port);
+            sp->ep_idx = i;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
+/*
+ * WHAT: append the mapped fs-verb args (argv[2..]) to nv starting at slot k.
+ *       Returns the next free slot, or -1 (with the error printed) when an arg
+ *       targets a different endpoint.
+ * WHY:  map every arg — the endpoint-bearing URL and any further same-endpoint
+ *       URL/alias become their path components; flags and bare paths pass
+ *       through. So flags-before-endpoint and multi-path verbs (mv/ln) work.
+ * HOW:  the endpoint slot emits an explicit path only when the URL carried one
+ *       (a bare `root://h//`, path "/" or empty, leaves the verb to default);
+ *       every other slot goes through map_fs_arg().
+ */
+static int
+fs_map_split_args(char **nv, int k, int argc, char **argv, fs_split_t *sp)
+{
+    int i;
+
+    for (i = 2; i < argc; i++) {
+        int   mism = 0;
+        char *m;
+        if (i == sp->ep_idx) {
+            if (sp->u.path[0] == '/' && sp->u.path[1] != '\0') {
+                nv[k++] = strdup(sp->u.path);
+            }
+            continue;
+        }
+        m = map_fs_arg(argv[i], sp->u.host, sp->u.port, &mism);
+        if (mism) {
+            fprintf(stderr, "xrd %s: every path must be on the same endpoint "
+                            "(%s)\n", argv[1], sp->endpoint);
+            return -1;
+        }
+        nv[k++] = m;
+    }
+    return k;
+}
+
+
+/*
+ * WHAT: filesystem verb -> exec `xrdfs <endpoint> <verb> [paths...]`.
+ * WHY:  xrdfs separates the connect endpoint from the path, so when the target
+ *       is a full root:// URL (or an alias that resolves to one) carrying a
+ *       path, split it: `xrd stat root://h//d/f` -> `xrdfs root://h:port stat
+ *       /d/f`. A bare host:port (or anything not a root:// URL) is passed
+ *       through unchanged.
+ * HOW:  fs_find_endpoint() scans for the endpoint URL; split mode maps every
+ *       arg via fs_map_split_args(), pass-through mode copies args verbatim.
+ */
+static int
+cmd_fs_verb(int argc, char **argv)
+{
+    const char *cmd = argv[1];
+    fs_split_t  sp;
+    char      **nv;
+    int         i, k = 0, split;
+
+    if (argc < 3) {
+        fprintf(stderr, "xrd %s: needs an <endpoint>\n", cmd);
+        return 50;
+    }
+    split = fs_find_endpoint(argc, argv, &sp);
+    nv = (char **) malloc((size_t) (argc + 3) * sizeof(char *));
+    if (nv == NULL) { fprintf(stderr, "xrd: out of memory\n"); return 51; }
+    nv[k++] = (char *) "xrdfs";
+    if (split) {
+        nv[k++] = sp.endpoint;         /* connect endpoint (host:port) */
+        nv[k++] = (char *) cmd;        /* the verb */
+        k = fs_map_split_args(nv, k, argc, argv, &sp);
+        if (k < 0) {
+            free(nv);
+            return 50;
+        }
+    } else {
+        nv[k++] = argv[2];             /* bare endpoint as given */
+        nv[k++] = (char *) cmd;
+        for (i = 3; i < argc; i++) {   /* paths/flags verbatim */
+            nv[k++] = argv[i];
+        }
+    }
+    nv[k] = NULL;
+    exec_tool("xrdfs", nv);
+    return 127;   /* unreachable: exec_tool does not return */
+}
+
+
+/*
+ * WHAT: emit a did-you-mean hint when the user typed an unrecognised xrd
+ *       command; search both the named xrd dispatch table and FS_VERBS.
+ * WHY:  spec WS-7: every unknown-command site must offer a suggestion when
+ *       one exists within DL distance ≤ 2 (TTY-gated, C3 compliant).
+ * HOW:  build a merged NULL-terminated names array — dispatch-table names in
+ *       their historical order, skipping '-'-prefixed flag aliases, then
+ *       FS_VERBS — and pass it to brix_suggest().
+ */
+static void
+report_unknown_command(const char *cmd)
+{
+    const char *all_names[80];   /* FS_VERBS(36) + named commands(24) + pad */
+    int         n = 0;
+    int         i;
+    const char *suggestion;
+
+    for (i = 0; XRD_DISPATCH[i].name != NULL && n < 79; i++) {
+        if (XRD_DISPATCH[i].name[0] != '-') {
+            all_names[n++] = XRD_DISPATCH[i].name;
+        }
+    }
+    for (i = 0; FS_VERBS[i] != NULL && n < 79; i++) {
+        all_names[n++] = FS_VERBS[i];
+    }
+    all_names[n] = NULL;
+
+    fprintf(stderr, "xrd: unknown command '%s'\n\n", cmd);
+    suggestion = brix_suggest(cmd, all_names);
+    if (suggestion != NULL) {
+        brix_cli_hint("hint: did you mean '%s'?\n", suggestion);
+    }
+}
+
+
 int
 main(int argc, char **argv)
 {
     const char *cmd;
+    int         i;
 
     if (argc < 2) {
         usage();
@@ -151,219 +552,17 @@ main(int argc, char **argv)
     }
     cmd = argv[1];
 
-    if (strcmp(cmd, "--version") == 0 || strcmp(cmd, "version") == 0
-        || strcmp(cmd, "-V") == 0) {
-        printf("xrd (BriX-Cache client) %s\n", brix_client_version());
-        return 0;
-    }
-    if (strcmp(cmd, "-h") == 0) {
-        usage();           /* -h → stderr (C1) */
-        return 0;
-    }
-    if (strcmp(cmd, "--help") == 0 || strcmp(cmd, "help") == 0) {
-        usage_fp(stdout);  /* --help/help → stdout (WS-2) */
-        return 0;
-    }
-
-    /* cp/copy -> xrdcp [args...] */
-    if (strcmp(cmd, "cp") == 0 || strcmp(cmd, "copy") == 0) {
-        argv[1] = (char *) "xrdcp";
-        exec_tool("xrdcp", &argv[1]);
-    }
-
-    /* get <url> [dst=.] -> xrdcp <url> <dst> */
-    if (strcmp(cmd, "get") == 0) {
-        char *nv[5];
-        int   k = 0;
-        if (argc < 3) { fprintf(stderr, "xrd get: needs a <url>\n"); return 50; }
-        nv[k++] = (char *) "xrdcp";
-        nv[k++] = argv[2];
-        nv[k++] = (argc >= 4) ? argv[3] : (char *) ".";
-        nv[k] = NULL;
-        exec_tool("xrdcp", nv);
-    }
-
-    /* put <localfile> <url> -> xrdcp <localfile> <url> */
-    if (strcmp(cmd, "put") == 0) {
-        char *nv[4];
-        if (argc < 4) { fprintf(stderr, "xrd put: needs <localfile> <url>\n"); return 50; }
-        nv[0] = (char *) "xrdcp";
-        nv[1] = argv[2];
-        nv[2] = argv[3];
-        nv[3] = NULL;
-        exec_tool("xrdcp", nv);
-    }
-
-    /* diag ... -> xrddiag ... */
-    if (strcmp(cmd, "diag") == 0) {
-        argv[1] = (char *) "xrddiag";
-        exec_tool("xrddiag", &argv[1]);
-    }
-
-    /* replicas <url> -> xrdmapc <url> (cluster holder + space map). */
-    if (strcmp(cmd, "replicas") == 0) {
-        argv[1] = (char *) "xrdmapc";
-        exec_tool("xrdmapc", &argv[1]);
-    }
-
-    /* sync <srcdir> <dstdir> -> xrdcp -r --sync <src> <dst> (recursive mirror, skip
-     * same-size). Extra flags after the two operands pass through to xrdcp. */
-    if (strcmp(cmd, "sync") == 0) {
-        char **nv;
-        int    k = 0, j;
-        if (argc < 4) {
-            fprintf(stderr, "xrd sync: needs <srcdir> <dstdir>\n");
-            return 50;
+    for (i = 0; XRD_DISPATCH[i].name != NULL; i++) {
+        if (strcmp(XRD_DISPATCH[i].name, cmd) == 0) {
+            return XRD_DISPATCH[i].fn(argc, argv);
         }
-        nv = (char **) malloc((size_t) (argc + 3) * sizeof(char *));
-        if (nv == NULL) { fprintf(stderr, "xrd: out of memory\n"); return 51; }
-        nv[k++] = (char *) "xrdcp";
-        nv[k++] = (char *) "-r";
-        nv[k++] = (char *) "--sync";
-        for (j = 2; j < argc; j++) { nv[k++] = argv[j]; }
-        nv[k] = NULL;
-        exec_tool("xrdcp", nv);
     }
 
-    /* ping [-c N] <endpoint>: inline liveness + RTT probe. */
-    if (strcmp(cmd, "ping") == 0) { return xrd_ping(argc, argv); }
-
-    /* endpoint diagnostics: inline composition over libbrix. */
-    if (strcmp(cmd, "certinfo") == 0)  { return xrd_certinfo(argc, argv); }
-    if (strcmp(cmd, "clockskew") == 0) { return xrd_clockskew(argc, argv); }
-    if (strcmp(cmd, "whoami") == 0)    { return xrd_whoami(argc, argv); }
-    if (strcmp(cmd, "caps") == 0)      { return xrd_caps(argc, argv); }
-
-    /* doctor / login: inline cross-tool verbs (composition, no exec). */
-    if (strcmp(cmd, "doctor") == 0) { return xrd_doctor(argc, argv); }
-    if (strcmp(cmd, "login") == 0)  { return xrd_login(argc, argv); }
-
-    /* mount / mounts / unmount: drive the FUSE3 driver + fusermount, or list mounts. */
-    if (strcmp(cmd, "mount") == 0) { return xrd_mount(argc, argv); }
-    if (strcmp(cmd, "mounts") == 0) { return xrd_list_mounts(); }
-    if (strcmp(cmd, "unmount") == 0 || strcmp(cmd, "umount") == 0) {
-        return xrd_unmount(argc, argv);
-    }
-
-    /* backend-storage list/verify (incl. the Ceph/RADOS object catalog) ->
-     * xrdstorascan. `inventory` dumps the objects the backend physically holds;
-     * `verify` recomputes + compares their checksums (Ceph: over libradosstriper-
-     * reassembled bytes); `drift` reconciles namespace vs catalog; `inspect`
-     * reports one object's backend facts. The subcommand stays at argv[1]. */
-    if (strcmp(cmd, "inventory") == 0 || strcmp(cmd, "verify") == 0
-        || strcmp(cmd, "drift") == 0 || strcmp(cmd, "inspect") == 0)
-    {
-        argv[0] = (char *) "xrdstorascan";
-        exec_tool("xrdstorascan", argv);
-    }
-
-    /* filesystem verb. xrdfs separates the connect endpoint from the path, so when
-     * the target is a full root:// URL (or an alias that resolves to one) carrying a
-     * path, split it: `xrd stat root://h//d/f` -> `xrdfs root://h:port stat /d/f`.
-     * A bare host:port (or anything not a root:// URL) is passed through unchanged. */
     if (is_fs_verb(cmd)) {
-        char        resolved[XRDC_PATH_MAX];
-        char        endpoint[320];
-        brix_url    u;
-        brix_status st;
-        char      **nv;
-        int         i, k = 0, split = 0, ep_idx = -1;
-
-        if (argc < 3) {
-            fprintf(stderr, "xrd %s: needs an <endpoint>\n", cmd);
-            return 50;
-        }
-        /* Find the FIRST arg that resolves to a root:// URL; it fixes the connect
-         * endpoint (path depth doesn't matter — `root://h//` targets the root).
-         * Scanning (rather than assuming argv[2]) lets flags precede the endpoint,
-         * e.g. `xrd df -h root://h//` or `xrd ln -s root://h//tgt root://h//link`. */
-        for (i = 2; i < argc; i++) {
-            brix_status_clear(&st);
-            brix_alias_resolve(argv[i], resolved, sizeof(resolved));
-            if (brix_url_parse(resolved, &u, &st) == 0
-                && (u.scheme == XRDC_SCHEME_ROOT || u.scheme == XRDC_SCHEME_ROOTS)) {
-                const char *scheme = (u.scheme == XRDC_SCHEME_ROOTS) ? "roots" : "root";
-                int         v6 = (strchr(u.host, ':') != NULL);
-                snprintf(endpoint, sizeof(endpoint), "%s://%s%s%s:%d", scheme,
-                         v6 ? "[" : "", u.host, v6 ? "]" : "", u.port);
-                split  = 1;
-                ep_idx = i;
-                break;
-            }
-        }
-        nv = (char **) malloc((size_t) (argc + 3) * sizeof(char *));
-        if (nv == NULL) { fprintf(stderr, "xrd: out of memory\n"); return 51; }
-        nv[k++] = (char *) "xrdfs";
-        if (split) {
-            nv[k++] = endpoint;        /* connect endpoint (host:port) */
-            nv[k++] = (char *) cmd;    /* the verb */
-            /* Map every arg: the endpoint-bearing URL and any further same-endpoint
-             * URL/alias become their path components; flags and bare paths pass
-             * through. So flags-before-endpoint and multi-path verbs (mv/ln) work. */
-            for (i = 2; i < argc; i++) {
-                int   mism = 0;
-                char *m;
-                if (i == ep_idx) {
-                    /* Emit an explicit path only when the URL carried one; a bare
-                     * `root://h//` (path "/" or empty) leaves the verb to default. */
-                    if (u.path[0] == '/' && u.path[1] != '\0') {
-                        nv[k++] = strdup(u.path);
-                    }
-                    continue;
-                }
-                m = map_fs_arg(argv[i], u.host, u.port, &mism);
-                if (mism) {
-                    fprintf(stderr, "xrd %s: every path must be on the same endpoint "
-                                    "(%s)\n", cmd, endpoint);
-                    free(nv);
-                    return 50;
-                }
-                nv[k++] = m;
-            }
-        } else {
-            nv[k++] = argv[2];         /* bare endpoint as given */
-            nv[k++] = (char *) cmd;
-            for (i = 3; i < argc; i++) {   /* paths/flags verbatim */
-                nv[k++] = argv[i];
-            }
-        }
-        nv[k] = NULL;
-        exec_tool("xrdfs", nv);
+        return cmd_fs_verb(argc, argv);
     }
 
-    {
-        /*
-         * WHAT: emit a did-you-mean hint when the user typed an unrecognised xrd
-         *       command; search both the named xrd dispatch table and FS_VERBS.
-         * WHY:  spec WS-7: every unknown-command site must offer a suggestion when
-         *       one exists within DL distance ≤ 2 (TTY-gated, C3 compliant).
-         * HOW:  build a merged NULL-terminated names array; pass to brix_suggest().
-         */
-        static const char *const XRD_CMDS[] = {
-            "cp", "copy", "get", "put", "sync", "ping", "certinfo",
-            "clockskew", "whoami", "caps", "doctor", "login", "mount",
-            "mounts", "unmount", "umount", "inventory", "verify", "drift",
-            "inspect", "version", "help", "diag", "replicas", NULL
-        };
-        const char          *all_names[80];   /* FS_VERBS(36) + XRD_CMDS(24) + pad */
-        int                  n = 0;
-        int                  i;
-        const char          *suggestion;
-
-        for (i = 0; XRD_CMDS[i] != NULL && n < 79; i++) {
-            all_names[n++] = XRD_CMDS[i];
-        }
-        for (i = 0; FS_VERBS[i] != NULL && n < 79; i++) {
-            all_names[n++] = FS_VERBS[i];
-        }
-        all_names[n] = NULL;
-
-        fprintf(stderr, "xrd: unknown command '%s'\n\n", cmd);
-        suggestion = brix_suggest(cmd, all_names);
-        if (suggestion != NULL) {
-            brix_cli_hint("hint: did you mean '%s'?\n", suggestion);
-        }
-    }
+    report_unknown_command(cmd);
     usage();
     return 50;
 }

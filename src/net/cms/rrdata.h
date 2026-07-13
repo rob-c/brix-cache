@@ -46,16 +46,41 @@ int brix_cms_rrdata_parse(unsigned char code,
                             brix_cms_rrdata_t *out);
 
 /*
+ * String fields of a forwarded namespace op, encoder-side counterpart of the
+ * decoded brix_cms_rrdata_t spans. NULL members are emitted as absent; which
+ * members are consumed depends on the opcode's arg group (fwdArgA/B/C).
+ */
+typedef struct {
+    const char *ident;     /* requestor identity (all groups) */
+    const char *path;      /* primary path (all groups) */
+    const char *path2;     /* mv destination (fwdArgB) */
+    const char *mode;      /* chmod/mkdir/mkpath/trunc mode (fwdArgA) */
+    const char *opaque;    /* optional trailing cgi (all groups) */
+} brix_cms_fwd_fields_t;
+
+/*
  * Encode the Pup payload for forwarded op `code` into buf (capacity buflen),
  * reproducing the same field order the decoder expects (fwdArgA/B/C). NULL
- * string args are emitted as absent. Returns the payload byte length, or -1 on
- * an unsupported opcode or buffer overflow. This is the manager fan-out half of
- * the codec; round-tripping through brix_cms_rrdata_parse must be lossless.
+ * string fields are emitted as absent. Returns the payload byte length, or -1
+ * on an unsupported opcode or buffer overflow. This is the manager fan-out half
+ * of the codec; round-tripping through brix_cms_rrdata_parse must be lossless.
  */
-int brix_cms_rrdata_encode(unsigned char code, const char *ident,
-                             const char *path, const char *path2,
-                             const char *mode, const char *opaque,
+int brix_cms_rrdata_encode(unsigned char code,
+                             const brix_cms_fwd_fields_t *fields,
                              unsigned char *buf, size_t buflen);
+
+/*
+ * Space figures for a kYR_statfs reply: one (num, free, util) triple per tier,
+ * writable ("w") first, then staging ("s"), matching cmsd's do_StatFS order.
+ */
+typedef struct {
+    uint32_t w_num;        /* writable-tier server count */
+    uint32_t w_free;       /* writable-tier free space (MB) */
+    uint32_t w_util;       /* writable-tier utilization (%) */
+    uint32_t s_num;        /* staging-tier server count */
+    uint32_t s_free;       /* staging-tier free space (MB) */
+    uint32_t s_util;       /* staging-tier utilization (%) */
+} brix_cms_statfs_fields_t;
 
 /*
  * Encode a kYR_statfs (kYR_data) reply payload, byte-exact with cmsd do_StatFS:
@@ -63,8 +88,7 @@ int brix_cms_rrdata_encode(unsigned char code, const char *ident,
  * and a trailing NUL. Returns the payload length (incl. prefix + NUL), or -1 on
  * buffer overflow.
  */
-int brix_cms_statfs_encode(uint32_t w_num, uint32_t w_free, uint32_t w_util,
-                             uint32_t s_num, uint32_t s_free, uint32_t s_util,
+int brix_cms_statfs_encode(const brix_cms_statfs_fields_t *space,
                              unsigned char *buf, size_t buflen);
 
 #endif /* BRIX_CMS_RRDATA_H */

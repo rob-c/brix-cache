@@ -31,7 +31,8 @@ auto-detected and are therefore declared explicitly.
 | Package | Why explicit |
 |---|---|
 | `nginx-mod-stream` | Provides the `stream {}` core the modules load into |
-| `voms-libs` | Loaded at runtime via `dlopen(libvomsapi.so.1)` for VOMS VO/FQAN ACL enforcement; no ELF dependency |
+| `libvomsapi.so.1()(64bit)` | Loaded at runtime via `dlopen()` for VOMS VO/FQAN ACL enforcement; no ELF dependency. Required by soname — on EL9 the provider is the EPEL `voms` package (the old `voms-libs` package name does not exist there) |
+| `librados2`, `libradosstriper1` | The compiled-in Ceph storage backends link these; the sonames are auto-detected, the package names are stated explicitly as a contract |
 | `curl` | The `curl(1)` binary is `fork/exec`'d by the WebDAV HTTP-TPC handler; not a library dependency |
 | `openssl-libs` | Directly linked (`-lssl -lcrypto`) and auto-detected, but listed explicitly for clarity |
 
@@ -49,7 +50,8 @@ runtime shared-library requirements from the ELF records; the matching
 development packages are build-time requirements.  The Python migration
 entrypoints are shipped as weakly coupled operator variants and therefore use
 `Recommends: python3-rados` and `Recommends: python3-cephfs` instead of hard
-runtime dependencies.
+runtime dependencies.  `librados2`, `libradosstriper1`, and `libcephfs2` are
+stated explicitly as hard requirements alongside the auto-detected sonames.
 
 **`brix-cache-tests` (suite, noarch):** depends on the system under test
 (`nginx-mod-brix-cache`, `brix-cache-client`, `nginx`) plus the python packages
@@ -69,16 +71,26 @@ need `gcc-c++`, `librados-devel`, `libradospp-devel`,
 `libradosstriper-devel`, and `libcephfs-devel`; enable your site Ceph/RHCS/SIG
 repository before building if those packages are not in the base distro repos.
 
-`voms-libs` comes from the WLCG repository.  On the target host, enable it
-before installing this RPM:
+### Target-host repositories (EL9)
+
+Two dependencies come from add-on repositories; enable them once before
+installing the RPMs:
 
 ```bash
-# AlmaLinux 9 / EL9
-dnf install -y https://linuxsoft.cern.ch/wlcg/el9/x86_64/wlcg-repo-*.noarch.rpm
+# libvomsapi.so.1 (the EPEL `voms` package):
+dnf install -y epel-release
 
-# AlmaLinux 10 / EL10 (once the WLCG EL10 repo is published)
-dnf install -y https://linuxsoft.cern.ch/wlcg/el10/x86_64/wlcg-repo-*.noarch.rpm
+# libradosstriper1 / libcephfs2 (EPEL carries only librados2; the striper and
+# cephfs client libraries come from the CentOS Storage SIG Ceph repo, enabled
+# by a release package in the distro extras repo — pick the release matching
+# the builder's BRIX_CEPH_RELEASE, default reef):
+dnf install -y centos-release-ceph-reef
+
+dnf install -y ./nginx-mod-brix-cache-*.rpm ./brix-tools-*.rpm
 ```
+
+The WLCG repository's `voms-libs` also satisfies the VOMS dependency (it
+provides the same `libvomsapi.so.1` soname) for sites that already run it.
 
 ## Local build (host)
 

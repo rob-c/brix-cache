@@ -77,6 +77,7 @@ build_stats_xml(char *buf, size_t bufsz, ngx_http_request_t *r)
         struct sockaddr_storage  ss;
         socklen_t                sslen = sizeof(ss);
 
+        ngx_memzero(&ss, sizeof(ss));   /* getsockname may not set ss_family on error */
         if (getsockname(r->connection->fd, (struct sockaddr *)(void *) &ss,
                         &sslen) == 0) {
             if (ss.ss_family == AF_INET) {

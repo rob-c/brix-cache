@@ -96,6 +96,75 @@ cvmfs_reject(ngx_http_request_t *r, ngx_uint_t status, const char *cause)
     return (ngx_int_t) status;
 }
 
+/* Proxy mode (T14): an absolute-form request line names its upstream — allowlist
+ * it, then (non-unified origin) bind that upstream's per-worker backend on the
+ * request ctx.  NGX_DECLINED to proceed; otherwise the response rc (reject/status). */
+static ngx_int_t
+cvmfs_gate_proxy_bind(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf, ngx_http_brix_cvmfs_ctx_t *ctx)
+{
+    ngx_str_t   up_host;
+    in_port_t   up_port;
+    ngx_int_t   rc;
+
+    rc = brix_cvmfs_proxy_target(r, &lcf->cvmfs, &up_host, &up_port);
+    if (rc == NGX_HTTP_FORBIDDEN) {
+        return cvmfs_reject(r, NGX_HTTP_FORBIDDEN,
+                            "upstream authority not allowlisted");
+    }
+    if (rc == NGX_HTTP_BAD_REQUEST) {
+        return cvmfs_reject(r, NGX_HTTP_BAD_REQUEST, "malformed proxy target");
+    }
+    if (rc == NGX_OK && !lcf->cvmfs.unified_origin) {
+        ngx_uint_t status = NGX_HTTP_INTERNAL_SERVER_ERROR;
+
+        ctx->sd_override = brix_cvmfs_upstream_get(r, lcf, &up_host, up_port,
+                                                     &ctx->up_root, &status);
+        if (ctx->sd_override == NULL) {
+            return (ngx_int_t) status;
+        }
+    }
+    /* rc == NGX_OK && unified_origin: authority allowlisted (above) but no
+     * per-host backend bound — leaving sd_override/up_root NULL routes to the
+     * location's ONE multi-endpoint origin backend (ranked failover + shared
+     * cache), so a dead origin is hidden by internal failover and the client
+     * never marks this proxy bad.  rc == NGX_DECLINED: origin-form — proceed. */
+    return NGX_DECLINED;
+}
+
+/* CVMFS_URL_CAS accounting + T13 negative-404 absorption.  NGX_DECLINED for the
+ * tier serve path; NGX_HTTP_NOT_FOUND when an absorbed-404 storm is short-circuited. */
+static ngx_int_t
+cvmfs_gate_cas(ngx_http_request_t *r,
+    ngx_http_brix_cvmfs_loc_conf_t *lcf, ngx_http_brix_cvmfs_ctx_t *ctx)
+{
+    BRIX_CVMFS_METRIC_INC(requests_total[BRIX_CVMFS_CLASS_CAS]);
+    if (ctx->repo != NULL) {
+        BRIX_ATOMIC_INC(&ctx->repo->requests_total[BRIX_CVMFS_CLASS_CAS]);
+    }
+
+    if (lcf->cvmfs.negative_ttl > 0 && cvmfs_neg_check(&r->uri, ngx_time())) {
+        char neg_uri[512];
+
+        BRIX_CVMFS_METRIC_INC(negative_hits_total);
+        if (ctx->repo != NULL) {
+            BRIX_ATOMIC_INC(&ctx->repo->negative_hits_total);
+        }
+        ctx->cache_status = BRIX_CVMFS_CACHE_NEG;
+        /* One NOTICE per absorbed 404: a client hammering missing objects shows
+         * as a stream of these (bounded by its own request rate). */
+        brix_sanitize_log_string((const char *) r->uri.data, neg_uri,
+                                   sizeof(neg_uri));
+        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+            "cvmfs-neg: event=absorbed-404 client=%V uri=\"%s\" "
+            "hint=\"repeated lines from one client = it is retrying a "
+            "missing object instead of backing off\"",
+            &r->connection->addr_text, neg_uri);
+        return NGX_HTTP_NOT_FOUND;    /* absorbed 404 storm (T13) */
+    }
+    return NGX_DECLINED;             /* tier serve path (handler.c) */
+}
+
 ngx_int_t
 brix_cvmfs_gate(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
 {
@@ -122,39 +191,10 @@ brix_cvmfs_gate(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
      * allowlist it, then serve against that upstream's per-worker backend
      * (convention #2: the override rides the request ctx). */
     if (r->host_start != NULL) {
-        ngx_str_t   up_host;
-        in_port_t   up_port;
-        ngx_int_t   rc;
-
-        rc = brix_cvmfs_proxy_target(r, &lcf->cvmfs, &up_host, &up_port);
-        if (rc == NGX_HTTP_FORBIDDEN) {
-            return cvmfs_reject(r, NGX_HTTP_FORBIDDEN,
-                                "upstream authority not allowlisted");
+        ngx_int_t prc = cvmfs_gate_proxy_bind(r, lcf, ctx);
+        if (prc != NGX_DECLINED) {
+            return prc;
         }
-        if (rc == NGX_HTTP_BAD_REQUEST) {
-            return cvmfs_reject(r, NGX_HTTP_BAD_REQUEST,
-                                "malformed proxy target");
-        }
-        if (rc == NGX_OK && !lcf->cvmfs.unified_origin) {
-            ngx_uint_t status = NGX_HTTP_INTERNAL_SERVER_ERROR;
-
-            ctx->sd_override = brix_cvmfs_upstream_get(r, lcf, &up_host,
-                                                         up_port,
-                                                         &ctx->up_root,
-                                                         &status);
-            if (ctx->sd_override == NULL) {
-                return (ngx_int_t) status;
-            }
-        }
-        /* rc == NGX_OK && unified_origin: the authority is allowlisted (checked
-         * above) but we do NOT bind a per-host backend — leaving sd_override /
-         * up_root NULL routes the request to the location's ONE configured
-         * multi-endpoint origin backend (brix_cvmfs_storage_backend, ranked
-         * failover + shared cache). Every Stratum-1 the client names is served
-         * from that same set, so a dead origin is hidden by internal failover:
-         * the client keeps getting 200 from the host it chose and never marks
-         * this proxy bad or wanders to another mirror.
-         * rc == NGX_DECLINED: origin-form on this listener — fall through. */
     }
 
     /* per-repository accounting (bounded slot table — metrics.h) */
@@ -162,33 +202,7 @@ brix_cvmfs_gate(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
 
     switch (ctx->url.cls) {
     case CVMFS_URL_CAS:
-        BRIX_CVMFS_METRIC_INC(requests_total[BRIX_CVMFS_CLASS_CAS]);
-        if (ctx->repo != NULL) {
-            BRIX_ATOMIC_INC(&ctx->repo->requests_total[BRIX_CVMFS_CLASS_CAS]);
-        }
-        if (lcf->cvmfs.negative_ttl > 0
-            && cvmfs_neg_check(&r->uri, ngx_time()))
-        {
-            char neg_uri[512];
-
-            BRIX_CVMFS_METRIC_INC(negative_hits_total);
-            if (ctx->repo != NULL) {
-                BRIX_ATOMIC_INC(&ctx->repo->negative_hits_total);
-            }
-            ctx->cache_status = BRIX_CVMFS_CACHE_NEG;
-            /* One NOTICE per absorbed 404: a client hammering missing
-             * objects shows as a stream of these (bounded by its own
-             * request rate; the origin sees none of them). */
-            brix_sanitize_log_string((const char *) r->uri.data, neg_uri,
-                                       sizeof(neg_uri));
-            ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
-                "cvmfs-neg: event=absorbed-404 client=%V uri=\"%s\" "
-                "hint=\"repeated lines from one client = it is retrying a "
-                "missing object instead of backing off\"",
-                &r->connection->addr_text, neg_uri);
-            return NGX_HTTP_NOT_FOUND;    /* absorbed 404 storm (T13)    */
-        }
-        return NGX_DECLINED;              /* tier serve path (handler.c) */
+        return cvmfs_gate_cas(r, lcf, ctx);
     case CVMFS_URL_MANIFEST:
         BRIX_CVMFS_METRIC_INC(requests_total[BRIX_CVMFS_CLASS_MANIFEST]);
         if (ctx->repo != NULL) {

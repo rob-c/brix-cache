@@ -142,8 +142,14 @@ brix_cache_fill_done(ngx_event_t *ev)
                             t->clean_path, 0, 0);
     }
 
-    rc = brix_open_resolved_file(ctx, c, t->conf, t->cache_path,
-                                   t->options, t->mode_bits, 0, 0);
+    brix_open_request_t oreq = {
+        .resolved  = t->cache_path,
+        .options   = t->options,
+        .mode_bits = t->mode_bits,
+        .is_write  = 0,
+        .codec     = 0,
+    };
+    rc = brix_open_resolved_file(ctx, c, t->conf, &oreq);
     if (rc != NGX_OK && ctx->state != XRD_ST_SENDING) {
         brix_send_error(ctx, c, kXR_ServerError,
                           "cache open after fill failed");

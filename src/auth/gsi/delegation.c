@@ -134,6 +134,16 @@ brix_gsi_delegation_cleanup(brix_ctx_t *ctx)
         ctx->gsi.deleg_proxy_pem = NULL;
         ctx->gsi.deleg_proxy_len = 0;
     }
+    /* phase-70 §5.1: free a captured-but-never-promoted full proxy PEM (carries
+     * a private key — cleanse before free). Promotion nulls it; this covers the
+     * rejected / login-failed-before-promotion path. */
+    if (ctx->gsi.client_fullproxy_pem != NULL) {
+        OPENSSL_cleanse(ctx->gsi.client_fullproxy_pem,
+                        ctx->gsi.client_fullproxy_len);
+        free(ctx->gsi.client_fullproxy_pem);
+        ctx->gsi.client_fullproxy_pem = NULL;
+        ctx->gsi.client_fullproxy_len = 0;
+    }
     OPENSSL_cleanse(ctx->gsi.sess_key, sizeof(ctx->gsi.sess_key));
     ctx->gsi.sess_keylen = 0;
     ctx->gsi.deleg_await = 0;
@@ -202,11 +212,19 @@ brix_gsi_begin_delegation(brix_ctx_t *ctx, ngx_connection_t *c,
 
     /* Build the proxy request for the client's leaf (verified RFC-3820 crypto). */
     err[0] = '\0';
-    if (brix_gsi_build_pxyreq(b.leaf_pem, leaf_len, &b.reqkey,
-                                &b.req_der, &b.req_len, err, sizeof(err)) != 0) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "brix: GSI delegation: build pxyreq failed: %s", err);
-        return bdg_fail(&b);
+    {
+        const brix_gsi_blob_t leaf_blob = { b.leaf_pem, leaf_len };
+        const brix_gsi_err_t  err_sink  = { err, sizeof(err) };
+        brix_gsi_buf_t        req_out   = { NULL, 0 };
+
+        if (brix_gsi_build_pxyreq(&leaf_blob, &b.reqkey, &req_out,
+                                    &err_sink) != 0) {
+            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                          "brix: GSI delegation: build pxyreq failed: %s", err);
+            return bdg_fail(&b);
+        }
+        b.req_der = req_out.data;
+        b.req_len = req_out.len;
     }
 
     /* The stock client parses kXRS_x509_req as PEM — re-encode the DER request. */
@@ -338,19 +356,21 @@ brix_gsi_handle_sigpxy(brix_ctx_t *ctx, ngx_connection_t *c)
      * its cert+chain output is discarded — we build a fuller credential below. */
     err[0] = '\0';
     {
-        u_char *verify_out = NULL;
-        size_t  verify_len = 0;
+        const brix_gsi_blob_t signed_blob = { signed_pem, signed_len };
+        const brix_gsi_blob_t chain_blob  = { ctx->gsi.deleg_chain_pem,
+                                              ctx->gsi.deleg_chain_len };
+        const brix_gsi_err_t  err_sink    = { err, sizeof(err) };
+        brix_gsi_buf_t        verify_out  = { NULL, 0 };
 
-        if (brix_gsi_assemble_proxy(signed_pem, signed_len, ctx->gsi.deleg_reqkey,
-                                      ctx->gsi.deleg_chain_pem,
-                                      ctx->gsi.deleg_chain_len, &verify_out,
-                                      &verify_len, err, sizeof(err)) != 0) {
+        if (brix_gsi_assemble_proxy(&signed_blob, ctx->gsi.deleg_reqkey,
+                                      &chain_blob, &verify_out,
+                                      &err_sink) != 0) {
             ngx_log_error(NGX_LOG_WARN, c->log, 0,
                           "brix: GSI kXGC_sigpxy: assemble proxy failed: %s", err);
             free(plain);
             return NGX_ERROR;
         }
-        free(verify_out);
+        free(verify_out.data);
     }
 
     /*

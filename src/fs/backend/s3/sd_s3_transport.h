@@ -43,6 +43,26 @@ typedef struct brix_s3_transport_s {
                    int timeout_ms, brix_s3_resp_t *resp,
                    char *errbuf, size_t errcap);
 
+    /* OPTIONAL — like `request`, plus a per-request TLS client certificate
+     * (mutual-TLS) so a caller can authenticate the upstream leg AS the end
+     * user (phase-70 §5.1 x509 pass-through/select over an https backend leg).
+     *
+     * `client_cert_pem` is a filesystem PATH to a PEM file holding the user's
+     * proxy — certificate chain AND private key in one file (the same on-disk
+     * form the GSI origin presenter consumes, see origin_auth.c). When non-NULL
+     * on a `tls` request the transport presents it as the client cert on the
+     * handshake; NULL means "no client cert" (identical to `request`).
+     *
+     * A transport that cannot present a client cert leaves this slot NULL; the
+     * sd_http driver treats a NULL slot as "GSI-over-https unsupported" and
+     * (in deny mode) refuses rather than silently falling back to anonymous. */
+    int (*request_cred)(void *tctx,
+                        const char *host, int port, int tls,
+                        const char *method, const char *path_and_query,
+                        const char *headers, const void *body, size_t body_len,
+                        int timeout_ms, const char *client_cert_pem,
+                        brix_s3_resp_t *resp, char *errbuf, size_t errcap);
+
     /* Copy response header `name` into out[outcap] (NUL-terminated). 0 if found,
      * -1 if absent. */
     int (*resp_header)(const brix_s3_resp_t *resp, const char *name,

@@ -39,6 +39,50 @@ s3_build_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
     brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
         cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
         is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
+    brix_vfs_ctx_bind_backend_cred(vctx,
+        &cf->common.storage_credential_dir,
+        cf->common.storage_credential_fallback);
+    /* Phase-2 T9: S3 access keys have no native x509 — this is the primary
+     * beneficiary of opt-in minting (see fs/backend/cred_mint.h). No-op
+     * unless brix_storage_credential_mint_ca is configured. */
+    brix_vfs_ctx_bind_backend_mint(vctx,
+        &cf->common.storage_credential_mint_ca_cert,
+        &cf->common.storage_credential_mint_ca_key,
+        cf->common.storage_credential_mint_ttl);
+    s3_vfs_bind_deleg(r, cf, vctx);
+}
+
+/* ---- s3_vfs_bind_deleg -----------------------------------------------------
+ *
+ * WHAT: Bind the request's captured forwardable credential (bearer JWT and/or
+ *       user-supplied full x509 proxy PEM) onto a cred-bound VFS ctx, using the
+ *       export's resolved delegation mode. See s3.h for the contract.
+ *
+ * WHY:  Called at every S3 brix_vfs_ctx_bind_backend_cred site so a delegated
+ *       export authenticates the backend leg AS the inbound user rather than the
+ *       shared service credential. The bytes were captured once at the auth gate
+ *       (bearer in s3_verify_bearer, proxy in handler.c's header capture) and
+ *       stashed on the S3 req ctx; here they are handed to the VFS.
+ *
+ * HOW:  Reads cf->common.backend_delegation as the mode and the req ctx's
+ *       bearer_token / deleg_proxy_pem as the bytes; brix_vfs_deleg_bind is a
+ *       no-op for SELECT mode or when nothing was captured. */
+void
+s3_vfs_bind_deleg(ngx_http_request_t *r,
+    ngx_http_s3_loc_conf_t *cf, brix_vfs_ctx_t *vctx)
+{
+    ngx_http_s3_req_ctx_t *s3ctx;
+
+    if (cf->common.backend_delegation == BRIX_CRED_SELECT) {
+        return;
+    }
+
+    s3ctx = ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
+
+    (void) brix_vfs_deleg_bind(r->pool, vctx,
+        (enum brix_cred_mode) cf->common.backend_delegation,
+        (s3ctx != NULL) ? &s3ctx->bearer_token : NULL,
+        (s3ctx != NULL) ? &s3ctx->deleg_proxy_pem : NULL);
 }
 
 /*

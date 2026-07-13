@@ -65,6 +65,20 @@ typedef struct {
 #define XRD_DOCTOR_MAX_EP 9   /* primary + up to 8 --also endpoints */
 extern const char *XRD_CAP_KEYS[];
 
+/*
+ * WHAT: locally-discovered credential facts for the doctor report.
+ * WHY:  xrd_doctor_json took the four presence/path fields positionally
+ *       (7 params, over the parameter gate); grouping them names each fact.
+ * HOW:  filled by the doctor run from bearer-token discovery + the default
+ *       GSI proxy path probe; paths are meaningful only when *_present is 1.
+ */
+typedef struct {
+    int         token_present;   /* 1 = a bearer token was discovered      */
+    const char *token_path;      /* where it came from (when present)      */
+    int         proxy_present;   /* 1 = a readable GSI proxy exists        */
+    const char *proxy_path;      /* the default proxy path (when present)  */
+} xrd_cred_facts;
+
 
 /* xrd.c */
 int is_fs_verb(const char *s);
@@ -84,7 +98,7 @@ void xrd_run_battery(const char *endpoint, int do_write, int verify, xrd_battery
 /* xrd_doctor.c */
 void xrd_doctor_probe(const char *endpoint, xrd_probe *p);
 void xrd_json_str(FILE *f, const char *s);
-void xrd_doctor_json(const xrd_probe *p, int token_present, const char *token_path, int proxy_present, const char *proxy_path, const xrd_battery *bats, int nbats);
+void xrd_doctor_json(const xrd_probe *p, const xrd_cred_facts *cf, const xrd_battery *bats, int nbats);
 int xrd_doctor(int argc, char **argv);
 
 /* xrd_mount.c */

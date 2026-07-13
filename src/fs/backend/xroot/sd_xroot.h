@@ -45,21 +45,46 @@
  * with brix_sd_xroot_destroy. Worker-thread safe (no nginx pool). */
 brix_sd_instance_t *brix_sd_xroot_create(void *conf, ngx_log_t *log);
 
-/* Build a remote root:// instance from EXPLICIT origin params (host/port/tls),
+/* brix_sd_xroot_origin_cfg_t — the EXPLICIT origin parameters for a
+ * registry/cache-built remote root:// instance.
+ *
+ * WHAT: One value carrying every input `brix_sd_xroot_create_origin()` needs to
+ *       synthesize the minimal wire-client conf: the endpoint (host/port/tls/
+ *       af_policy), the optional §14 credential set (bearer / x509_proxy /
+ *       x509_key / sss_keytab), and the CA store source (ca_dir). Every string
+ *       field may be NULL/"" (unset); the pointed-at bytes need only outlive the
+ *       create call (they are copied onto instance-owned storage).
+ * WHY:  It collapses the nine loose create arguments to a single struct pointer,
+ *       keeping the create function under the parameter gate and giving each
+ *       caller one named-field literal instead of a positional argument stack —
+ *       the credential/endpoint fields are easy to transpose positionally.
+ * HOW:  `host` (required, non-empty) + `port` (1..65535, required) + `tls` +
+ *       `af_policy` (brix_af_policy_t: BRIX_AF_AUTO tries all, _INET/_INET6 force
+ *       IPv4/IPv6) name the endpoint. `bearer` is presented via ztn (XrdSecztn),
+ *       `x509_proxy` (a PEM path) + optional separate `x509_key` via the
+ *       in-process XrdSecgsi handshake, and `sss_keytab` via SSS, when the origin
+ *       demands authentication. `ca_dir` (a CA file or hashed dir) builds the
+ *       store that VERIFIES the origin's server cert during the GSI handshake
+ *       (MITM protection). */
+typedef struct {
+    const char *host;        /* required: origin hostname (non-empty) */
+    int         port;        /* required: origin port (1..65535) */
+    int         tls;         /* non-zero: connect via roots:// (TLS) */
+    int         af_policy;   /* brix_af_policy_t: address-family constraint */
+    const char *bearer;      /* §14/C-3 ztn bearer token text (NULL/"" = anon) */
+    const char *x509_proxy;  /* §14/C-3 GSI proxy (or cert) PEM path */
+    const char *x509_key;    /* §14/C-3 separate GSI private key path */
+    const char *ca_dir;      /* CA file or hashed dir verifying the origin cert */
+    const char *sss_keytab;  /* §14 SSS shared-secret keytab path */
+} brix_sd_xroot_origin_cfg_t;
+
+/* Build a remote root:// instance from the EXPLICIT origin params in `cfg`,
  * synthesizing the minimal conf the wire client needs. Used to make a remote
  * root:// the registry-selectable PRIMARY backend of any export (stream OR http,
- * which has no stream conf). `bearer` (NULL/"" = anonymous) is presented to the
- * origin via ztn (XrdSecztn), and `x509_proxy` (a PEM path, NULL/"" = none) via the
- * in-process XrdSecgsi handshake, when the origin demands authentication — the §14
- * credential's token / X.509 proxy. `ca_dir` (a CA file or hashed dir, NULL/"" =
- * none) builds the store that VERIFIES the origin's server cert during the GSI
- * handshake (MITM protection). `af_policy` (brix_af_policy_t) constrains the
- * origin connect's address family — BRIX_AF_AUTO tries all, _INET / _INET6 force
- * IPv4 / IPv6 only. Returns a malloc-owned instance, or NULL (errno set).
+ * which has no stream conf). Returns a malloc-owned instance, or NULL (errno set).
  * Destroy with brix_sd_xroot_destroy. */
-brix_sd_instance_t *brix_sd_xroot_create_origin(const char *host, int port,
-    int tls, int af_policy, const char *bearer, const char *x509_proxy,
-    const char *ca_dir, const char *sss_keytab, ngx_log_t *log);
+brix_sd_instance_t *brix_sd_xroot_create_origin(
+    const brix_sd_xroot_origin_cfg_t *cfg, ngx_log_t *log);
 
 /* Free a root:// instance built by brix_sd_xroot_create. NULL-safe. */
 void brix_sd_xroot_destroy(brix_sd_instance_t *inst);

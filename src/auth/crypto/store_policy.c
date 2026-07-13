@@ -400,51 +400,104 @@ brix_dn_has_control_bytes(X509_NAME *nm)
     return 0;
 }
 
+/*
+ * WHAT: reject a public key weaker than the IGTF floor (RSA/DSA >= 2048 bits,
+ *       EC >= 256 bits).
+ * WHY:  weak keys are trivially forgeable; the floor is the same one XRootD and
+ *       the IGTF profile enforce.  Unknown key types carry no verdict (0).
+ * HOW:  read the key's base id + bit count once and apply the per-family floor;
+ *       a cert with no extractable key is not judged here (0).
+ */
+static int
+brix_key_strength_violation(X509 *cert)
+{
+    EVP_PKEY *pk = X509_get0_pubkey(cert);
+    int       id;
+    int       bits;
+
+    if (pk == NULL) {
+        return 0;
+    }
+    id = EVP_PKEY_base_id(pk);
+    bits = EVP_PKEY_bits(pk);
+    if ((id == EVP_PKEY_RSA || id == EVP_PKEY_RSA2 || id == EVP_PKEY_DSA)
+        && bits < 2048) {
+        return 1;
+    }
+    if (id == EVP_PKEY_EC && bits < 256) {
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * WHAT: reject a certificate signed with a broken message digest (MD2/MD4/MD5
+ *       or SHA-1).
+ * WHY:  collision attacks make these digests unsafe for signatures; XRootD's
+ *       hardened profile refuses them too.  A signature algorithm we cannot
+ *       decompose carries no verdict (0).
+ * HOW:  map the signature OID to its digest NID and compare against the
+ *       forbidden set.
+ */
+static int
+brix_sig_alg_violation(X509 *cert)
+{
+    int sig_nid = X509_get_signature_nid(cert);
+    int md_nid = NID_undef, pk_nid = NID_undef;
+
+    if (!OBJ_find_sigid_algs(sig_nid, &md_nid, &pk_nid)) {
+        return 0;
+    }
+    if (md_nid == NID_md5 || md_nid == NID_sha1 || md_nid == NID_md2
+        || md_nid == NID_md4) {
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * WHAT: reject a serial number that is zero, negative, or (for a non-proxy)
+ *       longer than 20 octets (RFC 5280 §4.1.2.2).
+ * WHY:  a non-positive serial is malformed; the 20-octet ceiling is the RFC
+ *       cap.  Proxies are exempt from the ceiling because grid proxies derive
+ *       large serials.  A serial we cannot parse carries no verdict (0).
+ * HOW:  convert the serial to a BIGNUM, test the three conditions, free.
+ */
+static int
+brix_serial_violation(X509 *cert, int is_proxy)
+{
+    const ASN1_INTEGER *sn = X509_get0_serialNumber(cert);
+    BIGNUM             *bn = ASN1_INTEGER_to_BN(sn, NULL);
+    int                 bad;
+
+    if (bn == NULL) {
+        return 0;
+    }
+    bad = BN_is_zero(bn) || BN_is_negative(bn)
+          || (!is_proxy && BN_num_bytes(bn) > 20);
+    BN_free(bn);
+    return bad ? 1 : 0;
+}
+
 int
 brix_cert_policy_violation(X509 *cert)
 {
-    EVP_PKEY *pk;
-    int       is_proxy = (X509_get_extension_flags(cert) & EXFLAG_PROXY) != 0;
+    int is_proxy = (X509_get_extension_flags(cert) & EXFLAG_PROXY) != 0;
 
     /* Key strength (IGTF: RSA >= 2048, EC >= 256). */
-    pk = X509_get0_pubkey(cert);
-    if (pk != NULL) {
-        int id = EVP_PKEY_base_id(pk);
-        int bits = EVP_PKEY_bits(pk);
-        if ((id == EVP_PKEY_RSA || id == EVP_PKEY_RSA2 || id == EVP_PKEY_DSA)
-            && bits < 2048) {
-            return 1;
-        }
-        if (id == EVP_PKEY_EC && bits < 256) {
-            return 1;
-        }
+    if (brix_key_strength_violation(cert)) {
+        return 1;
     }
 
     /* Signature algorithm: reject MD5 and SHA-1 based signatures. */
-    {
-        int sig_nid = X509_get_signature_nid(cert);
-        int md_nid = NID_undef, pk_nid = NID_undef;
-        if (OBJ_find_sigid_algs(sig_nid, &md_nid, &pk_nid)) {
-            if (md_nid == NID_md5 || md_nid == NID_sha1 || md_nid == NID_md2
-                || md_nid == NID_md4) {
-                return 1;
-            }
-        }
+    if (brix_sig_alg_violation(cert)) {
+        return 1;
     }
 
     /* Serial number: positive and <= 20 octets (RFC 5280 §4.1.2.2).  Proxies
      * are exempt from the ceiling — grid proxies use large derived serials. */
-    {
-        const ASN1_INTEGER *sn = X509_get0_serialNumber(cert);
-        BIGNUM             *bn = ASN1_INTEGER_to_BN(sn, NULL);
-        if (bn != NULL) {
-            int bad = BN_is_zero(bn) || BN_is_negative(bn)
-                      || (!is_proxy && BN_num_bytes(bn) > 20);
-            BN_free(bn);
-            if (bad) {
-                return 1;
-            }
-        }
+    if (brix_serial_violation(cert, is_proxy)) {
+        return 1;
     }
 
     /* DN sanity: no embedded control/NUL bytes (RFC 5280 §4.1.2.6). */

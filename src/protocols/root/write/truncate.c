@@ -5,6 +5,7 @@
 #include "core/ngx_brix_module.h"
 #include "fs/cache/writethrough_metrics.h"
 #include "fs/vfs/vfs.h"   /* path-based truncate via the VFS seam */
+#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
 
 #include <fcntl.h>
 
@@ -57,7 +58,17 @@ brix_handle_truncate(brix_ctx_t *ctx, ngx_connection_t *c,
 
 			brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
 				conf->common.root_canon, NULL, conf->common.allow_write,
-				0 /* is_tls */, NULL, resolved);
+				0 /* is_tls */, ctx->identity, resolved);
+			brix_vfs_ctx_bind_backend_cred(&vctx,
+				&conf->common.storage_credential_dir,
+				conf->common.storage_credential_fallback);
+			/* Phase-3 T1: opt-in credential minting, mirroring the davs/S3
+			 * PUT mint bind — a write-open touches the origin object. */
+			brix_vfs_ctx_bind_backend_mint(&vctx,
+				&conf->common.storage_credential_mint_ca_cert,
+				&conf->common.storage_credential_mint_ca_key,
+				conf->common.storage_credential_mint_ttl);
+			brix_root_vfs_bind_deleg(ctx, conf, &vctx);
 			fh = brix_vfs_open(&vctx, BRIX_VFS_O_WRITE, &vfs_err);
 			if (fh == NULL) {
 				/* Map the real errno (ENOENT→kXR_NotFound, EACCES→…) instead of a

@@ -68,6 +68,8 @@ typedef struct ngx_pool_s ngx_pool_t;  /* opaque: only ever a pointer field */
 #endif
 
 #include <stdint.h>
+#include <errno.h>       /* errno/ENOSYS in the inline *_maybe_cred fallbacks; the
+                          * ngx-free shared/xrdproto build has no nginx errno pull-in */
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/uio.h>
@@ -99,8 +101,22 @@ typedef enum {
      * then REQUIRES a cache tier (the recall target, phase-64 P4/§9.4) in front of
      * it. Drivers that always serve online leave this 0 (the common case). */
     BRIX_SD_CAP_NEARLINE      = 1u << 12, /* tape/MSS: reads may recall (§9)    */
-    BRIX_SD_CAP_CATALOG       = 1u << 13  /* native object-catalog enumeration  */
+    BRIX_SD_CAP_CATALOG       = 1u << 13, /* native object-catalog enumeration  */
+    /* phase-71 capability-uniformity: split implicit read-only/writable and
+     * memory-serve assumptions out of VFS backend-identity branches into caps. */
+    BRIX_SD_CAP_DIRS_WRITE    = 1u << 14, /* mutable catalog: mkdir/rmdir/rename */
+    BRIX_SD_CAP_XATTR_WRITE   = 1u << 15, /* set/remove xattr (read = CAP_XATTR) */
+    BRIX_SD_CAP_MEMFILE       = 1u << 16  /* serve bytes memory-backed w/o CAP_FD */
 } brix_sd_cap_t;
+
+/* Delegation credential kinds a backend can consume (phase-71). A backend ORs
+ * the kinds it accepts into brix_sd_driver_s.cred_accept; the VFS denies (EACCES)
+ * before touching the origin when the live credential kind is not accepted. */
+typedef enum {
+    BRIX_SD_CRED_NONE      = 0,
+    BRIX_SD_CRED_BEARER    = 1u << 0,  /* raw JWT bearer text        */
+    BRIX_SD_CRED_PROXY_PEM = 1u << 1   /* full x509 proxy PEM        */
+} brix_sd_cred_kind_t;
 
 /* ---- SD open flags --------------------------------------------------------
  * Backend-neutral open intent. The POSIX driver maps these to O_* internally;
@@ -119,6 +135,83 @@ typedef struct brix_sd_instance_s brix_sd_instance_t;
 typedef struct brix_sd_obj_s      brix_sd_obj_t;
 typedef struct brix_sd_dir_s      brix_sd_dir_t;
 typedef struct brix_sd_staged_s   brix_sd_staged_t;
+
+/* Per-open user credential passed from the protocol handler to the storage
+ * driver so a remote backend can authenticate AS the client user (Phase 1:
+ * x509 proxy; Phase 2 T2: WLCG bearer token).  Extended with the fields needed
+ * to re-resolve the credential for async/deferred flushes.
+ *
+ * WHAT: Borrowed pointers valid for the duration of the open() / staged_open()
+ *       call. Drivers that defer the open (thread-pool) MUST copy the strings
+ *       internally before returning — the caller's buffers may be freed once
+ *       the vtable function returns.
+ *
+ * WHY:  A per-open cred lets the VFS pass identity down to the driver without
+ *       threading it through every intermediate layer; the driver is the only
+ *       entity that knows how to present it to a specific remote protocol.
+ *       The extra fields (key, cred_dir, fallback_deny) let decorator layers
+ *       (sd_stage, sd_cache) embed a re-resolvable identity into their durable
+ *       state so an async flush — possibly after a crash and restart — can
+ *       re-authenticate as the original user rather than the service account.
+ *
+ * HOW:  The gate fills exactly ONE credential kind: {x509_proxy}, {bearer},
+ *       {s3_ak + s3_sk (+ s3_region)}, or {ceph_keyring + ceph_user}
+ *       depending on the kind selected by ucred_select; the other kinds'
+ *       fields are NULL.  Drivers check the kind they support (sd_xroot:
+ *       x509_proxy then bearer; sd_remote/S3: s3_ak; sd_ceph: ceph_keyring) —
+ *       only one kind is ever set for a given open.
+ *       A NULL cred or a driver with no open_cred slot falls back to the plain
+ *       open slot (service credential / anonymous).
+ *       sd_xroot reads x509_proxy OR bearer + principal; sd_remote reads
+ *       s3_ak/s3_sk/s3_region (phase-3 T3) to re-init its SigV4 signer per
+ *       open instead of the export's static access_key/secret_key/region;
+ *       sd_ceph reads ceph_keyring/ceph_user (ceph-peruser item) to open a
+ *       per-user librados connection instead of the export's static
+ *       user/keyring.
+ *       The extra fields (key, cred_dir, fallback_deny) are consumed by
+ *       sd_stage / sd_cache and are not required by sd_xroot, sd_remote, or
+ *       sd_ceph. */
+
+/* How the per-open credential in brix_sd_cred_t was obtained — the strategy the
+ * VFS gate resolved for the backend leg (phase-70 §4). SELECT (the default, 0)
+ * is the pre-phase-70 directory-lookup behaviour, so every existing caller that
+ * leaves the struct zeroed keeps the same meaning. The other modes are set by
+ * the delegation gate (vfs_deleg.c) when the front door captured a forwardable
+ * credential:
+ *   PASSTHROUGH — replay the exact credential the user presented (bearer bytes;
+ *                 a user-supplied full x509 proxy incl. private key);
+ *   EXCHANGE    — trade the inbound credential for a backend-valid one (RFC 8693
+ *                 token-exchange; S3 STS; GSSAPI krb5 forwarding);
+ *   DELEGATE    — obtain a fresh short-lived proxy via a GridSite handshake;
+ *   MINT        — mint a fresh short-lived proxy from a local CA;
+ *   AUTO        — dispatch by id->auth_method (§2 matrix).
+ * The field is advisory metadata for audit/metrics and for the async re-acquire
+ * record; the cred's byte/path fields still say WHICH credential to present. */
+enum brix_cred_mode {
+    BRIX_CRED_SELECT      = 0,
+    BRIX_CRED_PASSTHROUGH,
+    BRIX_CRED_EXCHANGE,
+    BRIX_CRED_DELEGATE,
+    BRIX_CRED_MINT,
+    BRIX_CRED_AUTO
+};
+
+typedef struct {
+    const char *x509_proxy;      /* path to per-user proxy PEM (NULL unless x509 cred) */
+    const char *bearer;          /* WLCG bearer token text (NULL unless bearer cred)   */
+    const char *s3_ak;           /* S3 access key id (NULL unless s3 cred)             */
+    const char *s3_sk;           /* S3 secret key (NULL unless s3 cred; never log)     */
+    const char *s3_region;       /* S3 region (NULL unless s3 cred)                    */
+    const char *ceph_keyring;    /* CephX keyring PATH (NULL unless ceph cred; never   */
+                                  /* log its contents)                                  */
+    const char *ceph_user;       /* bare CephX user id, e.g. "bob" (NULL unless ceph   */
+                                  /* cred)                                              */
+    const char *key;             /* credential-dir lookup key (audit + flush re-resolve) */
+    const char *principal;       /* authenticated principal (audit/ledger; may be NULL) */
+    const char *cred_dir;        /* export credential directory (flush re-resolve)      */
+    enum brix_cred_mode mode;    /* how this cred was obtained (phase-70; 0 = SELECT)   */
+    unsigned    fallback_deny:1; /* 1 = service-credential fallback forbidden           */
+} brix_sd_cred_t;
 
 /* Residency of a nearline (tape/MSS) object — the online/offline model the VFS
  * residency seam (brix_vfs_residency) exposes to protocol handlers so they can
@@ -230,6 +323,7 @@ struct brix_sd_staged_s {
 struct brix_sd_driver_s {
     const char *name;        /* "posix" | "block" | "s3" */
     uint32_t    caps;        /* brix_sd_cap_t bitmap    */
+    uint32_t    cred_accept; /* OR of brix_sd_cred_kind_t consumed; 0 = none */
 
     /* instance lifecycle (event loop, at config/worker init) */
     ngx_int_t  (*init)   (brix_sd_instance_t *inst, void *driver_conf);
@@ -336,6 +430,86 @@ struct brix_sd_driver_s {
      * VFS wrapper then reports ENOTSUP. Advertised via BRIX_SD_CAP_CATALOG. */
     ngx_int_t  (*enumerate)(brix_sd_instance_t *inst, int want_stat,
                             brix_sd_catalog_cb cb, void *ctx);
+
+    /* credential-scoped open slots (OPTIONAL — Phase 1 per-user backend auth).
+     *
+     * WHAT: Like open / staged_open but carries a per-user brix_sd_cred_t so the
+     *       driver can authenticate to the remote backend as the requesting user
+     *       rather than the static service credential.
+     *
+     * WHY:  Data-plane opens need user identity; namespace ops (stat/rename/…)
+     *       stay on the service credential in Phase 1 — threading cred everywhere
+     *       is deferred.
+     *
+     * HOW:  NULL on any driver that does not implement per-user auth (POSIX, block,
+     *       pblock, Ceph — service-level or user-impersonated elsewhere). sd_xroot
+     *       implements both: it copies the proxy path into the fill task before
+     *       calling brix_cache_origin_bootstrap, where it wins over every static
+     *       service credential. Designated-initializer drivers that omit these
+     *       slots get NULL; the forwarders below fall back to the plain slot. */
+    brix_sd_obj_t    *(*open_cred)(brix_sd_instance_t *inst, const char *path,
+                                    int sd_flags, mode_t mode,
+                                    const brix_sd_cred_t *cred, int *err_out);
+    brix_sd_staged_t *(*staged_open_cred)(brix_sd_instance_t *inst,
+                                           const char *final_path, mode_t mode,
+                                           const brix_sd_cred_t *cred,
+                                           int *err_out);
+
+    /* credential-scoped namespace slots (OPTIONAL — Phase 2 Task 1 per-user
+     * backend auth for namespace/metadata operations).
+     *
+     * WHAT: Like the plain namespace slots (stat/unlink/mkdir/rename/…) but each
+     *       accepts a trailing const brix_sd_cred_t * so the driver can open the
+     *       remote session as the requesting user rather than the static service
+     *       credential for every path-based op, not just data-plane opens.
+     *
+     * WHY:  Without these, a deny-mode request whose credential gate fires on the
+     *       data-plane still has its probe stat (brix_vfs_probe) run under the
+     *       service credential, violating the invariant that a denied request must
+     *       never reach the origin.  Extending the cred to namespace ops closes
+     *       that gap completely.
+     *
+     * HOW:  NULL on any driver that does not support per-user namespace auth.
+     *       sd_xroot registers implementations for every ns op it supports.
+     *       Designated-initializer drivers that omit these slots get NULL; the
+     *       brix_sd_<op>_maybe_cred forwarders below fall back to the plain slot.
+     *       The capability-check (stat_cred != NULL) is the canonical gate for the
+     *       VFS brix_vfs_ns_cred() decision. */
+    ngx_int_t      (*stat_cred)(brix_sd_instance_t *inst, const char *path,
+                                 brix_sd_stat_t *out,
+                                 const brix_sd_cred_t *cred);
+    ngx_int_t      (*unlink_cred)(brix_sd_instance_t *inst, const char *path,
+                                   int is_dir,
+                                   const brix_sd_cred_t *cred);
+    ngx_int_t      (*mkdir_cred)(brix_sd_instance_t *inst, const char *path,
+                                  mode_t mode,
+                                  const brix_sd_cred_t *cred);
+    ngx_int_t      (*rename_cred)(brix_sd_instance_t *inst, const char *src,
+                                   const char *dst, int noreplace,
+                                   const brix_sd_cred_t *cred);
+    ngx_int_t      (*setattr_cred)(brix_sd_instance_t *inst, const char *path,
+                                    const brix_sd_setattr_t *attr,
+                                    const brix_sd_cred_t *cred);
+    ssize_t        (*getxattr_cred)(brix_sd_instance_t *inst, const char *path,
+                                     const char *name, void *buf, size_t cap,
+                                     const brix_sd_cred_t *cred);
+    ssize_t        (*listxattr_cred)(brix_sd_instance_t *inst, const char *path,
+                                      void *buf, size_t cap,
+                                      const brix_sd_cred_t *cred);
+    ngx_int_t      (*setxattr_cred)(brix_sd_instance_t *inst, const char *path,
+                                     const char *name, const void *val,
+                                     size_t len, int flags,
+                                     const brix_sd_cred_t *cred);
+    ngx_int_t      (*removexattr_cred)(brix_sd_instance_t *inst,
+                                        const char *path, const char *name,
+                                        const brix_sd_cred_t *cred);
+    ngx_int_t      (*server_copy_cred)(brix_sd_instance_t *inst,
+                                        const char *src, const char *dst,
+                                        off_t *bytes_out,
+                                        const brix_sd_cred_t *cred);
+    brix_sd_dir_t *(*opendir_cred)(brix_sd_instance_t *inst, const char *path,
+                                    int *err_out,
+                                    const brix_sd_cred_t *cred);
 };
 
 /* ---- capability-gated accessors (never poke the vtable directly) ---------- */
@@ -349,6 +523,328 @@ const char *brix_sd_backend_name(const brix_sd_instance_t *inst);
 /* 1 iff the instance advertises ALL bits in required_caps. */
 ngx_int_t brix_sd_supports(const brix_sd_instance_t *inst,
     uint32_t required_caps);
+/* The instance's accepted-credential-kind bitmap (0 when inst/driver is NULL). */
+uint32_t brix_sd_cred_accept(const brix_sd_instance_t *inst);
+
+/* ---- credential-scoped open forwarders ----
+ * WHAT: Route through the cred-scoped slot when a per-user credential is
+ *       present AND the driver implements it; else the plain slot.
+ * WHY:  One forwarding rule shared by the VFS and every decorator, so no
+ *       tier can accidentally drop the credential on the floor.
+ * HOW:  cred+slot → *_cred; otherwise the legacy slot — UNLESS the caller is
+ *       in DENY mode (cred->fallback_deny) and the plain slot would actually
+ *       run (driver-><op> != NULL): that combination means a per-user op
+ *       would silently execute on the shared service credential in a mode
+ *       that explicitly forbids the fallback, so refuse instead (EACCES).
+ *       Defensive hardening (phase-3 T1): today inert (no driver has the
+ *       cred-slot-missing/plain-slot-present shape), but prevents a future
+ *       driver from silently leaking onto the service credential. Does NOT
+ *       change allow-mode (fallback_deny==0 keeps falling back) or the
+ *       legitimate no-op cases (a NULL plain slot with no *_cred slot either
+ *       means "this driver has nothing to do here", not a leak). */
+static ngx_inline brix_sd_obj_t *
+brix_sd_open_maybe_cred(brix_sd_instance_t *inst, const char *path,
+    int sd_flags, mode_t mode, const brix_sd_cred_t *cred, int *err_out)
+{
+    if (cred != NULL && inst->driver->open_cred != NULL) {
+        return inst->driver->open_cred(inst, path, sd_flags, mode, cred,
+                                       err_out);
+    }
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->open_cred == NULL && inst->driver->open != NULL)
+    {
+        if (err_out != NULL) {
+            *err_out = EACCES;
+        }
+        errno = EACCES;
+        return NULL;
+    }
+    if (inst->driver->open == NULL) {
+        if (err_out != NULL) {
+            *err_out = ENOSYS;
+        }
+        errno = ENOSYS;
+        return NULL;
+    }
+    return inst->driver->open(inst, path, sd_flags, mode, err_out);
+}
+
+static ngx_inline brix_sd_staged_t *
+brix_sd_staged_open_maybe_cred(brix_sd_instance_t *inst, const char *final_path,
+    mode_t mode, const brix_sd_cred_t *cred, int *err_out)
+{
+    if (cred != NULL && inst->driver->staged_open_cred != NULL) {
+        return inst->driver->staged_open_cred(inst, final_path, mode, cred,
+                                              err_out);
+    }
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->staged_open_cred == NULL
+        && inst->driver->staged_open != NULL)
+    {
+        if (err_out != NULL) {
+            *err_out = EACCES;
+        }
+        errno = EACCES;
+        return NULL;
+    }
+    if (inst->driver->staged_open == NULL) {
+        if (err_out != NULL) {
+            *err_out = ENOSYS;
+        }
+        errno = ENOSYS;
+        return NULL;
+    }
+    return inst->driver->staged_open(inst, final_path, mode, err_out);
+}
+
+/* ---- credential-scoped namespace forwarders --------------------------------
+ *
+ * WHAT: Route each namespace op through the cred-scoped slot when a per-user
+ *       credential is present AND the driver implements the matching *_cred slot;
+ *       otherwise fall back to the plain slot.
+ *
+ * WHY:  A single forwarding rule for each namespace op ensures no tier can
+ *       accidentally drop the credential for stat/unlink/mkdir/rename/copy/
+ *       setattr/xattr/opendir — the same guarantee brix_sd_open_maybe_cred
+ *       provides for data-plane opens.
+ *
+ * HOW:  cred non-NULL and driver has the *_cred slot → the cred slot;
+ *       otherwise the plain slot (or NULL-safe ENOSYS for ops with no plain
+ *       slot either — callers always check NULL before dispatching). */
+
+static ngx_inline ngx_int_t
+brix_sd_stat_maybe_cred(brix_sd_instance_t *inst, const char *path,
+    brix_sd_stat_t *out, const brix_sd_cred_t *cred)
+{
+    if (cred != NULL && inst->driver->stat_cred != NULL) {
+        return inst->driver->stat_cred(inst, path, out, cred);
+    }
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->stat_cred == NULL && inst->driver->stat != NULL)
+    {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    if (inst->driver->stat == NULL) {
+        errno = ENOSYS;
+        return NGX_ERROR;
+    }
+    return inst->driver->stat(inst, path, out);
+}
+
+static ngx_inline ngx_int_t
+brix_sd_unlink_maybe_cred(brix_sd_instance_t *inst, const char *path,
+    int is_dir, const brix_sd_cred_t *cred)
+{
+    if (cred != NULL && inst->driver->unlink_cred != NULL) {
+        return inst->driver->unlink_cred(inst, path, is_dir, cred);
+    }
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->unlink_cred == NULL && inst->driver->unlink != NULL)
+    {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    if (inst->driver->unlink == NULL) {
+        errno = ENOSYS;
+        return NGX_ERROR;
+    }
+    return inst->driver->unlink(inst, path, is_dir);
+}
+
+static ngx_inline ngx_int_t
+brix_sd_mkdir_maybe_cred(brix_sd_instance_t *inst, const char *path,
+    mode_t mode, const brix_sd_cred_t *cred)
+{
+    if (cred != NULL && inst->driver->mkdir_cred != NULL) {
+        return inst->driver->mkdir_cred(inst, path, mode, cred);
+    }
+    if (inst->driver->mkdir == NULL) {
+        errno = ENOSYS;
+        return NGX_ERROR;
+    }
+    if (cred != NULL && cred->fallback_deny && inst->driver->mkdir_cred == NULL) {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    return inst->driver->mkdir(inst, path, mode);
+}
+
+static ngx_inline ngx_int_t
+brix_sd_rename_maybe_cred(brix_sd_instance_t *inst, const char *src,
+    const char *dst, int noreplace, const brix_sd_cred_t *cred)
+{
+    if (cred != NULL && inst->driver->rename_cred != NULL) {
+        return inst->driver->rename_cred(inst, src, dst, noreplace, cred);
+    }
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->rename_cred == NULL && inst->driver->rename != NULL)
+    {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    if (inst->driver->rename == NULL) {
+        errno = ENOSYS;
+        return NGX_ERROR;
+    }
+    return inst->driver->rename(inst, src, dst, noreplace);
+}
+
+static ngx_inline ngx_int_t
+brix_sd_setattr_maybe_cred(brix_sd_instance_t *inst, const char *path,
+    const brix_sd_setattr_t *attr, const brix_sd_cred_t *cred)
+{
+    if (cred != NULL && inst->driver->setattr_cred != NULL) {
+        return inst->driver->setattr_cred(inst, path, attr, cred);
+    }
+    if (inst->driver->setattr == NULL) {
+        return NGX_OK;   /* no mutable metadata — no-op success, same as plain path */
+    }
+    /* A per-user op in deny mode must never silently run the REAL (mutable-
+     * metadata) setattr on the service credential; refuse (mirrors the other
+     * *_maybe_cred forwarders). The setattr==NULL no-op above is exempt — it
+     * touches no origin state, so there is nothing to leak. */
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->setattr_cred == NULL)
+    {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    return inst->driver->setattr(inst, path, attr);
+}
+
+static ngx_inline ssize_t
+brix_sd_getxattr_maybe_cred(brix_sd_instance_t *inst, const char *path,
+    const char *name, void *buf, size_t cap, const brix_sd_cred_t *cred)
+{
+    if (cred != NULL && inst->driver->getxattr_cred != NULL) {
+        return inst->driver->getxattr_cred(inst, path, name, buf, cap, cred);
+    }
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->getxattr_cred == NULL
+        && inst->driver->getxattr != NULL)
+    {
+        errno = EACCES;
+        return -1;
+    }
+    if (inst->driver->getxattr == NULL) {
+        errno = ENOSYS;
+        return -1;
+    }
+    return inst->driver->getxattr(inst, path, name, buf, cap);
+}
+
+static ngx_inline ssize_t
+brix_sd_listxattr_maybe_cred(brix_sd_instance_t *inst, const char *path,
+    void *buf, size_t cap, const brix_sd_cred_t *cred)
+{
+    if (cred != NULL && inst->driver->listxattr_cred != NULL) {
+        return inst->driver->listxattr_cred(inst, path, buf, cap, cred);
+    }
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->listxattr_cred == NULL
+        && inst->driver->listxattr != NULL)
+    {
+        errno = EACCES;
+        return -1;
+    }
+    if (inst->driver->listxattr == NULL) {
+        errno = ENOSYS;
+        return -1;
+    }
+    return inst->driver->listxattr(inst, path, buf, cap);
+}
+
+static ngx_inline ngx_int_t
+brix_sd_setxattr_maybe_cred(brix_sd_instance_t *inst, const char *path,
+    const char *name, const void *val, size_t len, int flags,
+    const brix_sd_cred_t *cred)
+{
+    if (cred != NULL && inst->driver->setxattr_cred != NULL) {
+        return inst->driver->setxattr_cred(inst, path, name, val, len, flags,
+                                           cred);
+    }
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->setxattr_cred == NULL
+        && inst->driver->setxattr != NULL)
+    {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    if (inst->driver->setxattr == NULL) {
+        errno = ENOSYS;
+        return NGX_ERROR;
+    }
+    return inst->driver->setxattr(inst, path, name, val, len, flags);
+}
+
+static ngx_inline ngx_int_t
+brix_sd_removexattr_maybe_cred(brix_sd_instance_t *inst, const char *path,
+    const char *name, const brix_sd_cred_t *cred)
+{
+    if (cred != NULL && inst->driver->removexattr_cred != NULL) {
+        return inst->driver->removexattr_cred(inst, path, name, cred);
+    }
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->removexattr_cred == NULL
+        && inst->driver->removexattr != NULL)
+    {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    if (inst->driver->removexattr == NULL) {
+        errno = ENOSYS;
+        return NGX_ERROR;
+    }
+    return inst->driver->removexattr(inst, path, name);
+}
+
+static ngx_inline ngx_int_t
+brix_sd_server_copy_maybe_cred(brix_sd_instance_t *inst, const char *src,
+    const char *dst, off_t *bytes_out, const brix_sd_cred_t *cred)
+{
+    if (cred != NULL && inst->driver->server_copy_cred != NULL) {
+        return inst->driver->server_copy_cred(inst, src, dst, bytes_out, cred);
+    }
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->server_copy_cred == NULL
+        && inst->driver->server_copy != NULL)
+    {
+        errno = EACCES;
+        return NGX_ERROR;
+    }
+    if (inst->driver->server_copy == NULL) {
+        errno = ENOSYS;
+        return NGX_ERROR;
+    }
+    return inst->driver->server_copy(inst, src, dst, bytes_out);
+}
+
+static ngx_inline brix_sd_dir_t *
+brix_sd_opendir_maybe_cred(brix_sd_instance_t *inst, const char *path,
+    int *err_out, const brix_sd_cred_t *cred)
+{
+    if (cred != NULL && inst->driver->opendir_cred != NULL) {
+        return inst->driver->opendir_cred(inst, path, err_out, cred);
+    }
+    if (cred != NULL && cred->fallback_deny
+        && inst->driver->opendir_cred == NULL && inst->driver->opendir != NULL)
+    {
+        if (err_out != NULL) {
+            *err_out = EACCES;
+        }
+        errno = EACCES;
+        return NULL;
+    }
+    if (inst->driver->opendir == NULL) {
+        if (err_out != NULL) {
+            *err_out = ENOSYS;
+        }
+        errno = ENOSYS;
+        return NULL;
+    }
+    return inst->driver->opendir(inst, path, err_out);
+}
 
 /* ---- registry ------------------------------------------------------------- */
 
@@ -358,10 +854,14 @@ const brix_sd_driver_t *brix_sd_driver_find(const char *name);
  * generates from core/types/fs_list.h. For tooling/health surfaces. */
 ngx_uint_t brix_sd_driver_count(void);
 const brix_sd_driver_t *brix_sd_driver_at(ngx_uint_t i);
-/* Build a per-export instance: alloc on pool, bind the named driver, run its
- * init() with driver_conf. Returns the instance, or NULL with *err_out set
- * (ENOENT = unknown driver). The POSIX driver_conf is the root_canon string. */
-brix_sd_instance_t *brix_sd_instance_create(ngx_pool_t *pool, ngx_log_t *log,
+/* Build a per-export instance: bind the named driver and run its init() with
+ * driver_conf. Returns the instance, or NULL with *err_out set (ENOENT =
+ * unknown driver). The POSIX driver_conf is the root_canon string.
+ * Instances are process-lifetime singletons allocated from a private pool the
+ * registry owns and never destroys — callers must NOT assume any tie to a
+ * cycle/request pool (composition may run during configuration parse, when
+ * ngx_cycle still names the transient init cycle). */
+brix_sd_instance_t *brix_sd_instance_create(ngx_log_t *log,
     const char *name, void *driver_conf, int *err_out);
 /* Tear down an instance (driver cleanup()); NULL-safe. */
 void brix_sd_instance_destroy(brix_sd_instance_t *inst);
