@@ -18,8 +18,8 @@
  *       and returns NGX_OK on success or an already-sent 403 XML error response.
  */
 
-#ifndef _BRIX_S3_AUTH_BEARER_H
-#define _BRIX_S3_AUTH_BEARER_H
+#ifndef BRIX_S3_AUTH_BEARER_H
+#define BRIX_S3_AUTH_BEARER_H
 
 #include <ngx_http.h>
 #include "s3.h"
@@ -48,4 +48,4 @@ int s3_bearer_present(ngx_http_request_t *r);
 ngx_int_t s3_verify_bearer(ngx_http_request_t *r,
     ngx_http_s3_loc_conf_t *cf, brix_identity_t *identity);
 
-#endif /* _BRIX_S3_AUTH_BEARER_H */
+#endif /* BRIX_S3_AUTH_BEARER_H */

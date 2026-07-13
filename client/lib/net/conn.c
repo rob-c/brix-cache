@@ -228,11 +228,14 @@ do_login(brix_conn *c, const brix_opts *o, brix_status *st)
                                (uint8_t) (kXR_ver005 | kXR_asyncap));
     }
 
-    if (brix_send(c, &req, NULL, 0, &sid, st) != 0) {
-        return -1;
-    }
-    if (brix_recv(c, sid, &status, &body, &blen, st) != 0) {
-        return -1;
+    {
+        brix_resp_out out = { &status, &body, &blen };
+        if (brix_send(c, &req, NULL, &sid, st) != 0) {
+            return -1;
+        }
+        if (brix_recv(c, sid, &out, st) != 0) {
+            return -1;
+        }
     }
     if (status != kXR_ok) {
         brix_status_set(st, XRDC_EPROTO, 0, "login: server status %u", status);
@@ -379,12 +382,15 @@ brix_bind(brix_conn *sec, const brix_conn *primary, brix_status *st)
         xrdw_sessid_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
 
-    if (brix_send(sec, &req, NULL, 0, &sid, st) != 0
-        || brix_recv(sec, sid, &status, &body, &blen, st) != 0) {
-        /* Quiet teardown: a bound stream has no session of its own to end. */
-        brix_tls_free(sec);
-        if (sec->io.fd >= 0) { close(sec->io.fd); sec->io.fd = -1; }
-        return -1;
+    {
+        brix_resp_out out = { &status, &body, &blen };
+        if (brix_send(sec, &req, NULL, &sid, st) != 0
+            || brix_recv(sec, sid, &out, st) != 0) {
+            /* Quiet teardown: a bound stream has no session of its own to end. */
+            brix_tls_free(sec);
+            if (sec->io.fd >= 0) { close(sec->io.fd); sec->io.fd = -1; }
+            return -1;
+        }
     }
     free(body);   /* reply body = 1-byte pathid (server bookkeeping) */
     return 0;
@@ -567,7 +573,7 @@ brix_close(brix_conn *c)
             xrdw_sessid_req_pack(&b, req + 4);
         }
         brix_status_clear(&throwaway);
-        (void) brix_send(c, req, NULL, 0, &sid, &throwaway);
+        (void) brix_send(c, req, NULL, &sid, &throwaway);
     }
 
     brix_tls_free(c);            /* SSL_shutdown/free + SSL_CTX_free (no-op if none) */

@@ -13,7 +13,8 @@
  * existing connections are not disrupted.
  */
 ngx_int_t
-brix_rebuild_gsi_store(ngx_stream_brix_srv_conf_t *xcf, ngx_log_t *log)
+brix_rebuild_gsi_store(ngx_stream_brix_srv_conf_t *xcf, ngx_log_t *log,
+    void *cache_scope)
 {
     X509_STORE *store;
     X509_STORE *old_store;
@@ -28,7 +29,7 @@ brix_rebuild_gsi_store(ngx_stream_brix_srv_conf_t *xcf, ngx_log_t *log)
     ca_is_dir = (stat((char *) xcf->trusted_ca.data, &ca_st) == 0
                  && S_ISDIR(ca_st.st_mode));
 
-    store = brix_build_ca_store(log,
+    store = brix_build_ca_store_cached(cache_scope, log,
                                    ca_is_dir ? (char *) xcf->trusted_ca.data
                                              : NULL,
                                    ca_is_dir ? NULL
@@ -57,6 +58,70 @@ brix_rebuild_gsi_store(ngx_stream_brix_srv_conf_t *xcf, ngx_log_t *log)
     }
 
     return NGX_OK;
+}
+
+/*
+ * Compute the CA name-hash list advertised in the kXGS_init sec token
+ * ("ca:hash1|hash2").
+ *
+ * WHY: stock XrdSecgsi clients look the advertised hashes up in their own CA
+ * directory and abort the handshake with "unknown CA: cannot verify server
+ * certificate" when none match, so the list must name the REAL issuer chain
+ * of our server certificate.  (An earlier version PEM-parsed brix_trusted_ca
+ * directly — wrong for a multi-CA bundle and silently empty when the
+ * directive names a Grid CA DIRECTORY, which advertised ca:00000000 and broke
+ * every stock client whose host cert hangs off a real CA chain.)
+ *
+ * HOW: verify our own certificate against the freshly built trust store and
+ * hash every CA in the resulting chain (intermediates + root).  Falls back to
+ * the leaf's issuer-name hash when chain building fails (e.g. a CRL gap), and
+ * to "00000000" only when there is no certificate at all.
+ */
+static void
+brix_gsi_compute_ca_hashes(ngx_stream_brix_srv_conf_t *xcf)
+{
+    X509_STORE_CTX  *sctx;
+    STACK_OF(X509)  *chain;
+    size_t           off = 0;
+    int              i, n, w;
+
+    xcf->gsi_ca_hashes[0] = '\0';
+
+    sctx = X509_STORE_CTX_new();
+    if (sctx != NULL && xcf->gsi_store != NULL && xcf->gsi_cert != NULL
+        && X509_STORE_CTX_init(sctx, xcf->gsi_store, xcf->gsi_cert, NULL) == 1
+        && X509_verify_cert(sctx) == 1)
+    {
+        chain = X509_STORE_CTX_get1_chain(sctx);
+        if (chain != NULL) {
+            n = sk_X509_num(chain);
+            for (i = 1; i < n; i++) {              /* skip the leaf itself */
+                w = snprintf(xcf->gsi_ca_hashes + off,
+                             sizeof(xcf->gsi_ca_hashes) - off,
+                             off > 0 ? "|%08lx" : "%08lx",
+                             X509_subject_name_hash(sk_X509_value(chain, i)));
+                if (w <= 0
+                    || off + (size_t) w >= sizeof(xcf->gsi_ca_hashes))
+                {
+                    break;
+                }
+                off += (size_t) w;
+            }
+            sk_X509_pop_free(chain, X509_free);
+        }
+    }
+    if (sctx != NULL) {
+        X509_STORE_CTX_free(sctx);
+    }
+
+    if (xcf->gsi_ca_hashes[0] == '\0' && xcf->gsi_cert != NULL) {
+        (void) snprintf(xcf->gsi_ca_hashes, sizeof(xcf->gsi_ca_hashes),
+                        "%08lx", X509_issuer_name_hash(xcf->gsi_cert));
+    }
+    if (xcf->gsi_ca_hashes[0] == '\0') {
+        (void) snprintf(xcf->gsi_ca_hashes, sizeof(xcf->gsi_ca_hashes),
+                        "%08x", 0u);
+    }
 }
 
 /*
@@ -104,7 +169,7 @@ brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         }
         fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);
         xcf->gsi_cert = PEM_read_X509(fp, NULL, NULL, NULL);
-        fclose(fp);
+        (void) fclose(fp); /* phase74-fp: read-only stream, close failure cannot lose data */
         if (xcf->gsi_cert == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "brix: cannot parse certificate \"%s\"",
@@ -154,7 +219,7 @@ brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         }
         fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);
         xcf->gsi_key = PEM_read_PrivateKey(fp, NULL, NULL, NULL);
-        fclose(fp);
+        (void) fclose(fp); /* phase74-fp: read-only stream, close failure cannot lose data */
         if (xcf->gsi_key == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "brix: cannot parse private key \"%s\"",
@@ -170,7 +235,10 @@ brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     {
         uint64_t t0 = brix_phase_now_ns();
 
-        if (brix_rebuild_gsi_store(xcf, cf->log) != NGX_OK) {
+        /* cf->cycle scopes the CA/CRL-store memo to THIS config parse, so
+         * multiple GSI server blocks (root://, davs://, …) sharing the same
+         * trusted_ca/CRL dir load the IGTF CRLs once, not once per block. */
+        if (brix_rebuild_gsi_store(xcf, cf->log, cf->cycle) != NGX_OK) {
             return NGX_ERROR;
         }
 
@@ -183,30 +251,11 @@ brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
                       (brix_phase_now_ns() - t0) / 1000ull);
     }
 
-    /* Compute CA hash (for kXRS_issuer_hash in kXGS_init) */
-    {
-        FILE  *fp;
-        X509  *ca;
-
-        fp = fopen((char *) xcf->trusted_ca.data, "r");
-        if (fp) {
-            fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);
-            ca = PEM_read_X509(fp, NULL, NULL, NULL);
-            fclose(fp);
-            if (ca) {
-                /*
-                 * The protocol advertises the issuer hash during the GSI
-                 * bootstrap so clients can confirm which CA the server wants.
-                 */
-                xcf->gsi_ca_hash = (uint32_t) X509_subject_name_hash(ca);
-                X509_free(ca);
-            }
-        }
-    }
+    brix_gsi_compute_ca_hashes(xcf);
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "brix: GSI auth configured - cert=%s ca_hash=%08xd",
-        xcf->certificate.data, xcf->gsi_ca_hash);
+        "brix: GSI auth configured - cert=%s ca_hashes=%s",
+        xcf->certificate.data, xcf->gsi_ca_hashes);
 
     return NGX_OK;
 }

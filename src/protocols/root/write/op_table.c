@@ -11,14 +11,32 @@
 #include "core/compat/error_mapping.h"
 #include "fs/path/path.h"
 #include "fs/vfs/vfs.h"   /* chmod/rm/rmdir via the VFS seam */
+#include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
 
-/* Build a stream VFS ctx for a simple namespace op on e->resolved. */
+/* Build a stream VFS ctx for a simple namespace op on e->resolved.
+ *
+ * WHAT: Threads the authenticated session identity (e->ctx->identity) and the
+ *       export's per-user backend credential policy onto the ctx (Phase 2
+ *       Task 6), mirroring the davs/S3 call sites (Phase 1).
+ *
+ * WHY:  chmod/rm/rmdir dispatch through brix_vfs_chmod/unlink/rmdir, each of
+ *       which runs the brix_vfs_ns_cred gate before reaching a remote-backed
+ *       driver; without identity+cred-dir bound here that gate always falls
+ *       back to the shared service credential regardless of policy.
+ *
+ * HOW:  brix_vfs_ctx_bind_backend_cred is a no-op when the export's
+ *       brix_storage_credential_dir is unset, so this is safe for every
+ *       export (local or remote-backed). */
 static void
 op_vfs_ctx(const brix_op_exec_t *e, brix_vfs_ctx_t *vctx)
 {
     brix_vfs_ctx_init(vctx, e->c->pool, e->c->log, BRIX_PROTO_ROOT,
         e->conf->common.root_canon, NULL, e->conf->common.allow_write,
-        0 /* is_tls */, NULL, e->resolved);
+        0 /* is_tls */, e->ctx->identity, e->resolved);
+    brix_vfs_ctx_bind_backend_cred(vctx,
+        &e->conf->common.storage_credential_dir,
+        e->conf->common.storage_credential_fallback);
+    brix_root_vfs_bind_deleg(e->ctx, e->conf, vctx);
 }
 
 /* exec functions (one per op) */
@@ -86,7 +104,7 @@ exec_rmdir(const brix_op_exec_t *e, int *out_errno)
 }
 
 /* descriptor table */
-static const brix_op_desc_t _ops[] = {
+static const brix_op_desc_t op_table[] = {
     { kXR_chmod,  "CHMOD",  BRIX_OP_CHMOD,  BRIX_AUTH_UPDATE, 1,
       BRIX_PATH_EXISTING, exec_chmod },
     { kXR_rm,     "RM",     BRIX_OP_RM,     BRIX_AUTH_DELETE, 1,
@@ -94,7 +112,7 @@ static const brix_op_desc_t _ops[] = {
     { kXR_rmdir,  "RMDIR",  BRIX_OP_RMDIR,  BRIX_AUTH_DELETE, 1,
       BRIX_PATH_EITHER,   exec_rmdir },
 };
-#define N_OPS (sizeof(_ops) / sizeof(_ops[0]))
+#define N_OPS (sizeof(op_table) / sizeof(op_table[0]))
 
 /* interpreter */
 ngx_int_t
@@ -110,8 +128,8 @@ brix_dispatch_op(brix_ctx_t *ctx, ngx_connection_t *c,
     size_t                  i;
 
     for (i = 0; i < N_OPS; i++) {
-        if (_ops[i].opcode == opcode) {
-            d = &_ops[i];
+        if (op_table[i].opcode == opcode) {
+            d = &op_table[i];
             break;
         }
     }

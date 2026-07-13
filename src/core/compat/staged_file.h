@@ -34,17 +34,55 @@ typedef struct {
                               * cannot read an in-progress upload. */
 } brix_staged_file_t;
 
-/* brix_staged_open() — See staged_file.c for WHAT/WHY/HOW. */
-ngx_int_t brix_staged_open(ngx_log_t *log, const char *root_canon,
-    const char *final_path, int open_flags, mode_t mode, ngx_uint_t attempts,
+/*
+ * brix_staged_open_req_t — the pure (side-effect-free) inputs that describe WHERE
+ * and HOW a staged temp is opened, bundled so the open entry points stay within
+ * the argument gate.
+ *
+ * WHAT: the confinement root + destination path + creation mode shared by both
+ *       staged-open variants, plus the variant-specific selectors (open_flags /
+ *       attempts for the random O_EXCL temp; principal / stage_dir for the
+ *       deterministic identity-keyed resume partial).
+ * WHY:  threading these as discrete parameters pushed brix_staged_open (7 args)
+ *       and brix_staged_open_resume (8 args) past the 5-argument budget. They are
+ *       all read-only request description — no hidden global state — so gathering
+ *       them into one value bundle keeps the data flow explicit while the
+ *       side-effecting args (log, the output staged/cur_size) stay direct params.
+ * HOW:  callers fill the fields relevant to their variant (unused fields are
+ *       ignored by that variant) and pass a pointer; the function reads it and
+ *       never mutates it.
+ *
+ * Fields:
+ *   root_canon — canonical root the temp must reside within
+ *   final_path — destination path (derives the temp name)
+ *   mode       — file creation mode to publish at commit
+ *   open_flags — [open] base open flags (O_EXCL added internally)
+ *   attempts   — [open] max EEXIST retries (0 → 16)
+ *   principal  — [resume] identity keying the deterministic partial name
+ *   stage_dir  — [resume] fast-device stage dir, or NULL to stage under root
+ */
+typedef struct {
+    const char *root_canon;
+    const char *final_path;
+    mode_t      mode;
+    int         open_flags;
+    ngx_uint_t  attempts;
+    const char *principal;
+    const char *stage_dir;
+} brix_staged_open_req_t;
+
+/* brix_staged_open() — See staged_file.c for WHAT/WHY/HOW. Reads req->{root_canon,
+ * final_path, open_flags, mode, attempts}. */
+ngx_int_t brix_staged_open(ngx_log_t *log, const brix_staged_open_req_t *req,
     brix_staged_file_t *staged);
 /* brix_staged_open_resume() — open the DETERMINISTIC identity-keyed upload-
  * resume partial (create-or-resume, preserves bytes, no O_EXCL/O_TRUNC), and
  * report its current size in *cur_size.  For WebDAV Content-Range PUT resume.
+ * Reads req->{root_canon, final_path, principal, stage_dir, mode}.
  * See staged_file.c. */
-ngx_int_t brix_staged_open_resume(ngx_log_t *log, const char *root_canon,
-    const char *final_path, const char *principal, const char *stage_dir,
-    mode_t mode, brix_staged_file_t *staged, off_t *cur_size);
+ngx_int_t brix_staged_open_resume(ngx_log_t *log,
+    const brix_staged_open_req_t *req, brix_staged_file_t *staged,
+    off_t *cur_size);
 /* brix_commit_staged() — atomically publish a staged file onto its final path,
  * across filesystems (rename fast-path; copy+rename on EXDEV for a fast-cache
  * stage dir on a different device than the storage).  fd = open staged fd (for

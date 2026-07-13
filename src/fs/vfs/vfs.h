@@ -46,7 +46,16 @@
 
 typedef struct brix_vfs_file_s   brix_vfs_file_t;
 typedef struct brix_vfs_dir_s    brix_vfs_dir_t;
+#ifndef BRIX_VFS_STAGED_T_DECLARED
+#define BRIX_VFS_STAGED_T_DECLARED
 typedef struct brix_vfs_staged_s brix_vfs_staged_t;
+#endif
+
+/* Per-request live-cred bag (phase-70 §4): raw forwardable credential BYTES the
+ * front door captured for this request (distinct from the dir-based select in
+ * brix_vfs_ctx_bind_backend_cred). The full definition lives in vfs_internal.h;
+ * ctx only holds a borrowed pointer, so a forward declaration suffices here. */
+typedef struct brix_deleg_live_s brix_deleg_live_t;
 
 /* Options for brix_vfs_copy() — mirrors brix_ns_copy_opts_t without pulling
  * the namespace_ops header into this public surface. */
@@ -94,12 +103,29 @@ typedef struct {
      * backend selection; today the VFS treats NULL as POSIX. */
     brix_sd_instance_t *sd;
     void                *cache_writethrough_cfg;
+    /* Phase-1 per-user backend credentials: the export's credential dir
+     * (borrowed from conf, NUL-terminated; NULL/"" = feature off) and the
+     * fallback policy. Set via brix_vfs_ctx_bind_backend_cred(). */
+    const char          *storage_cred_dir;
+    /* Phase-2 T9 opt-in credential minting: mint CA cert/key paths and the
+     * minted-proxy TTL (borrowed from conf, NUL-terminated; cert==NULL/""
+     * = minting off). Set via brix_vfs_ctx_bind_backend_mint(); only wired at
+     * the data-plane sites where minting is meaningful (davs/S3 GET/PUT). */
+    const char          *storage_cred_mint_ca_cert;
+    const char          *storage_cred_mint_ca_key;
+    ngx_uint_t           storage_cred_mint_ttl;
+    /* Phase-70 §4 delegation live-cred bag: the front door binds captured
+     * forwardable credential BYTES (bearer text / full x509 proxy PEM) + the
+     * resolved delegation mode here via brix_vfs_ctx_bind_backend_deleg(). NULL
+     * = no live bag ⇒ the cred gate stays on the SELECT path (phase-1). */
+    brix_deleg_live_t   *deleg_live;
     brix_path_result_t resolved;
     unsigned             allow_write:1;
     unsigned             is_tls:1;
     unsigned             want_pgcrc:1;
     unsigned             cache_enabled:1;
     unsigned             cache_writethrough:1;
+    unsigned             storage_cred_deny:1;
 } brix_vfs_ctx_t;
 
 /* Populate *vctx for a transient (rootfd = -1) confined open of an
@@ -111,6 +137,70 @@ void brix_vfs_ctx_init(brix_vfs_ctx_t *vctx, ngx_pool_t *pool,
     ngx_log_t *log, brix_proto_t proto, const char *root_canon,
     const char *cache_root_canon, int allow_write, int is_tls,
     brix_identity_t *identity, const char *resolved_path);
+
+/* Bind the export's per-user backend credential policy onto an already-
+ * initialised VFS ctx (called immediately after brix_vfs_ctx_init at data-plane
+ * open/staged-open sites). cred_dir->len==0 or cred_dir==NULL disables the
+ * feature for this ctx (brix_vfs_backend_cred returns NGX_OK, use_cred=0). */
+void brix_vfs_ctx_bind_backend_cred(brix_vfs_ctx_t *vctx,
+    const ngx_str_t *cred_dir, ngx_uint_t fallback_deny);
+
+/* Bind the export's opt-in credential-minting config (phase-2 T9) onto an
+ * already-initialised VFS ctx. Call AFTER brix_vfs_ctx_bind_backend_cred, at
+ * data-plane sites only (davs/S3 GET/PUT) — namespace-only ops never need to
+ * mint. ca_cert->len==0 disables minting for this ctx (the gate behaves
+ * exactly as Phase-1: DECLINED stays DECLINED). */
+void brix_vfs_ctx_bind_backend_mint(brix_vfs_ctx_t *vctx,
+    const ngx_str_t *ca_cert, const ngx_str_t *ca_key, ngx_uint_t ttl_secs);
+
+/* Bind a per-request delegation live-cred bag (phase-70 §4) onto an already-
+ * initialised VFS ctx. `live` carries the raw forwardable credential BYTES the
+ * front door captured (bearer text / full x509 proxy PEM) plus the resolved
+ * brix_cred_mode; it is borrowed (owned by the caller's request pool) and must
+ * outlive the VFS op. A NULL bag leaves the ctx on the SELECT path (phase-1).
+ * Defined in vfs_deleg.c. */
+void brix_vfs_ctx_bind_backend_deleg(brix_vfs_ctx_t *vctx,
+    brix_deleg_live_t *live);
+
+/* Report the delegation mode resolved for this ctx: the bound live bag's mode,
+ * or BRIX_CRED_SELECT when no bag is bound. Defined in vfs_deleg.c. */
+enum brix_cred_mode brix_vfs_backend_mode(brix_vfs_ctx_t *vctx);
+
+/* Snapshot the ctx's bound delegation bytes so a caller can re-bind the same
+ * credential onto a derived/child ctx (phase-70). Writes the resolved mode into
+ * *mode and, if `bearer` is non-NULL, the raw JWT (borrowed — same lifetime as
+ * the source bag). Sets *mode=BRIX_CRED_SELECT and an empty bearer when no bag is
+ * bound. The proxy PEM is not exposed here (it is a 0600-materialised secret that
+ * must be re-captured, not copied around). Defined in vfs_deleg.c. */
+void brix_vfs_deleg_snapshot(const brix_vfs_ctx_t *vctx,
+    enum brix_cred_mode *mode, ngx_str_t *bearer);
+
+/* Allocate a delegation live-cred bag from `pool`, populate it with the captured
+ * forwardable credential BYTES, and bind it onto `vctx` (phase-70 §5.1/§5.4).
+ *
+ * `mode` is the export's resolved brix_cred_mode (conf->common.backend_delegation);
+ * when it is BRIX_CRED_SELECT this is a no-op (the ctx stays on the dir-based
+ * SELECT path). `bearer` is the raw JWT text (or {0,NULL} when none was captured);
+ * `proxy_pem` is a user-supplied full x509 proxy PEM (or {0,NULL}). Both byte
+ * ranges must be owned by `pool` and outlive every VFS op on `vctx`; they are
+ * borrowed, not copied. Returns NGX_OK on success (or the mode-SELECT no-op),
+ * NGX_ERROR on OOM. The bag itself is opaque to protocol handlers — this is the
+ * single constructor so the struct layout stays private to the VFS. Defined in
+ * vfs_deleg.c. */
+ngx_int_t brix_vfs_deleg_bind(ngx_pool_t *pool, brix_vfs_ctx_t *vctx,
+    enum brix_cred_mode mode, const ngx_str_t *bearer,
+    const ngx_str_t *proxy_pem);
+
+/* Populate the EXCHANGE conf on the ctx's bound live-cred bag (phase-70 §5.4).
+ * Call at capture time, AFTER brix_vfs_deleg_bind, when the export's mode is
+ * BRIX_CRED_EXCHANGE: `endpoint`/`client_id`/`client_secret` come from
+ * conf->common.backend_tx_* and `audience` from the first backend_token_aud
+ * entry. All strings are borrowed (conf-owned, NUL-terminated) and must outlive
+ * the VFS op. A no-op when no bag is bound or `endpoint` is empty — the cred gate
+ * then degrades EXCHANGE to verbatim bearer passthrough. Defined in vfs_deleg.c. */
+void brix_vfs_deleg_set_exchange(brix_vfs_ctx_t *vctx,
+    const ngx_str_t *endpoint, const ngx_str_t *client_id,
+    const ngx_str_t *client_secret, const ngx_str_t *audience);
 
 /* The export-root-relative ("logical") form of an absolute confined `path` — the
  * key an inst-keyed storage driver expects (what brix_vfs_open passes to the
@@ -142,14 +232,29 @@ ngx_fd_t brix_vfs_file_fd(const brix_vfs_file_t *fh);
 ngx_int_t brix_vfs_adopt_obj(brix_vfs_ctx_t *ctx, const char *path,
     brix_sd_obj_t *o, unsigned writable, brix_vfs_file_t **out);
 
+/* WHAT: The handle-tagging attributes for brix_vfs_adopt_fd — the two per-adopt
+ *       flags that describe how the wrapped fd should be recorded, bundled so the
+ *       adopt call stays at five parameters (the per-call ctx/path/fd/out vary
+ *       every call; these classify the handle).
+ * WHY:  `from_cache` and `writable` always travel together as the "how to tag
+ *       this handle" group — grouping them keeps the primitive's signature within
+ *       the arity budget without hiding the per-call pointers behind a struct.
+ * HOW:  `from_cache` tags the handle as served from the read-through cache;
+ *       `writable` is non-zero iff the fd was opened for writing (it gates the
+ *       stat_current fast path — a writable handle never trusts its open-time
+ *       metadata, a read-only one always can). Both are treated as booleans. */
+typedef struct {
+    unsigned  from_cache;   /* tag the handle as cache-served */
+    unsigned  writable;     /* fd opened for writing (gates stat_current) */
+} brix_vfs_adopt_attrs_t;
+
 /* Wrap an already-open kernel fd in a NEW VFS read handle (the default POSIX
  * driver), fstat'ing it into the handle metadata. The handle is sendfile-capable
  * (CAP_FD|CAP_SENDFILE). Used to serve a materialized local temp file through the
- * shared sendfile pipeline. `from_cache` tags the handle; `writable` is 0 for a
- * read handle. NGX_OK with *out set, or NGX_ERROR (errno set). */
+ * shared sendfile pipeline. `attrs` tags the handle (from_cache / writable — see
+ * brix_vfs_adopt_attrs_t). NGX_OK with *out set, or NGX_ERROR (errno set). */
 ngx_int_t brix_vfs_adopt_fd(brix_vfs_ctx_t *ctx, const char *path,
-    ngx_fd_t fd, unsigned from_cache, unsigned writable,
-    brix_vfs_file_t **out);
+    ngx_fd_t fd, brix_vfs_adopt_attrs_t attrs, brix_vfs_file_t **out);
 
 /* Copy the handle's storage-driver object (driver + instance + fd) into *out.
  * Layer 3: lets a caller route whole-object I/O (e.g. checksum-at-rest) through

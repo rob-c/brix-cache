@@ -103,9 +103,13 @@ brix_fattr_get(brix_conn *c, const char *path, const char *name,
         xrdw_fattr_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
 
-    if (brix_roundtrip(c, &req, payload, plen, &status, &body, &blen, st) != 0) {
-        free(payload);
-        return -1;
+    {
+        brix_payload  pl  = { payload, plen };
+        brix_resp_out out = { &status, &body, &blen };
+        if (brix_roundtrip(c, &req, &pl, &out, st) != 0) {
+            free(payload);
+            return -1;
+        }
     }
     free(payload);
 
@@ -161,9 +165,13 @@ fattr_set_or_del(brix_conn *c, const char *path, const char *name,
         xrdw_fattr_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
 
-    if (brix_roundtrip(c, &req, payload, plen, &status, &body, &blen, st) != 0) {
-        free(payload);
-        return -1;
+    {
+        brix_payload  pl  = { payload, plen };
+        brix_resp_out out = { &status, &body, &blen };
+        if (brix_roundtrip(c, &req, &pl, &out, st) != 0) {
+            free(payload);
+            return -1;
+        }
     }
     free(payload);
 
@@ -221,9 +229,13 @@ brix_fattr_list(brix_conn *c, const char *path, char *out, size_t bufsz,
         xrdw_fattr_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
 
-    if (brix_roundtrip(c, &req, payload, plen, &status, &body, &blen, st) != 0) {
-        free(payload);
-        return -1;
+    {
+        brix_payload  pl  = { payload, plen };
+        brix_resp_out out = { &status, &body, &blen };
+        if (brix_roundtrip(c, &req, &pl, &out, st) != 0) {
+            free(payload);
+            return -1;
+        }
     }
     free(payload);
 

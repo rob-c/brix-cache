@@ -2,104 +2,149 @@
  * kxr_names.c — kXR wire-vocabulary name tables (see kxr_names.h).
  *
  * Single source of truth for the human names of kXR request opcodes, response
- * status codes, and error codes. Pure switch tables over src/protocol/opcodes.h;
- * ngx-free, so they build identically into the module and into libxrdproto.
+ * status codes, and error codes. Static lookup tables over
+ * src/protocol/opcodes.h; ngx-free, so they build identically into the module
+ * and into libxrdproto.
  */
+#include <stddef.h>
+
 #include "kxr_names.h"
 #include "protocols/root/protocol/opcodes.h"
+
+/*
+ * WHAT: one code→name row of a kXR vocabulary table.
+ * WHY:  lets all three name functions share a single lookup helper instead of
+ *       three switch ladders.
+ * HOW:  plain int code (all kXR vocabularies fit) plus its literal name.
+ */
+typedef struct {
+    int         code;
+    const char *name;
+} kxr_name_entry_t;
+
+static const kxr_name_entry_t  kxr_request_names[] = {
+    { kXR_auth,     "kXR_auth"     },
+    { kXR_query,    "kXR_query"    },
+    { kXR_chmod,    "kXR_chmod"    },
+    { kXR_close,    "kXR_close"    },
+    { kXR_dirlist,  "kXR_dirlist"  },
+    { kXR_gpfile,   "kXR_gpfile"   },
+    { kXR_protocol, "kXR_protocol" },
+    { kXR_login,    "kXR_login"    },
+    { kXR_mkdir,    "kXR_mkdir"    },
+    { kXR_mv,       "kXR_mv"       },
+    { kXR_open,     "kXR_open"     },
+    { kXR_ping,     "kXR_ping"     },
+    { kXR_chkpoint, "kXR_chkpoint" },
+    { kXR_read,     "kXR_read"     },
+    { kXR_rm,       "kXR_rm"       },
+    { kXR_rmdir,    "kXR_rmdir"    },
+    { kXR_sync,     "kXR_sync"     },
+    { kXR_stat,     "kXR_stat"     },
+    { kXR_set,      "kXR_set"      },
+    { kXR_write,    "kXR_write"    },
+    { kXR_fattr,    "kXR_fattr"    },
+    { kXR_prepare,  "kXR_prepare"  },
+    { kXR_statx,    "kXR_statx"    },
+    { kXR_endsess,  "kXR_endsess"  },
+    { kXR_bind,     "kXR_bind"     },
+    { kXR_readv,    "kXR_readv"    },
+    { kXR_pgwrite,  "kXR_pgwrite"  },
+    { kXR_locate,   "kXR_locate"   },
+    { kXR_truncate, "kXR_truncate" },
+    { kXR_sigver,   "kXR_sigver"   },
+    { kXR_pgread,   "kXR_pgread"   },
+    { kXR_writev,   "kXR_writev"   },
+    { kXR_clone,    "kXR_clone"    },
+};
+
+static const kxr_name_entry_t  kxr_response_status_names[] = {
+    { kXR_ok,       "ok"       },
+    { kXR_oksofar,  "oksofar"  },
+    { kXR_attn,     "attn"     },
+    { kXR_authmore, "authmore" },
+    { kXR_error,    "error"    },
+    { kXR_redirect, "redirect" },
+    { kXR_wait,     "wait"     },
+    { kXR_waitresp, "waitresp" },
+    { kXR_status,   "status"   },
+};
+
+static const kxr_name_entry_t  kxr_error_names[] = {
+    { kXR_ArgInvalid,     "ArgInvalid"     },
+    { kXR_ArgMissing,     "ArgMissing"     },
+    { kXR_ArgTooLong,     "ArgTooLong"     },
+    { kXR_FileLocked,     "FileLocked"     },
+    { kXR_FileNotOpen,    "FileNotOpen"    },
+    { kXR_FSError,        "FSError"        },
+    { kXR_InvalidRequest, "InvalidRequest" },
+    { kXR_IOError,        "IOError"        },
+    { kXR_NoMemory,       "NoMemory"       },
+    { kXR_NoSpace,        "NoSpace"        },
+    { kXR_NotAuthorized,  "NotAuthorized"  },
+    { kXR_NotFound,       "NotFound"       },
+    { kXR_ServerError,    "ServerError"    },
+    { kXR_Unsupported,    "Unsupported"    },
+    { kXR_noserver,       "noserver"       },
+    { kXR_NotFile,        "NotFile"        },
+    { kXR_isDirectory,    "isDirectory"    },
+    { kXR_Cancelled,      "Cancelled"      },
+    { kXR_ItExists,       "ItExists"       },
+    { kXR_ChkSumErr,      "ChkSumErr"      },
+    { kXR_inProgress,     "inProgress"     },
+    { kXR_overQuota,      "overQuota"      },
+    { kXR_Overloaded,     "Overloaded"     },
+    { kXR_fsReadOnly,     "fsReadOnly"     },
+    { kXR_AttrNotFound,   "AttrNotFound"   },
+    { kXR_TLSRequired,    "TLSRequired"    },
+    { kXR_AuthFailed,     "AuthFailed"     },
+    { kXR_Impossible,     "Impossible"     },
+    { kXR_Conflict,       "Conflict"       },
+    { kXR_TooManyErrs,    "TooManyErrs"    },
+};
+
+/*
+ * WHAT: look a code up in a kXR name table.
+ * WHY:  shared by the three vocabulary name functions so each stays a
+ *       one-line wrapper over its table (replaces three switch ladders).
+ * HOW:  linear scan (tables are small and lookups are log-path only);
+ *       returns the caller's fallback string when the code is absent.
+ */
+static const char *
+kxr_lookup(const kxr_name_entry_t *table, size_t n, int code,
+           const char *fallback)
+{
+    size_t  i;
+
+    for (i = 0; i < n; i++) {
+        if (table[i].code == code) {
+            return table[i].name;
+        }
+    }
+
+    return fallback;
+}
+
+#define KXR_TABLE_N(t)  (sizeof(t) / sizeof((t)[0]))
 
 const char *
 brix_kxr_request_name(int reqid)
 {
-    switch (reqid) {
-    case kXR_auth:     return "kXR_auth";
-    case kXR_query:    return "kXR_query";
-    case kXR_chmod:    return "kXR_chmod";
-    case kXR_close:    return "kXR_close";
-    case kXR_dirlist:  return "kXR_dirlist";
-    case kXR_gpfile:   return "kXR_gpfile";
-    case kXR_protocol: return "kXR_protocol";
-    case kXR_login:    return "kXR_login";
-    case kXR_mkdir:    return "kXR_mkdir";
-    case kXR_mv:       return "kXR_mv";
-    case kXR_open:     return "kXR_open";
-    case kXR_ping:     return "kXR_ping";
-    case kXR_chkpoint: return "kXR_chkpoint";
-    case kXR_read:     return "kXR_read";
-    case kXR_rm:       return "kXR_rm";
-    case kXR_rmdir:    return "kXR_rmdir";
-    case kXR_sync:     return "kXR_sync";
-    case kXR_stat:     return "kXR_stat";
-    case kXR_set:      return "kXR_set";
-    case kXR_write:    return "kXR_write";
-    case kXR_fattr:    return "kXR_fattr";
-    case kXR_prepare:  return "kXR_prepare";
-    case kXR_statx:    return "kXR_statx";
-    case kXR_endsess:  return "kXR_endsess";
-    case kXR_bind:     return "kXR_bind";
-    case kXR_readv:    return "kXR_readv";
-    case kXR_pgwrite:  return "kXR_pgwrite";
-    case kXR_locate:   return "kXR_locate";
-    case kXR_truncate: return "kXR_truncate";
-    case kXR_sigver:   return "kXR_sigver";
-    case kXR_pgread:   return "kXR_pgread";
-    case kXR_writev:   return "kXR_writev";
-    case kXR_clone:    return "kXR_clone";
-    default:           return "req?";
-    }
+    return kxr_lookup(kxr_request_names, KXR_TABLE_N(kxr_request_names),
+                      reqid, "req?");
 }
 
 const char *
 brix_kxr_response_status_name(int status)
 {
-    switch (status) {
-    case kXR_ok:       return "ok";
-    case kXR_oksofar:  return "oksofar";
-    case kXR_attn:     return "attn";
-    case kXR_authmore: return "authmore";
-    case kXR_error:    return "error";
-    case kXR_redirect: return "redirect";
-    case kXR_wait:     return "wait";
-    case kXR_waitresp: return "waitresp";
-    case kXR_status:   return "status";
-    default:           return "status?";
-    }
+    return kxr_lookup(kxr_response_status_names,
+                      KXR_TABLE_N(kxr_response_status_names),
+                      status, "status?");
 }
 
 const char *
 brix_kxr_error_name(int kxr)
 {
-    switch (kxr) {
-    case kXR_ArgInvalid:     return "ArgInvalid";
-    case kXR_ArgMissing:     return "ArgMissing";
-    case kXR_ArgTooLong:     return "ArgTooLong";
-    case kXR_FileLocked:     return "FileLocked";
-    case kXR_FileNotOpen:    return "FileNotOpen";
-    case kXR_FSError:        return "FSError";
-    case kXR_InvalidRequest: return "InvalidRequest";
-    case kXR_IOError:        return "IOError";
-    case kXR_NoMemory:       return "NoMemory";
-    case kXR_NoSpace:        return "NoSpace";
-    case kXR_NotAuthorized:  return "NotAuthorized";
-    case kXR_NotFound:       return "NotFound";
-    case kXR_ServerError:    return "ServerError";
-    case kXR_Unsupported:    return "Unsupported";
-    case kXR_noserver:       return "noserver";
-    case kXR_NotFile:        return "NotFile";
-    case kXR_isDirectory:    return "isDirectory";
-    case kXR_Cancelled:      return "Cancelled";
-    case kXR_ItExists:       return "ItExists";
-    case kXR_ChkSumErr:      return "ChkSumErr";
-    case kXR_inProgress:     return "inProgress";
-    case kXR_overQuota:      return "overQuota";
-    case kXR_Overloaded:     return "Overloaded";
-    case kXR_fsReadOnly:     return "fsReadOnly";
-    case kXR_AttrNotFound:   return "AttrNotFound";
-    case kXR_TLSRequired:    return "TLSRequired";
-    case kXR_AuthFailed:     return "AuthFailed";
-    case kXR_Impossible:     return "Impossible";
-    case kXR_Conflict:       return "Conflict";
-    case kXR_TooManyErrs:    return "TooManyErrs";
-    default:                 return "Unknown";
-    }
+    return kxr_lookup(kxr_error_names, KXR_TABLE_N(kxr_error_names),
+                      kxr, "Unknown");
 }

@@ -226,7 +226,14 @@ stage_waiter_deliver_one(const stage_waiter_t *w)
         ctx->prepare.stage_async_active = 1;
         ctx->prepare.stage_async_streamid[0] = w->client_streamid[0];
         ctx->prepare.stage_async_streamid[1] = w->client_streamid[1];
-        (void) brix_open_resolved_file(ctx, c, conf, rec.lfn, w->options, 0, 0, 0);
+        brix_open_request_t oreq = {
+            .resolved  = rec.lfn,
+            .options   = w->options,
+            .mode_bits = 0,
+            .is_write  = 0,
+            .codec     = 0,
+        };
+        (void) brix_open_resolved_file(ctx, c, conf, &oreq);
         ctx->prepare.stage_async_active = 0;
     } else {
         /* Recall failed (or the record vanished): deliver a hard error so the

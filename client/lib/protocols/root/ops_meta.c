@@ -185,19 +185,20 @@ dirlist_once(brix_conn *c, const char *path, int want_stat,
     /* First frame via roundtrip (follows a cluster redirect to the data server);
      * subsequent kXR_oksofar chunks come from that same post-redirect connection. */
     {
-        uint8_t *body = NULL;
-        uint32_t blen = 0;
-        int      first = 1;
+        uint8_t      *body = NULL;
+        uint32_t      blen = 0;
+        int           first = 1;
+        brix_payload  pl  = { path, (uint32_t) strlen(path) };
+        brix_resp_out out = { &status, &body, &blen };
 
         for (;;) {
             if (first) {
-                if (brix_roundtrip(c, &req, path, (uint32_t) strlen(path),
-                                   &status, &body, &blen, st) != 0) {
+                if (brix_roundtrip(c, &req, &pl, &out, st) != 0) {
                     free(acc);
                     return -1;
                 }
                 first = 0;
-            } else if (brix_recv(c, 0xffff, &status, &body, &blen, st) != 0) {
+            } else if (brix_recv(c, 0xffff, &out, st) != 0) {
                 free(acc);
                 return -1;
             }

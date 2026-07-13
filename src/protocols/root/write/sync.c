@@ -43,6 +43,21 @@ brix_handle_sync(brix_ctx_t *ctx, ngx_connection_t *c)
 									 idx);
 	}
 
+	/* Whole-object staged-commit adapter (phase-70): a staged write handle has no
+	 * fd to fsync — kXR_sync COMMITS the whole object (single backend PUT). The
+	 * commit is idempotent so a later kXR_close is a no-op. */
+	if (ctx->files[idx].staged != NULL) {
+		int cerr = 0;
+
+		if (brix_staged_commit_handle(ctx, idx, &cerr) != NGX_OK) {
+			BRIX_RETURN_ERR(ctx, c, BRIX_OP_SYNC, "SYNC",
+							  ctx->files[idx].path, "-",
+							  kXR_IOError, strerror(cerr));
+		}
+		BRIX_RETURN_OK(ctx, c, BRIX_OP_SYNC, "SYNC",
+						 ctx->files[idx].path, "-", 0);
+	}
+
 	{
 		brix_vfs_job_t job;
 

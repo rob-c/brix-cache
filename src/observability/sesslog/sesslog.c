@@ -130,7 +130,10 @@ brix_sess_append(brix_sess_buf_t *b, const char *fmt, ...)
     }
 
     va_start(ap, fmt);
-    n = vsnprintf(b->pos, b->rem, fmt, ap);
+    /* phase74-fp: fmt is always a compile-time string literal — every caller of
+     * this static varargs forwarder passes a literal format (audited; no table,
+     * no user input reaches fmt). */
+    n = vsnprintf(b->pos, b->rem, fmt, ap);  /* NOLINT(clang-diagnostic-format-nonliteral) */
     va_end(ap);
 
     if (n < 0) {
@@ -338,21 +341,20 @@ brix_sesslog_fmt_connect(char *line, size_t line_max, const brix_sess_t *s,
 
 size_t
 brix_sesslog_fmt_auth(char *line, size_t line_max, const brix_sess_t *s,
-    int ok, brix_sess_am_t method, const char *user, const char *vo,
-    const char *err, brix_sess_sanitize_fn san)
+    const brix_sesslog_auth_fields_t *f, brix_sess_sanitize_fn san)
 {
     brix_sess_buf_t b = brix_sess_buf(line, line_max);
 
-    if (s == NULL) {
+    if (s == NULL || f == NULL) {
         return 0;
     }
 
     brix_sess_append(&b, "SESS %s AUTH %s method=%s", s->id,
-                     ok ? "ok" : "fail", brix_sesslog_am_label(method));
-    brix_sess_append_quoted(&b, "user", user, BRIX_SESSLOG_USER_MAX, san);
-    brix_sess_append_quoted(&b, "vo", vo, BRIX_SESSLOG_VO_MAX, san);
-    if (!ok) {
-        brix_sess_append_quoted(&b, "err", err != NULL ? err : "code:0",
+                     f->ok ? "ok" : "fail", brix_sesslog_am_label(f->method));
+    brix_sess_append_quoted(&b, "user", f->user, BRIX_SESSLOG_USER_MAX, san);
+    brix_sess_append_quoted(&b, "vo", f->vo, BRIX_SESSLOG_VO_MAX, san);
+    if (!f->ok) {
+        brix_sess_append_quoted(&b, "err", f->err != NULL ? f->err : "code:0",
                                 BRIX_SESSLOG_ERR_MAX, san);
     }
     brix_sess_append(&b, "\n");
@@ -362,37 +364,36 @@ brix_sesslog_fmt_auth(char *line, size_t line_max, const brix_sess_t *s,
 
 size_t
 brix_sesslog_fmt_attempt(char *line, size_t line_max, const brix_sess_t *s,
-    const char *path, brix_sess_mode_t mode, brix_sess_sanitize_fn san)
+    const brix_sesslog_attempt_fields_t *f, brix_sess_sanitize_fn san)
 {
     brix_sess_buf_t b = brix_sess_buf(line, line_max);
 
-    if (s == NULL) {
+    if (s == NULL || f == NULL) {
         return 0;
     }
 
     brix_sess_append(&b, "SESS %s ATTEMPT", s->id);
-    brix_sess_append_quoted(&b, "path", path, BRIX_SESSLOG_PATH_MAX, san);
-    brix_sess_append(&b, " mode=%s\n", brix_sesslog_mode_label(mode));
+    brix_sess_append_quoted(&b, "path", f->path, BRIX_SESSLOG_PATH_MAX, san);
+    brix_sess_append(&b, " mode=%s\n", brix_sesslog_mode_label(f->mode));
 
     return b.used;
 }
 
 size_t
 brix_sesslog_fmt_result(char *line, size_t line_max, const brix_sess_t *s,
-    int ok, const char *path, brix_sess_mode_t mode, const char *err,
-    brix_sess_sanitize_fn san)
+    const brix_sesslog_result_fields_t *f, brix_sess_sanitize_fn san)
 {
     brix_sess_buf_t b = brix_sess_buf(line, line_max);
 
-    if (s == NULL) {
+    if (s == NULL || f == NULL) {
         return 0;
     }
 
-    brix_sess_append(&b, "SESS %s RESULT %s", s->id, ok ? "ok" : "fail");
-    brix_sess_append_quoted(&b, "path", path, BRIX_SESSLOG_PATH_MAX, san);
-    brix_sess_append(&b, " mode=%s", brix_sesslog_mode_label(mode));
-    if (!ok) {
-        brix_sess_append_quoted(&b, "err", err != NULL ? err : "code:0",
+    brix_sess_append(&b, "SESS %s RESULT %s", s->id, f->ok ? "ok" : "fail");
+    brix_sess_append_quoted(&b, "path", f->path, BRIX_SESSLOG_PATH_MAX, san);
+    brix_sess_append(&b, " mode=%s", brix_sesslog_mode_label(f->mode));
+    if (!f->ok) {
+        brix_sess_append_quoted(&b, "err", f->err != NULL ? f->err : "code:0",
                                 BRIX_SESSLOG_ERR_MAX, san);
     }
     brix_sess_append(&b, "\n");
@@ -402,22 +403,23 @@ brix_sesslog_fmt_result(char *line, size_t line_max, const brix_sess_t *s,
 
 size_t
 brix_sesslog_fmt_xfer(char *line, size_t line_max, const brix_sess_t *s,
-    const brix_sess_xfer_t *x, brix_sess_xfer_status_t st,
-    uint64_t now_msec, brix_sess_sanitize_fn san)
+    const brix_sesslog_xfer_fields_t *f, brix_sess_sanitize_fn san)
 {
-    brix_sess_buf_t b = brix_sess_buf(line, line_max);
-    uint64_t        dur;
-    uint64_t        avg;
+    brix_sess_buf_t          b = brix_sess_buf(line, line_max);
+    const brix_sess_xfer_t  *x;
+    uint64_t                 dur;
+    uint64_t                 avg;
 
-    if (s == NULL || x == NULL) {
+    if (s == NULL || f == NULL || f->x == NULL) {
         return 0;
     }
 
-    dur = brix_sess_duration(x->start_msec, now_msec);
+    x = f->x;
+    dur = brix_sess_duration(x->start_msec, f->now_msec);
     avg = brix_sess_rate(x->bytes, dur);
 
     brix_sess_append(&b, "SESS %s XFER %s", s->id,
-                     brix_sesslog_xfer_label(st));
+                     brix_sesslog_xfer_label(f->st));
     brix_sess_append_quoted(&b, "path", x->path,
                             BRIX_SESSLOG_PENDING_PATH_MAX, san);
     brix_sess_append(&b, " mode=%s bytes=%llu/",
@@ -436,157 +438,179 @@ brix_sesslog_fmt_xfer(char *line, size_t line_max, const brix_sess_t *s,
 
 size_t
 brix_sesslog_fmt_end(char *line, size_t line_max, const brix_sess_t *s,
-    brix_sess_end_t why, uint64_t now_msec, brix_sess_sanitize_fn san)
+    const brix_sesslog_end_fields_t *f, brix_sess_sanitize_fn san)
 {
     brix_sess_buf_t b = brix_sess_buf(line, line_max);
 
     (void) san;
-    if (s == NULL) {
+    if (s == NULL || f == NULL) {
         return 0;
     }
 
     brix_sess_append(&b, "SESS %s END reason=%s dur=%llu\n", s->id,
-                     brix_sesslog_end_label(why),
+                     brix_sesslog_end_label(f->why),
                      (unsigned long long) brix_sess_duration(s->start_msec,
-                                                             now_msec));
+                                                             f->now_msec));
 
     return b.used;
 }
 
 /*
+ * WHAT: One (numeric code -> stable token) mapping row.
+ * WHY: The three err-from-* families share an identical shape — a small fixed
+ * set of codes collapsing onto a low-cardinality token — so expressing each as
+ * data (a table) rather than a switch ladder removes the per-family branching
+ * complexity while keeping the emitted strings byte-identical.
+ * HOW: Plain value struct scanned linearly by brix_sess_err_lookup().
+ */
+typedef struct {
+    int         code;
+    const char *token;
+} brix_sess_err_entry_t;
+
+/*
+ * WHAT: Resolve a numeric code against a fixed mapping table, returning the
+ * matched token or a formatted "code:<n>" fallback.
+ * WHY: All three public err-from-* accessors want the same lookup-then-fallback
+ * behaviour; centralising it keeps the fallback formatting (and the scratch/NULL
+ * contract) in exactly one place.
+ * HOW: (1) Linearly scan the table for an exact code match and return its token.
+ * (2) On no match, write "code:<code>" into scratch when a buffer is supplied,
+ * otherwise return the static "code:0" sentinel — matching the prior default arm.
+ */
+static const char *
+brix_sess_err_lookup(const brix_sess_err_entry_t *table, size_t count,
+    int code, char *scratch, size_t n)
+{
+    size_t i;
+
+    for (i = 0; i < count; i++) {
+        if (table[i].code == code) {
+            return table[i].token;
+        }
+    }
+
+    if (scratch != NULL && n > 0) {
+        snprintf(scratch, n, "code:%d", code);
+        return scratch;
+    }
+
+    return "code:0";
+}
+
+/*
+ * errno -> stable sesslog token map. EDQUOT/EOPNOTSUPP are conditionally present
+ * because they are not defined on every platform; keeping them behind the same
+ * #ifdef guards as the former switch arms preserves byte-identical behaviour.
+ */
+static const brix_sess_err_entry_t  brix_sess_errno_table[] = {
+    { ENOENT,       "not-found" },
+    { ENOTDIR,      "not-found" },
+    { EACCES,       "permission" },
+    { EPERM,        "permission" },
+    { EINVAL,       "invalid" },
+    { ENAMETOOLONG, "invalid" },
+    { EIO,          "io" },
+    { ENOMEM,       "no-memory" },
+    { ENOSPC,       "no-space" },
+#ifdef EDQUOT
+    { EDQUOT,       "no-space" },
+#endif
+    { EEXIST,       "exists" },
+    { EBUSY,        "busy" },
+#ifdef EOPNOTSUPP
+    { EOPNOTSUPP,   "unsupported" },
+#endif
+    { ETIMEDOUT,    "timeout" },
+};
+
+/* XRootD kXR_* error code -> stable sesslog token map. */
+static const brix_sess_err_entry_t  brix_sess_kxr_table[] = {
+    { kXR_NotFound,       "not-found" },
+    { kXR_NotFile,        "not-found" },
+    { kXR_isDirectory,    "not-found" },
+    { kXR_AttrNotFound,   "not-found" },
+    { kXR_NotAuthorized,  "permission" },
+    { kXR_fsReadOnly,     "permission" },
+    { kXR_ArgInvalid,     "invalid" },
+    { kXR_ArgMissing,     "invalid" },
+    { kXR_ArgTooLong,     "invalid" },
+    { kXR_Conflict,       "invalid" },
+    { kXR_Impossible,     "invalid" },
+    { kXR_IOError,        "io" },
+    { kXR_FSError,        "io" },
+    { kXR_ServerError,    "io" },
+    { kXR_ChkSumErr,      "io" },
+    { kXR_NoMemory,       "no-memory" },
+    { kXR_NoSpace,        "no-space" },
+    { kXR_overQuota,      "no-space" },
+    { kXR_FileLocked,     "locked" },
+    { kXR_InvalidRequest, "exists" },
+    { kXR_ItExists,       "exists" },
+    { kXR_inProgress,     "busy" },
+    { kXR_Overloaded,     "busy" },
+    { kXR_Unsupported,    "unsupported" },
+    { kXR_TLSRequired,    "auth-required" },
+    { kXR_AuthFailed,     "bad-signature" },
+    { kXR_Cancelled,      "session-closed" },
+};
+
+/* HTTP status code -> stable sesslog token map. */
+static const brix_sess_err_entry_t  brix_sess_http_table[] = {
+    { 400, "invalid" },
+    { 401, "auth-required" },
+    { 403, "permission" },
+    { 404, "not-found" },
+    { 405, "unsupported" },
+    { 501, "unsupported" },
+    { 409, "exists" },
+    { 412, "exists" },
+    { 423, "locked" },
+    { 500, "io" },
+    { 502, "io" },
+    { 503, "busy" },
+    { 504, "timeout" },
+    { 507, "no-space" },
+};
+
+/*
  * WHAT: Map POSIX errno values to stable sesslog err tokens.
  * WHY: Raw strerror text is locale- and platform-dependent; operators need
  * low-cardinality tokens.
- * HOW: Return a static token for known cases, otherwise write code:<n>.
+ * HOW: Look the code up in brix_sess_errno_table, falling back to code:<n>.
  */
 const char *
 brix_sesslog_err_from_errno(int err, char *scratch, size_t n)
 {
-    switch (err) {
-    case ENOENT:
-    case ENOTDIR:
-        return "not-found";
-    case EACCES:
-    case EPERM:
-        return "permission";
-    case EINVAL:
-    case ENAMETOOLONG:
-        return "invalid";
-    case EIO:
-        return "io";
-    case ENOMEM:
-        return "no-memory";
-    case ENOSPC:
-#ifdef EDQUOT
-    case EDQUOT:
-#endif
-        return "no-space";
-    case EEXIST:
-        return "exists";
-    case EBUSY:
-        return "busy";
-#ifdef EOPNOTSUPP
-    case EOPNOTSUPP:
-        return "unsupported";
-#endif
-    case ETIMEDOUT:
-        return "timeout";
-    default:
-        if (scratch != NULL && n > 0) {
-            snprintf(scratch, n, "code:%d", err);
-            return scratch;
-        }
-        return "code:0";
-    }
+    return brix_sess_err_lookup(brix_sess_errno_table,
+        sizeof(brix_sess_errno_table) / sizeof(brix_sess_errno_table[0]),
+        err, scratch, n);
 }
 
+/*
+ * WHAT: Map XRootD kXR_* error codes to stable sesslog err tokens.
+ * WHY: Operators need one low-cardinality token per class of wire error rather
+ * than the raw numeric kXR code.
+ * HOW: Look the code up in brix_sess_kxr_table, falling back to code:<n>.
+ */
 const char *
 brix_sesslog_err_from_kxr(int kxr, char *scratch, size_t n)
 {
-    switch (kxr) {
-    case kXR_NotFound:
-    case kXR_NotFile:
-    case kXR_isDirectory:
-    case kXR_AttrNotFound:
-        return "not-found";
-    case kXR_NotAuthorized:
-    case kXR_fsReadOnly:
-        return "permission";
-    case kXR_ArgInvalid:
-    case kXR_ArgMissing:
-    case kXR_ArgTooLong:
-    case kXR_Conflict:
-    case kXR_Impossible:
-        return "invalid";
-    case kXR_IOError:
-    case kXR_FSError:
-    case kXR_ServerError:
-    case kXR_ChkSumErr:
-        return "io";
-    case kXR_NoMemory:
-        return "no-memory";
-    case kXR_NoSpace:
-    case kXR_overQuota:
-        return "no-space";
-    case kXR_FileLocked:
-        return "locked";
-    case kXR_InvalidRequest:
-    case kXR_ItExists:
-        return "exists";
-    case kXR_inProgress:
-    case kXR_Overloaded:
-        return "busy";
-    case kXR_Unsupported:
-        return "unsupported";
-    case kXR_TLSRequired:
-        return "auth-required";
-    case kXR_AuthFailed:
-        return "bad-signature";
-    case kXR_Cancelled:
-        return "session-closed";
-    default:
-        if (scratch != NULL && n > 0) {
-            snprintf(scratch, n, "code:%d", kxr);
-            return scratch;
-        }
-        return "code:0";
-    }
+    return brix_sess_err_lookup(brix_sess_kxr_table,
+        sizeof(brix_sess_kxr_table) / sizeof(brix_sess_kxr_table[0]),
+        kxr, scratch, n);
 }
 
+/*
+ * WHAT: Map HTTP status codes to stable sesslog err tokens.
+ * WHY: The WebDAV/S3 paths report failures as HTTP status; operators want the
+ * same token vocabulary the errno/kXR mappers emit.
+ * HOW: Look the status up in brix_sess_http_table, falling back to code:<n>.
+ */
 const char *
 brix_sesslog_err_from_http(int status, char *scratch, size_t n)
 {
-    switch (status) {
-    case 400:
-        return "invalid";
-    case 401:
-        return "auth-required";
-    case 403:
-        return "permission";
-    case 404:
-        return "not-found";
-    case 405:
-    case 501:
-        return "unsupported";
-    case 409:
-    case 412:
-        return "exists";
-    case 423:
-        return "locked";
-    case 500:
-    case 502:
-        return "io";
-    case 503:
-        return "busy";
-    case 504:
-        return "timeout";
-    case 507:
-        return "no-space";
-    default:
-        if (scratch != NULL && n > 0) {
-            snprintf(scratch, n, "code:%d", status);
-            return scratch;
-        }
-        return "code:0";
-    }
+    return brix_sess_err_lookup(brix_sess_http_table,
+        sizeof(brix_sess_http_table) / sizeof(brix_sess_http_table[0]),
+        status, scratch, n);
 }

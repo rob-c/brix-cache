@@ -21,11 +21,25 @@
 
 /* brix_vfs_driver_rmtree — depth-first delete of `logical` through the storage
  * driver: a file is unlinked directly; a directory has its children removed
- * (opendir/readdir recursion) before the now-empty directory itself. Generic over
- * any driver that implements stat/opendir/readdir/unlink. NGX_OK or NGX_ERROR. */
+ * (opendir/readdir recursion) before the now-empty directory itself.
+ *
+ * WHAT: Recursive WebDAV DELETE of a collection on a non-POSIX backend:
+ *       dispatches stat/opendir/readdir/unlink through the LEAF driver so that
+ *       per-user credentials (stat_cred / unlink_cred / opendir_cred) are
+ *       presented at every level of the tree, not just the top-level call.
+ *
+ * WHY:  Calling drv->stat(ctx->sd, …) / drv->unlink(ctx->sd, …) bypasses the
+ *       cred entirely because ctx->sd may be a decorator without *_cred slots.
+ *       Dispatching through brix_sd_*_maybe_cred on the leaf ensures that a
+ *       user credential, when present (use_cred=1), is threaded through the
+ *       entire recursive walk — not just the outermost call.
+ *
+ * HOW:  Accepts the pre-resolved leaf `leaf` and pre-computed `cred` pointer
+ *       (NULL when use_cred=0) from the caller, uses brix_sd_*_maybe_cred on
+ *       `leaf` for every driver call, and recurses with the same arguments. */
 static ngx_int_t
-brix_vfs_driver_rmtree(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
-    const char *logical)
+brix_vfs_driver_rmtree(brix_sd_instance_t *leaf, const brix_sd_driver_t *drv,
+    const char *logical, const brix_sd_cred_t *cred)
 {
     brix_sd_stat_t st;
 
@@ -33,7 +47,7 @@ brix_vfs_driver_rmtree(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
         errno = ENOSYS;
         return NGX_ERROR;
     }
-    if (drv->stat(ctx->sd, logical, &st) != NGX_OK) {
+    if (brix_sd_stat_maybe_cred(leaf, logical, &st, cred) != NGX_OK) {
         return NGX_ERROR;            /* ENOENT etc. — errno set by the driver */
     }
 
@@ -41,7 +55,7 @@ brix_vfs_driver_rmtree(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
         brix_sd_dir_t *dir;
         int              err = 0;
 
-        dir = drv->opendir(ctx->sd, logical, &err);
+        dir = brix_sd_opendir_maybe_cred(leaf, logical, &err, cred);
         if (dir != NULL) {
             brix_sd_dirent_t de;
             ngx_int_t          drc;
@@ -53,7 +67,7 @@ brix_vfs_driver_rmtree(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
                              (logical[0] == '/' && logical[1] == '\0')
                                  ? "" : logical,
                              de.name);
-                if (brix_vfs_driver_rmtree(ctx, drv, child) != NGX_OK) {
+                if (brix_vfs_driver_rmtree(leaf, drv, child, cred) != NGX_OK) {
                     drv->closedir(dir);
                     return NGX_ERROR;
                 }
@@ -63,10 +77,10 @@ brix_vfs_driver_rmtree(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
                 return NGX_ERROR;
             }
         }
-        return drv->unlink(ctx->sd, logical, 1);
+        return brix_sd_unlink_maybe_cred(leaf, logical, 1, cred);
     }
 
-    return drv->unlink(ctx->sd, logical, 0);
+    return brix_sd_unlink_maybe_cred(leaf, logical, 0, cred);
 }
 
 /* Shared delete body for unlink/rmdir: write-gate, then brix_ns_delete with
@@ -102,16 +116,42 @@ brix_vfs_delete(brix_vfs_ctx_t *ctx, unsigned recursive,
 
     /* Non-POSIX backend: delete through the driver namespace. A recursive delete
      * (WebDAV DELETE of a collection) walks the tree; a non-recursive delete is a
-     * file unlink or empty-rmdir (require_directory selects is_dir). */
+     * file unlink or empty-rmdir (require_directory selects is_dir).
+     * Dispatch on the leaf instance so *_maybe_cred forwarders find the leaf
+     * driver's *_cred slots (decorators have only plain relays). */
     drv = brix_vfs_ctx_driver(ctx);
     if (drv != NULL) {
-        const char *logical = brix_vfs_export_relative(ctx, path);
-        ngx_int_t   rc;
+        const char         *logical = brix_vfs_export_relative(ctx, path);
+        brix_sd_instance_t *leaf    = brix_vfs_ns_leaf(ctx->sd);
+        brix_sd_ucred_t     store;
+        brix_sd_cred_t      cred;
+        ngx_int_t           rc;
+        int                 use_cred = 0, cred_err = 0;
+
+        /* Zero before the gate: it fills only the active credential kind; an
+         * unzeroed cred hands a garbage inactive pointer to the driver's
+         * cred slot (bearer PASSTHROUGH would leave x509_proxy dangling). */
+        ngx_memzero(&cred, sizeof(cred));
+
+        if (brix_vfs_cred_gate_active(ctx)) {
+            if (brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err)
+                != NGX_OK)
+            {
+                saved_errno = cred_err ? cred_err : EACCES;
+                errno = saved_errno;
+                brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE,
+                                          NULL, 0, NGX_ERROR, saved_errno,
+                                          start);
+                return NGX_ERROR;
+            }
+        }
 
         if (recursive) {
-            rc = brix_vfs_driver_rmtree(ctx, drv, logical);
+            rc = brix_vfs_driver_rmtree(leaf, drv, logical,
+                                        use_cred ? &cred : NULL);
         } else if (drv->unlink != NULL) {
-            rc = drv->unlink(ctx->sd, logical, require_empty_dir ? 1 : 0);
+            rc = brix_sd_unlink_maybe_cred(leaf, logical,
+                     require_empty_dir ? 1 : 0, use_cred ? &cred : NULL);
         } else {
             errno = ENOSYS;
             rc = NGX_ERROR;

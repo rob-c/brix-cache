@@ -242,16 +242,194 @@ csi_record_regeom(brix_xmeta_t *xm, int64_t new_size, int64_t granule)
     return 0;
 }
 
+/* Open the file's own O_RDONLY fd for read-back and stat it. WHAT: flush reads
+ * the just-written bytes to recompute unaligned edges, so it needs a fresh read
+ * fd — the handle's data fd may already be closed or write-only. WHY: the
+ * recompute path (pread) and the geometry decision (st_size) both need a live,
+ * regular-file descriptor. HOW: open with the hardened flag set used elsewhere
+ * on this carrier, fstat, and reject anything that is not a regular file;
+ * returns the fd (>= 0) and fills *st, or -1 (fd closed) on any failure. */
+static int
+csi_flush_open_file(const brix_csi_t *c, struct stat *st)
+{
+    int fd = open(c->path, O_RDONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW);
+
+    if (fd < 0) {
+        return -1;
+    }
+    if (fstat(fd, st) != 0 || !S_ISREG(st->st_mode)) {
+        close(fd);
+        return -1;
+    }
+    return fd;
+}
+
+/* Load, create, or re-geometry the record so it matches the file on disk.
+ * WHAT: bring *xm into a state whose geometry (nblocks/buffer_size) and present
+ * bitmap describe the current file, and guarantee a non-NULL blockcrc table.
+ * WHY: the write handle may have grown/replaced the file, and a foreign/absent
+ * record must become a fresh, fully-present one this handle owns. HOW: load;
+ * on FOREIGN init a fresh fully-present record; on a size/geometry drift
+ * re-geometry (present bitmap set — the file is authoritative); then allocate
+ * the CRC table if missing. Returns BRIX_CSI_OK with *xm live (caller frees) or
+ * BRIX_CSI_ERR with *xm already released. */
+static int
+csi_flush_load_record(const brix_csi_t *c, const struct stat *st,
+    brix_xmeta_t *xm)
+{
+    int rc = brix_xmeta_path_load(c->path, xm);
+
+    if (rc == BRIX_XMETA_ERR
+        || (rc == BRIX_XMETA_FOREIGN
+            && brix_xmeta_init(xm, st->st_size,
+                                 (int64_t) c->granule) != BRIX_XMETA_OK))
+    {
+        return BRIX_CSI_ERR;
+    }
+
+    if (rc == BRIX_XMETA_FOREIGN) {
+        /* Fresh record for a file this handle wrote: fully present. */
+        xm->origin_mtime = (uint64_t) st->st_mtime;
+        if (xm->nblocks > 0) {
+            memset(xm->bitmap, 0xFF, (size_t) ((xm->nblocks + 7) / 8));
+        }
+    } else if (xm->file_size != st->st_size || xm->buffer_size <= 0) {
+        if (csi_record_regeom(xm, st->st_size,
+                              xm->buffer_size > 0 ? xm->buffer_size
+                                                  : (int64_t) c->granule) != 0)
+        {
+            brix_xmeta_free(xm);
+            return BRIX_CSI_ERR;
+        }
+        xm->origin_mtime = (uint64_t) st->st_mtime;
+    }
+
+    if (xm->blockcrc == NULL) {
+        xm->blockcrc = calloc(xm->nblocks ? (size_t) xm->nblocks : 1,
+                              sizeof(uint32_t));
+        if (xm->blockcrc == NULL) {
+            brix_xmeta_free(xm);
+            errno = ENOMEM;
+            return BRIX_CSI_ERR;
+        }
+    }
+    xm->have_blockcrc = 1;
+    return BRIX_CSI_OK;
+}
+
+/* Recompute one block's CRC by reading it back from disk. WHAT: pread block b
+ * (bounded by file_size) into *blockbuf and CRC it. WHY: a dirty-edge block
+ * with no folded CRC (misaligned write or geometry mismatch) must be recomputed
+ * from the authoritative on-disk bytes. HOW: allocate blockbuf lazily on first
+ * use (granule-sized, reused across blocks), EINTR-retry the pread, and on a
+ * full read store the CRC into xm->blockcrc[b]; returns 1 when the slot was
+ * filled, 0 on a short read / alloc failure (caller marks it UNSET). */
+static int
+csi_flush_recompute_block(int fd, brix_xmeta_t *xm, int64_t g, uint64_t b,
+    unsigned char **blockbuf)
+{
+    int64_t bstart = (int64_t) b * g;
+    int64_t bend   = bstart + g;
+    size_t  got = 0;
+
+    if (bend > xm->file_size) {
+        bend = xm->file_size;
+    }
+    if (*blockbuf == NULL) {
+        *blockbuf = malloc((size_t) g);
+    }
+    if (*blockbuf == NULL) {
+        return 0;
+    }
+    while (got < (size_t) (bend - bstart)) {
+        ssize_t n = pread(fd, *blockbuf + got,
+                          (size_t) (bend - bstart) - got,
+                          bstart + (off_t) got);
+
+        if (n < 0 && errno == EINTR) {
+            continue;
+        }
+        if (n <= 0) {
+            return 0;                   /* short read: cannot vouch for it */
+        }
+        got += (size_t) n;
+    }
+    xm->blockcrc[b] = brix_crc32c_value(*blockbuf, got);
+    return 1;
+}
+
+/* Give every block the dirty write extent touched a fresh CRC truth. WHAT: for
+ * each block in the dirty [lo,hi) block range, store the folded CRC when we
+ * trust it, else a bounded on-disk recompute, else UNSET. WHY: only the written
+ * extent can have stale CRCs; blocks outside it keep their recorded truth. HOW:
+ * derive the block range from the byte extent; fold when the granule matches and
+ * the local table did not overflow; otherwise recompute within a per-flush read
+ * budget (BRIX_CSI_FLUSH_READ blocks); anything unread is UNSET. Owns and frees
+ * the recompute scratch buffer. */
+static void
+csi_flush_rebuild_crcs(brix_csi_t *c, brix_xmeta_t *xm, int fd, int64_t g)
+{
+    unsigned char *blockbuf = NULL;
+    int            budget = BRIX_CSI_FLUSH_READ;
+    int            fold_ok = (g == (int64_t) c->granule && !c->overflow);
+    uint64_t       b;
+    uint64_t       b_lo = (uint64_t) (c->dirty_lo / g);
+    uint64_t       b_hi = (uint64_t) ((c->dirty_hi + g - 1) / g);
+
+    if (b_hi > xm->nblocks) {
+        b_hi = xm->nblocks;
+    }
+    for (b = b_lo; b < b_hi; b++) {
+        if (fold_ok && b < c->local_n
+            && c->local[b] != BRIX_XMETA_CRC_UNSET)
+        {
+            xm->blockcrc[b] = c->local[b];
+            continue;
+        }
+        if (budget > 0) {
+            budget--;
+            if (csi_flush_recompute_block(fd, xm, g, b, &blockbuf)) {
+                continue;
+            }
+        }
+        xm->blockcrc[b] = BRIX_XMETA_CRC_UNSET;    /* cannot vouch for it */
+    }
+    free(blockbuf);
+}
+
+/* Stamp the record's whole-file coverage timestamp. WHAT: set/clear
+ * no_cksum_time from whether any block CRC is still UNSET. WHY: the record
+ * tracks how long a file has lacked full checksum coverage (scrub / reporting);
+ * a first gap starts the clock, full coverage clears it. HOW: scan the CRC
+ * table for any UNSET slot; on a gap set no_cksum_time once (preserve an
+ * existing start), otherwise zero it. Pure record bookkeeping, no I/O. */
+static void
+csi_flush_mark_coverage(brix_xmeta_t *xm)
+{
+    uint64_t b;
+    int      any_unset = 0;
+
+    for (b = 0; b < xm->nblocks; b++) {
+        if (xm->blockcrc[b] == BRIX_XMETA_CRC_UNSET) {
+            any_unset = 1;
+            break;
+        }
+    }
+    if (any_unset) {
+        if (xm->no_cksum_time == 0) {
+            xm->no_cksum_time = (int64_t) time(NULL);
+        }
+    } else {
+        xm->no_cksum_time = 0;
+    }
+}
+
 int
 brix_csi_flush(brix_csi_t *c)
 {
     brix_xmeta_t xm;
-    struct stat    st;
-    int64_t        g;
-    uint64_t       b, b_lo, b_hi;
-    int            fd, lockfd, budget = BRIX_CSI_FLUSH_READ;
-    int            fold_ok, any_unset = 0, rc;
-    unsigned char *blockbuf = NULL;
+    struct stat  st;
+    int          fd, lockfd, rc;
 
     if (c == NULL || !c->writable) {
         errno = EINVAL;
@@ -261,14 +439,8 @@ brix_csi_flush(brix_csi_t *c)
         return BRIX_CSI_OK;
     }
 
-    /* Flush reads the file back, so it opens its own O_RDONLY fd — the
-     * handle's data fd may already be closed or write-only. */
-    fd = open(c->path, O_RDONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW);
+    fd = csi_flush_open_file(c, &st);
     if (fd < 0) {
-        return BRIX_CSI_ERR;
-    }
-    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
-        close(fd);
         return BRIX_CSI_ERR;
     }
 
@@ -278,117 +450,14 @@ brix_csi_flush(brix_csi_t *c)
         return BRIX_CSI_ERR;
     }
 
-    /* Load / create / re-geometry the record. */
-    rc = brix_xmeta_path_load(c->path, &xm);
-    if (rc == BRIX_XMETA_ERR
-        || (rc == BRIX_XMETA_FOREIGN
-            && brix_xmeta_init(&xm, st.st_size,
-                                 (int64_t) c->granule) != BRIX_XMETA_OK))
-    {
+    if (csi_flush_load_record(c, &st, &xm) != BRIX_CSI_OK) {
         brix_xmeta_path_unlock(lockfd);
         close(fd);
         return BRIX_CSI_ERR;
     }
-    if (rc == BRIX_XMETA_FOREIGN) {
-        /* Fresh record for a file this handle wrote: fully present. */
-        xm.origin_mtime = (uint64_t) st.st_mtime;
-        if (xm.nblocks > 0) {
-            memset(xm.bitmap, 0xFF, (size_t) ((xm.nblocks + 7) / 8));
-        }
-    } else if (xm.file_size != st.st_size || xm.buffer_size <= 0) {
-        if (csi_record_regeom(&xm, st.st_size,
-                              xm.buffer_size > 0 ? xm.buffer_size
-                                                 : (int64_t) c->granule) != 0)
-        {
-            brix_xmeta_free(&xm);
-            brix_xmeta_path_unlock(lockfd);
-            close(fd);
-            return BRIX_CSI_ERR;
-        }
-        xm.origin_mtime = (uint64_t) st.st_mtime;
-    }
 
-    if (xm.blockcrc == NULL) {
-        xm.blockcrc = calloc(xm.nblocks ? (size_t) xm.nblocks : 1,
-                             sizeof(uint32_t));
-        if (xm.blockcrc == NULL) {
-            brix_xmeta_free(&xm);
-            brix_xmeta_path_unlock(lockfd);
-            close(fd);
-            errno = ENOMEM;
-            return BRIX_CSI_ERR;
-        }
-    }
-    xm.have_blockcrc = 1;
-
-    g = xm.buffer_size;
-    fold_ok = (g == (int64_t) c->granule && !c->overflow);
-
-    /* Every block the write extent touched gets a fresh truth: the folded
-     * CRC when we have one, a bounded recompute from disk, or UNSET. */
-    b_lo = (uint64_t) (c->dirty_lo / g);
-    b_hi = (uint64_t) ((c->dirty_hi + g - 1) / g);
-    if (b_hi > xm.nblocks) {
-        b_hi = xm.nblocks;
-    }
-    for (b = b_lo; b < b_hi; b++) {
-        if (fold_ok && b < c->local_n
-            && c->local[b] != BRIX_XMETA_CRC_UNSET)
-        {
-            xm.blockcrc[b] = c->local[b];
-            continue;
-        }
-        if (budget > 0) {
-            int64_t bstart = (int64_t) b * g;
-            int64_t bend   = bstart + g;
-            size_t  got = 0;
-            int     short_read = 0;
-
-            if (bend > xm.file_size) {
-                bend = xm.file_size;
-            }
-            if (blockbuf == NULL) {
-                blockbuf = malloc((size_t) g);
-            }
-            if (blockbuf != NULL) {
-                while (got < (size_t) (bend - bstart)) {
-                    ssize_t n = pread(fd, blockbuf + got,
-                                      (size_t) (bend - bstart) - got,
-                                      bstart + (off_t) got);
-
-                    if (n < 0 && errno == EINTR) {
-                        continue;
-                    }
-                    if (n <= 0) {
-                        short_read = 1;
-                        break;
-                    }
-                    got += (size_t) n;
-                }
-                budget--;
-                if (!short_read) {
-                    xm.blockcrc[b] = brix_crc32c_value(blockbuf, got);
-                    continue;
-                }
-            }
-        }
-        xm.blockcrc[b] = BRIX_XMETA_CRC_UNSET;    /* cannot vouch for it */
-    }
-    free(blockbuf);
-
-    for (b = 0; b < xm.nblocks; b++) {
-        if (xm.blockcrc[b] == BRIX_XMETA_CRC_UNSET) {
-            any_unset = 1;
-            break;
-        }
-    }
-    if (any_unset) {
-        if (xm.no_cksum_time == 0) {
-            xm.no_cksum_time = (int64_t) time(NULL);
-        }
-    } else {
-        xm.no_cksum_time = 0;
-    }
+    csi_flush_rebuild_crcs(c, &xm, fd, xm.buffer_size);
+    csi_flush_mark_coverage(&xm);
 
     rc = (brix_xmeta_path_save(c->path, &xm) == BRIX_XMETA_OK)
          ? BRIX_CSI_OK : BRIX_CSI_ERR;

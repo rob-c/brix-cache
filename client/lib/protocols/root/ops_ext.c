@@ -27,11 +27,13 @@ static int
 ext_simple(brix_conn *c, void *hdr24, const void *payload, uint32_t plen,
            brix_status *st)
 {
-    uint16_t status;
-    uint8_t *body = NULL;
-    uint32_t blen = 0;
+    uint16_t      status;
+    uint8_t      *body = NULL;
+    uint32_t      blen = 0;
+    brix_payload  pl  = { payload, plen };
+    brix_resp_out out = { &status, &body, &blen };
 
-    if (brix_roundtrip(c, hdr24, payload, plen, &status, &body, &blen, st) != 0) {
+    if (brix_roundtrip(c, hdr24, &pl, &out, st) != 0) {
         return -1;
     }
     free(body);
@@ -168,9 +170,12 @@ brix_readlink(brix_conn *c, const char *path, char *out, size_t outsz,
     req.requestid = htons(kXR_readlink);
     xrdw_empty_req_pack(((ClientRequestHdr *) &req)->body);
 
-    if (brix_roundtrip(c, &req, path, (uint32_t) strlen(path),
-                       &status, &body, &blen, st) != 0) {
-        return -1;
+    {
+        brix_payload  pl  = { path, (uint32_t) strlen(path) };
+        brix_resp_out out = { &status, &body, &blen };
+        if (brix_roundtrip(c, &req, &pl, &out, st) != 0) {
+            return -1;
+        }
     }
     n = (blen < outsz - 1) ? blen : (outsz - 1);
     memcpy(out, body, n);

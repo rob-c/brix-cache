@@ -31,6 +31,11 @@
  * matching default.  The interval floor and the bounded window are what keep this
  * from ever becoming a busy-spin (cf. the self-rearming-0ms-timer footgun).
  */
+/* When a logged-in data server drops its CMS link, blacklist host:port for this
+ * long (ms) so in-flight locate replies skip the departed node; cleared early on
+ * a successful re-register (src/cms/server_recv.c). */
+#define NGX_BRIX_CMS_SRV_DROP_BLACKLIST_MS  30000
+
 #define NGX_BRIX_CMS_INITDELAY_LOOPBACK   0      /* loopback: connect immediately */
 #define NGX_BRIX_CMS_INITDELAY_REMOTE     10     /* remote: tiny settle margin     */
 #define NGX_BRIX_CMS_FASTRETRY_LOOPBACK   10     /* loopback retry interval (ms)   */

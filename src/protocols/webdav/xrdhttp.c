@@ -142,18 +142,41 @@ xrdhttp_normalize_rfc3230_algo(const u_char *value, size_t vlen,
 }
 
 /* request parsing */
-void
-xrdhttp_parse_request(ngx_http_request_t *r)
+
+/*
+ * WHAT: Copy a header value into a fixed-size ctx field, NUL-terminated and
+ *       silently truncated to cap-1 bytes.
+ * WHY:  Requuid / Tpc-Token capture shares identical bounded-copy logic;
+ *       centralising it removes duplicated ngx_min/memcpy boilerplate.
+ * HOW:  No-op when the header is absent or empty; otherwise copies at most
+ *       cap-1 bytes and writes the terminator.
+ */
+static void
+xrdhttp_capture_header(ngx_http_request_t *r, const char *name,
+                       size_t name_len, char *dst, size_t cap)
 {
-    xrdhttp_req_ctx_t *ctx;
-    ngx_table_elt_t   *h;
+    ngx_table_elt_t *h = webdav_tpc_find_header(r, name, name_len);
 
-    ctx = xrdhttp_get_ctx(r);
-    if (ctx == NULL) {
-        return;
+    if (h != NULL && h->value.len > 0) {
+        size_t copy = ngx_min(h->value.len, cap - 1);
+        ngx_memcpy(dst, h->value.data, copy);
+        dst[copy] = '\0';
     }
+}
 
-    /* Detect XrdHttp client via X-Xrootd-Proto header */    h = webdav_tpc_find_header(r, "X-Xrootd-Proto",
+/*
+ * WHAT: Detect the XrdHttp dialect and its digest/version hints from headers.
+ * WHY:  X-Xrootd-Proto flags an XrdHttp client and gates the adler32 streaming
+ *       digest (Want-Digest), which is only meaningful for such clients.
+ * HOW:  Sets ctx->is_xrdhttp + proto_version from X-Xrootd-Proto, then arms
+ *       ctx->compute_digest when an XrdHttp client asks for adler32.
+ */
+static void
+xrdhttp_parse_proto_headers(ngx_http_request_t *r, xrdhttp_req_ctx_t *ctx)
+{
+    ngx_table_elt_t *h;
+
+    h = webdav_tpc_find_header(r, "X-Xrootd-Proto",
                                sizeof("X-Xrootd-Proto") - 1);
     if (h != NULL) {
         ctx->is_xrdhttp = 1;
@@ -169,10 +192,10 @@ xrdhttp_parse_request(ngx_http_request_t *r)
 
     /* Want-Digest: adler32 (RFC 3230) enables the streaming body digest.
      * Only meaningful for XrdHttp clients; the body filter folds the response
-     * through adler32 and emits a Digest trailer. Only adler32 streams here —
-     * other algorithms (crc32c, crc64, crc64nvme, md5, sha*) are computed from
+     * through adler32 and emits a Digest trailer. Only adler32 streams here.
+     * Other algorithms (crc32c, crc64, crc64nvme, md5, sha) are computed from
      * the fd via xrdhttp_add_checksum_header() because they are not folded
-     * incrementally over the response body in this filter. --- */
+     * incrementally over the response body in this filter. */
     h = webdav_tpc_find_header(r, "Want-Digest", sizeof("Want-Digest") - 1);
     if (ctx->is_xrdhttp && h != NULL && h->value.len > 0
         && ngx_strcasestrn(h->value.data, "adler32",
@@ -180,65 +203,61 @@ xrdhttp_parse_request(ngx_http_request_t *r)
     {
         ctx->compute_digest = 1;
     }
+}
 
-    /* Capture X-Xrootd-Requuid (echo in every response) */    h = webdav_tpc_find_header(r, "X-Xrootd-Requuid",
-                               sizeof("X-Xrootd-Requuid") - 1);
-    if (h != NULL && h->value.len > 0) {
-        size_t copy = ngx_min(h->value.len, (size_t) XRDHTTP_UUID_MAX - 1);
-        ngx_memcpy(ctx->requuid, h->value.data, copy);
-        ctx->requuid[copy] = '\0';
+/*
+ * WHAT: Copy the ?xrd.* / ?tpc.* query parameters into their ctx fields.
+ * WHY:  XrdHttp clients can signal client identity, checksum wants, opaque
+ *       data and TPC endpoints via the query string.
+ * HOW:  No-op when there is no query string; otherwise decodes each known key
+ *       into its bounded ctx buffer (truncating over-length values).
+ */
+static void
+xrdhttp_parse_query_params(ngx_http_request_t *r, xrdhttp_req_ctx_t *ctx)
+{
+    if (r->args.len == 0) {
+        return;
     }
 
-    /* Capture X-Xrootd-Tpc-Token */    h = webdav_tpc_find_header(r, "X-Xrootd-Tpc-Token",
-                               sizeof("X-Xrootd-Tpc-Token") - 1);
-    if (h != NULL && h->value.len > 0) {
-        size_t copy = ngx_min(h->value.len,
-                              (size_t) XRDHTTP_TPC_KEY_MAX - 1);
-        ngx_memcpy(ctx->tpc_token, h->value.data, copy);
-        ctx->tpc_token[copy] = '\0';
-    }
+    xrdhttp_args_get(&r->args, "xrd.clnt.uuid",
+                     sizeof("xrd.clnt.uuid") - 1,
+                     ctx->clnt_uuid, sizeof(ctx->clnt_uuid));
 
-    /* Parse ?xrd.* and ?tpc.* query parameters */    if (r->args.len > 0) {
-        xrdhttp_args_get(&r->args, "xrd.clnt.uuid",
-                         sizeof("xrd.clnt.uuid") - 1,
-                         ctx->clnt_uuid, sizeof(ctx->clnt_uuid));
+    xrdhttp_args_get(&r->args, "xrd.clnt.app",
+                     sizeof("xrd.clnt.app") - 1,
+                     ctx->clnt_app, sizeof(ctx->clnt_app));
 
-        xrdhttp_args_get(&r->args, "xrd.clnt.app",
-                         sizeof("xrd.clnt.app") - 1,
-                         ctx->clnt_app, sizeof(ctx->clnt_app));
+    xrdhttp_args_get(&r->args, "xrd.want.cksum",
+                     sizeof("xrd.want.cksum") - 1,
+                     ctx->want_cksum, sizeof(ctx->want_cksum));
 
-        xrdhttp_args_get(&r->args, "xrd.want.cksum",
-                         sizeof("xrd.want.cksum") - 1,
-                         ctx->want_cksum, sizeof(ctx->want_cksum));
+    xrdhttp_args_get(&r->args, "xrd.opaque",
+                     sizeof("xrd.opaque") - 1,
+                     ctx->opaque, sizeof(ctx->opaque));
 
-        xrdhttp_args_get(&r->args, "xrd.opaque",
-                         sizeof("xrd.opaque") - 1,
-                         ctx->opaque, sizeof(ctx->opaque));
+    xrdhttp_args_get(&r->args, "tpc.src",
+                     sizeof("tpc.src") - 1,
+                     ctx->tpc_src, sizeof(ctx->tpc_src));
 
-        xrdhttp_args_get(&r->args, "tpc.src",
-                         sizeof("tpc.src") - 1,
-                         ctx->tpc_src, sizeof(ctx->tpc_src));
+    xrdhttp_args_get(&r->args, "tpc.dst",
+                     sizeof("tpc.dst") - 1,
+                     ctx->tpc_dst, sizeof(ctx->tpc_dst));
 
-        xrdhttp_args_get(&r->args, "tpc.dst",
-                         sizeof("tpc.dst") - 1,
-                         ctx->tpc_dst, sizeof(ctx->tpc_dst));
+    xrdhttp_args_get(&r->args, "tpc.key",
+                     sizeof("tpc.key") - 1,
+                     ctx->tpc_key, sizeof(ctx->tpc_key));
+}
 
-        xrdhttp_args_get(&r->args, "tpc.key",
-                         sizeof("tpc.key") - 1,
-                         ctx->tpc_key, sizeof(ctx->tpc_key));
-    }
-
-    /* Want-Digest: (RFC 3230) — XrdClHttp sends this on HEAD to request checksums.
-     * Only checked when ?xrd.want.cksum= was not supplied (query param takes priority). */
-    if (!ctx->want_cksum[0]) {
-        h = webdav_tpc_find_header(r, "Want-Digest", sizeof("Want-Digest") - 1);
-        if (h != NULL && h->value.len > 0) {
-            xrdhttp_normalize_rfc3230_algo(h->value.data, h->value.len,
-                                           ctx->want_cksum, sizeof(ctx->want_cksum));
-        }
-    }
-
-    /* Log client identity at debug level (sanitised). */
+/*
+ * WHAT: Emit sanitised debug lines for the parsed client identity + checksum.
+ * WHY:  Untrusted client values must be escaped before logging; keeping the
+ *       (debug-only) formatting out of the main path keeps it simple.
+ * HOW:  Sanitises app/uuid and the requested checksum algorithm via
+ *       brix_sanitize_log_string() before logging at debug level.
+ */
+static void
+xrdhttp_log_client_identity(ngx_http_request_t *r, xrdhttp_req_ctx_t *ctx)
+{
     if (ctx->clnt_app[0] || ctx->clnt_uuid[0]) {
         char safe_app[sizeof(ctx->clnt_app) * 4];
         char safe_uuid[sizeof(ctx->clnt_uuid) * 4];
@@ -261,39 +280,117 @@ xrdhttp_parse_request(ngx_http_request_t *r)
     }
 }
 
-/* HTTP → kXR status mapping */
+void
+xrdhttp_parse_request(ngx_http_request_t *r)
+{
+    xrdhttp_req_ctx_t *ctx;
+    ngx_table_elt_t   *h;
+
+    ctx = xrdhttp_get_ctx(r);
+    if (ctx == NULL) {
+        return;
+    }
+
+    xrdhttp_parse_proto_headers(r, ctx);
+
+    /* Capture X-Xrootd-Requuid (echo in every response). */
+    xrdhttp_capture_header(r, "X-Xrootd-Requuid",
+                           sizeof("X-Xrootd-Requuid") - 1,
+                           ctx->requuid, XRDHTTP_UUID_MAX);
+
+    /* Capture X-Xrootd-Tpc-Token. */
+    xrdhttp_capture_header(r, "X-Xrootd-Tpc-Token",
+                           sizeof("X-Xrootd-Tpc-Token") - 1,
+                           ctx->tpc_token, XRDHTTP_TPC_KEY_MAX);
+
+    xrdhttp_parse_query_params(r, ctx);
+
+    /* Want-Digest (RFC 3230): XrdClHttp sends this on HEAD to request
+     * checksums.  Only consulted when ?xrd.want.cksum= was not supplied
+     * (the query param takes priority). */
+    if (!ctx->want_cksum[0]) {
+        h = webdav_tpc_find_header(r, "Want-Digest", sizeof("Want-Digest") - 1);
+        if (h != NULL && h->value.len > 0) {
+            xrdhttp_normalize_rfc3230_algo(h->value.data, h->value.len,
+                                           ctx->want_cksum,
+                                           sizeof(ctx->want_cksum));
+        }
+    }
+
+    xrdhttp_log_client_identity(r, ctx);
+}
+
+/* HTTP -> kXR status mapping */
+
+/*
+ * WHAT: One row of the HTTP-status to kXR-error mapping table.
+ * WHY:  A data table replaces a long switch ladder, keeping the lookup
+ *       function trivially simple and the mapping auditable at a glance.
+ * HOW:  http_status is the numeric HTTP code (nginx macro value); xrd_code
+ *       is the corresponding kXR_* error constant.
+ */
+typedef struct {
+    ngx_int_t http_status;
+    int       xrd_code;
+} xrdhttp_status_map_row_t;
+
+/* Exact HTTP -> kXR mappings.  Codes not listed fall through to the
+ * class-based default (4xx -> kXR_ArgInvalid, 5xx -> kXR_ServerError). */
+static const xrdhttp_status_map_row_t xrdhttp_status_map[] = {
+    { NGX_HTTP_BAD_REQUEST,             kXR_ArgInvalid    },
+    { NGX_HTTP_UNAUTHORIZED,            kXR_NotAuthorized },
+    { NGX_HTTP_FORBIDDEN,               kXR_NotAuthorized },
+    { NGX_HTTP_NOT_FOUND,               kXR_NotFound      },
+    { NGX_HTTP_NOT_ALLOWED,            kXR_Unsupported   },
+    { NGX_HTTP_CONFLICT,               kXR_FSError       },
+    { NGX_HTTP_LENGTH_REQUIRED,        kXR_ArgMissing    },
+    { 423 /* Locked */,                kXR_FileLocked    },
+    { NGX_HTTP_REQUEST_URI_TOO_LARGE,  kXR_ArgTooLong    },
+    { NGX_HTTP_RANGE_NOT_SATISFIABLE,  kXR_ArgInvalid    },
+    { NGX_HTTP_INTERNAL_SERVER_ERROR,  kXR_ServerError   },
+    { NGX_HTTP_NOT_IMPLEMENTED,        kXR_Unsupported   },
+    { NGX_HTTP_BAD_GATEWAY,            kXR_FSError       },
+    { NGX_HTTP_SERVICE_UNAVAILABLE,    kXR_TooManyErrs   },
+    { NGX_HTTP_INSUFFICIENT_STORAGE,   kXR_NoSpace       },
+};
+
+/*
+ * WHAT: Map any non-2xx HTTP status to a kXR_* error code by class.
+ * WHY:  HTTP codes without an exact table entry still need a sensible kXR
+ *       error so clients never see kXR_ok on a failure.
+ * HOW:  4xx -> kXR_ArgInvalid, 5xx (and above) -> kXR_ServerError, and any
+ *       remaining code (1xx/3xx) -> kXR_ok, matching the original ladder.
+ */
+static int
+xrdhttp_status_class_default(ngx_int_t http_status)
+{
+    if (http_status >= 400 && http_status < 500) {
+        return kXR_ArgInvalid;
+    }
+    if (http_status >= 500) {
+        return kXR_ServerError;
+    }
+    return kXR_ok;
+}
+
 int
 xrdhttp_http_to_xrd_status(ngx_int_t http_status)
 {
+    size_t i;
+
     if (http_status >= 200 && http_status < 300) {
         return kXR_ok;
     }
 
-    switch (http_status) {
-    case NGX_HTTP_BAD_REQUEST:              return kXR_ArgInvalid;
-    case NGX_HTTP_UNAUTHORIZED:             return kXR_NotAuthorized;
-    case NGX_HTTP_FORBIDDEN:               return kXR_NotAuthorized;
-    case NGX_HTTP_NOT_FOUND:               return kXR_NotFound;
-    case NGX_HTTP_NOT_ALLOWED:              return kXR_Unsupported;
-    case NGX_HTTP_CONFLICT:                return kXR_FSError;
-    case NGX_HTTP_LENGTH_REQUIRED:          return kXR_ArgMissing;
-    case 423 /* Locked */:                 return kXR_FileLocked;
-    case NGX_HTTP_REQUEST_URI_TOO_LARGE:    return kXR_ArgTooLong;
-    case NGX_HTTP_RANGE_NOT_SATISFIABLE:    return kXR_ArgInvalid;
-    case NGX_HTTP_INTERNAL_SERVER_ERROR:    return kXR_ServerError;
-    case NGX_HTTP_NOT_IMPLEMENTED:          return kXR_Unsupported;
-    case NGX_HTTP_BAD_GATEWAY:             return kXR_FSError;
-    case NGX_HTTP_SERVICE_UNAVAILABLE:      return kXR_TooManyErrs;
-    case NGX_HTTP_INSUFFICIENT_STORAGE:    return kXR_NoSpace;
-    default:
-        if (http_status >= 400 && http_status < 500) {
-            return kXR_ArgInvalid;
+    for (i = 0; i < sizeof(xrdhttp_status_map) / sizeof(xrdhttp_status_map[0]);
+         i++)
+    {
+        if (xrdhttp_status_map[i].http_status == http_status) {
+            return xrdhttp_status_map[i].xrd_code;
         }
-        if (http_status >= 500) {
-            return kXR_ServerError;
-        }
-        return kXR_ok;
     }
+
+    return xrdhttp_status_class_default(http_status);
 }
 
 ngx_int_t
@@ -353,52 +450,67 @@ xrdhttp_add_response_headers(ngx_http_request_t *r, ngx_int_t http_status)
 }
 
 /* redirect dialect */
-ngx_int_t
-xrdhttp_send_redirect(ngx_http_request_t *r,
-                       const char *location_url,
-                       const char *redir_host,
-                       int         redir_port)
+
+/*
+ * WHAT: Produce the redirect Location URL, appending tpc.key / xrd.opaque
+ *       query params from ctx when present.
+ * WHY:  XrdHttp redirects must carry the TPC key and opaque data forward to
+ *       the target node; this is the only place that formatting lives.
+ * HOW:  Returns location_url unchanged when there is nothing to append or ctx
+ *       is absent; otherwise formats into loc_buf and returns it.  On overflow
+ *       it warns and falls back to the plain (truncated) URL — identical to the
+ *       original inline behaviour.
+ */
+static const char *
+xrdhttp_build_redirect_location(ngx_http_request_t *r,
+                                const xrdhttp_req_ctx_t *ctx,
+                                const char *location_url,
+                                char *loc_buf, size_t loc_bufsz)
 {
-    xrdhttp_req_ctx_t *ctx;
-    ngx_table_elt_t   *location_hdr;
-    char               loc_buf[XRDHTTP_TPC_URL_MAX + XRDHTTP_OPAQUE_MAX + 64];
-    int                loc_len;
-    const char        *sep;
+    const char *sep;
+    int         loc_len;
 
-    ctx = (xrdhttp_req_ctx_t *)
-          ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
-
-    /* Build Location URL: append tpc.key and xrd.opaque as query params. */
-    sep = (ngx_strchr(location_url, '?') != NULL) ? "&" : "?";
-
-    if (ctx != NULL && (ctx->tpc_key[0] || ctx->opaque[0])) {
-        if (ctx->tpc_key[0] && ctx->opaque[0]) {
-            loc_len = snprintf(loc_buf, sizeof(loc_buf),
-                               "%s%stpc.key=%s&xrd.opaque=%s",
-                               location_url, sep,
-                               ctx->tpc_key, ctx->opaque);
-        } else if (ctx->tpc_key[0]) {
-            loc_len = snprintf(loc_buf, sizeof(loc_buf),
-                               "%s%stpc.key=%s",
-                               location_url, sep, ctx->tpc_key);
-        } else {
-            loc_len = snprintf(loc_buf, sizeof(loc_buf),
-                               "%s%sxrd.opaque=%s",
-                               location_url, sep, ctx->opaque);
-        }
-
-        if (loc_len < 0 || (size_t) loc_len >= sizeof(loc_buf)) {
-            /* Overflow: use the plain URL without appended params. */
-            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                          "xrdhttp: redirect URL overflow, opaque dropped");
-            ngx_cpystrn((u_char *) loc_buf, (u_char *) location_url,
-                        sizeof(loc_buf));
-        }
-        location_url = loc_buf;
+    if (ctx == NULL || !(ctx->tpc_key[0] || ctx->opaque[0])) {
+        return location_url;
     }
 
-    /* Set Location header. */
-    location_hdr = ngx_list_push(&r->headers_out.headers);
+    sep = (ngx_strchr(location_url, '?') != NULL) ? "&" : "?";
+
+    if (ctx->tpc_key[0] && ctx->opaque[0]) {
+        loc_len = snprintf(loc_buf, loc_bufsz,
+                           "%s%stpc.key=%s&xrd.opaque=%s",
+                           location_url, sep, ctx->tpc_key, ctx->opaque);
+    } else if (ctx->tpc_key[0]) {
+        loc_len = snprintf(loc_buf, loc_bufsz,
+                           "%s%stpc.key=%s",
+                           location_url, sep, ctx->tpc_key);
+    } else {
+        loc_len = snprintf(loc_buf, loc_bufsz,
+                           "%s%sxrd.opaque=%s",
+                           location_url, sep, ctx->opaque);
+    }
+
+    if (loc_len < 0 || (size_t) loc_len >= loc_bufsz) {
+        /* Overflow: use the plain URL without appended params. */
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                      "xrdhttp: redirect URL overflow, opaque dropped");
+        ngx_cpystrn((u_char *) loc_buf, (u_char *) location_url, loc_bufsz);
+    }
+
+    return loc_buf;
+}
+
+/*
+ * WHAT: Add the Location header for a redirect to location_url.
+ * WHY:  Separating list-push + string-dup keeps the redirect entry point flat.
+ * HOW:  Returns NGX_OK, or NGX_HTTP_INTERNAL_SERVER_ERROR on allocation
+ *       failure (same sentinels the caller returns directly).
+ */
+static ngx_int_t
+xrdhttp_set_location_header(ngx_http_request_t *r, const char *location_url)
+{
+    ngx_table_elt_t *location_hdr = ngx_list_push(&r->headers_out.headers);
+
     if (location_hdr == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
@@ -412,7 +524,20 @@ xrdhttp_send_redirect(ngx_http_request_t *r,
     }
     location_hdr->value.len = ngx_strlen(location_url);
 
-    /* X-Xrootd-Redir-Host / Port for hierarchical cluster topologies. */
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Emit the X-Xrootd-Redir-Host / X-Xrootd-Redir-Port headers.
+ * WHY:  Hierarchical cluster topologies advertise the concrete target node
+ *       alongside the Location URL.
+ * HOW:  Each header is only added when its value is meaningful; returns
+ *       NGX_OK or NGX_HTTP_INTERNAL_SERVER_ERROR on header-set failure.
+ */
+static ngx_int_t
+xrdhttp_set_redir_target_headers(ngx_http_request_t *r,
+                                 const char *redir_host, int redir_port)
+{
     if (redir_host != NULL && redir_host[0]) {
         if (brix_http_set_header(r, "X-Xrootd-Redir-Host", redir_host,
                                    NULL) != NGX_OK)
@@ -426,6 +551,35 @@ xrdhttp_send_redirect(ngx_http_request_t *r,
         {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
+    }
+
+    return NGX_OK;
+}
+
+ngx_int_t
+xrdhttp_send_redirect(ngx_http_request_t *r,
+                       const char *location_url,
+                       const char *redir_host,
+                       int         redir_port)
+{
+    xrdhttp_req_ctx_t *ctx;
+    char               loc_buf[XRDHTTP_TPC_URL_MAX + XRDHTTP_OPAQUE_MAX + 64];
+    ngx_int_t          rc;
+
+    ctx = (xrdhttp_req_ctx_t *)
+          ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+
+    location_url = xrdhttp_build_redirect_location(r, ctx, location_url,
+                                                   loc_buf, sizeof(loc_buf));
+
+    rc = xrdhttp_set_location_header(r, location_url);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
+    rc = xrdhttp_set_redir_target_headers(r, redir_host, redir_port);
+    if (rc != NGX_OK) {
+        return rc;
     }
 
     /* Echo XrdHttp response headers (Requuid, Status=kXR_ok for redirect). */

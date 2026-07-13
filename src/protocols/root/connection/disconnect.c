@@ -9,6 +9,7 @@
 #include "net/ratelimit/throttle_compat.h"   /* phase-59 W3a: open-files release */
 #include "net/mirror/stream_wmirror.h"
 #include "observability/sesslog/sesslog_ngx.h"
+#include "core/aio/uring.h"   /* brix_uring_orphan_owner (late-CQE UAF guard) */
 
 #include <ngx_event.h>
 #include <ngx_stream.h>
@@ -300,6 +301,15 @@ brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c)
 
     now = ngx_current_msec;
     ctx->destroyed = 1;
+
+#if (BRIX_HAVE_LIBURING)
+    /* Sever any in-flight io_uring ops owned by this connection BEFORE its
+     * pool (which holds their task structs and the completion ngx_event_t
+     * inside each task) can be destroyed: a late CQE for a freed task must be
+     * dropped by the reaper, never posted — a freed event linked into
+     * ngx_posted_events corrupts the queue and crashes the worker. */
+    brix_uring_orphan_owner(c);
+#endif
 
     /* phase-59 W3a: release any throttle open-files slots still held by this
      * connection (handles closed implicitly by disconnect, not kXR_close). */

@@ -259,6 +259,90 @@ webdav_lock_reap_null(ngx_http_request_t *r, const char *path,
 }
 
 /*
+ * webdav_check_lock_at — evaluate the lock (if any) recorded on one ancestor
+ * path `check` while checking whether the target path is blocked.
+ *
+ * WHAT: Reads the lock xattr on `check`; if active and it covers the target and
+ *       the client does not own it, reports the operation as blocked.  Expired
+ *       locks are cleaned up lazily (delete + lock-null reap) exactly as before.
+ * WHY:  Isolating the per-level lock decision keeps the ascent loop in
+ *       webdav_check_locks a simple, low-complexity path-walk.
+ * HOW:  The ancestor `check`/`check_len` and the immutable target `path`/
+ *       `path_len` travel together in a single walk struct.  Returns NGX_OK
+ *       (not blocked here), NGX_HTTP_LOCKED (an owning-mismatch lock covers the
+ *       target), or NGX_HTTP_INTERNAL_SERVER_ERROR (xattr read failure).
+ *       Coverage rule is unchanged: exact match, or a depth-infinity ancestor
+ *       on a path boundary.
+ */
+/* One level of the ancestor walk: the (mutable) ancestor path being examined
+ * plus the (immutable) target path the whole walk is checking. */
+typedef struct {
+    const char *check;
+    size_t      check_len;
+    const char *path;
+    size_t      path_len;
+} webdav_lock_walk_t;
+
+static ngx_int_t
+webdav_check_lock_at(ngx_http_request_t *r, const webdav_lock_walk_t *w)
+{
+    webdav_lock_xattr_t e;
+    ngx_int_t           rc;
+    int                 covers;
+
+    rc = webdav_lock_xattr_read(r, w->check, &e);
+    if (rc == NGX_ERROR) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if (rc != NGX_OK) {
+        return NGX_OK;
+    }
+
+    if (e.expires <= (int64_t) ngx_time()) {
+        (void) webdav_lock_xattr_delete(r, w->check);
+        webdav_lock_reap_null(r, w->check, &e);
+        return NGX_OK;
+    }
+
+    /* Lock covers path if: exact match or depth-infinity ancestor. */
+    covers = (w->check_len == w->path_len)
+             || (e.depth_infinity
+                 && w->check_len < w->path_len
+                 && (w->check[w->check_len - 1] == '/'
+                     || w->path[w->check_len] == '/'));
+    if (covers && !webdav_lock_if_header_matches(r, e.token)) {
+        return NGX_HTTP_LOCKED;
+    }
+    return NGX_OK;
+}
+
+/*
+ * webdav_lock_path_ascend — strip the last component from `check` in place.
+ *
+ * WHAT: Removes trailing slashes then the final path component of `check`.
+ * WHY:  Advances the ancestor walk one level toward the export root.
+ * HOW:  Returns 1 when a shorter parent path remains in `check`, 0 when the
+ *       path can no longer be shortened (no interior slash) so the caller stops.
+ */
+static int
+webdav_lock_path_ascend(char *check, size_t check_len)
+{
+    char *slash = check + check_len - 1;
+
+    while (slash > check && *slash == '/') {
+        slash--;
+    }
+    while (slash > check && *slash != '/') {
+        slash--;
+    }
+    if (*slash != '/') {
+        return 0;
+    }
+    *slash = '\0';
+    return 1;
+}
+
+/*
  * webdav_check_locks — walk from path up to export root, checking for active
  * xattr locks at each level.  O(path_depth) xattr reads.
  *
@@ -270,61 +354,37 @@ webdav_check_locks(ngx_http_request_t *r, const char *path, int need_write)
 {
     ngx_http_brix_webdav_loc_conf_t *conf;
     char               check[PATH_MAX];
-    char              *slash;
-    size_t             root_len, check_len, path_len;
-    webdav_lock_xattr_t e;
-    ngx_int_t          rc;
+    size_t             root_len;
+    webdav_lock_walk_t w;
+    ngx_int_t          blocked;
 
     (void) need_write;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     root_len = strlen(conf->common.root_canon);
-    path_len = strlen(path);
 
     ngx_cpystrn((u_char *) check, (u_char *) path, sizeof(check));
 
+    w.check = check;
+    w.path = path;
+    w.path_len = strlen(path);
+
     for (;;) {
-        check_len = strlen(check);
+        w.check_len = strlen(check);
 
-        rc = webdav_lock_xattr_read(r, check, &e);
-        if (rc == NGX_ERROR) {
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-
-        if (rc == NGX_OK) {
-            if (e.expires > (int64_t) ngx_time()) {
-                /* Lock covers path if: exact match or depth-infinity ancestor. */
-                int covers = (check_len == path_len)
-                             || (e.depth_infinity
-                                 && check_len < path_len
-                                 && (check[check_len - 1] == '/'
-                                     || path[check_len] == '/'));
-                if (covers && !webdav_lock_if_header_matches(r, e.token)) {
-                    return NGX_HTTP_LOCKED;
-                }
-            } else {
-                (void) webdav_lock_xattr_delete(r, check);
-                webdav_lock_reap_null(r, check, &e);
-            }
+        blocked = webdav_check_lock_at(r, &w);
+        if (blocked != NGX_OK) {
+            return blocked;
         }
 
         /* Stop at or above export root. */
-        if (check_len <= root_len) {
+        if (w.check_len <= root_len) {
             break;
         }
 
-        /* Strip trailing slashes then the last path component. */
-        slash = check + check_len - 1;
-        while (slash > check && *slash == '/') {
-            slash--;
-        }
-        while (slash > check && *slash != '/') {
-            slash--;
-        }
-        if (*slash != '/') {
+        if (!webdav_lock_path_ascend(check, w.check_len)) {
             break;
         }
-        *slash = '\0';
 
         if (strlen(check) < root_len) {
             break;
@@ -471,6 +531,203 @@ webdav_handle_lock(ngx_http_request_t *r)
     brix_imp_request_end();
 }
 
+/*
+ * webdav_lock_create_null — RFC 4918 §9.10.1 lock-null placeholder creation.
+ *
+ * WHAT: If `path` does not exist, atomically create a zero-byte resource to
+ *       host the lock, and report via *created_null whether we made it.
+ * WHY:  A LOCK on a non-existent resource MUST reserve the name; the placeholder
+ *       is reaped on UNLOCK/expiry if never converted by a PUT/MKCOL.
+ * HOW:  Confined no-follow probe; on ENOENT do an O_CREATE|O_EXCL open. A race
+ *       loser (EEXIST) is not an error and leaves created_null clear. Returns
+ *       NGX_OK on success (whether or not a file was created) or
+ *       NGX_HTTP_INTERNAL_SERVER_ERROR when the create fails for another reason.
+ */
+static ngx_int_t
+webdav_lock_create_null(ngx_http_request_t *r, const char *path,
+    int *created_null)
+{
+    brix_vfs_ctx_t  vctx;
+    brix_vfs_stat_t vst;
+    brix_vfs_file_t *fh;
+    int              verr = 0;
+
+    *created_null = 0;
+
+    webdav_lock_vfs_ctx(r, path, &vctx);
+    if (brix_vfs_probe(&vctx, 1 /* no-follow */, &vst) != NGX_DECLINED
+        || errno != ENOENT)
+    {
+        return NGX_OK;
+    }
+
+    fh = brix_vfs_open(&vctx,
+        BRIX_VFS_O_WRITE | BRIX_VFS_O_CREATE | BRIX_VFS_O_EXCL, &verr);
+    if (fh == NULL) {
+        return (verr == EEXIST) ? NGX_OK : NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    brix_vfs_close(fh, r->connection->log);
+    /* We created the resource solely to host this lock: it is a lock-null
+     * placeholder, reaped on UNLOCK/expiry if still empty. */
+    *created_null = 1;
+    return NGX_OK;
+}
+
+/* Parsed inputs for a fresh lock, threaded from the handler into
+ * webdav_lock_create so its signature stays small. */
+typedef struct {
+    const char *owner;
+    int         exclusive;
+    int         depth_infinity;
+    int         created_null;   /* lock-null placeholder was created */
+} webdav_lock_new_t;
+
+/*
+ * webdav_lock_owner_set — choose the <D:owner> value for a fresh lock.
+ *
+ * WHAT: Copies, in priority order, the request-supplied owner, else the
+ *       authenticated DN, else the literal "anonymous", into e->owner.
+ * WHY:  Keeps owner-selection out of the create path so its intent is explicit
+ *       and unchanged. HOW: bounded ngx_cpystrn into the fixed owner buffer.
+ */
+static void
+webdav_lock_owner_set(webdav_lock_xattr_t *e, const char *owner,
+    const ngx_http_brix_webdav_req_ctx_t *ctx)
+{
+    if (owner[0] != '\0') {
+        ngx_cpystrn((u_char *) e->owner, (u_char *) owner, sizeof(e->owner));
+    } else if (ctx != NULL && ctx->dn[0] != '\0') {
+        ngx_cpystrn((u_char *) e->owner, (u_char *) ctx->dn, sizeof(e->owner));
+    } else {
+        ngx_cpystrn((u_char *) e->owner, (u_char *) "anonymous",
+                    sizeof(e->owner));
+    }
+}
+
+/*
+ * webdav_lock_write_status — map an XATTR_CREATE lock-write result to a status.
+ *
+ * WHAT: Translates the write rc/errno into the wire status for the new-lock
+ *       path: NGX_HTTP_LOCKED on a lost race (NGX_DECLINED), 403 vs 500 on
+ *       failure, or NGX_OK on success.
+ * WHY:  The two-EACCES-source disambiguation is subtle and load-bearing; giving
+ *       it its own function keeps the create path readable while preserving the
+ *       exact policy-vs-syscall distinction documented below.
+ * HOW:  See the inline rationale — a remote-backed export's credential gate
+ *       (drv != NULL) yields 403; a plain local-syscall EACCES stays 500.
+ */
+static ngx_int_t
+webdav_lock_write_status(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, ngx_int_t rc)
+{
+    if (rc == NGX_DECLINED) {
+        /* Another worker created the lock between our read and write. */
+        return NGX_HTTP_LOCKED;
+    }
+    if (rc == NGX_OK) {
+        return NGX_OK;
+    }
+
+    /* Two DIFFERENT EACCES sources land here, and they must map to
+     * different statuses (phase-3 T1):
+     *   (a) the per-user backend credential gate (brix_vfs_ns_cred,
+     *       src/fs/vfs/vfs_xattr.c) denying a no-cred user in deny
+     *       mode on a REMOTE-BACKED export — the gate runs and fails
+     *       BEFORE brix_vfs_setxattr ever reaches a syscall, and only
+     *       engages when the lock ctx's vctx->sd is a non-NULL backend
+     *       instance (webdav_lock_vfs_ctx_init in prop_xattr.c binds
+     *       it via brix_webdav_backend_instance). This is a policy
+     *       refusal -> 403.
+     *   (b) the impersonation broker's setxattr on a user-owned file
+     *       failing EACCES on a LOCAL POSIX export (vctx->sd stays
+     *       NULL there, so the gate path above is never taken and
+     *       this EACCES can only come from the raw syscall) -- the
+     *       service worker genuinely could not perform the op. This
+     *       is intentionally left 500 (documented at
+     *       webdav_handle_lock's WHAT/WHY/HOW comment above).
+     * The two cases are structurally distinguishable at this callsite
+     * because vfs_xattr.c sets errno = EACCES from the gate check
+     * (source a) using a DIFFERENT code path (drv != NULL) than the
+     * plain-syscall EACCES (source b, drv == NULL) -- but distinguishing
+     * *here* would require re-deriving whether the export is remote-
+     * backed, duplicating prop_xattr.c's internal ctx-driver logic.
+     * brix_webdav_backend_instance(conf, log) is idempotent and cheap
+     * (a config-scoped cached instance, not a fresh connection), so
+     * calling it again here to re-derive "remote-backed?" is safe and
+     * avoids threading a new out-parameter through webdav_lock_xattr_write. */
+    if ((errno == EACCES || errno == EPERM)
+        && brix_webdav_backend_instance(conf, r->connection->log) != NULL)
+    {
+        return NGX_HTTP_FORBIDDEN;
+    }
+    return NGX_HTTP_INTERNAL_SERVER_ERROR;
+}
+
+/*
+ * webdav_lock_refresh — refresh an existing active lock (RFC 4918 §9.10).
+ *
+ * WHAT: If the client owns the lock, extend its timeout and rewrite the xattr;
+ *       otherwise report 423 Locked.
+ * WHY:  Splits the "existing lock" branch out of the handler so both branches
+ *       read as a single decision each. HOW: token match via the If header,
+ *       XATTR_REPLACE rewrite; sets 200 OK on success. Returns NGX_OK when the
+ *       caller should proceed to emit the XML body, else a finalized status.
+ */
+static ngx_int_t
+webdav_lock_refresh(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *path,
+    webdav_lock_xattr_t *e)
+{
+    if (!webdav_lock_if_header_matches(r, e->token)) {
+        return NGX_HTTP_LOCKED;
+    }
+    e->expires = webdav_lock_parse_timeout(r, conf);
+    if (webdav_lock_xattr_write(r, path, e, XATTR_REPLACE) != NGX_OK) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    r->headers_out.status = NGX_HTTP_OK;
+    return NGX_OK;
+}
+
+/*
+ * webdav_lock_create — create a new lock atomically (RFC 4918 §9.10).
+ *
+ * WHAT: Builds a fresh lock record (new token, owner, scope, depth, timeout,
+ *       lock-null flag) and writes it with XATTR_CREATE.
+ * WHY:  Splits the "no existing lock" branch out of the handler. HOW: delegates
+ *       owner selection and write-result mapping to helpers; sets 201 Created on
+ *       success. Returns NGX_OK when the caller should emit the XML body, else a
+ *       finalized status.
+ */
+static ngx_int_t
+webdav_lock_create(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *path,
+    const webdav_lock_new_t *nl, webdav_lock_xattr_t *e)
+{
+    ngx_http_brix_webdav_req_ctx_t *ctx =
+        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+    ngx_int_t rc;
+
+    ngx_memzero(e, sizeof(*e));
+    webdav_generate_uuid(e->token, sizeof(e->token));
+    webdav_lock_owner_set(e, nl->owner, ctx);
+
+    e->exclusive      = nl->exclusive;
+    e->depth_infinity = nl->depth_infinity;
+    e->is_null        = nl->created_null;
+    e->expires        = webdav_lock_parse_timeout(r, conf);
+
+    rc = webdav_lock_xattr_write(r, path, e, XATTR_CREATE);
+    rc = webdav_lock_write_status(r, conf, rc);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
+    r->headers_out.status = NGX_HTTP_CREATED;
+    return NGX_OK;
+}
+
 static void
 webdav_handle_lock_inner(ngx_http_request_t *r)
 {
@@ -478,11 +735,13 @@ webdav_handle_lock_inner(ngx_http_request_t *r)
     char                               path[WEBDAV_MAX_PATH];
     ngx_int_t                          rc;
     webdav_lock_xattr_t                e;
-    ngx_http_brix_webdav_req_ctx_t  *ctx;
-    int                                depth_infinity = 1;
+    webdav_lock_new_t                  nl;
     char                               owner[256];
-    int                                exclusive = 1;
-    int                                created_null = 0;  /* lock-null placeholder */
+
+    ngx_memzero(&nl, sizeof(nl));
+    nl.depth_infinity = 1;
+    nl.exclusive = 1;
+    nl.owner = owner;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
 
@@ -493,41 +752,20 @@ webdav_handle_lock_inner(ngx_http_request_t *r)
         return;
     }
 
-    rc = webdav_lock_parse_depth(r, &depth_infinity);
+    rc = webdav_lock_parse_depth(r, &nl.depth_infinity);
     if (rc != NGX_OK) {
         webdav_metrics_finalize_request(r, rc);
         return;
     }
 
-    webdav_lock_parse_body(r, owner, sizeof(owner), &exclusive);
+    webdav_lock_parse_body(r, owner, sizeof(owner), &nl.exclusive);
 
     /* RFC 4918 §9.10.1: LOCK on non-existent resource MUST create zero-byte resource. */
-    {
-        brix_vfs_ctx_t  vctx;
-        brix_vfs_stat_t vst;
-
-        webdav_lock_vfs_ctx(r, path, &vctx);
-        if (brix_vfs_probe(&vctx, 1 /* no-follow */, &vst) == NGX_DECLINED
-            && errno == ENOENT)
-        {
-            int                verr = 0;
-            brix_vfs_file_t *fh = brix_vfs_open(&vctx,
-                BRIX_VFS_O_WRITE | BRIX_VFS_O_CREATE | BRIX_VFS_O_EXCL,
-                &verr);
-            if (fh == NULL && verr != EEXIST) {
-                webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
-                return;
-            }
-            if (fh != NULL) {
-                brix_vfs_close(fh, r->connection->log);
-                /* We created the resource solely to host this lock: it is a
-                 * lock-null placeholder, reaped on UNLOCK/expiry if still empty. */
-                created_null = 1;
-            }
-        }
+    rc = webdav_lock_create_null(r, path, &nl.created_null);
+    if (rc != NGX_OK) {
+        webdav_metrics_finalize_request(r, rc);
+        return;
     }
-
-    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
 
     rc = webdav_lock_xattr_read(r, path, &e);
     if (rc == NGX_ERROR) {
@@ -543,49 +781,15 @@ webdav_handle_lock_inner(ngx_http_request_t *r)
 
     if (rc == NGX_OK) {
         /* Existing active lock: refresh if token matches, else 423. */
-        if (!webdav_lock_if_header_matches(r, e.token)) {
-            webdav_metrics_finalize_request(r, NGX_HTTP_LOCKED);
-            return;
-        }
-        e.expires = webdav_lock_parse_timeout(r, conf);
-        if (webdav_lock_xattr_write(r, path, &e,
-                                    XATTR_REPLACE) != NGX_OK) {
-            webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
-            return;
-        }
-        r->headers_out.status = NGX_HTTP_OK;
-
+        rc = webdav_lock_refresh(r, conf, path, &e);
     } else {
         /* No lock: create atomically with XATTR_CREATE. */
-        ngx_memzero(&e, sizeof(e));
-        webdav_generate_uuid(e.token, sizeof(e.token));
+        rc = webdav_lock_create(r, conf, path, &nl, &e);
+    }
 
-        if (owner[0] != '\0') {
-            ngx_cpystrn((u_char *) e.owner, (u_char *) owner, sizeof(e.owner));
-        } else if (ctx != NULL && ctx->dn[0] != '\0') {
-            ngx_cpystrn((u_char *) e.owner, (u_char *) ctx->dn, sizeof(e.owner));
-        } else {
-            ngx_cpystrn((u_char *) e.owner, (u_char *) "anonymous",
-                        sizeof(e.owner));
-        }
-
-        e.exclusive      = exclusive;
-        e.depth_infinity = depth_infinity;
-        e.is_null        = created_null;
-        e.expires        = webdav_lock_parse_timeout(r, conf);
-
-        rc = webdav_lock_xattr_write(r, path, &e, XATTR_CREATE);
-        if (rc == NGX_DECLINED) {
-            /* Another worker created the lock between our read and write. */
-            webdav_metrics_finalize_request(r, NGX_HTTP_LOCKED);
-            return;
-        }
-        if (rc != NGX_OK) {
-            webdav_metrics_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
-            return;
-        }
-
-        r->headers_out.status = NGX_HTTP_CREATED;
+    if (rc != NGX_OK) {
+        webdav_metrics_finalize_request(r, rc);
+        return;
     }
 
     webdav_lock_xml_response(r, &e);

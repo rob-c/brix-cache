@@ -26,7 +26,10 @@ brix_sigv4_signing_key(const uint8_t *secret, size_t secret_len,
     if (secret_len + 4 > sizeof(prefix)) {
         return 0;
     }
-    memcpy(prefix, "AWS4", 4);
+    /* phase74-fp: prefix is a length-tracked byte buffer consumed as
+     * (prefix, secret_len + 4) below — never read as a C string, so no NUL
+     * terminator is needed. */
+    memcpy(prefix, "AWS4", 4);  /* NOLINT(bugprone-not-null-terminated-result) */
     memcpy(prefix + 4, secret, secret_len);
 
     return brix_hmac_sha256(prefix, secret_len + 4,

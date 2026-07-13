@@ -405,9 +405,14 @@ brix_ns_local_copy(ngx_log_t *log, const char *root_canon, const char *src,
 
     if (opts->staged_commit) {
         /* staged_file confines its own temp open/rename internally. */
-        if (brix_staged_open(log, root_canon, dst,
-                               O_WRONLY | O_CREAT | O_TRUNC,
-                               ssb.st_mode, 16, &staged) != NGX_OK)
+        brix_staged_open_req_t staged_req = {
+            .root_canon = root_canon,
+            .final_path = dst,
+            .mode       = ssb.st_mode,
+            .open_flags = O_WRONLY | O_CREAT | O_TRUNC,
+            .attempts   = 16,
+        };
+        if (brix_staged_open(log, &staged_req, &staged) != NGX_OK)
         {
             close(src_fd);
             close(rootfd);

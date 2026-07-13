@@ -57,6 +57,166 @@ staged_pool_strdup(ngx_pool_t *pool, const char *s, size_t *lenp)
     return (char *) p;
 }
 
+/*
+ * Set *err_out (when non-NULL) to the current errno and return NULL. Single
+ * exit convention for brix_vfs_staged_open's failure arms.
+ *
+ * WHAT: fold "publish errno + return NULL" into one call.
+ * WHY:  every failure arm of the open path shares this shape; a helper keeps
+ *       each arm to one early-return line and removes repeated branches.
+ * HOW:  copies errno into *err_out if the caller supplied one, returns NULL.
+ */
+static brix_vfs_staged_t *
+staged_open_fail(int *err_out)
+{
+    if (err_out != NULL) {
+        *err_out = errno;
+    }
+    return NULL;
+}
+
+/*
+ * Validate the write gate + root_canon and allocate a self-contained handle.
+ *
+ * WHAT: the entry stage of brix_vfs_staged_open — write-gate, require a
+ *       root_canon, allocate the handle and its owned ctx copy, deep-copy the
+ *       resolved-path and root_canon strings onto ctx->pool, and seed the
+ *       handle's pool/log/fd fields.
+ * WHY:  the staged handle outlives the caller's stack frame (S3/WebDAV PUT
+ *       dispatch the body write to a thread pool and RETURN before commit), so
+ *       a ctx pointing at stack buffers would be a use-after-free at commit;
+ *       self-containing here keeps the handle stable across the async hop.
+ * HOW:  on any failure sets errno and returns NULL via staged_open_fail so the
+ *       caller propagates *err_out; on success returns a handle whose ctx and
+ *       both strings live on ctx->pool (the request pool). No behavior change:
+ *       identical checks, allocations and copies as the original inline body.
+ */
+static brix_vfs_staged_t *
+staged_alloc_handle(brix_vfs_ctx_t *ctx, int *err_out)
+{
+    brix_vfs_staged_t *st;
+    size_t             rlen = 0;
+    const char        *rpath;
+    char              *rpath_dup;
+    char              *root_dup;
+
+    if (brix_vfs_require_write(ctx) != NGX_OK) {
+        return staged_open_fail(err_out);
+    }
+
+    if (ctx->root_canon == NULL) {
+        errno = EINVAL;
+        return staged_open_fail(err_out);
+    }
+
+    st = ngx_pcalloc(ctx->pool, sizeof(*st));
+    if (st == NULL) {
+        errno = ENOMEM;
+        return staged_open_fail(err_out);
+    }
+
+    /*
+     * Deep-copy the ctx struct and the resolved-path / root_canon buffers it
+     * POINTS at (WebDAV's resolved path lives in a stack `char[]`) onto
+     * ctx->pool, which lives until the response completes.
+     */
+    st->ctx = ngx_palloc(ctx->pool, sizeof(*st->ctx));
+    if (st->ctx == NULL) {
+        errno = ENOMEM;
+        return staged_open_fail(err_out);
+    }
+    *st->ctx = *ctx;
+
+    rpath     = brix_vfs_ctx_path(ctx);
+    rpath_dup = staged_pool_strdup(ctx->pool, rpath, &rlen);
+    root_dup  = staged_pool_strdup(ctx->pool, ctx->root_canon, NULL);
+
+    if ((rpath != NULL && rpath_dup == NULL)
+        || (ctx->root_canon != NULL && root_dup == NULL))
+    {
+        errno = ENOMEM;
+        return staged_open_fail(err_out);
+    }
+    if (rpath_dup != NULL) {
+        st->ctx->resolved.resolved.data = (u_char *) rpath_dup;
+        st->ctx->resolved.resolved.len  = rlen;
+    }
+    if (root_dup != NULL) {
+        st->ctx->root_canon = root_dup;
+    }
+
+    st->pool      = ctx->pool;
+    st->log       = ctx->log;
+    st->staged.fd = NGX_INVALID_FILE;
+    return st;
+}
+
+/*
+ * Open the staged temp via a non-POSIX backend driver (Mode A).
+ *
+ * WHAT: delegate the staged lifecycle to the resolved instance's staged_open
+ *       slot, resolving the per-open backend credential first.
+ * WHY:  when staging is configured the registry composes the sd_stage
+ *       write-back DECORATOR as that instance, so a local-temp-then-promote
+ *       upload is the decorator's staged_open, not a second copy here; a bare
+ *       source streams the body to the remote final path.
+ * HOW:  fetches the backend cred, calls brix_sd_staged_open_maybe_cred, and on
+ *       failure sets *err_out + errno. Returns NGX_OK with st->driver_staged
+ *       populated, or NGX_ERROR. Behavior-identical to the original inline arm.
+ */
+static ngx_int_t
+staged_open_driver(brix_vfs_ctx_t *ctx, brix_vfs_staged_t *st,
+    const char *final_path, mode_t mode, int *err_out)
+{
+    int              sderr = 0;
+    brix_sd_ucred_t  ustore;
+    brix_sd_cred_t   ucred;
+    int              use_cred = 0;
+
+    ngx_memzero(&ucred, sizeof(ucred));
+    if (brix_vfs_backend_cred(ctx, &ustore, &ucred, &use_cred, err_out)
+        != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+    st->driver_staged = brix_sd_staged_open_maybe_cred(ctx->sd,
+        brix_vfs_export_relative(ctx, final_path), mode,
+        use_cred ? &ucred : NULL, &sderr);
+    if (st->driver_staged == NULL) {
+        if (err_out != NULL) {
+            *err_out = sderr;
+        }
+        errno = sderr;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/*
+ * Open the confined local temp for a pure-POSIX export.
+ *
+ * WHAT: create the O_EXCL unique temp inside root_canon via brix_staged_open,
+ *       storing the resulting staged descriptor on the handle.
+ * WHY:  for a pure-POSIX export the local confined temp IS the storage; the
+ *       confinement (root_canon) and O_EXCL unique-name retries are preserved
+ *       exactly by delegating to brix_staged_open unchanged.
+ * HOW:  the caller supplies the fully-built request (root_canon confinement +
+ *       O_WRONLY + mode + O_EXCL attempts); this calls brix_staged_open and on
+ *       failure sets *err_out to errno. Behavior-identical to the original arm.
+ */
+static ngx_int_t
+staged_open_posix(brix_vfs_ctx_t *ctx, brix_vfs_staged_t *st,
+    const brix_staged_open_req_t *oreq, int *err_out)
+{
+    if (brix_staged_open(ctx->log, oreq, &st->staged) != NGX_OK) {
+        if (err_out != NULL) {
+            *err_out = errno;
+        }
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
 /* Open a staged temp file for the resolved ctx (final) path. Write-gated.
  * `mode` is the final object's permission bits; `attempts` bounds the O_EXCL
  * unique-name retries. Returns a handle on ctx->pool, or NULL with the errno in
@@ -66,110 +226,36 @@ brix_vfs_staged_open(brix_vfs_ctx_t *ctx, mode_t mode, ngx_uint_t attempts,
     int *err_out)
 {
     brix_vfs_staged_t *st;
-    const char          *final_path = brix_vfs_ctx_path(ctx);
+    const char        *final_path = brix_vfs_ctx_path(ctx);
 
-    if (brix_vfs_require_write(ctx) != NGX_OK) {
-        if (err_out != NULL) {
-            *err_out = errno;
-        }
-        return NULL;
-    }
-
-    if (ctx->root_canon == NULL) {
-        errno = EINVAL;
-        if (err_out != NULL) {
-            *err_out = errno;
-        }
-        return NULL;
-    }
-
-    st = ngx_pcalloc(ctx->pool, sizeof(*st));
+    st = staged_alloc_handle(ctx, err_out);
     if (st == NULL) {
-        errno = ENOMEM;
-        if (err_out != NULL) {
-            *err_out = errno;
-        }
         return NULL;
     }
 
-    /*
-     * Self-contain the ctx. The staged handle outlives the caller's stack frame:
-     * S3 and WebDAV PUT dispatch the body write to a thread pool and RETURN before
-     * brix_vfs_staged_commit runs, so a ctx — and the resolved-path / root_canon
-     * buffers it POINTS at (WebDAV's resolved path lives in a stack `char[]`) —
-     * that was stack-allocated by the caller would be a use-after-free at commit.
-     * Deep-copy the ctx struct and those two strings onto ctx->pool (the request
-     * pool, which lives until the response completes) so the handle is stable
-     * across the async hop regardless of how the caller allocated its ctx.
-     */
-    st->ctx = ngx_palloc(ctx->pool, sizeof(*st->ctx));
-    if (st->ctx == NULL) {
-        errno = ENOMEM;
-        if (err_out != NULL) {
-            *err_out = errno;
-        }
-        return NULL;
-    }
-    *st->ctx = *ctx;
-    {
-        size_t      rlen = 0;
-        const char *rpath = brix_vfs_ctx_path(ctx);
-        char       *rpath_dup = staged_pool_strdup(ctx->pool, rpath, &rlen);
-        char       *root_dup  = staged_pool_strdup(ctx->pool, ctx->root_canon, NULL);
-
-        if ((rpath != NULL && rpath_dup == NULL)
-            || (ctx->root_canon != NULL && root_dup == NULL))
-        {
-            errno = ENOMEM;
-            if (err_out != NULL) {
-                *err_out = errno;
-            }
-            return NULL;
-        }
-        if (rpath_dup != NULL) {
-            st->ctx->resolved.resolved.data = (u_char *) rpath_dup;
-            st->ctx->resolved.resolved.len  = rlen;
-        }
-        if (root_dup != NULL) {
-            st->ctx->root_canon = root_dup;
-        }
-    }
-    st->pool = ctx->pool;
-    st->log  = ctx->log;
-    st->staged.fd = NGX_INVALID_FILE;
-
-    /* A non-POSIX backend owns the staged lifecycle: delegate straight to the
-     * resolved instance's staged_open slot (Mode A). When staging is configured the
-     * registry composes the sd_stage write-back DECORATOR (C-2/C-6) as that instance
-     * — so a local-temp-then-promote upload is the decorator's staged_open, NOT a
-     * second copy here. A bare source streams the body to the remote final path. */
+    /* A non-POSIX backend owns the staged lifecycle: delegate to its staged_open
+     * slot (Mode A). Otherwise the pure-POSIX confined temp IS the storage. */
     if (ctx->sd != NULL && ctx->sd->driver != brix_sd_default_driver()
         && ctx->sd->driver->staged_open != NULL)
     {
-        int sderr = 0;
-
-        st->driver_staged = ctx->sd->driver->staged_open(ctx->sd,
-            brix_vfs_export_relative(ctx, final_path), mode, &sderr);
-        if (st->driver_staged == NULL) {
-            if (err_out != NULL) {
-                *err_out = sderr;
-            }
-            errno = sderr;
+        if (staged_open_driver(ctx, st, final_path, mode, err_out) != NGX_OK) {
             return NULL;
         }
         return st;
     }
 
-    /* Pure-POSIX export: the local confined temp IS the storage. */
-    if (brix_staged_open(ctx->log, ctx->root_canon, final_path, O_WRONLY,
-                           mode, attempts, &st->staged) != NGX_OK)
     {
-        if (err_out != NULL) {
-            *err_out = errno;
+        brix_staged_open_req_t  oreq = {
+            .root_canon = ctx->root_canon,
+            .final_path = final_path,
+            .open_flags = O_WRONLY,
+            .mode       = mode,
+            .attempts   = attempts,
+        };
+        if (staged_open_posix(ctx, st, &oreq, err_out) != NGX_OK) {
+            return NULL;
         }
-        return NULL;
     }
-
     return st;
 }
 

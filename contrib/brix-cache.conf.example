@@ -22,11 +22,21 @@
 #      that nginx.conf has `thread_pool default threads=4 max_queue=65536;` at
 #      the top level (the async data-plane uses it).
 #
-#   5. RECOMMENDED for fast restarts/reloads — set a bounded shutdown timeout in
-#      the top-level nginx.conf so an old worker that is still streaming a large
-#      transfer is force-closed promptly instead of lingering:
+#   5. RECOMMENDED — set a bounded shutdown timeout in the top-level nginx.conf
+#      so an old worker still streaming a transfer is force-closed instead of
+#      lingering. CRITICAL: keep this value BELOW the systemd unit's
+#      TimeoutStopSec, or a graceful stop never completes in time and systemd
+#      SIGKILLs the whole process at TimeoutStopSec on EVERY `systemctl restart`
+#      (a slow, ungraceful restart). The stock nginx.service uses
+#      TimeoutStopSec=5s, so for fast restarts use a small value:
 #
-#         worker_shutdown_timeout 30s;
+#         worker_shutdown_timeout 2s;    # fast `systemctl restart` (stop ~2s)
+#
+#      Only raise it (e.g. 30s) if you ALSO raise the unit's TimeoutStopSec to
+#      match (the packaged nginx-xrootd.service sets TimeoutStopSec=30) AND you
+#      prefer graceful in-flight drains over fast restarts. For zero-downtime
+#      CONFIG changes prefer `systemctl reload` (SIGHUP) over `restart` — it has
+#      no systemd stop-timeout pressure, so a longer drain is fine there.
 #
 #      On `nginx -s reload`/restart this module already (a) stops its background
 #      timers, (b) drops idle keepalive connections at once, and (c) sends a
@@ -210,6 +220,12 @@ server {
 #         brix_allow_write on;
 #         # Resumable uploads are ON by default; optionally stage on a fast device:
 #         #brix_stage_dir /mnt/fastcache/xrd-stage;
+#         # io_uring disk-I/O backend is OFF by default (the thread pool is the
+#         # correct, portable path).  Enable ONLY after verifying on your kernel
+#         # + storage filesystem that large streamed writes complete — some
+#         # kernels signal the ring's eventfd for trivial ops but never complete
+#         # buffered file writes, wedging transfers after ~8 MiB.  Opt in with:
+#         #brix_io_uring on;
 #         brix_token_jwks     /etc/nginx-xrootd/jwks.json;
 #         brix_token_issuer   "https://wlcg.example.org/";
 #         brix_token_audience "https://storage.example.org";

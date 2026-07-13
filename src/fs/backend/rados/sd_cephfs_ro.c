@@ -854,7 +854,8 @@ cephfsro_listxattr(brix_sd_instance_t *inst, const char *path, void *buf,
 
 const brix_sd_driver_t brix_sd_cephfs_ro_driver = {
     .name = "cephfsro",
-    .caps = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_DIRS | BRIX_SD_CAP_XATTR,
+    .caps = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_DIRS | BRIX_SD_CAP_XATTR
+          | BRIX_SD_CAP_MEMFILE,
 
     .init    = cephfsro_init,
     .cleanup = cephfsro_cleanup,

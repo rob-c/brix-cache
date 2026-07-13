@@ -15,11 +15,14 @@
  *
  * HOW:  A process-global append-only fd, lazy-opened on first record. O_APPEND
  *       makes concurrent writes from multiple workers atomic for the sub-PIPE_BUF
- *       lines we emit, so no lock is needed. The sink is $BRIX_XFER_AUDIT_LOG,
- *       else <prefix>/logs/xfer_audit.log. Wire-sourced fields (path, principal)
- *       are escaped with the shared sanitizer. Auditing is best-effort: a sink
- *       that cannot be opened is warned once and skipped — it never fails a
- *       transfer. Early-return, no goto.
+ *       lines we emit, so no lock is needed. The sink is $BRIX_XFER_AUDIT_LOG
+ *       (explicit — never falls back), else <prefix>/logs/xfer_audit.log, else
+ *       xfer_audit.log beside the cycle's error log (packaged deployments run
+ *       with a prefix like /usr/share/nginx that has no logs/ directory, but the
+ *       error-log directory always exists and is writable). Wire-sourced fields
+ *       (path, principal) are escaped with the shared sanitizer. Auditing is
+ *       best-effort: a sink that cannot be opened is warned once and skipped —
+ *       it never fails a transfer. Early-return, no goto.
  */
 
 #include "xfer.h"
@@ -66,16 +69,10 @@ brix_xfer_result_str(brix_xfer_result_t result)
 static int       xfer_audit_fd = -1;     /* per-worker append fd, lazy-opened   */
 static ngx_int_t xfer_audit_failed;      /* a prior open failed → stop trying   */
 
-/* Resolve the audit-log path: $BRIX_XFER_AUDIT_LOG, else <prefix>/logs/. */
+/* Resolve the default audit-log path: <prefix>/logs/xfer_audit.log. */
 static void
 xfer_audit_resolve_path(char *out, size_t outsz)
 {
-    const char *env = getenv("BRIX_XFER_AUDIT_LOG");
-
-    if (env != NULL && env[0] != '\0') {
-        ngx_cpystrn((u_char *) out, (u_char *) env, outsz);
-        return;
-    }
     if (ngx_cycle != NULL && ngx_cycle->prefix.len > 0) {
         ngx_snprintf((u_char *) out, outsz, "%V%s%Z", &ngx_cycle->prefix,
                      "logs/xfer_audit.log");
@@ -84,11 +81,60 @@ xfer_audit_resolve_path(char *out, size_t outsz)
     ngx_cpystrn((u_char *) out, (u_char *) "logs/xfer_audit.log", outsz);
 }
 
-/* Lazily open the append-only audit fd. -1 (and a one-shot warn) on failure. */
+/* Build "xfer_audit.log" in the directory of the cycle's error log. Returns 1
+ * with *out set, 0 when the cycle logs to stderr (no file to sit beside) or the
+ * path would not fit. */
+static int
+xfer_audit_errorlog_sibling(char *out, size_t outsz)
+{
+    static const char  leaf[] = "xfer_audit.log";
+    ngx_str_t         *name;
+    u_char            *slash;
+    size_t             dirlen;
+
+    if (ngx_cycle == NULL || ngx_cycle->new_log.file == NULL) {
+        return 0;
+    }
+    name = &ngx_cycle->new_log.file->name;
+    if (name->len == 0 || name->data == NULL) {
+        return 0;
+    }
+
+    slash = NULL;
+    for (size_t i = 0; i < name->len; i++) {
+        if (name->data[i] == '/') {
+            slash = name->data + i;
+        }
+    }
+    if (slash == NULL) {
+        return 0;
+    }
+
+    dirlen = (size_t) (slash - name->data) + 1;   /* keep the '/' */
+    if (dirlen + sizeof(leaf) > outsz) {
+        return 0;
+    }
+    ngx_memcpy(out, name->data, dirlen);
+    ngx_memcpy(out + dirlen, leaf, sizeof(leaf));
+    return 1;
+}
+
+static int
+xfer_audit_try_open(const char *path)
+{
+    return open(path, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0640);
+}
+
+/* Lazily open the append-only audit fd. $BRIX_XFER_AUDIT_LOG is an explicit
+ * operator choice and never falls back; the built-in default (<prefix>/logs/)
+ * falls back to the error-log directory so packaged deployments whose prefix
+ * has no logs/ directory still get auditing. -1 (one-shot warn) on failure. */
 static int
 xfer_audit_fd_get(ngx_log_t *log)
 {
-    char path[PATH_MAX];
+    char        path[PATH_MAX];
+    char        alt[PATH_MAX];
+    const char *env = getenv("BRIX_XFER_AUDIT_LOG");
 
     if (xfer_audit_fd >= 0) {
         return xfer_audit_fd;
@@ -97,16 +143,41 @@ xfer_audit_fd_get(ngx_log_t *log)
         return -1;
     }
 
-    xfer_audit_resolve_path(path, sizeof(path));
-    xfer_audit_fd = open(path, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0640);
-    if (xfer_audit_fd < 0) {
-        xfer_audit_failed = 1;
-        ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
-                      "xfer: cannot open audit log \"%s\" — transfer auditing "
-                      "disabled this worker", path);
-        return -1;
+    if (env != NULL && env[0] != '\0') {
+        ngx_cpystrn((u_char *) path, (u_char *) env, sizeof(path));
+        xfer_audit_fd = xfer_audit_try_open(path);
+        if (xfer_audit_fd < 0) {
+            xfer_audit_failed = 1;
+            ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+                          "xfer: cannot open audit log \"%s\" "
+                          "($BRIX_XFER_AUDIT_LOG) — transfer auditing "
+                          "disabled this worker", path);
+        }
+        return xfer_audit_fd;
     }
-    return xfer_audit_fd;
+
+    xfer_audit_resolve_path(path, sizeof(path));
+    xfer_audit_fd = xfer_audit_try_open(path);
+    if (xfer_audit_fd >= 0) {
+        return xfer_audit_fd;
+    }
+
+    if (xfer_audit_errorlog_sibling(alt, sizeof(alt))) {
+        xfer_audit_fd = xfer_audit_try_open(alt);
+        if (xfer_audit_fd >= 0) {
+            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+                          "xfer: audit log at \"%s\" (default \"%s\" "
+                          "unavailable)", alt, path);
+            return xfer_audit_fd;
+        }
+    }
+
+    xfer_audit_failed = 1;
+    ngx_log_error(NGX_LOG_WARN, log, ngx_errno,
+                  "xfer: cannot open audit log \"%s\" — transfer auditing "
+                  "disabled this worker (set $BRIX_XFER_AUDIT_LOG to choose "
+                  "a writable path)", path);
+    return -1;
 }
 
 /* --------------------------- the record ---------------------------------- */
@@ -134,7 +205,10 @@ brix_xfer_ledger_record(const brix_xfer_audit_t *ev)
 
     tp = ngx_timeofday();
     ngx_libc_localtime(tp->sec, &tm);
-    strftime(timebuf, sizeof(timebuf), "%d/%b/%Y:%H:%M:%S %z", &tm);
+    if (strftime(timebuf, sizeof(timebuf), "%d/%b/%Y:%H:%M:%S %z", &tm) == 0) {
+        timebuf[0] = '-';                /* on failure timebuf is indeterminate */
+        timebuf[1] = '\0';
+    }
 
     brix_sanitize_log_string(ev->path ? ev->path : "-", safe_path,
                                sizeof(safe_path));

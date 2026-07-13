@@ -6,22 +6,22 @@
 
 
 /*
- * Parse the tail after "/brix/api/v1/admin/cluster/servers/" into host,
- * port, and an optional trailing action ("drain"/"undrain"/"").  Returns
- * NGX_OK on success.
+ * Copy the URI tail after "/brix/api/v1/admin/cluster/servers/" into a caller
+ * buffer.
+ *
+ * WHAT: validate the fixed admin prefix and copy the remaining path into a
+ *       NUL-terminated, mutable local buffer.
+ * WHY:  request URIs are neither NUL-terminated nor safe to mutate in place;
+ *       later parsing splits the copy destructively.
+ * HOW:  reject when the prefix is absent or the tail is empty or overlong,
+ *       then memcpy the tail and NUL-terminate.  Returns NGX_OK on success.
  */
-ngx_int_t
-admin_parse_server_uri(ngx_http_request_t *r, char *host_out, size_t host_size,
-    uint16_t *port_out, char *action_out, size_t action_size)
+static ngx_int_t
+admin_copy_server_tail(ngx_http_request_t *r, char *tail, size_t tail_size)
 {
     static const char  pfx[] = "/brix/api/v1/admin/cluster/servers/";
     size_t             pfxlen = sizeof(pfx) - 1;
-    char               tail[512];
     size_t             taillen;
-    char              *seg[3];
-    ngx_uint_t         nseg = 0;
-    char              *p;
-    ngx_int_t          port;
 
     if (r->uri.len <= pfxlen
         || ngx_strncmp(r->uri.data, pfx, pfxlen) != 0)
@@ -29,18 +29,33 @@ admin_parse_server_uri(ngx_http_request_t *r, char *host_out, size_t host_size,
         return NGX_ERROR;
     }
 
-    /* Copy the tail into a local NUL-terminated buffer (request URIs are not
-     * guaranteed NUL-terminated and must not be mutated in place). */
     taillen = r->uri.len - pfxlen;
-    if (taillen == 0 || taillen >= sizeof(tail)) {
+    if (taillen == 0 || taillen >= tail_size) {
         return NGX_ERROR;
     }
     ngx_memcpy(tail, r->uri.data + pfxlen, taillen);
     tail[taillen] = '\0';
+    return NGX_OK;
+}
 
-    /* In-place split of the mutable tail copy into up to 3 segments by '/':
-     * seg[0]=host, seg[1]=port, seg[2]=optional action. Each '/' is replaced
-     * with NUL and the next char starts the following segment. */
+
+/*
+ * Split the mutable tail copy into up to three '/'-delimited segments.
+ *
+ * WHAT: partition `tail` into seg[0]=host, seg[1]=port, seg[2]=optional action.
+ * WHY:  the admin server URI encodes host/port/action positionally; each field
+ *       is a bare path segment.
+ * HOW:  in-place split — replace each '/' with NUL and start the next segment
+ *       at the following char, stopping after the third segment.  The third
+ *       segment captured the remainder, so trim it at any further '/' (e.g. a
+ *       trailing slash).  Returns the segment count.
+ */
+static ngx_uint_t
+admin_split_server_segments(char *tail, char *seg[3])
+{
+    ngx_uint_t  nseg = 0;
+    char       *p;
+
     p = tail;
     seg[nseg++] = p;
     while (*p != '\0' && nseg < 3) {
@@ -50,38 +65,102 @@ admin_parse_server_uri(ngx_http_request_t *r, char *host_out, size_t host_size,
         }
         p++;
     }
-    /* The 3rd segment captured everything remaining (the loop stopped splitting
-     * at nseg==3), so trim it at any further '/' — e.g. a trailing slash. */
     if (nseg == 3) {
         for (p = seg[2]; *p != '\0'; p++) {
             if (*p == '/') { *p = '\0'; break; }
         }
     }
+    return nseg;
+}
 
-    if (nseg < 2 || seg[0][0] == '\0' || ngx_strlen(seg[0]) >= host_size) {
+
+/*
+ * Extract the host segment into `host_out`, stripping IPv6 brackets.
+ *
+ * WHAT: validate the host segment and copy it out in registry-canonical form.
+ * WHY:  a literal IPv6 host is sent bracketed in the URI path ("[::1]") because
+ *       it contains colons, but the cluster registry stores the address bare;
+ *       an unstripped host would never match a registered entry.
+ * HOW:  reject an empty or overlong segment, drop surrounding brackets when
+ *       present, re-validate, then copy into `host_out`.  Returns NGX_OK on
+ *       success.
+ */
+static ngx_int_t
+admin_extract_host(const char *seg0, char *host_out, size_t host_size)
+{
+    const char  *h  = seg0;
+    size_t       hl = ngx_strlen(h);
+    char         hbuf[512];
+
+    if (h[0] == '\0' || hl >= host_size) {
         return NGX_ERROR;
     }
-    /* A literal IPv6 host is sent bracketed in the URI path ("[::1]") because it
-     * contains colons; the cluster registry stores the address bare, so strip
-     * the brackets here or the host would never match a registered entry. */
-    {
-        char  *h  = seg[0];
-        size_t hl = ngx_strlen(h);
-        if (h[0] == '[' && hl >= 2 && h[hl - 1] == ']') {
-            h[hl - 1] = '\0';
-            h++;
-        }
-        if (h[0] == '\0' || ngx_strlen(h) >= host_size) {
+    if (h[0] == '[' && hl >= 2 && h[hl - 1] == ']') {
+        if (hl - 1 >= sizeof(hbuf)) {
             return NGX_ERROR;
         }
-        ngx_cpystrn((u_char *) host_out, (u_char *) h, host_size);
+        ngx_memcpy(hbuf, h + 1, hl - 2);
+        hbuf[hl - 2] = '\0';
+        h = hbuf;
     }
+    if (h[0] == '\0' || ngx_strlen(h) >= host_size) {
+        return NGX_ERROR;
+    }
+    ngx_cpystrn((u_char *) host_out, (u_char *) h, host_size);
+    return NGX_OK;
+}
 
-    port = ngx_atoi((u_char *) seg[1], ngx_strlen(seg[1]));
+
+/*
+ * Parse the port segment into a validated 16-bit port.
+ *
+ * WHAT: convert the port segment to a uint16_t in range 1..65535.
+ * WHY:  a well-formed server URI must carry a usable TCP port.
+ * HOW:  ngx_atoi the segment and reject non-numeric or out-of-range values.
+ *       Returns NGX_OK on success and writes `*port_out`.
+ */
+static ngx_int_t
+admin_parse_port(const char *seg1, uint16_t *port_out)
+{
+    ngx_int_t  port;
+
+    port = ngx_atoi((u_char *) seg1, ngx_strlen(seg1));
     if (port == NGX_ERROR || port <= 0 || port > 65535) {
         return NGX_ERROR;
     }
     *port_out = (uint16_t) port;
+    return NGX_OK;
+}
+
+
+/*
+ * Parse the tail after "/brix/api/v1/admin/cluster/servers/" into host,
+ * port, and an optional trailing action ("drain"/"undrain"/"").  Returns
+ * NGX_OK on success.
+ */
+ngx_int_t
+admin_parse_server_uri(ngx_http_request_t *r, char *host_out, size_t host_size,
+    uint16_t *port_out, char *action_out, size_t action_size)
+{
+    char        tail[512];
+    char       *seg[3] = { NULL, NULL, NULL };
+    ngx_uint_t  nseg;
+
+    if (admin_copy_server_tail(r, tail, sizeof(tail)) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    nseg = admin_split_server_segments(tail, seg);
+    if (nseg < 2) {
+        return NGX_ERROR;
+    }
+
+    if (admin_extract_host(seg[0], host_out, host_size) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (admin_parse_port(seg[1], port_out) != NGX_OK) {
+        return NGX_ERROR;
+    }
 
     action_out[0] = '\0';
     if (nseg == 3 && seg[2][0] != '\0' && ngx_strlen(seg[2]) < action_size) {

@@ -24,23 +24,30 @@ typedef struct {
     ngx_log_t             *log;
 } sd_stage_inst_state;
 
+/* Staged-write object state: an upload lands on the stage store and is flushed
+ * to the backend on commit.  `cred` records the owner identity so a deferred or
+ * async flush can authenticate as the original user rather than the service account. */
 typedef struct {
     sd_stage_inst_state  *is;          /* back-ref: source / store / policy     */
     char                  key[PATH_MAX];   /* export-relative final key         */
     brix_sd_staged_t   *inner;       /* the stage store's staged handle       */
+    brix_stage_cred_t    cred;        /* per-user identity (zeroed = service)  */
 } sd_stage_staged_state;
 
 /* Write-BACK object state (Option A / §12.2): a random-access write open lands on
  * the STAGE STORE as a normal writable object; pwrite buffers there, and fsync/close
  * flush the whole object to the backend through the one staging engine. This lets
  * root:// kXR_write (direct pwrite at arbitrary offsets) use the SAME stage mechanism
- * as the staged (HTTP PUT) path, so writethrough_flush's bespoke loop is retired. */
+ * as the staged (HTTP PUT) path, so writethrough_flush's bespoke loop is retired.
+ * `cred` records the owner identity at open time so the flush can authenticate as
+ * the original user even if the flush runs on a background thread or after a restart. */
 typedef struct {
     sd_stage_inst_state  *is;              /* back-ref: source / store / policy   */
     char                  key[PATH_MAX];   /* export-relative object key          */
     brix_sd_obj_t       store_obj;       /* the writable stage-store object     */
     off_t                 high_water;      /* max offset+len written (flush size) */
     unsigned              dirty:1;         /* written since the last flush        */
+    brix_stage_cred_t    cred;            /* per-user identity (zeroed = service) */
 } sd_stage_wb_state;
 
 #define SD_STAGE_SRC(inst)  (((sd_stage_inst_state *) (inst)->state)->source)
@@ -49,13 +56,25 @@ static const brix_sd_driver_t brix_sd_stage_driver;   /* fwd: write-back objs ca
 
 /* ---- namespace / xattr / dir forwarders (delegate to the source) ---------- */
 
-/* Open the write-BACK object on the stage store (a normal writable object). The
- * returned obj carries the stage driver so its pwrite/pread/fsync/close dispatch to
- * the write-back methods below; the stage-store object is held BY VALUE so the handle
- * is self-contained (the shell is freed after the caller copies it into fh->sd_obj). */
+/* Open the write-BACK object on the stage store (a normal writable object).
+ *
+ * WHAT: Opens a writable object on the stage store and wires a sd_stage_wb_state
+ *       that carries the owner identity for the eventual flush.
+ *
+ * WHY:  The returned obj carries the stage driver so its pwrite/pread/fsync/close
+ *       dispatch to the write-back methods below; the stage-store object is held
+ *       BY VALUE so the handle is self-contained.  Recording the caller's cred
+ *       in wb->cred ensures sd_stage_wb_flush can authenticate to the backend
+ *       as the original user rather than the service account.
+ *
+ * HOW:  Opens the stage STORE (always local) with a plain open — the store is
+ *       service-owned.  Copies key/principal/cred_dir/fallback_deny from `cred`
+ *       into wb->cred when cred is non-NULL and cred->key is non-empty;
+ *       otherwise wb->cred stays zeroed (service-credential path). */
 static brix_sd_obj_t *
 sd_stage_open_writeback(brix_sd_instance_t *inst, sd_stage_inst_state *is,
-    const char *path, int sd_flags, mode_t mode, int *err_out)
+    const char *path, int sd_flags, mode_t mode,
+    const brix_sd_cred_t *cred, int *err_out)
 {
     brix_sd_obj_t   *store_obj;
     brix_sd_obj_t   *obj;
@@ -66,6 +85,7 @@ sd_stage_open_writeback(brix_sd_instance_t *inst, sd_stage_inst_state *is,
         if (err_out != NULL) { *err_out = ENOSYS; }
         return NULL;
     }
+    /* The stage store is service-owned (local POSIX); always open it plain. */
     store_obj = is->store->driver->open(is->store, path, sd_flags, mode, &e);
     if (store_obj == NULL) {
         if (err_out != NULL) { *err_out = e; }
@@ -91,6 +111,19 @@ sd_stage_open_writeback(brix_sd_instance_t *inst, sd_stage_inst_state *is,
     if (store_obj->heap_shell) { free(store_obj); }
     wb->store_obj.heap_shell = 0;
 
+    /* Record the owner identity for the flush; zeroed cred = service account. */
+    if (cred != NULL && cred->key != NULL && cred->key[0] != '\0') {
+        ngx_cpystrn((u_char *) wb->cred.key, (u_char *) cred->key,
+                    sizeof(wb->cred.key));
+        ngx_cpystrn((u_char *) wb->cred.principal,
+                    (u_char *) (cred->principal ? cred->principal : ""),
+                    sizeof(wb->cred.principal));
+        ngx_cpystrn((u_char *) wb->cred.dir,
+                    (u_char *) (cred->cred_dir ? cred->cred_dir : ""),
+                    sizeof(wb->cred.dir));
+        wb->cred.deny = (uint8_t) cred->fallback_deny;
+    }
+
     obj->driver     = &brix_sd_stage_driver;   /* → the write-back methods below */
     obj->inst       = inst;
     obj->fd         = wb->store_obj.fd;          /* expose the stage fd (posix sendfile) */
@@ -110,9 +143,38 @@ sd_stage_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
      * flush to the backend). Read open → the source's own object, so read byte-I/O
      * bypasses the decorator entirely. */
     if (sd_flags & BRIX_SD_O_WRITE) {
-        return sd_stage_open_writeback(inst, is, path, sd_flags, mode, err_out);
+        return sd_stage_open_writeback(inst, is, path, sd_flags, mode, NULL,
+                                        err_out);
     }
     return is->source->driver->open(is->source, path, sd_flags, mode, err_out);
+}
+
+/* Credential-scoped open: records the caller's per-user identity in the
+ * write-back state so the eventual flush authenticates as the original user.
+ *
+ * WHAT: Write opens route through sd_stage_open_writeback with the cred so the
+ *       owner key/dir/deny are embedded in the durable wb state; read opens
+ *       forward to the source via brix_sd_open_maybe_cred.
+ *
+ * WHY:  Without this slot the stage decorator drops a caller-supplied cred on
+ *       the floor: write opens use the service account for the flush, and read
+ *       opens use the service account for the source open on credential-aware
+ *       backends.
+ *
+ * HOW:  Write → sd_stage_open_writeback(... cred); read →
+ *       brix_sd_open_maybe_cred(source, ..., cred). */
+static brix_sd_obj_t *
+sd_stage_open_cred(brix_sd_instance_t *inst, const char *path, int sd_flags,
+    mode_t mode, const brix_sd_cred_t *cred, int *err_out)
+{
+    sd_stage_inst_state *is = inst->state;
+
+    if (sd_flags & BRIX_SD_O_WRITE) {
+        return sd_stage_open_writeback(inst, is, path, sd_flags, mode, cred,
+                                        err_out);
+    }
+    return brix_sd_open_maybe_cred(is->source, path, sd_flags, mode, cred,
+                                    err_out);
 }
 
 /* ---- write-back byte-I/O (only reached for objects opened for write above) ------ */
@@ -132,8 +194,9 @@ sd_stage_wb_flush(sd_stage_wb_state *wb)
     if (!wb->dirty) {
         return NGX_OK;
     }
-    rc = brix_stage_run_inline(BRIX_STAGE_FLUSH, is->store, wb->key,
-                                 is->source, wb->key);
+    rc = brix_stage_run_inline_cred(BRIX_STAGE_FLUSH, is->store, wb->key,
+                                     is->source, wb->key,
+                                     (wb->cred.key[0] != '\0') ? &wb->cred : NULL);
     if (rc == NGX_OK) {
         wb->dirty = 0;
     }
@@ -320,11 +383,22 @@ sd_stage_removexattr(brix_sd_instance_t *inst, const char *path,
 
 /* ---- the write-stage path (the only interposed path) ---------------------- */
 
+/* Common staged_open body shared by sd_stage_staged_open and
+ * sd_stage_staged_open_cred.
+ *
+ * WHAT: Opens a staged upload slot on the STORE (local — always plain) and
+ *       records the optional per-user cred in ss->cred for the commit-time flush.
+ *
+ * WHY:  The store is service-owned so its staged_open is always plain; the
+ *       credential is only needed at flush time (store→source) and must be
+ *       captured now while the request context is still live.
+ *
+ * HOW:  Allocate ss + h, wire them, copy cred when key is non-empty. */
 static brix_sd_staged_t *
-sd_stage_staged_open(brix_sd_instance_t *inst, const char *final_path,
-    mode_t mode, int *err_out)
+sd_stage_staged_open_inner(brix_sd_instance_t *inst, sd_stage_inst_state *is,
+    const char *final_path, mode_t mode,
+    const brix_sd_cred_t *cred, int *err_out)
 {
-    sd_stage_inst_state   *is = inst->state;
     sd_stage_staged_state *ss;
     brix_sd_staged_t    *h;
     brix_sd_staged_t    *inner;
@@ -354,9 +428,49 @@ sd_stage_staged_open(brix_sd_instance_t *inst, const char *final_path,
     ss->inner = inner;
     ngx_cpystrn((u_char *) ss->key, (u_char *) final_path, sizeof(ss->key));
 
+    /* Record the owner identity for the flush; zeroed cred = service account. */
+    if (cred != NULL && cred->key != NULL && cred->key[0] != '\0') {
+        ngx_cpystrn((u_char *) ss->cred.key, (u_char *) cred->key,
+                    sizeof(ss->cred.key));
+        ngx_cpystrn((u_char *) ss->cred.principal,
+                    (u_char *) (cred->principal ? cred->principal : ""),
+                    sizeof(ss->cred.principal));
+        ngx_cpystrn((u_char *) ss->cred.dir,
+                    (u_char *) (cred->cred_dir ? cred->cred_dir : ""),
+                    sizeof(ss->cred.dir));
+        ss->cred.deny = (uint8_t) cred->fallback_deny;
+    }
+
     h->inst  = inst;
     h->state = ss;
     return h;
+}
+
+static brix_sd_staged_t *
+sd_stage_staged_open(brix_sd_instance_t *inst, const char *final_path,
+    mode_t mode, int *err_out)
+{
+    sd_stage_inst_state *is = inst->state;
+    return sd_stage_staged_open_inner(inst, is, final_path, mode, NULL, err_out);
+}
+
+/* Credential-scoped staged_open: records the owner identity so the commit-time
+ * flush can authenticate as the original user.
+ *
+ * WHAT: Delegates to sd_stage_staged_open_inner with the caller's cred.
+ *
+ * WHY:  Without this slot a caller using brix_sd_staged_open_maybe_cred against
+ *       the stage decorator would lose the credential — the plain staged_open
+ *       slot receives no cred parameter.
+ *
+ * HOW:  sd_stage_staged_open_inner copies key/principal/cred_dir/deny into
+ *       ss->cred; sd_stage_staged_commit then passes &ss->cred to the flush. */
+static brix_sd_staged_t *
+sd_stage_staged_open_cred(brix_sd_instance_t *inst, const char *final_path,
+    mode_t mode, const brix_sd_cred_t *cred, int *err_out)
+{
+    sd_stage_inst_state *is = inst->state;
+    return sd_stage_staged_open_inner(inst, is, final_path, mode, cred, err_out);
 }
 
 static ssize_t
@@ -399,23 +513,36 @@ sd_stage_staged_commit(brix_sd_staged_t *st, int noreplace)
     /* 2a. ASYNC write-back (SP4): the object is durable on the stage store now, so
      * the commit succeeds immediately; the scheduler flushes it to the backend and
      * drops the stage copy on completion. The export anchor rides on the durable
-     * record so a restart-reconcile can rebuild both tiers and re-flush (§11.3). */
+     * record so a restart-reconcile can rebuild both tiers and re-flush (§11.3).
+     * The owner cred is embedded in the opts so the scheduler can authenticate as
+     * the original user when it drains the queue (non-NULL only when a key was
+     * recorded at staged_open time). */
     if (is->policy.flush_mode == BRIX_WT_MODE_ASYNC) {
         brix_stage_opts_t o;
 
         ngx_memzero(&o, sizeof(o));
         o.async       = 1;
         o.export_root = (is->root_canon[0] != '\0') ? is->root_canon : NULL;
-        (void) brix_stage_submit(BRIX_STAGE_FLUSH, store, ss->key, source,
+        o.cred        = (ss->cred.key[0] != '\0') ? &ss->cred : NULL;
+        /* phase74-fp: argument order verified against brix_stage_submit(kind,
+         * src, src_key, dst, dst_key, opts) — a FLUSH moves bytes FROM the
+         * stage `store` TO the backend instance (locally named `source`), so
+         * store is the src and source the dst; the name swap is deliberate. */
+        (void) brix_stage_submit(BRIX_STAGE_FLUSH, store, ss->key, source,  /* NOLINT(readability-suspicious-call-argument) */
                                    ss->key, &o);
         free(ss);
         free(st);
         return NGX_OK;
     }
 
-    /* 2b. SYNC write-back: flush inline and reflect the result. */
-    rc = brix_stage_run_inline(BRIX_STAGE_FLUSH, store, ss->key, source,
-                                 ss->key);
+    /* 2b. SYNC write-back: flush inline and reflect the result, threading the
+     * owner cred so the backend driver uses the per-user proxy rather than the
+     * service credential. */
+    /* phase74-fp: same verified src/dst order as the async submit above —
+     * FLUSH reads from the stage store and writes to the backend `source`. */
+    rc = brix_stage_run_inline_cred(BRIX_STAGE_FLUSH, store, ss->key, source,  /* NOLINT(readability-suspicious-call-argument) */
+                                     ss->key,
+                                     (ss->cred.key[0] != '\0') ? &ss->cred : NULL);
 
     /* 3. on success drop the stage buffer copy; on failure keep it for retry. */
     if (rc == NGX_OK && store->driver->unlink != NULL) {
@@ -446,8 +573,10 @@ static const brix_sd_driver_t brix_sd_stage_driver = {
     .name        = "stage",
     .caps        = BRIX_SD_CAP_RANGE_READ | BRIX_SD_CAP_RANDOM_WRITE
                  | BRIX_SD_CAP_TRUNCATE | BRIX_SD_CAP_XATTR
+                 | BRIX_SD_CAP_XATTR_WRITE
                  | BRIX_SD_CAP_HARD_RENAME | BRIX_SD_CAP_SERVER_COPY,
     .open        = sd_stage_open,
+    .open_cred   = sd_stage_open_cred,
     /* write-back byte-I/O (only dispatched for objects opened for write — a read
      * open returns the source's own object with the source driver). */
     .pread       = sd_stage_wb_pread,
@@ -469,10 +598,11 @@ static const brix_sd_driver_t brix_sd_stage_driver = {
     .listxattr   = sd_stage_listxattr,
     .setxattr    = sd_stage_setxattr,
     .removexattr = sd_stage_removexattr,
-    .staged_open   = sd_stage_staged_open,
-    .staged_write  = sd_stage_staged_write,
-    .staged_commit = sd_stage_staged_commit,
-    .staged_abort  = sd_stage_staged_abort,
+    .staged_open      = sd_stage_staged_open,
+    .staged_open_cred = sd_stage_staged_open_cred,
+    .staged_write     = sd_stage_staged_write,
+    .staged_commit    = sd_stage_staged_commit,
+    .staged_abort     = sd_stage_staged_abort,
 };
 
 brix_sd_instance_t *
@@ -551,10 +681,21 @@ brix_sd_stage_store_instance(const brix_sd_instance_t *inst)
 
 /* SP4 restart-reconcile: re-flush the durable staged object `key` from the stage
  * store to the backend (the FLUSH a crash interrupted), dropping the stage copy on
- * success - exactly the sync staged_commit tail, run again. NGX_OK / NGX_DECLINED
- * (not a stage instance) / NGX_ERROR (errno set; the record is kept for retry). */
+ * success - exactly the sync staged_commit tail, run again.
+ *
+ * WHAT: Delegates to brix_stage_run_inline_cred so the owner identity (from the
+ *       persisted brix_sreq_t.cred) is threaded into the flush and presented to the
+ *       backend driver.  A NULL cred uses the service credential.
+ *
+ * WHY:  A restart-reconcile must authenticate as the original user — not the
+ *       service account — for per-user quota / audit / ACL enforcement.
+ *
+ * HOW:  Same as the pre-cred path but calls _cred instead of _inline, passing the
+ *       caller-supplied cred unchanged.  Returns NGX_OK / NGX_DECLINED (not a stage
+ *       instance) / NGX_ERROR (errno set; the record is kept for retry). */
 ngx_int_t
-brix_sd_stage_reflush(brix_sd_instance_t *inst, const char *key)
+brix_sd_stage_reflush(brix_sd_instance_t *inst, const char *key,
+    const brix_stage_cred_t *cred)
 {
     sd_stage_inst_state *is;
     ngx_int_t            rc;
@@ -563,8 +704,8 @@ brix_sd_stage_reflush(brix_sd_instance_t *inst, const char *key)
         return NGX_DECLINED;
     }
     is = inst->state;
-    rc = brix_stage_run_inline(BRIX_STAGE_FLUSH, is->store, key, is->source,
-                                 key);
+    rc = brix_stage_run_inline_cred(BRIX_STAGE_FLUSH, is->store, key, is->source,
+                                     key, cred);
     if (rc == NGX_OK && is->store->driver->unlink != NULL) {
         (void) is->store->driver->unlink(is->store, key, 0);   /* drop stage copy */
     }

@@ -124,6 +124,300 @@ s3_walk_classify(ngx_pool_t *pool, ngx_log_t *log, const char *root,
 }
 
 /*
+ * s3_walk_ctx_t — the invariant parameters of one recursive ListObjects walk.
+ *
+ * WHAT: bundles the eight fixed inputs of s3_walk() (log, root, the two prefix
+ *   filters + their cached lengths, the delimiter, the output array, and the
+ *   entry cap) so the recursion and the per-entry helpers pass ONE pointer
+ *   instead of an eight-argument list.
+ * WHY: s3_walk()'s public signature is frozen (recursive + an out-of-file
+ *   caller in list_common.c), but its internal fan-out — path build, classify,
+ *   directory emit, file emit — repeated the same eight values on every call
+ *   and inflated cyclomatic complexity. A file-local context lets those helpers
+ *   take (ctx, per-entry args) and keeps the walk loop flat.
+ * HOW: s3_walk() populates it once (caching filter_prefix / delimiter lengths,
+ *   which are constant across the whole recursion) and hands &ctx to
+ *   s3_walk_run(); dir_path / key_prefix stay per-call arguments because they
+ *   change at each recursion level.
+ */
+typedef struct {
+    ngx_log_t   *log;            /* request log (for the access gate)  */
+    const char  *root;           /* filesystem root (== root_canon)    */
+    const char  *filter_prefix;  /* ListObjects prefix param (or NULL) */
+    const char  *delimiter;      /* hierarchy delimiter (or NULL)      */
+    size_t       fp_len;         /* strlen(filter_prefix), cached      */
+    size_t       del_len;        /* strlen(delimiter), cached          */
+    ngx_array_t *entries;        /* growable output array              */
+    int          max_entries;    /* hard cap on entries                */
+} s3_walk_ctx_t;
+
+
+static int s3_walk_run(s3_walk_ctx_t *ctx, const char *dir_path,
+    const char *key_prefix);
+
+
+/*
+ * s3_child_paths_t — the two fixed-size buffers built per directory entry.
+ *
+ * WHAT: pairs the filesystem child path (PATH_MAX) with the root-relative S3
+ *   key (S3_MAX_KEY) that s3_walk_build_paths() fills for one readdir entry.
+ * WHY: bundling the two output buffers into one out-param keeps
+ *   s3_walk_build_paths() within the 5-parameter budget while preserving the
+ *   caller-owned, stack-allocated storage (no extra allocation).
+ * HOW: the caller declares one on the stack and passes its address; the buffer
+ *   sizes are the struct's array bounds, so no size arguments are needed.
+ */
+typedef struct {
+    char  path[PATH_MAX];    /* "<dir_path>/<dname>"           */
+    char  key[S3_MAX_KEY];   /* root-relative object/prefix key */
+} s3_child_paths_t;
+
+
+/*
+ * Build the child filesystem path and S3 key for one directory entry.
+ *
+ * WHAT: writes "<dir_path>/<dname>" into out->path and the root-relative key
+ *   into out->key.  Returns 0 on success, -1 if either buffer would overflow
+ *   (the caller then skips this entry, matching the original inline behaviour).
+ * WHY: hoists two bounds-checked snprintf/memcpy blocks out of the walk loop so
+ *   the loop reads as classify → emit without truncation noise.
+ * HOW: out->path is always "<dir_path>/<dname>"; out->key is
+ *   "<key_prefix>/<dname>" at depth, or the bare name at the bucket root
+ *   (key_prefix == "").  name carries the pre-measured length for the root case.
+ */
+static int
+s3_walk_build_paths(const char *dir_path, const char *key_prefix,
+    const ngx_str_t *name, s3_child_paths_t *out)
+{
+    const char *dname = (const char *) name->data;
+
+    if ((size_t) snprintf(out->path, sizeof(out->path), "%s/%s",
+                          dir_path, dname) >= sizeof(out->path)) {
+        return -1;
+    }
+
+    if (key_prefix[0] != '\0') {
+        if ((size_t) snprintf(out->key, sizeof(out->key), "%s/%s",
+                              key_prefix, dname) >= sizeof(out->key)) {
+            return -1;
+        }
+    } else {
+        if (name->len >= sizeof(out->key)) {
+            return -1;
+        }
+        memcpy(out->key, dname, name->len + 1);
+    }
+    return 0;
+}
+
+
+/*
+ * Handle a directory entry: recurse into it or emit it as a CommonPrefix.
+ *
+ * WHAT: for kind==1 (directory) entries.  With no delimiter, recurses
+ *   unconditionally.  With a delimiter, either recurses (when the user prefix
+ *   descends into this dir) or emits "<key>/" as a CommonPrefix if it matches
+ *   the filter.  Returns 0 to continue the loop, -1 on a push failure (which
+ *   stops the walk, as before).
+ * WHY: isolates the directory branch (the deepest nesting in the old loop) into
+ *   one named step with early-return over the nested-if pyramid.
+ * HOW: CommonPrefix carries no size/mtime/etag (S3 spec) so no stat is done;
+ *   recursion re-uses the shared ctx and only advances dir_path/child_key.
+ */
+static int
+s3_walk_emit_dir(s3_walk_ctx_t *ctx, const char *child_path,
+    const char *child_key)
+{
+    char    prefix_entry[S3_MAX_KEY];
+    size_t  pe_len;
+
+    if (ctx->del_len == 0) {
+        /* No delimiter: recurse unconditionally. */
+        s3_walk_run(ctx, child_path, child_key);
+        return 0;
+    }
+
+    /* Build "dir_key/" to check against filter_prefix. */
+    if ((size_t) snprintf(prefix_entry, sizeof(prefix_entry), "%s/", child_key)
+        >= sizeof(prefix_entry)) {
+        return 0;   /* truncated → skip this entry */
+    }
+    pe_len = strlen(prefix_entry);
+
+    /*
+     * Recurse if filter_prefix starts with this dir (i.e. the user-supplied
+     * prefix descends into this directory).
+     */
+    if (ctx->fp_len > 0 && ctx->fp_len >= pe_len
+        && strncmp(ctx->filter_prefix, prefix_entry, pe_len) == 0) {
+        s3_walk_run(ctx, child_path, child_key);
+        return 0;
+    }
+
+    /* Emit as CommonPrefix if it matches or starts with filter. */
+    if (ctx->fp_len > 0
+        && strncmp(prefix_entry, ctx->filter_prefix, ctx->fp_len) != 0) {
+        return 0;
+    }
+    /* CommonPrefix carries no size/mtime/etag (S3 spec) — no stat. */
+    if (s3_walk_push(ctx->entries, prefix_entry, 1) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+
+/*
+ * Handle a regular-file entry: apply the object filters and push the key.
+ *
+ * WHAT: for kind==2 (regular file) entries.  Skips the directory sentinel and
+ *   internal sidecar/staging names, applies the prefix filter, and (with a
+ *   delimiter) skips keys that carry a delimiter after the prefix (they belong
+ *   under a CommonPrefix subtree).  Returns 0 to continue, -1 on push failure.
+ * WHY: isolates the file branch so the walk loop stays flat; keeps the sentinel
+ *   / internal-name / prefix / delimiter filter order byte-identical to the
+ *   original so the emitted key set is unchanged.
+ * HOW: collects the key only (phase-45 W1); size/mtime/etag are filled lazily
+ *   for the emitted page via s3_entry_fill_stat().
+ */
+static int
+s3_walk_emit_file(s3_walk_ctx_t *ctx, const char *child_key,
+    const char *dname)
+{
+    /* Skip directory sentinel. */
+    if (strcmp(dname, S3_DIR_SENTINEL) == 0) {
+        return 0;
+    }
+    /* Hide internal metadata/staging artifacts (sidecars, upload temps) —
+     * never listable as an S3 object key. */
+    if (brix_is_internal_name(dname)) {
+        return 0;
+    }
+    /* Filter by prefix. */
+    if (ctx->fp_len > 0
+        && strncmp(child_key, ctx->filter_prefix, ctx->fp_len) != 0) {
+        return 0;
+    }
+    /* With delimiter, skip entries that have a delimiter after prefix
+     * (they belong under a CommonPrefix subtree, not at this level). */
+    if (ctx->del_len > 0) {
+        const char *after_prefix = child_key + ctx->fp_len;
+        if (strstr(after_prefix, ctx->delimiter) != NULL) {
+            return 0;
+        }
+    }
+
+    /* phase-45 W1: collect the key only; size/mtime/etag are filled lazily for
+     * the emitted page via s3_entry_fill_stat(). */
+    if (s3_walk_push(ctx->entries, child_key, 0) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+
+/*
+ * Process one readdir entry: build paths, classify, dispatch to dir/file emit.
+ *
+ * WHAT: given a readdir name+kind, computes the child path/key, classifies it
+ *   (dir / regular file / skip), and routes to s3_walk_emit_dir or
+ *   s3_walk_emit_file.  Returns 0 to continue the loop, -1 to stop it.
+ * WHY: one nameable step per entry keeps s3_walk_run's loop to open → read →
+ *   process, removing the branch nesting that drove the CCN warning.
+ * HOW: symlinks/specials classify as kind==0 and are skipped, preserving the
+ *   symlink-skip security property.
+ */
+static int
+s3_walk_entry(s3_walk_ctx_t *ctx, const char *dir_path, const char *key_prefix,
+    const ngx_str_t *name, brix_vfs_dirent_kind_t dkind)
+{
+    s3_child_paths_t  cp;
+    const char       *dname = (const char *) name->data;
+    int               kind;
+
+    if (s3_walk_build_paths(dir_path, key_prefix, name, &cp) != 0) {
+        return 0;   /* path/key truncation → skip this entry */
+    }
+
+    /*
+     * Classify from the readdir d_type (no stat); a confined no-follow probe is
+     * used only on DT_UNKNOWN.  Symlinks/specials are skipped (kind==0).
+     */
+    kind = s3_walk_classify(ctx->entries->pool, ctx->log, ctx->root,
+                            cp.path, dkind);
+    if (kind == 0) {
+        return 0;
+    }
+    if (kind == 1) {
+        return s3_walk_emit_dir(ctx, cp.path, cp.key);
+    }
+    return s3_walk_emit_file(ctx, cp.key, dname);
+}
+
+
+/*
+ * Recursive walk core — open one directory and process its entries.
+ *
+ * WHAT: enforces the impersonation list gate, opens dir_path through the VFS,
+ *   and loops readdir → s3_walk_entry until end-of-dir, the entry cap, or a
+ *   push failure.  Returns the running entry count.
+ * WHY: carries the recursion (s3_walk_emit_dir calls back into it) while
+ *   s3_walk() stays a thin public wrapper with the frozen 8-arg signature.
+ * HOW: uses the NON-METERED opendir so a recursive ListObjects does not emit an
+ *   OP_DIRLIST per visited subdirectory (the enclosing S3 list op accounts for
+ *   the whole walk).
+ */
+static int
+s3_walk_run(s3_walk_ctx_t *ctx, const char *dir_path, const char *key_prefix)
+{
+    brix_vfs_ctx_t   wctx;
+    brix_vfs_dir_t  *dh;
+
+    /*
+     * Phase 40 confidentiality gate: under impersonation the worker uid may be
+     * able to readdir() a directory the MAPPED user cannot.  Ask the broker to
+     * open it as the mapped user first; on denial skip the whole subtree rather
+     * than enumerate it with the worker's credentials.  No-op when off.
+     */
+    if (brix_dirlist_access_ok(ctx->log, ctx->root, dir_path) != NGX_OK) {
+        return (int) ctx->entries->nelts;
+    }
+
+    /* Enumerate through the VFS (broker fdopendir under impersonation), using
+     * the NON-METERED opendir. */
+    brix_vfs_ctx_init(&wctx, ctx->entries->pool, ctx->log, BRIX_PROTO_S3,
+        ctx->root, NULL, 0 /* allow_write */, 0 /* is_tls */, NULL, dir_path);
+    dh = brix_vfs_opendir_quiet(&wctx, NULL);
+    if (dh == NULL) {
+        return (int) ctx->entries->nelts;
+    }
+
+    for ( ;; ) {
+        ngx_str_t                name;
+        brix_vfs_dirent_kind_t   dkind;
+        ngx_int_t                rrc;
+
+        if ((int) ctx->entries->nelts >= ctx->max_entries) {
+            break;
+        }
+        /* "." / ".." are filtered by brix_vfs_readdir_kind; the entry kind
+         * comes from d_type so the fast path needs no per-entry stat. */
+        rrc = brix_vfs_readdir_kind(dh, &name, &dkind);
+        if (rrc != NGX_OK) {
+            break;   /* NGX_DONE (end) or error → stop with what we have */
+        }
+
+        if (s3_walk_entry(ctx, dir_path, key_prefix, &name, dkind) != 0) {
+            break;   /* push failure → stop with what we have */
+        }
+    }
+
+    brix_vfs_closedir(dh, ctx->log);
+    return (int) ctx->entries->nelts;
+}
+
+
+/*
  * Recursive directory walker — appends entries, returns the running total
  * */
 
@@ -137,148 +431,20 @@ s3_walk(ngx_log_t  *log,           /* request log (for the access gate)   */
         ngx_array_t *entries,      /* growable output array      */
         int         max_entries)   /* hard cap on entries        */
 {
-    brix_vfs_ctx_t  wctx;
-    brix_vfs_dir_t *dh;
-    char              child_path[PATH_MAX];
-    char              child_key[S3_MAX_KEY];
+    s3_walk_ctx_t  ctx;
+
+    ngx_memzero(&ctx, sizeof(ctx));
+    ctx.log           = log;
+    ctx.root          = root;
+    ctx.filter_prefix = filter_prefix;
+    ctx.delimiter     = delimiter;
     /* Cache lengths once — avoids repeated strlen() in the readdir loop. */
-    size_t            fp_len  = filter_prefix ? strlen(filter_prefix) : 0;
-    size_t            del_len = delimiter     ? strlen(delimiter)      : 0;
+    ctx.fp_len        = filter_prefix ? strlen(filter_prefix) : 0;
+    ctx.del_len       = delimiter     ? strlen(delimiter)      : 0;
+    ctx.entries       = entries;
+    ctx.max_entries   = max_entries;
 
-    /*
-     * Phase 40 confidentiality gate: under impersonation the worker uid may be
-     * able to readdir() a directory the MAPPED user cannot.  Ask the broker to
-     * open it as the mapped user first; on denial skip the whole subtree rather
-     * than enumerate it with the worker's credentials.  No-op when off.
-     */
-    if (brix_dirlist_access_ok(log, root, dir_path) != NGX_OK) {
-        return (int) entries->nelts;
-    }
-
-    /* Enumerate through the VFS (broker fdopendir under impersonation), using the
-     * NON-METERED opendir: a recursive ListObjects must not emit one OP_DIRLIST
-     * per visited subdirectory (the enclosing S3 list op accounts for the walk). */
-    brix_vfs_ctx_init(&wctx, entries->pool, log, BRIX_PROTO_S3, root, NULL,
-        0 /* allow_write */, 0 /* is_tls */, NULL, dir_path);
-    dh = brix_vfs_opendir_quiet(&wctx, NULL);
-    if (dh == NULL) {
-        return (int) entries->nelts;
-    }
-
-    for ( ;; ) {
-        ngx_str_t                name;
-        brix_vfs_dirent_kind_t dkind;
-        const char              *dname;
-        int                      kind;
-        ngx_int_t                rrc;
-
-        if ((int) entries->nelts >= max_entries) {
-            break;
-        }
-        /* "." / ".." are filtered by brix_vfs_readdir_kind; the entry kind
-         * comes from d_type so the fast path needs no per-entry stat. */
-        rrc = brix_vfs_readdir_kind(dh, &name, &dkind);
-        if (rrc != NGX_OK) {
-            break;   /* NGX_DONE (end) or error → stop with what we have */
-        }
-        dname = (const char *) name.data;
-
-        /* Build filesystem path */
-        if ((size_t) snprintf(child_path, sizeof(child_path), "%s/%s",
-                              dir_path, dname) >= sizeof(child_path)) {
-            continue;
-        }
-
-        /* Build key relative to root */
-        if (key_prefix[0] != '\0') {
-            if ((size_t) snprintf(child_key, sizeof(child_key), "%s/%s",
-                                  key_prefix, dname) >= sizeof(child_key)) {
-                continue;
-            }
-        } else {
-            if (name.len >= sizeof(child_key)) {
-                continue;
-            }
-            memcpy(child_key, dname, name.len + 1);
-        }
-
-        /*
-         * Classify from the readdir d_type (no stat); a confined no-follow probe
-         * is used only on DT_UNKNOWN.  Symlinks/specials are skipped (kind==0).
-         */
-        kind = s3_walk_classify(entries->pool, log, root, child_path, dkind);
-        if (kind == 0) {
-            continue;
-        }
-
-        if (kind == 1) {   /* directory */
-            if (del_len > 0) {
-                /* Build "dir_key/" to check against filter_prefix */
-                char prefix_entry[S3_MAX_KEY];
-                if ((size_t) snprintf(prefix_entry, sizeof(prefix_entry), "%s/",
-                                      child_key) >= sizeof(prefix_entry)) {
-                    continue;
-                }
-                size_t pe_len = strlen(prefix_entry);
-
-                /*
-                 * Recurse if filter_prefix starts with this dir (i.e. the
-                 * user-supplied prefix descends into this directory).
-                 */
-                if (fp_len > 0 && fp_len >= pe_len
-                    && strncmp(filter_prefix, prefix_entry, pe_len) == 0) {
-                    s3_walk(log, root, child_path, child_key,
-                            filter_prefix, delimiter, entries, max_entries);
-                    continue;
-                }
-
-                /* Emit as CommonPrefix if it matches or starts with filter */
-                if (fp_len > 0
-                    && strncmp(prefix_entry, filter_prefix, fp_len) != 0) {
-                    continue;
-                }
-                /* CommonPrefix carries no size/mtime/etag (S3 spec) — no stat. */
-                if (s3_walk_push(entries, prefix_entry, 1) != 0) {
-                    break;
-                }
-            } else {
-                /* No delimiter: recurse unconditionally */
-                s3_walk(log, root, child_path, child_key,
-                        filter_prefix, delimiter, entries, max_entries);
-            }
-        } else {           /* kind == 2: regular file */
-            /* Skip directory sentinel */
-            if (strcmp(dname, S3_DIR_SENTINEL) == 0) {
-                continue;
-            }
-            /* Hide internal metadata/staging artifacts (sidecars, upload temps)
-             * — never listable as an S3 object key. */
-            if (brix_is_internal_name(dname)) {
-                continue;
-            }
-            /* Filter by prefix */
-            if (fp_len > 0 && strncmp(child_key, filter_prefix, fp_len) != 0) {
-                continue;
-            }
-            /* With delimiter, skip entries that have a delimiter after prefix
-             * (they belong under a CommonPrefix subtree, not at this level). */
-            if (del_len > 0) {
-                const char *after_prefix = child_key + fp_len;
-                if (strstr(after_prefix, delimiter) != NULL) {
-                    continue;
-                }
-            }
-
-            /* phase-45 W1: collect the key only; size/mtime/etag are filled
-             * lazily for the emitted page via s3_entry_fill_stat(). */
-            if (s3_walk_push(entries, child_key, 0) != 0) {
-                break;
-            }
-        }
-    }
-
-    brix_vfs_closedir(dh, log);
-    return (int) entries->nelts;
+    return s3_walk_run(&ctx, dir_path, key_prefix);
 }
 
 /*

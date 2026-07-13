@@ -48,7 +48,9 @@ typedef struct {
     int                   has_http_ranks;
     char                  origin_token[4096]; /* §14: bearer token for the source
                                                * upstream ("" = anonymous) */
-    char                  origin_x509_proxy[1024]; /* §14/C-3 GSI: proxy PEM path */
+    char                  origin_x509_proxy[1024]; /* §14/C-3 GSI: proxy (or cert) PEM path */
+    char                  origin_x509_key[1024];    /* §14/C-3 GSI: separate key PEM ("" =
+                                                     * key is inside origin_x509_proxy) */
     char                  origin_ca_dir[1024];      /* §14/C-3 GSI: origin-cert CA */
     char                  origin_s3_access_key[256]; /* §14 S3 SigV4: access-key id */
     char                  origin_s3_secret_key[256]; /* §14 S3 SigV4: secret key    */

@@ -63,6 +63,10 @@ s3_user_meta_load(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     s3_user_meta_vfs_ctx(r, fs_path, cf, &vctx);
     n = brix_vfs_getxattr(&vctx, S3_USERMETA_XATTR, out, outsz - 1);
     if (n < 0) {
+        /* phase74-fp: ENOTSUP == EOPNOTSUPP on Linux but they are distinct
+         * errnos on other POSIX systems — both are checked deliberately for
+         * portability, so the "equivalent nested operands" finding is moot. */
+        /* NOLINTNEXTLINE(misc-redundant-expression) */
         if (errno == ENODATA || errno == ENOTSUP || errno == EOPNOTSUPP) {
             return 0;   /* object readable, just carries no user metadata */
         }

@@ -308,14 +308,21 @@ ngx_uint_t brix_pmark_defs_act_id(ngx_array_t *defs, ngx_uint_t exp_id,
 ngx_int_t brix_pmark_runtime_ensure(brix_pmark_conf_t *pm, ngx_pool_t *pool,
     ngx_log_t *log);
 
+/* Flow-identity inputs for brix_pmark_map_codes().  All fields are borrowed
+ * C strings (any may be NULL/empty). */
+typedef struct {
+    const char  *vo_csv;    /* VO/role CSV from the client identity */
+    const char  *user;      /* mapped user / DN */
+    const char  *path;      /* transfer path (glob-matched)         */
+    const char  *cgi;       /* opaque CGI (scitag.flow override)    */
+} brix_pmark_flow_id_t;
+
 /* Resolve (experiment, activity) for a flow using, in priority order:
  * client scitag (when scitag_cgi on) → path glob → VO → default; then activity
- * user → role → per-experiment default.  `vo_csv`/`user`/`path`/`cgi` are
- * borrowed C strings (any may be NULL/empty).  Returns NGX_OK + sets exp/act, or
+ * user → role → per-experiment default.  Returns NGX_OK + sets exp/act, or
  * NGX_DECLINED when nothing maps (→ flow is not marked).  Never fails a transfer. */
 ngx_int_t brix_pmark_map_codes(brix_pmark_conf_t *pm,
-    const char *vo_csv, const char *user, const char *path, const char *cgi,
-    ngx_uint_t *exp, ngx_uint_t *act);
+    const brix_pmark_flow_id_t *flow, ngx_uint_t *exp, ngx_uint_t *act);
 
 /* ====================================================================== */
 /* sockstats.c — TCP_INFO + time/addr formatting helpers                  */

@@ -99,4 +99,25 @@ ngx_int_t brix_path_resolve_beneath(ngx_stream_brix_srv_conf_t *conf,
                                       brix_path_mode_t mode,
                                       char *resolved, size_t resolved_sz);
 
+/*
+ * brix_root_vfs_bind_deleg — phase-70 §5.4 bearer PASSTHROUGH for root://.
+ *
+ * WHAT: Bind the session's captured raw bearer JWT (ctx->bearer_token, filled by
+ *       the GSI token auth path) onto an already-cred-bound VFS ctx, using the
+ *       export's resolved delegation mode (conf->common.backend_delegation).
+ *
+ * WHY:  A remote-backed root:// export in a delegation mode must authenticate the
+ *       backend leg AS the inbound user. root:// gets bearer passthrough only —
+ *       an x509 full-proxy channel needs a client-side wire change (out of scope
+ *       this pass), so no proxy is captured here.
+ *
+ * HOW:  No-op on the default SELECT export or when the session has no bearer.
+ *       Otherwise wraps ctx->bearer_token as an ngx_str_t and calls
+ *       brix_vfs_deleg_bind on the ctx's pool (the VFS ctx borrows the bytes,
+ *       which live for the session). Include vfs.h at the call site.
+ */
+void brix_root_vfs_bind_deleg(brix_ctx_t *ctx,
+                                ngx_stream_brix_srv_conf_t *conf,
+                                brix_vfs_ctx_t *vctx);
+
 #endif /* BRIX_PATH_OP_PATH_H */

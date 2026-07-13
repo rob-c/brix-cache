@@ -199,25 +199,24 @@ do_replay(const diag_args *a)
 int
 do_srr(const diag_args *a)
 {
-    dx_proto       proto;
-    int            tls, port;
-    char           host[256], path[XRDC_PATH_MAX], name[128];
+    dx_url_t       u;
+    char           name[128];
     brix_http_resp r;
     brix_status    st;
     int            tmo = a->probe_timeout_ms > 0 ? a->probe_timeout_ms : 8000;
 
-    if (dx_url_parse(a->url, &proto, &tls, host, sizeof(host), &port, path,
-                     sizeof(path)) != 0 || proto == DXP_ROOT) {
+    if (dx_url_parse(a->url, &u) != 0 || u.proto == DXP_ROOT) {
         fprintf(stderr, "xrddiag: srr needs an http(s):// URL\n");
         return 50;
     }
-    if (path[0] == '\0' || strcmp(path, "/") == 0) {
-        snprintf(path, sizeof(path), "/.well-known/wlcg-storage-resource-reporting");
+    if (u.path[0] == '\0' || strcmp(u.path, "/") == 0) {
+        snprintf(u.path, sizeof(u.path), "/.well-known/wlcg-storage-resource-reporting");
     }
     brix_status_clear(&st);
-    if (brix_http_req(host, port, tls, "GET", path, NULL, NULL, 0, tmo,
+    if (brix_http_req(u.host, u.port, u.tls, "GET", u.path, NULL, NULL, 0, tmo,
                       a->verify_tls, NULL, &r, &st) != 0) {
-        fprintf(stderr, "xrddiag: srr GET %s:%d%s: %s\n", host, port, path, st.msg);
+        fprintf(stderr, "xrddiag: srr GET %s:%d%s: %s\n", u.host, u.port, u.path,
+                st.msg);
         return 51;
     }
     if (r.status != 200) {
@@ -253,28 +252,26 @@ do_srr(const diag_args *a)
 int
 do_tape(const diag_args *a)
 {
-    dx_proto       proto;
-    int            tls, port;
-    char           host[256], path[XRDC_PATH_MAX], body[1024], reqid[128], state[32];
+    dx_url_t       u;
+    char           body[1024], reqid[128], state[32];
     brix_http_resp r;
     brix_status    st;
     int            tmo = a->probe_timeout_ms > 0 ? a->probe_timeout_ms : 8000;
 
-    if (dx_url_parse(a->url, &proto, &tls, host, sizeof(host), &port, path,
-                     sizeof(path)) != 0 || proto == DXP_ROOT || path[0] != '/'
-        || path[1] == '\0') {
+    if (dx_url_parse(a->url, &u) != 0 || u.proto == DXP_ROOT || u.path[0] != '/'
+        || u.path[1] == '\0') {
         fprintf(stderr, "xrddiag: tape needs an http(s):// URL with a file path\n");
         return 50;
     }
     /* POST /api/v1/stage {"files":[{"path":"<path>"}]} — reject (don't silently
      * truncate) an over-long path, which would stage the wrong file. */
-    if (strlen(path) > 900) {
+    if (strlen(u.path) > 900) {
         fprintf(stderr, "xrddiag: tape path too long (max 900 bytes)\n");
         return 50;
     }
-    snprintf(body, sizeof(body), "{\"files\":[{\"path\":\"%s\"}]}", path);
+    snprintf(body, sizeof(body), "{\"files\":[{\"path\":\"%s\"}]}", u.path);
     brix_status_clear(&st);
-    if (brix_http_req(host, port, tls, "POST", "/api/v1/stage",
+    if (brix_http_req(u.host, u.port, u.tls, "POST", "/api/v1/stage",
                       "Content-Type: application/json\r\n", body, strlen(body),
                       tmo, a->verify_tls, NULL, &r, &st) != 0) {
         fprintf(stderr, "xrddiag: tape stage POST: %s\n", st.msg);
@@ -301,7 +298,7 @@ do_tape(const diag_args *a)
         char poll[256];
         snprintf(poll, sizeof(poll), "/api/v1/stage/%s", reqid);
         brix_status_clear(&st);
-        if (brix_http_req(host, port, tls, "GET", poll, NULL, NULL, 0, tmo,
+        if (brix_http_req(u.host, u.port, u.tls, "GET", poll, NULL, NULL, 0, tmo,
                           a->verify_tls, NULL, &r, &st) == 0) {
             if (r.status == 200) {
                 char ondisk[16];

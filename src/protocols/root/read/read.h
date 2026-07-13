@@ -61,26 +61,36 @@ ngx_int_t brix_handle_pgread(brix_ctx_t *ctx, ngx_connection_t *c);
 size_t brix_pgread_encode_pages(const u_char *src, size_t len, off_t offset,
                                   u_char *dst);
 
+/* ---- Struct: brix_pgread_io_t ----
+ * In/out I/O exchange for brix_pgread_read_encode_inplace. `nowait` is the
+ * single input (read mode); `nread`/`io_errno` are the outputs describing what
+ * the read actually delivered. Zero-initialize before the call.
+ */
+typedef struct {
+    int      nowait;     /* in: 1 = preadv2(RWF_NOWAIT) warm-cache probe, 0 = blocking read */
+    ssize_t  nread;      /* out: bytes read; -1 on I/O error */
+    int      io_errno;   /* out: errno on error; EAGAIN on a nowait miss */
+} brix_pgread_io_t;
+
 /* ---- Function: brix_pgread_read_encode_inplace() ----
  * Zero-copy paged read: reads file data DIRECTLY into the final kXR page-mode
  * wire buffer `out` ([CRC32c(4)][data] per page, file-offset aligned) via batched
  * preadv and computes each page CRC32c in place — no flat-buffer copy. `out` must
- * hold rlen + ceil-pages * 4 bytes. Returns encoded byte count; sets *nread_out to
- * bytes read (-1 on I/O error, *io_errno_out = errno). Output is byte-identical to
+ * hold rlen + ceil-pages * 4 bytes. Returns encoded byte count; sets io->nread to
+ * bytes read (-1 on I/O error, io->io_errno = errno). Output is byte-identical to
  * brix_pgread_encode_pages over the same bytes. Safe to call on a worker thread
  * (pure I/O + CRC; touches no ctx/connection/pool).
  *
- * When `nowait` is set the batched reads use preadv2(RWF_NOWAIT): if the whole
+ * When io->nowait is set the batched reads use preadv2(RWF_NOWAIT): if the whole
  * range is NOT page-cache resident (any short batch or EAGAIN) the call aborts
- * early with *nread_out=0 and *io_errno_out=EAGAIN, having produced nothing
+ * early with io->nread=0 and io->io_errno=EAGAIN, having produced nothing
  * usable — the caller must treat that as a miss and fall back to a blocking
- * read. A clean hit returns the full encoding with *nread_out==rlen. This powers
+ * read. A clean hit returns the full encoding with io->nread==rlen. This powers
  * the event-loop warm-cache fast path (skip the thread-pool offload when the
- * data is resident); pass 0 for the normal blocking read.
+ * data is resident); leave nowait 0 for the normal blocking read.
  */
 size_t brix_pgread_read_encode_inplace(brix_sd_obj_t *obj, off_t offset,
                                          size_t rlen, u_char *out,
-                                         ssize_t *nread_out,
-                                         int *io_errno_out, int nowait);
+                                         brix_pgread_io_t *io);
 
 #endif // BRIX_READ_H

@@ -24,9 +24,13 @@
 #include "core/compat/host_format.h"   /* IPv6-bracketing host:port (libxrdproto) */
 
 int
-brix_send_ext(brix_conn *c, void *hdr24, const void *payload, uint32_t send_len,
-              uint32_t dlen, uint16_t *out_sid, brix_status *st)
+brix_send_ext(brix_conn *c, void *hdr24, const brix_payload_ext *pl,
+              uint16_t *out_sid, brix_status *st)
 {
+    const void *payload  = (pl != NULL) ? pl->data : NULL;
+    uint32_t    send_len = (pl != NULL) ? pl->len : 0;
+    uint32_t    dlen     = (pl != NULL) ? pl->dlen : 0;
+
     uint8_t *h   = (uint8_t *) hdr24;
     uint16_t sid = c->next_sid++;
     uint32_t be  = htonl(dlen);
@@ -74,50 +78,190 @@ brix_send_ext(brix_conn *c, void *hdr24, const void *payload, uint32_t send_len,
 }
 
 int
-brix_send(brix_conn *c, void *hdr24, const void *payload, uint32_t plen,
-          uint16_t *out_sid, brix_status *st)
+brix_send(brix_conn *c, void *hdr24, const brix_payload *pl, uint16_t *out_sid,
+          brix_status *st)
 {
-    return brix_send_ext(c, hdr24, payload, plen, plen, out_sid, st);
+    uint32_t         len = (pl != NULL) ? pl->len : 0;
+    brix_payload_ext e   = { (pl != NULL) ? pl->data : NULL, len, len };
+
+    return brix_send_ext(c, hdr24, &e, out_sid, st);
+}
+
+/* One decoded server frame: unpacked ServerResponseHdr fields + the malloc'd
+ * body (NULL when dlen == 0; the consumer frees or hands it off). Bundles the
+ * four values every receiver threads around so helpers stay under the
+ * 5-parameter gate without changing any wire semantics. */
+typedef struct {
+    uint16_t sid;    /* outer streamid */
+    uint16_t stat;   /* outer status */
+    uint32_t dlen;   /* body length */
+    uint8_t *buf;    /* malloc'd body, or NULL */
+} rx_frame_t;
+
+/* The caller-provided response out-params travel as a brix_resp_out (promoted
+ * to brix_net.h in phase-73) so the delivery helpers shared by brix_recv /
+ * recv_after_waitresp take one arg. */
+
+/*
+ * WHAT: read + unpack one 8-byte ServerResponseHdr into f, with the standard
+ *       size cap; the raw header bytes land in hdr (for wire capture).
+ * WHY:  shared by every receiver (brix_recv + the raw waitresp reader) so the
+ *       cap check and unaligned-safe unpack live in exactly one place.
+ * HOW:  brix_read_full for the 8 bytes, xrd_resp_hdr_unpack, cap against
+ *       XRDC_DLEN_MAX. f->buf is reset to NULL. 0 / -1 (st set).
+ */
+static int
+frame_read_header(brix_conn *c, uint8_t *hdr, rx_frame_t *f, brix_status *st)
+{
+    f->buf = NULL;
+    if (brix_read_full(&c->io, hdr, XRD_RESPONSE_HDR_LEN, st) != 0) {
+        return -1;
+    }
+    xrd_resp_hdr_unpack(hdr, &f->sid, &f->stat, &f->dlen);   /* unaligned-safe */
+    if (f->dlen > XRDC_DLEN_MAX) {
+        brix_status_set(st, XRDC_EPROTO, 0,
+                        "response body too large (%u bytes)", f->dlen);
+        return -1;
+    }
+    return 0;
+}
+
+/*
+ * WHAT: allocate + read the dlen-byte frame body into f->buf.
+ * WHY:  the malloc/read/cleanup triple was duplicated verbatim in brix_recv
+ *       and recv_raw_frame; one copy keeps the OOM + short-read handling audited.
+ * HOW:  no-op for dlen == 0 (buf stays NULL); on a short read the buffer is
+ *       freed and NULLed so callers never see a half-filled body. 0 / -1.
+ */
+static int
+frame_read_body(brix_conn *c, rx_frame_t *f, brix_status *st)
+{
+    f->buf = NULL;
+    if (f->dlen == 0) {
+        return 0;
+    }
+    f->buf = (uint8_t *) malloc(f->dlen);
+    if (f->buf == NULL) {
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory (%u bytes)", f->dlen);
+        return -1;
+    }
+    if (brix_read_full(&c->io, f->buf, f->dlen, st) != 0) {
+        free(f->buf);
+        f->buf = NULL;
+        return -1;
+    }
+    return 0;
+}
+
+/*
+ * WHAT: format a kXR_error body (errnum[4 BE] + message) into st.
+ * WHY:  identical decoding in the synchronous (brix_recv) and asynresp
+ *       (recv_after_waitresp) error paths; sharing it keeps the %.*s bound
+ *       (wire message is NOT NUL-terminated) in one audited spot.
+ * HOW:  tolerates short bodies (errnum 0 / empty message) exactly as before;
+ *       the caller still owns + frees the frame buffer AFTER this returns
+ *       (the message is formatted out of the live buffer).
+ */
+static void
+set_kxr_error_status(const uint8_t *data, uint32_t dlen, brix_status *st)
+{
+    int errnum = (dlen >= 4) ? (int) xrd_get_u32_be(data) : 0;
+    int mlen   = (dlen > 4) ? (int) (dlen - 4) : 0;
+
+    /* The wire message is NOT NUL-terminated; bound %s with %.*s so a
+     * hostile server can't drive a heap over-read past the frame. */
+    brix_status_set(st, errnum, 0, "%.*s (%s)", mlen,
+                    (const char *) (data + 4), brix_kxr_name(errnum));
 }
 
 /* Read one full server frame (header + body) with the standard size cap; fills
- * the sid, stat, buf and dlen out-params (caller frees buf). No streamid matching
- * — used by the kXR_waitresp async path, where the deferred reply arrives as an
- * unsolicited frame whose outer streamid may differ from the request's. 0 / -1. */
+ * f (caller frees f->buf). No streamid matching — used by the kXR_waitresp
+ * async path, where the deferred reply arrives as an unsolicited frame whose
+ * outer streamid may differ from the request's. 0 / -1. */
 static int
-recv_raw_frame(brix_conn *c, uint16_t *sid, uint16_t *stat, uint8_t **buf,
-               uint32_t *dlen, brix_status *st)
+recv_raw_frame(brix_conn *c, rx_frame_t *f, brix_status *st)
 {
-    uint8_t  hdr[XRD_RESPONSE_HDR_LEN];
-    uint32_t dl;
-    uint8_t *b = NULL;
+    uint8_t hdr[XRD_RESPONSE_HDR_LEN];
 
-    *buf = NULL;
-    *dlen = 0;
-    if (brix_read_full(&c->io, hdr, sizeof(hdr), st) != 0) {
+    if (frame_read_header(c, hdr, f, st) != 0) {
         return -1;
     }
-    xrd_resp_hdr_unpack(hdr, sid, stat, &dl);   /* unaligned-safe */
-    if (dl > XRDC_DLEN_MAX) {
-        brix_status_set(st, XRDC_EPROTO, 0, "response body too large (%u bytes)", dl);
+    if (frame_read_body(c, f, st) != 0) {
         return -1;
-    }
-    if (dl > 0) {
-        b = (uint8_t *) malloc(dl);
-        if (b == NULL) {
-            brix_status_set(st, XRDC_EPROTO, 0, "out of memory (%u bytes)", dl);
-            return -1;
-        }
-        if (brix_read_full(&c->io, b, dl, st) != 0) {
-            free(b);
-            return -1;
-        }
     }
     if (c->diag.wire_trace) {
-        brix_trace_frame(c, '<', *sid, *stat, 0, dl, b, dl);
+        brix_trace_frame(c, '<', f->sid, f->stat, 0, f->dlen, f->buf, f->dlen);
     }
-    *buf  = b;
-    *dlen = dl;
+    return 0;
+}
+
+/*
+ * WHAT: handle a re-deferral (another kXR_waitresp while awaiting an asynresp):
+ *       consume the frame and extend the read window to the new advertised delay.
+ * WHY:  keeps the waitresp wait-loop a flat sequence of early-return guards.
+ * HOW:  seconds clamp to 570 before *1000 (no int overflow UB), +30s margin,
+ *       and the window only ever grows — same arithmetic as the initial arm.
+ */
+static void
+waitresp_extend_window(brix_conn *c, rx_frame_t *f)
+{
+    unsigned more = (f->dlen >= 4) ? xrd_get_u32_be(f->buf) : 0;
+    int      w;
+
+    free(f->buf);
+    if (more > 570) { more = 570; }      /* clamp before *1000 (no UB) */
+    w = (int) more * 1000 + 30000;
+    if (w > c->io.timeout_ms) { c->io.timeout_ms = w; }
+}
+
+/*
+ * WHAT: unwrap a validated kXR_attn(asynresp) envelope and surface the inner
+ *       status+data exactly as a synchronous reply would.
+ * WHY:  the envelope decode is the bulky tail of the waitresp wait-loop;
+ *       isolating it leaves the loop as the retry state machine only.
+ * HOW:  nested ServerResponseHdr at buf+8, data at buf+16, inner dlen clamped
+ *       to the frame; inner-streamid mismatch and inner kXR_error fail exactly
+ *       like the synchronous path. Consumes f->buf on every exit. 0 / -1.
+ */
+static int
+asynresp_deliver(uint16_t want_sid, rx_frame_t *f, brix_resp_out *out,
+                 brix_status *st)
+{
+    uint16_t esid, estat;
+    uint32_t edlen;
+    uint8_t *edata = f->buf + 16;
+
+    xrd_resp_hdr_unpack(f->buf + 8, &esid, &estat, &edlen);  /* nested hdr */
+    if ((size_t) edlen + 16 > f->dlen) { edlen = f->dlen - 16; }   /* clamp to frame */
+
+    if (want_sid != 0xffff && esid != want_sid) {
+        free(f->buf);
+        brix_status_set(st, XRDC_EPROTO, 0,
+                        "asynresp stream mismatch (got %u, want %u)",
+                        esid, want_sid);
+        return -1;
+    }
+    if (estat == kXR_error) {
+        set_kxr_error_status(edata, edlen, st);
+        free(f->buf);
+        return -1;
+    }
+    if (out->status != NULL) { *out->status = estat; }
+    if (out->body != NULL) {
+        *out->body = NULL;
+        if (edlen > 0) {
+            uint8_t *copy = (uint8_t *) malloc(edlen);
+            if (copy == NULL) {
+                free(f->buf);
+                brix_status_set(st, XRDC_EPROTO, 0, "out of memory (%u)", edlen);
+                return -1;
+            }
+            memcpy(copy, edata, edlen);
+            *out->body = copy;
+        }
+    }
+    if (out->blen != NULL) { *out->blen = edlen; }
+    free(f->buf);
     return 0;
 }
 
@@ -132,8 +276,7 @@ recv_raw_frame(brix_conn *c, uint16_t *sid, uint16_t *stat, uint8_t **buf,
  * against a real (deferring) XRootD or the mock in test_client_async_tpc.py. */
 static int
 recv_after_waitresp(brix_conn *c, uint16_t want_sid, unsigned secs,
-                    uint16_t *status, uint8_t **body, uint32_t *blen,
-                    brix_status *st)
+                    brix_resp_out *out, brix_status *st)
 {
     int      saved_to = c->io.timeout_ms;
     int      rounds   = 0;
@@ -143,9 +286,7 @@ recv_after_waitresp(brix_conn *c, uint16_t want_sid, unsigned secs,
     if (want_ms > c->io.timeout_ms) { c->io.timeout_ms = want_ms; }
 
     for (;;) {
-        uint16_t sid = 0, stat = 0;
-        uint8_t *buf = NULL;
-        uint32_t dlen = 0;
+        rx_frame_t f;
 
         if (++rounds > XRDC_REDIR_MAX) {
             c->io.timeout_ms = saved_to;
@@ -153,126 +294,50 @@ recv_after_waitresp(brix_conn *c, uint16_t want_sid, unsigned secs,
                             "waitresp: no async response after %d frames", rounds);
             return -1;
         }
-        if (recv_raw_frame(c, &sid, &stat, &buf, &dlen, st) != 0) {
+        if (recv_raw_frame(c, &f, st) != 0) {
             c->io.timeout_ms = saved_to;
             return -1;
         }
-        if (stat == kXR_waitresp) {              /* server re-deferred — keep waiting */
-            unsigned more = (dlen >= 4) ? xrd_get_u32_be(buf) : 0;
-            int      w;
-            free(buf);
-            if (more > 570) { more = 570; }      /* clamp before *1000 (no UB) */
-            w = (int) more * 1000 + 30000;
-            if (w > c->io.timeout_ms) { c->io.timeout_ms = w; }
+        if (f.stat == kXR_waitresp) {            /* server re-deferred — keep waiting */
+            waitresp_extend_window(c, &f);
             continue;
         }
-        if (stat != kXR_attn) {
-            free(buf);
+        if (f.stat != kXR_attn) {
+            free(f.buf);
             c->io.timeout_ms = saved_to;
             brix_status_set(st, XRDC_EPROTO, 0,
-                            "waitresp: expected attn(asynresp), got status %u", stat);
+                            "waitresp: expected attn(asynresp), got status %u", f.stat);
             return -1;
         }
-        if (dlen < 16 || xrd_get_u32_be(buf) != (uint32_t) kXR_asynresp) {
-            free(buf);
+        if (f.dlen < 16 || xrd_get_u32_be(f.buf) != (uint32_t) kXR_asynresp) {
+            free(f.buf);
             c->io.timeout_ms = saved_to;
             brix_status_set(st, XRDC_EPROTO, 0, "waitresp: malformed asynresp envelope");
             return -1;
         }
-        {
-            uint16_t esid, estat;
-            uint32_t edlen;
-            xrd_resp_hdr_unpack(buf + 8, &esid, &estat, &edlen);  /* nested hdr */
-            uint8_t *edata = buf + 16;
-
-            if ((size_t) edlen + 16 > dlen) { edlen = dlen - 16; }   /* clamp to frame */
-            c->io.timeout_ms = saved_to;
-            if (want_sid != 0xffff && esid != want_sid) {
-                free(buf);
-                brix_status_set(st, XRDC_EPROTO, 0,
-                                "asynresp stream mismatch (got %u, want %u)",
-                                esid, want_sid);
-                return -1;
-            }
-            if (estat == kXR_error) {
-                int errnum = (edlen >= 4) ? (int) xrd_get_u32_be(edata) : 0;
-                int mlen   = (edlen > 4) ? (int) (edlen - 4) : 0;
-                /* The wire message is NOT NUL-terminated; bound %s with %.*s so a
-                 * hostile server can't drive a heap over-read past the frame. */
-                brix_status_set(st, errnum, 0, "%.*s (%s)", mlen,
-                                (const char *) (edata + 4), brix_kxr_name(errnum));
-                free(buf);
-                return -1;
-            }
-            if (status != NULL) { *status = estat; }
-            if (body != NULL) {
-                *body = NULL;
-                if (edlen > 0) {
-                    uint8_t *out = (uint8_t *) malloc(edlen);
-                    if (out == NULL) {
-                        free(buf);
-                        brix_status_set(st, XRDC_EPROTO, 0, "out of memory (%u)", edlen);
-                        return -1;
-                    }
-                    memcpy(out, edata, edlen);
-                    *body = out;
-                }
-            }
-            if (blen != NULL) { *blen = edlen; }
-            free(buf);
-            return 0;
-        }
+        c->io.timeout_ms = saved_to;
+        return asynresp_deliver(want_sid, &f, out, st);
     }
 }
 
-int
-brix_recv(brix_conn *c, uint16_t want_sid, uint16_t *status,
-          uint8_t **body, uint32_t *blen, brix_status *st)
+/*
+ * WHAT: §15 response-side diagnostics — wire trace, full-frame capture, and
+ *       per-opcode RTT accumulation. Inert unless armed.
+ * WHY:  pure observability side-band; hoisting it out of brix_recv leaves the
+ *       receive path as read/validate/dispatch only.
+ * HOW:  hdr is the raw 8-byte ServerResponseHdr (capture records the exact
+ *       wire bytes); RTT matches the request stamped by brix_send_ext via
+ *       diag.inflight_reqid / diag.t_send_ns, then clears the stamp.
+ */
+static void
+recv_note_diag(brix_conn *c, const uint8_t *hdr, const rx_frame_t *f)
 {
-    uint8_t  hdr[XRD_RESPONSE_HDR_LEN];
-    uint16_t sid, stat;
-    uint32_t dlen;
-    uint8_t *buf = NULL;
-
-    if (body != NULL) { *body = NULL; }
-    if (blen != NULL) { *blen = 0; }
-
-    if (brix_read_full(&c->io, hdr, sizeof(hdr), st) != 0) {
-        return -1;
-    }
-
-    xrd_resp_hdr_unpack(hdr, &sid, &stat, &dlen);   /* unaligned-safe */
-
-    if (dlen > XRDC_DLEN_MAX) {
-        brix_status_set(st, XRDC_EPROTO, 0,
-                        "response body too large (%u bytes)", dlen);
-        return -1;
-    }
-    if (want_sid != 0xffff && sid != want_sid) {
-        brix_status_set(st, XRDC_EPROTO, 0,
-                        "stream id mismatch (got %u, want %u)", sid, want_sid);
-        return -1;
-    }
-
-    if (dlen > 0) {
-        buf = (uint8_t *) malloc(dlen);
-        if (buf == NULL) {
-            brix_status_set(st, XRDC_EPROTO, 0, "out of memory (%u bytes)", dlen);
-            return -1;
-        }
-        if (brix_read_full(&c->io, buf, dlen, st) != 0) {
-            free(buf);
-            return -1;
-        }
-    }
-
-    /* §15: trace the response + accumulate per-opcode RTT. Inert unless armed. */
     if (c->diag.wire_trace) {
-        brix_trace_frame(c, '<', sid, stat, 0, dlen, buf, dlen);
+        brix_trace_frame(c, '<', f->sid, f->stat, 0, f->dlen, f->buf, f->dlen);
     }
     if (c->diag.cap != NULL) {   /* §15.1: record the full response wire bytes */
-        brix_capture_frame(c->diag.cap, '<', sid, stat, 0, hdr,
-                           XRD_RESPONSE_HDR_LEN, buf, dlen);
+        brix_capture_frame(c->diag.cap, '<', f->sid, f->stat, 0, hdr,
+                           XRD_RESPONSE_HDR_LEN, f->buf, f->dlen);
     }
     if (c->diag.timing && c->diag.t_send_ns != 0) {
         uint64_t dt  = brix_mono_ns() - c->diag.t_send_ns;
@@ -286,23 +351,50 @@ brix_recv(brix_conn *c, uint16_t want_sid, uint16_t *status,
         }
         c->diag.t_send_ns = 0;
     }
+}
 
-    switch (stat) {
+/*
+ * WHAT: hand a successful frame's status/body/length to the caller's out-params.
+ * WHY:  every success exit (ok/oksofar/authmore/redirect/wait, the waitresp
+ *       TPC-defer surface) performs the same NULL-tolerant delivery.
+ * HOW:  when the caller declined the body, free it here so ownership is never
+ *       ambiguous. Always returns 0 so dispatch sites can `return` it.
+ */
+static int
+resp_deliver(brix_resp_out *out, uint16_t stat, uint8_t *buf, uint32_t dlen)
+{
+    if (out->status != NULL) { *out->status = stat; }
+    if (out->body != NULL) { *out->body = buf; } else { free(buf); }
+    if (out->blen != NULL) { *out->blen = dlen; }
+    return 0;
+}
+
+/*
+ * WHAT: interpret a validated frame's status field — the brix_recv switch.
+ * WHY:  isolates the per-status policy (which statuses surface, which defer,
+ *       which fail) from the read/validate mechanics.
+ * HOW:  passthrough statuses deliver the body as-is; kXR_waitresp either
+ *       surfaces the deferral (TPC coordinator open — blocking would deadlock
+ *       the rendezvous) or blocks in recv_after_waitresp; kXR_error and
+ *       unknown statuses consume the body and fail. 0 / -1 (st set).
+ */
+static int
+recv_dispatch(brix_conn *c, uint16_t want_sid, rx_frame_t *f, brix_resp_out *out,
+              brix_status *st)
+{
+    switch (f->stat) {
     case kXR_ok:
     case kXR_oksofar:
     case kXR_authmore:   /* auth driver consumes the challenge body */
     case kXR_redirect:   /* brix_roundtrip follows it */
     case kXR_wait:       /* brix_roundtrip honors the backoff */
-        if (status != NULL) { *status = stat; }
-        if (body != NULL) { *body = buf; } else { free(buf); }
-        if (blen != NULL) { *blen = dlen; }
-        return 0;
+        return resp_deliver(out, f->stat, f->buf, f->dlen);
 
     case kXR_waitresp: {
         /* Server acknowledged the request but the real reply comes later as an
          * unsolicited kXR_attn(asynresp). Transparent to every caller... */
-        unsigned secs = (dlen >= 4) ? xrd_get_u32_be(buf) : 0;
-        free(buf);
+        unsigned secs = (f->dlen >= 4) ? xrd_get_u32_be(f->buf) : 0;
+        free(f->buf);
         /* ...EXCEPT a TPC coordinator open: the source registers the rendezvous key
          * and defers its open reply until the copy completes — but that copy can only
          * happen once the orchestrator opens the DESTINATION and triggers the pull.
@@ -310,33 +402,61 @@ brix_recv(brix_conn *c, uint16_t want_sid, uint16_t *status,
          * pull; the pull waits for this call to return). Surface the deferral so the
          * caller proceeds; the deferred reply is drained after the dest sync. */
         if (c->tpc_coord_defer) {
-            if (status != NULL) { *status = kXR_waitresp; }
-            if (body != NULL)   { *body = NULL; }
-            if (blen != NULL)   { *blen = 0; }
-            return 0;
+            return resp_deliver(out, kXR_waitresp, NULL, 0);
         }
-        return recv_after_waitresp(c, want_sid, secs, status, body, blen, st);
+        return recv_after_waitresp(c, want_sid, secs, out, st);
     }
 
-    case kXR_error: {
-        int errnum = (dlen >= 4) ? (int) xrd_get_u32_be(buf) : 0;
-        int mlen   = (dlen > 4) ? (int) (dlen - 4) : 0;
+    case kXR_error:
         /* errmsg is wire data with no guaranteed NUL — bound %s with %.*s. */
-        brix_status_set(st, errnum, 0, "%.*s (%s)", mlen,
-                        (const char *) (buf + 4), brix_kxr_name(errnum));
-        free(buf);
+        set_kxr_error_status(f->buf, f->dlen, st);
+        free(f->buf);
         return -1;
-    }
 
     default:
         brix_status_set(st, XRDC_EPROTO, 0,
-                        "unexpected response status %u", stat);
-        free(buf);
+                        "unexpected response status %u", f->stat);
+        free(f->buf);
         return -1;
     }
 }
 
+int
+brix_recv(brix_conn *c, uint16_t want_sid, brix_resp_out *out, brix_status *st)
+{
+    uint8_t    hdr[XRD_RESPONSE_HDR_LEN];
+    rx_frame_t f;
+
+    if (out->body != NULL) { *out->body = NULL; }
+    if (out->blen != NULL) { *out->blen = 0; }
+
+    if (frame_read_header(c, hdr, &f, st) != 0) {
+        return -1;
+    }
+    if (want_sid != 0xffff && f.sid != want_sid) {
+        brix_status_set(st, XRDC_EPROTO, 0,
+                        "stream id mismatch (got %u, want %u)", f.sid, want_sid);
+        return -1;
+    }
+    if (frame_read_body(c, &f, st) != 0) {
+        return -1;
+    }
+
+    recv_note_diag(c, hdr, &f);
+    return recv_dispatch(c, want_sid, &f, out, st);
+}
+
 /* redirect/wait-following request wrapper (M5) */
+
+/* One parsed ServerRedirectBody: connectable host, port, and any capability
+ * opaque split off the host field (see parse_redirect). Sized so a long EOS
+ * cap.sym/cap.msg opaque is never truncated by the host buffer. */
+typedef struct {
+    char host[256];
+    int  port;
+    char opaque[4096];
+} redir_tgt_t;
+
 /* ServerRedirectBody = port[4 BE] + host[NUL] (host already IPv6-bracketed).
  * The host field may carry a "?<opaque>" tail: a redirector (notably EOS/cmsd)
  * appends the open CAPABILITY (cap.sym/cap.msg) that the open MUST replay to the
@@ -344,15 +464,14 @@ brix_recv(brix_conn *c, uint16_t want_sid, uint16_t *status,
  * (an endless manager↔DS redirect loop). We split it off so `host` is connectable
  * and `opaque` can be re-attached to the open's path. */
 static int
-parse_redirect(const uint8_t *body, uint32_t blen, char *host, size_t hostsz,
-               int *port, char *opaque, size_t opaquesz)
+parse_redirect(const uint8_t *body, uint32_t blen, redir_tgt_t *t)
 {
     const char *field, *qmark;
     uint32_t    flen, hlen;
     if (blen < 5) {
         return -1;
     }
-    *port = (int) xrd_get_u32_be(body);
+    t->port = (int) xrd_get_u32_be(body);
 
     /* The host field runs from body+4 to the first NUL/CR/LF (or end of body). We
      * scan it IN PLACE and split host vs opaque straight into their own buffers, so
@@ -371,13 +490,13 @@ parse_redirect(const uint8_t *body, uint32_t blen, char *host, size_t hostsz,
 
     qmark = memchr(field, '?', flen);
     hlen  = qmark != NULL ? (uint32_t) (qmark - field) : flen;
-    if (hlen >= hostsz) {
-        hlen = (uint32_t) hostsz - 1;
+    if (hlen >= sizeof(t->host)) {
+        hlen = (uint32_t) sizeof(t->host) - 1;
     }
-    memcpy(host, field, hlen);
-    host[hlen] = '\0';
+    memcpy(t->host, field, hlen);
+    t->host[hlen] = '\0';
 
-    opaque[0] = '\0';
+    t->opaque[0] = '\0';
     if (qmark != NULL) {
         const char *o   = qmark + 1;
         uint32_t    olen = (uint32_t) (field + flen - o);
@@ -385,11 +504,11 @@ parse_redirect(const uint8_t *body, uint32_t blen, char *host, size_t hostsz,
             o++;
             olen--;
         }
-        if (olen >= opaquesz) {
-            olen = (uint32_t) opaquesz - 1;
+        if (olen >= sizeof(t->opaque)) {
+            olen = (uint32_t) sizeof(t->opaque) - 1;
         }
-        memcpy(opaque, o, olen);
-        opaque[olen] = '\0';
+        memcpy(t->opaque, o, olen);
+        t->opaque[olen] = '\0';
     }
     return 0;
 }
@@ -448,47 +567,160 @@ follow_redirect(brix_conn *c, const char *rhost, int rport, brix_status *st)
     return -1;
 }
 
+/* One in-flight roundtrip request: the immutable original payload (opaque
+ * rebuilds always start from it so successive redirects swap rather than
+ * accumulate), the payload actually sent this iteration, and the rebuilt
+ * buffer (owned + freed once by brix_roundtrip — so the in-loop early
+ * returns need no per-exit cleanup). */
+typedef struct {
+    uint16_t    reqid;      /* request opcode (kXR_open gets opaque replay) */
+    const void *orig_pl;    /* original payload, never rewritten */
+    uint32_t    orig_len;
+    const void *cur_pl;     /* payload actually sent (may be rebuilt) */
+    uint32_t    cur_len;
+    char       *rebuilt;    /* opaque-carrying open payload, if any */
+} rt_req_t;
+
 /* Rebuild a kXR_open payload as "<original-path><sep><opaque>" so a redirected
  * open replays the redirector's capability to the data server. Always built from
  * the ORIGINAL path (never an earlier rebuild) so successive redirects swap rather
- * than accumulate opaques. *rebuilt is caller-owned; the wrapper frees it once.
- * On success points cur_pl and cur_len at the new buffer. 0 / -1 (st set). */
+ * than accumulate opaques. rq->rebuilt is freed once by the wrapper. On success
+ * points rq->cur_pl and rq->cur_len at the new buffer. 0 / -1 (st set). */
 static int
-open_payload_with_opaque(const void *orig_pl, uint32_t orig_len,
-                         const char *opaque, char **rebuilt,
-                         const void **cur_pl, uint32_t *cur_len, brix_status *st)
+open_payload_with_opaque(const char *opaque, rt_req_t *rq, brix_status *st)
 {
-    const char *p   = (const char *) orig_pl;
-    int         hasq = (orig_len > 0 && memchr(p, '?', orig_len) != NULL);
+    const char *p   = (const char *) rq->orig_pl;
+    int         hasq = (rq->orig_len > 0 && memchr(p, '?', rq->orig_len) != NULL);
     size_t      ol  = strlen(opaque);
-    size_t      need = (size_t) orig_len + 1 + ol + 1;
+    size_t      need = (size_t) rq->orig_len + 1 + ol + 1;
     char       *nb  = (char *) malloc(need);
     if (nb == NULL) {
         brix_status_set(st, XRDC_EPROTO, 0, "out of memory (redirect opaque)");
         return -1;
     }
-    memcpy(nb, p, orig_len);
-    nb[orig_len] = hasq ? '&' : '?';
-    memcpy(nb + orig_len + 1, opaque, ol + 1);   /* includes the NUL */
-    free(*rebuilt);
-    *rebuilt = nb;
-    *cur_pl  = nb;
-    *cur_len = (uint32_t) (orig_len + 1 + ol);
+    memcpy(nb, p, rq->orig_len);
+    nb[rq->orig_len] = hasq ? '&' : '?';
+    memcpy(nb + rq->orig_len + 1, opaque, ol + 1);   /* includes the NUL */
+    free(rq->rebuilt);
+    rq->rebuilt = nb;
+    rq->cur_pl  = nb;
+    rq->cur_len = (uint32_t) (rq->orig_len + 1 + ol);
     return 0;
 }
 
-/* The redirect/wait-following request loop. `rebuilt` (caller-owned, freed once by
- * the wrapper) holds any payload we had to rewrite to carry a redirect's open
- * capability — so the in-loop early returns need no per-exit cleanup. */
+/*
+ * WHAT: process one kXR_redirect frame — parse the target, run the loop guards
+ *       (budget / self-loop / already-tried), carry an open capability opaque,
+ *       and reconnect to the target (with manager fallback).
+ * WHY:  this is the entire redirect policy; hoisting it leaves roundtrip_loop
+ *       as the bare retry state machine.
+ * HOW:  consumes bd on every path. Records the target in tried[] BEFORE
+ *       reconnecting so a manager fallback can't bounce us straight back.
+ *       Returns 0 = session up, replay the request; -1 = fail (st set).
+ */
 static int
-roundtrip_loop(brix_conn *c, void *hdr24, const void *payload, uint32_t plen,
-               uint16_t *status, uint8_t **body, uint32_t *blen,
-               char **rebuilt, brix_status *st)
+rt_handle_redirect(brix_conn *c, rt_req_t *rq, uint8_t *bd, uint32_t bl,
+                   brix_status *st)
 {
-    int            waits  = 0;
-    const uint16_t reqid  = xrd_get_u16_be((uint8_t *) hdr24 + 2);
-    const void    *cur_pl = payload;    /* payload actually sent (may be rebuilt) */
-    uint32_t       cur_len = plen;
+    redir_tgt_t t;
+    char        hp[XRDC_HOSTPORT_MAX];
+
+    if (parse_redirect(bd, bl, &t) != 0) {
+        free(bd);
+        brix_status_set(st, XRDC_EPROTO, 0, "malformed redirect");
+        return -1;
+    }
+    free(bd);
+    if (c->diag.redir_trace) {   /* §15.4: surface each hop on stderr */
+        fprintf(stderr, "redirect[%d] -> %s:%d%s\n", c->redir_depth + 1,
+                t.host, t.port, t.opaque[0] ? " (+opaque)" : "");
+    }
+    if (++c->redir_depth > XRDC_REDIR_MAX) {
+        if (c->diag.redir_trace) {
+            fprintf(stderr, "redirect: budget exhausted (>%d hops)\n",
+                    XRDC_REDIR_MAX);
+        }
+        brix_status_set(st, XRDC_EREDIRECT, 0,
+                        "too many redirects (>%d)", XRDC_REDIR_MAX);
+        return -1;
+    }
+    brix_format_host_port(t.host, (uint16_t) t.port, hp, sizeof(hp));
+    /* Immediate self-redirect: the server we are talking to right now
+     * bounced us straight back to itself.  That is an unambiguous loop;
+     * fail fast here rather than reconnecting to it (which would chase
+     * the loop until the connect timeout — up to 15s per hop). */
+    if (t.port == c->port && strcmp(t.host, c->host) == 0) {
+        if (c->diag.redir_trace) {
+            fprintf(stderr, "redirect: self-loop to %s\n", hp);
+        }
+        brix_status_set(st, XRDC_EREDIRECT, 0,
+                        "redirect loop: server redirected to itself (%s)",
+                        hp);
+        return -1;
+    }
+    if (tried_seen(c, hp)) {
+        if (c->diag.redir_trace) {
+            fprintf(stderr, "redirect: LOOP to already-tried %s\n", hp);
+        }
+        brix_status_set(st, XRDC_EREDIRECT, 0,
+                        "redirect loop to already-tried %s", hp);
+        return -1;
+    }
+    if (c->tried_n < XRDC_REDIR_MAX) {
+        snprintf(c->tried[c->tried_n++], sizeof(c->tried[0]), "%s", hp);
+    }
+    /* EOS/cmsd redirects an open to a data server with a one-shot capability
+     * opaque; carry it onto the open's path so the DS authorizes the open
+     * (else it bounces back → the endless loop the guard above trips on). */
+    if (rq->reqid == kXR_open && t.opaque[0] != '\0'
+        && open_payload_with_opaque(t.opaque, rq, st) != 0) {
+        return -1;
+    }
+    return follow_redirect(c, t.host, t.port, st);   /* 0 = target or manager up */
+}
+
+/*
+ * WHAT: honor one kXR_wait frame — sleep for the server's advised delay
+ *       (clamped [1,30]s) plus additive sub-second jitter.
+ * WHY:  keeps the backoff policy out of the retry state machine.
+ * HOW:  consumes bd; bumps *waits against XRDC_REDIR_MAX so a server that
+ *       stalls forever fails cleanly. Phase 40 (a): the jitter is ADDITIVE so
+ *       a fleet handed the same advised wait doesn't resend in lockstep —
+ *       never shorten the server's requested delay. 0 = resend / -1 (st set).
+ */
+static int
+rt_handle_wait(brix_conn *c, uint8_t *bd, uint32_t bl, int *waits,
+               brix_status *st)
+{
+    unsigned secs = xrd_wait_secs_parse(bd, bl, 1, 30);  /* clamp [1,30] */
+    unsigned jms;
+
+    (void) c;
+    free(bd);
+    if (++(*waits) > XRDC_REDIR_MAX) {
+        brix_status_set(st, XRDC_EPROTO, 0, "server kept asking to wait");
+        return -1;
+    }
+    sleep(secs);
+    jms = brix_jitter_ms(secs >= 1 ? 1000u : 250u);
+    if (jms > 0) {
+        struct timespec ts;
+        ts.tv_sec  = 0;
+        ts.tv_nsec = (long) jms * 1000000L;
+        (void) nanosleep(&ts, NULL);
+    }
+    return 0;
+}
+
+/* The redirect/wait-following request loop: send, receive, and either deliver
+ * the reply or hand kXR_redirect / kXR_wait to their policy helpers and replay.
+ * rq->rebuilt is owned + freed once by brix_roundtrip, so the in-loop early
+ * returns need no per-exit cleanup. */
+static int
+roundtrip_loop(brix_conn *c, void *hdr24, rt_req_t *rq, brix_resp_out *out,
+               brix_status *st)
+{
+    int waits = 0;
 
     /* Each top-level op gets a fresh redirect budget + loop-guard. */
     c->redir_depth = 0;
@@ -498,113 +730,52 @@ roundtrip_loop(brix_conn *c, void *hdr24, const void *payload, uint32_t plen,
         uint16_t sid, stt;
         uint8_t *bd = NULL;
         uint32_t bl = 0;
+        brix_payload  pl = { rq->cur_pl, rq->cur_len };
+        brix_resp_out rr = { &stt, &bd, &bl };
 
-        if (brix_send(c, hdr24, cur_pl, cur_len, &sid, st) != 0) {
+        if (brix_send(c, hdr24, &pl, &sid, st) != 0) {
             return -1;
         }
-        if (brix_recv(c, sid, &stt, &bd, &bl, st) != 0) {
+        if (brix_recv(c, sid, &rr, st) != 0) {
             return -1;   /* kXR_error / transport → st already set */
         }
 
         if (stt == kXR_redirect) {
-            char rhost[256], hp[XRDC_HOSTPORT_MAX], opaque[4096];
-            int  rport = 0;
-            if (parse_redirect(bd, bl, rhost, sizeof(rhost), &rport,
-                               opaque, sizeof(opaque)) != 0) {
-                free(bd);
-                brix_status_set(st, XRDC_EPROTO, 0, "malformed redirect");
+            if (rt_handle_redirect(c, rq, bd, bl, st) != 0) {
                 return -1;
-            }
-            free(bd);
-            if (c->diag.redir_trace) {   /* §15.4: surface each hop on stderr */
-                fprintf(stderr, "redirect[%d] -> %s:%d%s\n", c->redir_depth + 1,
-                        rhost, rport, opaque[0] ? " (+opaque)" : "");
-            }
-            if (++c->redir_depth > XRDC_REDIR_MAX) {
-                if (c->diag.redir_trace) {
-                    fprintf(stderr, "redirect: budget exhausted (>%d hops)\n",
-                            XRDC_REDIR_MAX);
-                }
-                brix_status_set(st, XRDC_EREDIRECT, 0,
-                                "too many redirects (>%d)", XRDC_REDIR_MAX);
-                return -1;
-            }
-            brix_format_host_port(rhost, (uint16_t) rport, hp, sizeof(hp));
-            /* Immediate self-redirect: the server we are talking to right now
-             * bounced us straight back to itself.  That is an unambiguous loop;
-             * fail fast here rather than reconnecting to it (which would chase
-             * the loop until the connect timeout — up to 15s per hop). */
-            if (rport == c->port && strcmp(rhost, c->host) == 0) {
-                if (c->diag.redir_trace) {
-                    fprintf(stderr, "redirect: self-loop to %s\n", hp);
-                }
-                brix_status_set(st, XRDC_EREDIRECT, 0,
-                                "redirect loop: server redirected to itself (%s)",
-                                hp);
-                return -1;
-            }
-            if (tried_seen(c, hp)) {
-                if (c->diag.redir_trace) {
-                    fprintf(stderr, "redirect: LOOP to already-tried %s\n", hp);
-                }
-                brix_status_set(st, XRDC_EREDIRECT, 0,
-                                "redirect loop to already-tried %s", hp);
-                return -1;
-            }
-            if (c->tried_n < XRDC_REDIR_MAX) {
-                snprintf(c->tried[c->tried_n++], sizeof(c->tried[0]), "%s", hp);
-            }
-            /* EOS/cmsd redirects an open to a data server with a one-shot capability
-             * opaque; carry it onto the open's path so the DS authorizes the open
-             * (else it bounces back → the endless loop the guard above trips on). */
-            if (reqid == kXR_open && opaque[0] != '\0'
-                && open_payload_with_opaque(payload, plen, opaque, rebuilt,
-                                            &cur_pl, &cur_len, st) != 0) {
-                return -1;
-            }
-            if (follow_redirect(c, rhost, rport, st) != 0) {
-                return -1;   /* dead target AND manager fallback failed */
             }
             continue;   /* replay against the redirect target (or manager) */
         }
-
         if (stt == kXR_wait) {
-            unsigned secs = xrd_wait_secs_parse(bd, bl, 1, 30);  /* clamp [1,30] */
-            unsigned jms;
-            free(bd);
-            if (++waits > XRDC_REDIR_MAX) {
-                brix_status_set(st, XRDC_EPROTO, 0, "server kept asking to wait");
+            if (rt_handle_wait(c, bd, bl, &waits, st) != 0) {
                 return -1;
-            }
-            sleep(secs);
-            /* Phase 40 (a): ADDITIVE sub-second jitter so a fleet handed the same
-             * advised wait doesn't resend in lockstep — never shorten the
-             * server's requested delay. */
-            jms = brix_jitter_ms(secs >= 1 ? 1000u : 250u);
-            if (jms > 0) {
-                struct timespec ts;
-                ts.tv_sec  = 0;
-                ts.tv_nsec = (long) jms * 1000000L;
-                (void) nanosleep(&ts, NULL);
             }
             continue;   /* resend the same request to the same server */
         }
 
         /* kXR_ok / kXR_oksofar */
-        if (status != NULL) { *status = stt; }
-        *body = bd;
-        *blen = bl;
+        if (out->status != NULL) { *out->status = stt; }
+        *out->body = bd;
+        *out->blen = bl;
         return 0;
     }
 }
 
 int
-brix_roundtrip(brix_conn *c, void *hdr24, const void *payload, uint32_t plen,
-               uint16_t *status, uint8_t **body, uint32_t *blen, brix_status *st)
+brix_roundtrip(brix_conn *c, void *hdr24, const brix_payload *pl,
+               brix_resp_out *out, brix_status *st)
 {
-    char *rebuilt = NULL;   /* opaque-carrying open payload, if a redirect needs it */
-    int   rc = roundtrip_loop(c, hdr24, payload, plen, status, body, blen,
-                              &rebuilt, st);
-    free(rebuilt);
+    rt_req_t rq;
+    int      rc;
+
+    rq.reqid    = xrd_get_u16_be((uint8_t *) hdr24 + 2);
+    rq.orig_pl  = (pl != NULL) ? pl->data : NULL;
+    rq.orig_len = (pl != NULL) ? pl->len : 0;
+    rq.cur_pl   = rq.orig_pl;
+    rq.cur_len  = rq.orig_len;
+    rq.rebuilt  = NULL;   /* opaque-carrying open payload, if a redirect needs it */
+
+    rc = roundtrip_loop(c, hdr24, &rq, out, st);
+    free(rq.rebuilt);
     return rc;
 }

@@ -20,20 +20,23 @@ static const uint8_t tpc_bootstrap_streamid[2] = { 0, 1 };
 extern void tpc_put_u32(u_char *p, uint32_t v);
 extern int tpc_send_kxr_auth(brix_tpc_pull_t *t, int fd, u_char seq, const u_char *cred, uint32_t len);
 
-/* Anonymous XRootD session setup: handshake → kXR_protocol → kXR_login */
-/* WHAT: Bootstrap anonymous XRootD session on remote TPC origin — execute handshake → protocol version negotiation → login pipeline. */
-
-int
-tpc_bootstrap(brix_tpc_pull_t *t, int fd)
+/*
+ * WHAT: Execute the initial ClientInitHandShake exchange with the TPC source.
+ * WHY: Every XRootD session begins with the fixed handshake preamble; a non-ok
+ *      reply here means the peer is not a usable root:// origin and the whole
+ *      bootstrap must abort. Isolating it keeps tpc_bootstrap's control flow flat.
+ * HOW: Pack the handshake, send it, receive the response, always free the (unused)
+ *      body, then reject any non-kXR_ok status. Returns 0 on success, -1 on failure
+ *      (with t->err_msg / t->xrd_error set exactly as the original inline path did).
+ */
+static int
+tpc_bootstrap_handshake(brix_tpc_pull_t *t, int fd)
 {
-    ClientInitHandShake   hs;
-    ClientProtocolRequest pr;
-    ClientLoginRequest    lr;
-    uint16_t              status;
-    uint32_t              dlen;
-    u_char               *body;
+    ClientInitHandShake hs;
+    uint16_t            status;
+    uint32_t            dlen = 0;
+    u_char             *body = NULL;
 
-    /* Initial handshake */
     xrd_pack_handshake(&hs);
 
     if (tpc_send_all(t, fd, &hs, sizeof(hs)) != 0) {
@@ -53,6 +56,64 @@ tpc_bootstrap(brix_tpc_pull_t *t, int fd)
         t->xrd_error = kXR_ServerError;
         return -1;
     }
+    return 0;
+}
+
+
+/*
+ * WHAT: Complete the in-protocol TLS upgrade if the source requested kXR_gotoTLS.
+ * WHY: A TLS-requiring source answers the kXR_protocol request with kXR_gotoTLS in
+ *      the ServerProtocolBody flags; login and all subsequent frames must then ride
+ *      the TLS socket. With outbound TLS off the source never offers gotoTLS, so this
+ *      is a no-op and behaviour is identical to before.
+ * HOW: Parse the 8-byte ServerProtocolBody { pval[4], flags[4] } from the reply body,
+ *      free the body, and if kXR_gotoTLS is set either reject (TLS disabled) or drive
+ *      tpc_start_tls(). Returns 0 on success, -1 on failure with error state set.
+ */
+static int
+tpc_bootstrap_maybe_tls(brix_tpc_pull_t *t, int fd, u_char *body, uint32_t dlen)
+{
+    uint32_t flags = 0;
+
+    if (body != NULL && dlen >= 8) {
+        uint32_t flags_be;
+
+        ngx_memcpy(&flags_be, body + 4, sizeof(flags_be));
+        flags = ntohl(flags_be);
+    }
+    free(body);
+
+    if (flags & kXR_gotoTLS) {
+        if (!t->conf->tpc_outbound_tls) {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                "TPC source requires TLS; set brix_tpc_outbound_tls on");
+            t->xrd_error = kXR_NotAuthorized;
+            return -1;
+        }
+        if (tpc_start_tls(t, fd) != 0) {
+            return -1;   /* tpc_start_tls sets t->err_msg / t->xrd_error */
+        }
+    }
+    return 0;
+}
+
+
+/*
+ * WHAT: Execute the kXR_protocol version negotiation and any resulting TLS upgrade.
+ * WHY: The source must accept our protocol version before login; its reply also
+ *      carries the gotoTLS decision. Combining request/response/TLS keeps the reply
+ *      body's lifetime local and out of tpc_bootstrap.
+ * HOW: Pack the request (advertising kXR_ableTLS only when outbound TLS is enabled),
+ *      send, receive, reject non-ok status (freeing the body first), then hand the
+ *      body to tpc_bootstrap_maybe_tls() which owns the free. Returns 0 / -1.
+ */
+static int
+tpc_bootstrap_protocol(brix_tpc_pull_t *t, int fd)
+{
+    ClientProtocolRequest pr;
+    uint16_t              status;
+    uint32_t              dlen = 0;
+    u_char               *body = NULL;
 
     /* kXR_protocol — advertise kXR_ableTLS when outbound TLS is enabled so a
      * TLS-requiring source answers with kXR_gotoTLS (phase-57 §F5). With the
@@ -86,30 +147,29 @@ tpc_bootstrap(brix_tpc_pull_t *t, int fd)
      * frame (login + GSI/ztn auth + open/read/close) then rides the TLS socket
      * via the I/O helpers (t->tls). Mirrors src/upstream/bootstrap.c.
      */
-    {
-        uint32_t flags = 0;
+    return tpc_bootstrap_maybe_tls(t, fd, body, dlen);
+}
 
-        if (body != NULL && dlen >= 8) {
-            uint32_t flags_be;
 
-            ngx_memcpy(&flags_be, body + 4, sizeof(flags_be));
-            flags = ntohl(flags_be);
-        }
-        free(body);
-        body = NULL;
-
-        if (flags & kXR_gotoTLS) {
-            if (!t->conf->tpc_outbound_tls) {
-                snprintf(t->err_msg, sizeof(t->err_msg),
-                    "TPC source requires TLS; set brix_tpc_outbound_tls on");
-                t->xrd_error = kXR_NotAuthorized;
-                return -1;
-            }
-            if (tpc_start_tls(t, fd) != 0) {
-                return -1;   /* tpc_start_tls sets t->err_msg / t->xrd_error */
-            }
-        }
-    }
+/*
+ * WHAT: Perform the kXR_login exchange (anonymous or delegated-token-aware) and
+ *      complete any follow-on authentication the reply demands.
+ * WHY: This is the session-establishing step; a kXR_ok login can still REQUIRE auth
+ *      when the reply carries a security-protocol list, so we must inspect the body,
+ *      not just the status. Fetching the delegated token first lets an authenticated
+ *      source fetch replace the anonymous login.
+ * HOW: Fetch a delegated token when token_mode is set and not "none"; pack + send
+ *      kXR_login; receive the reply; for kXR_ok/kXR_authmore run
+ *      tpc_outbound_finish_login() only when the body exceeds the bare session id,
+ *      else treat as genuinely anonymous. Returns 0 / -1 with error state set.
+ */
+static int
+tpc_bootstrap_login(brix_tpc_pull_t *t, int fd)
+{
+    ClientLoginRequest lr;
+    uint16_t           status;
+    uint32_t           dlen = 0;
+    u_char            *body = NULL;
 
     /*
      * OAuth2/OIDC token delegation: fetch a delegated token before the
@@ -166,5 +226,21 @@ tpc_bootstrap(brix_tpc_pull_t *t, int fd)
              "TPC kXR_login rejected (status=%u)", (unsigned) status);
     t->xrd_error = kXR_AuthFailed;
     return -1;
+}
+
+
+/* Anonymous XRootD session setup: handshake → kXR_protocol → kXR_login */
+/* WHAT: Bootstrap anonymous XRootD session on remote TPC origin — execute handshake → protocol version negotiation → login pipeline. */
+
+int
+tpc_bootstrap(brix_tpc_pull_t *t, int fd)
+{
+    if (tpc_bootstrap_handshake(t, fd) != 0) {
+        return -1;
+    }
+    if (tpc_bootstrap_protocol(t, fd) != 0) {
+        return -1;
+    }
+    return tpc_bootstrap_login(t, fd);
 }
 

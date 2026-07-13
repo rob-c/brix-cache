@@ -39,12 +39,12 @@ brix_subject_mapfile_lookup(const char *path, const char *subject,
 
     buf = malloc(BRIX_SUBJECT_MAP_MAX);
     if (buf == NULL) {
-        fclose(f);
+        (void) fclose(f); /* phase74-fp: read-only stream on an error path already returning -1 */
         return -1;
     }
 
     got = fread(buf, 1, BRIX_SUBJECT_MAP_MAX - 1, f);
-    fclose(f);
+    (void) fclose(f); /* phase74-fp: read-only stream, bytes already read into buf */
     buf[got] = '\0';
 
     n = json_get_string(buf, got, subject, out, outsz);

@@ -56,7 +56,11 @@ brix_sanitize_log_string(const char *in, char *out, size_t outsz)
     src = (const u_char *) ((in != NULL) ? in : "-");
     written = 0;
 
-    while (*src != '\0' && written + 1 < outsz) {
+    /* phase74-fp: security.ArrayBound loop-widening — the only literal here is
+     * "-" (char[2]); `src` is dereferenced only while *src != '\0', so it reads
+     * indices 0 and 1 (the NUL) at most and never advances past the
+     * terminator (ch = *src++ happens strictly after the check). */
+    while (*src != '\0' && written + 1 < outsz) {  /* NOLINT(clang-analyzer-security.ArrayBound) */
         ch = *src++;
 
         if (ch >= 0x21 && ch <= 0x7e && ch != '"' && ch != '\\') {

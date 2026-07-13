@@ -14,6 +14,27 @@
 #include <stdint.h>
 #include <openssl/evp.h>
 
+/* Borrowed byte blob (PEM or DER): pointer + length travel as ONE argument.
+ * The callee never takes ownership and never writes through it. */
+typedef struct {
+    const uint8_t *data;
+    size_t         len;
+} brix_gsi_blob_t;
+
+/* malloc'd output buffer: written ONLY on success (untouched on failure);
+ * the caller free()s .data. */
+typedef struct {
+    uint8_t *data;
+    size_t   len;
+} brix_gsi_buf_t;
+
+/* Optional error sink: on failure a short reason is snprintf'd into
+ * buf[0..cap). Pass NULL (or .buf == NULL) to discard the reason. */
+typedef struct {
+    char   *buf;
+    size_t  cap;
+} brix_gsi_err_t;
+
 /*
  * brix_gsi_build_pxyreq — build the server→client kXGS_pxyreq payload: an
  * RFC-3820 proxy-certificate REQUEST for `parent_pem` (the peer's EEC/proxy, PEM).
@@ -25,17 +46,16 @@
  * self-signs the request with SHA-256.
  *
  * On success returns 0 with *newkey = the fresh keypair (caller EVP_PKEY_free) and
- * *req_der / *req_len = a malloc'd DER X509_REQ (caller free()). On failure returns
- * -1 and, if err != NULL, writes a short reason into err[errcap]; no output is set.
+ * req_der = a malloc'd DER X509_REQ (caller free()). On failure returns -1 and,
+ * if err != NULL, writes a short reason into err->buf; no output is set.
  */
-int brix_gsi_build_pxyreq(const uint8_t *parent_pem, size_t parent_pem_len,
-                            EVP_PKEY **newkey, uint8_t **req_der, size_t *req_len,
-                            char *err, size_t errcap);
+int brix_gsi_build_pxyreq(const brix_gsi_blob_t *parent_pem, EVP_PKEY **newkey,
+                            brix_gsi_buf_t *req_der, const brix_gsi_err_t *err);
 
 /*
  * brix_gsi_sign_pxyreq — ISSUE a proxy by signing a request (the delegating
  * client's role, kXGC_sigpxy). `signer_pem` is the issuer EEC/proxy (PEM, leaf
- * first), `signer_key` its private key, `req_der`/`req_len` the request from
+ * first), `signer_key` its private key, `req_der` the DER request from
  * brix_gsi_build_pxyreq.
  *
  * Validates the request subject is `<signer subject>/CN=<serial>`, builds an
@@ -45,14 +65,12 @@ int brix_gsi_build_pxyreq(const uint8_t *parent_pem, size_t parent_pem_len,
  * a subjectAltName is rejected), adds a CRITICAL proxyCertInfo with the correctly
  * decremented path-length, and signs with `signer_key` (SHA-256).
  *
- * On success returns 0 with proxy_pem + proxy_len = the malloc'd signed proxy
- * certificate (PEM, caller free()). -1 with err[errcap] on failure.
+ * On success returns 0 with proxy_pem = the malloc'd signed proxy certificate
+ * (PEM, caller free()). -1 with err->buf set on failure.
  */
-int brix_gsi_sign_pxyreq(const uint8_t *signer_pem, size_t signer_pem_len,
-                           EVP_PKEY *signer_key,
-                           const uint8_t *req_der, size_t req_len,
-                           uint8_t **proxy_pem, size_t *proxy_len,
-                           char *err, size_t errcap);
+int brix_gsi_sign_pxyreq(const brix_gsi_blob_t *signer_pem, EVP_PKEY *signer_key,
+                           const brix_gsi_blob_t *req_der,
+                           brix_gsi_buf_t *proxy_pem, const brix_gsi_err_t *err);
 
 /*
  * brix_gsi_assemble_proxy — ASSEMBLE the delegated proxy credential (the GSI
@@ -62,14 +80,12 @@ int brix_gsi_sign_pxyreq(const uint8_t *signer_pem, size_t signer_pem_len,
  * the client's EEC chain) to produce a usable proxy chain PEM (proxy first).
  *
  * Verifies the proxy public key matches `reqkey`. On success returns 0 with
- * out_pem + out_len = the malloc'd `<proxy><chain>` PEM (caller free()) — feed it
+ * out_pem = the malloc'd `<proxy><chain>` PEM (caller free()s .data) — feed it
  * (with `reqkey`) to brix_gsi_build_cert_response to authenticate as the user.
- * -1 with err[errcap] on failure (e.g. key mismatch).
+ * -1 with err->buf set on failure (e.g. key mismatch).
  */
-int brix_gsi_assemble_proxy(const uint8_t *proxy_pem, size_t proxy_pem_len,
-                              EVP_PKEY *reqkey,
-                              const uint8_t *chain_pem, size_t chain_pem_len,
-                              uint8_t **out_pem, size_t *out_len,
-                              char *err, size_t errcap);
+int brix_gsi_assemble_proxy(const brix_gsi_blob_t *proxy_pem, EVP_PKEY *reqkey,
+                              const brix_gsi_blob_t *chain_pem,
+                              brix_gsi_buf_t *out_pem, const brix_gsi_err_t *err);
 
 #endif /* BRIX_GSI_PROXY_REQ_H */

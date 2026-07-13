@@ -22,8 +22,11 @@
  *
  * AUTH: anonymous GET by default. When `bearer_token` is set (the §14 credential
  *       block, threaded through the registry), every HEAD/GET carries
- *       `Authorization: Bearer <token>` — the WLCG / SciTokens path. (X.509/GSI to
- *       an HTTP origin is a later credential-block consumer.)
+ *       `Authorization: Bearer <token>` — the WLCG / SciTokens path. Per-open
+ *       credentials (open_cred) additionally present the requesting USER: a WLCG
+ *       bearer as the Authorization header (phase-2 T7), or an x509 proxy PEM as
+ *       a mutual-TLS client certificate on the origin handshake (phase-70 §5.1
+ *       GSI-over-https) when the injected transport implements request_cred.
  */
 
 #include "fs/backend/sd.h"
@@ -32,6 +35,9 @@
 /* Cap on the ranked endpoint set of one instance (phase-68 T11 failover:
  * mirrors CVMFS_SERVER_URL's ordered Stratum-1 list). */
 #define SD_HTTP_EP_MAX 8
+
+/* Default per-request origin I/O timeout (milliseconds) when cfg leaves it unset. */
+#define BRIX_SD_HTTP_DEFAULT_TIMEOUT_MS 60000
 
 /* One additional endpoint of a multi-origin instance (strings are copied). */
 typedef struct {
@@ -54,6 +60,12 @@ typedef struct {
     void                        *tctx;        /* transport context (NULL for curl) */
     int                          timeout_ms;
     const char                  *bearer_token; /* §14: Authorization: Bearer, or NULL */
+    const char                  *ca_path;      /* §14/C-3: operator trusted-CA file or
+                                    hashed dir for origin TLS verification, or NULL
+                                    for the system bundle. Copied into the instance
+                                    and handed to the curl transport as its tctx so
+                                    the https backend leg verifies a site/test-CA
+                                    origin (phase-70). Ignored when tctx is set. */
     const brix_sd_http_ep_cfg_t *extra;      /* endpoints 1.. (may be NULL)   */
     int                            n_extra;    /* count of `extra` entries      */
     void                         (*failover_note)(void);  /* T16: called when a

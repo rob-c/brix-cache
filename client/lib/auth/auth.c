@@ -25,6 +25,7 @@ send_auth(brix_conn *c, const char credtype[4], const uint8_t *payload,
           uint32_t plen, uint16_t *sid, brix_status *st)
 {
     ClientAuthRequest req;
+    brix_payload      pl = { payload, plen };
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_auth);
@@ -33,7 +34,7 @@ send_auth(brix_conn *c, const char credtype[4], const uint8_t *payload,
         memcpy(b.credtype, credtype, 4);
         xrdw_auth_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
-    return brix_send(c, &req, payload, plen, sid, st);
+    return brix_send(c, &req, &pl, sid, st);
 }
 
 /* Run one protocol's kXR_auth/authmore exchange to completion. 0 / -1. */
@@ -50,10 +51,11 @@ run_module(brix_conn *c, const brix_sec_module *m, const char *parms,
     }
 
     for (round = 0; round < XRDC_AUTH_MAX_ROUNDS; round++) {
-        uint16_t sid, status;
-        uint8_t *body = NULL;
-        uint32_t blen = 0;
-        int      rc;
+        uint16_t      sid, status;
+        uint8_t      *body = NULL;
+        uint32_t      blen = 0;
+        int           rc;
+        brix_resp_out out = { &status, &body, &blen };
 
         rc = send_auth(c, m->credtype, payload, plen, &sid, st);
         free(payload);
@@ -62,7 +64,7 @@ run_module(brix_conn *c, const brix_sec_module *m, const char *parms,
         if (rc != 0) {
             return -1;
         }
-        if (brix_recv(c, sid, &status, &body, &blen, st) != 0) {
+        if (brix_recv(c, sid, &out, st) != 0) {
             return -1;   /* kXR_error → st already set */
         }
         if (status == kXR_ok) {

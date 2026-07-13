@@ -13,3 +13,9 @@ Moved off the `src/fs/` root in phase-67. The full per-file responsibility
 table, the layer diagram (`module → vfs_server → vfs → backend`), invariants,
 and the seam-guard rules all live in [`../README.md`](../README.md) — read
 that first; this file is just the signpost.
+
+## Additional file
+
+| File | Responsibility |
+|---|---|
+| `vfs_cred.c` | Per-user backend credential gate (phase-1 + phase-2 T1/T3/T9). `brix_vfs_ctx_bind_backend_cred`/`_mint` wire the conf's credential dir/fallback/mint-CA onto a VFS ctx; a single shared decision body serves both `brix_vfs_backend_cred` (data-plane open/staged_open) and `brix_vfs_ns_cred` (namespace stat/unlink/rename/xattr) — calls `brix_sd_ucred_select`, optionally attempts one opt-in mint on a DECLINED select, then either grants a user credential, allows a service-credential fallback, or refuses (EACCES/403); emits the Phase-2 T3 Prometheus counters on every terminal outcome. See [docs/10-reference/per-user-backend-credentials.md](../../../docs/10-reference/per-user-backend-credentials.md). |

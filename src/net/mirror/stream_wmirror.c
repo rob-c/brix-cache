@@ -236,77 +236,146 @@ wmir_status_ok(uint16_t st)
     return st == kXR_ok || st == kXR_oksofar;
 }
 
-/* Advance one phase; bootstrap phases re-post the read so pipelined frames are
- * processed; request phases send the next frame (which arms the read itself). */
-static void
-wmir_dispatch(brix_wmirror_replay_t *r)
+/*
+ * Outcome of a single per-phase step, telling wmir_dispatch what to do next.
+ * WHAT: decouples the phase decision from the loop plumbing so each phase handler
+ * stays a small pure decision.  WHY: a request phase queues its own next frame
+ * (whose flush re-arms the read) and is DONE; a bootstrap phase only advanced the
+ * state and needs the read re-posted to drain pipelined frames; a failure tears
+ * down.  HOW: handlers return one of these and never touch the loop directly.
+ */
+typedef enum {
+    WMIR_STEP_FAIL = 0,     /* terminal failure — finish(r, 0)                 */
+    WMIR_STEP_SENT,         /* request phase queued its next frame — done      */
+    WMIR_STEP_REPOST,       /* bootstrap phase advanced — re-post the read     */
+} wmir_step_t;
+
+/*
+ * Bootstrap-handshake phase: the shadow's handshake response must be kXR_ok.
+ * WHAT: validate the handshake and advance to PROTOCOL.  HOW: any non-ok status
+ * fails; otherwise move to the next bootstrap phase and re-post the read.
+ */
+static wmir_step_t
+wmir_step_handshake(brix_wmirror_replay_t *r)
 {
-    switch (r->phase) {
+    if (r->resp_status != kXR_ok) { return WMIR_STEP_FAIL; }
+    r->phase = WMIR_PROTOCOL;
+    return WMIR_STEP_REPOST;
+}
 
-    case WMIR_HANDSHAKE:
-        if (r->resp_status != kXR_ok) { wmir_finish(r, 0); return; }
-        r->phase = WMIR_PROTOCOL;
-        break;
-
-    case WMIR_PROTOCOL:
-        if (r->resp_status != kXR_ok) { wmir_finish(r, 0); return; }
-        /* A shadow that demands TLS cannot continue the cleartext replay.  The
-         * gotoTLS flag lives in the protocol response body at byte offset 4
-         * (a 4-byte big-endian flags word). */
-        if (r->resp_dlen >= 8 && r->resp_body != NULL) {
-            uint32_t flags_be;
-            ngx_memcpy(&flags_be, r->resp_body + 4, sizeof(flags_be));
-            if (ntohl(flags_be) & kXR_gotoTLS) { wmir_finish(r, 0); return; }
-        }
-        r->phase = WMIR_LOGIN;
-        break;
-
-    case WMIR_LOGIN:
-        /* authmore => the shadow wants credentials we have no way to supply on
-         * this anonymous replay; treat as a non-fatal stop (counted as error). */
-        if (r->resp_status == kXR_authmore) { wmir_finish(r, 0); return; }
-        if (r->resp_status != kXR_ok)       { wmir_finish(r, 0); return; }
-        wmir_send_open(r);          /* resets accumulator + sends + arms read */
-        return;
-
-    case WMIR_OPEN:
-        /* The shadow's open response body begins with its 4-byte file handle;
-         * everything downstream (write/close) addresses this handle, so a short
-         * or missing body means we cannot continue. */
-        if (!wmir_status_ok(r->resp_status) || r->resp_dlen < 4
-            || r->resp_body == NULL)
-        {
-            wmir_finish(r, 0); return;          /* shadow open failed/diverged */
-        }
-        ngx_memcpy(r->shadow_fhandle, r->resp_body, 4);
-        wmir_send_write(r);
-        return;
-
-    case WMIR_WRITE:
-        if (!wmir_status_ok(r->resp_status)) { wmir_finish(r, 0); return; }
-        wmir_send_close(r);
-        return;
-
-    case WMIR_CLOSE:
-        /* Terminal: success iff the close was accepted — this is the only path
-         * that reports the replay as fully succeeded (ok=1). */
-        wmir_finish(r, wmir_status_ok(r->resp_status) ? 1 : 0);
-        return;
+/*
+ * Bootstrap-protocol phase: validate the ClientProtocol response.  WHAT: require
+ * kXR_ok and reject a shadow that demands TLS.  WHY: a gotoTLS shadow cannot
+ * continue the cleartext replay.  HOW: the flag lives in the response body at
+ * byte offset 4 (a 4-byte big-endian word); if set, fail; else advance to LOGIN.
+ */
+static wmir_step_t
+wmir_step_protocol(brix_wmirror_replay_t *r)
+{
+    if (r->resp_status != kXR_ok) { return WMIR_STEP_FAIL; }
+    if (r->resp_dlen >= 8 && r->resp_body != NULL) {
+        uint32_t flags_be;
+        ngx_memcpy(&flags_be, r->resp_body + 4, sizeof(flags_be));
+        if (ntohl(flags_be) & kXR_gotoTLS) { return WMIR_STEP_FAIL; }
     }
+    r->phase = WMIR_LOGIN;
+    return WMIR_STEP_REPOST;
+}
 
-    /* Only the bootstrap arms (HANDSHAKE/PROTOCOL) fall through to here — they
-     * advanced r->phase via `break` instead of sending a frame.  The request
-     * arms (LOGIN/OPEN/WRITE/CLOSE) all `return` after queuing their next frame,
-     * whose wmir_flush() arms the read itself.  Here we instead re-post the read
-     * manually: the pipelined bootstrap responses may already be sitting in the
-     * socket buffer, so re-posting drains them within the same loop cycle rather
-     * than waiting for a fresh readable event. */
+/*
+ * Bootstrap-login phase: on a clean login, send the shadow open.  WHAT: require a
+ * plain kXR_ok.  WHY: kXR_authmore means the shadow wants credentials we cannot
+ * supply on this anonymous replay (non-fatal stop, counted as error).  HOW: on
+ * success queue the open frame (which arms the read itself) and report SENT.
+ */
+static wmir_step_t
+wmir_step_login(brix_wmirror_replay_t *r)
+{
+    if (r->resp_status != kXR_ok) { return WMIR_STEP_FAIL; }
+    wmir_send_open(r);              /* resets accumulator + sends + arms read */
+    return WMIR_STEP_SENT;
+}
+
+/*
+ * Open-response phase: capture the shadow file handle, then send the write.
+ * WHAT: the open response body begins with the shadow's 4-byte fhandle that all
+ * downstream ops address.  HOW: a bad status or a short/missing body fails; else
+ * copy the handle and queue the single whole-file write.
+ */
+static wmir_step_t
+wmir_step_open(brix_wmirror_replay_t *r)
+{
+    if (!wmir_status_ok(r->resp_status) || r->resp_dlen < 4
+        || r->resp_body == NULL)
+    {
+        return WMIR_STEP_FAIL;             /* shadow open failed/diverged */
+    }
+    ngx_memcpy(r->shadow_fhandle, r->resp_body, 4);
+    wmir_send_write(r);
+    return WMIR_STEP_SENT;
+}
+
+/*
+ * Write-response phase: on an accepted write, send the close.  WHAT: require an
+ * ok/oksofar status.  HOW: on success queue the close frame and report SENT.
+ */
+static wmir_step_t
+wmir_step_write(brix_wmirror_replay_t *r)
+{
+    if (!wmir_status_ok(r->resp_status)) { return WMIR_STEP_FAIL; }
+    wmir_send_close(r);
+    return WMIR_STEP_SENT;
+}
+
+/*
+ * Close-response phase: terminal success.  WHAT: this is the only path that
+ * reports the replay fully succeeded (ok=1) — iff the close was accepted.
+ */
+static wmir_step_t
+wmir_step_close(brix_wmirror_replay_t *r)
+{
+    wmir_finish(r, wmir_status_ok(r->resp_status) ? 1 : 0);
+    return WMIR_STEP_SENT;              /* already finished; do not re-post */
+}
+
+/*
+ * Re-post the read after a bootstrap phase advanced.  WHAT: clear the frame
+ * accumulator and re-arm+post the read event.  WHY: the pipelined bootstrap
+ * responses may already be sitting in the socket buffer, so re-posting drains
+ * them within the same loop cycle rather than waiting for a fresh readable event.
+ */
+static void
+wmir_repost_read(brix_wmirror_replay_t *r)
+{
     wmir_reset_frame(r);
     if (ngx_handle_read_event(r->conn->read, 0) != NGX_OK) {
         wmir_finish(r, 0);
         return;
     }
     ngx_post_event(r->conn->read, &ngx_posted_events);
+}
+
+/* Per-phase step handlers, indexed by wmir_phase_t.  Table-driven dispatch keeps
+ * the flow linear and each phase in one focused function. */
+static wmir_step_t (*const wmir_step_table[])(brix_wmirror_replay_t *) = {
+    [WMIR_HANDSHAKE] = wmir_step_handshake,
+    [WMIR_PROTOCOL]  = wmir_step_protocol,
+    [WMIR_LOGIN]     = wmir_step_login,
+    [WMIR_OPEN]      = wmir_step_open,
+    [WMIR_WRITE]     = wmir_step_write,
+    [WMIR_CLOSE]     = wmir_step_close,
+};
+
+/* Advance one phase; bootstrap phases re-post the read so pipelined frames are
+ * processed; request phases send the next frame (which arms the read itself). */
+static void
+wmir_dispatch(brix_wmirror_replay_t *r)
+{
+    wmir_step_t step = wmir_step_table[r->phase](r);
+
+    if (step == WMIR_STEP_FAIL)   { wmir_finish(r, 0); return; }
+    if (step == WMIR_STEP_REPOST) { wmir_repost_read(r); }
+    /* WMIR_STEP_SENT: the phase already queued its next frame (or finished). */
 }
 
 /* Read event entry point: pull one complete frame, then hand it to the state
@@ -452,7 +521,8 @@ wmir_start(brix_wmirror_replay_t *r, ngx_msec_t timeout_ms)
     r->tev.handler = wmir_timeout_handler;
     r->tev.data    = r;
     r->tev.log     = r->log;
-    ngx_add_timer(&r->tev, timeout_ms ? timeout_ms : 5000);
+    ngx_add_timer(&r->tev,
+                  timeout_ms ? timeout_ms : BRIX_MIRROR_DEFAULT_TIMEOUT_MS);
 
     rc = connect(fd, (struct sockaddr *) &r->sockaddr, r->socklen);
     /* Only a hard, non-EINPROGRESS error is fatal here; EINPROGRESS is the
@@ -625,6 +695,75 @@ brix_stream_wmirror_on_open(brix_ctx_t *ctx, ngx_connection_t *c,
  * plain bytes), a non-sequential offset, exceeding the per-file or per-connection
  * cap, an OOM on grow, or the primary itself failing the write.
  */
+/*
+ * Append one sequential kXR_write's payload to a file accumulator.
+ *
+ * WHAT: validate contiguity and the caps, then grow-by-copy the captured bytes.
+ * WHY split out: keeps the observe dispatcher a thin switch while this holds the
+ * whole plain-write accumulation policy in one focused place.  HOW: the write
+ * offset is an 8-byte big-endian field at header byte 8 — only a strictly
+ * contiguous stream (off == expected next offset) can collapse into the single
+ * offset-0 replay write, so a gap/seek aborts.  Enforce the per-file and
+ * connection-wide caps before growing (a cap hit is counted, not an error), then
+ * allocate old+new, copy the existing prefix, free the old buffer, and append the
+ * new bytes (not ngx_realloc, so old contents are explicitly preserved).  Any
+ * failure marks the slot aborted; primary_rc==NGX_ERROR aborts up front.
+ */
+static void
+wmir_accumulate_write(brix_wmirror_conn_t *wm, brix_wmirror_file_t *f,
+    brix_ctx_t *ctx, ngx_int_t primary_rc)
+{
+    uint64_t off_be;
+    off_t    off;
+    size_t   len = ctx->recv.cur_dlen;
+    u_char  *ndata;
+
+    if (f->aborted) { return; }
+    if (primary_rc == NGX_ERROR) { f->aborted = 1; return; }
+
+    ngx_memcpy(&off_be, ctx->recv.hdr_buf + 8, 8);
+    off = (off_t) be64toh(off_be);
+    if (off != f->next_off) { f->aborted = 1; return; }   /* non-sequential */
+    if (len == 0) { return; }
+
+    if (f->data_len + len > BRIX_WMIRROR_FILE_CAP
+        || wm->total_buffered + len > BRIX_WMIRROR_CONN_CAP)
+    {
+        f->aborted = 1;
+        BRIX_WMIR_METRIC_INC(mirror_stream_dropped_total);
+        return;
+    }
+
+    ndata = ngx_alloc(f->data_len + len, ngx_cycle->log);
+    if (ndata == NULL) { f->aborted = 1; return; }
+    if (f->data_len) {
+        ngx_memcpy(ndata, f->data, f->data_len);
+        ngx_free(f->data);
+    }
+    ngx_memcpy(ndata + f->data_len, ctx->recv.payload, len);
+    f->data = ndata;
+    f->data_len += len;
+    f->next_off += (off_t) len;            /* advance expected contiguous offset */
+    wm->total_buffered += len;
+}
+
+/*
+ * kXR_close handler: fire the detached replay for a clean file, then reset.
+ * WHAT: replay only a non-empty, non-aborted file whose primary close also
+ * succeeded.  HOW: wmir_launch steals f->data, so the unconditional
+ * wmir_file_reset that follows safely clears the (now-nulled) slot.
+ */
+static void
+wmir_observe_close(ngx_stream_brix_srv_conf_t *conf, brix_wmirror_conn_t *wm,
+    brix_wmirror_file_t *f, ngx_int_t primary_rc)
+{
+    f->active = 0;
+    if (!f->aborted && f->data_len > 0 && primary_rc != NGX_ERROR) {
+        wmir_launch(conf, f);              /* transfers f->data ownership */
+    }
+    wmir_file_reset(wm, f);
+}
+
 void
 brix_stream_wmirror_observe(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, ngx_int_t primary_rc)
@@ -648,58 +787,12 @@ brix_stream_wmirror_observe(brix_ctx_t *ctx, ngx_connection_t *c,
         f->aborted = 1;        /* CRC-interleaved payload — not a plain write */
         return;
 
-    case kXR_write: {
-        uint64_t off_be;
-        off_t    off;
-        size_t   len = ctx->recv.cur_dlen;
-        u_char  *ndata;
-
-        if (f->aborted) { return; }
-        if (primary_rc == NGX_ERROR) { f->aborted = 1; return; }
-
-        /* Write offset is an 8-byte big-endian field at header byte 8.  Only a
-         * strictly contiguous stream (off == expected next offset) can collapse
-         * into the single offset-0 replay write; a gap/seek aborts the file. */
-        ngx_memcpy(&off_be, ctx->recv.hdr_buf + 8, 8);
-        off = (off_t) be64toh(off_be);
-        if (off != f->next_off) { f->aborted = 1; return; }   /* non-sequential */
-        if (len == 0) { return; }
-        /* Bounded buffering: enforce both the per-file and the connection-wide
-         * caps before growing, so a large or many-file upload can't balloon
-         * memory.  Hitting a cap is counted (dropped metric), not an error. */
-        if (f->data_len + len > BRIX_WMIRROR_FILE_CAP
-            || wm->total_buffered + len > BRIX_WMIRROR_CONN_CAP)
-        {
-            f->aborted = 1;
-            BRIX_WMIR_METRIC_INC(mirror_stream_dropped_total);
-            return;
-        }
-        /* Grow-by-copy append: allocate old+new, copy the existing prefix, free
-         * the old buffer, then append the new bytes.  (Not ngx_realloc so the
-         * old contents are explicitly preserved across the move.) */
-        ndata = ngx_alloc(f->data_len + len, ngx_cycle->log);
-        if (ndata == NULL) { f->aborted = 1; return; }
-        if (f->data_len) {
-            ngx_memcpy(ndata, f->data, f->data_len);
-            ngx_free(f->data);
-        }
-        ngx_memcpy(ndata + f->data_len, ctx->recv.payload, len);
-        f->data = ndata;
-        f->data_len += len;
-        f->next_off += (off_t) len;        /* advance expected contiguous offset */
-        wm->total_buffered += len;
+    case kXR_write:
+        wmir_accumulate_write(wm, f, ctx, primary_rc);
         return;
-    }
 
     case kXR_close:
-        f->active = 0;
-        /* Replay only a clean, non-empty, non-aborted file whose primary close
-         * also succeeded.  wmir_launch steals f->data, so the unconditional
-         * wmir_file_reset that follows safely clears the (now-nulled) slot. */
-        if (!f->aborted && f->data_len > 0 && primary_rc != NGX_ERROR) {
-            wmir_launch(conf, f);            /* transfers f->data ownership */
-        }
-        wmir_file_reset(wm, f);
+        wmir_observe_close(conf, wm, f, primary_rc);
         return;
 
     default:

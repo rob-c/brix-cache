@@ -35,9 +35,8 @@
 ngx_int_t brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf);
 /*
  * Perform the POSIX open(2) for an already-resolved absolute path and reply.
- * resolved: borrowed NUL-terminated absolute path (not owned; safe to free
- *   after return). is_write: caller's read/write classification — also used as
- *   the cache-source flag when 0 (callers pass 0 for cache-served reads).
+ * The open intent (path/options/mode/write-classification/codec) arrives as a
+ * borrowed brix_open_request_t (fields documented on the struct below).
  * Translates options/mode_bits to oflags+create mode, stages a POSC temp file
  * when kXR_posc is set on a write, opens confined (non-cache) or O_CLOEXEC
  * (cache), allocates an fd_table slot (0-255) and seeds per-handle bookkeeping,
@@ -46,15 +45,32 @@ ngx_int_t brix_handle_open(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix
  * reported as a kXR error frame, not a return code.
  */
 /*
+ * brix_open_request_t — the caller-supplied kXR_open intent for
+ * brix_open_resolved_file() (phase-73 parameter consolidation).
+ *
+ * resolved:  borrowed NUL-terminated canonical absolute path (not owned; safe
+ *            to free after return).
+ * options:   raw kXR_open option bits from the wire request.
+ * mode_bits: XRootD create-mode bits (Unix permission bits in the low 9 bits;
+ *            0 defaults to 0644 on a creating open).
+ * is_write:  caller's read/write classification — also used as the
+ *            cache-source flag when 0 (callers pass 0 for cache-served reads).
  * codec (phase-42 W4/W5): negotiated inline-compression codec ordinal
- * (brix_codec_id_t cast to uint8_t).  0 = no compression (the default, byte-
- * identical path).  Non-zero is honoured only for a regular file and stored in
- * the direction-appropriate handle slot — read_codec on a read open (W4, compress
- * kXR_read responses), write_codec on a write open (W5, decompress kXR_write
- * payloads) — and signalled to the client via the kXR_open reply cpsize/cptype.
- * Cache-served reads pass 0.
+ *   (brix_codec_id_t cast to uint8_t).  0 = no compression (the default, byte-
+ *   identical path).  Non-zero is honoured only for a regular file and stored in
+ *   the direction-appropriate handle slot — read_codec on a read open (W4,
+ *   compress kXR_read responses), write_codec on a write open (W5, decompress
+ *   kXR_write payloads) — and signalled to the client via the kXR_open reply
+ *   cpsize/cptype.  Cache-served reads pass 0.
  */
-ngx_int_t brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf, const char *resolved, uint16_t options, uint16_t mode_bits, ngx_flag_t is_write, uint8_t codec);
+typedef struct {
+    const char  *resolved;
+    uint16_t     options;
+    uint16_t     mode_bits;
+    ngx_flag_t   is_write;
+    uint8_t      codec;
+} brix_open_request_t;
+ngx_int_t brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf, const brix_open_request_t *req);
 /*
  * Cache-aware read-open (XCache style). clean_path: borrowed root-relative
  * logical path (CGI already stripped). Checks the VO ACL against the auth root

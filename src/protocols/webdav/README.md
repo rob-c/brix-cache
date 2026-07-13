@@ -91,6 +91,7 @@ subsystem is the HTTP-specific glue plus the WebDAV/XrdHttp protocol logic.
 | `auth_store.c` | `webdav_build_ca_store` — build the `X509_STORE` from `cadir`/`cafile`/`crl` (no proxy certs in the plain trust store). |
 | `introspect.c` | OIDC RFC 7662 token-introspection revocation as a second access-phase handler: SHM revoke-cache fast path, non-blocking `ngx_http_subrequest` to the IdP, fail-open/closed policy. |
 | `macaroon_endpoint.c` | `POST /.oauth2/token` (issue scoped WLCG macaroon) + `GET /.well-known/oauth-authorization-server` discovery; maps `storage.*` scopes → macaroon activity/path caveats. |
+| `delegation.c` / `delegation.h` | Phase-2 opt-in proxy-upload delegation endpoint (`brix_delegation_endpoint on`, default off): `PUT`/`POST /.well-known/brix-delegation` lets an already GSI-cert-authenticated client upload its own RFC 3820 proxy chain (never a bearer-token session), validated (every cert in the chain unexpired, end-entity-cert DN matches the authenticated client's DN) and atomically stored at `<storage_credential_dir>/<key>.pem` for `../fs/backend/ucred.c` to pick up on the client's next davs/S3 origin session. Both the proxy-*upload* form (Phase 2 T8) and the full GridSite `getProxyReq`/`putProxy` two-step (Phase 3 T4: `GET .../request` → server-generated CSR, client signs, `PUT .../<id>`) are handled here; both perform cryptographic chain-of-trust verification (`brix_gsi_verify_chain`) before storing, and both are gated by the same `brix_delegation_endpoint` directive. |
 
 ### HTTP-TPC (third-party copy)
 

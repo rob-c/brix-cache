@@ -16,8 +16,8 @@
  * transfer_headers array before launching the curl subprocess.
  */
 
-#ifndef _TPC_CRED_H
-#define _TPC_CRED_H 1
+#ifndef BRIX_TPC_CRED_H
+#define BRIX_TPC_CRED_H 1
 
 #include <ngx_core.h>
 #include <ngx_http.h>
@@ -92,4 +92,4 @@ ngx_int_t
 webdav_tpc_cred_metric_increment(ngx_http_request_t *r,
                                  brix_tpc_cred_metrics_e idx);
 
-#endif /* _TPC_CRED_H */
+#endif /* BRIX_TPC_CRED_H */

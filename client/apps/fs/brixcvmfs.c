@@ -403,6 +403,88 @@ static void parse_opts(int argc, char **argv, int start, brix_opts_t *o) {
     }
 }
 
+/* Populate the client failover set for `repo`. $BRIXCVMFS_SERVER pins a single
+ * DIRECT stratum-1; otherwise apply the loaded config cascade, and if that yields
+ * no hosts, synthesise the conventional cvmfs-stratum-one.<domain> fallback. */
+static void brixcvmfs_build_failover(cvmfs_client_t *cl, const cvmfs_conf_t *cf,
+                                     const char *repo) {
+    cvmfs_failover_init(&cl->fo, 60);
+    const char *env_server = getenv("BRIXCVMFS_SERVER");
+    if (env_server != NULL) {
+        cvmfs_failover_add_proxy(&cl->fo, "DIRECT", 0);
+        cvmfs_failover_add_host(&cl->fo, env_server);
+        return;
+    }
+    int hosts = cvmfs_conf_apply(cf, repo, &cl->config, &cl->fo);
+    if (hosts == 0) {
+        char s1[400];
+        snprintf(s1, sizeof(s1), "http://cvmfs-stratum-one.%s/cvmfs/%s",
+                 strchr(repo, '.') + 1, repo);
+        cvmfs_failover_add_host(&cl->fo, s1);
+    }
+}
+
+/* Seed the process-global libcurl transport config from the client config +
+ * conf cascade for `repo`. `retries_override >= 0` wins over CVMFS_MAX_RETRIES. */
+static void brixcvmfs_build_transport_cfg(const cvmfs_client_t *cl, const cvmfs_conf_t *cf,
+                                          const char *repo, int retries_override) {
+    snprintf(g_tcfg.repo, sizeof(g_tcfg.repo), "%s", repo);
+    g_tcfg.connect_timeout_s = cl->config.timeout_s > 0 ? cl->config.timeout_s : 5;
+    g_tcfg.low_speed_time_s  = g_tcfg.connect_timeout_s;
+    g_tcfg.low_speed_bytes   = 100;
+    const char *cfg_retries = cvmfs_conf_get(cf, "CVMFS_MAX_RETRIES");
+    g_tcfg.max_retries = retries_override >= 0 ? retries_override
+                       : (cfg_retries ? atoi(cfg_retries) : 2);
+}
+
+/* Resolve the effective cache quota in bytes: a positive `quota_override` wins;
+ * otherwise fall back to CVMFS_QUOTA_LIMIT (MB) from the conf cascade; else 0. */
+static long brixcvmfs_resolve_quota(const cvmfs_conf_t *cf, long quota_override) {
+    if (quota_override > 0) return quota_override;
+    const char *q = cvmfs_conf_get(cf, "CVMFS_QUOTA_LIMIT");   /* MB */
+    if (q && atol(q) > 0) return atol(q) * 1024L * 1024L;
+    return 0;
+}
+
+/* Load the repo master key: $BRIXCVMFS_PUBKEY overrides the config default path.
+ * Returns the allocated key blob (caller frees) + `*klen`, or NULL on read
+ * failure (message already printed). */
+static unsigned char *brixcvmfs_load_repo_key(const cvmfs_client_t *cl, size_t *klen) {
+    const char *keypath = getenv("BRIXCVMFS_PUBKEY");
+    if (keypath == NULL) keypath = cl->config.master_pub_path;
+    unsigned char *master = load_master_key(keypath, klen);
+    if (master == NULL)
+        fprintf(stderr, "brixcvmfs: cannot read master key %s\n", keypath);
+    return master;
+}
+
+/* Resolve + create the scratch tmp dir for `repo` into `tmp_dir` (cap `cap`):
+ * $BRIXCVMFS_TMP overrides the /tmp/brixcvmfs-<repo> default. Best-effort mkdir
+ * (a truly unusable dir surfaces as a later mount failure). */
+static void brixcvmfs_prepare_tmp_dir(const char *repo, char *tmp_dir, size_t cap) {
+    const char *env_tmp = getenv("BRIXCVMFS_TMP");
+    if (env_tmp) snprintf(tmp_dir, cap, "%s", env_tmp);
+    else         snprintf(tmp_dir, cap, "/tmp/brixcvmfs-%s", repo);
+    char mk[600];
+    snprintf(mk, sizeof(mk), "mkdir -p '%s'", tmp_dir);
+    if (system(mk) != 0) { /* mount will fail later if truly unusable */ }
+}
+
+/* Resolve + create the persistent cache dir for `repo` into `cache_dir` when NOT
+ * in overlay-dirfd mode (`cache_dirfd < 0`). Precedence: explicit override →
+ * $BRIXCVMFS_CACHE → /var/lib/brixcvmfs/<repo>. No-op in dirfd mode. */
+static void brixcvmfs_prepare_cache_dir(const char *repo, const char *cache_dir_override,
+                                        int cache_dirfd, char *cache_dir, size_t cap) {
+    if (cache_dirfd >= 0) return;
+    const char *env_cache = getenv("BRIXCVMFS_CACHE");
+    if (cache_dir_override) snprintf(cache_dir, cap, "%s", cache_dir_override);
+    else if (env_cache)     snprintf(cache_dir, cap, "%s", env_cache);
+    else                    snprintf(cache_dir, cap, "/var/lib/brixcvmfs/%s", repo);
+    char mk[600];
+    snprintf(mk, sizeof(mk), "mkdir -p '%s'", cache_dir);
+    if (system(mk) != 0) { /* mount will fail later if unusable */ }
+}
+
 /* Build failover + config and verify-mount the repo trust chain. Cache backing:
  * `cache_dirfd >= 0` = overlay dirfd mode; else `cache_dir_override` (or the
  * default/env path). quota/retries fall back to the config cascade when the
@@ -421,60 +503,20 @@ static cvmfs_client_t *brixcvmfs_open(const char *repo, const char *cache_dir_ov
     cvmfs_conf_init(&cf);
     cvmfs_conf_load_cascade(&cf, getenv("BRIXCVMFS_ETC"), repo);   /* for quota/retries */
 
-    cvmfs_failover_init(&cl->fo, 60);
-    const char *env_server = getenv("BRIXCVMFS_SERVER");
-    if (env_server != NULL) {
-        cvmfs_failover_add_proxy(&cl->fo, "DIRECT", 0);
-        cvmfs_failover_add_host(&cl->fo, env_server);
-    } else {
-        int hosts = cvmfs_conf_apply(&cf, repo, &cl->config, &cl->fo);
-        if (hosts == 0) {
-            char s1[400];
-            snprintf(s1, sizeof(s1), "http://cvmfs-stratum-one.%s/cvmfs/%s",
-                     strchr(repo, '.') + 1, repo);
-            cvmfs_failover_add_host(&cl->fo, s1);
-        }
-    }
+    brixcvmfs_build_failover(cl, &cf, repo);
+    brixcvmfs_build_transport_cfg(cl, &cf, repo, retries_override);
+    long quota = brixcvmfs_resolve_quota(&cf, quota_override);
 
-    snprintf(g_tcfg.repo, sizeof(g_tcfg.repo), "%s", repo);
-    g_tcfg.connect_timeout_s = cl->config.timeout_s > 0 ? cl->config.timeout_s : 5;
-    g_tcfg.low_speed_time_s  = g_tcfg.connect_timeout_s;
-    g_tcfg.low_speed_bytes   = 100;
-    const char *cfg_retries = cvmfs_conf_get(&cf, "CVMFS_MAX_RETRIES");
-    g_tcfg.max_retries = retries_override >= 0 ? retries_override
-                       : (cfg_retries ? atoi(cfg_retries) : 2);
-
-    long quota = quota_override > 0 ? quota_override : 0;
-    if (quota == 0) {
-        const char *q = cvmfs_conf_get(&cf, "CVMFS_QUOTA_LIMIT");   /* MB */
-        if (q && atol(q) > 0) quota = atol(q) * 1024L * 1024L;
-    }
-
-    const char *keypath = getenv("BRIXCVMFS_PUBKEY");
-    if (keypath == NULL) keypath = cl->config.master_pub_path;
     size_t klen = 0;
-    unsigned char *master = load_master_key(keypath, &klen);
-    if (master == NULL) {
-        fprintf(stderr, "brixcvmfs: cannot read master key %s\n", keypath);
-        free(cl); return NULL;
-    }
+    unsigned char *master = brixcvmfs_load_repo_key(cl, &klen);
+    if (master == NULL) { free(cl); return NULL; }
 
     char tmp_dir[512];
-    const char *env_tmp = getenv("BRIXCVMFS_TMP");
-    if (env_tmp) snprintf(tmp_dir, sizeof(tmp_dir), "%s", env_tmp);
-    else         snprintf(tmp_dir, sizeof(tmp_dir), "/tmp/brixcvmfs-%s", repo);
-    { char mk[600]; snprintf(mk, sizeof(mk), "mkdir -p '%s'", tmp_dir);
-      if (system(mk) != 0) { /* mount will fail later if truly unusable */ } }
+    brixcvmfs_prepare_tmp_dir(repo, tmp_dir, sizeof(tmp_dir));
 
     char cache_dir[512] = "";
-    if (cache_dirfd < 0) {
-        const char *env_cache = getenv("BRIXCVMFS_CACHE");
-        if (cache_dir_override) snprintf(cache_dir, sizeof(cache_dir), "%s", cache_dir_override);
-        else if (env_cache)     snprintf(cache_dir, sizeof(cache_dir), "%s", env_cache);
-        else                    snprintf(cache_dir, sizeof(cache_dir), "/var/lib/brixcvmfs/%s", repo);
-        char mk[600]; snprintf(mk, sizeof(mk), "mkdir -p '%s'", cache_dir);
-        if (system(mk) != 0) { /* mount will fail later if unusable */ }
-    }
+    brixcvmfs_prepare_cache_dir(repo, cache_dir_override, cache_dirfd,
+                                cache_dir, sizeof(cache_dir));
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
     int mrc = cvmfs_client_mount(cl, repo, master, klen,
@@ -529,6 +571,88 @@ static int brixcvmfs_check(const char *repo) {
     return root_ok ? 0 : 1;
 }
 
+/* Resolve the clever-overlay cache: unless an explicit cache (-o cache= or
+ * $BRIXCVMFS_CACHE) opts out, create <mnt>/.brixcache and open a dirfd on it
+ * BEFORE the FUSE mount hides it. Sets `*cache_override` (the explicit-cache
+ * path, else NULL) and returns the overlay dirfd, or -1 (explicit/fallback). */
+static int brixcvmfs_open_clever_cache(const char *mnt, const brix_opts_t *o,
+                                       const char **cache_override) {
+    *cache_override = NULL;
+    int clever = o->clever;
+    if (o->cache_dir[0]) { *cache_override = o->cache_dir; clever = 0; }
+    else if (getenv("BRIXCVMFS_CACHE")) { clever = 0; }
+    if (!clever) return -1;
+
+    mkdir(mnt, 0755);                       /* ensure the mountpoint exists */
+    char sub[600];
+    snprintf(sub, sizeof(sub), "%s/.brixcache", mnt);
+    if (mkdir(sub, 0755) != 0 && errno != EEXIST)
+        fprintf(stderr, "brixcvmfs: warning: cannot create overlay cache %s\n", sub);
+    int fd = open(sub, O_RDONLY | O_DIRECTORY);
+    if (fd < 0)
+        fprintf(stderr, "brixcvmfs: overlay cache unavailable, falling back\n");
+    return fd;
+}
+
+/* Bind the cvmfs-rw writable overlay (<mnt>/.brixwrites or -o writes=) BEFORE
+ * fuse_main hides the mountpoint — same trick as .brixcache. The rw hooks are
+ * weak so a ro-only link (test builds) still works. No-op unless brixcvmfs_rw.
+ * Returns 0 on success (or when not requested), else a process exit code. */
+static int brixcvmfs_setup_rw_overlay(const char *mnt, const brix_opts_t *o) {
+    if (!brixcvmfs_rw) return 0;
+    if (brixcvmfs_setup_rw == NULL || &brixcvmfs_rw_ops == NULL) {
+        fprintf(stderr, "brixcvmfs: rw overlay driver not linked in this build\n");
+        return 2;
+    }
+    if (brixcvmfs_setup_rw(mnt, o->writes_dir) != 0) return 1;
+    return 0;
+}
+
+/* Hand the mountpoint (+ passthrough flags/opts) to libfuse. Force
+ * single-threaded (-s): the client shares one SQLite catalog handle + lock-free
+ * failover state, so serialised FUSE dispatch is the correct, race-free choice
+ * (reads are cache-served, so throughput is unaffected). Returns fuse_main's rc. */
+static int brixcvmfs_run_fuse(char *arg0, const char *mnt, const brix_opts_t *o) {
+    char *fargv[24]; int fargc = 0;
+    fargv[fargc++] = arg0;
+    fargv[fargc++] = (char *) mnt;
+    fargv[fargc++] = (char *) "-s";
+    for (int i = 0; i < o->nflags && fargc < 20; i++) fargv[fargc++] = o->flags[i];
+    if (o->fuse_extra[0]) { fargv[fargc++] = (char *) "-o"; fargv[fargc++] = (char *) o->fuse_extra; }
+
+    return fuse_main(fargc, fargv,
+                     brixcvmfs_rw ? &brixcvmfs_rw_ops : &brixcvmfs_ops, NULL);
+}
+
+/* Full mount bring-up: clever-cache dirfd, rw overlay, verify-mount the repo,
+ * run FUSE, then tear everything down. `cache_dirfd` ownership is local to this
+ * function. Returns the process exit code. */
+static int brixcvmfs_mount_run(char *arg0, const char *repo, const char *mnt,
+                               const brix_opts_t *o) {
+    g_tcfg.fresh_connect = o->fresh;
+    g_tcfg.prefer_tls    = o->tls;
+    long quota = o->quota_mb > 0 ? (long) o->quota_mb * 1024L * 1024L : 0;
+
+    const char *cache_override = NULL;
+    int cache_dirfd = brixcvmfs_open_clever_cache(mnt, o, &cache_override);
+
+    int rw_rc = brixcvmfs_setup_rw_overlay(mnt, o);
+    if (rw_rc != 0) { if (cache_dirfd >= 0) close(cache_dirfd); return rw_rc; }
+
+    cvmfs_client_t *cl = brixcvmfs_open(repo, cache_override, cache_dirfd, quota, o->retries);
+    if (cl == NULL) { if (cache_dirfd >= 0) close(cache_dirfd); return 1; }
+    g_cl = cl;
+
+    int rc = brixcvmfs_run_fuse(arg0, mnt, o);
+
+    if (brixcvmfs_rw && brixcvmfs_teardown_rw != NULL) brixcvmfs_teardown_rw();
+    cvmfs_client_umount(cl);
+    curl_global_cleanup();
+    if (cache_dirfd >= 0) close(cache_dirfd);
+    free(cl);
+    return rc;
+}
+
 /* brixcvmfs entry — reused by the brixMount umbrella (SP-G).
  *   brixcvmfs <repo> <mountpoint> [fuse-opts]   — mount
  *   brixcvmfs --check <repo>                     — verify + summarise, no mount */
@@ -542,73 +666,10 @@ int brixcvmfs_main(int argc, char **argv) {
             "       brixcvmfs --check <repo.fqrn>\n");
         return 2;
     }
-    const char *repo = argv[1];
-    const char *mnt  = argv[2];
 
     brix_opts_t o;
     parse_opts(argc, argv, 3, &o);
-    g_tcfg.fresh_connect = o.fresh;
-    g_tcfg.prefer_tls    = o.tls;
-    long quota = o.quota_mb > 0 ? (long) o.quota_mb * 1024L * 1024L : 0;
-
-    /* Clever overlay (default ON): store cache in <mnt>/.brixcache reached via a
-     * dirfd opened BEFORE the FUSE mount hides it. An explicit cache (-o cache= or
-     * $BRIXCVMFS_CACHE) opts out. */
-    int         cache_dirfd = -1;
-    const char *cache_override = NULL;
-    int         clever = o.clever;
-    if (o.cache_dir[0]) { cache_override = o.cache_dir; clever = 0; }
-    else if (getenv("BRIXCVMFS_CACHE")) { clever = 0; }
-    if (clever) {
-        mkdir(mnt, 0755);                       /* ensure the mountpoint exists */
-        char sub[600];
-        snprintf(sub, sizeof(sub), "%s/.brixcache", mnt);
-        if (mkdir(sub, 0755) != 0 && errno != EEXIST)
-            fprintf(stderr, "brixcvmfs: warning: cannot create overlay cache %s\n", sub);
-        cache_dirfd = open(sub, O_RDONLY | O_DIRECTORY);
-        if (cache_dirfd < 0)
-            fprintf(stderr, "brixcvmfs: overlay cache unavailable, falling back\n");
-    }
-
-    /* cvmfs-rw: bind the writable overlay (<mnt>/.brixwrites or -o writes=)
-     * BEFORE fuse_main hides the mountpoint — same trick as .brixcache. The rw
-     * hooks are weak so a ro-only link (test builds) still works. */
-    if (brixcvmfs_rw) {
-        if (brixcvmfs_setup_rw == NULL || &brixcvmfs_rw_ops == NULL) {
-            fprintf(stderr, "brixcvmfs: rw overlay driver not linked in this build\n");
-            if (cache_dirfd >= 0) close(cache_dirfd);
-            return 2;
-        }
-        if (brixcvmfs_setup_rw(mnt, o.writes_dir) != 0) {
-            if (cache_dirfd >= 0) close(cache_dirfd);
-            return 1;
-        }
-    }
-
-    cvmfs_client_t *cl = brixcvmfs_open(repo, cache_override, cache_dirfd, quota, o.retries);
-    if (cl == NULL) { if (cache_dirfd >= 0) close(cache_dirfd); return 1; }
-    g_cl = cl;
-
-    /* hand the mountpoint (+ passthrough flags/opts) to libfuse. Force
-     * single-threaded (-s): the client shares one SQLite catalog handle +
-     * lock-free failover state, so serialised FUSE dispatch is the correct,
-     * race-free choice (reads are cache-served, so throughput is unaffected). */
-    char *fargv[24]; int fargc = 0;
-    fargv[fargc++] = argv[0];
-    fargv[fargc++] = (char *) mnt;
-    fargv[fargc++] = (char *) "-s";
-    for (int i = 0; i < o.nflags && fargc < 20; i++) fargv[fargc++] = o.flags[i];
-    if (o.fuse_extra[0]) { fargv[fargc++] = (char *) "-o"; fargv[fargc++] = o.fuse_extra; }
-
-    int rc = fuse_main(fargc, fargv,
-                       brixcvmfs_rw ? &brixcvmfs_rw_ops : &brixcvmfs_ops, NULL);
-
-    if (brixcvmfs_rw && brixcvmfs_teardown_rw != NULL) brixcvmfs_teardown_rw();
-    cvmfs_client_umount(cl);
-    curl_global_cleanup();
-    if (cache_dirfd >= 0) close(cache_dirfd);
-    free(cl);
-    return rc;
+    return brixcvmfs_mount_run(argv[0], argv[1], argv[2], &o);
 }
 
 #ifndef BRIXCVMFS_NO_MAIN

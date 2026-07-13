@@ -91,13 +91,50 @@ brix_vfs_rename(brix_vfs_ctx_t *ctx, const brix_path_result_t *dst)
     }
 
     /* Non-POSIX backend: rename within the driver namespace (both endpoints are
-     * keyed export-relative; the move carries content via the catalog). */
+     * keyed export-relative; the move carries content via the catalog).
+     * Dispatch on the leaf instance so brix_sd_rename_maybe_cred finds the
+     * leaf driver's rename_cred slot (decorators have only plain relays). */
     drv = brix_vfs_ctx_driver(ctx);
     if (drv != NULL) {
-        ngx_int_t rc = (drv->rename != NULL)
-            ? drv->rename(ctx->sd, brix_vfs_export_relative(ctx, path),
-                          brix_vfs_export_relative(ctx,
-                              (const char *) dst->resolved.data), 0)
+        brix_sd_instance_t *leaf = brix_vfs_ns_leaf(ctx->sd);
+        brix_sd_ucred_t     store;
+        brix_sd_cred_t      cred;
+        ngx_int_t           rc;
+        int                 use_cred = 0, cred_err = 0;
+
+        /* Zero before the gate: it fills only the active credential kind; an
+         * unzeroed cred hands a garbage inactive pointer to the driver's
+         * cred slot (bearer PASSTHROUGH would leave x509_proxy dangling). */
+        ngx_memzero(&cred, sizeof(cred));
+
+        /* phase-71: catalog-mutation capability gate — a read-only catalog
+         * (CAP_DIRS without CAP_DIRS_WRITE) rejects rename uniformly. */
+        if (!(drv->caps & BRIX_SD_CAP_DIRS_WRITE)) {
+            saved_errno = EPERM;
+            errno = saved_errno;
+            brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME, NULL, 0,
+                                      NGX_ERROR, saved_errno, start);
+            return NGX_ERROR;
+        }
+        if (brix_vfs_cred_gate_active(ctx)) {
+            if (brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err)
+                != NGX_OK)
+            {
+                saved_errno = cred_err ? cred_err : EACCES;
+                errno = saved_errno;
+                brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME,
+                                          NULL, 0, NGX_ERROR, saved_errno,
+                                          start);
+                return NGX_ERROR;
+            }
+        }
+
+        rc = (drv->rename != NULL)
+            ? brix_sd_rename_maybe_cred(leaf,
+                  brix_vfs_export_relative(ctx, path),
+                  brix_vfs_export_relative(ctx,
+                      (const char *) dst->resolved.data),
+                  0, use_cred ? &cred : NULL)
             : (errno = ENOSYS, NGX_ERROR);
 
         saved_errno = errno;

@@ -107,237 +107,442 @@ brix_vfs_backend_entry_get_or_create(const char *root_canon)
     return e;
 }
 
-/* Build the entry's RAW source driver instance (no decorators, no memoization). The
- * instance is malloc/pool-owned, worker-safe; SQLite connections are per-worker so
- * this is only ever called after fork. Returns NULL (logged) on init failure. */
+/*
+ * Per-tier-kind source builders.
+ *
+ * WHAT: one static builder per storage-backend kind. Each takes the resolved
+ *       export entry + a log, constructs the RAW driver instance for that kind
+ *       (no decorators, no memoization), logs the ready/failed line, and returns
+ *       the instance or NULL.
+ * WHY:  brix_vfs_backend_build_source was a 36-CCN if-ladder over the backend
+ *       name; splitting each arm into a named builder selected by a descriptor
+ *       table flattens it to a single table scan (§8 table-driven dispatch).
+ * HOW:  the builders share the brix_vbr_source_fn signature so a static const
+ *       descriptor array can map backend name → builder. The default POSIX kind
+ *       (name "" or "posix") and the final pblock fallback are handled by the
+ *       orchestrator, not the table.
+ *
+ * All log strings, config-error text, and construction order are byte-frozen
+ * from the pre-split ladder.
+ */
+typedef brix_sd_instance_t *(*brix_vbr_source_fn)(brix_vfs_backend_entry_t *e,
+    ngx_log_t *log);
+
+/* Default / explicit POSIX source. Phase-64: an export whose backend is the
+ * default POSIX tree but which carries a cache/stage tier still needs a
+ * buildable source instance to decorate. */
 static brix_sd_instance_t *
-brix_vfs_backend_build_source(brix_vfs_backend_entry_t *e, ngx_log_t *log)
+brix_vbr_build_posix(brix_vfs_backend_entry_t *e, ngx_log_t *log)
+{
+    int                   err = 0;
+    brix_sd_instance_t *inst;
+
+    inst = brix_sd_instance_create(log, "posix",
+                                     (void *) e->root_canon, &err);
+    if (inst == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, err,
+            "brix: posix source init failed for export \"%s\"",
+            e->root_canon);
+    }
+    return inst;
+}
+
+/* Remote root:// backend: the in-process origin wire client (read + write +
+ * staged_open, auth via ztn/gsi). */
+static brix_sd_instance_t *
+brix_vbr_build_xroot(brix_vfs_backend_entry_t *e, ngx_log_t *log)
+{
+    brix_sd_instance_t *inst;
+    brix_sd_xroot_origin_cfg_t cfg = {
+        .host       = e->origin_host,
+        .port       = e->origin_port,
+        .tls        = e->origin_tls,
+        .af_policy  = e->origin_family,
+        .bearer     = (e->origin_token[0] != '\0') ? e->origin_token : NULL,
+        .x509_proxy = (e->origin_x509_proxy[0] != '\0')
+            ? e->origin_x509_proxy : NULL,
+        .x509_key   = (e->origin_x509_key[0] != '\0')
+            ? e->origin_x509_key : NULL,
+        .ca_dir     = (e->origin_ca_dir[0] != '\0') ? e->origin_ca_dir : NULL,
+        .sss_keytab = (e->origin_sss_keytab[0] != '\0')
+            ? e->origin_sss_keytab : NULL,
+    };
+
+    inst = brix_sd_xroot_create_origin(&cfg, log);
+    if (inst == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+            "brix: remote root:// backend init failed for export \"%s\"",
+            e->root_canon);
+    } else {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: remote root:// storage backend ready at \"%s\"",
+            e->root_canon);
+    }
+    return inst;
+}
+
+#if BRIX_HAVE_CEPH
+/* Ceph/RADOS object backend: flat, block-only key space, data in a pool with
+ * no local directory namespace (the pure-librados reference). */
+static brix_sd_instance_t *
+brix_vbr_build_ceph(brix_vfs_backend_entry_t *e, ngx_log_t *log)
+{
+    brix_sd_ceph_conf_t conf;
+    int                   sderr = 0;
+    brix_sd_instance_t *inst;
+
+    ngx_memzero(&conf, sizeof(conf));
+    conf.pool       = e->ceph_pool;
+    conf.conf_file  = (e->ceph_conf[0] != '\0') ? e->ceph_conf : NULL;
+    conf.key_prefix = (e->ceph_key_prefix[0] != '\0') ? e->ceph_key_prefix
+                                                      : NULL;
+
+    inst = brix_sd_instance_create(log, e->backend,
+                                     &conf, &sderr);
+    if (inst == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, sderr,
+            "brix: %s backend init failed for export \"%s\" (pool=%s)",
+            e->backend, e->root_canon, e->ceph_pool);
+    } else {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: %s storage backend ready at \"%s\" (pool=%s)",
+            e->backend, e->root_canon, e->ceph_pool);
+    }
+    return inst;
+}
+
+/* cephfsro: read-only CephFS served directly from RADOS (meta + data pools). */
+static brix_sd_instance_t *
+brix_vbr_build_cephfsro(brix_vfs_backend_entry_t *e, ngx_log_t *log)
+{
+    brix_sd_cephfs_ro_conf_t conf;
+    int                        sderr = 0;
+    brix_sd_instance_t      *inst;
+
+    ngx_memzero(&conf, sizeof(conf));
+    conf.meta_pool       = e->ceph_pool;
+    conf.data_pool       = e->ceph_data_pool;
+    conf.conf_file       = (e->ceph_conf[0] != '\0') ? e->ceph_conf : NULL;
+    conf.assume_quiesced = e->cephfs_quiesced;
+    conf.live            = e->cephfs_live;
+
+    inst = brix_sd_instance_create(log, "cephfsro",
+                                     &conf, &sderr);
+    if (inst == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, sderr,
+            "brix: cephfsro backend init failed for export \"%s\" "
+            "(meta=%s data=%s)", e->root_canon, e->ceph_pool,
+            e->ceph_data_pool);
+    } else {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: cephfsro (read-only CephFS) backend ready at \"%s\" "
+            "(meta=%s data=%s)", e->root_canon, e->ceph_pool,
+            e->ceph_data_pool);
+    }
+    return inst;
+}
+#endif
+
+/* Nearline (tape/MSS) backend (phase-64 SP5): sd_frm over the selected MSS
+ * adapter. A cache tier in front (G8) is the recall target. */
+static brix_sd_instance_t *
+brix_vbr_build_tape(brix_vfs_backend_entry_t *e, ngx_log_t *log)
 {
     brix_sd_instance_t *inst;
 
-    /* Default / explicit POSIX source. Phase-64: an export whose backend is the
-     * default POSIX tree but which carries a cache/stage tier still needs a
-     * buildable source instance to decorate. */
-    if (e->backend[0] == '\0' || ngx_strcmp(e->backend, "posix") == 0) {
-        int err = 0;
-
-        inst = brix_sd_instance_create(ngx_cycle->pool, log, "posix",
-                                         (void *) e->root_canon, &err);
-        if (inst == NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, err,
-                "brix: posix source init failed for export \"%s\"",
-                e->root_canon);
-        }
-        return inst;
+    inst = brix_sd_frm_create(
+        (e->origin_host[0] != '\0') ? e->origin_host : NULL,
+        e->origin_path, log);
+    if (inst == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+            "brix: tape (frm) backend init failed for export \"%s\"",
+            e->root_canon);
+    } else {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: nearline (tape) storage backend ready at \"%s\" "
+            "(adapter=%s base=%s)", e->root_canon,
+            (e->origin_host[0] != '\0') ? e->origin_host : "stub",
+            e->origin_path);
     }
+    return inst;
+}
 
-    /* Remote root:// backend: the in-process origin wire client (read + write +
-     * staged_open, auth via ztn/gsi). */
-    if (ngx_strcmp(e->backend, "xroot") == 0) {
-        inst = brix_sd_xroot_create_origin(e->origin_host, e->origin_port,
-                 e->origin_tls, e->origin_family,
-                 (e->origin_token[0] != '\0') ? e->origin_token : NULL,
-                 (e->origin_x509_proxy[0] != '\0') ? e->origin_x509_proxy : NULL,
-                 (e->origin_ca_dir[0] != '\0') ? e->origin_ca_dir : NULL,
-                 (e->origin_sss_keytab[0] != '\0') ? e->origin_sss_keytab : NULL,
-                 log);
-        if (inst == NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                "brix: remote root:// backend init failed for export \"%s\"",
-                e->root_canon);
-        } else {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "brix: remote root:// storage backend ready at \"%s\"",
-                e->root_canon);
-        }
-        return inst;
+/* HTTP(S) source backend (read-only): the shared S3/libcurl transport does the
+ * HEAD/Range-GET; sd_http carries no libcurl itself. */
+static brix_sd_instance_t *
+brix_vbr_build_http(brix_vfs_backend_entry_t *e, ngx_log_t *log)
+{
+    brix_sd_http_cfg_t    cfg;
+    brix_sd_http_ep_cfg_t extra[7];
+    int                     i;
+    brix_sd_instance_t   *inst;
+
+    ngx_memzero(&cfg, sizeof(cfg));
+    cfg.host       = e->origin_host;
+    cfg.port       = e->origin_port;
+    cfg.tls        = e->origin_tls;
+    cfg.base_path  = e->origin_path;
+    cfg.transport  = &brix_s3_origin_curl_transport;
+    cfg.timeout_ms = BRIX_SD_HTTP_DEFAULT_TIMEOUT_MS;
+    cfg.bearer_token = (e->origin_token[0] != '\0') ? e->origin_token : NULL;
+    /* §14/C-3: verify the https origin against the operator-configured CA
+     * (file or hashed dir); "" ⇒ system bundle (public-CA origin). */
+    cfg.ca_path      = (e->origin_ca_dir[0] != '\0') ? e->origin_ca_dir : NULL;
+    cfg.failover_note = brix_vfs_http_failover_note;   /* T16 */
+    cfg.health_note   = brix_vfs_http_health_note;
+    /* phase-68 T11: the remaining pipe-separated failover origins */
+    for (i = 0; i < e->n_http_extra && i < 7; i++) {
+        extra[i].host      = e->http_extra[i].host;
+        extra[i].port      = e->http_extra[i].port;
+        extra[i].tls       = e->http_extra[i].tls;
+        extra[i].base_path = e->http_extra[i].base;
     }
+    cfg.extra   = extra;
+    cfg.n_extra = (e->n_http_extra < 7) ? e->n_http_extra : 7;
 
-#if BRIX_HAVE_CEPH
-    /* Ceph/RADOS object backend: flat, block-only key space, data in a pool with
-     * no local directory namespace (the pure-librados reference). */
-    if (ngx_strcmp(e->backend, "ceph") == 0) {
-        brix_sd_ceph_conf_t conf;
-        int                   sderr = 0;
-
-        ngx_memzero(&conf, sizeof(conf));
-        conf.pool       = e->ceph_pool;
-        conf.conf_file  = (e->ceph_conf[0] != '\0') ? e->ceph_conf : NULL;
-        conf.key_prefix = (e->ceph_key_prefix[0] != '\0') ? e->ceph_key_prefix
-                                                          : NULL;
-
-        inst = brix_sd_instance_create(ngx_cycle->pool, log, e->backend,
-                                         &conf, &sderr);
-        if (inst == NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, sderr,
-                "brix: %s backend init failed for export \"%s\" (pool=%s)",
-                e->backend, e->root_canon, e->ceph_pool);
-        } else {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "brix: %s storage backend ready at \"%s\" (pool=%s)",
-                e->backend, e->root_canon, e->ceph_pool);
+    inst = brix_sd_http_create(&cfg, log);
+    if (inst == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+            "brix: http backend init failed for export \"%s\"",
+            e->root_canon);
+    } else {
+        if (e->has_http_ranks) {
+            sd_http_set_ranks(inst, e->http_ranks, 8);   /* T19 geo/static */
         }
-        return inst;
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: http storage backend ready at \"%s\"", e->root_canon);
     }
+    return inst;
+}
 
-    /* cephfsro: read-only CephFS served directly from RADOS (meta + data pools). */
-    if (ngx_strcmp(e->backend, "cephfsro") == 0) {
-        brix_sd_cephfs_ro_conf_t conf;
-        int                        sderr = 0;
+/* Read-only S3 source backend (phase-64): the export's bytes live in a remote
+ * bucket, served over the shared libcurl S3 transport (signed Range GET). The
+ * remote driver is CAP_RANGE_READ only, so this primary is read-only — exactly
+ * like an http:// primary. origin_path carries the bucket. */
+static brix_sd_instance_t *
+brix_vbr_build_s3(brix_vfs_backend_entry_t *e, ngx_log_t *log)
+{
+    brix_sd_remote_cfg_t cfg;
+    brix_sd_instance_t *inst;
 
-        ngx_memzero(&conf, sizeof(conf));
-        conf.meta_pool       = e->ceph_pool;
-        conf.data_pool       = e->ceph_data_pool;
-        conf.conf_file       = (e->ceph_conf[0] != '\0') ? e->ceph_conf : NULL;
-        conf.assume_quiesced = e->cephfs_quiesced;
-        conf.live            = e->cephfs_live;
+    ngx_memzero(&cfg, sizeof(cfg));
+    cfg.scheme = BRIX_SD_REMOTE_S3;
+    ngx_cpystrn((u_char *) cfg.host, (u_char *) e->origin_host,
+                sizeof(cfg.host));
+    cfg.port = e->origin_port;
+    cfg.tls  = e->origin_tls;
+    ngx_cpystrn((u_char *) cfg.bucket, (u_char *) e->origin_path,
+                sizeof(cfg.bucket));
+    cfg.timeout_ms = BRIX_SD_HTTP_DEFAULT_TIMEOUT_MS;
+    cfg.transport  = &brix_s3_origin_curl_transport;
+    /* §14: SigV4 credentials from the attached brix_credential (s3_* fields);
+     * empty ⇒ anonymous (public bucket). Region defaults to us-east-1. */
+    ngx_cpystrn((u_char *) cfg.access_key,
+                (u_char *) e->origin_s3_access_key, sizeof(cfg.access_key));
+    ngx_cpystrn((u_char *) cfg.secret_key,
+                (u_char *) e->origin_s3_secret_key, sizeof(cfg.secret_key));
+    ngx_cpystrn((u_char *) cfg.region,
+                (u_char *) (e->origin_s3_region[0] != '\0'
+                            ? e->origin_s3_region : "us-east-1"),
+                sizeof(cfg.region));
 
-        inst = brix_sd_instance_create(ngx_cycle->pool, log, "cephfsro",
-                                         &conf, &sderr);
-        if (inst == NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, sderr,
-                "brix: cephfsro backend init failed for export \"%s\" "
-                "(meta=%s data=%s)", e->root_canon, e->ceph_pool,
-                e->ceph_data_pool);
-        } else {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "brix: cephfsro (read-only CephFS) backend ready at \"%s\" "
-                "(meta=%s data=%s)", e->root_canon, e->ceph_pool,
-                e->ceph_data_pool);
-        }
-        return inst;
+    inst = brix_sd_remote_create(&cfg, log);
+    if (inst == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+            "brix: s3 backend init failed for export \"%s\" (bucket=%s)",
+            e->root_canon, e->origin_path);
+    } else {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: s3 storage backend ready at \"%s\" (host=%s bucket=%s)",
+            e->root_canon, e->origin_host, e->origin_path);
     }
+    return inst;
+}
+
+#if BRIX_HAVE_SQLITE
+/* Fallback pblock source: an export whose backend name matched no explicit kind
+ * is served from the per-block SQLite store rooted at the export. Preserves the
+ * pre-split ladder's default tail. */
+static brix_sd_instance_t *
+brix_vbr_build_pblock(brix_vfs_backend_entry_t *e, ngx_log_t *log)
+{
+    brix_sd_pblock_conf_t conf;
+    int                     sderr = 0;
+    brix_sd_instance_t   *inst;
+
+    ngx_memzero(&conf, sizeof(conf));
+    conf.root            = e->root_canon;
+    conf.busy_timeout_ms = 5000;
+    conf.block_size      = e->block_size;
+
+    inst = brix_sd_instance_create(log, "pblock",
+                                     &conf, &sderr);
+    if (inst == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, sderr,
+            "brix: pblock backend init failed for export \"%s\"",
+            e->root_canon);
+    } else {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: pblock storage backend ready at \"%s\" "
+            "(block_size=%uz)", e->root_canon, (size_t) e->block_size);
+    }
+    return inst;
+}
 #endif
 
-    /* Nearline (tape/MSS) backend (phase-64 SP5): sd_frm over the selected MSS
-     * adapter. A cache tier in front (G8) is the recall target. */
-    if (ngx_strcmp(e->backend, "tape") == 0) {
-        inst = brix_sd_frm_create(
-            (e->origin_host[0] != '\0') ? e->origin_host : NULL,
-            e->origin_path, log);
-        if (inst == NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                "brix: tape (frm) backend init failed for export \"%s\"",
-                e->root_canon);
-        } else {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "brix: nearline (tape) storage backend ready at \"%s\" "
-                "(adapter=%s base=%s)", e->root_canon,
-                (e->origin_host[0] != '\0') ? e->origin_host : "stub",
-                e->origin_path);
-        }
-        return inst;
+/* Descriptor mapping an explicit backend name to its source builder. The default
+ * POSIX kind and the pblock fallback are handled directly by the orchestrator, so
+ * they are not table entries. */
+typedef struct {
+    const char           *name;
+    brix_vbr_source_fn  build;
+} brix_vbr_source_desc_t;
+
+static const brix_vbr_source_desc_t  brix_vbr_source_table[] = {
+    { "xroot",    brix_vbr_build_xroot },
+#if BRIX_HAVE_CEPH
+    { "ceph",     brix_vbr_build_ceph },
+    { "cephfsro", brix_vbr_build_cephfsro },
+#endif
+    { "tape",     brix_vbr_build_tape },
+    { "http",     brix_vbr_build_http },
+    { "s3",       brix_vbr_build_s3 },
+};
+
+/* Build the entry's RAW source driver instance (no decorators, no memoization). The
+ * instance is malloc/pool-owned, worker-safe; SQLite connections are per-worker so
+ * this is only ever called after fork. Returns NULL (logged) on init failure.
+ *
+ * The default POSIX source (backend "" or "posix") is dispatched first; any other
+ * named backend is looked up in brix_vbr_source_table; an unrecognised name falls
+ * through to the pblock fallback (or NULL when SQLite is unavailable). */
+static brix_sd_instance_t *
+brix_vfs_backend_build_source(brix_vfs_backend_entry_t *e, ngx_log_t *log)
+{
+    size_t k;
+
+    if (e->backend[0] == '\0' || ngx_strcmp(e->backend, "posix") == 0) {
+        return brix_vbr_build_posix(e, log);
     }
 
-    /* HTTP(S) source backend (read-only): the shared S3/libcurl transport does the
-     * HEAD/Range-GET; sd_http carries no libcurl itself. */
-    if (ngx_strcmp(e->backend, "http") == 0) {
-        brix_sd_http_cfg_t    cfg;
-        brix_sd_http_ep_cfg_t extra[7];
-        int                     i;
-
-        ngx_memzero(&cfg, sizeof(cfg));
-        cfg.host       = e->origin_host;
-        cfg.port       = e->origin_port;
-        cfg.tls        = e->origin_tls;
-        cfg.base_path  = e->origin_path;
-        cfg.transport  = &brix_s3_origin_curl_transport;
-        cfg.timeout_ms = 60000;
-        cfg.bearer_token = (e->origin_token[0] != '\0') ? e->origin_token : NULL;
-        cfg.failover_note = brix_vfs_http_failover_note;   /* T16 */
-        cfg.health_note   = brix_vfs_http_health_note;
-        /* phase-68 T11: the remaining pipe-separated failover origins */
-        for (i = 0; i < e->n_http_extra && i < 7; i++) {
-            extra[i].host      = e->http_extra[i].host;
-            extra[i].port      = e->http_extra[i].port;
-            extra[i].tls       = e->http_extra[i].tls;
-            extra[i].base_path = e->http_extra[i].base;
-        }
-        cfg.extra   = extra;
-        cfg.n_extra = (e->n_http_extra < 7) ? e->n_http_extra : 7;
-
-        inst = brix_sd_http_create(&cfg, log);
-        if (inst == NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                "brix: http backend init failed for export \"%s\"",
-                e->root_canon);
-        } else {
-            if (e->has_http_ranks) {
-                sd_http_set_ranks(inst, e->http_ranks, 8);   /* T19 geo/static */
-            }
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "brix: http storage backend ready at \"%s\"", e->root_canon);
-        }
-        return inst;
-    }
-
-    /* Read-only S3 source backend (phase-64): the export's bytes live in a remote
-     * bucket, served over the shared libcurl S3 transport (signed Range GET). The
-     * remote driver is CAP_RANGE_READ only, so this primary is read-only — exactly
-     * like an http:// primary. origin_path carries the bucket. */
-    if (ngx_strcmp(e->backend, "s3") == 0) {
-        brix_sd_remote_cfg_t cfg;
-
-        ngx_memzero(&cfg, sizeof(cfg));
-        cfg.scheme = BRIX_SD_REMOTE_S3;
-        ngx_cpystrn((u_char *) cfg.host, (u_char *) e->origin_host,
-                    sizeof(cfg.host));
-        cfg.port = e->origin_port;
-        cfg.tls  = e->origin_tls;
-        ngx_cpystrn((u_char *) cfg.bucket, (u_char *) e->origin_path,
-                    sizeof(cfg.bucket));
-        cfg.timeout_ms = 60000;
-        cfg.transport  = &brix_s3_origin_curl_transport;
-        /* §14: SigV4 credentials from the attached brix_credential (s3_* fields);
-         * empty ⇒ anonymous (public bucket). Region defaults to us-east-1. */
-        ngx_cpystrn((u_char *) cfg.access_key,
-                    (u_char *) e->origin_s3_access_key, sizeof(cfg.access_key));
-        ngx_cpystrn((u_char *) cfg.secret_key,
-                    (u_char *) e->origin_s3_secret_key, sizeof(cfg.secret_key));
-        ngx_cpystrn((u_char *) cfg.region,
-                    (u_char *) (e->origin_s3_region[0] != '\0'
-                                ? e->origin_s3_region : "us-east-1"),
-                    sizeof(cfg.region));
-
-        inst = brix_sd_remote_create(&cfg, log);
-        if (inst == NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                "brix: s3 backend init failed for export \"%s\" (bucket=%s)",
-                e->root_canon, e->origin_path);
-        } else {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "brix: s3 storage backend ready at \"%s\" (host=%s bucket=%s)",
-                e->root_canon, e->origin_host, e->origin_path);
-        }
-        return inst;
-    }
-#if BRIX_HAVE_SQLITE
+    for (k = 0; k < sizeof(brix_vbr_source_table)
+                    / sizeof(brix_vbr_source_table[0]); k++)
     {
-        brix_sd_pblock_conf_t conf;
-        int                     sderr = 0;
-
-        ngx_memzero(&conf, sizeof(conf));
-        conf.root            = e->root_canon;
-        conf.busy_timeout_ms = 5000;
-        conf.block_size      = e->block_size;
-
-        inst = brix_sd_instance_create(ngx_cycle->pool, log, "pblock",
-                                         &conf, &sderr);
-        if (inst == NULL) {
-            ngx_log_error(NGX_LOG_ERR, log, sderr,
-                "brix: pblock backend init failed for export \"%s\"",
-                e->root_canon);
-        } else {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "brix: pblock storage backend ready at \"%s\" "
-                "(block_size=%uz)", e->root_canon, (size_t) e->block_size);
+        if (ngx_strcmp(e->backend, brix_vbr_source_table[k].name) == 0) {
+            return brix_vbr_source_table[k].build(e, log);
         }
-        return inst;
     }
+
+#if BRIX_HAVE_SQLITE
+    return brix_vbr_build_pblock(e, log);
 #else
     (void) log;
     return NULL;
 #endif
+}
+
+/*
+ * Decorator-composition steps for brix_vfs_backend_entry_build.
+ *
+ * WHAT: each helper takes the current top-of-stack instance + the entry + log,
+ *       and returns the (possibly) wrapped instance — the legacy staging shim,
+ *       the explicit stage tier, and the read-cache tier respectively.
+ * WHY:  the composition orchestrator was an 18-CCN function whose branches were
+ *       three near-identical decorator blocks; extracting one helper per tier
+ *       lets the orchestrator read as a flat wrap sequence (§8 compose small
+ *       functions).
+ * HOW:  a helper that cannot build/init its decorator returns the input `top`
+ *       unchanged (degraded decorator skipped so the export still serves from the
+ *       tier below), preserving the pre-split behavior and every log string.
+ */
+
+/* Legacy local-staging shim (brix_storage_staging): buffer on a posix store
+ * rooted at the export root and flush to the source on commit. Superseded by an
+ * explicit stage tier, so skip it when one is configured. */
+static brix_sd_instance_t *
+brix_vbr_wrap_staging_shim(brix_sd_instance_t *top,
+    brix_vfs_backend_entry_t *e, ngx_log_t *log)
+{
+    int                   sderr = 0;
+    brix_sd_instance_t *store;
+    brix_sd_instance_t *dec;
+
+    if (!e->staging || e->stage_tier.configured
+        || top->driver->staged_open == NULL)
+    {
+        return top;
+    }
+
+    store = brix_sd_instance_create(log, "posix",
+                                      (void *) e->root_canon, &sderr);
+    dec = (store != NULL)
+        ? brix_sd_stage_create(top, store, NULL, e->root_canon, log) : NULL;
+
+    if (dec != NULL) {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: write-back stage decorator composed over \"%s\"",
+            e->root_canon);
+        return dec;
+    }
+    ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+        "brix: stage shim init failed for \"%s\" - source direct",
+        e->root_canon);
+    return top;
+}
+
+/* Phase-64 explicit stage tier (sd_stage over an explicit stage store). */
+static brix_sd_instance_t *
+brix_vbr_wrap_stage_tier(brix_sd_instance_t *top,
+    brix_vfs_backend_entry_t *e, ngx_log_t *log)
+{
+    brix_sd_instance_t *store;
+    brix_sd_instance_t *dec;
+
+    if (!e->stage_tier.configured) {
+        return top;
+    }
+
+    store = brix_tier_build(&e->stage_tier, log);
+    dec = (store != NULL)
+        ? brix_sd_stage_create(top, store, &e->stage_policy, e->root_canon,
+                                 log) : NULL;
+
+    if (dec != NULL) {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: write-stage tier (%s) composed over \"%s\"",
+            e->stage_tier.driver, e->root_canon);
+        return dec;
+    }
+    return top;
+}
+
+/* Phase-64 read-cache tier (sd_cache, outermost). */
+static brix_sd_instance_t *
+brix_vbr_wrap_cache_tier(brix_sd_instance_t *top,
+    brix_vfs_backend_entry_t *e, ngx_log_t *log)
+{
+    brix_sd_instance_t *store;
+    const char           *local_root;
+    brix_sd_instance_t *dec;
+
+    if (!e->cache_tier.configured) {
+        return top;
+    }
+
+    store = brix_tier_build(&e->cache_tier, log);
+    local_root = (ngx_strcmp(e->cache_tier.driver, "posix") == 0
+                  && e->cache_tier.path[0] != '\0') ? e->cache_tier.path : NULL;
+    dec = (store != NULL)
+        ? brix_sd_cache_create(top, store, &e->cache_policy, local_root, log)
+        : NULL;
+
+    if (dec != NULL) {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: read-cache tier (%s) composed over \"%s\"",
+            e->cache_tier.driver, e->root_canon);
+        return dec;
+    }
+    return top;
 }
 
 /* Lazily build + memoize the entry's COMPOSED storage stack (per worker). The
@@ -366,63 +571,9 @@ brix_vfs_backend_entry_build(brix_vfs_backend_entry_t *e, ngx_log_t *log)
         return NULL;
     }
 
-    /* Legacy local-staging shim (brix_storage_staging): buffer on a posix store
-     * rooted at the export root and flush to the source on commit. Superseded by an
-     * explicit stage tier, so skip it when one is configured. */
-    if (e->staging && !e->stage_tier.configured
-        && top->driver->staged_open != NULL)
-    {
-        int                   sderr = 0;
-        brix_sd_instance_t *store =
-            brix_sd_instance_create(ngx_cycle->pool, log, "posix",
-                                      (void *) e->root_canon, &sderr);
-        brix_sd_instance_t *dec = (store != NULL)
-            ? brix_sd_stage_create(top, store, NULL, e->root_canon, log) : NULL;
-
-        if (dec != NULL) {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "brix: write-back stage decorator composed over \"%s\"",
-                e->root_canon);
-            top = dec;
-        } else {
-            ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                "brix: stage shim init failed for \"%s\" - source direct",
-                e->root_canon);
-        }
-    }
-
-    /* Phase-64 explicit stage tier (sd_stage over an explicit stage store). */
-    if (e->stage_tier.configured) {
-        brix_sd_instance_t *store = brix_tier_build(&e->stage_tier, log);
-        brix_sd_instance_t *dec = (store != NULL)
-            ? brix_sd_stage_create(top, store, &e->stage_policy, e->root_canon,
-                                     log) : NULL;
-
-        if (dec != NULL) {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "brix: write-stage tier (%s) composed over \"%s\"",
-                e->stage_tier.driver, e->root_canon);
-            top = dec;
-        }
-    }
-
-    /* Phase-64 read-cache tier (sd_cache, outermost). */
-    if (e->cache_tier.configured) {
-        brix_sd_instance_t *store = brix_tier_build(&e->cache_tier, log);
-        const char           *local_root =
-            (ngx_strcmp(e->cache_tier.driver, "posix") == 0
-             && e->cache_tier.path[0] != '\0') ? e->cache_tier.path : NULL;
-        brix_sd_instance_t *dec = (store != NULL)
-            ? brix_sd_cache_create(top, store, &e->cache_policy, local_root, log)
-            : NULL;
-
-        if (dec != NULL) {
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "brix: read-cache tier (%s) composed over \"%s\"",
-                e->cache_tier.driver, e->root_canon);
-            top = dec;
-        }
-    }
+    top = brix_vbr_wrap_staging_shim(top, e, log);
+    top = brix_vbr_wrap_stage_tier(top, e, log);
+    top = brix_vbr_wrap_cache_tier(top, e, log);
 
     e->inst = top;
     return e->inst;

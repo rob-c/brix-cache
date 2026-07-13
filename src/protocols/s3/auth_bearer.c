@@ -117,14 +117,23 @@ s3_verify_bearer(ngx_http_request_t *r,
 
     ngx_memzero(&claims, sizeof(claims));
 
-    rc = brix_token_validate(r->connection->log,
-                               token, token_len,
-                               cf->jwks_keys, cf->jwks_key_count,
-                               (const char *) cf->token_issuer.data,
-                               (const char *) cf->token_audience.data,
-                               NULL, 0,
-                               (int) cf->token_clock_skew,
-                               &claims);
+    {
+        brix_token_validate_args_t  va;
+
+        va.log               = r->connection->log;
+        va.token             = token;
+        va.token_len         = token_len;
+        va.keys              = cf->jwks_keys;
+        va.key_count         = cf->jwks_key_count;
+        va.expected_issuer   = (const char *) cf->token_issuer.data;
+        va.expected_audience = (const char *) cf->token_audience.data;
+        va.macaroon_secret   = NULL;
+        va.secret_len        = 0;
+        va.clock_skew        = (int) cf->token_clock_skew;
+        va.claims            = &claims;
+
+        rc = brix_token_validate(&va);
+    }
     if (rc != 0) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                       "brix_s3: bearer token validation failed");
@@ -140,6 +149,23 @@ s3_verify_bearer(ngx_http_request_t *r,
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                       "brix_s3: failed to set token identity claims (OOM?)");
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /* Phase-70 §5.4: retain the raw JWT bytes for backend PASSTHROUGH. Copied
+     * onto r->pool (the wire `token` points into the Authorization header value)
+     * and never logged; stored on the S3 req ctx the VFS bind sites read. */
+    {
+        ngx_http_s3_req_ctx_t *s3ctx =
+            ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
+
+        if (s3ctx != NULL) {
+            s3ctx->bearer_token.data = ngx_pnalloc(r->pool, token_len);
+            if (s3ctx->bearer_token.data == NULL) {
+                return NGX_HTTP_INTERNAL_SERVER_ERROR;
+            }
+            ngx_memcpy(s3ctx->bearer_token.data, token, token_len);
+            s3ctx->bearer_token.len = token_len;
+        }
     }
 
     /* Record a successful token auth in the unified protocol metrics. */

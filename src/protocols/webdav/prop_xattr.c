@@ -51,6 +51,29 @@ webdav_lock_vfs_ctx_init(ngx_http_request_t *r, const char *path,
         BRIX_PROTO_WEBDAV, conf->common.root_canon,
         conf->cache_root_canon, conf->common.allow_write, is_tls,
         (wctx != NULL) ? wctx->identity : NULL, path);
+    /* Bind the export's per-user backend credential policy so lock-state
+     * xattr ops on a remote-backed export present the REQUESTING USER's
+     * credential (wctx->identity, already threaded above), not the shared
+     * service credential. Minting is not bound here (mint is reserved for
+     * data-plane GET/PUT sites): a lock xattr op that needs a credential the
+     * user doesn't already have falls back per the configured
+     * storage_credential_fallback policy, same as every other namespace-only
+     * VFS ctx in this codebase (see mv.c's probe ctxs). */
+    brix_vfs_ctx_bind_backend_cred(vctx,
+        &conf->common.storage_credential_dir,
+        conf->common.storage_credential_fallback);
+    webdav_vfs_bind_deleg(r, conf, vctx);
+    /* Phase-3 T1: route through the export's selected storage backend (NULL =
+     * default POSIX) so a remote-backed export's cred gate (brix_vfs_ns_cred,
+     * keyed on the leaf driver's stat_cred/setxattr_cred capability) actually
+     * engages for lock-state xattr ops — mirrors every other namespace ctx in
+     * this codebase (put.c, mv.c). Without this, vctx->sd stays NULL and the
+     * gate is structurally unreachable (brix_vfs_ctx_driver(ctx) == NULL), so
+     * a deny-mode no-cred user would silently touch the lock xattr via the
+     * bare local-fs path. On a LOCAL (POSIX, non-instance) export this is a
+     * no-op (brix_webdav_backend_instance returns NULL), so behaviour there is
+     * unchanged. */
+    vctx->sd = brix_webdav_backend_instance(conf, r->connection->log);
 }
 
 #ifndef ENOATTR
@@ -193,9 +216,18 @@ webdav_lock_xattr_read(ngx_http_request_t *r, const char *path,
     if (n < 0) {
         /* No lock present, OR a backend that cannot store xattrs at all (object /
          * remote root:// stores) — either way the resource carries no WebDAV lock,
-         * so a write may proceed. */
+         * so a write may proceed. EACCES/EPERM here (added by the phase-2 backend
+         * credential bind above) means the per-user backend credential gate
+         * denied THIS lock-state probe — it does NOT mean "proceed unlocked and
+         * unchecked": the actual write/delete/move this check gates re-runs the
+         * SAME gate on its own data-plane VFS ctx and is independently refused
+         * with a clean 403 if the user has no credential, so declining here
+         * (treating the lock as unknown/absent) cannot bypass the deny — it can
+         * only, in the worst case, miss an existing lock for a caller who is
+         * about to be denied by the write path anyway. */
         if (errno == ENODATA || errno == ENOATTR || errno == ENOENT
-            || errno == ENOTSUP || errno == EOPNOTSUPP)
+            || errno == ENOTSUP || errno == EOPNOTSUPP
+            || errno == EACCES || errno == EPERM)
         {
             return NGX_DECLINED;
         }

@@ -1,4 +1,5 @@
 #include "query_internal.h"
+#include "prepare_internal.h"
 #include "fs/path/beneath.h"
 #include "fs/xfer/stage_request_registry.h"
 
@@ -9,22 +10,9 @@
 
 #define BRIX_PREPARE_OWNER_KEY_MAX  64
 
-/* Phase 35: map a durable queue status to the QPrep per-path status letter.
- * 'A' available/online, 'q' queued, 's' staging, 'f' failed, 'M' missing. */
-static char
-brix_prepare_status_char(brix_stage_req_status_t s)
-{
-    switch (s) {
-    case BRIX_STAGE_REQ_QUEUED: return 'q';
-    case BRIX_STAGE_REQ_ACTIVE: return 's';
-    case BRIX_STAGE_REQ_DONE:   return 'A';
-    case BRIX_STAGE_REQ_FAILED: return 'f';
-    default:                      return 'M';
-    }
-}
-
 /*
- * WHAT: kXR_prepare / kXR_QPrep — local-storage staging hint and status query.
+ * WHAT: kXR_prepare — local-storage staging hint. (kXR_QPrep status query lives
+ *       in prepare_qprep.c.)
  *       prepare accepts newline-separated path lists, validates each against auth/ACLs/filesystem existence,
  *       optionally invokes a configured staging command (e.g., xrdcp to tape), returns request ID for later status queries.
  *       QPrep queries staging status of prior prepare paths — returns "A <path>" (available) or "M <path>" (missing).
@@ -117,7 +105,7 @@ brix_prepare_owner_key(brix_ctx_t *ctx, char *anon_key, size_t anon_key_sz)
     return anon_key;
 }
 
-static ngx_int_t
+ngx_int_t
 brix_prepare_send_fail(brix_ctx_t *ctx, ngx_connection_t *c,
     const char *path, uint16_t errcode, const char *errmsg)
 {
@@ -140,6 +128,59 @@ brix_prepare_check_fail(brix_ctx_t *ctx, ngx_connection_t *c,
 }
 /* WHY: kXR_prepare check_path callers need NGX_DONE (continue processing) vs NGX_ERROR (abort). This helper converts the brix_send_error() result into the appropriate return code — NGX_OK from send_error becomes NGX_DONE for graceful continuation, other results pass through as abort codes. Used by check_path to distinguish between "error logged but continue" and "fatal error" returns. */
 /* HOW: Calls brix_prepare_send_fail(ctx, c, path, errcode, errmsg) — if result == NGX_OK returns NGX_DONE (graceful continuation), otherwise returns the raw result code unchanged. Static helper used exclusively by check_path(). */
+
+/*
+ * WHAT: run the three prepare authorization tiers (authdb VO/ACL, VO identity
+ *       ACL, token scope) on one resolved path.
+ * WHY:  the existing-file and noerrs-absent branches of check_path must apply
+ *       the SAME gate on the SAME paths (verdict parity between "exists" and
+ *       "absent") — factoring it here removes the duplication AND guarantees the
+ *       two branches can never drift apart.  Authorization is a property of the
+ *       identity + logical path, not of on-disk existence.
+ * HOW:  each tier that denies sends its specific error via check_fail and its rc
+ *       (NGX_DONE/error) is returned; NGX_OK only when all three pass.
+ */
+static ngx_int_t
+prepare_path_authz(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *pathbuf, const char *full_path)
+{
+    if (brix_authz_check(ctx, c, conf, pathbuf, full_path, "PREPARE",
+                           BRIX_AUTH_READ, BRIX_AOP_STAGE) != NGX_OK) {
+        return brix_prepare_check_fail(ctx, c, full_path, kXR_NotAuthorized,
+                                         "not authorized");
+    }
+    if (brix_check_vo_acl_identity(c->log, full_path, conf->vo_rules,
+                                     ctx->identity) != NGX_OK) {
+        return brix_prepare_check_fail(ctx, c, full_path, kXR_NotAuthorized,
+                                         "VO not authorized");
+    }
+    if (brix_check_token_scope(ctx, pathbuf, 0) != NGX_OK) {
+        return brix_prepare_check_fail(ctx, c, pathbuf, kXR_NotAuthorized,
+                                         "token scope denied");
+    }
+    return NGX_OK;
+}
+
+/*
+ * Map a confined-stat failure (non-noerrs, or non-ENOENT errno) to the wire
+ * error: ENOENT/ENOTDIR → kXR_NotFound, EACCES/EPERM → kXR_NotAuthorized, any
+ * other errno → kXR_IOError.  Returns the check_fail rc (NGX_DONE/error).
+ */
+static ngx_int_t
+prepare_stat_error(brix_ctx_t *ctx, ngx_connection_t *c,
+    const char *pathbuf, const char *full_path)
+{
+    if (errno == ENOENT || errno == ENOTDIR) {
+        return brix_prepare_check_fail(ctx, c, pathbuf, kXR_NotFound,
+                                         "file not found");
+    }
+    if (errno == EACCES || errno == EPERM) {
+        return brix_prepare_check_fail(ctx, c, full_path, kXR_NotAuthorized,
+                                         "not authorized");
+    }
+    return brix_prepare_check_fail(ctx, c, full_path, kXR_IOError,
+                                     "prepare stat failed");
+}
 
 static ngx_int_t
 brix_prepare_check_path(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -169,7 +210,8 @@ brix_prepare_check_path(brix_ctx_t *ctx, ngx_connection_t *c,
                                          "invalid prepare path");
     }
 
-    brix_beneath_full_path(conf->common.root_canon, pathbuf,
+    /* phase74-fp: pathbuf is the request path, full_path the output buf. */
+    brix_beneath_full_path(conf->common.root_canon, pathbuf,  /* NOLINT(readability-suspicious-call-argument) */
                              full_path, sizeof(full_path));
 
     /*
@@ -193,19 +235,12 @@ brix_prepare_check_path(brix_ctx_t *ctx, ngx_connection_t *c,
              * the shared cache. Run the SAME three tiers, on the SAME paths, as
              * the existing-file branch below (verdict parity between "exists" and
              * "absent"); only then supply the staging path. */
-            if (brix_authz_check(ctx, c, conf, pathbuf, full_path, "PREPARE",
-                                   BRIX_AUTH_READ, BRIX_AOP_STAGE) != NGX_OK) {
-                return brix_prepare_check_fail(ctx, c, full_path,
-                                                 kXR_NotAuthorized, "not authorized");
-            }
-            if (brix_check_vo_acl_identity(c->log, full_path, conf->vo_rules,
-                                             ctx->identity) != NGX_OK) {
-                return brix_prepare_check_fail(ctx, c, full_path,
-                                                 kXR_NotAuthorized, "VO not authorized");
-            }
-            if (brix_check_token_scope(ctx, pathbuf, 0) != NGX_OK) {
-                return brix_prepare_check_fail(ctx, c, pathbuf,
-                                                 kXR_NotAuthorized, "token scope denied");
+            {
+                ngx_int_t arc = prepare_path_authz(ctx, c, conf, pathbuf,
+                                                     full_path);
+                if (arc != NGX_OK) {
+                    return arc;
+                }
             }
             /* For staging: supply absolute path even if file doesn't exist yet
              * (tape nearline / not-yet-created). */
@@ -215,33 +250,14 @@ brix_prepare_check_path(brix_ctx_t *ctx, ngx_connection_t *c,
             }
             return NGX_OK;
         }
-        if (errno == ENOENT || errno == ENOTDIR) {
-            return brix_prepare_check_fail(ctx, c, pathbuf, kXR_NotFound,
-                                             "file not found");
+        return prepare_stat_error(ctx, c, pathbuf, full_path);
+    }
+
+    {
+        ngx_int_t arc = prepare_path_authz(ctx, c, conf, pathbuf, full_path);
+        if (arc != NGX_OK) {
+            return arc;
         }
-        if (errno == EACCES || errno == EPERM) {
-            return brix_prepare_check_fail(ctx, c, full_path,
-                                             kXR_NotAuthorized, "not authorized");
-        }
-        return brix_prepare_check_fail(ctx, c, full_path, kXR_IOError,
-                                         "prepare stat failed");
-    }
-
-    if (brix_authz_check(ctx, c, conf, pathbuf, full_path, "PREPARE",
-                           BRIX_AUTH_READ, BRIX_AOP_STAGE) != NGX_OK) {
-        return brix_prepare_check_fail(ctx, c, full_path, kXR_NotAuthorized,
-                                         "not authorized");
-    }
-
-    if (brix_check_vo_acl_identity(c->log, full_path, conf->vo_rules,
-                                     ctx->identity) != NGX_OK) {
-        return brix_prepare_check_fail(ctx, c, full_path, kXR_NotAuthorized,
-                                         "VO not authorized");
-    }
-
-    if (brix_check_token_scope(ctx, pathbuf, 0) != NGX_OK) {
-        return brix_prepare_check_fail(ctx, c, pathbuf, kXR_NotAuthorized,
-                                         "token scope denied");
     }
 
     /* Copy the absolute export path for the staging command; only authorized
@@ -311,97 +327,110 @@ brix_prepare_handle_cancel(brix_ctx_t *ctx, ngx_connection_t *c,
     return brix_send_ok(ctx, c, NULL, 0);
 }
 
-/* public API: brix_handle_prepare() — kXR_prepare staging hint handler * WHAT: Main handler for prepare requests. Parses ClientPrepareRequest, validates newline-separated path list against auth/ACLs/filesystem existence,
- *       optionally invokes configured staging command via brix_prepare_invoke_command(), stores request ID + paths in ctx->prepare.paths for QPrep queries.
- *       Returns "0" as response on kXR_stage; NULL payload on other options. Cancel/evict return noop ok.
+/*
+ * Shared state for the kXR_prepare path-scan pipeline (alloc → scan → emit).
+ * Passed by pointer so the three phases read/accumulate the same counters and
+ * staging buffers without a long positional argument list.  group_reqid points
+ * at a caller-owned BRIX_STAGE_REQID_LEN buffer.
  */
-/* WHY: kXR_prepare validates each path in a prepare request against auth, ACLs, and filesystem existence before accepting it for staging. Handles two modes: noerrs (skip errors, count missing paths) for staging collections where files may not exist yet (tape nearline), and strict mode (return error on first failure). Fills out_resolved with canonical path when collecting staging arguments. */
-/* HOW: Checks line_len > BRIX_MAX_PATH → fail kXR_ArgTooLong. Extracts path via brix_extract_path() — if fails fail kXR_ArgInvalid. Checks forbidden components (dot/dotdot) via has_forbidden_component() — fail kXR_ArgInvalid. Resolves path via brix_resolve_path(): if noerrs and resolve fails, tries resolve_path_noexist() for out_resolved, increments missing count, returns NGX_OK; otherwise fail kXR_NotFound. Auth chain: check_authdb(BRIX_AUTH_READ) → fail kXR_NotAuthorized; check_vo_acl(vo_rules + vo_list) → fail kXR_NotAuthorized; check_token_scope(pathbuf, 0) → fail kXR_NotAuthorized. Copies resolved path to out_resolved via ngx_cpystrn(). stat(resolved): ENOENT/ENOTDIR with noerrs increments missing, returns NGX_OK; without noerrs fail kXR_NotFound; EACCES/EPERM fail kXR_NotAuthorized; other errno fail kXR_IOError. S_ISDIR: noerrs increments missing; otherwise fail kXR_isDirectory. Returns NGX_OK on full pass or NGX_DONE on error. */
+typedef struct {
+    ngx_stream_brix_srv_conf_t *conf;
+    uint16_t     options;          /* req.options snapshot */
+    ngx_flag_t   need_resolved;    /* fill out_resolved (legacy cmd OR enqueue) */
+    ngx_flag_t   do_enqueue;       /* enqueue into the durable FRM queue        */
+    ngx_flag_t   collect_stage;    /* collect paths for brix_prepare_command    */
+    const char **stage_paths;      /* pool array, stage_max entries             */
+    char        *stage_bufs;       /* pool array, stage_max * PATH_MAX          */
+    ngx_uint_t   stage_max;
+    ngx_uint_t   stage_count;      /* accumulated resolved paths                */
+    ngx_uint_t   paths;            /* non-empty lines seen                       */
+    ngx_uint_t   missing;          /* absent-but-authorized paths (noerrs)      */
+    char        *group_reqid;      /* first durable reqid = client handle        */
+} prepare_scan_t;
 
-ngx_int_t
-brix_handle_prepare(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *conf)
+/*
+ * Pre-allocate the staging collection arrays when a resolved path list is
+ * needed.  Cap at BRIX_PREPARE_CMD_MAX_PATHS (typically dlen/2 paths, but
+ * bounded to avoid excessive allocation).  No-op when need_resolved is clear.
+ */
+static ngx_int_t
+prepare_alloc_stage_arrays(ngx_connection_t *c, prepare_scan_t *sc, size_t dlen)
 {
-    xrdw_prepare_req_t    req;
-    const u_char         *p;
-    const u_char         *end;
-    ngx_uint_t            paths = 0;
-    ngx_uint_t            missing = 0;
-    uint16_t              optionx;
-    char                  detail[96];
-
-    /* Staging command path collection.  Only allocated when kXR_stage is set
-     * and brix_prepare_command is configured. */
-    ngx_flag_t   collect_stage;
-    ngx_flag_t   do_enqueue;        /* Phase 35: enqueue into the durable queue */
-    ngx_flag_t   need_resolved;     /* fill out_resolved (legacy OR enqueue)     */
-    const char **stage_paths = NULL;
-    char        *stage_bufs  = NULL;
-    ngx_uint_t   stage_count = 0;
-    ngx_uint_t   stage_max   = 0;
-    char         group_reqid[BRIX_STAGE_REQID_LEN];
-
-    xrdw_prepare_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
-    optionx = req.optionX;
-
-    collect_stage = (req.options & kXR_stage) && conf->prepare_command.len > 0;
-    do_enqueue    = (req.options & kXR_stage) && conf->frm.enable
-                    && brix_stage_registry_singleton() != NULL;
-    need_resolved = collect_stage || do_enqueue;
-    group_reqid[0] = '\0';
-
-    if ((req.options & kXR_wmode) && !conf->common.allow_write) {
-        return brix_prepare_send_fail(ctx, c, "-", kXR_fsReadOnly,
-                                        "this is a read-only server");
+    if (!sc->need_resolved) {
+        return NGX_OK;
     }
 
-    if (req.options & kXR_cancel) {
-        /* Phase 35: real cancel against the durable registry when staging is on. */
-        if (conf->frm.enable && brix_stage_registry_singleton() != NULL) {
-            return brix_prepare_handle_cancel(ctx, c, conf);
+    sc->stage_max = dlen / 2 + 1;
+    if (sc->stage_max > BRIX_PREPARE_CMD_MAX_PATHS) {
+        sc->stage_max = BRIX_PREPARE_CMD_MAX_PATHS;
+    }
+
+    sc->stage_paths = ngx_palloc(c->pool, sizeof(const char *) * sc->stage_max);
+    sc->stage_bufs  = ngx_palloc(c->pool, (size_t) sc->stage_max * PATH_MAX);
+    if (sc->stage_paths == NULL || sc->stage_bufs == NULL) {
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/*
+ * Accept one authorized, resolved path: durably enqueue it (FRM) and/or collect
+ * it for the legacy staging command.  The first durable reqid becomes the client
+ * handle.  The caller advances stage_count after this returns.
+ */
+static void
+prepare_enqueue_resolved(brix_ctx_t *ctx, ngx_connection_t *c,
+    prepare_scan_t *sc, char *out_resolved)
+{
+    if (sc->do_enqueue) {
+        brix_stage_request_view_t v;
+        char        rq[BRIX_STAGE_REQID_LEN];
+        ngx_int_t   arc;
+        /* Record the canonical identity DN/token subject, or a scoped
+         * anonymous-session key, so the cancel-owner check has the same
+         * owner string. */
+        char        owner_key[BRIX_PREPARE_OWNER_KEY_MAX];
+        const char *rdn = brix_prepare_owner_key(ctx, owner_key,
+                                                   sizeof(owner_key));
+
+        ngx_memzero(&v, sizeof(v));
+        v.lfn          = out_resolved;
+        v.requester_dn = (rdn != NULL && rdn[0] != '\0') ? rdn : NULL;
+        v.tod_expire   = (int64_t) time(NULL)
+                       + (int64_t) (sc->conf->frm.stage_ttl / 1000);
+
+        arc = brix_stage_request_add(brix_stage_registry_singleton(),
+                                       &v, rq, sizeof(rq), c->log);
+        if (arc == NGX_ERROR) {
+            ngx_log_error(NGX_LOG_ERR, c->log, 0,
+                          "brix: stage request add failed for \"%s\"",
+                          out_resolved);
+        } else if (sc->group_reqid[0] == '\0') {
+            /* The first request id is the handle returned to the client. */
+            ngx_cpystrn((u_char *) sc->group_reqid, (u_char *) rq,
+                        BRIX_STAGE_REQID_LEN);
         }
-        snprintf(detail, sizeof(detail), "noop cancel opts=0x%02x optx=0x%04x",
-                 (unsigned int) req.options, (unsigned int) optionx);
-        brix_log_access(ctx, c, "PREPARE", "-", detail, 1, kXR_ok, NULL, 0);
-        return brix_send_ok(ctx, c, NULL, 0);
+        /* NOTE (engine-integration step): driving the recall — the former
+         * frm_stage_kick() — moves to brix_stage_submit(RECALL) + the engine
+         * scheduler; the composable sd_frm backend also faults the recall on
+         * read, so the request is durably recorded here. */
     }
-
-    if (optionx & kXR_evict) {
-        /* Evict releases the disk pin: the staged copy may be purged. The actual
-         * disk reclamation is delegated to the MSS (Category-2, Phase 4); here we
-         * record the release intent. The authoritative per-path release path with
-         * full resolve+scope is the WLCG Tape REST /release endpoint. */
-        /* (evict metric re-homes to the stage metrics in Task 5) */
-        snprintf(detail, sizeof(detail), "evict opts=0x%02x optx=0x%04x",
-                 (unsigned int) req.options, (unsigned int) optionx);
-        brix_log_access(ctx, c, "PREPARE", "-", detail, 1, kXR_ok, NULL, 0);
-        return brix_send_ok(ctx, c, NULL, 0);
+    if (sc->collect_stage) {
+        sc->stage_paths[sc->stage_count] = out_resolved;
     }
+}
 
-    if (ctx->recv.cur_dlen == 0 || ctx->recv.payload == NULL) {
-        return brix_prepare_send_fail(ctx, c, "-", kXR_ArgMissing,
-                                        "prepare file list is missing");
-    }
-
-    /* Pre-allocate staging collection arrays.  Cap at BRIX_PREPARE_CMD_MAX_PATHS
-     * (typically payload / 2 paths, but bounded to avoid excessive allocation). */
-    if (need_resolved) {
-        stage_max = ctx->recv.cur_dlen / 2 + 1;
-        if (stage_max > BRIX_PREPARE_CMD_MAX_PATHS) {
-            stage_max = BRIX_PREPARE_CMD_MAX_PATHS;
-        }
-
-        stage_paths = ngx_palloc(c->pool,
-                                 sizeof(const char *) * stage_max);
-        stage_bufs  = ngx_palloc(c->pool,
-                                 (size_t) stage_max * PATH_MAX);
-        if (stage_paths == NULL || stage_bufs == NULL) {
-            return NGX_ERROR;
-        }
-    }
-
-    p = ctx->recv.payload;
-    end = ctx->recv.payload + ctx->recv.cur_dlen;
+/*
+ * Parse the newline-separated payload, validate + authorize each path via
+ * brix_prepare_check_path, and enqueue/collect the ones that pass.  Returns
+ * NGX_OK when the whole list scanned; NGX_DONE or an error rc when a path failed
+ * (check_path already sent the response) — the caller maps NGX_DONE to NGX_OK.
+ */
+static ngx_int_t
+prepare_scan_paths(brix_ctx_t *ctx, ngx_connection_t *c, prepare_scan_t *sc)
+{
+    const u_char *p   = ctx->recv.payload;
+    const u_char *end = ctx->recv.payload + ctx->recv.cur_dlen;
 
     while (p < end) {
         const u_char *line;
@@ -430,373 +459,247 @@ brix_handle_prepare(brix_ctx_t *ctx, ngx_connection_t *c,
             continue;
         }
 
-        paths++;
+        sc->paths++;
 
         /* Point out_resolved at the next slot in the staging buffer (when the
          * legacy command OR the durable queue needs the resolved path) so
          * brix_prepare_check_path fills it in-place. */
-        if (need_resolved && stage_count < stage_max) {
-            out_resolved = stage_bufs + stage_count * PATH_MAX;
+        if (sc->need_resolved && sc->stage_count < sc->stage_max) {
+            out_resolved = sc->stage_bufs + sc->stage_count * PATH_MAX;
             out_resolved[0] = '\0';
         } else {
             out_resolved = NULL;
         }
 
-        rc = brix_prepare_check_path(ctx, c, conf, line, line_len,
-                                       (req.options & kXR_noerrs) != 0,
-                                       &missing, out_resolved);
-        if (rc == NGX_DONE) {
-            return NGX_OK;
-        }
+        rc = brix_prepare_check_path(ctx, c, sc->conf, line, line_len,
+                                       (sc->options & kXR_noerrs) != 0,
+                                       &sc->missing, out_resolved);
         if (rc != NGX_OK) {
-            return rc;
+            return rc;   /* NGX_DONE (response sent) or a hard error */
         }
 
-        /* Accept the resolved path: enqueue it durably (FRM) and/or collect it
-         * for the legacy staging command. */
         if (out_resolved != NULL && out_resolved[0] != '\0') {
-            if (do_enqueue) {
-                brix_stage_request_view_t v;
-                char           rq[BRIX_STAGE_REQID_LEN];
-                ngx_int_t      arc;
-                /* Record the canonical identity DN/token subject, or a scoped
-                 * anonymous-session key, so the cancel-owner check has the same
-                 * owner string. */
-                char           owner_key[BRIX_PREPARE_OWNER_KEY_MAX];
-                const char    *rdn = brix_prepare_owner_key(ctx, owner_key,
-                                                              sizeof(owner_key));
-
-                ngx_memzero(&v, sizeof(v));
-                v.lfn        = out_resolved;
-                v.requester_dn = (rdn != NULL && rdn[0] != '\0') ? rdn : NULL;
-                v.tod_expire = (int64_t) time(NULL)
-                             + (int64_t) (conf->frm.stage_ttl / 1000);
-
-                arc = brix_stage_request_add(brix_stage_registry_singleton(),
-                                               &v, rq, sizeof(rq), c->log);
-                if (arc == NGX_ERROR) {
-                    ngx_log_error(NGX_LOG_ERR, c->log, 0,
-                                  "brix: stage request add failed for \"%s\"",
-                                  out_resolved);
-                } else if (group_reqid[0] == '\0') {
-                    /* The first request id is the handle returned to the client. */
-                    ngx_cpystrn((u_char *) group_reqid, (u_char *) rq,
-                                sizeof(group_reqid));
-                }
-                /* NOTE (engine-integration step): driving the recall — the former
-                 * frm_stage_kick() — moves to brix_stage_submit(RECALL) + the
-                 * engine scheduler; the composable sd_frm backend also faults the
-                 * recall on read, so the request is durably recorded here. */
-            }
-            if (collect_stage) {
-                stage_paths[stage_count] = out_resolved;
-            }
-            stage_count++;
+            prepare_enqueue_resolved(ctx, c, sc, out_resolved);
+            sc->stage_count++;
         }
     }
 
-    if (paths == 0) {
+    return NGX_OK;
+}
+
+/*
+ * kXR_stage tail: persist the path list for later kXR_QPrep queries, launch the
+ * legacy staging command if configured, and (kXR_notify) fold an asyncms
+ * "complete" notification into the ok response when nothing is still missing.
+ * Returns the queued-response rc.
+ */
+static ngx_int_t
+prepare_emit_stage(brix_ctx_t *ctx, ngx_connection_t *c, prepare_scan_t *sc)
+{
+    u_char     *saved;
+    const char *resp_reqid;
+    size_t      resp_reqid_len;
+
+    /* The request handle: the durable reqid when enqueued, else legacy "0". */
+    resp_reqid     = (sc->do_enqueue && sc->group_reqid[0] != '\0')
+                   ? sc->group_reqid : "0";
+    resp_reqid_len = ngx_strlen(resp_reqid);
+
+    saved = ngx_alloc((size_t) ctx->recv.cur_dlen + 1, c->log);
+    if (saved == NULL) {
+        return NGX_ERROR;
+    }
+
+    ngx_memcpy(saved, ctx->recv.payload, ctx->recv.cur_dlen);
+    saved[ctx->recv.cur_dlen] = '\0';
+
+    if (ctx->prepare.paths != NULL) {
+        ngx_free(ctx->prepare.paths);
+    }
+
+    ngx_cpystrn((u_char *) ctx->prepare.reqid, (u_char *) resp_reqid,
+                sizeof(ctx->prepare.reqid));
+    ctx->prepare.paths     = saved;
+    ctx->prepare.paths_len = ctx->recv.cur_dlen;
+
+    /* Invoke the staging command if configured and paths were collected. */
+    if (sc->collect_stage && sc->stage_count > 0) {
+        if (brix_prepare_invoke_command(c->log, sc->conf,
+                                          sc->stage_paths, sc->stage_count,
+                                          (sc->options & kXR_coloc) != 0)
+            != NGX_OK)
+        {
+            ngx_log_error(NGX_LOG_ERR, c->log, ngx_errno,
+                          "brix: prepare_command launch failed");
+            /* Best-effort: continue and return ok to the client. */
+        }
+    } else if (sc->collect_stage && sc->stage_count == 0) {
+        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                      "brix: kXR_stage set but no resolvable paths"
+                      " for prepare_command");
+    }
+
+    /* kXR_notify: send kXR_attn + kXR_asyncms notification when all requested
+     * files are already on disk (missing == 0).  The notification is combined
+     * with the kXR_ok response in a single buffer to avoid a double-queue race
+     * on EAGAIN write paths.  When missing > 0 some files are still being staged
+     * by the background command; we cannot know when they arrive, so the
+     * notification is omitted and a warning is logged. */
+    if (sc->options & kXR_notify) {
+        if (sc->missing == 0) {
+            char     notify_msg[96];
+            size_t   notify_len;
+            size_t   ok_len      = XRD_RESPONSE_HDR_LEN + resp_reqid_len;
+            size_t   attn_len;
+            size_t   total;
+            u_char  *buf;
+
+            notify_len = (size_t) snprintf(notify_msg, sizeof(notify_msg),
+                             "prepare reqid=%s complete", resp_reqid);
+            if (notify_len >= sizeof(notify_msg)) {
+                notify_len = sizeof(notify_msg) - 1;
+            }
+            attn_len = brix_attn_asyncms_frame_len(notify_len);
+            total    = ok_len + attn_len;
+
+            BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
+
+            brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok,
+                                  (uint32_t) resp_reqid_len,
+                                  (ServerResponseHdr *) buf);
+            ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, resp_reqid, resp_reqid_len);
+            brix_build_attn_asyncms_frame(buf + ok_len, notify_msg, notify_len);
+
+            ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
+                "brix: sending kXR_prepare ok + kXR_attn asyncms notify");
+
+            return brix_queue_response(ctx, c, buf, total);
+
+        } else {
+            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                "brix: kXR_notify requested but %ui path(s) still being "
+                "staged; async completion notification not supported",
+                sc->missing);
+        }
+    }
+
+    return brix_send_ok(ctx, c, (u_char *) resp_reqid,
+                          (uint32_t) resp_reqid_len);
+}
+
+/*
+ * Handle the option flags that short-circuit the path scan: read-only rejection
+ * (kXR_wmode), cancel (real FRM cancel, or a logged noop), and evict (logged
+ * release intent — actual reclamation is delegated to the MSS / WLCG Tape REST
+ * /release).  Returns NGX_DECLINED when none applied (proceed to the scan); any
+ * other value is the response rc the caller must return.
+ */
+static ngx_int_t
+prepare_dispatch_special(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const xrdw_prepare_req_t *req,
+    uint16_t optionx)
+{
+    char detail[96];
+
+    if ((req->options & kXR_wmode) && !conf->common.allow_write) {
+        return brix_prepare_send_fail(ctx, c, "-", kXR_fsReadOnly,
+                                        "this is a read-only server");
+    }
+
+    if (req->options & kXR_cancel) {
+        /* Real cancel against the durable registry when staging is on. */
+        if (conf->frm.enable && brix_stage_registry_singleton() != NULL) {
+            return brix_prepare_handle_cancel(ctx, c, conf);
+        }
+        snprintf(detail, sizeof(detail), "noop cancel opts=0x%02x optx=0x%04x",
+                 (unsigned int) req->options, (unsigned int) optionx);
+        brix_log_access(ctx, c, "PREPARE", "-", detail, 1, kXR_ok, NULL, 0);
+        return brix_send_ok(ctx, c, NULL, 0);
+    }
+
+    if (optionx & kXR_evict) {
+        snprintf(detail, sizeof(detail), "evict opts=0x%02x optx=0x%04x",
+                 (unsigned int) req->options, (unsigned int) optionx);
+        brix_log_access(ctx, c, "PREPARE", "-", detail, 1, kXR_ok, NULL, 0);
+        return brix_send_ok(ctx, c, NULL, 0);
+    }
+
+    return NGX_DECLINED;
+}
+
+/* public API: brix_handle_prepare() — kXR_prepare staging hint handler * WHAT: Main handler for prepare requests. Parses ClientPrepareRequest, validates newline-separated path list against auth/ACLs/filesystem existence,
+ *       optionally invokes configured staging command via brix_prepare_invoke_command(), stores request ID + paths in ctx->prepare.paths for QPrep queries.
+ *       Returns "0" as response on kXR_stage; NULL payload on other options. Cancel/evict return noop ok.
+ */
+/* WHY: kXR_prepare validates each path in a prepare request against auth, ACLs, and filesystem existence before accepting it for staging. Handles two modes: noerrs (skip errors, count missing paths) for staging collections where files may not exist yet (tape nearline), and strict mode (return error on first failure). Fills out_resolved with canonical path when collecting staging arguments. */
+/* HOW: Checks line_len > BRIX_MAX_PATH → fail kXR_ArgTooLong. Extracts path via brix_extract_path() — if fails fail kXR_ArgInvalid. Checks forbidden components (dot/dotdot) via has_forbidden_component() — fail kXR_ArgInvalid. Resolves path via brix_resolve_path(): if noerrs and resolve fails, tries resolve_path_noexist() for out_resolved, increments missing count, returns NGX_OK; otherwise fail kXR_NotFound. Auth chain: check_authdb(BRIX_AUTH_READ) → fail kXR_NotAuthorized; check_vo_acl(vo_rules + vo_list) → fail kXR_NotAuthorized; check_token_scope(pathbuf, 0) → fail kXR_NotAuthorized. Copies resolved path to out_resolved via ngx_cpystrn(). stat(resolved): ENOENT/ENOTDIR with noerrs increments missing, returns NGX_OK; without noerrs fail kXR_NotFound; EACCES/EPERM fail kXR_NotAuthorized; other errno fail kXR_IOError. S_ISDIR: noerrs increments missing; otherwise fail kXR_isDirectory. Returns NGX_OK on full pass or NGX_DONE on error. */
+
+ngx_int_t
+brix_handle_prepare(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
+{
+    xrdw_prepare_req_t    req;
+    uint16_t              optionx;
+    char                  detail[96];
+    char                  group_reqid[BRIX_STAGE_REQID_LEN];
+    prepare_scan_t        sc;
+    ngx_int_t             rc;
+
+    xrdw_prepare_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
+    optionx = req.optionX;
+
+    ngx_memzero(&sc, sizeof(sc));
+    sc.conf          = conf;
+    sc.options       = req.options;
+    sc.collect_stage = (req.options & kXR_stage) && conf->prepare_command.len > 0;
+    sc.do_enqueue    = (req.options & kXR_stage) && conf->frm.enable
+                       && brix_stage_registry_singleton() != NULL;
+    sc.need_resolved = sc.collect_stage || sc.do_enqueue;
+    sc.group_reqid   = group_reqid;
+    group_reqid[0]   = '\0';
+
+    rc = prepare_dispatch_special(ctx, c, conf, &req, optionx);
+    if (rc != NGX_DECLINED) {
+        return rc;   /* read-only reject, cancel, or evict — response sent */
+    }
+
+    if (ctx->recv.cur_dlen == 0 || ctx->recv.payload == NULL) {
+        return brix_prepare_send_fail(ctx, c, "-", kXR_ArgMissing,
+                                        "prepare file list is missing");
+    }
+
+    if (prepare_alloc_stage_arrays(c, &sc, ctx->recv.cur_dlen) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    rc = prepare_scan_paths(ctx, c, &sc);
+    if (rc == NGX_DONE) {
+        return NGX_OK;
+    }
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
+    if (sc.paths == 0) {
         return brix_prepare_send_fail(ctx, c, "-", kXR_ArgMissing,
                                         "prepare file list is empty");
     }
 
     snprintf(detail, sizeof(detail),
              "paths=%u missing=%u opts=0x%02x optx=0x%04x%s",
-             (unsigned int) paths, (unsigned int) missing,
+             (unsigned int) sc.paths, (unsigned int) sc.missing,
              (unsigned int) req.options, (unsigned int) optionx,
              (req.options & kXR_coloc) ? " (coloc)" : "");
 
     brix_log_access(ctx, c, "PREPARE", "-", detail, 1, kXR_ok, NULL, 0);
 
-    /* kXR_stage: save the path list for kXR_QPrep status queries, return
-     * request ID "0", and optionally invoke the configured staging command. */
+    /* kXR_stage: save the path list for kXR_QPrep queries, launch the staging
+     * command, and (kXR_notify) fold in an asyncms completion notification. */
     if (req.options & kXR_stage) {
-        u_char     *saved;
-        const char *resp_reqid;
-        size_t      resp_reqid_len;
-
-        /* The request handle: the durable reqid when enqueued, else legacy "0". */
-        resp_reqid     = (do_enqueue && group_reqid[0] != '\0')
-                       ? group_reqid : "0";
-        resp_reqid_len = ngx_strlen(resp_reqid);
-
-        saved = ngx_alloc((size_t) ctx->recv.cur_dlen + 1, c->log);
-        if (saved == NULL) {
-            return NGX_ERROR;
-        }
-
-        ngx_memcpy(saved, ctx->recv.payload, ctx->recv.cur_dlen);
-        saved[ctx->recv.cur_dlen] = '\0';
-
-        if (ctx->prepare.paths != NULL) {
-            ngx_free(ctx->prepare.paths);
-        }
-
-        ngx_cpystrn((u_char *) ctx->prepare.reqid, (u_char *) resp_reqid,
-                    sizeof(ctx->prepare.reqid));
-        ctx->prepare.paths     = saved;
-        ctx->prepare.paths_len = ctx->recv.cur_dlen;
-
-        /* Invoke the staging command if configured and paths were collected. */
-        if (collect_stage && stage_count > 0) {
-            if (brix_prepare_invoke_command(c->log, conf,
-                                              stage_paths, stage_count,
-                                              (req.options & kXR_coloc) != 0)
-                != NGX_OK)
-            {
-                ngx_log_error(NGX_LOG_ERR, c->log, ngx_errno,
-                              "brix: prepare_command launch failed");
-                /* Best-effort: continue and return ok to the client. */
-            }
-        } else if (collect_stage && stage_count == 0) {
-            ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                          "brix: kXR_stage set but no resolvable paths"
-                          " for prepare_command");
-        }
-
-        /* kXR_notify: send kXR_attn + kXR_asyncms notification when all
-         * requested files are already on disk (missing == 0).  The notification
-         * is combined with the kXR_ok response in a single buffer to avoid
-         * a double-queue race on EAGAIN write paths.
-         *
-         * When missing > 0 some files are still being staged by the background
-         * command; we cannot know when they arrive, so the notification is
-         * omitted and a warning is logged.  Future work could add a completion
-         * pipe from the staging command to deliver the notification later. */
-        if (req.options & kXR_notify) {
-            if (missing == 0) {
-                char     notify_msg[96];
-                size_t   notify_len;
-                size_t   ok_len      = XRD_RESPONSE_HDR_LEN + resp_reqid_len;
-                size_t   attn_len;
-                size_t   total;
-                u_char  *buf;
-
-                notify_len = (size_t) snprintf(notify_msg, sizeof(notify_msg),
-                                 "prepare reqid=%s complete", resp_reqid);
-                if (notify_len >= sizeof(notify_msg)) {
-                    notify_len = sizeof(notify_msg) - 1;
-                }
-                attn_len = brix_attn_asyncms_frame_len(notify_len);
-                total    = ok_len + attn_len;
-
-                BRIX_PALLOC_OR_RETURN(buf, c->pool, total, NGX_ERROR);
-
-                brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok,
-                                      (uint32_t) resp_reqid_len,
-                                      (ServerResponseHdr *) buf);
-                ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, resp_reqid,
-                           resp_reqid_len);
-                brix_build_attn_asyncms_frame(buf + ok_len,
-                                                notify_msg, notify_len);
-
-                ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                    "brix: sending kXR_prepare ok + kXR_attn asyncms notify");
-
-                return brix_queue_response(ctx, c, buf, total);
-
-            } else {
-                ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                    "brix: kXR_notify requested but %ui path(s) still being "
-                    "staged; async completion notification not supported",
-                    missing);
-            }
-        }
-
-        return brix_send_ok(ctx, c, (u_char *) resp_reqid,
-                              (uint32_t) resp_reqid_len);
+        return prepare_emit_stage(ctx, c, &sc);
     }
 
     return brix_send_ok(ctx, c, NULL, 0);
 }
 /* WHY: kXR_prepare accepts a newline-separated list of paths from clients, validates each against auth/ACLs/filesystem existence, optionally invokes a staging command (e.g., xrdcp to tape), and returns a request ID for later status queries via kXR_QPrep. Supports cancel/evict options as noops, write mode enforcement, and best-effort staging invocation (continues on launch failure). */
 /* HOW: Parses ClientPrepareRequest from ctx->recv.hdr_buf — extracts optionX via ntohs(req->optionX). Checks kXR_stage + prepare_command.len > 0 → collect_stage=1. If kXR_wmode && !allow_write fail kXR_fsReadOnly("read-only server"). If kXR_cancel or kXR_evict in optx: log access, send ok with NULL payload (noop). If ctx->recv.cur_dlen==0 || payload==NULL fail kXR_ArgMissing("file list missing"). Pre-allocates stage_paths/stage_bufs arrays via ngx_palloc if collect_stage — caps at BRIX_PREPARE_CMD_MAX_PATHS. Parses payload line-by-line: extracts line_len trimming trailing \r/\NUL, skips empty lines, increments paths count. For each path points out_resolved at staging buffer slot (if collecting), calls brix_prepare_check_path() with noerrs flag from kXR_noerrs — if NGX_DONE returns NGX_OK; if other error returns rc. Accepts non-empty resolved paths into stage_paths array. If paths==0 fail kXR_ArgMissing("empty list"). Logs detail string "paths=%u missing=%u opts=0x%02x optx=0x%04x". If kXR_stage: allocates saved buffer via ngx_alloc, copies payload, frees old ctx->prepare.paths if any, sets reqid="0", stores paths in ctx->prepare.paths/len; invokes staging command via brix_prepare_invoke_command() (best-effort: logs error on failure but continues); returns ok with "0" as response. Otherwise returns ok with NULL. */
-
-/*
- * kXR_QPrep handler.
- *
- * Payload format (newline-separated):
- *   line 0: request ID (from kXR_prepare response)
- *   line 1+: optional paths to check (may be omitted; use stored path list)
- *
- * This server is disk-only — files are immediately staged or absent.
- * Response: one "A <path>" or "M <path>" line per file, NUL-terminated.
- */
-ngx_int_t
-brix_query_prep_status(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *conf)
-{
-    const u_char *src;
-    size_t        src_len;
-    const u_char *p;
-    const u_char *end;
-    u_char       *resp;
-    u_char       *rp;
-    size_t        resp_cap;
-    char          reqid[BRIX_STAGE_REQID_LEN];
-    size_t        reqid_len = 0;
-
-    if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0) {
-        return brix_send_ok(ctx, c, NULL, 0);
-    }
-
-    p   = ctx->recv.payload;
-    end = ctx->recv.payload + ctx->recv.cur_dlen;
-
-    /* The first payload line is the prepare request-id.  Capture it (trimmed of
-     * trailing CR/NUL) so an id we have no record of can be rejected the way the
-     * reference do_Prepare(isQuery) does. */
-    {
-        const u_char *rid = p;
-        while (p < end && *p != '\n') {
-            p++;
-        }
-        reqid_len = (size_t) (p - rid);
-        while (reqid_len > 0
-               && (rid[reqid_len - 1] == '\r' || rid[reqid_len - 1] == '\0')) {
-            reqid_len--;
-        }
-        if (reqid_len > 0 && reqid_len < sizeof(reqid)) {
-            ngx_memcpy(reqid, rid, reqid_len);
-            reqid[reqid_len] = '\0';
-        } else {
-            reqid[0] = '\0';
-        }
-    }
-    if (p < end) {
-        p++;  /* consume '\n' */
-    }
-
-    /* Determine which path list to use: inline paths (after reqid) or stored. */
-    if (p < end) {
-        src     = p;
-        src_len = (size_t) (end - p);
-    } else if (ctx->prepare.paths != NULL
-               && ctx->prepare.paths_len > 0) {
-        src     = ctx->prepare.paths;
-        src_len = ctx->prepare.paths_len;
-    } else {
-        /* No inline paths and nothing stored for this session.  If the client
-         * named a request-id we have no record of — FRM disabled, or the durable
-         * queue has no such record — reject it exactly like the reference
-         * do_Prepare(isQuery): "Prepare requestid owned by an unknown server".
-         * Resilience polling is unaffected: it carries inline paths (handled
-         * above), and an id we issued resolves via stored paths or an FRM
-         * record. */
-        if (reqid[0] != '\0') {
-            brix_stage_request_t rec;
-            int known = (conf->frm.enable
-                         && brix_stage_registry_singleton() != NULL
-                         && brix_stage_request_get(
-                                brix_stage_registry_singleton(), reqid, &rec,
-                                c->log) == NGX_OK);
-            if (!known) {
-                return brix_prepare_send_fail(ctx, c, reqid, kXR_ArgInvalid,
-                    "Prepare requestid owned by an unknown server");
-            }
-        }
-        return brix_send_ok(ctx, c, NULL, 0);
-    }
-
-    /* Allocate response buffer: worst case "A " + path + "\n" per line. */
-    resp_cap = src_len * 2 + 64;
-    BRIX_PALLOC_OR_RETURN(resp, c->pool, resp_cap, brix_send_error(ctx, c, kXR_NoMemory, "out of memory"));
-    rp = resp;
-
-    p   = src;
-    end = src + src_len;
-
-    while (p < end) {
-        const u_char *line;
-        size_t        line_len;
-        char          pathbuf[BRIX_MAX_PATH + 1];
-        char          full_path[PATH_MAX];
-        struct stat   st;
-
-        line = p;
-        while (p < end && *p != '\n') {
-            p++;
-        }
-        line_len = (size_t) (p - line);
-        if (p < end) {
-            p++;
-        }
-        while (line_len > 0
-               && (line[line_len - 1] == '\r' || line[line_len - 1] == '\0'))
-        {
-            line_len--;
-        }
-        if (line_len == 0) {
-            continue;
-        }
-
-        if (!brix_extract_path(c->log, line, line_len, pathbuf,
-                                 sizeof(pathbuf), 1)) {
-            continue;  /* skip malformed paths */
-        }
-
-        /* Check availability; both non-existent and unauthorized paths are
-         * treated as missing, consistent with xrootd reference behavior.
-         * Phase 35: when FRM is enabled, a file that is not yet resident but
-         * has a live queue record reports its queue state (q/s/f) instead of M,
-         * so a client polls a real recall to completion across reconnects. */
-        brix_beneath_full_path(conf->common.root_canon, pathbuf,
-                                 full_path, sizeof(full_path));
-        {
-            char status_ch = 'M';
-
-            if (brix_authz_check(ctx, c, conf, pathbuf, full_path, "PREPARE",
-                                   BRIX_AUTH_READ, BRIX_AOP_STAGE) == NGX_OK
-                && brix_check_vo_acl_identity(c->log, full_path,
-                                                conf->vo_rules,
-                                                ctx->identity) == NGX_OK
-                && brix_check_token_scope(ctx, pathbuf, 0) == NGX_OK)
-            {
-                if (brix_stat_beneath(conf->rootfd, pathbuf, &st) == 0
-                    && S_ISREG(st.st_mode))
-                {
-                    status_ch = 'A';                /* resident on disk */
-                } else if (conf->frm.enable
-                           && brix_stage_registry_singleton() != NULL) {
-                    brix_stage_registry_t *reg =
-                        brix_stage_registry_singleton();
-                    brix_stage_request_t   qrec;
-                    char                     frq[BRIX_STAGE_REQID_LEN];
-                    if (brix_stage_request_find_by_path(reg, full_path, frq,
-                                                          sizeof(frq), c->log)
-                            == NGX_OK
-                        && brix_stage_request_get(reg, frq, &qrec, c->log)
-                            == NGX_OK)
-                    {
-                        status_ch = brix_prepare_status_char(qrec.status);
-                    }
-                }
-            }
-            *rp++ = (u_char) status_ch;
-        }
-        *rp++ = ' ';
-
-        /* Copy logical path into response. */
-        if ((size_t) (rp - resp) + line_len + 1 >= resp_cap) {
-            break;  /* safety: truncate on overflow */
-        }
-        ngx_memcpy(rp, pathbuf, strlen(pathbuf));
-        rp += strlen(pathbuf);
-        *rp++ = '\n';
-    }
-
-    if (rp == resp) {
-        return brix_send_ok(ctx, c, NULL, 0);
-    }
-
-    *rp = '\0';
-    brix_log_access(ctx, c, "QPREP", "-", "-", 1, kXR_ok, NULL, 0);
-    return brix_send_ok(ctx, c, resp, (uint32_t) (rp - resp + 1));
-}
-/* WHY: kXR_QPrep queries the staging status of paths from a prior kXR_prepare request — clients use it to verify whether files are available on disk ("A") or missing ("M"). Supports inline path lists in the query payload or falls back to stored prepare_paths from the original request. Disk-only servers return immediate results since files are either present or absent. */
-/* HOW: Parses ctx->recv.payload — if empty returns ok NULL. Skips first line as reqid (ignored). If remaining lines exist uses them as inline paths; otherwise falls back to ctx->prepare.paths/stored list from prior kXR_prepare. Allocates response buffer resp_cap=src_len*2+64 via ngx_palloc — on OOM fail kXR_NoMemory. Parses each path line trimming trailing \r/\NUL, skips empty lines. For each path: extracts via brix_extract_path() (skip if malformed), resolves via brix_resolve_path(), checks authdb(BRIX_AUTH_READ) + vo_acl + token_scope + stat(S_ISREG) — if all pass writes 'A ' to response; otherwise writes 'M '. Copies logical pathbuf into response, truncates on buffer overflow. If no output (rp==resp) returns ok NULL; otherwise NUL-terminates resp, logs access event, sends brix_send_ok(resp). */
-
-/* public API: brix_query_prep_status() — kXR_QPrep staging status query handler * WHAT: Queries staging availability of paths from prior prepare request. Returns "A <path>" for files present on disk, "M <path>" for missing/unauthorized.
- *       Uses inline path list in payload or falls back to stored ctx->prepare.paths. Allocates resp buffer src_len*2+64 via ngx_palloc, resolves each path
- *       + authdb(vo_acl token_scope) + stat(S_ISREG) → writes 'A'/'M' prefix per path, NUL-terminates and sends response.
- */

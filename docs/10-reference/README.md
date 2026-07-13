@@ -25,6 +25,7 @@ These documents are detailed and intended for experienced developers who need pr
 | [Handler Reference](handler-reference.md) | Function signatures and call patterns |
 | [Core Types](types.md) | Struct definitions used throughout the codebase |
 | [Architecture Overview](../09-developer-guide/architecture-overview.md) | Request lifecycle, mental models for nginx/XRootD devs |
+| [Per-User Backend Credentials](per-user-backend-credentials.md) | Directives, naming scheme, namespace-op scoping, bearer tokens, root:// stream support, self-service delegation upload, opt-in minting, metrics, flush dead-lettering, and remaining limitations for per-user auth to remote origins |
 
 ---
 

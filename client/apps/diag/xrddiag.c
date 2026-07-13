@@ -7,6 +7,7 @@
 #include "core/version.h"
 #include "cli/suggest.h"    /* brix_suggest(): did-you-mean at unknown-subcommand sites */
 #include "cli/cli_hint.h"   /* brix_cli_hint(): TTY-gated hint output */
+#include <stddef.h>         /* offsetof(): option-descriptor field slots */
 
 int g_fails;
 
@@ -107,21 +108,20 @@ note(const char *name, const char *fmt, ...)
 
 /* Append a classified finding; escalate the endpoint's status to its severity. */
 void
-dx_record(doctor_ep *e, const char *probe, int verdict, int kxr,
-          const char *cause, const char *remedy)
+dx_record(doctor_ep *e, const dx_note *n)
 {
     dx_finding *f;
     if (e->ndx >= DOC_MAXDX) {
         return;
     }
     f = &e->dx[e->ndx++];
-    snprintf(f->probe, sizeof(f->probe), "%s", probe);
-    f->verdict = verdict;
-    f->kxr     = kxr;
-    snprintf(f->cause, sizeof(f->cause), "%s", cause ? cause : "");
-    snprintf(f->remedy, sizeof(f->remedy), "%s", remedy ? remedy : "");
-    if (verdict > e->status) {
-        e->status = verdict;
+    snprintf(f->probe, sizeof(f->probe), "%s", n->probe);
+    f->verdict = n->verdict;
+    f->kxr     = n->kxr;
+    snprintf(f->cause, sizeof(f->cause), "%s", n->cause ? n->cause : "");
+    snprintf(f->remedy, sizeof(f->remedy), "%s", n->remedy ? n->remedy : "");
+    if (n->verdict > e->status) {
+        e->status = n->verdict;
     }
 }
 
@@ -144,7 +144,7 @@ dx_record_status(doctor_ep *e, const char *probe, const brix_status *st)
         if (r->kxr != DX_ANY && r->kxr != kxr) {
             continue;
         }
-        dx_record(e, probe, r->sev, kxr, r->cause, r->remedy);
+        dx_record(e, &(dx_note){ probe, r->sev, kxr, r->cause, r->remedy });
         return;
     }
     {
@@ -158,8 +158,8 @@ dx_record_status(doctor_ep *e, const char *probe, const brix_status *st)
             snprintf(cause, sizeof(cause), "%s probe failed (local/transport error)",
                      probe);
         }
-        dx_record(e, probe, DX_FAIL, kxr, cause,
-                  "inspect the server logs for this operation");
+        dx_record(e, &(dx_note){ probe, DX_FAIL, kxr, cause,
+                  "inspect the server logs for this operation" });
     }
 }
 
@@ -228,14 +228,13 @@ dx_make_jwt(const char *header, const char *payload, const char *sig,
 
 
 /*
- * Open a scoped diagnostic connection: a copy of the base opts with force_anon
- * and/or a specific bearer token (token_override, NULL = use the env as-is) and
- * an optional forced auth protocol. Saves/restores $BEARER_TOKEN around the call
+ * Open a scoped diagnostic connection: a copy of the base opts with the
+ * credential selection in *sel (force_anon, a specific bearer token, an
+ * optional forced auth protocol). Saves/restores $BEARER_TOKEN around the call
  * so the credential matrix never leaks between probes. 0 on connect, -1 + *st.
  */
 int
-dx_connect_as(const diag_args *a, const brix_url *u, int force_anon,
-              const char *token_override, const char *auth_force,
+dx_connect_as(const diag_args *a, const brix_url *u, const dx_cred_sel *sel,
               brix_conn *c, brix_status *st)
 {
     brix_opts opts = a->conn;
@@ -243,18 +242,18 @@ dx_connect_as(const diag_args *a, const brix_url *u, int force_anon,
     int       had = 0;
     int       rc;
 
-    opts.force_anon = force_anon;
-    if (auth_force != NULL) {
-        opts.auth_force = auth_force;
+    opts.force_anon = sel->force_anon;
+    if (sel->auth_force != NULL) {
+        opts.auth_force = sel->auth_force;
     }
-    if (token_override != NULL) {
+    if (sel->token_override != NULL) {
         const char *cur = getenv("BEARER_TOKEN");
         if (cur != NULL) { saved = strdup(cur); had = (saved != NULL); }
-        setenv("BEARER_TOKEN", token_override, 1);  /* checked first in discovery */
+        setenv("BEARER_TOKEN", sel->token_override, 1);  /* checked first in discovery */
     }
     brix_status_clear(st);
     rc = brix_connect(c, u, &opts, st);
-    if (token_override != NULL) {
+    if (sel->token_override != NULL) {
         if (had) { setenv("BEARER_TOKEN", saved, 1); free(saved); }
         else     { unsetenv("BEARER_TOKEN"); }
     }
@@ -281,60 +280,149 @@ dx_proto_name(dx_proto p)
 
 
 /*
- * Parse a scheme://host[:port][/path] URL for the deep-dive router. Recognizes
- * root[s]/xroot[s], http/https, dav/davs, s3/s3s, cms. Fills proto, *tls, host,
- * *port (a per-scheme default if absent), and path. Returns 0, or -1 if the scheme
- * is unknown. IPv6 literals in [..] are accepted.
+ * WHAT: the scheme table for the deep-dive URL parser — one row per recognised
+ *       scheme prefix with its protocol, TLS flag, and default port.
+ * WHY:  replaces a per-scheme strncmp ladder; adding a scheme is one row.
+ * HOW:  dx_scheme_match scans top-to-bottom, first prefix match wins — longer
+ *       prefixes ("roots://") MUST precede their proper prefixes ("root://").
  */
-int
-dx_url_parse(const char *url, dx_proto *proto, int *tls, char *host, size_t hsz,
-             int *port, char *path, size_t psz)
+typedef struct {
+    const char *prefix;    /* scheme prefix including "://"                */
+    size_t      len;       /* strlen(prefix), for strncmp + cursor advance */
+    dx_proto    proto;     /* protocol battery to route to                 */
+    int         tls;       /* scheme implies TLS                           */
+    int         defport;   /* default port when the URL names none         */
+} dx_scheme_t;
+
+static const dx_scheme_t DX_SCHEMES[] = {
+    { "roots://",  8, DXP_ROOT,  1, 1094 },
+    { "xroots://", 9, DXP_ROOT,  1, 1094 },
+    { "root://",   7, DXP_ROOT,  0, 1094 },
+    { "xroot://",  8, DXP_ROOT,  0, 1094 },
+    { "https://",  8, DXP_HTTPS, 1, 8443 },
+    { "http://",   7, DXP_HTTP,  0, 8080 },
+    { "davs://",   7, DXP_DAVS,  1, 8443 },
+    { "dav://",    6, DXP_DAVS,  0, 8080 },
+    { "s3s://",    6, DXP_S3,    1,  443 },
+    { "s3://",     5, DXP_S3,    0, 9000 },
+    { "cms://",    6, DXP_CMS,   0, 1213 },
+};
+
+
+/*
+ * WHAT: match + consume the URL's scheme prefix against DX_SCHEMES.
+ * WHY:  isolates scheme recognition so dx_url_parse stays a small pipeline.
+ * HOW:  on the first prefix match, fill proto/tls/port (the scheme default)
+ *       and advance *p past the prefix. 0 on match, -1 for an unknown scheme.
+ */
+static int
+dx_scheme_match(const char **p, dx_proto *proto, int *tls, int *port)
 {
-    const char *p = url, *hoststart, *slash;
-    int         defport;
+    size_t k;
 
-    *tls = 0;
-    if      (strncmp(p, "roots://", 8) == 0)  { *proto = DXP_ROOT; *tls = 1; defport = 1094; p += 8; }
-    else if (strncmp(p, "xroots://", 9) == 0) { *proto = DXP_ROOT; *tls = 1; defport = 1094; p += 9; }
-    else if (strncmp(p, "root://", 7) == 0)   { *proto = DXP_ROOT; defport = 1094; p += 7; }
-    else if (strncmp(p, "xroot://", 8) == 0)  { *proto = DXP_ROOT; defport = 1094; p += 8; }
-    else if (strncmp(p, "https://", 8) == 0)  { *proto = DXP_HTTPS; *tls = 1; defport = 8443; p += 8; }
-    else if (strncmp(p, "http://", 7) == 0)   { *proto = DXP_HTTP; defport = 8080; p += 7; }
-    else if (strncmp(p, "davs://", 7) == 0)   { *proto = DXP_DAVS; *tls = 1; defport = 8443; p += 7; }
-    else if (strncmp(p, "dav://", 6) == 0)    { *proto = DXP_DAVS; defport = 8080; p += 6; }
-    else if (strncmp(p, "s3s://", 6) == 0)    { *proto = DXP_S3; *tls = 1; defport = 443; p += 6; }
-    else if (strncmp(p, "s3://", 5) == 0)     { *proto = DXP_S3; defport = 9000; p += 5; }
-    else if (strncmp(p, "cms://", 6) == 0)    { *proto = DXP_CMS; defport = 1213; p += 6; }
-    else { return -1; }
-
-    *port = defport;
-    hoststart = p;
-    if (*p == '[') {                            /* [IPv6] */
-        const char *rb = strchr(p, ']');
-        if (rb == NULL) { return -1; }
-        {
-            size_t n = (size_t) (rb - (p + 1));
-            if (n == 0 || n >= hsz) { return -1; }
-            memcpy(host, p + 1, n); host[n] = '\0';
-        }
-        p = rb + 1;
-        if (*p == ':') { *port = atoi(p + 1); }
-    } else {
-        const char *colon = NULL, *e;
-        for (e = hoststart; *e != '\0' && *e != '/'; e++) {
-            if (*e == ':') { colon = e; }
-        }
-        {
-            const char *hend = colon ? colon : e;
-            size_t      n = (size_t) (hend - hoststart);
-            if (n == 0 || n >= hsz) { return -1; }
-            memcpy(host, hoststart, n); host[n] = '\0';
-            if (colon != NULL) { *port = atoi(colon + 1); }
+    for (k = 0; k < sizeof(DX_SCHEMES) / sizeof(DX_SCHEMES[0]); k++) {
+        const dx_scheme_t *s = &DX_SCHEMES[k];
+        if (strncmp(*p, s->prefix, s->len) == 0) {
+            *proto = s->proto;
+            *tls   = s->tls;
+            *port  = s->defport;
+            *p    += s->len;
+            return 0;
         }
     }
-    if (*port <= 0 || *port > 65535) { return -1; }
+    return -1;
+}
+
+
+/*
+ * WHAT: parse a bracketed [IPv6] host literal (with optional :port) at *p.
+ * WHY:  IPv6 literals embed ':' so they need their own delimiter logic.
+ * HOW:  copy the bytes between the brackets into host (must be non-empty and
+ *       fit hsz), advance *p past ']', and read a port if ':' follows.
+ *       0 on success, -1 on a malformed or over-long literal.
+ */
+static int
+dx_host6_parse(const char **p, char *host, size_t hsz, int *port)
+{
+    const char *rb = strchr(*p, ']');
+    size_t      n;
+
+    if (rb == NULL) {
+        return -1;
+    }
+    n = (size_t) (rb - (*p + 1));
+    if (n == 0 || n >= hsz) {
+        return -1;
+    }
+    memcpy(host, *p + 1, n);
+    host[n] = '\0';
+    *p = rb + 1;
+    if (**p == ':') {
+        *port = atoi(*p + 1);
+    }
+    return 0;
+}
+
+
+/*
+ * WHAT: parse a plain host name (with optional :port) at *p, up to '/' or NUL.
+ * WHY:  companion to dx_host6_parse — the non-bracketed authority form.
+ * HOW:  scan to the end of the authority remembering the last ':' (port
+ *       separator), copy the host bytes (non-empty, must fit hsz), read the
+ *       port if present, and leave *p at the authority end. 0 / -1.
+ */
+static int
+dx_hostname_parse(const char **p, char *host, size_t hsz, int *port)
+{
+    const char *colon = NULL, *e, *hend;
+    size_t      n;
+
+    for (e = *p; *e != '\0' && *e != '/'; e++) {
+        if (*e == ':') {
+            colon = e;
+        }
+    }
+    hend = colon ? colon : e;
+    n = (size_t) (hend - *p);
+    if (n == 0 || n >= hsz) {
+        return -1;
+    }
+    memcpy(host, *p, n);
+    host[n] = '\0';
+    if (colon != NULL) {
+        *port = atoi(colon + 1);
+    }
+    *p = e;
+    return 0;
+}
+
+
+/*
+ * Parse a scheme://host[:port][/path] URL for the deep-dive router. Recognizes
+ * root[s]/xroot[s], http/https, dav/davs, s3/s3s, cms. Fills *u (proto, tls,
+ * host, port — a per-scheme default if absent — and path). Returns 0, or -1 if
+ * the scheme is unknown. IPv6 literals in [..] are accepted.
+ */
+int
+dx_url_parse(const char *url, dx_url_t *u)
+{
+    const char *p = url, *slash;
+    int         rc;
+
+    u->tls = 0;
+    if (dx_scheme_match(&p, &u->proto, &u->tls, &u->port) != 0) {
+        return -1;
+    }
+    rc = (*p == '[') ? dx_host6_parse(&p, u->host, sizeof(u->host), &u->port)
+                     : dx_hostname_parse(&p, u->host, sizeof(u->host), &u->port);
+    if (rc != 0) {
+        return -1;
+    }
+    if (u->port <= 0 || u->port > 65535) {
+        return -1;
+    }
     slash = strchr(p, '/');
-    snprintf(path, psz, "%s", slash ? slash : "/");
+    snprintf(u->path, sizeof(u->path), "%s", slash ? slash : "/");
     return 0;
 }
 
@@ -344,25 +432,25 @@ void
 dx_http_status(doctor_ep *e, const char *probe, int status)
 {
     if (status >= 200 && status < 300) {
-        dx_record(e, probe, DX_OK, status, "request succeeded", "");
+        dx_record(e, &(dx_note){ probe, DX_OK, status, "request succeeded", "" });
     } else if (status == 401 || status == 403) {
-        dx_record(e, probe, DX_WARN, status,
+        dx_record(e, &(dx_note){ probe, DX_WARN, status,
                   "access requires authentication/authorization (401/403)",
-                  "provide a credential (Bearer token / cert) if this object should be reachable");
+                  "provide a credential (Bearer token / cert) if this object should be reachable" });
     } else if (status == 404 || status == 410) {
-        dx_record(e, probe, DX_WARN, status, "object not found (404/410)",
-                  "verify the path/bucket/key exists on the server");
+        dx_record(e, &(dx_note){ probe, DX_WARN, status, "object not found (404/410)",
+                  "verify the path/bucket/key exists on the server" });
     } else if (status >= 300 && status < 400) {
-        dx_record(e, probe, DX_WARN, status, "server returned a redirect (3xx)",
-                  "follow the Location target; check it is intended");
+        dx_record(e, &(dx_note){ probe, DX_WARN, status, "server returned a redirect (3xx)",
+                  "follow the Location target; check it is intended" });
     } else if (status >= 500) {
-        dx_record(e, probe, DX_FAIL, status, "server error (5xx) on the request",
-                  "check the server logs for this operation");
+        dx_record(e, &(dx_note){ probe, DX_FAIL, status, "server error (5xx) on the request",
+                  "check the server logs for this operation" });
     } else if (status == 0) {
-        dx_record(e, probe, DX_FAIL, 0, "no HTTP status parsed (malformed/partial response)",
-                  "the endpoint may not be an HTTP server on this port");
+        dx_record(e, &(dx_note){ probe, DX_FAIL, 0, "no HTTP status parsed (malformed/partial response)",
+                  "the endpoint may not be an HTTP server on this port" });
     } else {
-        dx_record(e, probe, DX_WARN, status, "unexpected HTTP status", "");
+        dx_record(e, &(dx_note){ probe, DX_WARN, status, "unexpected HTTP status", "" });
     }
 }
 
@@ -385,7 +473,7 @@ dx_http_fail(doctor_ep *e, int tls, const brix_status *st)
         remedy = "check routing/firewall and that the host is up";
     }
     doc_issue(e, DOC_RED, "%s", cause);
-    dx_record(e, tls ? "tls" : "reachability", DX_FAIL, st->kxr, cause, remedy);
+    dx_record(e, &(dx_note){ tls ? "tls" : "reachability", DX_FAIL, st->kxr, cause, remedy });
 }
 
 
@@ -394,11 +482,9 @@ dx_http_fail(doctor_ep *e, int tls, const brix_status *st)
  * lib signer (lib/s3.c) so xrddiag and xrdcp sign identically. UNSIGNED-PAYLOAD is
  * used as the body hash — accepted by nginx-xrootd's S3 and by real AWS. 0/-1. */
 int
-s3_sign(const char *method, const char *host, const char *uri,
-        const char *ak, const char *sk, const char *region,
-        char *hdrs, size_t hdrsz)
+s3_sign(const s3_sign_req *q, char *hdrs, size_t hdrsz)
 {
-    return brix_s3_sign_v4(method, host, uri, ak, sk, region,
+    return brix_s3_sign_v4(q->method, q->host, q->uri, q->ak, q->sk, q->region,
                            "UNSIGNED-PAYLOAD", hdrs, hdrsz);
 }
 
@@ -554,30 +640,279 @@ usage(void)
 }
 
 
+/*
+ * WHAT: the xrddiag option table — every non-connection flag/option as a
+ *       {name, kind, diag_args-field-offset} descriptor.
+ * WHY:  replaces main()'s 19-arm strcmp ladder; adding an option is one row.
+ * HOW:  dx_opt_parse strcmp-matches a row, dx_opt_apply writes the field:
+ *       FLAG sets the int to 1, CLEAR to 0, INT/STR consume the next argv
+ *       word (a missing value fails the match, so the caller reports the
+ *       same "unknown option" error the old fall-through ladder produced).
+ */
+typedef enum {
+    DXO_FLAG,     /* presence flag: int field = 1        */
+    DXO_CLEAR,    /* negative flag: int field = 0        */
+    DXO_INT,      /* atoi(next argv) into an int field   */
+    DXO_STR,      /* next argv into a const char * field */
+} dx_opt_kind;
+
+typedef struct {
+    const char  *name;    /* exact option spelling                */
+    dx_opt_kind  kind;    /* how the value is taken and stored    */
+    size_t       off;     /* offsetof(diag_args, <target field>)  */
+} dx_opt_t;
+
+static const dx_opt_t DX_OPTS[] = {
+    { "-S",                DXO_INT,   offsetof(diag_args, streams) },
+    { "--streams",         DXO_INT,   offsetof(diag_args, streams) },
+    { "--vs-reference",    DXO_STR,   offsetof(diag_args, ref_url) },
+    { "--metrics-port",    DXO_INT,   offsetof(diag_args, metrics_port) },
+    { "--cluster-url",     DXO_STR,   offsetof(diag_args, cluster_url) },
+    { "--i-am-authorized", DXO_FLAG,  offsetof(diag_args, authorized) },
+    { "--i-am-authorised", DXO_FLAG,  offsetof(diag_args, authorized) },
+    { "--probe-timeout",   DXO_INT,   offsetof(diag_args, probe_timeout_ms) },
+    { "--playback",        DXO_STR,   offsetof(diag_args, playback_url) },
+    { "--davs",            DXO_STR,   offsetof(diag_args, davs) },
+    { "--sweep",           DXO_FLAG,  offsetof(diag_args, sweep) },
+    { "--json",            DXO_FLAG,  offsetof(diag_args, json) },
+    { "--allow-write",     DXO_FLAG,  offsetof(diag_args, allow_write) },
+    { "--auth-suite",      DXO_FLAG,  offsetof(diag_args, auth_suite) },
+    { "--no-verify-tls",   DXO_CLEAR, offsetof(diag_args, verify_tls) },
+    { "--dashboard-port",  DXO_INT,   offsetof(diag_args, dashboard_port) },
+    { "--interval",        DXO_INT,   offsetof(diag_args, interval_s) },
+    { "--count",           DXO_INT,   offsetof(diag_args, count) },
+    { "--prometheus",      DXO_FLAG,  offsetof(diag_args, watch_prom) },
+};
+
+
+/*
+ * WHAT: apply one matched option descriptor to the args struct.
+ * WHY:  keeps the field write (and value consumption) in one place so the
+ *       descriptor table stays declarative.
+ * HOW:  flags write 1/0 in place; INT/STR advance *i and consume argv[*i].
+ *       Returns 0, or -1 when a value-taking option has no next word (the
+ *       caller then reports it exactly like an unknown option — the same
+ *       behavior the original fall-through ladder had).
+ */
+static int
+dx_opt_apply(diag_args *a, const dx_opt_t *o, int argc, char **argv, int *i)
+{
+    char *base = (char *) a;
+
+    if (o->kind == DXO_FLAG) {
+        *(int *) (base + o->off) = 1;
+        return 0;
+    }
+    if (o->kind == DXO_CLEAR) {
+        *(int *) (base + o->off) = 0;
+        return 0;
+    }
+    if (*i + 1 >= argc) {
+        return -1;
+    }
+    ++*i;
+    if (o->kind == DXO_INT) {
+        *(int *) (base + o->off) = atoi(argv[*i]);
+    } else {
+        *(const char **) (base + o->off) = argv[*i];
+    }
+    return 0;
+}
+
+
+/*
+ * WHAT: parse one xrddiag-specific option at argv[*i].
+ * WHY:  main()'s per-option knowledge lives in DX_OPTS; this is just lookup.
+ * HOW:  exact match against the table, then the one prefix-form option
+ *       (--prometheus=PATH). Returns 0 on success (advancing *i past any
+ *       consumed value), -1 for an unknown option or a missing value.
+ */
+static int
+dx_opt_parse(diag_args *a, int argc, char **argv, int *i)
+{
+    const char *p = argv[*i];
+    size_t      k;
+
+    for (k = 0; k < sizeof(DX_OPTS) / sizeof(DX_OPTS[0]); k++) {
+        if (strcmp(p, DX_OPTS[k].name) == 0) {
+            return dx_opt_apply(a, &DX_OPTS[k], argc, argv, i);
+        }
+    }
+    if (strncmp(p, "--prometheus=", 13) == 0) {
+        a->watch_prom = 1;
+        a->prom_path  = p + 13;
+        return 0;
+    }
+    return -1;
+}
+
+
+/*
+ * WHAT: collected positional (non-option) arguments — the URL list.
+ * WHY:  bundles the array + count so the argv walker stays under the
+ *       parameter cap while main keeps ownership of the storage.
+ */
+typedef struct {
+    const char *v[8];    /* positional args in order (URL cap)  */
+    int         n;       /* how many of v[] are filled          */
+} dx_pos_t;
+
+
+/*
+ * WHAT: walk argv[2..] splitting options from positional URLs.
+ * WHY:  isolates the whole option/positional scan (including the shared
+ *       connection-option parser and its --help path) out of main.
+ * HOW:  option-shaped words go to brix_opts_parse_arg first, then the
+ *       DX_OPTS table; everything else lands in pos (capped). Returns 0 to
+ *       continue, or 1 with *rc set when main should exit immediately
+ *       (--help → 0, unknown option / too many URLs → 50).
+ */
+static int
+dx_parse_argv(diag_args *a, int argc, char **argv, dx_pos_t *pos, int *rc)
+{
+    int i;
+
+    for (i = 2; i < argc; i++) {
+        const char *p = argv[i];
+        if (p[0] == '-' && p[1] != '\0' && strcmp(p, "-") != 0) {
+            int pr = brix_opts_parse_arg(&a->conn, argc, argv, &i);
+            if (pr == 2) {         /* --help */
+                usage_fp(stdout);
+                *rc = 0;
+                return 1;
+            }
+            if (pr) {
+                continue;
+            }
+            if (dx_opt_parse(a, argc, argv, &i) != 0) {
+                fprintf(stderr, "xrddiag: unknown option '%s'\n", p);
+                usage();
+                *rc = 50;
+                return 1;
+            }
+        } else if (pos->n < (int) (sizeof(pos->v) / sizeof(pos->v[0]))) {
+            pos->v[pos->n++] = p;
+        } else {
+            fprintf(stderr, "xrddiag: too many arguments (max %zu URLs)\n",
+                    sizeof(pos->v) / sizeof(pos->v[0]));
+            *rc = 50;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
+/*
+ * WHAT: route the multi-call personalities before normal parsing.
+ * WHY:  the absorbed micro-tools keep their stock names via symlinks
+ *       (argv[0]) and double as xrddiag subcommands (argv[1]).
+ * HOW:  match argv[0]'s basename against the stock tool names, then argv[1]
+ *       against the subcommand aliases (shifting argv by one). Returns 1
+ *       with *rc set when a personality ran, 0 to continue as xrddiag.
+ */
+static int
+dx_personality_route(int argc, char **argv, int *rc)
+{
+    const char *base = strrchr(argv[0], '/');
+
+    base = base != NULL ? base + 1 : argv[0];
+    if (strcmp(base, "xrdqstats") == 0) { *rc = brix_qstats_main(argc, argv); return 1; }
+    if (strcmp(base, "wait41") == 0)    { *rc = brix_wait41_main(argc, argv); return 1; }
+    if (strcmp(base, "mpxstats") == 0)  { *rc = brix_mpxstats_main(argc, argv); return 1; }
+    if (argc >= 2) {
+        if (strcmp(argv[1], "qstats") == 0)   { *rc = brix_qstats_main(argc - 1, argv + 1); return 1; }
+        if (strcmp(argv[1], "wait41") == 0)   { *rc = brix_wait41_main(argc - 1, argv + 1); return 1; }
+        if (strcmp(argv[1], "mpxstats") == 0) { *rc = brix_mpxstats_main(argc - 1, argv + 1); return 1; }
+    }
+    return 0;
+}
+
+
+/*
+ * WHAT: the xrddiag subcommand dispatch table.
+ * WHY:  replaces main()'s strcmp ladder; adding a subcommand is one row
+ *       (plus its spelling in XRDDIAG_CMDS below for the did-you-mean hint).
+ * HOW:  dx_dispatch scans for an exact name match and calls the handler.
+ */
+typedef struct {
+    const char *name;                  /* subcommand spelling  */
+    int       (*fn)(const diag_args *); /* handler → exit code */
+} dx_cmd_t;
+
+static const dx_cmd_t DX_CMDS[] = {
+    { "remote-doctor",    do_remote_doctor },
+    { "watch",            do_watch },
+    { "check",            do_check },
+    { "bench",            do_bench },
+    { "metabench",        do_metabench },
+    { "topology",         do_topology },
+    { "status",           do_status },
+    { "compare",          do_compare },
+    { "probe-robustness", do_probe_robustness },
+    { "replay",           do_replay },
+    { "srr",              do_srr },
+    { "tape",             do_tape },
+};
+
+
+/*
+ * WHAT: report an unrecognised subcommand and exit-code 50.
+ * WHY:  spec WS-7: every unknown-command site must suggest a close match
+ *       for interactive users (TTY-gated, pipeline-silent per C3).
+ * HOW:  static NULL-terminated table of all xrddiag subcommands feeds
+ *       brix_suggest for the did-you-mean hint, then usage to stderr.
+ */
+static int
+dx_unknown_sub(const char *sub)
+{
+    static const char *const XRDDIAG_CMDS[] = {
+        "remote-doctor", "watch", "check", "bench", "metabench",
+        "topology", "status", "compare", "probe-robustness", "replay",
+        "srr", "tape", "qstats", "wait41", "mpxstats", NULL
+    };
+    const char *suggestion = brix_suggest(sub, XRDDIAG_CMDS);
+
+    fprintf(stderr, "xrddiag: unknown subcommand '%s'\n", sub);
+    if (suggestion != NULL) {
+        brix_cli_hint("hint: did you mean '%s'?\n", suggestion);
+    }
+    usage();
+    return 50;
+}
+
+
+/*
+ * WHAT: run the named subcommand against the parsed args.
+ * WHY:  table lookup keeps main a straight parse→dispatch pipeline.
+ * HOW:  first exact DX_CMDS match wins; a miss goes through the
+ *       did-you-mean reporter.
+ */
+static int
+dx_dispatch(const char *sub, const diag_args *a)
+{
+    size_t k;
+
+    for (k = 0; k < sizeof(DX_CMDS) / sizeof(DX_CMDS[0]); k++) {
+        if (strcmp(sub, DX_CMDS[k].name) == 0) {
+            return DX_CMDS[k].fn(a);
+        }
+    }
+    return dx_unknown_sub(sub);
+}
+
+
 int
 main(int argc, char **argv)
 {
     diag_args   a;
+    dx_pos_t    pos;
     const char *sub;
-    const char *pos[8] = { NULL };
-    int         npos = 0, i;
+    int         i, rc;
 
-    /* Multi-call personalities: the absorbed micro-tools keep their stock
-     * names via symlinks (argv[0]) and double as xrddiag subcommands. */
-    {
-        const char *base = strrchr(argv[0], '/');
-
-        base = base != NULL ? base + 1 : argv[0];
-        if (strcmp(base, "xrdqstats") == 0) { return brix_qstats_main(argc, argv); }
-        if (strcmp(base, "wait41") == 0)    { return brix_wait41_main(argc, argv); }
-        if (strcmp(base, "mpxstats") == 0)  { return brix_mpxstats_main(argc, argv); }
+    if (dx_personality_route(argc, argv, &rc)) {
+        return rc;
     }
-    if (argc >= 2) {
-        if (strcmp(argv[1], "qstats") == 0)   { return brix_qstats_main(argc - 1, argv + 1); }
-        if (strcmp(argv[1], "wait41") == 0)   { return brix_wait41_main(argc - 1, argv + 1); }
-        if (strcmp(argv[1], "mpxstats") == 0) { return brix_mpxstats_main(argc - 1, argv + 1); }
-    }
-
     if (argc < 2) {
         usage();
         return 50;
@@ -602,90 +937,23 @@ main(int argc, char **argv)
     a.verify_tls = 1;       /* verify HTTPS/davs/s3 peer certs unless --no-verify-tls */
     brix_crypto_init();   /* arm libxrdproto SHA-256/HMAC for GSI + sigver */
 
-    for (i = 2; i < argc; i++) {
-        const char *p = argv[i];
-        if (p[0] == '-' && p[1] != '\0' && strcmp(p, "-") != 0) {
-            {
-                int pr = brix_opts_parse_arg(&a.conn, argc, argv, &i);
-                if (pr == 2) { usage_fp(stdout); return 0; }  /* --help */
-                if (pr)      { continue; }
-            }
-            if ((strcmp(p, "-S") == 0 || strcmp(p, "--streams") == 0) && i + 1 < argc) { a.streams = atoi(argv[++i]); }
-            else if (strcmp(p, "--vs-reference") == 0 && i + 1 < argc) { a.ref_url = argv[++i]; }
-            else if (strcmp(p, "--metrics-port") == 0 && i + 1 < argc) { a.metrics_port = atoi(argv[++i]); }
-            else if (strcmp(p, "--cluster-url") == 0 && i + 1 < argc) { a.cluster_url = argv[++i]; }
-            else if (strcmp(p, "--i-am-authorized") == 0 || strcmp(p, "--i-am-authorised") == 0) { a.authorized = 1; }
-            else if (strcmp(p, "--probe-timeout") == 0 && i + 1 < argc) { a.probe_timeout_ms = atoi(argv[++i]); }
-            else if (strcmp(p, "--playback") == 0 && i + 1 < argc) { a.playback_url = argv[++i]; }
-            else if (strcmp(p, "--davs") == 0 && i + 1 < argc) { a.davs = argv[++i]; }
-            else if (strcmp(p, "--sweep") == 0) { a.sweep = 1; }
-            else if (strcmp(p, "--json") == 0) { a.json = 1; }
-            else if (strcmp(p, "--allow-write") == 0) { a.allow_write = 1; }
-            else if (strcmp(p, "--auth-suite") == 0) { a.auth_suite = 1; }
-            else if (strcmp(p, "--no-verify-tls") == 0) { a.verify_tls = 0; }
-            else if (strcmp(p, "--dashboard-port") == 0 && i + 1 < argc) { a.dashboard_port = atoi(argv[++i]); }
-            else if (strcmp(p, "--interval") == 0 && i + 1 < argc) { a.interval_s = atoi(argv[++i]); }
-            else if (strcmp(p, "--count") == 0 && i + 1 < argc) { a.count = atoi(argv[++i]); }
-            else if (strcmp(p, "--prometheus") == 0) { a.watch_prom = 1; }
-            else if (strncmp(p, "--prometheus=", 13) == 0) { a.watch_prom = 1; a.prom_path = p + 13; }
-            else {
-                fprintf(stderr, "xrddiag: unknown option '%s'\n", p);
-                usage();
-                return 50;
-            }
-        } else if (npos < (int) (sizeof(pos) / sizeof(pos[0]))) {
-            pos[npos++] = p;
-        } else {
-            fprintf(stderr, "xrddiag: too many arguments (max %zu URLs)\n",
-                    sizeof(pos) / sizeof(pos[0]));
-            return 50;
-        }
+    memset(&pos, 0, sizeof(pos));
+    if (dx_parse_argv(&a, argc, argv, &pos, &rc)) {
+        return rc;
     }
 
-    if (npos < 1) {
+    if (pos.n < 1) {
         usage();
         return 50;
     }
-    a.url = pos[0];
-    if (a.ref_url == NULL && npos == 2) {
-        a.ref_url = pos[1];   /* allow `compare urlA urlB` positional form */
+    a.url = pos.v[0];
+    if (a.ref_url == NULL && pos.n == 2) {
+        a.ref_url = pos.v[1];   /* allow `compare urlA urlB` positional form */
     }
-    for (i = 0; i < npos; i++) {       /* remote-doctor: the whole transfer path */
-        a.urls[i] = pos[i];
+    for (i = 0; i < pos.n; i++) {      /* remote-doctor: the whole transfer path */
+        a.urls[i] = pos.v[i];
     }
-    a.nurls = npos;
+    a.nurls = pos.n;
 
-    if (strcmp(sub, "remote-doctor") == 0) { return do_remote_doctor(&a); }
-    if (strcmp(sub, "watch") == 0)         { return do_watch(&a); }
-    if (strcmp(sub, "check") == 0)         { return do_check(&a); }
-    if (strcmp(sub, "bench") == 0)         { return do_bench(&a); }
-    if (strcmp(sub, "metabench") == 0)     { return do_metabench(&a); }
-    if (strcmp(sub, "topology") == 0)      { return do_topology(&a); }
-    if (strcmp(sub, "status") == 0)        { return do_status(&a); }
-    if (strcmp(sub, "compare") == 0)       { return do_compare(&a); }
-    if (strcmp(sub, "probe-robustness") == 0) { return do_probe_robustness(&a); }
-    if (strcmp(sub, "replay") == 0)        { return do_replay(&a); }
-    if (strcmp(sub, "srr") == 0)           { return do_srr(&a); }
-    if (strcmp(sub, "tape") == 0)          { return do_tape(&a); }
-
-    {
-        /*
-         * WHAT: emit a did-you-mean hint for unrecognised xrddiag subcommands.
-         * WHY:  spec WS-7: every unknown-command site must suggest a close match
-         *       for interactive users (TTY-gated, pipeline-silent per C3).
-         * HOW:  static NULL-terminated table of all xrddiag subcommands.
-         */
-        static const char *const XRDDIAG_CMDS[] = {
-            "remote-doctor", "watch", "check", "bench", "metabench",
-            "topology", "status", "compare", "probe-robustness", "replay",
-            "srr", "tape", "qstats", "wait41", "mpxstats", NULL
-        };
-        const char *suggestion = brix_suggest(sub, XRDDIAG_CMDS);
-        fprintf(stderr, "xrddiag: unknown subcommand '%s'\n", sub);
-        if (suggestion != NULL) {
-            brix_cli_hint("hint: did you mean '%s'?\n", suggestion);
-        }
-    }
-    usage();
-    return 50;
+    return dx_dispatch(sub, &a);
 }

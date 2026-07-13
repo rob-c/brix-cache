@@ -1,0 +1,48 @@
+# Weekly CodeChecker ratchet — Clang Static Analyzer + clang-tidy findings vs
+# tools/ci/codechecker_baseline.txt. NON-BLOCKING (continue-on-error) until the
+# baseline is proven stable across the CI clang version: the baseline is keyed by
+# CodeChecker's content-based report_hash, but a different clang/clang-tidy version
+# on the runner will surface a different checker set than the local dev clang (21.x),
+# so expect version-drift findings until the CI toolchain is pinned to match. Local
+# runs against the dev build remain the authoritative gate — see tools/ci/README.md.
+# Complements fanalyzer.yml (GCC -fanalyzer); the two engines catch different bugs.
+# Never --regen the baseline from CI output.
+name: codechecker
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 1'   # Mondays 04:00, an hour after fanalyzer
+jobs:
+  codechecker:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build deps + clang toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential \
+            clang clang-tidy \
+            libssl-dev zlib1g-dev libpcre3-dev libpcre2-dev \
+            libcurl4-openssl-dev libsqlite3-dev libkrb5-dev \
+            libjansson-dev libxml2-dev librados-dev
+      - name: Install CodeChecker
+        run: pip install --user codechecker
+      - name: Fetch and configure nginx with the module
+        run: |
+          curl -fsSL https://nginx.org/download/nginx-1.28.3.tar.gz | tar -xz -C /tmp
+          cd /tmp/nginx-1.28.3
+          ./configure --with-stream --with-stream_ssl_module \
+            --with-http_ssl_module --with-http_dav_module --with-threads \
+            --add-module="$GITHUB_WORKSPACE"
+      - name: Run CodeChecker ratchet
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          NGX_BUILD=/tmp/nginx-1.28.3 \
+            tools/ci/run_codechecker.sh 2>&1 | tee /tmp/codechecker-report.txt
+      - name: Upload findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codechecker-report
+          path: /tmp/codechecker-report.txt

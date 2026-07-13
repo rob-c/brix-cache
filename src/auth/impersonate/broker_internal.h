@@ -47,6 +47,26 @@ int imp_become(const brix_idmap_creds_t *cr);
 void imp_restore(void);
 const char * imp_rel(const char *path);
 
+/*
+ * imp_op_ctx_t — one privileged fs-op invocation, bundled.  WHAT: the full
+ * argument set of a broker fs op plus the once-computed root-relative path,
+ * so imp_do_op() and every per-op helper take a single explicit parameter.
+ * WHY: explicit data flow with no globals while keeping each imp_op_<name>()
+ * under the complexity gate.  HOW: the caller (imp_serve_one) fills every
+ * field except `rel`, which imp_do_op() derives from req->path.
+ */
+typedef struct {
+    int              rootfd;       /* export-root O_PATH fd (confinement anchor) */
+    const imp_req_t *req;          /* decoded request frame */
+    imp_rep_t       *rep;          /* reply frame being built */
+    int             *out_fd;       /* OPEN: fd handed back via SCM_RIGHTS */
+    char            *data_out;     /* trailing reply payload buffer */
+    size_t           data_max;     /* capacity of data_out */
+    const char      *data_in;      /* SETXATTR inbound value payload */
+    size_t           data_in_len;  /* byte count of data_in */
+    const char      *rel;          /* imp_rel(req->path): root-relative path */
+} imp_op_ctx_t;
+
 /* broker_ops.c */
 int imp_openat2(int rootfd, const char *rel, uint32_t flags, uint32_t mode);
 int imp_open_parent(int rootfd, const char *rel, char *scratch, const char **base);
@@ -55,7 +75,7 @@ int imp_xattr_open(int rootfd, const char *rel);
 int imp_xattr_name_ok(const char *name);
 size_t imp_xattr_filter_user(char *list, size_t len);
 int imp_do_rename(int sfd, const char *sbase, int dfd, const char *dbase, int noreplace);
-int imp_do_op(int rootfd, const imp_req_t *req, imp_rep_t *rep, int *out_fd, char *data_out, size_t data_max, const char *data_in, size_t data_in_len);
+int imp_do_op(imp_op_ctx_t *c);
 
 /* broker.c */
 int imp_read_full(int fd, void *buf, size_t n);

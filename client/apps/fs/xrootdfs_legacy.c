@@ -761,81 +761,104 @@ usage(void)
         "         wire op); symlinks are unsupported.\n");
 }
 
-/* Entry point for the synchronous fallback driver. Invoked by the unified
- * xrootdfs front-end (apps/xrootdfs_main.c) when --legacy is given. */
-int
-xrootdfs_legacy_main(int argc, char **argv)
+/* WHAT: handle a no-value dash-option (a bare flag), updating the driver's
+ *       file-scope option globals in place.
+ * WHY:  splitting the flag group from the value group (mirrors the async driver's
+ *       aio_opt_novalue) keeps each option handler under the complexity gate; the
+ *       option state already lives in file-scope globals, so this maps onto them
+ *       directly (no new state introduced).
+ * HOW:  returns 1 if `a` was a recognised flag, 0 otherwise. */
+static int
+xfs_opt_novalue(const char *a)
 {
-    brix_status st;
-    const char *endpoint = NULL;
-    char       *fuse_argv[64];
-    int         fuse_argc = 0;
-    int         i, rc;
+    if (strcmp(a, "--tls") == 0)          { g_opts.want_tls = 1;    return 1; }
+    if (strcmp(a, "--notlsok") == 0)      { g_opts.notlsok = 1;     return 1; }
+    if (strcmp(a, "--noverifyhost") == 0) { g_opts.verify_host = 0; return 1; }
+    if (strcmp(a, "--kernel-cache") == 0) { g_kernel_cache = 1;     return 1; }
+    if (strcmp(a, "--xattr") == 0)        { g_xattr = 1;            return 1; }
+    return 0;
+}
 
-    if (argc < 3) {
-        usage();
-        return 2;
+/* WHAT: handle a value-taking dash-option `a` with its already-extracted value
+ *       word `v`, updating the driver's file-scope option globals in place.
+ * WHY:  the value group split from the flag group (mirrors aio_opt_conn_value /
+ *       aio_opt_cache_value) keeps this handler under the complexity gate.
+ * HOW:  the caller only calls this when a next word exists, so `v` is always
+ *       valid (a trailing value option therefore falls through to libfuse exactly
+ *       as before). Returns 1 if `a` was a recognised value option, 0 otherwise. */
+static int
+xfs_opt_value(const char *a, char *v)
+{
+    if (strcmp(a, "--auth") == 0) { g_opts.auth_force = v; return 1; }
+    if (strcmp(a, "--max-conns") == 0) {
+        g_max_conns = atoi(v);
+        if (g_max_conns < 1) { g_max_conns = 1; }
+        return 1;
     }
-    memset(&g_opts, 0, sizeof(g_opts));
-    g_opts.verify_host = 1;
-    brix_crypto_init();
+    if (strcmp(a, "--attr-timeout") == 0)  { g_attr_timeout = atof(v);  return 1; }
+    if (strcmp(a, "--entry-timeout") == 0) { g_entry_timeout = atof(v); return 1; }
+    if (strcmp(a, "--readahead") == 0) {
+        long n = atol(v);
+        g_readahead = (n > 0) ? (size_t) n : 0;
+        return 1;
+    }
+    if (strcmp(a, "--writeback") == 0) {
+        long n = atol(v);
+        g_writeback = (n > 0) ? (size_t) n : 0;
+        return 1;
+    }
+    if (strcmp(a, "--connect-timeout") == 0) { brix_tmo_set_connect_ms(atoi(v)); return 1; }
+    if (strcmp(a, "--io-timeout") == 0)      { brix_tmo_set_io_ms(atoi(v));      return 1; }
+    return 0;
+}
 
-    fuse_argv[fuse_argc++] = argv[0];
-    /* This entry point only runs in --legacy mode (the binary is `xrootdfs`), so
-     * tag the kernel mount subtype explicitly: mounts then show as
-     * fuse.xrootdfs_legacy and `xrd mount` can still tell the two apart. */
-    fuse_argv[fuse_argc++] = (char *) "-osubtype=xrootdfs_legacy";
+/* WHAT: split the command line into our options, the endpoint, and the libfuse
+ *       passthrough vector.
+ * WHY:  our known options are honored ANYWHERE on the line (before OR after the
+ *       endpoint); unknown dash-args fall through to libfuse (so -f/-d/-s/-o still
+ *       work); the first bare word is the endpoint, the next the mountpoint.
+ * HOW:  each dash-arg is offered to the flag group then (when a next word exists)
+ *       the value group, matching the original inline argc guards; -h/--help print
+ *       usage and stop. Returns -1 to proceed with the mount, or a process exit
+ *       code (0 for -h/--help encountered inline). */
+static int
+xfs_parse_args(int argc, char **argv, char **fuse_argv, int *fuse_argc,
+               const char **endpoint)
+{
+    int i;
 
     for (i = 1; i < argc; i++) {
-        const char *a = argv[i];
-        /* Parse our known options anywhere (before or after the endpoint); unknown
-         * dash-args pass through to libfuse (-f/-d/-s/-o); first bare word is the
-         * endpoint, the next the mountpoint. */
+        char *a = argv[i];
+
         if (a[0] == '-') {
-            if (strcmp(a, "--tls") == 0)               { g_opts.want_tls = 1; }
-            else if (strcmp(a, "--notlsok") == 0)      { g_opts.notlsok = 1; }
-            else if (strcmp(a, "--noverifyhost") == 0) { g_opts.verify_host = 0; }
-            else if (strcmp(a, "--auth") == 0 && i + 1 < argc) { g_opts.auth_force = argv[++i]; }
-            else if (strcmp(a, "--max-conns") == 0 && i + 1 < argc) {
-                g_max_conns = atoi(argv[++i]);
-                if (g_max_conns < 1) { g_max_conns = 1; }
+            if (xfs_opt_novalue(a)) { continue; }
+            if (i + 1 < argc && xfs_opt_value(a, argv[i + 1])) { i++; continue; }
+            if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) {
+                usage();
+                return 0;
             }
-            else if (strcmp(a, "--attr-timeout") == 0 && i + 1 < argc) {
-                g_attr_timeout = atof(argv[++i]);
-            }
-            else if (strcmp(a, "--entry-timeout") == 0 && i + 1 < argc) {
-                g_entry_timeout = atof(argv[++i]);
-            }
-            else if (strcmp(a, "--kernel-cache") == 0) { g_kernel_cache = 1; }
-            else if (strcmp(a, "--readahead") == 0 && i + 1 < argc) {
-                long v = atol(argv[++i]);
-                g_readahead = (v > 0) ? (size_t) v : 0;
-            }
-            else if (strcmp(a, "--writeback") == 0 && i + 1 < argc) {
-                long v = atol(argv[++i]);
-                g_writeback = (v > 0) ? (size_t) v : 0;
-            }
-            else if (strcmp(a, "--xattr") == 0) { g_xattr = 1; }
-            else if (strcmp(a, "--connect-timeout") == 0 && i + 1 < argc) {
-                brix_tmo_set_connect_ms(atoi(argv[++i]));
-            }
-            else if (strcmp(a, "--io-timeout") == 0 && i + 1 < argc) {
-                brix_tmo_set_io_ms(atoi(argv[++i]));
-            }
-            else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) { usage(); return 0; }
-            else if (fuse_argc < 61) { fuse_argv[fuse_argc++] = argv[i]; }  /* fuse opt */
-        } else if (endpoint == NULL) {
-            endpoint = a;   /* first non-option = the root:// URL */
-        } else if (fuse_argc < 61) {
-            fuse_argv[fuse_argc++] = argv[i];   /* mountpoint + fuse flags */
+            if (*fuse_argc < 61) { fuse_argv[(*fuse_argc)++] = argv[i]; }  /* fuse opt */
+        } else if (*endpoint == NULL) {
+            *endpoint = a;   /* first non-option = the root:// URL */
+        } else if (*fuse_argc < 61) {
+            fuse_argv[(*fuse_argc)++] = argv[i];   /* mountpoint + fuse flags */
         }
     }
+    return -1;
+}
 
-    if (endpoint == NULL || fuse_argc < 2) {
-        usage();
-        return 2;
-    }
-    fuse_argv[fuse_argc] = NULL;
+/* WHAT: parse the endpoint, bring up the metadata connection pool, run the FUSE
+ *       mount, and tear the pool down afterwards.
+ * WHY:  isolates the mount bring-up + teardown ordering from the entry point so
+ *       main() stays a short arg-parse → mount sequence.
+ * HOW:  the pool connects one conn eagerly, so a bad endpoint/auth fails here
+ *       (before fuse_main); the pool is destroyed after fuse_main returns.
+ *       Returns the process exit code. */
+static int
+xfs_root_mount(int fuse_argc, char **fuse_argv, const char *endpoint)
+{
+    brix_status st;
+    int         rc;
 
     brix_status_clear(&st);
     if (brix_endpoint_parse(endpoint, &g_url, &st) != 0) {
@@ -856,4 +879,42 @@ xrootdfs_legacy_main(int argc, char **argv)
 
     brix_pool_destroy(g_pool);
     return rc;
+}
+
+/* Entry point for the synchronous fallback driver. Invoked by the unified
+ * xrootdfs front-end (apps/xrootdfs_main.c) when --legacy is given. */
+int
+xrootdfs_legacy_main(int argc, char **argv)
+{
+    const char *endpoint = NULL;
+    char       *fuse_argv[64];
+    int         fuse_argc = 0;
+    int         rc;
+
+    if (argc < 3) {
+        usage();
+        return 2;
+    }
+    memset(&g_opts, 0, sizeof(g_opts));
+    g_opts.verify_host = 1;
+    brix_crypto_init();
+
+    fuse_argv[fuse_argc++] = argv[0];
+    /* This entry point only runs in --legacy mode (the binary is `xrootdfs`), so
+     * tag the kernel mount subtype explicitly: mounts then show as
+     * fuse.xrootdfs_legacy and `xrd mount` can still tell the two apart. */
+    fuse_argv[fuse_argc++] = (char *) "-osubtype=xrootdfs_legacy";
+
+    rc = xfs_parse_args(argc, argv, fuse_argv, &fuse_argc, &endpoint);
+    if (rc >= 0) {
+        return rc;
+    }
+
+    if (endpoint == NULL || fuse_argc < 2) {
+        usage();
+        return 2;
+    }
+    fuse_argv[fuse_argc] = NULL;
+
+    return xfs_root_mount(fuse_argc, fuse_argv, endpoint);
 }

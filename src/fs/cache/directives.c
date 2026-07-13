@@ -89,7 +89,7 @@ brix_conf_set_cache_eviction_threshold(ngx_conf_t *cf, ngx_command_t *cmd,
     }
 
     ppm = (ngx_uint_t) (ratio * 1000000.0 + 0.5);
-    if (ppm == 0 || ppm >= 1000000) {
+    if (ppm == 0 || ppm >= BRIX_CACHE_PPM_FULL_SCALE) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_cache_eviction_threshold is out of range");
         return NGX_CONF_ERROR;
@@ -150,7 +150,7 @@ brix_conf_set_cache_watermark(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     ppm = (ngx_uint_t) (ratio * 1000000.0 + 0.5);
-    if (ppm == 0 || ppm >= 1000000) {
+    if (ppm == 0 || ppm >= BRIX_CACHE_PPM_FULL_SCALE) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "%V is out of range", &cmd->name);
         return NGX_CONF_ERROR;

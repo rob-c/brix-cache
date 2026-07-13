@@ -87,6 +87,10 @@ s3_tag_load(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     s3_tag_vfs_ctx(r, fs_path, cf, &vctx);
     n = brix_vfs_getxattr(&vctx, S3_TAG_XATTR, out, outsz - 1);
     if (n < 0) {
+        /* phase74-fp: ENOTSUP == EOPNOTSUPP on Linux but they are distinct
+         * errnos on other POSIX systems — both are checked deliberately for
+         * portability, so the "equivalent nested operands" finding is moot. */
+        /* NOLINTNEXTLINE(misc-redundant-expression) */
         if (errno == ENODATA || errno == ENOTSUP || errno == EOPNOTSUPP) {
             return 0;   /* object readable, just carries no tags */
         }
@@ -263,19 +267,135 @@ s3_apply_put_tagging_header(ngx_http_request_t *r, const char *fs_path,
 }
 
 /* PUT /<key>?tagging (XML body) */
+
 /*
- * Parse <Tagging><TagSet><Tag><Key>k</Key><Value>v</Value></Tag>...> into the
- * stored "k=v&k=v" form (URL-encoded), via libxml2 with the same hardened
- * posture as the DeleteObjects parser.
+ * s3_xml_node_is — element-node name predicate.
+ *
+ * WHAT: true iff node is an XML_ELEMENT_NODE whose tag name equals name.
+ * WHY: the tagging parse repeats this "right kind of element?" guard at every
+ *   nesting level (TagSet, Tag, Key/Value); folding it into one predicate keeps
+ *   the walk loops flat and drops their branch count.
+ * HOW: guard the node type first, then a single xmlStrcmp on the name.
+ */
+static int
+s3_xml_node_is(const xmlNode *node, const char *name)
+{
+    return node->type == XML_ELEMENT_NODE
+        && xmlStrcmp(node->name, (const xmlChar *) name) == 0;
+}
+
+/*
+ * s3_tag_append_pair — append one URL-encoded "key=value" pair to out.
+ *
+ * WHAT: writes "&" (when out already holds a pair), then url-encoded key, "=",
+ *   url-encoded value into out[*pos], advancing *pos; every write is bounded by
+ *   outsz so a full buffer silently truncates (the caller rejects pos>=outsz).
+ * WHY: the byte-exact append/bounds arithmetic is the bulk of the parser's
+ *   complexity; isolating it keeps the tree walk readable and the encoding
+ *   behaviour identical to the original inline body.
+ * HOW: encode into a scratch buffer, memcpy the bounded span, mirror the exact
+ *   pos<outsz / pos+n<outsz predicates the original used for each token.
+ */
+static void
+s3_tag_append_pair(char *out, size_t outsz, size_t *pos,
+    const xmlChar *key, const xmlChar *val)
+{
+    char   enc[512];
+    size_t n;
+
+    if (*pos != 0 && *pos < outsz) {
+        out[(*pos)++] = '&';
+    }
+    brix_http_urlencode(key, ngx_strlen((char *) key), enc, sizeof(enc), "");
+    n = ngx_strlen(enc);
+    if (*pos + n < outsz) { ngx_memcpy(out + *pos, enc, n); *pos += n; }
+    if (*pos < outsz) { out[(*pos)++] = '='; }
+    brix_http_urlencode(val, ngx_strlen((char *) val), enc, sizeof(enc), "");
+    n = ngx_strlen(enc);
+    if (*pos + n < outsz) { ngx_memcpy(out + *pos, enc, n); *pos += n; }
+}
+
+/*
+ * s3_tag_emit_one — extract a single <Tag>'s Key/Value and append the pair.
+ *
+ * WHAT: scans the children of a <Tag> node for <Key> and <Value>, and when both
+ *   are present appends the encoded pair to out via s3_tag_append_pair; frees the
+ *   xmlNodeGetContent allocations before returning.
+ * WHY: pulling the inner Key/Value scan out of the tag loop removes one full
+ *   nesting level (and its branches) from the top-level parser.
+ * HOW: single pass over children collecting key/val, then a bounded append.
+ */
+static void
+s3_tag_emit_one(const xmlNode *tag, char *out, size_t outsz, size_t *pos)
+{
+    const xmlChar *key = NULL, *val = NULL;
+    const xmlNode *kv;
+
+    for (kv = tag->children; kv != NULL; kv = kv->next) {
+        if (kv->type != XML_ELEMENT_NODE) {
+            continue;
+        }
+        if (xmlStrcmp(kv->name, (const xmlChar *) "Key") == 0) {
+            key = xmlNodeGetContent(kv);
+        } else if (xmlStrcmp(kv->name, (const xmlChar *) "Value") == 0) {
+            val = xmlNodeGetContent(kv);
+        }
+    }
+    if (key != NULL && val != NULL) {
+        s3_tag_append_pair(out, outsz, pos, key, val);
+    }
+    if (key != NULL) { xmlFree((void *) key); }
+    if (val != NULL) { xmlFree((void *) val); }
+}
+
+/*
+ * s3_tag_walk_tagsets — walk every <Tag> under every <TagSet> child of root.
+ *
+ * WHAT: iterates root's <TagSet> children, and within each its <Tag> children,
+ *   emitting each into out; returns the final byte count via *pos.
+ * WHY: separates the pure tree traversal from doc lifetime + root validation,
+ *   so neither function carries both concerns' branches.
+ * HOW: two flat loops gated by the s3_xml_node_is predicate.
+ */
+static void
+s3_tag_walk_tagsets(const xmlNode *root, char *out, size_t outsz, size_t *pos)
+{
+    const xmlNode *tagset, *tag;
+
+    for (tagset = root->children; tagset != NULL; tagset = tagset->next) {
+        if (!s3_xml_node_is(tagset, "TagSet")) {
+            continue;
+        }
+        for (tag = tagset->children; tag != NULL; tag = tag->next) {
+            if (!s3_xml_node_is(tag, "Tag")) {
+                continue;
+            }
+            s3_tag_emit_one(tag, out, outsz, pos);
+        }
+    }
+}
+
+/*
+ * s3_tag_blob_from_xml — parse a Tagging document into the stored blob form.
+ *
+ * WHAT: parses <Tagging><TagSet><Tag><Key>k</Key><Value>v</Value></Tag>...>
+ *   into the stored "k=v&k=v" (URL-encoded) form via libxml2 with the same
+ *   hardened posture (no-net, no-blanks) as the DeleteObjects parser.
+ * WHY: PUT ?tagging carries the tag set as XML; this converts it to the flat
+ *   xattr blob without changing the on-disk form or the error contract.
+ * HOW: parse+root-validate, delegate the walk, then NUL-terminate — rejecting an
+ *   overflowed buffer exactly as before (pos>=outsz → NGX_ERROR).
  */
 static ngx_int_t
 s3_tag_blob_from_xml(ngx_http_request_t *r, const u_char *body, size_t len,
     char *out, size_t outsz, size_t *out_len)
 {
     xmlDocPtr   doc;
-    xmlNodePtr  root, tagset, tag, kv;
+    xmlNodePtr  root;
     size_t      pos = 0;
     int         options = XML_PARSE_NONET | XML_PARSE_NOBLANKS;
+
+    (void) r;   /* frozen signature: request handle unused by the pure parse */
 
     doc = xmlReadMemory((const char *) body, (int) len, "tagging.xml", NULL,
                         options);
@@ -289,50 +409,7 @@ s3_tag_blob_from_xml(ngx_http_request_t *r, const u_char *body, size_t len,
         return NGX_ERROR;
     }
 
-    for (tagset = root->children; tagset != NULL; tagset = tagset->next) {
-        if (tagset->type != XML_ELEMENT_NODE
-            || xmlStrcmp(tagset->name, (const xmlChar *) "TagSet") != 0)
-        {
-            continue;
-        }
-        for (tag = tagset->children; tag != NULL; tag = tag->next) {
-            char  enc[512];
-            const xmlChar *key = NULL, *val = NULL;
-
-            if (tag->type != XML_ELEMENT_NODE
-                || xmlStrcmp(tag->name, (const xmlChar *) "Tag") != 0)
-            {
-                continue;
-            }
-            for (kv = tag->children; kv != NULL; kv = kv->next) {
-                if (kv->type != XML_ELEMENT_NODE) {
-                    continue;
-                }
-                if (xmlStrcmp(kv->name, (const xmlChar *) "Key") == 0) {
-                    key = xmlNodeGetContent(kv);
-                } else if (xmlStrcmp(kv->name, (const xmlChar *) "Value") == 0) {
-                    val = xmlNodeGetContent(kv);
-                }
-            }
-            if (key != NULL && val != NULL) {
-                size_t n;
-                if (pos != 0 && pos < outsz) {
-                    out[pos++] = '&';
-                }
-                brix_http_urlencode(key, ngx_strlen((char *) key),
-                                      enc, sizeof(enc), "");
-                n = ngx_strlen(enc);
-                if (pos + n < outsz) { ngx_memcpy(out + pos, enc, n); pos += n; }
-                if (pos < outsz) { out[pos++] = '='; }
-                brix_http_urlencode(val, ngx_strlen((char *) val),
-                                      enc, sizeof(enc), "");
-                n = ngx_strlen(enc);
-                if (pos + n < outsz) { ngx_memcpy(out + pos, enc, n); pos += n; }
-            }
-            if (key != NULL) { xmlFree((void *) key); }
-            if (val != NULL) { xmlFree((void *) val); }
-        }
-    }
+    s3_tag_walk_tagsets(root, out, outsz, &pos);
 
     xmlFreeDoc(doc);
     if (pos >= outsz) {

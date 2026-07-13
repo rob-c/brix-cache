@@ -193,6 +193,17 @@ typedef struct {
     ngx_uint_t     tpc_marker_interval; /* seconds between Perf Markers; 0 = 201 only */
     ngx_uint_t     tpc_max_streams;     /* max parallel streams per pull; 0 = single */
 
+    /* [brix_webdav_tpc_credential_forward on|off] default ON.  When on, a TPC
+     * PULL acts as the END USER against the source by default: it resolves the
+     * requesting identity's delegated x509 proxy (webdav_tpc_user_proxy_resolve)
+     * and, when the client did not explicitly delegate one, forwards the raw
+     * bearer the request authenticated with (rctx->bearer_token).  Opportunistic:
+     * the absence of any per-user credential falls back to conf->tpc_cert /
+     * anonymous exactly as before — never a new denial.  Off = service-cert-only
+     * (pre-forwarding behaviour).  Independent of brix_backend_delegation, which
+     * governs the data-plane backend leg, not TPC. */
+    ngx_flag_t     tpc_credential_forward;
+
     /* --- HTTP-TPC OAuth2/OIDC credential delegation --- */
     ngx_http_brix_tpc_conf_t tpc_cred;
 
@@ -220,6 +231,13 @@ typedef struct {
     ngx_flag_t          dig_enable;        /* §3 XrdDig remote diagnostics (default off) */
     ngx_array_t        *dig_exports;       /* §3 of brix_dig_export_t (name→canon dir) */
     ngx_str_t           dig_auth_file;     /* §3 principal→export allow-file (fail-closed) */
+
+    /* Phase-2 Task 8: opt-in authenticated proxy-upload delegation endpoint.
+     * When on, a GSI-cert-authenticated PUT/POST to
+     * /.well-known/brix-delegation with body = the client's own RFC-3820
+     * proxy PEM validates and stores it under storage_credential_dir so
+     * Phase-1 per-user credential selection picks it up. Default off. */
+    ngx_flag_t          delegation_endpoint;
 
     /* --- CORS settings --- */
     ngx_array_t        *cors_origins;    /* allowed origins (ngx_str_t array) */
@@ -337,6 +355,15 @@ typedef struct {
     const char    *auth_source;  /* "cert", "token", or "anonymous" — static
                                   * string; do not free() */
     int            token_auth;   /* 1 if auth came from a bearer token */
+    /* Raw JWT bytes captured verbatim for backend PASSTHROUGH (phase-70 §5.4);
+     * borrowed into r->pool by webdav_verify_bearer_token, valid for the request.
+     * Empty unless token auth succeeded. Never logged. */
+    ngx_str_t      bearer_token;
+    /* User-supplied full x509 proxy PEM (chain + key) captured from the
+     * X-Brix-Delegate-Proxy header for backend PASSTHROUGH (phase-70 §5.1);
+     * validated (TLS-only + leaf-DN==identity) at the auth gate, borrowed into
+     * r->pool. Empty unless the client opted in. Never logged. */
+    ngx_str_t      deleg_proxy_pem;
     int            token_scope_count;  /* number of valid entries in token_scopes */
     brix_token_scope_t  token_scopes[BRIX_MAX_TOKEN_SCOPES];
                                  /* parsed scope list from the bearer token */

@@ -62,8 +62,8 @@ typedef struct {
     char     lfn[PATH_MAX];     /* tpc.lfn source logical path */
     char     org[256];          /* tpc.org origin identity */
     char     stage[64];         /* tpc.stage, usually "copy" */
-    char     token_mode[32];    /* tpc.token_mode: "none", "oidc-agent",
-                                    "token-exchange" */
+    char     token_mode[32];    /* tpc.token_mode: "none", "passthrough",
+                                    "oidc-agent", "token-exchange" */
     int      has_src;           /* 1 = tpc.src was present */
     int      has_dst;           /* 1 = tpc.dst was present */
     int      has_key;           /* 1 = tpc.key was present */
@@ -107,8 +107,14 @@ typedef struct {
     char      src_path[PATH_MAX];
     char      tpc_key[128]; /* presented to source in ?tpc.key= opaque */
     char      tpc_org[256]; /* presented to source in ?tpc.org= opaque */
-    char      token_mode[32]; /* OAuth2/OIDC delegation mode for source auth */
-    char      delegated_token[65536]; /* fetched delegated access token */
+    char      token_mode[32]; /* source-auth token mode: none/passthrough (strict)/
+                               * passthrough-opt (default, opportunistic)/
+                               * oidc-agent/token-exchange */
+    char      delegated_token[65536]; /* delegated/forwarded access token: fetched
+                                       * (oidc-agent/token-exchange), read from the
+                                       * bearer file, or — for "passthrough" — the
+                                       * client's own inbound bearer JWT captured on
+                                       * the event loop (launch.c) */
     char      token_scope[256]; /* scope string for token exchange request */
     uint8_t   gsi_rtag[8];  /* GSI round-1 random tag (sent in certreq) */
     char      dst_path[PATH_MAX]; /* local path being written */
@@ -269,10 +275,14 @@ int tpc_pull_from_source(brix_tpc_pull_t *t, int fd);
  * TPC registry state (ACTIVE→DONE/ERROR); always closes its own source fd. */
 void brix_tpc_pull_thread(void *data, ngx_log_t *log);
 
-/* tpc_token.c — fetch an OAuth2/OIDC delegated token per t->token_mode and store
- * it in t->delegated_token. "none"/empty is a no-op. Returns 0 on success (or
- * no-op), -1 with t->err_msg/t->xrd_error set (unknown mode, token_endpoint
- * unconfigured for token-exchange, or backend fetch/validation failure). */
+/* tpc_token.c — resolve the outbound source-auth token per t->token_mode and
+ * store it in t->delegated_token. "none"/empty is a no-op; "passthrough"
+ * validates the client's inbound bearer JWT already captured into
+ * t->delegated_token (launch.c) and denies cleanly when absent; "oidc-agent"/
+ * "token-exchange" fetch a delegated token. Returns 0 on success (or no-op), -1
+ * with t->err_msg/t->xrd_error set (unknown mode, missing passthrough token,
+ * token_endpoint unconfigured for token-exchange, or backend fetch/validation
+ * failure). */
 int tpc_fetch_delegated_token(brix_tpc_pull_t *t);
 
 /* done.c — main-thread completion callback posted by the thread pool (ev->data

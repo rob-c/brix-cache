@@ -18,6 +18,7 @@ no arguments; exit 0 = clean.
 | `check_readme_coverage.sh` | any depth≤2 `src/` dir with ≥2 C sources carries a README.md | — | — |
 | `check_ports_doc.sh` | every `*_PORT*` constant in `tests/settings.py` has a row in `docs/10-reference/test-fleet-ports.md` | — | — |
 | `run_fanalyzer.sh` | no NEW gcc `-fanalyzer` finding (UAF/leak/NULL-deref) vs baseline; needs a configured nginx build (`NGX_BUILD`) | `fanalyzer_baseline.txt` | `--regen` |
+| `run_codechecker.sh` | no NEW Clang Static Analyzer + clang-tidy finding vs baseline; needs a configured nginx build (`NGX_BUILD`) + `CodeChecker` + clang/clang-tidy | `codechecker_baseline.txt` | `--regen` |
 
 ## The ratchet pattern
 
@@ -57,3 +58,22 @@ It runs weekly + on dispatch in CI (`.github/workflows/fanalyzer.yml`,
 non-blocking until proven stable across GCC versions); local runs against
 the dev build remain the authoritative gate. `--filter <path-prefix>` for
 a fast scoped scan.
+
+`run_codechecker.sh` is the orthogonal Clang half: it synthesizes a
+`compile_commands.json` from the same build-tree `$(CFLAGS)`/`$(ALL_INCS)`
+(no build interception needed), runs Ericsson **CodeChecker** (`clangsa`
++ `clang-tidy`) over the addon sources, and diffs findings against
+`codechecker_baseline.txt`. Each finding is keyed by CodeChecker's
+content-based `report_hash`, so the baseline does not churn when unrelated
+lines move. Same `--regen` / `--filter` / `NGX_BUILD` interface as the
+`-fanalyzer` guard. Install once with `pip install --user codechecker`
+(needs `clang` + `clang-tidy` on PATH). Runs weekly + on dispatch
+(`.github/workflows/codechecker.yml`, non-blocking until the CI clang
+version is pinned to the dev toolchain). The two static-analysis guards are
+complementary: `-fanalyzer` excels at ownership/leak/UAF along error
+branches; clangsa + clang-tidy add a large orthogonal checker set (dead
+stores, logic errors, API misuse, bugprone-*, security-*). Two clang-tidy
+checks are disabled by policy at the top of the script (each with a reason):
+`clang-diagnostic-unused-parameter` (the build sets `-Wno-unused-parameter`)
+and `misc-header-include-cycle` (the nginx module include graph is
+legitimately cyclic). Override with `CC_DISABLE=""` to see the full profile.

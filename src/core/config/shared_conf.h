@@ -2,8 +2,8 @@
  * shared_conf.h — Shared config preamble struct for nginx-xrootd protocols.
  */
 
-#ifndef _NGX_HTTP_BRIX_SHARED_CONF_H
-#define _NGX_HTTP_BRIX_SHARED_CONF_H
+#ifndef NGX_HTTP_BRIX_SHARED_CONF_H
+#define NGX_HTTP_BRIX_SHARED_CONF_H
 
 #include <ngx_thread_pool.h>
 
@@ -47,6 +47,72 @@ typedef struct {
                                              * source backend authenticates with;
                                              * "" = anonymous. Today threads a bearer
                                              * token into sd_http. */
+    ngx_str_t           storage_credential_dir; /* [brix_storage_credential_dir
+                                             * <dir>] — directory of per-identity
+                                             * x509 proxy PEMs for a remote
+                                             * backend (phase-1 per-user backend
+                                             * credentials); "" = feature off.   */
+    ngx_uint_t          storage_credential_fallback; /* [brix_storage_credential_
+                                             * fallback allow|deny] — 0 allow the
+                                             * static service credential when the
+                                             * identity has no per-user file
+                                             * (default); 1 deny (fail EACCES).  */
+    ngx_str_t           storage_credential_mint_ca_cert; /* [brix_storage_
+                                             * credential_mint_ca <cert> <key>]
+                                             * — phase-2 T9 opt-in minting: PEM
+                                             * cert of the CA the frontend signs
+                                             * minted proxies with. "" = minting
+                                             * off (Phase-1 behavior only). The
+                                             * ORIGIN must be configured to trust
+                                             * this CA — see cred_mint.h.       */
+    ngx_str_t           storage_credential_mint_ca_key;  /* PEM private key
+                                             * paired with mint_ca_cert above;
+                                             * set together by the same
+                                             * directive.                       */
+    ngx_uint_t          storage_credential_mint_ttl; /* [brix_storage_credential_
+                                             * mint_ttl <secs>] — lifetime of a
+                                             * freshly minted proxy; default
+                                             * 3600. Ignored when minting is
+                                             * off.                             */
+    ngx_uint_t          backend_delegation; /* [brix_backend_delegation
+                                             * select|passthrough|exchange|
+                                             * delegate|mint|auto] (phase-70 §4)
+                                             * — the backend-leg credential
+                                             * strategy; enum → BRIX_CRED_*.
+                                             * Default 0 (SELECT).              */
+    ngx_array_t        *backend_token_aud;  /* [brix_backend_token_audience_ok
+                                             * <aud>...] (phase-70 §5.4) —
+                                             * ngx_str_t[] backend audiences a
+                                             * bearer may be forwarded to; NULL
+                                             * = none configured.               */
+    ngx_str_t           backend_tx_endpoint;   /* [brix_backend_token_exchange_
+                                             * endpoint <url>] (phase-70 §5.4) —
+                                             * RFC 8693 token endpoint. ""
+                                             * = EXCHANGE falls back to verbatim
+                                             * bearer passthrough.              */
+    ngx_str_t           backend_tx_client_id;  /* [brix_backend_token_exchange_
+                                             * client_id <id>] — OAuth2 client id
+                                             * for the exchange (HTTP Basic).   */
+    ngx_str_t           backend_tx_client_secret; /* [brix_backend_token_exchange_
+                                             * client_secret <secret>] — paired
+                                             * client secret; NEVER logged.     */
+    ngx_str_t           backend_sts_endpoint;  /* [brix_backend_s3_sts_endpoint
+                                             * <url>] (phase-70 §5.5) — STS base
+                                             * URL for S3 credential EXCHANGE;
+                                             * "" = STS off.                    */
+    ngx_str_t           backend_sts_role;   /* [brix_backend_s3_sts_role <arn>]
+                                             * — role ARN to AssumeRole into; ""
+                                             * selects GetSessionToken.         */
+    ngx_flag_t          backend_krb5_forwardable; /* [brix_backend_krb5_
+                                             * forwardable on|off] (phase-70
+                                             * §5.7) — allow GSSAPI credential
+                                             * forwarding to the origin. Default
+                                             * off.                             */
+    ngx_flag_t          backend_passthrough_persist; /* [brix_backend_passthrough_
+                                             * persist on|off] (phase-70 §5.1) —
+                                             * permit spilling a captured full
+                                             * proxy into the async stage
+                                             * journal owner dir. Default off.  */
     void               *storage_instance;   /* resolved brix_sd_instance_t* for a
                                              * non-POSIX backend, built per worker at
                                              * init_process. Runtime only — never
@@ -156,6 +222,28 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->storage_backend.data  = NULL;
     conf->storage_credential.len  = 0;
     conf->storage_credential.data = NULL;
+    conf->storage_credential_dir.len   = 0;
+    conf->storage_credential_dir.data  = NULL;
+    conf->storage_credential_fallback  = NGX_CONF_UNSET_UINT;
+    conf->storage_credential_mint_ca_cert.len   = 0;
+    conf->storage_credential_mint_ca_cert.data  = NULL;
+    conf->storage_credential_mint_ca_key.len    = 0;
+    conf->storage_credential_mint_ca_key.data   = NULL;
+    conf->storage_credential_mint_ttl  = NGX_CONF_UNSET_UINT;
+    conf->backend_delegation = NGX_CONF_UNSET_UINT;
+    conf->backend_token_aud  = NGX_CONF_UNSET_PTR;
+    conf->backend_tx_endpoint.len       = 0;
+    conf->backend_tx_endpoint.data      = NULL;
+    conf->backend_tx_client_id.len      = 0;
+    conf->backend_tx_client_id.data     = NULL;
+    conf->backend_tx_client_secret.len  = 0;
+    conf->backend_tx_client_secret.data = NULL;
+    conf->backend_sts_endpoint.len      = 0;
+    conf->backend_sts_endpoint.data     = NULL;
+    conf->backend_sts_role.len          = 0;
+    conf->backend_sts_role.data         = NULL;
+    conf->backend_krb5_forwardable      = NGX_CONF_UNSET;
+    conf->backend_passthrough_persist   = NGX_CONF_UNSET;
     conf->pblock_block_size  = NGX_CONF_UNSET_SIZE;
     conf->storage_instance   = NULL;   /* built per worker at init_process */
     conf->cache_store.len    = 0;
@@ -265,6 +353,34 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
     ngx_conf_merge_str_value(conf->storage_backend, prev->storage_backend, "");
     ngx_conf_merge_str_value(conf->storage_credential, prev->storage_credential,
                              "");
+    ngx_conf_merge_str_value(conf->storage_credential_dir,
+                             prev->storage_credential_dir, "");
+    ngx_conf_merge_uint_value(conf->storage_credential_fallback,
+                              prev->storage_credential_fallback, 0);
+    ngx_conf_merge_str_value(conf->storage_credential_mint_ca_cert,
+                             prev->storage_credential_mint_ca_cert, "");
+    ngx_conf_merge_str_value(conf->storage_credential_mint_ca_key,
+                             prev->storage_credential_mint_ca_key, "");
+    ngx_conf_merge_uint_value(conf->storage_credential_mint_ttl,
+                              prev->storage_credential_mint_ttl, 3600);
+    ngx_conf_merge_uint_value(conf->backend_delegation,
+                              prev->backend_delegation, 0);  /* SELECT */
+    ngx_conf_merge_ptr_value(conf->backend_token_aud,
+                             prev->backend_token_aud, NULL);
+    ngx_conf_merge_str_value(conf->backend_tx_endpoint,
+                             prev->backend_tx_endpoint, "");
+    ngx_conf_merge_str_value(conf->backend_tx_client_id,
+                             prev->backend_tx_client_id, "");
+    ngx_conf_merge_str_value(conf->backend_tx_client_secret,
+                             prev->backend_tx_client_secret, "");
+    ngx_conf_merge_str_value(conf->backend_sts_endpoint,
+                             prev->backend_sts_endpoint, "");
+    ngx_conf_merge_str_value(conf->backend_sts_role,
+                             prev->backend_sts_role, "");
+    ngx_conf_merge_value(conf->backend_krb5_forwardable,
+                         prev->backend_krb5_forwardable, 0);
+    ngx_conf_merge_value(conf->backend_passthrough_persist,
+                         prev->backend_passthrough_persist, 0);
     ngx_conf_merge_size_value(conf->pblock_block_size, prev->pblock_block_size,
                               0);
 
@@ -339,4 +455,4 @@ int brix_storage_backend_is_remote(const ngx_http_brix_shared_conf_t *common);
  */
 char *brix_conf_set_store_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
-#endif /* _NGX_HTTP_BRIX_SHARED_CONF_H */
+#endif /* NGX_HTTP_BRIX_SHARED_CONF_H */

@@ -39,6 +39,39 @@
 #include <dirent.h>
 #include <limits.h>   /* PATH_MAX */
 
+/*
+ * vfs_walk_ctx_t — the invariant traversal state threaded through the confined
+ * recursive walk.
+ *
+ * WHAT: Bundles every parameter that stays constant across the whole walk (the
+ *       confinement root, the caller's callback + cookie, the filter options and
+ *       the opendir-failure error sink) plus the single mutable counter shared by
+ *       the recursion (nfiles). Only `depth` — which changes on every recursive
+ *       descent — is passed as an explicit per-call argument.
+ * WHY:  vfs_walk_dir()/vfs_walk_emit_file() each carried a 8–10 parameter list
+ *       (log/rootfd/opts/cb/cookie/nfiles/errmsg/errsz), which is param-bloat
+ *       (coding-standards §8) and forced every recursive call to re-thread the
+ *       same eight values. Promoting a file-local context makes the data flow
+ *       explicit (one pointer), keeps the helpers small and drops the signatures
+ *       under the 5-param gate without touching the frozen extern brix_vfs_walk()
+ *       contract.
+ * HOW:  brix_vfs_walk() zero-initialises one ctx on its stack from its own
+ *       arguments and passes &ctx (plus a starting depth) into vfs_walk_dir();
+ *       the recursion carries the same &ctx unchanged and only advances depth.
+ *       nfiles is a live counter inside the ctx (the file cap is process-wide for
+ *       the walk), so it is written through the shared pointer, not copied.
+ */
+typedef struct {
+    ngx_log_t                    *log;
+    int                           rootfd;
+    const brix_vfs_walk_opts_t   *opts;
+    brix_vfs_walk_file_cb         cb;
+    void                         *cookie;
+    ngx_uint_t                    nfiles;   /* regular files reached so far      */
+    char                         *errmsg;   /* opendir-failure sink (may be NULL) */
+    size_t                        errsz;
+} vfs_walk_ctx_t;
+
 /* Join a parent logical path + child name into out (export-relative). Special-
  * cases parent=="/" so the root yields "/name", not "//name". Returns 0 (skip)
  * on truncation. */
@@ -59,23 +92,22 @@ vfs_walk_join(const char *parent, const char *name, char *out, size_t outsz)
  * Returns the callback's code, or NGX_OK when open_files and the open failed
  * (a per-entry open failure is a soft skip during a directory walk). */
 static ngx_int_t
-vfs_walk_emit_file(ngx_log_t *log, int rootfd, const char *logical,
-    const struct stat *st, const brix_vfs_walk_opts_t *opts,
-    brix_vfs_walk_file_cb cb, void *cookie, int soft_open_fail)
+vfs_walk_emit_file(const vfs_walk_ctx_t *ctx, const char *logical,
+    const struct stat *st, int soft_open_fail)
 {
     brix_vfs_stat_t vst;
     ngx_int_t         rc;
     int               fd = -1;
 
-    if (opts->open_files) {
-        fd = brix_open_beneath(rootfd, logical, O_RDONLY, 0);
+    if (ctx->opts->open_files) {
+        fd = brix_open_beneath(ctx->rootfd, logical, O_RDONLY, 0);
         if (fd < 0) {
             return soft_open_fail ? NGX_OK : NGX_ERROR;
         }
     }
 
     brix_vfs_fill_stat(st, &vst);
-    rc = cb(cookie, logical, &vst, fd);
+    rc = ctx->cb(ctx->cookie, logical, &vst, fd);
 
     if (fd >= 0) {
         (void) ngx_close_file(fd);
@@ -83,45 +115,128 @@ vfs_walk_emit_file(ngx_log_t *log, int rootfd, const char *logical,
     return rc;
 }
 
-/* Recursive directory body. Returns NGX_OK on success, NGX_ERROR on an opendir
- * failure (errmsg set), or a callback abort code. */
-static ngx_int_t
-vfs_walk_dir(ngx_log_t *log, int rootfd, const char *logical_dir,
-    const brix_vfs_walk_opts_t *opts, brix_vfs_walk_file_cb cb, void *cookie,
-    ngx_uint_t depth, ngx_uint_t *nfiles, char *errmsg, size_t errsz)
+static ngx_int_t vfs_walk_dir(vfs_walk_ctx_t *ctx, const char *logical_dir,
+    ngx_uint_t depth);
+
+/* Open one directory for a confined walk. On success returns an open DIR* (the
+ * caller closedir()s it); on failure returns NULL and records the opendir-error
+ * message in the ctx sink. RESOLVE_BENEATH O_DIRECTORY refuses to escape the
+ * root or open a non-directory. fdopendir adopts the fd on success (closedir
+ * releases it); we close it ourselves only on the fdopendir failure path to
+ * avoid a leak and a double-close. */
+static DIR *
+vfs_walk_opendir(const vfs_walk_ctx_t *ctx, const char *logical_dir)
 {
-    DIR           *dh;
-    struct dirent *de;
-    int            dfd;
+    DIR *dh;
+    int  dfd;
 
-    if (depth > opts->max_depth) {
-        return NGX_OK;   /* depth cap: prune, not an error */
-    }
-
-    /* RESOLVE_BENEATH O_DIRECTORY: refuses to escape the root or open a non-dir. */
-    dfd = brix_open_beneath(rootfd, logical_dir, O_RDONLY | O_DIRECTORY, 0);
+    dfd = brix_open_beneath(ctx->rootfd, logical_dir, O_RDONLY | O_DIRECTORY, 0);
     if (dfd < 0) {
-        if (errmsg != NULL && errsz > 0) {
-            snprintf(errmsg, errsz, "opendir failed: %s", strerror(errno));
+        if (ctx->errmsg != NULL && ctx->errsz > 0) {
+            snprintf(ctx->errmsg, ctx->errsz, "opendir failed: %s",
+                     strerror(errno));
         }
-        return NGX_ERROR;
+        return NULL;
     }
 
-    /* fdopendir adopts dfd on success (closedir releases it); close it ourselves
-     * only on the fdopendir failure path to avoid a leak and a double-close. */
     dh = fdopendir(dfd);
     if (dh == NULL) {
         (void) ngx_close_file(dfd);
-        if (errmsg != NULL && errsz > 0) {
-            snprintf(errmsg, errsz, "opendir failed: %s", strerror(errno));
+        if (ctx->errmsg != NULL && ctx->errsz > 0) {
+            snprintf(ctx->errmsg, ctx->errsz, "opendir failed: %s",
+                     strerror(errno));
         }
+        return NULL;
+    }
+    return dh;
+}
+
+/* Per-entry disposition returned by vfs_walk_entry(): keep scanning the
+ * directory, or stop the whole walk and propagate `code` to the caller. */
+typedef struct {
+    int       stop;   /* non-zero → abort the walk, returning `code`            */
+    ngx_int_t code;   /* the abort code (a callback result or NGX_ERROR)        */
+} vfs_walk_step_t;
+
+/* Classify and handle one readdir entry. `dh` supplies the dirfd for a
+ * rename-immune fstatat; on a directory it recurses, on a regular file it counts
+ * against the file cap and fires the callback. Any per-entry open/stat failure is
+ * a soft skip (returns {0}); only a recursion/callback abort sets stop=1. */
+static vfs_walk_step_t
+vfs_walk_entry(vfs_walk_ctx_t *ctx, DIR *dh, const char *logical_dir,
+    const struct dirent *de, ngx_uint_t depth)
+{
+    vfs_walk_step_t step = { 0, NGX_OK };
+    char            child[BRIX_MAX_PATH + 1];
+    struct stat     st;
+    int             dfd;
+
+    if (brix_fs_is_dot_entry(de->d_name)) {
+        return step;
+    }
+    if (!vfs_walk_join(logical_dir, de->d_name, child, sizeof(child))) {
+        return step;   /* path too long — skip */
+    }
+
+    /* stat by (dirfd, name) — not full path — so we inspect the exact entry
+     * readdir returned, immune to a concurrent rename. NOFOLLOW: a symlink is
+     * neither S_ISDIR nor S_ISREG, so it is silently skipped (never traversed or
+     * reported). */
+    dfd = dirfd(dh);
+    if (dfd < 0 || fstatat(dfd, de->d_name, &st, AT_SYMLINK_NOFOLLOW) != 0) {
+        return step;   /* unstattable (or dirfd failure) — skip the entry */
+    }
+
+    if (S_ISDIR(st.st_mode)) {
+        ngx_int_t rc = vfs_walk_dir(ctx, child, depth + 1);
+        if (rc != NGX_OK) {
+            step.stop = 1;
+            step.code = rc;
+        }
+        return step;
+    }
+
+    if (!S_ISREG(st.st_mode)) {
+        return step;   /* symlink / special → skip */
+    }
+
+    /* Regular file: the file cap counts every file reached (before any open), so
+     * a skipped/unreadable file still consumes budget — bounding syscalls. */
+    if (ctx->opts->max_files != 0 && ctx->nfiles >= ctx->opts->max_files) {
+        return step;
+    }
+    ctx->nfiles++;
+
+    {
+        ngx_int_t rc = vfs_walk_emit_file(ctx, child, &st,
+                                          1 /* soft open-fail: skip this entry */);
+        if (rc != NGX_OK) {
+            step.stop = 1;
+            step.code = rc;   /* callback abort */
+        }
+    }
+    return step;
+}
+
+/* Recursive directory body. Returns NGX_OK on success, NGX_ERROR on an opendir
+ * failure (errmsg set), or a callback abort code. */
+static ngx_int_t
+vfs_walk_dir(vfs_walk_ctx_t *ctx, const char *logical_dir, ngx_uint_t depth)
+{
+    DIR           *dh;
+    struct dirent *de;
+
+    if (depth > ctx->opts->max_depth) {
+        return NGX_OK;   /* depth cap: prune, not an error */
+    }
+
+    dh = vfs_walk_opendir(ctx, logical_dir);
+    if (dh == NULL) {
         return NGX_ERROR;
     }
 
     for ( ;; ) {
-        char        child[BRIX_MAX_PATH + 1];
-        struct stat st;
-        ngx_int_t   rc;
+        vfs_walk_step_t step;
 
         errno = 0;
         de = readdir(dh);
@@ -129,47 +244,10 @@ vfs_walk_dir(ngx_log_t *log, int rootfd, const char *logical_dir,
             break;   /* end of stream (errno==0) or a readdir error — stop here */
         }
 
-        if (brix_fs_is_dot_entry(de->d_name)) {
-            continue;
-        }
-        if (!vfs_walk_join(logical_dir, de->d_name, child, sizeof(child))) {
-            continue;   /* path too long — skip */
-        }
-
-        /* stat by (dirfd, name) — not full path — so we inspect the exact entry
-         * readdir returned, immune to a concurrent rename. NOFOLLOW: a symlink
-         * is neither S_ISDIR nor S_ISREG, so it is silently skipped (never
-         * traversed or reported). */
-        if (fstatat(dirfd(dh), de->d_name, &st, AT_SYMLINK_NOFOLLOW) != 0) {
-            continue;
-        }
-
-        if (S_ISDIR(st.st_mode)) {
-            rc = vfs_walk_dir(log, rootfd, child, opts, cb, cookie, depth + 1,
-                              nfiles, errmsg, errsz);
-            if (rc != NGX_OK) {
-                (void) closedir(dh);
-                return rc;
-            }
-            continue;
-        }
-
-        if (!S_ISREG(st.st_mode)) {
-            continue;   /* symlink / special → skip */
-        }
-
-        /* Regular file: file cap counts every file reached (before any open), so
-         * a skipped/unreadable file still consumes budget — bounding syscalls. */
-        if (opts->max_files != 0 && *nfiles >= opts->max_files) {
-            continue;
-        }
-        (*nfiles)++;
-
-        rc = vfs_walk_emit_file(log, rootfd, child, &st, opts, cb, cookie,
-                                1 /* soft open-fail: skip this entry */);
-        if (rc != NGX_OK) {
+        step = vfs_walk_entry(ctx, dh, logical_dir, de, depth);
+        if (step.stop) {
             (void) closedir(dh);
-            return rc;   /* callback abort */
+            return step.code;
         }
     }
 
@@ -183,8 +261,8 @@ brix_vfs_walk(ngx_log_t *log, int rootfd, const char *logical,
     const brix_vfs_walk_opts_t *opts, brix_vfs_walk_file_cb cb, void *cookie,
     brix_vfs_walk_target_t *target_out, char *errmsg, size_t errsz)
 {
-    struct stat st;
-    ngx_uint_t  nfiles = 0;
+    struct stat    st;
+    vfs_walk_ctx_t ctx = { log, rootfd, opts, cb, cookie, 0, errmsg, errsz };
 
     if (target_out != NULL) {
         *target_out = BRIX_VFS_WALK_NONE;
@@ -203,16 +281,14 @@ brix_vfs_walk(ngx_log_t *log, int rootfd, const char *logical,
             *target_out = BRIX_VFS_WALK_FILE;
         }
         /* Single-file target: an open failure here IS an error (not a skip). */
-        return vfs_walk_emit_file(log, rootfd, logical, &st, opts, cb, cookie,
-                                  0 /* hard open-fail */);
+        return vfs_walk_emit_file(&ctx, logical, &st, 0 /* hard open-fail */);
     }
 
     if (S_ISDIR(st.st_mode)) {
         if (target_out != NULL) {
             *target_out = BRIX_VFS_WALK_DIR;
         }
-        return vfs_walk_dir(log, rootfd, logical, opts, cb, cookie, 0, &nfiles,
-                            errmsg, errsz);
+        return vfs_walk_dir(&ctx, logical, 0);
     }
 
     if (target_out != NULL) {
@@ -282,6 +358,10 @@ brix_vfs_backend_mkpath(const char *root_canon, const char *logical,
     size_t i = 0, j = 0;
 
     if (sd == NULL || sd->driver == NULL || sd->driver->mkdir == NULL) {
+        /* Not a real failure — the caller falls back to its own confined/
+         * group-policy mkpath — but set errno for clarity to any caller that
+         * inspects it before checking the NGX_DECLINED return. */
+        errno = ENOSYS;
         return NGX_DECLINED;
     }
 
@@ -363,17 +443,109 @@ brix_vfs_copyfile(ngx_log_t *log, const char *root_canon, const char *src,
     return rc;
 }
 
+/*
+ * vfs_copy_ctx_t — the invariant state of a confined copytree recursion.
+ *
+ * WHAT: Bundles every parameter that stays constant across a whole tree copy
+ *       (the log, the confinement root, the preserve-xattrs flag and the
+ *       per-entry metadata callback + cookie). Only the moving src/dst paths are
+ *       passed as explicit per-node arguments.
+ * WHY:  The per-entry / per-subdir copytree helpers otherwise each carried a
+ *       7–8 parameter list (log/root_canon/src/dst/preserve_xattrs/meta_cb/
+ *       cookie), which is param-bloat (coding-standards §8). A file-local context
+ *       makes the shared data flow one pointer and keeps the extracted helpers
+ *       under the 5-param gate without disturbing the frozen extern
+ *       brix_vfs_copytree() contract.
+ * HOW:  brix_vfs_copytree() zero-initialises one ctx on its stack from its own
+ *       arguments and passes &ctx (plus the moving src/dst) into the loop helper;
+ *       the recursion re-enters brix_vfs_copytree(), which rebuilds an identical
+ *       ctx for that subtree — so the context never outlives one frame.
+ */
+typedef struct {
+    ngx_log_t                *log;
+    const char               *root_canon;
+    int                       preserve_xattrs;
+    brix_vfs_copy_meta_cb     meta_cb;
+    void                     *cookie;
+} vfs_copy_ctx_t;
+
+/* Recursively copy one confined child directory src_child→dst_child: mkdir the
+ * dst (tolerating EEXIST), copy fattrs + run meta_cb when requested, then recurse
+ * via brix_vfs_copytree. Factored out of the copytree loop to keep that loop's
+ * per-entry dispatch flat. Returns NGX_OK on success, NGX_ERROR on any step. */
+static ngx_int_t
+vfs_copytree_subdir(const vfs_copy_ctx_t *ctx, const char *src_child,
+    const char *dst_child, mode_t mode)
+{
+    if (brix_mkdir_confined_canon(ctx->log, ctx->root_canon, dst_child,
+                                  mode & 0777) != 0
+        && errno != EEXIST)
+    {
+        return NGX_ERROR;
+    }
+    if (ctx->preserve_xattrs) {
+        brix_ns_copy_fattrs(ctx->log, src_child, dst_child);
+    }
+    if (ctx->meta_cb != NULL
+        && ctx->meta_cb(ctx->cookie, src_child, dst_child, 1 /* is_dir */)
+               != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+    return brix_vfs_copytree(ctx->log, ctx->root_canon, src_child, dst_child,
+                             ctx->preserve_xattrs, ctx->meta_cb, ctx->cookie);
+}
+
+/* Copy one readdir entry of a copytree walk. Builds the src/dst child paths,
+ * lstat-nofollow classifies the entry (a vanished/unreadable child is a soft
+ * skip), then dispatches to the subdir recursion or the file copy. Returns
+ * NGX_OK to continue the enclosing loop (including on a skip), NGX_ERROR to
+ * abort it. */
+static ngx_int_t
+vfs_copytree_entry(const vfs_copy_ctx_t *ctx, const char *src, const char *dst,
+    const struct dirent *de)
+{
+    char        src_child[BRIX_MAX_PATH];
+    char        dst_child[BRIX_MAX_PATH];
+    struct stat sb;
+
+    if (brix_fs_is_dot_entry(de->d_name)) {
+        return NGX_OK;
+    }
+    if ((size_t) snprintf(src_child, sizeof(src_child), "%s/%s",
+                          src, de->d_name) >= sizeof(src_child)
+        || (size_t) snprintf(dst_child, sizeof(dst_child), "%s/%s",
+                             dst, de->d_name) >= sizeof(dst_child))
+    {
+        return NGX_ERROR;
+    }
+
+    /* lstat nofollow: never resolve a symlink out of the export. */
+    if (brix_lstat_confined_canon(ctx->log, ctx->root_canon, src_child, &sb, 1)
+        != 0)
+    {
+        return NGX_OK;   /* vanished/unreadable child — skip */
+    }
+
+    if (S_ISDIR(sb.st_mode)) {
+        return vfs_copytree_subdir(ctx, src_child, dst_child, sb.st_mode);
+    }
+    if (S_ISREG(sb.st_mode)) {
+        return brix_vfs_copyfile(ctx->log, ctx->root_canon, src_child, dst_child,
+                                 ctx->preserve_xattrs, ctx->meta_cb, ctx->cookie);
+    }
+    return NGX_OK;   /* symlink / special → skip */
+}
+
 /* Recursively copy a confined directory tree src→dst. See vfs.h. */
 ngx_int_t
 brix_vfs_copytree(ngx_log_t *log, const char *root_canon, const char *src,
     const char *dst, int preserve_xattrs, brix_vfs_copy_meta_cb meta_cb,
     void *cookie)
 {
+    vfs_copy_ctx_t ctx = { log, root_canon, preserve_xattrs, meta_cb, cookie };
     DIR           *dp;
     struct dirent *de;
-    char           src_child[BRIX_MAX_PATH];
-    char           dst_child[BRIX_MAX_PATH];
-    struct stat    sb;
     ngx_int_t      rc = NGX_OK;
 
     /* Enumerate as the mapped user (a 0700 user-private collection would EACCES
@@ -384,56 +556,9 @@ brix_vfs_copytree(ngx_log_t *log, const char *root_canon, const char *src,
     }
 
     while ((de = readdir(dp)) != NULL) {
-        if (brix_fs_is_dot_entry(de->d_name)) {
-            continue;
-        }
-
-        if ((size_t) snprintf(src_child, sizeof(src_child), "%s/%s",
-                              src, de->d_name) >= sizeof(src_child)
-            || (size_t) snprintf(dst_child, sizeof(dst_child), "%s/%s",
-                                 dst, de->d_name) >= sizeof(dst_child))
-        {
-            rc = NGX_ERROR;
+        rc = vfs_copytree_entry(&ctx, src, dst, de);
+        if (rc != NGX_OK) {
             break;
-        }
-
-        /* lstat nofollow: never resolve a symlink out of the export. */
-        if (brix_lstat_confined_canon(log, root_canon, src_child, &sb, 1) != 0)
-        {
-            continue;   /* vanished/unreadable child — skip */
-        }
-
-        if (S_ISDIR(sb.st_mode)) {
-            if (brix_mkdir_confined_canon(log, root_canon, dst_child,
-                                            sb.st_mode & 0777) != 0
-                && errno != EEXIST)
-            {
-                rc = NGX_ERROR;
-                break;
-            }
-            if (preserve_xattrs) {
-                brix_ns_copy_fattrs(log, src_child, dst_child);
-            }
-            if (meta_cb != NULL
-                && meta_cb(cookie, src_child, dst_child, 1 /* is_dir */)
-                       != NGX_OK)
-            {
-                rc = NGX_ERROR;
-                break;
-            }
-            if (brix_vfs_copytree(log, root_canon, src_child, dst_child,
-                                    preserve_xattrs, meta_cb, cookie) != NGX_OK)
-            {
-                rc = NGX_ERROR;
-                break;
-            }
-        } else if (S_ISREG(sb.st_mode)) {
-            if (brix_vfs_copyfile(log, root_canon, src_child, dst_child,
-                                    preserve_xattrs, meta_cb, cookie) != NGX_OK)
-            {
-                rc = NGX_ERROR;
-                break;
-            }
         }
     }
 

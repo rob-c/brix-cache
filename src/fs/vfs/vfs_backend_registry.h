@@ -51,8 +51,10 @@ void brix_vfs_backend_config_http(const char *root_canon, const char *host,
 
 /* Record (at config time) that the export rooted at `root_canon` is backed by a
  * read-only S3 source (`host`:`port`, TLS iff `tls`, path-style `bucket`), served
- * through the sd_remote driver over the shared libcurl S3 transport. CAP_RANGE_READ
- * only — an S3 primary is read-only, like an http:// primary. */
+ * through the sd_remote driver over the shared libcurl S3 transport. The driver
+ * advertises CAP_RANGE_READ (+CAP_MEMFILE) — no CAP_RANDOM_WRITE — so an S3
+ * primary is honestly read-only at the cap layer, like an http:// primary;
+ * writes are whole-object staged PUTs via the .staged_* slots (phase-71). */
 void brix_vfs_backend_config_s3(const char *root_canon, const char *host,
     int port, int tls, const char *bucket);
 
@@ -74,6 +76,7 @@ ngx_int_t brix_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
 typedef struct {
     const char *bearer;
     const char *x509_proxy;
+    const char *x509_key;   /* separate GSI key PEM; NULL ⇒ key is in x509_proxy */
     const char *ca_dir;
     const char *s3_access_key;
     const char *s3_secret_key;

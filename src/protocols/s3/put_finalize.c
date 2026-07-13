@@ -43,6 +43,18 @@ s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
 
         brix_vfs_ctx_init(&fctx, r->pool, log, BRIX_PROTO_S3, root_canon,
             NULL, 0 /* allow_write */, 0 /* is_tls */, NULL, final_path);
+        {
+            ngx_http_s3_loc_conf_t *acf =
+                ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
+            if (acf != NULL) {
+                /* Decorates a probe/stat-only ctx; Phase-2-forward — namespace
+                 * scoping already routes the credential via the VFS ns gate. */
+                brix_vfs_ctx_bind_backend_cred(&fctx,
+                    &acf->common.storage_credential_dir,
+                    acf->common.storage_credential_fallback);
+                s3_vfs_bind_deleg(r, acf, &fctx);
+            }
+        }
         bytes = (brix_vfs_probe(&fctx, 1 /* no-follow */, &fst) == NGX_OK
                  && fst.is_regular) ? (size_t) fst.size : 0;
         brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path, NULL, bytes,

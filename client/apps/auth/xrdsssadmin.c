@@ -17,6 +17,7 @@
 #include "auth/sss/sss_keytab.h"
 #include "core/version.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -68,16 +69,83 @@ load_or_empty(const char *path, brix_sss_key *keys, int max, int *n)
     return 0;
 }
 
+/*
+ * add_args_t — the parsed `add`/`install` request.
+ *
+ * WHAT:  bundles the six user-supplied fields of a key-add into one value.
+ * WHY:   collapses cmd_add's 7-parameter signature (path + six knobs) to two
+ *        (path + this struct), matching the coding-standard param-count gate
+ *        while keeping every field's meaning and default behavior unchanged.
+ * HOW:   populated once in main() from argv, then passed by const pointer to
+ *        cmd_add(); NULL/<=0 sentinels still select the documented defaults.
+ */
+typedef struct {
+    const char *user;          /* NULL → "anybody"           */
+    const char *group;         /* NULL → "anygroup"          */
+    const char *name;          /* NULL → local hostname      */
+    int64_t     want_id;       /* <0   → max existing id + 1  */
+    int         lifetime_days; /* <=0  → no expiry            */
+    int         keylen;        /* <=0 or >max → 32 bytes      */
+} add_args_t;
+
+/*
+ * add_fill_entry — populate one keytab slot from an add request.
+ *
+ * WHAT:  fills *k (id/key/user/group/name/exp) for a new key of keylen bytes.
+ * WHY:   isolates the pure per-entry construction (defaults + RAND_bytes) from
+ *        cmd_add's file I/O, keeping each function single-purpose and cutting
+ *        the orchestrator's branch count.
+ * HOW:   zero-init, resolve id/defaults, mint a random key; returns 0 on
+ *        success or -1 if RAND_bytes fails (message already printed).
+ */
 static int
-cmd_add(const char *path, const char *user, const char *group, const char *name,
-        int64_t want_id, int lifetime_days, int keylen)
+add_fill_entry(brix_sss_key *k, const add_args_t *a, int64_t maxid, int keylen)
+{
+    char hostname[128];
+
+    memset(k, 0, sizeof(*k));
+    k->id = (a->want_id >= 0) ? a->want_id : maxid + 1;
+    k->key_len = (size_t) keylen;
+    if (RAND_bytes(k->key, keylen) != 1) {
+        fprintf(stderr, "xrdsssadmin: RAND_bytes failed\n");
+        return -1;
+    }
+    snprintf(k->user, sizeof(k->user), "%s", a->user ? a->user : "anybody");
+    snprintf(k->group, sizeof(k->group), "%s", a->group ? a->group : "anygroup");
+    if (a->name != NULL) {
+        snprintf(k->name, sizeof(k->name), "%s", a->name);
+    } else {
+        if (gethostname(hostname, sizeof(hostname)) != 0) {
+            snprintf(hostname, sizeof(hostname), "localhost");
+        }
+        snprintf(k->name, sizeof(k->name), "%s", hostname);
+    }
+    k->exp = (a->lifetime_days > 0)
+             ? (int64_t) time(NULL) + (int64_t) a->lifetime_days * 86400
+             : 0;
+    return 0;
+}
+
+/*
+ * cmd_add — mint and append a new random SSS key, then self-validate.
+ *
+ * WHAT:  loads the keytab, appends one freshly generated key, writes it back,
+ *        and re-reads to confirm the mutation landed.
+ * WHY:   the `add`/`install` subcommand; delegates per-entry construction to
+ *        add_fill_entry so this function is just the load/append/write/verify
+ *        orchestration.
+ * HOW:   load-or-empty → capacity/keylen guards → compute max id → fill slot n
+ *        → write → re-read; returns 0 on success, 1 on any error.
+ */
+static int
+cmd_add(const char *path, const add_args_t *a)
 {
     brix_sss_key keys[XRDC_SSS_KEYS_MAX];
     brix_sss_key chk[XRDC_SSS_KEYS_MAX];
     brix_status  st;
     int          n = 0, i, m = 0;
+    int          keylen = a->keylen;
     int64_t      maxid = 0;
-    char         hostname[128];
 
     if (load_or_empty(path, keys, XRDC_SSS_KEYS_MAX, &n) != 0) {
         return 1;
@@ -95,30 +163,10 @@ cmd_add(const char *path, const char *user, const char *group, const char *name,
         }
     }
 
-    {
-        brix_sss_key *k = &keys[n];
-        memset(k, 0, sizeof(*k));
-        k->id = (want_id >= 0) ? want_id : maxid + 1;
-        k->key_len = (size_t) keylen;
-        if (RAND_bytes(k->key, keylen) != 1) {
-            fprintf(stderr, "xrdsssadmin: RAND_bytes failed\n");
-            return 1;
-        }
-        snprintf(k->user, sizeof(k->user), "%s", user ? user : "anybody");
-        snprintf(k->group, sizeof(k->group), "%s", group ? group : "anygroup");
-        if (name != NULL) {
-            snprintf(k->name, sizeof(k->name), "%s", name);
-        } else {
-            if (gethostname(hostname, sizeof(hostname)) != 0) {
-                snprintf(hostname, sizeof(hostname), "localhost");
-            }
-            snprintf(k->name, sizeof(k->name), "%s", hostname);
-        }
-        k->exp = (lifetime_days > 0)
-                 ? (int64_t) time(NULL) + (int64_t) lifetime_days * 86400
-                 : 0;
-        n++;
+    if (add_fill_entry(&keys[n], a, maxid, keylen) != 0) {
+        return 1;
     }
+    n++;
 
     brix_status_clear(&st);
     if (brix_sss_keytab_write(path, keys, n, &st) != 0) {
@@ -201,16 +249,170 @@ cmd_del(const char *path, int64_t id)
     return 0;
 }
 
+/*
+ * cli_opts_t — everything parsed off argv for one invocation.
+ *
+ * WHAT:  the subcommand name, the keytab path, and the add/del knobs (add_args
+ *        fields plus the shared --id used by both `add` and `del`).
+ * WHY:   lets the argv loop live in a single-purpose parser that fills this
+ *        struct, so main() reduces to parse → resolve-keytab → dispatch.
+ * HOW:   zero/default-initialised in main(), populated by parse_opts(), then
+ *        read by the subcommand handlers.
+ */
+typedef struct {
+    const char *cmd;    /* first non-flag positional; NULL if none */
+    const char *keytab; /* -k/--keytab; NULL → resolved default    */
+    add_args_t  add;    /* --user/--group/--name/--lifetime/--keylen */
+    int64_t     id;     /* --id; shared by add (want_id) and del    */
+} cli_opts_t;
+
+/* Kind of value a value-taking flag consumes. */
+typedef enum { OPT_STR, OPT_I32, OPT_I64 } opt_kind;
+
+/*
+ * opt_spec — one value-taking flag: its two accepted spellings and where its
+ *            value lands in a cli_opts_t.
+ *
+ * WHAT:  descriptor row {long name, short/alias name, value kind, field offset}.
+ * WHY:   expresses the flag ladder as data (coding-standard §8.6) so parse_opts
+ *        is a single loop over the table instead of a per-flag if-chain.
+ * HOW:   apply_opt() writes the parsed value at (char*)o + off according to
+ *        kind; alt may be NULL when a flag has only one spelling.
+ */
+typedef struct {
+    const char *name;
+    const char *alt;
+    opt_kind    kind;
+    size_t      off;
+} opt_spec;
+
+static const opt_spec OPTS[] = {
+    { "--keytab",   "-k", OPT_STR, offsetof(cli_opts_t, keytab)            },
+    { "--user",     NULL, OPT_STR, offsetof(cli_opts_t, add.user)          },
+    { "--group",    NULL, OPT_STR, offsetof(cli_opts_t, add.group)         },
+    { "--name",     NULL, OPT_STR, offsetof(cli_opts_t, add.name)          },
+    { "--id",       NULL, OPT_I64, offsetof(cli_opts_t, id)                },
+    { "--lifetime", NULL, OPT_I32, offsetof(cli_opts_t, add.lifetime_days) },
+    { "--keylen",   NULL, OPT_I32, offsetof(cli_opts_t, add.keylen)        },
+};
+
+/*
+ * apply_opt — store one value-taking flag's argument into *o.
+ *
+ * WHAT:  parses val per s->kind and writes it at the struct field s->off.
+ * WHY:   keeps the string/int/int64 conversion in one place so the parser loop
+ *        stays flat and adding a flag is one table row.
+ * HOW:   pointer-arithmetic to the target field, then the kind-appropriate
+ *        conversion (identical strtoll/atoi calls as the original loop).
+ */
+static void
+apply_opt(cli_opts_t *o, const opt_spec *s, const char *val)
+{
+    char *base = (char *) o;
+
+    if (s->kind == OPT_STR) {
+        *(const char **) (base + s->off) = val;
+    } else if (s->kind == OPT_I64) {
+        *(int64_t *) (base + s->off) = strtoll(val, NULL, 10);
+    } else {
+        *(int *) (base + s->off) = atoi(val);
+    }
+}
+
+/*
+ * match_opt — find the value-taking flag matching token a, if any.
+ *
+ * WHAT:  returns the OPTS row whose name or alt equals a, else NULL.
+ * WHY:   isolates the table scan so parse_opts reads as flag/positional/error.
+ * HOW:   linear scan comparing a against each row's two spellings.
+ */
+static const opt_spec *
+match_opt(const char *a)
+{
+    size_t i;
+
+    for (i = 0; i < sizeof(OPTS) / sizeof(OPTS[0]); i++) {
+        if (strcmp(a, OPTS[i].name) == 0
+            || (OPTS[i].alt != NULL && strcmp(a, OPTS[i].alt) == 0)) {
+            return &OPTS[i];
+        }
+    }
+    return NULL;
+}
+
+/*
+ * parse_opts — walk argv into a cli_opts_t.
+ *
+ * WHAT:  fills *o from argv; returns 0 to continue, or a process exit code
+ *        (0 for -h) when the caller should stop immediately.
+ * WHY:   moves the option-scanning ladder out of main(), keeping the
+ *        orchestrator flat; behavior (flags, arg-count checks, error text,
+ *        exit codes) is identical to the original inline loop.
+ * HOW:   for each token: a table-listed value flag with a following arg is
+ *        applied via apply_opt; else -h prints usage and stops (exit 0); else
+ *        the first bare word is the command; else usage + stop (exit 2). *stop
+ *        is set non-zero when the returned code is a process exit code.
+ */
+static int
+parse_opts(int argc, char **argv, cli_opts_t *o, int *stop)
+{
+    int i;
+
+    *stop = 0;
+    for (i = 1; i < argc; i++) {
+        const char     *a = argv[i];
+        const opt_spec *s = match_opt(a);
+
+        if (s != NULL && i + 1 < argc) {
+            apply_opt(o, s, argv[++i]);
+        } else if (strcmp(a, "-h") == 0) {
+            usage(); *stop = 1; return 0;  /* C1 */
+        } else if (a[0] != '-' && o->cmd == NULL) {
+            o->cmd = a;
+        } else {
+            fprintf(stderr, "xrdsssadmin: unexpected arg '%s'\n", a);
+            usage(); *stop = 1; return 2;
+        }
+    }
+    return 0;
+}
+
+/*
+ * dispatch_cmd — run the resolved subcommand.
+ *
+ * WHAT:  matches o->cmd against the {add,install,list,del} table and calls the
+ *        corresponding handler with the resolved keytab path.
+ * WHY:   replaces main()'s trailing if-ladder with a table-driven lookup so the
+ *        orchestrator stays flat and new subcommands are one row.
+ * HOW:   linear scan of a static-const descriptor table; on no match print the
+ *        unknown-command error + usage and return 2 (unchanged behavior).
+ */
+static int
+dispatch_cmd(const cli_opts_t *o, const char *keytab)
+{
+    add_args_t add = o->add;
+    add.want_id = o->id;
+
+    if (strcmp(o->cmd, "add") == 0 || strcmp(o->cmd, "install") == 0) {
+        return cmd_add(keytab, &add);
+    }
+    if (strcmp(o->cmd, "list") == 0) {
+        return cmd_list(keytab);
+    }
+    if (strcmp(o->cmd, "del") == 0) {
+        return cmd_del(keytab, o->id);
+    }
+    fprintf(stderr, "xrdsssadmin: unknown command '%s'\n", o->cmd);
+    usage();
+    return 2;
+}
+
 int
 main(int argc, char **argv)
 {
-    char        kt[XRDC_PATH_MAX];
-    const char *keytab = NULL;
-    const char *cmd = NULL;
-    const char *user = NULL, *group = NULL, *name = NULL;
-    int64_t     id = -1;
-    int         lifetime_days = 0, keylen = 32;
-    int         i;
+    char       kt[XRDC_PATH_MAX];
+    cli_opts_t o = { NULL, NULL, { NULL, NULL, NULL, -1, 0, 32 }, -1 };
+    int        rc, stop = 0;
 
     /* --help / --version before loop (not on shared parser). */
     if (argc >= 2) {
@@ -224,39 +426,19 @@ main(int argc, char **argv)
         }
     }
 
-    for (i = 1; i < argc; i++) {
-        const char *a = argv[i];
-        if ((strcmp(a, "-k") == 0 || strcmp(a, "--keytab") == 0) && i + 1 < argc) { keytab = argv[++i]; }
-        else if (strcmp(a, "--user") == 0 && i + 1 < argc)   { user = argv[++i]; }
-        else if (strcmp(a, "--group") == 0 && i + 1 < argc)  { group = argv[++i]; }
-        else if (strcmp(a, "--name") == 0 && i + 1 < argc)   { name = argv[++i]; }
-        else if (strcmp(a, "--id") == 0 && i + 1 < argc)     { id = strtoll(argv[++i], NULL, 10); }
-        else if (strcmp(a, "--lifetime") == 0 && i + 1 < argc) { lifetime_days = atoi(argv[++i]); }
-        else if (strcmp(a, "--keylen") == 0 && i + 1 < argc) { keylen = atoi(argv[++i]); }
-        else if (strcmp(a, "-h") == 0)                       { usage(); return 0; }  /* C1 */
-        else if (a[0] != '-' && cmd == NULL)                 { cmd = a; }
-        else { fprintf(stderr, "xrdsssadmin: unexpected arg '%s'\n", a); usage(); return 2; }
+    rc = parse_opts(argc, argv, &o, &stop);
+    if (stop) {
+        return rc;
     }
 
-    if (cmd == NULL) {
+    if (o.cmd == NULL) {
         usage();
         return 2;
     }
-    if (keytab == NULL) {
+    if (o.keytab == NULL) {
         brix_sss_keytab_default(kt, sizeof(kt));
-        keytab = kt;
+        o.keytab = kt;
     }
 
-    if (strcmp(cmd, "add") == 0 || strcmp(cmd, "install") == 0) {
-        return cmd_add(keytab, user, group, name, id, lifetime_days, keylen);
-    }
-    if (strcmp(cmd, "list") == 0) {
-        return cmd_list(keytab);
-    }
-    if (strcmp(cmd, "del") == 0) {
-        return cmd_del(keytab, id);
-    }
-    fprintf(stderr, "xrdsssadmin: unknown command '%s'\n", cmd);
-    usage();
-    return 2;
+    return dispatch_cmd(&o, o.keytab);
 }

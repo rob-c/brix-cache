@@ -10,6 +10,7 @@
 #include "fs/path/path.h"
 #include "fs/vfs/vfs.h"
 #include "core/http/http_xml.h"
+#include "core/compat/hex.h"
 #include "core/compat/namespace_ops.h"
 
 #include <errno.h>
@@ -72,20 +73,33 @@ webdav_dead_prop_vfs_ctx_init(ngx_http_request_t *r, const char *path,
 #define WEBDAV_DEAD_PROP_VALUE_MAX   16384
 #define WEBDAV_DEAD_PROP_LIST_MAX    65536
 
-/* Single hex digit -> nibble, or -1 if not a hex character. */
-static int
-webdav_dead_prop_hexval(char c)
+/*
+ * WHAT: True if `c` is an ASCII letter or '_' (the XML NameStartChar subset we
+ *       permit for a dead-property local name).
+ * WHY:  Splitting the character-class test out of the validator collapses the
+ *       validator's branch fan-out (each range test is one branch) into a
+ *       single call, keeping the validator's complexity low and the accepted
+ *       set stated in exactly one place.
+ * HOW:  Pure predicate over the raw byte; no side effects.
+ */
+static ngx_flag_t
+webdav_xml_name_start_char(unsigned char c)
 {
-    if (c >= '0' && c <= '9') {
-        return c - '0';
-    }
-    if (c >= 'a' && c <= 'f') {
-        return c - 'a' + 10;
-    }
-    if (c >= 'A' && c <= 'F') {
-        return c - 'A' + 10;
-    }
-    return -1;
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_';
+}
+
+/*
+ * WHAT: True if `c` is a permitted XML NameChar for a dead-property local name
+ *       (a NameStartChar, or a digit, '-', or '.').
+ * WHY:  Same rationale as webdav_xml_name_start_char — one predicate per
+ *       character class keeps the validator loop a single-branch scan.
+ * HOW:  Reuses the start-char predicate, then admits the trailing-only extras.
+ */
+static ngx_flag_t
+webdav_xml_name_char(unsigned char c)
+{
+    return webdav_xml_name_start_char(c)
+           || (c >= '0' && c <= '9') || c == '-' || c == '.';
 }
 
 /*
@@ -104,20 +118,14 @@ webdav_dead_prop_xml_name_ok(const char *name)
         return 0;
     }
 
-    if (!((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z')
-          || *p == '_'))
-    {
+    if (!webdav_xml_name_start_char(*p)) {
         return 0;
     }
 
     for (p++; *p != '\0'; p++) {
-        if ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z')
-            || (*p >= '0' && *p <= '9') || *p == '_' || *p == '-'
-            || *p == '.')
-        {
-            continue;
+        if (!webdav_xml_name_char(*p)) {
+            return 0;
         }
-        return 0;
     }
 
     return 1;
@@ -201,8 +209,8 @@ webdav_dead_prop_decode_hex(ngx_pool_t *pool, const char *hex, size_t len)
     BRIX_PNALLOC_OR_RETURN(out, pool, len / 2 + 1, NULL);
 
     for (i = 0; i < len; i += 2) {
-        int hi = webdav_dead_prop_hexval(hex[i]);
-        int lo = webdav_dead_prop_hexval(hex[i + 1]);
+        int hi = brix_hex_from_char((unsigned char) hex[i]);
+        int lo = brix_hex_from_char((unsigned char) hex[i + 1]);
         if (hi < 0 || lo < 0) {
             return NULL;
         }
@@ -305,6 +313,59 @@ webdav_dead_prop_append_empty(ngx_http_request_t *r, const char *ns,
 }
 
 /*
+ * WHAT: Bundle of the request + resource-path + property-identity fields that
+ *       every dead-property xattr op needs (request `r`, export `path`,
+ *       namespace URI `ns`, local element name `local`).
+ * WHY:  The public set/append_value entry points carry these as separate
+ *       parameters (their signatures are part of the module's header contract).
+ *       Packing them once here lets the internal workers pass a single
+ *       pointer, keeping each helper's parameter count within budget without
+ *       adding globals or changing the public API.
+ * HOW:  Plain aggregate populated by the thin public wrappers; read-only to the
+ *       workers.
+ */
+typedef struct {
+    ngx_http_request_t  *r;
+    const char          *path;
+    const char          *ns;
+    const char          *local;
+} webdav_dead_prop_target_t;
+
+/*
+ * WHAT: Store `xml[xml_len]` as the xattr value for the target property.
+ * WHY:  Core of webdav_dead_prop_set, factored out so the value bytes travel as
+ *       one (buf,len) pair alongside the bundled target — five parameters total.
+ * HOW:  Reject an oversized value or unencodable name up front (ENAMETOOLONG),
+ *       build the confined VFS ctx, then setxattr.  Behaviour is byte-for-byte
+ *       identical to the pre-split path.
+ */
+static ngx_int_t
+webdav_dead_prop_set_target(const webdav_dead_prop_target_t *t,
+    const char *xml, size_t xml_len)
+{
+    char             attr[WEBDAV_DEAD_PROP_NAME_MAX + 1];
+    brix_vfs_ctx_t vctx;
+
+    if (xml_len > WEBDAV_DEAD_PROP_VALUE_MAX
+        || webdav_dead_prop_attr_name(t->ns, t->local, attr, sizeof(attr))
+               != NGX_OK)
+    {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+
+    webdav_dead_prop_vfs_ctx_init(t->r, t->path, &vctx);
+
+    if (brix_vfs_setxattr(&vctx, attr, xml, xml_len, 0) != NGX_OK) {
+        ngx_log_error(NGX_LOG_WARN, t->r->connection->log, errno,
+                      "brix_webdav: setxattr dead property failed");
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}
+
+/*
  * PROPPATCH set: store the property's raw XML value as the xattr value.
  * The stored bytes are echoed verbatim on read, so the caller is responsible
  * for having serialized well-formed, already-escaped XML.  Oversized values
@@ -314,25 +375,9 @@ ngx_int_t
 webdav_dead_prop_set(ngx_http_request_t *r, const char *path,
     const char *ns, const char *local, const char *xml, size_t xml_len)
 {
-    char             attr[WEBDAV_DEAD_PROP_NAME_MAX + 1];
-    brix_vfs_ctx_t vctx;
+    webdav_dead_prop_target_t t = { r, path, ns, local };
 
-    if (xml_len > WEBDAV_DEAD_PROP_VALUE_MAX
-        || webdav_dead_prop_attr_name(ns, local, attr, sizeof(attr)) != NGX_OK)
-    {
-        errno = ENAMETOOLONG;
-        return NGX_ERROR;
-    }
-
-    webdav_dead_prop_vfs_ctx_init(r, path, &vctx);
-
-    if (brix_vfs_setxattr(&vctx, attr, xml, xml_len, 0) != NGX_OK) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, errno,
-                      "brix_webdav: setxattr dead property failed");
-        return NGX_ERROR;
-    }
-
-    return NGX_OK;
+    return webdav_dead_prop_set_target(&t, xml, xml_len);
 }
 
 /*
@@ -355,6 +400,10 @@ webdav_dead_prop_remove(ngx_http_request_t *r, const char *path,
     webdav_dead_prop_vfs_ctx_init(r, path, &vctx);
 
     /* "not present" == already removed, so treat ENODATA/ENOATTR as success. */
+    /* phase74-fp: ENOATTR is an alias of ENODATA on Linux but a distinct errno
+     * on BSD/macOS — both are checked deliberately for portability, so the
+     * "equivalent nested operands" finding is moot. */
+    /* NOLINTNEXTLINE(misc-redundant-expression) */
     if (brix_vfs_removexattr(&vctx, attr) != NGX_OK
         && errno != ENODATA && errno != ENOATTR)
     {
@@ -376,29 +425,38 @@ webdav_dead_prop_remove(ngx_http_request_t *r, const char *path,
  * the length so we can size the alloc; the value is capped at VALUE_MAX so the
  * probe cannot drive an unbounded allocation.
  */
-ngx_int_t
-webdav_dead_prop_append_value(ngx_http_request_t *r, const char *path,
-    const char *ns, const char *local, ngx_chain_t **head,
-    ngx_chain_t **tail, ngx_flag_t *found)
+/*
+ * WHAT: Read the target property's xattr value into a NUL-terminated,
+ *       pool-allocated string; return it via *out_value / *out_len.
+ * WHY:  The two-call (probe, then read) getxattr dance is the bulk of
+ *       append_value; isolating it keeps the appender a short compose step and
+ *       holds every helper at <=5 params.
+ * HOW:  Encode the key, probe the length (missing/foreign -> NGX_DECLINED so the
+ *       caller reports "not found" without an error), cap at VALUE_MAX, alloc,
+ *       re-read.  Return values and errno match the original inline logic.
+ */
+static ngx_int_t
+webdav_dead_prop_read_value(const webdav_dead_prop_target_t *t,
+    char **out_value, ssize_t *out_len)
 {
     char             attr[WEBDAV_DEAD_PROP_NAME_MAX + 1];
     brix_vfs_ctx_t vctx;
     char            *value;
     ssize_t          len;
 
-    *found = 0;
-
-    if (webdav_dead_prop_attr_name(ns, local, attr, sizeof(attr)) != NGX_OK) {
-        return NGX_OK;
+    if (webdav_dead_prop_attr_name(t->ns, t->local, attr, sizeof(attr))
+            != NGX_OK)
+    {
+        return NGX_DECLINED;
     }
 
-    webdav_dead_prop_vfs_ctx_init(r, path, &vctx);
+    webdav_dead_prop_vfs_ctx_init(t->r, t->path, &vctx);
 
     /* Probe length first (buf=NULL, size=0). */
     len = brix_vfs_getxattr(&vctx, attr, NULL, 0);
     if (len < 0) {
         if (errno == ENODATA || errno == ENOATTR) {
-            return NGX_OK;
+            return NGX_DECLINED;
         }
         return NGX_ERROR;
     }
@@ -407,7 +465,7 @@ webdav_dead_prop_append_value(ngx_http_request_t *r, const char *path,
         return NGX_ERROR;
     }
 
-    BRIX_PNALLOC_OR_RETURN(value, r->pool, (size_t) len + 1, NGX_ERROR);
+    BRIX_PNALLOC_OR_RETURN(value, t->r->pool, (size_t) len + 1, NGX_ERROR);
 
     /* Second read fetches the actual bytes; a concurrent shrink is fine since
      * we re-read the returned length, a concurrent grow is bounded by the buf. */
@@ -416,6 +474,31 @@ webdav_dead_prop_append_value(ngx_http_request_t *r, const char *path,
         return NGX_ERROR;
     }
     value[len] = '\0';
+
+    *out_value = value;
+    *out_len = len;
+    return NGX_OK;
+}
+
+ngx_int_t
+webdav_dead_prop_append_value(ngx_http_request_t *r, const char *path,
+    const char *ns, const char *local, ngx_chain_t **head,
+    ngx_chain_t **tail, ngx_flag_t *found)
+{
+    webdav_dead_prop_target_t t = { r, path, ns, local };
+    char                     *value;
+    ssize_t                   len;
+    ngx_int_t                 rc;
+
+    *found = 0;
+
+    rc = webdav_dead_prop_read_value(&t, &value, &len);
+    if (rc == NGX_DECLINED) {
+        return NGX_OK;
+    }
+    if (rc != NGX_OK) {
+        return NGX_ERROR;
+    }
 
     if (brix_http_chain_appendf(r->pool, head, tail, "%s", value) == NULL) {
         return NGX_ERROR;

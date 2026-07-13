@@ -5,8 +5,8 @@
  * block used by tpc_cred.c for OAuth2/OIDC credential delegation.
  */
 
-#ifndef _TPC_CONFIG_H
-#define _TPC_CONFIG_H 1
+#ifndef BRIX_TPC_CONFIG_H
+#define BRIX_TPC_CONFIG_H 1
 
 #include <ngx_core.h>
 #include <ngx_http.h>
@@ -29,4 +29,4 @@ typedef struct {
     ngx_str_t  token_scope;
 } ngx_http_brix_tpc_conf_t;
 
-#endif /* _TPC_CONFIG_H */
+#endif /* BRIX_TPC_CONFIG_H */

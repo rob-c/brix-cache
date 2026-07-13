@@ -427,14 +427,13 @@ tape_stage_list(ngx_http_request_t *r)
     brix_stage_request_t   rec;
     ngx_uint_t    cursor = 0;
     json_t       *arr, *o;
-    ngx_int_t     rc;
 
     if (q == NULL) {
         return tape_error(r, NGX_HTTP_SERVICE_UNAVAILABLE, "not configured");
     }
     arr = json_array();
-    while ((rc = brix_stage_request_list_active(q, &cursor, &rec,
-                                         r->connection->log)) == NGX_OK)
+    while (brix_stage_request_list_active(q, &cursor, &rec,
+                                         r->connection->log) == NGX_OK)
     {
         json_t *e = json_object();
         json_object_set_new(e, "id", json_string(rec.reqid));

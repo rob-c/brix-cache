@@ -156,6 +156,61 @@ static bool is_snap_dentry(const std::string &key)
     return true;
 }
 
+/* Build the FileEnt for a regular-file primary dentry and queue it for migration.
+ * Handles other-pool skip, truncation/hardlink flagging, and the --strip prefix. */
+static void queue_regular_file(const cephfs_dentry_t &dn, const std::string &child)
+{
+    if (g_data_pool_id >= 0 && dn.inode.layout.pool_id != g_data_pool_id) {
+        g_un.otherpool++;
+        warn("OTHER-POOL file (skipped — data in pool id " +
+             std::to_string(dn.inode.layout.pool_id) + ", not the target data pool): " + child);
+        return;
+    }
+    if (dn.xattrs_truncated) { g_un.xattr_trunc++;
+        warn("WARN inode xattr set truncated (some xattrs not carried): " + child); }
+    if (dn.inode.nlink > 1) {
+        g_un.hardlink_files++;
+        warn("HARDLINKED FILE nlink=" + std::to_string(dn.inode.nlink) +
+             " (UNVERIFIED: primary path migrates, the other " +
+             std::to_string(dn.inode.nlink-1) + " name(s) will be ABSENT in XrdCeph): " + child);
+    }
+    FileEnt fe;
+    fe.soid = child.substr(1);             /* drop leading '/' */
+    fe.ino = dn.inode.ino;
+    fe.object_size = dn.inode.layout.object_size;
+    fe.stripe_unit = dn.inode.layout.stripe_unit;
+    fe.stripe_count = dn.inode.layout.stripe_count;
+    fe.size = dn.inode.size;
+    for (uint32_t x = 0; x < dn.nxattrs; x++) {
+        if (dn.xattrs[x].name_len == 19
+            && memcmp(dn.xattrs[x].name,"user.XrdCks.adler32",19)==0) {
+            fe.cksum.assign(dn.xattrs[x].val, dn.xattrs[x].val_len);
+        }
+    }
+    if (!g.strip.empty() && fe.soid.compare(0,g.strip.size(),g.strip)==0)
+        fe.soid = fe.soid.substr(g.strip.size());
+    g_files.push_back(fe);
+    g_un.files++;
+}
+
+/* Classify a non-directory primary dentry (symlink/special/regular) and act on it. */
+static void classify_nondir(const cephfs_dentry_t &dn, const std::string &child)
+{
+    if (cephfs_mode_is_link(dn.inode.mode)) {
+        g_un.symlinks++;
+        warn("SYMLINK (skipped — XrdCeph has no symlinks): " + child);
+        return;
+    }
+    if (!cephfs_mode_is_reg(dn.inode.mode)) {
+        g_un.special++;
+        char mb[16]; snprintf(mb,sizeof(mb),"0%o",(unsigned)(dn.inode.mode & CEPHFS_S_IFMT));
+        warn(std::string("SPECIAL FILE (type ")+mb+
+             ", skipped — no data objects): " + child);
+        return;
+    }
+    queue_regular_file(dn, child);
+}
+
 void
 walk(uint64_t dirino, const uint32_t *frags, uint32_t nfrags, const std::string &path)
 {
@@ -186,7 +241,6 @@ walk(uint64_t dirino, const uint32_t *frags, uint32_t nfrags, const std::string 
                     continue;
                 }
                 /* PRIMARY */
-                uint32_t typ = dn.inode.mode & CEPHFS_S_IFMT;
                 if (cephfs_mode_is_dir(dn.inode.mode)) {
                     g_un.dirs++;
                     if (dn.frags_truncated) { g_un.frag_trunc++;
@@ -195,50 +249,7 @@ walk(uint64_t dirino, const uint32_t *frags, uint32_t nfrags, const std::string 
                     walk(dn.inode.ino, dn.frag_enc, nf, child);
                     continue;
                 }
-                if (cephfs_mode_is_link(dn.inode.mode)) {
-                    g_un.symlinks++;
-                    warn("SYMLINK (skipped — XrdCeph has no symlinks): " + child);
-                    continue;
-                }
-                if (!cephfs_mode_is_reg(dn.inode.mode)) {
-                    g_un.special++;
-                    char mb[16]; snprintf(mb,sizeof(mb),"0%o",(unsigned)typ);
-                    warn(std::string("SPECIAL FILE (type ")+mb+
-                         ", skipped — no data objects): " + child);
-                    continue;
-                }
-                /* regular file */
-                if (g_data_pool_id >= 0 && dn.inode.layout.pool_id != g_data_pool_id) {
-                    g_un.otherpool++;
-                    warn("OTHER-POOL file (skipped — data in pool id " +
-                         std::to_string(dn.inode.layout.pool_id) + ", not the target data pool): " + child);
-                    continue;
-                }
-                if (dn.xattrs_truncated) { g_un.xattr_trunc++;
-                    warn("WARN inode xattr set truncated (some xattrs not carried): " + child); }
-                if (dn.inode.nlink > 1) {
-                    g_un.hardlink_files++;
-                    warn("HARDLINKED FILE nlink=" + std::to_string(dn.inode.nlink) +
-                         " (UNVERIFIED: primary path migrates, the other " +
-                         std::to_string(dn.inode.nlink-1) + " name(s) will be ABSENT in XrdCeph): " + child);
-                }
-                FileEnt fe;
-                fe.soid = child.substr(1);             /* drop leading '/' */
-                fe.ino = dn.inode.ino;
-                fe.object_size = dn.inode.layout.object_size;
-                fe.stripe_unit = dn.inode.layout.stripe_unit;
-                fe.stripe_count = dn.inode.layout.stripe_count;
-                fe.size = dn.inode.size;
-                for (uint32_t x = 0; x < dn.nxattrs; x++) {
-                    if (dn.xattrs[x].name_len == 19
-                        && memcmp(dn.xattrs[x].name,"user.XrdCks.adler32",19)==0) {
-                        fe.cksum.assign(dn.xattrs[x].val, dn.xattrs[x].val_len);
-                    }
-                }
-                if (!g.strip.empty() && fe.soid.compare(0,g.strip.size(),g.strip)==0)
-                    fe.soid = fe.soid.substr(g.strip.size());
-                g_files.push_back(fe);
-                g_un.files++;
+                classify_nondir(dn, child);
             }
         }
     }
@@ -302,31 +313,80 @@ int verify_striper(const FileEnt &fe)
 
 enum R { OK, SKIP, FAIL };
 
+/* Detach + remove the striper overlay objects, leaving the CephFS data intact. */
+static R do_rollback(const FileEnt &fe, const std::vector<unsigned long> &idxs)
+{
+    if (g.dry) { logline("DRY  rollback "+fe.soid); n_skip++; return SKIP; }
+    for (unsigned long idx : idxs) {
+        char s[1100]; snprintf(s,sizeof(s),"%s.%016lx",fe.soid.c_str(),idx);
+        librados::ObjectWriteOperation um; um.unset_manifest(); g_sp.operate(s,&um);  /* detach */
+        g_sp.remove(s);
+    }
+    logline("ROLLBACK "+fe.soid+" striper overlay removed (CephFS data intact)");
+    n_ok++; return OK;
+}
+
+/* True if the striper soid is already stamped at `fe.size` (redirect-mode idempotency). */
+static bool already_migrated(const std::string &first, const FileEnt &fe)
+{
+    ceph::bufferlist bl;
+    if (g_sp.getxattr(first,"striper.size",bl) < 0 || bl.length()==0) { return false; }
+    std::string s(bl.c_str(),bl.length());
+    return strtoul(s.c_str(),0,10)==fe.size;
+}
+
+/* Migrate one data object `idx` (finalize=promote stub, else zero-move redirect).
+ * 0 on success, -1 on failure (already logged + n_fail bumped). */
+static int migrate_object(const FileEnt &fe, unsigned long idx)
+{
+    char src[64]; snprintf(src,sizeof(src),"%llx.%08lx",(unsigned long long)fe.ino,idx);
+    char dst[1100]; snprintf(dst,sizeof(dst),"%s.%016lx",fe.soid.c_str(),idx);
+    if (g.finalize) {
+        /* materialize an existing redirect stub into an owned object */
+        { librados::ObjectWriteOperation pr; pr.tier_promote();
+          if (g_sp.operate(dst,&pr)<0){ logline("FAIL "+fe.soid+": tier_promote"); n_fail++; return -1; } }
+        { librados::ObjectWriteOperation um; um.unset_manifest(); g_sp.operate(dst,&um); }
+        return 0;
+    }
+    /* zero-move: redirect the striper name at the CephFS data object */
+    uint64_t psz=0; time_t pmt=0;
+    if (g_cdata.stat(src,&psz,&pmt)<0){ logline("FAIL "+fe.soid+": stat "+src); n_fail++; return -1; }
+    uint64_t ver=g_cdata.get_last_version();
+    { librados::ObjectWriteOperation cr; cr.create(false); g_sp.operate(dst,&cr); }
+    librados::ObjectWriteOperation rd; rd.set_redirect(src, g_cdata, ver, 0);
+    if (g_sp.operate(dst,&rd)<0){ logline("FAIL "+fe.soid+": set_redirect"); n_fail++; return -1; }
+    return 0;
+}
+
+/* Drop the source CephFS data objects (finalize --del only). */
+static void finalize_delete(const FileEnt &fe, const std::vector<unsigned long> &idxs)
+{
+    for (unsigned long idx : idxs) {
+        char src[64]; snprintf(src,sizeof(src),"%llx.%08lx",(unsigned long long)fe.ino,idx);
+        g_cdata.remove(src);
+    }
+}
+
+/* Emit the terminal OK log line for a completed migration. */
+static void log_success(const FileEnt &fe, size_t nobj)
+{
+    logline(std::string("OK   ")+(g.finalize?"finalize ":"redirect ")+fe.soid+
+            " ("+std::to_string(fe.size)+" bytes, "+std::to_string(nobj)+" obj"+
+            (g.verify?", verified":"")+(g.finalize&&g.del?", cephfs data deleted":"")+")");
+}
+
 R process(const FileEnt &fe)
 {
     auto objs = g_objs.find(fe.ino);
     if (objs == g_objs.end()) { logline("FAIL "+fe.soid+": no data objects for ino"); n_fail++; return FAIL; }
     std::string first = fe.soid + ".0000000000000000";
 
-    if (g.rollback) {
-        if (g.dry) { logline("DRY  rollback "+fe.soid); n_skip++; return SKIP; }
-        for (unsigned long idx : objs->second) {
-            char s[1100]; snprintf(s,sizeof(s),"%s.%016lx",fe.soid.c_str(),idx);
-            librados::ObjectWriteOperation um; um.unset_manifest(); g_sp.operate(s,&um);  /* detach */
-            g_sp.remove(s);
-        }
-        logline("ROLLBACK "+fe.soid+" striper overlay removed (CephFS data intact)");
-        n_ok++; return OK;
-    }
+    if (g.rollback) { return do_rollback(fe, objs->second); }
 
     /* idempotency (redirect mode only — finalize intentionally re-touches the
      * already-stamped soid): skip if the striper soid is already stamped at size. */
-    if (!g.finalize) {
-        ceph::bufferlist bl;
-        if (g_sp.getxattr(first,"striper.size",bl) >= 0 && bl.length()>0) {
-            std::string s(bl.c_str(),bl.length());
-            if (strtoul(s.c_str(),0,10)==fe.size) { logline("SKIP "+fe.soid+" (already present)"); n_skip++; return SKIP; }
-        }
+    if (!g.finalize && already_migrated(first, fe)) {
+        logline("SKIP "+fe.soid+" (already present)"); n_skip++; return SKIP;
     }
 
     if (g.dry) {
@@ -336,71 +396,60 @@ R process(const FileEnt &fe)
     }
 
     for (unsigned long idx : objs->second) {
-        char src[64]; snprintf(src,sizeof(src),"%llx.%08lx",(unsigned long long)fe.ino,idx);
-        char dst[1100]; snprintf(dst,sizeof(dst),"%s.%016lx",fe.soid.c_str(),idx);
-        if (g.finalize) {
-            /* materialize an existing redirect stub into an owned object */
-            { librados::ObjectWriteOperation pr; pr.tier_promote();
-              if (g_sp.operate(dst,&pr)<0){ logline("FAIL "+fe.soid+": tier_promote"); n_fail++; return FAIL; } }
-            { librados::ObjectWriteOperation um; um.unset_manifest(); g_sp.operate(dst,&um); }
-        } else {
-            /* zero-move: redirect the striper name at the CephFS data object */
-            uint64_t psz=0; time_t pmt=0;
-            if (g_cdata.stat(src,&psz,&pmt)<0){ logline("FAIL "+fe.soid+": stat "+src); n_fail++; return FAIL; }
-            uint64_t ver=g_cdata.get_last_version();
-            { librados::ObjectWriteOperation cr; cr.create(false); g_sp.operate(dst,&cr); }
-            librados::ObjectWriteOperation rd; rd.set_redirect(src, g_cdata, ver, 0);
-            if (g_sp.operate(dst,&rd)<0){ logline("FAIL "+fe.soid+": set_redirect"); n_fail++; return FAIL; }
-        }
+        if (migrate_object(fe, idx) != 0) { return FAIL; }
     }
     stamp(first, fe);
 
     if (g.verify && verify_striper(fe)!=0) { logline("FAIL "+fe.soid+": verify"); n_fail++; return FAIL; }
 
-    if (g.finalize && g.del) {                          /* drop the CephFS data objects */
-        for (unsigned long idx : objs->second) {
-            char src[64]; snprintf(src,sizeof(src),"%llx.%08lx",(unsigned long long)fe.ino,idx);
-            g_cdata.remove(src);
-        }
-    }
+    if (g.finalize && g.del) { finalize_delete(fe, objs->second); }
     n_bytes += fe.size; n_ok++;
-    logline(std::string("OK   ")+(g.finalize?"finalize ":"redirect ")+fe.soid+
-            " ("+std::to_string(fe.size)+" bytes, "+std::to_string(objs->second.size())+" obj"+
-            (g.verify?", verified":"")+(g.finalize&&g.del?", cephfs data deleted":"")+")");
+    log_success(fe, objs->second.size());
     return OK;
 }
 
-} /* namespace */
-
-int
-main(int argc, char **argv)
+static int
+parse_cli_value_option(const std::string &a, int *i, int argc, char **argv)
 {
-    std::vector<std::string> pos;
+    if (a=="--strip"  && *i+1<argc) { g.strip=argv[++(*i)]; return 1; }
+    if (a=="--threads"&& *i+1<argc) { g.threads=atoi(argv[++(*i)]); return 1; }
+    if (a=="--conf"   && *i+1<argc) { g.conf=argv[++(*i)]; return 1; }
+    if (a=="--config" && *i+1<argc) { g.config=argv[++(*i)]; return 1; }
+    return 0;
+}
+
+static int
+parse_cli_flag_option(const std::string &a)
+{
+    if (a=="--assume-quiesced") { g.quiesced=true; return 1; }
+    if (a=="--finalize") { g.finalize=true; return 1; }
+    if (a=="--rollback") { g.rollback=true; return 1; }
+    if (a=="--verify") { g.verify=true; return 1; }
+    if (a=="--delete-source") { g.del=true; return 1; }
+    if (a=="--dry-run") { g.dry=true; return 1; }
+    if (a=="--report-only") { g.report_only=true; return 1; }
+    return 0;
+}
+
+static int
+parse_cli_args(int argc, char **argv, std::vector<std::string> *pos)
+{
     for (int i=1;i<argc;i++){ std::string a=argv[i];
-        if      (a=="--strip"  && i+1<argc) g.strip=argv[++i];
-        else if (a=="--threads"&& i+1<argc) g.threads=atoi(argv[++i]);
-        else if (a=="--conf"   && i+1<argc) g.conf=argv[++i];
-        else if (a=="--config" && i+1<argc) g.config=argv[++i];
-        else if (a=="--assume-quiesced") g.quiesced=true;
-        else if (a=="--finalize") g.finalize=true;
-        else if (a=="--rollback") g.rollback=true;
-        else if (a=="--verify")   g.verify=true;
-        else if (a=="--delete-source") g.del=true;
-        else if (a=="--dry-run")  g.dry=true;
-        else if (a=="--report-only") g.report_only=true;
-        else if (a.rfind("--",0)==0){ fprintf(stderr,"unknown option %s\n",a.c_str()); return 2; }
-        else pos.push_back(a);
+        if (parse_cli_value_option(a, &i, argc, argv)) { continue; }
+        if (parse_cli_flag_option(a)) { continue; }
+        if (a.rfind("--",0)==0){ fprintf(stderr,"unknown option %s\n",a.c_str()); return 2; }
+        pos->push_back(a);
     }
-    /* site profile: explicit CLI > config file > default; full positional
-     * arity or NONE (a partial mix is ambiguous and refused). */
-    if (g.config.empty() && getenv("XRDCEPH_MIGRATE_CONF") != NULL) {
-        g.config = getenv("XRDCEPH_MIGRATE_CONF");
-    }
-    xrdceph_migrate_cfg cfg;
-    if (!g.config.empty() && !xrdceph_migrate_cfg_load(g.config, &cfg)) { return 2; }
+    return 0;
+}
+
+static int
+resolve_required_config(const std::vector<std::string> &pos, const char *prog,
+                        const xrdceph_migrate_cfg &cfg)
+{
     if (pos.size()!=3 && pos.size()!=0){
         fprintf(stderr,"usage: %s <meta_pool> <cephfs_data_pool> <striper_pool> [opts]\n"
-                "       (give all three positionals, or none with --config)\n",argv[0]);
+                "       (give all three positionals, or none with --config)\n",prog);
         return 2;
     }
     if (pos.size()==3){ g.meta=pos[0]; g.cdata=pos[1]; g.spool=pos[2]; }
@@ -419,15 +468,60 @@ main(int argc, char **argv)
     }
     if (g.conf.empty()) g.conf = xrdceph_migrate_cfg_resolve("", cfg, "conf");
     if (g.conf.empty()) g.conf=getenv("CEPH_CONF")?getenv("CEPH_CONF"):"/etc/ceph/ceph.conf";
+    return 0;
+}
+
+static int
+resolve_config(const std::vector<std::string> &pos, const char *prog)
+{
+    if (g.config.empty() && getenv("XRDCEPH_MIGRATE_CONF") != NULL) {
+        g.config = getenv("XRDCEPH_MIGRATE_CONF");
+    }
+    xrdceph_migrate_cfg cfg;
+    if (!g.config.empty() && !xrdceph_migrate_cfg_load(g.config, &cfg)) { return 2; }
+    int rc = resolve_required_config(pos, prog, cfg);
+    if (rc != 0) { return rc; }
     if (g.threads<1) g.threads=1;
     if (!g.quiesced){ fprintf(stderr,"refusing to run: pass --assume-quiesced (CephFS MUST be unmounted / fs failed, journal flushed)\n"); return 2; }
     if (g.del && !g.finalize){ fprintf(stderr,"--delete-source is only valid with --finalize\n"); return 2; }
+    return 0;
+}
 
+static int
+init_rados()
+{
     if (g_cl.init(g.client.c_str())<0||g_cl.conf_read_file(g.conf.c_str())<0||g_cl.connect()<0){ fprintf(stderr,"rados connect\n"); return 1; }
     g_cl.ioctx_create(g.meta.c_str(),g_meta);
     g_cl.ioctx_create(g.cdata.c_str(),g_cdata);
     g_cl.ioctx_create(g.spool.c_str(),g_sp);
     g_data_pool_id = g_cdata.get_id();              /* to flag files in other pools */
+    return 0;
+}
+
+static void
+run_worker_pool()
+{
+    std::queue<FileEnt> q; for (auto&f:g_files) q.push(f); std::mutex qm;
+    auto worker=[&](){ for(;;){ FileEnt fe; { std::lock_guard<std::mutex> l(qm); if(q.empty())return; fe=q.front(); q.pop(); } process(fe); } };
+    std::vector<std::thread> pool; for(int i=0;i<g.threads;i++) pool.emplace_back(worker);
+    for(auto&t:pool) t.join();
+}
+
+} /* namespace */
+
+int
+main(int argc, char **argv)
+{
+    std::vector<std::string> pos;
+    int rc = parse_cli_args(argc, argv, &pos);
+    if (rc != 0) { return rc; }
+    /* site profile: explicit CLI > config file > default; full positional
+     * arity or NONE (a partial mix is ambiguous and refused). */
+    rc = resolve_config(pos, argv[0]);
+    if (rc != 0) { return rc; }
+
+    rc = init_rados();
+    if (rc != 0) { return rc; }
 
     /* warn about RADOS pool-level snapshots — not a CephFS namespace object, so the
      * walk can't see them; they are not migrated. */
@@ -450,10 +544,7 @@ main(int argc, char **argv)
             g_files.size(), g.rollback?"ROLLBACK":(g.finalize?"FINALIZE":"redirect(zero-move)"),
             g.threads, g.dry?", DRY-RUN":"", g.verify?", verify":"");
 
-    std::queue<FileEnt> q; for (auto&f:g_files) q.push(f); std::mutex qm;
-    auto worker=[&](){ for(;;){ FileEnt fe; { std::lock_guard<std::mutex> l(qm); if(q.empty())return; fe=q.front(); q.pop(); } process(fe); } };
-    std::vector<std::thread> pool; for(int i=0;i<g.threads;i++) pool.emplace_back(worker);
-    for(auto&t:pool) t.join();
+    run_worker_pool();
 
     g_meta.close(); g_cdata.close(); g_sp.close(); g_cl.shutdown();
     fprintf(stderr,"done: %ld ok, %ld skipped, %ld failed, %ld bytes\n", n_ok.load(),n_skip.load(),n_fail.load(),n_bytes.load());

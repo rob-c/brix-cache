@@ -71,109 +71,236 @@ static int zip_map_kernel_rc(int krc)
     }
 }
 
+/*
+ * One decoded CDFH record: the fields the walk needs plus the record's total
+ * on-directory span. Keeps the per-record locals out of the loop body so the
+ * scan reads as parse → match → advance.
+ */
+typedef struct {
+    uint16_t  bits;       /* general-purpose flags   */
+    uint16_t  method;     /* compression method      */
+    uint16_t  fn;         /* file-name length        */
+    uint16_t  ex;         /* extra-field length      */
+    uint16_t  cm;         /* comment length          */
+    uint32_t  crc32;      /* stored CRC-32           */
+    uint64_t  uncomp;     /* uncompressed size       */
+    uint64_t  comp;       /* compressed size         */
+    uint64_t  lhdr_off;   /* local-header offset      */
+    uint64_t  span;       /* ZIP_CDFH_BASE+fn+ex+cm  */
+} brix_zip_cdfh_t;
+
+/* The open archive: its fd and total size, threaded to the kernel pread. */
+typedef struct {
+    int    fd;
+    off_t  size;
+} brix_zip_arc_t;
+
+/*
+ * WHAT: Decode and bounds-check the CDFH record at offset `p` in the central
+ *       directory buffer `cd` of length `cd_size`.
+ * WHY:  The record header, the variable-length trailer (name/extra/comment),
+ *       and the derived `span` are all derived from untrusted directory bytes;
+ *       every field must be validated before the walk reads them.
+ * HOW:  Verify the fixed header fits and carries the CDFH signature, decode the
+ *       fields, then verify the full variable-length record fits in `cd_size`.
+ *       Returns 0 on success, -1 on any malformed/overrunning record.
+ */
+static int
+zip_parse_cdfh(const unsigned char *cd, uint64_t p, uint64_t cd_size,
+               brix_zip_cdfh_t *rec)
+{
+    if (p + ZIP_CDFH_BASE > cd_size || zip_rd32le(cd + p) != ZIP_CDFH_SIG) {
+        return -1;
+    }
+    rec->bits     = zip_rd16le(cd + p + 8);
+    rec->method   = zip_rd16le(cd + p + 10);
+    rec->crc32    = zip_rd32le(cd + p + 16);
+    rec->comp     = zip_rd32le(cd + p + 20);
+    rec->uncomp   = zip_rd32le(cd + p + 24);
+    rec->fn       = zip_rd16le(cd + p + 28);
+    rec->ex       = zip_rd16le(cd + p + 30);
+    rec->cm       = zip_rd16le(cd + p + 32);
+    rec->lhdr_off = zip_rd32le(cd + p + 42);
+
+    rec->span = (uint64_t) ZIP_CDFH_BASE + rec->fn + rec->ex + rec->cm;
+    if (p + rec->span > cd_size) {
+        return -1;
+    }
+    return 0;
+}
+
+/*
+ * WHAT: Build the resolved member `last` for a CDFH record whose name matched.
+ * WHY:  A matched entry must reject unsupported kinds, apply the ZIP64 extra
+ *       overrides, and resolve the local-header data offset before it can be
+ *       served — this is the security-critical leaf of the walk.
+ * HOW:  Reject encrypted / data-descriptor / non-store-non-deflate entries,
+ *       apply the ZIP64 extra to the size/offset triple, populate `last`, then
+ *       resolve the data offset via the kernel. Returns a BRIX_ZIP_* code:
+ *       BRIX_ZIP_OK on success, an error code otherwise.
+ */
+static int
+zip_build_member(const brix_zip_arc_t *arc, const unsigned char *base,
+                 const brix_zip_cdfh_t *rec, brix_zip_member_t *last)
+{
+    uint64_t  uncomp = rec->uncomp, comp = rec->comp, lhdr_off = rec->lhdr_off;
+    int       fd = arc->fd;
+    int       rc;
+
+    /* Unsupported entry kinds → reject (matches plan W2 edge matrix). */
+    if ((rec->bits & ZIP_GPF_ENCRYPTED) || (rec->bits & ZIP_GPF_DATADESC)) {
+        return BRIX_ZIP_ECORRUPT;
+    }
+    if (rec->method != BRIX_ZIP_METHOD_STORE
+        && rec->method != BRIX_ZIP_METHOD_DEFLATE) {
+        return BRIX_ZIP_ECORRUPT;
+    }
+
+    zip_apply_zip64_extra(base + ZIP_CDFH_BASE + rec->fn, rec->ex,
+                          &uncomp, &comp, &lhdr_off);
+
+    memset(last, 0, sizeof(*last));
+    memcpy(last->name, base + ZIP_CDFH_BASE, rec->fn);
+    last->name[rec->fn]  = '\0';
+    last->method         = rec->method;
+    last->comp_size      = comp;
+    last->uncomp_size    = uncomp;
+    last->crc32          = rec->crc32;
+
+    rc = zip_resolve_data_off(zip_fd_pread, &fd, (uint64_t) arc->size,
+                              lhdr_off, comp, &last->data_off);
+    if (rc != ZIP_K_OK) {
+        return zip_map_kernel_rc(rc);
+    }
+    return BRIX_ZIP_OK;
+}
+
+/*
+ * The central directory loaded into memory: the owned buffer, its byte length,
+ * and the record count from the EOCD. Bundling these keeps the loader's and the
+ * scanner's parameter lists within budget while making ownership explicit.
+ */
+typedef struct {
+    unsigned char  *buf;      /* owned; caller frees                    */
+    uint64_t        size;     /* directory byte length                  */
+    uint64_t        nrec;     /* CDFH record count (from EOCD)          */
+} brix_zip_cd_t;
+
+/* The member key to match: name bytes + precomputed length. */
+typedef struct {
+    const char  *name;
+    size_t       len;
+} brix_zip_key_t;
+
+/*
+ * WHAT: Locate the central directory, allocate a +1-sentinel buffer, and read
+ *       the whole directory into `cd`. On success the caller owns `cd->buf`.
+ * WHY:  Isolates the untrusted-size overflow guard and the two-step
+ *       locate-then-read from the record walk, keeping each concern testable.
+ * HOW:  zip_locate_cd → reject empty directory → overflow-checked malloc →
+ *       pread the directory. Returns a BRIX_ZIP_* code; on error `cd->buf`=NULL.
+ */
+static int
+zip_load_cd(int fd, off_t archive_size, size_t cd_max, brix_zip_cd_t *cd)
+{
+    uint64_t  cd_off;
+    size_t    cd_alloc;
+    int       rc;
+
+    cd->buf = NULL;
+    rc = zip_locate_cd(zip_fd_pread, &fd, (uint64_t) archive_size,
+                       (uint64_t) cd_max, 0, &cd_off, &cd->size, &cd->nrec);
+    if (rc != ZIP_K_OK) {
+        return zip_map_kernel_rc(rc);
+    }
+    if (cd->size == 0) {
+        return BRIX_ZIP_ECORRUPT;   /* empty directory — no member to find */
+    }
+
+    /* cd size is read from the (untrusted) EOCD record; guard against a value
+     * so close to SIZE_MAX that the +1 sentinel byte allocation would wrap. */
+    if (brix_size_add((size_t) cd->size, 1, &cd_alloc) != NGX_OK) {
+        return BRIX_ZIP_ECORRUPT;
+    }
+    cd->buf = malloc(cd_alloc);
+    if (cd->buf == NULL) {
+        return BRIX_ZIP_EIO;
+    }
+    if (pread_full(fd, cd->buf, (size_t) cd->size, (off_t) cd_off) != 0) {
+        free(cd->buf);
+        cd->buf = NULL;
+        return BRIX_ZIP_EIO;
+    }
+    return BRIX_ZIP_OK;
+}
+
+/*
+ * WHAT: Walk the CDFH records in `cd`, resolving the last record whose name
+ *       equals `key` into `last`.
+ * WHY:  The last-match-wins scan is the core XrdZip semantic; keeping it in its
+ *       own function bounds the caller's complexity and localises the walk.
+ * HOW:  For each record: parse+bounds-check, compare the name, and on a match
+ *       build the member (may overwrite an earlier match). Returns BRIX_ZIP_OK
+ *       with `*found` = whether any match was resolved, or an error code.
+ */
+static int
+zip_scan_directory(const brix_zip_arc_t *arc, const brix_zip_cd_t *cd,
+                   const brix_zip_key_t *key, brix_zip_member_t *last,
+                   int *found)
+{
+    uint64_t  p = 0;
+
+    *found = BRIX_ZIP_NOMEMBER;
+    for (uint64_t i = 0; i < cd->nrec; ++i) {
+        brix_zip_cdfh_t  rec = {0};
+        int              rc;
+
+        if (zip_parse_cdfh(cd->buf, p, cd->size, &rec) != 0) {
+            return BRIX_ZIP_ECORRUPT;
+        }
+        if (rec.fn == key->len
+            && memcmp(cd->buf + p + ZIP_CDFH_BASE, key->name, rec.fn) == 0) {
+            rc = zip_build_member(arc, cd->buf + p, &rec, last);
+            if (rc != BRIX_ZIP_OK) {
+                return rc;
+            }
+            *found = BRIX_ZIP_OK;   /* keep scanning: last match wins */
+        }
+        p += rec.span;
+    }
+    return BRIX_ZIP_OK;
+}
+
 int
 brix_zip_find_member(int fd, off_t archive_size, const char *member,
                        size_t cd_max, brix_zip_member_t *out)
 {
-    uint64_t        cd_off, cd_size, nrec;
-    unsigned char  *cd;
-    size_t          mlen, p;
-    int             rc;
-    int             found = BRIX_ZIP_NOMEMBER;
-    brix_zip_member_t last;
+    brix_zip_arc_t     arc = { fd, archive_size };
+    brix_zip_cd_t      cd = {0};
+    brix_zip_key_t     key;
+    int                rc, found;
+    brix_zip_member_t  last = {0};
 
     if (fd < 0 || member == NULL || out == NULL) {
         return BRIX_ZIP_ECORRUPT;
     }
-    mlen = strlen(member);
-    if (mlen == 0 || mlen >= PATH_MAX) {
+    key.name = member;
+    key.len  = strlen(member);
+    if (key.len == 0 || key.len >= PATH_MAX) {
         return BRIX_ZIP_ECORRUPT;
     }
 
-    rc = zip_locate_cd(zip_fd_pread, &fd, (uint64_t) archive_size,
-                       (uint64_t) cd_max, 0, &cd_off, &cd_size, &nrec);
-    if (rc != ZIP_K_OK) {
-        return zip_map_kernel_rc(rc);
-    }
-    if (cd_size == 0) {
-        return BRIX_ZIP_ECORRUPT;   /* empty directory — no member to find */
+    rc = zip_load_cd(fd, archive_size, cd_max, &cd);
+    if (rc != BRIX_ZIP_OK) {
+        return rc;
     }
 
-    /* cd_size is read from the (untrusted) EOCD record; guard against a value
-     * so close to SIZE_MAX that the +1 sentinel byte allocation would wrap. */
-    size_t cd_alloc;
-    if (brix_size_add((size_t) cd_size, 1, &cd_alloc) != NGX_OK) {
-        return BRIX_ZIP_ECORRUPT;
-    }
-    cd = malloc(cd_alloc);
-    if (cd == NULL) {
-        return BRIX_ZIP_EIO;
-    }
-    if (pread_full(fd, cd, (size_t) cd_size, (off_t) cd_off) != 0) {
-        free(cd);
-        return BRIX_ZIP_EIO;
+    rc = zip_scan_directory(&arc, &cd, &key, &last, &found);
+    free(cd.buf);
+    if (rc != BRIX_ZIP_OK) {
+        return rc;
     }
 
-    /* Walk CDFH records. On a duplicate name the LAST entry wins (XrdZip). */
-    p = 0;
-    for (uint64_t i = 0; i < nrec; ++i) {
-        uint16_t bits, method, fn, ex, cm;
-        uint64_t uncomp, comp, lhdr_off;
-
-        if (p + ZIP_CDFH_BASE > cd_size || zip_rd32le(cd + p) != ZIP_CDFH_SIG) {
-            free(cd);
-            return BRIX_ZIP_ECORRUPT;
-        }
-        bits     = zip_rd16le(cd + p + 8);
-        method   = zip_rd16le(cd + p + 10);
-        comp     = zip_rd32le(cd + p + 20);
-        uncomp   = zip_rd32le(cd + p + 24);
-        fn       = zip_rd16le(cd + p + 28);
-        ex       = zip_rd16le(cd + p + 30);
-        cm       = zip_rd16le(cd + p + 32);
-        lhdr_off = zip_rd32le(cd + p + 42);
-
-        if (p + ZIP_CDFH_BASE + (uint64_t) fn + ex + cm > cd_size) {
-            free(cd);
-            return BRIX_ZIP_ECORRUPT;
-        }
-
-        if (fn == mlen && memcmp(cd + p + ZIP_CDFH_BASE, member, fn) == 0) {
-            /* Unsupported entry kinds → reject (matches plan W2 edge matrix). */
-            if ((bits & ZIP_GPF_ENCRYPTED) || (bits & ZIP_GPF_DATADESC)) {
-                free(cd);
-                return BRIX_ZIP_ECORRUPT;
-            }
-            if (method != BRIX_ZIP_METHOD_STORE
-                && method != BRIX_ZIP_METHOD_DEFLATE) {
-                free(cd);
-                return BRIX_ZIP_ECORRUPT;
-            }
-
-            zip_apply_zip64_extra(cd + p + ZIP_CDFH_BASE + fn, ex,
-                                  &uncomp, &comp, &lhdr_off);
-
-            memset(&last, 0, sizeof(last));
-            memcpy(last.name, member, fn);
-            last.name[fn]    = '\0';
-            last.method      = method;
-            last.comp_size   = comp;
-            last.uncomp_size = uncomp;
-            last.crc32       = zip_rd32le(cd + p + 16);
-
-            rc = zip_resolve_data_off(zip_fd_pread, &fd, (uint64_t) archive_size,
-                                      lhdr_off, comp, &last.data_off);
-            if (rc != ZIP_K_OK) {
-                free(cd);
-                return zip_map_kernel_rc(rc);
-            }
-            found = BRIX_ZIP_OK;   /* keep scanning: last match wins */
-        }
-
-        p += ZIP_CDFH_BASE + (uint64_t) fn + ex + cm;
-    }
-
-    free(cd);
     if (found == BRIX_ZIP_OK) {
         *out = last;
     }

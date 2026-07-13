@@ -16,11 +16,17 @@ brix_cms_forward_to_node(ngx_connection_t *c, u_char code, uint32_t streamid,
     const char *ident, const char *path, const char *path2,
     const char *mode, const char *opaque)
 {
-    u_char  payload[NGX_BRIX_CMS_MAX_FRAME];
-    int     plen;
+    u_char                 payload[NGX_BRIX_CMS_MAX_FRAME];
+    int                    plen;
+    brix_cms_fwd_fields_t  fields;
 
-    plen = brix_cms_rrdata_encode(code, ident, path, path2, mode, opaque,
-                                    payload, sizeof(payload));
+    fields.ident  = ident;
+    fields.path   = path;
+    fields.path2  = path2;
+    fields.mode   = mode;
+    fields.opaque = opaque;
+
+    plen = brix_cms_rrdata_encode(code, &fields, payload, sizeof(payload));
     if (plen < 0) {
         return NGX_ERROR;
     }

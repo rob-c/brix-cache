@@ -50,7 +50,13 @@ s3_copy_find_header(ngx_http_request_t *r, const char *name, size_t nlen)
 }
 
 /* Build a transient VFS ctx for a confined S3 op on `fs_path` (mirrors the
- * canonical s3_vfs_ctx in object.c). */
+ * canonical s3_build_vfs_ctx in util.c, which this cannot call directly since
+ * s3_build_vfs_ctx's signature is specific to the PUT/POST-object write
+ * path's own loc-conf typedef usage — kept as a distinct, byte-identical-
+ * bind-wise helper here to keep the diff local to copy.c's two call sites).
+ * Binds the same per-user backend credential (+ opt-in mint) policy as
+ * s3_build_vfs_ctx so a remote-backed export's CopyObject (both src and dst)
+ * presents the REQUESTING USER's credential, not the shared service one. */
 static void
 s3_copy_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
     ngx_http_s3_loc_conf_t *cf, brix_vfs_ctx_t *vctx)
@@ -66,6 +72,14 @@ s3_copy_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
     brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
         cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
         is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
+    brix_vfs_ctx_bind_backend_cred(vctx,
+        &cf->common.storage_credential_dir,
+        cf->common.storage_credential_fallback);
+    brix_vfs_ctx_bind_backend_mint(vctx,
+        &cf->common.storage_credential_mint_ca_cert,
+        &cf->common.storage_credential_mint_ca_key,
+        cf->common.storage_credential_mint_ttl);
+    s3_vfs_bind_deleg(r, cf, vctx);
 }
 
 ngx_int_t

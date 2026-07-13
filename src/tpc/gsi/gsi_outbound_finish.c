@@ -48,6 +48,13 @@ tpc_outbound_finish_login(brix_tpc_pull_t *t, int fd,
     want_ztn = brix_sec_proto_advertised(parms, "ztn", NULL, 0);
     want_gsi = brix_sec_proto_advertised(parms, "gsi", NULL, 0);
 
+    /* A ztn credential is available when we hold a token in t->delegated_token —
+     * fetched (oidc-agent/token-exchange), read from the bearer file, or the
+     * client's forwarded inbound JWT captured for a passthrough mode — or a bearer
+     * file is configured to read from. For the default opportunistic
+     * "passthrough-opt" mode with NO inbound token, delegated_token is empty here,
+     * so have_ztn_cred degrades to the bearer-file test and the code below falls
+     * back to GSI proxy delegation (or anonymous) — the pre-default-flip behaviour. */
     have_ztn_cred = (t->delegated_token[0] != '\0'
                      || t->conf->tpc_outbound_bearer_file.len > 0) ? 1 : 0;
     have_cert = (t->conf->certificate.len > 0

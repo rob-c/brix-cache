@@ -92,10 +92,62 @@ brix_writev_is_single_contig_fd(brix_writev_aio_t *t)
 }
 
 /*
+ * io_uring submits raw IORING_OP_READ/WRITE/READV/WRITEV against a real local
+ * file descriptor.  A driver-backed handle (obj.driver != NULL — the remote
+ * root:// / HTTP / Ceph / pblock backends) has no such fd: its I/O must run
+ * through the driver's own read/write methods, which only the thread-pool path
+ * reaches (brix_vfs_io_execute).  Routing a driver-backed op onto io_uring
+ * would issue a raw syscall on whatever placeholder fd the handle carries —
+ * silently writing bytes nowhere (a remote write-through then lands 0 bytes on
+ * the origin).  These predicates keep io_uring to plain POSIX handles; anything
+ * driver-backed returns 0 here and the selector falls through to the pool. */
+static ngx_flag_t
+brix_uring_read_is_posix(void *ctx)
+{
+    return ((brix_read_aio_t *) ctx)->obj.driver == NULL;
+}
+
+static ngx_flag_t
+brix_uring_write_is_posix(void *ctx)
+{
+    return ((brix_write_aio_t *) ctx)->obj.driver == NULL;
+}
+
+static ngx_flag_t
+brix_uring_readv_is_posix(void *ctx)
+{
+    brix_readv_aio_t *t = ctx;
+    size_t             i;
+
+    for (i = 0; i < t->segment_count; i++) {
+        if (t->segments[i].obj.driver != NULL) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static ngx_flag_t
+brix_uring_writev_is_posix(void *ctx)
+{
+    brix_writev_aio_t *t = ctx;
+    size_t              i;
+
+    for (i = 0; i < t->n_segs; i++) {
+        if (t->segs[i].obj.driver != NULL) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/*
  * brix_uring_op_for — see uring.h.  The worker-fn the task was bound to via
  * brix_task_bind() is the op identity.  readv/writev map to io_uring only for
  * a single contiguous group; multi-fd/multi-group fall to the pool, as do
- * pgread (per-page CRC interleave) and dirlist (opendir/readdir).
+ * pgread (per-page CRC interleave) and dirlist (opendir/readdir).  Any
+ * driver-backed handle (non-POSIX backend) also falls to the pool — io_uring
+ * can only touch a real local fd (see the predicates above).
  */
 brix_uring_op_e
 brix_uring_op_for(ngx_thread_task_t *task)
@@ -103,17 +155,21 @@ brix_uring_op_for(ngx_thread_task_t *task)
     void (*fn)(void *, ngx_log_t *) = task->handler;
 
     if (fn == brix_read_aio_thread) {
-        return XRD_URING_OP_READ;
+        return brix_uring_read_is_posix(task->ctx)
+               ? XRD_URING_OP_READ : XRD_URING_OP_NONE;
     }
     if (fn == brix_write_aio_thread) {
-        return XRD_URING_OP_WRITE;
+        return brix_uring_write_is_posix(task->ctx)
+               ? XRD_URING_OP_WRITE : XRD_URING_OP_NONE;
     }
     if (fn == brix_readv_aio_thread) {
-        return brix_readv_is_single_group(task->ctx)
+        return (brix_readv_is_single_group(task->ctx)
+                && brix_uring_readv_is_posix(task->ctx))
                ? XRD_URING_OP_READV : XRD_URING_OP_NONE;
     }
     if (fn == brix_writev_write_aio_thread) {
-        return brix_writev_is_single_contig_fd(task->ctx)
+        return (brix_writev_is_single_contig_fd(task->ctx)
+                && brix_uring_writev_is_posix(task->ctx))
                ? XRD_URING_OP_WRITEV : XRD_URING_OP_NONE;
     }
 
@@ -253,9 +309,11 @@ brix_uring_submit(brix_ctx_t *ctx, ngx_connection_t *c,
         return NGX_OK;
     }
 
-    slot->task    = task;
-    slot->done_fn = task->event.handler;
-    slot->op_kind = (uint8_t) op;
+    slot->task     = task;
+    slot->done_fn  = task->event.handler;
+    slot->owner    = c;                 /* orphan key: task lives in c->pool  */
+    slot->orphaned = 0;
+    slot->op_kind  = (uint8_t) op;
     /* in_use was set by slot_acquire; generation is current. */
 
     cookie = ((uint64_t) slot->generation << 32) | idx;

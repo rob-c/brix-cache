@@ -152,17 +152,50 @@ cvmfs_conf_upstream_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     return NGX_CONF_OK;
 }
 
-/* Geo mode (T19): every configured endpoint must have coordinates and
- * brix_cvmfs_here must be set — rank once by great-circle distance and
- * record the ranks on the backend entry (applied at instance build). */
+/*
+ * cvmfs_geo_calc_t — working state shared between the two halves of geo ranking.
+ *
+ * WHAT: Carries the parsed "here" coordinates, the per-endpoint great-circle
+ *   metric array, and the matched-endpoint count computed by the parse half and
+ *   consumed by the apply half.
+ *
+ * WHY: Bundling this state into one struct keeps each helper's signature at
+ *   three parameters (cf, conf, calc) — the state is threaded explicitly, no
+ *   file-scope globals, and the two halves stay independently reasoned about.
+ */
+typedef struct {
+    double here_lat;
+    double here_lon;
+    double metric[SD_HTTP_EP_MAX];
+    int    n;
+} cvmfs_geo_calc_t;
+
+/*
+ * cvmfs_geo_compute_metrics() — parse half of geo ranking.
+ *
+ * WHAT: Validates brix_cvmfs_here, then walks each configured http endpoint,
+ *   matches it to a brix_cvmfs_origin_coords entry (host + optional port), and
+ *   fills calc->metric[] with the great-circle distance from here to that
+ *   origin. Records the matched-endpoint count in calc->n and the parsed here
+ *   coordinates in calc->here_lat / calc->here_lon.
+ *
+ * WHY: Isolating the input validation + distance computation from the rank/
+ *   apply side keeps each half within the complexity gate and makes the pure
+ *   metric derivation independently reasoned about. No backend state is
+ *   mutated here — this half only reads config and computes.
+ *
+ * HOW: Same nested match loop as before, factored out verbatim; every config
+ *   error emits the identical NGX_LOG_EMERG line and returns NGX_CONF_ERROR so
+ *   `nginx -t` output is byte-frozen. On success returns NGX_CONF_OK with calc
+ *   populated.
+ */
 static char *
-cvmfs_geo_rank_config(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
+cvmfs_geo_compute_metrics(ngx_conf_t *cf,
+    ngx_http_brix_cvmfs_loc_conf_t *conf, cvmfs_geo_calc_t *calc)
 {
-    double                here_lat, here_lon;
-    double                metric[SD_HTTP_EP_MAX];
-    int                   ranks[SD_HTTP_EP_MAX];
+    double                here_lat = 0.0, here_lon = 0.0;
     const char           *host;
-    int                   port, idx, n;
+    int                   port, n;
     brix_cvmfs_coord_t *coords;
     ngx_uint_t            i;
 
@@ -204,7 +237,7 @@ cvmfs_geo_rank_config(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
             if (coords[i].port != 0 && (int) coords[i].port != port) {
                 continue;
             }
-            metric[n] = brix_cvmfs_haversine_km(here_lat, here_lon,
+            calc->metric[n] = brix_cvmfs_haversine_km(here_lat, here_lon,
                                                   coords[i].lat,
                                                   coords[i].lon);
             matched = 1;
@@ -223,10 +256,41 @@ cvmfs_geo_rank_config(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
             "brix_storage_backend");
         return NGX_CONF_ERROR;
     }
+
+    calc->here_lat = here_lat;
+    calc->here_lon = here_lon;
+    calc->n = n;
+    return NGX_CONF_OK;
+}
+
+/*
+ * cvmfs_geo_apply_ranks() — build/apply half of geo ranking.
+ *
+ * WHAT: Ranks the calc->n computed metrics, records the ranks on the backend
+ *   entry, and emits the one-line-per-origin operator selection report.
+ *
+ * WHY: The apply/report side has no config-validation branches, so splitting
+ *   it off drops the orchestrator below the complexity gate while keeping the
+ *   emitted report lines and backend mutation exactly as they were.
+ *
+ * HOW: Zeroes the unused rank slots, calls brix_cvmfs_rank_by_metric +
+ *   brix_vfs_backend_set_http_ranks, then re-walks the first calc->n endpoints
+ *   to emit the WARN-level selection report (WARN because config-parse NOTICE
+ *   is dropped at cf->log ERR level). Byte-frozen against the original tail.
+ */
+static void
+cvmfs_geo_apply_ranks(ngx_conf_t *cf,
+    ngx_http_brix_cvmfs_loc_conf_t *conf, const cvmfs_geo_calc_t *calc)
+{
+    int         ranks[SD_HTTP_EP_MAX];
+    const char *host;
+    int         port, idx;
+    int         n = calc->n;
+
     for (idx = n; idx < SD_HTTP_EP_MAX; idx++) {
         ranks[idx] = 0;
     }
-    brix_cvmfs_rank_by_metric(metric, n, ranks);
+    brix_cvmfs_rank_by_metric(calc->metric, n, ranks);
     brix_vfs_backend_set_http_ranks(conf->common.root_canon, ranks,
                                       SD_HTTP_EP_MAX);
 
@@ -247,10 +311,27 @@ cvmfs_geo_rank_config(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
         ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
             "brix_cvmfs_origin_select geo [selection report]: origin "
             "%s:%d is %.0f km from here (%.4f:%.4f) -> rank %d%s",
-            host, port, metric[idx], here_lat, here_lon, ranks[idx],
+            host, port, calc->metric[idx], calc->here_lat, calc->here_lon,
+            ranks[idx],
             (ranks[idx] == 0) ? " (preferred: reads try this origin first)"
                               : " (failover only)");
     }
+}
+
+/* Geo mode (T19): every configured endpoint must have coordinates and
+ * brix_cvmfs_here must be set — rank once by great-circle distance and
+ * record the ranks on the backend entry (applied at instance build). This
+ * orchestrator is a flat parse-then-apply sequence over the two halves. */
+static char *
+cvmfs_geo_rank_config(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
+{
+    cvmfs_geo_calc_t calc;
+
+    ngx_memzero(&calc, sizeof(calc));
+    if (cvmfs_geo_compute_metrics(cf, conf, &calc) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+    cvmfs_geo_apply_ranks(cf, conf, &calc);
     return NGX_CONF_OK;
 }
 
@@ -359,12 +440,26 @@ brix_cvmfs_reject_unsupported(ngx_conf_t *cf,
     return NGX_CONF_OK;
 }
 
+/*
+ * cvmfs_merge_preamble() — adopt unified directives, merge enable, pre-seed the
+ * CAS verify default, and run the shared common.* merge.
+ *
+ * WHAT: The first four steps of the location merge, in the one order they must
+ *   run: brix_http_common_adopt → merge cvmfs.enable → CAS verify pre-seed →
+ *   ngx_http_brix_shared_merge.
+ *
+ * WHY: enable must merge BEFORE shared_merge so the verify pre-seed can tell a
+ *   cvmfs location from a non-cvmfs one, and the pre-seed must run before
+ *   shared_merge turns NGX_CONF_UNSET_UINT into 0. Grouping the four fixes that
+ *   ordering in one place and keeps the orchestrator flat.
+ *
+ * HOW: Verbatim move of the original head; returns NGX_CONF_ERROR if the
+ *   shared merge fails, else NGX_CONF_OK.
+ */
 static char *
-ngx_http_brix_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
+cvmfs_merge_preamble(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
+    ngx_http_brix_cvmfs_loc_conf_t *conf)
 {
-    ngx_http_brix_cvmfs_loc_conf_t *prev = parent;
-    ngx_http_brix_cvmfs_loc_conf_t *conf = child;
-
     /* Unified directives (brix_export, brix_cache_store, brix_cache_verify,
      * ...) live in the common module; pull the merged values for this location
      * into our embedded preamble before protocol merge applies defaults. */
@@ -409,6 +504,31 @@ ngx_http_brix_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     {
         return NGX_CONF_ERROR;
     }
+    return NGX_CONF_OK;
+}
+
+/*
+ * cvmfs_merge_upstreams() — merge the manifest/negative TTL, upstream allow-list
+ * and cap, origin-selection knobs, and the process-wide trace toggle.
+ *
+ * WHAT: The block of plain field merges between shared_merge and the origin
+ *   resilience group: manifest_ttl, negative_ttl, quarantine_dir,
+ *   upstream_allow, upstream_max, origin_select, origin_coords, here,
+ *   rtt_interval, client_hold, fill_max_life, trace (+ its trace_set).
+ *
+ * WHY: These are pure ngx_conf_merge_* calls with one process-wide side effect
+ *   (brix_origin_trace_set) at the tail; collecting them keeps the orchestrator
+ *   short. Defaults are byte-frozen so nginx -t is unchanged.
+ *
+ * HOW: Verbatim merge sequence; trace promotion is applied here because it is
+ *   process-wide (the shared origin transport has no per-location handle).
+ */
+static void
+cvmfs_merge_upstreams(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
+    ngx_http_brix_cvmfs_loc_conf_t *conf)
+{
+    (void) cf;
+
     ngx_conf_merge_sec_value(conf->cvmfs.manifest_ttl, prev->cvmfs.manifest_ttl,
                              61);
     ngx_conf_merge_sec_value(conf->cvmfs.negative_ttl, prev->cvmfs.negative_ttl,
@@ -438,7 +558,29 @@ ngx_http_brix_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     if (conf->cvmfs.trace) {
         brix_origin_trace_set(1);
     }
+}
 
+/*
+ * cvmfs_merge_resilience() — merge the origin stall-detection / retry group and
+ * apply its process-wide transport policy.
+ *
+ * WHAT: origin_connect_timeout, origin_stall_timeout, origin_stall_bytes,
+ *   origin_attempt_timeout, origin_reuse_conn, fill_retry_policy, shared_cache,
+ *   unified_origin — plus the unified_origin http(s)-backend validation and the
+ *   pre-fork process-wide setters (timeouts / reuse / force-primary) when
+ *   enabled.
+ *
+ * WHY: The transport bounds and the force-primary toggle are process-wide
+ *   operator policy set pre-fork; keeping the merge and its setters together
+ *   preserves the "merge then push to the shared transport" ordering exactly.
+ *
+ * HOW: Verbatim; returns NGX_CONF_ERROR on the unified_origin misconfiguration
+ *   (identical EMERG line), else NGX_CONF_OK after applying the setters.
+ */
+static char *
+cvmfs_merge_resilience(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
+    ngx_http_brix_cvmfs_loc_conf_t *conf)
+{
     /* Upstream stall detection + force-through retry (2026-07-03). The transport
      * bounds and the force-primary toggle are process-wide operator policy (the
      * shared curl transport / sd_http driver have no per-location handle), set
@@ -486,7 +628,30 @@ ngx_http_brix_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
             sd_http_force_primary_set(1);
         }
     }
+    return NGX_CONF_OK;
+}
 
+/*
+ * cvmfs_merge_secure() — merge the server-side geo-answer group and the scvmfs
+ * (T22, experimental) authz layer, validating the bearer registry.
+ *
+ * WHAT: geo_answer / geo_cache_ttl / geo_max_servers, then scvmfs /
+ *   scvmfs_authz / scvmfs_token_issuers / scvmfs_registry, plus the structural
+ *   checks: scvmfs requires cvmfs on, and bearer mode requires a token-issuer
+ *   file whose registry is built once here.
+ *
+ * WHY: These two merge groups both run unconditionally after the resilience
+ *   group and before the enable block; grouping them keeps the orchestrator a
+ *   flat sequence. The scvmfs checks are structural (config-time) and their
+ *   EMERG lines are byte-frozen.
+ *
+ * HOW: Verbatim; returns NGX_CONF_ERROR on any scvmfs misconfiguration or a
+ *   failed registry build, else NGX_CONF_OK.
+ */
+static char *
+cvmfs_merge_secure(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
+    ngx_http_brix_cvmfs_loc_conf_t *conf)
+{
     /* Server-side geo answering (2026-07-03). */
     ngx_conf_merge_uint_value(conf->cvmfs.geo_answer, prev->cvmfs.geo_answer,
                               BRIX_CVMFS_GEO_PASSTHROUGH);
@@ -532,93 +697,155 @@ ngx_http_brix_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
             }
         }
     }
+    return NGX_CONF_OK;
+}
 
+/*
+ * cvmfs_merge_cache() — the cvmfs-enabled export/backend/cache build block.
+ *
+ * WHAT: When enable=1: reject unsupported storage grammar, force read-only,
+ *   rewrite the posix backend, anchor the export root (defaulting to "/"),
+ *   open the confinement rootfd, register the composable http backend, stamp
+ *   the cache TTL/deadline knobs, compose the cache/stage tiers, then apply the
+ *   T19 origin-selection (geo ranks / rtt probe registration) and the
+ *   coords-without-geo warning.
+ *
+ * WHY: This is the one part of the merge that mutates persistent export state
+ *   and registers backends; it only runs for cvmfs-enabled locations. Splitting
+ *   it out lets the orchestrator gate it with a single early return while the
+ *   build steps stay in their exact original order.
+ *
+ * HOW: Verbatim move of the `if (conf->cvmfs.enable)` block; returns
+ *   NGX_CONF_ERROR on any step failure (identical EMERG/rejection lines), else
+ *   NGX_CONF_OK. The caller only invokes it when enable is set.
+ */
+static char *
+cvmfs_merge_cache(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
+{
+    brix_export_root_opts_t root_opts;
+
+    /* Reject storage grammar cvmfs cannot honour before doing anything
+     * else: staging, slicing, and explicit writes make no sense for a
+     * read-only content-addressed site cache. */
+    if (brix_cvmfs_reject_unsupported(cf, conf) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+
+    /* CVMFS is a read-only protocol: no directive can enable writes. */
+    conf->common.allow_write = 0;
+
+    /* "posix:<path>" backend names the local export tree (composable
+     * brix_root replacement) — same rewrite every protocol applies. */
+    brix_storage_backend_posix_root(&conf->common);
+
+    /* Pure cache node (the normal CVMFS shape): no local export tree —
+     * anchor the namespace at "/" exactly like the stream plane's pure
+     * cache node; the location serves the "/" namespace, filling from
+     * the http backend into the cache store. */
+    if (conf->common.root.len == 0) {
+        ngx_str_set(&conf->common.root, "/");
+    }
+
+    root_opts.directive_name = "brix_cvmfs";
+    root_opts.allow_write    = 0;
+    root_opts.required       = 1;
+    root_opts.canon_size     = sizeof(conf->common.root_canon);
+    if (brix_prepare_export_root(cf, &conf->common.root, &root_opts,
+                                   conf->common.root_canon) != NGX_CONF_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+
+    /* Persistent confinement rootfd (openat2 RESOLVE_BENEATH anchor). */
+    if (brix_http_open_rootfd(cf, &conf->common) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+
+    /* Register the composable storage backend (phase-63): the http(s)
+     * Stratum-1 origin URL routes every VFS op to sd_http. */
+    if (brix_vfs_backend_config_str(cf, conf->common.root_canon,
+            &conf->common.storage_backend, conf->common.pblock_block_size,
+            BRIX_AF_AUTO)
+        != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+
+    /* Verify-mismatch evidence lands in the protocol's quarantine dir;
+     * MANIFEST-class fills get the protocol's TTL stamped (T12). */
+    conf->common.cache_quarantine_dir = conf->cvmfs.quarantine_dir;
+    conf->common.cache_manifest_ttl   = conf->cvmfs.manifest_ttl;
+    /* T20 never-drop deadlines for the shared fill machinery */
+    conf->common.cache_client_hold    = conf->cvmfs.client_hold;
+    conf->common.cache_fill_max_life  = conf->cvmfs.fill_max_life;
+
+    /* Phase-64: compose the cache/stage tiers over the backend. */
+    if (brix_tier_register_stores(cf, &conf->common) != NGX_OK) {
+        return NGX_CONF_ERROR;
+    }
+
+    /* T19 origin selection: geo ranks compute once at config time;
+     * rtt registers the per-worker probe; static keeps configured
+     * order (all ranks 0 — the pick is order-stable on ties). */
+    if (conf->cvmfs.origin_select == BRIX_CVMFS_SELECT_GEO) {
+        if (cvmfs_geo_rank_config(cf, conf) != NGX_CONF_OK) {
+            return NGX_CONF_ERROR;
+        }
+    } else if (conf->cvmfs.origin_select == BRIX_CVMFS_SELECT_RTT) {
+        brix_cvmfs_rtt_register(conf->common.root_canon,
+                                  conf->cvmfs.rtt_interval,
+                                  &conf->common.thread_pool_name);
+    }
+
+    /* WARN (not NOTICE — config-parse NOTICE is dropped at cf->log ERR
+     * level) when coordinates were supplied but origin_select is not geo:
+     * the coordinates are silently ignored in all other modes and the
+     * operator may not realise their geo config has no effect. */
+    if (conf->cvmfs.origin_select != BRIX_CVMFS_SELECT_GEO
+        && conf->cvmfs.origin_coords != NULL)
+    {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            "brix_cvmfs_origin_coords set but brix_cvmfs_origin_select "
+            "is not geo — coordinates are ignored");
+    }
+    return NGX_CONF_OK;
+}
+
+/*
+ * ngx_http_brix_cvmfs_merge_loc_conf() — location merge orchestrator.
+ *
+ * WHAT: Runs the five per-concern merge helpers in their required order:
+ *   preamble (adopt/enable/verify/shared_merge) → upstreams → resilience →
+ *   secure (geo-answer + scvmfs) → cache (enabled-only export/backend build).
+ *
+ * WHY: The concerns have strict ordering dependencies (enable before verify
+ *   pre-seed; merges before the process-wide transport setters; scvmfs before
+ *   the export build). Expressing the orchestrator as a flat call sequence
+ *   keeps every dependency visible in one place while each concern stays under
+ *   the complexity gate. Merge order + defaults are byte-frozen (nginx -t).
+ *
+ * HOW: Each step returns NGX_CONF_OK/ERROR; the orchestrator early-returns on
+ *   the first error. The cache step runs only for cvmfs-enabled locations.
+ */
+static char *
+ngx_http_brix_cvmfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
+{
+    ngx_http_brix_cvmfs_loc_conf_t *prev = parent;
+    ngx_http_brix_cvmfs_loc_conf_t *conf = child;
+
+    if (cvmfs_merge_preamble(cf, prev, conf) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+    cvmfs_merge_upstreams(cf, prev, conf);
+    if (cvmfs_merge_resilience(cf, prev, conf) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+    if (cvmfs_merge_secure(cf, prev, conf) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
     if (conf->cvmfs.enable) {
-        brix_export_root_opts_t root_opts;
-
-        /* Reject storage grammar cvmfs cannot honour before doing anything
-         * else: staging, slicing, and explicit writes make no sense for a
-         * read-only content-addressed site cache. */
-        if (brix_cvmfs_reject_unsupported(cf, conf) != NGX_CONF_OK) {
+        if (cvmfs_merge_cache(cf, conf) != NGX_CONF_OK) {
             return NGX_CONF_ERROR;
-        }
-
-        /* CVMFS is a read-only protocol: no directive can enable writes. */
-        conf->common.allow_write = 0;
-
-        /* "posix:<path>" backend names the local export tree (composable
-         * brix_root replacement) — same rewrite every protocol applies. */
-        brix_storage_backend_posix_root(&conf->common);
-
-        /* Pure cache node (the normal CVMFS shape): no local export tree —
-         * anchor the namespace at "/" exactly like the stream plane's pure
-         * cache node; the location serves the "/" namespace, filling from
-         * the http backend into the cache store. */
-        if (conf->common.root.len == 0) {
-            ngx_str_set(&conf->common.root, "/");
-        }
-
-        root_opts.directive_name = "brix_cvmfs";
-        root_opts.allow_write    = 0;
-        root_opts.required       = 1;
-        root_opts.canon_size     = sizeof(conf->common.root_canon);
-        if (brix_prepare_export_root(cf, &conf->common.root, &root_opts,
-                                       conf->common.root_canon) != NGX_CONF_OK)
-        {
-            return NGX_CONF_ERROR;
-        }
-
-        /* Persistent confinement rootfd (openat2 RESOLVE_BENEATH anchor). */
-        if (brix_http_open_rootfd(cf, &conf->common) != NGX_CONF_OK) {
-            return NGX_CONF_ERROR;
-        }
-
-        /* Register the composable storage backend (phase-63): the http(s)
-         * Stratum-1 origin URL routes every VFS op to sd_http. */
-        if (brix_vfs_backend_config_str(cf, conf->common.root_canon,
-                &conf->common.storage_backend, conf->common.pblock_block_size,
-                BRIX_AF_AUTO)
-            != NGX_OK)
-        {
-            return NGX_CONF_ERROR;
-        }
-
-        /* Verify-mismatch evidence lands in the protocol's quarantine dir;
-         * MANIFEST-class fills get the protocol's TTL stamped (T12). */
-        conf->common.cache_quarantine_dir = conf->cvmfs.quarantine_dir;
-        conf->common.cache_manifest_ttl   = conf->cvmfs.manifest_ttl;
-        /* T20 never-drop deadlines for the shared fill machinery */
-        conf->common.cache_client_hold    = conf->cvmfs.client_hold;
-        conf->common.cache_fill_max_life  = conf->cvmfs.fill_max_life;
-
-        /* Phase-64: compose the cache/stage tiers over the backend. */
-        if (brix_tier_register_stores(cf, &conf->common) != NGX_OK) {
-            return NGX_CONF_ERROR;
-        }
-
-        /* T19 origin selection: geo ranks compute once at config time;
-         * rtt registers the per-worker probe; static keeps configured
-         * order (all ranks 0 — the pick is order-stable on ties). */
-        if (conf->cvmfs.origin_select == BRIX_CVMFS_SELECT_GEO) {
-            if (cvmfs_geo_rank_config(cf, conf) != NGX_CONF_OK) {
-                return NGX_CONF_ERROR;
-            }
-        } else if (conf->cvmfs.origin_select == BRIX_CVMFS_SELECT_RTT) {
-            brix_cvmfs_rtt_register(conf->common.root_canon,
-                                      conf->cvmfs.rtt_interval,
-                                      &conf->common.thread_pool_name);
-        }
-
-        /* WARN (not NOTICE — config-parse NOTICE is dropped at cf->log ERR
-         * level) when coordinates were supplied but origin_select is not geo:
-         * the coordinates are silently ignored in all other modes and the
-         * operator may not realise their geo config has no effect. */
-        if (conf->cvmfs.origin_select != BRIX_CVMFS_SELECT_GEO
-            && conf->cvmfs.origin_coords != NULL)
-        {
-            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
-                "brix_cvmfs_origin_coords set but brix_cvmfs_origin_select "
-                "is not geo — coordinates are ignored");
         }
     }
 

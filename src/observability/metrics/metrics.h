@@ -332,6 +332,23 @@ typedef struct {
     ngx_atomic_t  cache_misses[BRIX_PROTO_COUNT];
     ngx_atomic_t  cache_bytes_evicted[BRIX_PROTO_COUNT];
 
+    /* Per-user backend credential gate outcomes (Phase 2 Task 3).  Indexed by
+     * brix_proto_t — the same proto the VFS ctx carries (brix_vfs_metrics_proto).
+     * Bumped at the terminal branches of vfs_backend_cred_decide:
+     *   cred_select_user_total     — user credential used (ucred_select OK + cap_ok)
+     *   cred_select_fallback_total — service-cred fallback allowed (no cred or not
+     *                                capable, but fallback_deny=0); includes both
+     *                                the "cap not present" and "missing/expired cred"
+     *                                allowed-fallback branches.
+     *   cred_select_deny_total     — request rejected EACCES (fallback_deny=1 and
+     *                                either no/expired cred or driver lacks capability)
+     * Feature-off early return (storage_cred_dir unset) is NOT counted — that is not
+     * a credential decision.  Flush-deny (stage_engine BRIX_XFER_DENIED) is NOT
+     * counted here; it is observable via the xfer audit ledger result=denied line. */
+    ngx_atomic_t  cred_select_user_total[BRIX_PROTO_COUNT];
+    ngx_atomic_t  cred_select_fallback_total[BRIX_PROTO_COUNT];
+    ngx_atomic_t  cred_select_deny_total[BRIX_PROTO_COUNT];
+
     /* Watermark-driven LRU reaper (reap_watermark.c). Process-wide, connection-
      * less: the background timer has no per-proto/per-server context. usage_ratio
      * is a GAUGE in ppm (0-1e6), emitted as a 0-1 ratio; the rest are counters. */

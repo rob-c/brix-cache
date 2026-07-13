@@ -7,6 +7,9 @@
  */
 #include "crc32_ieee.h"
 
+/* CRC-32/IEEE generator polynomial, reflected (LSB-first) form. */
+#define BRIX_CRC32_IEEE_POLY  0xedb88320u
+
 uint32_t
 brix_crc32_ieee(const uint8_t *buf, size_t len)
 {
@@ -16,7 +19,7 @@ brix_crc32_ieee(const uint8_t *buf, size_t len)
         int i;
         crc ^= *buf++;
         for (i = 0; i < 8; i++) {
-            crc = (crc >> 1) ^ (0xedb88320u & (uint32_t) -(int32_t) (crc & 1));
+            crc = (crc >> 1) ^ (BRIX_CRC32_IEEE_POLY & (uint32_t) -(int32_t) (crc & 1));
         }
     }
     return crc ^ 0xffffffffu;

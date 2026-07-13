@@ -210,8 +210,8 @@ brix_vfs_io_execute_write(brix_vfs_job_t *job)
 static void
 brix_vfs_io_execute_pgread(brix_vfs_job_t *job)
 {
-    ssize_t nread;
-    int     io_errno;
+    brix_pgread_io_t io = { .nowait = 0 /* blocking */, .nread = 0,
+                            .io_errno = 0 };
 
     if ((job->fd == NGX_INVALID_FILE && job->obj.driver == NULL)
         || job->offset < 0
@@ -223,20 +223,17 @@ brix_vfs_io_execute_pgread(brix_vfs_job_t *job)
         return;
     }
 
-    nread = 0;
-    io_errno = 0;
     {
         brix_sd_obj_t  scratch;
         brix_sd_obj_t *obj = brix_vfs_effective_obj(&job->obj, job->fd,
                                                         &scratch);
         job->out_size = brix_pgread_read_encode_inplace(obj, job->offset,
                                                           job->length, job->buf,
-                                                          &nread, &io_errno,
-                                                          0 /* blocking */);
+                                                          &io);
     }
-    job->nio = nread;
-    if (nread < 0) {
-        job->io_errno = io_errno;
+    job->nio = io.nread;
+    if (io.nread < 0) {
+        job->io_errno = io.io_errno;
     }
 }
 
@@ -492,8 +489,10 @@ brix_vfs_io_dirlist_stat_entry(brix_vfs_job_t *job, int dfd,
         return NGX_OK;
     }
 
-    if (fstatat(dfd, name, &entry_st, AT_SYMLINK_NOFOLLOW) != 0) {
-        return errno == ENOENT ? NGX_DECLINED : NGX_DECLINED;
+    /* dfd < 0 (a failed dirfd upstream) and any fstatat failure — vanished
+     * entry or otherwise — take the same path: skip the entry. */
+    if (dfd < 0 || fstatat(dfd, name, &entry_st, AT_SYMLINK_NOFOLLOW) != 0) {
+        return NGX_DECLINED;
     }
 
     if (job->want_cksum) {

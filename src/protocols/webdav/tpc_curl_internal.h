@@ -45,6 +45,30 @@ typedef struct {
     tpc_ms_progress_t *progress;     /* NULL if progress tracking disabled */
 } ms_stream_ctx_t;
 
+/* webdav_tpc_ms_ctx_t — shared bundle for a parallel Range-based pull (driver +
+ * pmark callback). Arrays are owned by the driver; the ctx aliases them. */
+typedef struct {
+    ngx_log_t                        *log;
+    ngx_http_brix_webdav_loc_conf_t  *conf;
+    const char                       *source_url;
+    const char                       *tmp_path;
+    ngx_array_t                      *transfer_headers;
+    const char                       *user_cert;   /* per-user pull-leg cert (or NULL) */
+    const char                       *user_key;    /* per-user pull-leg key  (or NULL) */
+    ngx_uint_t                        n_streams;
+    off_t                             total_size;
+    int                               fd;
+    CURLM                            *cm;
+    CURL                            **easy;
+    struct curl_slist               **hdrs;
+    struct curl_slist               **resolve;
+    ms_stream_ctx_t                  *write_ctx;
+    tpc_ms_progress_t                *progress;
+#ifdef WEBDAV_TPC_PMARK_SOCKCB
+    webdav_tpc_pmark_rec_t           *pmrec;
+#endif
+} webdav_tpc_ms_ctx_t;
+
 #ifndef BRIX_TPC_CONNECT_TIMEOUT_SECS
 #define BRIX_TPC_CONNECT_TIMEOUT_SECS  30L
 #endif
@@ -60,8 +84,8 @@ void webdav_tpc_pmark_attach(CURL *curl, webdav_tpc_pmark_rec_t *rec, ngx_http_b
 /* tpc_curl_setup.c */
 int tpc_curl_secure(CURL *curl, ngx_http_brix_webdav_loc_conf_t *conf, const char *url, ngx_log_t *log, struct curl_slist **resolve_out);
 void tpc_curl_apply_stall_bounds(CURL *curl, ngx_http_brix_webdav_loc_conf_t *conf);
-int tpc_curl_apply_conf(CURL *curl, ngx_http_brix_webdav_loc_conf_t *conf, const char *url, ngx_array_t *transfer_headers, ngx_log_t *log, struct curl_slist **hdrs_out, struct curl_slist **resolve_out);
-off_t tpc_curl_head_size(ngx_log_t *log, ngx_http_brix_webdav_loc_conf_t *conf, const char *url, ngx_array_t *transfer_headers);
+int tpc_curl_apply_conf(CURL *curl, ngx_http_brix_webdav_loc_conf_t *conf, const char *url, ngx_array_t *transfer_headers, ngx_log_t *log, const char *user_cert, const char *user_key, struct curl_slist **hdrs_out, struct curl_slist **resolve_out);
+off_t tpc_curl_head_size(ngx_log_t *log, ngx_http_brix_webdav_loc_conf_t *conf, const char *url, ngx_array_t *transfer_headers, const char *user_cert, const char *user_key);
 
 /* tpc_curl_pmark.c */
 size_t ms_write_cb(char *ptr, size_t size, size_t nmemb, void *userdata);
@@ -69,7 +93,17 @@ int webdav_tpc_curl_progress(void *clientp, curl_off_t dltotal, curl_off_t dlnow
 ngx_int_t webdav_tpc_curl_finish(ngx_int_t rc, CURL *curl, struct curl_slist *hdrs, struct curl_slist *resolve, FILE *fp);
 
 /* tpc_curl.c */
-ngx_int_t webdav_tpc_run_curl_core(ngx_log_t *log, ngx_http_brix_webdav_loc_conf_t *conf, ngx_array_t *transfer_headers, int is_push, const char *file_path, const char *url, const char *log_tag, uint64_t transfer_id);
-ngx_int_t webdav_tpc_run_curl_multi_finish(ngx_int_t rc, CURLM *cm, CURL **easy, struct curl_slist **hdrs, struct curl_slist **resolve, ngx_uint_t n_streams, int fd);
+/* Perform one single-stream curl transfer described by @req.  @is_push selects
+ * direction (1=push export->url, 0=pull url->staged temp); @log_tag is the short
+ * "push"/"pull" label for log lines.  NGX_OK / NGX_HTTP_* on failure. */
+ngx_int_t webdav_tpc_run_curl_core(ngx_log_t *log,
+    ngx_http_brix_webdav_loc_conf_t *conf, ngx_array_t *transfer_headers,
+    int is_push, const char *file_path, const char *url, const char *log_tag,
+    uint64_t transfer_id, const char *user_cert, const char *user_key);
+/* Tear down a curl_multi run and record the success/error metric keyed by @rc,
+ * which is returned unchanged. */
+ngx_int_t webdav_tpc_run_curl_multi_finish(ngx_int_t rc, CURLM *cm, CURL **easy,
+    struct curl_slist **hdrs, struct curl_slist **resolve,
+    ngx_uint_t n_streams, int fd);
 
 #endif /* BRIX_TPC_CURL_INTERNAL_H */

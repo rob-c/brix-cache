@@ -4,6 +4,14 @@
 #include "fs/backend/sd.h"   /* brix_sd_obj_t — per-handle storage object */
 #include "observability/sesslog/sesslog.h"
 
+/* Opaque VFS staged-write handle (whole-object staged-commit adapter, phase-70).
+ * Full type in fs/vfs/vfs_internal.h; here only ever a pointer field. Guarded so
+ * co-inclusion with vfs.h (which also forward-declares it) is a single typedef. */
+#ifndef BRIX_VFS_STAGED_T_DECLARED
+#define BRIX_VFS_STAGED_T_DECLARED
+typedef struct brix_vfs_staged_s brix_vfs_staged_t;
+#endif
+
 /* Number of committed-write entries kept per open handle for replay detection. */
 #define BRIX_WRTS_JOURNAL_SLOTS 64
 
@@ -255,6 +263,40 @@ typedef struct {
      * sd_obj.driver == NULL (the default POSIX export) data I/O POSIX-wraps `fd`,
      * byte-for-byte the pre-Layer-3 path. */
     brix_sd_obj_t  sd_obj;
+
+    /* ---- root:// block-write → whole-object staged-commit adapter (phase-70) ----
+     *
+     * WHAT: When a write open resolves to a backend LEAF that advertises NO
+     *       BRIX_SD_CAP_RANDOM_WRITE and has no pwrite slot (a whole-object store
+     *       such as sd_http — writes are a single commit-time PUT), the block-
+     *       oriented root:// write model (kXR_open-for-write → kXR_write/pgwrite at
+     *       offsets → kXR_sync/close) cannot open a session-writable driver handle.
+     *       Instead this handle is put in STAGED mode: `staged` holds a VFS staged
+     *       handle (opened via brix_vfs_staged_open, which resolves + forwards the
+     *       per-user credential exactly like the read path and self-contains its
+     *       ctx on the connection pool), and every kXR_write/pgwrite APPENDS its
+     *       block through brix_vfs_staged_write at `staged_expected_off`. kXR_sync
+     *       and kXR_close COMMIT the whole object via brix_vfs_staged_commit (a
+     *       single whole-object PUT). The bare `fd` stays -1 and sd_obj.driver stays
+     *       NULL — data does NOT route through xvfs_pwrite / the driver pwrite.
+     *
+     * WHY:  This is the exact block-body → staged_commit bridge WebDAV/S3 PUT
+     *       already use; the root:// write path had no equivalent, so a root://
+     *       upload to a whole-object backend failed with EROFS. Uploads are
+     *       sequential appends, so the adapter enforces sequential-append
+     *       semantics: an out-of-order offset (!= staged_expected_off) is refused
+     *       cleanly (kXR_Unsupported) rather than corrupting the object — genuinely
+     *       random-offset writes to a whole-object store stay unsupported.
+     *
+     * HOW:  `staged` != NULL is the sole "this handle is in staged mode" flag.
+     *       `staged_expected_off` is the running append offset (next byte the
+     *       object expects). `staged_committed` guards against a double commit
+     *       (kXR_sync followed by kXR_close, or two syncs). The staged handle is
+     *       released by brix_free_fhandle (abort if not yet committed).
+     */
+    brix_vfs_staged_t *staged;             /* non-NULL = whole-object staged write */
+    off_t              staged_expected_off; /* next sequential append offset */
+    unsigned           staged_committed:1;  /* 1 = object already PUT (sync/close) */
 
 } brix_file_t;
 

@@ -34,6 +34,8 @@
 #include "core/http/http_body.h"
 #include "core/http/http_headers.h"
 #include "core/http/http_query.h"
+#include "protocols/shared/deleg_capture.h"  /* phase-70 §5.1 proxy header capture */
+#include "fs/backend/sd.h"  /* enum brix_cred_mode / BRIX_CRED_SELECT */
 
 #include <limits.h>
 #include <stdlib.h>
@@ -357,6 +359,469 @@ static ngx_int_t s3_dispatch_after_auth(ngx_http_request_t *r,
     ngx_http_s3_loc_conf_t *cf, ngx_http_s3_req_ctx_t *s3ctx,
     ngx_uint_t method_slot, int is_list_request,
     ngx_flag_t is_post_object_form);
+static int s3_upload_id_is_hex(const char *upload_id);
+
+/*
+ * Parse the URI into key.  Returns NGX_DECLINED when key is valid and dispatch
+ * may continue.  On a rejected URI the XML error response has already been
+ * sent and the value the content handler must return is passed back.  The
+ * continue outcome is a distinct sentinel (NGX_DECLINED, which no send path
+ * produces) rather than NGX_OK because a fully-sent error body makes
+ * ngx_http_output_filter() return NGX_OK — comparing the response rc against
+ * NGX_OK would let dispatch fall through with an unwritten key after the
+ * request was already answered.
+ */
+static ngx_int_t
+s3_dispatch_parse_uri(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    ngx_uint_t method_slot, u_char *key, size_t key_cap)
+{
+    int parse_rc = s3_parse_uri(r, cf, key, key_cap);
+
+    if (parse_rc == -1) {
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INVALID_URI]);
+        return s3_metrics_return_method(
+            r, method_slot,
+            s3_send_xml_error(r, NGX_HTTP_NOT_FOUND, "NoSuchBucket",
+                              "The specified bucket does not exist."));
+    }
+    if (parse_rc == 0) {
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INVALID_URI]);
+        return s3_metrics_return_method(
+            r, method_slot,
+            s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "InvalidURI",
+                              "Couldn't parse the specified URI."));
+    }
+    return NGX_DECLINED;
+}
+
+/*
+ * Token-scope gate.  Returns NGX_DECLINED when the operation may proceed.  On
+ * a scope deny the 403 response has already been sent and the value the
+ * content handler must return is passed back (same sentinel convention as
+ * s3_dispatch_parse_uri — the response rc itself is NGX_OK once the body is
+ * flushed, so it must never gate dispatch).
+ */
+static ngx_int_t
+s3_check_token_scope(ngx_http_request_t *r, ngx_http_s3_req_ctx_t *s3ctx,
+    ngx_uint_t method_slot, const u_char *key)
+{
+    brix_acc_op_t aop;
+    int           need_write;
+    char          logical[PATH_MAX];
+
+    if (s3ctx->identity == NULL
+        || !(s3ctx->identity->auth_method & BRIX_AUTHN_TOKEN))
+    {
+        return NGX_DECLINED;
+    }
+
+    aop = s3_method_aop(r);
+    need_write = (aop == BRIX_AOP_CREATE || aop == BRIX_AOP_DELETE);
+    (void) ngx_snprintf((u_char *) logical, sizeof(logical), "/%s%Z",
+                        (const char *) key);
+    if (brix_identity_check_token_scope(s3ctx->identity, logical, need_write)
+        == NGX_OK)
+    {
+        return NGX_DECLINED;
+    }
+    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_ACCESS_DENIED]);
+    return s3_metrics_return_method(r, method_slot,
+        s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
+                          "token scope does not cover this object"));
+}
+
+static ngx_int_t
+s3_reject_write_disabled(ngx_http_request_t *r, ngx_uint_t method_slot)
+{
+    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_WRITE_DISABLED]);
+    return s3_metrics_return_method(
+        r, method_slot,
+        s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
+                          "Write access is disabled."));
+}
+
+static ngx_int_t
+s3_read_body_metric(ngx_http_request_t *r, ngx_uint_t method_slot,
+    ngx_http_client_body_handler_pt handler)
+{
+    ngx_int_t rc;
+
+    r->request_body_in_single_buf = 1;
+    rc = brix_http_read_body(r, handler);
+    return (rc == NGX_DONE) ? NGX_DONE : s3_metrics_return_method(r, method_slot, rc);
+}
+
+static ngx_int_t
+s3_dispatch_empty_post(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    ngx_uint_t method_slot, ngx_flag_t is_post_object_form)
+{
+    if (r->method != NGX_HTTP_POST) {
+        return NGX_DECLINED;
+    }
+    if (s3_has_query_flag(r, "delete")) {
+        return cf->common.allow_write
+               ? s3_read_body_metric(r, method_slot, s3_delete_objects_body_handler)
+               : s3_reject_write_disabled(r, method_slot);
+    }
+    if (is_post_object_form) {
+        return cf->common.allow_write
+               ? s3_read_body_metric(r, method_slot, s3_post_object_body_handler)
+               : s3_reject_write_disabled(r, method_slot);
+    }
+    return NGX_DECLINED;
+}
+
+static ngx_int_t
+s3_dispatch_bucket_get(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    ngx_uint_t method_slot)
+{
+    if (s3_has_query_flag(r, "uploads")) {
+        return s3_metrics_return_method(r, method_slot,
+                                        s3_handle_list_multipart_uploads(r, cf));
+    }
+    if (s3_has_query_flag(r, "location")) {
+        return s3_metrics_return_method(r, method_slot,
+                                        s3_handle_get_bucket_location(r, cf));
+    }
+    if (s3_has_query_flag(r, "versioning")) {
+        return s3_metrics_return_method(r, method_slot,
+                                        s3_handle_get_bucket_versioning(r));
+    }
+    if (s3_has_query_flag(r, "acl")) {
+        return s3_metrics_return_method(r, method_slot,
+                                        s3_handle_get_acl(r, cf));
+    }
+    if (s3_has_query_flag(r, "cors")) {
+        return s3_metrics_return_method(r, method_slot, s3_handle_get_cors(r));
+    }
+    return s3_metrics_return_method(r, method_slot, s3_handle_list_v1(r, cf));
+}
+
+static ngx_int_t
+s3_dispatch_empty_key(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    ngx_uint_t method_slot, ngx_flag_t is_post_object_form)
+{
+    ngx_int_t rc;
+
+    if (r->method == NGX_HTTP_GET) {
+        return s3_dispatch_bucket_get(r, cf, method_slot);
+    }
+    rc = s3_dispatch_empty_post(r, cf, method_slot, is_post_object_form);
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
+    if (r->method == NGX_HTTP_HEAD) {
+        return s3_metrics_return_method(r, method_slot,
+                                        s3_handle_head_bucket(r, cf));
+    }
+    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INVALID_URI]);
+    return s3_metrics_return_method(
+        r, method_slot,
+        s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "InvalidURI",
+                          "Missing object key."));
+}
+
+/*
+ * Resolve key -> confined fs_path.  Returns NGX_DECLINED when dispatch may
+ * continue.  On a confinement deny the 403 response has already been sent and
+ * the value the content handler must return is passed back (same sentinel
+ * convention as s3_dispatch_parse_uri).
+ */
+static ngx_int_t
+s3_resolve_object_key(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    ngx_http_s3_req_ctx_t *s3ctx, ngx_uint_t method_slot, const u_char *key,
+    char *fs_path, size_t fs_path_cap)
+{
+    if (s3_resolve_key(cf->common.root_canon, (const char *) key, fs_path,
+                       fs_path_cap))
+    {
+        ngx_cpystrn((u_char *) s3ctx->fs_path, (u_char *) fs_path,
+                    sizeof(s3ctx->fs_path));
+        return NGX_DECLINED;
+    }
+    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_ACCESS_DENIED]);
+    return s3_metrics_return_method(
+        r, method_slot,
+        s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
+                          "Access Denied."));
+}
+
+static ngx_int_t
+s3_dispatch_object_get(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    ngx_uint_t method_slot, const u_char *key, char *fs_path)
+{
+    char upload_id[128];
+
+    if (s3_has_query_flag(r, "tagging")) {
+        return s3_metrics_return_method(r, method_slot,
+            s3_handle_get_object_tagging(r, fs_path, cf));
+    }
+    if (s3_has_query_flag(r, "acl")) {
+        return s3_metrics_return_method(r, method_slot,
+                                        s3_handle_get_acl(r, cf));
+    }
+    if (s3_get_query_param(r, "uploadId", upload_id, sizeof(upload_id))) {
+        return s3_metrics_return_method(r, method_slot,
+            s3_handle_list_parts(r, fs_path, cf, (const char *) key));
+    }
+    return s3_metrics_return_method(r, method_slot,
+                                    s3_handle_get(r, fs_path, cf));
+}
+
+static ngx_int_t
+s3_prepare_upload_part(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    ngx_http_s3_req_ctx_t *s3ctx, ngx_uint_t method_slot, char *fs_path)
+{
+    char upload_id[25];
+    char part_num_str[8];
+    char *endptr;
+    long part_num;
+    char mpu_dir[PATH_MAX];
+    u_char *p;
+
+    if (!s3_get_query_param(r, "uploadId", upload_id, sizeof(upload_id))
+        || !s3_get_query_param(r, "partNumber", part_num_str,
+                               sizeof(part_num_str)))
+    {
+        return NGX_DECLINED;
+    }
+    part_num = strtol(part_num_str, &endptr, 10);
+    if (*endptr != '\0' || part_num < 1 || part_num > 10000) {
+        return s3_metrics_return_method(r, method_slot,
+            s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "InvalidArgument",
+                              "Part number must be an integer between 1 and 10000."));
+    }
+    if (!s3_has_query_flag(r, "uploads") && !s3_upload_id_is_hex(upload_id)) {
+        return s3_metrics_return_method(r, method_slot,
+            s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "InvalidArgument",
+                              "The uploadId is invalid."));
+    }
+    if (brix_http_find_header(r, "x-amz-copy-source",
+                              sizeof("x-amz-copy-source") - 1) != NULL)
+    {
+        return s3_metrics_return_method(r, method_slot,
+            s3_handle_upload_part_copy(r, fs_path, cf, upload_id, (int) part_num));
+    }
+
+    s3_get_mpu_dir(fs_path, upload_id, mpu_dir, sizeof(mpu_dir));
+    p = ngx_snprintf((u_char *) fs_path, PATH_MAX - 1, "%s/part.%z",
+                     mpu_dir, (size_t) part_num);
+    *p = '\0';
+    ngx_cpystrn((u_char *) s3ctx->fs_path, (u_char *) fs_path,
+                sizeof(s3ctx->fs_path));
+    return NGX_OK;
+}
+
+static int
+s3_upload_id_is_hex(const char *upload_id)
+{
+    const char *c;
+
+    for (c = upload_id; *c != '\0'; c++) {
+        if (!((*c >= '0' && *c <= '9') || (*c >= 'a' && *c <= 'f'))) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static ngx_int_t
+s3_apply_put_precondition(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    ngx_http_s3_req_ctx_t *s3ctx, ngx_uint_t method_slot, const char *fs_path)
+{
+    char part_probe[8];
+    ngx_int_t rc;
+
+    /* NGX_DECLINED = "no response sent, proceed to the PUT body"; any other rc
+     * is a response already flushed (e.g. 412) that must gate dispatch — the
+     * send itself returns NGX_OK, so the caller must key on NGX_DECLINED, not
+     * NGX_OK (same sentinel convention as s3_dispatch_parse_uri). */
+    if (s3_get_query_param(r, "uploadId", part_probe, sizeof(part_probe))) {
+        return NGX_DECLINED;
+    }
+    rc = s3_put_precondition(r, cf->common.root_canon, fs_path);
+    if (rc != NGX_DECLINED) {
+        return s3_metrics_return_method(r, method_slot, rc);
+    }
+    s3ctx->exclusive_create = s3_put_is_exclusive_create(r) ? 1 : 0;
+    return NGX_DECLINED;
+}
+
+static ngx_int_t
+s3_dispatch_object_put(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    ngx_http_s3_req_ctx_t *s3ctx, ngx_uint_t method_slot, char *fs_path)
+{
+    ngx_int_t rc;
+
+    if (!cf->common.allow_write) {
+        return s3_reject_write_disabled(r, method_slot);
+    }
+    if (s3_has_query_flag(r, "tagging")) {
+        return s3_read_body_metric(r, method_slot,
+                                   s3_put_object_tagging_body_handler);
+    }
+    if (s3_has_query_flag(r, "acl")) {
+        return s3_metrics_return_method(r, method_slot,
+            s3_send_xml_error(r, NGX_HTTP_NOT_IMPLEMENTED, "NotImplemented",
+                "Per-object ACLs are not supported by this gateway."));
+    }
+
+    rc = s3_prepare_upload_part(r, cf, s3ctx, method_slot, fs_path);
+    if (rc == NGX_DONE || (rc != NGX_OK && rc != NGX_DECLINED)) {
+        return rc;
+    }
+    if (brix_http_find_header(r, "x-amz-copy-source",
+                              sizeof("x-amz-copy-source") - 1) != NULL)
+    {
+        return s3_metrics_return_method(r, method_slot,
+                                        s3_handle_copy_object(r, fs_path, cf));
+    }
+    rc = s3_apply_put_precondition(r, cf, s3ctx, method_slot, fs_path);
+    if (rc != NGX_DECLINED) {
+        return rc;   /* precondition response already sent (e.g. 412) */
+    }
+    return s3_read_body_metric(r, method_slot, s3_put_body_handler);
+}
+
+static ngx_int_t
+s3_dispatch_object_delete(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    ngx_uint_t method_slot, char *fs_path)
+{
+    char upload_id[128];
+
+    if (!cf->common.allow_write) {
+        return s3_reject_write_disabled(r, method_slot);
+    }
+    if (s3_has_query_flag(r, "tagging")) {
+        return s3_metrics_return_method(r, method_slot,
+            s3_handle_delete_object_tagging(r, fs_path, cf));
+    }
+    if (s3_get_query_param(r, "uploadId", upload_id, sizeof(upload_id))) {
+        return s3_metrics_return_method(r, method_slot,
+            s3_handle_multipart_abort(r, fs_path, cf, upload_id));
+    }
+    return s3_metrics_return_method(r, method_slot,
+                                    s3_handle_delete(r, fs_path, cf));
+}
+
+static ngx_int_t
+s3_dispatch_object_post(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    ngx_uint_t method_slot, const u_char *key, char *fs_path)
+{
+    char upload_id[128];
+
+    if (!cf->common.allow_write) {
+        return s3_reject_write_disabled(r, method_slot);
+    }
+    if (s3_has_query_flag(r, "uploads")) {
+        return s3_metrics_return_method(r, method_slot,
+            s3_handle_multipart_initiate(r, fs_path, cf, (const char *) key));
+    }
+    if (s3_get_query_param(r, "uploadId", upload_id, sizeof(upload_id))) {
+        return s3_read_body_metric(r, method_slot,
+                                   s3_multipart_complete_body_handler);
+    }
+    /* A bare POST to an object key (no ?uploads / ?uploadId, and not a
+     * POST-object form — that path routes on the empty key earlier) has no S3
+     * semantics: 405, not an unhandled NGX_DECLINED that would fall through. */
+    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_METHOD_NOT_ALLOWED]);
+    return s3_metrics_return_method(r, method_slot, NGX_HTTP_NOT_ALLOWED);
+}
+
+static ngx_int_t
+s3_dispatch_object_method(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    ngx_http_s3_req_ctx_t *s3ctx, ngx_uint_t method_slot, const u_char *key,
+    char *fs_path)
+{
+    if (r->method == NGX_HTTP_GET) {
+        return s3_dispatch_object_get(r, cf, method_slot, key, fs_path);
+    }
+    if (r->method == NGX_HTTP_HEAD) {
+        return s3_metrics_return_method(r, method_slot,
+                                        s3_handle_head(r, fs_path, cf));
+    }
+    if (r->method == NGX_HTTP_PUT) {
+        return s3_dispatch_object_put(r, cf, s3ctx, method_slot, fs_path);
+    }
+    if (r->method == NGX_HTTP_DELETE) {
+        return s3_dispatch_object_delete(r, cf, method_slot, fs_path);
+    }
+    if (r->method == NGX_HTTP_POST) {
+        return s3_dispatch_object_post(r, cf, method_slot, key, fs_path);
+    }
+
+    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_METHOD_NOT_ALLOWED]);
+    return s3_metrics_return_method(r, method_slot, NGX_HTTP_NOT_ALLOWED);
+}
+
+/*
+ * s3_capture_delegate_proxy — phase-70 §5.1 optional per-request x509 proxy.
+ *
+ * WHAT: When this export delegates to a backend (backend_delegation != SELECT),
+ *   capture an optional user-supplied full x509 proxy from X-Brix-Delegate-Proxy
+ *   and stash it on the req ctx for later VFS bind sites.
+ * WHY: Extracted from ngx_http_s3_handler to keep that entry handler's decision
+ *   count low; the shared parser enforces TLS-only + leaf-DN==identity and 403s a
+ *   present-but-invalid header.
+ * HOW: No-op (returns NGX_OK) unless in a delegation mode. On a rejected header the
+ *   parser's error rc is returned unchanged; a captured PEM is stashed on s3ctx.
+ */
+static ngx_int_t
+s3_capture_delegate_proxy(ngx_http_request_t *r, ngx_http_s3_req_ctx_t *s3ctx,
+    ngx_http_s3_loc_conf_t *cf)
+{
+    ngx_str_t proxy_pem;
+    ngx_int_t rc;
+
+    if (cf->common.backend_delegation == BRIX_CRED_SELECT) {
+        return NGX_OK;
+    }
+
+    rc = brix_proto_deleg_capture_proxy_header(r, s3ctx->identity, &proxy_pem);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+    if (proxy_pem.len > 0) {
+        s3ctx->deleg_proxy_pem = proxy_pem;
+    }
+    return NGX_OK;
+}
+
+/*
+ * s3_pmark_begin_if_enabled — phase-34 SciTags packet marking for plain GET/PUT.
+ *
+ * WHAT: Begin SciTags packet marking for a plain S3 GET or PUT when
+ *   brix_pmark + brix_pmark_http_plain are both on; ended via a request-pool
+ *   cleanup.
+ * WHY: Extracted from ngx_http_s3_handler; S3 has no TPC, so only plain GET/PUT
+ *   are marked. Keeping it here shrinks the entry handler's decision count.
+ * HOW: No-op unless enabled and method is GET/PUT. Copies uri/args into fixed
+ *   buffers (matching original semantics) and calls brix_pmark_http_mark.
+ */
+static void
+s3_pmark_begin_if_enabled(ngx_http_request_t *r, ngx_http_s3_req_ctx_t *s3ctx,
+    ngx_http_s3_loc_conf_t *cf)
+{
+    u_char pth[2048], cgi[512];
+
+    if (!(cf->common.pmark.enable && cf->common.pmark.http_plain
+          && (r->method == NGX_HTTP_GET || r->method == NGX_HTTP_PUT)))
+    {
+        return;
+    }
+
+    ngx_cpystrn(pth, r->uri.data, ngx_min(r->uri.len + 1, sizeof(pth)));
+    if (r->args.len) {
+        ngx_cpystrn(cgi, r->args.data, ngx_min(r->args.len + 1, sizeof(cgi)));
+    } else {
+        cgi[0] = '\0';
+    }
+    brix_pmark_http_mark(&cf->common.pmark, r->pool, r->connection,
+        (r->method == NGX_HTTP_PUT),
+        brix_identity_vo_csv_cstr(s3ctx->identity),
+        brix_identity_dn_cstr(s3ctx->identity),
+        (const char *) pth, (const char *) cgi);
+}
 
 ngx_int_t
 ngx_http_s3_handler(ngx_http_request_t *r)
@@ -424,6 +889,14 @@ ngx_http_s3_handler(ngx_http_request_t *r)
         return s3_metrics_return_method(r, method_slot, NGX_OK);
     }
 
+    /* Phase-70 §5.1: capture an optional user-supplied x509 delegation proxy
+     * (X-Brix-Delegate-Proxy). No-op unless this export delegates to a backend;
+     * a rejected header (403) short-circuits dispatch. */
+    rc = s3_capture_delegate_proxy(r, s3ctx, cf);
+    if (rc != NGX_OK) {
+        return s3_metrics_return_method(r, method_slot, rc);
+    }
+
     s3_sess_begin_request(r, method_slot);
     s3_sess_attempt_request(r, method_slot);
 
@@ -432,22 +905,7 @@ ngx_http_s3_handler(ngx_http_request_t *r)
      * GET/PUT are marked, and only when brix_pmark_http_plain is on.
      * Begun here post-SigV4; ended via a request-pool cleanup.
      */
-    if (cf->common.pmark.enable && cf->common.pmark.http_plain
-        && (r->method == NGX_HTTP_GET || r->method == NGX_HTTP_PUT))
-    {
-        u_char pth[2048], cgi[512];
-        ngx_cpystrn(pth, r->uri.data, ngx_min(r->uri.len + 1, sizeof(pth)));
-        if (r->args.len) {
-            ngx_cpystrn(cgi, r->args.data, ngx_min(r->args.len + 1, sizeof(cgi)));
-        } else {
-            cgi[0] = '\0';
-        }
-        brix_pmark_http_mark(&cf->common.pmark, r->pool, r->connection,
-            (r->method == NGX_HTTP_PUT),
-            brix_identity_vo_csv_cstr(s3ctx->identity),
-            brix_identity_dn_cstr(s3ctx->identity),
-            (const char *) pth, (const char *) cgi);
-    }
+    s3_pmark_begin_if_enabled(r, s3ctx, cf);
 
     /*
      * Phase 40: bracket the whole post-auth dispatch with the impersonation
@@ -475,28 +933,16 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     ngx_http_s3_req_ctx_t *s3ctx, ngx_uint_t method_slot,
     int is_list_request, ngx_flag_t is_post_object_form)
 {
-    u_char    key[S3_MAX_KEY];
+    u_char    key[S3_MAX_KEY] = {0};
     char      fs_path[PATH_MAX];
     ngx_int_t rc;
 
-    {
-        int parse_rc = s3_parse_uri(r, cf, key, sizeof(key));
-        if (parse_rc == -1) {
-            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INVALID_URI]);
-            return s3_metrics_return_method(
-                r, method_slot,
-                s3_send_xml_error(r, NGX_HTTP_NOT_FOUND,
-                                  "NoSuchBucket",
-                                  "The specified bucket does not exist."));
-        }
-        if (parse_rc == 0) {
-            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INVALID_URI]);
-            return s3_metrics_return_method(
-                r, method_slot,
-                s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST,
-                                  "InvalidURI",
-                                  "Couldn't parse the specified URI."));
-        }
+    /* Each gate below returns NGX_DECLINED to continue dispatch; any other
+     * value (including NGX_OK) means the response was already sent and must
+     * be returned as-is — see s3_dispatch_parse_uri's doc block. */
+    rc = s3_dispatch_parse_uri(r, cf, method_slot, key, sizeof(key));
+    if (rc != NGX_DECLINED) {
+        return rc;
     }
 
     /*
@@ -508,355 +954,23 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
      * unconditionally by brix_identity_check_token_scope (scopes only apply to
      * token auth).  Empty keys (bucket-level ops, list) map to logical path "/".
      */
-    if (s3ctx->identity != NULL
-        && (s3ctx->identity->auth_method & BRIX_AUTHN_TOKEN))
-    {
-        brix_acc_op_t aop        = s3_method_aop(r);
-        int           need_write = (aop == BRIX_AOP_CREATE
-                                    || aop == BRIX_AOP_DELETE);
-        char          logical[PATH_MAX];
-        u_char       *end;
-
-        end = ngx_snprintf((u_char *) logical, sizeof(logical),
-                           "/%s%Z", (const char *) key);
-        (void) end;
-
-        if (brix_identity_check_token_scope(s3ctx->identity, logical, need_write)
-            != NGX_OK)
-        {
-            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_ACCESS_DENIED]);
-            return s3_metrics_return_method(r, method_slot,
-                s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
-                                  "token scope does not cover this object"));
-        }
+    rc = s3_check_token_scope(r, s3ctx, method_slot, key);
+    if (rc != NGX_DECLINED) {
+        return rc;
     }
 
     if (is_list_request) {
         return s3_metrics_return_method(r, method_slot, s3_handle_list(r, cf));
     }
 
-    /*
-     * ListMultipartUploads: GET /<bucket>/?uploads  (empty key, flag present)
-     * Must be checked before the empty-key rejection below.
-     */
-    if (r->method == NGX_HTTP_GET
-        && key[0] == '\0'
-        && s3_has_query_flag(r, "uploads"))
-    {
-        return s3_metrics_return_method(r, method_slot,
-                                        s3_handle_list_multipart_uploads(r, cf));
-    }
-
-    /*
-     * DeleteObjects: POST /<bucket>/?delete  (empty key, flag present)
-     * Must be checked before the empty-key rejection below.
-     */
-    if (r->method == NGX_HTTP_POST
-        && key[0] == '\0'
-        && s3_has_query_flag(r, "delete"))
-    {
-        if (!cf->common.allow_write) {
-            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_WRITE_DISABLED]);
-            return s3_metrics_return_method(
-                r, method_slot,
-                s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
-                                  "AccessDenied",
-                                  "Write access is disabled."));
-        }
-        r->request_body_in_single_buf = 1;
-        rc = brix_http_read_body(r, s3_delete_objects_body_handler);
-        if (rc != NGX_DONE) {
-            return s3_metrics_return_method(r, method_slot, rc);
-        }
-        return NGX_DONE;
-    }
-
-    /*
-     * POST Object: browser form upload to /<bucket>/ with multipart/form-data.
-     * The authentication material, when configured, is carried in the form's
-     * policy/signature fields rather than in the HTTP Authorization header.
-     */
-    if (r->method == NGX_HTTP_POST && key[0] == '\0' && is_post_object_form) {
-        if (!cf->common.allow_write) {
-            BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_WRITE_DISABLED]);
-            return s3_metrics_return_method(
-                r, method_slot,
-                s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
-                                  "AccessDenied",
-                                  "Write access is disabled."));
-        }
-
-        r->request_body_in_single_buf = 1;
-        rc = brix_http_read_body(r, s3_post_object_body_handler);
-        if (rc != NGX_DONE) {
-            return s3_metrics_return_method(r, method_slot, rc);
-        }
-        return NGX_DONE;
-    }
-
-    /*
-     * HeadBucket: HEAD /<bucket> (empty key).  SDK clients probe this at session
-     * start; answer 200 + region rather than the empty-key InvalidURI below.
-     */
-    if (r->method == NGX_HTTP_HEAD && key[0] == '\0') {
-        return s3_metrics_return_method(r, method_slot,
-                                        s3_handle_head_bucket(r, cf));
-    }
-
-    /*
-     * Bucket-level GET (empty key).  ListObjectsV2 (list-type=2) and
-     * ListMultipartUploads (?uploads) were already routed above; here we route
-     * the GetBucketLocation subresource probe and otherwise fall back to the
-     * original ListObjects (V1), which older tooling and Rucio still use.
-     */
-    if (r->method == NGX_HTTP_GET && key[0] == '\0') {
-        if (s3_has_query_flag(r, "location")) {
-            return s3_metrics_return_method(
-                r, method_slot, s3_handle_get_bucket_location(r, cf));
-        }
-        if (s3_has_query_flag(r, "versioning")) {
-            return s3_metrics_return_method(
-                r, method_slot, s3_handle_get_bucket_versioning(r));
-        }
-        if (s3_has_query_flag(r, "acl")) {
-            return s3_metrics_return_method(
-                r, method_slot, s3_handle_get_acl(r, cf));
-        }
-        if (s3_has_query_flag(r, "cors")) {
-            return s3_metrics_return_method(
-                r, method_slot, s3_handle_get_cors(r));
-        }
-        return s3_metrics_return_method(r, method_slot,
-                                        s3_handle_list_v1(r, cf));
-    }
-
     if (key[0] == '\0') {
-        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INVALID_URI]);
-        return s3_metrics_return_method(
-            r, method_slot,
-            s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST,
-                              "InvalidURI", "Missing object key."));
+        return s3_dispatch_empty_key(r, cf, method_slot, is_post_object_form);
     }
 
-    if (!s3_resolve_key(cf->common.root_canon,
-                        (const char *) key,
-                        fs_path, sizeof(fs_path))) {
-        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_ACCESS_DENIED]);
-        return s3_metrics_return_method(
-            r, method_slot,
-            s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
-                              "AccessDenied", "Access Denied."));
+    rc = s3_resolve_object_key(r, cf, s3ctx, method_slot, key, fs_path,
+                               sizeof(fs_path));
+    if (rc != NGX_DECLINED) {
+        return rc;
     }
-    ngx_cpystrn((u_char *) s3ctx->fs_path, (u_char *) fs_path,
-                sizeof(s3ctx->fs_path));
-
-    if (r->method == NGX_HTTP_GET) {
-        char list_parts_upload_id[128];
-
-        if (s3_has_query_flag(r, "tagging")) {
-            return s3_metrics_return_method(r, method_slot,
-                s3_handle_get_object_tagging(r, fs_path, cf));
-        }
-        if (s3_has_query_flag(r, "acl")) {
-            return s3_metrics_return_method(r, method_slot,
-                s3_handle_get_acl(r, cf));
-        }
-        if (s3_get_query_param(r, "uploadId",
-                               list_parts_upload_id,
-                               sizeof(list_parts_upload_id)))
-        {
-            return s3_metrics_return_method(
-                r, method_slot,
-                s3_handle_list_parts(r, fs_path, cf, (const char *) key));
-        }
-        return s3_metrics_return_method(r, method_slot,
-                                        s3_handle_get(r, fs_path, cf));
-    }
-
-    if (r->method == NGX_HTTP_HEAD) {
-        return s3_metrics_return_method(r, method_slot,
-                                        s3_handle_head(r, fs_path, cf));
-    }
-
-    if (r->method == NGX_HTTP_PUT) {
-        if (!cf->common.allow_write) {
-            BRIX_S3_METRIC_INC(
-                events_total[BRIX_S3_EVENT_WRITE_DISABLED]);
-            return s3_metrics_return_method(
-                r, method_slot,
-                s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
-                                  "AccessDenied",
-                                  "Write access is disabled."));
-        }
-
-        /* PutObjectTagging: PUT /key?tagging (XML body). */
-        if (s3_has_query_flag(r, "tagging")) {
-            r->request_body_in_single_buf = 1;
-            rc = brix_http_read_body(r, s3_put_object_tagging_body_handler);
-            if (rc != NGX_DONE) {
-                return s3_metrics_return_method(r, method_slot, rc);
-            }
-            return NGX_DONE;
-        }
-        /* Per-object ACL writes are not supported (authz is XrdAcc/tokens). */
-        if (s3_has_query_flag(r, "acl")) {
-            return s3_metrics_return_method(r, method_slot,
-                s3_send_xml_error(r, NGX_HTTP_NOT_IMPLEMENTED, "NotImplemented",
-                    "Per-object ACLs are not supported by this gateway."));
-        }
-
-        /* Check for multipart UploadPart: PUT /key?partNumber=N&uploadId=ID */
-        char upload_id[25];
-        char part_num_str[8];
-        if (s3_get_query_param(r, "uploadId", upload_id, sizeof(upload_id)) &&
-            s3_get_query_param(r, "partNumber", part_num_str, sizeof(part_num_str)))
-        {
-            char *endptr;
-            long part_num = strtol(part_num_str, &endptr, 10);
-            if (*endptr != '\0' || part_num < 1 || part_num > 10000) {
-                return s3_metrics_return_method(r, method_slot,
-                    s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST,
-                                      "InvalidArgument",
-                                      "Part number must be an integer"
-                                      " between 1 and 10000."));
-            }
-            if (!s3_has_query_flag(r, "uploads")) {
-                const char *c;
-                for (c = upload_id; *c != '\0'; c++) {
-                    if (!((*c >= '0' && *c <= '9')
-                          || (*c >= 'a' && *c <= 'f')))
-                    {
-                        return s3_metrics_return_method(r, method_slot,
-                            s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST,
-                                              "InvalidArgument",
-                                              "The uploadId is invalid."));
-                    }
-                }
-            }
-
-            char    mpu_dir[PATH_MAX];
-            u_char *p;
-
-            /* UploadPartCopy: the handler re-derives the staging dir from the
-             * DESTINATION KEY fs_path (s3_get_mpu_dir), so it must run BEFORE we
-             * overwrite fs_path with the part-file path below.  Calling it after
-             * the overwrite fed it the part path and made s3_get_mpu_dir compute
-             * the wrong dir — UploadPartCopy always returned NoSuchUpload. */
-            if (brix_http_find_header(r, "x-amz-copy-source",
-                                        sizeof("x-amz-copy-source") - 1)
-                != NULL)
-            {
-                return s3_metrics_return_method(r, method_slot,
-                    s3_handle_upload_part_copy(r, fs_path, cf,
-                                               upload_id, (int) part_num));
-            }
-
-            s3_get_mpu_dir(fs_path, upload_id, mpu_dir, sizeof(mpu_dir));
-            /*
-             * nginx's ngx_snprintf (ngx_sprintf) does NOT support the 'l'
-             * length modifier.  Use %z (ssize_t/size_t) instead; on 64-bit
-             * Linux long and ssize_t are the same width.
-             */
-            p = ngx_snprintf((u_char *)fs_path, PATH_MAX - 1,
-                             "%s/part.%z", mpu_dir, (size_t) part_num);
-            *p = '\0';
-            /* Sync ctx so the async put body handler sees the part path. */
-            ngx_cpystrn((u_char *) s3ctx->fs_path, (u_char *) fs_path,
-                        sizeof(s3ctx->fs_path));
-        }
-
-        /* CopyObject: PUT /bucket/key  +  x-amz-copy-source (no uploadId) */
-        if (brix_http_find_header(r, "x-amz-copy-source",
-                                    sizeof("x-amz-copy-source") - 1) != NULL)
-        {
-            return s3_metrics_return_method(r, method_slot,
-                                            s3_handle_copy_object(r, fs_path,
-                                                                  cf));
-        }
-
-        /*
-         * Conditional PutObject (If-None-Match: * create-if-absent / If-Match
-         * overwrite-if-match), evaluated before the body is read.  Skipped for
-         * UploadPart (conditional writes apply to whole objects only).
-         */
-        {
-            char part_probe[8];
-            if (!s3_get_query_param(r, "uploadId", part_probe,
-                                    sizeof(part_probe)))
-            {
-                ngx_int_t prc = s3_put_precondition(r, cf->common.root_canon,
-                                                    fs_path);
-                if (prc != NGX_DECLINED) {
-                    return s3_metrics_return_method(r, method_slot, prc);
-                }
-                /* W6b: If-None-Match:* asks for atomic create-if-absent — the
-                 * commit (any of the 3 PUT body paths) uses an exclusive rename
-                 * and maps a concurrent winner (EEXIST) to 412. */
-                s3ctx->exclusive_create = s3_put_is_exclusive_create(r) ? 1 : 0;
-            }
-        }
-
-        r->request_body_in_single_buf = 1;
-
-        rc = brix_http_read_body(r, s3_put_body_handler);
-        if (rc != NGX_DONE) {
-            return s3_metrics_return_method(r, method_slot, rc);
-        }
-        return NGX_DONE;
-    }
-
-    if (r->method == NGX_HTTP_DELETE) {
-        if (!cf->common.allow_write) {
-            BRIX_S3_METRIC_INC(
-                events_total[BRIX_S3_EVENT_WRITE_DISABLED]);
-            return s3_metrics_return_method(
-                r, method_slot,
-                s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
-                                  "AccessDenied",
-                                  "Write access is disabled."));
-        }
-
-        if (s3_has_query_flag(r, "tagging")) {
-            return s3_metrics_return_method(r, method_slot,
-                s3_handle_delete_object_tagging(r, fs_path, cf));
-        }
-
-        char upload_id[128];
-        if (s3_get_query_param(r, "uploadId", upload_id, sizeof(upload_id))) {
-            return s3_metrics_return_method(r, method_slot,
-                s3_handle_multipart_abort(r, fs_path, cf, upload_id));
-        }
-
-        return s3_metrics_return_method(r, method_slot,
-                                        s3_handle_delete(r, fs_path, cf));
-    }
-
-    if (r->method == NGX_HTTP_POST) {
-        if (!cf->common.allow_write) {
-            BRIX_S3_METRIC_INC(
-                events_total[BRIX_S3_EVENT_WRITE_DISABLED]);
-            return s3_metrics_return_method(
-                r, method_slot,
-                s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
-                                  "AccessDenied",
-                                  "Write access is disabled."));
-        }
-
-        char upload_id[128];
-        if (s3_has_query_flag(r, "uploads")) {
-            return s3_metrics_return_method(r, method_slot,
-                s3_handle_multipart_initiate(r, fs_path, cf, (const char *)key));
-        } else if (s3_get_query_param(r, "uploadId", upload_id, sizeof(upload_id))) {
-            r->request_body_in_single_buf = 1;
-
-            rc = brix_http_read_body(r, s3_multipart_complete_body_handler);
-            if (rc != NGX_DONE) {
-                return s3_metrics_return_method(r, method_slot, rc);
-            }
-            return NGX_DONE;
-        }
-    }
-
-    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_METHOD_NOT_ALLOWED]);
-    return s3_metrics_return_method(r, method_slot, NGX_HTTP_NOT_ALLOWED);
+    return s3_dispatch_object_method(r, cf, s3ctx, method_slot, key, fs_path);
 }

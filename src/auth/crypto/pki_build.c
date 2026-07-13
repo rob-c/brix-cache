@@ -53,8 +53,96 @@ pki_load_crls_from_file(X509_STORE *store, const char *path, ngx_log_t *log)
         X509_CRL_free(crl);
     }
 
-    fclose(fp);
+    (void) fclose(fp); /* phase74-fp: read-only stream, close failure cannot lose data */
     return count;
+}
+
+/*
+ * WHAT: decide whether a directory entry name is a CRL file we should load.
+ * WHY:  grid CA CRL directories mix CRLs with hash-link and metadata files; we
+ *       load only *.pem and the *.r0-*.r9 grid CRL naming convention.  Isolating
+ *       the predicate keeps the scan loop's branching (and CCN) contained here.
+ * HOW:  suffix-test the name; return 1 on a match, 0 otherwise.
+ */
+static int
+pki_crl_name_matches(const char *name)
+{
+    size_t nlen = strlen(name);
+
+    if (nlen > 4 && strcmp(name + nlen - 4, ".pem") == 0) {
+        return 1;
+    }
+    if (nlen > 3 && name[nlen - 3] == '.'
+        && name[nlen - 2] == 'r'
+        && name[nlen - 1] >= '0' && name[nlen - 1] <= '9')
+    {
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * WHAT: load CRLs from one matched directory entry into the store.
+ * WHY:  factors the per-entry path-join / regular-file guard / load out of the
+ *       scan loop so the loop body is a single call and the loop's CCN drops.
+ * HOW:  join dir+name, skip anything that is not a stat-able regular file, then
+ *       delegate to pki_load_crls_from_file.  Returns CRLs added (>=0); a
+ *       non-regular or over-long entry contributes 0 (silently skipped, exactly
+ *       as before).
+ */
+static int
+pki_load_crls_from_dirent(X509_STORE *store, const char *dir_path,
+    const char *name, ngx_log_t *log)
+{
+    char        fpath[PATH_MAX];
+    struct stat st;
+    int         n;
+
+    n = snprintf(fpath, sizeof(fpath), "%s/%s", dir_path, name);
+    if (n < 0 || (size_t) n >= sizeof(fpath)) {
+        return 0;
+    }
+
+    if (stat(fpath, &st) != 0 || !S_ISREG(st.st_mode)) {
+        return 0;
+    }
+
+    n = pki_load_crls_from_file(store, fpath, log);
+    return (n > 0) ? n : 0;
+}
+
+/*
+ * WHAT: scan a CRL directory, loading every matching *.pem / *.r[0-9] CRL.
+ * WHY:  separates the directory-iteration stage from the file-vs-directory
+ *       dispatch so each function keeps one job and a low CCN.
+ * HOW:  opendir + readdir loop; delegate matching to pki_crl_name_matches and
+ *       per-entry loading to pki_load_crls_from_dirent.  Returns total CRLs
+ *       added, or -1 if the directory cannot be opened.
+ */
+static int
+pki_load_crls_from_dir(X509_STORE *store, const char *path, ngx_log_t *log)
+{
+    DIR           *dir;
+    struct dirent *ent;
+    int            total;
+
+    dir = opendir(path);
+    if (dir == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+                      "brix_pki: cannot open CRL directory \"%s\"", path);
+        return -1;
+    }
+
+    total = 0;
+    while ((ent = readdir(dir)) != NULL) {
+        if (!pki_crl_name_matches(ent->d_name)) {
+            continue;
+        }
+        total += pki_load_crls_from_dirent(store, path, ent->d_name, log);
+    }
+
+    closedir(dir);
+    return total;
 }
 
 /*
@@ -65,11 +153,7 @@ pki_load_crls_from_file(X509_STORE *store, const char *path, ngx_log_t *log)
 static int
 pki_load_crls(X509_STORE *store, const char *path, ngx_log_t *log)
 {
-    struct stat    st;
-    DIR           *dir;
-    struct dirent *ent;
-    int            total;
-    int            n;
+    struct stat st;
 
     if (stat(path, &st) != 0) {
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
@@ -88,50 +172,7 @@ pki_load_crls(X509_STORE *store, const char *path, ngx_log_t *log)
         return -1;
     }
 
-    dir = opendir(path);
-    if (dir == NULL) {
-        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
-                      "brix_pki: cannot open CRL directory \"%s\"", path);
-        return -1;
-    }
-
-    total = 0;
-    while ((ent = readdir(dir)) != NULL) {
-        const char *name = ent->d_name;
-        size_t      nlen = strlen(name);
-        char        fpath[PATH_MAX];
-        int         match = 0;
-
-        if (nlen > 4 && strcmp(name + nlen - 4, ".pem") == 0) {
-            match = 1;
-        }
-        if (!match && nlen > 3 && name[nlen - 3] == '.'
-            && name[nlen - 2] == 'r'
-            && name[nlen - 1] >= '0' && name[nlen - 1] <= '9')
-        {
-            match = 1;
-        }
-        if (!match) {
-            continue;
-        }
-
-        n = snprintf(fpath, sizeof(fpath), "%s/%s", path, name);
-        if (n < 0 || (size_t) n >= sizeof(fpath)) {
-            continue;
-        }
-
-        if (stat(fpath, &st) != 0 || !S_ISREG(st.st_mode)) {
-            continue;
-        }
-
-        n = pki_load_crls_from_file(store, fpath, log);
-        if (n > 0) {
-            total += n;
-        }
-    }
-
-    closedir(dir);
-    return total;
+    return pki_load_crls_from_dir(store, path, log);
 }
 
 /*
@@ -216,5 +257,136 @@ brix_build_ca_store(ngx_log_t *log,
         }
     }
 
+    return store;
+}
+
+/* ---- per-config-parse memo for the (expensive) CA/CRL store -------------- */
+
+#define BRIX_CA_STORE_CACHE_MAX 16
+
+typedef struct {
+    char        key[768];       /* inputs fingerprint; empty = free slot       */
+    X509_STORE *store;          /* cached (one ref held by the cache)          */
+    int         crl_count;
+} brix_ca_store_cache_ent_t;
+
+static brix_ca_store_cache_ent_t brix_ca_store_cache[BRIX_CA_STORE_CACHE_MAX];
+
+/*
+ * WHAT: render the cache key (inputs fingerprint) for a store request.
+ * WHY:  the key is INPUTS-ONLY (no scope/cycle) so a store built in the
+ *       config-load process is reused by the master it forks into; isolating
+ *       the format string keeps the one canonical spelling in one place.
+ * HOW:  ngx_snprintf the CA/CRL paths + flags + modes into caller-owned buf.
+ */
+static void
+brix_ca_store_cache_key(char *buf, size_t buflen, const char *cadir,
+    const char *cafile, const char *crl_path, unsigned long extra_flags,
+    brix_sp_mode_t sp_mode, int crl_mode)
+{
+    ngx_snprintf((u_char *) buf, buflen, "%s|%s|%s|%ul|%d|%d%Z",
+        cadir ? cadir : "", cafile ? cafile : "", crl_path ? crl_path : "",
+        extra_flags, (int) sp_mode, crl_mode);
+}
+
+/*
+ * WHAT: probe the cache for an existing store matching @key.
+ * WHY:  a hit skips the ~1s IGTF-CRL directory load; extracting the scan drops
+ *       the branching (and CCN) out of the public entry point.
+ * HOW:  linear scan of the fixed table.  On a hit: up_ref the store (caller owns
+ *       the returned ref exactly as in the miss path), publish crl_count, log,
+ *       and return it.  On a miss: record the first free slot via @free_slot_out
+ *       and return NULL.
+ */
+static X509_STORE *
+brix_ca_store_cache_get(const char *key, ngx_log_t *log, const char *cadir,
+    const char *cafile, int *crl_count_out, int *free_slot_out)
+{
+    int i;
+
+    *free_slot_out = -1;
+
+    for (i = 0; i < BRIX_CA_STORE_CACHE_MAX; i++) {
+        brix_ca_store_cache_ent_t *e = &brix_ca_store_cache[i];
+
+        if (e->store != NULL && ngx_strcmp(e->key, key) == 0) {
+            if (crl_count_out != NULL) { *crl_count_out = e->crl_count; }
+            X509_STORE_up_ref(e->store);
+            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+                "brix_pki: reusing the CA/CRL store already built for \"%s\" "
+                "(skipped a redundant CRL directory load)",
+                cadir ? cadir : (cafile ? cafile : "(system)"));
+            return e->store;
+        }
+        if (e->store == NULL && *free_slot_out < 0) { *free_slot_out = i; }
+    }
+
+    return NULL;
+}
+
+/*
+ * WHAT: install a freshly built store into a free cache slot.
+ * WHY:  the cache holds one reference; publishing it here keeps the ref/copy
+ *       bookkeeping beside the lookup it mirrors.  A full table (slot < 0) is a
+ *       no-op — the store is simply not memoised.
+ * HOW:  up_ref for the cache's own ref, copy the key, record store + crl_count.
+ */
+static void
+brix_ca_store_cache_put(int slot, const char *key, X509_STORE *store,
+    int crl_count)
+{
+    brix_ca_store_cache_ent_t *e;
+
+    if (slot < 0) {
+        return;
+    }
+
+    e = &brix_ca_store_cache[slot];
+    X509_STORE_up_ref(store);                 /* the cache holds one ref */
+    ngx_cpystrn((u_char *) e->key, (u_char *) key, sizeof(e->key));
+    e->store     = store;
+    e->crl_count = crl_count;
+}
+
+/* Keyed by INPUTS ONLY (not by scope/cycle) so a store built in the config-load
+ * process is reused by the daemonised master it forks into — collapsing the
+ * duplicate ~1s IGTF-CRL load a dynamic module otherwise pays twice at startup.
+ * `scope != NULL` enables caching; the per-worker CRL hot-reload timer passes
+ * NULL to force a fresh rebuild from the current CRLs on disk.  A config change
+ * to the CA/CRL paths yields a different key (rebuilds); a reload that only
+ * rotates CRL *content* under the same dir is refreshed by that timer. */
+X509_STORE *
+brix_build_ca_store_cached(void *scope, ngx_log_t *log,
+    const char *cadir, const char *cafile, const char *crl_path,
+    unsigned long extra_flags, int *crl_count_out,
+    brix_sp_mode_t sp_mode, int crl_mode)
+{
+    char        key[768];
+    int         free_slot = -1;
+    X509_STORE *store;
+    int         crl_count = 0;
+
+    if (scope == NULL) {                      /* caching disabled (CRL reload) */
+        return brix_build_ca_store(log, cadir, cafile, crl_path, extra_flags,
+                                     crl_count_out, sp_mode, crl_mode);
+    }
+
+    brix_ca_store_cache_key(key, sizeof(key), cadir, cafile, crl_path,
+                            extra_flags, sp_mode, crl_mode);
+
+    store = brix_ca_store_cache_get(key, log, cadir, cafile, crl_count_out,
+                                    &free_slot);
+    if (store != NULL) {
+        return store;
+    }
+
+    store = brix_build_ca_store(log, cadir, cafile, crl_path, extra_flags,
+                                 &crl_count, sp_mode, crl_mode);
+    if (store == NULL) {
+        return NULL;
+    }
+    if (crl_count_out != NULL) { *crl_count_out = crl_count; }
+
+    brix_ca_store_cache_put(free_slot, key, store, crl_count);
     return store;
 }

@@ -26,7 +26,13 @@
 #include "net/cms/cns.h"               /* §6 CNS mode enum */
 #include "core/config/credential_block.h" /* §14 brix_credential block directive */
 #include "module_enums.h"   /* directive enum value tables */
+#include "fs/backend/sd.h"  /* BRIX_CRED_* (phase-70 §4) */
 #include "core/config/tier_directives.h"   /* shared tier-grammar X-macro */
+
+#include <stdio.h>
+#include <openssl/pem.h>
+#include <openssl/x509.h>
+#include <openssl/evp.h>   /* phase-3 T1: mint-CA config-time validation */
 
 /* §7 SSI: brix_ssi_cta_executor — simulated (test) vs real tier/frm (prod). */
 static ngx_conf_enum_t  brix_ssi_executor_enum[] = {
@@ -34,6 +40,84 @@ static ngx_conf_enum_t  brix_ssi_executor_enum[] = {
     { ngx_string("prod"), 1 },
     { ngx_null_string,    0 }
 };
+
+/* Phase 2 Task 6: brix_storage_credential_fallback allow|deny on the stream
+ * (root://) plane — mirrors brix_http_ucred_fallback_enum (http_common.c)
+ * exactly; a stream-local copy because the HTTP one is file-static. */
+/* Phase-70 §4: brix_backend_delegation mode names → BRIX_CRED_* on the stream
+ * (root://) plane — mirrors brix_backend_delegation_enum (http_common.c); a
+ * stream-local copy because the HTTP one is file-static. */
+static ngx_conf_enum_t  brix_stream_backend_delegation_enum[] = {
+    { ngx_string("select"),      BRIX_CRED_SELECT },
+    { ngx_string("passthrough"), BRIX_CRED_PASSTHROUGH },
+    { ngx_string("exchange"),    BRIX_CRED_EXCHANGE },
+    { ngx_string("delegate"),    BRIX_CRED_DELEGATE },
+    { ngx_string("mint"),        BRIX_CRED_MINT },
+    { ngx_string("auto"),        BRIX_CRED_AUTO },
+    { ngx_null_string,           0 }
+};
+
+static ngx_conf_enum_t  brix_stream_credential_fallback_enum[] = {
+    { ngx_string("allow"), 0 },
+    { ngx_string("deny"),  1 },
+    { ngx_null_string,     0 }
+};
+
+/*
+ * brix_conf_set_stream_mint_ca — setter for "brix_storage_credential_mint_ca
+ * <cert> <key>" on the stream (root://) plane (phase-3 T1). Mirrors
+ * brix_conf_set_mint_ca (src/core/config/http_common.c) exactly — a
+ * stream-local copy is required because the HTTP setter is file-static and
+ * the two conf struct types differ. Validates both PEM files load-parse at
+ * config time (nginx -t fails loudly on a bad mint CA instead of every mint
+ * request failing at runtime) and stores their paths into the shared
+ * preamble's storage_credential_mint_ca_cert / _key fields. TRUST NOTE:
+ * configuring this directive means the frontend will sign per-user x509
+ * proxies with this CA key — the ORIGIN must trust this CA for minted
+ * credentials to be usable; see src/fs/backend/cred_mint.h for the full
+ * trust-model note.
+ */
+static char *
+brix_conf_set_stream_mint_ca(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_stream_brix_srv_conf_t *xcf = conf;
+    ngx_str_t                    *value = cf->args->elts;
+    FILE                          *f;
+    X509                          *cert;
+    EVP_PKEY                      *key;
+
+    (void) cmd;
+
+    f = fopen((const char *) value[1].data, "r");
+    cert = (f != NULL) ? PEM_read_X509(f, NULL, NULL, NULL) : NULL;
+    if (f != NULL) {
+        (void) fclose(f); /* read-only stream; the PEM parse result is the gate */
+    }
+    if (cert == NULL) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_storage_credential_mint_ca: cannot parse CA cert \"%V\"",
+            &value[1]);
+        return NGX_CONF_ERROR;
+    }
+    X509_free(cert);
+
+    f = fopen((const char *) value[2].data, "r");
+    key = (f != NULL) ? PEM_read_PrivateKey(f, NULL, NULL, NULL) : NULL;
+    if (f != NULL) {
+        (void) fclose(f); /* read-only stream; the PEM parse result is the gate */
+    }
+    if (key == NULL) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_storage_credential_mint_ca: cannot parse CA key \"%V\"",
+            &value[2]);
+        return NGX_CONF_ERROR;
+    }
+    EVP_PKEY_free(key);
+
+    xcf->common.storage_credential_mint_ca_cert = value[1];
+    xcf->common.storage_credential_mint_ca_key  = value[2];
+    return NGX_CONF_OK;
+}
 
 /*
  * brix_ssi_service <name> — enable a non-default SSI provider. The built-in
@@ -102,6 +186,57 @@ ngx_command_t ngx_stream_brix_commands[] = {
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, common.storage_credential),
+      NULL },
+
+    /* Phase 2 Task 6: per-user backend credentials on the root:// plane.
+     * Directory of per-principal x509 proxy PEMs, keyed the same way as the
+     * HTTP-plane feature (brix_sd_ucred_key); "" (default) = feature off. */
+    { ngx_string("brix_storage_credential_dir"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.storage_credential_dir),
+      NULL },
+
+    /* allow (default): fall back to the static service credential when no
+     * per-user credential is found/valid. deny: refuse with EACCES/
+     * kXR_NotAuthorized before the origin is ever contacted. */
+    { ngx_string("brix_storage_credential_fallback"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.storage_credential_fallback),
+      &brix_stream_credential_fallback_enum },
+
+    /* Phase-70 §4: backend-leg credential strategy on the root:// plane —
+     * mirrors brix_backend_delegation on the HTTP plane; enum → BRIX_CRED_*
+     * stored on the shared `common` preamble. Default (SELECT) = today's
+     * directory-lookup behaviour. */
+    { ngx_string("brix_backend_delegation"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_enum_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.backend_delegation),
+      &brix_stream_backend_delegation_enum },
+
+    /* Phase-3 Task 1: opt-in credential minting on the root:// plane — mirrors
+     * brix_storage_credential_mint_ca/_mint_ttl on the HTTP plane (Phase-2 T9)
+     * exactly. The mint fields live on the shared `common` preamble, so this
+     * directive just needs its own stream-local setter (the HTTP one is
+     * file-static) plus the num-slot for the TTL. No-op (minting stays off)
+     * unless configured. */
+    { ngx_string("brix_storage_credential_mint_ca"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE2,
+      brix_conf_set_stream_mint_ca,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("brix_storage_credential_mint_ttl"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.storage_credential_mint_ttl),
       NULL },
 
     /* The reusable `brix_credential <name> { … }` identity block (§14), declared

@@ -29,6 +29,18 @@
  *       sendfile, owning range/headers/backpressure/lifecycle), runs the caller's
  *       protocol metrics callback, and finalises. A non-socket serve, a HEAD, or no
  *       thread pool returns NGX_DECLINED so the caller serves inline as before.
+ *
+ * PHASE-2 FOLLOW-UP (per-user backend credential on the offload path): `vctx`
+ *       is the caller's ALREADY-BOUND VFS ctx (brix_vfs_ctx_bind_backend_cred
+ *       already called on it, exactly as the caller's own inline open would
+ *       need). brix_http_serve_offload_remote() runs the SAME credential gate
+ *       (brix_vfs_backend_cred) on the event loop, BEFORE submitting the
+ *       thread job — deny mode refuses (NGX_ERROR, errno EACCES) without ever
+ *       opening the object. On grant it copies the resolved credential's
+ *       strings into fixed buffers on the task ctx (the borrowed vctx/pool do
+ *       not outlive this call the way the task does) and the worker thread
+ *       rebuilds a stack brix_sd_cred_t from them to open via
+ *       brix_sd_open_maybe_cred instead of the plain driver open.
  */
 
 #include <ngx_config.h>
@@ -38,6 +50,7 @@
 #include "file_serve.h"                 /* brix_http_serve_opts_t/_result_t */
 #include "core/config/shared_conf.h"      /* ngx_http_brix_shared_conf_t */
 #include "fs/backend/sd.h"           /* brix_sd_instance_t */
+#include "fs/vfs/vfs.h"               /* brix_vfs_ctx_t (per-user backend cred gate) */
 
 /* Protocol metrics callback: run on the event loop after the materialised object is
  * served, with the same result the inline serve would report. WebDAV and S3 pass
@@ -50,17 +63,25 @@ typedef void (*brix_http_serve_metrics_pt)(ngx_http_request_t *r,
  * path reads from a socket-wire backend; otherwise decline so the caller serves
  * inline (its own brix_vfs_open + brix_http_serve_file_ranged).
  *
+ * `vctx` is the caller's VFS ctx for this request, already bound via
+ * brix_vfs_ctx_bind_backend_cred() (the caller built it to open `key` inline
+ * had this function declined) — used ONLY to run the per-user backend
+ * credential gate before submitting the thread job; may be NULL to skip the
+ * gate (service-credential-only exports with no cred dir configured).
+ *
  * Returns:
  *   NGX_DECLINED - not a socket-wire serve (local / in-process / curl / HEAD / no
  *                  pool): the caller proceeds with its normal inline open + serve.
  *   NGX_DONE     - offloaded; the request is suspended. The caller MUST return
  *                  NGX_DONE without opening the object itself.
- *   NGX_ERROR    - setup failed; the caller should return 500.
+ *   NGX_ERROR    - setup failed, OR the credential gate denied (errno EACCES);
+ *                  the caller should return 500 / map errno to 403.
  */
 ngx_int_t brix_http_serve_offload_remote(ngx_http_request_t *r,
     brix_sd_instance_t *inst, const char *key, const char *fs_path,
     const brix_http_serve_opts_t *opts,
     ngx_http_brix_shared_conf_t *common,
+    brix_vfs_ctx_t *vctx,
     brix_http_serve_metrics_pt metrics_cb);
 
 #endif /* BRIX_HTTP_SERVE_OFFLOAD_H */

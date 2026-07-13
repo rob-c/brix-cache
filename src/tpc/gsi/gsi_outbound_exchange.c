@@ -64,6 +64,138 @@ tpc_gsi_exchange_cleanup(int rc, u_char *body, BIO *chain_bio, u_char *payload)
     return rc;
 }
 
+/*
+ * tpc_gsi_verify_server_cert — optional CA-store check of the server leaf cert.
+ *
+ * WHAT: When conf->gsi_store is configured AND the server included its kXRS_x509
+ *   bucket, PEM-parse the leaf and run X509_verify_cert against our store. Returns
+ *   0 when verification succeeds, is skipped (no store / no bucket / unparseable
+ *   leaf), or the store-ctx cannot be initialised (matching the original fall-
+ *   through); returns -1 only on a present-and-invalid cert.
+ * WHY: We must not derive a shared secret with an unverified server when a store
+ *   is present. GSI delegated proxies are legitimate here, so
+ *   X509_V_FLAG_ALLOW_PROXY_CERTS is set — identical to the pre-refactor path.
+ * HOW: BIO_new_mem_buf → PEM_read_bio_X509 → X509_STORE_CTX_{new,init,set_flags}
+ *   → X509_verify_cert; every OpenSSL handle freed on every exit (no leak).
+ */
+static int
+tpc_gsi_verify_server_cert(brix_tpc_pull_t *t, const u_char *body, uint32_t dlen)
+{
+    ngx_stream_brix_srv_conf_t *conf = t->conf;
+    const u_char   *srv_pem;
+    size_t          srv_pem_len;
+    BIO            *mbio;
+    X509           *srv;
+    X509_STORE_CTX *sctx;
+    int             rc = 0;
+
+    if (conf->gsi_store == NULL) {
+        return 0;
+    }
+    if (gsi_find_bucket(body, dlen, (uint32_t) kXRS_x509,
+                        &srv_pem, &srv_pem_len) != 0
+        || srv_pem_len == 0)
+    {
+        return 0;
+    }
+
+    mbio = BIO_new_mem_buf(srv_pem, (int) srv_pem_len);
+    srv = PEM_read_bio_X509(mbio, NULL, NULL, NULL);
+    BIO_free(mbio);
+    if (srv == NULL) {
+        return 0;
+    }
+
+    sctx = X509_STORE_CTX_new();
+    if (sctx != NULL
+        && X509_STORE_CTX_init(sctx, conf->gsi_store, srv, NULL) == 1)
+    {
+        X509_STORE_CTX_set_flags(sctx, X509_V_FLAG_ALLOW_PROXY_CERTS);
+        if (X509_verify_cert(sctx) != 1) {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC GSI server certificate verification failed");
+            t->xrd_error = kXR_NotAuthorized;
+            rc = -1;
+        }
+    }
+    if (sctx != NULL) {
+        X509_STORE_CTX_free(sctx);
+    }
+    X509_free(srv);
+    return rc;
+}
+
+/*
+ * tpc_gsi_round2_t — the round-2 build context: the borrowed inputs (server
+ * round-1 reply `body`/`dlen`, our proxy `chain` + `pkey`) alongside the two heap
+ * resources the build produces for the caller to send and later free (the built
+ * kXGC_cert `payload`/`plen` and the proxy-chain PEM `chain_bio`). Collapsing them
+ * into one struct keeps the helper within the ≤5-parameter budget, no globals.
+ */
+typedef struct {
+    u_char         *body;       /* in:  server round-1 reply (borrowed) */
+    uint32_t        dlen;       /* in:  length of body */
+    STACK_OF(X509) *chain;      /* in:  our proxy cert chain (borrowed) */
+    EVP_PKEY       *pkey;       /* in:  our proxy private key (borrowed) */
+    BIO            *chain_bio;  /* out: proxy-chain PEM BIO (caller frees) */
+    u_char         *payload;    /* out: built kXGC_cert (caller frees) */
+    uint32_t        plen;       /* out: length of payload */
+} tpc_gsi_round2_t;
+
+/*
+ * tpc_gsi_build_round2 — serialise our proxy chain to PEM and build the round-2
+ * kXGC_cert payload via the SHARED XrdSecgsi kernel.
+ *
+ * WHAT: PEM-encode the proxy cert chain r->chain (leaf first) into one contiguous
+ *   blob and pass it plus the server's round-1 r->body to
+ *   brix_gsi_build_cert_response, yielding the malloc'd r->payload / r->plen.
+ *   Returns 0 on success, -1 on OOM or a builder failure (with t->err_msg /
+ *   t->xrd_error set exactly as before).
+ * WHY: The DH-variant detection, AES session-key agreement, proof-of-possession
+ *   and encrypted-chain assembly are identical to the native client's; routing
+ *   through the one kernel keeps wire compatibility. chain + pkey are borrowed.
+ * HOW: BIO_s_mem → PEM_write_bio_X509(chain[i]) → BIO_get_mem_ptr →
+ *   brix_gsi_build_cert_response. On any failure the chain BIO is freed here and
+ *   r->chain_bio left NULL; on success r->chain_bio is returned to the caller to
+ *   free in its normal cleanup ordering (preserving the original free/NULL order).
+ */
+static int
+tpc_gsi_build_round2(brix_tpc_pull_t *t, tpc_gsi_round2_t *r)
+{
+    BIO     *cb;
+    BUF_MEM *bptr = NULL;
+    char     err[160];
+    int      ci;
+
+    cb = BIO_new(BIO_s_mem());
+    if (cb == NULL) {
+        snprintf(t->err_msg, sizeof(t->err_msg), "TPC GSI out of memory");
+        t->xrd_error = kXR_NoMemory;
+        return -1;
+    }
+    for (ci = 0; ci < sk_X509_num(r->chain); ci++) {
+        PEM_write_bio_X509(cb, sk_X509_value(r->chain, ci));
+    }
+    BIO_get_mem_ptr(cb, &bptr);
+
+    err[0] = '\0';
+    if (brix_gsi_build_cert_response(r->body, r->dlen,
+                                       (const uint8_t *) bptr->data,
+                                       bptr->length, r->pkey,
+                                       &r->payload, &r->plen,
+                                       err, sizeof(err)) != 0)
+    {
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC GSI round-2 build failed: %s", err[0] ? err : "unknown");
+        t->xrd_error = kXR_NotAuthorized;
+        BIO_free(cb);
+        return -1;
+    }
+
+    r->chain_bio = cb;
+    return 0;
+}
+
 /* WHAT: GSI round-2 driver for outbound TPC — verify server cert (optional), build
  * the kXGC_cert via the shared gsi_core kernel, send it + check kXR_ok. Returns 0
  * or -1 with t->xrd_error set. Caller: gsi_outbound_certreq.c. */
@@ -73,96 +205,34 @@ tpc_outbound_gsi_exchange(brix_tpc_pull_t *t, int fd,
     X509 *x, STACK_OF(X509) *chain, EVP_PKEY *pkey,
     u_char *certreq, BIO *cbio, BIO *kbio)
 {
-    ngx_stream_brix_srv_conf_t *conf = t->conf;
-    int        rc = -1;
-    uint16_t   status;
-    BIO       *chain_bio = NULL;
-    BUF_MEM   *bptr = NULL;
-    u_char    *payload = NULL;
-    uint32_t   plen = 0;
-    char       err[160];
-    int        ci;
+    int              rc = -1;
+    uint16_t         status;
+    BIO             *chain_bio = NULL;
+    u_char          *payload = NULL;
+    uint32_t         plen = 0;
+    tpc_gsi_round2_t r2 = { body, dlen, chain, pkey, NULL, NULL, 0 };
 
     /*
      * Optional: verify the server leaf cert using our CA store before we derive a
-     * shared secret with it. X509_V_FLAG_ALLOW_PROXY_CERTS is set because GSI
-     * delegated proxies are legitimate here. Skipped entirely when no store is
-     * configured or the server omitted its kXRS_x509 bucket — only a
-     * present-but-invalid cert aborts the handshake.
+     * shared secret with it. Skipped entirely when no store is configured or the
+     * server omitted its kXRS_x509 bucket — only a present-but-invalid cert aborts.
      */
-    if (conf->gsi_store != NULL) {
-        const u_char *srv_pem;
-        size_t        srv_pem_len;
-
-        if (gsi_find_bucket(body, dlen, (uint32_t) kXRS_x509,
-                            &srv_pem, &srv_pem_len)
-            == 0 && srv_pem_len > 0)
-        {
-            BIO              *mbio;
-            X509             *srv;
-            X509_STORE_CTX   *sctx;
-
-            mbio = BIO_new_mem_buf(srv_pem, (int) srv_pem_len);
-            srv = PEM_read_bio_X509(mbio, NULL, NULL, NULL);
-            BIO_free(mbio);
-
-            if (srv != NULL) {
-                sctx = X509_STORE_CTX_new();
-                if (sctx
-                    && X509_STORE_CTX_init(sctx, conf->gsi_store, srv, NULL)
-                       == 1)
-                {
-                    X509_STORE_CTX_set_flags(sctx, X509_V_FLAG_ALLOW_PROXY_CERTS);
-                    if (X509_verify_cert(sctx) != 1) {
-                        snprintf(t->err_msg, sizeof(t->err_msg),
-                                 "TPC GSI server certificate verification failed");
-                        t->xrd_error = kXR_NotAuthorized;
-                        X509_STORE_CTX_free(sctx);
-                        X509_free(srv);
-                        return tpc_gsi_exchange_cleanup(rc, body, chain_bio,
-                                                        payload);
-                    }
-                }
-                if (sctx) {
-                    X509_STORE_CTX_free(sctx);
-                }
-                X509_free(srv);
-            }
-        }
-    }
-
-    /* Serialise our proxy cert chain to one contiguous PEM blob (leaf first) for
-     * the shared builder's kXRS_x509 bucket. */
-    chain_bio = BIO_new(BIO_s_mem());
-    if (chain_bio == NULL) {
-        snprintf(t->err_msg, sizeof(t->err_msg), "TPC GSI out of memory");
-        t->xrd_error = kXR_NoMemory;
+    if (tpc_gsi_verify_server_cert(t, body, dlen) != 0) {
         return tpc_gsi_exchange_cleanup(rc, body, chain_bio, payload);
     }
-    for (ci = 0; ci < sk_X509_num(chain); ci++) {
-        PEM_write_bio_X509(chain_bio, sk_X509_value(chain, ci));
-    }
-    BIO_get_mem_ptr(chain_bio, &bptr);
 
     /*
-     * Build the round-2 kXGC_cert via the SHARED XrdSecgsi kernel — the exact
-     * implementation the native client uses (proven wire-compatible vs real EOS +
-     * stock XrdSecgsi). It detects the DH variant, agrees the AES session key,
-     * signs the server rtag with our proxy key (proof-of-possession), and
-     * assembles the encrypted proxy chain + our DH public. chain PEM + pkey are
+     * Serialise our proxy chain to PEM and build the round-2 kXGC_cert via the
+     * SHARED XrdSecgsi kernel — the exact implementation the native client uses
+     * (proven wire-compatible vs real EOS + stock XrdSecgsi). chain PEM + pkey are
      * borrowed (we still own/free them via the certreq.c finalizer).
      */
-    err[0] = '\0';
-    if (brix_gsi_build_cert_response(body, dlen,
-                                       (const uint8_t *) bptr->data,
-                                       bptr->length, pkey,
-                                       &payload, &plen, err, sizeof(err)) != 0)
-    {
-        snprintf(t->err_msg, sizeof(t->err_msg),
-                 "TPC GSI round-2 build failed: %s", err[0] ? err : "unknown");
-        t->xrd_error = kXR_NotAuthorized;
-        return tpc_gsi_exchange_cleanup(rc, body, chain_bio, payload);
+    if (tpc_gsi_build_round2(t, &r2) != 0) {
+        return tpc_gsi_exchange_cleanup(rc, body, r2.chain_bio, r2.payload);
     }
+    chain_bio = r2.chain_bio;
+    payload = r2.payload;
+    plen = r2.plen;
 
     /* The round-1 server body is consumed; free it (and the chain BIO) before we
      * block on the round-2 round trip. NULL them so cleanup won't double-free. */

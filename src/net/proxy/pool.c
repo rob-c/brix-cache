@@ -185,9 +185,13 @@ brix_proxy_pool_shutdown(void)
 
     /* Drain head-first: each node is UNLINKED (ngx_queue_remove) before it is
      * freed, so the next ngx_queue_head is always a different, live node.
-     * (gcc -fanalyzer reports a use-after-free here by conflating loop
-     * iterations — nginx's queue-drain idiom, known false positive in the
-     * fanalyzer baseline.) */
+     * (Analyzer FP — both gcc -fanalyzer and clang-sa unix.Malloc report a
+     * use-after-free here by conflating loop iterations: they alias the next
+     * iteration's head to the node freed in the previous one. Proof it cannot
+     * happen: ngx_queue_remove rewires the sentinel/neighbour prev/next links
+     * BEFORE ngx_free(pc), so the freed node is unreachable from &proxy_pool;
+     * the event loop is single-threaded, so no timer/read handler can hand the
+     * freed pc back in between iterations. nginx's standard queue-drain idiom.) */
     while (!ngx_queue_empty(&proxy_pool)) {
         ngx_queue_t                *q  = ngx_queue_head(&proxy_pool);
         brix_proxy_pooled_conn_t *pc =

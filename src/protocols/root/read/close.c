@@ -124,144 +124,193 @@ brix_close_finish_sess_xfer(brix_ctx_t *ctx, int idx,
     brix_sess_xfer_end(ctx->sess, &file->sess_xfer, status);
 }
 
-ngx_int_t brix_handle_close(brix_ctx_t *ctx, ngx_connection_t *c) {
-    xrdw_close_req_t req;
-    ngx_stream_brix_srv_conf_t *conf;
-    int idx;
-    ngx_int_t rc;
+/*
+ * WHAT: kXR_pgwrite close gate — refuse close while uncorrected CRC32c errors
+ * remain on the handle.
+ * WHY: A clean close below would POSC-commit / write-through known-corrupt bytes;
+ * stock do_PgClose returns before FTab->Del(), so the handle stays OPEN for the
+ * client to resend the bad pages and close again.
+ * HOW: NGX_DECLINED = "no gate, continue". Otherwise stash the error-send's
+ * NGX_OK in *rc and return NGX_DONE = "handled, stop".
+ */
+static ngx_int_t
+brix_close_pgw_gate(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
+    ngx_int_t *rc)
+{
+    uint32_t  left;
+    char      emsg[64];
 
-    xrdw_close_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
-    idx = (int)(unsigned char) req.fhandle[0];
+    if (!ctx->files[idx].pgw_fob_enabled) {
+        return NGX_DECLINED;
+    }
+    left = brix_pgw_fob_count(&ctx->files[idx]);
+    if (left == 0) {
+        return NGX_DECLINED;
+    }
+    snprintf(emsg, sizeof(emsg), "%u uncorrected checksum error%s",
+             left, left == 1 ? "" : "s");
+    BRIX_OP_ERR(ctx, BRIX_OP_CLOSE);
+    *rc = brix_send_error(ctx, c, kXR_ChkSumErr, emsg);
+    return NGX_DONE;
+}
 
-    if (!brix_validate_file_handle(ctx, c, idx, "CLOSE",
-                                      BRIX_OP_CLOSE, &rc)) {
-        return rc;
+/*
+ * WHAT: Whole-object staged-commit adapter (phase-70) — commit a staged write
+ * handle's object at close via a single backend PUT.
+ * WHY: A staged handle publishes only on a clean close, unless kXR_sync already
+ * committed it (idempotent); a commit failure must surface kXR_IOError and abort
+ * the handle so no partial object is published.
+ * HOW: NGX_DECLINED = "nothing to commit, continue". On failure, abort the
+ * session xfer, free the handle, stash the error-send's NGX_OK in *rc and return
+ * NGX_DONE = "handled, stop".
+ */
+static ngx_int_t
+brix_close_staged_commit(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
+    ngx_int_t *rc)
+{
+    int  cerr = 0;
+
+    if (ctx->files[idx].staged == NULL || ctx->files[idx].staged_committed) {
+        return NGX_DECLINED;
+    }
+    if (brix_staged_commit_handle(ctx, idx, &cerr) == NGX_OK) {
+        return NGX_DECLINED;
+    }
+    brix_close_finish_sess_xfer(ctx, idx, BRIX_SESS_XFER_ABORTED);
+    brix_free_fhandle(ctx, idx);
+    BRIX_OP_ERR(ctx, BRIX_OP_CLOSE);
+    *rc = brix_send_error(ctx, c, kXR_IOError, "staged commit failed");
+    return NGX_DONE;
+}
+
+/*
+ * WHAT: Emit the CLOSE access-log line with average throughput.
+ * WHY: Must run before brix_free_fhandle() clears the path and byte counters,
+ * and must log the final (intended) path, never the staging temp path.
+ * HOW: total bytes = written or (else) read; detail = "%.2fMB/s" over the open
+ * duration, or "-" when nothing transferred / zero elapsed.
+ */
+static void
+brix_close_log_access(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
+{
+    char        close_detail[64];
+    size_t      br     = ctx->files[idx].bytes_read;
+    size_t      bw     = ctx->files[idx].bytes_written;
+    size_t      btotal = (bw > 0) ? bw : br;
+    ngx_msec_t  dur    = ngx_current_msec - ctx->files[idx].open_time;
+    const char *log_path;
+
+    if (btotal > 0 && dur > 0) {
+        double mbps = (double) btotal / (double) dur / 1000.0;
+        snprintf(close_detail, sizeof(close_detail), "%.2fMB/s", mbps);
+    } else {
+        snprintf(close_detail, sizeof(close_detail), "-");
     }
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "brix: kXR_close handle=%d", idx);
+    log_path = (ctx->files[idx].posc_final_path != NULL)
+               ? ctx->files[idx].posc_final_path
+               : ctx->files[idx].path;
 
-    /* pgwrite CSE close gate     * Refuse to close while any page written via kXR_pgwrite failed CRC32c and
-     * was never corrected by a kXR_pgRetry.  Otherwise the POSC rename / write-
-     * through flush below would commit known-corrupt bytes.  The handle is left
-     * OPEN (no free) so the client can resend the bad pages and close again —
-     * matching stock do_PgClose, which returns before FTab->Del(). */
-    if (ctx->files[idx].pgw_fob_enabled) {
-        uint32_t left = brix_pgw_fob_count(&ctx->files[idx]);
+    brix_log_access(ctx, c, "CLOSE", log_path, close_detail,
+                      1, 0, NULL, btotal);
+}
 
-        if (left > 0) {
-            char emsg[64];
+/*
+ * WHAT: POSC commit — atomically publish the staging temp file onto its final
+ * target path on a clean close.
+ * WHY: Must run before brix_free_fhandle() clears the fields; a rename failure
+ * surfaces as kXR_IOError rather than silently leaving a partial file, keeping
+ * the staged partial for a client retry.
+ * HOW: NGX_DECLINED = "no POSC handle, continue". Mark a durable pending marker
+ * before a cross-device move, fsync+rename via brix_commit_staged(), emit the
+ * unified ledger line, and clear posc_final_path on success. On failure, abort
+ * the session xfer, free the handle, stash the error-send's NGX_OK in *rc and
+ * return NGX_DONE.
+ */
+static ngx_int_t
+brix_close_posc_commit(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, int idx, ngx_int_t *rc)
+{
+    const char *temp_path;
+    const char *final_path;
+    ngx_flag_t  stage_tracked;
 
-            snprintf(emsg, sizeof(emsg), "%u uncorrected checksum error%s",
-                     left, left == 1 ? "" : "s");
-            BRIX_OP_ERR(ctx, BRIX_OP_CLOSE);
-            return brix_send_error(ctx, c, kXR_ChkSumErr, emsg);
-        }
+    if (ctx->files[idx].posc_final_path == NULL) {
+        return NGX_DECLINED;
     }
 
-    conf = ngx_stream_get_module_srv_conf(ctx->session,
-                                          ngx_stream_brix_module);
+    temp_path  = ctx->files[idx].path;
+    final_path = ctx->files[idx].posc_final_path;
 
-    /* §6 CNS: a data server reports a just-written file to the manager so the
-     * cluster name space learns its size/mtime. Best-effort, fire-and-forget over
-     * the worker's manager link; only for writable handles being closed. */
-    brix_cns_emit_close(ctx, conf, idx);
+    /* When the partial lives on a separate stage device, record a durable
+     * "complete, pending stage-out" marker BEFORE the cross-device move so a
+     * worker death mid-move is recoverable: the reaper finishes the move on
+     * the next startup/sweep.  Removed once the commit succeeds. */
+    stage_tracked = (conf != NULL
+        && conf->upload_stage_dir_canon[0] != '\0'
+        && ctx->files[idx].is_resume);
+    if (stage_tracked) {
+        (void) brix_stage_mark_pending(temp_path, final_path, c->log);
+    }
 
-    /* Log before freeing so we still have the path and byte counters.
-     * detail = average throughput for the transfer ("%.2fMB/s").
-     * bytes  = total data bytes transferred (read or written). */
+    /* Commit the staged temp onto the final path: fsync + atomic rename on
+     * the same filesystem, or copy-then-rename when the staging device
+     * (brix_stage_dir) differs from the storage (cross-device EXDEV). */
+    /* final_mode 0: the root:// POSC temp is driver-created with the client's
+     * create mode already, so leave it as-is (rename preserves it). */
+    if (brix_commit_staged(ctx->files[idx].fd, temp_path, final_path,
+                             0, c->log) != NGX_OK) {
+        int err = errno;
+        ngx_log_error(NGX_LOG_ERR, c->log, err,
+                      "brix: staged commit \"%s\" -> \"%s\" failed",
+                      temp_path, final_path);
+        /* Keep the staged partial (resume) — only the publish failed; the
+         * client can retry the close.  Surface an I/O error. */
+        brix_close_finish_sess_xfer(ctx, idx, BRIX_SESS_XFER_ABORTED);
+        brix_free_fhandle(ctx, idx);
+        BRIX_OP_ERR(ctx, BRIX_OP_CLOSE);
+        brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path,
+                           ctx->login.dn[0] ? ctx->login.dn : NULL, 0,
+                           BRIX_XFER_COMMIT_ERR, err, c->log);
+        *rc = brix_send_error(ctx, c, kXR_IOError, "staged commit failed");
+        return NGX_DONE;
+    }
+
+    if (stage_tracked) {
+        brix_stage_unmark_pending(temp_path);
+    }
+
+    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+                   "brix: staged commit \"%s\" -> \"%s\" ok",
+                   temp_path, final_path);
+
+    /* Unified ledger: the root:// upload publication — the same audit line
+     * S3/WebDAV PUT and the other kinds emit (this path also covers a
+     * resumed upload's final commit). */
     {
-        char       close_detail[64];
-        size_t     br     = ctx->files[idx].bytes_read;
-        size_t     bw     = ctx->files[idx].bytes_written;
-        size_t     btotal = (bw > 0) ? bw : br;
-        ngx_msec_t dur    = ngx_current_msec - ctx->files[idx].open_time;
-
-        if (btotal > 0 && dur > 0) {
-            double mbps = (double) btotal / (double) dur / 1000.0;
-            snprintf(close_detail, sizeof(close_detail), "%.2fMB/s", mbps);
-        } else {
-            snprintf(close_detail, sizeof(close_detail), "-");
-        }
-
-        /* Log using the final (intended) path name, not the staging temp path. */
-        const char *log_path = (ctx->files[idx].posc_final_path != NULL)
-                               ? ctx->files[idx].posc_final_path
-                               : ctx->files[idx].path;
-
-        brix_log_access(ctx, c, "CLOSE", log_path, close_detail,
-                          1, 0, NULL, btotal);
+        struct stat sb;
+        size_t      n = (fstat(ctx->files[idx].fd, &sb) == 0
+                         && S_ISREG(sb.st_mode)) ? (size_t) sb.st_size : 0;
+        brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path,
+                           ctx->login.dn[0] ? ctx->login.dn : NULL, n,
+                           BRIX_XFER_OK, 0, c->log);
     }
 
-    /*
-     * POSC: on a clean kXR_close atomically rename the staging temp file to
-     * the final target path.  We must do this before brix_free_fhandle()
-     * clears the fields.  On success, clear posc_final_path so the free
-     * function does NOT unlink the now-renamed (and thus final) file.
-     */
-    if (ctx->files[idx].posc_final_path != NULL) {
-        const char *temp_path  = ctx->files[idx].path;
-        const char *final_path = ctx->files[idx].posc_final_path;
+    return NGX_DECLINED;
+}
 
-        /* When the partial lives on a separate stage device, record a durable
-         * "complete, pending stage-out" marker BEFORE the cross-device move so a
-         * worker death mid-move is recoverable: the reaper finishes the move on
-         * the next startup/sweep.  Removed once the commit succeeds. */
-        ngx_flag_t stage_tracked = (conf != NULL
-            && conf->upload_stage_dir_canon[0] != '\0'
-            && ctx->files[idx].is_resume);
-        if (stage_tracked) {
-            (void) brix_stage_mark_pending(temp_path, final_path, c->log);
-        }
-
-        /* Commit the staged temp onto the final path: fsync + atomic rename on
-         * the same filesystem, or copy-then-rename when the staging device
-         * (brix_stage_dir) differs from the storage (cross-device EXDEV). */
-        /* final_mode 0: the root:// POSC temp is driver-created with the client's
-         * create mode already, so leave it as-is (rename preserves it). */
-        if (brix_commit_staged(ctx->files[idx].fd, temp_path, final_path,
-                                 0, c->log) != NGX_OK) {
-            int err = errno;
-            ngx_log_error(NGX_LOG_ERR, c->log, err,
-                          "brix: staged commit \"%s\" -> \"%s\" failed",
-                          temp_path, final_path);
-            /* Keep the staged partial (resume) — only the publish failed; the
-             * client can retry the close.  Surface an I/O error. */
-            brix_close_finish_sess_xfer(ctx, idx, BRIX_SESS_XFER_ABORTED);
-            brix_free_fhandle(ctx, idx);
-            BRIX_OP_ERR(ctx, BRIX_OP_CLOSE);
-            brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path,
-                               ctx->login.dn[0] ? ctx->login.dn : NULL, 0,
-                               BRIX_XFER_COMMIT_ERR, err, c->log);
-            return brix_send_error(ctx, c, kXR_IOError,
-                                     "staged commit failed");
-        }
-
-        if (stage_tracked) {
-            brix_stage_unmark_pending(temp_path);
-        }
-
-        ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                       "brix: staged commit \"%s\" -> \"%s\" ok",
-                       temp_path, final_path);
-
-        /* Unified ledger: the root:// upload publication — the same audit line
-         * S3/WebDAV PUT and the other kinds emit (this path also covers a
-         * resumed upload's final commit). */
-        {
-            struct stat sb;
-            size_t      n = (fstat(ctx->files[idx].fd, &sb) == 0
-                             && S_ISREG(sb.st_mode)) ? (size_t) sb.st_size : 0;
-            brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path,
-                               ctx->login.dn[0] ? ctx->login.dn : NULL, n,
-                               BRIX_XFER_OK, 0, c->log);
-        }
-    }
-
-    /* Write-through flush is part of the storage path now (Option A): a wt sd_stage
-     * handle flushes to the origin on close via sd_stage_wb_close (and on kXR_sync via
-     * the fsync job, which surfaces failures). The legacy run_flush loop is retired. */
-
+/*
+ * WHAT: Post-commit teardown — release the dashboard transfer slot and flush the
+ * write-recovery journal.
+ * WHY: The dashboard slot must be counted+freed and the wrts journal flushed so
+ * future writes at the same offsets after a reconnect are not skipped as replays;
+ * both run after a successful commit while the handle is still alive.
+ * HOW: Clear posc_final_path (so brix_free_fhandle does not unlink the renamed
+ * final file), then count/free any dashboard slot and brix_wrts_flush().
+ */
+static void
+brix_close_release_slots(brix_ctx_t *ctx, int idx)
+{
     /* Clear posc_final_path so brix_free_fhandle() does not unlink the
      * now-renamed final file.  This is intentionally after write-through so
      * the flush can mirror the final POSC path instead of the temp path. */
@@ -284,21 +333,82 @@ ngx_int_t brix_handle_close(brix_ctx_t *ctx, ngx_connection_t *c) {
     /* Flush the write-recovery journal so future writes with the same
      * offsets after a reconnect are not mistakenly skipped as replays. */
     brix_wrts_flush(&ctx->files[idx]);
+}
+
+/*
+ * WHAT: Release this user's throttle open-files slot (phase-59 W3a).
+ * WHY: An open handle held a throttle open-files reservation; closing it returns
+ * that slot to the user's budget.
+ * HOW: When a slot is held and the server has a throttle zone, decrement it for
+ * the login DN (or "anonymous"), then drop the held count.
+ */
+static void
+brix_close_release_throttle(brix_ctx_t *ctx, ngx_connection_t *c)
+{
+    ngx_stream_brix_srv_conf_t *tconf;
+
+    if (ctx->throttle.open_held <= 0) {
+        return;
+    }
+    tconf = ngx_stream_get_module_srv_conf(
+        (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
+    if (tconf->throttle.zone != NULL) {
+        brix_throttle_open_dec(tconf->throttle.zone,
+            ctx->login.dn[0] ? ctx->login.dn : "anonymous");
+    }
+    ctx->throttle.open_held--;
+}
+
+ngx_int_t brix_handle_close(brix_ctx_t *ctx, ngx_connection_t *c) {
+    xrdw_close_req_t req;
+    ngx_stream_brix_srv_conf_t *conf;
+    int idx;
+    ngx_int_t rc = NGX_OK;
+
+    xrdw_close_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
+    idx = (int)(unsigned char) req.fhandle[0];
+
+    if (!brix_validate_file_handle(ctx, c, idx, "CLOSE",
+                                      BRIX_OP_CLOSE, &rc)) {
+        return rc;
+    }
+
+    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
+                   "brix: kXR_close handle=%d", idx);
+
+    if (brix_close_pgw_gate(ctx, c, idx, &rc) == NGX_DONE) {
+        return rc;
+    }
+
+    conf = ngx_stream_get_module_srv_conf(ctx->session,
+                                          ngx_stream_brix_module);
+
+    if (brix_close_staged_commit(ctx, c, idx, &rc) == NGX_DONE) {
+        return rc;
+    }
+
+    /* §6 CNS: a data server reports a just-written file to the manager so the
+     * cluster name space learns its size/mtime. Best-effort, fire-and-forget over
+     * the worker's manager link; only for writable handles being closed. */
+    brix_cns_emit_close(ctx, conf, idx);
+
+    brix_close_log_access(ctx, c, idx);
+
+    if (brix_close_posc_commit(ctx, c, conf, idx, &rc) == NGX_DONE) {
+        return rc;
+    }
+
+    /* Write-through flush is part of the storage path now (Option A): a wt sd_stage
+     * handle flushes to the origin on close via sd_stage_wb_close (and on kXR_sync via
+     * the fsync job, which surfaces failures). The legacy run_flush loop is retired. */
+
+    brix_close_release_slots(ctx, idx);
 
     brix_close_finish_sess_xfer(ctx, idx, BRIX_SESS_XFER_COMPLETE);
 
     brix_free_fhandle(ctx, idx);
 
-    /* phase-59 W3a: release this user's throttle open-files slot. */
-    if (ctx->throttle.open_held > 0) {
-        ngx_stream_brix_srv_conf_t *tconf = ngx_stream_get_module_srv_conf(
-            (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
-        if (tconf->throttle.zone != NULL) {
-            brix_throttle_open_dec(tconf->throttle.zone,
-                ctx->login.dn[0] ? ctx->login.dn : "anonymous");
-        }
-        ctx->throttle.open_held--;
-    }
+    brix_close_release_throttle(ctx, c);
 
     /* A failed SYNC write-through flush means the file did not reach the origin;
      * report the close as an error so the client does not assume durability. */

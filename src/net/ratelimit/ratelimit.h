@@ -42,6 +42,11 @@ typedef enum {
 
 #define BRIX_RL_KEY_LEN   128  /* max bytes of the human-readable key string */
 
+/* Fixed-point scale for the request leaky-bucket: req_rate, req_excess and the
+ * burst ceiling are all stored in milli-requests, so one whole request costs
+ * BRIX_RL_REQ_SCALE units.  Lets the drain math stay in integers. */
+#define BRIX_RL_REQ_SCALE  1000
+
 /* One per-principal leaky-bucket node, slab-allocated inside the SHM zone. */
 typedef struct {
     ngx_rbtree_node_t  node;            /* node.key = FNV-1a32(key_str)        */
@@ -194,10 +199,39 @@ ngx_int_t brix_rl_snapshot(brix_rl_zone_t *zone,
 ngx_int_t brix_rl_key_stream(brix_rl_rule_t *rule, brix_ctx_t *ctx,
     const char *path, char *out, size_t out_sz);
 
-/* HTTP/WebDAV plane equivalent.  wctx is an
- * ngx_http_brix_webdav_req_ctx_t* (opaque here to avoid pulling webdav.h). */
-ngx_int_t brix_rl_key_http(brix_rl_rule_t *rule, ngx_http_request_t *r,
-    void *wctx, const char *path, char *out, size_t out_sz);
+/*
+ * Resolved HTTP/WebDAV-plane identity inputs for one key derivation.
+ *
+ * WHAT: A bundle of the already-resolved identity handles that brix_rl_key_http()
+ * reads to build a rate-limit key: the unified identity (`id`, may be NULL), the
+ * raw WebDAV request ctx that carries the cert DN (`wctx`, an opaque
+ * ngx_http_brix_webdav_req_ctx_t* kept as void* so this header need not pull in
+ * webdav.h, may be NULL on early-phase requests), the connection address (`ip`),
+ * and the lazily-resolved request path (`path`, used only by VOLUME rules).
+ *
+ * WHY: Bundling these into one struct keeps brix_rl_key_http() at four arguments
+ * (it previously took six loose ones) and lets the caller resolve the
+ * side-effecting handles — the WebDAV ctx's identity and the connection address —
+ * once, up front, before populating the literal.  The per-key-type branch logic
+ * then reads one explicit, already-resolved struct rather than a loose argument
+ * list.  Key-derivation semantics and the anon IP-fallback are unchanged.
+ *
+ * HOW: The HTTP access handler fills `id`/`wctx` from the WebDAV ctx and `ip`
+ * from the connection, passes a pointer here, and brix_rl_key_http() switches on
+ * rule->key_type over these fields.
+ */
+typedef struct {
+    brix_identity_t *id;
+    void            *wctx;   /* ngx_http_brix_webdav_req_ctx_t* (opaque) */
+    ngx_str_t       *ip;
+    const char      *path;
+} rl_key_req_t;
+
+/* HTTP/WebDAV plane equivalent of brix_rl_key_stream().  Reads the already-
+ * resolved identity handles from `req` (see rl_key_req_t) so the caller hoists
+ * the side-effecting lookups (wctx->identity, connection addr) before the call. */
+ngx_int_t brix_rl_key_http(brix_rl_rule_t *rule, const rl_key_req_t *req,
+    char *out, size_t out_sz);
 
 /* Directive setters (shared by the HTTP and stream command tables).  All are
  * standard ngx_command_t set callbacks returning NGX_CONF_OK / NGX_CONF_ERROR;

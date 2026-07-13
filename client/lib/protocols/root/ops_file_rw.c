@@ -78,7 +78,7 @@ brix_file_read(brix_conn *c, brix_file *f, int64_t offset, void *buf, size_t len
         xrdw_read_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
 
-    if (brix_send(c, &req, NULL, 0, &sid, st) != 0) {
+    if (brix_send(c, &req, NULL, &sid, st) != 0) {
         return -1;
     }
 
@@ -88,7 +88,8 @@ brix_file_read(brix_conn *c, brix_file *f, int64_t offset, void *buf, size_t len
     for (;;) {
         uint8_t *body = NULL;
         uint32_t blen = 0;
-        if (brix_recv(c, sid, &status, &body, &blen, st) != 0) {
+        brix_resp_out out = { &status, &body, &blen };
+        if (brix_recv(c, sid, &out, st) != 0) {
             free(comp);
             return -1;
         }
@@ -252,13 +253,19 @@ brix_file_write(brix_conn *c, brix_file *f, int64_t offset, const void *buf,
     }
     /* dlen is set by brix_send from the payload length. */
 
-    if (brix_send(c, &req, payload, (uint32_t) plen, &sid, st) != 0) {
-        free(frame);
-        return -1;
+    {
+        brix_payload pl = { payload, (uint32_t) plen };
+        if (brix_send(c, &req, &pl, &sid, st) != 0) {
+            free(frame);
+            return -1;
+        }
     }
     free(frame);
-    if (brix_recv(c, sid, &status, &body, &blen, st) != 0) {
-        return -1;
+    {
+        brix_resp_out out = { &status, &body, &blen };
+        if (brix_recv(c, sid, &out, st) != 0) {
+            return -1;
+        }
     }
     free(body);
     return 0;
@@ -300,17 +307,20 @@ brix_file_readv(brix_conn *c, brix_file *f, brix_readv_seg *segs,
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_readv);
     xrdw_empty_req_pack(((ClientRequestHdr *) &req)->body);
-    if (brix_send(c, &req, payload, (uint32_t) (nseg * BRIX_READV_SEGSIZE),
-                  &sid, st) != 0) {
-        free(payload);
-        return -1;
+    {
+        brix_payload pl = { payload, (uint32_t) (nseg * BRIX_READV_SEGSIZE) };
+        if (brix_send(c, &req, &pl, &sid, st) != 0) {
+            free(payload);
+            return -1;
+        }
     }
     free(payload);
 
     for (;;) {                          /* accumulate kXR_oksofar* then kXR_ok */
         uint8_t *body = NULL;
         uint32_t blen = 0;
-        if (brix_recv(c, sid, &status, &body, &blen, st) != 0) {
+        brix_resp_out out = { &status, &body, &blen };
+        if (brix_recv(c, sid, &out, st) != 0) {
             free(acc);
             return -1;
         }
@@ -430,14 +440,20 @@ brix_file_writev(brix_conn *c, brix_file *f, const brix_writev_seg *segs,
         xrdw_writev_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
     /* dlen frames only the descriptor block; the data bytes ride after it. */
-    if (brix_send_ext(c, &req, payload, (uint32_t) plen,
-                      (uint32_t) (nseg * 16), &sid, st) != 0) {
-        free(payload);
-        return -1;
+    {
+        brix_payload_ext pe = { payload, (uint32_t) plen,
+                                (uint32_t) (nseg * 16) };
+        if (brix_send_ext(c, &req, &pe, &sid, st) != 0) {
+            free(payload);
+            return -1;
+        }
     }
     free(payload);
-    if (brix_recv(c, sid, &status, &body, &blen, st) != 0) {
-        return -1;
+    {
+        brix_resp_out out = { &status, &body, &blen };
+        if (brix_recv(c, sid, &out, st) != 0) {
+            return -1;
+        }
     }
     free(body);
     return 0;

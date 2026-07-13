@@ -46,3 +46,28 @@ brix_schedule_write_resume(ngx_connection_t *c)
     }
     return NGX_OK;
 }
+
+/* brix_ensure_write_event — see event_sched.h.  Same arming as
+ * brix_schedule_write_resume, but posts the write event UNCONDITIONALLY (only
+ * guarded against a double-post) so parked output is guaranteed a drain attempt
+ * even when wev->ready is a stale 0.  For PARK sites only. */
+ngx_int_t
+brix_ensure_write_event(ngx_connection_t *c)
+{
+    ngx_event_t          *wev = c->write;
+    ngx_stream_session_t *s   = c->data;
+    brix_ctx_t         *ctx = ngx_stream_get_module_ctx(s,
+                                    ngx_stream_brix_module);
+
+    if (ctx != NULL) {
+        brix_arm_send_deadline(c, ctx);
+    }
+
+    if (ngx_handle_write_event(wev, 0) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    if (!wev->posted) {
+        ngx_post_event(wev, &ngx_posted_events);
+    }
+    return NGX_OK;
+}

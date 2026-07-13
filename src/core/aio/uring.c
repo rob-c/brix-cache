@@ -5,6 +5,12 @@
 #if (BRIX_HAVE_LIBURING)
 #include <sys/eventfd.h>
 #include <unistd.h>
+#include <poll.h>
+
+/* Budget for the startup eventfd-delivery self-test (step 4).  The NOP
+ * completes in microseconds; a full second is a generous ceiling that only
+ * ever expires on a kernel that does not signal the registered eventfd. */
+#define BRIX_URING_EVENTFD_SELFTEST_MS  1000
 #endif
 
 /* File: src/aio/uring.c — optional io_uring disk-I/O backend (Phase 44)
@@ -175,8 +181,29 @@ brix_uring_slot_release(brix_uring_t *u, uint32_t idx)
     s->in_use     = 0;
     s->task       = NULL;
     s->done_fn    = NULL;
+    s->owner      = NULL;
+    s->orphaned   = 0;
     s->generation++;
     (void) u;
+}
+
+/* brix_uring_orphan_owner — mark every in-flight slot owned by a dying
+ * connection so the reaper drops its late CQE without touching the task (freed
+ * with the connection pool) or posting its completion event.  See uring.h. */
+void
+brix_uring_orphan_owner(void *owner)
+{
+    brix_uring_t *u = brix_uring_worker();
+    uint32_t        i;
+
+    if (u == NULL || !u->ring_active || owner == NULL) {
+        return;
+    }
+    for (i = 0; i < u->queue_depth; i++) {
+        if (u->slots[i].in_use && u->slots[i].owner == owner) {
+            u->slots[i].orphaned = 1;
+        }
+    }
 }
 
 /*
@@ -270,6 +297,87 @@ brix_uring_apply_cqe(brix_uring_slot_t *slot, struct io_uring_cqe *cqe)
 }
 
 /*
+ * uring_cqe_retire — acknowledge one CQE and balance the in-flight counter.
+ *
+ * WHAT: Marks the CQE seen (returning its ring slot to the kernel) and
+ *       decrements the inflight gauge that the submission selector consults.
+ * WHY:  Every CQE — real completion, stale generation, orphan, or trailing
+ *       FSYNC — must be retired exactly once; centralising the pair keeps the
+ *       accounting impossible to miss on any per-CQE early return.
+ * HOW:  io_uring_cqe_seen + a guarded decrement (never underflows).
+ */
+static void
+uring_cqe_retire(brix_uring_t *u, struct io_uring_cqe *cqe)
+{
+    io_uring_cqe_seen(&u->ring, cqe);
+    if (u->inflight > 0) { u->inflight--; }
+}
+
+/*
+ * uring_complete_one — classify and complete a single harvested CQE.
+ *
+ * WHAT: The per-CQE body of the completion reaper: decode the slot cookie,
+ *       run the generation/orphan guards, translate the result into the task
+ *       and post its done-callback.
+ * WHY:  Extracted from brix_uring_eventfd_handler so the reaper loop stays a
+ *       trivial drain and each guard reads as one early return.
+ * HOW:  Early-return ladder — trailing-FSYNC drop, stale-generation drop,
+ *       orphaned-owner drop (slot recycled, task never touched), then the
+ *       normal translate + ngx_post_event path.  Every exit retires the CQE
+ *       via uring_cqe_retire; done-callbacks are never invoked inline.
+ */
+static void
+uring_complete_one(brix_uring_t *u, struct io_uring_cqe *cqe)
+{
+    uint64_t             ud = io_uring_cqe_get_data64(cqe);
+    uint32_t             idx;
+    uint32_t             gen;
+    brix_uring_slot_t *slot;
+
+    /* 2-pre. trailing FSYNC of a linked writev+fsync chain: carries no slot;
+     * fsync is best-effort (the pool path ignores its return), so drop the
+     * CQE and just balance inflight. */
+    if (ud == BRIX_URING_FSYNC_COOKIE) {
+        uring_cqe_retire(u, cqe);
+        return;
+    }
+
+    idx  = (uint32_t) (ud & 0xffffffffULL);
+    gen  = (uint32_t) (ud >> 32);
+    slot = brix_uring_slot_at(u, idx);
+
+    /* 2a. generation guard: a stale CQE for a recycled/dead slot is dropped
+     * safely.  (The done-callback's own ctx->destroyed check remains the
+     * authoritative guard for the connection.) */
+    if (slot == NULL || !slot->in_use || slot->generation != gen) {
+        uring_cqe_retire(u, cqe);
+        return;
+    }
+
+    /* 2a'. orphaned slot: the owning connection was torn down while this
+     * op was in flight — the task's memory died with the connection pool.
+     * Drop the CQE without dereferencing the task or posting its (equally
+     * dead) completion event, and recycle the slot. */
+    if (slot->orphaned) {
+        brix_uring_slot_release(u, idx);
+        uring_cqe_retire(u, cqe);
+        return;
+    }
+
+    /* 2b. translate + post (the done-callback is task->event.handler, set
+     * at brix_task_bind time). */
+    if (brix_uring_apply_cqe(slot, cqe)) {
+        ngx_thread_task_t *task = slot->task;
+
+        task->event.complete = 1;
+        ngx_post_event(&task->event, &ngx_posted_events);
+        brix_uring_slot_release(u, idx);
+    }
+
+    uring_cqe_retire(u, cqe);
+}
+
+/*
  * brix_uring_eventfd_handler — the completion reaper.
  *
  * Wired into the worker's epoll as the read handler of the fake connection that
@@ -304,45 +412,7 @@ brix_uring_eventfd_handler(ngx_event_t *ev)
 
     /* 2. harvest all ready completions. */
     while (io_uring_peek_cqe(&u->ring, &cqe) == 0) {
-        uint64_t             ud   = io_uring_cqe_get_data64(cqe);
-        uint32_t             idx;
-        uint32_t             gen;
-        brix_uring_slot_t *slot;
-
-        /* 2-pre. trailing FSYNC of a linked writev+fsync chain: carries no slot;
-         * fsync is best-effort (the pool path ignores its return), so drop the
-         * CQE and just balance inflight. */
-        if (ud == BRIX_URING_FSYNC_COOKIE) {
-            io_uring_cqe_seen(&u->ring, cqe);
-            if (u->inflight > 0) { u->inflight--; }
-            continue;
-        }
-
-        idx  = (uint32_t) (ud & 0xffffffffULL);
-        gen  = (uint32_t) (ud >> 32);
-        slot = brix_uring_slot_at(u, idx);
-
-        /* 2a. generation guard: a stale CQE for a recycled/dead slot is dropped
-         * safely.  (The done-callback's own ctx->destroyed check remains the
-         * authoritative guard for the connection.) */
-        if (slot == NULL || !slot->in_use || slot->generation != gen) {
-            io_uring_cqe_seen(&u->ring, cqe);
-            if (u->inflight > 0) { u->inflight--; }
-            continue;
-        }
-
-        /* 2b. translate + post (the done-callback is task->event.handler, set
-         * at brix_task_bind time). */
-        if (brix_uring_apply_cqe(slot, cqe)) {
-            ngx_thread_task_t *task = slot->task;
-
-            task->event.complete = 1;
-            ngx_post_event(&task->event, &ngx_posted_events);
-            brix_uring_slot_release(u, idx);
-        }
-
-        io_uring_cqe_seen(&u->ring, cqe);
-        if (u->inflight > 0) { u->inflight--; }
+        uring_complete_one(u, cqe);
     }
 }
 
@@ -434,6 +504,370 @@ brix_uring_init_fail(brix_uring_t *u, ngx_cycle_t *cycle, ngx_uint_t mode_on,
     return mode_on ? NGX_ERROR : NGX_OK;
 }
 
+/* Merged per-worker io_uring demand, folded across every enabled server
+ * block by uring_scan_conf() and consumed by uring_probe_features(). */
+typedef struct {
+    ngx_uint_t  mode_on;        /* any block requires io_uring (mode `on`)  */
+    ngx_uint_t  want_restrict;  /* 0 iff any wanting block disabled it      */
+    ngx_int_t   depth;          /* max requested queue depth (pre-clamp)    */
+    ngx_str_t   panic_file;     /* first configured kill-switch path        */
+} brix_uring_scan_t;
+
+/*
+ * uring_scan_conf — fold every enabled server block's io_uring settings.
+ *
+ * WHAT: Scans the stream server blocks and merges their io_uring demand into
+ *       *scan: whether any block wants the ring, whether any requires it
+ *       (`on`), the max queue depth, the restriction preference, and the
+ *       first configured panic-file path.
+ * WHY:  The ring is a per-worker singleton, so per-block settings must be
+ *       folded into one verdict before bring-up.
+ * HOW:  Linear scan skipping disabled/off blocks; max for depth, AND for
+ *       restrictions, first-wins for the panic file.
+ *
+ * Returns 1 if at least one enabled block wants io_uring, 0 otherwise.
+ */
+static ngx_int_t
+uring_scan_conf(ngx_cycle_t *cycle, brix_uring_scan_t *scan)
+{
+    ngx_stream_core_main_conf_t   *cmcf;
+    ngx_stream_core_srv_conf_t   **cscfp;
+    ngx_stream_brix_srv_conf_t  *xcf;
+    ngx_uint_t                     i;
+    ngx_int_t                      want = 0;
+
+    cmcf = ngx_stream_cycle_get_module_main_conf(cycle, ngx_stream_core_module);
+    if (cmcf == NULL) {
+        return 0;
+    }
+
+    cscfp = cmcf->servers.elts;
+    for (i = 0; i < cmcf->servers.nelts; i++) {
+        xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
+                                                  ngx_stream_brix_module);
+        if (!xcf->common.enable || xcf->io_uring == BRIX_IO_URING_OFF) {
+            continue;
+        }
+        want = 1;
+        if (xcf->io_uring == BRIX_IO_URING_ON) {
+            scan->mode_on = 1;
+        }
+        if (xcf->io_uring_queue_depth > scan->depth) {
+            scan->depth = xcf->io_uring_queue_depth;
+        }
+        if (!xcf->io_uring_restrict) {
+            scan->want_restrict = 0;
+        }
+        if (scan->panic_file.len == 0 && xcf->io_uring_panic_file.len > 0) {
+            scan->panic_file = xcf->io_uring_panic_file;
+        }
+    }
+
+    return want;
+}
+
+/*
+ * uring_probe_features — decide whether this worker should bring a ring up.
+ *
+ * WHAT: Folds the configuration (uring_scan_conf) and the kernel capability
+ *       probe into one go/no-go verdict, clamping the queue depth.
+ * WHY:  Both "nobody wants io_uring" and "auto blocks on a host without it"
+ *       are silent thread-pool outcomes that must be decided BEFORE any ring
+ *       resource exists — keeping the post-creation fallback decision point
+ *       (brix_uring_init_fail) single.
+ * HOW:  Early-returns NGX_DECLINED for either skip reason (logging the
+ *       `auto`-unavailable NOTICE), otherwise clamps depth into [8,4096] and
+ *       returns NGX_OK to proceed with bring-up.
+ */
+static ngx_int_t
+uring_probe_features(ngx_cycle_t *cycle, brix_uring_scan_t *scan)
+{
+    scan->mode_on       = 0;
+    scan->want_restrict = 1;
+    scan->depth         = BRIX_IO_URING_QUEUE_DEPTH;
+    ngx_str_null(&scan->panic_file);
+
+    if (!uring_scan_conf(cycle, scan)) {
+        return NGX_DECLINED;   /* every enabled block has io_uring off */
+    }
+
+    /* AUTO blocks need the per-process probe (seccomp-accurate); ON blocks
+     * already passed it at config time but re-checking is cheap + memoized. */
+    if (!scan->mode_on && !brix_uring_runtime_available()) {
+        ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
+            "brix: io_uring unavailable on this host; using the thread pool");
+        return NGX_DECLINED;
+    }
+
+    if (scan->depth < 8)    { scan->depth = 8;    }
+    if (scan->depth > 4096) { scan->depth = 4096; }
+
+    return NGX_OK;
+}
+
+/*
+ * uring_setup_rings — create, notify-wire, restrict, and enable the ring.
+ *
+ * WHAT: Bring-up steps 1-3: io_uring_queue_init_params (R_DISABLED first when
+ *       restricting), eventfd creation + io_uring_register_eventfd, then
+ *       best-effort restrictions and ring enable.
+ * WHY:  These are the register-phase operations that must happen in this
+ *       exact order — register ops are denied once a restricted ring is
+ *       enabled, so the eventfd registration has to precede restrict+enable.
+ * HOW:  Early-returns the failing step's name for brix_uring_init_fail (the
+ *       caller owns the single fallback decision), NULL on success.  Sets
+ *       u->ring_active / u->eventfd / u->restrict_ops as each step lands.
+ */
+static const char *
+uring_setup_rings(brix_uring_t *u, ngx_uint_t want_restrict)
+{
+    struct io_uring_params  params;
+
+#if !(BRIX_URING_HAVE_RESTRICTIONS)
+    (void) want_restrict;   /* no restrictions API in this liburing/kernel */
+#endif
+
+    /* 1. create the ring (R_DISABLED first when we will register restrictions). */
+    ngx_memzero(&params, sizeof(params));
+#if (BRIX_URING_HAVE_RESTRICTIONS)
+    if (want_restrict) {
+        params.flags |= IORING_SETUP_R_DISABLED;
+    }
+#endif
+    if (io_uring_queue_init_params((unsigned) u->queue_depth, &u->ring,
+                                   &params) < 0)
+    {
+        return "io_uring_queue_init_params";
+    }
+    u->ring_active = 1;
+
+    /*
+     * 2. Register the CQE-notifier eventfd BEFORE applying restrictions /
+     * enabling the ring.  io_uring_register_eventfd is a *register* op: once the
+     * ring is restricted+enabled, register ops are denied (EINVAL) unless
+     * explicitly allowed, and while the ring is R_DISABLED register ops are
+     * permitted — so this must happen here, not after enable.
+     */
+    u->eventfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    if (u->eventfd < 0) {
+        return "eventfd";
+    }
+    if (io_uring_register_eventfd(&u->ring, u->eventfd) < 0) {
+        return "io_uring_register_eventfd";
+    }
+
+    /* 3. restrictions (best-effort) then enable the ring. */
+#if (BRIX_URING_HAVE_RESTRICTIONS)
+    if (want_restrict) {
+        if (brix_uring_apply_restrictions(&u->ring) == NGX_OK) {
+            u->restrict_ops = 1;
+        } else {
+            ngx_log_error(NGX_LOG_NOTICE, u->log, 0,
+                "brix: io_uring_register_restrictions unavailable "
+                "(kernel < 5.10?); ring runs unrestricted — containment still "
+                "holds via the unprivileged worker + confined fd");
+        }
+        if (io_uring_enable_rings(&u->ring) < 0) {
+            return "io_uring_enable_rings";
+        }
+    }
+#endif
+
+    return NULL;
+}
+
+/*
+ * uring_selftest_nop — prove submit -> complete -> eventfd delivery works.
+ *
+ * WHAT: Bring-up step 4: submit one NOP and require the completion to arrive
+ *       via the REGISTERED EVENTFD (poll), then verify the CQE.
+ * WHY:  The reaper is driven ENTIRELY by the eventfd becoming readable in the
+ *       worker's epoll; a synchronous io_uring_wait_cqe here would prove the
+ *       ring computes completions but NOT that this kernel signals the
+ *       registered eventfd on a CQE.  Some kernels (and some restricted-ring /
+ *       seccomp / virtualisation configs) support every opcode the probe
+ *       checks yet never fire the eventfd — the backend then wedges silently
+ *       after exactly queue_depth in-flight ops (no CQE ever reaped), which
+ *       presents as a hung transfer, not an error.  Test the real delivery
+ *       path here and fall back to the thread pool cleanly when it does not
+ *       work.
+ * HOW:  Wait on the eventfd itself (not the CQE): submit the NOP, then poll
+ *       the registered eventfd — exactly what the epoll reaper relies on.
+ *       Early-returns the failing step's name for brix_uring_init_fail, NULL
+ *       on success.
+ */
+static const char *
+uring_selftest_nop(brix_uring_t *u)
+{
+    struct io_uring_sqe *sqe;
+    struct io_uring_cqe *cqe;
+    struct pollfd        pfd = { .fd = u->eventfd, .events = POLLIN,
+                                 .revents = 0 };
+    uint64_t             counter;
+    ssize_t              rn;
+    int                  pr;
+
+    sqe = io_uring_get_sqe(&u->ring);
+    if (sqe == NULL) {
+        return "io_uring_get_sqe(NOP)";
+    }
+    io_uring_prep_nop(sqe);
+    io_uring_sqe_set_data64(sqe, BRIX_URING_NOP_COOKIE);
+    if (io_uring_submit(&u->ring) < 0) {
+        return "io_uring NOP submit";
+    }
+
+    do {
+        pr = poll(&pfd, 1, BRIX_URING_EVENTFD_SELFTEST_MS);
+    } while (pr < 0 && errno == EINTR);
+
+    if (pr <= 0) {
+        /* The kernel accepted the NOP but never signalled the registered
+         * eventfd — the reaper would never run.  Fall back to the pool. */
+        return "io_uring eventfd delivery self-test (kernel does not signal "
+               "the registered eventfd on completion — using the thread pool; "
+               "set brix_io_uring off to silence, or use a kernel whose "
+               "io_uring delivers registered-eventfd notifications)";
+    }
+
+    rn = read(u->eventfd, &counter, sizeof(counter));
+    (void) rn;                       /* clear the signal; value unused */
+
+    if (io_uring_peek_cqe(&u->ring, &cqe) < 0) {
+        return "io_uring NOP self-test (eventfd fired, no CQE)";
+    }
+    if (io_uring_cqe_get_data64(cqe) != BRIX_URING_NOP_COOKIE
+        || cqe->res != 0)
+    {
+        io_uring_cqe_seen(&u->ring, cqe);
+        return "io_uring NOP self-test (unexpected CQE)";
+    }
+    io_uring_cqe_seen(&u->ring, cqe);
+
+    return NULL;
+}
+
+/*
+ * uring_selftest_burst — UNDER-LOAD delivery self-test.
+ *
+ * WHAT: Bring-up step 4b: fill the ring with queue_depth NOPs and require
+ *       EVERY completion to arrive via the eventfd within the deadline.
+ * WHY:  A single NOP passing does not prove the backend is usable: on some
+ *       kernels the registered eventfd signals the FIRST completion but stops
+ *       signalling once the ring is saturated, so a real transfer wedges
+ *       after exactly queue_depth in-flight ops (256 x 32 KiB = 8 MiB) with a
+ *       worker spinning on an eventfd that never fires again — and any op
+ *       still in flight at teardown becomes a late-CQE use-after-free.
+ * HOW:  Reproduce that saturation here (a burst of NOPs) and drain it exactly
+ *       as the reaper would (poll eventfd -> read counter -> peek all CQEs);
+ *       if the full burst does not drain in time, this kernel cannot be
+ *       trusted with the backend.  Early-returns the failing step's name for
+ *       brix_uring_init_fail, NULL on success.
+ */
+static const char *
+uring_selftest_burst(brix_uring_t *u)
+{
+    struct io_uring_sqe *sqe;
+    struct io_uring_cqe *cqe;
+    uint32_t             want = u->queue_depth;
+    uint32_t             got  = 0;
+    uint64_t             deadline_ms = BRIX_URING_EVENTFD_SELFTEST_MS;
+    uint32_t             i;
+
+    for (i = 0; i < want; i++) {
+        sqe = io_uring_get_sqe(&u->ring);
+        if (sqe == NULL) {           /* ring smaller than want: submit what fit */
+            want = i;
+            break;
+        }
+        io_uring_prep_nop(sqe);
+        io_uring_sqe_set_data64(sqe, BRIX_URING_NOP_COOKIE);
+    }
+    if (want > 0 && io_uring_submit(&u->ring) < 0) {
+        return "io_uring burst self-test submit";
+    }
+    while (got < want) {
+        struct pollfd  pfd = { .fd = u->eventfd, .events = POLLIN, .revents = 0 };
+        uint64_t       counter;
+        ssize_t        rn;
+        int            pr;
+
+        do {
+            pr = poll(&pfd, 1, (int) deadline_ms);
+        } while (pr < 0 && errno == EINTR);
+        if (pr <= 0) {
+            return "io_uring under-load delivery self-test (kernel stops "
+                   "signalling the registered eventfd once the ring is "
+                   "saturated — the backend would wedge after queue_depth "
+                   "in-flight ops; using the thread pool)";
+        }
+        rn = read(u->eventfd, &counter, sizeof(counter));
+        (void) rn;                   /* edge cleared; count the actual CQEs */
+        while (got < want && io_uring_peek_cqe(&u->ring, &cqe) == 0) {
+            io_uring_cqe_seen(&u->ring, cqe);
+            got++;
+        }
+    }
+
+    return NULL;
+}
+
+/*
+ * uring_install_eventfd — bridge the ring's eventfd into the worker's epoll.
+ *
+ * WHAT: Bring-up step 5: wrap the registered eventfd in a fake nginx
+ *       connection whose read handler is the completion reaper, and add it to
+ *       the event loop.
+ * WHY:  nginx has no native io_uring integration; the fake-connection bridge
+ *       is the same pattern core uses for the libaio eventfd, so completions
+ *       wake the worker exactly like socket readability.
+ * HOW:  ngx_get_connection on the eventfd, wire handler/log/data, then
+ *       ngx_add_event.  Early-returns the failing step's name for
+ *       brix_uring_init_fail, NULL on success.
+ */
+static const char *
+uring_install_eventfd(brix_uring_t *u, ngx_cycle_t *cycle)
+{
+    ngx_connection_t *evc;
+
+    evc = ngx_get_connection(u->eventfd, cycle->log);
+    if (evc == NULL) {
+        return "ngx_get_connection";
+    }
+    evc->read->handler = brix_uring_eventfd_handler;
+    evc->read->log     = cycle->log;
+    evc->data          = u;
+    u->evc             = evc;
+    if (ngx_add_event(evc->read, NGX_READ_EVENT, 0) != NGX_OK) {
+        return "ngx_add_event";
+    }
+
+    return NULL;
+}
+
+/*
+ * uring_register_buffers — allocate the completion-slot table.
+ *
+ * WHAT: Bring-up step 6: the queue_depth-sized slot table that maps CQE
+ *       cookies back to in-flight tasks (the UAF-safe generation scheme).
+ * WHY:  Slots are the only per-op state the reaper trusts; they must exist
+ *       before the first submission and live as long as the worker.
+ * HOW:  ngx_pcalloc from the cycle pool (freed with the cycle — never
+ *       manually).  Early-returns the failing step's name for
+ *       brix_uring_init_fail, NULL on success.
+ */
+static const char *
+uring_register_buffers(brix_uring_t *u, ngx_cycle_t *cycle)
+{
+    u->slots = ngx_pcalloc(cycle->pool,
+                           u->queue_depth * sizeof(brix_uring_slot_t));
+    if (u->slots == NULL) {
+        return "slot table alloc";
+    }
+
+    return NULL;
+}
+
 /*
  * brix_uring_init_worker — create this worker's ring after fork.
  *
@@ -448,64 +882,13 @@ brix_uring_init_fail(brix_uring_t *u, ngx_cycle_t *cycle, ngx_uint_t mode_on,
 ngx_int_t
 brix_uring_init_worker(ngx_cycle_t *cycle)
 {
-    ngx_stream_core_main_conf_t   *cmcf;
-    ngx_stream_core_srv_conf_t   **cscfp;
-    ngx_stream_brix_srv_conf_t  *xcf;
-    brix_uring_t                *u = &brix_uring_worker_ring;
-    struct io_uring_params         params;
-    struct io_uring_sqe           *sqe;
-    struct io_uring_cqe           *cqe;
-    ngx_connection_t              *evc;
-    ngx_uint_t                     i;
-    ngx_uint_t                     want = 0, mode_on = 0, want_restrict = 1;
-    ngx_int_t                      depth = BRIX_IO_URING_QUEUE_DEPTH;
-    ngx_str_t                      panic_file = ngx_null_string;
+    brix_uring_t       *u = &brix_uring_worker_ring;
+    brix_uring_scan_t   scan;
+    const char           *what;
 
-    cmcf = ngx_stream_cycle_get_module_main_conf(cycle, ngx_stream_core_module);
-    if (cmcf == NULL) {
-        return NGX_OK;
+    if (uring_probe_features(cycle, &scan) != NGX_OK) {
+        return NGX_OK;   /* nobody wants a ring / auto blocks on a bare host */
     }
-
-    cscfp = cmcf->servers.elts;
-    for (i = 0; i < cmcf->servers.nelts; i++) {
-        xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
-                                                  ngx_stream_brix_module);
-        if (!xcf->common.enable || xcf->io_uring == BRIX_IO_URING_OFF) {
-            continue;
-        }
-        want = 1;
-        if (xcf->io_uring == BRIX_IO_URING_ON) {
-            mode_on = 1;
-        }
-        if (xcf->io_uring_queue_depth > depth) {
-            depth = xcf->io_uring_queue_depth;
-        }
-        if (!xcf->io_uring_restrict) {
-            want_restrict = 0;
-        }
-        if (panic_file.len == 0 && xcf->io_uring_panic_file.len > 0) {
-            panic_file = xcf->io_uring_panic_file;
-        }
-    }
-
-    if (!want) {
-        return NGX_OK;   /* every enabled block has io_uring off */
-    }
-
-#if !(BRIX_URING_HAVE_RESTRICTIONS)
-    (void) want_restrict;   /* no restrictions API in this liburing/kernel */
-#endif
-
-    /* AUTO blocks need the per-process probe (seccomp-accurate); ON blocks
-     * already passed it at config time but re-checking is cheap + memoized. */
-    if (!mode_on && !brix_uring_runtime_available()) {
-        ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
-            "brix: io_uring unavailable on this host; using the thread pool");
-        return NGX_OK;
-    }
-
-    if (depth < 8)    { depth = 8;    }
-    if (depth > 4096) { depth = 4096; }
 
     u->log         = cycle->log;
     u->eventfd     = -1;
@@ -515,103 +898,45 @@ brix_uring_init_worker(ngx_cycle_t *cycle)
     u->ring_active = 0;
     u->enabled     = 0;
     u->restrict_ops = 0;
-    u->queue_depth = (uint32_t) depth;
+    u->queue_depth = (uint32_t) scan.depth;
 
-    /* 1. create the ring (R_DISABLED first when we will register restrictions). */
-    ngx_memzero(&params, sizeof(params));
-#if (BRIX_URING_HAVE_RESTRICTIONS)
-    if (want_restrict) {
-        params.flags |= IORING_SETUP_R_DISABLED;
-    }
-#endif
-    if (io_uring_queue_init_params((unsigned) depth, &u->ring, &params) < 0) {
-        return brix_uring_init_fail(u, cycle, mode_on,
-                   "io_uring_queue_init_params");
-    }
-    u->ring_active = 1;
-
-    /*
-     * 2. Register the CQE-notifier eventfd BEFORE applying restrictions /
-     * enabling the ring.  io_uring_register_eventfd is a *register* op: once the
-     * ring is restricted+enabled, register ops are denied (EINVAL) unless
-     * explicitly allowed, and while the ring is R_DISABLED register ops are
-     * permitted — so this must happen here, not after enable.
-     */
-    u->eventfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-    if (u->eventfd < 0) {
-        return brix_uring_init_fail(u, cycle, mode_on, "eventfd");
-    }
-    if (io_uring_register_eventfd(&u->ring, u->eventfd) < 0) {
-        return brix_uring_init_fail(u, cycle, mode_on,
-                   "io_uring_register_eventfd");
+    /* 1-3. create + notify-wire + restrict + enable the ring. */
+    what = uring_setup_rings(u, scan.want_restrict);
+    if (what != NULL) {
+        return brix_uring_init_fail(u, cycle, scan.mode_on, what);
     }
 
-    /* 3. restrictions (best-effort) then enable the ring. */
-#if (BRIX_URING_HAVE_RESTRICTIONS)
-    if (want_restrict) {
-        if (brix_uring_apply_restrictions(&u->ring) == NGX_OK) {
-            u->restrict_ops = 1;
-        } else {
-            ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
-                "brix: io_uring_register_restrictions unavailable "
-                "(kernel < 5.10?); ring runs unrestricted — containment still "
-                "holds via the unprivileged worker + confined fd");
-        }
-        if (io_uring_enable_rings(&u->ring) < 0) {
-            return brix_uring_init_fail(u, cycle, mode_on,
-                       "io_uring_enable_rings");
-        }
+    /* 4. NOP self-test: prove submit -> complete works AND that the registered
+     * eventfd actually delivers the completion notification. */
+    what = uring_selftest_nop(u);
+    if (what != NULL) {
+        return brix_uring_init_fail(u, cycle, scan.mode_on, what);
     }
-#endif
 
-    /* 4. NOP self-test: prove submit -> complete works before any real op.
-     * (Bumps the registered eventfd's counter; the first reaper call after the
-     * loop starts drains it and finds no CQE — harmless.) */
-    sqe = io_uring_get_sqe(&u->ring);
-    if (sqe == NULL) {
-        return brix_uring_init_fail(u, cycle, mode_on, "io_uring_get_sqe(NOP)");
+    /* 4b. UNDER-LOAD delivery self-test: fill the ring with queue_depth ops and
+     * require EVERY completion to arrive via the eventfd within the deadline. */
+    what = uring_selftest_burst(u);
+    if (what != NULL) {
+        return brix_uring_init_fail(u, cycle, scan.mode_on, what);
     }
-    io_uring_prep_nop(sqe);
-    io_uring_sqe_set_data64(sqe, BRIX_URING_NOP_COOKIE);
-    if (io_uring_submit(&u->ring) < 0
-        || io_uring_wait_cqe(&u->ring, &cqe) < 0)
-    {
-        return brix_uring_init_fail(u, cycle, mode_on, "io_uring NOP self-test");
-    }
-    if (io_uring_cqe_get_data64(cqe) != BRIX_URING_NOP_COOKIE
-        || cqe->res != 0)
-    {
-        io_uring_cqe_seen(&u->ring, cqe);
-        return brix_uring_init_fail(u, cycle, mode_on,
-                   "io_uring NOP self-test (unexpected CQE)");
-    }
-    io_uring_cqe_seen(&u->ring, cqe);
 
     /* 5. wire the eventfd into the worker's epoll via a fake connection. */
-    evc = ngx_get_connection(u->eventfd, cycle->log);
-    if (evc == NULL) {
-        return brix_uring_init_fail(u, cycle, mode_on, "ngx_get_connection");
-    }
-    evc->read->handler = brix_uring_eventfd_handler;
-    evc->read->log     = cycle->log;
-    evc->data          = u;
-    u->evc             = evc;
-    if (ngx_add_event(evc->read, NGX_READ_EVENT, 0) != NGX_OK) {
-        return brix_uring_init_fail(u, cycle, mode_on, "ngx_add_event");
+    what = uring_install_eventfd(u, cycle);
+    if (what != NULL) {
+        return brix_uring_init_fail(u, cycle, scan.mode_on, what);
     }
 
     /* 6. completion-slot table (pool-owned; freed with the cycle). */
-    u->slots = ngx_pcalloc(cycle->pool,
-                           u->queue_depth * sizeof(brix_uring_slot_t));
-    if (u->slots == NULL) {
-        return brix_uring_init_fail(u, cycle, mode_on, "slot table alloc");
+    what = uring_register_buffers(u, cycle);
+    if (what != NULL) {
+        return brix_uring_init_fail(u, cycle, scan.mode_on, what);
     }
 
     /* SB-W5b: attach the cross-worker kill-switch flag (NULL if the zone was
      * not registered — the selector then reads "enabled") and arm the
      * panic-file poll timer if a path was configured. */
     u->disabled_flag = brix_uring_killswitch_ptr();
-    (void) brix_uring_panicfile_arm(cycle, &panic_file);
+    (void) brix_uring_panicfile_arm(cycle, &scan.panic_file);
 
     u->enabled = 1;
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,

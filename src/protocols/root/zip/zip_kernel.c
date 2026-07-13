@@ -202,7 +202,7 @@ zip_apply_zip64_extra(const uint8_t *extra, size_t extra_len,
                 *comp = zip_rd64le(d + q); q += 8;
             }
             if (*lhdr_off == ZIPK_U32_MAX && len - q >= 8) {
-                *lhdr_off = zip_rd64le(d + q); q += 8;
+                *lhdr_off = zip_rd64le(d + q);
             }
             return;
         }

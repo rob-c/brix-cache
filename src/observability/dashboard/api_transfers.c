@@ -6,23 +6,18 @@
 
 
 /*
- * WHAT: Serialise one transfer slot into a JSON object.
- * WHY:  The slot lives in cross-process SHM and is mutated by worker processes
- *       without locking. We take a consistent point-in-time snapshot: issue a
- *       memory barrier, then copy every field to local stack vars BEFORE any
- *       jansson allocation. This prevents a field changing mid-build (which could
- *       otherwise produce a torn/inconsistent row) and avoids holding SHM
- *       pointers across allocator calls. All char[] copies are explicitly
- *       NUL-terminated since SHM strings may be unterminated if truncated.
- * NOTE: v1_fields gates the richer v1 schema; detail_fields adds per-op counters
- *       and the session hash (only the single-transfer detail endpoint sets it).
+ * WHAT:  Point-in-time snapshot of one SHM transfer slot.
+ * WHY:   Slots live in cross-process SHM and are mutated by worker processes
+ *        without locking. Copying every field into this file-local struct BEFORE
+ *        any jansson allocation prevents a field changing mid-build (torn rows)
+ *        and avoids holding SHM pointers across allocator calls. Passing the
+ *        struct by pointer keeps every JSON-stage helper below to <=5 params
+ *        without reintroducing globals.
+ * NOTE:  char[] copies mirror the SHM field sizes and are always NUL-terminated
+ *        since SHM strings may be unterminated if truncated. The derived scalars
+ *        (idle_ms, avg_bps, instant_bps) are computed once here.
  */
-json_t *
-dashboard_build_transfer_object(
-    const ngx_http_brix_dashboard_loc_conf_t *conf,
-    const brix_transfer_slot_t *slot, int64_t now_ms,
-    ngx_uint_t v1_fields, ngx_uint_t detail_fields, ngx_uint_t redact)
-{
+typedef struct {
     int64_t  last_ms;
     int64_t  bytes;
     int64_t  start_ms;
@@ -37,115 +32,219 @@ dashboard_build_transfer_object(
     char     last_error[BRIX_DASHBOARD_REASON_LEN];
     char     remote_host[BRIX_DASHBOARD_HOST_LEN];
     char     remote_path[BRIX_DASHBOARD_PATH_LEN];
-    json_t  *obj;
+} dashboard_xfer_snapshot_t;
 
+
+/*
+ * WHAT: Decay the published EWMA instant rate for read-only display.
+ * WHY:  The owning worker only re-folds slot->instant_bps while bytes flow
+ *       (transfer_table.c), so a transfer sitting in an inter-burst gap would
+ *       otherwise show its last burst rate frozen. Fold in the zero-rate sample
+ *       intervals elapsed since the last worker sample (same alpha = 1/4) so the
+ *       shown rate eases toward zero during the gap.
+ * HOW:  Purely local — never writes the SHM slot. The loop is bounded:
+ *       instant_bps reaches 0 within ~log_{4/3} iterations.
+ */
+static uint64_t
+dashboard_decay_instant_bps(const brix_transfer_slot_t *slot, int64_t now_ms)
+{
+    uint64_t instant_bps = (uint64_t) slot->instant_bps;
+    int64_t  sample_ms    = (int64_t) slot->last_sample_ms;
+    int64_t  missed       = (sample_ms > 0 && now_ms > sample_ms)
+                            ? (now_ms - sample_ms) / BRIX_XFER_SAMPLE_MS : 0;
+
+    while (missed-- > 0 && instant_bps > 0) {
+        instant_bps = (instant_bps * 3) / 4;   /* EWMA fold with raw = 0 */
+    }
+    return instant_bps;
+}
+
+
+/*
+ * WHAT: NUL-terminate one fixed-size char[] copied from an SHM string.
+ * WHY:  SHM strings may be unterminated if truncated; every string field must be
+ *       forced-terminated after the ngx_memcpy before jansson touches it.
+ */
+static void
+dashboard_snap_str(char *dst, const char *src, size_t size)
+{
+    ngx_memcpy(dst, src, size);
+    dst[size - 1] = '\0';
+}
+
+
+/*
+ * WHAT: Copy an SHM transfer slot into a stable local snapshot.
+ * WHY:  See dashboard_xfer_snapshot_t — this is the barriered, one-shot capture
+ *       that decouples the JSON build from concurrent worker mutation.
+ * HOW:  Issue a memory barrier, copy scalars, derive idle_ms/avg_bps/instant_bps,
+ *       then copy and terminate each string field.
+ */
+static void
+dashboard_snapshot_slot(dashboard_xfer_snapshot_t *snap,
+    const brix_transfer_slot_t *slot, int64_t now_ms)
+{
     /* Barrier: ensure subsequent reads see a coherent view of the SHM slot
      * rather than reordered/cached fields from a concurrent writer. */
     ngx_memory_barrier();
 
-    last_ms     = (int64_t) slot->last_ms;
-    bytes       = (int64_t) slot->bytes;
-    start_ms    = slot->start_ms;
-    idle_ms     = (last_ms > 0 && now_ms >= last_ms) ? now_ms - last_ms : 0;
-    avg_bps     = dashboard_avg_bps(bytes, start_ms, now_ms);
+    snap->last_ms     = (int64_t) slot->last_ms;
+    snap->bytes       = (int64_t) slot->bytes;
+    snap->start_ms    = slot->start_ms;
+    snap->idle_ms     = (snap->last_ms > 0 && now_ms >= snap->last_ms)
+                        ? now_ms - snap->last_ms : 0;
+    snap->avg_bps     = dashboard_avg_bps(snap->bytes, snap->start_ms, now_ms);
+    snap->instant_bps = dashboard_decay_instant_bps(slot, now_ms);
 
-    /*
-     * Published EWMA rate, decayed read-only for display.  The owning worker
-     * only re-folds slot->instant_bps while bytes flow (transfer_table.c), so a
-     * transfer sitting in an inter-burst gap would otherwise show its last burst
-     * rate frozen.  Fold in the zero-rate sample intervals elapsed since the
-     * last worker sample (same alpha = 1/4) so the shown rate eases toward zero
-     * during the gap.  Purely local — never writes the SHM slot.  The loop is
-     * bounded: instant_bps reaches 0 within ~log_{4/3} iterations.
-     */
-    instant_bps = (uint64_t) slot->instant_bps;
+    dashboard_snap_str(snap->client_ip,   slot->client_ip,            sizeof(snap->client_ip));
+    dashboard_snap_str(snap->identity,    slot->identity,             sizeof(snap->identity));
+    dashboard_snap_str(snap->vo,          slot->vo,                   sizeof(snap->vo));
+    dashboard_snap_str(snap->path,        slot->path,                 sizeof(snap->path));
+    dashboard_snap_str(snap->op,          slot->op,                   sizeof(snap->op));
+    dashboard_snap_str(snap->last_error,  slot->last_error,           sizeof(snap->last_error));
+    dashboard_snap_str(snap->remote_host, slot->tpc_remote_host,      sizeof(snap->remote_host));
+    dashboard_snap_str(snap->remote_path, slot->tpc_remote_path_hint, sizeof(snap->remote_path));
+}
+
+
+/*
+ * WHAT: Emit the compat base fields shared by every transfer row.
+ * WHY:  These are the fields the legacy /xrootd/transfers shape stops at; both
+ *       compat and v1 rows begin identically.
+ * HOW:  redact==1 (anonymous viewer) scrubs PII — IP, identity/DN, path. Keys
+ *       stay so the table layout is stable; the most-identifying ones go empty.
+ */
+static void
+dashboard_emit_base_fields(json_t *obj, const brix_transfer_slot_t *slot,
+    const dashboard_xfer_snapshot_t *snap, ngx_uint_t redact)
+{
+    json_object_set_new(obj, "id",        json_integer((json_int_t) slot->serial));
+    json_object_set_new(obj, "client",    json_string(redact ? "[redacted]" : snap->client_ip));
+    json_object_set_new(obj, "identity",  json_string(redact ? "" : snap->identity));
+    json_object_set_new(obj, "path",      json_string(redact ? "[redacted]" : snap->path));
+    json_object_set_new(obj, "direction", json_string(dashboard_direction_name(slot->direction)));
+    json_object_set_new(obj, "protocol",  json_string(dashboard_proto_name(slot->proto)));
+    json_object_set_new(obj, "bytes",     json_integer((json_int_t) snap->bytes));
+    json_object_set_new(obj, "start_ms",  json_integer((json_int_t) snap->start_ms));
+    json_object_set_new(obj, "last_ms",   json_integer((json_int_t) snap->last_ms));
+}
+
+
+/*
+ * WHAT: Emit the richer v1 scalar fields (identity, op, state, rates, timings).
+ * WHY:  v1_fields gates the v1 schema on top of the compat base.
+ * HOW:  worker_pid is a host fingerprint and last_error routinely embeds
+ *       paths/hosts/DNs — both are omitted/blanked for anonymous viewers.
+ */
+static void
+dashboard_emit_v1_fields(json_t *obj,
+    const ngx_http_brix_dashboard_loc_conf_t *conf,
+    const brix_transfer_slot_t *slot,
+    const dashboard_xfer_snapshot_t *snap, ngx_uint_t redact)
+{
+    if (!redact) {   /* worker_pid is a host fingerprint — omit for anonymous */
+        json_object_set_new(obj, "worker_pid", json_integer((json_int_t) slot->worker_pid));
+    }
+    json_object_set_new(obj, "vo",            json_string(redact ? "" : snap->vo));
+    json_object_set_new(obj, "op",            json_string(snap->op));
+    json_object_set_new(obj, "state",         json_string(dashboard_state_name(conf, slot->state, snap->idle_ms, snap->avg_bps > 0)));
+    json_object_set_new(obj, "expected_bytes",json_integer((json_int_t) slot->expected_bytes));
+    json_object_set_new(obj, "instant_bps",   json_integer((json_int_t) snap->instant_bps));
+    json_object_set_new(obj, "avg_bps",       json_integer((json_int_t) snap->avg_bps));
+    json_object_set_new(obj, "idle_ms",       json_integer((json_int_t) snap->idle_ms));
+    json_object_set_new(obj, "state_since_ms",json_integer((json_int_t) slot->state_since_ms));
+    json_object_set_new(obj, "last_error",    json_string(redact ? "" : snap->last_error));
+}
+
+
+/*
+ * WHAT: Attach the nested "tpc" object when this row involves a remote peer.
+ * WHY:  Emit it only for a TPC transfer, or when a remote host/path hint was
+ *       recorded (e.g. a proxied operation) — avoids cluttering plain local rows.
+ */
+static void
+dashboard_emit_tpc_object(json_t *obj, const brix_transfer_slot_t *slot,
+    const dashboard_xfer_snapshot_t *snap, ngx_uint_t redact)
+{
+    json_t *tpc;
+
+    if (slot->direction != BRIX_XFER_DIR_TPC
+        && snap->remote_host[0] == '\0' && snap->remote_path[0] == '\0')
     {
-        int64_t sample_ms = (int64_t) slot->last_sample_ms;
-        int64_t missed    = (sample_ms > 0 && now_ms > sample_ms)
-                            ? (now_ms - sample_ms) / BRIX_XFER_SAMPLE_MS : 0;
-        while (missed-- > 0 && instant_bps > 0) {
-            instant_bps = (instant_bps * 3) / 4;   /* EWMA fold with raw = 0 */
-        }
+        return;
     }
 
-    ngx_memcpy(client_ip,   slot->client_ip,            sizeof(client_ip));
-    ngx_memcpy(identity,    slot->identity,             sizeof(identity));
-    ngx_memcpy(vo,          slot->vo,                   sizeof(vo));
-    ngx_memcpy(path,        slot->path,                 sizeof(path));
-    ngx_memcpy(op,          slot->op,                   sizeof(op));
-    ngx_memcpy(last_error,  slot->last_error,           sizeof(last_error));
-    ngx_memcpy(remote_host, slot->tpc_remote_host,      sizeof(remote_host));
-    ngx_memcpy(remote_path, slot->tpc_remote_path_hint, sizeof(remote_path));
-    client_ip[sizeof(client_ip)     - 1] = '\0';
-    identity[sizeof(identity)       - 1] = '\0';
-    vo[sizeof(vo)                   - 1] = '\0';
-    path[sizeof(path)               - 1] = '\0';
-    op[sizeof(op)                   - 1] = '\0';
-    last_error[sizeof(last_error)   - 1] = '\0';
-    remote_host[sizeof(remote_host) - 1] = '\0';
-    remote_path[sizeof(remote_path) - 1] = '\0';
+    tpc = json_object();
+    if (!tpc) { return; }
+
+    json_object_set_new(tpc, "remote_host",   json_string(redact ? "[redacted]" : snap->remote_host));
+    json_object_set_new(tpc, "path_hint",     json_string(redact ? "" : snap->remote_path));
+    json_object_set_new(tpc, "remote_status", json_integer(slot->tpc_remote_status));
+    json_object_set_new(tpc, "curl_exit",     json_integer(slot->tpc_curl_exit));
+    json_object_set_new(obj, "tpc", tpc);
+}
+
+
+/*
+ * WHAT: Emit the session hash and per-op counters for the detail endpoint.
+ * WHY:  detail_fields is set only by the single-transfer detail endpoint; these
+ *       fields are absent from the list views.
+ */
+static void
+dashboard_emit_detail_fields(json_t *obj, const brix_transfer_slot_t *slot)
+{
+    char    hash_str[9];
+    json_t *counters;
+
+    snprintf(hash_str, sizeof(hash_str), "%08x",
+             dashboard_session_hash(slot->sessid));
+    json_object_set_new(obj, "session_hash", json_string(hash_str));
+
+    counters = json_object();
+    if (!counters) { return; }
+
+    json_object_set_new(counters, "read_ops",  json_integer((json_int_t) slot->read_ops));
+    json_object_set_new(counters, "write_ops", json_integer((json_int_t) slot->write_ops));
+    json_object_set_new(counters, "sync_ops",  json_integer((json_int_t) slot->sync_ops));
+    json_object_set_new(counters, "close_ops", json_integer((json_int_t) slot->close_ops));
+    json_object_set_new(obj, "counters", counters);
+}
+
+
+/*
+ * WHAT: Serialise one transfer slot into a JSON object.
+ * WHY:  Snapshots the SHM slot once (dashboard_snapshot_slot), then emits each
+ *       cohesive field group through a dedicated stage helper. This keeps the
+ *       point-in-time-consistency guarantee (no torn rows, no SHM pointer held
+ *       across allocation) while staying under the complexity budget.
+ * NOTE: v1_fields gates the richer v1 schema; detail_fields adds per-op counters
+ *       and the session hash (only the single-transfer detail endpoint sets it).
+ */
+json_t *
+dashboard_build_transfer_object(
+    const ngx_http_brix_dashboard_loc_conf_t *conf,
+    const brix_transfer_slot_t *slot, int64_t now_ms,
+    ngx_uint_t v1_fields, ngx_uint_t detail_fields, ngx_uint_t redact)
+{
+    dashboard_xfer_snapshot_t snap;
+    json_t                   *obj;
+
+    ngx_memzero(&snap, sizeof(snap));
+    dashboard_snapshot_slot(&snap, slot, now_ms);
 
     obj = json_object();
     if (!obj) { return NULL; }
 
-    json_object_set_new(obj, "id",        json_integer((json_int_t) slot->serial));
-    /* redact==1 (anonymous viewer): scrub PII — IP, identity/DN, and path. Keys
-     * stay so the table layout is stable; the most-identifying ones go empty. */
-    json_object_set_new(obj, "client",    json_string(redact ? "[redacted]" : client_ip));
-    json_object_set_new(obj, "identity",  json_string(redact ? "" : identity));
-    json_object_set_new(obj, "path",      json_string(redact ? "[redacted]" : path));
-    json_object_set_new(obj, "direction", json_string(dashboard_direction_name(slot->direction)));
-    json_object_set_new(obj, "protocol",  json_string(dashboard_proto_name(slot->proto)));
-    json_object_set_new(obj, "bytes",     json_integer((json_int_t) bytes));
-    json_object_set_new(obj, "start_ms",  json_integer((json_int_t) start_ms));
-    json_object_set_new(obj, "last_ms",   json_integer((json_int_t) last_ms));
+    dashboard_emit_base_fields(obj, slot, &snap, redact);
 
     /* Compat (/xrootd/transfers) shape stops here; v1 adds the fields below. */
     if (!v1_fields) { return obj; }
 
-    if (!redact) {   /* worker_pid is a host fingerprint — omit for anonymous */
-        json_object_set_new(obj, "worker_pid", json_integer((json_int_t) slot->worker_pid));
-    }
-    json_object_set_new(obj, "vo",            json_string(redact ? "" : vo));
-    json_object_set_new(obj, "op",            json_string(op));
-    json_object_set_new(obj, "state",         json_string(dashboard_state_name(conf, slot->state, idle_ms, avg_bps > 0)));
-    json_object_set_new(obj, "expected_bytes",json_integer((json_int_t) slot->expected_bytes));
-    json_object_set_new(obj, "instant_bps",   json_integer((json_int_t) instant_bps));
-    json_object_set_new(obj, "avg_bps",       json_integer((json_int_t) avg_bps));
-    json_object_set_new(obj, "idle_ms",       json_integer((json_int_t) idle_ms));
-    json_object_set_new(obj, "state_since_ms",json_integer((json_int_t) slot->state_since_ms));
-    /* last_error routinely embeds paths/hosts/DNs — omit it for anonymous. */
-    json_object_set_new(obj, "last_error",    json_string(redact ? "" : last_error));
-
-    /* Emit the nested "tpc" object only when this row actually involves a remote
-     * peer: either it is a TPC transfer, or a remote host/path hint was recorded
-     * (e.g. a proxied operation). Avoids cluttering plain local transfers. */
-    if (slot->direction == BRIX_XFER_DIR_TPC
-        || remote_host[0] != '\0' || remote_path[0] != '\0')
-    {
-        json_t *tpc = json_object();
-        if (tpc) {
-            json_object_set_new(tpc, "remote_host",   json_string(redact ? "[redacted]" : remote_host));
-            json_object_set_new(tpc, "path_hint",     json_string(redact ? "" : remote_path));
-            json_object_set_new(tpc, "remote_status", json_integer(slot->tpc_remote_status));
-            json_object_set_new(tpc, "curl_exit",     json_integer(slot->tpc_curl_exit));
-            json_object_set_new(obj, "tpc", tpc);
-        }
-    }
+    dashboard_emit_v1_fields(obj, conf, slot, &snap, redact);
+    dashboard_emit_tpc_object(obj, slot, &snap, redact);
 
     if (detail_fields) {
-        char    hash_str[9];
-        json_t *counters = json_object();
-        snprintf(hash_str, sizeof(hash_str), "%08x",
-                 dashboard_session_hash(slot->sessid));
-        json_object_set_new(obj, "session_hash", json_string(hash_str));
-        if (counters) {
-            json_object_set_new(counters, "read_ops",  json_integer((json_int_t) slot->read_ops));
-            json_object_set_new(counters, "write_ops", json_integer((json_int_t) slot->write_ops));
-            json_object_set_new(counters, "sync_ops",  json_integer((json_int_t) slot->sync_ops));
-            json_object_set_new(counters, "close_ops", json_integer((json_int_t) slot->close_ops));
-            json_object_set_new(obj, "counters", counters);
-        }
+        dashboard_emit_detail_fields(obj, slot);
     }
 
     return obj;

@@ -85,7 +85,10 @@ sp_set_err(char *errbuf, size_t errlen, size_t line, const char *fmt, ...)
         return;
     }
     va_start(ap, fmt);
-    vsnprintf(detail, sizeof(detail), fmt, ap);
+    /* phase74-fp: fmt is always a string literal from this file's call sites
+     * (compile-time table of parse-error messages), never wire/user-derived;
+     * truncation of the detail buffer is acceptable for an error message. */
+    (void) vsnprintf(detail, sizeof(detail), fmt, ap);  // NOLINT(cert-err33-c,clang-diagnostic-format-nonliteral)
     va_end(ap);
     snprintf(errbuf, errlen, "line %zu: %s", line, detail);
 }

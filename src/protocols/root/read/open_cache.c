@@ -56,8 +56,14 @@ brix_open_cached_read(brix_ctx_t *ctx, ngx_connection_t *c,
     if (stat(resolved, &cst) == 0) {  /* vfs-seam-allow: separate server-managed cache-root domain */
         /* Cache-served reads stay plaintext (read_codec=0); inline read
          * compression (phase-42 W4) is only negotiated on the direct path. */
-        return brix_open_resolved_file(ctx, c, conf, resolved,
-                                         options, mode_bits, 0, 0);
+        brix_open_request_t oreq = {
+            .resolved  = resolved,
+            .options   = options,
+            .mode_bits = mode_bits,
+            .is_write  = 0,
+            .codec     = 0,
+        };
+        return brix_open_resolved_file(ctx, c, conf, &oreq);
     }
 
     return brix_cache_open_or_fill(ctx, c, conf, clean_path,

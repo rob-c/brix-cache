@@ -81,19 +81,51 @@ brix_sd_driver_find(const char *name)
     return NULL;
 }
 
+/*
+ * brix_sd_instance_pool — private process-lifetime pool for driver instances.
+ *
+ * WHY: instances are process-lifetime singletons, but composition can run
+ * during configuration parse, when ngx_cycle still points at the TRANSIENT
+ * init cycle whose pool is destroyed as startup completes.  Instances (and
+ * driver state pcalloc'd from inst->pool by driver->init) allocated there
+ * dangle, and the first request through a tier dereferences freed memory
+ * (SIGSEGV in cstore_make_parents via a garbage store->driver).  A pool the
+ * registry owns and never destroys removes the dependence on WHEN composition
+ * runs.  Cost: instances are never freed on reload — which was already the
+ * case, since draining workers may still be using them.
+ */
+static ngx_pool_t *
+brix_sd_instance_pool(ngx_log_t *log)
+{
+    static ngx_pool_t *pool;    /* per-process; copied to workers by fork */
+
+    if (pool == NULL) {
+        pool = ngx_create_pool(4096, log);
+    }
+    return pool;
+}
+
 /* brix_sd_instance_create — build the per-export instance bound at config/worker
- * init: find the named driver, pcalloc the instance, call init(driver_conf); on an
- * unknown driver or init failure, set *err_out and return NULL. */
+ * init: find the named driver, pcalloc the instance from the registry's
+ * process-lifetime pool, call init(driver_conf); on an unknown driver or init
+ * failure, set *err_out and return NULL. */
 brix_sd_instance_t *
-brix_sd_instance_create(ngx_pool_t *pool, ngx_log_t *log, const char *name,
+brix_sd_instance_create(ngx_log_t *log, const char *name,
     void *driver_conf, int *err_out)
 {
     const brix_sd_driver_t *driver;
     brix_sd_instance_t     *inst;
+    ngx_pool_t             *pool;
 
     driver = brix_sd_driver_find(name);
     if (driver == NULL) {
         if (err_out != NULL) { *err_out = ENOENT; }
+        return NULL;
+    }
+
+    pool = brix_sd_instance_pool(log);
+    if (pool == NULL) {
+        if (err_out != NULL) { *err_out = ENOMEM; }
         return NULL;
     }
 
@@ -154,4 +186,10 @@ brix_sd_supports(const brix_sd_instance_t *inst, uint32_t required_caps)
 {
     return (brix_sd_caps(inst) & required_caps) == required_caps
                ? NGX_OK : NGX_ERROR;
+}
+
+uint32_t
+brix_sd_cred_accept(const brix_sd_instance_t *inst)
+{
+    return (inst != NULL && inst->driver != NULL) ? inst->driver->cred_accept : 0;
 }

@@ -166,8 +166,10 @@ brix_roundtrip_resilient(brix_conn *c, void *hdr24, const void *payload,
                          uint16_t *status, uint8_t **body, uint32_t *blen,
                          brix_status *st)
 {
+    brix_payload  pl  = { payload, plen };
+    brix_resp_out out = { status, body, blen };
     int window = brix_resilient_window_ms(c);
-    int rc = brix_roundtrip(c, hdr24, payload, plen, status, body, blen, st);
+    int rc = brix_roundtrip(c, hdr24, &pl, &out, st);
     if (rc == 0) {
         return 0;
     }
@@ -188,7 +190,7 @@ brix_roundtrip_resilient(brix_conn *c, void *hdr24, const void *payload,
             }
             continue;
         }
-        rc = brix_roundtrip(c, hdr24, payload, plen, status, body, blen, st);
+        rc = brix_roundtrip(c, hdr24, &pl, &out, st);
         if (rc == 0) {
             return 0;
         }

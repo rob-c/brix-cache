@@ -233,12 +233,207 @@ copy_one_l2r(brix_conn *c, const char *lpath, const char *rpath,
 }
 
 
+/*
+ * WHAT: One classified root:// copy route — both parsed endpoint URLs plus the
+ *       four scheme predicates the direction dispatch keys on (src/dst each
+ *       remote-vs-local).
+ * WHY:  brix_copy formerly parsed the URLs and derived src_remote/dst_remote/
+ *       src_local/dst_local inline, then ran a long direction ladder over them in
+ *       the same function (CCN 34). Bundling the parse result lets the classify
+ *       step and each dispatch step take one const struct, so the orchestrator
+ *       stays a flat sequence and the ladder splits per direction without passing
+ *       six loose locals around.
+ * HOW:  brix_copy_classify() fills one of these (the two brix_url members are
+ *       owned by the struct — copied by value from brix_url_parse; the four ints
+ *       are pure booleans); the dispatch helpers read it by const pointer and
+ *       never mutate it.
+ */
+typedef struct {
+    brix_url su;          /* parsed source URL      */
+    brix_url du;          /* parsed destination URL */
+    int      src_remote;  /* source is root:///roots:// */
+    int      dst_remote;  /* dest is root:///roots://   */
+    int      src_local;   /* source is local/stdio      */
+    int      dst_local;   /* dest is local/stdio        */
+} copy_route_t;
+
+
+/*
+ * WHAT: Parse both root:// endpoints and classify each end as remote vs local,
+ *       filling a copy_route_t.
+ * WHY:  Isolates the parse+classify computation from the direction dispatch so
+ *       the orchestrator reads linearly and the scheme predicates live in one
+ *       named place (§8: pure helper, side effects — the two parses — at the
+ *       edge of the classification, error surfaced via st).
+ * HOW:  Zero-init the route, run brix_url_parse on src then dst (each may set st
+ *       and fail), then derive the four scheme booleans exactly as the former
+ *       inline code did. Returns 0 on success (route filled), -1 on a parse
+ *       failure (st set by brix_url_parse).
+ */
+static int
+brix_copy_classify(const char *src, const char *dst, copy_route_t *r,
+                   brix_status *st)
+{
+    memset(r, 0, sizeof(*r));
+
+    if (brix_url_parse(src, &r->su, st) != 0) {
+        return -1;
+    }
+    if (brix_url_parse(dst, &r->du, st) != 0) {
+        return -1;
+    }
+
+    r->src_remote = (r->su.scheme == XRDC_SCHEME_ROOT
+                     || r->su.scheme == XRDC_SCHEME_ROOTS);
+    r->dst_remote = (r->du.scheme == XRDC_SCHEME_ROOT
+                     || r->du.scheme == XRDC_SCHEME_ROOTS);
+    r->src_local  = (r->su.scheme == XRDC_SCHEME_LOCAL
+                     || r->su.scheme == XRDC_SCHEME_STDIO);
+    r->dst_local  = (r->du.scheme == XRDC_SCHEME_LOCAL
+                     || r->du.scheme == XRDC_SCHEME_STDIO);
+    return 0;
+}
+
+
+/*
+ * WHAT: Dispatch a remote-source → local-destination copy: an inline
+ *       ?xrdcl.unzip= member extraction if the source names one, else a plain
+ *       download.
+ * WHY:  Lifts the two-way remote→local branch out of the direction ladder so
+ *       brix_copy's dispatch stays flat (§5); behaviour is byte-identical to the
+ *       former inline block.
+ * HOW:  Try unzip_member_from_src on the raw src string + parsed URL; if it names
+ *       an archive member, route through copy_unzip, otherwise copy_download.
+ */
+static int
+brix_copy_dispatch_r2l(const char *src, const copy_route_t *r,
+                       const brix_copy_opts *o, const brix_opts *co,
+                       brix_status *st)
+{
+    char member[XRDC_PATH_MAX], arch[XRDC_PATH_MAX];
+
+    if (unzip_member_from_src(src, &r->su, member, sizeof(member),
+                              arch, sizeof(arch))) {
+        return copy_unzip(&r->su, arch, member, &r->du, o, co, st);  /* ?xrdcl.unzip= */
+    }
+    return copy_download(&r->su, &r->du, o, co, st);   /* remote → local */
+}
+
+
+/*
+ * WHAT: Dispatch a remote-source → remote-destination copy per the third-party-
+ *       copy mode: TPC-only (hard fail if TPC fails), TPC-first/delegate (TPC
+ *       then fall back to a client-mediated copy), or default client-mediated.
+ * WHY:  The tpc_mode selection was the deepest arm of brix_copy's ladder (the
+ *       CCN driver). Extracting it keeps the mode branching — including the
+ *       fall-back diagnostic — in one named, testable place while the
+ *       orchestrator stays flat.
+ * HOW:  Branch on o->tpc_mode exactly as the former inline code: ONLY → copy_tpc;
+ *       FIRST/DELEGATE → copy_tpc, on success return, else emit the same stderr
+ *       fall-back note (unless silent) and copy_remote_to_remote; otherwise the
+ *       default client-mediated copy_remote_to_remote.
+ */
+static int
+brix_copy_dispatch_r2r(const copy_route_t *r, const brix_copy_opts *o,
+                       const brix_opts *co, brix_status *st)
+{
+    if (o->tpc_mode == XRDC_TPC_ONLY) {
+        return copy_tpc(&r->su, &r->du, o, co, st);          /* TPC or hard fail */
+    }
+    if (o->tpc_mode == XRDC_TPC_FIRST
+        || o->tpc_mode == XRDC_TPC_DELEGATE) {
+        if (copy_tpc(&r->su, &r->du, o, co, st) == 0) {
+            return 0;
+        }
+        if (!o->silent) {
+            fprintf(stderr, "xrdcp: TPC failed (%s); falling back to "
+                    "client-mediated copy\n", st->msg);
+        }
+        return copy_remote_to_remote(&r->su, &r->du, o, co, st);
+    }
+    return copy_remote_to_remote(&r->su, &r->du, o, co, st);  /* default: client-mediated */
+}
+
+
+/*
+ * WHAT: Dispatch a recursive (-r) copy: one remote↔local direction to
+ *       copy_recursive, or a usage error for any other endpoint pairing.
+ * WHY:  The recursive arm carried three of brix_copy_route's decisions on its
+ *       own; extracting it drops the router under the CCN gate and keeps the
+ *       "one remote + one local" rule in one named place (§1).
+ * HOW:  Build the copy_recurse_req for the download (remote→local) or upload
+ *       (local→remote) direction exactly as the former inline code did; any other
+ *       pairing (both-remote / both-local) is the same XRDC_EUSAGE error.
+ */
+static int
+brix_copy_dispatch_recursive(const copy_route_t *r, const brix_copy_opts *o,
+                             const brix_opts *co, brix_status *st)
+{
+    if (r->src_remote && r->dst_local) {
+        copy_recurse_req rq = { &r->su, &r->du, 1, o, co };
+        return copy_recursive(&rq, st);   /* remote tree → local */
+    }
+    if (r->src_local && r->dst_remote) {
+        copy_recurse_req rq = { &r->su, &r->du, 0, o, co };
+        return copy_recursive(&rq, st);   /* local tree → remote */
+    }
+    brix_status_set(st, XRDC_EUSAGE, 0,
+                    "recursive copy requires one remote and one local endpoint");
+    return -1;
+}
+
+
+/*
+ * WHAT: Route a classified root:// copy to the matching transfer path
+ *       (recursive, --zip store, download, upload, or remote-to-remote).
+ * WHY:  Holds the direction ladder itself, separated from URL classification and
+ *       the co_local/web/block pre-steps in brix_copy, so each concern is one
+ *       function (§1) and the ladder never re-derives the scheme predicates.
+ * HOW:  Early-return through the same ordered checks the former inline code used
+ *       — recursive first, then --zip store, then the three supported directions
+ *       via the r2l/r2r dispatch helpers and copy_upload — ending in the
+ *       unsupported-direction usage error.
+ */
+static int
+brix_copy_route(const char *src, const copy_route_t *r, const brix_copy_opts *o,
+                const brix_opts *co, brix_status *st)
+{
+    if (o != NULL && o->recursive) {
+        return brix_copy_dispatch_recursive(r, o, co, st);
+    }
+
+    /* phase-42 W3 write: --zip / --zip-append stores a LOCAL source as a STORE
+     * member of the destination ZIP archive (local or remote dst). */
+    if (o != NULL && (o->zip || o->zip_append)) {
+        if (!r->src_local) {
+            brix_status_set(st, XRDC_EUSAGE, 0,
+                            "--zip requires a local-file source");
+            return -1;
+        }
+        return copy_zip_store(&r->su, &r->du, o, co, st);
+    }
+
+    if (r->src_remote && r->dst_local) {
+        return brix_copy_dispatch_r2l(src, r, o, co, st);   /* remote → local */
+    }
+    if (r->src_local && r->dst_remote) {
+        return copy_upload(&r->su, &r->du, o, co, st);       /* local → remote */
+    }
+    if (r->src_remote && r->dst_remote) {
+        return brix_copy_dispatch_r2r(r, o, co, st);
+    }
+
+    brix_status_set(st, XRDC_EUSAGE, 0,
+                    "unsupported copy direction (local→local not supported)");
+    return -1;
+}
+
+
 int
 brix_copy(const char *src, const char *dst, const brix_copy_opts *o,
           const brix_opts *co_in, brix_status *st)
 {
-    brix_url su, du;
-    int      src_remote, dst_remote, src_local, dst_local;
+    copy_route_t route;
 
     /* copy.c manages its OWN reconnect/retry — resilient_setup() for the multi-RTT
      * bring-up and the read pump (pump_src_remote) for mid-transfer severs. Disable
@@ -267,71 +462,8 @@ brix_copy(const char *src, const char *dst, const brix_copy_opts *o,
         return copy_block(src, dst, o, co, st);
     }
 
-    if (brix_url_parse(src, &su, st) != 0) {
+    if (brix_copy_classify(src, dst, &route, st) != 0) {
         return -1;
     }
-    if (brix_url_parse(dst, &du, st) != 0) {
-        return -1;
-    }
-
-    src_remote = (su.scheme == XRDC_SCHEME_ROOT || su.scheme == XRDC_SCHEME_ROOTS);
-    dst_remote = (du.scheme == XRDC_SCHEME_ROOT || du.scheme == XRDC_SCHEME_ROOTS);
-    src_local  = (su.scheme == XRDC_SCHEME_LOCAL || su.scheme == XRDC_SCHEME_STDIO);
-    dst_local  = (du.scheme == XRDC_SCHEME_LOCAL || du.scheme == XRDC_SCHEME_STDIO);
-
-    if (o != NULL && o->recursive) {
-        if (src_remote && dst_local) {
-            return copy_recursive(&su, &du, 1, o, co, st);   /* remote tree → local */
-        }
-        if (src_local && dst_remote) {
-            return copy_recursive(&su, &du, 0, o, co, st);   /* local tree → remote */
-        }
-        brix_status_set(st, XRDC_EUSAGE, 0,
-                        "recursive copy requires one remote and one local endpoint");
-        return -1;
-    }
-
-    /* phase-42 W3 write: --zip / --zip-append stores a LOCAL source as a STORE
-     * member of the destination ZIP archive (local or remote dst). */
-    if (o != NULL && (o->zip || o->zip_append)) {
-        if (!src_local) {
-            brix_status_set(st, XRDC_EUSAGE, 0,
-                            "--zip requires a local-file source");
-            return -1;
-        }
-        return copy_zip_store(&su, &du, o, co, st);
-    }
-
-    if (src_remote && dst_local) {
-        char member[XRDC_PATH_MAX], arch[XRDC_PATH_MAX];
-        if (unzip_member_from_src(src, &su, member, sizeof(member),
-                                  arch, sizeof(arch))) {
-            return copy_unzip(&su, arch, member, &du, o, co, st);  /* ?xrdcl.unzip= */
-        }
-        return copy_download(&su, &du, o, co, st);   /* remote → local */
-    }
-    if (src_local && dst_remote) {
-        return copy_upload(&su, &du, o, co, st);      /* local → remote */
-    }
-    if (src_remote && dst_remote) {
-        if (o->tpc_mode == XRDC_TPC_ONLY) {
-            return copy_tpc(&su, &du, o, co, st);            /* TPC or hard fail */
-        }
-        if (o->tpc_mode == XRDC_TPC_FIRST
-            || o->tpc_mode == XRDC_TPC_DELEGATE) {
-            if (copy_tpc(&su, &du, o, co, st) == 0) {
-                return 0;
-            }
-            if (!o->silent) {
-                fprintf(stderr, "xrdcp: TPC failed (%s); falling back to "
-                        "client-mediated copy\n", st->msg);
-            }
-            return copy_remote_to_remote(&su, &du, o, co, st);
-        }
-        return copy_remote_to_remote(&su, &du, o, co, st);   /* default: client-mediated */
-    }
-
-    brix_status_set(st, XRDC_EUSAGE, 0,
-                    "unsupported copy direction (local→local not supported)");
-    return -1;
+    return brix_copy_route(src, &route, o, co, st);
 }

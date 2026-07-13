@@ -1,0 +1,233 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Band from '../components/Band.astro';
+import Cta from '../components/Cta.astro';
+
+// Client row — each speaks one protocol, tinted with that protocol's accent.
+const clients = [
+  { name: 'xrdcp · xrdfs · pyxrootd', scheme: 'root://', tint: 'var(--root)' },
+  { name: 'curl · rucio · browser', scheme: 'davs://', tint: 'var(--dav)' },
+  { name: 'aws-cli · boto3', scheme: 's3://', tint: 'var(--s3)' },
+];
+
+// The seven src/ concept buckets — the shape of the codebase.
+const buckets = [
+  ['core', 'nginx plumbing — compat, types, config, shm, async io/uring', 'var(--root)'],
+  ['protocols', 'one folder per wire protocol — root, webdav, s3, ssi, srr, dig', 'var(--dav)'],
+  ['auth', 'identity & authz — gsi, token, sss, krb5, voms, crypto, impersonate', 'var(--s3)'],
+  ['fs', 'the VFS — sole storage truth: confine, backends, cache, tier, xfer', 'var(--root)'],
+  ['net', 'scale-out — cms, manager, upstream, proxy, ratelimit, tap, mirror', 'var(--dav)'],
+  ['observability', 'metrics, accesslog, dashboard, pmark', 'var(--s3)'],
+  ['tpc', 'third-party copy — cross-plane by nature', 'var(--root)'],
+];
+
+const backends = [
+  { name: 'POSIX disk', sub: 'pread / pwrite / sendfile', tint: 'var(--root)' },
+  { name: 'RADOS · CephFS', sub: 'object + striper', tint: 'var(--dav)' },
+  { name: 'HTTP / remote origin', sub: 'read-through cache fill', tint: 'var(--s3)' },
+  { name: 'Stage · tier', sub: 'nearline / recall', tint: 'var(--panel)' },
+];
+---
+
+<Layout
+  title="About"
+  description="How BriX-Cache is built: three protocol front-ends, one shared auth-and-cache core, and a VFS that is the sole storage truth — all inside a single nginx binary. A full architecture diagram of the project."
+  accent="dav"
+>
+  <!-- HERO -->
+  <Band first={true}>
+    <span class="eyebrow">About the project</span>
+    <h1 class="display hero-head">One binary. Three protocols. One path to disk.</h1>
+    <p class="lede">
+      BriX-Cache is a single nginx module that speaks <span class="mono">root://</span> (XRootD),
+      WebDAV, and S3 off the same POSIX tree. Every request enters nginx's event loop, passes one
+      shared core that decides auth and handles caching &amp; metrics, then reaches storage through
+      a VFS where all raw file I/O lives in exactly one place. Here is the whole system in one picture.
+    </p>
+  </Band>
+
+  <!-- THE DIAGRAM -->
+  <Band variant="sunken" id="diagram">
+    <span class="eyebrow">The architecture</span>
+    <h2 class="display sect-head">The whole system, one picture.</h2>
+
+    <div class="diagram" role="img"
+      aria-label="Architecture: clients speaking root, WebDAV and S3 enter nginx; stream and http blocks front-end each protocol; all converge on a shared core, then a VFS, then storage backends.">
+
+      <!-- L0 clients -->
+      <div class="layer-tag">clients</div>
+      <div class="row row-3">
+        {clients.map((c) => (
+          <div class="node" style={`--tint:${c.tint}`}>
+            <b>{c.name}</b>
+            <span class="chip" style={`background:${c.tint}`}>{c.scheme}</span>
+          </div>
+        ))}
+      </div>
+
+      <div class="arrow"><span>▼ TCP · TLS · HTTP(S)</span></div>
+
+      <!-- L1 nginx process -->
+      <div class="nginx">
+        <div class="nginx-tag">nginx · single binary · non-blocking workers</div>
+        <div class="lanes">
+          <div class="lane" style="--tint:var(--root)">
+            <div class="lane-h mono">stream {'{}'} block</div>
+            <div class="node" style="--tint:var(--root)"><b>Native root:// handler</b><small>open · read · pgread · write · stat · 32 opcodes</small></div>
+            <div class="node" style="--tint:var(--root)"><b>Transparent proxy / relay</b><small>tap · mirror · handoff</small></div>
+          </div>
+          <div class="lane" style="--tint:var(--dav)">
+            <div class="lane-h mono">http {'{}'} block</div>
+            <div class="node" style="--tint:var(--dav)"><b>WebDAV handler</b><small>GET · PUT · PROPFIND · COPY · MOVE · LOCK · TPC</small></div>
+            <div class="node" style="--tint:var(--s3)"><b>S3 handler</b><small>SigV4 · ListObjectsV2 · multipart</small></div>
+            <div class="node" style="--tint:var(--panel)"><b>/metrics · /brix dashboard</b><small>Prometheus · live operator view</small></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="arrow"><span>▼ one shared module core</span></div>
+
+      <!-- L2 shared core -->
+      <div class="bar bar--core">
+        <b>Shared core</b>
+        <div class="bar-items">
+          {['auth gate', 'path confinement', 'cache', 'tier / stage', 'metrics', 'access log'].map((i) => (
+            <span class="pill mono">{i}</span>
+          ))}
+        </div>
+      </div>
+
+      <div class="arrow"><span>▼ the one storage seam</span></div>
+
+      <!-- L3 VFS -->
+      <div class="bar bar--vfs">
+        <b>VFS — sole storage truth</b>
+        <span class="mono vfs-sub">bytes · namespace · metadata · capability-typed driver</span>
+      </div>
+
+      <div class="arrow"><span>▼ pluggable backends</span></div>
+
+      <!-- L4 backends -->
+      <div class="row row-4">
+        {backends.map((b) => (
+          <div class="node node--ink" style={`--tint:${b.tint}`}>
+            <b>{b.name}</b>
+            <small>{b.sub}</small>
+          </div>
+        ))}
+      </div>
+    </div>
+  </Band>
+
+  <!-- SEVEN BUCKETS -->
+  <Band id="buckets">
+    <span class="eyebrow">The codebase</span>
+    <h2 class="display sect-head">Seven concept buckets under <span class="mono">src/</span>.</h2>
+    <p class="lede muted intro">
+      The source is sorted by concept, not by protocol — so shared behaviour is written once and
+      reused across every front-end. Cross-directory includes are src-rooted.
+    </p>
+    <div class="grid grid-3 bgrid">
+      {buckets.map(([name, blurb, tint]) => (
+        <article class="panel panel--hover bucket" style={`--tint:${tint}`}>
+          <span class="chip" style={`background:${tint}`}>{name}/</span>
+          <p class="muted bucket-blurb">{blurb}</p>
+        </article>
+      ))}
+    </div>
+  </Band>
+
+  <!-- INVARIANTS -->
+  <Band variant="ink" id="invariants">
+    <span class="eyebrow">What holds it together</span>
+    <h2 class="display sect-head">Rules the whole system keeps.</h2>
+    <div class="grid grid-2">
+      <div class="panel panel--hover"><b class="inv-h">Auth before a byte moves</b><p class="muted">GSI/x509 with request signing, WLCG tokens with per-path scope, SSS, host, password, krb5 — decided once, in one gate.</p></div>
+      <div class="panel panel--hover"><b class="inv-h">One storage seam</b><p class="muted">Raw <span class="mono">pread</span>/<span class="mono">pwrite</span>/<span class="mono">sendfile</span> exist only in <span class="mono">src/fs/backend/</span>. Everything above speaks to the VFS.</p></div>
+      <div class="panel panel--hover"><b class="inv-h">No worker ever blocks</b><p class="muted">Disk syscalls run on a thread pool; the worker keeps framing protocol and servicing sockets.</p></div>
+      <div class="panel panel--hover"><b class="inv-h">Tested against the reference</b><p class="muted">Whole test modules run unchanged against BriX-Cache and stock xrootd. Any divergence in status or bytes is a failure.</p></div>
+    </div>
+  </Band>
+
+  <Band>
+    <Cta
+      title="Read the source, not just the diagram."
+      note="AGPL-3.0-only. The developer guide carries the operation-to-file map and the full architecture deep-dive."
+    />
+  </Band>
+</Layout>
+
+<style>
+  .hero-head { margin: 0.6rem 0 1.2rem; max-width: 18ch; }
+  .sect-head { margin: 0.5rem 0 1.4rem; max-width: 26ch; }
+  .intro { margin-bottom: 1.8rem; max-width: 62ch; }
+
+  /* ---- diagram ---- */
+  .diagram { display: flex; flex-direction: column; align-items: stretch; gap: 0; }
+  .layer-tag {
+    font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--ink-2); margin-bottom: 0.6rem;
+  }
+  .row { display: grid; gap: 0.9rem; }
+  @media (min-width: 720px) {
+    .row-3 { grid-template-columns: repeat(3, 1fr); }
+    .row-4 { grid-template-columns: repeat(4, 1fr); }
+  }
+
+  .node {
+    background: var(--panel); border: var(--border); box-shadow: var(--shadow-sm);
+    border-left: 10px solid var(--tint); padding: 0.8rem 0.9rem;
+    display: flex; flex-direction: column; gap: 0.4rem;
+  }
+  .node b { font-size: 0.98rem; }
+  .node small { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-2); }
+  .node .chip { align-self: flex-start; font-size: 0.8rem; }
+  .node--ink { background: var(--ink); color: var(--paper); box-shadow: 4px 4px 0 var(--tint); }
+  .node--ink small { color: #a8a29e; }
+
+  .arrow {
+    display: flex; justify-content: center; padding: 0.7rem 0;
+  }
+  .arrow span {
+    font-family: var(--mono); font-size: 0.74rem; font-weight: 600; color: var(--ink-2);
+    letter-spacing: 0.02em;
+  }
+
+  /* nginx container */
+  .nginx {
+    border: var(--border); box-shadow: var(--shadow); background: var(--panel);
+    padding: 1.1rem; position: relative;
+  }
+  .nginx-tag {
+    position: absolute; top: -0.9rem; left: 1rem; background: var(--ink); color: var(--paper);
+    font-family: var(--mono); font-size: 0.72rem; font-weight: 600; padding: 0.25em 0.7em;
+    border: var(--border-2);
+  }
+  .lanes { display: grid; gap: 1rem; margin-top: 0.5rem; }
+  @media (min-width: 820px) { .lanes { grid-template-columns: 1fr 1.6fr; } }
+  .lane {
+    border: var(--border-2); border-left: 10px solid var(--tint); background: var(--band);
+    padding: 0.8rem; display: flex; flex-direction: column; gap: 0.7rem;
+  }
+  .lane-h { font-size: 0.78rem; font-weight: 600; color: var(--ink); }
+
+  /* full-width bars */
+  .bar {
+    border: var(--border); box-shadow: var(--shadow-sm); padding: 1rem 1.2rem;
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  }
+  .bar b { font-family: var(--display); font-stretch: 112%; font-size: 1.2rem; }
+  .bar--core { background: var(--panel); }
+  .bar--vfs { background: var(--accent); }
+  .bar-items { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+  .pill { border: var(--border-2); background: var(--panel); padding: 0.22em 0.6em; font-size: 0.76rem; font-weight: 600; }
+  .vfs-sub { font-size: 0.8rem; }
+
+  /* ---- buckets ---- */
+  .bgrid { align-items: stretch; }
+  .bucket { display: flex; flex-direction: column; gap: 0.6rem; border-left: 10px solid var(--tint); height: 100%; }
+  .bucket .chip { align-self: flex-start; }
+  .bucket-blurb { font-size: 0.9rem; }
+
+  .inv-h { font-family: var(--display); font-stretch: 112%; font-size: 1.15rem; display: block; margin-bottom: 0.5rem; }
+</style>

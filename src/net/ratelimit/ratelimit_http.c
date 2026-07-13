@@ -13,6 +13,10 @@
 #include "core/http/http_headers.h"
 #include "observability/metrics/metrics_macros.h"
 
+/* Size of the lazily-resolved VOLUME-rule path buffer (handler local +
+ * rl_resolve_volume_path share this so the size is not passed as a param). */
+#define BRIX_RL_PATH_LEN 1024
+
 #define BRIX_RL_METRIC_INC(field)                                          \
     do {                                                                     \
         ngx_brix_metrics_t *_m = brix_metrics_shared();                  \
@@ -39,18 +43,166 @@ rl_reject(ngx_http_request_t *r, brix_rl_rule_t *rule, uint32_t wait_sec,
     return NGX_HTTP_TOO_MANY_REQUESTS;
 }
 
+/*
+ * WHAT:  Ensure the WebDAV request ctx exists, allocating+installing it lazily.
+ * WHY:   The body/log phase charges bandwidth and releases concurrency slots
+ *        via this ctx; the auth gate may not have created one (anonymous
+ *        WebDAV), so a rate-limit dimension that needs to stash state must be
+ *        able to conjure it on demand.
+ * HOW:   Return the existing ctx unchanged; otherwise pcalloc from the request
+ *        pool and install it, mirroring the original inline behaviour exactly
+ *        (a failed pcalloc leaves the slot unset and returns NULL).
+ */
+static ngx_http_brix_webdav_req_ctx_t *
+rl_ensure_ctx(ngx_http_request_t *r, ngx_http_brix_webdav_req_ctx_t *wctx)
+{
+    if (wctx != NULL) {
+        return wctx;
+    }
+    wctx = ngx_pcalloc(r->pool, sizeof(*wctx));
+    if (wctx != NULL) {
+        ngx_http_set_ctx(r, wctx, ngx_http_brix_webdav_module);
+    }
+    return wctx;
+}
+
+/*
+ * WHAT:  Resolve the request path lazily, only the first time a VOLUME rule is
+ *        encountered.
+ * WHY:   Only VOLUME rules key on the path; resolving it is a syscall we skip
+ *        entirely when no such rule matches, and do at most once per request.
+ * HOW:   No-op unless this is a VOLUME rule and the path has not been resolved
+ *        yet; on resolve failure the buffer is emptied (rl_req.path aliases it),
+ *        and *have_path is latched so the work never repeats.
+ */
+static void
+rl_resolve_volume_path(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *lcf, const brix_rl_rule_t *rule,
+    char *path, int *have_path)
+{
+    if (rule->key_type != BRIX_RL_KEY_VOLUME || *have_path) {
+        return;
+    }
+    if (ngx_http_brix_webdav_resolve_path(r, lcf->common.root_canon,
+            path, BRIX_RL_PATH_LEN) != NGX_OK)
+    {
+        path[0] = '\0';
+    }
+    *have_path = 1;
+}
+
+/*
+ * WHAT:  Evaluate the bandwidth dimension of one rule.
+ * WHY:   An already-overflowing bandwidth key rejects immediately; otherwise
+ *        the matched rule+key are stashed so the log phase can charge the bytes
+ *        actually sent.
+ * HOW:   Pre-check; on NGX_AGAIN return the 429 verdict.  On pass, ensure a ctx
+ *        (updating *wctx_p) and record the key+rule when one is available.
+ *        Returns NGX_OK to continue, or the reject code to propagate.
+ */
+static ngx_int_t
+rl_check_bw(ngx_http_request_t *r, brix_rl_rule_t *rule,
+    const char *key_str, ngx_http_brix_webdav_req_ctx_t **wctx_p)
+{
+    ngx_http_brix_webdav_req_ctx_t *wctx;
+    uint32_t                        wait_sec;
+
+    if (rule->bw_rate <= 0) {
+        return NGX_OK;
+    }
+    if (brix_rl_bw_check(rule, key_str, &wait_sec) == NGX_AGAIN) {
+        return rl_reject(r, rule, wait_sec, key_str);
+    }
+    wctx = rl_ensure_ctx(r, *wctx_p);
+    *wctx_p = wctx;
+    if (wctx != NULL) {
+        ngx_cpystrn((u_char *) wctx->rl_key_str, (u_char *) key_str,
+                    sizeof(wctx->rl_key_str));
+        wctx->rl_bw_rule = rule;
+    }
+    return NGX_OK;
+}
+
+/*
+ * WHAT:  Evaluate the concurrency dimension (W7) of one rule.
+ * WHY:   Reserve at most one in-flight slot per request so the log-phase
+ *        release pairs exactly; an exhausted key rejects with 429.
+ * HOW:   Skip unless the rule caps concurrency and no slot is held yet.  On
+ *        acquire failure return the reject code.  On success, ensure a ctx to
+ *        record the release target and latch *conc_held; if no ctx can be
+ *        allocated, hand the slot back immediately rather than leak it.
+ *        Returns NGX_OK to continue, or the reject code to propagate.
+ */
+static ngx_int_t
+rl_check_conc(ngx_http_request_t *r, brix_rl_rule_t *rule,
+    const char *key_str, ngx_http_brix_webdav_req_ctx_t **wctx_p,
+    int *conc_held)
+{
+    ngx_http_brix_webdav_req_ctx_t *wctx;
+
+    if (rule->req_conc <= 0 || *conc_held) {
+        return NGX_OK;
+    }
+    if (brix_rl_conc_acquire(rule, key_str) == NGX_AGAIN) {
+        return rl_reject(r, rule, 0, key_str);
+    }
+    wctx = rl_ensure_ctx(r, *wctx_p);
+    *wctx_p = wctx;
+    if (wctx != NULL) {
+        ngx_cpystrn((u_char *) wctx->rl_conc_key, (u_char *) key_str,
+                    sizeof(wctx->rl_conc_key));
+        wctx->rl_conc_rule = rule;
+        *conc_held = 1;
+    } else {
+        /* No ctx to stash the release target — give the slot back now rather
+         * than leak it (degrades to no concurrency cap). */
+        brix_rl_conc_release(rule, key_str);
+    }
+    return NGX_OK;
+}
+
+/*
+ * WHAT:  Evaluate every rate-limit dimension of one matched rule.
+ * WHY:   Keeps the per-rule verdict logic (rate → bandwidth → concurrency, in
+ *        that short-circuit order) in one place so the loop body stays flat.
+ * HOW:   Request-rate rejects on NGX_AGAIN; bandwidth and concurrency delegate
+ *        to their helpers (which may update *wctx_p / *conc_held).  Returns
+ *        NGX_OK to continue the loop, or a 429 code to return from the handler.
+ */
+static ngx_int_t
+rl_apply_rule(ngx_http_request_t *r, brix_rl_rule_t *rule,
+    const char *key_str, ngx_http_brix_webdav_req_ctx_t **wctx_p,
+    int *conc_held)
+{
+    uint32_t  wait_sec;
+    ngx_int_t rc;
+
+    if (rule->req_rate > 0
+        && brix_rl_check(rule, key_str, &wait_sec) == NGX_AGAIN)
+    {
+        return rl_reject(r, rule, wait_sec, key_str);
+    }
+
+    rc = rl_check_bw(r, rule, key_str, wctx_p);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+
+    return rl_check_conc(r, rule, key_str, wctx_p, conc_held);
+}
+
 ngx_int_t
 brix_rl_http_access_handler(ngx_http_request_t *r)
 {
     ngx_http_brix_webdav_loc_conf_t *lcf;
     ngx_http_brix_webdav_req_ctx_t  *wctx;
     brix_rl_rule_t                  *rules;
+    rl_key_req_t                       rl_req;
     ngx_uint_t                         i;
     char                               key_str[BRIX_RL_KEY_LEN];
-    char                               path[1024];
+    char                               path[BRIX_RL_PATH_LEN];
     int                                have_path = 0;
     int                                conc_held = 0;   /* W7: one slot/request */
-    uint32_t                           wait_sec;
     ngx_int_t                          rc;
 
     if (r != r->main) {
@@ -65,8 +217,8 @@ brix_rl_http_access_handler(ngx_http_request_t *r)
      * In WebDAV proxy mode the webdav module's request-ctx slot is owned by the
      * proxy (webdav_proxy_ctx_t, set in proxy.c), NOT the rate-limit req_ctx.
      * Touching it here would acquire a concurrency slot the log phase can never
-     * release (it would read the proxy ctx as a req_ctx → garbage rule pointer →
-     * crash, see brix_rl_http_log_handler).  Rate limiting does not apply to
+     * release (it would read the proxy ctx as a req_ctx -> garbage rule pointer
+     * -> crash, see brix_rl_http_log_handler).  Rate limiting does not apply to
      * proxied requests; leave the slot to the proxy.
      */
     if (lcf->upstream_proxy) {
@@ -77,72 +229,28 @@ brix_rl_http_access_handler(ngx_http_request_t *r)
     rules = lcf->rl_rules->elts;
     path[0] = '\0';
 
+    /*
+     * Resolve the identity handles once, before the per-rule loop: the unified
+     * identity from the WebDAV ctx and the connection address.  brix_rl_key_http
+     * then reads this bundle rather than re-deriving them per call.  `path` is
+     * still filled lazily below (only VOLUME rules need it); rl_req.path aliases
+     * the buffer so those rules see the resolved value.
+     */
+    rl_req.id   = wctx ? wctx->identity : NULL;
+    rl_req.wctx = wctx;
+    rl_req.ip   = &r->connection->addr_text;
+    rl_req.path = path;
+
     for (i = 0; i < lcf->rl_rules->nelts; i++) {
 
-        /* Resolve the request path lazily, only for VOLUME rules. */
-        if (rules[i].key_type == BRIX_RL_KEY_VOLUME && !have_path) {
-            if (ngx_http_brix_webdav_resolve_path(r, lcf->common.root_canon,
-                    path, sizeof(path)) != NGX_OK)
-            {
-                path[0] = '\0';
-            }
-            have_path = 1;
-        }
+        rl_resolve_volume_path(r, lcf, &rules[i], path, &have_path);
 
-        rc = brix_rl_key_http(&rules[i], r, wctx, path,
-                                key_str, sizeof(key_str));
-        if (rc == NGX_DECLINED) { continue; }   /* volume prefix did not match */
-        if (rc != NGX_OK)       { continue; }
+        rc = brix_rl_key_http(&rules[i], &rl_req, key_str, sizeof(key_str));
+        if (rc != NGX_OK) { continue; }   /* volume prefix / key did not match */
 
-        /* Request-rate dimension. */
-        if (rules[i].req_rate > 0) {
-            if (brix_rl_check(&rules[i], key_str, &wait_sec) == NGX_AGAIN) {
-                return rl_reject(r, &rules[i], wait_sec, key_str);
-            }
-        }
-
-        /* Bandwidth dimension: pre-check, then remember for the body filter. */
-        if (rules[i].bw_rate > 0) {
-            if (brix_rl_bw_check(&rules[i], key_str, &wait_sec) == NGX_AGAIN) {
-                return rl_reject(r, &rules[i], wait_sec, key_str);
-            }
-            /* The body filter charges via the request ctx — allocate one if the
-             * auth gate did not (e.g. anonymous WebDAV). */
-            if (wctx == NULL) {
-                wctx = ngx_pcalloc(r->pool, sizeof(*wctx));
-                if (wctx != NULL) {
-                    ngx_http_set_ctx(r, wctx, ngx_http_brix_webdav_module);
-                }
-            }
-            if (wctx != NULL) {
-                ngx_cpystrn((u_char *) wctx->rl_key_str, (u_char *) key_str,
-                            sizeof(wctx->rl_key_str));
-                wctx->rl_bw_rule = &rules[i];
-            }
-        }
-
-        /* Concurrency dimension (W7): reserve one in-flight slot, released in
-         * the log phase.  Only one slot per request so the pairing is exact. */
-        if (rules[i].req_conc > 0 && !conc_held) {
-            if (brix_rl_conc_acquire(&rules[i], key_str) == NGX_AGAIN) {
-                return rl_reject(r, &rules[i], 0, key_str);
-            }
-            if (wctx == NULL) {
-                wctx = ngx_pcalloc(r->pool, sizeof(*wctx));
-                if (wctx != NULL) {
-                    ngx_http_set_ctx(r, wctx, ngx_http_brix_webdav_module);
-                }
-            }
-            if (wctx != NULL) {
-                ngx_cpystrn((u_char *) wctx->rl_conc_key, (u_char *) key_str,
-                            sizeof(wctx->rl_conc_key));
-                wctx->rl_conc_rule = &rules[i];
-                conc_held = 1;
-            } else {
-                /* No ctx to stash the release target — give the slot back now
-                 * rather than leak it (degrades to no concurrency cap). */
-                brix_rl_conc_release(&rules[i], key_str);
-            }
+        rc = rl_apply_rule(r, &rules[i], key_str, &wctx, &conc_held);
+        if (rc != NGX_OK) {
+            return rc;
         }
     }
 

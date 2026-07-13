@@ -181,8 +181,9 @@ def test_phase5_tpc_common_layer_is_shared():
             "src/tpc/common/metrics.c",
         ],
     )
+    # The root:// open TPC-context handling was split into open_tpc.c.
     _assert_markers(
-        "src/protocols/root/read/open_request.c",
+        "src/protocols/root/read/open_tpc.c",
         ["brix_tpc_check_authz("],
     )
     _assert_markers(

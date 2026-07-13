@@ -83,6 +83,73 @@ do_explain(brix_conn *c, const char *cwd, int argc, char **argv)
 }
 
 
+/*
+ * WHAT: emit the "unknown command '<name>'" error plus a TTY did-you-mean hint.
+ * WHY:  spec WS-7 — unknown-subcommand sites must offer a did-you-mean hint for
+ *       interactive users without polluting pipeline output (C3). Factored out
+ *       of dispatch() so the router stays a flat table lookup.
+ * HOW:  build a NULL-terminated name array from COMMANDS[] (bounded), then pass
+ *       it to brix_suggest() (Damerau-Levenshtein distance ≤ 2 match).
+ */
+static void
+dispatch_unknown(const char *name)
+{
+    int                  ncmds;
+    const char          *names[48 + 1]; /* COMMANDS has ≤ 47 entries */
+    const xrdfs_cmd     *h;
+    const char          *suggestion;
+
+    ncmds = 0;
+    for (h = COMMANDS; h->name != NULL && ncmds < 48; h++) {
+        names[ncmds++] = h->name;
+    }
+    names[ncmds] = NULL;
+
+    fprintf(stderr, "xrdfs: unknown command '%s'\n", name);
+    suggestion = brix_suggest(name, names);
+    if (suggestion != NULL) {
+        brix_cli_hint("hint: did you mean '%s'?\n", suggestion);
+    }
+}
+
+
+/*
+ * WHAT: handle the REPL-builtin verbs (exit/quit/pwd/cd/help) that are not in
+ *       COMMANDS[]. Returns 1 when it owned the verb (all builtins yield shell
+ *       code 0); returns 0 when tok[0] is not a builtin.
+ * WHY:  splitting the builtin ladder out of dispatch() drops the router's
+ *       branch count below the complexity gate while freezing behavior/output.
+ * HOW:  string-compare ladder with early return; cd rebuilds cwd via build_path,
+ *       exit/quit set *quit. State (cwd/quit) is passed in explicitly.
+ */
+static int
+dispatch_builtin(char *cwd, size_t cwdsz, int ntok, char **tok, int *quit)
+{
+    if (strcmp(tok[0], "exit") == 0 || strcmp(tok[0], "quit") == 0) {
+        if (quit != NULL) { *quit = 1; }
+        return 1;
+    }
+    if (strcmp(tok[0], "pwd") == 0) {
+        printf("%s\n", cwd);
+        return 1;
+    }
+    if (strcmp(tok[0], "cd") == 0) {
+        char next[XRDC_PATH_MAX];
+        build_path(cwd, ntok >= 2 ? tok[1] : "/", next, sizeof(next));
+        snprintf(cwd, cwdsz, "%s", next);
+        return 1;
+    }
+    if (strcmp(tok[0], "help") == 0) {
+        for (const xrdfs_cmd *h = COMMANDS; h->name != NULL; h++) {
+            printf("  %s\n", h->help);
+        }
+        printf("  cd <path> | pwd | help | exit\n");
+        return 1;
+    }
+    return 0;
+}
+
+
 /* Run one tokenized command. cwd/cwdsz hold the mutable working directory (for
  * the REPL's cd/pwd). Returns a shell code; sets *quit when asked to leave. */
 int
@@ -93,55 +160,13 @@ dispatch(brix_conn *c, char *cwd, size_t cwdsz, int ntok, char **tok, int *quit)
     if (ntok == 0) {
         return 0;
     }
-    if (strcmp(tok[0], "exit") == 0 || strcmp(tok[0], "quit") == 0) {
-        if (quit != NULL) { *quit = 1; }
-        return 0;
-    }
-    if (strcmp(tok[0], "pwd") == 0) {
-        printf("%s\n", cwd);
-        return 0;
-    }
-    if (strcmp(tok[0], "cd") == 0) {
-        char next[XRDC_PATH_MAX];
-        build_path(cwd, ntok >= 2 ? tok[1] : "/", next, sizeof(next));
-        snprintf(cwd, cwdsz, "%s", next);
-        return 0;
-    }
-    if (strcmp(tok[0], "help") == 0) {
-        for (const xrdfs_cmd *h = COMMANDS; h->name != NULL; h++) {
-            printf("  %s\n", h->help);
-        }
-        printf("  cd <path> | pwd | help | exit\n");
-        return 0;
+    if (dispatch_builtin(cwd, cwdsz, ntok, tok, quit)) {
+        return 0;   /* all REPL builtins yield shell code 0 */
     }
 
     cmd = find_command(tok[0]);
     if (cmd == NULL) {
-        /*
-         * WHAT: build a NULL-terminated name array from COMMANDS[] and emit a
-         *       "did you mean?" hint on TTY stderr when brix_suggest() finds a
-         *       close match (Damerau-Levenshtein distance ≤ 2).
-         * WHY:  spec WS-7: unknown-subcommand error sites must emit a did-you-mean
-         *       hint for interactive users without polluting pipeline output (C3).
-         * HOW:  count COMMANDS entries first (bounded), build a stack VLA of name
-         *       pointers, terminate with NULL, then pass to brix_suggest().
-         */
-        int                  ncmds;
-        const char          *names[48 + 1]; /* COMMANDS has ≤ 47 entries */
-        const xrdfs_cmd     *h;
-        const char          *suggestion;
-
-        ncmds = 0;
-        for (h = COMMANDS; h->name != NULL && ncmds < 48; h++) {
-            names[ncmds++] = h->name;
-        }
-        names[ncmds] = NULL;
-
-        fprintf(stderr, "xrdfs: unknown command '%s'\n", tok[0]);
-        suggestion = brix_suggest(tok[0], names);
-        if (suggestion != NULL) {
-            brix_cli_hint("hint: did you mean '%s'?\n", suggestion);
-        }
+        dispatch_unknown(tok[0]);
         return 50;
     }
     /* <cmd> --help: print the one-line synopsis for this command. */
@@ -239,107 +264,236 @@ usage(void)
 }
 
 
-int
-main(int argc, char **argv)
+/*
+ * WHAT: outcome of the leading-option scan: how far argv was consumed, the
+ *       optional WebDAV bearer token, and whether an early-exit verb (--version/
+ *       --help/-h) already handled everything (with its exit code).
+ * WHY:  lets parse_global_opts() report all three back to main() without new
+ *       globals, so main() stays a thin driver.
+ */
+typedef struct {
+    int         argi;        /* index of the first non-option argv token   */
+    const char *web_token;   /* --token / -T bearer (NULL = env fallback)  */
+    int         done;        /* 1 = an early-exit verb fired; use exit_code */
+    int         exit_code;   /* process exit code when done == 1           */
+} xrdfs_optscan;
+
+/*
+ * WHAT: handle the early-exit option verbs (--version / --help / -h). Returns 1
+ *       (and prints) when a==one of them; 0 otherwise.
+ * WHY:  these three verbs terminate option parsing with side effects; pulling
+ *       them out keeps parse_global_opts()'s branch count under the gate.
+ * HOW:  --version/--help go to stdout (WS-2), -h keeps its stderr usage (C1).
+ */
+static int
+opt_early_exit(const char *a)
+{
+    if (strcmp(a, "--version") == 0) {
+        printf("xrdfs (BriX-Cache client) %s\n", brix_client_version());
+        return 1;
+    }
+    if (strcmp(a, "--help") == 0) {
+        usage_fp(stdout);    /* --help → stdout (WS-2) */
+        return 1;
+    }
+    if (strcmp(a, "-h") == 0) {
+        usage();             /* -h keeps existing stderr behavior (C1) */
+        return 1;
+    }
+    return 0;
+}
+
+
+/*
+ * WHAT: apply one two-argument option (--auth / --token|-T / --capture) at
+ *       sc->argi. Returns 1 when consumed (advancing argi by 2), 0 otherwise.
+ * WHY:  the value-flags carry the argi+1<argc guard and are the compound arms
+ *       of the ladder; isolating them keeps opt_apply_flag() under the gate.
+ * HOW:  each arm checks the token name and that a value follows, exactly as the
+ *       original inline loop did.
+ */
+static int
+opt_apply_valueflag(int argc, char **argv, brix_opts *opts, xrdfs_optscan *sc)
+{
+    char *a = argv[sc->argi];
+    if (strcmp(a, "--auth") == 0 && sc->argi + 1 < argc) {
+        opts->auth_force = argv[sc->argi + 1]; sc->argi += 2; return 1;
+    }
+    if ((strcmp(a, "--token") == 0 || strcmp(a, "-T") == 0)
+        && sc->argi + 1 < argc) {
+        sc->web_token = argv[sc->argi + 1]; sc->argi += 2; return 1;   /* http(s)/WebDAV bearer */
+    }
+    if (strcmp(a, "--capture") == 0 && sc->argi + 1 < argc) {
+        opts->capture = argv[sc->argi + 1]; sc->argi += 2; return 1;
+    }
+    return 0;
+}
+
+
+/*
+ * WHAT: apply one leading -/-- option token at sc->argi to *opts, advancing
+ *       sc->argi. Returns 1 when the token was a recognized option, 0 when it
+ *       is not an option we consume (caller stops the scan).
+ * WHY:  the flag ladder is the bulk of parse_global_opts()'s branches; keeping
+ *       the flag arms in helpers holds each function under the gate.
+ * HOW:  boolean flags handled inline here; two-arg flags delegate to
+ *       opt_apply_valueflag(). Relative order matches the original inline loop.
+ */
+static int
+opt_apply_flag(int argc, char **argv, brix_opts *opts, xrdfs_optscan *sc)
+{
+    char *a = argv[sc->argi];
+    if (strcmp(a, "--no-cwd") == 0)        { sc->argi++; return 1; }
+    if (strcmp(a, "--tls") == 0)           { opts->want_tls = 1; sc->argi++; return 1; }
+    if (strcmp(a, "--notlsok") == 0)       { opts->notlsok = 1; sc->argi++; return 1; }
+    if (strcmp(a, "--noverifyhost") == 0)  { opts->verify_host = 0; sc->argi++; return 1; }
+    if (opt_apply_valueflag(argc, argv, opts, sc)) { return 1; }
+    if (strcmp(a, "--wire-trace") == 0)      { opts->wire_trace = 1; sc->argi++; return 1; }
+    if (strncmp(a, "--wire-trace=", 13) == 0) { opts->wire_trace = atoi(a + 13); sc->argi++; return 1; }
+    if (strcmp(a, "--timing") == 0)          { opts->timing = 1; sc->argi++; return 1; }
+    if (strcmp(a, "--redirect-trace") == 0)  { opts->redir_trace = 1; sc->argi++; return 1; }
+    return 0;
+}
+
+
+/*
+ * WHAT: parse the leading -/-- options into *opts, advancing over argv.
+ * WHY:  the option ladder is the bulk of main()'s branch count; isolating it
+ *       drops main below the complexity gate with byte-identical behavior.
+ * HOW:  per token, try opt_early_exit() (terminates via sc->done) then
+ *       opt_apply_flag() (value flags); an unrecognized token stops the scan.
+ *       Order matches the original inline loop exactly.
+ */
+static void
+parse_global_opts(int argc, char **argv, brix_opts *opts, xrdfs_optscan *sc)
+{
+    sc->argi = 1;
+    sc->web_token = NULL;
+    sc->done = 0;
+    sc->exit_code = 0;
+
+    while (sc->argi < argc && argv[sc->argi][0] == '-'
+           && strcmp(argv[sc->argi], "-") != 0) {
+        if (opt_apply_flag(argc, argv, opts, sc)) {
+            continue;
+        }
+        if (opt_early_exit(argv[sc->argi])) {
+            sc->done = 1; sc->exit_code = 0;
+            return;
+        }
+        break;
+    }
+}
+
+
+/*
+ * WHAT: run an http(s)/WebDAV endpoint — no root:// session; serve read-only
+ *       metadata (ls, stat) over WebDAV PROPFIND, mirroring official xrdfs.
+ * WHY:  extracted from main() so each transport branch is its own unit; keeps
+ *       the WebDAV error strings and exit codes exactly as before.
+ * HOW:  parse the web URL, reject s3://, trim the export base, populate web_ctx,
+ *       require a command, then hand off to web_dispatch(). endpoint/opts are
+ *       passed in; args[] is the remaining argv slice.
+ */
+static int
+run_web_endpoint(const char *endpoint, const brix_opts *opts,
+                 const char *web_token, int nargs, char **args)
+{
+    brix_weburl wu;
+    char        base[XRDC_PATH_MAX];
+    size_t      bl;
+    web_ctx     w;
+
+    if (brix_weburl_parse(endpoint, &wu) != 0) {
+        fprintf(stderr, "xrdfs: bad web URL: %s\n", endpoint);
+        return 50;
+    }
+    if (wu.is_s3) {
+        fprintf(stderr, "xrdfs: s3:// endpoints are not supported "
+                        "(use http/https/dav/davs)\n");
+        return 50;
+    }
+    snprintf(base, sizeof(base), "%s", wu.path);   /* URL path = export base */
+    bl = strlen(base);
+    while (bl > 0 && base[bl - 1] == '/') {
+        base[--bl] = '\0';
+    }
+    w.u      = &wu;
+    w.base   = base;
+    w.bearer = web_token != NULL ? web_token : getenv("BEARER_TOKEN");
+    w.verify = opts->verify_host;
+    w.ca_dir = brix_resolve_ca_dir(NULL);
+    if (nargs <= 0) {
+        fprintf(stderr, "xrdfs: an http(s)/WebDAV endpoint needs a command "
+                        "(e.g. ls); the interactive shell is root:// only\n");
+        return 50;
+    }
+    return web_dispatch(&w, nargs, args);
+}
+
+
+/*
+ * WHAT: run a root:// endpoint — resolve the URL, connect, then either drop
+ *       into the interactive shell (no command) or dispatch one command.
+ * WHY:  extracted from main() so the root:// path is a single unit and main is
+ *       a thin driver; connect error strings + shell codes are unchanged.
+ * HOW:  endpoint_to_url → brix_connect_resilient → repl()/dispatch() → close.
+ *       nargs<=0 selects the REPL. opts is passed in; a private cwd is used.
+ */
+static int
+run_root_endpoint(const char *endpoint, brix_opts *opts, int nargs, char **args)
 {
     brix_url    u;
     brix_conn   c;
     brix_status st;
-    brix_opts   opts;
-    const char *endpoint;
-    const char *web_token = NULL;   /* --token / $BEARER_TOKEN for http(s)/WebDAV */
     char        cwd[XRDC_PATH_MAX] = "/";
-    int         argi = 1, rc;
-
-    memset(&opts, 0, sizeof(opts));
-    opts.verify_host = 1;
-    brix_crypto_init();   /* arm libxrdproto SHA-256/HMAC for GSI + sigver */
-
-    while (argi < argc && argv[argi][0] == '-' && strcmp(argv[argi], "-") != 0) {
-        if (strcmp(argv[argi], "--no-cwd") == 0)        { argi++; continue; }
-        if (strcmp(argv[argi], "--tls") == 0)           { opts.want_tls = 1; argi++; continue; }
-        if (strcmp(argv[argi], "--notlsok") == 0)       { opts.notlsok = 1; argi++; continue; }
-        if (strcmp(argv[argi], "--noverifyhost") == 0)  { opts.verify_host = 0; argi++; continue; }
-        if (strcmp(argv[argi], "--auth") == 0 && argi + 1 < argc) {
-            opts.auth_force = argv[argi + 1]; argi += 2; continue;
-        }
-        if ((strcmp(argv[argi], "--token") == 0 || strcmp(argv[argi], "-T") == 0)
-            && argi + 1 < argc) {
-            web_token = argv[argi + 1]; argi += 2; continue;   /* http(s)/WebDAV bearer */
-        }
-        if (strcmp(argv[argi], "--wire-trace") == 0)      { opts.wire_trace = 1; argi++; continue; }
-        if (strncmp(argv[argi], "--wire-trace=", 13) == 0) { opts.wire_trace = atoi(argv[argi] + 13); argi++; continue; }
-        if (strcmp(argv[argi], "--timing") == 0)          { opts.timing = 1; argi++; continue; }
-        if (strcmp(argv[argi], "--redirect-trace") == 0)  { opts.redir_trace = 1; argi++; continue; }
-        if (strcmp(argv[argi], "--capture") == 0 && argi + 1 < argc) { opts.capture = argv[argi + 1]; argi += 2; continue; }
-        if (strcmp(argv[argi], "--version") == 0) {
-            printf("xrdfs (BriX-Cache client) %s\n", brix_client_version());
-            return 0;
-        }
-        if (strcmp(argv[argi], "--help") == 0) {
-            usage_fp(stdout);    /* --help → stdout (WS-2) */
-            return 0;
-        }
-        if (strcmp(argv[argi], "-h") == 0) {
-            usage();             /* -h keeps existing stderr behavior (C1) */
-            return 0;
-        }
-        break;
-    }
-
-    if (argi >= argc) { usage(); return 50; }
-    endpoint = argv[argi++];
-
-    /* http(s)/WebDAV endpoint: no root:// session — serve read-only metadata
-     * (ls, stat) over WebDAV PROPFIND, mirroring the official xrdfs. */
-    if (brix_is_web_url(endpoint)) {
-        brix_weburl wu;
-        char        base[XRDC_PATH_MAX];
-        size_t      bl;
-        web_ctx     w;
-        if (brix_weburl_parse(endpoint, &wu) != 0) {
-            fprintf(stderr, "xrdfs: bad web URL: %s\n", endpoint);
-            return 50;
-        }
-        if (wu.is_s3) {
-            fprintf(stderr, "xrdfs: s3:// endpoints are not supported "
-                            "(use http/https/dav/davs)\n");
-            return 50;
-        }
-        snprintf(base, sizeof(base), "%s", wu.path);   /* URL path = export base */
-        bl = strlen(base);
-        while (bl > 0 && base[bl - 1] == '/') {
-            base[--bl] = '\0';
-        }
-        w.u      = &wu;
-        w.base   = base;
-        w.bearer = web_token != NULL ? web_token : getenv("BEARER_TOKEN");
-        w.verify = opts.verify_host;
-        w.ca_dir = brix_resolve_ca_dir(NULL);
-        if (argi >= argc) {
-            fprintf(stderr, "xrdfs: an http(s)/WebDAV endpoint needs a command "
-                            "(e.g. ls); the interactive shell is root:// only\n");
-            return 50;
-        }
-        return web_dispatch(&w, argc - argi, &argv[argi]);
-    }
+    int         rc;
 
     brix_status_clear(&st);
     if (endpoint_to_url(endpoint, &u, &st) != 0) {
         fprintf(stderr, "xrdfs: %s\n", st.msg);
         return 50;
     }
-    if (brix_connect_resilient(&c, &u, &opts, &st) != 0) {
+    if (brix_connect_resilient(&c, &u, opts, &st) != 0) {
         fprintf(stderr, "xrdfs: connect %s:%d: %s\n", u.host, u.port, st.msg);
         return brix_shellcode(&st);
     }
 
-    if (argi >= argc) {
+    if (nargs <= 0) {
         rc = repl(&c, u.host, u.port);   /* no command → interactive shell */
     } else {
-        rc = dispatch(&c, cwd, sizeof(cwd), argc - argi, &argv[argi], NULL);
+        rc = dispatch(&c, cwd, sizeof(cwd), nargs, args, NULL);
     }
 
     brix_close(&c);
     return rc;
+}
+
+
+int
+main(int argc, char **argv)
+{
+    brix_opts     opts;
+    xrdfs_optscan sc = {0};
+    const char   *endpoint;
+
+    memset(&opts, 0, sizeof(opts));
+    opts.verify_host = 1;
+    brix_crypto_init();   /* arm libxrdproto SHA-256/HMAC for GSI + sigver */
+
+    parse_global_opts(argc, argv, &opts, &sc);
+    if (sc.done) {
+        return sc.exit_code;
+    }
+
+    if (sc.argi >= argc) { usage(); return 50; }
+    endpoint = argv[sc.argi++];
+
+    /* http(s)/WebDAV endpoint: no root:// session (read-only metadata). */
+    if (brix_is_web_url(endpoint)) {
+        return run_web_endpoint(endpoint, &opts, sc.web_token,
+                                argc - sc.argi, &argv[sc.argi]);
+    }
+
+    return run_root_endpoint(endpoint, &opts, argc - sc.argi, &argv[sc.argi]);
 }

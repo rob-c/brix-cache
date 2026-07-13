@@ -83,19 +83,38 @@ typedef struct {
     int                         oom;
 } scan_walk_ctx_t;
 
+/*
+ * WHAT: per-file action context — the walk cookie plus the one file the action
+ *       is currently building a record for (its display path, stat facts, and
+ *       read-only fd) and the caller's output line buffer.
+ * WHY:  every mode action threads the identical (walk-state, this-file, output)
+ *       triple; bundling it keeps each action at ≤ 2 params (ctx + info out)
+ *       and makes the shared data flow explicit instead of a wide argument list.
+ * HOW:  scan_walk_file fills one on the stack per file and hands its address to
+ *       the selected action; the action never mutates it, only reads.
+ */
+typedef struct {
+    scan_walk_ctx_t *cc;
+    const char       *logical;   /* clean display path for this file           */
+    off_t             size;
+    time_t            mtime;
+    int               fd;        /* read-only fd from the walk                 */
+    char             *line;      /* output record buffer                       */
+    size_t            linesz;
+} scan_action_ctx_t;
+
 /* Look up the stored (cached) checksum without computing. Returns the hex on a
  * cache hit (into `info`), or NULL on miss. */
 static const char *
-scan_stored(scan_walk_ctx_t *cc, int fd, const char *logical,
-            brix_integrity_info_t *info)
+scan_stored(scan_action_ctx_t *a, brix_integrity_info_t *info)
 {
     brix_integrity_opts_t io;
 
     ngx_memzero(&io, sizeof(io));
     io.allow_xattr_cache = 1;
     io.no_compute = 1;
-    if (brix_integrity_get_fd(cc->log, fd, NULL, logical, cc->opts->alg,
-                                &io, info) == NGX_OK)
+    if (brix_integrity_get_fd(a->cc->log, a->fd, NULL, a->logical,
+                                a->cc->opts->alg, &io, info) == NGX_OK)
     {
         return info->hex;
     }
@@ -104,23 +123,22 @@ scan_stored(scan_walk_ctx_t *cc, int fd, const char *logical,
 
 /* dump / compare: emit stored checksum (or null), never read bytes. */
 static int
-scan_action_dump(scan_walk_ctx_t *cc, const char *logical, off_t size,
-                 time_t mtime, int fd, char *line, size_t linesz)
+scan_action_dump(scan_action_ctx_t *a)
 {
     brix_integrity_info_t info;
-    const char             *stored = scan_stored(cc, fd, logical, &info);
+    const char             *stored = scan_stored(a, &info);
     int                     n;
 
-    n = brix_scan_record_file(line, linesz, logical, (int64_t) size,
-                                (int64_t) mtime, cc->opts->alg, stored, NULL, "ok");
-    cc->sum->ok++;
+    n = brix_scan_record_file(a->line, a->linesz, a->logical, (int64_t) a->size,
+                                (int64_t) a->mtime, a->cc->opts->alg, stored,
+                                NULL, "ok");
+    a->cc->sum->ok++;
     return n;
 }
 
 /* verify: recompute and compare to stored. */
 static int
-scan_action_verify(scan_walk_ctx_t *cc, const char *logical, off_t size,
-                   time_t mtime, int fd, char *line, size_t linesz)
+scan_action_verify(scan_action_ctx_t *a)
 {
     brix_integrity_info_t stored_info, comp_info;
     const char             *stored;
@@ -129,7 +147,7 @@ scan_action_verify(scan_walk_ctx_t *cc, const char *logical, off_t size,
     const char             *computed = NULL;
     char                    stored_copy[129];
 
-    stored = scan_stored(cc, fd, logical, &stored_info);
+    stored = scan_stored(a, &stored_info);
     if (stored != NULL) {
         ngx_memcpy(stored_copy, stored, ngx_strlen(stored) + 1);
         stored = stored_copy;   /* survive the second get_fd's info reuse */
@@ -138,68 +156,67 @@ scan_action_verify(scan_walk_ctx_t *cc, const char *logical, off_t size,
     ngx_memzero(&io, sizeof(io));
     io.allow_xattr_cache = 0;   /* force a fresh compute over the bytes */
     io.no_compute = 0;
-    if (brix_integrity_get_fd(cc->log, fd, NULL, logical, cc->opts->alg,
-                                &io, &comp_info) != NGX_OK)
+    if (brix_integrity_get_fd(a->cc->log, a->fd, NULL, a->logical,
+                                a->cc->opts->alg, &io, &comp_info) != NGX_OK)
     {
         status = "unreadable";
-        cc->sum->unreadable++;
+        a->cc->sum->unreadable++;
     } else {
         computed = comp_info.hex;
-        cc->sum->bytes += (uint64_t) size;
+        a->cc->sum->bytes += (uint64_t) a->size;
         if (stored == NULL) {
             status = "missing";
-            cc->sum->missing++;
+            a->cc->sum->missing++;
         } else if (strcasecmp(stored, computed) == 0) {
             status = "ok";
-            cc->sum->ok++;
+            a->cc->sum->ok++;
         } else {
             status = "mismatch";
-            cc->sum->mismatch++;
+            a->cc->sum->mismatch++;
         }
     }
-    return brix_scan_record_file(line, linesz, logical, (int64_t) size,
-                                   (int64_t) mtime, cc->opts->alg, stored,
-                                   computed, status);
+    return brix_scan_record_file(a->line, a->linesz, a->logical,
+                                   (int64_t) a->size, (int64_t) a->mtime,
+                                   a->cc->opts->alg, stored, computed, status);
 }
 
 /* fill: persist a checksum only when none is stored. */
 static int
-scan_action_fill(scan_walk_ctx_t *cc, const char *logical, off_t size,
-                 time_t mtime, int fd, char *line, size_t linesz)
+scan_action_fill(scan_action_ctx_t *a)
 {
     brix_integrity_info_t info;
     brix_integrity_opts_t io;
     const char             *status;
     const char             *stored;
 
-    stored = scan_stored(cc, fd, logical, &info);
+    stored = scan_stored(a, &info);
     if (stored != NULL) {
         status = "already";
-        cc->sum->already++;
-        return brix_scan_record_file(line, linesz, logical, (int64_t) size,
-                                       (int64_t) mtime, cc->opts->alg, stored,
-                                       NULL, status);
+        a->cc->sum->already++;
+        return brix_scan_record_file(a->line, a->linesz, a->logical,
+                                       (int64_t) a->size, (int64_t) a->mtime,
+                                       a->cc->opts->alg, stored, NULL, status);
     }
 
     ngx_memzero(&io, sizeof(io));
     io.allow_xattr_cache = 1;   /* required alongside update for the persist path */
     io.update_xattr_cache = 1;
     io.no_compute = 0;
-    if (brix_integrity_get_fd(cc->log, fd, NULL, logical, cc->opts->alg,
-                                &io, &info) != NGX_OK)
+    if (brix_integrity_get_fd(a->cc->log, a->fd, NULL, a->logical,
+                                a->cc->opts->alg, &io, &info) != NGX_OK)
     {
         status = "unreadable";
         stored = NULL;
-        cc->sum->unreadable++;
+        a->cc->sum->unreadable++;
     } else {
         status = "filled";
         stored = info.hex;
-        cc->sum->filled++;
-        cc->sum->bytes += (uint64_t) size;
+        a->cc->sum->filled++;
+        a->cc->sum->bytes += (uint64_t) a->size;
     }
-    return brix_scan_record_file(line, linesz, logical, (int64_t) size,
-                                   (int64_t) mtime, cc->opts->alg, stored,
-                                   NULL, status);
+    return brix_scan_record_file(a->line, a->linesz, a->logical,
+                                   (int64_t) a->size, (int64_t) a->mtime,
+                                   a->cc->opts->alg, stored, NULL, status);
 }
 
 /* inspect (A2): per-file backend introspection. The scan endpoint walks the
@@ -207,15 +224,14 @@ scan_action_fill(scan_walk_ctx_t *cc, const char *logical, off_t size,
  * "posix" and namespace==backend by construction; the driver-bound view
  * (Ceph object key, cluster facts) is a Phase-4 prerequisite. */
 static int
-scan_action_inspect(scan_walk_ctx_t *cc, const char *logical, off_t size,
-                    time_t mtime, int fd, char *line, size_t linesz)
+scan_action_inspect(scan_action_ctx_t *a)
 {
     brix_integrity_info_t info;
-    const char             *stored = scan_stored(cc, fd, logical, &info);
+    const char             *stored = scan_stored(a, &info);
 
-    cc->sum->ok++;
-    return brix_scan_record_inspect(line, linesz, logical, "posix",
-                                      (int64_t) size, (int64_t) mtime,
+    a->cc->sum->ok++;
+    return brix_scan_record_inspect(a->line, a->linesz, a->logical, "posix",
+                                      (int64_t) a->size, (int64_t) a->mtime,
                                       stored != NULL ? "xattr" : "none",
                                       1 /* posix: namespace == backend */);
 }
@@ -227,12 +243,11 @@ scan_action_inspect(scan_walk_ctx_t *cc, const char *logical, off_t size,
  * instead — the seam is in place; threading a bound instance into the endpoint is
  * the Ceph follow-on. */
 static int
-scan_action_inventory(scan_walk_ctx_t *cc, const char *logical, off_t size,
-                      time_t mtime, char *line, size_t linesz)
+scan_action_inventory(scan_action_ctx_t *a)
 {
-    cc->sum->ok++;
-    return brix_scan_record_object(line, linesz, logical, logical,
-                                     (int64_t) size, (int64_t) mtime, 0);
+    a->cc->sum->ok++;
+    return brix_scan_record_object(a->line, a->linesz, a->logical, a->logical,
+                                     (int64_t) a->size, (int64_t) a->mtime, 0);
 }
 
 /* drift (D2): one "drift" record per entry. Over a namespace walk the catalog and
@@ -240,54 +255,58 @@ scan_action_inventory(scan_walk_ctx_t *cc, const char *logical, off_t size,
  * arise only when a native catalog verb (brix_vfs_enumerate_catalog) supplies a
  * backend-object set to reconcile against (scan_drift) — the Ceph follow-on. */
 static int
-scan_action_drift(scan_walk_ctx_t *cc, const char *logical, off_t size,
-                  time_t mtime, char *line, size_t linesz)
+scan_action_drift(scan_action_ctx_t *a)
 {
-    (void) mtime;
-    cc->sum->ok++;
-    return brix_scan_record_drift(line, linesz, logical, logical, "in_both",
-                                    (int64_t) size);
+    a->cc->sum->ok++;
+    return brix_scan_record_drift(a->line, a->linesz, a->logical, a->logical,
+                                    "in_both", (int64_t) a->size);
+}
+
+/* Run the mode's per-file action against the assembled action context. Split out
+ * so scan_walk_file stays a thin fill-and-append shell around the dispatch. */
+static int
+scan_dispatch_action(scan_action_ctx_t *a)
+{
+    switch (a->cc->opts->mode) {
+    case BRIX_SCAN_VERIFY:
+        return scan_action_verify(a);
+    case BRIX_SCAN_FILL:
+        return scan_action_fill(a);
+    case BRIX_SCAN_INSPECT:
+        return scan_action_inspect(a);
+    case BRIX_SCAN_INVENTORY:
+        return scan_action_inventory(a);
+    case BRIX_SCAN_DRIFT:
+        return scan_action_drift(a);
+    case BRIX_SCAN_DUMP:
+    case BRIX_SCAN_COMPARE:
+    default:
+        return scan_action_dump(a);
+    }
 }
 
 static ngx_int_t
 scan_walk_file(void *cookie, const char *logical, const brix_vfs_stat_t *st,
                int fd)
 {
-    scan_walk_ctx_t *cc = cookie;
-    char             line[SCAN_LINE_MAX];
-    char             disp[PATH_MAX];
-    int              n;
+    scan_walk_ctx_t  *cc = cookie;
+    scan_action_ctx_t a;
+    char              line[SCAN_LINE_MAX];
+    char              disp[PATH_MAX];
+    int               n;
 
     scan_display_path(logical, disp, sizeof(disp));
 
-    switch (cc->opts->mode) {
-    case BRIX_SCAN_VERIFY:
-        n = scan_action_verify(cc, disp, st->size, st->mtime, fd, line,
-                               sizeof(line));
-        break;
-    case BRIX_SCAN_FILL:
-        n = scan_action_fill(cc, disp, st->size, st->mtime, fd, line,
-                             sizeof(line));
-        break;
-    case BRIX_SCAN_INSPECT:
-        n = scan_action_inspect(cc, disp, st->size, st->mtime, fd, line,
-                                sizeof(line));
-        break;
-    case BRIX_SCAN_INVENTORY:
-        n = scan_action_inventory(cc, disp, st->size, st->mtime, line,
-                                  sizeof(line));
-        break;
-    case BRIX_SCAN_DRIFT:
-        n = scan_action_drift(cc, disp, st->size, st->mtime, line,
-                              sizeof(line));
-        break;
-    case BRIX_SCAN_DUMP:
-    case BRIX_SCAN_COMPARE:
-    default:
-        n = scan_action_dump(cc, disp, st->size, st->mtime, fd, line,
-                             sizeof(line));
-        break;
-    }
+    ngx_memzero(&a, sizeof(a));
+    a.cc = cc;
+    a.logical = disp;
+    a.size = st->size;
+    a.mtime = st->mtime;
+    a.fd = fd;
+    a.line = line;
+    a.linesz = sizeof(line);
+
+    n = scan_dispatch_action(&a);
 
     if (n < 0) {
         return NGX_OK;   /* path too long to format — soft skip */
@@ -435,6 +454,24 @@ typedef struct {
     int                     oom;
 } scan_verify_ctx_t;
 
+/*
+ * WHAT: per-object context for the catalog-verify action — the enumeration
+ *       cookie plus the one OPEN driver object being verified and the caller's
+ *       output line buffer.
+ * WHY:  mirrors scan_action_ctx_t on the POSIX walk side; keeps the verify
+ *       record builder at ≤ 5 params with the shared state passed explicitly.
+ * HOW:  scan_catalog_verify_one fills one on the stack after a successful
+ *       driver open and hands its address to scan_verify_obj_record.
+ */
+typedef struct {
+    scan_verify_ctx_t             *cc;
+    const char                     *logical;   /* recovered logical path      */
+    const brix_sd_catalog_ent_t  *ent;        /* enumeration entry (stat)    */
+    brix_sd_obj_t                *obj;        /* OPEN driver object (fd = -1)*/
+    char                           *line;      /* output record buffer        */
+    size_t                          linesz;
+} scan_verify_obj_ctx_t;
+
 /* Build one verify "file" record for an OPEN catalog object: read the stored
  * XrdCks value (xattr, no byte read), recompute over the object's bytes, compare.
  * Reuses the integrity layer exactly as the POSIX verify path does — the only
@@ -442,23 +479,22 @@ typedef struct {
  * the recompute reads through obj->driver->pread (which, for Ceph, reassembles
  * the libradosstriper layout → byte-identical to stock XrdCeph). */
 static int
-scan_verify_obj_record(scan_verify_ctx_t *cc, const char *logical,
-    const brix_sd_catalog_ent_t *ent, brix_sd_obj_t *obj,
-    char *line, size_t linesz)
+scan_verify_obj_record(scan_verify_obj_ctx_t *v)
 {
+    scan_verify_ctx_t     *cc = v->cc;
     brix_integrity_info_t stored_info, comp_info;
     brix_integrity_opts_t io;
     const char             *stored = NULL;
     const char             *computed = NULL;
     const char             *status;
     char                    stored_copy[129];
-    int64_t                 size = ent->have_stat ? (int64_t) ent->size : 0;
-    int64_t                 mtime = ent->have_stat ? (int64_t) ent->mtime : 0;
+    int64_t                 size = v->ent->have_stat ? (int64_t) v->ent->size : 0;
+    int64_t                 mtime = v->ent->have_stat ? (int64_t) v->ent->mtime : 0;
 
     ngx_memzero(&io, sizeof(io));
     io.allow_xattr_cache = 1;
     io.no_compute = 1;                    /* stored value only — no byte read */
-    if (brix_integrity_get_fd(cc->log, -1, obj, logical, cc->alg, &io,
+    if (brix_integrity_get_fd(cc->log, -1, v->obj, v->logical, cc->alg, &io,
                                 &stored_info) == NGX_OK)
     {
         ngx_memcpy(stored_copy, stored_info.hex, ngx_strlen(stored_info.hex) + 1);
@@ -468,7 +504,7 @@ scan_verify_obj_record(scan_verify_ctx_t *cc, const char *logical,
     ngx_memzero(&io, sizeof(io));
     io.allow_xattr_cache = 0;             /* force a fresh compute over the bytes */
     io.no_compute = 0;
-    if (brix_integrity_get_fd(cc->log, -1, obj, logical, cc->alg, &io,
+    if (brix_integrity_get_fd(cc->log, -1, v->obj, v->logical, cc->alg, &io,
                                 &comp_info) != NGX_OK)
     {
         status = "unreadable";
@@ -487,7 +523,7 @@ scan_verify_obj_record(scan_verify_ctx_t *cc, const char *logical,
             cc->sum->mismatch++;
         }
     }
-    return brix_scan_record_file(line, linesz, logical, size, mtime,
+    return brix_scan_record_file(v->line, v->linesz, v->logical, size, mtime,
                                    cc->alg, stored, computed, status);
 }
 
@@ -512,7 +548,16 @@ scan_catalog_verify_one(void *ctx, const brix_sd_catalog_ent_t *ent)
                                     ent->have_stat ? (int64_t) ent->mtime : 0,
                                     cc->alg, NULL, NULL, "unreadable");
     } else {
-        n = scan_verify_obj_record(cc, logical, ent, obj, line, sizeof(line));
+        scan_verify_obj_ctx_t v;
+
+        ngx_memzero(&v, sizeof(v));
+        v.cc = cc;
+        v.logical = logical;
+        v.ent = ent;
+        v.obj = obj;
+        v.line = line;
+        v.linesz = sizeof(line);
+        n = scan_verify_obj_record(&v);
         (void) cc->sd->driver->close(obj);
     }
 

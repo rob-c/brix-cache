@@ -30,6 +30,15 @@ brix_vfs_truncate(brix_vfs_file_t *fh, off_t length)
         return NGX_ERROR;
     }
 
+    /* phase-71: capability gate — a backend without CAP_TRUNCATE rejects resize
+     * uniformly rather than issuing an ftruncate the driver cannot honor. */
+    if (fh->obj.driver != NULL
+        && !(fh->obj.driver->caps & BRIX_SD_CAP_TRUNCATE))
+    {
+        errno = ENOTSUP;
+        return NGX_ERROR;
+    }
+
     brix_vfs_job_truncate_init(&job, fh->obj.fd, length);
     brix_vfs_io_execute(&job);
     if (job.io_errno != 0) {

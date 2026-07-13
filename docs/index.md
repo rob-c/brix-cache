@@ -216,6 +216,7 @@ graph TD
 | [Capacity Planning](05-operations/capacity-planning.md) | Sizing workers/connections/FDs, thread pool, SHM zones, transfer budget |
 | [Certificate & Token Rotation](05-operations/certificate-rotation.md) | Hot-reload of JWKS/CRL/authdb + graceful host-cert roll without dropping requests |
 | [Upgrade Procedure](05-operations/upgrade-procedure.md) | RPM upgrade/rollback, the 2-`.so` module-load order, libbz2 SONAME caveat |
+| [Remote-host test suite](05-operations/remote-host-test-suite.md) | Install the RPMs on a fresh host + run the pytest fleet — source build vs. shipped `.so`, with the `load_module` injection |
 
 ### Observability & Monitoring
 *Every request lands in a counter. Here's how to read them.*

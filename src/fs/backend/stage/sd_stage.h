@@ -30,7 +30,8 @@
 #include <ngx_core.h>
 
 #include "fs/backend/sd.h"
-#include "fs/tier/tier.h"   /* brix_stage_policy_t */
+#include "fs/tier/tier.h"         /* brix_stage_policy_t */
+#include "fs/xfer/stage_engine.h" /* brix_stage_cred_t (reflush cred param)   */
 
 /* Wrap `source` in a write-stage decorator buffering staged writes on the `store`
  * instance, with `policy` (flush sync/async; copied; NULL = a default sync flush).
@@ -57,7 +58,10 @@ brix_sd_instance_t *brix_sd_stage_store_instance(
     const brix_sd_instance_t *inst);
 
 /* SP4 restart-reconcile: re-flush durable staged object `key` (stage store ->
- * backend) and drop the stage copy. NGX_OK / NGX_DECLINED / NGX_ERROR. */
-ngx_int_t brix_sd_stage_reflush(brix_sd_instance_t *inst, const char *key);
+ * backend) and drop the stage copy.  `cred` carries the owner identity so a
+ * restart-reconcile can authenticate as the original user; NULL uses the service
+ * credential.  NGX_OK / NGX_DECLINED / NGX_ERROR. */
+ngx_int_t brix_sd_stage_reflush(brix_sd_instance_t *inst, const char *key,
+    const brix_stage_cred_t *cred);
 
 #endif /* BRIX_SD_STAGE_H */

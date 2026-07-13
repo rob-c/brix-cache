@@ -233,6 +233,15 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       offsetof(ngx_http_brix_webdav_loc_conf_t, tape_rest),
       NULL },
 
+    /* Phase-2 Task 8: opt-in proxy-upload delegation endpoint (default off).
+     * See delegation.c / webdav.h delegation_endpoint. */
+    { ngx_string("brix_delegation_endpoint"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_webdav_loc_conf_t, delegation_endpoint),
+      NULL },
+
     { ngx_string("brix_webdav_tpc_allow_local"),
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
@@ -316,6 +325,13 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       ngx_conf_set_num_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_webdav_loc_conf_t, tpc_max_streams),
+      NULL },
+
+    { ngx_string("brix_webdav_tpc_credential_forward"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_webdav_loc_conf_t, tpc_credential_forward),
       NULL },
 
     { ngx_string("brix_webdav_tpc_token_endpoint"),

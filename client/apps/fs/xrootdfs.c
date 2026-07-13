@@ -245,16 +245,282 @@ usage(void)
 }
 
 
+/* WHAT: consume one value-less command-line flag (boolean toggles).
+ * WHY:  keeps the arg loop flat — each option family is one small matcher
+ *       instead of a single branch ladder (phase-72 H3 decomposition).
+ * HOW:  strcmp over the flag names, setting the matching global; returns 1
+ *       when `a` was one of ours, 0 to let the caller keep matching. */
+static int
+aio_opt_novalue(const char *a)
+{
+    if (strcmp(a, "--tls") == 0)          { g_opts.want_tls = 1;    return 1; }
+    if (strcmp(a, "--notlsok") == 0)      { g_opts.notlsok = 1;     return 1; }
+    if (strcmp(a, "--noverifyhost") == 0) { g_opts.verify_host = 0; return 1; }
+    if (strcmp(a, "--lazy-streams") == 0) { g_lazy_streams = 1;     return 1; }
+    if (strcmp(a, "--kernel-cache") == 0) { g_kernel_cache = 1;     return 1; }
+    if (strcmp(a, "--xattr") == 0)        { g_xattr = 1;            return 1; }
+    return 0;
+}
+
+
+/* WHAT: consume one connection/resilience option that takes a value.
+ * WHY:  splits the value-option ladder in two so each stays under the
+ *       complexity gate; clamping (floors) is preserved verbatim.
+ * HOW:  `v` is the next argv word (caller guarantees it exists and advances
+ *       past it on a hit); returns 1 when `a` was consumed. */
+static int
+aio_opt_conn_value(const char *a, char *v)
+{
+    if (strcmp(a, "--auth") == 0) { g_opts.auth_force = v; return 1; }
+    if (strcmp(a, "--max-conns") == 0) {
+        g_max_conns = atoi(v);
+        if (g_max_conns < 1) { g_max_conns = 1; }
+        return 1;
+    }
+    if (strcmp(a, "--streams") == 0) {
+        g_streams = atoi(v);
+        if (g_streams < 1) { g_streams = 1; }
+        return 1;
+    }
+    if (strcmp(a, "--max-stall") == 0) {
+        g_max_stall = atoi(v);
+        if (g_max_stall < 0) { g_max_stall = 0; }
+        return 1;
+    }
+    if (strcmp(a, "--keepalive") == 0) {
+        g_keepalive = atoi(v);
+        if (g_keepalive < 0) { g_keepalive = 0; }
+        return 1;
+    }
+    if (strcmp(a, "--max-retries") == 0) {
+        g_max_retries = atoi(v);
+        if (g_max_retries < 0) { g_max_retries = 0; }
+        return 1;
+    }
+    if (strcmp(a, "--connect-timeout") == 0) { brix_tmo_set_connect_ms(atoi(v)); return 1; }
+    if (strcmp(a, "--io-timeout") == 0)      { brix_tmo_set_io_ms(atoi(v));      return 1; }
+    return 0;
+}
+
+
+/* WHAT: consume one caching/auth option that takes a value.
+ * WHY:  second half of the value-option split (see aio_opt_conn_value).
+ * HOW:  same contract — `v` is the next argv word; returns 1 on a hit. */
+static int
+aio_opt_cache_value(const char *a, char *v)
+{
+    if (strcmp(a, "--attr-timeout") == 0)  { g_attr_timeout = atof(v);  return 1; }
+    if (strcmp(a, "--entry-timeout") == 0) { g_entry_timeout = atof(v); return 1; }
+    if (strcmp(a, "--readahead") == 0) {
+        long n = atol(v);
+        g_readahead = (n > 0) ? (size_t) n : 0;
+        return 1;
+    }
+    if (strcmp(a, "--writeback") == 0) {
+        long n = atol(v);
+        g_writeback = (n > 0) ? (size_t) n : 0;
+        return 1;
+    }
+    if (strcmp(a, "--compress") == 0) {
+        snprintf(g_compress, sizeof(g_compress), "%s", v);
+        return 1;
+    }
+    if (strcmp(a, "--token") == 0) { g_bearer = v; return 1; }
+    return 0;
+}
+
+
+/* WHAT: split the command line into our options, the endpoint, and the
+ *       libfuse passthrough vector.
+ * WHY:  our known options are honored ANYWHERE on the line (before OR after
+ *       the endpoint), so a resilience flag placed after the URL is honored
+ *       rather than silently leaking to libfuse. Unknown dash-args fall
+ *       through to the fuse passthrough (so -f/-d/-s/-o still work); the
+ *       first bare word is the endpoint, the next the mountpoint.
+ * HOW:  value options are only matched when a next word exists (a trailing
+ *       `--token` passes through to fuse, exactly as before). Returns -1 to
+ *       proceed with the mount, or a process exit code (--version/--help/-h
+ *       inside the line exit immediately with 0). */
+static int
+aio_parse_args(int argc, char **argv, char **fuse_argv, int *fuse_argc,
+               const char **endpoint)
+{
+    int i;
+
+    for (i = 1; i < argc; i++) {
+        char *a = argv[i];
+        if (a[0] == '-') {
+            if (aio_opt_novalue(a)) { continue; }
+            if (i + 1 < argc && aio_opt_conn_value(a, argv[i + 1]))  { i++; continue; }
+            if (i + 1 < argc && aio_opt_cache_value(a, argv[i + 1])) { i++; continue; }
+            if (strcmp(a, "--version") == 0) {
+                printf("xrootdfs (BriX-Cache client) %s\n", brix_client_version());
+                return 0;
+            }
+            if (strcmp(a, "--help") == 0) { usage_fp(stdout); return 0; }  /* WS-2 */
+            if (strcmp(a, "-h") == 0)     { usage();          return 0; }  /* C1 */
+            if (*fuse_argc < 61) { fuse_argv[(*fuse_argc)++] = argv[i]; }  /* fuse opt */
+        } else if (*endpoint == NULL) {
+            *endpoint = a;
+        } else if (*fuse_argc < 61) {
+            fuse_argv[(*fuse_argc)++] = argv[i];
+        }
+    }
+    return -1;
+}
+
+
+/* WHAT: set the export base (g_base) from a URL path component.
+ * WHY:  shared by BOTH transports — the mount roots at the URL's /base
+ *       subtree; srv_path() prepends it to every FUSE path.
+ * HOW:  copy then trim trailing '/'; "/" or "" → empty base (verbatim FUSE
+ *       paths). */
+static void
+aio_set_base(const char *path)
+{
+    size_t bl;
+
+    snprintf(g_base, sizeof(g_base), "%s", path);
+    bl = strlen(g_base);
+    while (bl > 0 && g_base[bl - 1] == '/') {
+        g_base[--bl] = '\0';
+    }
+}
+
+
+/* WHAT: mount an HTTP(S)/WebDAV endpoint (read-only, ranged GET).
+ * WHY:  isolates the whole web transport bring-up (URL parse, bearer/TLS
+ *       policy, reachability probe) from the root:// path in main.
+ * HOW:  parse + validate the web URL, derive the export base, stat the
+ *       export root up front (fail the mount early if unreachable/denied),
+ *       then hand off to fuse_main. Returns the process exit code. */
+static int
+aio_web_mount(int fuse_argc, char **fuse_argv, const char *endpoint)
+{
+    brix_status   st;
+    brix_statinfo si;
+
+    brix_status_clear(&st);
+    if (brix_weburl_parse(endpoint, &g_weburl) != 0) {
+        fprintf(stderr, "xrootdfs: bad web URL: %s\n", endpoint);
+        return 2;
+    }
+    if (g_weburl.is_s3) {
+        fprintf(stderr, "xrootdfs: s3:// is not supported as a FUSE mount "
+                        "(use http/https/dav/davs)\n");
+        return 2;
+    }
+    g_web = 1;
+    if (g_bearer == NULL) {
+        g_bearer = getenv("BEARER_TOKEN");
+    }
+    g_web_verify = g_opts.verify_host;
+    g_web_ca = brix_resolve_ca_dir(g_opts.ca_dir);
+    /* export base = the URL path, trailing '/' trimmed; "/" → "" (verbatim). */
+    aio_set_base(g_weburl.path);
+    /* fail the mount up front if the export root is unreachable/denied. */
+    if (brix_web_stat(&g_weburl, g_base[0] ? g_base : "/", g_bearer,
+                      g_web_verify, g_web_ca, &si, &st) != 0) {
+        fprintf(stderr, "xrootdfs: %s://%s:%d%s: %s\n",
+                g_weburl.tls ? "https" : "http", g_weburl.host, g_weburl.port,
+                g_weburl.path, st.msg);
+        return brix_shellcode(&st);
+    }
+    fprintf(stderr,
+            "xrootdfs: mounted %s:%d via %s%s (read-only WebDAV; "
+            "verify=%d, auth=%s)\n",
+            g_weburl.host, g_weburl.port, g_weburl.tls ? "HTTPS" : "HTTP",
+            g_base, g_web_verify, g_bearer ? "bearer" : "anon");
+    return fuse_main(fuse_argc, fuse_argv, &xfs_ops, NULL);
+}
+
+
+/* WHAT: probe the server's vendor POSIX extensions (kXR_Qconfig "xrdfs.ext")
+ *       once at mount.
+ * WHY:  utimens/chown/symlink/readlink/link adapt to what is advertised;
+ *       absent capabilities keep the honest fallbacks.
+ * HOW:  checkout a pooled metadata connection, probe, and check it back in
+ *       (unhealthy on a probe failure that severed the link). */
+static void
+aio_probe_ext(brix_status *st)
+{
+    brix_conn *pc = brix_pool_checkout(g_pool, st);
+
+    if (pc != NULL) {
+        int ok = (brix_ext_probe(pc, &g_ext_setattr, &g_ext_symlink,
+                                 &g_ext_readlink, &g_ext_link, st) == 0);
+        brix_pool_checkin(g_pool, pc, ok ? 1 : xfs_conn_healthy(st));
+    }
+}
+
+
+/* WHAT: mount a root[s]:// endpoint (binary XRootD; read-write, resilient).
+ * WHY:  isolates the async-driver bring-up (metadata pool + data-stream
+ *       manager + extension probe) and its teardown ordering from main.
+ * HOW:  parse the endpoint, derive the export base, create the pool then the
+ *       manager (destroyed in reverse order after fuse_main returns), probe
+ *       extensions, run fuse. Returns the process exit code. */
+static int
+aio_root_mount(int fuse_argc, char **fuse_argv, const char *endpoint)
+{
+    brix_status st;
+    int         rc;
+
+    brix_status_clear(&st);
+    if (brix_endpoint_parse(endpoint, &g_url, &st) != 0) {
+        fprintf(stderr, "xrootdfs: %s\n", st.msg);
+        return 2;
+    }
+
+    /* Export base = the URL path component (root://host/data → "/data"), so the
+     * mount roots at that subtree.  Trailing '/' trimmed; a bare host (path "/" or
+     * empty) → verbatim FUSE paths.  Shared with the web transport via srv_path(). */
+    aio_set_base((g_url.path[0] == '/') ? g_url.path : "");
+
+    g_pool = brix_pool_create(&g_url, &g_opts, g_max_conns, &st);
+    if (g_pool == NULL) {
+        fprintf(stderr, "xrootdfs: connect %s:%d: %s\n",
+                g_url.host, g_url.port, st.msg);
+        return brix_shellcode(&st);
+    }
+    /* Default: connect all data streams up front (in parallel — ~1×RTT mount).
+     * --lazy-streams trades first-read warm-up for the lowest possible mount
+     * latency by bringing up just one stream now and the rest on demand. */
+    g_mgr = brix_mgr_create(&g_url, &g_opts, g_streams,
+                            g_lazy_streams ? 1 : g_streams,
+                            g_max_stall, g_keepalive, g_max_retries, &st);
+    if (g_mgr == NULL) {
+        fprintf(stderr, "xrootdfs: async manager: %s\n", st.msg);
+        brix_pool_destroy(g_pool);
+        return brix_shellcode(&st);
+    }
+
+    aio_probe_ext(&st);
+
+    fprintf(stderr,
+            "xrootdfs: mounted %s:%d (meta-pool=%d, data-streams=%d, "
+            "max-stall=%dms; network-resilient; ext: setattr=%d symlink=%d "
+            "readlink=%d link=%d)\n",
+            g_url.host, g_url.port, g_max_conns, g_streams, g_max_stall,
+            g_ext_setattr, g_ext_symlink, g_ext_readlink, g_ext_link);
+
+    rc = fuse_main(fuse_argc, fuse_argv, &xfs_ops, NULL);
+
+    brix_mgr_destroy(g_mgr);
+    brix_pool_destroy(g_pool);
+    return rc;
+}
+
+
 /* Entry point for the default (async/resilient) driver. Invoked by the unified
  * xrootdfs front-end (apps/xrootdfs_main.c); see xrootdfs_drivers.h. */
 int
 xrootdfs_aio_main(int argc, char **argv)
 {
-    brix_status st;
     const char *endpoint = NULL;
     char       *fuse_argv[64];
     int         fuse_argc = 0;
-    int         i, rc;
+    int         rc;
 
     /* Check --version / --help before the argc < 3 guard so they work standalone. */
     if (argc >= 2) {
@@ -277,77 +543,9 @@ xrootdfs_aio_main(int argc, char **argv)
 
     fuse_argv[fuse_argc++] = argv[0];
 
-    for (i = 1; i < argc; i++) {
-        const char *a = argv[i];
-        /* Parse our known options ANYWHERE on the line (before OR after the
-         * endpoint), so a resilience flag placed after the URL is honored rather
-         * than silently leaking to libfuse. Unknown dash-args fall through to the
-         * fuse passthrough (so -f/-d/-s/-o still work); the first bare word is the
-         * endpoint, the next the mountpoint. */
-        if (a[0] == '-') {
-            if (strcmp(a, "--tls") == 0)               { g_opts.want_tls = 1; }
-            else if (strcmp(a, "--notlsok") == 0)      { g_opts.notlsok = 1; }
-            else if (strcmp(a, "--noverifyhost") == 0) { g_opts.verify_host = 0; }
-            else if (strcmp(a, "--auth") == 0 && i + 1 < argc) { g_opts.auth_force = argv[++i]; }
-            else if (strcmp(a, "--max-conns") == 0 && i + 1 < argc) {
-                g_max_conns = atoi(argv[++i]);
-                if (g_max_conns < 1) { g_max_conns = 1; }
-            }
-            else if (strcmp(a, "--streams") == 0 && i + 1 < argc) {
-                g_streams = atoi(argv[++i]);
-                if (g_streams < 1) { g_streams = 1; }
-            }
-            else if (strcmp(a, "--lazy-streams") == 0) { g_lazy_streams = 1; }
-            else if (strcmp(a, "--max-stall") == 0 && i + 1 < argc) {
-                g_max_stall = atoi(argv[++i]);
-                if (g_max_stall < 0) { g_max_stall = 0; }
-            }
-            else if (strcmp(a, "--keepalive") == 0 && i + 1 < argc) {
-                g_keepalive = atoi(argv[++i]);
-                if (g_keepalive < 0) { g_keepalive = 0; }
-            }
-            else if (strcmp(a, "--max-retries") == 0 && i + 1 < argc) {
-                g_max_retries = atoi(argv[++i]);
-                if (g_max_retries < 0) { g_max_retries = 0; }
-            }
-            else if (strcmp(a, "--connect-timeout") == 0 && i + 1 < argc) {
-                brix_tmo_set_connect_ms(atoi(argv[++i]));
-            }
-            else if (strcmp(a, "--io-timeout") == 0 && i + 1 < argc) {
-                brix_tmo_set_io_ms(atoi(argv[++i]));
-            }
-            else if (strcmp(a, "--attr-timeout") == 0 && i + 1 < argc) {
-                g_attr_timeout = atof(argv[++i]);
-            }
-            else if (strcmp(a, "--entry-timeout") == 0 && i + 1 < argc) {
-                g_entry_timeout = atof(argv[++i]);
-            }
-            else if (strcmp(a, "--kernel-cache") == 0) { g_kernel_cache = 1; }
-            else if (strcmp(a, "--readahead") == 0 && i + 1 < argc) {
-                long v = atol(argv[++i]);
-                g_readahead = (v > 0) ? (size_t) v : 0;
-            }
-            else if (strcmp(a, "--writeback") == 0 && i + 1 < argc) {
-                long v = atol(argv[++i]);
-                g_writeback = (v > 0) ? (size_t) v : 0;
-            }
-            else if (strcmp(a, "--xattr") == 0) { g_xattr = 1; }
-            else if (strcmp(a, "--compress") == 0 && i + 1 < argc) {
-                snprintf(g_compress, sizeof(g_compress), "%s", argv[++i]);
-            }
-            else if (strcmp(a, "--token") == 0 && i + 1 < argc) { g_bearer = argv[++i]; }
-            else if (strcmp(a, "--version") == 0) {
-                printf("xrootdfs (BriX-Cache client) %s\n", brix_client_version());
-                return 0;
-            }
-            else if (strcmp(a, "--help") == 0) { usage_fp(stdout); return 0; }  /* WS-2 */
-            else if (strcmp(a, "-h") == 0) { usage(); return 0; }              /* C1 */
-            else if (fuse_argc < 61) { fuse_argv[fuse_argc++] = argv[i]; }  /* fuse opt */
-        } else if (endpoint == NULL) {
-            endpoint = a;
-        } else if (fuse_argc < 61) {
-            fuse_argv[fuse_argc++] = argv[i];
-        }
+    rc = aio_parse_args(argc, argv, fuse_argv, &fuse_argc, &endpoint);
+    if (rc >= 0) {
+        return rc;
     }
 
     if (endpoint == NULL || fuse_argc < 2) {
@@ -356,107 +554,10 @@ xrootdfs_aio_main(int argc, char **argv)
     }
     fuse_argv[fuse_argc] = NULL;
 
-    brix_status_clear(&st);
-
     /* HTTP(S)/WebDAV read-only mount when the endpoint is a web URL. */
     if (brix_is_web_url(endpoint)) {
-        brix_statinfo si;
-        size_t        bl;
-        if (brix_weburl_parse(endpoint, &g_weburl) != 0) {
-            fprintf(stderr, "xrootdfs: bad web URL: %s\n", endpoint);
-            return 2;
-        }
-        if (g_weburl.is_s3) {
-            fprintf(stderr, "xrootdfs: s3:// is not supported as a FUSE mount "
-                            "(use http/https/dav/davs)\n");
-            return 2;
-        }
-        g_web = 1;
-        if (g_bearer == NULL) {
-            g_bearer = getenv("BEARER_TOKEN");
-        }
-        g_web_verify = g_opts.verify_host;
-        g_web_ca = brix_resolve_ca_dir(g_opts.ca_dir);
-        /* export base = the URL path, trailing '/' trimmed; "/" → "" (verbatim). */
-        snprintf(g_base, sizeof(g_base), "%s", g_weburl.path);
-        bl = strlen(g_base);
-        while (bl > 0 && g_base[bl - 1] == '/') {
-            g_base[--bl] = '\0';
-        }
-        /* fail the mount up front if the export root is unreachable/denied. */
-        if (brix_web_stat(&g_weburl, g_base[0] ? g_base : "/", g_bearer,
-                          g_web_verify, g_web_ca, &si, &st) != 0) {
-            fprintf(stderr, "xrootdfs: %s://%s:%d%s: %s\n",
-                    g_weburl.tls ? "https" : "http", g_weburl.host, g_weburl.port,
-                    g_weburl.path, st.msg);
-            return brix_shellcode(&st);
-        }
-        fprintf(stderr,
-                "xrootdfs: mounted %s:%d via %s%s (read-only WebDAV; "
-                "verify=%d, auth=%s)\n",
-                g_weburl.host, g_weburl.port, g_weburl.tls ? "HTTPS" : "HTTP",
-                g_base, g_web_verify, g_bearer ? "bearer" : "anon");
-        rc = fuse_main(fuse_argc, fuse_argv, &xfs_ops, NULL);
-        return rc;
+        return aio_web_mount(fuse_argc, fuse_argv, endpoint);
     }
 
-    if (brix_endpoint_parse(endpoint, &g_url, &st) != 0) {
-        fprintf(stderr, "xrootdfs: %s\n", st.msg);
-        return 2;
-    }
-
-    /* Export base = the URL path component (root://host/data → "/data"), so the
-     * mount roots at that subtree.  Trailing '/' trimmed; a bare host (path "/" or
-     * empty) → verbatim FUSE paths.  Shared with the web transport via srv_path(). */
-    {
-        size_t bl;
-        snprintf(g_base, sizeof(g_base), "%s",
-                 (g_url.path[0] == '/') ? g_url.path : "");
-        bl = strlen(g_base);
-        while (bl > 0 && g_base[bl - 1] == '/') {
-            g_base[--bl] = '\0';
-        }
-    }
-
-    g_pool = brix_pool_create(&g_url, &g_opts, g_max_conns, &st);
-    if (g_pool == NULL) {
-        fprintf(stderr, "xrootdfs: connect %s:%d: %s\n",
-                g_url.host, g_url.port, st.msg);
-        return brix_shellcode(&st);
-    }
-    /* Default: connect all data streams up front (in parallel — ~1×RTT mount).
-     * --lazy-streams trades first-read warm-up for the lowest possible mount
-     * latency by bringing up just one stream now and the rest on demand. */
-    g_mgr = brix_mgr_create(&g_url, &g_opts, g_streams,
-                            g_lazy_streams ? 1 : g_streams,
-                            g_max_stall, g_keepalive, g_max_retries, &st);
-    if (g_mgr == NULL) {
-        fprintf(stderr, "xrootdfs: async manager: %s\n", st.msg);
-        brix_pool_destroy(g_pool);
-        return brix_shellcode(&st);
-    }
-
-    /* Probe the server's vendor POSIX extensions (kXR_Qconfig "xrdfs.ext") once;
-     * utimens/chown/symlink/readlink/link adapt to what is advertised. */
-    {
-        brix_conn  *pc = brix_pool_checkout(g_pool, &st);
-        if (pc != NULL) {
-            int ok = (brix_ext_probe(pc, &g_ext_setattr, &g_ext_symlink,
-                                     &g_ext_readlink, &g_ext_link, &st) == 0);
-            brix_pool_checkin(g_pool, pc, ok ? 1 : xfs_conn_healthy(&st));
-        }
-    }
-
-    fprintf(stderr,
-            "xrootdfs: mounted %s:%d (meta-pool=%d, data-streams=%d, "
-            "max-stall=%dms; network-resilient; ext: setattr=%d symlink=%d "
-            "readlink=%d link=%d)\n",
-            g_url.host, g_url.port, g_max_conns, g_streams, g_max_stall,
-            g_ext_setattr, g_ext_symlink, g_ext_readlink, g_ext_link);
-
-    rc = fuse_main(fuse_argc, fuse_argv, &xfs_ops, NULL);
-
-    brix_mgr_destroy(g_mgr);
-    brix_pool_destroy(g_pool);
-    return rc;
+    return aio_root_mount(fuse_argc, fuse_argv, endpoint);
 }

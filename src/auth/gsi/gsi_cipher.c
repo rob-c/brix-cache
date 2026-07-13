@@ -48,10 +48,13 @@ brix_gsi_cipher_public(EVP_PKEY *dh, size_t *outlen)
         out    = (char *) malloc(total);
         if (out != NULL) {
             size_t cur = 0;
-            memcpy(out + cur, pem, (size_t) pemlen); cur += (size_t) pemlen;
-            memcpy(out + cur, "---BPUB---", 10);     cur += 10;
-            memcpy(out + cur, phex, strlen(phex));   cur += strlen(phex);
-            memcpy(out + cur, "---EPUB---", 10);     cur += 10;
+            /* phase74-fp: out is a length-tracked binary blob (*outlen); both
+             * consumers (pwd credsreq, gsi kXGC_cert) bucket it by length and
+             * never treat it as a NUL-terminated string. */
+            memcpy(out + cur, pem, (size_t) pemlen); cur += (size_t) pemlen;  // NOLINT(bugprone-not-null-terminated-result)
+            memcpy(out + cur, "---BPUB---", 10);     cur += 10;               // NOLINT(bugprone-not-null-terminated-result)
+            memcpy(out + cur, phex, strlen(phex));   cur += strlen(phex);     // NOLINT(bugprone-not-null-terminated-result)
+            memcpy(out + cur, "---EPUB---", 10);     cur += 10;               // NOLINT(bugprone-not-null-terminated-result)
             *outlen = cur;
         }
     }
@@ -324,7 +327,7 @@ brix_gsi_cipher_decrypt(const brix_gsi_cipher_t *c, const uint8_t *key,
     if (EVP_DecryptInit_ex(ctx, c->evp, NULL, key, iv) == 1
         && EVP_DecryptUpdate(ctx, out, &l1, in + off, (int) (inlen - off)) == 1
         && EVP_DecryptFinal_ex(ctx, out + l1, &l2) == 1) {
-        *outlen = (size_t) (l1 + l2);
+        *outlen = (size_t) l1 + (size_t) l2;    /* widen BEFORE adding */
     } else {
         free(out);              /* out is caller-owned on success — freed only here */
         out = NULL;

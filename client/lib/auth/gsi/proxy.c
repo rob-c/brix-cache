@@ -147,15 +147,172 @@ proxy_build_cleanup(proxy_build_ctx *c, int rc)
     return rc;
 }
 
+/*
+ * pxy_load_issuer — load the user end-entity cert + key (the proxy issuer).
+ *
+ * WHAT: Read `cert_path` into c->user and `key_path` into c->ukey via a scratch
+ *       c->bio that is freed (and nulled) after each read, matching the former
+ *       inline ladder exactly.
+ * WHY:  The proxy is signed by, and inherits its subject/issuer from, the user
+ *       credential; isolating the two PEM loads keeps brix_proxy_create flat.
+ * HOW:  On any failure set *st and return -1 with whatever was acquired parked in
+ *       *c so the caller's single proxy_build_cleanup frees it in ladder order.
+ */
+static int
+pxy_load_issuer(proxy_build_ctx *c, const char *cert_path, const char *key_path,
+                brix_status *st)
+{
+    c->bio = BIO_new_file(cert_path, "r");
+    if (c->bio == NULL) {
+        brix_status_set(st, XRDC_EUSAGE, 0, "cannot open user cert %s", cert_path);
+        return -1;
+    }
+    c->user = PEM_read_bio_X509(c->bio, NULL, NULL, NULL);
+    BIO_free(c->bio); c->bio = NULL;
+    if (c->user == NULL) { return ssl_fail(st, "parse user cert"); }
+
+    c->bio = BIO_new_file(key_path, "r");
+    if (c->bio == NULL) {
+        brix_status_set(st, XRDC_EUSAGE, 0, "cannot open user key %s", key_path);
+        return -1;
+    }
+    c->ukey = PEM_read_bio_PrivateKey(c->bio, NULL, NULL, NULL);
+    BIO_free(c->bio); c->bio = NULL;
+    if (c->ukey == NULL) { return ssl_fail(st, "parse user key"); }
+    return 0;
+}
+
+/*
+ * pxy_build_request — assemble the unsigned proxy certificate (RFC 3820).
+ *
+ * WHAT: Generate the ephemeral proxy keypair (c->pkey), a v3 X509 (c->proxy) with
+ *       serial, subject = user DN + CN=<serial>, issuer = user subject, validity
+ *       window, and the two critical extensions (proxyCertInfo + KeyUsage).
+ * WHY:  This is the whole certificate-shape step; keeping the exact OpenSSL call
+ *       order and DER-frozen proxyCertInfo here preserves byte-identical output.
+ * HOW:  Build into *c so partial state is freed by proxy_build_cleanup; the two
+ *       transient extension handles are freed-and-nulled after X509_add_ext just
+ *       as the original code did. On failure set *st and return -1.
+ */
+static int
+pxy_build_request(proxy_build_ctx *c, int bits, int valid_hours, long serial,
+                  brix_status *st)
+{
+    char serial_str[32];
+
+    /* Ephemeral proxy keypair. */
+    c->pkey = EVP_RSA_gen((unsigned) bits);
+    if (c->pkey == NULL) { return ssl_fail(st, "RSA keygen"); }
+
+    c->proxy = X509_new();
+    if (c->proxy == NULL) { return ssl_fail(st, "X509_new"); }
+    X509_set_version(c->proxy, 2);   /* v3 */
+    ASN1_INTEGER_set(X509_get_serialNumber(c->proxy), serial);
+
+    /* Subject = user DN + CN=<serial>; issuer = user subject (RFC 3820). */
+    c->subj = X509_NAME_dup(X509_get_subject_name(c->user));
+    snprintf(serial_str, sizeof(serial_str), "%ld", serial);
+    if (c->subj == NULL
+        || X509_NAME_add_entry_by_NID(c->subj, NID_commonName, MBSTRING_ASC,
+                                      (unsigned char *) serial_str, -1, -1, 0) != 1
+        || X509_set_subject_name(c->proxy, c->subj) != 1
+        || X509_set_issuer_name(c->proxy, X509_get_subject_name(c->user)) != 1
+        || X509_set_pubkey(c->proxy, c->pkey) != 1) {
+        return ssl_fail(st, "build proxy subject");
+    }
+    X509_gmtime_adj(X509_getm_notBefore(c->proxy), -300);
+    X509_gmtime_adj(X509_getm_notAfter(c->proxy), (long) valid_hours * 3600);
+
+    /* proxyCertInfo (critical) — exact DER from make_proxy.py. */
+    c->octet = ASN1_OCTET_STRING_new();
+    c->pci_obj = OBJ_txt2obj(PROXY_CERT_INFO_OID, 1);
+    if (c->octet == NULL || c->pci_obj == NULL
+        || ASN1_OCTET_STRING_set(c->octet, PROXY_CERT_INFO_DER,
+                                 (int) sizeof(PROXY_CERT_INFO_DER)) != 1) {
+        return ssl_fail(st, "build proxyCertInfo");
+    }
+    c->ext = X509_EXTENSION_create_by_OBJ(NULL, c->pci_obj, 1, c->octet);
+    if (c->ext == NULL || X509_add_ext(c->proxy, c->ext, -1) != 1) {
+        return ssl_fail(st, "add proxyCertInfo");
+    }
+    X509_EXTENSION_free(c->ext); c->ext = NULL;
+
+    /* KeyUsage critical = digitalSignature. */
+    c->ext = X509V3_EXT_conf_nid(NULL, NULL, NID_key_usage, "critical,digitalSignature");
+    if (c->ext == NULL || X509_add_ext(c->proxy, c->ext, -1) != 1) {
+        return ssl_fail(st, "add KeyUsage");
+    }
+    X509_EXTENSION_free(c->ext); c->ext = NULL;
+    return 0;
+}
+
+/*
+ * pxy_sign — sign the assembled proxy with the user key (SHA-256).
+ *
+ * WHAT: X509_sign(c->proxy, c->ukey, EVP_sha256()); the single signing step.
+ * WHY:  Named so the orchestrator reads as load → build → sign → assemble; the
+ *       digest algorithm is frozen (matches the reference proxy).
+ * HOW:  On failure set *st and return -1; nothing new is acquired here.
+ */
+static int
+pxy_sign(proxy_build_ctx *c, brix_status *st)
+{
+    if (X509_sign(c->proxy, c->ukey, EVP_sha256()) == 0) {
+        return ssl_fail(st, "sign proxy");
+    }
+    return 0;
+}
+
+/*
+ * pxy_assemble_pem — write proxycert + usercert + proxykey and finalize atomically.
+ *
+ * WHAT: Emit the three PEM objects to a 0600 temp file, then chmod 0400 + rename
+ *       onto out_path, exactly as the former inline tail.
+ * WHY:  The output-chain order and atomic-install semantics are the contract with
+ *       every GSI consumer; keeping them in one helper freezes them.
+ * HOW:  The temp fd is handed to a BIO (BIO_CLOSE) parked in *c; on any write or
+ *       finalize failure the temp is unlinked here (path is local) and *c is left
+ *       for proxy_build_cleanup. Returns 0 on success, -1 with *st set otherwise.
+ */
+static int
+pxy_assemble_pem(proxy_build_ctx *c, const char *out_path, brix_status *st)
+{
+    char tmp_path[1100];
+
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp.%u", out_path, (unsigned) getpid());
+    c->fd = open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (c->fd < 0) {
+        brix_status_set(st, XRDC_EUSAGE, 0, "cannot create %s", tmp_path);
+        return -1;
+    }
+    c->bio = BIO_new_fp(fdopen(c->fd, "w"), BIO_CLOSE);
+    c->fd = -1;   /* owned by the BIO now */
+    if (c->bio == NULL
+        || PEM_write_bio_X509(c->bio, c->proxy) != 1
+        || PEM_write_bio_X509(c->bio, c->user) != 1
+        || PEM_write_bio_PrivateKey(c->bio, c->pkey, NULL, NULL, 0, NULL, NULL) != 1) {
+        ssl_fail(st, "write proxy chain");
+        BIO_free(c->bio); c->bio = NULL;
+        unlink(tmp_path);
+        return -1;
+    }
+    BIO_free(c->bio); c->bio = NULL;
+    if (chmod(tmp_path, 0400) != 0 || rename(tmp_path, out_path) != 0) {
+        brix_status_set(st, XRDC_EUSAGE, 0, "cannot finalize %s", out_path);
+        unlink(tmp_path);
+        return -1;
+    }
+    return 0;
+}
+
 int
 brix_proxy_create(const brix_proxy_opts *o, brix_status *st)
 {
-    char       cert_path[1024], key_path[1024], out_path[1024], tmp_path[1100];
+    char       cert_path[1024], key_path[1024], out_path[1024];
     proxy_build_ctx c = { .fd = -1 };
     int        valid_hours = (o && o->valid_hours > 0) ? o->valid_hours : 12;
     int        bits = (o && o->bits > 0) ? o->bits : 2048;
     long       serial = (long) time(NULL);   /* arbitrary; verifier keys on PCI+chain */
-    char       serial_str[32];
 
     if (o && o->user_cert) { snprintf(cert_path, sizeof(cert_path), "%s", o->user_cert); }
     else { default_cred("X509_USER_CERT", "usercert.pem", cert_path, sizeof(cert_path)); }
@@ -164,98 +321,18 @@ brix_proxy_create(const brix_proxy_opts *o, brix_status *st)
     if (o && o->out_path) { snprintf(out_path, sizeof(out_path), "%s", o->out_path); }
     else { brix_proxy_default_path(out_path, sizeof(out_path)); }
 
-    /* Load the user end-entity cert + key (the proxy issuer). */
-    c.bio = BIO_new_file(cert_path, "r");
-    if (c.bio == NULL) {
-        brix_status_set(st, XRDC_EUSAGE, 0, "cannot open user cert %s", cert_path);
+    if (pxy_load_issuer(&c, cert_path, key_path, st) != 0) {
         return proxy_build_cleanup(&c, -1);
     }
-    c.user = PEM_read_bio_X509(c.bio, NULL, NULL, NULL);
-    BIO_free(c.bio); c.bio = NULL;
-    if (c.user == NULL) { ssl_fail(st, "parse user cert"); return proxy_build_cleanup(&c, -1); }
-
-    c.bio = BIO_new_file(key_path, "r");
-    if (c.bio == NULL) {
-        brix_status_set(st, XRDC_EUSAGE, 0, "cannot open user key %s", key_path);
+    if (pxy_build_request(&c, bits, valid_hours, serial, st) != 0) {
         return proxy_build_cleanup(&c, -1);
     }
-    c.ukey = PEM_read_bio_PrivateKey(c.bio, NULL, NULL, NULL);
-    BIO_free(c.bio); c.bio = NULL;
-    if (c.ukey == NULL) { ssl_fail(st, "parse user key"); return proxy_build_cleanup(&c, -1); }
-
-    /* Ephemeral proxy keypair. */
-    c.pkey = EVP_RSA_gen((unsigned) bits);
-    if (c.pkey == NULL) { ssl_fail(st, "RSA keygen"); return proxy_build_cleanup(&c, -1); }
-
-    c.proxy = X509_new();
-    if (c.proxy == NULL) { ssl_fail(st, "X509_new"); return proxy_build_cleanup(&c, -1); }
-    X509_set_version(c.proxy, 2);   /* v3 */
-    ASN1_INTEGER_set(X509_get_serialNumber(c.proxy), serial);
-
-    /* Subject = user DN + CN=<serial>; issuer = user subject (RFC 3820). */
-    c.subj = X509_NAME_dup(X509_get_subject_name(c.user));
-    snprintf(serial_str, sizeof(serial_str), "%ld", serial);
-    if (c.subj == NULL
-        || X509_NAME_add_entry_by_NID(c.subj, NID_commonName, MBSTRING_ASC,
-                                      (unsigned char *) serial_str, -1, -1, 0) != 1
-        || X509_set_subject_name(c.proxy, c.subj) != 1
-        || X509_set_issuer_name(c.proxy, X509_get_subject_name(c.user)) != 1
-        || X509_set_pubkey(c.proxy, c.pkey) != 1) {
-        ssl_fail(st, "build proxy subject"); return proxy_build_cleanup(&c, -1);
-    }
-    X509_gmtime_adj(X509_getm_notBefore(c.proxy), -300);
-    X509_gmtime_adj(X509_getm_notAfter(c.proxy), (long) valid_hours * 3600);
-
-    /* proxyCertInfo (critical) — exact DER from make_proxy.py. */
-    c.octet = ASN1_OCTET_STRING_new();
-    c.pci_obj = OBJ_txt2obj(PROXY_CERT_INFO_OID, 1);
-    if (c.octet == NULL || c.pci_obj == NULL
-        || ASN1_OCTET_STRING_set(c.octet, PROXY_CERT_INFO_DER,
-                                 (int) sizeof(PROXY_CERT_INFO_DER)) != 1) {
-        ssl_fail(st, "build proxyCertInfo"); return proxy_build_cleanup(&c, -1);
-    }
-    c.ext = X509_EXTENSION_create_by_OBJ(NULL, c.pci_obj, 1, c.octet);
-    if (c.ext == NULL || X509_add_ext(c.proxy, c.ext, -1) != 1) {
-        ssl_fail(st, "add proxyCertInfo"); return proxy_build_cleanup(&c, -1);
-    }
-    X509_EXTENSION_free(c.ext); c.ext = NULL;
-
-    /* KeyUsage critical = digitalSignature. */
-    c.ext = X509V3_EXT_conf_nid(NULL, NULL, NID_key_usage, "critical,digitalSignature");
-    if (c.ext == NULL || X509_add_ext(c.proxy, c.ext, -1) != 1) {
-        ssl_fail(st, "add KeyUsage"); return proxy_build_cleanup(&c, -1);
-    }
-    X509_EXTENSION_free(c.ext); c.ext = NULL;
-
-    if (X509_sign(c.proxy, c.ukey, EVP_sha256()) == 0) {
-        ssl_fail(st, "sign proxy"); return proxy_build_cleanup(&c, -1);
-    }
-
-    /* Write proxycert + usercert + proxykey to a 0600 temp, then atomic rename. */
-    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp.%u", out_path, (unsigned) getpid());
-    c.fd = open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-    if (c.fd < 0) {
-        brix_status_set(st, XRDC_EUSAGE, 0, "cannot create %s", tmp_path);
+    if (pxy_sign(&c, st) != 0) {
         return proxy_build_cleanup(&c, -1);
     }
-    c.bio = BIO_new_fp(fdopen(c.fd, "w"), BIO_CLOSE);
-    c.fd = -1;   /* owned by the BIO now */
-    if (c.bio == NULL
-        || PEM_write_bio_X509(c.bio, c.proxy) != 1
-        || PEM_write_bio_X509(c.bio, c.user) != 1
-        || PEM_write_bio_PrivateKey(c.bio, c.pkey, NULL, NULL, 0, NULL, NULL) != 1) {
-        ssl_fail(st, "write proxy chain");
-        BIO_free(c.bio); c.bio = NULL;
-        unlink(tmp_path);
+    if (pxy_assemble_pem(&c, out_path, st) != 0) {
         return proxy_build_cleanup(&c, -1);
     }
-    BIO_free(c.bio); c.bio = NULL;
-    if (chmod(tmp_path, 0400) != 0 || rename(tmp_path, out_path) != 0) {
-        brix_status_set(st, XRDC_EUSAGE, 0, "cannot finalize %s", out_path);
-        unlink(tmp_path);
-        return proxy_build_cleanup(&c, -1);
-    }
-
     return proxy_build_cleanup(&c, 0);
 }
 

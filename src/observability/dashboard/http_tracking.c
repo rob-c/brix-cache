@@ -35,6 +35,22 @@ typedef struct {
     ngx_http_request_t      *r;
 } brix_dashboard_http_track_t;
 
+/*
+ * Per-request start metadata, bundled to keep helper signatures under the
+ * parameter cap.  Mirrors the arguments of the frozen brix_dashboard_http_
+ * start_identity() public signature; populated once at the top of that
+ * function and threaded into the slot-reservation helper.
+ */
+typedef struct {
+    const char *path;
+    const char *identity;
+    const char *vo;
+    const char *op;
+    int64_t     expected_bytes;
+    uint8_t     proto;
+    uint8_t     direction;
+} brix_dashboard_http_meta_t;
+
 static void
 dashboard_http_cleanup(void *data)
 {
@@ -83,50 +99,42 @@ dashboard_http_client(ngx_http_request_t *r, char *buf, size_t bufsz)
 }
 
 /*
- * Begin tracking an HTTP request: reserve a transfer slot and bind it to r.
+ * Report whether the dashboard SHM zone is present and fully initialised.
  *
- * Returns the slot index (>= 0) on success, or -1 if the dashboard SHM zone is
- * absent/uninitialised or slot/cleanup allocation fails.  Idempotent — if r is
- * already bound to a slot the existing index is returned without re-allocating.
- * The slot is automatically released when r->pool is destroyed (see
- * dashboard_http_cleanup) even if brix_dashboard_http_finish() is never called.
+ * WHAT: Returns non-zero when ngx_brix_dashboard_shm_zone points at a live
+ *       transfer table (not NULL, not the (void *) 1 "reserved but uninit"
+ *       sentinel nginx parks in ->data before shm init runs).
+ * WHY:  Every tracking entry point must bail out to a no-op when the zone is
+ *       absent; hoisting the check keeps the guard identical everywhere and
+ *       trims branch count out of the start path.
+ * HOW:  Pure predicate over the global zone pointer — no side effects.
  */
-int
-brix_dashboard_http_start_identity(ngx_http_request_t *r,
-    const char *path, const char *identity, const char *vo,
-    uint8_t proto, uint8_t direction, const char *op,
-    int64_t expected_bytes)
+static int
+dashboard_shm_ready(void)
+{
+    return ngx_brix_dashboard_shm_zone != NULL
+        && ngx_brix_dashboard_shm_zone->data != NULL
+        && ngx_brix_dashboard_shm_zone->data != (void *) 1;
+}
+
+/*
+ * Register the pool cleanup that binds a reserved slot to the request.
+ *
+ * WHAT: Allocates a brix_dashboard_http_track_t inside an r->pool cleanup,
+ *       fills it in for the given slot, parks it as the module ctx, and returns
+ *       the slot index; on cleanup-allocation failure it frees the slot and
+ *       returns -1 so the caller reports "not tracked".
+ * WHY:  The slot must be released even on abnormal teardown; tying the binding
+ *       to the pool cleanup guarantees that, and isolating it keeps the start
+ *       function's control flow flat.
+ * HOW:  ngx_pool_cleanup_add() → populate track → ngx_http_set_ctx(); the
+ *       cleanup handler (dashboard_http_cleanup) frees the slot on pool destroy.
+ */
+static int
+dashboard_http_bind_slot(ngx_http_request_t *r, int slot, const char *op)
 {
     brix_dashboard_http_track_t *track;
     ngx_pool_cleanup_t            *cln;
-    u_char                         sessid[16];
-    char                           ipbuf[NGX_SOCKADDR_STRLEN + 1];
-    int                            slot;
-
-    if (r == NULL || ngx_brix_dashboard_shm_zone == NULL
-        || ngx_brix_dashboard_shm_zone->data == NULL
-        || ngx_brix_dashboard_shm_zone->data == (void *) 1)
-    {
-        return -1;
-    }
-
-    track = dashboard_http_track(r);
-    if (track != NULL && track->slot >= 0) {
-        return track->slot;
-    }
-
-    ngx_memzero(sessid, sizeof(sessid));
-    slot = brix_transfer_slot_alloc_ex(ngx_brix_dashboard_shm_zone->data,
-                                         sessid,
-                                         dashboard_http_client(r, ipbuf,
-                                                               sizeof(ipbuf)),
-                                         identity ? identity : "anonymous",
-                                         vo ? vo : "", path, op, direction,
-                                         proto, expected_bytes,
-                                         (int64_t) ngx_current_msec);
-    if (slot < 0) {
-        return -1;
-    }
 
     cln = ngx_pool_cleanup_add(r->pool, sizeof(*track));
     if (cln == NULL) {
@@ -146,6 +154,80 @@ brix_dashboard_http_start_identity(ngx_http_request_t *r,
     }
 
     return slot;
+}
+
+/*
+ * Reserve a fresh transfer slot for a starting request.
+ *
+ * WHAT: Builds the zeroed session id + bounded client-address string and calls
+ *       brix_transfer_slot_alloc_ex() with the request's identity/VO/path/op
+ *       metadata, returning the slot index (>= 0) or -1 when the table is full.
+ * WHY:  Concentrates the argument marshalling (NUL-safe client copy, anonymous
+ *       identity default) so the public start function stays a thin orchestrator
+ *       under the CCN/param caps.
+ * HOW:  Pure allocation call — no ctx binding here; the caller binds on success.
+ */
+static int
+dashboard_http_reserve_slot(ngx_http_request_t *r,
+    const brix_dashboard_http_meta_t *m)
+{
+    u_char sessid[16];
+    char   ipbuf[NGX_SOCKADDR_STRLEN + 1];
+
+    ngx_memzero(sessid, sizeof(sessid));
+    return brix_transfer_slot_alloc_ex(ngx_brix_dashboard_shm_zone->data,
+                                        sessid,
+                                        dashboard_http_client(r, ipbuf,
+                                                              sizeof(ipbuf)),
+                                        m->identity ? m->identity : "anonymous",
+                                        m->vo ? m->vo : "", m->path, m->op,
+                                        m->direction, m->proto,
+                                        m->expected_bytes,
+                                        (int64_t) ngx_current_msec);
+}
+
+/*
+ * Begin tracking an HTTP request: reserve a transfer slot and bind it to r.
+ *
+ * Returns the slot index (>= 0) on success, or -1 if the dashboard SHM zone is
+ * absent/uninitialised or slot/cleanup allocation fails.  Idempotent — if r is
+ * already bound to a slot the existing index is returned without re-allocating.
+ * The slot is automatically released when r->pool is destroyed (see
+ * dashboard_http_cleanup) even if brix_dashboard_http_finish() is never called.
+ */
+int
+brix_dashboard_http_start_identity(ngx_http_request_t *r,
+    const char *path, const char *identity, const char *vo,
+    uint8_t proto, uint8_t direction, const char *op,
+    int64_t expected_bytes)
+{
+    brix_dashboard_http_track_t *track;
+    brix_dashboard_http_meta_t   meta;
+    int                            slot;
+
+    if (r == NULL || !dashboard_shm_ready()) {
+        return -1;
+    }
+
+    track = dashboard_http_track(r);
+    if (track != NULL && track->slot >= 0) {
+        return track->slot;
+    }
+
+    meta.path = path;
+    meta.identity = identity;
+    meta.vo = vo;
+    meta.op = op;
+    meta.expected_bytes = expected_bytes;
+    meta.proto = proto;
+    meta.direction = direction;
+
+    slot = dashboard_http_reserve_slot(r, &meta);
+    if (slot < 0) {
+        return -1;
+    }
+
+    return dashboard_http_bind_slot(r, slot, op);
 }
 
 int
@@ -198,78 +280,119 @@ brix_dashboard_http_error(ngx_http_request_t *r, const char *reason)
 }
 
 /*
- * Split a TPC remote URL into a display-safe "scheme://host[:port]" string and a
- * basename-only path hint, dropping anything sensitive or noisy.
- *
- * userinfo ("user:pass@") is stripped from the authority, and the path is
- * reduced to its final segment with the query ("?") and fragment ("#") removed,
- * so credentials and full object paths never land in the dashboard event/slot
- * record.  Both outputs are NUL-terminated and bounded by hostsz / pathsz.
+ * Parsed view of a URL split at scheme/authority/path boundaries.  All members
+ * point into the original url buffer (no copies): url is the full string,
+ * scheme_end is the "://" position (or NULL when scheme-less), authority is the
+ * userinfo-stripped host start, end is one-past the authority, and path is the
+ * first '/' of the path component (or NULL).
  */
-static void
-dashboard_redact_url(const char *url, char *host, size_t hostsz,
-    char *path_hint, size_t pathsz)
-{
+typedef struct {
+    const char *url;
     const char *scheme_end;
     const char *authority;
-    const char *path;
-    const char *at;
     const char *end;
-    const char *base;
-    size_t      n;
+    const char *path;
+} redact_parts_t;
 
-    if (hostsz > 0) {
-        host[0] = '\0';
-    }
-    if (pathsz > 0) {
-        path_hint[0] = '\0';
-    }
+/*
+ * Locate the userinfo-stripped authority span of a URL.
+ *
+ * WHAT: Fills p with the scheme/authority/path boundaries of url: authority is
+ *       set past any "scheme://" prefix and any "user:pass@" userinfo, path to
+ *       the first '/' (or NULL), and end to one-past the authority byte.
+ * WHY:  Isolating the parse keeps the host/path writers branch-flat and makes
+ *       the userinfo-drop (credential redaction) a single, testable step.
+ * HOW:  strstr("://") → advance past userinfo '@' within [authority,end); all
+ *       pointers refer into the caller's url buffer (no copies).
+ */
+static void
+redact_split_authority(const char *url, redact_parts_t *p)
+{
+    const char *auth;
+    const char *at;
 
-    if (url == NULL) {
-        return;
-    }
+    p->url = url;
+    p->scheme_end = strstr(url, "://");
+    auth = p->scheme_end != NULL ? p->scheme_end + 3 : url;
+    p->path = strchr(auth, '/');
+    p->end = p->path != NULL ? p->path : auth + ngx_strlen(auth);
 
-    scheme_end = strstr(url, "://");
-    authority = scheme_end != NULL ? scheme_end + 3 : url;
-    path = strchr(authority, '/');
-    end = path != NULL ? path : authority + ngx_strlen(authority);
-
-    at = memchr(authority, '@', (size_t) (end - authority));
+    at = memchr(auth, '@', (size_t) (p->end - auth));
     if (at != NULL) {
-        authority = at + 1;
+        auth = at + 1;
     }
 
-    if (scheme_end != NULL) {
-        n = (size_t) (scheme_end - url + 3);
+    p->authority = auth;
+}
+
+/*
+ * Write "scheme://host" (userinfo-stripped) into a bounded host buffer.
+ *
+ * WHAT: Emits the "scheme://" prefix (bytes url..scheme_end+3) followed by the
+ *       authority span [authority,end) into host, NUL-terminated and capped at
+ *       hostsz.  When p->scheme_end is NULL only the authority is written.
+ * WHY:  The scheme-present and scheme-less cases share the same bounds logic;
+ *       one writer keeps the truncation math (and the byte-identical output)
+ *       in a single place.
+ * HOW:  Copy the prefix first, then as much of the authority as remaining
+ *       capacity allows; every branch NUL-terminates within [0,hostsz).
+ */
+static void
+redact_write_host(const redact_parts_t *p, char *host, size_t hostsz)
+{
+    size_t n;
+    size_t hn;
+
+    if (p->scheme_end != NULL) {
+        n = (size_t) (p->scheme_end - p->url + 3);
         if (n >= hostsz) {
             n = hostsz > 0 ? hostsz - 1 : 0;
         }
         if (n > 0) {
-            ngx_memcpy(host, url, n);
+            ngx_memcpy(host, p->url, n);
         }
         if (hostsz > 0) {
             host[n] = '\0';
         }
         if (n + 1 < hostsz) {
-            size_t hn = (size_t) (end - authority);
+            hn = (size_t) (p->end - p->authority);
             if (hn > hostsz - n - 1) {
                 hn = hostsz - n - 1;
             }
-            ngx_memcpy(host + n, authority, hn);
+            ngx_memcpy(host + n, p->authority, hn);
             host[n + hn] = '\0';
         }
-    } else if (hostsz > 0) {
-        n = (size_t) (end - authority);
+        return;
+    }
+
+    if (hostsz > 0) {
+        n = (size_t) (p->end - p->authority);
         if (n >= hostsz) {
             n = hostsz - 1;
         }
-        ngx_memcpy(host, authority, n);
+        ngx_memcpy(host, p->authority, n);
         host[n] = '\0';
     }
+}
 
-    if (path == NULL || pathsz == 0) {
-        return;
-    }
+/*
+ * Reduce a URL path to its basename, dropping query and fragment.
+ *
+ * WHAT: Writes the final path segment of [path, …) (stopping at '?' or '#')
+ *       into path_hint, NUL-terminated and capped at pathsz; an empty basename
+ *       (path ends in '/') collapses to "/".
+ * WHY:  Full object paths and query strings can carry sensitive or
+ *       high-cardinality data; keeping only the basename preserves a useful
+ *       display hint without leaking them into the dashboard record.
+ * HOW:  Scan to the query/fragment terminator, walk back to the last '/', then
+ *       copy the [base,end) run under the size cap.
+ */
+static void
+redact_write_path_hint(const char *path, char *path_hint, size_t pathsz)
+{
+    const char *end;
+    const char *base;
+    size_t      n;
 
     end = path;
     while (*end != '\0' && *end != '?' && *end != '#') {
@@ -290,6 +413,42 @@ dashboard_redact_url(const char *url, char *host, size_t hostsz,
     }
     ngx_memcpy(path_hint, base, n);
     path_hint[n] = '\0';
+}
+
+/*
+ * Split a TPC remote URL into a display-safe "scheme://host[:port]" string and a
+ * basename-only path hint, dropping anything sensitive or noisy.
+ *
+ * userinfo ("user:pass@") is stripped from the authority, and the path is
+ * reduced to its final segment with the query ("?") and fragment ("#") removed,
+ * so credentials and full object paths never land in the dashboard event/slot
+ * record.  Both outputs are NUL-terminated and bounded by hostsz / pathsz.
+ */
+static void
+dashboard_redact_url(const char *url, char *host, size_t hostsz,
+    char *path_hint, size_t pathsz)
+{
+    redact_parts_t parts;
+
+    if (hostsz > 0) {
+        host[0] = '\0';
+    }
+    if (pathsz > 0) {
+        path_hint[0] = '\0';
+    }
+
+    if (url == NULL) {
+        return;
+    }
+
+    redact_split_authority(url, &parts);
+    redact_write_host(&parts, host, hostsz);
+
+    if (parts.path == NULL || pathsz == 0) {
+        return;
+    }
+
+    redact_write_path_hint(parts.path, path_hint, pathsz);
 }
 
 void

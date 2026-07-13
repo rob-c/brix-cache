@@ -122,12 +122,20 @@ fi
 #   (raw MIT libkrb5; the module never links GSS-API).
 if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists krb5; then
     CFLAGS="$CFLAGS $(pkg-config --cflags krb5) -DBRIX_HAVE_KRB5=1"
-    BRIX_KRB5_LIBS="$(pkg-config --libs krb5)"
+    # GSS-API (krb5 mech) is required by the credential-forwarding path
+    # (src/auth/krb5/forward.c); prefer the krb5-gssapi .pc (which subsumes
+    # krb5), else fall back to raw krb5 + the MIT gssapi_krb5 mech library.
+    if pkg-config --exists krb5-gssapi; then
+        BRIX_KRB5_LIBS="$(pkg-config --libs krb5-gssapi krb5)"
+    else
+        BRIX_KRB5_LIBS="$(pkg-config --libs krb5) -lgssapi_krb5"
+    fi
     CORE_LIBS="$CORE_LIBS $BRIX_KRB5_LIBS"
     echo " + xrootd auth: Kerberos 5 plugin enabled (pkg-config)"
 elif command -v krb5-config >/dev/null 2>&1; then
     CFLAGS="$CFLAGS $(krb5-config --cflags) -DBRIX_HAVE_KRB5=1"
-    BRIX_KRB5_LIBS="$(krb5-config --libs)"
+    # krb5-config gets the GSS-API mech via the 'gssapi' library selector.
+    BRIX_KRB5_LIBS="$(krb5-config --libs gssapi) $(krb5-config --libs)"
     CORE_LIBS="$CORE_LIBS $BRIX_KRB5_LIBS"
     echo " + xrootd auth: Kerberos 5 plugin enabled (krb5-config)"
 else
@@ -386,6 +394,8 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/fs/xfer/stage_waiter.h \
                         $ngx_addon_dir/src/fs/tier/tier.h \
                         $ngx_addon_dir/src/fs/backend/sd.h \
+                        $ngx_addon_dir/src/fs/backend/ucred.h \
+                        $ngx_addon_dir/src/fs/backend/cred_mint.h \
                         $ngx_addon_dir/src/fs/backend/cache/sd_cache.h \
                  $ngx_addon_dir/src/fs/backend/cache/sd_cache_internal.h \
                  $ngx_addon_dir/src/fs/backend/cache/sd_cache_policy.h \
@@ -446,6 +456,9 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/auth/token/oauth2.h \
                         $ngx_addon_dir/src/auth/token/scopes.h \
                         $ngx_addon_dir/src/auth/token/token.h \
+                        $ngx_addon_dir/src/auth/token/exchange.h \
+                        $ngx_addon_dir/src/auth/s3/sts.h \
+                        $ngx_addon_dir/src/auth/krb5/forward.h \
                         $ngx_addon_dir/src/core/compat/checksum.h \
                         $ngx_addon_dir/src/core/compat/codec_core.h \
                         $ngx_addon_dir/src/core/compat/crc32c.h \
@@ -459,6 +472,7 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/protocols/shared/file_serve.h \
                         $ngx_addon_dir/src/protocols/shared/http_cache_fill.h \
                         $ngx_addon_dir/src/protocols/shared/http_serve_offload.h \
+                        $ngx_addon_dir/src/protocols/shared/deleg_capture.h \
                         $ngx_addon_dir/src/core/http/http_file_response.h \
                         $ngx_addon_dir/src/core/http/http_headers.h \
                         $ngx_addon_dir/src/core/http/sesslog_conn.h \
@@ -527,11 +541,13 @@ ngx_brix_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
                       $ngx_addon_dir/src/protocols/webdav/webdav_lock.h \
                       $ngx_addon_dir/src/protocols/webdav/webdav_methods.h \
                       $ngx_addon_dir/src/protocols/webdav/webdav_tpc.h \
+                      $ngx_addon_dir/src/protocols/webdav/tpc_user_proxy.h \
                       $ngx_addon_dir/src/protocols/webdav/webdav_proxy.h \
                       $ngx_addon_dir/src/protocols/webdav/webdav_path.h \
                       $ngx_addon_dir/src/protocols/webdav/webdav_metrics.h \
                       $ngx_addon_dir/src/protocols/webdav/webdav_auth.h \
                       $ngx_addon_dir/src/protocols/webdav/webdav_props.h \
+                      $ngx_addon_dir/src/protocols/webdav/delegation.h \
                         $ngx_addon_dir/src/core/ident.h \
                         $ngx_addon_dir/src/protocols/dig/dig.h \
                         $ngx_addon_dir/src/protocols/webdav/tape_rest.h \
@@ -611,9 +627,11 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/compat/shm_slots.c \
     $ngx_addon_dir/src/core/http/http_body.c \
     $ngx_addon_dir/src/core/http/http_conditionals.c \
+    $ngx_addon_dir/src/protocols/shared/protocol.c \
     $ngx_addon_dir/src/protocols/shared/file_serve.c \
     $ngx_addon_dir/src/protocols/shared/http_cache_fill.c \
     $ngx_addon_dir/src/protocols/shared/http_serve_offload.c \
+    $ngx_addon_dir/src/protocols/shared/deleg_capture.c \
     $ngx_addon_dir/src/core/http/http_file_response.c \
     $ngx_addon_dir/src/core/http/http_compress.c \
     $ngx_addon_dir/src/core/http/http_headers.c \
@@ -670,6 +688,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/vfs/vfs_xattr.c \
     $ngx_addon_dir/src/fs/vfs/vfs_copy.c \
     $ngx_addon_dir/src/fs/vfs/vfs_staged.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_cred.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_deleg.c \
     $ngx_addon_dir/src/fs/xfer/xfer_mover_pump.c \
     $ngx_addon_dir/src/fs/xfer/xfer_mover_agent.c \
     $ngx_addon_dir/src/fs/xfer/xfer_spawn.c \
@@ -696,6 +716,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/s3/sd_s3.c \
     $ngx_addon_dir/src/fs/backend/s3/sd_s3_meta.c \
     $ngx_addon_dir/src/fs/backend/remote/sd_remote.c \
+    $ngx_addon_dir/src/fs/backend/ucred.c \
+    $ngx_addon_dir/src/fs/backend/cred_mint.c \
     $ngx_addon_dir/src/fs/backend/xroot/sd_xroot.c \
     $ngx_addon_dir/src/fs/backend/xroot/sd_xroot_ns.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http.c \
@@ -792,6 +814,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/token/validate.c \
     $ngx_addon_dir/src/auth/token/macaroon.c \
     $ngx_addon_dir/src/auth/token/macaroon_issue.c \
+    $ngx_addon_dir/src/auth/token/exchange.c \
     $ngx_addon_dir/src/protocols/root/fattr/helpers.c \
     $ngx_addon_dir/src/protocols/root/fattr/dispatch.c \
     $ngx_addon_dir/src/protocols/root/fattr/get.c \
@@ -930,6 +953,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/gsi/auth.c \
     $ngx_addon_dir/src/auth/unix/auth.c \
     $ngx_addon_dir/src/auth/krb5/auth.c \
+    $ngx_addon_dir/src/auth/krb5/forward.c \
+    $ngx_addon_dir/src/auth/s3/sts.c \
     $ngx_addon_dir/src/auth/host/auth.c \
     $ngx_addon_dir/src/auth/pwd/auth.c \
     $ngx_addon_dir/src/auth/pwd/pwdfile.c \
@@ -948,6 +973,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/query/metadata.c \
     $ngx_addon_dir/src/protocols/root/query/prepare.c \
     $ngx_addon_dir/src/protocols/root/query/prepare_cmd.c \
+    $ngx_addon_dir/src/protocols/root/query/prepare_qprep.c \
     $ngx_addon_dir/src/core/config/tape_stage_conf.c \
     $ngx_addon_dir/src/protocols/root/query/set.c \
     $ngx_addon_dir/src/protocols/root/query/dispatch.c \
@@ -968,6 +994,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/net/proxy/forward_session_helpers.c \
     $ngx_addon_dir/src/net/proxy/forward_rewrite_helpers.c \
     $ngx_addon_dir/src/net/proxy/forward_request.c \
+    $ngx_addon_dir/src/net/proxy/forward_fh_translate.c \
     $ngx_addon_dir/src/net/proxy/forward_relay_audit.c \
     $ngx_addon_dir/src/net/proxy/forward_relay_response.c \
     $ngx_addon_dir/src/net/proxy/forward_relay_dispatch.c \
@@ -976,6 +1003,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/handoff/handoff.c \
     $ngx_addon_dir/src/protocols/root/connection/handler.c \
     $ngx_addon_dir/src/protocols/root/connection/recv.c \
+    $ngx_addon_dir/src/protocols/root/connection/recv_frame.c \
+    $ngx_addon_dir/src/protocols/root/connection/recv_process.c \
     $ngx_addon_dir/src/protocols/root/connection/send.c \
     $ngx_addon_dir/src/protocols/root/connection/fd_table.c \
     $ngx_addon_dir/src/protocols/root/connection/event_sched.c \
@@ -998,6 +1027,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/read/open_overview.c \
     $ngx_addon_dir/src/protocols/root/read/open_resolved_file.c \
     $ngx_addon_dir/src/protocols/root/read/open_request.c \
+    $ngx_addon_dir/src/protocols/root/read/open_tpc.c \
+    $ngx_addon_dir/src/protocols/root/read/open_manager.c \
     $ngx_addon_dir/src/protocols/root/zip/zip_kernel.c \
     $ngx_addon_dir/src/protocols/root/zip/zip_dir.c \
     $ngx_addon_dir/src/protocols/root/zip/zip_member.c \
@@ -1051,6 +1082,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/write/truncate.c \
     $ngx_addon_dir/src/protocols/root/write/write.c \
     $ngx_addon_dir/src/protocols/root/write/write_compress.c \
+    $ngx_addon_dir/src/protocols/root/write/write_staged.c \
     $ngx_addon_dir/src/protocols/root/write/writev.c \
     $ngx_addon_dir/src/protocols/root/dirlist/handler.c \
     $ngx_addon_dir/src/protocols/root/dirlist/dcksm.c \
@@ -1190,6 +1222,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
                  $ngx_addon_dir/src/protocols/webdav/auth_store.c \
                  $ngx_addon_dir/src/protocols/webdav/auth_cert.c \
                  $ngx_addon_dir/src/protocols/webdav/auth_token.c \
+                 $ngx_addon_dir/src/protocols/webdav/delegation.c \
                  $ngx_addon_dir/src/protocols/webdav/locks/request.c \
                  $ngx_addon_dir/src/protocols/webdav/lock.c \
                  $ngx_addon_dir/src/protocols/webdav/prop_xattr.c \
@@ -1217,6 +1250,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_marker.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_cred_parse.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_cred.c \
+                  $ngx_addon_dir/src/protocols/webdav/tpc_user_proxy.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc.c \
                   $ngx_addon_dir/src/protocols/webdav/proxy_config.c \
                   $ngx_addon_dir/src/protocols/webdav/proxy_request.c \
@@ -1420,6 +1454,8 @@ if [ "$ngx_module_link" = DYNAMIC ]; then
     ngx_module_name="ngx_stream_brix_module \
                      ngx_http_brix_metrics_module \
                      ngx_http_brix_srr_module \
+                     ngx_http_brix_guard_module \
+                     ngx_http_brix_common_module \
                      ngx_http_brix_webdav_module \
                      ngx_http_brix_s3_module \
                      ngx_http_brix_cvmfs_module \

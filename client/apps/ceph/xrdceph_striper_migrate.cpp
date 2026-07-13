@@ -287,53 +287,44 @@ void detach_stubs(const std::string &soid, unsigned long long ino)
     }
 }
 
-Result migrate_one(const std::string &soid)
+/* Striper geometry + total size carried on the .0 header object. */
+struct StriperLayout {
+    long os, su, sc, total;
+};
+
+/* Read the striper layout xattrs off the header object; false if not a set. */
+static bool read_striper_layout(const std::string &first, StriperLayout *l)
 {
-    const std::string first = soid + ".0000000000000000";
-    long os = xattr_num(first, "striper.layout.object_size", -1);
-    long su = xattr_num(first, "striper.layout.stripe_unit", os);
-    long sc = xattr_num(first, "striper.layout.stripe_count", 1);
-    long total = xattr_num(first, "striper.size", -1);
-    if (os <= 0 || total < 0) { logline("FAIL " + soid + ": not a striper object set"); return MIG_FAIL; }
+    l->os    = xattr_num(first, "striper.layout.object_size", -1);
+    l->su    = xattr_num(first, "striper.layout.stripe_unit", l->os);
+    l->sc    = xattr_num(first, "striper.layout.stripe_count", 1);
+    l->total = xattr_num(first, "striper.size", -1);
+    return l->os > 0 && l->total >= 0;
+}
 
-    const std::string cpath = dest_path(soid);
+/* --dry-run accounting for one file: record it in the estimator inventory. */
+static void dry_account(const std::string &soid, const std::string &cpath,
+                        const StriperLayout &l)
+{
+    logline("DRY  " + soid + " -> " + cpath + " (" + std::to_string(l.total) +
+            " bytes, os=" + std::to_string(l.os) + " su=" + std::to_string(l.su) +
+            " sc=" + std::to_string(l.sc) + ")");
+    /* feed the wall-clock estimator: exact bytes + the data-object count this
+     * file contributes (aggregate object payload is object_size regardless of
+     * stripe interleave, so ceil(size/object_size) holds for any geometry;
+     * an empty file still owns its .0000000000000000 header object). */
+    dry_files++;
+    dry_bytes += l.total;
+    dry_objects += (l.total > 0) ? (l.total + l.os - 1) / l.os : 1;
+    { long prev = dry_max_bytes.load();
+      while (l.total > prev && !dry_max_bytes.compare_exchange_weak(prev, l.total)) {} }
+}
 
-    /* idempotency: already migrated at the right size? (INO also fetched — the
-     * --force path below must detach the old file's stubs before unlinking) */
-    struct ceph_statx stx;
-    bool exists = (ceph_statx(g_cm, cpath.c_str(), &stx,
-                              CEPH_STATX_SIZE | CEPH_STATX_INO, 0) == 0);
-    if (exists && (long) stx.stx_size == total && !g.force) {
-        logline("SKIP " + soid + " -> " + cpath + " (already migrated)");
-        n_skip++; return MIG_SKIP;
-    }
-
-    if (g.dry) {
-        logline("DRY  " + soid + " -> " + cpath + " (" + std::to_string(total) +
-                " bytes, os=" + std::to_string(os) + " su=" + std::to_string(su) +
-                " sc=" + std::to_string(sc) + ")");
-        /* feed the wall-clock estimator: exact bytes + the data-object count this
-         * file contributes (aggregate object payload is object_size regardless of
-         * stripe interleave, so ceil(size/object_size) holds for any geometry;
-         * an empty file still owns its .0000000000000000 header object). */
-        dry_files++;
-        dry_bytes += total;
-        dry_objects += (total > 0) ? (total + os - 1) / os : 1;
-        { long prev = dry_max_bytes.load();
-          while (total > prev && !dry_max_bytes.compare_exchange_weak(prev, total)) {} }
-        n_skip++; return MIG_SKIP;
-    }
-
-    /* clear any partial / forced target — DETACH FIRST: a plain unlink of a
-     * redirect-migrated file delete-throughs to the source objects when the
-     * async MDS purge runs (proven: a --force re-migrate used to destroy the
-     * source minutes later). Harmless no-op for owned/partial targets. */
-    if (exists) {
-        detach_stubs(soid, (unsigned long long) stx.stx_ino);
-        ceph_unlink(g_cm, cpath.c_str());
-    }
-
-    /* ---- MDS: create namespace entry with matching layout ---- */
+/* MDS: create the namespace entry with a matching layout; returns the new inode
+ * (via *ino) or MIG_FAIL. */
+static Result create_namespace_entry(const std::string &soid, const std::string &cpath,
+                                     const StriperLayout &l, unsigned long long *ino)
+{
     mkparents(cpath);
     int fd = ceph_open(g_cm, cpath.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0644);
     if (fd < 0) { logline("FAIL " + soid + ": ceph_open " + std::to_string(fd)); n_fail++; return MIG_FAIL; }
@@ -341,24 +332,29 @@ Result migrate_one(const std::string &soid)
         char val[32]; snprintf(val, sizeof(val), "%ld", v);
         ceph_fsetxattr(g_cm, fd, a, val, strlen(val), 0);
     };
-    setlay("ceph.file.layout.object_size", os);
-    setlay("ceph.file.layout.stripe_unit", su);
-    setlay("ceph.file.layout.stripe_count", sc);
+    setlay("ceph.file.layout.object_size", l.os);
+    setlay("ceph.file.layout.stripe_unit", l.su);
+    setlay("ceph.file.layout.stripe_count", l.sc);
     ceph_close(g_cm, fd);
 
+    struct ceph_statx stx;
     if (ceph_statx(g_cm, cpath.c_str(), &stx, CEPH_STATX_INO, 0) != 0) {
         logline("FAIL " + soid + ": statx"); n_fail++; return MIG_FAIL;
     }
-    unsigned long long ino = (unsigned long long) stx.stx_ino;
+    *ino = (unsigned long long) stx.stx_ino;
+    return MIG_OK;
+}
 
-    /* ---- map every data object of this soid into the CephFS object name ----
-     * REDIRECT (default, zero-move): create a RADOS redirect stub pointing at the
-     * existing striper object — no bytes copied, source untouched.
-     * COPY: server-side copy_from (OSD→OSD) — duplicates the bytes in-cluster. */
-    int  nrekey = 0;
+/* Map every data object of this soid into the CephFS object name — REDIRECT
+ * (zero-move stub) or COPY (server-side copy_from). Returns the object count via
+ * *nrekey or MIG_FAIL. */
+static Result map_data_objects(const std::string &soid, unsigned long long ino,
+                               int *nrekey)
+{
+    *nrekey = 0;
     auto sit = g_src_index.find(soid);
-    if (sit != g_src_index.end()) {
-      for (uint32_t idx : sit->second) {
+    if (sit == g_src_index.end()) { return MIG_OK; }
+    for (uint32_t idx : sit->second) {
         char name[520];
         snprintf(name, sizeof(name), "%s.%016lx", soid.c_str(), (unsigned long) idx);
 
@@ -385,11 +381,15 @@ Result migrate_one(const std::string &soid)
                 }
             }
         }
-        nrekey++;
-      }
+        (*nrekey)++;
     }
+    return MIG_OK;
+}
 
-    /* ---- carry user.* xattrs (checksums etc.) onto the CephFS file ---- */
+/* Carry user.* xattrs (checksums etc.) onto the CephFS file; returns the carried
+ * user.XrdCks.adler32 value (empty if none) for the verify phase. */
+static std::string carry_user_xattrs(const std::string &first, const std::string &cpath)
+{
     std::map<std::string, ceph::bufferlist> xa;
     std::string carried_cksum;
     if (g_src.getxattrs(first, xa) >= 0) {
@@ -402,36 +402,54 @@ Result migrate_one(const std::string &soid)
             }
         }
     }
+    return carried_cksum;
+}
 
+/* Read the migrated file back and confirm it matches (checksum if carried, else
+ * size). Returns MIG_OK or MIG_FAIL. */
+static Result verify_migrated(const std::string &soid, const std::string &cpath,
+                              long total, const std::string &carried_cksum)
+{
+    if (!carried_cksum.empty()) {
+        long a = cephfs_adler32(cpath, total);
+        char want[16]; snprintf(want, sizeof(want), "%08lx", (unsigned long) a);
+        if (a < 0 || strcasecmp(want, carried_cksum.c_str()) != 0) {
+            logline("FAIL " + soid + ": checksum mismatch (got " + std::string(want) +
+                    " want " + carried_cksum + ")"); n_fail++; return MIG_FAIL;
+        }
+        return MIG_OK;
+    }
+    struct ceph_statx stx;
+    if (ceph_statx(g_cm, cpath.c_str(), &stx, CEPH_STATX_SIZE, 0) != 0
+        || (long) stx.stx_size != total) {
+        logline("FAIL " + soid + ": size verify"); n_fail++; return MIG_FAIL;
+    }
+    return MIG_OK;
+}
+
+/* Remove the source striper objects after a clean copy+verify (copy mode only). */
+static void delete_source_objects(const std::string &soid)
+{
+    auto sit = g_src_index.find(soid);
+    if (sit == g_src_index.end()) { return; }
+    for (uint32_t idx : sit->second) {
+        char name[520];
+        snprintf(name, sizeof(name), "%s.%016lx", soid.c_str(), (unsigned long) idx);
+        if (g_src.remove(name) == 0) { n_deleted++; }
+    }
+    g_src.remove(soid);   /* a bare control object, if any */
+}
+
+/* Set the size, verify, optionally delete the source, and log OK. */
+static Result finish_migrate(const std::string &soid, const std::string &cpath,
+                             long total, int nrekey, const std::string &carried_cksum)
+{
     /* ---- MDS: set the size ---- */
     if (ceph_truncate(g_cm, cpath.c_str(), total) != 0) { logline("FAIL " + soid + ": truncate"); n_fail++; return MIG_FAIL; }
 
-    /* ---- verify ---- */
-    if (g.verify) {
-        if (!carried_cksum.empty()) {
-            long a = cephfs_adler32(cpath, total);
-            char want[16]; snprintf(want, sizeof(want), "%08lx", (unsigned long) a);
-            if (a < 0 || strcasecmp(want, carried_cksum.c_str()) != 0) {
-                logline("FAIL " + soid + ": checksum mismatch (got " + std::string(want) +
-                        " want " + carried_cksum + ")"); n_fail++; return MIG_FAIL;
-            }
-        } else {
-            if (ceph_statx(g_cm, cpath.c_str(), &stx, CEPH_STATX_SIZE, 0) != 0
-                || (long) stx.stx_size != total) {
-                logline("FAIL " + soid + ": size verify"); n_fail++; return MIG_FAIL;
-            }
-        }
-    }
+    if (g.verify && verify_migrated(soid, cpath, total, carried_cksum) != MIG_OK) { return MIG_FAIL; }
 
-    /* ---- optionally delete the source after a clean migrate+verify ---- */
-    if (g.del && sit != g_src_index.end()) {
-        for (uint32_t idx : sit->second) {
-            char name[520];
-            snprintf(name, sizeof(name), "%s.%016lx", soid.c_str(), (unsigned long) idx);
-            if (g_src.remove(name) == 0) { n_deleted++; }
-        }
-        g_src.remove(soid);   /* a bare control object, if any */
-    }
+    if (g.del) { delete_source_objects(soid); }
 
     bytes_ok += total;
     n_ok++;
@@ -440,6 +458,49 @@ Result migrate_one(const std::string &soid)
             (g.mode == MODE_REDIRECT ? " redirect" : " obj") +
             (g.verify ? ", verified" : "") + (g.del ? ", source deleted" : "") + ")");
     return MIG_OK;
+}
+
+Result migrate_one(const std::string &soid)
+{
+    const std::string first = soid + ".0000000000000000";
+    StriperLayout l;
+    if (!read_striper_layout(first, &l)) { logline("FAIL " + soid + ": not a striper object set"); return MIG_FAIL; }
+
+    const std::string cpath = dest_path(soid);
+
+    /* idempotency: already migrated at the right size? (INO also fetched — the
+     * --force path below must detach the old file's stubs before unlinking) */
+    struct ceph_statx stx;
+    bool exists = (ceph_statx(g_cm, cpath.c_str(), &stx,
+                              CEPH_STATX_SIZE | CEPH_STATX_INO, 0) == 0);
+    if (exists && (long) stx.stx_size == l.total && !g.force) {
+        logline("SKIP " + soid + " -> " + cpath + " (already migrated)");
+        n_skip++; return MIG_SKIP;
+    }
+
+    if (g.dry) {
+        dry_account(soid, cpath, l);
+        n_skip++; return MIG_SKIP;
+    }
+
+    /* clear any partial / forced target — DETACH FIRST: a plain unlink of a
+     * redirect-migrated file delete-throughs to the source objects when the
+     * async MDS purge runs (proven: a --force re-migrate used to destroy the
+     * source minutes later). Harmless no-op for owned/partial targets. */
+    if (exists) {
+        detach_stubs(soid, (unsigned long long) stx.stx_ino);
+        ceph_unlink(g_cm, cpath.c_str());
+    }
+
+    unsigned long long ino;
+    if (create_namespace_entry(soid, cpath, l, &ino) != MIG_OK) { return MIG_FAIL; }
+
+    int nrekey = 0;
+    if (map_data_objects(soid, ino, &nrekey) != MIG_OK) { return MIG_FAIL; }
+
+    std::string carried_cksum = carry_user_xattrs(first, cpath);
+
+    return finish_migrate(soid, cpath, l.total, nrekey, carried_cksum);
 }
 
 /* Roll back a redirect-migrated file safely. A redirect stub DELETE-THROUGHS to
@@ -798,49 +859,68 @@ std::vector<std::string> build_list()
     return v;
 }
 
-} /* namespace */
-
-int
-main(int argc, char **argv)
+static int
+parse_cli_value_option(const std::string &a, int *i, int argc, char **argv)
 {
-    std::vector<std::string> pos;
+    if (a == "--list"   && *i + 1 < argc) { g.list = argv[++(*i)]; return 1; }
+    if (a == "--strip"  && *i + 1 < argc) { g.strip = argv[++(*i)]; return 1; }
+    if (a == "--threads" && *i + 1 < argc) { g.threads = atoi(argv[++(*i)]); return 1; }
+    if (a == "--conf"   && *i + 1 < argc) { g.conf = argv[++(*i)]; return 1; }
+    if (a == "--config" && *i + 1 < argc) { g.config = argv[++(*i)]; return 1; }
+    if (a == "--sample-mb" && *i + 1 < argc) { g.sample_mb = atol(argv[++(*i)]); return 1; }
+    return 0;
+}
+
+static int
+parse_cli_mode_option(const std::string &a, int *i, int argc, char **argv)
+{
+    if (a != "--mode") { return 0; }
+    if (*i + 1 >= argc) { fprintf(stderr, "--mode must be redirect|copy\n"); return -1; }
+    std::string m = argv[++(*i)];
+    if (m == "redirect") { g.mode = MODE_REDIRECT; return 1; }
+    if (m == "copy") { g.mode = MODE_COPY; return 1; }
+    fprintf(stderr, "--mode must be redirect|copy\n");
+    return -1;
+}
+
+static int
+parse_cli_flag_option(const std::string &a)
+{
+    if (a == "--rollback") { g.rollback = true; return 1; }
+    if (a == "--finalize") { g.finalize = true; return 1; }
+    if (a == "--verify") { g.verify = true; return 1; }
+    if (a == "--delete-source") { g.del = true; return 1; }
+    if (a == "--force") { g.force = true; return 1; }
+    if (a == "--dry-run") { g.dry = true; return 1; }
+    if (a == "--progress") { g.progress = true; return 1; }
+    return 0;
+}
+
+static int
+parse_cli_args(int argc, char **argv, std::vector<std::string> *pos)
+{
     for (int i = 1; i < argc; i++) {
         std::string a = argv[i];
-        if      (a == "--list"   && i + 1 < argc) { g.list   = argv[++i]; }
-        else if (a == "--strip"  && i + 1 < argc) { g.strip  = argv[++i]; }
-        else if (a == "--threads" && i + 1 < argc) { g.threads = atoi(argv[++i]); }
-        else if (a == "--conf"   && i + 1 < argc) { g.conf   = argv[++i]; }
-        else if (a == "--config" && i + 1 < argc) { g.config = argv[++i]; }
-        else if (a == "--mode"   && i + 1 < argc) {
-            std::string m = argv[++i];
-            if      (m == "redirect") { g.mode = MODE_REDIRECT; }
-            else if (m == "copy")     { g.mode = MODE_COPY; }
-            else { fprintf(stderr, "--mode must be redirect|copy\n"); return 2; }
-        }
-        else if (a == "--rollback")      { g.rollback = true; }
-        else if (a == "--finalize")      { g.finalize = true; }
-        else if (a == "--verify")        { g.verify = true; }
-        else if (a == "--delete-source") { g.del = true; }
-        else if (a == "--force")         { g.force = true; }
-        else if (a == "--dry-run")       { g.dry = true; }
-        else if (a == "--progress")      { g.progress = true; }
-        else if (a == "--sample-mb" && i + 1 < argc) { g.sample_mb = atol(argv[++i]); }
-        else if (a == "--help")          { fprintf(stderr, "see header for usage\n"); return 2; }
-        else if (a.rfind("--", 0) == 0)  { fprintf(stderr, "unknown option %s\n", a.c_str()); return 2; }
-        else { pos.push_back(a); }
+        int mode_rc;
+        if (parse_cli_value_option(a, &i, argc, argv)) { continue; }
+        mode_rc = parse_cli_mode_option(a, &i, argc, argv);
+        if (mode_rc < 0) { return 2; }
+        if (mode_rc > 0) { continue; }
+        if (parse_cli_flag_option(a)) { continue; }
+        if (a == "--help") { fprintf(stderr, "see header for usage\n"); return 2; }
+        if (a.rfind("--", 0) == 0) { fprintf(stderr, "unknown option %s\n", a.c_str()); return 2; }
+        pos->push_back(a);
     }
-    /* site profile: explicit CLI > config file > built-in default; full
-     * positional arity or NONE (a partial mix is ambiguous and refused). */
-    if (g.config.empty() && getenv("XRDCEPH_MIGRATE_CONF") != NULL) {
-        g.config = getenv("XRDCEPH_MIGRATE_CONF");
-    }
-    xrdceph_migrate_cfg cfg;
-    if (!g.config.empty() && !xrdceph_migrate_cfg_load(g.config, &cfg)) {
-        return 2;
-    }
+    return 0;
+}
+
+static int
+resolve_required_config(const std::vector<std::string> &pos, const char *prog,
+                        const xrdceph_migrate_cfg &cfg)
+{
     if (pos.size() != 3 && pos.size() != 0) {
         fprintf(stderr, "usage: %s <striper_pool> <cephfs_data_pool> <dest_prefix> [opts]\n"
-                "       (give all three positionals, or none with --config)\n", argv[0]);
+                "       (give all three positionals, or none with --config)\n", prog);
         return 2;
     }
     if (pos.size() == 3) { g.spool = pos[0]; g.dpool = pos[1]; g.dest = pos[2]; }
@@ -861,17 +941,34 @@ main(int argc, char **argv)
     }
     if (g.conf.empty()) { g.conf = xrdceph_migrate_cfg_resolve("", cfg, "conf"); }
     if (g.conf.empty()) { g.conf = getenv("CEPH_CONF") ? getenv("CEPH_CONF") : "/etc/ceph/ceph.conf"; }
+    return 0;
+}
+
+static int
+resolve_config(const std::vector<std::string> &pos, const char *prog)
+{
+    if (g.config.empty() && getenv("XRDCEPH_MIGRATE_CONF") != NULL) {
+        g.config = getenv("XRDCEPH_MIGRATE_CONF");
+    }
+    xrdceph_migrate_cfg cfg;
+    if (!g.config.empty() && !xrdceph_migrate_cfg_load(g.config, &cfg)) {
+        return 2;
+    }
+    int rc = resolve_required_config(pos, prog, cfg);
+    if (rc != 0) { return rc; }
     if (g.threads < 1) { g.threads = 1; }
     if (g.sample_mb < 1) { g.sample_mb = 1; }
-
-    /* --delete-source destroys the data the redirects point at — forbid it in
-     * redirect mode (and during rollback). */
     if (g.del && (g.mode == MODE_REDIRECT || g.rollback)) {
         fprintf(stderr, "--delete-source is invalid with --mode redirect / --rollback "
                 "(it would destroy the source data the redirects reference)\n");
         return 2;
     }
+    return 0;
+}
 
+static int
+init_cluster_and_fs()
+{
     double t_connect = now_s();
     if (g_cluster.init(g.client.c_str()) < 0 || g_cluster.conf_read_file(g.conf.c_str()) < 0
         || g_cluster.connect() < 0) { fprintf(stderr, "rados connect\n"); return 1; }
@@ -885,42 +982,12 @@ main(int argc, char **argv)
     }
     if (ceph_mount(g_cm, "/") < 0) { fprintf(stderr, "cephfs mount\n"); return 1; }
     g_startup_s = now_s() - t_connect;   /* fixed cost a real run pays too */
+    return 0;
+}
 
-    /* The XrdCeph striper source has no hardlinks/symlinks/snapshots in its object
-     * model, but RADOS POOL SNAPSHOTS are an out-of-scope Ceph component: they live
-     * on the pool, not in the striper layout, and are NOT migrated. Flag them. */
-    { std::vector<librados::snap_t> snaps;
-      if (g_src.snap_list(&snaps) == 0 && !snaps.empty())
-          fprintf(stderr, "WARN: striper pool '%s' has %zu RADOS pool snapshot(s) "
-                  "— these are NOT migrated (out of scope)\n", g.spool.c_str(), snaps.size()); }
-
-    std::vector<std::string> work = build_list();
-
-    /* Build the source-pool index ONCE (O(N)); every per-file op then does an
-     * O(1) lookup instead of the former per-file full-pool rescan (O(N^2)).
-     * Rollback needs it too — detach names its stubs from the source index. */
-    {
-        double bi0 = now_s();
-        build_source_index();
-        fprintf(stderr, "indexed %zu source file(s) in %.2fs (one pass)\n",
-                g_src_index.size(), now_s() - bi0);
-    }
-
-    fprintf(stderr, "xrdceph_striper_migrate: %zu file(s) to consider"
-            " (%s, mode=%s, %d worker(s), dest %s%s%s%s)\n", work.size(),
-            g.rollback ? "ROLLBACK" : (g.finalize ? "FINALIZE" : "migrate"),
-            g.mode == MODE_REDIRECT ? "redirect(zero-move)" : "copy",
-            g.threads, g.dest.c_str(),
-            g.dry ? ", DRY-RUN" : "", g.verify ? ", verify" : "",
-            g.del ? ", delete-source" : "");
-
-    /* progress: on with --progress, or automatically when stderr is a TTY
-     * (matches the Python tool). Off during the dry-run inventory pass. */
-    prog_on    = !g.dry && (g.progress || isatty(fileno(stderr)));
-    prog_total = (long) work.size();
-    prog_t0    = now_s();
-    prog_last  = prog_t0;
-
+static void
+run_worker_pool(const std::vector<std::string> &work)
+{
     std::queue<std::string> q;
     for (auto &s : work) { q.push(s); }
     std::mutex qm;
@@ -937,6 +1004,78 @@ main(int argc, char **argv)
     std::vector<std::thread> pool;
     for (int i = 0; i < g.threads; i++) { pool.emplace_back(worker); }
     for (auto &t : pool) { t.join(); }
+}
+
+/* Warn about out-of-scope RADOS pool snapshots on the source pool. */
+static void
+warn_pool_snapshots()
+{
+    std::vector<librados::snap_t> snaps;
+    if (g_src.snap_list(&snaps) == 0 && !snaps.empty()) {
+        fprintf(stderr, "WARN: striper pool '%s' has %zu RADOS pool snapshot(s) "
+                "— these are NOT migrated (out of scope)\n", g.spool.c_str(), snaps.size());
+    }
+}
+
+/* Build the source-pool index once (O(N)) and report the timing. */
+static void
+index_source_pool()
+{
+    double bi0 = now_s();
+    build_source_index();
+    fprintf(stderr, "indexed %zu source file(s) in %.2fs (one pass)\n",
+            g_src_index.size(), now_s() - bi0);
+}
+
+/* Arm the periodic progress line: on with --progress or a TTY, off during dry-run. */
+static void
+setup_progress(long total)
+{
+    prog_on    = !g.dry && (g.progress || isatty(fileno(stderr)));
+    prog_total = total;
+    prog_t0    = now_s();
+    prog_last  = prog_t0;
+}
+
+} /* namespace */
+
+int
+main(int argc, char **argv)
+{
+    std::vector<std::string> pos;
+    int rc = parse_cli_args(argc, argv, &pos);
+    if (rc != 0) { return rc; }
+    /* site profile: explicit CLI > config file > built-in default; full
+     * positional arity or NONE (a partial mix is ambiguous and refused). */
+    rc = resolve_config(pos, argv[0]);
+    if (rc != 0) { return rc; }
+
+    rc = init_cluster_and_fs();
+    if (rc != 0) { return rc; }
+
+    /* The XrdCeph striper source has no hardlinks/symlinks/snapshots in its object
+     * model, but RADOS POOL SNAPSHOTS are an out-of-scope Ceph component: they live
+     * on the pool, not in the striper layout, and are NOT migrated. Flag them. */
+    warn_pool_snapshots();
+
+    std::vector<std::string> work = build_list();
+
+    /* Build the source-pool index ONCE (O(N)); every per-file op then does an
+     * O(1) lookup instead of the former per-file full-pool rescan (O(N^2)).
+     * Rollback needs it too — detach names its stubs from the source index. */
+    index_source_pool();
+
+    fprintf(stderr, "xrdceph_striper_migrate: %zu file(s) to consider"
+            " (%s, mode=%s, %d worker(s), dest %s%s%s%s)\n", work.size(),
+            g.rollback ? "ROLLBACK" : (g.finalize ? "FINALIZE" : "migrate"),
+            g.mode == MODE_REDIRECT ? "redirect(zero-move)" : "copy",
+            g.threads, g.dest.c_str(),
+            g.dry ? ", DRY-RUN" : "", g.verify ? ", verify" : "",
+            g.del ? ", delete-source" : "");
+
+    setup_progress((long) work.size());
+
+    run_worker_pool(work);
 
     /* dry-run of a migrate: the worker pass above (g.dry) gathered the exact
      * inventory into dry_*; now forecast the wall-clock by really migrating a

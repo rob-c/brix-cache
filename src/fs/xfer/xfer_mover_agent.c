@@ -90,7 +90,8 @@ xfer_agent_loop(int fd, const brix_xfer_agent_ops_t *ops)
     void *req;
     void *rep;
 
-    signal(SIGCHLD, SIG_DFL);            /* our own waitpid() must work */
+    /* Previous handler is irrelevant in the fresh agent child — discard it. */
+    (void) signal(SIGCHLD, SIG_DFL);     /* our own waitpid() must work */
 
     req = malloc(ops->req_size);
     rep = malloc(ops->rep_size);

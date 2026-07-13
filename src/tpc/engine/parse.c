@@ -10,6 +10,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stddef.h>
 
 /* WHAT: Normalise the source path into `path`: collapse a leading run of '/'
  * down to a single '/', and guarantee the result starts with exactly one '/'.
@@ -51,12 +52,29 @@ tpc_copy_src_path(char *path, size_t path_size, const char *path_start)
     return 0;
 }
 
+/* WHAT: Bundle the destination out-params of tpc_parse_src_spec — the caller's
+ * host buffer (+size), the port cell, and the path buffer (+size) — into one
+ * file-local descriptor so the parser takes a single input struct instead of
+ * five separate destination arguments.
+ * WHY: The five-way out-param list pushed the parser over the parameter gate and
+ * obscured which arguments are the parse *target* versus the parse *source*;
+ * grouping the targets keeps the signature at (src, dst) and makes the data flow
+ * explicit. No behaviour change — these are exactly the buffers the caller owns.
+ * HOW: A plain struct of pointers/sizes; the caller populates it from the
+ * brix_tpc_params_t fields and the parser writes through the pointers. */
+typedef struct {
+    char     *host;
+    size_t    host_size;
+    uint16_t *port;
+    char     *path;
+    size_t    path_size;
+} tpc_src_spec_out_t;
+
 /* WHAT: Decomposes a TPC source endpoint string (root://host//path, xroot://host/path, or bare host[:port]) into host, port, and path components. Finds "://" scheme separator → extracts authority between scheme and '/' → handles IPv6 bracket notation [...] → strtol validates port range 1-65535 → copies path component after '/' via tpc_copy_src_path (strips leading double-slashes, ensures single '/' prefix). Returns 0 on success, -1 on failure.
  * WHY: TPC clients send source endpoints in varying formats — full URLs with scheme and path, bare host[:port] with lfn carrying the file name separately, or IPv6 addresses in bracket notation. This function normalizes all variants into a consistent host/port/path triplet for downstream security validation and file resolution. Port validation (1-65535) prevents overflow; full-field-clearing on failure prevents partial-parse bypass.
  * HOW: strstr("://") scheme separator → authority_start = after "://" → memchr('/') path boundary → handle IPv6 brackets [...] → strtol port range 1-65535 → tpc_copy_src_path for path component with double-slash stripping and single '/' prefix enforcement. */
 static int
-tpc_parse_src_spec(const char *src, char *host, size_t host_size,
-    uint16_t *port, char *path, size_t path_size)
+tpc_parse_src_spec(const char *src, tpc_src_spec_out_t *dst)
 {
     const char *authority_start;
     const char *authority_end;
@@ -110,13 +128,13 @@ tpc_parse_src_spec(const char *src, char *host, size_t host_size,
     memcpy(authority, authority_start, authority_len);
     authority[authority_len] = '\0';
 
-    if (brix_split_host_port(authority, host, host_size, &parsed_port, 0)
-        != 0) {
+    if (brix_split_host_port(authority, dst->host, dst->host_size,
+                             &parsed_port, 0) != 0) {
         return -1;
     }
-    *port = (uint16_t) parsed_port;
+    *dst->port = (uint16_t) parsed_port;
 
-    return tpc_copy_src_path(path, path_size, path_start);
+    return tpc_copy_src_path(dst->path, dst->path_size, path_start);
 }
 
 /* WHAT: Copy a value_len-byte opaque value into dst as a NUL-terminated string,
@@ -170,13 +188,19 @@ tpc_fill_src_path_from_lfn(brix_tpc_params_t *out)
 static void
 tpc_parse_src_fields(brix_tpc_params_t *out)
 {
+    tpc_src_spec_out_t spec = {
+        .host      = out->src_host,
+        .host_size = sizeof(out->src_host),
+        .port      = &out->src_port,
+        .path      = out->src_path,
+        .path_size = sizeof(out->src_path),
+    };
+
     if (!out->has_src) {
         return;
     }
 
-    if (tpc_parse_src_spec(out->src, out->src_host, sizeof(out->src_host),
-                           &out->src_port, out->src_path,
-                           sizeof(out->src_path)) != 0) {
+    if (tpc_parse_src_spec(out->src, &spec) != 0) {
         out->src_host[0] = '\0';
         out->src_path[0] = '\0';
         out->src_port = 0;
@@ -186,7 +210,79 @@ tpc_parse_src_fields(brix_tpc_params_t *out)
     tpc_fill_src_path_from_lfn(out);
 }
 
-/* WHAT: Iterates through one "key=value" token in the '&' delimited opaque query string. Finds token boundary (next '&' or end-of-string) → locates '=' separator → verifies "tpc." prefix (4 bytes) → matches remaining key length against known keys (src=3, dst=3, key=3, lfn=3, org=3, stage=5, token_mode=10) → copies value into corresponding buffer with size guard → sets has_* flag on success → returns pointer to next token or NULL when done.
+/* WHAT: One row of the recognised-tpc.*-key table — the bare key name (after
+ * the "tpc." prefix) and its length, plus the byte offset, capacity, and
+ * has_* flag offset of the destination field inside brix_tpc_params_t.
+ * WHY: The seven recognised keys differ only in name and target field, so they
+ * are data, not control flow. A descriptor table replaces the seven-branch
+ * if/else ladder (§8.6) with one match loop, collapsing the parser's CCN while
+ * keeping the exact same set of keys, lengths, and target buffers.
+ * HOW: name/name_len drive the memcmp match; value_off/value_size drive the
+ * size-guarded tpc_copy_value; flag_off addresses the int has_* flag to set. */
+typedef struct {
+    const char *name;
+    size_t      name_len;
+    size_t      value_off;
+    size_t      value_size;
+    size_t      flag_off;
+} tpc_key_desc_t;
+
+/* WHAT: The recognised tpc.* parameters, keyed by bare name. Offsets/sizes
+ * address the matching brix_tpc_params_t buffer and its has_* flag.
+ * WHY: Table-driven dispatch (§8.6) — adding a parameter is a new row, not a
+ * new branch. Rows mirror the former ladder 1:1 (src/dst/key/lfn/org/stage/
+ * token_mode) so parsing is byte-for-byte identical.
+ * HOW: offsetof()/sizeof() computed once at compile time; consumed by the
+ * match loop in tpc_parse_token. */
+#define TPC_KEY_ROW(bare, field)                                          \
+    { (bare), sizeof(bare) - 1,                                           \
+      offsetof(brix_tpc_params_t, field), sizeof(((brix_tpc_params_t *)0)->field), \
+      offsetof(brix_tpc_params_t, has_##field) }
+
+static const tpc_key_desc_t tpc_key_table[] = {
+    TPC_KEY_ROW("src",        src),
+    TPC_KEY_ROW("dst",        dst),
+    TPC_KEY_ROW("key",        key),
+    TPC_KEY_ROW("lfn",        lfn),
+    TPC_KEY_ROW("org",        org),
+    TPC_KEY_ROW("stage",      stage),
+    TPC_KEY_ROW("token_mode", token_mode),
+};
+
+#undef TPC_KEY_ROW
+
+/* WHAT: Match a bare key (name/len, "tpc." already stripped) against the
+ * recognised-key table and, on a hit, copy the value into the target field and
+ * set its has_* flag — the table-driven body that replaced the if/else ladder.
+ * WHY: Isolates the per-token field-store so tpc_parse_token stays a flat token
+ * splitter. A recognised-but-oversized value copies nothing and leaves the flag
+ * clear, exactly as the former ladder did (tpc_copy_value returns non-zero).
+ * HOW: Linear scan of tpc_key_table; on a length+memcmp match, tpc_copy_value
+ * into (out + value_off) and, on success, set *(int *)(out + flag_off) = 1. */
+static void
+tpc_apply_key(brix_tpc_params_t *out, const char *key_start, size_t key_len,
+    const char *value_start, size_t value_len)
+{
+    char  *base = (char *) out;
+    size_t i;
+
+    for (i = 0; i < sizeof(tpc_key_table) / sizeof(tpc_key_table[0]); i++) {
+        const tpc_key_desc_t *row = &tpc_key_table[i];
+
+        if (key_len != row->name_len
+            || memcmp(key_start, row->name, key_len) != 0) {
+            continue;
+        }
+
+        if (tpc_copy_value(base + row->value_off, row->value_size,
+                           value_start, value_len) == 0) {
+            *(int *) (base + row->flag_off) = 1;
+        }
+        return;
+    }
+}
+
+/* WHAT: Iterates through one "key=value" token in the '&' delimited opaque query string. Finds token boundary (next '&' or end-of-string) → locates '=' separator → verifies "tpc." prefix (4 bytes) → matches remaining key against the recognised-key table (tpc_key_table) via tpc_apply_key → copies value into corresponding buffer with size guard → sets has_* flag on success → returns pointer to next token or NULL when done.
  * WHY: TPC opaque parameters are '&' delimited key=value pairs prefixed with "tpc.". This function extracts each recognized parameter into the typed brix_tpc_params_t struct while silently ignoring unknown keys (forward compatibility). Size-guarded copies prevent buffer overflow from oversized values. Returns next-token pointer enables iterative loop in tpc_parse_opaque.
  * HOW: memchr(&) for token boundary → memchr(=) for key/value split → memcmp("tpc.") prefix check → switch on remaining key length against known keys → tpc_copy_value with size guard → set has_* flag → return next-token pointer or NULL. */
 static const char *
@@ -227,42 +323,7 @@ tpc_parse_token(const char *token_start, const char *opaque_end,
     key_start += 4;
     key_len -= 4;
 
-    if (key_len == 3 && memcmp(key_start, "src", 3) == 0) {
-        if (tpc_copy_value(out->src, sizeof(out->src), value_start,
-                           value_len) == 0) {
-            out->has_src   = 1;
-        }
-    } else if (key_len == 3 && memcmp(key_start, "dst", 3) == 0) {
-        if (tpc_copy_value(out->dst, sizeof(out->dst), value_start,
-                           value_len) == 0) {
-            out->has_dst   = 1;
-        }
-    } else if (key_len == 3 && memcmp(key_start, "key", 3) == 0) {
-        if (tpc_copy_value(out->key, sizeof(out->key), value_start,
-                           value_len) == 0) {
-            out->has_key   = 1;
-        }
-    } else if (key_len == 3 && memcmp(key_start, "lfn", 3) == 0) {
-        if (tpc_copy_value(out->lfn, sizeof(out->lfn), value_start,
-                           value_len) == 0) {
-            out->has_lfn = 1;
-        }
-    } else if (key_len == 3 && memcmp(key_start, "org", 3) == 0) {
-        if (tpc_copy_value(out->org, sizeof(out->org), value_start,
-                           value_len) == 0) {
-            out->has_org = 1;
-        }
-    } else if (key_len == 5 && memcmp(key_start, "stage", 5) == 0) {
-        if (tpc_copy_value(out->stage, sizeof(out->stage), value_start,
-                           value_len) == 0) {
-            out->has_stage = 1;
-        }
-    } else if (key_len == 10 && memcmp(key_start, "token_mode", 10) == 0) {
-        if (tpc_copy_value(out->token_mode, sizeof(out->token_mode),
-                           value_start, value_len) == 0) {
-            out->has_token_mode = 1;
-        }
-    }
+    tpc_apply_key(out, key_start, key_len, value_start, value_len);
 
     return (token_end < opaque_end) ? token_end + 1 : NULL;
 }

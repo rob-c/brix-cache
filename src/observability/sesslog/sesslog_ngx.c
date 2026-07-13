@@ -286,10 +286,16 @@ brix_sess_auth(brix_sess_t *s, int ok, brix_sess_am_t m, const char *user,
         return;
     }
 
-    n = brix_sesslog_fmt_auth(line, sizeof(line), s, ok, m,
-                              user != NULL ? user : "-",
-                              vo != NULL && vo[0] != '\0' ? vo : "-",
-                              err, brix_sess_sanitize_ngx);
+    brix_sesslog_auth_fields_t f = {
+        .ok = ok,
+        .method = m,
+        .user = user != NULL ? user : "-",
+        .vo = vo != NULL && vo[0] != '\0' ? vo : "-",
+        .err = err
+    };
+
+    n = brix_sesslog_fmt_auth(line, sizeof(line), s, &f,
+                              brix_sess_sanitize_ngx);
     brix_sess_emit(s, line, n);
 
     if (ok) {
@@ -338,7 +344,9 @@ brix_sess_attempt(brix_sess_t *s, const char *path, brix_sess_mode_t mode)
                          "session-closed");
     }
 
-    n = brix_sesslog_fmt_attempt(line, sizeof(line), s, path, mode,
+    brix_sesslog_attempt_fields_t f = { .path = path, .mode = mode };
+
+    n = brix_sesslog_fmt_attempt(line, sizeof(line), s, &f,
                                  brix_sess_sanitize_ngx);
     brix_sess_emit(s, line, n);
     brix_sess_copy_value(s->pending_path, sizeof(s->pending_path),
@@ -364,9 +372,15 @@ brix_sess_result(brix_sess_t *s, int ok, const char *path,
         return;
     }
 
-    n = brix_sesslog_fmt_result(line, sizeof(line), s, ok,
-                                path != NULL ? path : s->pending_path,
-                                mode, err, brix_sess_sanitize_ngx);
+    brix_sesslog_result_fields_t f = {
+        .ok = ok,
+        .path = path != NULL ? path : s->pending_path,
+        .mode = mode,
+        .err = err
+    };
+
+    n = brix_sesslog_fmt_result(line, sizeof(line), s, &f,
+                                brix_sess_sanitize_ngx);
     brix_sess_emit(s, line, n);
     s->pending_attempt = 0;
 }
@@ -415,8 +429,13 @@ brix_sess_xfer_end(brix_sess_t *s, brix_sess_xfer_t *x,
         return;
     }
 
-    n = brix_sesslog_fmt_xfer(line, sizeof(line), s, x, st,
-                              (uint64_t) ngx_current_msec,
+    brix_sesslog_xfer_fields_t f = {
+        .x = x,
+        .st = st,
+        .now_msec = (uint64_t) ngx_current_msec
+    };
+
+    n = brix_sesslog_fmt_xfer(line, sizeof(line), s, &f,
                               brix_sess_sanitize_ngx);
     brix_sess_emit(s, line, n);
 
@@ -453,8 +472,12 @@ brix_sess_end(brix_sess_t *s, brix_sess_end_t why)
         brix_sess_xfer_end(s, s->xfers, xfer_status);
     }
 
-    n = brix_sesslog_fmt_end(line, sizeof(line), s, why,
-                             (uint64_t) ngx_current_msec,
+    brix_sesslog_end_fields_t f = {
+        .why = why,
+        .now_msec = (uint64_t) ngx_current_msec
+    };
+
+    n = brix_sesslog_fmt_end(line, sizeof(line), s, &f,
                              brix_sess_sanitize_ngx);
     brix_sess_emit(s, line, n);
     s->end_logged = 1;

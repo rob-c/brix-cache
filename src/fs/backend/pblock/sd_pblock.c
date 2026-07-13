@@ -1067,8 +1067,9 @@ const brix_sd_driver_t brix_sd_pblock_driver = {
           | BRIX_SD_CAP_RANDOM_WRITE | BRIX_SD_CAP_RANGE_READ
           | BRIX_SD_CAP_TRUNCATE | BRIX_SD_CAP_APPEND
           | BRIX_SD_CAP_IOURING | BRIX_SD_CAP_SERVER_COPY
-          | BRIX_SD_CAP_XATTR | BRIX_SD_CAP_HARD_RENAME
-          | BRIX_SD_CAP_DIRS,
+          | BRIX_SD_CAP_XATTR | BRIX_SD_CAP_XATTR_WRITE
+          | BRIX_SD_CAP_HARD_RENAME
+          | BRIX_SD_CAP_DIRS | BRIX_SD_CAP_DIRS_WRITE,
 
     .init    = sd_pblock_init,
     .cleanup = sd_pblock_cleanup,

@@ -121,22 +121,43 @@ int brix_token_peek_iss(const char *token, size_t token_len,
                           char *out, size_t outsz);
 
 /*
+ * brix_token_validate_args_t — caller-supplied state for brix_token_validate().
+ *
+ * WHAT: Bundles the validator's inputs (log sink, raw token bytes, trusted
+ *       JWKS keys, expected issuer/audience pins, macaroon secret, clock-skew
+ *       window) and its single output (claims) into one struct.
+ * WHY:  brix_token_validate() took 11 positional parameters; a named-field
+ *       carrier keeps the extern surface at one parameter, makes every
+ *       callsite self-documenting, and lets the internal RFC pipeline thread
+ *       the same read-only pointer through its static helpers.
+ * HOW:  Populated field-by-field at each callsite (zero-init unused optional
+ *       fields) and passed read-only; the validator writes only through
+ *       ->claims, the caller's output buffer.
+ */
+typedef struct {
+    ngx_log_t              *log;               /* error/audit log sink        */
+    const char             *token;             /* raw bearer token bytes      */
+    size_t                  token_len;         /* length of token             */
+    const brix_jwks_key_t  *keys;              /* trusted JWKS keys (or NULL) */
+    int                     key_count;         /* entries in keys[]           */
+    const char             *expected_issuer;   /* iss pin; NULL/"" = any      */
+    const char             *expected_audience; /* aud pin; NULL/"" = any      */
+    const u_char           *macaroon_secret;   /* macaroon HMAC key or NULL   */
+    size_t                  secret_len;        /* length of macaroon_secret   */
+    int                     clock_skew;        /* exp/nbf tolerance (seconds) */
+    brix_token_claims_t    *claims;            /* OUT: verified claims        */
+} brix_token_validate_args_t;
+
+/*
  * Validate a JWT bearer token.
  *
  * Checks: structure, signature (RS256), exp, nbf, iss, aud.
- * On success fills `claims` with the extracted claim values and
+ * On success fills `a->claims` with the extracted claim values and
  * parsed scopes.
  *
  * Returns 0 on success, -1 on error.
  */
-int brix_token_validate(ngx_log_t *log,
-                          const char *token, size_t token_len,
-                          const brix_jwks_key_t *keys, int key_count,
-                          const char *expected_issuer,
-                          const char *expected_audience,
-                          const u_char *macaroon_secret, size_t secret_len,
-                          int clock_skew,
-                          brix_token_claims_t *claims);
+int brix_token_validate(const brix_token_validate_args_t *a);
 
 /* ------------------------------------------------------------------ */
 /* Scope checking                                                       */

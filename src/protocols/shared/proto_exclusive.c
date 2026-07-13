@@ -30,32 +30,35 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 #include "protocols/shared/proto_exclusive.h"
+#include "protocols/shared/protocol.h"
 #include "protocols/webdav/webdav.h"
 #include "protocols/s3/s3.h"
 #include "protocols/cvmfs/cvmfs.h"
 
 #define BRIX_PROTO_NONE    0u
-#define BRIX_PROTO_WEBDAV  (1u << 0)
-#define BRIX_PROTO_S3      (1u << 1)
-#define BRIX_PROTO_CVMFS   (1u << 2)
 
+/* 2.1: the set of http brix protocols and their directive names now comes from
+ * the protocol-descriptor registry (protocols/shared/protocol.h) — the single
+ * source — instead of a hand-maintained bit table here.  Each protocol's bit is
+ * its registry index; brix_proto_mask/brix_proto_name key off it. */
 
 /*
  * WHAT: Human-readable directive name for a single protocol bit.
  * WHY:  Error diagnostics name the offending protocols by their directive.
- * HOW:  Tests the bits in a fixed order; the caller passes a mask that has
- *       the wanted protocol bit set (extra bits are ignored).
+ * HOW:  A bit is a registry index; return that descriptor's directive.
  */
 static const char *
 brix_proto_name(ngx_uint_t bit)
 {
-    if (bit & BRIX_PROTO_WEBDAV) {
-        return "brix_webdav";
+    ngx_uint_t i, n = brix_protocol_count_get();
+
+    for (i = 0; i < n; i++) {
+        if (bit & (1u << i)) {
+            const brix_protocol_t *p = brix_protocol_at(i);
+            return (p->directive != NULL) ? p->directive : p->name;
+        }
     }
-    if (bit & BRIX_PROTO_S3) {
-        return "brix_s3";
-    }
-    return "brix_cvmfs";
+    return "brix";
 }
 
 
@@ -63,29 +66,22 @@ brix_proto_name(ngx_uint_t bit)
  * WHAT: The set of brix protocols this location's conf array enables.
  * WHY:  Each protocol keeps its enable flag in its own loc-conf; the walker
  *       needs one combined mask per location.
- * HOW:  Reads each module's loc-conf via its ctx_index and OR-s the bit for
- *       every protocol whose enable flag merged to on.
+ * HOW:  Iterate the registry's http descriptors, OR-ing bit (1u<<index) for
+ *       every one whose loc_enabled() hook reports on.
  */
 static ngx_uint_t
 brix_proto_mask(void **loc_conf)
 {
-    ngx_uint_t                       mask = BRIX_PROTO_NONE;
-    ngx_http_brix_webdav_loc_conf_t *w;
-    ngx_http_s3_loc_conf_t          *s;
-    ngx_http_brix_cvmfs_loc_conf_t  *c;
+    ngx_uint_t mask = BRIX_PROTO_NONE;
+    ngx_uint_t i, n = brix_protocol_count_get();
 
-    w = loc_conf[ngx_http_brix_webdav_module.ctx_index];
-    s = loc_conf[ngx_http_brix_s3_module.ctx_index];
-    c = loc_conf[ngx_http_brix_cvmfs_module.ctx_index];
-
-    if (w != NULL && w->common.enable == 1) {
-        mask |= BRIX_PROTO_WEBDAV;
-    }
-    if (s != NULL && s->common.enable == 1) {
-        mask |= BRIX_PROTO_S3;
-    }
-    if (c != NULL && c->cvmfs.enable == 1) {
-        mask |= BRIX_PROTO_CVMFS;
+    for (i = 0; i < n; i++) {
+        const brix_protocol_t *p = brix_protocol_at(i);
+        if (p->family == BRIX_PROTO_FAMILY_HTTP && p->loc_enabled != NULL
+            && p->loc_enabled(loc_conf))
+        {
+            mask |= (1u << i);
+        }
     }
     return mask;
 }

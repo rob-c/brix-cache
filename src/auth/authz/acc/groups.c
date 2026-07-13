@@ -94,6 +94,7 @@ brix_acc_groups_set_nisdomain(const char *domain)
 
 
 #define ACC_GRP_CACHE_SLOTS  256
+#define ACC_DJB2_SEED        5381   /* djb2 hash initial basis */
 #define ACC_GRP_USER_MAX     128
 
 typedef struct {
@@ -141,7 +142,7 @@ acc_monotonic_ms(void)
 static unsigned
 acc_user_hash(const char *user)
 {
-    unsigned h = 5381;
+    unsigned h = ACC_DJB2_SEED;
     while (*user) { h = ((h << 5) + h) ^ (unsigned char) *user++; }
     return h % ACC_GRP_CACHE_SLOTS;
 }

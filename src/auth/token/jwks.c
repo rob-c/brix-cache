@@ -161,9 +161,16 @@ brix_jwks_load(ngx_log_t *log, const char *path,
     }
     fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);
 
-    fseek(fp, 0, SEEK_END);
-    fsize = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
+    if (fseek(fp, 0, SEEK_END) != 0
+        || (fsize = ftell(fp)) < 0
+        || fseek(fp, 0, SEEK_SET) != 0)
+    {
+        ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
+                      "brix_token: cannot determine JWKS file size \"%s\"",
+                      path);
+        (void) fclose(fp); /* phase74-fp: read-only stream on an error path already returning -1 */
+        return -1;
+    }
 
     if (fsize <= 0 || fsize > 65536) {
         BRIX_DIAG_ERR(log, 0,
@@ -173,19 +180,19 @@ brix_jwks_load(ngx_log_t *log, const char *path,
             "ensure the JWKS is written atomically and contains just the key "
             "set; until then token authentication is rejected",
             fsize);
-        fclose(fp);
+        (void) fclose(fp); /* phase74-fp: read-only stream on an error path already returning -1 */
         return -1;
     }
 
     /* Defense-in-depth: reject a negative or wraparound fsize before malloc. */
     size_t buf_sz;
     if (fsize < 0 || brix_size_add((size_t) fsize, 1, &buf_sz) != NGX_OK) {
-        fclose(fp);
+        (void) fclose(fp); /* phase74-fp: read-only stream on an error path already returning -1 */
         return -1;
     }
     buf = malloc(buf_sz);
     if (buf == NULL) {
-        fclose(fp);
+        (void) fclose(fp); /* phase74-fp: read-only stream on an error path already returning -1 */
         return -1;
     }
 
@@ -193,11 +200,11 @@ brix_jwks_load(ngx_log_t *log, const char *path,
         ngx_log_error(NGX_LOG_ERR, log, ngx_errno,
                       "brix_token: failed to read JWKS file");
         free(buf);
-        fclose(fp);
+        (void) fclose(fp); /* phase74-fp: read-only stream on an error path already returning -1 */
         return -1;
     }
     buf[fsize] = '\0';
-    fclose(fp);
+    (void) fclose(fp); /* phase74-fp: read-only stream fully read (fread length verified above) */
 
     count = brix_jwks_load_jansson(log, path, buf, (size_t) fsize,
                                      keys, max_keys);

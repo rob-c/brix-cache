@@ -94,26 +94,48 @@ hdr_clen(const char *hdrs)
 }
 
 
-/* One ranged GET over the (already-connected) persistent socket. Fills up to len
- * bytes at off into buf; returns bytes read (0 = EOF/416), or -1 (st set). On any
- * transport/protocol fault returns -1 AND disconnects so the caller can retry. */
-ssize_t
-web_get_range(brix_webfile *wf, int64_t off, void *buf, size_t len,
-              brix_status *st)
+/*
+ * Response-header parse result carried out of web_range_read_headers.
+ *
+ * WHAT: the status line code plus the location of the CRLFCRLF terminator and
+ *       the total header+overflow bytes sitting in the caller's header buffer.
+ * WHY:  splitting the header read out of web_get_range means the status code,
+ *       the end-of-headers pointer, and the amount already buffered (some of
+ *       which is body) must all flow back to the body-streaming step.
+ * HOW:  populated only on a 206/200 success; on 416/error the header reader
+ *       returns the disposition directly and this struct is not consumed.
+ */
+typedef struct {
+    char     *hbuf;      /* caller's header buffer (headers + any body overflow) */
+    char     *eoh;       /* points at the "\r\n\r\n" terminator inside hbuf      */
+    size_t    hlen;      /* total bytes read into hbuf (headers + body overflow) */
+    long long clen;      /* parsed Content-Length (>= 0 on the success path)     */
+    int       status;    /* HTTP status code (206 or 200 on the success path)    */
+} web_range_hdr_t;
+
+
+/*
+ * Build and send the ranged GET request over the persistent socket.
+ *
+ * WHAT: format the keep-alive "GET … Range: bytes=off-end" request and write it.
+ * WHY:  isolates request framing (the wire-frozen request line + headers) from
+ *       response handling so web_get_range reads as a linear send/read/stream.
+ * HOW:  snprintf into a caller-owned buffer; on overflow set EUSAGE, on a write
+ *       fault disconnect (so the caller reconnects and retries). Returns 0 on
+ *       success, -1 with st set (and wf disconnected on transport fault).
+ */
+static int
+web_range_send_req(brix_webfile *wf, int64_t off, size_t len, brix_status *st)
 {
-    char    req[3200];
-    char    hbuf[WEB_HDR_MAX + 1];
-    size_t  hlen = 0;
-    char   *eoh = NULL;
-    int     status = 0;
-    long long clen;
-    int     rn = snprintf(req, sizeof(req),
-                          "GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: xrootdfs\r\n"
-                          "Accept: */*\r\nConnection: keep-alive\r\n"
-                          "Range: bytes=%lld-%lld\r\n%s\r\n",
-                          wf->path[0] ? wf->path : "/", wf->hostport,
-                          (long long) off, (long long) (off + (int64_t) len - 1),
-                          wf->auth);
+    char req[3200];
+    int  rn = snprintf(req, sizeof(req),
+                       "GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: xrootdfs\r\n"
+                       "Accept: */*\r\nConnection: keep-alive\r\n"
+                       "Range: bytes=%lld-%lld\r\n%s\r\n",
+                       wf->path[0] ? wf->path : "/", wf->hostport,
+                       (long long) off, (long long) (off + (int64_t) len - 1),
+                       wf->auth);
+
     if (rn < 0 || (size_t) rn >= sizeof(req)) {
         brix_status_set(st, XRDC_EUSAGE, 0, "web GET: request too long");
         return -1;
@@ -122,8 +144,33 @@ web_get_range(brix_webfile *wf, int64_t off, void *buf, size_t len,
         web_disconnect(wf);
         return -1;
     }
+    return 0;
+}
 
-    /* Read response headers (up to the CRLFCRLF), keeping any body overflow. */
+
+/*
+ * Read response headers and evaluate the status line.
+ *
+ * WHAT: read up to CRLFCRLF into hbuf, parse the HTTP status, and classify it.
+ * WHY:  concentrates the header-buffer loop and the status→disposition mapping
+ *       (416 = empty read, 404/401/403/other = error) in one place so the body
+ *       stream step only ever runs on a 206/200 with a valid Content-Length.
+ * HOW:  fills hbuf (NUL-terminated), locates the terminator, parses the code,
+ *       then NUL-terminates the header block and confirms Content-Length. On a
+ *       success (206/200) writes *out and returns 1; on the range-past-EOF 416
+ *       returns 0 (no bytes); on any error returns -1 with st set. Every non-1
+ *       path that leaves the socket unusable disconnects wf.  On success *out
+ *       carries hbuf, the terminator, the byte count, Content-Length, and status.
+ */
+static int
+web_range_read_headers(brix_webfile *wf, char *hbuf, brix_status *st,
+                       web_range_hdr_t *out)
+{
+    size_t  hlen = 0;
+    char   *eoh = NULL;
+    int     status = 0;
+    long long clen;
+
     for (;;) {
         ssize_t r;
         if (hlen >= WEB_HDR_MAX) {
@@ -146,6 +193,7 @@ web_get_range(brix_webfile *wf, int64_t off, void *buf, size_t len,
             break;
         }
     }
+
     if (strncmp(hbuf, "HTTP/", 5) == 0) {
         const char *sp = strchr(hbuf, ' ');
         status = sp ? atoi(sp + 1) : 0;
@@ -175,63 +223,110 @@ web_get_range(brix_webfile *wf, int64_t off, void *buf, size_t len,
         return -1;
     }
 
-    /* body bytes already sitting in hbuf after the header terminator */
-    {
-        char   *bstart = eoh + 4;
-        size_t  have = hlen - (size_t) (bstart - hbuf);
-        size_t  want = (clen < (long long) len) ? (size_t) clen : len;
-        size_t  copied = (have < want) ? have : want;
-        size_t  total_body = (size_t) clen;        /* must fully consume */
-        size_t  consumed;
+    out->hbuf = hbuf;
+    out->eoh = eoh;
+    out->hlen = hlen;
+    out->clen = clen;
+    out->status = status;
+    return 1;
+}
 
-        memcpy(buf, bstart, copied);
-        consumed = have;                            /* bytes of body read so far */
 
-        /*
-         * Read the remainder of `want` INCREMENTALLY (not all-or-nothing): on a
-         * mid-body sever, return the bytes copied SO FAR so the caller advances
-         * `off` and resumes the rest with a fresh Range GET — forward progress
-         * under repeated severs, instead of discarding the whole range and
-         * re-reading it from the start (which never completes under heavy loss).
-         */
-        while (copied < want) {
-            ssize_t br = web_read_some(wf, (char *) buf + copied,
-                                       want - copied, st);
-            if (br <= 0) {
-                web_disconnect(wf);
-                if (copied > 0) {
-                    return (ssize_t) copied;        /* partial; caller resumes */
-                }
-                if (br == 0) {
-                    brix_status_set(st, XRDC_ESOCK, 0,
-                                    "web GET: peer closed mid-body");
-                }
-                return -1;
+/*
+ * Copy the wanted range bytes out of the parsed response and drain the rest.
+ *
+ * WHAT: emit up to len bytes of body into buf, reading the remainder past the
+ *       header overflow and draining any body beyond what was wanted.
+ * WHY:  the body path has its own resume semantics (partial forward progress on
+ *       a mid-body sever) and keep-alive alignment (full-body drain) that read
+ *       cleanly as one step separate from header parsing.
+ * HOW:  seeds `copied` from the overflow already in hbuf, then reads the rest of
+ *       `want` INCREMENTALLY so a mid-body sever returns the bytes copied so far
+ *       (caller resumes at off+copied); finally drains to Content-Length to keep
+ *       the connection aligned. Returns bytes delivered, or -1 with st set.
+ */
+static ssize_t
+web_range_stream_body(brix_webfile *wf, void *buf, size_t len,
+                      const web_range_hdr_t *hdr, brix_status *st)
+{
+    char   *bstart = hdr->eoh + 4;
+    size_t  have = hdr->hlen - (size_t) (bstart - hdr->hbuf);
+    size_t  want = (hdr->clen < (long long) len) ? (size_t) hdr->clen : len;
+    size_t  copied = (have < want) ? have : want;
+    size_t  total_body = (size_t) hdr->clen;   /* must fully consume */
+    size_t  consumed;
+
+    memcpy(buf, bstart, copied);
+    consumed = have;                            /* bytes of body read so far */
+
+    /*
+     * Read the remainder of `want` INCREMENTALLY (not all-or-nothing): on a
+     * mid-body sever, return the bytes copied SO FAR so the caller advances
+     * `off` and resumes the rest with a fresh Range GET — forward progress
+     * under repeated severs, instead of discarding the whole range and
+     * re-reading it from the start (which never completes under heavy loss).
+     */
+    while (copied < want) {
+        ssize_t br = web_read_some(wf, (char *) buf + copied,
+                                   want - copied, st);
+        if (br <= 0) {
+            web_disconnect(wf);
+            if (copied > 0) {
+                return (ssize_t) copied;        /* partial; caller resumes */
             }
-            consumed += (size_t) br;
-            copied += (size_t) br;
-        }
-        /* drain any body beyond what we wanted, to keep the connection aligned
-         * for the next keep-alive request (status 200 = server ignored Range) */
-        while (consumed < total_body) {
-            char    sink[8192];
-            size_t  chunk = total_body - consumed;
-            if (chunk > sizeof(sink)) {
-                chunk = sizeof(sink);
+            if (br == 0) {
+                brix_status_set(st, XRDC_ESOCK, 0,
+                                "web GET: peer closed mid-body");
             }
-            if (brix_read_full(&wf->io, sink, chunk, st) != 0) {
-                web_disconnect(wf);
-                return (ssize_t) want;   /* have the wanted bytes; lost keep-alive */
-            }
-            consumed += chunk;
+            return -1;
         }
-        if (status == 200) {
-            /* Range ignored: keep-alive is fine (we consumed the whole body), but
-             * for a large file that is wasteful — leave the connection up; the
-             * caller still got the right bytes for this offset. */
-        }
-        return (ssize_t) want;
+        consumed += (size_t) br;
+        copied += (size_t) br;
     }
+    /* drain any body beyond what we wanted, to keep the connection aligned
+     * for the next keep-alive request (status 200 = server ignored Range) */
+    while (consumed < total_body) {
+        char    sink[8192];
+        size_t  chunk = total_body - consumed;
+        if (chunk > sizeof(sink)) {
+            chunk = sizeof(sink);
+        }
+        if (brix_read_full(&wf->io, sink, chunk, st) != 0) {
+            web_disconnect(wf);
+            return (ssize_t) want;   /* have the wanted bytes; lost keep-alive */
+        }
+        consumed += chunk;
+    }
+    if (hdr->status == 200) {
+        /* Range ignored: keep-alive is fine (we consumed the whole body), but
+         * for a large file that is wasteful — leave the connection up; the
+         * caller still got the right bytes for this offset. */
+    }
+    return (ssize_t) want;
+}
+
+
+/* One ranged GET over the (already-connected) persistent socket. Fills up to len
+ * bytes at off into buf; returns bytes read (0 = EOF/416), or -1 (st set). On any
+ * transport/protocol fault returns -1 AND disconnects so the caller can retry. */
+ssize_t
+web_get_range(brix_webfile *wf, int64_t off, void *buf, size_t len,
+              brix_status *st)
+{
+    char            hbuf[WEB_HDR_MAX + 1];
+    web_range_hdr_t hdr = {0};
+    int             hr;
+
+    if (web_range_send_req(wf, off, len, st) != 0) {
+        return -1;
+    }
+
+    hr = web_range_read_headers(wf, hbuf, st, &hdr);
+    if (hr <= 0) {
+        return (ssize_t) hr;      /* 0 = 416 (no bytes), -1 = error (st set) */
+    }
+
+    return web_range_stream_body(wf, buf, len, &hdr, st);
 }
 
 

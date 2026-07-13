@@ -38,6 +38,58 @@
  */
 
 /*
+ * brix_cache_path_args_valid — reject NULL/empty inputs to the path remap.
+ *
+ * WHAT: True iff every string arg is non-NULL and non-empty and outsz > 0.
+ * WHY:  Centralizes the guard so the remap body deals only with well-formed
+ *       inputs, preserving the original EINVAL-on-bad-args contract.
+ * HOW:  Pure boolean over the four strings plus outsz; no side effects.
+ */
+static ngx_int_t
+brix_cache_path_args_valid(const char *cache_root_canon, const char *root_canon,
+    const char *resolved, const char *out, size_t outsz)
+{
+    return cache_root_canon != NULL && root_canon != NULL && resolved != NULL
+        && out != NULL && outsz != 0 && cache_root_canon[0] != '\0'
+        && root_canon[0] != '\0' && resolved[0] != '\0';
+}
+
+/*
+ * brix_cache_export_suffix — derive the export-relative suffix of resolved.
+ *
+ * WHAT: Confirms resolved is under root_canon and returns the trailing suffix
+ *       (the part re-rooted under the cache tree), or NULL if resolved is not
+ *       under root_canon or the suffix is malformed (not '' or starting '/').
+ * WHY:  Isolates the root-stripping + suffix-shape check from assembly so each
+ *       branch of the original function is a single, testable step.
+ * HOW:  Prefix-compares root_canon, special-cases root_canon == "/", then
+ *       validates the leading character of the remainder.
+ */
+static const char *
+brix_cache_export_suffix(const char *root_canon, const char *resolved)
+{
+    size_t      root_len;
+    const char *suffix;
+
+    root_len = strlen(root_canon);
+    if (ngx_strncmp((u_char *) resolved, (u_char *) root_canon, root_len) != 0) {
+        return NULL;
+    }
+
+    if (root_len == 1 && root_canon[0] == '/') {
+        suffix = (resolved[1] != '\0') ? resolved : "";
+    } else {
+        suffix = resolved + root_len;
+    }
+
+    if (suffix[0] != '\0' && suffix[0] != '/') {
+        return NULL;
+    }
+
+    return suffix;
+}
+
+/*
  * brix_cache_path_for_resolved — map an export path to its cache-tree path.
  *
  * Strips root_canon from the resolved export path and re-roots the remaining
@@ -51,32 +103,18 @@ brix_cache_path_for_resolved(const char *cache_root_canon,
     const char *root_canon, const char *resolved, char *out, size_t outsz)
 {
     size_t      cache_len;
-    size_t      root_len;
     size_t      suffix_len;
     const char *suffix;
 
-    if (cache_root_canon == NULL || root_canon == NULL || resolved == NULL
-        || out == NULL || outsz == 0 || cache_root_canon[0] == '\0'
-        || root_canon[0] == '\0' || resolved[0] == '\0')
+    if (!brix_cache_path_args_valid(cache_root_canon, root_canon, resolved,
+                                     out, outsz))
     {
         errno = EINVAL;
         return NGX_ERROR;
     }
 
-    root_len = strlen(root_canon);
-    if (ngx_strncmp((u_char *) resolved, (u_char *) root_canon, root_len)
-        != 0)
-    {
-        errno = EINVAL;
-        return NGX_ERROR;
-    }
-
-    if (root_len == 1 && root_canon[0] == '/') {
-        suffix = (resolved[1] != '\0') ? resolved : "";
-    } else {
-        suffix = resolved + root_len;
-    }
-    if (suffix[0] != '\0' && suffix[0] != '/') {
+    suffix = brix_cache_export_suffix(root_canon, resolved);
+    if (suffix == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }
@@ -127,6 +165,113 @@ brix_cache_validate_meta(const char *cache_path, const struct stat *st,
 }
 
 /*
+ * brix_cache_open_declined — should brix_cache_open decline before touching disk?
+ *
+ * WHAT: True when this open must never be served from cache — caching disabled
+ *       or unconfigured, BRIX_VFS_O_NOCACHE requested, or any write-intent flag
+ *       (write/create/trunc/append) present.
+ * WHY:  Concentrates the "serve-vs-fall-back-to-origin" gate in one place; this
+ *       decision is authz-transparency-sensitive and must not drift.
+ * HOW:  Pure predicate over ctx state and flags; no side effects.
+ */
+static ngx_int_t
+brix_cache_open_declined(const brix_vfs_ctx_t *ctx, ngx_uint_t flags)
+{
+    return ctx == NULL || !ctx->cache_enabled
+        || ctx->cache_root_canon == NULL || ctx->cache_root_canon[0] == '\0'
+        || (flags & BRIX_VFS_O_NOCACHE)
+        || (flags & (BRIX_VFS_O_WRITE | BRIX_VFS_O_CREATE
+                     | BRIX_VFS_O_TRUNC | BRIX_VFS_O_APPEND));
+}
+
+/*
+ * brix_cache_hit_fresh — is cache_path a regular, origin-fresh cache hit?
+ *
+ * WHAT: Stats key through the cache storage driver (inst) and validates the
+ *       result against the .meta sidecar for cache_path. Returns NGX_OK on a
+ *       usable hit, NGX_DECLINED on a miss / non-regular / stale entry, or
+ *       NGX_ERROR on a hard stat error (errno preserved from the driver).
+ * WHY:  Extracts the freshness decision — which entries serve vs fall back to
+ *       the origin — so the ordering (stat, then meta) is stated exactly once.
+ * HOW:  Driver stat → is_reg check → synthesize struct stat from the snapshot
+ *       → resolve the sidecar path → brix_cache_validate_meta.
+ */
+static ngx_int_t
+brix_cache_hit_fresh(const brix_vfs_ctx_t *ctx, brix_sd_instance_t *inst,
+    const char *key, const char *cache_path)
+{
+    brix_sd_stat_t sd_st;
+    struct stat    st;
+    const char    *state_root;
+    char           sidecar[PATH_MAX];
+
+    if (inst->driver->stat(inst, key, &sd_st) != NGX_OK) {
+        return (errno == ENOENT || errno == ENOTDIR) ? NGX_DECLINED
+                                                     : NGX_ERROR;
+    }
+    if (!sd_st.is_reg) {
+        return NGX_DECLINED;
+    }
+
+    /* Validate against the .meta sidecar (origin freshness) at the POSIX state
+     * path (== cache_path for a co-located cache). Synthesize a struct stat
+     * from the driver snapshot. */
+    ngx_memzero(&st, sizeof(st));
+    st.st_size  = sd_st.size;
+    st.st_mtime = sd_st.mtime;
+    st.st_mode  = S_IFREG;
+
+    state_root = brix_cache_state_root_by_root(ctx->cache_root_canon);
+    if (state_root == NULL
+        || brix_cache_sidecar_path(ctx->cache_root_canon, state_root,
+               cache_path, sidecar, sizeof(sidecar)) != 0
+        || brix_cache_validate_meta(sidecar, &st, ctx->log) != NGX_OK)
+    {
+        return NGX_DECLINED;     /* obj not opened yet — nothing to close */
+    }
+
+    return NGX_OK;
+}
+
+/*
+ * brix_cache_open_adopt — open a validated cache entry and adopt its fd.
+ *
+ * WHAT: Opens key through the storage driver read-only and hands the object to
+ *       the VFS via brix_vfs_adopt_obj, publishing *fh_out on success. On an
+ *       open failure returns NGX_DECLINED (miss) or NGX_ERROR; on an adopt
+ *       failure it closes/frees the object and re-raises the original errno.
+ * WHY:  Isolates the resource-owning step (open → adopt, with cleanup on the
+ *       error edge) from the freshness decision above it.
+ * HOW:  driver->open → on NULL classify errno; else brix_vfs_adopt_obj, undo on
+ *       failure.
+ */
+static ngx_int_t
+brix_cache_open_adopt(brix_vfs_ctx_t *ctx, brix_sd_instance_t *inst,
+    const char *key, brix_vfs_file_t **fh_out)
+{
+    brix_sd_obj_t *o;
+    ngx_int_t      rc;
+    int            e = 0;
+
+    o = inst->driver->open(inst, key, BRIX_SD_O_READ, 0, &e);
+    if (o == NULL) {
+        errno = e;
+        return (e == ENOENT || e == ENOTDIR) ? NGX_DECLINED : NGX_ERROR;
+    }
+
+    rc = brix_vfs_adopt_obj(ctx, key, o, 0 /* read-only */, fh_out);
+    if (rc != NGX_OK) {
+        int err = errno;
+        (void) inst->driver->close(o);
+        if (o->heap_shell) {
+            free(o);
+        }
+        errno = err;
+    }
+    return rc;
+}
+
+/*
  * brix_cache_open — VFS cache-open hook: serve a read from the cache if able.
  *
  * Declines (NGX_DECLINED) when caching is disabled, BRIX_VFS_O_NOCACHE is
@@ -139,10 +284,11 @@ ngx_int_t
 brix_cache_open(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
     brix_vfs_file_t **fh_out)
 {
-    char        cache_path[PATH_MAX];
-    const char *resolved;
-    struct stat st;
-    ngx_int_t   rc;
+    char                cache_path[PATH_MAX];
+    const char         *resolved;
+    const char         *key;
+    brix_sd_instance_t *inst;
+    ngx_int_t           rc;
 
     if (fh_out == NULL) {
         errno = EINVAL;
@@ -150,12 +296,7 @@ brix_cache_open(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
     }
     *fh_out = NULL;
 
-    if (ctx == NULL || !ctx->cache_enabled
-        || ctx->cache_root_canon == NULL || ctx->cache_root_canon[0] == '\0'
-        || (flags & BRIX_VFS_O_NOCACHE)
-        || (flags & (BRIX_VFS_O_WRITE | BRIX_VFS_O_CREATE
-                     | BRIX_VFS_O_TRUNC | BRIX_VFS_O_APPEND)))
-    {
+    if (brix_cache_open_declined(ctx, flags)) {
         return NGX_DECLINED;
     }
 
@@ -175,69 +316,23 @@ brix_cache_open(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
      * driver-backed cache the bytes live in the driver's namespace, not as a POSIX
      * file. The normal read path memory-serves when the backend cannot sendfile.
      */
-    {
-        brix_sd_instance_t *inst =
-            brix_cache_storage_by_root(ctx->cache_root_canon);
-        const char           *key;
-        brix_sd_stat_t      sd_st;
-        brix_sd_obj_t      *o;
-        int                   e = 0;
+    inst = brix_cache_storage_by_root(ctx->cache_root_canon);
+    if (inst == NULL) {
+        return NGX_DECLINED;          /* no cache storage on this root */
+    }
 
-        if (inst == NULL) {
-            return NGX_DECLINED;          /* no cache storage on this root */
-        }
-        /* key = the suffix under cache_root (what the driver keys its namespace on). */
-        key = cache_path + ngx_strlen(ctx->cache_root_canon);
-        if (key[0] != '/') {
-            return NGX_DECLINED;
-        }
+    /* key = the suffix under cache_root (what the driver keys its namespace on). */
+    key = cache_path + ngx_strlen(ctx->cache_root_canon);
+    if (key[0] != '/') {
+        return NGX_DECLINED;
+    }
 
-        if (inst->driver->stat(inst, key, &sd_st) != NGX_OK) {
-            return (errno == ENOENT || errno == ENOTDIR) ? NGX_DECLINED
-                                                         : NGX_ERROR;
-        }
-        if (!sd_st.is_reg) {
-            return NGX_DECLINED;
-        }
-
-        /* Validate against the .meta sidecar (origin freshness) at the POSIX state
-         * path (== cache_path for a co-located cache). Synthesize a struct stat
-         * from the driver snapshot. */
-        ngx_memzero(&st, sizeof(st));
-        st.st_size  = sd_st.size;
-        st.st_mtime = sd_st.mtime;
-        st.st_mode  = S_IFREG;
-        {
-            const char *state_root =
-                brix_cache_state_root_by_root(ctx->cache_root_canon);
-            char        sidecar[PATH_MAX];
-
-            if (state_root == NULL
-                || brix_cache_sidecar_path(ctx->cache_root_canon, state_root,
-                       cache_path, sidecar, sizeof(sidecar)) != 0
-                || brix_cache_validate_meta(sidecar, &st, ctx->log) != NGX_OK)
-            {
-                return NGX_DECLINED;     /* obj not opened yet — nothing to close */
-            }
-        }
-
-        o = inst->driver->open(inst, key, BRIX_SD_O_READ, 0, &e);
-        if (o == NULL) {
-            errno = e;
-            return (e == ENOENT || e == ENOTDIR) ? NGX_DECLINED : NGX_ERROR;
-        }
-
-        rc = brix_vfs_adopt_obj(ctx, key, o, 0 /* read-only */, fh_out);
-        if (rc != NGX_OK) {
-            int err = errno;
-            (void) inst->driver->close(o);
-            if (o->heap_shell) {
-                free(o);
-            }
-            errno = err;
-        }
+    rc = brix_cache_hit_fresh(ctx, inst, key, cache_path);
+    if (rc != NGX_OK) {
         return rc;
     }
+
+    return brix_cache_open_adopt(ctx, inst, key, fh_out);
 }
 
 /*

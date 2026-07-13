@@ -132,45 +132,65 @@ brix_http_mirror_clone_body(ngx_http_request_t *r,
 
 
 /* upstream callbacks (shadow request/response) */
-static ngx_int_t
-mirror_create_request(ngx_http_request_t *r)
-{
-    ngx_http_brix_webdav_loc_conf_t *conf;
-    ngx_http_brix_webdav_req_ctx_t  *ctx;
-    brix_mirror_target_t            *t;
-    ngx_buf_t                         *b;
-    ngx_chain_t                       *cl;
-    size_t                             len;
-    u_char                            *p;
-    ngx_str_t                          host;
-    int                                inject_token;
-    ngx_uint_t                         method, has_body;
-    ngx_table_elt_t                   *depth_h = NULL, *over_h = NULL;
-    ngx_str_t                          dest;          /* rewritten Destination */
-    ngx_chain_t                       *body = NULL;
-    off_t                              body_len = 0;
-    u_char                             clbuf[NGX_OFF_T_LEN];
-    size_t                             cl_digits = 0;
 
-    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
-    ctx  = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+/*
+ * Derived per-subrequest inputs for building the shadow request line + headers.
+ *
+ * WHAT: A file-local plan struct that captures everything the header writer needs
+ * — target host, auth policy, rewritten Destination, forwarded Depth/Overwrite,
+ * and the cloned PUT body + its Content-Length rendering.
+ * WHY: keeps mirror_create_request a short orchestrator and lets the length pass
+ * and the write pass share exactly the same inputs (no drift between the two).
+ * HOW: filled once by mirror_build_subrequest(), then consumed read-only by
+ * mirror_headers_len() and mirror_copy_headers(); the body chain is attached by
+ * mirror_set_body().  All fields zero-initialised at declaration.
+ */
+typedef struct {
+    brix_mirror_target_t *t;             /* selected shadow target */
+    ngx_str_t             host;          /* Host: header value */
+    int                   inject_token;  /* send "Authorization: Bearer <tok>" */
+    ngx_uint_t            has_body;      /* method carries a body (PUT) */
+    ngx_table_elt_t      *depth_h;       /* forwarded Depth (MOVE/COPY) */
+    ngx_table_elt_t      *over_h;        /* forwarded Overwrite (MOVE/COPY) */
+    ngx_str_t             dest;          /* rewritten Destination (MOVE/COPY) */
+    ngx_chain_t          *body;          /* cloned PUT body chain */
+    u_char                clbuf[NGX_OFF_T_LEN]; /* rendered Content-Length */
+    size_t                cl_digits;     /* digits written into clbuf */
+} mirror_req_plan_t;
+
+/*
+ * WHAT: resolve the shadow target and gather every header input into *plan.
+ * WHY: isolates the "figure out what to send" decisions (target lookup, auth
+ * policy, Destination rewrite, Depth/Overwrite forwarding, PUT body clone) from
+ * the byte-emitting passes, so the two passes cannot disagree.
+ * HOW: returns NGX_OK on success, NGX_ERROR if the target is out of range or a
+ * PUT body clone allocation failed (never send a truncated PUT).  *plan is
+ * zero-initialised by the caller.
+ */
+static ngx_int_t
+mirror_build_subrequest(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf,
+    ngx_http_brix_webdav_req_ctx_t *ctx, mirror_req_plan_t *plan)
+{
+    ngx_uint_t  method;
+    off_t       body_len = 0;
+
     if (ctx == NULL || conf->mirror.targets == NULL
         || ctx->mirror_target_idx >= conf->mirror.targets->nelts)
     {
         return NGX_ERROR;
     }
-    t        = (brix_mirror_target_t *) conf->mirror.targets->elts
-             + ctx->mirror_target_idx;
-    host     = t->host;
-    method   = r->method;
-    has_body = brix_http_mirror_method_has_body(method);
-    ngx_str_null(&dest);
+    plan->t    = (brix_mirror_target_t *) conf->mirror.targets->elts
+               + ctx->mirror_target_idx;
+    plan->host = plan->t->host;
+    method     = r->method;
+    plan->has_body = brix_http_mirror_method_has_body(method);
 
     /* Auth policy on the shadow request:
      *   token configured  => inject "Authorization: Bearer <token>"
      *   strip_auth on      => send no Authorization at all (default)
      *   strip_auth off     => forward the client's Authorization header. */
-    inject_token = (conf->mirror.token.len > 0);
+    plan->inject_token = (conf->mirror.token.len > 0);
 
     /* MOVE/COPY: rewrite the client's Destination to point at the shadow, and
      * forward Depth/Overwrite verbatim so the shadow performs the same op. */
@@ -178,35 +198,49 @@ mirror_create_request(ngx_http_request_t *r)
         ngx_table_elt_t *dest_h = brix_http_find_header(r,
             "Destination", sizeof("Destination") - 1);
         if (dest_h != NULL) {
-            dest = brix_http_mirror_rewrite_dest(r->pool, &dest_h->value,
-                       &t->url_base);
+            plan->dest = brix_http_mirror_rewrite_dest(r->pool, &dest_h->value,
+                             &plan->t->url_base);
         }
-        depth_h = brix_http_find_header(r, "Depth",
-                      sizeof("Depth") - 1);
-        over_h  = brix_http_find_header(r, "Overwrite",
-                      sizeof("Overwrite") - 1);
+        plan->depth_h = brix_http_find_header(r, "Depth",
+                            sizeof("Depth") - 1);
+        plan->over_h  = brix_http_find_header(r, "Overwrite",
+                            sizeof("Overwrite") - 1);
     }
 
     /* PUT: forward the (preserved) request body cloned from the parent request. */
-    if (has_body && r->parent != NULL) {
-        body = brix_http_mirror_clone_body(r, r->parent, &body_len);
+    if (plan->has_body && r->parent != NULL) {
+        plan->body = brix_http_mirror_clone_body(r, r->parent, &body_len);
         if (body_len < 0) {
             return NGX_ERROR;   /* clone alloc failed — don't send a truncated PUT */
         }
-        cl_digits = (size_t) (ngx_sprintf(clbuf, "%O", body_len) - clbuf);
+        plan->cl_digits =
+            (size_t) (ngx_sprintf(plan->clbuf, "%O", body_len) - plan->clbuf);
     }
+    return NGX_OK;
+}
 
+/*
+ * WHAT: compute the exact byte length of the request line + header block.
+ * WHY: mirror_copy_headers() writes into a fixed-size temp buf; this pure sizing
+ * pass must mirror it field-for-field or the write would overrun/underrun.
+ * HOW: sums the request line and every conditionally-present header from *plan;
+ * no side effects.
+ */
+static size_t
+mirror_headers_len(ngx_http_request_t *r, ngx_http_brix_webdav_loc_conf_t *conf,
+    const mirror_req_plan_t *plan)
+{
     /* "METHOD uri[?args] HTTP/1.1\r\nHost: <host>\r\nConnection: close\r\n" */
-    len = r->method_name.len + 1
+    size_t  len = r->method_name.len + 1
         + r->uri.len
         + (r->args.len ? 1 + r->args.len : 0)
         + sizeof(" HTTP/1.1" CRLF) - 1
-        + sizeof("Host: ") - 1 + host.len + sizeof(CRLF) - 1
+        + sizeof("Host: ") - 1 + plan->host.len + sizeof(CRLF) - 1
         + sizeof("Connection: close" CRLF) - 1
         + sizeof("X-Xrootd-Mirror: 1" CRLF) - 1
         + sizeof(CRLF) - 1;
 
-    if (inject_token) {
+    if (plan->inject_token) {
         len += sizeof("Authorization: Bearer ") - 1
              + conf->mirror.token.len + sizeof(CRLF) - 1;
     } else if (!conf->mirror.strip_auth
@@ -214,24 +248,38 @@ mirror_create_request(ngx_http_request_t *r)
         len += sizeof("Authorization: ") - 1
              + r->headers_in.authorization->value.len + sizeof(CRLF) - 1;
     }
-    if (dest.len) {
-        len += sizeof("Destination: ") - 1 + dest.len + sizeof(CRLF) - 1;
+    if (plan->dest.len) {
+        len += sizeof("Destination: ") - 1 + plan->dest.len + sizeof(CRLF) - 1;
     }
-    if (depth_h != NULL) {
-        len += sizeof("Depth: ") - 1 + depth_h->value.len + sizeof(CRLF) - 1;
+    if (plan->depth_h != NULL) {
+        len += sizeof("Depth: ") - 1 + plan->depth_h->value.len
+             + sizeof(CRLF) - 1;
     }
-    if (over_h != NULL) {
-        len += sizeof("Overwrite: ") - 1 + over_h->value.len + sizeof(CRLF) - 1;
+    if (plan->over_h != NULL) {
+        len += sizeof("Overwrite: ") - 1 + plan->over_h->value.len
+             + sizeof(CRLF) - 1;
     }
-    if (has_body) {
-        len += sizeof("Content-Length: ") - 1 + cl_digits + sizeof(CRLF) - 1;
+    if (plan->has_body) {
+        len += sizeof("Content-Length: ") - 1 + plan->cl_digits
+             + sizeof(CRLF) - 1;
     }
+    return len;
+}
 
-    b = ngx_create_temp_buf(r->pool, len);
-    if (b == NULL) {
-        return NGX_ERROR;
-    }
-    p = b->last;
+/*
+ * WHAT: write the request line + header block into buffer b per *plan.
+ * WHY: the byte-emitting half of the two-pass build; keeps the exact wire order
+ * (method line, Host, Connection, loop-guard, auth, Destination/Depth/Overwrite,
+ * Content-Length, blank line) in one place — frozen for AF-shadow behaviour.
+ * HOW: appends with ngx_copy from b->last; advances b->last to the end.  Emits
+ * only the headers *plan marked present, matching mirror_headers_len() exactly.
+ */
+static void
+mirror_copy_headers(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, const mirror_req_plan_t *plan,
+    ngx_buf_t *b)
+{
+    u_char  *p = b->last;
 
     p = ngx_copy(p, r->method_name.data, r->method_name.len);
     *p++ = ' ';
@@ -243,7 +291,7 @@ mirror_create_request(ngx_http_request_t *r)
     p = ngx_copy(p, " HTTP/1.1" CRLF, sizeof(" HTTP/1.1" CRLF) - 1);
 
     p = ngx_copy(p, "Host: ", sizeof("Host: ") - 1);
-    p = ngx_copy(p, host.data, host.len);
+    p = ngx_copy(p, plan->host.data, plan->host.len);
     p = ngx_copy(p, CRLF, sizeof(CRLF) - 1);
 
     p = ngx_copy(p, "Connection: close" CRLF,
@@ -254,7 +302,7 @@ mirror_create_request(ngx_http_request_t *r)
     p = ngx_copy(p, "X-Xrootd-Mirror: 1" CRLF,
                  sizeof("X-Xrootd-Mirror: 1" CRLF) - 1);
 
-    if (inject_token) {
+    if (plan->inject_token) {
         p = ngx_copy(p, "Authorization: Bearer ",
                      sizeof("Authorization: Bearer ") - 1);
         p = ngx_copy(p, conf->mirror.token.data, conf->mirror.token.len);
@@ -266,38 +314,88 @@ mirror_create_request(ngx_http_request_t *r)
                      r->headers_in.authorization->value.len);
         p = ngx_copy(p, CRLF, sizeof(CRLF) - 1);
     }
-    if (dest.len) {
+    if (plan->dest.len) {
         p = ngx_copy(p, "Destination: ", sizeof("Destination: ") - 1);
-        p = ngx_copy(p, dest.data, dest.len);
+        p = ngx_copy(p, plan->dest.data, plan->dest.len);
         p = ngx_copy(p, CRLF, sizeof(CRLF) - 1);
     }
-    if (depth_h != NULL) {
+    if (plan->depth_h != NULL) {
         p = ngx_copy(p, "Depth: ", sizeof("Depth: ") - 1);
-        p = ngx_copy(p, depth_h->value.data, depth_h->value.len);
+        p = ngx_copy(p, plan->depth_h->value.data, plan->depth_h->value.len);
         p = ngx_copy(p, CRLF, sizeof(CRLF) - 1);
     }
-    if (over_h != NULL) {
+    if (plan->over_h != NULL) {
         p = ngx_copy(p, "Overwrite: ", sizeof("Overwrite: ") - 1);
-        p = ngx_copy(p, over_h->value.data, over_h->value.len);
+        p = ngx_copy(p, plan->over_h->value.data, plan->over_h->value.len);
         p = ngx_copy(p, CRLF, sizeof(CRLF) - 1);
     }
-    if (has_body) {
+    if (plan->has_body) {
         p = ngx_copy(p, "Content-Length: ", sizeof("Content-Length: ") - 1);
-        p = ngx_copy(p, clbuf, cl_digits);
+        p = ngx_copy(p, plan->clbuf, plan->cl_digits);
         p = ngx_copy(p, CRLF, sizeof(CRLF) - 1);
     }
 
     p = ngx_copy(p, CRLF, sizeof(CRLF) - 1);
     b->last = p;
+}
 
-    cl = ngx_alloc_chain_link(r->pool);
+/*
+ * WHAT: chain the header buffer and (for PUT) the cloned body into request_bufs.
+ * WHY: assembles the final send chain — header block first, cloned PUT body next
+ * — and hands it to the upstream, keeping that wiring out of the orchestrator.
+ * HOW: allocates one chain link for b, points its next at the cloned body chain
+ * (NULL for bodyless methods), and stores it in r->upstream->request_bufs.
+ * Returns NGX_OK, or NGX_ERROR on chain-link allocation failure.
+ */
+static ngx_int_t
+mirror_set_body(ngx_http_request_t *r, const mirror_req_plan_t *plan,
+    ngx_buf_t *b)
+{
+    ngx_chain_t  *cl = ngx_alloc_chain_link(r->pool);
+
     if (cl == NULL) {
         return NGX_ERROR;
     }
     cl->buf  = b;
-    cl->next = body;          /* PUT body (cloned) follows the header block */
+    cl->next = plan->body;    /* PUT body (cloned) follows the header block */
     r->upstream->request_bufs = cl;
     return NGX_OK;
+}
+
+/*
+ * WHAT: nginx upstream create_request callback — build the shadow HTTP request.
+ * WHY: orchestrates the frozen two-pass build (measure, then write) plus body
+ * attachment as a short linear sequence; the logic lives in the named helpers.
+ * HOW: gather inputs into a plan, size + allocate the header buf, write it, then
+ * chain the body; any step failure returns NGX_ERROR.
+ */
+static ngx_int_t
+mirror_create_request(ngx_http_request_t *r)
+{
+    ngx_http_brix_webdav_loc_conf_t *conf;
+    ngx_http_brix_webdav_req_ctx_t  *ctx;
+    mirror_req_plan_t                  plan;
+    ngx_buf_t                         *b;
+    size_t                             len;
+
+    ngx_memzero(&plan, sizeof(plan));
+
+    conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    ctx  = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+
+    if (mirror_build_subrequest(r, conf, ctx, &plan) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    len = mirror_headers_len(r, conf, &plan);
+    b   = ngx_create_temp_buf(r->pool, len);
+    if (b == NULL) {
+        return NGX_ERROR;
+    }
+
+    mirror_copy_headers(r, conf, &plan, b);
+
+    return mirror_set_body(r, &plan, b);
 }
 
 static ngx_int_t
@@ -518,12 +616,89 @@ mirror_put_body_handler(ngx_http_request_t *r)
  * Doing the takeover here (before the content phase) avoids any dependence on
  * content-phase handler ordering. */
 
+/*
+ * WHAT: true if the request carries an X-Xrootd-Mirror loop-guard header.
+ * WHY: a shadow pointed back at this server would otherwise mirror the replay
+ * again; mirror_create_request stamps this header, so its presence means "do not
+ * re-mirror".
+ * HOW: linear scan of the parsed request headers, case-insensitive key compare;
+ * pure query, no side effects.
+ */
+static int
+mirror_request_is_replay(ngx_http_request_t *r)
+{
+    ngx_list_part_t *part = &r->headers_in.headers.part;
+    ngx_table_elt_t *hdr  = part->elts;
+    ngx_uint_t       k;
+
+    for (k = 0; /* void */; k++) {
+        if (k >= part->nelts) {
+            if (part->next == NULL) { break; }
+            part = part->next;
+            hdr  = part->elts;
+            k    = 0;
+        }
+        if (hdr[k].key.len == sizeof("X-Xrootd-Mirror") - 1
+            && ngx_strncasecmp(hdr[k].key.data,
+                   (u_char *) "X-Xrootd-Mirror",
+                   sizeof("X-Xrootd-Mirror") - 1) == 0)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/*
+ * WHAT: decide whether the MAIN request qualifies to be mirrored this pass.
+ * WHY: consolidates every eligibility gate (enabled, already-fired, method mask,
+ * write-guard, loop-guard replay, sampling) so the handler is pure dispatch and
+ * each gate is reviewable in one place.
+ * HOW: returns 1 (fire) or 0 (decline).  ctx may be NULL (never fired).  The
+ * sampling gate has the side effect of counting a dropped request — kept here to
+ * preserve the original ordering and metric behaviour exactly.
+ */
+static int
+mirror_precontent_eligible(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf,
+    ngx_http_brix_webdav_req_ctx_t *ctx)
+{
+    ngx_uint_t  mbit;
+
+    if (!conf->mirror.enabled || conf->mirror.targets == NULL) {
+        return 0;
+    }
+    if (ctx != NULL && ctx->mirror_fired) {
+        return 0;   /* idempotent: fire once per request */
+    }
+
+    mbit = brix_http_mirror_method_bit(r);
+    if ((mbit & conf->mirror.method_mask) == 0) {
+        return 0;
+    }
+    /* Write methods only mirror when brix_mirror_writes is on — a second,
+     * independent guard beyond the method mask.  The shadow must be an isolated
+     * namespace (replaying writes onto the primary's store would corrupt it). */
+    if ((mbit & BRIX_MIRROR_M_WRITE_ALL) && !conf->mirror.mirror_writes) {
+        return 0;
+    }
+    /* Loop guard: never mirror a request that is itself a mirror replay (set by
+     * mirror_create_request) — protects against a shadow pointed at this server. */
+    if (mirror_request_is_replay(r)) {
+        return 0;
+    }
+    if (!brix_mirror_should_sample(conf->mirror.sample_pct)) {
+        MIR_HTTP_INC(mirror_http_dropped_total);
+        return 0;
+    }
+    return 1;
+}
+
 ngx_int_t
 brix_http_mirror_precontent_handler(ngx_http_request_t *r)
 {
     ngx_http_brix_webdav_loc_conf_t *conf;
     ngx_http_brix_webdav_req_ctx_t  *ctx;
-    ngx_uint_t                         mbit;
 
     ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
 
@@ -535,50 +710,8 @@ brix_http_mirror_precontent_handler(ngx_http_request_t *r)
     }
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
-    if (!conf->mirror.enabled || conf->mirror.targets == NULL) {
-        return NGX_DECLINED;
-    }
 
-    ctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
-    if (ctx != NULL && ctx->mirror_fired) {
-        return NGX_DECLINED;   /* idempotent: fire once per request */
-    }
-
-    mbit = brix_http_mirror_method_bit(r);
-    if ((mbit & conf->mirror.method_mask) == 0) {
-        return NGX_DECLINED;
-    }
-    /* Write methods only mirror when brix_mirror_writes is on — a second,
-     * independent guard beyond the method mask.  The shadow must be an isolated
-     * namespace (replaying writes onto the primary's store would corrupt it). */
-    if ((mbit & BRIX_MIRROR_M_WRITE_ALL) && !conf->mirror.mirror_writes) {
-        return NGX_DECLINED;
-    }
-
-    /* Loop guard: never mirror a request that is itself a mirror replay (set by
-     * mirror_create_request) — protects against a shadow pointed at this server. */
-    {
-        ngx_list_part_t *part = &r->headers_in.headers.part;
-        ngx_table_elt_t *hdr  = part->elts;
-        ngx_uint_t       k;
-        for (k = 0; /* void */; k++) {
-            if (k >= part->nelts) {
-                if (part->next == NULL) { break; }
-                part = part->next;
-                hdr  = part->elts;
-                k    = 0;
-            }
-            if (hdr[k].key.len == sizeof("X-Xrootd-Mirror") - 1
-                && ngx_strncasecmp(hdr[k].key.data,
-                       (u_char *) "X-Xrootd-Mirror",
-                       sizeof("X-Xrootd-Mirror") - 1) == 0)
-            {
-                return NGX_DECLINED;
-            }
-        }
-    }
-    if (!brix_mirror_should_sample(conf->mirror.sample_pct)) {
-        MIR_HTTP_INC(mirror_http_dropped_total);
+    if (!mirror_precontent_eligible(r, conf, ctx)) {
         return NGX_DECLINED;
     }
 
@@ -640,15 +773,18 @@ brix_http_mirror_setup(ngx_conf_t *cf,
 
     if (conf->mirror_upstream_conf.connect_timeout == 0) {
         conf->mirror_upstream_conf.connect_timeout =
-            conf->mirror.timeout_ms ? conf->mirror.timeout_ms : 5000;
+            conf->mirror.timeout_ms ? conf->mirror.timeout_ms
+                                    : BRIX_MIRROR_DEFAULT_TIMEOUT_MS;
     }
     if (conf->mirror_upstream_conf.send_timeout == 0) {
         conf->mirror_upstream_conf.send_timeout =
-            conf->mirror.timeout_ms ? conf->mirror.timeout_ms : 5000;
+            conf->mirror.timeout_ms ? conf->mirror.timeout_ms
+                                    : BRIX_MIRROR_DEFAULT_TIMEOUT_MS;
     }
     if (conf->mirror_upstream_conf.read_timeout == 0) {
         conf->mirror_upstream_conf.read_timeout =
-            conf->mirror.timeout_ms ? conf->mirror.timeout_ms : 5000;
+            conf->mirror.timeout_ms ? conf->mirror.timeout_ms
+                                    : BRIX_MIRROR_DEFAULT_TIMEOUT_MS;
     }
     if (conf->mirror_upstream_conf.buffer_size == 0) {
         conf->mirror_upstream_conf.buffer_size = (size_t) ngx_pagesize;
