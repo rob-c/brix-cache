@@ -1,5 +1,6 @@
 var NAVTREEINDEX52 =
 {
+"structbrix__credential__field__t.html#aba873216244266f3fb3bed4a684345b7":[88,0,68,2],
 "structbrix__credential__t.html":[88,0,69],
 "structbrix__credential__t.html#a0324f9eb57288db6db93114a71bf2cdb":[88,0,69,4],
 "structbrix__credential__t.html#a0b51a9550cf4293fb9e070dc04b13802":[88,0,69,7],
@@ -248,6 +249,5 @@ var NAVTREEINDEX52 =
 "structbrix__dashboard__event__t.html":[88,0,91],
 "structbrix__dashboard__event__t.html#a0a68149dc1778be20699d36b13a3959d":[88,0,91,0],
 "structbrix__dashboard__event__t.html#a18974480d8798bc5cc3d5ce84fa332f1":[88,0,91,2],
-"structbrix__dashboard__event__t.html#a2c5a2d82a9c9939099d5f3eb05013c12":[88,0,91,6],
-"structbrix__dashboard__event__t.html#a41d5c22f3917ce6941947126cef90333":[88,0,91,5]
+"structbrix__dashboard__event__t.html#a2c5a2d82a9c9939099d5f3eb05013c12":[88,0,91,6]
 };

@@ -1,5 +1,6 @@
 var NAVTREEINDEX65 =
 {
+"structngx__brix__s3__metrics__t.html#a5a3f9bf82b76509cc7db7be1a5e7945d":[88,0,485,13],
 "structngx__brix__s3__metrics__t.html#a5fcbcb8849b807194e21ac5cef02bead":[88,0,485,5],
 "structngx__brix__s3__metrics__t.html#a735345f441fc1a5523451e80fbd666c8":[88,0,485,2],
 "structngx__brix__s3__metrics__t.html#a78f6294e78383fce7531f1c0d987475c":[88,0,485,11],
@@ -248,6 +249,5 @@ var NAVTREEINDEX65 =
 "structngx__http__brix__webdav__loc__conf__t.html#a301620d810b2098c5348db6090029dd2":[88,0,504,79],
 "structngx__http__brix__webdav__loc__conf__t.html#a3510a770226150b99e136c0a89877f41":[88,0,504,32],
 "structngx__http__brix__webdav__loc__conf__t.html#a3a23958b8e8d350c2fcbd39efdf07cf8":[88,0,504,34],
-"structngx__http__brix__webdav__loc__conf__t.html#a3b95afdec54b0a2412a4beaa266998d6":[88,0,504,71],
-"structngx__http__brix__webdav__loc__conf__t.html#a3b995176a30e9672c8a30257464b74e1":[88,0,504,74]
+"structngx__http__brix__webdav__loc__conf__t.html#a3b95afdec54b0a2412a4beaa266998d6":[88,0,504,71]
 };

@@ -1,5 +1,6 @@
 var NAVTREEINDEX53 =
 {
+"structbrix__dashboard__event__t.html#a41d5c22f3917ce6941947126cef90333":[88,0,91,5],
 "structbrix__dashboard__event__t.html#a767c70f2ca63ab7b1b1198f2e62e8ea9":[88,0,91,1],
 "structbrix__dashboard__event__t.html#ab8c1cdd71b3991d1fb658c0af601a21f":[88,0,91,4],
 "structbrix__dashboard__event__t.html#ad87e5a0d55bda4217bdd76029918c302":[88,0,91,3],
@@ -248,6 +249,5 @@ var NAVTREEINDEX53 =
 "structbrix__gbuf.html#a28dc4a2748b1883952ceafbabaac9848":[88,0,121,0],
 "structbrix__gbuf.html#acd6797d620e93eacfdf8ae3c236e2056":[88,0,121,1],
 "structbrix__gbuf.html#adc60fc8d7d08f820c2066347180a01ce":[88,0,121,2],
-"structbrix__group__rule__t.html":[88,0,122],
-"structbrix__group__rule__t.html#a3db7e283856cf4c6176fe37ab6d2ad95":[88,0,122,0]
+"structbrix__group__rule__t.html":[88,0,122]
 };

@@ -1,5 +1,6 @@
 var NAVTREEINDEX66 =
 {
+"structngx__http__brix__webdav__loc__conf__t.html#a3b995176a30e9672c8a30257464b74e1":[88,0,504,74],
 "structngx__http__brix__webdav__loc__conf__t.html#a3dfca5c6b6c3c801659d3489ecd3793f":[88,0,504,28],
 "structngx__http__brix__webdav__loc__conf__t.html#a423d9d7a9b17b46c868f61bba8066bc7":[88,0,504,83],
 "structngx__http__brix__webdav__loc__conf__t.html#a4574a632f2a2e3a15cf8ea3a9a1c4837":[88,0,504,91],
@@ -248,6 +249,5 @@ var NAVTREEINDEX66 =
 "structngx__stream__brix__srv__conf__t.html#a883e2a5b72eadaf9df91fb6d1ba552fb":[88,0,511,59],
 "structngx__stream__brix__srv__conf__t.html#a89f5dd6ced449a583713d65de358e848":[88,0,511,43],
 "structngx__stream__brix__srv__conf__t.html#a8a39fcf6e814fc074b0a442e7c2a8fe9":[88,0,511,36],
-"structngx__stream__brix__srv__conf__t.html#a8a4112b17b07988c93fdc904a19eb0fa":[88,0,511,16],
-"structngx__stream__brix__srv__conf__t.html#a8b5ce7a2a5221613cc3a0e85511749b5":[88,0,511,28]
+"structngx__stream__brix__srv__conf__t.html#a8a4112b17b07988c93fdc904a19eb0fa":[88,0,511,16]
 };

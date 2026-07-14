@@ -1,5 +1,6 @@
 var NAVTREEINDEX78 =
 {
+"writethrough__metrics_8h_source.html":[89,0,2,2,1,51],
 "writev_8c.html":[89,0,2,5,2,13,22],
 "writev_8c.html#a679aedad929bdcaa8416922fa94b85bb":[89,0,2,5,2,13,22,0],
 "writev_8c.html#af2c0966734477223d28c98dbd9c3f3ce":[89,0,2,5,2,13,22,1],
@@ -248,6 +249,5 @@ var NAVTREEINDEX78 =
 "xrd__clockskew_8c.html":[89,0,0,0,4,13],
 "xrd__clockskew_8c.html#a1348c9210d169edebe7fdc36c4161984":[89,0,0,0,4,13,0],
 "xrd__clockskew_8c.html#a53d5c88ee7c6b682a21a53d46d6ecb6f":[89,0,0,0,4,13,3],
-"xrd__clockskew_8c.html#a542f5121f60fc25ac8c2feb8abc5bde6":[89,0,0,0,4,13,5],
-"xrd__clockskew_8c.html#a5f5c0a1c7e05a57b6fb9dfb55ab78cc0":[89,0,0,0,4,13,1]
+"xrd__clockskew_8c.html#a542f5121f60fc25ac8c2feb8abc5bde6":[89,0,0,0,4,13,5]
 };

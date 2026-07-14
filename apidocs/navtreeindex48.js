@@ -1,5 +1,6 @@
 var NAVTREEINDEX48 =
 {
+"stream__mirror_8h.html#ad149ada0cd615f073dc0d4f1110a7663":[89,0,2,3,4,4,0],
 "stream__mirror_8h.html#ae3cf1ce4addb5f355bfa4c154d2ae5c9":[89,0,2,3,4,4,3],
 "stream__mirror_8h.html#ae934303fd665c513f2c45f569dac9644":[89,0,2,3,4,4,1],
 "stream__mirror_8h.html#aef307bcf4e3945627ff09f0dfa00337e":[89,0,2,3,4,4,2],
@@ -248,6 +249,5 @@ var NAVTREEINDEX48 =
 "structClientSetRequest.html#a81cdffaefa3abf6e7476992165ba7ef7":[88,0,408,2],
 "structClientSetRequest.html#ac62583da3cc0068c9ab6e54626604d09":[88,0,408,0],
 "structClientSetRequest.html#ad87aecc3fba8912fbc70442ffc86fdd9":[88,0,408,1],
-"structClientSetRequest.html#afb5f7c7a0b8c6da266967cfbce3df5c8":[88,0,408,3],
-"structClientSetattrRequest.html":[88,0,407]
+"structClientSetRequest.html#afb5f7c7a0b8c6da266967cfbce3df5c8":[88,0,408,3]
 };

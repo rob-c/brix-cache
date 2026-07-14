@@ -1,5 +1,6 @@
 var NAVTREEINDEX51 =
 {
+"structbrix__cache__sink__t.html#a98ddb56736821a29c452394f78d571d0":[88,0,43,3],
 "structbrix__cache__sink__t.html#aac3f788d0456a1df0b368ea54325ccfc":[88,0,43,0],
 "structbrix__cache__transport__t.html":[88,0,44],
 "structbrix__cache__transport__t.html#a0a48d8d5ebd5340a703b113fffd9c851":[88,0,44,1],
@@ -248,6 +249,5 @@ var NAVTREEINDEX51 =
 "structbrix__cred__view.html#aec963a33a49fbabe6831584ef243fdeb":[88,0,67,1],
 "structbrix__credential__field__t.html":[88,0,68],
 "structbrix__credential__field__t.html#a3b782431485440792e8cf858b166625b":[88,0,68,1],
-"structbrix__credential__field__t.html#ab2bc29d3dade5c45270087e40439e3b1":[88,0,68,0],
-"structbrix__credential__field__t.html#aba873216244266f3fb3bed4a684345b7":[88,0,68,2]
+"structbrix__credential__field__t.html#ab2bc29d3dade5c45270087e40439e3b1":[88,0,68,0]
 };

@@ -1,5 +1,6 @@
 var NAVTREEINDEX69 =
 {
+"structsigv4__components__t.html#a9e02dbada3121a9da5c0982e706c47f8":[88,0,588,0],
 "structsigv4__components__t.html#ab80f08955cc0407be63207cc3ac3a31d":[88,0,588,7],
 "structsigv4__components__t.html#ac91a9271f3c6b691a7d2966ea9972cf4":[88,0,588,5],
 "structsrq__hdr__t.html":[88,0,589],
@@ -248,6 +249,5 @@ var NAVTREEINDEX69 =
 "structweb__upload__ctx.html#ad62f781bc1556227171150be3e3cb610":[88,0,615,3],
 "structweb__upload__ctx.html#ae50cb15e0407f59865bf2de546860d22":[88,0,615,2],
 "structweb__upload__ctx.html#af8e997d94c95884be3ea112670ac283b":[88,0,615,8],
-"structwebdav__copy__collection__task__t.html":[88,0,616],
-"structwebdav__copy__collection__task__t.html#a13d9d912e8a693a9c8d8d8945d4fcba4":[88,0,616,0]
+"structwebdav__copy__collection__task__t.html":[88,0,616]
 };

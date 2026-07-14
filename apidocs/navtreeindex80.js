@@ -1,5 +1,6 @@
 var NAVTREEINDEX80 =
 {
+"xrdfs_8c.html#a5b0bde49232ab0e04924ed52f93d9664":[89,0,0,0,5,5,0],
 "xrdfs_8c.html#a61d2a3c205164e3f4e78bc921152bdb9":[89,0,0,0,5,5,7],
 "xrdfs_8c.html#a90a0bbcfc4edb487a1c4f22987be68dc":[89,0,0,0,5,5,9],
 "xrdfs_8c.html#ad6d34333b5d88b03c9788fab3140bf02":[89,0,0,0,5,5,1],
@@ -248,6 +249,5 @@ var NAVTREEINDEX80 =
 "xrdhttp__stats_8c.html#aa520339d97552a8c5986b5ab42fef37a":[89,0,2,5,7,77,2],
 "xrdhttp__stats_8c.html#aa7e78fc862287a2f7b90dea2c6a25ce9":[89,0,2,5,7,77,0],
 "xrdhttp__stats_8c_source.html":[89,0,2,5,7,77],
-"xrdmapc_8c.html":[89,0,0,0,4,18],
-"xrdmapc_8c.html#a28024e53bde52dffcfb331fa9a178540":[89,0,0,0,4,18,1]
+"xrdmapc_8c.html":[89,0,0,0,4,18]
 };

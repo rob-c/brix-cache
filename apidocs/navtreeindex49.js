@@ -1,5 +1,6 @@
 var NAVTREEINDEX49 =
 {
+"structClientSetattrRequest.html":[88,0,407],
 "structClientSetattrRequest.html#a0d4ea212dfdb0bd69c6a9a99c06d810a":[88,0,407,1],
 "structClientSetattrRequest.html#a97f39e3e28e7df7e3d0233509eac397c":[88,0,407,0],
 "structClientSetattrRequest.html#aa34a4bfe2486e1cecd7b31aaa360f419":[88,0,407,3],
@@ -248,6 +249,5 @@ var NAVTREEINDEX49 =
 "structbrix__acc__tables__t.html#a3aca6abb9d9d6807d3ac84449988de2b":[88,0,15,3],
 "structbrix__acc__tables__t.html#a6de9f9400c91e5fd133b31387ac8d41c":[88,0,15,16],
 "structbrix__acc__tables__t.html#a7c6f57978d26227ea777207229657cb3":[88,0,15,0],
-"structbrix__acc__tables__t.html#a820d7e72d7c9e1a270b2f8b778e60060":[88,0,15,1],
-"structbrix__acc__tables__t.html#a99e0c6adb712ef3f17f9bfe8764d715c":[88,0,15,17]
+"structbrix__acc__tables__t.html#a820d7e72d7c9e1a270b2f8b778e60060":[88,0,15,1]
 };

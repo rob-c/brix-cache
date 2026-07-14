@@ -1,5 +1,6 @@
 var NAVTREEINDEX82 =
 {
+"xrootdfs__legacy_8c.html#aab571e5cc00816fd9c27637a2015f826":[89,0,0,0,5,16,30],
 "xrootdfs__legacy_8c.html#aad6be08d5db34de7343fec21e2bf67fd":[89,0,0,0,5,16,13],
 "xrootdfs__legacy_8c.html#aafc6a8535368f1327eb9efdff764830e":[89,0,0,0,5,16,43],
 "xrootdfs__legacy_8c.html#ab75940838616eb6789b4d05a36eea4c4":[89,0,0,0,5,16,15],

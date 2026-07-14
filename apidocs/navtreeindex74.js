@@ -1,5 +1,6 @@
 var NAVTREEINDEX74 =
 {
+"uring__admin_8c_source.html":[89,0,2,1,0,9],
 "uring__submit_8c.html":[89,0,2,1,0,10],
 "uring__submit_8c_source.html":[89,0,2,1,0,10],
 "url_8c.html":[89,0,0,2,4,9],
@@ -248,6 +249,5 @@ var NAVTREEINDEX74 =
 "vfs__internal_8h.html#aee4ac5c4c44da05e989e83a09f86866c":[89,0,2,2,7,8,18],
 "vfs__internal_8h.html#af99717551be0a1b22680b48dbc55ad09":[89,0,2,2,7,8,20],
 "vfs__internal_8h.html#afee34912923fee10db9903d7f1f45b42":[89,0,2,2,7,8,10],
-"vfs__internal_8h_source.html":[89,0,2,2,7,8],
-"vfs__io__core_8c.html":[89,0,2,2,7,9]
+"vfs__internal_8h_source.html":[89,0,2,2,7,8]
 };

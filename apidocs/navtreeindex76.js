@@ -1,5 +1,6 @@
 var NAVTREEINDEX76 =
 {
+"webdav_2operation__table_8c_source.html":[89,0,2,5,7,28],
 "webdav_2put_8c.html":[89,0,2,5,7,44],
 "webdav_2put_8c.html#a198d221a62894695c2b764c61da91e7e":[89,0,2,5,7,44,7],
 "webdav_2put_8c.html#a2ad52f3cd0081fc42dc91effd4f935e8":[89,0,2,5,7,44,5],
@@ -248,6 +249,5 @@ var NAVTREEINDEX76 =
 "wire__codec_8h.html#a1003c30fe4981db90a0044eabf1d1392":[89,0,2,5,2,6,0,0,39],
 "wire__codec_8h.html#a104744206f046f65952e735441237b17":[89,0,2,5,2,6,0,0,60],
 "wire__codec_8h.html#a14807bd0cf898e2c5d9b7b34a5948563":[89,0,2,5,2,6,0,0,62],
-"wire__codec_8h.html#a1510c28a326768b6e9bb896d97aeb438":[89,0,2,5,2,6,0,0,30],
-"wire__codec_8h.html#a1876a8970348237d7f7d0671e0230b6c":[89,0,2,5,2,6,0,0,85]
+"wire__codec_8h.html#a1510c28a326768b6e9bb896d97aeb438":[89,0,2,5,2,6,0,0,30]
 };

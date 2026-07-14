@@ -12,6 +12,7 @@ var process_8c =
     [ "brix_stage_reap_handler", "process_8c.html#a9d88eaf35c66648d2aebcadb93efb5f5", null ],
     [ "brix_stage_sched_handler", "process_8c.html#a29442600c3a431188face76dfcb97fee", null ],
     [ "ngx_stream_brix_init_process", "process_8c.html#a9041a20a2a88dee5db2546577526ba4a", null ],
+    [ "brix_maint_timer_conn", "process_8c.html#a5919edaa6a3aa525fc0a7ab9eab2a16d", null ],
     [ "brix_pending_reap_timer", "process_8c.html#a779f0746075bc3d25afce4e8eb1918de", null ],
     [ "brix_stage_reap_timer", "process_8c.html#a470cd0ab69c0c03bbe5fc08aa79428c0", null ],
     [ "brix_stage_sched_timer", "process_8c.html#aa95dfecfdb75eb6abc9394f4aed1b0a8", null ]

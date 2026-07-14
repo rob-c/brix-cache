@@ -1,5 +1,6 @@
 var NAVTREEINDEX70 =
 {
+"structwebdav__copy__collection__task__t.html#a13d9d912e8a693a9c8d8d8945d4fcba4":[88,0,616,0],
 "structwebdav__copy__collection__task__t.html#a2d794ac5e3ec76ce91d43c194ea80b2f":[88,0,616,4],
 "structwebdav__copy__collection__task__t.html#a815fd80770025e78e425c5bced99b117":[88,0,616,7],
 "structwebdav__copy__collection__task__t.html#a896e86b509c8bdeb70b124c6304722bc":[88,0,616,8],
@@ -248,6 +249,5 @@ var NAVTREEINDEX70 =
 "structxrdw__protocol__req__t.html#a8051b4f1614f3f8492b0c0ce62016a31":[88,0,658,2],
 "structxrdw__query__req__t.html":[88,0,659],
 "structxrdw__query__req__t.html#a049c57e74f372c877846d4d6b0b1fead":[88,0,659,0],
-"structxrdw__query__req__t.html#aa0cfb411736f9c7f3c727166679eb2a3":[88,0,659,1],
-"structxrdw__read__req__t.html":[88,0,660]
+"structxrdw__query__req__t.html#aa0cfb411736f9c7f3c727166679eb2a3":[88,0,659,1]
 };

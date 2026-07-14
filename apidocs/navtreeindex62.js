@@ -1,5 +1,6 @@
 var NAVTREEINDEX62 =
 {
+"structbrix__xmeta__t.html#a6f88aeb9b91fd46ab70d40efd5f5d8ff":[88,0,358,7],
 "structbrix__xmeta__t.html#a729f0f5d18b47b11f4b2a416f7c1c49a":[88,0,358,16],
 "structbrix__xmeta__t.html#a750e91cd9caa2cf0fbd7172743db31b9":[88,0,358,23],
 "structbrix__xmeta__t.html#a7ef321e1a6de81de29d7de18a65866ca":[88,0,358,25],
@@ -248,6 +249,5 @@ var NAVTREEINDEX62 =
 "structcta__request__t.html#a3712afbe9acd4465db821228c83a300a":[88,0,427,6],
 "structcta__request__t.html#a3ecd8c71ad494e9a495fd3b3ae79309e":[88,0,427,0],
 "structcta__request__t.html#a46fe2264c8f39829f591e7f1b697a0dd":[88,0,427,2],
-"structcta__request__t.html#a5c2b3f9abe0156d6a5163094ec133024":[88,0,427,5],
-"structcta__request__t.html#a66e4b5700b163860619bf40b0f5f3b85":[88,0,427,1]
+"structcta__request__t.html#a5c2b3f9abe0156d6a5163094ec133024":[88,0,427,5]
 };

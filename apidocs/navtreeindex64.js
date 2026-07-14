@@ -1,5 +1,6 @@
 var NAVTREEINDEX64 =
 {
+"structimp__req__t.html#ad0f4a468483f1ff07da8d5d21d1c3c35":[88,0,463,13],
 "structimp__req__t.html#ad940c24ae4885d0c32466922065182eb":[88,0,463,0],
 "structimp__req__t.html#ae52e220adc6707725386e03e4853d5a5":[88,0,463,1],
 "structimp__req__t.html#af863a23166f2d7189961a7b1eb75505a":[88,0,463,6],
@@ -248,6 +249,5 @@ var NAVTREEINDEX64 =
 "structngx__brix__s3__metrics__t.html#a2a418e49b8cd578e46ef060a05166f81":[88,0,485,0],
 "structngx__brix__s3__metrics__t.html#a2efc0c53c29957b7d718d8c383e88600":[88,0,485,7],
 "structngx__brix__s3__metrics__t.html#a34457d572fb99533b51d73696a286550":[88,0,485,6],
-"structngx__brix__s3__metrics__t.html#a39505b7f46c66c9ee015cb7c4cd80a20":[88,0,485,9],
-"structngx__brix__s3__metrics__t.html#a5a3f9bf82b76509cc7db7be1a5e7945d":[88,0,485,13]
+"structngx__brix__s3__metrics__t.html#a39505b7f46c66c9ee015cb7c4cd80a20":[88,0,485,9]
 };
