@@ -205,7 +205,11 @@ print(f"Proxy certificate created successfully.")
 print(f"Subject: {proxy_cert.subject.rfc4514_string()}")
 print(f"Issuer:  {proxy_cert.issuer.rfc4514_string()}")
 print(f"Serial:  {proxy_cert.serial_number}")
-print(f"Valid:   {proxy_cert.not_valid_before_utc} - {proxy_cert.not_valid_after_utc}")
+# not_valid_*_utc landed in cryptography 42; fall back to the naive accessors so
+# this display line works on the EL9 RPM (cryptography 36) too.
+_nvb = getattr(proxy_cert, "not_valid_before_utc", None) or proxy_cert.not_valid_before
+_nva = getattr(proxy_cert, "not_valid_after_utc", None) or proxy_cert.not_valid_after
+print(f"Valid:   {_nvb} - {_nva}")
 print(f"Extensions:")
 for ext in proxy_cert.extensions:
     print(f"  {ext.oid.dotted_string} critical={ext.critical}")
