@@ -45,10 +45,11 @@ def plan_up():
 # (profiles that need it, image tag, image subdir | None=smoke builds in-cluster)
 _IMAGES = [
     (("dev",),                         "brix-smoke",       None),
-    (("gsi", "token", "fleet", "full"), "brix-authority",   "authority"),
+    (("gsi", "token", "fleet", "full", "s3gsi"), "brix-authority",   "authority"),
     (("token", "full"),                "brix-krb5-kdc",    "krb5-kdc"),
-    (("chaos", "cms", "fleet", "full"), "brix-server",      "server"),
-    (("fleet", "full"),                "brix-test-runner", "test-runner"),
+    (("chaos", "cms", "fleet", "full", "s3fwd", "s3gsi"), "brix-server",      "server"),
+    (("fleet", "full", "s3fwd"),       "brix-test-runner", "test-runner"),
+    (("s3gsi",),                       "brix-client",      "client"),
 ]
 
 
@@ -296,7 +297,7 @@ def cmd_test(argv):
         return 2
     if scenario == "authorities":
         lines = scenario_authorities(argv[1] if len(argv) > 1 else "gsi")
-    elif scenario in ("suite", "remote-suite"):
+    elif scenario in ("suite", "remote-suite", "s3fwd", "s3gsi"):
         from . import lab_suite
         lines = lab_suite.run(scenario, argv[1:])
     elif scenario in ("ceph-docker", "ceph-rpmbuild"):

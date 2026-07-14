@@ -34,6 +34,10 @@ def _port_sets(ports):
 
 
 def run(scenario, argv):
+    if scenario == "s3fwd":
+        return _s3fwd(argv[0] if argv else "tests/test_minio_s3_forward.py")
+    if scenario == "s3gsi":
+        return _s3gsi(argv[0] if argv else "tests/test_s3gsi_multiuser.py")
     sel = argv[0] if argv else ("tests/test_file_api.py" if scenario == "suite" else "tests/test_query.py")
     if scenario == "suite":
         return _suite(sel, argv[1] if len(argv) > 1 else "")
@@ -97,6 +101,67 @@ def _remote_suite(sel):
           "--set", "clientPki.enabled=true", "--set", "clientPki.pkiSecret=auth-pki",
           "--set", "clientPki.jwksConfigMap=auth-jwks")
     return _collect(ns, ["auth", "srv", "brix-remote", "run"])
+
+
+def _s3fwd(sel):
+    """MinIO backend + brix S3-credential-forwarding role, verified by the
+    remote-mode test_minio_s3_forward.py (fault-attributing: [backend] vs
+    [brix-machinery]).  Release "fwd" → Services fwd-minio / fwd-s3fwd."""
+    ns = "brix-s3fwd"
+    if _dry():
+        return ["helm dependency build charts/s3-forward",
+                "helm upgrade --install fwd charts/s3-forward -n brix-s3fwd",
+                f"helm upgrade --install run charts/test-runner -n brix-s3fwd "
+                f"TEST_MINIO_HOST=fwd-minio TEST_S3FWD_HOST=fwd-s3fwd -- pytest {sel}"]
+    subprocess.run(["kubectl", "create", "namespace", ns], capture_output=True)
+    _helm("dependency", "build", str(_CHARTS / "s3-forward"))
+    _helm("upgrade", "--install", "fwd", str(_CHARTS / "s3-forward"), "-n", ns,
+          "--wait", "--timeout", "3m")
+    _helm("upgrade", "--install", "run", str(_CHARTS / "test-runner"), "-n", ns,
+          "--set", "image.repository=brix-test-runner,image.tag=dev",
+          "--set", "testRunner.tier=custom", "--set", f"testRunner.selection={sel}",
+          "--set", "testRunner.extraArgs=-p no:xdist -v",
+          "--set", "testRunner.env.TEST_MINIO_HOST=fwd-minio",
+          "--set", "testRunner.env.TEST_MINIO_PORT=9000",
+          "--set", "testRunner.env.TEST_S3FWD_HOST=fwd-s3fwd",
+          "--set", "testRunner.env.TEST_S3FWD_PORT=8446",
+          "--set", "testRunner.env.TEST_MINIO_BUCKET=brixfwd")
+    return _collect(ns, ["fwd", "run"])
+
+
+def _s3gsi(sel):
+    """root://+GSI multi-user gateway over MinIO S3: per-VO backend
+    credentials (bob/alice=atlas, tom/jane=cms) + per-user authdb isolation,
+    verified user-side by test_s3gsi_multiuser.py (xrdcp/xrdfs as each user;
+    [backend]-vs-[brix-machinery] fault attribution).  Release "sg" →
+    Services sg-minio / sg-s3gsi (ports 1094 allow-lane, 1095 deny-lane)."""
+    ns = "brix-s3gsi"
+    if _dry():
+        return ["helm dependency build charts/s3-gsi",
+                "helm upgrade --install sg charts/s3-gsi -n brix-s3gsi",
+                f"helm upgrade --install run charts/test-runner -n brix-s3gsi "
+                f"image=brix-client TEST_S3GSI_HOST=sg-s3gsi TEST_MINIO_HOST=sg-minio -- pytest {sel}"]
+    subprocess.run(["kubectl", "create", "namespace", ns], capture_output=True)
+    _helm("dependency", "build", str(_CHARTS / "s3-gsi"))
+    _helm("upgrade", "--install", "sg", str(_CHARTS / "s3-gsi"), "-n", ns,
+          "--wait", "--timeout", "5m")
+    _helm("upgrade", "--install", "run", str(_CHARTS / "test-runner"), "-n", ns,
+          "--set", "image.repository=brix-client,image.tag=dev",
+          "--set", "testRunner.tier=custom", "--set", f"testRunner.selection={sel}",
+          "--set", "testRunner.extraArgs=-p no:xdist -v",
+          "--set", "testRunner.env.TEST_S3GSI_HOST=sg-s3gsi",
+          "--set", "testRunner.env.TEST_S3GSI_PORT=1094",
+          "--set", "testRunner.env.TEST_S3GSI_DENY_PORT=1095",
+          "--set", "testRunner.env.TEST_MINIO_HOST=sg-minio",
+          "--set", "testRunner.env.TEST_MINIO_PORT=9000",
+          "--set", "testRunner.env.TEST_S3GSI_BUCKET=brixgsi",
+          # brix-client image has no local nginx — never let conftest
+          # start-all a local fleet; this suite only talks to the cluster.
+          "--set", "testRunner.env.TEST_SKIP_SERVER_SETUP=1",
+          "--set", "testRunner.env.TEST_ROOT=/tmp/tr",
+          "--set", "clientPki.enabled=true", "--set", "clientPki.pkiSecret=s3gsi-pki",
+          "--set", "clientPki.jwksConfigMap=s3gsi-jwks")
+    return _collect(ns, ["sg", "run"])
 
 
 def _deploy_auth(ns):

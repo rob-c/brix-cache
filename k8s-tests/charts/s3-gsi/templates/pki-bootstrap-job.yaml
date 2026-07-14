@@ -1,0 +1,158 @@
+{{/*
+PKI bootstrap for the s3-gsi scenario (pre-install hook, authority image).
+
+Mints the CA/host material via the shared blitz_test_pki(), then FIVE user
+identities (bob, alice, tom, jane, mallory) with RFC-3820 proxies
+(utils/make_proxy.py — deterministic proxy CN).  Everything DN-derived is
+computed here from the ACTUAL proxy leaf DN so the server-side mapping is
+correct by construction:
+
+  authdb          per-user 'u <proxyDN> <path> <privs>' rules (default-deny)
+  <key>.s3        per-user backend credential files, named exactly as
+                  src/fs/backend/ucred.c derives the key: the DN is not
+                  fs-safe, so key = "x5h-" + sha256(DN).hexdigest()[:32]
+                  bob/alice -> atlas backend keys; tom/jane -> cms keys;
+                  mallory   -> NO credential file (fallback probe)
+
+Published object names are fixed (release-independent):
+  Secret s3gsi-pki | ConfigMap s3gsi-ca-bundle | ConfigMap s3gsi-jwks |
+  Secret s3gsi-server-extra
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-pki-bootstrap
+  labels:
+    {{- include "brix-common.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        {{- include "brix-common.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Release.Name }}-pki-bootstrap
+      restartPolicy: Never
+      containers:
+        - name: provision
+          image: {{ .Values.pki.image }}
+          imagePullPolicy: {{ .Values.pki.pullPolicy }}
+          env:
+            - { name: TEST_ROOT, value: /work }
+            - { name: NS, value: "{{ .Release.Namespace }}" }
+            - { name: ATLAS_AK, value: {{ .Values.backendUsers.atlas.accessKey | quote }} }
+            - { name: ATLAS_SK, value: {{ .Values.backendUsers.atlas.secretKey | quote }} }
+            - { name: CMS_AK, value: {{ .Values.backendUsers.cms.accessKey | quote }} }
+            - { name: CMS_SK, value: {{ .Values.backendUsers.cms.secretKey | quote }} }
+            - { name: REGION, value: {{ .Values.s3gsi.role.backend.region | quote }} }
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              cd /opt/brix
+              mkdir -p /work /work/tokens
+              # CA + host cert + the legacy single user (satisfies client-pki-init).
+              python3 -c 'import sys; sys.path.insert(0,"tests"); from pki_helpers import blitz_test_pki; blitz_test_pki()'
+              python3 utils/make_token.py init /work/tokens
+              PKI=/work/pki
+              # Materialize CA-dir symlinks (kubectl configmap skips symlinks).
+              find "$PKI/ca" -type l | while read -r l; do
+                cp --remove-destination "$(readlink -f "$l")" "$l"
+              done
+
+              EXTRA=/work/extra/server; mkdir -p "$EXTRA"
+              : > "$EXTRA/authdb"
+              IDENT=/work/extra/identities.env; : > "$IDENT"
+              PROXY_FILES=()
+
+              mint_user() {  # $1=name
+                local u="$1" UD="/work/u/$1"
+                mkdir -p "$UD/user" "$UD/ca"
+                cp "$PKI/ca/ca.pem" "$UD/ca/ca.pem"
+                openssl genrsa -out "$UD/user/userkey.pem" 2048 2>/dev/null
+                chmod 400 "$UD/user/userkey.pem"
+                # DN kept inside the CA signing-policy namespace
+                # (/DC=test/DC=xrootd/*) so policy-checking verifiers accept it.
+                openssl req -new -key "$UD/user/userkey.pem" \
+                  -out "$UD/user/user.csr" -subj "/DC=test/DC=xrootd/CN=$u"
+                printf 'keyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=clientAuth\n' \
+                  > "$UD/user/user.ext"
+                openssl x509 -req -in "$UD/user/user.csr" \
+                  -CA "$PKI/ca/ca.pem" -CAkey "$PKI/ca/ca.key" -CAcreateserial \
+                  -out "$UD/user/usercert.pem" -days 3650 -sha256 \
+                  -extfile "$UD/user/user.ext"
+                python3 utils/make_proxy.py "$UD" >/dev/null
+              }
+
+              proxy_dn() {  # X509_NAME_oneline form, as brix stores it
+                openssl x509 -in "/work/u/$1/user/proxy.pem" -noout -subject \
+                  -nameopt compat | sed 's/^subject=*//'
+              }
+
+              cred_key() {  # ucred.c naming: DN is not fs-safe -> x5h- + 32 hex
+                python3 -c 'import hashlib,sys; print("x5h-"+hashlib.sha256(sys.argv[1].encode()).hexdigest()[:32])' "$1"
+              }
+
+              write_s3() {  # $1=key $2=ak $3=sk
+                printf '%s\n%s\n%s\n' "$2" "$3" "$REGION" > "$EXTRA/$1.s3"
+              }
+
+              for u in bob alice tom jane mallory; do
+                mint_user "$u"
+                DN="$(proxy_dn "$u")"
+                KEY="$(cred_key "$DN")"
+                echo "${u^^}_DN=$DN"   >> "$IDENT"
+                echo "${u^^}_KEY=$KEY" >> "$IDENT"
+                PROXY_FILES+=("--from-file=${u}_proxy.pem=/work/u/$u/user/proxy_std.pem")
+              done
+              . <(sed 's/^/export /' "$IDENT")
+
+              # Per-user backend credentials: atlas keys for bob/alice, cms for
+              # tom/jane, NONE for mallory.
+              write_s3 "$BOB_KEY"   "$ATLAS_AK" "$ATLAS_SK"
+              write_s3 "$ALICE_KEY" "$ATLAS_AK" "$ATLAS_SK"
+              write_s3 "$TOM_KEY"   "$CMS_AK"   "$CMS_SK"
+              write_s3 "$JANE_KEY"  "$CMS_AK"   "$CMS_SK"
+
+              # Default-deny authdb: each user rw only under their own tree.
+              # /cms/shared read grants are the read-credential-attribution
+              # canary; /atlas/wprobe is the write-attribution probe.
+              # NOTE: the server conf MUST set brix_export — without it the
+              # s3 plane resolves request paths as "//atlas/..." while these
+              # rules canonicalize to "/atlas/..." and every op is denied.
+              cat > "$EXTRA/authdb" <<EOF
+              u $BOB_DN /atlas/bob rwlmd
+              u $BOB_DN /atlas/wprobe rwlmd
+              u $BOB_DN /cms/shared rl
+              u $ALICE_DN /atlas/alice rwlmd
+              u $MALLORY_DN /atlas/mallory rwlmd
+              u $TOM_DN /cms/tom rwlmd
+              u $JANE_DN /cms/jane rwlmd
+              u $JANE_DN /cms/shared rl
+              EOF
+
+              kubectl create secret generic s3gsi-pki -n "$NS" \
+                --from-file=ca.pem="$PKI/ca/ca.pem" \
+                --from-file=hostcert.pem="$PKI/server/hostcert.pem" \
+                --from-file=hostkey.pem="$PKI/server/hostkey.pem" \
+                --from-file=usercert.pem="$PKI/user/usercert.pem" \
+                --from-file=userkey.pem="$PKI/user/userkey.pem" \
+                --from-file=signing_key.pem=/work/tokens/signing_key.pem \
+                --from-file=identities.env="$IDENT" \
+                "${PROXY_FILES[@]}" \
+                --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create configmap s3gsi-ca-bundle -n "$NS" \
+                --from-file="$PKI/ca/" --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create configmap s3gsi-jwks -n "$NS" \
+                --from-file=jwks.json=/work/tokens/jwks.json \
+                --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create secret generic s3gsi-server-extra -n "$NS" \
+                --from-file="$EXTRA/" --dry-run=client -o yaml | kubectl apply -f -
+              echo "s3gsi pki bootstrap complete"
+          volumeMounts:
+            - { name: work, mountPath: /work }
+      volumes:
+        - { name: work, emptyDir: {} }

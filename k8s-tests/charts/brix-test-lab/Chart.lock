@@ -20,5 +20,11 @@ dependencies:
 - name: fuse-client
   repository: file://../fuse-client
   version: 0.1.0
-digest: sha256:219e8e14cd48b4d8d2dc3438d276c55d5c95bef03714d4b031bcc835655ffb63
-generated: "2026-07-04T20:04:45.220505868+01:00"
+- name: s3-forward
+  repository: file://../s3-forward
+  version: 0.1.0
+- name: s3-gsi
+  repository: file://../s3-gsi
+  version: 0.1.0
+digest: sha256:64299fac20f98e301342c22f53b5ad3c7048eaed55e68d5d6e42a4386d9095fa
+generated: "2026-07-14T13:51:59.409146696+01:00"

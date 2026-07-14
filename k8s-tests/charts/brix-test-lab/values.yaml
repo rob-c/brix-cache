@@ -15,3 +15,7 @@ backend-ceph:
   enabled: false
 fuse-client:
   enabled: false
+s3-forward:
+  enabled: false
+s3-gsi:
+  enabled: false

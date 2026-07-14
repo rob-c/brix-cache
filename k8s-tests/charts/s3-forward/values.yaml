@@ -1,0 +1,27 @@
+# s3-forward — a known-working MinIO S3 backend plus a brix node whose storage
+# plane is that MinIO (brix_storage_backend s3:// + brix_storage_credential).
+# The remote test (tests/test_minio_s3_forward.py) proves upload/download
+# through the brix node and attributes any failure to [backend] vs
+# [brix-machinery] by re-checking MinIO directly.
+minio:
+  image: minio/minio:latest
+  pullPolicy: IfNotPresent
+  rootUser: minioadmin
+  rootPassword: minioadmin
+  port: 9000
+
+s3fwd:
+  enabled: true
+  role:
+    name: s3fwd
+    configKey: s3_minio_forward
+    ports: [{ name: webdav, port: 8446 }]
+    data: { root: /data/xrootd }
+    backend:
+      # host defaults to "<release>-minio" (the Service below) in the conf tpl
+      host: ""
+      port: 9000
+      bucket: brixfwd
+      region: us-east-1
+      accessKey: minioadmin
+      secretKey: minioadmin

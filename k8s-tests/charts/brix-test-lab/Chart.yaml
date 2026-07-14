@@ -33,3 +33,11 @@ dependencies:
     version: 0.1.0
     repository: file://../fuse-client
     condition: fuse-client.enabled
+  - name: s3-forward
+    version: 0.1.0
+    repository: file://../s3-forward
+    condition: s3-forward.enabled
+  - name: s3-gsi
+    version: 0.1.0
+    repository: file://../s3-gsi
+    condition: s3-gsi.enabled

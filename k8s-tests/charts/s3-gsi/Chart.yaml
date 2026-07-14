@@ -1,0 +1,18 @@
+apiVersion: v2
+name: s3-gsi
+description: >-
+  root://+GSI multi-user gateway backed by MinIO S3 — per-VO backend
+  credentials (bob/alice=atlas, tom/jane=cms) selected per authenticated
+  user, plus per-user authdb path isolation on a shared bucket.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: brix-common
+    version: 0.1.0
+    repository: file://../brix-common
+  - name: topology-role
+    version: 0.1.0
+    repository: file://../topology-role
+    alias: s3gsi
+    condition: s3gsi.enabled
