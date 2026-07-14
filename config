@@ -1420,6 +1420,8 @@ if [ "$ngx_module_link" = DYNAMIC ]; then
     ngx_module_name="ngx_stream_brix_module \
                      ngx_http_brix_metrics_module \
                      ngx_http_brix_srr_module \
+                     ngx_http_brix_guard_module \
+                     ngx_http_brix_common_module \
                      ngx_http_brix_webdav_module \
                      ngx_http_brix_s3_module \
                      ngx_http_brix_cvmfs_module \

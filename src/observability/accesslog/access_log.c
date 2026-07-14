@@ -133,9 +133,13 @@ brix_alog_emit(ngx_fd_t fd, const char *line, size_t n)
      * fires once (no rearm here); the next append re-arms it.  A flush from any
      * other path before it fires just makes the eventual fire a no-op. */
     if (!brix_alog_timer_set) {
+        /* Shared dummy connection (src/core/config/process.c): nginx's
+         * --with-debug timer-expiry log reads ngx_event_ident(ev->data)->fd, so a
+         * connection-less timer must not leave ev->data NULL (worker SIGSEGV). */
+        extern ngx_connection_t brix_maint_timer_conn;
         brix_alog_timer.handler = brix_alog_timer_handler;
         brix_alog_timer.log = ngx_cycle->log;
-        brix_alog_timer.data = NULL;
+        brix_alog_timer.data = &brix_maint_timer_conn;
         ngx_add_timer(&brix_alog_timer, 1000);
         brix_alog_timer_set = 1;
     }

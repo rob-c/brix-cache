@@ -172,9 +172,13 @@ brix_uring_panicfile_arm(ngx_cycle_t *cycle, ngx_str_t *path)
     ngx_memcpy(brix_uring_panic_path, path->data, path->len);
     brix_uring_panic_path[path->len] = '\0';
 
+    /* Shared dummy connection (src/core/config/process.c): nginx's --with-debug
+     * timer-expiry log reads ngx_event_ident(ev->data)->fd, so a connection-less
+     * timer must not leave ev->data NULL or it SIGSEGVs the worker. */
+    extern ngx_connection_t brix_maint_timer_conn;
     brix_uring_panic_timer.handler = brix_uring_panic_handler;
     brix_uring_panic_timer.log     = cycle->log;
-    brix_uring_panic_timer.data    = NULL;
+    brix_uring_panic_timer.data    = &brix_maint_timer_conn;
     brix_uring_panic_timer.cancelable = 1;   /* don't hold up worker shutdown */
 
     /* Fire once promptly so a file already present at start disables on boot. */

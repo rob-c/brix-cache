@@ -2,17 +2,51 @@
 # Sourced (not executed) by manage_test_servers.sh; uses its global
 # config vars.  Do not run directly.
 
+# --- run-as-nobody shim (root harness only) ---------------------------------
+# xrootd refuses to run as the superuser ("Security reasons prohibit running as
+# superuser; program is terminating"). When this harness is executed as root
+# (e.g. an EL9 test box with the repo under /root), drop each reference xrootd to
+# an unprivileged user via -R, and open the paths that user must then touch: its
+# admin/pid dirs (chown to the user), the exported data root (a+rwX, shared with
+# the root-owned nginx fleet), and the test PKI it reads for GSI (a+rX + readable
+# key/cert). Non-root runs are unchanged (empty user -> original launch).
+# DROP this shim once the harness always runs unprivileged (see TESTING.md §0).
+_ref_runas_user() { [ "$(id -u)" = "0" ] && echo "${REF_RUNAS_USER:-nobody}"; }
+
+_ref_launch() {  # _ref_launch <cfg> <log>
+    local cfg="$1" log="$2" u; u="$(_ref_runas_user)"
+    if [ -z "$u" ]; then
+        "$REF_BIN" -c "$cfg" -l "$log" -b >/dev/null 2>&1
+        return $?
+    fi
+    local adm run root
+    adm="$(sed -nE 's/^all\.adminpath[[:space:]]+([^[:space:]]+).*/\1/p' "$cfg" | head -1)"
+    run="$(sed -nE 's/^all\.pidpath[[:space:]]+([^[:space:]]+).*/\1/p' "$cfg" | head -1)"
+    root="$(sed -nE 's/^oss\.localroot[[:space:]]+([^[:space:]]+).*/\1/p' "$cfg" | head -1)"
+    [ -n "$adm" ]  && { mkdir -p "$adm";  chown -R "$u" "$adm"  2>/dev/null; }
+    [ -n "$run" ]  && { mkdir -p "$run";  chown -R "$u" "$run"  2>/dev/null; }
+    [ -n "$root" ] && chmod -R a+rwX "$root" 2>/dev/null
+    # xrootd (as $u) must write its own log AND a sibling ".lock" file in the log
+    # directory (root-owned by default) — so open the log dir, not just the file.
+    local logdir; logdir="$(dirname "$log")"
+    mkdir -p "$logdir" 2>/dev/null
+    chmod a+rwx "$logdir" 2>/dev/null
+    : > "$log" 2>/dev/null; chown "$u" "$log" 2>/dev/null
+    if [ -d "${PKI_DIR:-/nonexistent}" ]; then
+        chmod a+rX "$PKI_DIR" "$PKI_DIR"/ca "$PKI_DIR"/server 2>/dev/null
+        chmod a+r  "$PKI_DIR"/server/hostkey.pem "$PKI_DIR"/server/hostcert.pem 2>/dev/null
+        chmod a+r  "$PKI_DIR"/ca/*.pem 2>/dev/null
+    fi
+    "$REF_BIN" -c "$cfg" -l "$log" -R "$u" -b >/dev/null 2>&1
+}
+
 write_ref_cfg() {
     mkdir -p "${REF_DIR}/admin-conf" "${REF_DIR}/run-conf"
-
-    cat >"$REF_CFG" <<EOF
-xrd.port ${REF_PORT}
-oss.localroot ${DATA_DIR}
-all.export /
-all.adminpath ${REF_DIR}/admin-conf
-all.pidpath   ${REF_DIR}/run-conf
-xrd.trace off
-EOF
+    render_cfg "${CONFIGS_DIR}/xrootd_ref.conf" "$REF_CFG" \
+        PORT="${REF_PORT}" \
+        DATA_DIR="${DATA_DIR}" \
+        ADMIN_DIR="${REF_DIR}/admin-conf" \
+        RUN_DIR="${REF_DIR}/run-conf"
 }
 
 write_gsi_ref_cfg() {
@@ -33,19 +67,15 @@ write_gsi_ref_cfg() {
         return 1
     fi
 
-    cat >"$cfg" <<EOF
-xrd.port ${port}
-xrd.network nodnr
-xrd.allow host *
-oss.localroot ${data_dir}
-all.export /
-all.adminpath ${admin_dir}
-all.pidpath   ${run_dir}
-xrd.trace off
-xrootd.seclib ${sec_lib}
-sec.protocol gsi -certdir:${PKI_DIR}/ca -cert:${PKI_DIR}/server/hostcert.pem -key:${PKI_DIR}/server/hostkey.pem -gridmap:none -gmapopt:10
-sec.protbind * gsi
-EOF
+    render_cfg "${CONFIGS_DIR}/xrootd_ref_gsi.conf" "$cfg" \
+        PORT="${port}" \
+        DATA_DIR="${data_dir}" \
+        ADMIN_DIR="${admin_dir}" \
+        RUN_DIR="${run_dir}" \
+        SECLIB="${sec_lib}" \
+        CA_DIR="${PKI_DIR}/ca" \
+        SERVER_CERT="${PKI_DIR}/server/hostcert.pem" \
+        SERVER_KEY="${PKI_DIR}/server/hostkey.pem"
 }
 
 write_anon_ref_cfg() {
@@ -55,14 +85,11 @@ write_anon_ref_cfg() {
     local admin_dir="$4"
     local run_dir="$5"
 
-    cat >"$cfg" <<EOF
-xrd.port ${port}
-oss.localroot ${data_dir}
-all.export /
-all.adminpath ${admin_dir}
-all.pidpath   ${run_dir}
-xrd.trace off
-EOF
+    render_cfg "${CONFIGS_DIR}/xrootd_anon.conf" "$cfg" \
+        PORT="${port}" \
+        DATA_DIR="${data_dir}" \
+        ADMIN_DIR="${admin_dir}" \
+        RUN_DIR="${run_dir}"
 }
 
 start_extra_ref_gsi() {
@@ -90,7 +117,7 @@ start_extra_ref_gsi() {
         write_anon_ref_cfg "$cfg" "$port" "$data_dir" "$admin_dir" "$run_dir"
     fi
 
-    "$REF_BIN" -c "$cfg" -l "$log" -b >/dev/null 2>&1 || true
+    _ref_launch "$cfg" "$log" || true
 
     if [[ -n "${SKIP_XRDFS_CHECK:-}" ]]; then
         echo "reference xrootd ${label} started on $port"
@@ -123,7 +150,7 @@ start_extra_ref_anon() {
     mkdir -p "$admin_dir" "$run_dir" "$data_dir"
     write_anon_ref_cfg "$cfg" "$port" "$data_dir" "$admin_dir" "$run_dir"
 
-    "$REF_BIN" -c "$cfg" -l "$log" -b >/dev/null 2>&1 || true
+    _ref_launch "$cfg" "$log" || true
 
     if [[ -n "${SKIP_XRDFS_CHECK:-}" ]]; then
         echo "reference xrootd ${label} started on $port"
@@ -162,19 +189,14 @@ start_root_tpc_ref() {
 
     mkdir -p "$admin_dir" "$run_dir" "$data_dir"
     : > "$log"
-    cat >"$cfg" <<EOF
-all.role server
-all.export /
-oss.localroot ${data_dir}
-all.adminpath ${admin_dir}
-all.pidpath ${run_dir}
+    render_cfg "${CONFIGS_DIR}/xrootd_root_tpc.conf" "$cfg" \
+        DATA_DIR="${data_dir}" \
+        ADMIN_DIR="${admin_dir}" \
+        RUN_DIR="${run_dir}" \
+        PORT="${port}" \
+        XRDCP_BIN="${xrdcp_bin}"
 
-xrd.port ${port}
-xrd.trace off
-ofs.tpc streams 4 pgm ${xrdcp_bin} --server
-EOF
-
-    "$REF_BIN" -c "$cfg" -l "$log" -b >/dev/null 2>&1 || true
+    _ref_launch "$cfg" "$log" || true
 
     if [[ -n "${SKIP_XRDFS_CHECK:-}" ]]; then
         echo "reference xrootd ${label} started on $port"
@@ -207,21 +229,19 @@ start_pss_bridge_ref() {
 
     mkdir -p "$admin_dir" "$run_dir" "$data_dir"
     : > "$log"
-    cat >"$cfg" <<EOF
-all.role server
-all.export /
-oss.localroot ${data_dir}
-all.adminpath ${admin_dir}
-all.pidpath ${run_dir}
+    render_cfg "${CONFIGS_DIR}/xrootd_pss_bridge.conf" "$cfg" \
+        DATA_DIR="${data_dir}" \
+        ADMIN_DIR="${admin_dir}" \
+        RUN_DIR="${run_dir}" \
+        PORT="${port}" \
+        ORIGIN="localhost:${upstream_port}"
 
-xrd.port ${port}
-xrd.trace off
-ofs.osslib libXrdPss.so
-pss.origin localhost:${upstream_port}
-pss.setopt DebugLevel 0
-EOF
-
-    "$REF_BIN" -c "$cfg" -l "$log" -b >/dev/null 2>&1 || true
+    # pss (XrdPss) forwards via XrdCl, whose client pool spawns many
+    # threads under load independent of xrd.sched. Cap it: 1 event loop +
+    # 1 worker thread. Combined with xrd.sched maxt 4 above, this keeps the
+    # proxy bridge to a small fixed thread count (code-path testing, not perf).
+    XRD_PARALLELEVTLOOP=1 XRD_WORKERTHREADS=1 \
+    _ref_launch "$cfg" "$log" || true
 
     if [[ -n "${SKIP_XRDFS_CHECK:-}" ]]; then
         echo "reference xrootd ${label} started on $port"
@@ -255,7 +275,7 @@ start_ref() {
     fi
     rm -f "$REF_PID_FILE"
 
-    "$REF_BIN" -c "$REF_CFG" -l "$REF_LOG" -b >/dev/null 2>&1
+    _ref_launch "$REF_CFG" "$REF_LOG"
 
     for _ in {1..20}; do
         if [[ -f "$REF_PID_FILE" ]]; then
