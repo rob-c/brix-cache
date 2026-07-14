@@ -1,8 +1,18 @@
 /*
  * broker_ops.c - extracted concern
  * Phase-38 split of broker.c; behavior-identical.
+ *
+ * Holds the confined-syscall primitives (imp_openat2 / imp_open_parent /
+ * imp_fill_stat / imp_do_rename / imp_xattr_*), the fd-based op handlers
+ * (open / stat / lstat / truncate / getxattr / listxattr / setxattr /
+ * removexattr), and the opcode dispatch table + entry point (imp_do_op).
+ * The parent-relative namespace-mutation handlers (mkdir / unlink / rmdir /
+ * chmod / chown / rename / link / setattr / symlink / readlink) live in the
+ * phase-79 sibling broker_ops_ns.c and are dispatched from the table here via
+ * the broker_ops_internal.h contract.
  */
 #include "broker_internal.h"
+#include "broker_ops_internal.h"
 
 
 /* openat2(rootfd, rel, RESOLVE_BENEATH).  Returns fd or -errno. */
@@ -283,221 +293,6 @@ imp_op_truncate(const imp_op_ctx_t *c)
     rc = ftruncate(fd, (off_t) c->req->length) == 0 ? 0 : -errno;
     close(fd);
     return rc;
-}
-
-
-/*
- * imp_op_mkdir — IMP_OP_MKDIR: mkdirat(base) under the confined parent.
- * HOW: imp_open_parent confines the dirname, mkdirat creates the final
- * component with req->mode.
- */
-static int
-imp_op_mkdir(const imp_op_ctx_t *c)
-{
-    char        scratch[IMP_PATH_MAX];
-    const char *base;
-    int         pfd, rc;
-
-    pfd = imp_open_parent(c->rootfd, c->rel, scratch, &base);
-    if (pfd < 0) {
-        return pfd;
-    }
-    rc = mkdirat(pfd, base, c->req->mode) == 0 ? 0 : -errno;
-    close(pfd);
-    return rc;
-}
-
-
-/*
- * imp_op_unlink — IMP_OP_UNLINK / IMP_OP_RMDIR: unlinkat(base) under the
- * confined parent, AT_REMOVEDIR for the directory variant.
- */
-static int
-imp_op_unlink(const imp_op_ctx_t *c)
-{
-    char        scratch[IMP_PATH_MAX];
-    const char *base;
-    int         pfd, rc;
-
-    pfd = imp_open_parent(c->rootfd, c->rel, scratch, &base);
-    if (pfd < 0) {
-        return pfd;
-    }
-    rc = unlinkat(pfd, base,
-                  c->req->op == IMP_OP_RMDIR ? AT_REMOVEDIR : 0) == 0
-             ? 0 : -errno;
-    close(pfd);
-    return rc;
-}
-
-
-/*
- * imp_op_chmod — IMP_OP_CHMOD: fchmodat(base, req->mode) under the confined
- * parent, as the mapped user (DAC decides).
- */
-static int
-imp_op_chmod(const imp_op_ctx_t *c)
-{
-    char        scratch[IMP_PATH_MAX];
-    const char *base;
-    int         pfd, rc;
-
-    pfd = imp_open_parent(c->rootfd, c->rel, scratch, &base);
-    if (pfd < 0) {
-        return pfd;
-    }
-    rc = fchmodat(pfd, base, c->req->mode, 0) == 0 ? 0 : -errno;
-    close(pfd);
-    return rc;
-}
-
-
-/*
- * imp_op_chown — IMP_OP_CHOWN: gid-only fchownat (uid is fixed by ownership);
- * the mapped user must own the file.  req->mode carries the gid on the wire.
- */
-static int
-imp_op_chown(const imp_op_ctx_t *c)
-{
-    char        scratch[IMP_PATH_MAX];
-    const char *base;
-    int         pfd, rc;
-
-    pfd = imp_open_parent(c->rootfd, c->rel, scratch, &base);
-    if (pfd < 0) {
-        return pfd;
-    }
-    rc = fchownat(pfd, base, (uid_t) -1, (gid_t) c->req->mode,
-                  AT_SYMLINK_NOFOLLOW) == 0 ? 0 : -errno;
-    close(pfd);
-    return rc;
-}
-
-
-/*
- * imp_op_rename_link — IMP_OP_RENAME / IMP_OP_RENAME_NOREPLACE / IMP_OP_LINK:
- * two-path ops.  HOW: confine BOTH parents via imp_open_parent, then linkat or
- * imp_do_rename (which handles the RENAME_NOREPLACE renameat2 fallback).
- */
-static int
-imp_op_rename_link(const imp_op_ctx_t *c)
-{
-    const char *rel2 = imp_rel(c->req->path2);
-    char        scratch[IMP_PATH_MAX], scratch2[IMP_PATH_MAX];
-    const char *base, *base2;
-    int         pfd, pfd2, rc;
-
-    pfd = imp_open_parent(c->rootfd, c->rel, scratch, &base);
-    if (pfd < 0) {
-        return pfd;
-    }
-    pfd2 = imp_open_parent(c->rootfd, rel2, scratch2, &base2);
-    if (pfd2 < 0) {
-        close(pfd);
-        return pfd2;
-    }
-    if (c->req->op == IMP_OP_LINK) {
-        rc = linkat(pfd, base, pfd2, base2, 0) == 0 ? 0 : -errno;
-    } else {
-        rc = imp_do_rename(pfd, base, pfd2, base2,
-                           c->req->op == IMP_OP_RENAME_NOREPLACE) == 0
-             ? 0 : -errno;
-    }
-    close(pfd);
-    close(pfd2);
-    return rc;
-}
-
-
-/*
- * imp_op_setattr — IMP_OP_SETATTR: utimensat (+ optional fchownat) on the
- * final component, NOFOLLOW.  As the mapped user: chgrp/utimens on a file
- * they own succeeds; a chown to a different owner correctly fails (the broker
- * holds no CAP_CHOWN).
- */
-static int
-imp_op_setattr(const imp_op_ctx_t *c)
-{
-    char        scratch[IMP_PATH_MAX];
-    const char *base;
-    int         pfd, rc;
-
-    pfd = imp_open_parent(c->rootfd, c->rel, scratch, &base);
-    if (pfd < 0) {
-        return pfd;
-    }
-    rc = 0;
-    if (c->req->attr_flags & IMP_ATTR_TIMES) {
-        struct timespec ts[2];
-        ts[0].tv_sec  = (time_t) c->req->atime_sec;
-        ts[0].tv_nsec = (long)   c->req->atime_nsec;
-        ts[1].tv_sec  = (time_t) c->req->mtime_sec;
-        ts[1].tv_nsec = (long)   c->req->mtime_nsec;
-        if (utimensat(pfd, base, ts, AT_SYMLINK_NOFOLLOW) != 0) {
-            rc = -errno;
-        }
-    }
-    if (rc == 0 && (c->req->attr_flags & IMP_ATTR_OWNER)) {
-        uid_t u = (c->req->set_uid == (uint32_t) -1) ? (uid_t) -1
-                                                     : (uid_t) c->req->set_uid;
-        gid_t g = (c->req->set_gid == (uint32_t) -1) ? (gid_t) -1
-                                                     : (gid_t) c->req->set_gid;
-        if (fchownat(pfd, base, u, g, AT_SYMLINK_NOFOLLOW) != 0) {
-            rc = -errno;
-        }
-    }
-    close(pfd);
-    return rc;
-}
-
-
-/*
- * imp_op_symlink — IMP_OP_SYMLINK: path = link location (root-relative);
- * path2 = verbatim target string.  Only the link site is confined; a target
- * pointing outside the root just cannot be followed later (the confined open
- * re-applies RESOLVE_BENEATH).
- */
-static int
-imp_op_symlink(const imp_op_ctx_t *c)
-{
-    char        scratch[IMP_PATH_MAX];
-    const char *base;
-    int         pfd, rc;
-
-    pfd = imp_open_parent(c->rootfd, c->rel, scratch, &base);
-    if (pfd < 0) {
-        return pfd;
-    }
-    rc = symlinkat(c->req->path2, pfd, base) == 0 ? 0 : -errno;
-    close(pfd);
-    return rc;
-}
-
-
-/*
- * imp_op_readlink — IMP_OP_READLINK: readlinkat(base) under the confined
- * parent; the link target goes back as the trailing reply payload.
- */
-static int
-imp_op_readlink(const imp_op_ctx_t *c)
-{
-    char        scratch[IMP_PATH_MAX];
-    const char *base;
-    int         pfd;
-    ssize_t     n;
-
-    pfd = imp_open_parent(c->rootfd, c->rel, scratch, &base);
-    if (pfd < 0) {
-        return pfd;
-    }
-    n = readlinkat(pfd, base, c->data_out, c->data_max);
-    close(pfd);
-    if (n < 0) {
-        return -errno;
-    }
-    c->rep->data_len   = (uint32_t) n;   /* link target -> trailing payload */
-    c->rep->rep_flags |= IMP_REP_HAS_DATA;
-    return 0;
 }
 
 

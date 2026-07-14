@@ -25,10 +25,18 @@
  *
  * Pool allocation: path_copy uses ngx_pnalloc(r->pool, PATH_MAX) to survive until the
  *   async PUT/MPU-complete callback fires after body reading completes.
+ *
+ * Phase-79 file-size split: the URI parser and the post-auth dispatch tree moved to
+ *   the sibling handler_dispatch.c (URI parse, token-scope gate, bucket/empty-key/list
+ *   routing) and handler_object_route.c (object-key method routing). This file retains
+ *   the entry handler, the SigV4/XrdAcc auth gate, request classification, OPTIONS/CORS,
+ *   and the delegation/pmark hooks. Cross-file symbols are declared in
+ *   s3_handler_internal.h.
  */
 
 
 #include "s3.h"
+#include "s3_handler_internal.h"
 #include "tagging.h"
 #include "auth/impersonate/lifecycle.h"
 #include "core/http/http_body.h"
@@ -45,7 +53,7 @@
 #include "core/compat/alloc_guard.h"
 
 /* Map an S3 request method to the XrdAcc operation it requires. */
-static brix_acc_op_t
+brix_acc_op_t
 s3_method_aop(ngx_http_request_t *r)
 {
     switch (r->method) {
@@ -105,81 +113,6 @@ s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
                                    &cf->acc, name, host, vorg, role, grp,
                                    s3_method_aop(r), path);
     return (rc == NGX_ERROR) ? NGX_HTTP_FORBIDDEN : NGX_OK;
-}
-
-/*
- *
- * WHAT: Parses the S3 request URI into bucket name and object key components. Supports
- *       path-style addressing (/<bucket>/<key>) and list requests (/<bucket>/?list-type=2).
- *       Performs URL decoding on the object key portion to handle encoded characters in paths.
- *       Returns 1 for success, 0 for malformed URI, -1 if bucket name doesn't match configured value.
- *
- * WHY: S3 clients use path-style URIs that must be parsed into bucket + key before any filesystem
- *       operations can proceed. The parser handles both object access (GET/PUT) and list requests
- *       uniformly — distinguishing between them happens later via s3_is_list_request(). */
-/*
- * HOW: Advances past the leading '/' in the URI, then checks if the remaining prefix matches conf->bucket.len bytes. If bucket match succeeds, advances past '/' to extract the key portion which is URL-decoded via s3_urldecode(). Returns -1 on bucket mismatch (NoSuchBucket), 0 on malformed URI (InvalidURI), 1 on success.
- */
-/*
- * Parse the request URI into bucket + key.
- *
- * Path-style: /<bucket>/<key>
- * List:       /<bucket>/?list-type=2[&prefix=...&delimiter=...&...]
- *
- * Returns:
- *   1  - success
- *   0  - malformed URI
- *  -1  - bucket name mismatch
- * */
-
-static int
-s3_parse_uri(ngx_http_request_t *r,
-             ngx_http_s3_loc_conf_t *cf,
-             u_char *key_out, size_t key_sz)
-{
-    const u_char *uri  = r->uri.data;
-    size_t        ulen = r->uri.len;
-    size_t        blen = cf->bucket.len;
-
-    if (ulen == 0 || uri[0] != '/') {
-        return 0;
-    }
-
-    uri++;
-    ulen--;
-
-    if (blen > 0) {
-        if (ulen < blen || ngx_strncmp(uri, cf->bucket.data, blen) != 0) {
-            return -1;
-        }
-        uri  += blen;
-        ulen -= blen;
-
-        if (ulen == 0) {
-            /* /bucket with no trailing slash — valid, empty key (e.g. ListObjects) */
-            key_out[0] = '\0';
-            return 1;
-        }
-        if (uri[0] != '/') {
-            return 0;
-        }
-        uri++;
-        ulen--;
-    }
-
-    if (ulen == 0) {
-        key_out[0] = '\0';
-        return 1;
-    }
-
-    if (brix_http_urldecode(uri, ulen, (char *) key_out, key_sz,
-            BRIX_URLDECODE_PLUS_TO_SPACE |
-            BRIX_URLDECODE_REJECT_NUL) != BRIX_URLDECODE_OK)
-    {
-        return 0;
-    }
-
-    return 1;
 }
 
 /*
@@ -323,438 +256,6 @@ s3_handle_options(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
 }
 
 /*
- * Main content handler - auth gate + method dispatch
- * */
-
-/*
- * ngx_http_s3_handler - nginx HTTP content handler for the S3 API.
- *
- * Implements the AWS S3 path-style API subset needed by XrdClS3 and other
- * HEP data transfer tools.  Dispatch order:
- *
- *   1. Parse the URI into bucket + key using s3_parse_uri().
- *   2. Verify AWS SigV4 signature (s3_verify_sigv4).
- *   3. ListObjectsV2          (GET /<bucket>/?list-type=2) -> s3_handle_list().
- *   4. ListMultipartUploads   (GET /<bucket>/?uploads)     -> s3_handle_list_multipart_uploads().
- *   5. ListParts              (GET /<bucket>/<key>?uploadId=<id>) -> s3_handle_list_parts().
- *   6. GetObject              (GET    /<bucket>/<key>) -> s3_handle_get().
- *   7. HeadObject             (HEAD   /<bucket>/<key>) -> s3_handle_head().
- *   8. PutObject / UploadPart (PUT    /<bucket>/<key>) -> s3_put_body_handler().
- *   9. DeleteObject / Abort   (DELETE /<bucket>/<key>) -> s3_handle_delete().
- *  10. CompleteMultipartUpload (POST  /<bucket>/<key>?uploadId=<id>) -> s3_multipart_complete_body_handler().
- *  11. InitiateMultipartUpload (POST  /<bucket>/<key>?uploads) -> s3_handle_multipart_initiate().
- *
- * The fs_path (filesystem path within conf->common.root_canon) is resolved by
- * s3_resolve_key() and stored in r->pool for the async PUT callback.
- *
- * Pool allocation: path_copy uses ngx_pnalloc(r->pool, PATH_MAX) so it
- *   survives until the PUT body callback fires after body reading completes.
- */
-/*
- * WHY: The dispatch order is critical — list requests are checked before object access to avoid treating empty-key GETs as invalid URIs. SigV4 verification happens early so unsigned requests fail fast without parsing overhead. Write operations (PUT/DELETE/POST) check cf->common.allow_write before body read to reject writes on read-only endpoints without consuming client bandwidth.
- *
- * HOW: Gets location config, returns NGX_DECLINED if disabled. Determines method_slot (list vs object). Tracks per-IP-version bytes_rx metric. Verifies SigV4 signature — fails with appropriate XML error if invalid. Parses URI into bucket+key via s3_parse_uri() — rejects mismatched bucket (-1) or malformed URI (0). Checks list-type=2, uploads flag, delete flag before empty-key rejection. Resolves key to fs_path via s3_resolve_key(). Dispatches by HTTP method: GET→list_parts/get; HEAD→head; PUT→upload_part_copy/copy_object/put_body; DELETE→multipart_abort/delete; POST→multipart_initiate/complete. Unknown methods → 405.
- */
-static ngx_int_t s3_dispatch_after_auth(ngx_http_request_t *r,
-    ngx_http_s3_loc_conf_t *cf, ngx_http_s3_req_ctx_t *s3ctx,
-    ngx_uint_t method_slot, int is_list_request,
-    ngx_flag_t is_post_object_form);
-static int s3_upload_id_is_hex(const char *upload_id);
-
-/*
- * Parse the URI into key.  Returns NGX_DECLINED when key is valid and dispatch
- * may continue.  On a rejected URI the XML error response has already been
- * sent and the value the content handler must return is passed back.  The
- * continue outcome is a distinct sentinel (NGX_DECLINED, which no send path
- * produces) rather than NGX_OK because a fully-sent error body makes
- * ngx_http_output_filter() return NGX_OK — comparing the response rc against
- * NGX_OK would let dispatch fall through with an unwritten key after the
- * request was already answered.
- */
-static ngx_int_t
-s3_dispatch_parse_uri(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    ngx_uint_t method_slot, u_char *key, size_t key_cap)
-{
-    int parse_rc = s3_parse_uri(r, cf, key, key_cap);
-
-    if (parse_rc == -1) {
-        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INVALID_URI]);
-        return s3_metrics_return_method(
-            r, method_slot,
-            s3_send_xml_error(r, NGX_HTTP_NOT_FOUND, "NoSuchBucket",
-                              "The specified bucket does not exist."));
-    }
-    if (parse_rc == 0) {
-        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INVALID_URI]);
-        return s3_metrics_return_method(
-            r, method_slot,
-            s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "InvalidURI",
-                              "Couldn't parse the specified URI."));
-    }
-    return NGX_DECLINED;
-}
-
-/*
- * Token-scope gate.  Returns NGX_DECLINED when the operation may proceed.  On
- * a scope deny the 403 response has already been sent and the value the
- * content handler must return is passed back (same sentinel convention as
- * s3_dispatch_parse_uri — the response rc itself is NGX_OK once the body is
- * flushed, so it must never gate dispatch).
- */
-static ngx_int_t
-s3_check_token_scope(ngx_http_request_t *r, ngx_http_s3_req_ctx_t *s3ctx,
-    ngx_uint_t method_slot, const u_char *key)
-{
-    brix_acc_op_t aop;
-    int           need_write;
-    char          logical[PATH_MAX];
-
-    if (s3ctx->identity == NULL
-        || !(s3ctx->identity->auth_method & BRIX_AUTHN_TOKEN))
-    {
-        return NGX_DECLINED;
-    }
-
-    aop = s3_method_aop(r);
-    need_write = (aop == BRIX_AOP_CREATE || aop == BRIX_AOP_DELETE);
-    (void) ngx_snprintf((u_char *) logical, sizeof(logical), "/%s%Z",
-                        (const char *) key);
-    if (brix_identity_check_token_scope(s3ctx->identity, logical, need_write)
-        == NGX_OK)
-    {
-        return NGX_DECLINED;
-    }
-    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_ACCESS_DENIED]);
-    return s3_metrics_return_method(r, method_slot,
-        s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
-                          "token scope does not cover this object"));
-}
-
-static ngx_int_t
-s3_reject_write_disabled(ngx_http_request_t *r, ngx_uint_t method_slot)
-{
-    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_WRITE_DISABLED]);
-    return s3_metrics_return_method(
-        r, method_slot,
-        s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
-                          "Write access is disabled."));
-}
-
-static ngx_int_t
-s3_read_body_metric(ngx_http_request_t *r, ngx_uint_t method_slot,
-    ngx_http_client_body_handler_pt handler)
-{
-    ngx_int_t rc;
-
-    r->request_body_in_single_buf = 1;
-    rc = brix_http_read_body(r, handler);
-    return (rc == NGX_DONE) ? NGX_DONE : s3_metrics_return_method(r, method_slot, rc);
-}
-
-static ngx_int_t
-s3_dispatch_empty_post(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    ngx_uint_t method_slot, ngx_flag_t is_post_object_form)
-{
-    if (r->method != NGX_HTTP_POST) {
-        return NGX_DECLINED;
-    }
-    if (s3_has_query_flag(r, "delete")) {
-        return cf->common.allow_write
-               ? s3_read_body_metric(r, method_slot, s3_delete_objects_body_handler)
-               : s3_reject_write_disabled(r, method_slot);
-    }
-    if (is_post_object_form) {
-        return cf->common.allow_write
-               ? s3_read_body_metric(r, method_slot, s3_post_object_body_handler)
-               : s3_reject_write_disabled(r, method_slot);
-    }
-    return NGX_DECLINED;
-}
-
-static ngx_int_t
-s3_dispatch_bucket_get(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    ngx_uint_t method_slot)
-{
-    if (s3_has_query_flag(r, "uploads")) {
-        return s3_metrics_return_method(r, method_slot,
-                                        s3_handle_list_multipart_uploads(r, cf));
-    }
-    if (s3_has_query_flag(r, "location")) {
-        return s3_metrics_return_method(r, method_slot,
-                                        s3_handle_get_bucket_location(r, cf));
-    }
-    if (s3_has_query_flag(r, "versioning")) {
-        return s3_metrics_return_method(r, method_slot,
-                                        s3_handle_get_bucket_versioning(r));
-    }
-    if (s3_has_query_flag(r, "acl")) {
-        return s3_metrics_return_method(r, method_slot,
-                                        s3_handle_get_acl(r, cf));
-    }
-    if (s3_has_query_flag(r, "cors")) {
-        return s3_metrics_return_method(r, method_slot, s3_handle_get_cors(r));
-    }
-    return s3_metrics_return_method(r, method_slot, s3_handle_list_v1(r, cf));
-}
-
-static ngx_int_t
-s3_dispatch_empty_key(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    ngx_uint_t method_slot, ngx_flag_t is_post_object_form)
-{
-    ngx_int_t rc;
-
-    if (r->method == NGX_HTTP_GET) {
-        return s3_dispatch_bucket_get(r, cf, method_slot);
-    }
-    rc = s3_dispatch_empty_post(r, cf, method_slot, is_post_object_form);
-    if (rc != NGX_DECLINED) {
-        return rc;
-    }
-    if (r->method == NGX_HTTP_HEAD) {
-        return s3_metrics_return_method(r, method_slot,
-                                        s3_handle_head_bucket(r, cf));
-    }
-    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INVALID_URI]);
-    return s3_metrics_return_method(
-        r, method_slot,
-        s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "InvalidURI",
-                          "Missing object key."));
-}
-
-/*
- * Resolve key -> confined fs_path.  Returns NGX_DECLINED when dispatch may
- * continue.  On a confinement deny the 403 response has already been sent and
- * the value the content handler must return is passed back (same sentinel
- * convention as s3_dispatch_parse_uri).
- */
-static ngx_int_t
-s3_resolve_object_key(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    ngx_http_s3_req_ctx_t *s3ctx, ngx_uint_t method_slot, const u_char *key,
-    char *fs_path, size_t fs_path_cap)
-{
-    if (s3_resolve_key(cf->common.root_canon, (const char *) key, fs_path,
-                       fs_path_cap))
-    {
-        ngx_cpystrn((u_char *) s3ctx->fs_path, (u_char *) fs_path,
-                    sizeof(s3ctx->fs_path));
-        return NGX_DECLINED;
-    }
-    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_ACCESS_DENIED]);
-    return s3_metrics_return_method(
-        r, method_slot,
-        s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
-                          "Access Denied."));
-}
-
-static ngx_int_t
-s3_dispatch_object_get(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    ngx_uint_t method_slot, const u_char *key, char *fs_path)
-{
-    char upload_id[128];
-
-    if (s3_has_query_flag(r, "tagging")) {
-        return s3_metrics_return_method(r, method_slot,
-            s3_handle_get_object_tagging(r, fs_path, cf));
-    }
-    if (s3_has_query_flag(r, "acl")) {
-        return s3_metrics_return_method(r, method_slot,
-                                        s3_handle_get_acl(r, cf));
-    }
-    if (s3_get_query_param(r, "uploadId", upload_id, sizeof(upload_id))) {
-        return s3_metrics_return_method(r, method_slot,
-            s3_handle_list_parts(r, fs_path, cf, (const char *) key));
-    }
-    return s3_metrics_return_method(r, method_slot,
-                                    s3_handle_get(r, fs_path, cf));
-}
-
-static ngx_int_t
-s3_prepare_upload_part(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    ngx_http_s3_req_ctx_t *s3ctx, ngx_uint_t method_slot, char *fs_path)
-{
-    char upload_id[25];
-    char part_num_str[8];
-    char *endptr;
-    long part_num;
-    char mpu_dir[PATH_MAX];
-    u_char *p;
-
-    if (!s3_get_query_param(r, "uploadId", upload_id, sizeof(upload_id))
-        || !s3_get_query_param(r, "partNumber", part_num_str,
-                               sizeof(part_num_str)))
-    {
-        return NGX_DECLINED;
-    }
-    part_num = strtol(part_num_str, &endptr, 10);
-    if (*endptr != '\0' || part_num < 1 || part_num > 10000) {
-        return s3_metrics_return_method(r, method_slot,
-            s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "InvalidArgument",
-                              "Part number must be an integer between 1 and 10000."));
-    }
-    if (!s3_has_query_flag(r, "uploads") && !s3_upload_id_is_hex(upload_id)) {
-        return s3_metrics_return_method(r, method_slot,
-            s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "InvalidArgument",
-                              "The uploadId is invalid."));
-    }
-    if (brix_http_find_header(r, "x-amz-copy-source",
-                              sizeof("x-amz-copy-source") - 1) != NULL)
-    {
-        return s3_metrics_return_method(r, method_slot,
-            s3_handle_upload_part_copy(r, fs_path, cf, upload_id, (int) part_num));
-    }
-
-    s3_get_mpu_dir(fs_path, upload_id, mpu_dir, sizeof(mpu_dir));
-    p = ngx_snprintf((u_char *) fs_path, PATH_MAX - 1, "%s/part.%z",
-                     mpu_dir, (size_t) part_num);
-    *p = '\0';
-    ngx_cpystrn((u_char *) s3ctx->fs_path, (u_char *) fs_path,
-                sizeof(s3ctx->fs_path));
-    return NGX_OK;
-}
-
-static int
-s3_upload_id_is_hex(const char *upload_id)
-{
-    const char *c;
-
-    for (c = upload_id; *c != '\0'; c++) {
-        if (!((*c >= '0' && *c <= '9') || (*c >= 'a' && *c <= 'f'))) {
-            return 0;
-        }
-    }
-    return 1;
-}
-
-static ngx_int_t
-s3_apply_put_precondition(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    ngx_http_s3_req_ctx_t *s3ctx, ngx_uint_t method_slot, const char *fs_path)
-{
-    char part_probe[8];
-    ngx_int_t rc;
-
-    /* NGX_DECLINED = "no response sent, proceed to the PUT body"; any other rc
-     * is a response already flushed (e.g. 412) that must gate dispatch — the
-     * send itself returns NGX_OK, so the caller must key on NGX_DECLINED, not
-     * NGX_OK (same sentinel convention as s3_dispatch_parse_uri). */
-    if (s3_get_query_param(r, "uploadId", part_probe, sizeof(part_probe))) {
-        return NGX_DECLINED;
-    }
-    rc = s3_put_precondition(r, cf->common.root_canon, fs_path);
-    if (rc != NGX_DECLINED) {
-        return s3_metrics_return_method(r, method_slot, rc);
-    }
-    s3ctx->exclusive_create = s3_put_is_exclusive_create(r) ? 1 : 0;
-    return NGX_DECLINED;
-}
-
-static ngx_int_t
-s3_dispatch_object_put(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    ngx_http_s3_req_ctx_t *s3ctx, ngx_uint_t method_slot, char *fs_path)
-{
-    ngx_int_t rc;
-
-    if (!cf->common.allow_write) {
-        return s3_reject_write_disabled(r, method_slot);
-    }
-    if (s3_has_query_flag(r, "tagging")) {
-        return s3_read_body_metric(r, method_slot,
-                                   s3_put_object_tagging_body_handler);
-    }
-    if (s3_has_query_flag(r, "acl")) {
-        return s3_metrics_return_method(r, method_slot,
-            s3_send_xml_error(r, NGX_HTTP_NOT_IMPLEMENTED, "NotImplemented",
-                "Per-object ACLs are not supported by this gateway."));
-    }
-
-    rc = s3_prepare_upload_part(r, cf, s3ctx, method_slot, fs_path);
-    if (rc == NGX_DONE || (rc != NGX_OK && rc != NGX_DECLINED)) {
-        return rc;
-    }
-    if (brix_http_find_header(r, "x-amz-copy-source",
-                              sizeof("x-amz-copy-source") - 1) != NULL)
-    {
-        return s3_metrics_return_method(r, method_slot,
-                                        s3_handle_copy_object(r, fs_path, cf));
-    }
-    rc = s3_apply_put_precondition(r, cf, s3ctx, method_slot, fs_path);
-    if (rc != NGX_DECLINED) {
-        return rc;   /* precondition response already sent (e.g. 412) */
-    }
-    return s3_read_body_metric(r, method_slot, s3_put_body_handler);
-}
-
-static ngx_int_t
-s3_dispatch_object_delete(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    ngx_uint_t method_slot, char *fs_path)
-{
-    char upload_id[128];
-
-    if (!cf->common.allow_write) {
-        return s3_reject_write_disabled(r, method_slot);
-    }
-    if (s3_has_query_flag(r, "tagging")) {
-        return s3_metrics_return_method(r, method_slot,
-            s3_handle_delete_object_tagging(r, fs_path, cf));
-    }
-    if (s3_get_query_param(r, "uploadId", upload_id, sizeof(upload_id))) {
-        return s3_metrics_return_method(r, method_slot,
-            s3_handle_multipart_abort(r, fs_path, cf, upload_id));
-    }
-    return s3_metrics_return_method(r, method_slot,
-                                    s3_handle_delete(r, fs_path, cf));
-}
-
-static ngx_int_t
-s3_dispatch_object_post(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    ngx_uint_t method_slot, const u_char *key, char *fs_path)
-{
-    char upload_id[128];
-
-    if (!cf->common.allow_write) {
-        return s3_reject_write_disabled(r, method_slot);
-    }
-    if (s3_has_query_flag(r, "uploads")) {
-        return s3_metrics_return_method(r, method_slot,
-            s3_handle_multipart_initiate(r, fs_path, cf, (const char *) key));
-    }
-    if (s3_get_query_param(r, "uploadId", upload_id, sizeof(upload_id))) {
-        return s3_read_body_metric(r, method_slot,
-                                   s3_multipart_complete_body_handler);
-    }
-    /* A bare POST to an object key (no ?uploads / ?uploadId, and not a
-     * POST-object form — that path routes on the empty key earlier) has no S3
-     * semantics: 405, not an unhandled NGX_DECLINED that would fall through. */
-    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_METHOD_NOT_ALLOWED]);
-    return s3_metrics_return_method(r, method_slot, NGX_HTTP_NOT_ALLOWED);
-}
-
-static ngx_int_t
-s3_dispatch_object_method(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    ngx_http_s3_req_ctx_t *s3ctx, ngx_uint_t method_slot, const u_char *key,
-    char *fs_path)
-{
-    if (r->method == NGX_HTTP_GET) {
-        return s3_dispatch_object_get(r, cf, method_slot, key, fs_path);
-    }
-    if (r->method == NGX_HTTP_HEAD) {
-        return s3_metrics_return_method(r, method_slot,
-                                        s3_handle_head(r, fs_path, cf));
-    }
-    if (r->method == NGX_HTTP_PUT) {
-        return s3_dispatch_object_put(r, cf, s3ctx, method_slot, fs_path);
-    }
-    if (r->method == NGX_HTTP_DELETE) {
-        return s3_dispatch_object_delete(r, cf, method_slot, fs_path);
-    }
-    if (r->method == NGX_HTTP_POST) {
-        return s3_dispatch_object_post(r, cf, method_slot, key, fs_path);
-    }
-
-    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_METHOD_NOT_ALLOWED]);
-    return s3_metrics_return_method(r, method_slot, NGX_HTTP_NOT_ALLOWED);
-}
-
-/*
  * s3_capture_delegate_proxy — phase-70 §5.1 optional per-request x509 proxy.
  *
  * WHAT: When this export delegates to a backend (backend_delegation != SELECT),
@@ -823,6 +324,42 @@ s3_pmark_begin_if_enabled(ngx_http_request_t *r, ngx_http_s3_req_ctx_t *s3ctx,
         (const char *) pth, (const char *) cgi);
 }
 
+/*
+ * Main content handler - auth gate + method dispatch
+ * */
+
+/*
+ * ngx_http_s3_handler - nginx HTTP content handler for the S3 API.
+ *
+ * Implements the AWS S3 path-style API subset needed by XrdClS3 and other
+ * HEP data transfer tools.  Dispatch order:
+ *
+ *   1. Parse the URI into bucket + key using s3_parse_uri().
+ *   2. Verify AWS SigV4 signature (s3_verify_sigv4).
+ *   3. ListObjectsV2          (GET /<bucket>/?list-type=2) -> s3_handle_list().
+ *   4. ListMultipartUploads   (GET /<bucket>/?uploads)     -> s3_handle_list_multipart_uploads().
+ *   5. ListParts              (GET /<bucket>/<key>?uploadId=<id>) -> s3_handle_list_parts().
+ *   6. GetObject              (GET    /<bucket>/<key>) -> s3_handle_get().
+ *   7. HeadObject             (HEAD   /<bucket>/<key>) -> s3_handle_head().
+ *   8. PutObject / UploadPart (PUT    /<bucket>/<key>) -> s3_put_body_handler().
+ *   9. DeleteObject / Abort   (DELETE /<bucket>/<key>) -> s3_handle_delete().
+ *  10. CompleteMultipartUpload (POST  /<bucket>/<key>?uploadId=<id>) -> s3_multipart_complete_body_handler().
+ *  11. InitiateMultipartUpload (POST  /<bucket>/<key>?uploads) -> s3_handle_multipart_initiate().
+ *
+ * The fs_path (filesystem path within conf->common.root_canon) is resolved by
+ * s3_resolve_key() and stored in r->pool for the async PUT callback.  The URI
+ * parse and post-auth method dispatch live in handler_dispatch.c and
+ * handler_object_route.c; this handler runs the auth gate and hands off to
+ * s3_dispatch_after_auth().
+ *
+ * Pool allocation: path_copy uses ngx_pnalloc(r->pool, PATH_MAX) so it
+ *   survives until the PUT body callback fires after body reading completes.
+ */
+/*
+ * WHY: The dispatch order is critical — list requests are checked before object access to avoid treating empty-key GETs as invalid URIs. SigV4 verification happens early so unsigned requests fail fast without parsing overhead. Write operations (PUT/DELETE/POST) check cf->common.allow_write before body read to reject writes on read-only endpoints without consuming client bandwidth.
+ *
+ * HOW: Gets location config, returns NGX_DECLINED if disabled. Determines method_slot (list vs object). Tracks per-IP-version bytes_rx metric. Verifies SigV4 signature — fails with appropriate XML error if invalid. Parses URI into bucket+key via s3_parse_uri() — rejects mismatched bucket (-1) or malformed URI (0). Checks list-type=2, uploads flag, delete flag before empty-key rejection. Resolves key to fs_path via s3_resolve_key(). Dispatches by HTTP method: GET→list_parts/get; HEAD→head; PUT→upload_part_copy/copy_object/put_body; DELETE→multipart_abort/delete; POST→multipart_initiate/complete. Unknown methods → 405.
+ */
 ngx_int_t
 ngx_http_s3_handler(ngx_http_request_t *r)
 {
@@ -922,55 +459,4 @@ ngx_http_s3_handler(ngx_http_request_t *r)
                                 is_list_request, is_post_object_form);
     brix_imp_request_end();
     return rc;
-}
-
-/*
- * Post-auth S3 op dispatch (parse URI -> route by method).  Runs inside the
- * caller's impersonation bracket; see ngx_http_s3_handler.
- */
-static ngx_int_t
-s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    ngx_http_s3_req_ctx_t *s3ctx, ngx_uint_t method_slot,
-    int is_list_request, ngx_flag_t is_post_object_form)
-{
-    u_char    key[S3_MAX_KEY] = {0};
-    char      fs_path[PATH_MAX];
-    ngx_int_t rc;
-
-    /* Each gate below returns NGX_DECLINED to continue dispatch; any other
-     * value (including NGX_OK) means the response was already sent and must
-     * be returned as-is — see s3_dispatch_parse_uri's doc block. */
-    rc = s3_dispatch_parse_uri(r, cf, method_slot, key, sizeof(key));
-    if (rc != NGX_DECLINED) {
-        return rc;
-    }
-
-    /*
-     * WLCG bearer-token scope enforcement.
-     *
-     * When a request was authenticated via a bearer token, verify that the
-     * token's scope covers the requested path and operation BEFORE dispatching
-     * to any sub-handler.  Non-token requests (SigV4, anonymous) are allowed
-     * unconditionally by brix_identity_check_token_scope (scopes only apply to
-     * token auth).  Empty keys (bucket-level ops, list) map to logical path "/".
-     */
-    rc = s3_check_token_scope(r, s3ctx, method_slot, key);
-    if (rc != NGX_DECLINED) {
-        return rc;
-    }
-
-    if (is_list_request) {
-        return s3_metrics_return_method(r, method_slot, s3_handle_list(r, cf));
-    }
-
-    if (key[0] == '\0') {
-        return s3_dispatch_empty_key(r, cf, method_slot, is_post_object_form);
-    }
-
-    rc = s3_resolve_object_key(r, cf, s3ctx, method_slot, key, fs_path,
-                               sizeof(fs_path));
-    if (rc != NGX_DECLINED) {
-        return rc;
-    }
-    return s3_dispatch_object_method(r, cf, s3ctx, method_slot, key, fs_path);
 }

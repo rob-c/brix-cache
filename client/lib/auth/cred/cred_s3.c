@@ -109,6 +109,46 @@ parse_ini_key_value(char *buf, const char *key,
 }
 
 /*
+ * aws_extract_default_keys — pull the two AWS keys out of one [default] line.
+ *
+ * WHAT: for a single trimmed credentials line `t`, tries to extract
+ *       aws_access_key_id into access_out and aws_secret_access_key into
+ *       secret_out, setting *got_access / *got_secret when a non-empty value is
+ *       captured.  Already-captured keys are left untouched.
+ * WHY:  factored out of parse_aws_credentials_default so the scan loop stays a
+ *       flat, low-complexity classify-then-extract sequence.
+ * HOW:  1) if access not yet found, parse_ini_key_value(t, "aws_access_key_id");
+ *       2) if secret not yet found, parse_ini_key_value(t, "aws_secret_access_key").
+ *       Both calls operate on the SAME buffer `t` in this exact order; the first
+ *       call NUL-terminates `t` at its '=' (mutation contract of
+ *       parse_ini_key_value), and the extraction semantics depend on that shared
+ *       in-place mutation being preserved.  A captured value is copied only when
+ *       non-empty, matching the original per-branch tmp[0] != '\0' guard.
+ */
+static void
+aws_extract_default_keys(char *t,
+                         char *access_out, size_t access_sz, int *got_access,
+                         char *secret_out, size_t secret_sz, int *got_secret)
+{
+    if (!*got_access) {
+        char tmp[S3KEY_BUFSZ];
+        if (parse_ini_key_value(t, "aws_access_key_id",
+                                tmp, sizeof(tmp)) && tmp[0] != '\0') {
+            snprintf(access_out, access_sz, "%s", tmp);
+            *got_access = 1;
+        }
+    }
+    if (!*got_secret) {
+        char tmp[S3KEY_BUFSZ];
+        if (parse_ini_key_value(t, "aws_secret_access_key",
+                                tmp, sizeof(tmp)) && tmp[0] != '\0') {
+            snprintf(secret_out, secret_sz, "%s", tmp);
+            *got_secret = 1;
+        }
+    }
+}
+
+/*
  * parse_aws_credentials_default — read the [default] section of an AWS
  * credentials file and extract the access key and secret.
  *
@@ -159,22 +199,8 @@ parse_aws_credentials_default(const char *path,
             continue;
         }
 
-        if (!got_access) {
-            char tmp[S3KEY_BUFSZ];
-            if (parse_ini_key_value(t, "aws_access_key_id",
-                                    tmp, sizeof(tmp)) && tmp[0] != '\0') {
-                snprintf(access_out, access_sz, "%s", tmp);
-                got_access = 1;
-            }
-        }
-        if (!got_secret) {
-            char tmp[S3KEY_BUFSZ];
-            if (parse_ini_key_value(t, "aws_secret_access_key",
-                                    tmp, sizeof(tmp)) && tmp[0] != '\0') {
-                snprintf(secret_out, secret_sz, "%s", tmp);
-                got_secret = 1;
-            }
-        }
+        aws_extract_default_keys(t, access_out, access_sz, &got_access,
+                                 secret_out, secret_sz, &got_secret);
 
         if (got_access && got_secret) {
             break;   /* found both keys; no need to read further */

@@ -45,6 +45,179 @@ brix_parent_group_mode_bits(const struct stat *parent,
 }
 /* HOW: If S_ISDIR(child->st_mode): group_bits=parent->st_mode & S_IRWXG (all 3 group bits). Else: group_bits=parent->st_mode & (S_IRGRP | S_IWGRP) (read+write only for files). If child->st_mode & S_IXGRP → group_bits |= S_IXGRP (inherits file execute bit if child already has it). Returns computed group_bits. */
 
+/*
+ * WHAT: brix_derive_parent_dir() copies path into the caller's parent buffer,
+ * then truncates it in place at the final '/' so it names the parent directory.
+ * Returns NGX_OK with parent populated, NGX_DECLINED when the path has no usable
+ * parent (relative/malformed, or a top-level entry whose parent is the FS root),
+ * or NGX_ERROR (with errno=ENAMETOOLONG) when path does not fit the buffer.
+ *
+ * WHY: Isolating the parent-derivation branches (overflow check plus the two
+ * strrchr sentinels) out of the policy driver keeps each unit simple while
+ * preserving the exact decline/error semantics the policy depends on: a
+ * top-level entry must be declined so policy never reattributes the filesystem
+ * root's gid/mode to a child.
+ *
+ * HOW: snprintf(parent,parent_size,"%s",path); rc<0 or rc>=parent_size →
+ * errno=ENAMETOOLONG + NGX_ERROR. strrchr(parent,'/') — if NULL (no slash) or
+ * ==parent (only slash at index 0, e.g. "/foo") → NGX_DECLINED. Otherwise
+ * *slash='\0' truncates ("/data/atlas/file" → "/data/atlas") and returns NGX_OK.
+ */
+static ngx_int_t
+brix_derive_parent_dir(const char *path, char *parent, size_t parent_size)
+{
+    char *slash;
+    int   rc;
+
+    rc = snprintf(parent, parent_size, "%s", path);
+    if (rc < 0 || (size_t) rc >= parent_size) {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+
+    slash = strrchr(parent, '/');
+    if (slash == NULL || slash == parent) {
+        return NGX_DECLINED;
+    }
+
+    *slash = '\0';
+    return NGX_OK;
+}
+
+/*
+ * WHAT: brix_stat_child() fills child_st with the child object's metadata,
+ * using fstat(fd) when fd>=0 and stat(path) otherwise.
+ *
+ * WHY: The fd-vs-path selection is a mechanical detail; hoisting it out of the
+ * policy driver removes one nested branch pair there while keeping the identical
+ * "fd wins if present" contract shared by the two public wrappers.
+ *
+ * HOW: fd>=0 → fstat(fd,child_st); else → stat(path,child_st). Either syscall
+ * returning non-zero → NGX_ERROR (errno left as set by the syscall). Else NGX_OK.
+ */
+static ngx_int_t
+brix_stat_child(int fd, const char *path, struct stat *child_st)
+{
+    if (fd >= 0) {
+        if (fstat(fd, child_st) != 0) {
+            return NGX_ERROR;
+        }
+    } else {
+        if (stat(path, child_st) != 0) {
+            return NGX_ERROR;
+        }
+    }
+
+    return NGX_OK;
+}
+
+/*
+ * WHAT: brix_apply_child_gid() sets the child's group to gid (uid untouched via
+ * (uid_t)-1), using fchown(fd) when fd>=0 and chown(path) otherwise.
+ *
+ * WHY: The gid is taken from the parent dir, never from the request, so the
+ * caller cannot choose an arbitrary group. Factoring the fd/path split keeps the
+ * driver's ownership step to a single decision while preserving that guarantee.
+ *
+ * HOW: fd>=0 → fchown(fd,(uid_t)-1,gid); else → chown(path,(uid_t)-1,gid). Either
+ * returning non-zero → NGX_ERROR (errno from the syscall). Else NGX_OK.
+ */
+static ngx_int_t
+brix_apply_child_gid(int fd, const char *path, gid_t gid)
+{
+    if (fd >= 0) {
+        if (fchown(fd, (uid_t) -1, gid) != 0) {
+            return NGX_ERROR;
+        }
+    } else {
+        if (chown(path, (uid_t) -1, gid) != 0) {
+            return NGX_ERROR;
+        }
+    }
+
+    return NGX_OK;
+}
+
+/*
+ * WHAT: brix_apply_child_mode() sets the child's low 12 permission/special bits
+ * to mode&07777, using fchmod(fd) when fd>=0 and chmod(path) otherwise.
+ *
+ * WHY: A chown can silently clear setuid/setgid on some kernels, so mode is
+ * re-asserted after ownership; keeping the fd/path split here mirrors the gid
+ * helper and leaves the driver a single mode-application decision.
+ *
+ * HOW: fd>=0 → fchmod(fd,mode&07777); else → chmod(path,mode&07777). Either
+ * returning non-zero → NGX_ERROR (errno from the syscall). Else NGX_OK.
+ */
+static ngx_int_t
+brix_apply_child_mode(int fd, const char *path, mode_t mode)
+{
+    if (fd >= 0) {
+        if (fchmod(fd, mode & 07777) != 0) {
+            return NGX_ERROR;
+        }
+    } else {
+        if (chmod(path, mode & 07777) != 0) {
+            return NGX_ERROR;
+        }
+    }
+
+    return NGX_OK;
+}
+
+/*
+ * WHAT: brix_desired_child_mode() computes the child's target mode from its
+ * current mode and the parent's mode: clears the child's group bits and any
+ * stale setgid, ORs in the parent-derived group bits, and re-adds S_ISGID only
+ * for a subdirectory of a setgid parent.
+ *
+ * WHY: Clear-then-set makes the parent-derived bits authoritative rather than
+ * merged with whatever umask/create-mode left behind, while owner/other bits are
+ * preserved untouched; setgid propagates only to subdirectories of a setgid
+ * parent, mirroring the kernel's directory-inheritance semantics so deeper mkdir
+ * keeps the group and plain files never inherit setgid.
+ *
+ * HOW: desired = (child->st_mode & ~(S_IRWXG|S_ISGID)) |
+ * brix_parent_group_mode_bits(parent,child). If S_ISDIR(child->st_mode) and
+ * (parent->st_mode & S_ISGID) → desired |= S_ISGID. Returns desired.
+ */
+static mode_t
+brix_desired_child_mode(const struct stat *parent, const struct stat *child)
+{
+    mode_t desired_mode;
+
+    desired_mode = (child->st_mode & ~(S_IRWXG | S_ISGID))
+                 | brix_parent_group_mode_bits(parent, child);
+
+    if (S_ISDIR(child->st_mode) && (parent->st_mode & S_ISGID)) {
+        desired_mode |= S_ISGID;
+    }
+
+    return desired_mode;
+}
+
+/*
+ * WHAT: brix_apply_parent_group_policy_impl() enforces parent-directory group
+ * policy on the child named by path (statted via fd when fd>=0): it finds the
+ * matching group rule, derives and stats the parent directory, stats the child,
+ * computes the desired mode, then chowns the child's gid to the parent's and
+ * chmods it to the desired mode when either differs.
+ *
+ * WHY: This is the single policy driver behind both public wrappers. Ordering is
+ * load-bearing: gid is applied before mode so the mode re-assert restores any
+ * S_ISGID a chown may have cleared, and non-matching / rootless paths are
+ * declined so policy never touches objects it does not own.
+ *
+ * HOW: rule=brix_find_group_rule(path,rules) — NULL → NGX_DECLINED.
+ * brix_derive_parent_dir(path,parent,sizeof) — non-OK returned as-is
+ * (NGX_DECLINED for rootless/malformed, NGX_ERROR+ENAMETOOLONG for overflow).
+ * stat(parent,&parent_st)!=0 → NGX_ERROR. brix_stat_child(fd,path,&child_st)
+ * propagated. desired_mode=brix_desired_child_mode(&parent_st,&child_st). If
+ * child_st.st_gid!=parent_st.st_gid → brix_apply_child_gid(fd,path,
+ * parent_st.st_gid), propagate non-OK. If (child_st.st_mode & 07777) !=
+ * (desired_mode & 07777) → brix_apply_child_mode(fd,path,desired_mode),
+ * propagate non-OK. Returns NGX_OK on success.
+ */
 static ngx_int_t
 brix_apply_parent_group_policy_impl(ngx_log_t *log, int fd,
                                       const char *path, ngx_array_t *rules)
@@ -53,9 +226,8 @@ brix_apply_parent_group_policy_impl(ngx_log_t *log, int fd,
     struct stat                parent_st;
     struct stat                child_st;
     char                       parent[PATH_MAX];
-    char                      *slash;
     mode_t                     desired_mode;
-    int                        rc;
+    ngx_int_t                  rc;
 
     (void) log;
 
@@ -64,65 +236,29 @@ brix_apply_parent_group_policy_impl(ngx_log_t *log, int fd,
         return NGX_DECLINED;
     }
 
-    rc = snprintf(parent, sizeof(parent), "%s", path);
-    if (rc < 0 || (size_t) rc >= sizeof(parent)) {
-        errno = ENAMETOOLONG;
-        return NGX_ERROR;
+    rc = brix_derive_parent_dir(path, parent, sizeof(parent));
+    if (rc != NGX_OK) {
+        return rc;
     }
 
-    /* Derive the parent directory by truncating at the final '/'. slash==parent
-     * means the only slash is at index 0 (a top-level entry like "/foo"), whose
-     * parent is "/" — declined here so policy never reattributes the filesystem
-     * root's gid/mode to a child. slash==NULL means a relative/malformed path. */
-    slash = strrchr(parent, '/');
-    if (slash == NULL || slash == parent) {
-        return NGX_DECLINED;
-    }
-
-    /* In-place truncate: turns "/data/atlas/file" into "/data/atlas". */
-    *slash = '\0';
     if (stat(parent, &parent_st) != 0) {
         return NGX_ERROR;
     }
 
-    if (fd >= 0) {
-        if (fstat(fd, &child_st) != 0) {
-            return NGX_ERROR;
-        }
-    } else {
-        if (stat(path, &child_st) != 0) {
-            return NGX_ERROR;
-        }
+    rc = brix_stat_child(fd, path, &child_st);
+    if (rc != NGX_OK) {
+        return rc;
     }
 
-    /* Clear-then-set: strip the child's existing group bits and any stale setgid
-     * (~(S_IRWXG | S_ISGID)) so the parent-derived bits are authoritative rather
-     * than merged with whatever umask/create-mode left behind. Owner and other
-     * bits are preserved untouched. setgid is re-added below only when warranted,
-     * so it is never inherited onto plain files. */
-    desired_mode = (child_st.st_mode & ~(S_IRWXG | S_ISGID))
-                 | brix_parent_group_mode_bits(&parent_st, &child_st);
+    desired_mode = brix_desired_child_mode(&parent_st, &child_st);
 
-    /* Propagate setgid only to subdirectories of a setgid parent, mirroring the
-     * kernel's directory-inheritance semantics so deeper mkdir keeps the group. */
-    if (S_ISDIR(child_st.st_mode) && (parent_st.st_mode & S_ISGID)) {
-        desired_mode |= S_ISGID;
-    }
-
-    /* Apply gid first (uid kept via (uid_t)-1), THEN mode below. A chown can
-     * silently clear setuid/setgid on some kernels, so re-asserting desired_mode
-     * afterwards restores any S_ISGID this policy intends to keep. The gid is
+    /* Apply gid first (uid kept via (uid_t)-1), THEN mode below. The gid is
      * taken from the parent dir, never from the request, so the caller cannot
      * choose an arbitrary group. */
     if (child_st.st_gid != parent_st.st_gid) {
-        if (fd >= 0) {
-            if (fchown(fd, (uid_t) -1, parent_st.st_gid) != 0) {
-                return NGX_ERROR;
-            }
-        } else {
-            if (chown(path, (uid_t) -1, parent_st.st_gid) != 0) {
-                return NGX_ERROR;
-            }
+        rc = brix_apply_child_gid(fd, path, parent_st.st_gid);
+        if (rc != NGX_OK) {
+            return rc;
         }
     }
 
@@ -130,20 +266,14 @@ brix_apply_parent_group_policy_impl(ngx_log_t *log, int fd,
      * setuid|setgid|sticky + rwxrwxrwx); the file-type bits in st_mode are
      * masked off so chmod is skipped entirely when nothing in those bits moved. */
     if ((child_st.st_mode & 07777) != (desired_mode & 07777)) {
-        if (fd >= 0) {
-            if (fchmod(fd, desired_mode & 07777) != 0) {
-                return NGX_ERROR;
-            }
-        } else {
-            if (chmod(path, desired_mode & 07777) != 0) {
-                return NGX_ERROR;
-            }
+        rc = brix_apply_child_mode(fd, path, desired_mode);
+        if (rc != NGX_OK) {
+            return rc;
         }
     }
 
     return NGX_OK;
 }
-/* HOW: Finds rule=brix_find_group_rule(path, rules) — if NULL returns NGX_DECLINED (no matching rule). snprintf(parent,sizeof,parent,"%s",path) into parent buffer; rc<0 or rc>=sizeof → errno=ENAMETOOLONG+NGX_ERROR. strrchr(parent,'/') — if NULL || ==parent (root path) returns NGX_DECLINED. *slash='\0' truncates to parent dir path. stat(parent,&parent_st) — if !=0 returns NGX_ERROR. fd>=0: fstat(fd,&child_st); else: stat(path,&child_st) — both if !=0 return NGX_ERROR. desired_mode=(child_st.st_mode & ~(S_IRWXG|S_ISGID)) | brix_parent_group_mode_bits(&parent_st, &child_st). If S_ISDIR(child)&&parent has S_ISGID → desired_mode |= S_ISGID (propagate setgid to subdirs). If child_st.gid != parent_st.gid: fd>=0→fchown(fd,-1,parent_st.gid); else→chown(path,-1,parent_st.gid) — both if !=0 return NGX_ERROR. If (child&07777)!=(desired&07777): fd>=0→fchmod(fd,desired&07777); else→chmod(path,...) — both if !=0 return NGX_ERROR. Returns NGX_OK on success. */
 
 ngx_int_t
 brix_apply_parent_group_policy_fd(ngx_log_t *log, int fd, const char *path,

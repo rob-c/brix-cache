@@ -122,7 +122,183 @@ reg_issuer_for(brix_token_registry_t *reg, const char *name)
     return is;
 }
 
-/* reg_kv — INI callback: dispatch one key line */static int
+/* ---- reg_kv_issuer_str — assign a bounded string-valued [Issuer] key ----
+ *
+ * WHAT: If key names one of the fixed-buffer string fields of an issuer
+ *       (issuer URL, username/groups claim, default user, name map file, JWKS
+ *       path), copies val into that field and returns 1; returns 0 if key is
+ *       not one of those string fields (leaving it for another handler).
+ *
+ * WHY:  Splits the flat issuer key ladder by value-handling kind so that no
+ *       single dispatcher exceeds the complexity cap; each of these keys shares
+ *       the identical bounded-copy shape, so grouping them keeps the mapping
+ *       between key name and destination field trivially auditable.
+ *
+ * HOW:  1. Compare key case-insensitively against each string field name.
+ *       2. On the first match, copy_z into that field and return 1.
+ *       3. If none match, return 0 so the caller can try other kinds.
+ */
+static int
+reg_kv_issuer_str(brix_token_issuer_t *is, const char *key, const char *val)
+{
+    if (eqi(key, "issuer")) {
+        copy_z(is->issuer, sizeof(is->issuer), val);
+    } else if (eqi(key, "username_claim")) {
+        copy_z(is->username_claim, sizeof(is->username_claim), val);
+    } else if (eqi(key, "groups_claim")) {
+        copy_z(is->groups_claim, sizeof(is->groups_claim), val);
+    } else if (eqi(key, "default_user")) {
+        copy_z(is->default_user, sizeof(is->default_user), val);
+    } else if (eqi(key, "name_mapfile")) {
+        copy_z(is->name_mapfile, sizeof(is->name_mapfile), val);
+    } else if (eqi(key, "jwks_file")) {
+        copy_z(is->jwks_path, sizeof(is->jwks_path), val);
+    } else {
+        return 0;
+    }
+    return 1;
+}
+
+/* ---- reg_kv_issuer_list — append a list-valued [Issuer] key ----
+ *
+ * WHAT: If key names one of the multi-valued namespace/audience fields
+ *       (base_path, restricted_path, audience/audience_json), splits val into
+ *       the matching fixed array and returns 1; returns 0 otherwise.
+ *
+ * WHY:  These keys share the "split a CSV list into a capped array" shape but
+ *       target two different array element widths (path vs audience), so they
+ *       are grouped apart from the scalar-string keys to keep each dispatcher
+ *       small while preserving the exact per-key target arrays.
+ *
+ * HOW:  1. Compare key against base_path / restricted_path / audience names.
+ *       2. On match, call reg_add_list / reg_add_aud with that key's own
+ *          destination array, count, and cap, then return 1.
+ *       3. If none match, return 0.
+ */
+static int
+reg_kv_issuer_list(brix_token_issuer_t *is, const char *key, const char *val)
+{
+    if (eqi(key, "base_path")) {
+        reg_add_list(is->base_paths, &is->base_path_count,
+            BRIX_TOKEN_MAX_BASEPATHS, val);
+    } else if (eqi(key, "restricted_path")) {
+        reg_add_list(is->restricted_paths, &is->restricted_path_count,
+            BRIX_TOKEN_MAX_BASEPATHS, val);
+    } else if (eqi(key, "audience") || eqi(key, "audience_json")) {
+        reg_add_aud(is->audiences, &is->audience_count,
+            BRIX_TOKEN_MAX_AUDIENCES, val);
+    } else {
+        return 0;
+    }
+    return 1;
+}
+
+/* ---- reg_kv_issuer_flag — set a boolean/strategy [Issuer] key ----
+ *
+ * WHAT: If key names one of the policy toggles (map_subject, onmissing,
+ *       enabled, authorization_strategy), interprets val into the matching
+ *       field and returns 1; returns 0 otherwise.
+ *
+ * WHY:  These keys each parse val through a small predicate (parse_bool, an
+ *       exact "fail" test, or brix_token_strategy_parse) rather than copying
+ *       it; grouping them isolates the security-sensitive enable/deny and
+ *       authorization-strategy decoding into one auditable place.
+ *
+ * HOW:  1. Compare key against each toggle name.
+ *       2. On match, decode val into that field (onmissing_fail is true only
+ *          for the literal "fail", exactly as before) and return 1.
+ *       3. If none match, return 0.
+ */
+static int
+reg_kv_issuer_flag(brix_token_issuer_t *is, const char *key, const char *val)
+{
+    if (eqi(key, "map_subject")) {
+        is->map_subject = parse_bool(val);
+    } else if (eqi(key, "onmissing")) {
+        is->onmissing_fail = eqi(val, "fail");
+    } else if (eqi(key, "enabled")) {
+        is->enabled = parse_bool(val);
+    } else if (eqi(key, "authorization_strategy")) {
+        is->strategy = brix_token_strategy_parse(val);
+    } else {
+        return 0;
+    }
+    return 1;
+}
+
+/* ---- reg_kv_issuer — dispatch one [Issuer N] key line ----
+ *
+ * WHAT: Applies one key/val pair to issuer is by trying the string, list, and
+ *       flag handlers in turn; if no handler claims the key, WARN-logs it as
+ *       unsupported (never silently dropped, R4).
+ *
+ * WHY:  Concentrates the full set of recognised issuer keys behind three
+ *       kind-grouped handlers so the recognised-vs-unsupported decision — and
+ *       thus which keys can influence issuer trust — stays in one small,
+ *       reviewable function.
+ *
+ * HOW:  1. Try reg_kv_issuer_str, then _list, then _flag; the first to return
+ *          1 has fully handled the key, so return immediately.
+ *       2. If all three decline, emit the unsupported-issuer-key WARN.
+ */
+static void
+reg_kv_issuer(brix_token_registry_t *reg, brix_token_issuer_t *is,
+    const char *key, const char *val)
+{
+    if (reg_kv_issuer_str(is, key, val)) {
+        return;
+    }
+    if (reg_kv_issuer_list(is, key, val)) {
+        return;
+    }
+    if (reg_kv_issuer_flag(is, key, val)) {
+        return;
+    }
+    ngx_log_error(NGX_LOG_WARN, reg->log, 0,
+        "scitokens: unsupported issuer key \"%s\" (ignored)", key);
+}
+
+/* ---- reg_kv_global — dispatch one [Global] key line ----
+ *
+ * WHAT: Applies one [Global] key/val pair: audience/audience_json append to the
+ *       shared global audience array; any other key is WARN-logged as
+ *       unsupported.
+ *
+ * WHY:  Keeps the [Global] section's small key set out of the top-level
+ *       callback so the section split reads as a flat two-branch dispatch.
+ *
+ * HOW:  1. If key is audience/audience_json, append val to global_audiences.
+ *       2. Otherwise emit the unsupported-[Global]-key WARN.
+ */
+static void
+reg_kv_global(brix_token_registry_t *reg, const char *key, const char *val)
+{
+    if (eqi(key, "audience") || eqi(key, "audience_json")) {
+        reg_add_aud(reg->global_audiences, &reg->global_audience_count,
+            BRIX_TOKEN_MAX_AUDIENCES, val);
+    } else {
+        ngx_log_error(NGX_LOG_WARN, reg->log, 0,
+            "scitokens: unsupported [Global] key \"%s\" (ignored)", key);
+    }
+}
+
+/* ---- reg_kv — INI callback: route one key line to its section handler ----
+ *
+ * WHAT: brix_ini_parse_file() callback for each key/val line. Routes [Issuer N]
+ *       lines to reg_kv_issuer (returning -1 if the issuer table is full) and
+ *       [Global] lines to reg_kv_global; unknown/section-less lines are
+ *       ignored. Returns 0 on success, -1 to abort parsing.
+ *
+ * WHY:  Section routing is the one place that must fail the whole parse when no
+ *       issuer slot is available; isolating it from per-key handling keeps that
+ *       fatal path obvious and the callback within the complexity budget.
+ *
+ * HOW:  1. If section starts with "Issuer ", find-or-create the issuer; return
+ *          -1 when the table is full, else hand the key to reg_kv_issuer.
+ *       2. If section is [Global], hand the key to reg_kv_global.
+ *       3. Otherwise ignore the line. Return 0 in the non-fatal cases.
+ */
+static int
 reg_kv(void *u, const char *section, const char *key, const char *val)
 {
     brix_token_registry_t *reg = u;
@@ -132,50 +308,12 @@ reg_kv(void *u, const char *section, const char *key, const char *val)
         if (is == NULL) {
             return -1;                          /* too many issuers */
         }
-        if (eqi(key, "issuer")) {
-            copy_z(is->issuer, sizeof(is->issuer), val);
-        } else if (eqi(key, "base_path")) {
-            reg_add_list(is->base_paths, &is->base_path_count,
-                BRIX_TOKEN_MAX_BASEPATHS, val);
-        } else if (eqi(key, "restricted_path")) {
-            reg_add_list(is->restricted_paths, &is->restricted_path_count,
-                BRIX_TOKEN_MAX_BASEPATHS, val);
-        } else if (eqi(key, "audience") || eqi(key, "audience_json")) {
-            reg_add_aud(is->audiences, &is->audience_count,
-                BRIX_TOKEN_MAX_AUDIENCES, val);
-        } else if (eqi(key, "map_subject")) {
-            is->map_subject = parse_bool(val);
-        } else if (eqi(key, "username_claim")) {
-            copy_z(is->username_claim, sizeof(is->username_claim), val);
-        } else if (eqi(key, "groups_claim")) {
-            copy_z(is->groups_claim, sizeof(is->groups_claim), val);
-        } else if (eqi(key, "default_user")) {
-            copy_z(is->default_user, sizeof(is->default_user), val);
-        } else if (eqi(key, "name_mapfile")) {
-            copy_z(is->name_mapfile, sizeof(is->name_mapfile), val);
-        } else if (eqi(key, "jwks_file")) {
-            copy_z(is->jwks_path, sizeof(is->jwks_path), val);
-        } else if (eqi(key, "onmissing")) {
-            is->onmissing_fail = eqi(val, "fail");
-        } else if (eqi(key, "enabled")) {
-            is->enabled = parse_bool(val);
-        } else if (eqi(key, "authorization_strategy")) {
-            is->strategy = brix_token_strategy_parse(val);
-        } else {
-            ngx_log_error(NGX_LOG_WARN, reg->log, 0,
-                "scitokens: unsupported issuer key \"%s\" (ignored)", key);
-        }
+        reg_kv_issuer(reg, is, key, val);
         return 0;
     }
 
     if (eqi(section, "Global")) {
-        if (eqi(key, "audience") || eqi(key, "audience_json")) {
-            reg_add_aud(reg->global_audiences, &reg->global_audience_count,
-                BRIX_TOKEN_MAX_AUDIENCES, val);
-        } else {
-            ngx_log_error(NGX_LOG_WARN, reg->log, 0,
-                "scitokens: unsupported [Global] key \"%s\" (ignored)", key);
-        }
+        reg_kv_global(reg, key, val);
         return 0;
     }
 

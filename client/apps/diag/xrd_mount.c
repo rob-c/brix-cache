@@ -243,6 +243,88 @@ mountinfo_unescape(const char *in, char *out, size_t outsz)
 }
 
 
+#ifdef __linux__
+/* ---- Classify a mountinfo entry as an XRootD FUSE mount and name its driver ----
+ *
+ * WHAT: Given a mountinfo filesystem type and source, returns the driver label
+ * ("legacy", "aio", or "fuse") when the entry is an XRootD FUSE mount, or NULL when
+ * it is not one and should be skipped.
+ *
+ * WHY: The match/skip predicate and the driver-name decision are the two data-shaped
+ * classification rules buried in the line loop; isolating them as one pure lookup
+ * keeps the loop body flat and makes the matching rules independently reviewable.
+ *
+ * HOW:
+ *   1. Reject anything that is neither a fuse.xrootdfs* type nor a plain fuse mount
+ *      whose source string mentions "root" (a root:// endpoint) — return NULL.
+ *   2. Map a "xrootdfs_legacy" type to "legacy", any other fuse.xrootdfs* to "aio",
+ *      and the remaining accepted (plain fuse) case to "fuse".
+ */
+static const char *
+xrd_mountinfo_driver(const char *fstype, const char *src)
+{
+    if (strncmp(fstype, "fuse.xrootdfs", 13) != 0
+        && !(strncmp(fstype, "fuse", 4) == 0 && strstr(src, "root") != NULL)) {
+        return NULL;
+    }
+    return (strstr(fstype, "xrootdfs_legacy") != NULL) ? "legacy"
+         : (strncmp(fstype, "fuse.xrootdfs", 13) == 0) ? "aio"
+         :                                               "fuse";
+}
+
+
+/* ---- Parse and, if it is an XRootD mount, print one /proc mountinfo line ----
+ *
+ * WHAT: Tokenizes a single mountinfo line (destructively, via strtok_r), and when it
+ * describes an XRootD FUSE mount prints its "ENDPOINT  MOUNTPOINT  DRIVER" row,
+ * emitting the column header once on the first printed row via *header. Non-matching
+ * or malformed lines produce no output.
+ *
+ * WHY: The per-line parse is the whole of xrd_list_mounts' complexity; extracting it
+ * turns the file loop into a flat read-a-line/emit-a-line sequence and gives the
+ * field-splitting and unescape steps a single, testable owner.
+ *
+ * HOW:
+ *   1. Split the line on spaces/newlines into up to 48 fields.
+ *   2. Locate the "-" separator; bail on lines with too few fields before/after it.
+ *   3. Read mountpoint (field 4), fstype (sep+1) and source (sep+2); classify via
+ *      xrd_mountinfo_driver and return when it is not an XRootD mount.
+ *   4. Unescape the mountpoint and source octal escapes, print the header once, then
+ *      print the endpoint/mountpoint/driver row.
+ */
+static void
+xrd_mountinfo_emit_line(char *line, int *header)
+{
+    char       *fields[48];
+    int         nf = 0, sep = -1, i;
+    char       *tok, *save;
+    const char *mp, *fstype, *src, *driver;
+    char        mpbuf[PATH_MAX], srcbuf[PATH_MAX];
+
+    for (tok = strtok_r(line, " \n", &save); tok != NULL && nf < 48;
+         tok = strtok_r(NULL, " \n", &save)) {
+        fields[nf++] = tok;
+    }
+    for (i = 0; i < nf; i++) {
+        if (strcmp(fields[i], "-") == 0) { sep = i; break; }
+    }
+    if (sep < 5 || sep + 2 >= nf) { return; }   /* malformed / too few fields */
+    mp     = fields[4];
+    fstype = fields[sep + 1];
+    src    = fields[sep + 2];
+    driver = xrd_mountinfo_driver(fstype, src);
+    if (driver == NULL) { return; }
+    mountinfo_unescape(mp, mpbuf, sizeof(mpbuf));
+    mountinfo_unescape(src, srcbuf, sizeof(srcbuf));
+    if (!*header) {
+        printf("%-36s %-28s %s\n", "ENDPOINT", "MOUNTPOINT", "DRIVER");
+        *header = 1;
+    }
+    printf("%-36s %-28s %s\n", srcbuf, mpbuf, driver);
+}
+#endif /* __linux__ */
+
+
 /* `xrd mount` (no args) / `xrd mounts` / `xrd mount -l` — list active XRootD FUSE
  * mounts by parsing /proc/self/mountinfo (override with XRD_MOUNTINFO_PATH for tests).
  * Matches fuse.xrootdfs* filesystem types, plus any fuse mount whose source looks like
@@ -267,43 +349,107 @@ xrd_list_mounts(void)
         return 1;
     }
     while ((r = getline(&line, &cap, fp)) >= 0) {
-        char       *fields[48];
-        int         nf = 0, sep = -1, i;
-        char       *tok, *save;
-        const char *mp, *fstype, *src, *driver;
-        char        mpbuf[PATH_MAX], srcbuf[PATH_MAX];
-
         (void) r;
-        for (tok = strtok_r(line, " \n", &save); tok != NULL && nf < 48;
-             tok = strtok_r(NULL, " \n", &save)) {
-            fields[nf++] = tok;
-        }
-        for (i = 0; i < nf; i++) {
-            if (strcmp(fields[i], "-") == 0) { sep = i; break; }
-        }
-        if (sep < 5 || sep + 2 >= nf) { continue; }   /* malformed / too few fields */
-        mp     = fields[4];
-        fstype = fields[sep + 1];
-        src    = fields[sep + 2];
-        if (strncmp(fstype, "fuse.xrootdfs", 13) != 0
-            && !(strncmp(fstype, "fuse", 4) == 0 && strstr(src, "root") != NULL)) {
-            continue;
-        }
-        driver = (strstr(fstype, "xrootdfs_legacy") != NULL) ? "legacy"
-               : (strncmp(fstype, "fuse.xrootdfs", 13) == 0) ? "aio"
-               :                                               "fuse";
-        mountinfo_unescape(mp, mpbuf, sizeof(mpbuf));
-        mountinfo_unescape(src, srcbuf, sizeof(srcbuf));
-        if (!header) {
-            printf("%-36s %-28s %s\n", "ENDPOINT", "MOUNTPOINT", "DRIVER");
-            header = 1;
-        }
-        printf("%-36s %-28s %s\n", srcbuf, mpbuf, driver);
+        xrd_mountinfo_emit_line(line, &header);
     }
     free(line);
     fclose(fp);
     return 0;
 #endif
+}
+
+
+/* ---- Parse `xrd mount`'s leading driver-selector / --list tokens ----
+ *
+ * WHAT: Scans the leading options of `xrd mount` (--legacy, --aio, -l/--list,
+ * --driver <aio|legacy|resilient>), setting *legacy and *list and advancing *out_i to
+ * the first non-selector token. Returns 0 on success, or 50 after printing a diagnostic
+ * for an unknown --driver value.
+ *
+ * WHY: One unified `xrootdfs` binary carries both drivers and `--legacy` selects the
+ * synchronous one at run time; the selector grammar is where xrd_mount's branching
+ * concentrated. Isolating it leaves the orchestrator a flat sequence and keeps the
+ * exact token handling (and its error/exit code) in one place.
+ *
+ * HOW:
+ *   1. Starting at argv[2], consume selectors as long as they are the leading tokens.
+ *   2. --legacy/--aio set *legacy; -l/--list set *list; --driver maps its argument
+ *      (legacy → *legacy=1; aio/resilient → *legacy=0; anything else → error 50).
+ *   3. Stop at the first token that is not a recognized selector and publish the
+ *      resulting index via *out_i.
+ */
+static int
+xrd_mount_parse_selectors(int argc, char **argv, int *legacy, int *list, int *out_i)
+{
+    int i = 2;
+
+    while (i < argc) {
+        if (strcmp(argv[i], "--legacy") == 0) { *legacy = 1; i++; }
+        else if (strcmp(argv[i], "--aio") == 0) { *legacy = 0; i++; }
+        else if (strcmp(argv[i], "-l") == 0 || strcmp(argv[i], "--list") == 0) {
+            *list = 1; i++;
+        }
+        else if (strcmp(argv[i], "--driver") == 0 && i + 1 < argc) {
+            const char *d = argv[i + 1];
+            if (strcmp(d, "legacy") == 0) { *legacy = 1; }
+            else if (strcmp(d, "aio") == 0 || strcmp(d, "resilient") == 0) { *legacy = 0; }
+            else {
+                fprintf(stderr, "xrd mount: unknown driver '%s' (aio|legacy)\n", d);
+                return 50;
+            }
+            i += 2;
+        } else {
+            break;
+        }
+    }
+    *out_i = i;
+    return 0;
+}
+
+
+/* ---- Build the driver argv for exec, in the driver's native order ----
+ *
+ * WHAT: Allocates and fills the NULL-terminated argv passed to `exec_tool`:
+ * driver name, an optional "--legacy", the (alias-resolved) endpoint, then every
+ * remaining forwarded token. Returns the malloc'd vector, or NULL on OOM. The
+ * caller-owned `endpoint` buffer backs the resolved endpoint slot and must outlive
+ * the returned vector.
+ *
+ * WHY: Assembling the forwarded vector — with the ~/.xrdrc alias expansion the driver
+ * cannot do itself — is a distinct step from option parsing; separating it keeps each
+ * concern small and the argv layout (`[opts] endpoint mountpoint [fuse-opts]`) explicit.
+ *
+ * HOW:
+ *   1. Allocate argc-i+3 slots (driver, optional "--legacy", NULL terminator headroom).
+ *   2. Emit the driver name, then "--legacy" when legacy mode is selected.
+ *   3. If the first forwarded token is a non-option, resolve any alias into `endpoint`
+ *      and emit it, consuming that token; a bare URL passes through verbatim.
+ *   4. Copy the remaining tokens verbatim and NULL-terminate.
+ */
+static char **
+xrd_mount_build_argv(int argc, char **argv, int i, const char *driver, int legacy,
+                     char *endpoint, size_t endpoint_sz)
+{
+    char **nv = (char **) malloc((size_t) (argc - i + 3) * sizeof(char *));
+    int    k = 0;
+
+    if (nv == NULL) {
+        return NULL;
+    }
+    nv[k++] = (char *) driver;
+    if (legacy) {
+        nv[k++] = (char *) "--legacy";
+    }
+    if (i < argc && argv[i][0] != '-') {
+        brix_alias_resolve(argv[i], endpoint, endpoint_sz);
+        nv[k++] = endpoint;
+        i++;
+    }
+    for (; i < argc; i++) {
+        nv[k++] = argv[i];
+    }
+    nv[k] = NULL;
+    return nv;
 }
 
 
@@ -317,32 +463,14 @@ xrd_list_mounts(void)
 int
 xrd_mount(int argc, char **argv)
 {
-    /* One unified `xrootdfs` binary carries both drivers; `--legacy` selects the
-     * synchronous one at run time (passed through to the driver). */
     const char *driver = "xrootdfs";
-    int         i = 2, k = 0, list = 0, legacy = 0;
+    int         i = 2, list = 0, legacy = 0, rc;
     char      **nv;
     char        endpoint[XRDC_PATH_MAX];
 
-    /* Optional driver selector / --list, only as the leading token(s). */
-    while (i < argc) {
-        if (strcmp(argv[i], "--legacy") == 0) { legacy = 1; i++; }
-        else if (strcmp(argv[i], "--aio") == 0) { legacy = 0; i++; }
-        else if (strcmp(argv[i], "-l") == 0 || strcmp(argv[i], "--list") == 0) {
-            list = 1; i++;
-        }
-        else if (strcmp(argv[i], "--driver") == 0 && i + 1 < argc) {
-            const char *d = argv[i + 1];
-            if (strcmp(d, "legacy") == 0) { legacy = 1; }
-            else if (strcmp(d, "aio") == 0 || strcmp(d, "resilient") == 0) { legacy = 0; }
-            else {
-                fprintf(stderr, "xrd mount: unknown driver '%s' (aio|legacy)\n", d);
-                return 50;
-            }
-            i += 2;
-        } else {
-            break;
-        }
+    rc = xrd_mount_parse_selectors(argc, argv, &legacy, &list, &i);
+    if (rc != 0) {
+        return rc;
     }
     /* No positional args (or an explicit --list) → list current XRootD mounts,
      * mirroring mount(8)'s no-arg behavior. */
@@ -355,28 +483,11 @@ xrd_mount(int argc, char **argv)
                         "  e.g. xrd mount root://store//data /mnt/xrd -o ro\n");
         return 50;
     }
-    /* +3: driver name, an optional "--legacy", and the NULL terminator. */
-    nv = (char **) malloc((size_t) (argc - i + 3) * sizeof(char *));
+    nv = xrd_mount_build_argv(argc, argv, i, driver, legacy, endpoint, sizeof(endpoint));
     if (nv == NULL) {
         fprintf(stderr, "xrd: out of memory\n");
         return 51;
     }
-    nv[k++] = (char *) driver;
-    if (legacy) {
-        nv[k++] = (char *) "--legacy";
-    }
-    /* Resolve a ~/.xrdrc alias for the endpoint (the first forwarded non-option
-     * token) so `xrd mount lab:/data /mnt` works like the rest of xrd; the driver
-     * itself doesn't expand aliases. A bare URL passes through verbatim. */
-    if (i < argc && argv[i][0] != '-') {
-        brix_alias_resolve(argv[i], endpoint, sizeof(endpoint));
-        nv[k++] = endpoint;
-        i++;
-    }
-    for (; i < argc; i++) {
-        nv[k++] = argv[i];
-    }
-    nv[k] = NULL;
     exec_tool(driver, nv);   /* does not return on success */
     return 127;              /* unreachable (exec_tool _exit's on failure) */
 }

@@ -27,7 +27,6 @@ src/core/types/identity.c	551
 src/fs/backend/cache/sd_cache.c	1001
 src/fs/backend/http/sd_http.c	715
 src/fs/backend/pblock/sd_pblock.c	1110
-src/fs/backend/pblock/sd_pblock_catalog.c	1052
 src/fs/backend/pblock/sd_pblock_unittest.c	718
 src/fs/backend/posix/sd_posix.c	747
 src/fs/backend/rados/sd_ceph.c	1110

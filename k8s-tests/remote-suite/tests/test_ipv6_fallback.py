@@ -32,7 +32,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 NETFB = os.path.join(CLIENT_DIR, "bin", "netfb_test")
 SHIM = os.path.join(CLIENT_DIR, "bin", "gai_shim.so")
-WAIT41 = os.path.join(CLIENT_DIR, "bin", "wait41")
+WAIT41 = os.path.join(CLIENT_DIR, "bin", "wait41-brix")
 
 DOWNGRADE_MARK = "downgrading this session to IPv4-only"
 REVERT_MARK = "reverting to dual-stack"
@@ -76,14 +76,14 @@ def _build():
     need = [NETFB, SHIM, WAIT41]
     if not all(os.path.exists(p) for p in need):
         r = subprocess.run(
-            ["make", "netfb", "gai-shim", "wait41"],
+            ["make", "netfb", "gai-shim", "wait41-brix"],
             cwd=CLIENT_DIR, env=_base_env(),
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300,
         )
         out = r.stdout
     if not all(os.path.exists(p) for p in need):
         pytest.skip("client test binaries not built (run `make -C client netfb "
-                    f"gai-shim wait41`):\n{out.decode(errors='replace')[-800:]}")
+                    f"gai-shim wait41-brix`):\n{out.decode(errors='replace')[-800:]}")
 
 
 def _run(mode, *, preload=False, env_extra=None):

@@ -25,6 +25,7 @@
 #include "brix_ops.h"
 #include "core/version.h"
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -61,18 +62,20 @@ brix_opts_init(brix_opts *o)
     }
 }
 
-int
-brix_opts_parse_arg(brix_opts *o, int argc, char **argv, int *i)
+/*
+ * opts_parse_universal — handle the two flags every tool honours the same way.
+ *
+ * WHAT: --version prints "<argv0-basename> (BriX-Cache client) <version>" to
+ *       stdout and exits 0; --help returns 2 (the caller prints its own usage);
+ *       any other argument returns 0 (not a universal flag).
+ * WHY:  --version is a clean terminal action with no partial-state concern, so
+ *       exiting inside the parser is safe.  --help text is per-tool, so we defer
+ *       to the caller rather than printing it here.
+ * HOW:  Two strcmp checks; the split keeps the main dispatcher's complexity low.
+ */
+static int
+opts_parse_universal(const char *a, char **argv)
 {
-    const char *a = argv[*i];
-
-    /*
-     * Universal flags — handled for every tool that routes through this parser.
-     * --version exits inside the parser (acceptable per spec; it is a clean
-     *   terminal action with no partial-state concern).
-     * --help returns 2 so the CALLER can print its own usage to stdout and exit 0
-     *   (usage text is per-tool; we cannot print it here).
-     */
     if (strcmp(a, "--version") == 0) {
         printf("%s (BriX-Cache client) %s\n",
                opts_basename(argv[0]), brix_client_version());
@@ -81,14 +84,76 @@ brix_opts_parse_arg(brix_opts *o, int argc, char **argv, int *i)
     if (strcmp(a, "--help") == 0) {
         return 2;   /* caller: print usage to stdout, exit 0 */
     }
+    return 0;
+}
 
-    if (strcmp(a, "--tls") == 0)             { o->want_tls = 1;     return 1; }
-    if (strcmp(a, "--notlsok") == 0)         { o->notlsok = 1;      return 1; }
-    if (strcmp(a, "--noverifyhost") == 0)    { o->verify_host = 0;  return 1; }
-    if (strcmp(a, "--timing") == 0)          { o->timing = 1;       return 1; }
-    if (strcmp(a, "--redirect-trace") == 0)  { o->redir_trace = 1;  return 1; }
-    if (strcmp(a, "--wire-trace") == 0)      { o->wire_trace = 1;   return 1; }
-    if (strncmp(a, "--wire-trace=", 13) == 0){ o->wire_trace = atoi(a + 13); return 1; }
+/*
+ * Table of the value-less boolean toggles.  Each row names the flag, the int
+ * field within brix_opts it sets (via offsetof, so one loop drives them all),
+ * and the value to store — 1 for the enabling flags, 0 for --noverifyhost which
+ * CLEARS the default-on verify_host.  Order is irrelevant: every name is a
+ * distinct exact match.
+ */
+typedef struct {
+    const char *name;
+    size_t      field_off;
+    int         value;
+} opts_toggle_t;
+
+static const opts_toggle_t opts_toggles[] = {
+    { "--tls",            offsetof(brix_opts, want_tls),    1 },
+    { "--notlsok",        offsetof(brix_opts, notlsok),     1 },
+    { "--noverifyhost",   offsetof(brix_opts, verify_host), 0 },
+    { "--timing",         offsetof(brix_opts, timing),      1 },
+    { "--redirect-trace", offsetof(brix_opts, redir_trace), 1 },
+    { "--wire-trace",     offsetof(brix_opts, wire_trace),  1 },
+    { "--no-retry",       offsetof(brix_opts, no_retry),    1 },
+};
+
+/*
+ * opts_parse_toggle — match `a` against the value-less boolean flag table.
+ *
+ * WHAT: On an exact match, store the row's value into the named int field of *o
+ *       and return 1; otherwise return 0 (not a toggle).
+ * WHY:  Table dispatch replaces a seven-branch if-ladder with one loop, keeping
+ *       both this helper and the main dispatcher well under the complexity cap.
+ * HOW:  Linear scan; the matched field is addressed by byte offset (all listed
+ *       fields are int), mirroring the historical `o->field = value` writes.
+ */
+static int
+opts_parse_toggle(brix_opts *o, const char *a)
+{
+    size_t k;
+    for (k = 0; k < sizeof(opts_toggles) / sizeof(opts_toggles[0]); k++) {
+        if (strcmp(a, opts_toggles[k].name) == 0) {
+            *(int *)((char *)o + opts_toggles[k].field_off) = opts_toggles[k].value;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/*
+ * opts_parse_valued — handle the flags that consume an argument (or a =value).
+ *
+ * WHAT: --wire-trace=N sets wire_trace from the inline value; --auth <p> /
+ *       --capture <p> / --max-stall <ms> each consume the following argv slot
+ *       (advancing *i) exactly as the historical `argv[++i]` idiom.  Returns 1
+ *       when a flag was consumed, 0 otherwise.  --max-stall <=0 disables retry.
+ * WHY:  Grouping the value-taking flags away from the boolean toggles keeps each
+ *       helper single-purpose and under the complexity cap.
+ * HOW:  The value-consuming flags guard on `*i + 1 < argc` so a trailing flag
+ *       with no value falls through (returns 0) rather than reading past argv.
+ */
+static int
+opts_parse_valued(brix_opts *o, int argc, char **argv, int *i)
+{
+    const char *a = argv[*i];
+
+    if (strncmp(a, "--wire-trace=", 13) == 0) {
+        o->wire_trace = atoi(a + 13);
+        return 1;
+    }
     if (strcmp(a, "--auth") == 0 && *i + 1 < argc) {
         o->auth_force = argv[++(*i)];
         return 1;
@@ -97,7 +162,6 @@ brix_opts_parse_arg(brix_opts *o, int argc, char **argv, int *i)
         o->capture = argv[++(*i)];
         return 1;
     }
-    if (strcmp(a, "--no-retry") == 0)        { o->no_retry = 1;     return 1; }
     if (strcmp(a, "--max-stall") == 0 && *i + 1 < argc) {
         int v = atoi(argv[++(*i)]);
         if (v <= 0) {
@@ -106,6 +170,30 @@ brix_opts_parse_arg(brix_opts *o, int argc, char **argv, int *i)
             o->max_stall_ms = v;
             o->no_retry = 0;
         }
+        return 1;
+    }
+    return 0;
+}
+
+int
+brix_opts_parse_arg(brix_opts *o, int argc, char **argv, int *i)
+{
+    const char *a = argv[*i];
+
+    /*
+     * Universal flags first (--version exits, --help returns 2), then the
+     * value-less boolean toggles, then the flags that consume a value.  Each
+     * helper returns 1 when it consumed the arg; 0 means "not mine", so the
+     * whole function returns 0 and the caller handles the arg itself.
+     */
+    int r = opts_parse_universal(a, argv);
+    if (r != 0) {
+        return r;
+    }
+    if (opts_parse_toggle(o, a)) {
+        return 1;
+    }
+    if (opts_parse_valued(o, argc, argv, i)) {
         return 1;
     }
     return 0;

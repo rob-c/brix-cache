@@ -260,6 +260,78 @@ httpx_download_exchange(brix_io *io, const char *host, int port,
 }
 
 
+/* ---- Run one connect -> GET -> stream-body attempt over a fresh transport ----
+ *
+ * WHAT: Opens a transport to host:port, seeks the destination to total_got when
+ *       resuming, issues the GET, streams a 2xx body into out_fd, and tears the
+ *       transport down. Reports the bytes written this attempt via *body_this
+ *       (always set, including 0 on a connect failure). Returns 0 on a fully
+ *       streamed body, -1 on any connect/exchange fault (st set by the callee).
+ * WHY:  Isolates the per-attempt transport lifecycle (connect, optional resume
+ *       seek, exchange, TLS/fd teardown) so the retry orchestrator stays a flat
+ *       loop with no shared cleanup label and a bounded complexity.
+ * HOW:  1) Zero *body_this so a connect failure contributes no progress.
+ *       2) Connect; bail out -1 if the transport cannot be established.
+ *       3) When resuming (total_got > 0) lseek the output to the resume offset.
+ *       4) Exchange, forwarding http_status only on the first attempt so the
+ *          caller records the ORIGINAL server status, not a resume 206.
+ *       5) Free the TLS context and close the socket unconditionally, then
+ *          return the exchange result. */
+static int
+http_download_attempt(const char *host, int port, int tls, const char *path,
+                      const char *extra_headers, int verify, const char *ca_dir,
+                      int out_fd, int timeout_ms, long long total_got,
+                      int *http_status, long long *body_this, brix_status *st)
+{
+    brix_io  io;
+    void    *tls_ctx = NULL;
+    int      rc;
+
+    *body_this = 0;
+    if (httpx_connect(&io, host, port, tls, verify, ca_dir, timeout_ms,
+                      &tls_ctx, st) != 0) {
+        return -1;
+    }
+    if (total_got > 0) {
+        (void) lseek(out_fd, (off_t) total_got, SEEK_SET);
+    }
+    rc = httpx_download_exchange(&io, host, port, path, extra_headers,
+                                 total_got, out_fd, timeout_ms,
+                                 /* report the ORIGINAL status only */
+                                 total_got == 0 ? http_status : NULL,
+                                 body_this, st);
+    if (tls) { brix_tls_client_free(&io, tls_ctx); }
+    if (io.fd >= 0) { close(io.fd); }
+    return rc;
+}
+
+
+/* ---- Decide whether a faulted download attempt may be retried ----
+ *
+ * WHAT: Returns 1 when another attempt is permitted, 0 when the download must
+ *       fail now. Retry is allowed only for a seekable destination with an
+ *       active patience window, a transient (retryable) fault, and time left
+ *       before the deadline.
+ * WHY:  Keeps the four-way retry gate out of the orchestrator so its loop stays
+ *       under the cyclomatic-complexity cap and the policy is stated in one place.
+ * HOW:  1) Refuse if the destination is not seekable, the window is disabled
+ *          (window_ms <= 0), or the fault is not retryable.
+ *       2) Refuse if the time-since-progress deadline has elapsed.
+ *       3) Otherwise permit a retry. */
+static int
+http_download_should_retry(int seekable, int window_ms, uint64_t deadline,
+                           brix_status *st)
+{
+    if (!seekable || window_ms <= 0 || !brix_status_retryable(st)) {
+        return 0;
+    }
+    if (brix_mono_ns() >= deadline) {
+        return 0;
+    }
+    return 1;
+}
+
+
 int
 brix_http_download(const char *host, int port, int tls, const char *path,
                    const char *extra_headers, int verify, const char *ca_dir,
@@ -291,34 +363,21 @@ brix_http_download(const char *host, int port, int tls, const char *path,
      * window<=0 ($XRDC_MAX_STALL_MS=0) or a non-seekable dst ⇒ a single attempt.
      */
     for (;;) {
-        brix_io    io;
-        void      *tls_ctx = NULL;
         long long  body_this = 0;
-        int        rc = -1;
+        int        rc;
 
-        if (httpx_connect(&io, host, port, tls, verify, ca_dir, timeout_ms,
-                          &tls_ctx, st) == 0) {
-            if (total_got > 0) {
-                (void) lseek(out_fd, (off_t) total_got, SEEK_SET);
-            }
-            rc = httpx_download_exchange(&io, host, port, path, extra_headers,
-                                         total_got, out_fd, timeout_ms,
-                                         /* report the ORIGINAL status only */
-                                         total_got == 0 ? http_status : NULL,
-                                         &body_this, st);
-            if (tls) { brix_tls_client_free(&io, tls_ctx); }
-            if (io.fd >= 0) { close(io.fd); }
-            total_got += body_this;
-            if (rc == 0) {
-                if (body_len != NULL) { *body_len = total_got; }
-                return 0;
-            }
+        rc = http_download_attempt(host, port, tls, path, extra_headers, verify,
+                                   ca_dir, out_fd, timeout_ms, total_got,
+                                   http_status, &body_this, st);
+        total_got += body_this;
+        if (rc == 0) {
+            if (body_len != NULL) { *body_len = total_got; }
+            return 0;
         }
 
         /* Connect or transfer fault.  Retry only if we can resume (seekable),
          * the fault is transient, and the patience window has not elapsed. */
-        if (!seekable || window_ms <= 0 || !brix_status_retryable(st)
-            || brix_mono_ns() >= deadline) {
+        if (!http_download_should_retry(seekable, window_ms, deadline, st)) {
             return -1;
         }
         if (body_this > 0) {

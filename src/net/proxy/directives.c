@@ -92,6 +92,68 @@ proxy_parse_host_port(ngx_conf_t *cf, ngx_str_t *value,
     return NGX_CONF_OK;
 }
 
+/* ---- Parse an optional per-upstream auth-policy argument into an entry ----
+ *
+ * WHAT: Maps auth_arg ("anonymous", "forward", "sss", or "sss:<keyname>") onto
+ *       entry->auth (a BRIX_PROXY_AUTH_* value) and, for the keyed sss form,
+ *       copies the key name into entry->sss_keyname. Returns NGX_CONF_OK on a
+ *       recognised policy and NGX_CONF_ERROR (after logging EMERG) for an
+ *       unknown policy or an over-long sss key name.
+ *
+ * WHY: brix_conf_set_proxy_upstream's optional third argument carries a small
+ *      four-way policy grammar with its own nested validation. Confining it to a
+ *      single helper keeps the directive handler a flat append-and-validate
+ *      sequence and keeps this file's per-function cyclomatic complexity in
+ *      bounds without changing any accepted/rejected input or field assignment.
+ *
+ * HOW: 1. Exact-length compare against "anonymous" (9) and "forward" (7).
+ *      2. Prefix-match "sss" (>= 3); set BRIX_PROXY_AUTH_SSS.
+ *      3. For the "sss:<keyname>" form (len > 4, data[3] == ':') validate the
+ *         key length against BRIX_SSS_NAME_MAX, then copy and NUL-terminate it.
+ *      4. Any other value is an error: log EMERG and return NGX_CONF_ERROR.
+ */
+static char *
+proxy_parse_upstream_auth(ngx_conf_t *cf, ngx_str_t *auth_arg,
+                          brix_proxy_upstream_t *entry)
+{
+    if (auth_arg->len == 9
+        && ngx_strncmp(auth_arg->data, "anonymous", 9) == 0)
+    {
+        entry->auth = BRIX_PROXY_AUTH_ANONYMOUS;
+        return NGX_CONF_OK;
+    }
+
+    if (auth_arg->len == 7
+        && ngx_strncmp(auth_arg->data, "forward", 7) == 0)
+    {
+        entry->auth = BRIX_PROXY_AUTH_FORWARD;
+        return NGX_CONF_OK;
+    }
+
+    if (auth_arg->len >= 3
+        && ngx_strncmp(auth_arg->data, "sss", 3) == 0)
+    {
+        entry->auth = BRIX_PROXY_AUTH_SSS;
+        /* Optional key name after colon: "sss" or "sss:<keyname>" */
+        if (auth_arg->len > 4 && auth_arg->data[3] == ':') {
+            size_t klen = auth_arg->len - 4;
+            if (klen >= BRIX_SSS_NAME_MAX) {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "brix_proxy_upstream: sss key name too long");
+                return NGX_CONF_ERROR;
+            }
+            ngx_memcpy(entry->sss_keyname, auth_arg->data + 4, klen);
+            entry->sss_keyname[klen] = '\0';
+        }
+        return NGX_CONF_OK;
+    }
+
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        "brix_proxy_upstream: invalid auth policy \"%V\"; "
+        "use anonymous, forward, sss, or sss:<keyname>", auth_arg);
+    return NGX_CONF_ERROR;
+}
+
 /*
  * brix_proxy_upstream "host:port" [auth-policy]
  *
@@ -153,36 +215,9 @@ brix_conf_set_proxy_upstream(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 
     /* Parse optional per-upstream auth policy argument */
     if (cf->args->nelts >= 3) {
-        ngx_str_t *auth_arg = &value[2];
-
-        if (auth_arg->len == 9
-            && ngx_strncmp(auth_arg->data, "anonymous", 9) == 0)
-        {
-            entry->auth = BRIX_PROXY_AUTH_ANONYMOUS;
-        } else if (auth_arg->len == 7
-                   && ngx_strncmp(auth_arg->data, "forward", 7) == 0)
-        {
-            entry->auth = BRIX_PROXY_AUTH_FORWARD;
-        } else if (auth_arg->len >= 3
-                   && ngx_strncmp(auth_arg->data, "sss", 3) == 0)
-        {
-            entry->auth = BRIX_PROXY_AUTH_SSS;
-            /* Optional key name after colon: "sss" or "sss:<keyname>" */
-            if (auth_arg->len > 4 && auth_arg->data[3] == ':') {
-                size_t klen = auth_arg->len - 4;
-                if (klen >= BRIX_SSS_NAME_MAX) {
-                    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                        "brix_proxy_upstream: sss key name too long");
-                    return NGX_CONF_ERROR;
-                }
-                ngx_memcpy(entry->sss_keyname, auth_arg->data + 4, klen);
-                entry->sss_keyname[klen] = '\0';
-            }
-        } else {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix_proxy_upstream: invalid auth policy \"%V\"; "
-                "use anonymous, forward, sss, or sss:<keyname>", auth_arg);
-            return NGX_CONF_ERROR;
+        rc = proxy_parse_upstream_auth(cf, &value[2], entry);
+        if (rc != NGX_CONF_OK) {
+            return rc;
         }
     }
 

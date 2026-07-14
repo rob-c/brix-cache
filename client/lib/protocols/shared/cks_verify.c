@@ -257,6 +257,102 @@ ckv_collect_cache(const char *path, ckv_record *recs, size_t max, size_t *n)
     }
 }
 
+/* ---- Gather every recorded checksum for `path` selected by `mode` ----
+ *
+ * WHAT: Appends the recorded (source, algo, hex) records for `path` into `recs`
+ *       (up to `max`, advancing `*n`), pulling from the cache sidecars
+ *       (.cinfo/.meta) and/or the storage records (XrdCks xattrs + .cks sidecar)
+ *       according to `mode`.
+ *
+ * WHY:  Isolates the mode→source routing so the public entry point stays a flat
+ *       linear sequence; the four-way mode branching lived inline and drove the
+ *       function over the complexity cap without adding any behaviour of its own.
+ *
+ * HOW:  1. For CACHE or AUTO, collect the .cinfo/.meta cache records.
+ *       2. For STORAGE or AUTO, collect the XrdCks xattrs then the .cks sidecar.
+ *       Source order is preserved exactly (cache before storage) so verification
+ *       reports the same first-match record as before.
+ */
+static void
+ckv_collect_records(const char *path, brix_ckv_mode mode, ckv_record *recs,
+    size_t max, size_t *n)
+{
+    if (mode == XRDC_CKV_CACHE || mode == XRDC_CKV_AUTO) {
+        ckv_collect_cache(path, recs, max, n);
+    }
+    if (mode == XRDC_CKV_STORAGE || mode == XRDC_CKV_AUTO) {
+        ckv_collect_xattr(path, recs, max, n);
+        ckv_collect_sidecar(path, recs, max, n);
+    }
+}
+
+/* ---- Verify one recorded checksum against the open file ----
+ *
+ * WHAT: Compares record `rec` against the file behind `fd`. Returns 0 to keep
+ *       iterating (record skipped, unsupported, or matched) and 1 for a terminal
+ *       outcome, writing that outcome into `*out` (XRDC_CKV_ERROR on a read/hash
+ *       failure, XRDC_CKV_MISMATCH on a digest mismatch). Sets `*matched` on a
+ *       match and `*unsupported` when the algorithm cannot be computed. Computed
+ *       digests are memoised in `comp`/`comp_done` keyed by algorithm so each
+ *       distinct algorithm is hashed over the file at most once.
+ *
+ * WHY:  Extracts the per-record body of the verification loop so the orchestrator
+ *       reads as a short scan; the compare/hash logic is integrity-critical and
+ *       preserved verbatim, just relocated behind a return-value contract that
+ *       replaces the loop's early `return`/`continue` control flow.
+ *
+ * HOW:  1. Skip (return 0) if `want_algo` is set and this record's algo differs.
+ *       2. Mark unsupported and skip if the algo does not parse to a computable
+ *          engine.
+ *       3. Compute the digest once per algorithm (rewind + brix_cksum_fd); on any
+ *          read/hash failure set `*out` = ERROR and return 1.
+ *       4. Fill the caller's report (when non-NULL).
+ *       5. Case-insensitively compare recorded vs computed hex; on a mismatch set
+ *          the integrity status, `*out` = MISMATCH, and return 1; otherwise flag
+ *          `*matched` and return 0.
+ */
+static int
+ckv_verify_one(int fd, const ckv_record *rec, const char *path,
+    const char *want_algo, char comp[][XRDC_CKV_HEX_MAX], int *comp_done,
+    brix_ckv_report *rep, brix_status *st, int *matched, int *unsupported,
+    brix_ckv_result *out)
+{
+    brix_cksum_algo alg;
+
+    if (want_algo != NULL && strcmp(rec->algo, want_algo) != 0) {
+        return 0;
+    }
+    if (brix_cksum_algo_parse(rec->algo, &alg) != 0
+        || (int) alg > XRDC_CK_ZCRC32) {
+        *unsupported = 1;             /* recorded with an engine we cannot compute */
+        return 0;
+    }
+    if (!comp_done[alg]) {
+        if (lseek(fd, 0, SEEK_SET) < 0
+            || brix_cksum_fd(fd, alg, comp[alg], XRDC_CKV_HEX_MAX, st) != 0) {
+            *out = XRDC_CKV_ERROR;
+            return 1;
+        }
+        comp_done[alg] = 1;
+    }
+
+    if (rep != NULL) {
+        snprintf(rep->source, sizeof(rep->source), "%.15s", rec->src);
+        snprintf(rep->algo, sizeof(rep->algo), "%.15s", rec->algo);
+        snprintf(rep->recorded, sizeof(rep->recorded), "%.128s", rec->hex);
+        snprintf(rep->computed, sizeof(rep->computed), "%.128s", comp[alg]);
+    }
+    if (strcasecmp(rec->hex, comp[alg]) != 0) {
+        brix_status_set(st, XRDC_EINTEGRITY, 0,
+                        "%s checksum mismatch on %s: recorded %s != computed %s",
+                        rec->algo, path, rec->hex, comp[alg]);
+        *out = XRDC_CKV_MISMATCH;
+        return 1;
+    }
+    *matched = 1;
+    return 0;
+}
+
 /* public entry point */
 brix_ckv_result
 brix_cks_verify_file(const char *path, const char *want_algo,
@@ -274,13 +370,7 @@ brix_cks_verify_file(const char *path, const char *want_algo,
     }
     memset(comp_done, 0, sizeof(comp_done));
 
-    if (mode == XRDC_CKV_CACHE || mode == XRDC_CKV_AUTO) {
-        ckv_collect_cache(path, recs, CKV_MAX_RECORDS, &nrec);
-    }
-    if (mode == XRDC_CKV_STORAGE || mode == XRDC_CKV_AUTO) {
-        ckv_collect_xattr(path, recs, CKV_MAX_RECORDS, &nrec);
-        ckv_collect_sidecar(path, recs, CKV_MAX_RECORDS, &nrec);
-    }
+    ckv_collect_records(path, mode, recs, CKV_MAX_RECORDS, &nrec);
 
     if (nrec == 0) {
         brix_status_set(st, XRDC_EUSAGE, 0,
@@ -296,39 +386,13 @@ brix_cks_verify_file(const char *path, const char *want_algo,
     }
 
     for (i = 0; i < nrec; i++) {
-        brix_cksum_algo alg;
+        brix_ckv_result outcome = XRDC_CKV_ERROR;
 
-        if (want_algo != NULL && strcmp(recs[i].algo, want_algo) != 0) {
-            continue;
-        }
-        if (brix_cksum_algo_parse(recs[i].algo, &alg) != 0
-            || (int) alg > XRDC_CK_ZCRC32) {
-            unsupported = 1;
-            continue;                 /* recorded with an engine we cannot compute */
-        }
-        if (!comp_done[alg]) {
-            if (lseek(fd, 0, SEEK_SET) < 0
-                || brix_cksum_fd(fd, alg, comp[alg], XRDC_CKV_HEX_MAX, st) != 0) {
-                close(fd);
-                return XRDC_CKV_ERROR;
-            }
-            comp_done[alg] = 1;
-        }
-
-        if (rep != NULL) {
-            snprintf(rep->source, sizeof(rep->source), "%.15s", recs[i].src);
-            snprintf(rep->algo, sizeof(rep->algo), "%.15s", recs[i].algo);
-            snprintf(rep->recorded, sizeof(rep->recorded), "%.128s", recs[i].hex);
-            snprintf(rep->computed, sizeof(rep->computed), "%.128s", comp[alg]);
-        }
-        if (strcasecmp(recs[i].hex, comp[alg]) != 0) {
+        if (ckv_verify_one(fd, &recs[i], path, want_algo, comp, comp_done,
+                           rep, st, &matched, &unsupported, &outcome) != 0) {
             close(fd);
-            brix_status_set(st, XRDC_EINTEGRITY, 0,
-                            "%s checksum mismatch on %s: recorded %s != computed %s",
-                            recs[i].algo, path, recs[i].hex, comp[alg]);
-            return XRDC_CKV_MISMATCH;
+            return outcome;
         }
-        matched = 1;
     }
 
     close(fd);

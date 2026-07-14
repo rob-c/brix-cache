@@ -282,6 +282,57 @@ vfs_browse_entry(ngx_http_request_t *r,
     return o;
 }
 
+/* ---- Drain a VFS directory handle into the entries array ----
+ *
+ * WHAT: reads every entry from `dh`, appends one JSON object per entry to `arr`
+ *       (built by vfs_browse_entry), and returns 1 if the listing was truncated
+ *       at DASHBOARD_VFS_MAX_ENTRIES, else 0. Entries that fail to allocate or
+ *       append are silently skipped, so the listing is best-effort.
+ *
+ * WHY:  keeps the files handler's orchestration flat. The bounded read loop, its
+ *       stream-error tolerance, and the entry cap are one nameable concern; they
+ *       lived in-line only to inflate the handler's cyclomatic complexity.
+ *
+ * HOW:  1. loop reading (name, kind) via brix_vfs_readdir_kind;
+ *       2. stop on NGX_DONE (end of stream) or any non-OK (partial read: serve
+ *          what we already collected);
+ *       3. once count reaches the entry cap, stop and return the truncated flag;
+ *       4. otherwise build the entry JSON and append it, skipping the entry on
+ *          alloc or append failure;
+ *       5. return 0 when the stream ended without hitting the cap.
+ */
+static int
+vfs_browse_collect(ngx_http_request_t *r,
+    const brix_vfs_backend_info_t *info, const char *abs,
+    brix_vfs_dir_t *dh, json_t *arr)
+{
+    ngx_uint_t  count = 0;
+
+    for ( ;; ) {
+        ngx_str_t                name;
+        brix_vfs_dirent_kind_t   kind;
+        json_t                  *e;
+        ngx_int_t                rc;
+
+        rc = brix_vfs_readdir_kind(dh, &name, &kind);
+        if (rc == NGX_DONE) {
+            break;
+        }
+        if (rc != NGX_OK) {
+            break;                    /* stream error: serve what we have */
+        }
+        if (count >= DASHBOARD_VFS_MAX_ENTRIES) {
+            return 1;                 /* truncated at the entry cap */
+        }
+        e = vfs_browse_entry(r, info, abs, &name, kind);
+        if (e == NULL || json_array_append_new(arr, e) != 0) {
+            continue;
+        }
+        count++;
+    }
+    return 0;
+}
+
 /* GET /xrootd/api/v1/vfs/files?export=<i>&path=</...> */
 ngx_int_t
 ngx_http_brix_dashboard_vfs_files_handler(ngx_http_request_t *r)
@@ -292,8 +343,8 @@ ngx_http_brix_dashboard_vfs_files_handler(ngx_http_request_t *r)
     brix_vfs_dir_t          *dh;
     char                       path[PATH_MAX];
     char                       abs[PATH_MAX];
-    ngx_uint_t                 idx, count = 0;
-    int                        err = 0, truncated = 0;
+    ngx_uint_t                 idx;
+    int                        err = 0, truncated;
     json_t                    *root, *arr;
     ngx_int_t                  rc;
 
@@ -326,28 +377,7 @@ ngx_http_brix_dashboard_vfs_files_handler(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    for ( ;; ) {
-        ngx_str_t                 name;
-        brix_vfs_dirent_kind_t  kind;
-        json_t                   *e;
-
-        rc = brix_vfs_readdir_kind(dh, &name, &kind);
-        if (rc == NGX_DONE) {
-            break;
-        }
-        if (rc != NGX_OK) {
-            break;                    /* stream error: serve what we have */
-        }
-        if (count >= DASHBOARD_VFS_MAX_ENTRIES) {
-            truncated = 1;
-            break;
-        }
-        e = vfs_browse_entry(r, &info, abs, &name, kind);
-        if (e == NULL || json_array_append_new(arr, e) != 0) {
-            continue;
-        }
-        count++;
-    }
+    truncated = vfs_browse_collect(r, &info, abs, dh, arr);
     brix_vfs_closedir(dh, r->connection->log);
 
     dashboard_json_set_schema(root);

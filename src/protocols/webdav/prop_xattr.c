@@ -101,6 +101,45 @@ webdav_lock_xattr_encode(const webdav_lock_xattr_t *e, char *out, size_t outsz)
     return (n > 0 && (size_t) n < outsz) ? NGX_OK : NGX_ERROR;
 }
 
+/* ---- Apply one decoded `key`/`val` field pair to the lock record ----
+ *
+ * WHAT: Dispatches a single `key=val` pair (already split, NUL-terminated) from
+ * a lock xattr into the matching field of `*e`, and captures the schema version
+ * into `*version` for the `v` key. Unknown keys are ignored (forward-compat).
+ *
+ * WHY: The per-key branch ladder is the sole source of decode complexity; hoisting
+ * it out of webdav_lock_xattr_decode keeps that parser a small loop and makes the
+ * field-mapping table reviewable on its own. Field semantics (schema v2 encoding,
+ * scope/depth string forms, null placeholder) are preserved byte-for-byte.
+ *
+ * HOW:
+ *   1. Compare `key` against each known field name in turn.
+ *   2. On match, parse `val` into the field with the same primitive the inline
+ *      ladder used (strtol/strtoll for numerics, ngx_cpystrn for bounded strings,
+ *      exact-string equality for the enum-like scope/depth/null fields).
+ *   3. Return with no effect when `key` matches nothing.
+ */
+static void
+webdav_lock_xattr_apply_field(const char *key, char *val,
+    webdav_lock_xattr_t *e, int *version)
+{
+    if (strcmp(key, "v") == 0) {
+        *version = (int) strtol(val, NULL, 10);
+    } else if (strcmp(key, "token") == 0) {
+        ngx_cpystrn((u_char *) e->token, (u_char *) val, sizeof(e->token));
+    } else if (strcmp(key, "owner") == 0) {
+        ngx_cpystrn((u_char *) e->owner, (u_char *) val, sizeof(e->owner));
+    } else if (strcmp(key, "expires") == 0) {
+        e->expires = (int64_t) strtoll(val, NULL, 10);
+    } else if (strcmp(key, "scope") == 0) {
+        e->exclusive = (strcmp(val, "exclusive") == 0) ? 1 : 0;
+    } else if (strcmp(key, "depth") == 0) {
+        e->depth_infinity = (strcmp(val, "infinity") == 0) ? 1 : 0;
+    } else if (strcmp(key, "null") == 0) {
+        e->is_null = (strcmp(val, "1") == 0) ? 1 : 0;
+    }
+}
+
 ngx_int_t
 webdav_lock_xattr_decode(const char *raw, size_t rawlen, webdav_lock_xattr_t *e)
 {
@@ -128,24 +167,7 @@ webdav_lock_xattr_decode(const char *raw, size_t rawlen, webdav_lock_xattr_t *e)
         val = strchr(p, '=');
         if (val != NULL) {
             *val++ = '\0';
-
-            if (strcmp(p, "v") == 0) {
-                version = (int) strtol(val, NULL, 10);
-            } else if (strcmp(p, "token") == 0) {
-                ngx_cpystrn((u_char *) e->token, (u_char *) val,
-                            sizeof(e->token));
-            } else if (strcmp(p, "owner") == 0) {
-                ngx_cpystrn((u_char *) e->owner, (u_char *) val,
-                            sizeof(e->owner));
-            } else if (strcmp(p, "expires") == 0) {
-                e->expires = (int64_t) strtoll(val, NULL, 10);
-            } else if (strcmp(p, "scope") == 0) {
-                e->exclusive = (strcmp(val, "exclusive") == 0) ? 1 : 0;
-            } else if (strcmp(p, "depth") == 0) {
-                e->depth_infinity = (strcmp(val, "infinity") == 0) ? 1 : 0;
-            } else if (strcmp(p, "null") == 0) {
-                e->is_null = (strcmp(val, "1") == 0) ? 1 : 0;
-            }
+            webdav_lock_xattr_apply_field(p, val, e, &version);
         }
 
         p = next ? next + 1 : end;

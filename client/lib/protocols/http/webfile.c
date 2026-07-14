@@ -179,6 +179,66 @@ xml_name_char(char c)
 }
 
 
+/* ---- Delimit an element's local (namespace-stripped) name ----
+ *
+ * WHAT: Given q pointing at the first byte after a tag's '<' (a non-closing
+ * tag), scans the element name within [q,end), strips an optional single "ns:"
+ * prefix, sets *name to the local-name start, and returns a pointer just past
+ * the local name (its first non-name byte, or end).
+ *
+ * WHY: Both response-block scanning and collection detection must key on an
+ * element's LOCAL name so that neither a namespace prefix ("D:", "lp1:") nor a
+ * differing prefix changes the match. Centralising the prefix-strip + name-scan
+ * keeps that rule in one place and drops the branch weight of the callers.
+ *
+ * HOW:
+ *   1. Advance s over the leading name run (xml_name_char bytes).
+ *   2. If s stops on ':', treat what preceded as an "ns:" prefix: move name past
+ *      the colon and re-scan the local name run from there.
+ *   3. Otherwise the whole run is the local name (name stays at q).
+ *   4. Publish the local-name start via *name and return the scan cursor s.
+ */
+static const char *
+xml_local_name(const char *q, const char *end, const char **name)
+{
+    const char *s = q;
+    while (s < end && xml_name_char(*s)) {
+        s++;
+    }
+    if (s < end && *s == ':') {                    /* strip "ns:" prefix */
+        const char *local = s + 1;
+        s = local;
+        while (s < end && xml_name_char(*s)) {
+            s++;
+        }
+        *name = local;
+        return s;
+    }
+    *name = q;
+    return s;
+}
+
+
+/* ---- True if c terminates an XML element name ----
+ *
+ * WHAT: Returns non-zero when c is a byte that can legally follow an element's
+ * name in an open tag: '/', '>', or ASCII whitespace (space, tab, CR, LF).
+ *
+ * WHY: Matching a name only up to its declared length can false-positive on a
+ * longer name that shares the prefix (e.g. "collection" vs "collection-set").
+ * Requiring a real name-boundary byte after the match rejects that; folding the
+ * six-way character test into one predicate keeps each caller's branch count low.
+ *
+ * HOW: Compare c against the fixed boundary set and return the disjunction.
+ */
+static int
+xml_name_boundary(char c)
+{
+    return c == '/' || c == '>' || c == ' '
+        || c == '\t' || c == '\r' || c == '\n';
+}
+
+
 /* Locate the next opening "<[ns:]response[ attrs...]>" tag in [p,end). Returns a
  * pointer to the first byte of inner content (just past the tag's '>'), or NULL.
  * Tolerant of: a namespace prefix ("D:", "lp1:") AND attributes on the open tag
@@ -196,17 +256,11 @@ next_response_open(const char *p, const char *end)
             p = q + 1;
             continue;
         }
-        const char *name = q, *s = q;
-        while (s < end && xml_name_char(*s)) {
-            s++;
-        }
-        if (s < end && *s == ':') {                /* strip "ns:" prefix */
-            name = s + 1;
-        }
+        const char *name;
+        (void) xml_local_name(q, end, &name);      /* strip any "ns:" prefix */
         if ((size_t) (end - name) >= 8 && strncmp(name, "response", 8) == 0) {
             const char *a = name + 8;
-            if (a < end && (*a == '>' || *a == ' ' || *a == '\t'
-                            || *a == '\r' || *a == '\n' || *a == '/')) {
+            if (a < end && xml_name_boundary(*a)) {
                 const char *gt = memchr(a, '>', (size_t) (end - a));
                 return gt != NULL ? gt + 1 : NULL;
             }
@@ -261,20 +315,10 @@ has_collection_element(const char *p, const char *end)
             p = n + 1;                              /* closing / PI / comment */
             continue;
         }
-        const char *name = n, *s = n;
-        while (s < end && xml_name_char(*s)) {
-            s++;
-        }
-        if (s < end && *s == ':') {                /* skip ns prefix, re-scan name */
-            name = s + 1;
-            s = name;
-            while (s < end && xml_name_char(*s)) {
-                s++;
-            }
-        }
+        const char *name;
+        const char *s = xml_local_name(n, end, &name);   /* skip ns prefix */
         if ((size_t) (s - name) == 10 && strncmp(name, "collection", 10) == 0
-            && s < end && (*s == '/' || *s == '>' || *s == ' '
-                           || *s == '\t' || *s == '\r' || *s == '\n')) {
+            && s < end && xml_name_boundary(*s)) {
             return 1;
         }
         p = lt + 1;

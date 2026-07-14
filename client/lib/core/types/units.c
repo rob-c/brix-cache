@@ -30,6 +30,34 @@ brix_fmt_size(int64_t n, char *out, size_t sz, int human)
     }
 }
 
+/* ---- Map a single-character size suffix to its byte multiplier ----
+ *
+ * WHAT: Translates one binary-unit suffix character (case-insensitive
+ * K/M/G/T) into its power-of-1024 byte multiplier and returns it. Returns
+ * 0 for any character that is not a recognised suffix, letting the caller
+ * treat 0 as "invalid" (a real multiplier is always at least 1024).
+ *
+ * WHY: Isolating the suffix table keeps brix_parse_bytes below the project
+ * complexity cap and puts the exact set of accepted suffixes (and their
+ * binary — not decimal — scaling) in one auditable place.
+ *
+ * HOW:
+ *   1. Switch on the suffix character.
+ *   2. Return 1024^n for K/M/G/T (either case).
+ *   3. Return 0 for anything else.
+ */
+static int64_t
+brix_bytes_suffix_multiplier(char c)
+{
+    switch (c) {
+        case 'k': case 'K': return 1024LL;
+        case 'm': case 'M': return 1024LL * 1024;
+        case 'g': case 'G': return 1024LL * 1024 * 1024;
+        case 't': case 'T': return 1024LL * 1024 * 1024 * 1024;
+        default:            return 0;
+    }
+}
+
 int64_t
 brix_parse_bytes(const char *s)
 {
@@ -42,14 +70,9 @@ brix_parse_bytes(const char *s)
     v = strtod(s, &end);
     if (end == s || v < 0 || errno != 0) { return -1; }
     if (*end != '\0') {
-        switch (*end) {
-            case 'k': case 'K': mult = 1024LL; break;
-            case 'm': case 'M': mult = 1024LL * 1024; break;
-            case 'g': case 'G': mult = 1024LL * 1024 * 1024; break;
-            case 't': case 'T': mult = 1024LL * 1024 * 1024 * 1024; break;
-            default: return -1;
-        }
-        if (end[1] != '\0') { return -1; }
+        mult = brix_bytes_suffix_multiplier(*end);
+        if (mult == 0) { return -1; }         /* unrecognised suffix */
+        if (end[1] != '\0') { return -1; }    /* trailing junk after suffix */
     }
     return (int64_t) (v * (double) mult);
 }

@@ -156,6 +156,112 @@ op_path_existence_gate(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
     }
 }
 
+/* ---- op_path_mode_flags — decode a path mode into gate parameters ----------
+ *
+ * WHAT: Map a brix_path_mode_t to the two scalars the resolver drives its
+ *       existence check with: want_dir (see op_path_existence_gate) and
+ *       strip_trailing_slash (whether a create target's trailing '/' is
+ *       normalized away). Fills both out-params; no return value.
+ *
+ * WHY:  Keeps the mode→behavior table as one small, side-effect-free lookup so
+ *       the resolver stays a flat sequence and the per-mode policy lives in a
+ *       single place instead of inline in a larger function.
+ *
+ * HOW:  1. EXISTING gates on the target itself, keeps trailing slash.
+ *       2. WRITE gates on the parent dir and strips a trailing slash.
+ *       3. NOEXIST skips the existence gate (want_dir < 0), keeps slash.
+ *       4. EITHER gates on the parent (with a target-retry upstream), keeps slash.
+ *       5. Any other value falls back to EXISTING semantics.
+ */
+static void
+op_path_mode_flags(brix_path_mode_t mode, int *want_dir,
+                   int *strip_trailing_slash)
+{
+    switch (mode) {
+    case BRIX_PATH_EXISTING: *want_dir = 0;  *strip_trailing_slash = 0; break;
+    case BRIX_PATH_WRITE:    *want_dir = 1;  *strip_trailing_slash = 1; break;
+    case BRIX_PATH_NOEXIST:  *want_dir = -1; *strip_trailing_slash = 0; break;
+    case BRIX_PATH_EITHER:   *want_dir = 1;  *strip_trailing_slash = 0; break;
+    default:                 *want_dir = 0;  *strip_trailing_slash = 0; break;
+    }
+}
+
+/* ---- op_path_normalize_trailing — collapse a create target's trailing '/' ---
+ *
+ * WHAT: For create modes only, rewrite "*reqpath" into the caller-provided
+ *       "norm" buffer with any trailing '/' characters removed, and repoint
+ *       "*reqpath" at "norm". Returns NGX_ERROR if the copy would overflow
+ *       "norm", NGX_OK otherwise (including the common no-op cases).
+ *
+ * WHY:  Reproduces the reference server's Squash of a trailing slash on a
+ *       create target ("mkdir /d/" -> /d, "open /f/" -> /f) so stock-accepted
+ *       requests are not rejected as ArgInvalid. Scoped to the create modes so a
+ *       stat/cat of "/file/" keeps its existing file-vs-dir error behavior.
+ *
+ * HOW:  1. No-op when strip_trailing_slash is unset.
+ *       2. No-op when the path is "/" or does not end in '/'.
+ *       3. Reject when the path (plus its NUL) will not fit in norm_sz.
+ *       4. Copy into norm, drop trailing '/' down to a length of 1, and
+ *          repoint *reqpath at the normalized buffer.
+ */
+static ngx_int_t
+op_path_normalize_trailing(int strip_trailing_slash, const char **reqpath,
+                           char *norm, size_t norm_sz)
+{
+    size_t rl;
+
+    if (!strip_trailing_slash) {
+        return NGX_OK;
+    }
+
+    rl = ngx_strlen(*reqpath);
+    if (rl <= 1 || (*reqpath)[rl - 1] != '/') {
+        return NGX_OK;
+    }
+
+    if (rl >= norm_sz) {
+        return NGX_ERROR;
+    }
+
+    ngx_memcpy(norm, *reqpath, rl + 1);
+    while (rl > 1 && norm[rl - 1] == '/') {
+        norm[--rl] = '\0';
+    }
+    *reqpath = norm;
+    return NGX_OK;
+}
+
+/* ---- op_path_gate — run the per-mode existence gate with the EITHER retry ----
+ *
+ * WHAT: Apply op_path_existence_gate() with the mode's want_dir, and for
+ *       BRIX_PATH_EITHER retry as a target-existence check when the first pass
+ *       fails. Returns NGX_OK when the requirement is met, NGX_DECLINED when it
+ *       is not (target/parent missing).
+ *
+ * WHY:  EITHER means "target may already exist OR its parent must exist" (used
+ *       where an op accepts both a present target and a create). Folding the
+ *       fallback here keeps the resolver's control flow linear and single-purpose.
+ *
+ * HOW:  1. Run the gate with want_dir; return NGX_OK on success.
+ *       2. For EITHER, run the gate again with want_dir 0 (target must exist);
+ *          return NGX_OK on success.
+ *       3. Otherwise return NGX_DECLINED.
+ */
+static ngx_int_t
+op_path_gate(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
+             const char *reqpath, brix_path_mode_t mode, int want_dir)
+{
+    if (op_path_existence_gate(conf, log, reqpath, want_dir) == NGX_OK) {
+        return NGX_OK;
+    }
+    if (mode == BRIX_PATH_EITHER
+        && op_path_existence_gate(conf, log, reqpath, 0) == NGX_OK)
+    {
+        return NGX_OK;
+    }
+    return NGX_DECLINED;
+}
+
 /*
  * brix_path_resolve_beneath — validate reqpath and apply the per-mode
  * existence gate without realpath(), filling `resolved` with the confined
@@ -176,7 +282,6 @@ brix_path_resolve_beneath(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
 {
     int  want_dir;
     int  strip_trailing_slash;
-    int  ok;
     char norm[BRIX_MAX_PATH + 1];
 
     if (brix_count_path_depth(reqpath) != NGX_OK
@@ -185,38 +290,17 @@ brix_path_resolve_beneath(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
         return NGX_ERROR;
     }
 
-    switch (mode) {
-    case BRIX_PATH_EXISTING: want_dir = 0;  strip_trailing_slash = 0; break;
-    case BRIX_PATH_WRITE:    want_dir = 1;  strip_trailing_slash = 1; break;
-    case BRIX_PATH_NOEXIST:  want_dir = -1; strip_trailing_slash = 0; break;
-    case BRIX_PATH_EITHER:   want_dir = 1;  strip_trailing_slash = 0; break;
-    default:                   want_dir = 0;  strip_trailing_slash = 0; break;
+    op_path_mode_flags(mode, &want_dir, &strip_trailing_slash);
+
+    /* Normalize a create target's trailing slash (see op_path_normalize_trailing).
+     * A copy that would overflow `norm` is the only failure and maps to ArgInvalid. */
+    if (op_path_normalize_trailing(strip_trailing_slash, &reqpath,
+                                   norm, sizeof(norm)) != NGX_OK)
+    {
+        return NGX_ERROR;
     }
 
-    /* A write/create target with a trailing slash is NORMALIZED, not rejected,
-     * exactly as the reference's Squash collapses it: "mkdir /d/" -> /d and
-     * "open /f/" -> /f. (We previously returned ArgInvalid, so `mkdir /d/` —
-     * which stock accepts — failed.) Scoped to the create modes so a stat/cat of
-     * "/file/" keeps its existing file-vs-dir error behavior. */
-    if (strip_trailing_slash) {
-        size_t rl = ngx_strlen(reqpath);
-        if (rl > 1 && reqpath[rl - 1] == '/') {
-            if (rl >= sizeof(norm)) {
-                return NGX_ERROR;
-            }
-            ngx_memcpy(norm, reqpath, rl + 1);
-            while (rl > 1 && norm[rl - 1] == '/') {
-                norm[--rl] = '\0';
-            }
-            reqpath = norm;
-        }
-    }
-
-    ok = (op_path_existence_gate(conf, log, reqpath, want_dir) == NGX_OK);
-    if (!ok && mode == BRIX_PATH_EITHER) {
-        ok = (op_path_existence_gate(conf, log, reqpath, 0) == NGX_OK);
-    }
-    if (!ok) {
+    if (op_path_gate(conf, log, reqpath, mode, want_dir) != NGX_OK) {
         return NGX_DECLINED;
     }
 

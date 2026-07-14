@@ -126,7 +126,7 @@ brix_sss_load_keytab(ngx_conf_t *cf, ngx_str_t *path, ngx_array_t **out_keys)
             "brix: cannot open SSS keytab \"%V\"",
             "the path is wrong, the file is unreadable by the nginx user, or "
             "it is a symlink (rejected for safety)",
-            "generate the keytab with xrdsssadmin and give the nginx user "
+            "generate the keytab with xrdsssadmin-brix and give the nginx user "
             "read access to the real file; the OS reason is appended below",
             path);
         return NGX_ERROR;

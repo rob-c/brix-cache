@@ -420,7 +420,7 @@ def test_diagnosis_pii_free(anon):
 # Self-hosting: SSS server (xrdsssadmin keytab) for the anon-enforcement case; a
 # token server (utils.make_token RSA issuer + JWKS) for the forged/expired/scope cases.
 
-_SSSADMIN = os.path.join(CLIENT_DIR, "bin", "xrdsssadmin")
+_SSSADMIN = os.path.join(CLIENT_DIR, "bin", "xrdsssadmin-brix")
 
 
 def _authsuite_diag(blob):
@@ -431,7 +431,7 @@ def _authsuite_diag(blob):
 @pytest.fixture(scope="module")
 def sss_server(doctor, tmp_path_factory):
     """An auth-REQUIRED (SSS) server — used to prove anonymous access is denied."""
-    if subprocess.run(["make", "-C", CLIENT_DIR, "xrdsssadmin"],
+    if subprocess.run(["make", "-C", CLIENT_DIR, "xrdsssadmin-brix"],
                       capture_output=True).returncode != 0 or not os.path.exists(_SSSADMIN):
         pytest.skip("xrdsssadmin build failed")
     root = tmp_path_factory.mktemp("rd_sss")

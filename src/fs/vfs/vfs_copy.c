@@ -76,6 +76,13 @@ brix_vfs_copy_driver(brix_vfs_ctx_t *ctx, const char *src,
     int                 saved_errno;
     int                 use_cred = 0, cred_err = 0;
 
+    /* The sole caller checks the driver before dispatching here, but the
+     * accessor legitimately returns NULL for the default POSIX driver — keep
+     * the invariant local so a future caller cannot hand us a NULL vtable. */
+    if (drv == NULL) {
+        return brix_vfs_copy_fail(ctx, src, ENOSYS, start);
+    }
+
     /* Zero before the gate: it fills only the active credential kind; an
      * unzeroed cred hands a garbage inactive pointer to the driver's
      * cred slot (bearer PASSTHROUGH would leave x509_proxy dangling). */

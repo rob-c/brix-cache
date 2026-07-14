@@ -69,7 +69,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XRDFS = os.path.join(CLIENT_DIR, "bin", "xrdfs")
 XRDCP = os.path.join(CLIENT_DIR, "bin", "xrdcp")
-XRDSSSADMIN = os.path.join(CLIENT_DIR, "bin", "xrdsssadmin")
+XRDSSSADMIN = os.path.join(CLIENT_DIR, "bin", "xrdsssadmin-brix")
 
 _UTILS = os.path.join(REPO, "utils")
 _VOMS_FAKE = os.path.join(_UTILS, "voms_proxy_fake.py")
@@ -214,7 +214,7 @@ def mesh(tmp_path_factory):
         pytest.skip("utils/voms_proxy_fake.py missing")
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
-    b = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp", "xrdsssadmin"],
+    b = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp", "xrdsssadmin-brix"],
                        capture_output=True, text=True, timeout=240)
     if b.returncode != 0 or not all(os.path.exists(x)
                                     for x in (XRDFS, XRDCP, XRDSSSADMIN)):

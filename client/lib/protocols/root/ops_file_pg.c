@@ -241,6 +241,112 @@ pgwrite_retry_one(brix_conn *c, brix_file *f, const uint8_t *buf, int64_t base,
 }
 
 
+/* ---- Drive one corrupt page back to a clean server verdict ----
+ *
+ * WHAT: Resend the page at file offset pgoff (sliced from buf at pgoff-base)
+ * via kXR_pgRetry up to XRDC_PGW_MAX_RETRY times. Returns 0 once the server
+ * accepts the page, or -1 (st set) if it stays corrupt past the retry budget
+ * or a wire error occurs.
+ *
+ * WHY: The pgwrite CSE handler must apply an identical bounded-retry policy to
+ * every failed page. Isolating that per-page loop keeps the CSE trailer walk
+ * flat and keeps the retry/verdict bookkeeping in one testable place.
+ *
+ * HOW:
+ *   1. Loop up to XRDC_PGW_MAX_RETRY: resend the page via pgwrite_retry_one;
+ *      a verdict of 0 (corrected) or -1 (error) breaks out immediately, 1
+ *      (still bad) retries.
+ *   2. verdict > 0 after the budget is exhausted -> set XRDC_EINTEGRITY, -1.
+ *   3. verdict < 0 -> propagate the already-set error, -1.
+ *   4. verdict 0 -> page corrected, 0.
+ */
+static int
+pgwrite_correct_one_page(brix_conn *c, brix_file *f, const uint8_t *buf,
+                         int64_t base, size_t len, int64_t pgoff,
+                         brix_status *st)
+{
+    int attempt, verdict = 1;
+
+    for (attempt = 0; attempt < XRDC_PGW_MAX_RETRY; attempt++) {
+        verdict = pgwrite_retry_one(c, f, buf, base, len, pgoff, st);
+        if (verdict <= 0) {
+            break;   /* 0 = corrected, -1 = error */
+        }
+    }
+    if (verdict > 0) {
+        brix_status_set(st, XRDC_EINTEGRITY, 0,
+            "pgwrite page %lld uncorrectable after %d retries",
+            (long long) pgoff, XRDC_PGW_MAX_RETRY);
+        return -1;
+    }
+    if (verdict < 0) {
+        return -1;
+    }
+    return 0;
+}
+
+
+/* ---- Read and act on a pgwrite CSE (checksum-error) trailer ----
+ *
+ * WHAT: Read the pgdlen-byte CSE trailer the server sent after a pgwrite,
+ * validate its shape, and resend every listed bad page via
+ * pgwrite_correct_one_page. Returns 0 when all pages end clean, -1 (st set)
+ * on OOM, a malformed trailer, or an uncorrectable/errored page. Does NOT own
+ * the caller's request payload.
+ *
+ * WHY: The server writes the data but reports pages whose CRC32c failed on the
+ * wire (our encode is always correct); the client must retransmit those pages.
+ * Confining the trailer read and bad-page walk here keeps brix_file_pgwrite a
+ * flat send/read orchestrator.
+ *
+ * HOW:
+ *   1. Allocate and read the trailer; OOM or a short read -> -1 (st set).
+ *   2. Trailer layout is cseCRC(4) dlFirst(2) dlLast(2) then int64 bof[n];
+ *      reject any length < 8 or not 8-aligned in the tail as malformed.
+ *   3. For each of the n bad-page offsets, decode the big-endian int64 and
+ *      drive it clean via pgwrite_correct_one_page, stopping on the first
+ *      failure.
+ *   4. Free the trailer and return the accumulated verdict.
+ */
+static int
+pgwrite_handle_cse(brix_conn *c, brix_file *f, const uint8_t *buf,
+                   int64_t base, size_t len, uint32_t pgdlen, brix_status *st)
+{
+    uint8_t *cse = (uint8_t *) malloc(pgdlen);
+    size_t   nbad, i;
+    int      rc_ret = 0;
+
+    if (cse == NULL || brix_read_full(&c->io, cse, pgdlen, st) != 0) {
+        if (cse == NULL) {
+            brix_status_set(st, XRDC_EPROTO, 0, "out of memory (%u)", pgdlen);
+        }
+        free(cse);
+        return -1;
+    }
+
+    /* Trailer: cseCRC(4) dlFirst(2) dlLast(2) then int64 bof[n]. */
+    if (pgdlen < 8 || ((pgdlen - 8) % 8) != 0) {
+        free(cse);
+        brix_status_set(st, XRDC_EPROTO, 0,
+                        "malformed pgwrite CSE trailer (%u bytes)", pgdlen);
+        return -1;
+    }
+    nbad = (size_t) (pgdlen - 8) / 8;
+
+    for (i = 0; i < nbad && rc_ret == 0; i++) {
+        uint64_t bo_be;
+        int64_t  bo;
+
+        memcpy(&bo_be, cse + 8 + i * 8, 8);
+        bo = (int64_t) be64toh(bo_be);
+        rc_ret = pgwrite_correct_one_page(c, f, buf, base, len, bo, st);
+    }
+
+    free(cse);
+    return rc_ret;
+}
+
+
 int
 brix_file_pgwrite(brix_conn *c, brix_file *f, int64_t offset, const void *buf,
                   size_t len, brix_status *st)
@@ -289,55 +395,8 @@ brix_file_pgwrite(brix_conn *c, brix_file *f, int64_t offset, const void *buf,
          * (typically wire corruption — our encode is always correct).  Read the
          * retransmit list and resend each page with kXR_pgRetry until the server
          * accepts it or we exhaust the bounded attempts. */
-        uint8_t *cse = (uint8_t *) malloc(pgdlen);
-        size_t   nbad, i;
-        int      rc_ret = 0;
-
-        if (cse == NULL || brix_read_full(&c->io, cse, pgdlen, st) != 0) {
-            free(cse);
-            free(payload);
-            if (cse == NULL) {
-                brix_status_set(st, XRDC_EPROTO, 0, "out of memory (%u)", pgdlen);
-            }
-            return -1;
-        }
-
-        /* Trailer: cseCRC(4) dlFirst(2) dlLast(2) then int64 bof[n]. */
-        if (pgdlen < 8 || ((pgdlen - 8) % 8) != 0) {
-            free(cse);
-            free(payload);
-            brix_status_set(st, XRDC_EPROTO, 0,
-                            "malformed pgwrite CSE trailer (%u bytes)", pgdlen);
-            return -1;
-        }
-        nbad = (size_t) (pgdlen - 8) / 8;
-
-        for (i = 0; i < nbad && rc_ret == 0; i++) {
-            uint64_t bo_be;
-            int64_t  bo;
-            int      attempt, verdict = 1;
-
-            memcpy(&bo_be, cse + 8 + i * 8, 8);
-            bo = (int64_t) be64toh(bo_be);
-
-            for (attempt = 0; attempt < XRDC_PGW_MAX_RETRY; attempt++) {
-                verdict = pgwrite_retry_one(c, f, (const uint8_t *) buf, offset,
-                                            len, bo, st);
-                if (verdict <= 0) {
-                    break;   /* 0 = corrected, -1 = error */
-                }
-            }
-            if (verdict > 0) {
-                brix_status_set(st, XRDC_EINTEGRITY, 0,
-                    "pgwrite page %lld uncorrectable after %d retries",
-                    (long long) bo, XRDC_PGW_MAX_RETRY);
-                rc_ret = -1;
-            } else if (verdict < 0) {
-                rc_ret = -1;
-            }
-        }
-
-        free(cse);
+        int rc_ret = pgwrite_handle_cse(c, f, (const uint8_t *) buf, offset,
+                                        len, pgdlen, st);
         free(payload);
         return rc_ret;
     }

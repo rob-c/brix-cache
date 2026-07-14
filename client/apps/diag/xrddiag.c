@@ -805,11 +805,15 @@ dx_parse_argv(diag_args *a, int argc, char **argv, dx_pos_t *pos, int *rc)
 
 /*
  * WHAT: route the multi-call personalities before normal parsing.
- * WHY:  the absorbed micro-tools keep their stock names via symlinks
- *       (argv[0]) and double as xrddiag subcommands (argv[1]).
- * HOW:  match argv[0]'s basename against the stock tool names, then argv[1]
- *       against the subcommand aliases (shifting argv by one). Returns 1
- *       with *rc set when a personality ran, 0 to continue as xrddiag.
+ * WHY:  the absorbed micro-tools stay invocable via symlinks (argv[0]) and
+ *       double as xrddiag subcommands (argv[1]). The installed link names
+ *       carry a -brix suffix (wait41-brix, mpxstats-brix) so the client RPM
+ *       co-installs with the stock xrootd server RPMs, which own the bare
+ *       names; the bare spellings remain reachable as subcommands.
+ * HOW:  match argv[0]'s basename against the installed link names, then
+ *       argv[1] against the subcommand aliases (shifting argv by one).
+ *       Returns 1 with *rc set when a personality ran, 0 to continue as
+ *       xrddiag.
  */
 static int
 dx_personality_route(int argc, char **argv, int *rc)
@@ -818,8 +822,8 @@ dx_personality_route(int argc, char **argv, int *rc)
 
     base = base != NULL ? base + 1 : argv[0];
     if (strcmp(base, "xrdqstats") == 0) { *rc = brix_qstats_main(argc, argv); return 1; }
-    if (strcmp(base, "wait41") == 0)    { *rc = brix_wait41_main(argc, argv); return 1; }
-    if (strcmp(base, "mpxstats") == 0)  { *rc = brix_mpxstats_main(argc, argv); return 1; }
+    if (strcmp(base, "wait41-brix") == 0)   { *rc = brix_wait41_main(argc, argv); return 1; }
+    if (strcmp(base, "mpxstats-brix") == 0) { *rc = brix_mpxstats_main(argc, argv); return 1; }
     if (argc >= 2) {
         if (strcmp(argv[1], "qstats") == 0)   { *rc = brix_qstats_main(argc - 1, argv + 1); return 1; }
         if (strcmp(argv[1], "wait41") == 0)   { *rc = brix_wait41_main(argc - 1, argv + 1); return 1; }

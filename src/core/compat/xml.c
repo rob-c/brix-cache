@@ -83,6 +83,52 @@ brix_xml_escaped_len(const unsigned char *src, size_t len, unsigned flags)
 }
 
 /*
+ * brix_xml_escape_char - write one source byte's escaped form at `out`.
+ *
+ * WHAT: emits the entity or literal encoding of a single byte and returns the
+ *       advanced write cursor. Performs NO bounds check — the sole caller
+ *       (brix_xml_escape) pre-sizes dst via brix_xml_escaped_len first.
+ * WHY:  isolates the per-char escaping table so the escaper stays a flat loop;
+ *       the arms here must mirror brix_xml_escaped_len() exactly, or the
+ *       pre-flight size and the bytes actually written disagree.
+ * HOW:  switch the byte. The memcpy(...)+N idiom copies an entity literal and
+ *       bumps the cursor by that literal's length. The APOS flag selects
+ *       &apos; vs &#39;. With CONTROL_PERCENT a control byte (below 0x20, plus
+ *       DEL 0x7f) becomes "%XX" — high nibble then low nibble — keeping raw
+ *       control chars out of the body; everything else copies through as-is.
+ */
+static unsigned char *
+brix_xml_escape_char(unsigned char c, unsigned flags, unsigned char *out)
+{
+    switch (c) {
+    case '&':
+        return (unsigned char *) memcpy(out, "&amp;", 5) + 5;
+    case '<':
+        return (unsigned char *) memcpy(out, "&lt;", 4) + 4;
+    case '>':
+        return (unsigned char *) memcpy(out, "&gt;", 4) + 4;
+    case '"':
+        return (unsigned char *) memcpy(out, "&quot;", 6) + 6;
+    case '\'':
+        if (flags & BRIX_XML_ESCAPE_APOS_ENTITY) {
+            return (unsigned char *) memcpy(out, "&apos;", 6) + 6;
+        }
+        return (unsigned char *) memcpy(out, "&#39;", 5) + 5;
+    default:
+        if ((flags & BRIX_XML_ESCAPE_CONTROL_PERCENT)
+            && (c < 0x20 || c == 0x7f))
+        {
+            *out++ = '%';
+            *out++ = brix_hex_nibble((unsigned char) (c >> 4));
+            *out++ = brix_hex_nibble((unsigned char) (c & 0x0f));
+            return out;
+        }
+        *out++ = c;
+        return out;
+    }
+}
+
+/*
  * brix_xml_escape - write src into dst with XML-special chars entity-encoded.
  *
  * WHAT: produces an escaped, NUL-terminated copy of src in dst; *written (if
@@ -115,42 +161,10 @@ brix_xml_escape(const unsigned char *src, size_t len, unsigned flags,
     out = dst;
     end = dst + dst_size;
 
+    /* Per-byte encoding lives in brix_xml_escape_char; the pre-flight above
+     * guarantees room so the loop writes unconditionally. */
     for (i = 0; i < len; i++) {
-        switch (src[i]) {
-        case '&':
-            out = (unsigned char *) memcpy(out, "&amp;", 5) + 5;
-            break;
-        case '<':
-            out = (unsigned char *) memcpy(out, "&lt;", 4) + 4;
-            break;
-        case '>':
-            out = (unsigned char *) memcpy(out, "&gt;", 4) + 4;
-            break;
-        case '"':
-            out = (unsigned char *) memcpy(out, "&quot;", 6) + 6;
-            break;
-        case '\'':
-            if (flags & BRIX_XML_ESCAPE_APOS_ENTITY) {
-                out = (unsigned char *) memcpy(out, "&apos;", 6) + 6;
-            } else {
-                out = (unsigned char *) memcpy(out, "&#39;", 5) + 5;
-            }
-            break;
-        default:
-            /* Control bytes (< 0x20, plus DEL 0x7f) become "%XX" — high
-             * nibble then low nibble — when the flag is set; this keeps raw
-             * control chars out of the body. Otherwise emit the byte as-is. */
-            if ((flags & BRIX_XML_ESCAPE_CONTROL_PERCENT)
-                && (src[i] < 0x20 || src[i] == 0x7f))
-            {
-                *out++ = '%';
-                *out++ = brix_hex_nibble((unsigned char) (src[i] >> 4));
-                *out++ = brix_hex_nibble((unsigned char) (src[i] & 0x0f));
-            } else {
-                *out++ = src[i];
-            }
-            break;
-        }
+        out = brix_xml_escape_char(src[i], flags, out);
     }
 
     /* Belt-and-suspenders: the pre-flight guarantees room, but re-check that
@@ -361,6 +375,44 @@ brix_xml_copy_content(xmlNodePtr node, char *dst, size_t dst_len)
 }
 
 /*
+ * brix_xml_lockinfo_extract - fill owner + exclusive from a <lockinfo> root.
+ *
+ * WHAT: reads the lock owner (from <owner><href> if present, else the raw text
+ *       of <owner>) into owner[], and clears *exclusive to 0 only when
+ *       <lockscope><shared> is present. Anything absent is left untouched, so
+ *       the caller's safe defaults (empty owner, exclusive=1) still stand.
+ * WHY:  isolates the tree-walk so brix_xml_parse_lockinfo reads as a flat
+ *       validate-then-extract sequence. Assumes root has already been
+ *       confirmed to be the <lockinfo> element by the caller.
+ * HOW:  find the direct <owner> child; search its subtree for <href>; copy
+ *       whichever is found into owner[] (href preferred, RFC 4918's typical
+ *       form). Then find <lockscope> and, if it carries a <shared> child,
+ *       downgrade exclusivity to shared.
+ */
+static void
+brix_xml_lockinfo_extract(xmlNodePtr root, char *owner, size_t owner_len,
+    int *exclusive)
+{
+    xmlNodePtr owner_node, href_node, scope_node;
+
+    owner_node = brix_xml_find_child(root, "owner");
+    href_node = brix_xml_find_descendant(owner_node == NULL
+                                           ? NULL : owner_node->children,
+                                           "href");
+    if (href_node != NULL) {
+        brix_xml_copy_content(href_node, owner, owner_len);
+    } else if (owner_node != NULL) {
+        brix_xml_copy_content(owner_node, owner, owner_len);
+    }
+
+    /* Scope is exclusive unless <lockscope><shared> is explicitly given. */
+    scope_node = brix_xml_find_child(root, "lockscope");
+    if (brix_xml_find_child(scope_node, "shared") != NULL) {
+        *exclusive = 0;
+    }
+}
+
+/*
  * brix_xml_parse_lockinfo - extract owner + scope from a WebDAV LOCK body.
  *
  * WHAT: parses a <D:lockinfo> document, writing the lock owner (from
@@ -381,6 +433,10 @@ int
 brix_xml_parse_lockinfo(const char *xml, size_t xml_len,
     char *owner, size_t owner_len, int *exclusive)
 {
+    xmlDocPtr  doc;
+    xmlNodePtr root;
+    int        options;
+
     /* Default-deny: empty owner and exclusive=1 hold on every failure path. */
     if (owner_len > 0 && owner != NULL) {
         owner[0] = '\0';
@@ -396,52 +452,30 @@ brix_xml_parse_lockinfo(const char *xml, size_t xml_len,
         return -1;
     }
 
-    {
-        xmlDocPtr  doc;
-        xmlNodePtr root, owner_node, href_node, scope_node;
-        int        options;
-
-        /* NONET + NO_XXE: no network fetches, no external entity expansion. */
-        options = XML_PARSE_NONET | XML_PARSE_NOERROR | XML_PARSE_NOWARNING;
+    /* NONET + NO_XXE: no network fetches, no external entity expansion. */
+    options = XML_PARSE_NONET | XML_PARSE_NOERROR | XML_PARSE_NOWARNING;
 #if defined(XML_PARSE_NO_XXE)
-        options |= XML_PARSE_NO_XXE;
+    options |= XML_PARSE_NO_XXE;
 #endif
 
-        doc = xmlReadMemory(xml, (int) xml_len, "lockinfo.xml", NULL, options);
-        if (doc == NULL) {
-            return -1;
-        }
-
-        /* Require the document root to actually be <lockinfo>. */
-        root = xmlDocGetRootElement(doc);
-        if (root == NULL
-            || !brix_xml_name_is((const char *) root->name, "lockinfo"))
-        {
-            xmlFreeDoc(doc);
-            return -1;
-        }
-
-        /* Owner: prefer the <href> nested inside <owner> (RFC 4918's typical
-         * form); fall back to the raw text of <owner> if there's no href. */
-        owner_node = brix_xml_find_child(root, "owner");
-        href_node = brix_xml_find_descendant(owner_node == NULL
-                                               ? NULL : owner_node->children,
-                                               "href");
-        if (href_node != NULL) {
-            brix_xml_copy_content(href_node, owner, owner_len);
-        } else if (owner_node != NULL) {
-            brix_xml_copy_content(owner_node, owner, owner_len);
-        }
-
-        /* Scope is exclusive unless <lockscope><shared> is explicitly given. */
-        scope_node = brix_xml_find_child(root, "lockscope");
-        if (brix_xml_find_child(scope_node, "shared") != NULL) {
-            *exclusive = 0;
-        }
-
-        xmlFreeDoc(doc);
-        return 0;
+    doc = xmlReadMemory(xml, (int) xml_len, "lockinfo.xml", NULL, options);
+    if (doc == NULL) {
+        return -1;
     }
+
+    /* Require the document root to actually be <lockinfo>. */
+    root = xmlDocGetRootElement(doc);
+    if (root == NULL
+        || !brix_xml_name_is((const char *) root->name, "lockinfo"))
+    {
+        xmlFreeDoc(doc);
+        return -1;
+    }
+
+    brix_xml_lockinfo_extract(root, owner, owner_len, exclusive);
+
+    xmlFreeDoc(doc);
+    return 0;
 }
 
 const char *

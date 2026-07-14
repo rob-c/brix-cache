@@ -33,6 +33,84 @@ typedef struct {
 /* errno for a completed fill task (sd_xroot.c), shared by both paths. */
 int sd_xroot_errno(const brix_cache_fill_t *t);
 
+/* ---- shared origin-open machinery (phase-79 file-size split) --------------
+ *
+ * The per-open object state, the open request bundle, and the connect →
+ * bootstrap → kXR_open orchestrator live in sd_xroot.c (the driver core) and
+ * are shared with the object I/O + open + stat path (sd_xroot_io.c).  The
+ * credential-copy and teardown helpers are also reused by the staged-write
+ * path (sd_xroot_staged.c).  Driver-private: not part of the public surface. */
+
+/* Per-open state: a live origin connection + open file handle + the synthetic
+ * fill-task the origin functions need (conf + clean_path + error scratch). */
+typedef struct {
+    brix_cache_origin_conn_t  oc;
+    u_char                      fhandle[XRD_FHANDLE_LEN];
+    brix_cache_fill_t        *t;
+    int                         file_open;   /* 1 once kXR_open succeeded */
+    int                         is_write;    /* 1 = opened for write (open_write) */
+} sd_xroot_obj_state;
+
+/* Inputs to a single origin file open. Bundling the seven loose arguments into a
+ * struct keeps sd_xroot_origin_open() and its callers (open_common, stat,
+ * stat_cred) below the parameter-count gate.  `size_out`/`err_out` may be NULL;
+ * the remaining fields are required. */
+typedef struct {
+    ngx_stream_brix_srv_conf_t  *conf;       /* origin params (real or synthetic) */
+    const brix_sd_cred_t          *cred;       /* per-user credential, or NULL      */
+    const char                    *path;       /* remote path to open               */
+    int                            want_write; /* 1 = writable open, 0 = read open  */
+    mode_t                         mode;        /* create mode (write opens only)    */
+    off_t                         *size_out;   /* out: file size (may be NULL)      */
+    int                           *err_out;    /* out: errno on failure (may be NULL) */
+} sd_xroot_origin_open_req_t;
+
+/* Copy a per-user credential into the fill task before bootstrap; no-op on NULL
+ * cred (sd_xroot.c).  Shared by the plain, cred, and staged open paths. */
+void sd_xroot_copy_cred_into_task(brix_cache_fill_t *t,
+              const brix_sd_cred_t *cred);
+
+/* Free an object's origin connection + open file handle + fill task (sd_xroot.c).
+ * Used by the open failure paths, close, and the stat probes (sd_xroot_io.c). */
+void sd_xroot_obj_teardown(sd_xroot_obj_state *st);
+
+/* Connect → bootstrap → kXR_open for one origin session; returns the populated
+ * object state, or NULL with *req->err_out set (sd_xroot.c).  Called by the open
+ * + stat vtable slots in sd_xroot_io.c. */
+sd_xroot_obj_state *sd_xroot_origin_open(
+              const sd_xroot_origin_open_req_t *req);
+
+/* Object I/O + open + stat vtable slots (sd_xroot_io.c), referenced by the
+ * driver struct in sd_xroot.c. */
+brix_sd_obj_t *sd_xroot_open(brix_sd_instance_t *inst, const char *path,
+              int sd_flags, mode_t mode, int *err_out);
+brix_sd_obj_t *sd_xroot_open_cred(brix_sd_instance_t *inst, const char *path,
+              int sd_flags, mode_t mode, const brix_sd_cred_t *cred,
+              int *err_out);
+ngx_int_t sd_xroot_close(brix_sd_obj_t *obj);
+ssize_t   sd_xroot_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off);
+ssize_t   sd_xroot_preadv(brix_sd_obj_t *obj, const struct iovec *iov,
+              int iovcnt, off_t off);
+ssize_t   sd_xroot_pwrite(brix_sd_obj_t *obj, const void *buf, size_t len,
+              off_t off);
+ngx_int_t sd_xroot_ftruncate(brix_sd_obj_t *obj, off_t len);
+ngx_int_t sd_xroot_fsync(brix_sd_obj_t *obj);
+ngx_int_t sd_xroot_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out);
+ngx_int_t sd_xroot_stat(brix_sd_instance_t *inst, const char *path,
+              brix_sd_stat_t *out);
+
+/* Staged atomic-publish vtable slots (sd_xroot_staged.c), referenced by the
+ * driver struct in sd_xroot.c. */
+brix_sd_staged_t *sd_xroot_staged_open(brix_sd_instance_t *inst,
+              const char *final_path, mode_t mode, int *err_out);
+brix_sd_staged_t *sd_xroot_staged_open_cred(brix_sd_instance_t *inst,
+              const char *final_path, mode_t mode, const brix_sd_cred_t *cred,
+              int *err_out);
+ssize_t   sd_xroot_staged_write(brix_sd_staged_t *handle, const void *buf,
+              size_t len, off_t off);
+ngx_int_t sd_xroot_staged_commit(brix_sd_staged_t *handle, int noreplace);
+void      sd_xroot_staged_abort(brix_sd_staged_t *handle);
+
 /* Namespace + metadata vtable ops (sd_xroot_ns.c), wired into the driver struct
  * in sd_xroot.c.  Plain ops (service credential / anonymous): */
 ssize_t   sd_xroot_getxattr(brix_sd_instance_t *inst, const char *path,
@@ -50,8 +128,8 @@ ngx_int_t sd_xroot_server_copy(brix_sd_instance_t *inst, const char *src,
               const char *dst, off_t *bytes_out);
 
 /* Credential-scoped namespace vtable ops — Phase 2 Task 1.
- * stat_cred is in sd_xroot.c (reuses the file-open path); the remainder are in
- * sd_xroot_ns.c.  Each mirrors the plain op but presents the per-user proxy. */
+ * stat_cred is in sd_xroot_io.c (reuses the file-open path); the remainder are
+ * in sd_xroot_ns.c.  Each mirrors the plain op but presents the per-user proxy. */
 ngx_int_t sd_xroot_stat_cred(brix_sd_instance_t *inst, const char *path,
               brix_sd_stat_t *out, const brix_sd_cred_t *cred);
 ngx_int_t sd_xroot_unlink_cred(brix_sd_instance_t *inst, const char *path,

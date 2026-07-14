@@ -93,17 +93,31 @@ frag_make_child(uint32_t enc, uint32_t nbits, uint32_t i)
     return (cb << 24) | cv;
 }
 
-int
-cephfs_decode_fragtree(cephfs_denc_t *d, uint32_t *leaves, uint32_t max,
-                       uint32_t *count, int *truncated)
-{
-    /* the split map: each entry says a frag node splits into 2^nway children */
-    struct { uint32_t enc; int32_t nway; } splits[CEPHFS_MAX_FRAGS];
-    uint32_t stack[CEPHFS_MAX_FRAGS];
-    uint32_t nsplit, i, sp = 0, nleaf = 0;
-    int      trunc = 0;
+/* one split-map entry: frag `enc` splits into 2^nway children (nway<=0 = leaf). */
+typedef struct { uint32_t enc; int32_t nway; } cephfs_frag_split_t;
 
-    if (truncated != NULL) { *truncated = 0; }
+/* ---- Read the fragtree split map from the cursor ----
+ *
+ * WHAT: Decodes the leading u32 count followed by that many (enc:u32, nway:u32)
+ *   split-map entries into splits[], writing the entry count to *nsplit_out.
+ *   Returns 0 on success, -1 if the cursor faulted or the count is implausible.
+ *
+ * WHY: The split map is a fixed wire prefix of the CephFS fragtree encoding; it
+ *   must be read byte-exactly (count, then count pairs) before the tree walk.
+ *   An implausibly large count is a corrupt/hostile buffer and is rejected here
+ *   (sticky-faulting the cursor) so the walk never indexes past splits[].
+ *
+ * HOW:
+ *   1. Read the u32 entry count; bail if the cursor is already faulted.
+ *   2. Reject counts above CEPHFS_MAX_FRAGS (fault the cursor, return -1).
+ *   3. Read each (enc, nway) pair verbatim into splits[].
+ *   4. Re-check the cursor once; publish the count and return 0 on success.
+ */
+static int
+cephfs_read_frag_splits(cephfs_denc_t *d, cephfs_frag_split_t *splits,
+                        uint32_t *nsplit_out)
+{
+    uint32_t nsplit, i;
 
     nsplit = cephfs_denc_u32(d);
     if (!cephfs_denc_ok(d)) { return -1; }
@@ -113,31 +127,112 @@ cephfs_decode_fragtree(cephfs_denc_t *d, uint32_t *leaves, uint32_t max,
         splits[i].nway = (int32_t) cephfs_denc_u32(d);
     }
     if (!cephfs_denc_ok(d)) { return -1; }
+    *nsplit_out = nsplit;
+    return 0;
+}
+
+/* ---- Look up how many bits a frag node splits by ----
+ *
+ * WHAT: Scans the split map for an entry whose `enc` equals f and returns its
+ *   nway; returns -1 when f is not a split node (i.e. it is a leaf).
+ *
+ * WHY: The tree walk must decide, per popped frag, whether it is an interior
+ *   node (present in the split map) or a leaf. Isolating the linear scan keeps
+ *   the walk loop flat and the map representation private to this file.
+ *
+ * HOW:
+ *   1. Linearly compare each split entry's enc against f.
+ *   2. Return the matching entry's nway on the first hit; -1 if none matches.
+ */
+static int32_t
+cephfs_frag_lookup_nway(const cephfs_frag_split_t *splits, uint32_t nsplit,
+                        uint32_t f)
+{
+    uint32_t i;
+
+    for (i = 0; i < nsplit; i++) {
+        if (splits[i].enc == f) { return splits[i].nway; }
+    }
+    return -1;
+}
+
+/* ---- Push the children of a split frag onto the walk stack ----
+ *
+ * WHAT: Expands an interior frag f that splits by nb bits into its 2^nb child
+ *   frags, pushing each onto stack[] (bounded by CEPHFS_MAX_FRAGS). Sets *trunc
+ *   to 1 if any child could not be pushed because the stack was full.
+ *
+ * WHY: Keeping fan-out expansion in one helper caps the branching that would
+ *   otherwise dominate the walk loop's complexity, and centralises the two
+ *   safety caps (fan-out and stack depth) that stop a hostile tree from
+ *   exploding memory or overrunning the fixed stack.
+ *
+ * HOW:
+ *   1. Cap nb at 8 so fan-out never exceeds 256 children.
+ *   2. Compute child frags via frag_make_child (byte-exact frag arithmetic).
+ *   3. Push each child while the stack has room; otherwise mark truncation.
+ */
+static void
+cephfs_frag_push_children(uint32_t f, int32_t nb, uint32_t *stack,
+                          uint32_t *sp, int *trunc)
+{
+    uint32_t children, c;
+
+    if (nb > 8) { nb = 8; }                         /* cap fan-out (256) */
+    children = 1u << nb;
+    for (c = 0; c < children; c++) {
+        if (*sp < CEPHFS_MAX_FRAGS) {
+            stack[(*sp)++] = frag_make_child(f, (uint32_t) nb, c);
+        } else {
+            *trunc = 1;
+        }
+    }
+}
+
+/* ---- Decode a CephFS fragtree into its leaf frags ----
+ *
+ * WHAT: Reads the split map, then walks the fragtree from the root frag,
+ *   collecting up to `max` leaf frags into leaves[] and writing the emitted
+ *   count to *count. *truncated (if non-NULL) is set when leaves or the walk
+ *   stack overflowed. Returns 0 on success, -1 on a cursor fault.
+ *
+ * WHY: The driver needs the set of directory fragment leaves to locate dir
+ *   objects; the encoding is a split map plus an implicit tree, so we
+ *   materialise leaves by an explicit (non-recursive) walk that stays bounded
+ *   under corrupt input.
+ *
+ * HOW:
+ *   1. Read the split map via cephfs_read_frag_splits.
+ *   2. Seed the stack with the root frag (enc 0).
+ *   3. Pop a frag; a node absent from the split map (nway<=0) is a leaf —
+ *      record it (or flag truncation past `max`); otherwise expand its children.
+ *   4. Clamp *count to `max`, publish truncation, and report the cursor state.
+ */
+int
+cephfs_decode_fragtree(cephfs_denc_t *d, uint32_t *leaves, uint32_t max,
+                       uint32_t *count, int *truncated)
+{
+    cephfs_frag_split_t splits[CEPHFS_MAX_FRAGS];
+    uint32_t            stack[CEPHFS_MAX_FRAGS];
+    uint32_t            nsplit, sp = 0, nleaf = 0;
+    int                 trunc = 0;
+
+    if (truncated != NULL) { *truncated = 0; }
+
+    if (cephfs_read_frag_splits(d, splits, &nsplit) != 0) { return -1; }
 
     /* walk the tree from the root frag (enc 0); a node not in the split map is a
      * leaf. Explicit stack — no recursion. */
     stack[sp++] = 0;
     while (sp > 0) {
         uint32_t f  = stack[--sp];
-        int32_t  nb = -1;
+        int32_t  nb = cephfs_frag_lookup_nway(splits, nsplit, f);
 
-        for (i = 0; i < nsplit; i++) {
-            if (splits[i].enc == f) { nb = splits[i].nway; break; }
-        }
         if (nb <= 0) {                              /* leaf */
             if (nleaf < max) { leaves[nleaf] = f; } else { trunc = 1; }
             nleaf++;
         } else {
-            uint32_t children, c;
-            if (nb > 8) { nb = 8; }                 /* cap fan-out (256) */
-            children = 1u << nb;
-            for (c = 0; c < children; c++) {
-                if (sp < CEPHFS_MAX_FRAGS) {
-                    stack[sp++] = frag_make_child(f, (uint32_t) nb, c);
-                } else {
-                    trunc = 1;
-                }
-            }
+            cephfs_frag_push_children(f, nb, stack, &sp, &trunc);
         }
     }
 

@@ -1,4 +1,5 @@
 #include "disconnect.h"
+#include "disconnect_internal.h"   /* reporting helpers moved to disconnect_report.c */
 #include "fd_table.h"   /* brix_close_all_files (deferred teardown) */
 #include "budget.h"
 #include "protocols/root/session/session.h"   /* Phase 51 (E4): brix_gsi_inflight_release */
@@ -115,176 +116,80 @@ brix_release_disconnect_crypto_state(brix_ctx_t *ctx)
     }
 }
 
-/* Finalize session metrics: decrement connections_active and accumulate the
- * lifecycle rx/tx byte totals (with per-IP-version and per-protocol breakdowns),
- * which must be committed here before ctx is destroyed. */
-
+/*
+ * WHAT: Release any throttle open-files slots still held by this connection at
+ * disconnect, then clear the held count. No-op when the connection holds none.
+ * WHY: Handles closed implicitly by a dropped connection (phase-59 W3a) — rather
+ * than an explicit kXR_close — would otherwise leak their per-user open-files
+ * reservations in the throttle zone; this is the single release point on that path.
+ * HOW: (1) return early when no slots are held; (2) look up the stream srv conf;
+ * (3) with a configured throttle zone, decrement per user until the held count
+ * reaches 0; (4) without a zone, just clear the held count.
+ */
 static void
-brix_disconnect_update_metrics(brix_ctx_t *ctx)
+brix_disconnect_release_throttle_slots(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    if (ctx->metrics == NULL) {
+    if (ctx->throttle.open_held == 0) {
         return;
     }
 
-    ngx_atomic_fetch_add(&ctx->metrics->connections_active,
-                         (ngx_atomic_int_t) -1);
-    ngx_atomic_fetch_add(&ctx->metrics->bytes_rx_total,
-                         (ngx_atomic_int_t) ctx->totals.bytes_written);
-    ngx_atomic_fetch_add(&ctx->metrics->bytes_tx_total,
-                         (ngx_atomic_int_t) ctx->totals.bytes);
-
-    /* Per-IP-version byte accounting — mirrors the aggregate totals above. */
-    if (ctx->ip_version == AF_INET6) {
-        ngx_atomic_fetch_add(&ctx->metrics->bytes_rx_ipv6_total,
-                             (ngx_atomic_int_t) ctx->totals.bytes_written);
-        ngx_atomic_fetch_add(&ctx->metrics->bytes_tx_ipv6_total,
-                             (ngx_atomic_int_t) ctx->totals.bytes);
-    } else if (ctx->ip_version == AF_INET) {
-        ngx_atomic_fetch_add(&ctx->metrics->bytes_rx_ipv4_total,
-                             (ngx_atomic_int_t) ctx->totals.bytes_written);
-        ngx_atomic_fetch_add(&ctx->metrics->bytes_tx_ipv4_total,
-                             (ngx_atomic_int_t) ctx->totals.bytes);
+    ngx_stream_brix_srv_conf_t *tconf = ngx_stream_get_module_srv_conf(
+        (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
+    if (tconf->throttle.zone == NULL) {
+        ctx->throttle.open_held = 0;
+        return;
     }
 
-    /* Per-protocol byte accounting for native stream-layer traffic. */
-    if (ngx_strcmp(ctx->protocol_label, "root") == 0) {
-        ngx_atomic_fetch_add(&ctx->metrics->proto_root_bytes_rx_total,
-                             (ngx_atomic_int_t) ctx->totals.bytes_written);
-        ngx_atomic_fetch_add(&ctx->metrics->proto_root_bytes_tx_total,
-                             (ngx_atomic_int_t) ctx->totals.bytes);
+    const char *tuser = ctx->login.dn[0] ? ctx->login.dn : "anonymous";
+    while (ctx->throttle.open_held > 0) {
+        brix_throttle_open_dec(tconf->throttle.zone, tuser);
+        ctx->throttle.open_held--;
     }
-}
-
-/* Dominant byte count for an open handle in disconnect logging: bytes_written when
- * any write occurred (upload), else bytes_read — so an interrupted upload is not
- * logged as a zero-byte read. */
-
-static size_t
-brix_disconnect_file_bytes(const brix_file_t *file)
-{
-    /*
-     * A handle is either read-heavy or write-heavy in the access log.  Prefer
-     * written bytes when present so interrupted uploads are not reported as
-     * zero-byte reads.
-     */
-    if (file->bytes_written > 0) {
-        return file->bytes_written;
-    }
-
-    return file->bytes_read;
 }
 
 /*
- * WHAT: Derive the sesslog END reason for root connection teardown.
- * WHY: END lines need a stable low-cardinality reason even though many nginx
- * callbacks funnel through brix_on_disconnect().
- * HOW: Prefer an explicit hint, then shutdown, timeout, socket error, and
- * finally the normal client-disconnect case.
+ * WHAT: Disarm this connection's steady-state read/write deadline timers and
+ * clear the armed bits. No-op for any timer that is not currently armed+set.
+ * WHY: nginx connection finalize also tears c->read/c->write timers down, but
+ * clearing them here keeps the armed-bit bookkeeping consistent and is defensive
+ * against an AIO completion racing teardown (phase 39). The armed-bit guard keeps
+ * this from touching the CMS/FRM WAITING timers that share c->read.
+ * HOW: (1) delete the read timer only when our read deadline is armed and set,
+ * then clear the armed bit; (2) do the same for the write/send deadline timer.
  */
-static brix_sess_end_t
-brix_disconnect_sess_reason(brix_ctx_t *ctx, ngx_connection_t *c)
+static void
+brix_disconnect_disarm_deadline_timers(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    if (ctx->sess_end_hint_set) {
-        return ctx->sess_end_hint;
+    if (ctx->deadline.read_armed && c->read->timer_set) {
+        ngx_del_timer(c->read);
     }
-    if (ngx_exiting || ngx_terminate) {
-        return BRIX_SESS_END_SHUTDOWN;
-    }
-    if (c != NULL && c->timedout) {
-        return BRIX_SESS_END_TIMEOUT;
-    }
-    if (c != NULL && c->error) {
-        return BRIX_SESS_END_ERROR;
-    }
+    ctx->deadline.read_armed = 0;
 
-    return BRIX_SESS_END_CLIENT;
+    if (ctx->deadline.send_armed && c->write->timer_set) {
+        ngx_del_timer(c->write);
+    }
+    ctx->deadline.send_armed = 0;
 }
 
-/* Emit a kXR_Cancelled access-log entry for every still-open handle when the
- * connection drops (detail "interrupted X.XXMB/s" or "interrupted"), with duration
- * measured from the original open_time via req_start reuse. */
-
+/*
+ * WHAT: End SciTags packet marking for this connection: cancel the echo timer and
+ * emit the firefly "end" report, clearing ctx->pmark.flow. No-op if never marked.
+ * WHY: The echo timer's ngx_event_t lives in this ctx (freed with the pool during
+ * teardown), so it must be cancelled first; the "end" report must be emitted while
+ * the socket fd is still open because it reads TCP_INFO byte/rtt counters here.
+ * HOW: (1) delete the echo timer when it is set; (2) when a flow exists, emit its
+ * end report and null the pointer so later teardown does not touch it again.
+ */
 static void
-brix_disconnect_log_open_files(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_msec_t now)
+brix_disconnect_end_pmark(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    int handle_index;
-
-    for (handle_index = 0; handle_index < BRIX_MAX_FILES; handle_index++) {
-        brix_file_t *file;
-        char           detail[64];
-        size_t         byte_total;
-        ngx_msec_t     duration_ms;
-
-        file = &ctx->files[handle_index];
-        if (file->fd < 0) {
-            continue;
-        }
-
-        byte_total = brix_disconnect_file_bytes(file);
-        duration_ms = now - file->open_time;
-
-        if (byte_total > 0 && duration_ms > 0) {
-            double mb_per_second;
-
-            mb_per_second = (double) byte_total / (double) duration_ms
-                            / 1000.0;
-            snprintf(detail, sizeof(detail), "interrupted %.2fMB/s",
-                     mb_per_second);
-        } else {
-            snprintf(detail, sizeof(detail), "interrupted");
-        }
-
-        /*
-         * Reuse req_start so the common access logger reports per-handle
-         * duration from the original open time, not from disconnect time.
-         */
-        ctx->req_start = file->open_time;
-        brix_log_access(ctx, c, "CLOSE", file->path, detail, 0,
-                          kXR_Cancelled, "connection lost", byte_total);
-        if (file->sess_xfer.active && byte_total > file->sess_xfer.bytes) {
-            brix_sess_xfer_add(&file->sess_xfer,
-                               (uint64_t) (byte_total - file->sess_xfer.bytes));
-        }
-        brix_sess_xfer_end(ctx->sess, &file->sess_xfer,
-                           (ngx_exiting || ngx_terminate)
-                               ? BRIX_SESS_XFER_SHUTDOWN
-                               : BRIX_SESS_XFER_ABORTED);
+    if (ctx->pmark.echo_ev.timer_set) {
+        ngx_del_timer(&ctx->pmark.echo_ev);
     }
-}
-
-/* Format session-level throughput for the final access-log entry: separate rx/tx
- * MB/s when both occurred, otherwise a single aggregate. */
-
-static void
-brix_disconnect_format_session_detail(brix_ctx_t *ctx, ngx_msec_t now,
-    char *detail, size_t detail_size, size_t *total_bytes)
-{
-    ngx_msec_t session_duration_ms;
-
-    *total_bytes = ctx->totals.bytes + ctx->totals.bytes_written;
-    session_duration_ms = now - ctx->totals.start;
-
-    if (*total_bytes == 0 || session_duration_ms == 0) {
-        snprintf(detail, detail_size, "-");
-        return;
+    if (ctx->pmark.flow != NULL) {
+        brix_pmark_flow_end(ctx->pmark.flow, c->log);
+        ctx->pmark.flow = NULL;
     }
-
-    if (ctx->totals.bytes_written > 0) {
-        double read_mbps;
-        double write_mbps;
-
-        read_mbps = (double) ctx->totals.bytes
-                    / (double) session_duration_ms / 1000.0;
-        write_mbps = (double) ctx->totals.bytes_written
-                      / (double) session_duration_ms / 1000.0;
-        snprintf(detail, detail_size, "rx=%.2fMB/s tx=%.2fMB/s",
-                 read_mbps, write_mbps);
-        return;
-    }
-
-    snprintf(detail, detail_size, "%.2fMB/s",
-             (double) *total_bytes / (double) session_duration_ms / 1000.0);
 }
 
 /* brix_on_disconnect — entry point for an unexpected TCP close (not a normal
@@ -313,47 +218,14 @@ brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c)
 
     /* phase-59 W3a: release any throttle open-files slots still held by this
      * connection (handles closed implicitly by disconnect, not kXR_close). */
-    if (ctx->throttle.open_held > 0) {
-        ngx_stream_brix_srv_conf_t *tconf = ngx_stream_get_module_srv_conf(
-            (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
-        if (tconf->throttle.zone != NULL) {
-            const char *tuser = ctx->login.dn[0] ? ctx->login.dn : "anonymous";
-            while (ctx->throttle.open_held > 0) {
-                brix_throttle_open_dec(tconf->throttle.zone, tuser);
-                ctx->throttle.open_held--;
-            }
-        } else {
-            ctx->throttle.open_held = 0;
-        }
-    }
+    brix_disconnect_release_throttle_slots(ctx, c);
 
-    /*
-     * Phase 39: disarm any steady-state read/write deadline this connection armed.
-     * nginx's connection finalize also tears c->read/c->write timers down, but
-     * clearing them here keeps the armed-bit bookkeeping consistent and is
-     * defensive against an AIO completion racing teardown.  Guarded on our armed
-     * bit so it never touches the CMS/FRM WAITING timers that share c->read.
-     */
-    if (ctx->deadline.read_armed && c->read->timer_set) {
-        ngx_del_timer(c->read);
-    }
-    ctx->deadline.read_armed = 0;
-    if (ctx->deadline.send_armed && c->write->timer_set) {
-        ngx_del_timer(c->write);
-    }
-    ctx->deadline.send_armed = 0;
+    /* Phase 39: disarm any steady-state read/write deadline this connection armed
+     * (SciTags echo timer is handled next). */
+    brix_disconnect_disarm_deadline_timers(ctx, c);
 
-    /* SciTags packet marking (phase-34): cancel the echo timer (its ngx_event_t
-     * lives in this ctx, freed with the pool below), then emit the firefly "end"
-     * report while the socket fd is still open (TCP_INFO byte/rtt read here).
-     * No-op if the connection was never marked. */
-    if (ctx->pmark.echo_ev.timer_set) {
-        ngx_del_timer(&ctx->pmark.echo_ev);
-    }
-    if (ctx->pmark.flow != NULL) {
-        brix_pmark_flow_end(ctx->pmark.flow, c->log);
-        ctx->pmark.flow = NULL;
-    }
+    /* SciTags packet marking (phase-34): end the flow while the socket is open. */
+    brix_disconnect_end_pmark(ctx, c);
 
     /* Phase 31 W4: return this connection's charged transfer-heap bytes to the
      * SHM-global budget before its scratch buffers are freed below. */
@@ -451,14 +323,7 @@ brix_defer_teardown_if_writing(brix_ctx_t *ctx, ngx_connection_t *c,
         ctx->out.finalize_status  = status;
         ctx->destroyed        = 1;
 
-        if (ctx->deadline.read_armed && c->read->timer_set) {
-            ngx_del_timer(c->read);
-        }
-        ctx->deadline.read_armed = 0;
-        if (ctx->deadline.send_armed && c->write->timer_set) {
-            ngx_del_timer(c->write);
-        }
-        ctx->deadline.send_armed = 0;
+        brix_disconnect_disarm_deadline_timers(ctx, c);
     }
 
     return 1;

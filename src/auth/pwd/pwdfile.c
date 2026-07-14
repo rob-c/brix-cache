@@ -21,8 +21,48 @@
 #include <string.h>
 #include <ctype.h>
 
-/* Decode `hexlen` hex chars at `hex` into `out` (out must hold hexlen/2 bytes).
- * Returns the number of bytes written, or -1 on an odd length / bad nibble. */
+/* ---- Decode one ASCII hex character to its 4-bit value ----
+ *
+ * WHAT: Maps a single hex character (0-9, a-f, A-F) to its numeric value
+ *       0..15; returns -1 for any non-hex byte.  `c` is passed as an int that
+ *       the caller has already widened through `unsigned char`.
+ *
+ * WHY:  Hoisting the per-nibble range ladder out of pwd_from_hex keeps that
+ *       loop's cyclomatic complexity bounded while preserving the EXACT accept
+ *       set (only the three canonical hex ranges) that credential hex-decoding
+ *       depends on — any widening here would weaken salt/hash parsing.
+ *
+ * HOW:  1. Return the offset from '0' for a decimal digit.
+ *       2. Otherwise return 10 + offset from 'a' for a lowercase hex digit.
+ *       3. Otherwise return 10 + offset from 'A' for an uppercase hex digit.
+ *       4. Otherwise the byte is not hex; return -1.
+ */
+static int
+pwd_hex_nibble(int c)
+{
+    return (c >= '0' && c <= '9') ? c - '0'
+         : (c >= 'a' && c <= 'f') ? c - 'a' + 10
+         : (c >= 'A' && c <= 'F') ? c - 'A' + 10 : -1;
+}
+
+/* ---- Hex-decode a fixed-length string into a byte buffer ----
+ *
+ * WHAT: Decodes `hexlen` hex chars at `hex` into `out`, writing hexlen/2 bytes.
+ *       Returns the number of bytes written, or -1 on an odd length, an
+ *       over-capacity request, or any bad nibble.
+ *
+ * WHY:  Salt and stored-hash fields in brix_pwd_file are stored as hex; a
+ *       precise decoder (rejecting odd lengths and non-hex bytes) is part of
+ *       the credential-parsing contract.
+ *
+ * HOW:  1. Reject an odd length or a decode that would overflow `outcap`.
+ *       2. For each byte, decode the high and low nibbles via pwd_hex_nibble.
+ *          The input bytes are cast through unsigned char so high-bit values
+ *          stay non-negative (signed-char-misuse); they still fail every hex
+ *          range check inside the nibble decoder.
+ *       3. Reject if either nibble is invalid; otherwise pack hi:lo into out.
+ *       4. Return the byte count on success.
+ */
 static int
 pwd_from_hex(const char *hex, size_t hexlen, uint8_t *out, size_t outcap)
 {
@@ -32,16 +72,9 @@ pwd_from_hex(const char *hex, size_t hexlen, uint8_t *out, size_t outcap)
         return -1;
     }
     for (i = 0; i < hexlen; i += 2) {
-        /* Cast via unsigned char so high-bit input bytes stay non-negative
-         * (signed-char-misuse); they still fail every hex range check. */
-        int hi = (unsigned char) hex[i], lo = (unsigned char) hex[i + 1];
+        int hi = pwd_hex_nibble((unsigned char) hex[i]);
+        int lo = pwd_hex_nibble((unsigned char) hex[i + 1]);
 
-        hi = (hi >= '0' && hi <= '9') ? hi - '0'
-           : (hi >= 'a' && hi <= 'f') ? hi - 'a' + 10
-           : (hi >= 'A' && hi <= 'F') ? hi - 'A' + 10 : -1;
-        lo = (lo >= '0' && lo <= '9') ? lo - '0'
-           : (lo >= 'a' && lo <= 'f') ? lo - 'a' + 10
-           : (lo >= 'A' && lo <= 'F') ? lo - 'A' + 10 : -1;
         if (hi < 0 || lo < 0) {
             return -1;
         }

@@ -1,4 +1,4 @@
-#compdef xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin brixMount xrdstorascan xrdcrc32c xrdcrc64 xrdadler32 xrdckverify xrdcinfo xrootdfs
+#compdef xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin-brix brixMount xrdstorascan xrdcrc32c xrdcrc64 xrdadler32 xrdckverify xrdcinfo xrootdfs
 
 # _brix-client — zsh completion for the brix client CLI suite.
 #
@@ -24,7 +24,7 @@ _brix-client() {
     (xrd)                                _brix_xrd ;;
     (xrdprep)                            _brix_xrdprep ;;
     (xrdgsiproxy)                        _brix_xrdgsiproxy ;;
-    (xrdsssadmin)                        _brix_xrdsssadmin ;;
+    (xrdsssadmin-brix)                   _brix_xrdsssadmin ;;
     (brixMount)                          _brix_brixMount ;;
     (xrdstorascan)                       _brix_xrdstorascan ;;
     (xrootdfs)                           _brix_xrootdfs ;;

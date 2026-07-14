@@ -53,10 +53,12 @@ EVP_PKEY * gsi_dh_keygen_with(EVP_PKEY *dhparams);
 /* gsi_cipher.c */
 void gsi_load_legacy_once(void);
 
-/* gsi_core.c */
+/* gsi_core_cresp_util.c — round-2 cert-response leaf helpers, shared with the
+ * round-2 state machine in gsi_core_cresp.c (phase-79 file-size split). */
 EVP_PKEY * gsi_cresp_cert_pubkey(const uint8_t *pem, size_t len);
 char * gsi_cresp_export_pubkey_pem(EVP_PKEY *key, size_t *outlen);
 size_t gsi_cresp_pick_md_alg(const uint8_t *sbody, uint32_t slen, char *out, size_t outcap);
 int gsi_cresp_fail(gsi_cresp_ctx *x, char *err, size_t errcap, const char *msg);
+void gsi_add_fullproxy_bucket(brix_gbuf *inner);
 
 #endif /* BRIX_GSI_CORE_INTERNAL_H */

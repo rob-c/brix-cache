@@ -276,23 +276,133 @@ brix_is_block_url(const char *s)
     return (strncmp(s, "block://", 8) == 0 || strncmp(s, "/dev/", 5) == 0);
 }
 
+/*
+ * weburl_match_scheme — map a web URL string to its scheme-table row.
+ *
+ * WHAT: linear-scan WEB_SCHEMES for the first prefix that `s` starts with.
+ * WHY:  proto/TLS/S3-ness/default-port all derive from the matched row; a single
+ *       lookup keeps that decision in one place and out of the parse body.
+ * HOW:  prefix test per row; return the row pointer or NULL when none match.
+ */
+static const web_scheme *
+weburl_match_scheme(const char *s)
+{
+    size_t i;
+    for (i = 0; i < sizeof(WEB_SCHEMES) / sizeof(WEB_SCHEMES[0]); i++) {
+        if (starts_with(s, WEB_SCHEMES[i].prefix)) {
+            return &WEB_SCHEMES[i];
+        }
+    }
+    return NULL;
+}
+
+/*
+ * weburl_parse_bracket_host — parse a "[IPv6]" host literal and optional port.
+ *
+ * WHAT: `p` points at '['; copy the bracketed literal into out->host and, when a
+ *       ':' immediately follows the ']', set out->port from the digits after it.
+ * WHY:  IPv6 literals must be delimited by brackets so the ':' bytes inside the
+ *       address are not mistaken for the host:port separator.
+ * HOW:  find ']', bound-check the enclosed length, copy, then read a trailing
+ *       ":port". Returns the byte just past ']' (start of the path scan) so the
+ *       caller resumes exactly where the original inline code did; NULL on error
+ *       (missing ']', empty literal, or host overflow).
+ */
+static const char *
+weburl_parse_bracket_host(const char *p, brix_weburl *out)
+{
+    const char *rb = strchr(p, ']');
+    size_t      n;
+
+    if (rb == NULL) {
+        return NULL;
+    }
+    n = (size_t) (rb - (p + 1));
+    if (n == 0 || n >= sizeof(out->host)) {
+        return NULL;
+    }
+    memcpy(out->host, p + 1, n);
+    out->host[n] = '\0';
+    p = rb + 1;
+    if (*p == ':') {
+        out->port = atoi(p + 1);
+    }
+    return p;
+}
+
+/*
+ * weburl_parse_plain_host — parse a bare "host[:port]" authority (no brackets).
+ *
+ * WHAT: scan from `hoststart` up to the first '/' or end; the last ':' before it
+ *       (if any) separates the port; copy the host and set out->port.
+ * WHY:  the non-IPv6 host case shares the port default already seeded by the
+ *       scheme row, and must stop the host at the path boundary '/'.
+ * HOW:  single forward scan records the colon and the end; bound-check and copy
+ *       the host, then read the port. Returns 0 on success, -1 on empty host or
+ *       host overflow. `hoststart` is unchanged, so the caller scans the path
+ *       from the same pointer the original code used.
+ */
+static int
+weburl_parse_plain_host(const char *hoststart, brix_weburl *out)
+{
+    const char *colon = NULL, *e;
+    const char *hend;
+    size_t      n;
+
+    for (e = hoststart; *e != '\0' && *e != '/'; e++) {
+        if (*e == ':') {
+            colon = e;
+        }
+    }
+    hend = colon ? colon : e;
+    n = (size_t) (hend - hoststart);
+    if (n == 0 || n >= sizeof(out->host)) {
+        return -1;
+    }
+    memcpy(out->host, hoststart, n);
+    out->host[n] = '\0';
+    if (colon != NULL) {
+        out->port = atoi(colon + 1);
+    }
+    return 0;
+}
+
+/*
+ * weburl_copy_path — copy the path remainder into out->path (default "/").
+ *
+ * WHAT: from `p`, the first '/' onward is the path; when there is none the path
+ *       defaults to "/". Copy it into out->path.
+ * WHY:  every web URL resolves to an absolute path; callers rely on a leading
+ *       '/' even when the URL carried only an authority.
+ * HOW:  strchr for '/'; reject (never silently truncate) an over-long path.
+ *       Returns 0 on success, -1 on overflow.
+ */
+static int
+weburl_copy_path(const char *p, brix_weburl *out)
+{
+    const char *slash = strchr(p, '/');
+    const char *pp    = slash ? slash : "/";
+    size_t      pl    = strlen(pp);
+
+    if (pl >= sizeof(out->path)) {
+        return -1;
+    }
+    memcpy(out->path, pp, pl + 1);
+    return 0;
+}
+
 int
 brix_weburl_parse(const char *s, brix_weburl *out)
 {
-    const web_scheme *sc = NULL;
-    const char       *p, *hoststart, *slash;
-    size_t            i;
+    const web_scheme *sc;
+    const char       *p;
 
     if (s == NULL || out == NULL) {
         return -1;
     }
     memset(out, 0, sizeof(*out));
-    for (i = 0; i < sizeof(WEB_SCHEMES) / sizeof(WEB_SCHEMES[0]); i++) {
-        if (starts_with(s, WEB_SCHEMES[i].prefix)) {
-            sc = &WEB_SCHEMES[i];
-            break;
-        }
-    }
+
+    sc = weburl_match_scheme(s);
     if (sc == NULL) {
         return -1;
     }
@@ -301,55 +411,19 @@ brix_weburl_parse(const char *s, brix_weburl *out)
     out->is_s3 = sc->is_s3;
     out->port  = sc->defport;
     p = s + strlen(sc->prefix);
-    hoststart = p;
 
     if (*p == '[') {                                   /* [IPv6] literal */
-        const char *rb = strchr(p, ']');
-        size_t      n;
-        if (rb == NULL) {
+        p = weburl_parse_bracket_host(p, out);
+        if (p == NULL) {
             return -1;
-        }
-        n = (size_t) (rb - (p + 1));
-        if (n == 0 || n >= sizeof(out->host)) {
-            return -1;
-        }
-        memcpy(out->host, p + 1, n);
-        out->host[n] = '\0';
-        p = rb + 1;
-        if (*p == ':') {
-            out->port = atoi(p + 1);
         }
     } else {
-        const char *colon = NULL, *e;
-        const char *hend;
-        size_t      n;
-        for (e = hoststart; *e != '\0' && *e != '/'; e++) {
-            if (*e == ':') {
-                colon = e;
-            }
-        }
-        hend = colon ? colon : e;
-        n = (size_t) (hend - hoststart);
-        if (n == 0 || n >= sizeof(out->host)) {
+        if (weburl_parse_plain_host(p, out) != 0) {
             return -1;
-        }
-        memcpy(out->host, hoststart, n);
-        out->host[n] = '\0';
-        if (colon != NULL) {
-            out->port = atoi(colon + 1);
         }
     }
     if (out->port <= 0 || out->port > 65535) {
         return -1;
     }
-    slash = strchr(p, '/');
-    {
-        const char *pp = slash ? slash : "/";
-        size_t      pl = strlen(pp);
-        if (pl >= sizeof(out->path)) {
-            return -1;   /* reject (don't silently truncate) an over-long path */
-        }
-        memcpy(out->path, pp, pl + 1);
-    }
-    return 0;
+    return weburl_copy_path(p, out);
 }

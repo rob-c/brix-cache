@@ -39,6 +39,76 @@ do_stat(brix_conn *c, const char *cwd, int argc, char **argv)
 }
 
 
+/* ---- Print one ls directory entry line ----
+ *
+ * WHAT: Emits a single directory entry to stdout — the long "drw SIZE
+ *       prefixNAME" form when want_long is set and the entry carries stat data,
+ *       otherwise the plain "prefixNAME" form. Returns nothing.
+ *
+ * WHY:  The per-entry formatting is the branchiest part of listing a directory;
+ *       pulling it out keeps ls_print_dir's control flow (dirlist, loop,
+ *       recurse) flat and under the complexity cap.
+ *
+ * HOW:  1. When want_long and the entry has stat data, derive the type and rwx
+ *          glyphs from the flags and format the size through fmt_size.
+ *       2. Otherwise print just the prefixed name.
+ */
+static void
+ls_print_entry(const brix_dirent *ent, const char *prefix, int want_long,
+               int human)
+{
+    if (want_long && ent->have_stat) {
+        int  f  = ent->st.flags;
+        char td = (f & kXR_isDir)    ? 'd' : '-';
+        char r  = (f & kXR_readable) ? 'r' : '-';
+        char w  = (f & kXR_writable) ? 'w' : '-';
+        char szs[32];
+        fmt_size(ent->st.size, szs, sizeof(szs), human);
+        printf("%c%c%c %12s %s%s\n", td, r, w, szs, prefix, ent->name);
+    } else {
+        printf("%s%s\n", prefix, ent->name);
+    }
+}
+
+
+/* ---- Recurse into each subdirectory (ls -R) ----
+ *
+ * WHAT: For every child of an already-listed directory that is a real
+ *       subdirectory, prints a "fullpath:" section header and lists it
+ *       recursively. Returns 0 on success, -1 if any recursive listing fails.
+ *
+ * WHY:  Isolating the descent loop from the entry-printing loop keeps each loop
+ *       single-purpose and holds ls_print_dir under the complexity cap.
+ *
+ * HOW:  1. Skip "." / ".." and any entry not flagged kXR_isDir with stat data
+ *          (directory symlinks report kXR_other and are listed, not descended).
+ *       2. Join the parent path and child name; skip entries that overflow.
+ *       3. Print the section header and recurse, propagating a failure as -1.
+ */
+static int
+ls_recurse_subdirs(brix_conn *c, const char *path, const brix_dirent *ents,
+                   size_t n, int want_long, int human, brix_status *st)
+{
+    size_t k;
+
+    for (k = 0; k < n; k++) {
+        char full[XRDC_PATH_MAX];
+        if (is_dot(ents[k].name)
+            || !(ents[k].have_stat && (ents[k].st.flags & kXR_isDir))) {
+            continue;
+        }
+        if (join_path(path, ents[k].name, full, sizeof(full)) != 0) {
+            continue;
+        }
+        printf("\n%s:\n", full);
+        if (ls_print_dir(c, full, want_long, 1, human, st) != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+
 /* Print one directory's entries; if recursive, descend into each subdir under a
  * "fullpath:" section header (classic ls -R). 0 / -1. */
 
@@ -60,34 +130,12 @@ ls_print_dir(brix_conn *c, const char *path, int want_long, int recursive,
     snprintf(prefix, sizeof(prefix), "%s%s", path, sep);
 
     for (k = 0; k < n; k++) {
-        if (want_long && ents[k].have_stat) {
-            int  f  = ents[k].st.flags;
-            char td = (f & kXR_isDir)    ? 'd' : '-';
-            char r  = (f & kXR_readable) ? 'r' : '-';
-            char w  = (f & kXR_writable) ? 'w' : '-';
-            char szs[32];
-            fmt_size(ents[k].st.size, szs, sizeof(szs), human);
-            printf("%c%c%c %12s %s%s\n", td, r, w, szs, prefix, ents[k].name);
-        } else {
-            printf("%s%s\n", prefix, ents[k].name);
-        }
+        ls_print_entry(&ents[k], prefix, want_long, human);
     }
-    if (recursive) {
-        for (k = 0; k < n; k++) {
-            char full[XRDC_PATH_MAX];
-            if (is_dot(ents[k].name)
-                || !(ents[k].have_stat && (ents[k].st.flags & kXR_isDir))) {
-                continue;
-            }
-            if (join_path(path, ents[k].name, full, sizeof(full)) != 0) {
-                continue;
-            }
-            printf("\n%s:\n", full);
-            if (ls_print_dir(c, full, want_long, 1, human, st) != 0) {
-                free(ents);
-                return -1;
-            }
-        }
+    if (recursive
+        && ls_recurse_subdirs(c, path, ents, n, want_long, human, st) != 0) {
+        free(ents);
+        return -1;
     }
     free(ents);
     return 0;
@@ -471,6 +519,115 @@ do_df(brix_conn *c, const char *cwd, int argc, char **argv)
 }
 
 
+/* ---- Parse touch's argument vector ----
+ *
+ * WHAT: Scans argv for -c/-a/-m/-t|--timestamp flags and the single path
+ *       operand, writing each into the caller's out-params. Returns 0 on
+ *       success, or 50 (after printing a diagnostic) on a malformed
+ *       -t/--timestamp value.
+ *
+ * WHY:  The flag scan — especially the -t branch that consumes the next argv
+ *       slot and parses a timestamp — is what pushes do_touch over the
+ *       complexity cap; isolating it keeps the command body linear.
+ *
+ * HOW:  1. Walk argv setting the boolean out-param for each recognised option.
+ *       2. For -t/--timestamp with a following argument, parse it into *tspec
+ *          via touch_parse_time; on failure print the usage hint and return 50.
+ *       3. Treat any other token (including a bare -t with no following value,
+ *          matching the original loop) as the path operand, last one winning.
+ */
+static int
+touch_parse_argv(int argc, char **argv, int *no_create, int *do_atime,
+                 int *do_mtime, int *have_t, struct timespec *tspec,
+                 const char **arg)
+{
+    int i;
+
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-c") == 0)      { *no_create = 1; }
+        else if (strcmp(argv[i], "-a") == 0) { *do_atime = 1; }
+        else if (strcmp(argv[i], "-m") == 0) { *do_mtime = 1; }
+        else if ((strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--timestamp") == 0)
+                 && i + 1 < argc) {
+            if (touch_parse_time(argv[++i], tspec) != 0) {
+                fprintf(stderr, "xrdfs: touch: bad -t/--timestamp value '%s' "
+                                "(want [[CC]YY]MMDDhhmm[.ss])\n", argv[i]);
+                return 50;
+            }
+            *have_t = 1;
+        } else { *arg = argv[i]; }
+    }
+    return 0;
+}
+
+
+/* ---- Populate the utimensat times[2] pair for touch ----
+ *
+ * WHAT: Fills times[0] (atime) and times[1] (mtime) with UTIME_NOW, an explicit
+ *       parsed timestamp, or UTIME_OMIT according to which fields touch selected.
+ *
+ * WHY:  Encapsulates the per-field UTIME_NOW / OMIT / explicit decision so
+ *       do_touch reads as a flat sequence and stays under the complexity cap.
+ *
+ * HOW:  1. Zero tv_sec for both slots; set tv_nsec to UTIME_NOW when the field
+ *          is selected without an explicit -t, UTIME_OMIT when unselected, and 0
+ *          (a real seconds value follows) when an explicit -t was given.
+ *       2. When have_t is set, copy tspec into each selected slot.
+ */
+static void
+touch_fill_times(struct timespec times[2], int do_atime, int do_mtime,
+                 int have_t, const struct timespec *tspec)
+{
+    times[0].tv_sec = times[1].tv_sec = 0;
+    times[0].tv_nsec = do_atime ? (have_t ? 0 : UTIME_NOW) : UTIME_OMIT;
+    times[1].tv_nsec = do_mtime ? (have_t ? 0 : UTIME_NOW) : UTIME_OMIT;
+    if (have_t) {
+        if (do_atime) { times[0] = *tspec; }
+        if (do_mtime) { times[1] = *tspec; }
+    }
+}
+
+
+/* ---- Ensure the touch target exists before stamping ----
+ *
+ * WHAT: With no_create set, reports whether the file is absent; otherwise
+ *       creates the file if it does not exist. Returns 1 when do_touch should
+ *       stop early with success (-c on an absent file), 0 to proceed to setattr.
+ *
+ * WHY:  POSIX touch treats -c on a missing file as a silent no-op and otherwise
+ *       creates the file before stamping; isolating that keeps do_touch's error
+ *       handling focused on the setattr call that actually reports failures.
+ *
+ * HOW:  1. Under -c, stat the path; an absent file returns 1 (no-op), an
+ *          existing file returns 0 to continue to the stamp.
+ *       2. Otherwise open write with force=0 (kXR_new); on success close it. An
+ *          already-existing file makes the open fail, which is ignored — the
+ *          file is present and the caller's setattr still runs. Returns 0.
+ */
+static int
+touch_ensure_file(brix_conn *c, const char *path, int no_create)
+{
+    brix_status cs;
+
+    if (no_create) {
+        brix_statinfo si;
+        brix_status_clear(&cs);
+        if (brix_stat(c, path, &si, &cs) != 0) { return 1; }
+        return 0;
+    }
+    /* Create-if-absent: force=0 ⇒ kXR_new (fails if it already exists, which we
+     * ignore — the file is there and the setattr below still runs). */
+    {
+        brix_file f;
+        brix_status_clear(&cs);
+        if (brix_file_open_write(c, path, 0 /*force=new*/, 0 /*posc*/, &f, &cs) == 0) {
+            brix_file_close(c, &f, &cs);
+        }
+    }
+    return 0;
+}
+
+
 /* touch [-c] [-a] [-m] [-t STAMP] <path> — create the file if absent (unless -c) and
  * set its access/modification times (default: both to now). -a/-m restrict to
  * atime/mtime; -t sets an explicit [[CC]YY]MMDDhhmm[.ss] time. NEVER changes
@@ -482,21 +639,14 @@ do_touch(brix_conn *c, const char *cwd, int argc, char **argv)
     char            path[XRDC_PATH_MAX];
     struct timespec times[2], tspec;
     const char     *arg = NULL;
-    int             no_create = 0, do_atime = 0, do_mtime = 0, have_t = 0, i;
+    int             no_create = 0, do_atime = 0, do_mtime = 0, have_t = 0, prc;
 
-    for (i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-c") == 0)      { no_create = 1; }
-        else if (strcmp(argv[i], "-a") == 0) { do_atime = 1; }
-        else if (strcmp(argv[i], "-m") == 0) { do_mtime = 1; }
-        else if ((strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--timestamp") == 0)
-                 && i + 1 < argc) {
-            if (touch_parse_time(argv[++i], &tspec) != 0) {
-                fprintf(stderr, "xrdfs: touch: bad -t/--timestamp value '%s' "
-                                "(want [[CC]YY]MMDDhhmm[.ss])\n", argv[i]);
-                return 50;
-            }
-            have_t = 1;
-        } else { arg = argv[i]; }
+    tspec.tv_sec  = 0;   /* unused unless have_t; init to silence -Wmaybe-uninit */
+    tspec.tv_nsec = 0;
+    prc = touch_parse_argv(argc, argv, &no_create, &do_atime, &do_mtime,
+                           &have_t, &tspec, &arg);
+    if (prc != 0) {
+        return prc;
     }
     if (arg == NULL) {
         fprintf(stderr, "usage: touch [-c] [-a] [-m] [-t/--timestamp STAMP] <path>\n");
@@ -506,29 +656,10 @@ do_touch(brix_conn *c, const char *cwd, int argc, char **argv)
     build_path(cwd, arg, path, sizeof(path));
 
     /* atime = slot 0, mtime = slot 1; per-field UTIME_OMIT when not selected. */
-    times[0].tv_sec = times[1].tv_sec = 0;
-    times[0].tv_nsec = do_atime ? (have_t ? 0 : UTIME_NOW) : UTIME_OMIT;
-    times[1].tv_nsec = do_mtime ? (have_t ? 0 : UTIME_NOW) : UTIME_OMIT;
-    if (have_t) {
-        if (do_atime) { times[0] = tspec; }
-        if (do_mtime) { times[1] = tspec; }
-    }
+    touch_fill_times(times, do_atime, do_mtime, have_t, &tspec);
 
-    if (no_create) {
-        /* -c: an absent file is a silent no-op (POSIX). */
-        brix_statinfo si;
-        brix_status   pst;
-        brix_status_clear(&pst);
-        if (brix_stat(c, path, &si, &pst) != 0) { return 0; }
-    } else {
-        /* Create-if-absent: force=0 ⇒ kXR_new (fails if it already exists, which we
-         * ignore — the file is there and the setattr below still runs). */
-        brix_file   f;
-        brix_status cs;
-        brix_status_clear(&cs);
-        if (brix_file_open_write(c, path, 0 /*force=new*/, 0 /*posc*/, &f, &cs) == 0) {
-            brix_file_close(c, &f, &cs);
-        }
+    if (touch_ensure_file(c, path, no_create)) {
+        return 0;
     }
 
     brix_status_clear(&st);
@@ -674,19 +805,120 @@ xattr_ls(brix_conn *c, const char *path)
 }
 
 
+/* ---- Is argv[1] a recognised xattr subcommand keyword? ----
+ *
+ * WHAT: Returns 1 when the token is one of ls/get/set/rm, 0 otherwise.
+ *
+ * WHY:  `xattr <path>` with no subcommand is shorthand for `xattr ls <path>`;
+ *       factoring the four-way keyword test out keeps do_xattr's dispatch under
+ *       the complexity cap.
+ *
+ * HOW:  Compare the token against each of the four recognised subcommand names.
+ */
+static int
+xattr_is_subcommand(const char *s)
+{
+    return strcmp(s, "ls") == 0 || strcmp(s, "get") == 0
+        || strcmp(s, "set") == 0 || strcmp(s, "rm") == 0;
+}
+
+
+/* ---- xattr get <path> <name> ----
+ *
+ * WHAT: Fetches one attribute value and writes it to stdout followed by a
+ *       newline. Returns 0 on success, 50 on a usage error, or the mapped shell
+ *       code on a protocol failure.
+ *
+ * WHY:  Splits the get branch out of do_xattr's dispatch so each subcommand is
+ *       independently readable and the dispatcher stays flat.
+ *
+ * HOW:  1. Require the <name> argument.
+ *       2. Call brix_fattr_get; on error report the message and map the status.
+ *       3. Write the raw value bytes (clamped to the buffer) and a newline.
+ */
+static int
+xattr_get(brix_conn *c, const char *path, int argc, char **argv)
+{
+    brix_status st;
+    char        val[8192];
+    size_t      vlen = 0;
+
+    if (argc < 4) { fprintf(stderr, "usage: xattr get <path> <name>\n"); return 50; }
+    brix_status_clear(&st);
+    if (brix_fattr_get(c, path, argv[3], val, sizeof(val), &vlen, &st) != 0) {
+        fprintf(stderr, "xrdfs: xattr get %s [%s]: %s\n", path, argv[3], st.msg);
+        return brix_shellcode(&st);
+    }
+    fwrite(val, 1, vlen < sizeof(val) ? vlen : sizeof(val), stdout);
+    printf("\n");
+    return 0;
+}
+
+
+/* ---- xattr set <path> <name> <value> ----
+ *
+ * WHAT: Sets or replaces one attribute value. Returns 0 on success, 50 on a
+ *       usage error, or the mapped shell code on a protocol failure.
+ *
+ * WHY:  Splits the set branch out of do_xattr's dispatch so each subcommand is
+ *       independently readable and the dispatcher stays flat.
+ *
+ * HOW:  1. Require the <name> and <value> arguments.
+ *       2. Call brix_fattr_set with the value's byte length; on error report
+ *          the message and map the status.
+ */
+static int
+xattr_set(brix_conn *c, const char *path, int argc, char **argv)
+{
+    brix_status st;
+
+    if (argc < 5) { fprintf(stderr, "usage: xattr set <path> <name> <value>\n"); return 50; }
+    brix_status_clear(&st);
+    if (brix_fattr_set(c, path, argv[3], argv[4], strlen(argv[4]), 0, &st) != 0) {
+        fprintf(stderr, "xrdfs: xattr set %s [%s]: %s\n", path, argv[3], st.msg);
+        return brix_shellcode(&st);
+    }
+    return 0;
+}
+
+
+/* ---- xattr rm <path> <name> ----
+ *
+ * WHAT: Deletes one attribute. Returns 0 on success, 50 on a usage error, or the
+ *       mapped shell code on a protocol failure.
+ *
+ * WHY:  Splits the rm branch out of do_xattr's dispatch so each subcommand is
+ *       independently readable and the dispatcher stays flat.
+ *
+ * HOW:  1. Require the <name> argument.
+ *       2. Call brix_fattr_del; on error report the message and map the status.
+ */
+static int
+xattr_rm(brix_conn *c, const char *path, int argc, char **argv)
+{
+    brix_status st;
+
+    if (argc < 4) { fprintf(stderr, "usage: xattr rm <path> <name>\n"); return 50; }
+    brix_status_clear(&st);
+    if (brix_fattr_del(c, path, argv[3], &st) != 0) {
+        fprintf(stderr, "xrdfs: xattr rm %s [%s]: %s\n", path, argv[3], st.msg);
+        return brix_shellcode(&st);
+    }
+    return 0;
+}
+
+
 int
 do_xattr(brix_conn *c, const char *cwd, int argc, char **argv)
 {
-    brix_status st;
-    char        path[XRDC_PATH_MAX];
+    char path[XRDC_PATH_MAX];
 
     if (argc < 2) {
         fprintf(stderr, "usage: xattr ls|get|set|rm <path> [name] [value]\n");
         return 50;
     }
     /* `xattr <path>` (no subcommand) → list. */
-    if (strcmp(argv[1], "ls") != 0 && strcmp(argv[1], "get") != 0
-        && strcmp(argv[1], "set") != 0 && strcmp(argv[1], "rm") != 0) {
+    if (!xattr_is_subcommand(argv[1])) {
         build_path(cwd, argv[1], path, sizeof(path));
         return xattr_ls(c, path);
     }
@@ -695,38 +927,11 @@ do_xattr(brix_conn *c, const char *cwd, int argc, char **argv)
         return 50;
     }
     build_path(cwd, argv[2], path, sizeof(path));
-    brix_status_clear(&st);
 
-    if (strcmp(argv[1], "ls") == 0) {
-        return xattr_ls(c, path);
-    }
-    if (strcmp(argv[1], "get") == 0) {
-        char   val[8192];
-        size_t vlen = 0;
-        if (argc < 4) { fprintf(stderr, "usage: xattr get <path> <name>\n"); return 50; }
-        if (brix_fattr_get(c, path, argv[3], val, sizeof(val), &vlen, &st) != 0) {
-            fprintf(stderr, "xrdfs: xattr get %s [%s]: %s\n", path, argv[3], st.msg);
-            return brix_shellcode(&st);
-        }
-        fwrite(val, 1, vlen < sizeof(val) ? vlen : sizeof(val), stdout);
-        printf("\n");
-        return 0;
-    }
-    if (strcmp(argv[1], "set") == 0) {
-        if (argc < 5) { fprintf(stderr, "usage: xattr set <path> <name> <value>\n"); return 50; }
-        if (brix_fattr_set(c, path, argv[3], argv[4], strlen(argv[4]), 0, &st) != 0) {
-            fprintf(stderr, "xrdfs: xattr set %s [%s]: %s\n", path, argv[3], st.msg);
-            return brix_shellcode(&st);
-        }
-        return 0;
-    }
-    /* rm */
-    if (argc < 4) { fprintf(stderr, "usage: xattr rm <path> <name>\n"); return 50; }
-    if (brix_fattr_del(c, path, argv[3], &st) != 0) {
-        fprintf(stderr, "xrdfs: xattr rm %s [%s]: %s\n", path, argv[3], st.msg);
-        return brix_shellcode(&st);
-    }
-    return 0;
+    if (strcmp(argv[1], "ls") == 0)  { return xattr_ls(c, path); }
+    if (strcmp(argv[1], "get") == 0) { return xattr_get(c, path, argc, argv); }
+    if (strcmp(argv[1], "set") == 0) { return xattr_set(c, path, argc, argv); }
+    return xattr_rm(c, path, argc, argv);   /* the only remaining subcommand */
 }
 
 

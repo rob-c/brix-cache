@@ -96,6 +96,108 @@ brix_token_explain(const char *jwt, FILE *out)
 }
 
 /*
+ * Apply the JWT `exp` claim to *m (m->exp + m->expired).
+ *
+ * WHAT: if `json` carries a top-level `exp`, record its epoch value in m->exp and
+ *       set m->expired when that instant is at/before the local clock. No-op when
+ *       the claim is absent (m keeps its zeroed exp/expired).
+ * WHY:  isolating the expiry classification keeps brix_token_meta_get a flat
+ *       sequence of one-claim steps rather than one branchy procedure — the exp
+ *       comparison is the single fact the doctor oracle needs to predict a deny.
+ * HOW:  (1) extract `exp` with the shared JSON scanner; (2) strtol to epoch;
+ *       (3) mark expired only for a positive exp that is <= now (guarding a
+ *       missing/zero value from spuriously reading as expired).
+ */
+static void
+token_meta_apply_exp(const char *json, brix_token_meta *m)
+{
+    char expbuf[32];
+
+    if (json_str(json, "exp", expbuf, sizeof(expbuf))) {
+        m->exp = strtol(expbuf, NULL, 10);
+        m->expired = (m->exp > 0 && m->exp <= (long) time(NULL));
+    }
+}
+
+/*
+ * Set m->has_read / m->has_write from the SHARED parser's WLCG scope flags.
+ *
+ * WHAT: fold the `nsc` parsed WLCG scopes into a path-agnostic "any read-capable
+ *       scope?" / "any write-capable scope?" pair on *m.
+ * WHY:  the read/write reduction over the parser's exact permission flags is the
+ *       authoritative branch — pulling it out keeps token_meta_apply_scope's
+ *       parsed-vs-heuristic choice readable and this reduction independently
+ *       testable against the server's grant semantics.
+ * HOW:  walk each parsed scope; OR its `read` flag into m->has_read and its
+ *       write/create/modify flags into m->has_write (any one implies writable).
+ */
+static void
+token_scope_from_parsed(const brix_token_scope_t *sc, int nsc, brix_token_meta *m)
+{
+    int i;
+
+    for (i = 0; i < nsc; i++) {
+        if (sc[i].read) { m->has_read = 1; }
+        if (sc[i].write || sc[i].create || sc[i].modify) { m->has_write = 1; }
+    }
+}
+
+/*
+ * Fail-soft keyword classification of an opaque (non-WLCG) scope string.
+ *
+ * WHAT: set m->has_read / m->has_write by substring-matching read / write /
+ *       create / modify in a scope the WLCG parser yielded nothing for.
+ * WHY:  an opaque or non-standard `scope` claim must still produce a best-effort
+ *       answer rather than silently reading as no-access; isolating the legacy
+ *       heuristic keeps it clearly the fallback path, not the primary one.
+ * HOW:  substring-test `read` for has_read; treat any of write/create/modify as
+ *       write-capable (deliberately generous — the server stays the real gate).
+ */
+static void
+token_scope_from_heuristic(const char *scope, brix_token_meta *m)
+{
+    m->has_read  = (strstr(scope, "read") != NULL);
+    m->has_write = (strstr(scope, "write") != NULL
+                    || strstr(scope, "create") != NULL
+                    || strstr(scope, "modify") != NULL);
+}
+
+/*
+ * Apply the JWT `scope` claim to *m (has_scope + has_read/has_write).
+ *
+ * WHAT: if `json` carries a top-level `scope`, mark m->has_scope and derive the
+ *       read/write capability, preferring the SHARED WLCG parser and falling back
+ *       to the keyword heuristic only when the parser yields no scopes.
+ * WHY:  centralising the parsed-vs-heuristic decision in one helper keeps the
+ *       parser the single source of truth (matching the server's grant) with a
+ *       clearly-secondary fallback, and flattens brix_token_meta_get.
+ * HOW:  (1) extract `scope`; (2) set has_scope; (3) parse with
+ *       brix_token_parse_scopes; (4) if it produced scopes, reduce them via
+ *       token_scope_from_parsed, else classify the raw string via
+ *       token_scope_from_heuristic.
+ */
+static void
+token_meta_apply_scope(const char *json, brix_token_meta *m)
+{
+    char scope[1024];
+
+    if (json_str(json, "scope", scope, sizeof(scope))) {
+        brix_token_scope_t sc[16];
+        int nsc = brix_token_parse_scopes(scope, sc, 16);
+        m->has_scope = 1;
+        if (nsc > 0) {
+            /* Path-agnostic "any read/write-capable scope?" derived from the
+             * shared parser's exact WLCG permission flags, matching the server. */
+            token_scope_from_parsed(sc, nsc, m);
+        } else {
+            /* Fail-soft: an opaque/non-WLCG scope the parser yields nothing for
+             * falls back to the legacy keyword heuristic (be generous on write). */
+            token_scope_from_heuristic(scope, m);
+        }
+    }
+}
+
+/*
  * WHAT: fill *m with a bearer token's machine-readable facts (validity + WLCG
  *       read/write scope presence). m->valid=0 if the JWT can't be parsed.
  * WHY:  the remote-doctor auth-suite must know, programmatically, whether a token
@@ -111,7 +213,6 @@ void
 brix_token_meta_get(const char *jwt, brix_token_meta *m)
 {
     char json[8192];
-    char scope[1024];
 
     if (m == NULL) {
         return;
@@ -124,35 +225,8 @@ brix_token_meta_get(const char *jwt, brix_token_meta *m)
         return;
     }
     m->valid = 1;
-    {
-        char expbuf[32];
-        if (json_str(json, "exp", expbuf, sizeof(expbuf))) {
-            m->exp = strtol(expbuf, NULL, 10);
-            m->expired = (m->exp > 0 && m->exp <= (long) time(NULL));
-        }
-    }
-    if (json_str(json, "scope", scope, sizeof(scope))) {
-        brix_token_scope_t sc[16];
-        int nsc = brix_token_parse_scopes(scope, sc, 16);
-        m->has_scope = 1;
-        if (nsc > 0) {
-            /* Path-agnostic "any read/write-capable scope?" derived from the
-             * shared parser's exact WLCG permission flags (read vs
-             * write/create/modify), matching what the server would grant. */
-            int i;
-            for (i = 0; i < nsc; i++) {
-                if (sc[i].read) { m->has_read = 1; }
-                if (sc[i].write || sc[i].create || sc[i].modify) { m->has_write = 1; }
-            }
-        } else {
-            /* Fail-soft: an opaque/non-WLCG scope the parser yields nothing for
-             * falls back to the legacy keyword heuristic (be generous on write). */
-            m->has_read  = (strstr(scope, "read") != NULL);
-            m->has_write = (strstr(scope, "write") != NULL
-                            || strstr(scope, "create") != NULL
-                            || strstr(scope, "modify") != NULL);
-        }
-    }
+    token_meta_apply_exp(json, m);
+    token_meta_apply_scope(json, m);
 }
 
 /* GSI proxy certificate                                              */
@@ -259,6 +333,93 @@ brix_gsi_cert_explain(const char *proxy_path, FILE *out)
 }
 
 /* Phase 40 (c): client-side pre-flight / auth-failure diagnostics      */
+
+/*
+ * Diagnose the discoverable bearer token; return 1 for a likely-fatal problem.
+ *
+ * WHAT: discover a local bearer token (env / file / XDG / /tmp); if it parses,
+ *       print — indented by `prefix` — a note for an EXPIRED token (returns 1), a
+ *       read-only token on a `want_write` op (returns 1), or a near-expiry token
+ *       (advisory only, returns 0). Returns 0 when no token, an unparseable token,
+ *       or no likely-fatal problem.
+ * WHY:  splitting the token arm out of brix_cred_diagnose keeps each credential
+ *       kind's fail-fast logic self-contained and independently reviewable, and
+ *       keeps the orchestrator a flat two-step sequence.
+ * HOW:  (1) brix_token_discover; (2) brix_token_meta_get; (3) on a valid token,
+ *       branch expired -> read-only-write -> near-expiry (first match wins,
+ *       preserving the original else-if precedence); (4) free the token.
+ */
+static int
+diagnose_token(int want_write, const char *prefix, FILE *out)
+{
+    char          *tok;
+    int            problem = 0;
+    brix_token_meta m;
+
+    tok = brix_token_discover();
+    if (tok == NULL) {
+        return 0;
+    }
+    memset(&m, 0, sizeof(m));
+    brix_token_meta_get(tok, &m);
+    if (m.valid) {
+        if (m.expired) {
+            fprintf(out, "%sbearer token has EXPIRED (exp %ld, %ld s ago) — "
+                         "obtain a fresh token and retry\n",
+                    prefix, m.exp, (long) time(NULL) - m.exp);
+            problem = 1;
+        } else if (want_write && m.has_scope && !m.has_write) {
+            fprintf(out, "%sbearer token grants READ scope only — this write "
+                         "needs a storage.write / create / modify scope\n",
+                    prefix);
+            problem = 1;
+        } else if (m.exp > 0) {
+            long secs = m.exp - (long) time(NULL);
+            if (secs >= 0 && secs < 300) {
+                fprintf(out, "%sbearer token expires in %ld s — it may expire "
+                             "mid-transfer\n", prefix, secs);
+            }
+        }
+    }
+    free(tok);
+    return problem;
+}
+
+/*
+ * Diagnose the default-path GSI proxy; return 1 for a likely-fatal problem.
+ *
+ * WHAT: if a readable GSI proxy exists at the default path and its remaining life
+ *       is computable, print — indented by `prefix` — a note for an EXPIRED proxy
+ *       (returns 1) or a near-expiry proxy (advisory only, returns 0). Returns 0
+ *       when no proxy is present or its remaining life cannot be determined.
+ * WHY:  mirrors diagnose_token so the proxy arm is self-contained; the two
+ *       credential kinds stay decoupled and the orchestrator stays flat.
+ * HOW:  (1) resolve the default proxy path; (2) require R_OK and a successful
+ *       brix_proxy_remaining; (3) classify remaining <= 0 as expired (fatal) vs
+ *       < 300 s as near-expiry (advisory).
+ */
+static int
+diagnose_proxy(const char *prefix, FILE *out)
+{
+    char pxp[1024];
+    long left = 0;
+
+    brix_proxy_default_path(pxp, sizeof(pxp));
+    if (access(pxp, R_OK) != 0 || brix_proxy_remaining(pxp, &left) != 0) {
+        return 0;
+    }
+    if (left <= 0) {
+        fprintf(out, "%sGSI proxy has EXPIRED (%s) — run 'xrdgsiproxy init'\n",
+                prefix, pxp);
+        return 1;
+    }
+    if (left < 300) {
+        fprintf(out, "%sGSI proxy expires in %ld s (%s) — it may expire "
+                     "mid-transfer\n", prefix, left, pxp);
+    }
+    return 0;
+}
+
 /*
  * WHAT: inspect whatever credential is present locally (a discoverable bearer
  *       token, then a GSI proxy at the default path) and print a specific,
@@ -275,10 +436,7 @@ brix_gsi_cert_explain(const char *proxy_path, FILE *out)
 int
 brix_cred_diagnose(int want_write, const char *prefix, FILE *out)
 {
-    int   problem = 0;
-    char *tok;
-    char  pxp[1024];
-    long  left = 0;
+    int problem = 0;
 
     if (out == NULL) {
         return 0;
@@ -288,45 +446,10 @@ brix_cred_diagnose(int want_write, const char *prefix, FILE *out)
     }
 
     /* Bearer token, if one is discoverable (env / file / XDG / /tmp). */
-    tok = brix_token_discover();
-    if (tok != NULL) {
-        brix_token_meta m;
-        memset(&m, 0, sizeof(m));
-        brix_token_meta_get(tok, &m);
-        if (m.valid) {
-            if (m.expired) {
-                fprintf(out, "%sbearer token has EXPIRED (exp %ld, %ld s ago) — "
-                             "obtain a fresh token and retry\n",
-                        prefix, m.exp, (long) time(NULL) - m.exp);
-                problem = 1;
-            } else if (want_write && m.has_scope && !m.has_write) {
-                fprintf(out, "%sbearer token grants READ scope only — this write "
-                             "needs a storage.write / create / modify scope\n",
-                        prefix);
-                problem = 1;
-            } else if (m.exp > 0) {
-                long secs = m.exp - (long) time(NULL);
-                if (secs >= 0 && secs < 300) {
-                    fprintf(out, "%sbearer token expires in %ld s — it may expire "
-                                 "mid-transfer\n", prefix, secs);
-                }
-            }
-        }
-        free(tok);
-    }
+    problem |= diagnose_token(want_write, prefix, out);
 
     /* GSI proxy, if one is present at the default path. */
-    brix_proxy_default_path(pxp, sizeof(pxp));
-    if (access(pxp, R_OK) == 0 && brix_proxy_remaining(pxp, &left) == 0) {
-        if (left <= 0) {
-            fprintf(out, "%sGSI proxy has EXPIRED (%s) — run 'xrdgsiproxy init'\n",
-                    prefix, pxp);
-            problem = 1;
-        } else if (left < 300) {
-            fprintf(out, "%sGSI proxy expires in %ld s (%s) — it may expire "
-                         "mid-transfer\n", prefix, left, pxp);
-        }
-    }
+    problem |= diagnose_proxy(prefix, out);
 
     return problem;
 }

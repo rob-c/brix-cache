@@ -33,6 +33,139 @@ unzip_sink_write(void *sc, const uint8_t *d, size_t l)
 }
 
 
+/* ---- Open the local destination sink for a ZIP-member extraction ----
+ *
+ * WHAT: Resolves `du` to a writable fd. For a stdio destination returns
+ * STDOUT_FILENO with *use_tmp cleared; for a file destination opens a temp file
+ * (path written to `tmp`) and sets *use_tmp so the caller renames on success.
+ * Returns the fd, or -1 with `st` populated (destination exists without -f, or
+ * temp open failed).
+ *
+ * WHY: The destination-setup branch (stdout vs. force-check vs. temp-open) is a
+ * self-contained decision that inflated copy_unzip past the complexity cap;
+ * isolating it keeps the orchestrator a flat sequence and this policy testable.
+ *
+ * HOW:
+ *   1. Clear *use_tmp up front (stdout and error paths leave no temp to clean).
+ *   2. For a stdio scheme, return STDOUT_FILENO.
+ *   3. Otherwise, unless -f (force) is set, refuse an existing destination.
+ *   4. Open the download temp; on failure return -1.
+ *   5. Mark *use_tmp and return the temp fd.
+ */
+static int
+copy_unzip_open_dest(const brix_url *du, const brix_copy_opts *o,
+                     char *tmp, size_t tmp_sz, int *use_tmp, brix_status *st)
+{
+    int outfd;
+
+    *use_tmp = 0;
+    if (du->scheme == XRDC_SCHEME_STDIO) {
+        return STDOUT_FILENO;
+    }
+    if (!o->force && access(du->path, F_OK) == 0) {
+        brix_status_set(st, XRDC_EUSAGE, 0,
+                        "destination exists (use -f): %s", du->path);
+        return -1;
+    }
+    outfd = open_download_temp(du->path, tmp, tmp_sz, st);
+    if (outfd < 0) {
+        return -1;
+    }
+    *use_tmp = 1;
+    return outfd;
+}
+
+
+/* ---- Locate and inflate one member of the remote ZIP archive ----
+ *
+ * WHAT: Opens the ZIP central directory of the archive of `size` bytes, finds
+ * `member`, and inflates it into `outfd` via the streaming sink. Returns 0 on
+ * success, or -1 with `st` populated (bad archive, member absent, or extract
+ * failure).
+ *
+ * WHY: The parse/find/extract block owns three failure branches that pushed
+ * copy_unzip over the complexity cap; keeping it separate confines the
+ * brix_zip_dir lifetime (freed on every exit) to one small function.
+ *
+ * HOW:
+ *   1. Open the directory; on error report "ZIP open failed" and return -1.
+ *   2. Find the member; if absent, free the dir and report "member not found".
+ *   3. Extract the member into `outfd` through unzip_sink_write.
+ *   4. Free the directory unconditionally.
+ *   5. Map a non-OK extract result to -1, else return 0.
+ */
+static int
+copy_unzip_extract_member(zip_remote_ctx *zc, uint64_t size,
+                          const char *archive_path, const char *member,
+                          int outfd, brix_status *st)
+{
+    brix_zip_dir          dir;
+    const brix_zip_entry *e;
+    int                   zr;
+
+    zr = brix_zip_open(zip_remote_pread, zc, size, &dir);
+    if (zr != XRDC_ZIP_OK) {
+        brix_status_set(st, XRDC_EUSAGE, 0,
+                        "ZIP open failed (%d) for %s", zr, archive_path);
+        return -1;
+    }
+    e = brix_zip_find(&dir, member);
+    if (e == NULL) {
+        brix_status_set(st, XRDC_EUSAGE, 0, "ZIP member not found: %s", member);
+        brix_zip_dir_free(&dir);
+        return -1;
+    }
+    {
+        unzip_sink_ctx sink = { outfd };
+        zr = brix_zip_member_extract(zip_remote_pread, zc, e,
+                                     unzip_sink_write, &sink);
+    }
+    brix_zip_dir_free(&dir);
+    if (zr != XRDC_ZIP_OK) {
+        brix_status_set(st, XRDC_EUSAGE, 0,
+                        "ZIP member extract failed (%d): %s", zr, member);
+        return -1;
+    }
+    return 0;
+}
+
+
+/* ---- Commit or discard the temp destination after extraction ----
+ *
+ * WHAT: When a temp file was used, renames it over `du->path` on success or
+ * unlinks it on failure. Returns the final result code (`rc` unchanged, or -1 if
+ * the rename failed with `st` populated). A no-op for the stdout path.
+ *
+ * WHY: The commit step is the mirror of copy_unzip_open_dest and keeps the
+ * atomic temp-then-rename policy in one place, so the orchestrator's cleanup
+ * stays a single call.
+ *
+ * HOW:
+ *   1. If no temp was used, return `rc` untouched.
+ *   2. On a failed extraction, unlink the temp and return `rc`.
+ *   3. On success, rename the temp over the destination; if that fails, unlink
+ *      and return -1, otherwise return `rc`.
+ */
+static int
+copy_unzip_finalize(int rc, int use_tmp, const char *tmp,
+                    const brix_url *du, brix_status *st)
+{
+    if (!use_tmp) {
+        return rc;
+    }
+    if (rc != 0) {
+        unlink(tmp);
+        return rc;
+    }
+    if (rename(tmp, du->path) != 0) {
+        brix_status_set(st, XRDC_EUSAGE, errno, "rename to %s", du->path);
+        unlink(tmp);
+        return -1;
+    }
+    return rc;
+}
+
+
 /* Extract `member` from the remote ZIP archive at `archive_path` into the local
  * destination du. The server is untouched (serves raw archive bytes); the client
  * parses the directory and inflates the member locally (zlib-only). */
@@ -44,11 +177,9 @@ copy_unzip(const brix_url *su, const char *archive_path, const char *member,
     brix_conn      c;
     brix_statinfo  si;
     brix_file      f;
-    brix_zip_dir   dir;
     zip_remote_ctx zc;
-    const brix_zip_entry *e;
-    int            outfd = -1, to_stdout = (du->scheme == XRDC_SCHEME_STDIO);
-    int            use_tmp = 0, rc = -1, zr;
+    int            outfd, use_tmp = 0, rc;
+    int            to_stdout = (du->scheme == XRDC_SCHEME_STDIO);
     char           tmp[XRDC_PATH_MAX];
 
     if (brix_connect(&c, su, co, st) != 0) {
@@ -63,60 +194,22 @@ copy_unzip(const brix_url *su, const char *archive_path, const char *member,
         return -1;
     }
 
-    if (to_stdout) {
-        outfd = STDOUT_FILENO;
-    } else {
-        if (!o->force && access(du->path, F_OK) == 0) {
-            brix_status_set(st, XRDC_EUSAGE, 0,
-                            "destination exists (use -f): %s", du->path);
-            brix_file_close(&c, &f, st); brix_close(&c); return -1;
-        }
-        outfd = open_download_temp(du->path, tmp, sizeof(tmp), st);
-        if (outfd < 0) {
-            brix_file_close(&c, &f, st); brix_close(&c); return -1;
-        }
-        use_tmp = 1;
+    outfd = copy_unzip_open_dest(du, o, tmp, sizeof(tmp), &use_tmp, st);
+    if (outfd < 0) {
+        brix_file_close(&c, &f, st);
+        brix_close(&c);
+        return -1;
     }
 
     zc.c = &c; zc.f = &f; zc.st = st;
-    zr = brix_zip_open(zip_remote_pread, &zc, (uint64_t) si.size, &dir);
-    if (zr != XRDC_ZIP_OK) {
-        brix_status_set(st, XRDC_EUSAGE, 0,
-                        "ZIP open failed (%d) for %s", zr, archive_path);
-    } else {
-        e = brix_zip_find(&dir, member);
-        if (e == NULL) {
-            brix_status_set(st, XRDC_EUSAGE, 0,
-                            "ZIP member not found: %s", member);
-        } else {
-            unzip_sink_ctx sink = { outfd };
-            zr = brix_zip_member_extract(zip_remote_pread, &zc, e,
-                                         unzip_sink_write, &sink);
-            if (zr == XRDC_ZIP_OK) {
-                rc = 0;
-            } else {
-                brix_status_set(st, XRDC_EUSAGE, 0,
-                                "ZIP member extract failed (%d): %s", zr, member);
-            }
-        }
-        brix_zip_dir_free(&dir);
-    }
+    rc = copy_unzip_extract_member(&zc, (uint64_t) si.size, archive_path,
+                                   member, outfd, st);
 
     brix_file_close(&c, &f, st);
     if (outfd >= 0 && !to_stdout) {
         close(outfd);
     }
-    if (use_tmp) {
-        if (rc == 0) {
-            if (rename(tmp, du->path) != 0) {
-                brix_status_set(st, XRDC_EUSAGE, errno, "rename to %s", du->path);
-                unlink(tmp);
-                rc = -1;
-            }
-        } else {
-            unlink(tmp);
-        }
-    }
+    rc = copy_unzip_finalize(rc, use_tmp, tmp, du, st);
     brix_close(&c);
     return rc;
 }

@@ -201,14 +201,23 @@ class TestChkpoint:
 
     def test_chkpoint_startup_recovery_guardrails(self):
         """Startup recovery must rollback stale .ckp snapshots under a lock."""
+        # phase-79 file-size split: the startup-recovery cluster
+        # (brix_chkpoint_recover_root + its flock guard) moved from chkpoint.c
+        # into the sibling chkpoint_recover.c; the live snapshot path
+        # (brix_copy_range) stayed in chkpoint.c. Read both as one blob.
+        _wdir = Path(__file__).resolve().parents[1] / "src" / "protocols" / "root" / "write"
         src = (
-            Path(__file__).resolve().parents[1]
-            / "src" / "protocols" / "root" / "write" / "chkpoint.c"
-        ).read_text(encoding="utf-8")
+            (_wdir / "chkpoint.c").read_text(encoding="utf-8")
+            + (_wdir / "chkpoint_recover.c").read_text(encoding="utf-8")
+        )
+        # The startup recovery call site lives in the process init path; that
+        # path was split (pre-phase-79, commit 27c89e3) into process.c +
+        # process_server_init.c, so read both.
+        _cdir = Path(__file__).resolve().parents[1] / "src" / "core" / "config"
         process = (
-            Path(__file__).resolve().parents[1]
-            / "src" / "core" / "config" / "process.c"
-        ).read_text(encoding="utf-8")
+            (_cdir / "process.c").read_text(encoding="utf-8")
+            + (_cdir / "process_server_init.c").read_text(encoding="utf-8")
+        )
 
         assert "brix_chkpoint_recover_root" in src
         assert "flock(lock_fd, LOCK_EX)" in src

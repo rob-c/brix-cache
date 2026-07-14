@@ -9,73 +9,171 @@
 #include <stdlib.h>
 #include <string.h>
 
-/*
- * range_vector_parse_one — parse a single byte-range component [p, comma).
+/* ---- range_vector_reject — map a rejected component to its return code. ----
  *
- * Splits the component by '-' (suffix "-N", open-ended "A-", or "A-B"),
- * normalises the offsets against file_size, and on a satisfiable range fills
- * *out. Returns NGX_OK when a range was stored, NGX_DECLINED to skip a
- * malformed/unsatisfiable component (when opts->drop_unsatisfiable is set), or
- * NGX_ERROR for the same conditions when dropping is disabled.
+ * WHAT: Returns NGX_DECLINED when opts->drop_unsatisfiable is set (skip the
+ *       component and continue), otherwise NGX_ERROR (abort the whole header).
+ *
+ * WHY: A malformed or unsatisfiable component is rejected identically from a
+ *      dozen sites in the parser. Centralising the policy branch keeps every
+ *      call site a single early-return and holds the accept/reject contract in
+ *      exactly one place, so it cannot drift between the suffix and explicit
+ *      paths.
+ *
+ * HOW:
+ *      1. Branch on opts->drop_unsatisfiable and return the matching code.
+ */
+static ngx_int_t
+range_vector_reject(const brix_range_vector_opts_t *opts)
+{
+    return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
+}
+
+/* ---- range_vector_parse_suffix — parse a suffix component "-N". ----
+ *
+ * WHAT: Interprets "-N" as the last N bytes of the file and writes the
+ *       normalised [*start_out, *last_out] window. Returns NGX_OK on success,
+ *       or range_vector_reject(opts) when suffix ranges are disallowed or N is
+ *       non-positive/unparseable.
+ *
+ * WHY: The suffix form has offset semantics distinct from an explicit range —
+ *      N counts back from EOF — so isolating it keeps that arithmetic (and its
+ *      clamp) out of the explicit path.
+ *
+ * HOW:
+ *      1. Reject when opts->allow_suffix is unset.
+ *      2. Parse N from just past the dash; reject when N <= 0 (also covers the
+ *         ngx_atoof -1 parse-failure sentinel).
+ *      3. Clamp N to file_size so a suffix larger than the file spans it whole.
+ *      4. Emit last = file_size - 1 and start = file_size - N.
+ */
+static ngx_int_t
+range_vector_parse_suffix(const u_char *dash, const u_char *comma,
+    off_t file_size, const brix_range_vector_opts_t *opts,
+    off_t *start_out, off_t *last_out)
+{
+    off_t start;
+
+    if (!opts->allow_suffix) {
+        return range_vector_reject(opts);
+    }
+
+    start = (off_t) ngx_atoof((u_char *)(dash + 1), comma - (dash + 1));
+    if (start <= 0) {
+        return range_vector_reject(opts);
+    }
+
+    if (start > file_size) {
+        start = file_size;
+    }
+
+    *last_out  = file_size - 1;
+    *start_out = file_size - start;
+    return NGX_OK;
+}
+
+/* ---- range_vector_parse_explicit — parse an explicit component "A-" or "A-B". ----
+ *
+ * WHAT: Parses the start offset A and either an open-ended end (to EOF) or an
+ *       explicit end B, writing [*start_out, *last_out]. Returns NGX_OK on
+ *       success, or range_vector_reject(opts) when A or B is unparseable or the
+ *       open-ended form is disallowed.
+ *
+ * WHY: Separated from the suffix path because start is always the literal A
+ *      here (no EOF-relative arithmetic), and the open-ended vs. bounded end is
+ *      a self-contained sub-decision.
+ *
+ * HOW:
+ *      1. Parse A from [p, dash); reject when negative (covers the ngx_atoof
+ *         -1 parse-failure sentinel).
+ *      2. If the dash is the last byte ("A-"): reject when open-ended ranges
+ *         are disallowed, else set last = file_size - 1.
+ *      3. Otherwise parse B; reject when negative, then clamp B to the last
+ *         valid byte when it runs past EOF.
+ *      4. Emit start = A and last = the resolved end.
+ */
+static ngx_int_t
+range_vector_parse_explicit(const u_char *p, const u_char *dash,
+    const u_char *comma, off_t file_size,
+    const brix_range_vector_opts_t *opts,
+    off_t *start_out, off_t *last_out)
+{
+    off_t start, last;
+
+    start = (off_t) ngx_atoof((u_char *) p, dash - p);
+    if (start < 0) {   /* covers the NGX_ERROR (-1) parse-failure sentinel */
+        return range_vector_reject(opts);
+    }
+
+    if (dash + 1 == comma) {
+        /* Open-ended range: "A-" means from A to EOF. */
+        if (!opts->allow_open_ended) {
+            return range_vector_reject(opts);
+        }
+        last = file_size - 1;
+    } else {
+        last = (off_t) ngx_atoof((u_char *)(dash + 1), comma - (dash + 1));
+        if (last < 0) {   /* covers the NGX_ERROR (-1) parse-failure sentinel */
+            return range_vector_reject(opts);
+        }
+        if (last >= file_size) {
+            last = file_size - 1;
+        }
+    }
+
+    *start_out = start;
+    *last_out  = last;
+    return NGX_OK;
+}
+
+/* ---- range_vector_parse_one — parse a single byte-range component [p, comma). ----
+ *
+ * WHAT: Splits the component by '-' (suffix "-N", open-ended "A-", or "A-B"),
+ *       normalises the offsets against file_size, and on a satisfiable range
+ *       fills *out. Returns NGX_OK when a range was stored, NGX_DECLINED to
+ *       skip a malformed/unsatisfiable component (when opts->drop_unsatisfiable
+ *       is set), or NGX_ERROR for the same conditions when dropping is disabled.
+ *
+ * WHY: One place resolves a raw component into a validated byte range so both
+ *      the suffix and explicit forms share the same final satisfiability gate
+ *      and the same reject policy.
+ *
+ * HOW:
+ *      1. Locate the '-' separator; reject when the component has none.
+ *      2. Dispatch to the suffix helper when the dash is leading, else the
+ *         explicit helper; propagate any non-OK return unchanged.
+ *      3. Reject when the resolved range is unsatisfiable (start out of file
+ *         bounds or start > last).
+ *      4. Fill *out (fd/handle cleared) and return NGX_OK.
  */
 static ngx_int_t
 range_vector_parse_one(const u_char *p, const u_char *comma, off_t file_size,
     const brix_range_vector_opts_t *opts, brix_byte_range_t *out)
 {
     const u_char *dash;
-    off_t         start, last;
+    off_t         start = 0, last = 0;
+    ngx_int_t     rc;
 
     /* Find dash within this range component. */
     dash = ngx_strlchr((u_char *) p, (u_char *) comma, '-');
     if (dash == NULL) {
-        return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
+        return range_vector_reject(opts);
     }
 
-    /* 1. Parse start offset (if present). */
     if (p == dash) {
-        /* Suffix range: "-N" means the last N bytes. */
-        if (!opts->allow_suffix) {
-            return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
-        }
-
-        start = (off_t) ngx_atoof((u_char *)(dash + 1), comma - (dash + 1));
-        if (start <= 0) {
-            return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
-        }
-
-        if (start > file_size) {
-            start = file_size;
-        }
-        last  = file_size - 1;
-        start = file_size - start;
-
+        rc = range_vector_parse_suffix(dash, comma, file_size, opts,
+            &start, &last);
     } else {
-        start = (off_t) ngx_atoof((u_char *) p, dash - p);
-        if (start < 0) {   /* covers the NGX_ERROR (-1) parse-failure sentinel */
-            return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
-        }
-
-        /* 2. Parse end offset (if present). */
-        if (dash + 1 == comma) {
-            /* Open-ended range: "A-" means from A to EOF. */
-            if (!opts->allow_open_ended) {
-                return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
-            }
-            last = file_size - 1;
-        } else {
-            last = (off_t) ngx_atoof((u_char *)(dash + 1), comma - (dash + 1));
-            if (last < 0) {   /* covers the NGX_ERROR (-1) parse-failure sentinel */
-                return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
-            }
-            if (last >= file_size) {
-                last = file_size - 1;
-            }
-        }
+        rc = range_vector_parse_explicit(p, dash, comma, file_size, opts,
+            &start, &last);
+    }
+    if (rc != NGX_OK) {
+        return rc;
     }
 
-    /* 3. Validate unsatisfiable ranges. */
+    /* Validate unsatisfiable ranges. */
     if (start < 0 || start >= file_size || start > last) {
-        return opts->drop_unsatisfiable ? NGX_DECLINED : NGX_ERROR;
+        return range_vector_reject(opts);
     }
 
     out->start  = start;

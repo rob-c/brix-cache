@@ -85,7 +85,9 @@ tpc_done_teardown_dst(brix_tpc_pull_t *t, brix_ctx_t *ctx, int idx,
  *      free the slot (or close the raw fd if the slot was reaped) and unlink the
  *      partial file so a failed transfer never leaves a truncated object behind.
  * HOW: slot-free XOR raw close depending on whether the handle survived, confined
- *      unlink, then registry/metric accounting and the error response + aio resume. */
+ *      unlink, then registry/metric accounting and the error response + aio resume.
+ *      c is never NULL here: brix_tpc_pull_done gates the no-connection case before
+ *      dispatching to any reply helper. */
 static void
 tpc_done_sync_fail(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
                    int idx)
@@ -109,8 +111,7 @@ tpc_done_sync_fail(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
     } else {
         close(t->dst_fd);
     }
-    (void) brix_vfs_unlink_path(c != NULL ? c->log : NULL,
-                              t->conf->common.root_canon, t->dst_path);
+    (void) brix_vfs_unlink_path(c->log, t->conf->common.root_canon, t->dst_path);
 
     tpc_done_account(t, 0, c->log);
 
@@ -290,8 +291,9 @@ tpc_done_reply_open(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
         tpc_sess_finish_pull(t, 0, BRIX_SESS_END_ERROR);
 
         /* Failed copy: close+unlink the partial destination and release the
-         * fhandle slot before replying with the error to the OPEN. */
-        tpc_done_teardown_dst(t, ctx, idx, c != NULL ? c->log : NULL);
+         * fhandle slot before replying with the error to the OPEN. (c is never
+         * NULL here — brix_tpc_pull_done gates the no-connection case.) */
+        tpc_done_teardown_dst(t, ctx, idx, c->log);
 
         tpc_done_account(t, 0, c->log);
 

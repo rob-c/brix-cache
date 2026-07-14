@@ -88,6 +88,108 @@ hexdump(const uint8_t *buf, uint32_t n)
     }
 }
 
+/* ---- Trace one kXR_error response frame ----
+ *
+ * WHAT: Emits a single stderr line decoding an error frame: the 4-byte
+ *       big-endian errnum, its symbolic name, and the trailing message text
+ *       (bytes past the errnum, printed with an explicit length so the buffer
+ *       need not be null-terminated).
+ *
+ * WHY:  The errnum-plus-message layout is specific to kXR_error; isolating it
+ *       keeps brix_trace_response a flat dispatch and each per-status decoder
+ *       independently reviewable. Caller guarantees b != NULL and blen >= 4.
+ *
+ * HOW:  1. Read the leading 32-bit BE errnum via the unaligned-safe accessor.
+ *       2. Print errnum, its brix_kxr_name(), and the message slice
+ *          (blen - 4 bytes when present, else an empty string).
+ */
+static void
+brix_trace_error(int dir, uint16_t sid, const uint8_t *b, uint32_t blen)
+{
+    int errnum = (int) xrd_get_u32_be(b);
+    fprintf(stderr, "%c sid=%u error errnum=%d (%s) \"%.*s\"\n",
+            dir, sid, errnum, brix_kxr_name(errnum),
+            (int) (blen > 4 ? blen - 4 : 0),
+            blen > 4 ? (const char *) (b + 4) : "");
+}
+
+/* ---- Trace one kXR_redirect response frame ----
+ *
+ * WHAT: Emits a single stderr line decoding a redirect frame: the 4-byte
+ *       big-endian port followed by the target host slice (bytes past the
+ *       port), rendered as host:port.
+ *
+ * WHY:  The port-then-host layout is unique to kXR_redirect; a dedicated
+ *       decoder mirrors brix_trace_error and keeps the dispatcher branch-free
+ *       of field math. Caller guarantees b != NULL and blen >= 4.
+ *
+ * HOW:  1. Read the leading 32-bit BE port via the unaligned-safe accessor.
+ *       2. Print the host slice (blen - 4 bytes when present, else empty)
+ *          joined to the port with a colon.
+ */
+static void
+brix_trace_redirect(int dir, uint16_t sid, const uint8_t *b, uint32_t blen)
+{
+    int port = (int) xrd_get_u32_be(b);
+    fprintf(stderr, "%c sid=%u redirect → %.*s:%d\n",
+            dir, sid, (int) (blen > 4 ? blen - 4 : 0),
+            blen > 4 ? (const char *) (b + 4) : "", port);
+}
+
+/* ---- Trace one kXR_wait response frame ----
+ *
+ * WHAT: Emits a single stderr line decoding a wait frame's 4-byte big-endian
+ *       wait interval, in seconds.
+ *
+ * WHY:  kXR_wait carries only the retry delay; a leaf decoder keeps it uniform
+ *       with the other per-status helpers. Caller guarantees b != NULL and
+ *       blen >= 4.
+ *
+ * HOW:  1. Read the 32-bit BE interval via the unaligned-safe accessor.
+ *       2. Print it with a trailing 's' for seconds.
+ */
+static void
+brix_trace_wait(int dir, uint16_t sid, const uint8_t *b)
+{
+    fprintf(stderr, "%c sid=%u wait %us\n",
+            dir, sid, xrd_get_u32_be(b));
+}
+
+/* ---- Trace a response (non-request) frame ----
+ *
+ * WHAT: Emits one stderr line for a response frame, decoding the few
+ *       high-value bodies (error, redirect, wait) when the body is present and
+ *       long enough, or falling back to a generic status-name + dlen line.
+ *
+ * WHY:  Splitting the response side out of brix_trace_frame collapses the
+ *       status branch ladder into a flat early-dispatch and lets each body
+ *       decoder be a small single-purpose helper — the same wire fields are
+ *       decoded from our own structs, never from XrdCl.
+ *
+ * HOW:  1. If code is kXR_error with a >= 4-byte body, delegate to
+ *          brix_trace_error.
+ *       2. Else if kXR_redirect with a >= 4-byte body, delegate to
+ *          brix_trace_redirect.
+ *       3. Else if kXR_wait with a >= 4-byte body, delegate to
+ *          brix_trace_wait.
+ *       4. Otherwise print the generic status-name + dlen line.
+ */
+static void
+brix_trace_response(int dir, uint16_t sid, int code, uint32_t dlen,
+                    const uint8_t *b, uint32_t blen)
+{
+    if (code == kXR_error && b != NULL && blen >= 4) {
+        brix_trace_error(dir, sid, b, blen);
+    } else if (code == kXR_redirect && b != NULL && blen >= 4) {
+        brix_trace_redirect(dir, sid, b, blen);
+    } else if (code == kXR_wait && b != NULL && blen >= 4) {
+        brix_trace_wait(dir, sid, b);
+    } else {
+        fprintf(stderr, "%c sid=%u %s dlen=%u\n",
+                dir, sid, brix_status_name(code), dlen);
+    }
+}
+
 void
 brix_trace_frame(brix_conn *c, int dir, uint16_t sid, int code,
                  int is_request, uint32_t dlen, const void *body, uint32_t blen)
@@ -98,25 +200,7 @@ brix_trace_frame(brix_conn *c, int dir, uint16_t sid, int code,
         fprintf(stderr, "%c sid=%u %s dlen=%u\n",
                 dir, sid, brix_reqid_name(code), dlen);
     } else {
-        /* Decode the few high-value fields per status, from our own structs. */
-        if (code == kXR_error && b != NULL && blen >= 4) {
-            int errnum = (int) xrd_get_u32_be(b);
-            fprintf(stderr, "%c sid=%u error errnum=%d (%s) \"%.*s\"\n",
-                    dir, sid, errnum, brix_kxr_name(errnum),
-                    (int) (blen > 4 ? blen - 4 : 0),
-                    blen > 4 ? (const char *) (b + 4) : "");
-        } else if (code == kXR_redirect && b != NULL && blen >= 4) {
-            int port = (int) xrd_get_u32_be(b);
-            fprintf(stderr, "%c sid=%u redirect → %.*s:%d\n",
-                    dir, sid, (int) (blen > 4 ? blen - 4 : 0),
-                    blen > 4 ? (const char *) (b + 4) : "", port);
-        } else if (code == kXR_wait && b != NULL && blen >= 4) {
-            fprintf(stderr, "%c sid=%u wait %us\n",
-                    dir, sid, xrd_get_u32_be(b));
-        } else {
-            fprintf(stderr, "%c sid=%u %s dlen=%u\n",
-                    dir, sid, brix_status_name(code), dlen);
-        }
+        brix_trace_response(dir, sid, code, dlen, b, blen);
     }
 
     if (c->diag.wire_trace >= 2 && b != NULL && blen > 0) {

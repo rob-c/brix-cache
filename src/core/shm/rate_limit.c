@@ -135,6 +135,170 @@ brix_rate_limit_check(const brix_rate_limit_conf_t *rl,
 }
 
 /*
+ * brix_rl_parse_rate() — parse a "rate=<N>r/s" or "rate=<N>" token.
+ *
+ * WHAT: read the numeric rate out of `arg` (already known to start "rate="),
+ *       storing it in *rate and returning NGX_OK; on a non-positive or
+ *       non-numeric value it logs the config error and returns NGX_ERROR.
+ * WHY:  isolates the one parameter that has an optional "r/s" suffix so the
+ *       dispatcher stays a flat prefix ladder; the caller maps NGX_ERROR to
+ *       NGX_CONF_ERROR after this function has already emitted the message.
+ * HOW:  1. Point past the 5-byte "rate=" prefix.  2. Drop a trailing "r/s"
+ *          (requires len > 3 so a bare "r/s" is not mistaken for zero digits).
+ *       3. ngx_atoi the remaining digits; reject NGX_ERROR or n <= 0.
+ *       4. Store the widened value.
+ */
+static ngx_int_t
+brix_rl_parse_rate(ngx_conf_t *cf, ngx_str_t *arg, ngx_uint_t *rate)
+{
+    u_char *p = arg->data + 5;
+    size_t  len = arg->len - 5;
+    ngx_int_t n;
+
+    /* accept "<N>r/s" or bare "<N>" */
+    if (len > 3 && ngx_strncmp(p + len - 3, "r/s", 3) == 0) {
+        len -= 3;
+    }
+    n = ngx_atoi(p, len);
+    if (n == NGX_ERROR || n <= 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "invalid brix_rate_limit rate \"%V\"", arg);
+        return NGX_ERROR;
+    }
+    *rate = (ngx_uint_t) n;
+    return NGX_OK;
+}
+
+/*
+ * brix_rl_parse_burst() — parse a "burst=<N>" token.
+ *
+ * WHAT: read the numeric burst out of `arg` (already known to start "burst="),
+ *       storing it in *burst and returning NGX_OK; on a non-positive or
+ *       non-numeric value it logs the config error and returns NGX_ERROR.
+ * WHY:  mirrors brix_rl_parse_rate so each parameter owns its own validation
+ *       and error string, keeping the dispatcher branch-free of parse detail.
+ * HOW:  1. ngx_atoi the bytes past the 6-byte "burst=" prefix.  2. Reject
+ *          NGX_ERROR or n <= 0 with the config error.  3. Store the value.
+ */
+static ngx_int_t
+brix_rl_parse_burst(ngx_conf_t *cf, ngx_str_t *arg, ngx_uint_t *burst)
+{
+    ngx_int_t n = ngx_atoi(arg->data + 6, arg->len - 6);
+
+    if (n == NGX_ERROR || n <= 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "invalid brix_rate_limit burst \"%V\"", arg);
+        return NGX_ERROR;
+    }
+    *burst = (ngx_uint_t) n;
+    return NGX_OK;
+}
+
+/*
+ * brix_rl_parse_key() — parse a "key=dn" / "key=ip" token.
+ *
+ * WHAT: set *key_ip to 1 for "ip" or 0 for "dn" and return NGX_OK; any other
+ *       value logs the config error and returns NGX_ERROR.
+ * WHY:  the keying identity selects which field brix_rate_limit_check() hashes;
+ *       strict matching keeps a typo like "key=ipv6" a hard config error rather
+ *       than a silent prefix match on "ip".
+ * HOW:  require the whole token to be exactly 6 bytes ("key=" + 2) and compare
+ *       the two-byte tail against "ip" then "dn"; fall through to the error.
+ */
+static ngx_int_t
+brix_rl_parse_key(ngx_conf_t *cf, ngx_str_t *arg, ngx_uint_t *key_ip)
+{
+    /* len == 6 pins the value to exactly two bytes ("key=" + 2), so
+     * "ip"/"dn" match strictly and e.g. "key=ipv6" is rejected rather
+     * than prefix-matching "ip". */
+    if (arg->len == 6 && ngx_strncmp(arg->data + 4, "ip", 2) == 0) {
+        *key_ip = 1;
+        return NGX_OK;
+    }
+    if (arg->len == 6 && ngx_strncmp(arg->data + 4, "dn", 2) == 0) {
+        *key_ip = 0;
+        return NGX_OK;
+    }
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        "brix_rate_limit key must be dn or ip, got \"%V\"", arg);
+    return NGX_ERROR;
+}
+
+/*
+ * brix_rl_parse_arg() — dispatch one directive token to its parameter parser.
+ *
+ * WHAT: classify `arg` by its "name=" prefix and route it to the matching
+ *       parser, updating the referenced accumulators; returns NGX_OK when the
+ *       token was recognised and valid, NGX_ERROR when it was unknown or the
+ *       sub-parser rejected it (the error is logged by whichever detected it).
+ * WHY:  keeps brix_rate_limit_directive() a flat loop over tokens — all the
+ *       per-parameter knowledge lives in the small parsers above.
+ * HOW:  1. "zone=" copies the name tail into *zone (always valid).  2. "rate=",
+ *          "burst=", "key=" defer to their parsers.  3. Anything else is an
+ *          unknown parameter and is reported here.
+ */
+static ngx_int_t
+brix_rl_parse_arg(ngx_conf_t *cf, ngx_str_t *arg, ngx_str_t *zone,
+    ngx_uint_t *rate, ngx_uint_t *burst, ngx_uint_t *key_ip)
+{
+    if (ngx_strncmp(arg->data, "zone=", 5) == 0) {
+        zone->data = arg->data + 5;
+        zone->len  = arg->len - 5;
+        return NGX_OK;
+    }
+    if (ngx_strncmp(arg->data, "rate=", 5) == 0) {
+        return brix_rl_parse_rate(cf, arg, rate);
+    }
+    if (ngx_strncmp(arg->data, "burst=", 6) == 0) {
+        return brix_rl_parse_burst(cf, arg, burst);
+    }
+    if (ngx_strncmp(arg->data, "key=", 4) == 0) {
+        return brix_rl_parse_key(cf, arg, key_ip);
+    }
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        "invalid brix_rate_limit parameter \"%V\"", arg);
+    return NGX_ERROR;
+}
+
+/*
+ * brix_rl_resolve_zone() — look up and size-check the named KV zone.
+ *
+ * WHAT: find the zone named `zone`, verify its value slots can hold a whole
+ *       brix_rl_val_t, and return the handle in *out; returns NGX_OK on success
+ *       or NGX_ERROR (with the config error logged) when the zone is missing or
+ *       too small.
+ * WHY:  the size guard runs once at config time so brix_rate_limit_check() can
+ *       memcpy the bucket struct into the slot without re-checking sizes on
+ *       every request.
+ * HOW:  1. brix_kv_find by name (the zone was registered earlier by
+ *          brix_kv_zone in the same main block).  2. Reject a NULL lookup.
+ *       3. Reject a val_max below sizeof(brix_rl_val_t).  4. Publish the handle.
+ */
+static ngx_int_t
+brix_rl_resolve_zone(ngx_conf_t *cf, ngx_str_t *zone, brix_kv_t **out)
+{
+    brix_kv_t *kv = brix_kv_find(zone);
+
+    if (kv == NULL) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_rate_limit: unknown zone \"%V\" "
+            "(declare it with brix_kv_zone first)", zone);
+        return NGX_ERROR;
+    }
+    /* Refuse a zone whose value slots cannot hold a whole bucket record;
+     * otherwise brix_kv_set would truncate/reject the value at runtime and
+     * the limiter would silently malfunction. */
+    if (kv->val_max < sizeof(brix_rl_val_t)) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_rate_limit zone \"%V\" too small: need val>=%uz",
+            zone, sizeof(brix_rl_val_t));
+        return NGX_ERROR;
+    }
+    *out = kv;
+    return NGX_OK;
+}
+
+/*
  * brix_rate_limit_directive() — parse and bind one
  *   brix_rate_limit zone=<name> rate=<N>r/s burst=<N> [key=dn|ip];
  *
@@ -144,7 +308,9 @@ brix_rate_limit_check(const brix_rate_limit_conf_t *rl,
  *       kv == NULL and brix_rate_limit_check() fails open (admits).
  * HOW:  cmd->offset is the byte offset of the embedded conf field within the
  *       owning module's conf struct — the usual ngx_command_t pattern for a
- *       sub-struct that has no dedicated NGX_*_CONF_OFFSET slot.
+ *       sub-struct that has no dedicated NGX_*_CONF_OFFSET slot.  1. Fold each
+ *       token through brix_rl_parse_arg.  2. Require the mandatory trio.
+ *       3. Resolve+size-check the zone.  4. Commit the fields.
  */
 char *
 brix_rate_limit_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
@@ -158,58 +324,12 @@ brix_rate_limit_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_uint_t   burst = 0;
     ngx_uint_t   key_ip = 0;
     ngx_uint_t   i;
-    ngx_int_t    n;
     brix_kv_t *kv;
 
     for (i = 1; i < cf->args->nelts; i++) {
-        if (ngx_strncmp(value[i].data, "zone=", 5) == 0) {
-            zone.data = value[i].data + 5;
-            zone.len  = value[i].len - 5;
-
-        } else if (ngx_strncmp(value[i].data, "rate=", 5) == 0) {
-            u_char *p = value[i].data + 5;
-            size_t  len = value[i].len - 5;
-            /* accept "<N>r/s" or bare "<N>" */
-            if (len > 3 && ngx_strncmp(p + len - 3, "r/s", 3) == 0) {
-                len -= 3;
-            }
-            n = ngx_atoi(p, len);
-            if (n == NGX_ERROR || n <= 0) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "invalid brix_rate_limit rate \"%V\"", &value[i]);
-                return NGX_CONF_ERROR;
-            }
-            rate = (ngx_uint_t) n;
-
-        } else if (ngx_strncmp(value[i].data, "burst=", 6) == 0) {
-            n = ngx_atoi(value[i].data + 6, value[i].len - 6);
-            if (n == NGX_ERROR || n <= 0) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "invalid brix_rate_limit burst \"%V\"", &value[i]);
-                return NGX_CONF_ERROR;
-            }
-            burst = (ngx_uint_t) n;
-
-        } else if (ngx_strncmp(value[i].data, "key=", 4) == 0) {
-            /* len == 6 pins the value to exactly two bytes ("key=" + 2), so
-             * "ip"/"dn" match strictly and e.g. "key=ipv6" is rejected rather
-             * than prefix-matching "ip". */
-            if (value[i].len == 6
-                && ngx_strncmp(value[i].data + 4, "ip", 2) == 0) {
-                key_ip = 1;
-            } else if (value[i].len == 6
-                && ngx_strncmp(value[i].data + 4, "dn", 2) == 0) {
-                key_ip = 0;
-            } else {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "brix_rate_limit key must be dn or ip, got \"%V\"",
-                    &value[i]);
-                return NGX_CONF_ERROR;
-            }
-
-        } else {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "invalid brix_rate_limit parameter \"%V\"", &value[i]);
+        if (brix_rl_parse_arg(cf, &value[i], &zone, &rate, &burst, &key_ip)
+            != NGX_OK)
+        {
             return NGX_CONF_ERROR;
         }
     }
@@ -220,25 +340,7 @@ brix_rate_limit_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    /* The zone must already exist: brix_kv_zone is processed earlier in the
-     * same main block and registers into the module-wide registry that
-     * brix_kv_find searches by name. */
-    kv = brix_kv_find(&zone);
-    if (kv == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_rate_limit: unknown zone \"%V\" "
-            "(declare it with brix_kv_zone first)", &zone);
-        return NGX_CONF_ERROR;
-    }
-    /* Refuse a zone whose value slots cannot hold a whole bucket record;
-     * otherwise brix_kv_set would truncate/reject the value at runtime and
-     * the limiter would silently malfunction.  This is the compile-time-style
-     * guard that lets brix_rate_limit_check() memcpy the struct without
-     * re-checking sizes on every request. */
-    if (kv->val_max < sizeof(brix_rl_val_t)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_rate_limit zone \"%V\" too small: need val>=%uz",
-            &zone, sizeof(brix_rl_val_t));
+    if (brix_rl_resolve_zone(cf, &zone, &kv) != NGX_OK) {
         return NGX_CONF_ERROR;
     }
 

@@ -318,6 +318,109 @@ static const brix_sd_driver_t brix_sd_frm_driver = {
     .staged_abort  = sd_frm_staged_abort,
 };
 
+/* ---- Select the "exec" MSS adapter when requested ----
+ *
+ * WHAT: If `adapter` names the "exec" HSM driver AND $BRIX_FRM_STAGECMD is set,
+ * builds the exec MSS context and points `st->mss`/`st->mss_ctx` at it. Returns 0
+ * whenever the caller may proceed (adapter not "exec", or missing stage command -
+ * in both cases `st->mss` is left NULL so the stub fallback runs); returns -1 with
+ * errno set to ENOMEM only when the exec context allocation itself fails.
+ *
+ * WHY: Isolates the exec-adapter decision (the classic FRM model over an external
+ * stage command) so brix_sd_frm_create stays a flat orchestration below the
+ * complexity cap, without changing any allocation, log line, or errno behaviour.
+ *
+ * HOW:
+ *   1. If `adapter` is NULL or not "exec", return 0 (fall through to the stub).
+ *   2. Read $BRIX_FRM_STAGECMD; if unset/empty, WARN and return 0 (stub fallback).
+ *   3. Create the exec MSS context; on failure set errno=ENOMEM and return -1.
+ *   4. On success, publish the exec adapter, NOTICE-log it, and return 0.
+ */
+static int
+frm_select_exec_adapter(sd_frm_state *st, const char *adapter,
+    const char *location, ngx_log_t *log)
+{
+    const char *cmd;
+
+    /* "exec" drives a real HSM via $BRIX_FRM_STAGECMD (the classic FRM model). */
+    if (adapter == NULL || ngx_strcmp(adapter, "exec") != 0) {
+        return 0;
+    }
+    cmd = getenv("BRIX_FRM_STAGECMD");
+    if (cmd == NULL || cmd[0] == '\0') {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "xrootd frm: the \"exec\" MSS adapter needs $BRIX_FRM_STAGECMD "
+            "(the stage command); falling back to the built-in stub");
+        return 0;
+    }
+    st->mss_ctx = brix_mss_exec_create(location, cmd, log);
+    if (st->mss_ctx == NULL) {
+        errno = ENOMEM;
+        return -1;
+    }
+    st->mss = &brix_mss_exec_adapter;
+    ngx_log_error(NGX_LOG_NOTICE, log, 0,
+        "xrootd frm: exec MSS adapter (stagecmd=%s, online buffer=%s)",
+        cmd, location);
+    return 0;
+}
+
+/* ---- Select the built-in local-dir stub MSS adapter (default / fallback) ----
+ *
+ * WHAT: Builds the stub MSS context that simulates tape with local directories and
+ * points `st->mss`/`st->mss_ctx` at it. Returns 0 on success, or -1 with errno set
+ * to ENOMEM when the stub context allocation fails. An `adapter` name that is
+ * neither empty, "stub", nor "exec" is WARN-logged as not-yet-implemented before
+ * the stub is used, matching the original in-place behaviour.
+ *
+ * WHY: The stub is the default and the fallback for every adapter that is not a
+ * working "exec"; factoring it out keeps the create orchestrator flat and under
+ * the complexity cap while preserving the exact warning and errno semantics.
+ *
+ * HOW:
+ *   1. If `adapter` is a non-empty name other than "stub"/"exec", WARN about it.
+ *   2. Create the stub MSS context; on failure set errno=ENOMEM and return -1.
+ *   3. Publish the stub adapter and return 0.
+ */
+static int
+frm_select_stub_adapter(sd_frm_state *st, const char *adapter,
+    const char *location, ngx_log_t *log)
+{
+    if (adapter != NULL && adapter[0] != '\0'
+        && ngx_strcmp(adapter, "stub") != 0
+        && ngx_strcmp(adapter, "exec") != 0)
+    {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "xrootd frm: MSS adapter \"%s\" is not yet implemented "
+            "(phase-64 SP5: hpss/cta); using the built-in stub", adapter);
+    }
+    st->mss_ctx = brix_mss_stub_create(location, log);
+    if (st->mss_ctx == NULL) {
+        errno = ENOMEM;
+        return -1;
+    }
+    st->mss = &brix_mss_stub_adapter;
+    return 0;
+}
+
+/* ---- Construct an sd_frm nearline backend instance ----
+ *
+ * WHAT: Allocates the sd_frm instance and state, selects the MSS adapter (exec if
+ * requested and usable, otherwise the built-in stub), and wires the state to the
+ * frm driver. Returns the instance, or NULL with errno set (EINVAL for an empty
+ * location, ENOMEM for any allocation failure) after freeing partial state.
+ *
+ * WHY: The single public entry point for the nearline (tape/MSS) backend; the two
+ * adapter choices are delegated to helpers so this stays a linear early-return
+ * sequence below the complexity cap.
+ *
+ * HOW:
+ *   1. Reject an empty `location` with EINVAL.
+ *   2. Allocate inst + state; on failure free both and return ENOMEM.
+ *   3. Try the exec adapter; on hard failure free both and return NULL.
+ *   4. If no adapter is set yet, fall back to the stub; on failure free and return.
+ *   5. Publish the driver and state onto the instance and return it.
+ */
 brix_sd_instance_t *
 brix_sd_frm_create(const char *adapter, const char *location, ngx_log_t *log)
 {
@@ -338,47 +441,17 @@ brix_sd_frm_create(const char *adapter, const char *location, ngx_log_t *log)
     }
     st->log = log;
 
-    /* "exec" drives a real HSM via $BRIX_FRM_STAGECMD (the classic FRM model). */
-    if (adapter != NULL && ngx_strcmp(adapter, "exec") == 0) {
-        const char *cmd = getenv("BRIX_FRM_STAGECMD");
-
-        if (cmd == NULL || cmd[0] == '\0') {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
-                "xrootd frm: the \"exec\" MSS adapter needs $BRIX_FRM_STAGECMD "
-                "(the stage command); falling back to the built-in stub");
-        } else {
-            st->mss_ctx = brix_mss_exec_create(location, cmd, log);
-            if (st->mss_ctx == NULL) {
-                free(inst);
-                free(st);
-                errno = ENOMEM;
-                return NULL;
-            }
-            st->mss = &brix_mss_exec_adapter;
-            ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "xrootd frm: exec MSS adapter (stagecmd=%s, online buffer=%s)",
-                cmd, location);
-        }
+    if (frm_select_exec_adapter(st, adapter, location, log) != 0) {
+        free(inst);
+        free(st);
+        return NULL;
     }
-
-    /* Default / fallback: the built-in local-dir stub simulator. */
-    if (st->mss == NULL) {
-        if (adapter != NULL && adapter[0] != '\0'
-            && ngx_strcmp(adapter, "stub") != 0
-            && ngx_strcmp(adapter, "exec") != 0)
-        {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
-                "xrootd frm: MSS adapter \"%s\" is not yet implemented "
-                "(phase-64 SP5: hpss/cta); using the built-in stub", adapter);
-        }
-        st->mss_ctx = brix_mss_stub_create(location, log);
-        if (st->mss_ctx == NULL) {
-            free(inst);
-            free(st);
-            errno = ENOMEM;
-            return NULL;
-        }
-        st->mss = &brix_mss_stub_adapter;
+    if (st->mss == NULL
+        && frm_select_stub_adapter(st, adapter, location, log) != 0)
+    {
+        free(inst);
+        free(st);
+        return NULL;
     }
 
     inst->driver = &brix_sd_frm_driver;

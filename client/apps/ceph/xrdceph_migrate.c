@@ -105,16 +105,161 @@ stream_object(sd_ceph_conn_t *c, const char *oid, int fd)
     return (n < 0) ? -1 : 0;
 }
 
+/* ---- Connect to the RADOS pool and prepare the destination + object list ----
+ *
+ * WHAT: Connects to `pool` (honouring CEPH_CONF), ensures `dest` exists as a
+ *       directory, and opens a whole-pool object-list cursor. On success returns
+ *       0 with `*conn_out` set to a live connection and `*lc_out` to an open list
+ *       cursor; on any failure prints a diagnostic, tears down anything already
+ *       acquired, and returns -1 with `*conn_out` left NULL.
+ *
+ * WHY: Keeps main's orchestration flat by confining all one-time acquisition and
+ *      its error/cleanup ladder to a single owner, so the migration loop can
+ *      assume a ready source and destination.
+ *
+ * HOW:
+ *   1. Zero a conf, point it at `pool` and the CEPH_CONF (or default) conf file.
+ *   2. Create the ceph connection; on failure print and return -1.
+ *   3. mkdir(dest) tolerating EEXIST; on real failure destroy the conn, return -1.
+ *   4. Open the object-list cursor over the connection's ioctx; on failure
+ *      destroy the conn, return -1.
+ *   5. Publish the connection and cursor to the out-params and return 0.
+ */
+static int
+open_source_and_dest(const char *pool, const char *dest,
+                     sd_ceph_conn_t **conn_out, rados_list_ctx_t *lc_out)
+{
+    brix_sd_ceph_conf_t conf;
+    sd_ceph_conn_t     *c;
+    int                 err = 0;
+
+    *conn_out = NULL;
+
+    memset(&conf, 0, sizeof(conf));
+    conf.pool      = pool;
+    conf.conf_file = getenv("CEPH_CONF") ? getenv("CEPH_CONF") : "/etc/ceph/ceph.conf";
+
+    c = sd_ceph_conn_create(&conf, NULL, &err);
+    if (c == NULL) { fprintf(stderr, "connect %s: %s\n", pool, strerror(err)); return -1; }
+
+    if (mkdir(dest, 0755) != 0 && errno != EEXIST) {
+        fprintf(stderr, "mkdir %s: %s\n", dest, strerror(errno));
+        sd_ceph_conn_destroy(c);
+        return -1;
+    }
+    if (rados_nobjects_list_open(sd_ceph_conn_ioctx(c), lc_out) < 0) {
+        fprintf(stderr, "list open: %s\n", strerror(errno));
+        sd_ceph_conn_destroy(c);
+        return -1;
+    }
+
+    *conn_out = c;
+    return 0;
+}
+
+/* ---- Copy one RADOS object to its file under the destination tree ----
+ *
+ * WHAT: Materialises object `entry` as a file at its logical path beneath `dest`,
+ *       recreating parent directories, carrying user xattrs, and adding the
+ *       object's byte size to `*bytes`. Returns 0 on success (and prints the
+ *       `src -> dst` progress line); returns -1 on any failure after printing a
+ *       diagnostic. Best-effort xattr carry never fails the file.
+ *
+ * WHY: Isolates the whole per-object copy pipeline behind one call so the driver
+ *      loop only accounts success/failure — one nameable responsibility per unit
+ *      and no cleanup ladder leaking into main.
+ *
+ * HOW:
+ *   1. Build the destination path, dropping a leading '/' so the key is relative.
+ *   2. mkdir -p its parents; on failure print and return -1.
+ *   3. Open the destination file for writing; on failure print and return -1.
+ *   4. Stream the object bytes to the fd; on failure print, close, return -1.
+ *   5. Carry user xattrs (best effort), then close the file.
+ *   6. Add the object size to `*bytes` — from the object stat, else the written
+ *      file's stat — print the progress line, and return 0.
+ */
+static int
+migrate_one_object(sd_ceph_conn_t *c, const char *dest, const char *entry,
+                   unsigned long long *bytes)
+{
+    char        path[4096];
+    struct stat sb;
+    FILE       *out;
+    int         fd;
+    uint64_t    sz = 0;
+
+    /* object key is the logical path; drop a leading '/' to make it relative */
+    snprintf(path, sizeof(path), "%s/%s", dest,
+             (entry[0] == '/') ? entry + 1 : entry);
+
+    if (mkdirs_for(path) != 0) {
+        fprintf(stderr, "mkdirs for %s: %s\n", path, strerror(errno));
+        return -1;
+    }
+    out = fopen(path, "wb");
+    if (out == NULL) {
+        fprintf(stderr, "create %s: %s\n", path, strerror(errno));
+        return -1;
+    }
+    fd = fileno(out);
+
+    if (stream_object(c, entry, fd) != 0) {
+        fprintf(stderr, "copy %s failed\n", entry);
+        fclose(out);
+        return -1;
+    }
+    carry_xattrs(c, entry, fd);
+    fclose(out);
+
+    if (sd_ceph_oid_stat(c, entry, &sz, NULL) == 0) { *bytes += sz; }
+    else if (stat(path, &sb) == 0) { *bytes += (uint64_t) sb.st_size; }
+
+    printf("  %s -> %s\n", entry, path);
+    return 0;
+}
+
+/* ---- Drive the whole-pool copy loop, tallying files/bytes/failures ----
+ *
+ * WHAT: Iterates every object in the open list cursor `lc`, copying each into the
+ *       `dest` tree via migrate_one_object() and accumulating the counts into
+ *       `*files`, `*bytes`, and `*fails`. Returns when the cursor is exhausted or
+ *       a fatal list error occurs (the latter counted as one failure).
+ *
+ * WHY: Separates the iteration/accounting policy from the per-object copy so main
+ *      stays a short, linear sequence of named steps.
+ *
+ * HOW:
+ *   1. Advance the cursor; stop cleanly on -ENOENT (exhausted).
+ *   2. On a negative list error, print it, count one failure, and stop.
+ *   3. Skip empty/NULL keys.
+ *   4. Copy the object; bump `*files` on success or `*fails` on failure.
+ */
+static void
+migrate_pool(sd_ceph_conn_t *c, const char *dest, rados_list_ctx_t lc,
+             unsigned long long *files, unsigned long long *bytes,
+             unsigned long long *fails)
+{
+    for (;;) {
+        const char *entry = NULL;
+        int         rc;
+
+        rc = rados_nobjects_list_next2(lc, &entry, NULL, NULL, NULL, NULL, NULL);
+        if (rc == -ENOENT) { break; }
+        if (rc < 0) { fprintf(stderr, "list next: %d\n", rc); (*fails)++; break; }
+        if (entry == NULL || entry[0] == '\0') { continue; }
+
+        if (migrate_one_object(c, dest, entry, bytes) == 0) { (*files)++; }
+        else { (*fails)++; }
+    }
+}
+
 int
 main(int argc, char **argv)
 {
-    brix_sd_ceph_conf_t conf;
-    sd_ceph_conn_t       *c;
-    rados_ioctx_t         ioctx;
-    rados_list_ctx_t      lc;
-    const char           *dest;
-    int                   err = 0, rc;
-    unsigned long long    files = 0, bytes = 0, fails = 0;
+    sd_ceph_conn_t   *c;
+    rados_list_ctx_t  lc;
+    const char       *dest;
+    unsigned long long files = 0, bytes = 0, fails = 0;
 
     if (argc < 3) {
         fprintf(stderr, "usage: %s <pool> <dest_dir>\n", argv[0]);
@@ -122,61 +267,9 @@ main(int argc, char **argv)
     }
     dest = argv[2];
 
-    memset(&conf, 0, sizeof(conf));
-    conf.pool      = argv[1];
-    conf.conf_file = getenv("CEPH_CONF") ? getenv("CEPH_CONF") : "/etc/ceph/ceph.conf";
+    if (open_source_and_dest(argv[1], dest, &c, &lc) != 0) { return 1; }
 
-    c = sd_ceph_conn_create(&conf, NULL, &err);
-    if (c == NULL) { fprintf(stderr, "connect %s: %s\n", argv[1], strerror(err)); return 1; }
-    ioctx = sd_ceph_conn_ioctx(c);
-
-    if (mkdir(dest, 0755) != 0 && errno != EEXIST) {
-        fprintf(stderr, "mkdir %s: %s\n", dest, strerror(errno));
-        sd_ceph_conn_destroy(c);
-        return 1;
-    }
-    if (rados_nobjects_list_open(ioctx, &lc) < 0) {
-        fprintf(stderr, "list open: %s\n", strerror(errno));
-        sd_ceph_conn_destroy(c);
-        return 1;
-    }
-
-    for (;;) {
-        const char *entry = NULL;
-        char        path[4096];
-        struct stat sb;
-        FILE       *out;
-        int         fd;
-        uint64_t    sz = 0;
-
-        rc = rados_nobjects_list_next2(lc, &entry, NULL, NULL, NULL, NULL, NULL);
-        if (rc == -ENOENT) { break; }
-        if (rc < 0) { fprintf(stderr, "list next: %d\n", rc); fails++; break; }
-        if (entry == NULL || entry[0] == '\0') { continue; }
-
-        /* object key is the logical path; drop a leading '/' to make it relative */
-        snprintf(path, sizeof(path), "%s/%s", dest,
-                 (entry[0] == '/') ? entry + 1 : entry);
-
-        if (mkdirs_for(path) != 0) {
-            fprintf(stderr, "mkdirs for %s: %s\n", path, strerror(errno)); fails++; continue;
-        }
-        out = fopen(path, "wb");
-        if (out == NULL) { fprintf(stderr, "create %s: %s\n", path, strerror(errno));
-                           fails++; continue; }
-        fd = fileno(out);
-
-        if (stream_object(c, entry, fd) != 0) {
-            fprintf(stderr, "copy %s failed\n", entry); fails++; fclose(out); continue;
-        }
-        carry_xattrs(c, entry, fd);
-        fclose(out);
-
-        if (sd_ceph_oid_stat(c, entry, &sz, NULL) == 0) { bytes += sz; }
-        else if (stat(path, &sb) == 0) { bytes += (uint64_t) sb.st_size; }
-        files++;
-        printf("  %s -> %s\n", entry, path);
-    }
+    migrate_pool(c, dest, lc, &files, &bytes, &fails);
 
     rados_nobjects_list_close(lc);
     sd_ceph_conn_destroy(c);

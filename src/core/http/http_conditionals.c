@@ -43,21 +43,71 @@ brix_http_strip_weak(const char **data, size_t *len)
     }
 }
 
+/*
+ * brix_http_next_etag_token - pull the next comma-separated entry from an ETag list.
+ *
+ * WHAT: Advances *cursor past leading separators, then captures one entry up to the
+ *       next comma (trailing spaces/tabs trimmed). Returns 1 with tok_start/tok_len set
+ *       when an entry was found, 0 (cursor at end) when the list is exhausted.
+ *
+ * WHY: If-Match / If-None-Match carry a comma-separated list of entity-tags
+ *      (RFC 7232 §2.3, §3.1). Isolating the tokeniser keeps the comparison loop in
+ *      brix_http_etag_list_contains flat and independently testable.
+ *
+ * HOW: 1. Skip leading ' ', '\t', ','. 2. If at end, publish cursor and return 0.
+ *      3. Mark start; scan to next ',' or end. 4. Trim trailing OWS. 5. Publish
+ *      cursor, token start and length; return 1.
+ */
+
+static ngx_flag_t
+brix_http_next_etag_token(const char **cursor, const char *end,
+    const char **tok_start, size_t *tok_len)
+{
+    const char *p = *cursor;
+    const char *start;
+    const char *stop;
+
+    while (p < end && (*p == ' ' || *p == '\t' || *p == ',')) {
+        p++;
+    }
+    if (p >= end) {
+        *cursor = p;
+        return 0;
+    }
+
+    start = p;
+    while (p < end && *p != ',') {
+        p++;
+    }
+    stop = p;
+
+    while (stop > start && (stop[-1] == ' ' || stop[-1] == '\t')) {
+        stop--;
+    }
+
+    *cursor = p;
+    *tok_start = start;
+    *tok_len = (size_t) (stop - start);
+    return 1;
+}
+
 ngx_int_t
 brix_http_etag_list_contains(const ngx_str_t *header, const char *etag,
     unsigned flags)
 {
-    const char *p;
+    const char *cursor;
     const char *end;
     const char *etag_data;
     size_t      etag_len;
+    const char *tok_start;
+    size_t      tok_len;
 
     if (header == NULL || header->data == NULL || etag == NULL) {
         return NGX_DECLINED;
     }
 
-    p = (const char *) header->data;
-    end = p + header->len;
+    cursor = (const char *) header->data;
+    end = cursor + header->len;
     etag_data = etag;
     etag_len = strlen(etag);
 
@@ -65,31 +115,7 @@ brix_http_etag_list_contains(const ngx_str_t *header, const char *etag,
         brix_http_strip_weak(&etag_data, &etag_len);
     }
 
-    while (p < end) {
-        const char *tok_start;
-        const char *tok_end;
-        size_t      tok_len;
-
-        while (p < end && (*p == ' ' || *p == '\t' || *p == ',')) {
-            p++;
-        }
-        if (p >= end) {
-            break;
-        }
-
-        tok_start = p;
-        while (p < end && *p != ',') {
-            p++;
-        }
-        tok_end = p;
-
-        while (tok_end > tok_start
-               && (tok_end[-1] == ' ' || tok_end[-1] == '\t'))
-        {
-            tok_end--;
-        }
-
-        tok_len = (size_t) (tok_end - tok_start);
+    while (brix_http_next_etag_token(&cursor, end, &tok_start, &tok_len)) {
         if (flags & BRIX_HTTP_COND_WEAK_EQUIV) {
             brix_http_strip_weak(&tok_start, &tok_len);
         }
@@ -102,62 +128,6 @@ brix_http_etag_list_contains(const ngx_str_t *header, const char *etag,
     }
 
     return NGX_DECLINED;
-}
-
-ngx_int_t
-brix_http_check_etag_preconditions(ngx_http_request_t *r,
-    ngx_flag_t resource_exists, const struct stat *st, unsigned etag_flags,
-    unsigned condition_flags)
-{
-    ngx_table_elt_t *if_match;
-    ngx_table_elt_t *if_none_match;
-    char             etag_buf[64];
-    const char      *etag;
-
-    if_match = r->headers_in.if_match;
-    if_none_match = r->headers_in.if_none_match;
-
-    if (if_match == NULL && if_none_match == NULL) {
-        return NGX_OK;
-    }
-
-    etag = NULL;
-    if (resource_exists && st != NULL) {
-        brix_http_etag_str(etag_buf, sizeof(etag_buf),
-                             st->st_mtime, st->st_size, etag_flags);
-        etag = etag_buf;
-    }
-
-    if (if_match != NULL) {
-        if (!resource_exists) {
-            return NGX_HTTP_PRECONDITION_FAILED;
-        }
-
-        if (if_match->value.len == 1 && if_match->value.data[0] == '*') {
-            /* wildcard match passed; If-None-Match below may still fail */
-        } else if (brix_http_etag_list_contains(&if_match->value, etag,
-                                                  condition_flags) != NGX_OK)
-        {
-            return NGX_HTTP_PRECONDITION_FAILED;
-        }
-    }
-
-    if (if_none_match != NULL) {
-        if (if_none_match->value.len == 1
-            && if_none_match->value.data[0] == '*')
-        {
-            return resource_exists ? NGX_HTTP_PRECONDITION_FAILED : NGX_OK;
-        }
-
-        if (resource_exists
-            && brix_http_etag_list_contains(&if_none_match->value, etag,
-                                              condition_flags) == NGX_OK)
-        {
-            return NGX_HTTP_PRECONDITION_FAILED;
-        }
-    }
-
-    return NGX_OK;
 }
 
 /*
@@ -189,6 +159,202 @@ cond_is_wildcard(const ngx_str_t *v)
     return v->len == 1 && v->data[0] == '*';
 }
 
+/*
+ * brix_http_validator_selects - does an entity-tag validator select this resource?
+ *
+ * WHAT: Returns true when the header value (a `*` wildcard or a comma-separated
+ *       entity-tag list) selects the current representation. A missing resource is
+ *       never selected.
+ *
+ * WHY: RFC 7232 §3.1/§3.2 define the same "does this validator match the selected
+ *      representation" test for both If-Match and If-None-Match — the two differ only
+ *      in what they do with the answer. Sharing the predicate keeps that answer
+ *      byte-identical across every conditional callsite.
+ *
+ * HOW: 1. No representation ⇒ not selected. 2. `*` ⇒ selected (a representation
+ *      exists). 3. Otherwise the list must contain the resource's entity-tag.
+ */
+
+static ngx_flag_t
+brix_http_validator_selects(const ngx_str_t *value, ngx_flag_t resource_exists,
+    const char *etag, unsigned condition_flags)
+{
+    if (!resource_exists) {
+        return 0;
+    }
+    if (cond_is_wildcard(value)) {
+        return 1;
+    }
+    return brix_http_etag_list_contains(value, etag, condition_flags) == NGX_OK;
+}
+
+/*
+ * brix_http_eval_if_unmodified_since - apply an If-Unmodified-Since precondition.
+ *
+ * WHAT: Returns NGX_HTTP_PRECONDITION_FAILED (412) when the resource was modified
+ *       after the header date, otherwise NGX_DECLINED (precondition passes / proceed).
+ *
+ * WHY: RFC 7232 §3.4: a write must not proceed if the representation changed since the
+ *      client last saw it. An unparseable date is ignored (treated as passing) per the
+ *      same section.
+ *
+ * HOW: Parse the HTTP date; if valid and mtime is strictly newer, fail with 412.
+ */
+
+static ngx_int_t
+brix_http_eval_if_unmodified_since(const ngx_table_elt_t *if_unmod, time_t mtime)
+{
+    time_t t = ngx_parse_http_time(if_unmod->value.data, if_unmod->value.len);
+
+    if (t != (time_t) NGX_ERROR && mtime > t) {
+        return NGX_HTTP_PRECONDITION_FAILED;
+    }
+    return NGX_DECLINED;
+}
+
+/*
+ * brix_http_eval_if_modified_since - apply an If-Modified-Since precondition.
+ *
+ * WHAT: Returns NGX_HTTP_NOT_MODIFIED (304) when the resource has not been modified
+ *       since the header date, otherwise NGX_DECLINED (precondition passes / proceed).
+ *
+ * WHY: RFC 7232 §3.3: a GET may be short-circuited to 304 when the client's cached
+ *      copy is still current. An unparseable date is ignored (treated as modified).
+ *
+ * HOW: Parse the HTTP date; if valid and mtime is at or before it, return 304.
+ */
+
+static ngx_int_t
+brix_http_eval_if_modified_since(const ngx_table_elt_t *if_mod, time_t mtime)
+{
+    time_t t = ngx_parse_http_time(if_mod->value.data, if_mod->value.len);
+
+    if (t != (time_t) NGX_ERROR && mtime <= t) {
+        return NGX_HTTP_NOT_MODIFIED;
+    }
+    return NGX_DECLINED;
+}
+
+ngx_int_t
+brix_http_check_etag_preconditions(ngx_http_request_t *r,
+    ngx_flag_t resource_exists, const struct stat *st, unsigned etag_flags,
+    unsigned condition_flags)
+{
+    ngx_table_elt_t *if_match;
+    ngx_table_elt_t *if_none_match;
+    char             etag_buf[64];
+    const char      *etag;
+
+    if_match = r->headers_in.if_match;
+    if_none_match = r->headers_in.if_none_match;
+
+    if (if_match == NULL && if_none_match == NULL) {
+        return NGX_OK;
+    }
+
+    etag = NULL;
+    if (resource_exists && st != NULL) {
+        brix_http_etag_str(etag_buf, sizeof(etag_buf),
+                             st->st_mtime, st->st_size, etag_flags);
+        etag = etag_buf;
+    }
+
+    /* If-Match: fail unless the validator selects the existing representation. */
+    if (if_match != NULL
+        && !brix_http_validator_selects(&if_match->value, resource_exists, etag,
+                                         condition_flags))
+    {
+        return NGX_HTTP_PRECONDITION_FAILED;
+    }
+
+    /* If-None-Match: fail when the validator DOES select it (write semantics). */
+    if (if_none_match != NULL
+        && brix_http_validator_selects(&if_none_match->value, resource_exists,
+                                       etag, condition_flags))
+    {
+        return NGX_HTTP_PRECONDITION_FAILED;
+    }
+
+    return NGX_OK;
+}
+
+/*
+ * brix_http_eval_match_group - first RFC-7232 precedence step (If-Match, else
+ *                              If-Unmodified-Since).
+ *
+ * WHAT: Returns NGX_HTTP_PRECONDITION_FAILED (412) when the step's precondition fails,
+ *       otherwise NGX_DECLINED (proceed to the If-None-Match step).
+ *
+ * WHY: RFC 7232 §6 fixes the order: If-Match takes precedence and, when it is absent,
+ *      If-Unmodified-Since is evaluated in its place (the two are mutually exclusive at
+ *      this step). Encapsulating the pair preserves that "else" relationship exactly.
+ *
+ * HOW: 1. If-Match present ⇒ 412 unless the validator selects the representation;
+ *      otherwise proceed. 2. Else, in time mode, an If-Unmodified-Since header is
+ *      applied. 3. Neither present ⇒ proceed.
+ */
+
+static ngx_int_t
+brix_http_eval_match_group(ngx_table_elt_t *if_match, ngx_table_elt_t *if_unmod,
+    ngx_flag_t resource_exists, const char *etag, unsigned condition_flags,
+    unsigned time_mode, time_t mtime)
+{
+    if (cond_header_present(if_match)) {
+        if (!brix_http_validator_selects(&if_match->value, resource_exists, etag,
+                                         condition_flags))
+        {
+            return NGX_HTTP_PRECONDITION_FAILED;
+        }
+        return NGX_DECLINED;
+    }
+
+    if (time_mode && cond_header_present(if_unmod)) {
+        return brix_http_eval_if_unmodified_since(if_unmod, mtime);
+    }
+
+    return NGX_DECLINED;
+}
+
+/*
+ * brix_http_eval_none_match_group - second RFC-7232 precedence step (If-None-Match,
+ *                                   else If-Modified-Since).
+ *
+ * WHAT: Returns NGX_HTTP_NOT_MODIFIED (304) or NGX_HTTP_PRECONDITION_FAILED (412) when
+ *       the step's precondition triggers, otherwise NGX_DECLINED (conditions pass).
+ *
+ * WHY: RFC 7232 §6 evaluates If-None-Match after the If-Match step and, when it is
+ *      absent, evaluates If-Modified-Since in its place (reads only). A selecting
+ *      If-None-Match means the client already holds the representation: 304 on reads,
+ *      412 on writes.
+ *
+ * HOW: 1. If-None-Match present ⇒ if the validator selects it, 304 for reads / 412 for
+ *      writes; otherwise proceed. 2. Else, for reads in time mode, apply
+ *      If-Modified-Since. 3. Neither present ⇒ proceed.
+ */
+
+static ngx_int_t
+brix_http_eval_none_match_group(ngx_table_elt_t *if_none,
+    ngx_table_elt_t *if_mod, ngx_flag_t resource_exists, const char *etag,
+    unsigned condition_flags, unsigned read_mode, unsigned time_mode,
+    time_t mtime)
+{
+    if (cond_header_present(if_none)) {
+        if (brix_http_validator_selects(&if_none->value, resource_exists, etag,
+                                        condition_flags))
+        {
+            return read_mode ? NGX_HTTP_NOT_MODIFIED
+                             : NGX_HTTP_PRECONDITION_FAILED;
+        }
+        return NGX_DECLINED;
+    }
+
+    if (read_mode && time_mode && cond_header_present(if_mod)) {
+        return brix_http_eval_if_modified_since(if_mod, mtime);
+    }
+
+    return NGX_DECLINED;
+}
+
 ngx_int_t
 brix_http_eval_preconditions(ngx_http_request_t *r,
     ngx_flag_t resource_exists, time_t mtime, off_t size,
@@ -202,6 +368,7 @@ brix_http_eval_preconditions(ngx_http_request_t *r,
     unsigned         time_mode = condition_flags & BRIX_HTTP_COND_TIME;
     char             etag_buf[64];
     const char      *etag = NULL;
+    ngx_int_t        decision;
 
     if (resource_exists) {
         brix_http_etag_str(etag_buf, sizeof(etag_buf), mtime, size,
@@ -209,51 +376,20 @@ brix_http_eval_preconditions(ngx_http_request_t *r,
         etag = etag_buf;
     }
 
-    /* 1. If-Match — fails (412) unless the representation exists and the
-     *    validator selects it. */
-    if (cond_header_present(if_match)) {
-        if (!resource_exists) {
-            return NGX_HTTP_PRECONDITION_FAILED;
-        }
-        if (!cond_is_wildcard(&if_match->value)
-            && brix_http_etag_list_contains(&if_match->value, etag,
-                                              condition_flags) != NGX_OK)
-        {
-            return NGX_HTTP_PRECONDITION_FAILED;
-        }
-    } else if (time_mode && cond_header_present(if_unmod)) {
-        /* 2. If-Unmodified-Since — only when If-Match is absent. */
-        time_t t = ngx_parse_http_time(if_unmod->value.data,
-                                       if_unmod->value.len);
-        if (t != (time_t) NGX_ERROR && mtime > t) {
-            return NGX_HTTP_PRECONDITION_FAILED;
-        }
+    /* Step 1: If-Match, or (absent) If-Unmodified-Since — may 412. */
+    decision = brix_http_eval_match_group(if_match, if_unmod, resource_exists,
+                                          etag, condition_flags, time_mode,
+                                          mtime);
+    if (decision != NGX_DECLINED) {
+        return decision;
     }
 
-    /* 3. If-None-Match — a match means the client already holds (or must not
-     *    overwrite) this representation: 304 on reads, 412 on writes. */
-    if (cond_header_present(if_none)) {
-        ngx_flag_t selected;
-
-        if (cond_is_wildcard(&if_none->value)) {
-            selected = resource_exists;
-        } else {
-            selected = resource_exists
-                       && brix_http_etag_list_contains(&if_none->value, etag,
-                                                         condition_flags)
-                          == NGX_OK;
-        }
-        if (selected) {
-            return read_mode ? NGX_HTTP_NOT_MODIFIED
-                             : NGX_HTTP_PRECONDITION_FAILED;
-        }
-    } else if (read_mode && time_mode && cond_header_present(if_mod)) {
-        /* 4. If-Modified-Since — reads only, when If-None-Match is absent.
-         *    `before` semantics: not modified since the given date ⇒ 304. */
-        time_t t = ngx_parse_http_time(if_mod->value.data, if_mod->value.len);
-        if (t != (time_t) NGX_ERROR && mtime <= t) {
-            return NGX_HTTP_NOT_MODIFIED;
-        }
+    /* Step 2: If-None-Match, or (absent) If-Modified-Since — may 304/412. */
+    decision = brix_http_eval_none_match_group(if_none, if_mod, resource_exists,
+                                               etag, condition_flags, read_mode,
+                                               time_mode, mtime);
+    if (decision != NGX_DECLINED) {
+        return decision;
     }
 
     return NGX_OK;

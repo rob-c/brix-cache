@@ -89,6 +89,64 @@ s3_user_meta_store(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 }
 
 /*
+ * s3_user_meta_append_kv — append one already-lowercased key and its raw value
+ * to the "k=v&k=v" blob under construction.
+ *
+ * WHAT: Emits a "&" separator (only when *pos already holds a prior pair), then
+ *       the percent-encoded key, a "=", and the percent-encoded value, advancing
+ *       *pos past the bytes written. Returns NGX_OK, or NGX_ERROR if any encode
+ *       fails or the result would overflow the out/outsz buffer.
+ * WHY:  Keeping the separator/encode/'='/encode arithmetic in one linear helper
+ *       is what lets the header-scan loop stay under the complexity cap — the
+ *       loop decides which headers qualify, this owns the byte-exact framing so
+ *       '=', '&' and spaces can never break the stored form.
+ * HOW:  1. When *pos is non-zero, bounds-check and write the '&' joiner.
+ *       2. URL-encode the key (empty passthrough set) and bounds-checked copy it.
+ *       3. Write the '=' delimiter.
+ *       4. URL-encode the value and bounds-checked copy it.
+ *       5. Publish the advanced cursor back through *pos.
+ */
+static ngx_int_t
+s3_user_meta_append_kv(char *out, size_t outsz, size_t *pos,
+    const char *klow, size_t knlen, const u_char *val, size_t vallen)
+{
+    char   enc[1024];
+    size_t cursor = *pos;
+    size_t n;
+
+    if (cursor != 0) {
+        if (cursor + 1 >= outsz) {
+            return NGX_ERROR;
+        }
+        out[cursor++] = '&';
+    }
+
+    if (brix_http_urlencode((u_char *) klow, knlen, enc, sizeof(enc), "") < 0) {
+        return NGX_ERROR;
+    }
+    n = ngx_strlen(enc);
+    if (cursor + n + 1 >= outsz) {
+        return NGX_ERROR;
+    }
+    ngx_memcpy(out + cursor, enc, n);
+    cursor += n;
+    out[cursor++] = '=';
+
+    if (brix_http_urlencode(val, vallen, enc, sizeof(enc), "") < 0) {
+        return NGX_ERROR;
+    }
+    n = ngx_strlen(enc);
+    if (cursor + n >= outsz) {
+        return NGX_ERROR;
+    }
+    ngx_memcpy(out + cursor, enc, n);
+    cursor += n;
+
+    *pos = cursor;
+    return NGX_OK;
+}
+
+/*
  * s3_user_meta_blob_from_headers — collect every x-amz-meta-<name> request
  * header into one URL-encoded "k=v&k=v" blob (key lowercased, both components
  * percent-encoded so '=', '&' and spaces never break the stored form). Sets
@@ -107,9 +165,8 @@ s3_user_meta_blob_from_headers(ngx_http_request_t *r, char *out, size_t outsz,
     *any = 0;
     for (i = 0; /* void */; i++) {
         const u_char *kname;
-        size_t        knlen, n, j;
+        size_t        knlen, j;
         char          klow[256];
-        char          enc[1024];
 
         if (i >= part->nelts) {
             if (part->next == NULL) {
@@ -139,35 +196,11 @@ s3_user_meta_blob_from_headers(ngx_http_request_t *r, char *out, size_t outsz,
             klow[j] = (char) ngx_tolower(kname[j]);
         }
 
-        if (pos != 0) {
-            if (pos + 1 >= outsz) {
-                return NGX_ERROR;
-            }
-            out[pos++] = '&';
-        }
-        if (brix_http_urlencode((u_char *) klow, knlen, enc, sizeof(enc), "")
-                < 0)
+        if (s3_user_meta_append_kv(out, outsz, &pos, klow, knlen,
+                                   h[i].value.data, h[i].value.len) != NGX_OK)
         {
             return NGX_ERROR;
         }
-        n = ngx_strlen(enc);
-        if (pos + n + 1 >= outsz) {
-            return NGX_ERROR;
-        }
-        ngx_memcpy(out + pos, enc, n);
-        pos += n;
-        out[pos++] = '=';
-        if (brix_http_urlencode(h[i].value.data, h[i].value.len, enc,
-                                  sizeof(enc), "") < 0)
-        {
-            return NGX_ERROR;
-        }
-        n = ngx_strlen(enc);
-        if (pos + n >= outsz) {
-            return NGX_ERROR;
-        }
-        ngx_memcpy(out + pos, enc, n);
-        pos += n;
         *any = 1;
     }
 

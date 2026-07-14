@@ -122,36 +122,73 @@ sigv4_store_param(qparam_t *p, const u_char *segment_start,
     return 1;
 }
 
-size_t
-build_canonical_qs(const u_char *qs, size_t qslen, ngx_flag_t skip_signature,
-                    u_char *out, size_t outsz)
+/* ---- Scan one query-string segment, locating its end and first '=' ----
+ *
+ * WHAT: Given the start of a segment and the end of the query string, returns a
+ * pointer to the segment end (the next '&' or the query-string end, whichever
+ * comes first) and writes the position of the FIRST '=' within the segment to
+ * *equals_out, or NULL when the segment contains no '='.
+ *
+ * WHY: The name/value split in a SigV4 query parameter is defined by the first
+ * '=' only — a value may legitimately contain further '=' bytes, so those later
+ * '=' bytes belong to the value, not the split. Isolating the scan keeps the
+ * parse loop flat and the "first-equals-wins" rule stated in exactly one place,
+ * which is load-bearing for byte-identical canonicalisation.
+ *
+ * HOW:
+ *   1. Walk from segment_start until end or a '&' delimiter is reached.
+ *   2. Record the position of the first '=' seen (leave NULL if none).
+ *   3. Publish the first-'=' position via *equals_out and return the end pointer.
+ */
+static const u_char *
+sigv4_scan_segment(const u_char *segment_start, const u_char *end,
+    const u_char **equals_out)
 {
-/* WHY: SigV4 canonical query string requires parameters sorted alphabetically
- * by name then value, with names and values percent-encoded — this is the
- * exact string that clients compute and sign. Skipping X-Amz-Signature from
- * the canonical qs ensures the signature field itself is not part of what
- * it signs (self-referential). Parameter count capped at 64 to bound stack
- * allocation of params[] array. */
-    /* Parse query string into at most 64 parameters */
-    qparam_t     params[64];
-    int          param_count = 0;
+    const u_char *segment_end = segment_start;
+    const u_char *equals = NULL;
+
+    while (segment_end < end && *segment_end != '&') {
+        if (*segment_end == '=' && equals == NULL) {
+            equals = segment_end;
+        }
+        segment_end++;
+    }
+
+    *equals_out = equals;
+    return segment_end;
+}
+
+/* ---- Parse a raw query string into decoded, storable parameters ----
+ *
+ * WHAT: Splits [qs, qs+qslen) on '&' into at most max_params segments, decodes
+ * each into params[], and returns the number of parameters stored. Segments
+ * that are empty or rejected by sigv4_store_param (decode failure, or the
+ * X-Amz-Signature parameter when skip_signature is set) are dropped.
+ *
+ * WHY: The canonical query string is the exact byte sequence a client signs, so
+ * the parse must reproduce SigV4's segmentation precisely. Capping at max_params
+ * bounds the caller's fixed-size params[] stack array. Skipping X-Amz-Signature
+ * keeps the signature field out of the string it signs (self-referential).
+ *
+ * HOW:
+ *   1. Walk the query string one '&'-delimited segment at a time.
+ *   2. For each segment, locate its end and first '=' via sigv4_scan_segment.
+ *   3. Store non-empty segments accepted by sigv4_store_param, counting them.
+ *   4. Step past the '&' delimiter, or stop when the query-string end is hit.
+ */
+static int
+sigv4_parse_qs(const u_char *qs, size_t qslen, ngx_flag_t skip_signature,
+    qparam_t *params, int max_params)
+{
+    int           param_count = 0;
     const u_char *cursor = qs;
     const u_char *end = qs + qslen;
 
-    while (cursor < end && param_count < 64) {
+    while (cursor < end && param_count < max_params) {
         const u_char *segment_start = cursor;
-        const u_char *segment_end = cursor;
         const u_char *equals = NULL;
-
-        /* Scan one "name=value" segment up to the next '&' (or end). Record the
-         * FIRST '=' only: a value may legitimately contain '=' bytes, so any
-         * '=' after the first belongs to the value, not the name/value split. */
-        while (segment_end < end && *segment_end != '&') {
-            if (*segment_end == '=' && equals == NULL) {
-                equals = segment_end;
-            }
-            segment_end++;
-        }
+        const u_char *segment_end =
+            sigv4_scan_segment(segment_start, end, &equals);
 
         if (segment_start < segment_end
             && sigv4_store_param(&params[param_count], segment_start,
@@ -165,34 +202,102 @@ build_canonical_qs(const u_char *qs, size_t qslen, ngx_flag_t skip_signature,
         cursor = (segment_end < end) ? segment_end + 1 : segment_end;
     }
 
-    qsort(params, (size_t) param_count, sizeof(params[0]), qparam_cmp);
+    return param_count;
+}
 
-    /* Emit the sorted params as "enc(name)=enc(value)&..." into out[]. Every
-     * append is guarded against outsz so a short buffer truncates cleanly rather
-     * than overflowing; one trailing byte is always reserved for the final NUL
-     * written after the loop (hence the strict "< outsz", not "<="). */
-    size_t oi = 0;
+/* ---- Percent-encode one component and append it to the output buffer ----
+ *
+ * WHAT: Percent-encodes [src, src+slen) and appends the result at out[oi],
+ * returning the new write offset. If the encoded bytes would not fit within
+ * outsz (keeping the strict "< outsz" reservation for the caller's trailing
+ * NUL), nothing is written and oi is returned unchanged.
+ *
+ * WHY: Every append into the canonical buffer must be bounds-guarded so a short
+ * buffer truncates cleanly rather than overflowing; centralising the encode-and-
+ * guard step keeps that safety rule identical for both the name and the value.
+ *
+ * HOW:
+ *   1. Percent-encode the source component into a local scratch buffer.
+ *   2. Append it only if oi + encoded_len stays strictly below outsz.
+ *   3. Return the advanced offset (or the original offset when it did not fit).
+ */
+static size_t
+sigv4_append_encoded(u_char *out, size_t oi, size_t outsz,
+    const u_char *src, size_t slen)
+{
     u_char enc[1024];
+    size_t n = uriencode_param(src, slen, enc, sizeof(enc));
+
+    if (oi + n < outsz) {
+        ngx_memcpy(out + oi, enc, n);
+        oi += n;
+    }
+    return oi;
+}
+
+/* ---- Emit sorted parameters as the canonical "name=value&..." string ----
+ *
+ * WHAT: Writes the already-sorted params[] as "enc(name)=enc(value)" joined by
+ * '&' into out[], NUL-terminates it, and returns the byte length written
+ * (excluding the NUL).
+ *
+ * WHY: This is the final canonical query string that both client and server feed
+ * into the signature. The '&' separator, the '=' between name and value, and the
+ * per-append bounds guard must be byte-identical to what clients compute, so the
+ * emission is expressed once here with reserved space for the trailing NUL.
+ *
+ * HOW:
+ *   1. For each parameter, prepend '&' before all but the first (bounds-guarded).
+ *   2. Append the encoded name, then a '=', then the encoded value.
+ *   3. NUL-terminate the buffer and return the written length.
+ */
+static size_t
+sigv4_emit_canonical_qs(const qparam_t *params, int param_count,
+    u_char *out, size_t outsz)
+{
+    size_t oi = 0;
 
     for (int i = 0; i < param_count; i++) {
         if (i > 0 && oi + 1 < outsz) {
             out[oi++] = '&';
         }
-        size_t n;
-        n = uriencode_param(params[i].name, params[i].name_len,
-                            enc, sizeof(enc));
-        if (oi + n < outsz) {
-            ngx_memcpy(out + oi, enc, n);
-            oi += n;
+        oi = sigv4_append_encoded(out, oi, outsz, params[i].name,
+                                  params[i].name_len);
+        if (oi + 1 < outsz) {
+            out[oi++] = '=';
         }
-        if (oi + 1 < outsz) out[oi++] = '=';
-        n = uriencode_param(params[i].value, params[i].value_len,
-                            enc, sizeof(enc));
-        if (oi + n < outsz) {
-            ngx_memcpy(out + oi, enc, n);
-            oi += n;
-        }
+        oi = sigv4_append_encoded(out, oi, outsz, params[i].value,
+                                  params[i].value_len);
     }
+
     out[oi] = '\0';
     return oi;
+}
+
+/* ---- Build the SigV4 canonical query string ----
+ *
+ * WHAT: Parses the raw query string [qs, qs+qslen), sorts its parameters, and
+ * writes the canonical "enc(name)=enc(value)&..." form into out[] (NUL-
+ * terminated), returning the byte length written (excluding the NUL).
+ *
+ * WHY: SigV4 requires parameters sorted alphabetically by name then value with
+ * names and values percent-encoded — this is the exact string clients compute
+ * and sign, so it must be reproduced byte-for-byte. Parameter count is capped at
+ * 64 to bound the stack allocation of the params[] array.
+ *
+ * HOW:
+ *   1. Parse the query string into at most 64 decoded parameters.
+ *   2. Sort them by name then value using qparam_cmp (SigV4 ordering).
+ *   3. Emit the sorted parameters as the canonical query string.
+ */
+size_t
+build_canonical_qs(const u_char *qs, size_t qslen, ngx_flag_t skip_signature,
+                    u_char *out, size_t outsz)
+{
+    qparam_t params[64];
+    int      param_count;
+
+    param_count = sigv4_parse_qs(qs, qslen, skip_signature, params, 64);
+    qsort(params, (size_t) param_count, sizeof(params[0]), qparam_cmp);
+    return sigv4_emit_canonical_qs(params, param_count, out, outsz);
 }

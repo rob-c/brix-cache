@@ -38,6 +38,9 @@
  *         non-XRootD client talking to the port -> GUARD_OP_UNKNOWN.
  */
 static const guard_op_class_t  opcode_op_class[kXR_clone - kXR_auth + 1] = {
+    /* phase79-fp: misc-redundant-expression — `kXR_auth - kXR_auth` is the
+     * deliberate `[opcode - kXR_auth]` base-offset idiom shared by every row; the
+     * zero-valued first index is intentional, not a copy-paste mistake. */
     [kXR_auth     - kXR_auth] = GUARD_OP_HANDSHAKE,
     [kXR_query    - kXR_auth] = GUARD_OP_INFO,
     [kXR_chmod    - kXR_auth] = GUARD_OP_WRITE,

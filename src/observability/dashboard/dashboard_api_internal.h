@@ -80,7 +80,10 @@ json_t * dashboard_build_proto_summary(const brix_dashboard_proto_summary_t *s, 
 json_t * dashboard_build_protocols(int64_t now_ms, const brix_dashboard_totals_t *totals);
 json_t * dashboard_build_events(ngx_pool_t *pool, ngx_uint_t redact);
 void dashboard_fill_history(json_t *target, ngx_pool_t *pool);
+
+/* api_snapshot_panels.c — cache/storage/cluster panel fills (phase-79 split) */
 void dashboard_fill_cache(json_t *target, ngx_uint_t redact);
+void dashboard_fill_storage(json_t *target, ngx_uint_t redact);
 void dashboard_fill_cluster(json_t *target, ngx_pool_t *pool, int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf, ngx_uint_t redact);
 json_t * dashboard_new_v1_root(int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf);
 

@@ -168,13 +168,17 @@ def _build_matrix() -> List[Tuple]:
     # listing is non-deterministic in a parallel run (concurrent tests create
     # and delete files in the shared data dir), so its output hash is unstable.
     # The fleet entries below exercise deterministic error paths instead.
+    # X509_USER_PROXY is pinned to a nonexistent path: xrdcp prepends a
+    # "GSI proxy has EXPIRED" warning to stderr whenever the ambient
+    # /tmp/x509up_u<uid> happens to be present-and-expired (other suites
+    # create and refresh it), which made this entry's stderr hash flap.
     entries.append((
         "fleet:xrdcp_missing",
         [str(BIN_DIR / "xrdcp"),
          f"root://{FLEET_ADDR}//missing",
          "/tmp/x"],
         True,
-        None,
+        {"X509_USER_PROXY": "/nonexistent/x509_none"},
     ))
     entries.append((
         "fleet:xrdfs_staat",

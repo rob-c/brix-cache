@@ -57,6 +57,145 @@ resolve_target(brix_conn *c, const brix_url *u, char *target, size_t tsz,
 /* topology — locate + redirect-loop convergence (+ optional /cluster) */
 
 /*
+ * topo_probe_locate — run the kXR_locate probe and record its outcome.
+ *
+ * WHAT: locates qpath on c; sets *locate_ok (1 when a non-empty result came
+ *       back), copies the result blob into locate_result[rsz], and bumps *fails
+ *       on any failure (locate error OR empty result). Prints a human probe line
+ *       only when !a->json.
+ * WHY:  the locate outcome feeds both the human report and the JSON node list, so
+ *       it must accumulate into caller locals identically regardless of mode.
+ * HOW:  (1) call brix_locate into a local buffer; (2) on success derive
+ *       locate_ok/locate_result from the first byte and count an empty result as
+ *       a failure; (3) on error zero locate_ok and count the failure; (4) emit
+ *       the probe line only in human mode.
+ */
+static void
+topo_probe_locate(brix_conn *c, const char *qpath, const diag_args *a,
+                  int *locate_ok, char *locate_result, size_t rsz, int *fails)
+{
+    char        loc[4096];
+    brix_status st;
+
+    brix_status_clear(&st);
+    if (brix_locate(c, qpath, loc, sizeof(loc), &st) == 0) {
+        *locate_ok = (loc[0] != '\0');
+        snprintf(locate_result, rsz, "%s", loc[0] ? loc : "");
+        if (!*locate_ok) { (*fails)++; }
+        if (!a->json) {
+            probe("locate", loc[0] != '\0', "%s -> %s", qpath, loc[0] ? loc : "(empty)");
+        }
+    } else {
+        *locate_ok = 0;
+        (*fails)++;
+        if (!a->json) { probe("locate", 0, "%s", st.msg); }
+    }
+}
+
+
+/*
+ * topo_probe_redirect — verify a nonexistent path converges to NotFound.
+ *
+ * WHAT: stats a sentinel path that cannot exist; sets *redirect_ok when the stat
+ *       failed with kXR_NotFound and bumps *fails otherwise. Prints a human probe
+ *       line only when !a->json.
+ * WHY:  a cluster redirect loop-guard regression would exhaust the redirect budget
+ *       instead of returning NotFound; this probe is that regression test.
+ * HOW:  (1) stat the sentinel path with a private status; (2) redirect_ok is true
+ *       iff stat failed AND the kXR code is NotFound; (3) count a failure when not;
+ *       (4) emit the probe line only in human mode.
+ */
+static void
+topo_probe_redirect(brix_conn *c, const diag_args *a, int *redirect_ok, int *fails)
+{
+    brix_statinfo s;
+    brix_status   nst;
+    int           rc;
+
+    brix_status_clear(&nst);
+    rc           = brix_stat(c, "/nonexistent-xrddiag-probe-path", &s, &nst);
+    *redirect_ok = (rc != 0 && nst.kxr == kXR_NotFound);
+    if (!*redirect_ok) { (*fails)++; }
+    if (!a->json) {
+        probe("redirect-convergence", *redirect_ok,
+              "nonexistent path -> %s", rc != 0 ? brix_kxr_name(nst.kxr) : "SERVED?!");
+    }
+}
+
+
+/*
+ * topo_report_cluster — human-only /cluster HTTP dump.
+ *
+ * WHAT: when a->cluster_url is set, fetches it over HTTP and prints the body with
+ *       its status code; on any failure (alloc, parse, or GET) prints a note.
+ *       With no cluster_url, prints a usage hint. No return value.
+ * WHY:  the cluster view is only meaningful in the human report, so it is skipped
+ *       entirely in JSON mode by the caller and lives in its own helper.
+ * HOW:  (1) with a cluster_url, allocate a 1 MiB body and require alloc, endpoint
+ *       parse, and HTTP GET to all succeed before printing the body; otherwise
+ *       note the failure; free the body; (2) with no cluster_url, note the hint.
+ */
+static void
+topo_report_cluster(const diag_args *a)
+{
+    if (a->cluster_url != NULL) {
+        brix_url    cu;
+        brix_status cst;
+        char       *body = malloc(1u << 20);
+        int         http = 0;
+        brix_status_clear(&cst);
+        if (body != NULL && brix_endpoint_parse(a->cluster_url, &cu, &cst) == 0 &&
+            brix_http_get(cu.host, cu.port, cu.path[0] ? cu.path : "/", 5000,
+                          &http, body, 1u << 20, NULL, &cst) == 0) {
+            printf("  /cluster (HTTP %d):\n%s\n", http, body);
+        } else {
+            note("cluster-json", "unavailable: %s", cst.msg);
+        }
+        free(body);
+    } else {
+        note("cluster-json", "pass --cluster-url http://host:port/brix/api/v1/cluster");
+    }
+}
+
+
+/*
+ * topo_emit_json — emit an array of nodes extracted from the locate-result blob.
+ *
+ * WHAT: prints [{"node":"<token>"}, ...] to stdout, one element per whitespace
+ *       token of locate_result (empty locate yields []), and returns 1 when fails
+ *       is nonzero else 0 (the process exit code for JSON mode).
+ * WHY:  the human branch prints a single raw blob (not per-node lines), so
+ *       splitting on whitespace is the minimal faithful translation. The top level
+ *       must be an array so JSON consumers can iterate nodes without knowing the
+ *       blob grammar.
+ * HOW:  (1) open the array; (2) when locate succeeded and the blob is non-empty,
+ *       strtok a stack copy and print one object per token, comma-separated;
+ *       (3) close the array; (4) map the accumulated failure count to an exit code.
+ */
+static int
+topo_emit_json(int locate_ok, const char *locate_result, int fails)
+{
+    char        lbuf[4096];
+    char       *tok;
+    const char *sep = "";
+
+    printf("[");
+    if (locate_ok && locate_result[0] != '\0') {
+        snprintf(lbuf, sizeof(lbuf), "%s", locate_result);
+        for (tok = strtok(lbuf, " \t\r\n"); tok != NULL;
+             tok = strtok(NULL, " \t\r\n")) {
+            printf("%s{", sep);
+            brix_json_kv_str(stdout, "node", tok, 0);
+            printf("}");
+            sep = ",";
+        }
+    }
+    printf("]\n");
+    return fails ? 1 : 0;
+}
+
+
+/*
  * do_topology — probe cluster topology at a live endpoint.
  *
  * WHAT: connects, runs kXR_locate + a redirect-convergence probe, then outputs
@@ -71,7 +210,6 @@ do_topology(const diag_args *a)
     brix_url    u;
     brix_conn   c;
     brix_status st;
-    char        loc[4096];
     const char *qpath;
     /* JSON-mode accumulators */
     int  js_locate_ok = 0, js_redirect_ok = 0, js_fails = 0;
@@ -92,85 +230,18 @@ do_topology(const diag_args *a)
         printf("Topology of %s:%d\n", u.host, u.port);
     }
 
-    if (brix_locate(&c, qpath, loc, sizeof(loc), &st) == 0) {
-        js_locate_ok = (loc[0] != '\0');
-        snprintf(js_locate_result, sizeof(js_locate_result), "%s", loc[0] ? loc : "");
-        if (!js_locate_ok) { js_fails++; }
-        if (!a->json) {
-            probe("locate", loc[0] != '\0', "%s -> %s", qpath, loc[0] ? loc : "(empty)");
-        }
-    } else {
-        js_locate_ok = 0;
-        js_fails++;
-        if (!a->json) { probe("locate", 0, "%s", st.msg); }
-    }
-
-    /* redirect-loop convergence: a nonexistent path must resolve to NotFound,
-     * not exhaust the redirect budget (the cluster loop-guard regression test). */
-    {
-        brix_statinfo s;
-        brix_status   nst;
-        int           rc;
-        brix_status_clear(&nst);
-        rc               = brix_stat(&c, "/nonexistent-xrddiag-probe-path", &s, &nst);
-        js_redirect_ok   = (rc != 0 && nst.kxr == kXR_NotFound);
-        if (!js_redirect_ok) { js_fails++; }
-        if (!a->json) {
-            probe("redirect-convergence", js_redirect_ok,
-                  "nonexistent path -> %s", rc != 0 ? brix_kxr_name(nst.kxr) : "SERVED?!");
-        }
-    }
-
+    topo_probe_locate(&c, qpath, a, &js_locate_ok, js_locate_result,
+                      sizeof(js_locate_result), &js_fails);
+    topo_probe_redirect(&c, a, &js_redirect_ok, &js_fails);
     if (!a->json) {
-        if (a->cluster_url != NULL) {
-            brix_url    cu;
-            brix_status cst;
-            char       *body = malloc(1u << 20);
-            int         http = 0;
-            brix_status_clear(&cst);
-            if (body != NULL && brix_endpoint_parse(a->cluster_url, &cu, &cst) == 0 &&
-                brix_http_get(cu.host, cu.port, cu.path[0] ? cu.path : "/", 5000,
-                              &http, body, 1u << 20, NULL, &cst) == 0) {
-                printf("  /cluster (HTTP %d):\n%s\n", http, body);
-            } else {
-                note("cluster-json", "unavailable: %s", cst.msg);
-            }
-            free(body);
-        } else {
-            note("cluster-json", "pass --cluster-url http://host:port/brix/api/v1/cluster");
-        }
+        topo_report_cluster(a);
     }
 
     brix_close(&c);
 
     if (a->json) {
-        /* Emit an array of nodes extracted from the locate-result blob.
-         *
-         * WHAT: splits the raw locate-result string on whitespace, one element
-         *       per token: [{"node":"<token>"}, ...].
-         * WHY:  the human branch prints a single raw blob (not per-node lines),
-         *       so splitting on whitespace is the minimal faithful translation.
-         *       Top-level must be an array so JSON consumers can iterate nodes
-         *       without knowing the blob grammar.
-         * HOW:  strtok on a stack copy; empty locate → []. */
-        char        lbuf[4096];
-        char       *tok;
-        const char *sep = "";
-        printf("[");
-        if (js_locate_ok && js_locate_result[0] != '\0') {
-            snprintf(lbuf, sizeof(lbuf), "%s", js_locate_result);
-            for (tok = strtok(lbuf, " \t\r\n"); tok != NULL;
-                 tok = strtok(NULL, " \t\r\n")) {
-                printf("%s{", sep);
-                brix_json_kv_str(stdout, "node", tok, 0);
-                printf("}");
-                sep = ",";
-            }
-        }
-        printf("]\n");
-        return js_fails ? 1 : 0;
+        return topo_emit_json(js_locate_ok, js_locate_result, js_fails);
     }
-
     return g_fails ? 1 : 0;
 }
 

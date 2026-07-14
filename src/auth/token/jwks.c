@@ -22,6 +22,132 @@
 #include <string.h>
 #include <jansson.h>
 
+/* ---- Build an RSA public key from a JWK and store it in a key slot ----
+ *
+ * WHAT: Converts a JWK RSA "n"/"e" pair into an EVP_PKEY via
+ * brix_token_rsa_pubkey_from_ne() and, on success, records kid+pkey into
+ * *dest and logs an INFO line. Returns 1 when a key was stored, 0 when the
+ * key material could not be turned into an EVP_PKEY (dest is left untouched).
+ *
+ * WHY: Isolates the RSA leg of the JWKS parser so the per-item dispatcher
+ * stays flat and under the complexity budget, without altering the exact
+ * store-and-log behaviour that governs which bearer keys become active.
+ *
+ * HOW:
+ *   1. Call brix_token_rsa_pubkey_from_ne(n_b64, e_b64) to build the pkey.
+ *   2. If it returns NULL, return 0 without writing dest or logging.
+ *   3. Copy kid into dest->kid (bounded), assign dest->pkey, log INFO,
+ *      return 1.
+ */
+static int
+brix_jwks_store_rsa(ngx_log_t *log, const char *kid,
+    const char *n_b64, const char *e_b64, brix_jwks_key_t *dest)
+{
+    EVP_PKEY *pkey;
+
+    pkey = brix_token_rsa_pubkey_from_ne(n_b64, strlen(n_b64),
+                                         e_b64, strlen(e_b64), log);
+    if (pkey == NULL) {
+        return 0;
+    }
+
+    ngx_cpystrn((u_char *) dest->kid, (u_char *) kid, sizeof(dest->kid));
+    dest->pkey = pkey;
+    ngx_log_error(NGX_LOG_INFO, log, 0,
+                  "brix_token: loaded RSA JWKS key kid=\"%s\"", kid);
+    return 1;
+}
+
+/* ---- Build an EC P-256 public key from a JWK and store it in a key slot ----
+ *
+ * WHAT: Converts a JWK EC "x"/"y" pair into an EVP_PKEY via
+ * brix_token_ec_pubkey_from_xy() and, on success, records kid+pkey into
+ * *dest and logs an INFO line. Returns 1 when a key was stored, 0 when the
+ * key material could not be turned into an EVP_PKEY (dest is left untouched).
+ *
+ * WHY: Isolates the EC leg of the JWKS parser so the per-item dispatcher
+ * stays flat and under the complexity budget, without altering the exact
+ * store-and-log behaviour that governs which bearer keys become active.
+ *
+ * HOW:
+ *   1. Call brix_token_ec_pubkey_from_xy(x_b64, y_b64) to build the pkey.
+ *   2. If it returns NULL, return 0 without writing dest or logging.
+ *   3. Copy kid into dest->kid (bounded), assign dest->pkey, log INFO,
+ *      return 1.
+ */
+static int
+brix_jwks_store_ec(ngx_log_t *log, const char *kid,
+    const char *x_b64, const char *y_b64, brix_jwks_key_t *dest)
+{
+    EVP_PKEY *pkey;
+
+    pkey = brix_token_ec_pubkey_from_xy(x_b64, strlen(x_b64),
+                                        y_b64, strlen(y_b64), log);
+    if (pkey == NULL) {
+        return 0;
+    }
+
+    ngx_cpystrn((u_char *) dest->kid, (u_char *) kid, sizeof(dest->kid));
+    dest->pkey = pkey;
+    ngx_log_error(NGX_LOG_INFO, log, 0,
+                  "brix_token: loaded EC P-256 JWKS key kid=\"%s\"", kid);
+    return 1;
+}
+
+/* ---- Parse one JWKS "keys" array entry into a key slot ----
+ *
+ * WHAT: Extracts the JWK string fields (kty/kid/n/e/crv/x/y) from a JSON
+ * object and dispatches to the RSA or EC P-256 builder. Returns 1 when a key
+ * was stored into *dest, 0 when the entry was skipped (unsupported kty/crv,
+ * missing key material, or a key that failed to convert). Unsupported entries
+ * are logged at WARN; conversion failures are silent, matching prior behaviour.
+ *
+ * WHY: Concentrates the security-load-bearing field extraction and key-type
+ * selection in one small, reviewable unit so the outer loop is a flat walk and
+ * every accept/skip branch is preserved exactly as before.
+ *
+ * HOW:
+ *   1. Read each JWK field with JWKS_STRING_FIELD (absent/non-string -> "").
+ *   2. RSA with non-empty n and e -> brix_jwks_store_rsa(); return its result.
+ *   3. EC with crv "P-256" and non-empty x and y -> brix_jwks_store_ec();
+ *      return its result.
+ *   4. Otherwise log a WARN naming kty/crv and return 0.
+ */
+static int
+brix_jwks_process_item(ngx_log_t *log, json_t *item, brix_jwks_key_t *dest)
+{
+    const char *kty, *kid, *n_b64, *e_b64, *crv, *x_b64, *y_b64;
+    json_t     *v;
+
+#define JWKS_STRING_FIELD(obj, field) \
+    (v = json_object_get((obj), (field)), json_is_string(v) ? json_string_value(v) : "")
+
+    kty   = JWKS_STRING_FIELD(item, "kty");
+    kid   = JWKS_STRING_FIELD(item, "kid");
+    n_b64 = JWKS_STRING_FIELD(item, "n");
+    e_b64 = JWKS_STRING_FIELD(item, "e");
+    crv   = JWKS_STRING_FIELD(item, "crv");
+    x_b64 = JWKS_STRING_FIELD(item, "x");
+    y_b64 = JWKS_STRING_FIELD(item, "y");
+
+#undef JWKS_STRING_FIELD
+
+    if (strcmp(kty, "RSA") == 0 && n_b64[0] && e_b64[0]) {
+        return brix_jwks_store_rsa(log, kid, n_b64, e_b64, dest);
+    }
+
+    if (strcmp(kty, "EC") == 0 && strcmp(crv, "P-256") == 0
+        && x_b64[0] && y_b64[0])
+    {
+        return brix_jwks_store_ec(log, kid, x_b64, y_b64, dest);
+    }
+
+    ngx_log_error(NGX_LOG_WARN, log, 0,
+                  "brix_token: skipping JWKS key kty=\"%s\" crv=\"%s\" "
+                  "(only RSA and EC P-256 supported)", kty, crv);
+    return 0;
+}
+
 static int
 brix_jwks_load_jansson(ngx_log_t *log, const char *path,
     const char *buf, size_t len, brix_jwks_key_t *keys, int max_keys)
@@ -60,63 +186,11 @@ brix_jwks_load_jansson(ngx_log_t *log, const char *path,
 
     count = 0;
     json_array_foreach(arr, index, item) {
-        const char *kty, *kid, *n_b64, *e_b64, *crv, *x_b64, *y_b64;
-        json_t     *v;
-
         if (!json_is_object(item) || count >= max_keys) {
             continue;
         }
 
-#define JWKS_STRING_FIELD(obj, field) \
-        (v = json_object_get((obj), (field)), json_is_string(v) ? json_string_value(v) : "")
-
-        kty   = JWKS_STRING_FIELD(item, "kty");
-        kid   = JWKS_STRING_FIELD(item, "kid");
-        n_b64 = JWKS_STRING_FIELD(item, "n");
-        e_b64 = JWKS_STRING_FIELD(item, "e");
-        crv   = JWKS_STRING_FIELD(item, "crv");
-        x_b64 = JWKS_STRING_FIELD(item, "x");
-        y_b64 = JWKS_STRING_FIELD(item, "y");
-
-#undef JWKS_STRING_FIELD
-
-        if (strcmp(kty, "RSA") == 0 && n_b64[0] && e_b64[0]) {
-            EVP_PKEY *pkey;
-
-            pkey = brix_token_rsa_pubkey_from_ne(n_b64, strlen(n_b64),
-                                                   e_b64, strlen(e_b64),
-                                                   log);
-            if (pkey != NULL) {
-                ngx_cpystrn((u_char *) keys[count].kid,
-                            (u_char *) kid, sizeof(keys[count].kid));
-                keys[count].pkey = pkey;
-                count++;
-                ngx_log_error(NGX_LOG_INFO, log, 0,
-                              "brix_token: loaded RSA JWKS key kid=\"%s\"",
-                              kid);
-            }
-        } else if (strcmp(kty, "EC") == 0 && strcmp(crv, "P-256") == 0
-                   && x_b64[0] && y_b64[0])
-        {
-            EVP_PKEY *pkey;
-
-            pkey = brix_token_ec_pubkey_from_xy(x_b64, strlen(x_b64),
-                                                  y_b64, strlen(y_b64),
-                                                  log);
-            if (pkey != NULL) {
-                ngx_cpystrn((u_char *) keys[count].kid,
-                            (u_char *) kid, sizeof(keys[count].kid));
-                keys[count].pkey = pkey;
-                count++;
-                ngx_log_error(NGX_LOG_INFO, log, 0,
-                              "brix_token: loaded EC P-256 JWKS key kid=\"%s\"",
-                              kid);
-            }
-        } else {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
-                          "brix_token: skipping JWKS key kty=\"%s\" crv=\"%s\" "
-                          "(only RSA and EC P-256 supported)", kty, crv);
-        }
+        count += brix_jwks_process_item(log, item, &keys[count]);
     }
 
     json_decref(root);

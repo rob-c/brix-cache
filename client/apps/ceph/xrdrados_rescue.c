@@ -123,13 +123,138 @@ cp_one(const char *key, void *ctx)
     return 0;
 }
 
+/* ---- List every object key (optionally prefix-filtered) to stdout ----
+ *
+ * WHAT: Runs the `ls [prefix]` subcommand: prints one matching object key per
+ *       line. Returns 0 on success, 1 on a RADOS listing error.
+ *
+ * WHY: Splitting the per-command body out of main() keeps each subcommand a
+ *      single-purpose unit and holds main()'s branching under the complexity cap.
+ *
+ * HOW:
+ *   1. Pass argv[3] as the prefix when present, else NULL (list-all).
+ *   2. Walk the pool via for_each_object() with the print_key callback.
+ *   3. On error, report strerror(errno) and normalise the status to 1.
+ */
+static int
+cmd_ls(sd_ceph_conn_t *c, int argc, char **argv)
+{
+    int rc = for_each_object(c, (argc > 3) ? argv[3] : NULL, print_key, NULL);
+    if (rc != 0) { fprintf(stderr, "list failed: %s\n", strerror(errno)); rc = 1; }
+    return rc;
+}
+
+/* ---- Print size + mtime for one object key ----
+ *
+ * WHAT: Runs the `stat <key>` subcommand: prints key/size/mtime. Returns 0 on
+ *       success, 2 on missing argument, 1 on a stat failure.
+ *
+ * WHY: Isolates the stat formatting and its argument/error handling from the
+ *      other subcommands so each stays independently reviewable.
+ *
+ * HOW:
+ *   1. Require argv[3] (the key); otherwise emit usage and return 2.
+ *   2. Query sd_ceph_oid_stat(); on failure report strerror(errno), return 1.
+ *   3. On success print key, size (unsigned long long), mtime (long long).
+ */
+static int
+cmd_stat(sd_ceph_conn_t *c, int argc, char **argv)
+{
+    uint64_t sz = 0; time_t mt = 0;
+    if (argc < 4) { fprintf(stderr, "stat needs <key>\n"); return 2; }
+    if (sd_ceph_oid_stat(c, argv[3], &sz, &mt) != 0) {
+        fprintf(stderr, "stat %s: %s\n", argv[3], strerror(errno)); return 1;
+    }
+    printf("key:   %s\nsize:  %llu\nmtime: %lld\n",
+           argv[3], (unsigned long long) sz, (long long) mt);
+    return 0;
+}
+
+/* ---- Extract one object's bytes to a named local file ----
+ *
+ * WHAT: Runs the `get <key> <local_file>` subcommand: streams the object into
+ *       the file. Returns 0 on success, 2 on missing args, 1 on open/read error.
+ *
+ * WHY: Keeps the single-object extraction path (open target, stream, close)
+ *      self-contained and off main()'s branch ladder.
+ *
+ * HOW:
+ *   1. Require both argv[3] (key) and argv[4] (local file); else return 2.
+ *   2. Open the target for binary write; on failure report and return 1.
+ *   3. Stream via extract_object(), map success to 0 / failure to 1, close.
+ */
+static int
+cmd_get(sd_ceph_conn_t *c, int argc, char **argv)
+{
+    FILE *out;
+    int   rc;
+    if (argc < 5) { fprintf(stderr, "get needs <key> <local_file>\n"); return 2; }
+    out = fopen(argv[4], "wb");
+    if (out == NULL) { fprintf(stderr, "create %s: %s\n", argv[4], strerror(errno)); return 1; }
+    rc = (extract_object(c, argv[3], out) == 0) ? 0 : 1;
+    fclose(out);
+    return rc;
+}
+
+/* ---- Bulk-extract every object under a prefix into a local directory ----
+ *
+ * WHAT: Runs the `cp <prefix> <local_dir>` subcommand: creates the directory and
+ *       writes each matching object to a flattened filename. Returns 0 when all
+ *       objects extracted cleanly, 2 on missing args, 1 on mkdir/extraction fail.
+ *
+ * WHY: Groups the destination setup and the per-object copy fan-out into one
+ *      unit, preserving the "0 only if every object succeeded" contract.
+ *
+ * HOW:
+ *   1. Require argv[3] (prefix) and argv[4] (local dir); else return 2.
+ *   2. mkdir the destination, tolerating EEXIST; other errors report + return 1.
+ *   3. Walk matching objects via for_each_object()+cp_one accumulating failures.
+ *   4. Return 0 only when the walk succeeded and cc.fails is zero, else 1.
+ */
+static int
+cmd_cp(sd_ceph_conn_t *c, int argc, char **argv)
+{
+    cp_ctx_t cc;
+    int      rc;
+    if (argc < 5) { fprintf(stderr, "cp needs <prefix> <local_dir>\n"); return 2; }
+    cc.c = c; cc.dst = argv[4]; cc.fails = 0;
+    if (mkdir(argv[4], 0755) != 0 && errno != EEXIST) {
+        fprintf(stderr, "mkdir %s: %s\n", argv[4], strerror(errno)); return 1;
+    }
+    rc = for_each_object(c, argv[3], cp_one, &cc);
+    return (rc == 0 && cc.fails == 0) ? 0 : 1;
+}
+
+/* ---- Dispatch a parsed subcommand to its handler ----
+ *
+ * WHAT: Maps the command word to cmd_ls/cmd_stat/cmd_get/cmd_cp and returns that
+ *       handler's status; returns 2 for an unknown command.
+ *
+ * WHY: Keeps the command-name branch ladder in one small function so main() is a
+ *      flat connect → dispatch → destroy sequence within the complexity cap.
+ *
+ * HOW:
+ *   1. Compare cmd against each known verb in turn.
+ *   2. Delegate to the matching handler, forwarding argc/argv unchanged.
+ *   3. On no match, report the unknown command and return 2.
+ */
+static int
+run_command(sd_ceph_conn_t *c, const char *cmd, int argc, char **argv)
+{
+    if (strcmp(cmd, "ls") == 0)   { return cmd_ls(c, argc, argv); }
+    if (strcmp(cmd, "stat") == 0) { return cmd_stat(c, argc, argv); }
+    if (strcmp(cmd, "get") == 0)  { return cmd_get(c, argc, argv); }
+    if (strcmp(cmd, "cp") == 0)   { return cmd_cp(c, argc, argv); }
+    fprintf(stderr, "unknown command '%s'\n", cmd);
+    return 2;
+}
+
 int
 main(int argc, char **argv)
 {
     brix_sd_ceph_conf_t conf;
     sd_ceph_conn_t       *c;
-    const char           *cmd;
-    int                   err = 0, rc = 0;
+    int                   err = 0, rc;
 
     if (argc < 3) {
         fprintf(stderr,
@@ -143,41 +268,7 @@ main(int argc, char **argv)
     c = sd_ceph_conn_create(&conf, NULL, &err);
     if (c == NULL) { fprintf(stderr, "connect %s: %s\n", argv[1], strerror(err)); return 1; }
 
-    cmd = argv[2];
-    if (strcmp(cmd, "ls") == 0) {
-        rc = for_each_object(c, (argc > 3) ? argv[3] : NULL, print_key, NULL);
-        if (rc != 0) { fprintf(stderr, "list failed: %s\n", strerror(errno)); rc = 1; }
-    } else if (strcmp(cmd, "stat") == 0) {
-        uint64_t sz = 0; time_t mt = 0;
-        if (argc < 4) { fprintf(stderr, "stat needs <key>\n"); rc = 2; }
-        else if (sd_ceph_oid_stat(c, argv[3], &sz, &mt) != 0) {
-            fprintf(stderr, "stat %s: %s\n", argv[3], strerror(errno)); rc = 1;
-        } else {
-            printf("key:   %s\nsize:  %llu\nmtime: %lld\n",
-                   argv[3], (unsigned long long) sz, (long long) mt);
-        }
-    } else if (strcmp(cmd, "get") == 0) {
-        if (argc < 5) { fprintf(stderr, "get needs <key> <local_file>\n"); rc = 2; }
-        else {
-            FILE *out = fopen(argv[4], "wb");
-            if (out == NULL) { fprintf(stderr, "create %s: %s\n", argv[4], strerror(errno)); rc = 1; }
-            else { rc = (extract_object(c, argv[3], out) == 0) ? 0 : 1; fclose(out); }
-        }
-    } else if (strcmp(cmd, "cp") == 0) {
-        if (argc < 5) { fprintf(stderr, "cp needs <prefix> <local_dir>\n"); rc = 2; }
-        else {
-            cp_ctx_t cc = { c, argv[4], 0 };
-            if (mkdir(argv[4], 0755) != 0 && errno != EEXIST) {
-                fprintf(stderr, "mkdir %s: %s\n", argv[4], strerror(errno)); rc = 1;
-            } else {
-                rc = for_each_object(c, argv[3], cp_one, &cc);
-                rc = (rc == 0 && cc.fails == 0) ? 0 : 1;
-            }
-        }
-    } else {
-        fprintf(stderr, "unknown command '%s'\n", cmd);
-        rc = 2;
-    }
+    rc = run_command(c, argv[2], argc, argv);
 
     sd_ceph_conn_destroy(c);
     return rc;

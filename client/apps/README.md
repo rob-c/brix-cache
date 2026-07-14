@@ -34,9 +34,9 @@ record the groupings; the table lists each tool by its binary, not its files.
 |---|---|
 | `xrddiag` | Connection/auth diagnostics + human-readable error explanation; subcommands `check`/`bench`/`watch`/`topology`/`compare`/`doctor`. `check <url>` and `topology <url>` both accept `--json` for machine-readable output. `replay <file.xrdcap>` decodes a previously captured session; add `--playback <url>` to re-issue it against a live server. |
 | `xrdqstats` | Query and print a server's monitoring / config / space info. |
-| `mpxstats` | Aggregate + pretty-print a server's summary statistics. |
+| `mpxstats-brix` | Aggregate + pretty-print a server's summary statistics. |
 | `xrdmapc` | Query a manager/redirector for the live cluster map of a path. |
-| `wait41` | Block until an XRootD server accepts connections (scripting/orchestration). |
+| `wait41-brix` | Block until an XRootD server accepts connections (scripting/orchestration). |
 | `xrdstorascan` | Backend-aware storage admin tool. Phase 1 (client-side, any backend): `verify <url>` — end-to-end single-file integrity (pull the bytes, recompute, compare to the server's `kXR_Qcksum`); `bench <url>` — gateway throughput/IOPS/latency sweep over block size × parallelism. Later phases add server-engine modes (`inspect`/`inventory`/`drift`/`health`). |
 
 ## Auth & security
@@ -45,7 +45,7 @@ record the groupings; the table lists each tool by its binary, not its files.
 |---|---|
 | `xrdgsiproxy` | Create / inspect / destroy an X.509 GSI proxy. |
 | `xrdgsitest` | GSI handshake self-test against a server. |
-| `xrdsssadmin` | Manage an SSS (Simple Shared Secret) keytab. |
+| `xrdsssadmin-brix` | Manage an SSS (Simple Shared Secret) keytab. |
 
 ## Namespace / staging
 

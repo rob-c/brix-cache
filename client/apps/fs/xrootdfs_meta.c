@@ -245,6 +245,43 @@ xfs_symlink(const char *target, const char *linkpath)
 }
 
 
+/* Perform ONE readlink round-trip: checkout a pooled connection, resolve the
+ * link, and check the connection back in.
+ *
+ * WHAT: Runs a single attempt of the readlink metadata op against `sp`, writing
+ * the (NUL-terminated) target into `buf`/`size`. Returns 1 on success (buf
+ * filled), 0 on a transient/retryable failure (caller may retry), and -1 on a
+ * permanent failure. On any failure `st` carries the reason for xfs_err().
+ *
+ * WHY: xfs_readlink's retry loop was over the complexity cap; isolating the
+ * per-attempt checkout/call/checkin/classify sequence keeps the loop itself a
+ * flat deadline-driven walk and makes each attempt independently reasoned about.
+ * The retryable-vs-permanent classification is the only cross-attempt signal, so
+ * it is what this helper returns.
+ *
+ * HOW:
+ *   1. Check out a connection; if none, map the status to retry (0) or fail (-1).
+ *   2. Issue brix_readlink; check the connection back in, marking it healthy only
+ *      when the call succeeded or the status says the link is still usable.
+ *   3. Return 1 on success, else classify the status: retryable → 0, permanent
+ *      → -1.
+ */
+static int
+xfs_readlink_one_attempt(const char *sp, char *buf, size_t size, brix_status *st)
+{
+    brix_conn *c = brix_pool_checkout(g_pool, st);
+    if (c == NULL) {
+        return brix_status_retryable(st) ? 0 : -1;
+    }
+    ssize_t n = brix_readlink(c, sp, buf, size, st);
+    brix_pool_checkin(g_pool, c, n >= 0 ? 1 : xfs_conn_healthy(st));
+    if (n >= 0) {
+        return 1;   /* FUSE: buf is NUL-terminated on success */
+    }
+    return brix_status_retryable(st) ? 0 : -1;
+}
+
+
 int
 xfs_readlink(const char *path, char *buf, size_t size)
 {
@@ -265,17 +302,11 @@ xfs_readlink(const char *path, char *buf, size_t size)
     for (attempt = 0; ; attempt++) {
         int done = deadline ? (brix_mono_ns() >= deadline) : (attempt >= max);
         if (attempt > 0) { brix_backoff_sleep_fast(attempt - 1); }
-        brix_conn *c = brix_pool_checkout(g_pool, &st);
-        if (c == NULL) {
-            if (brix_status_retryable(&st) && !done) { continue; }
-            return xfs_err(&st);
+        int r = xfs_readlink_one_attempt(sp, buf, size, &st);
+        if (r > 0) {
+            return 0;   /* FUSE: return 0 on success */
         }
-        ssize_t n = brix_readlink(c, sp, buf, size, &st);
-        brix_pool_checkin(g_pool, c, n >= 0 ? 1 : xfs_conn_healthy(&st));
-        if (n >= 0) {
-            return 0;   /* FUSE: buf is NUL-terminated, return 0 on success */
-        }
-        if (!brix_status_retryable(&st) || done) {
+        if (r < 0 || done) {
             return xfs_err(&st);
         }
     }

@@ -93,8 +93,15 @@ COMPAT_OBJS := $(addprefix $(BUILD)/,$(addsuffix .o,$(NAMES)))
 # GSI/sigver crypto + wire kernels (shared with the module's src/auth/gsi).
 GSI   := $(REPO)/src/auth/gsi
 # Phase-38: gsi_core.c split into single-responsibility siblings (all ngx-free).
-GSI_OBJS := $(BUILD)/gsi_core.o $(BUILD)/gsi_buf.o $(BUILD)/gsi_dh.o \
-            $(BUILD)/gsi_cipher.o $(BUILD)/gsi_rsa.o $(BUILD)/proxy_req.o
+# phase-79 file-size split: gsi_core.c → + gsi_core_cresp.c/gsi_core_cresp_util.c
+# (the kXGC_cert build), and proxy_req.c → + proxy_req_sign.c/proxy_req_assemble.c
+# (brix_gsi_sign_pxyreq / brix_gsi_assemble_proxy). Consumers of the whole GSI
+# kernel (the client LD_PRELOAD shim whole-archives libxrdproto.a) need the split
+# objects too, or those symbols are undefined at load time.
+GSI_OBJS := $(BUILD)/gsi_core.o $(BUILD)/gsi_core_cresp.o \
+            $(BUILD)/gsi_core_cresp_util.o $(BUILD)/gsi_buf.o $(BUILD)/gsi_dh.o \
+            $(BUILD)/gsi_cipher.o $(BUILD)/gsi_rsa.o $(BUILD)/proxy_req.o \
+            $(BUILD)/proxy_req_sign.o $(BUILD)/proxy_req_assemble.o
 # Token kernels shared with the module's src/auth/token (WLCG scope authz + JWT
 # base64url decode — the DECODE/scope core, not the JWKS signature-verify path).
 TOKEN := $(REPO)/src/auth/token
@@ -105,8 +112,15 @@ TOKEN_OBJS := $(BUILD)/scopes.o $(BUILD)/b64url.o
 # #ifdef'd out), so checksum_core.c can route its fd reads through the same
 # brix_sd_posix_driver the module uses, with no nginx dependency.
 BACKEND := $(REPO)/src/fs/backend
-BACKEND_OBJS := $(BUILD)/sd_posix.o $(BUILD)/sd_block.o $(BUILD)/sd_s3.o \
-                $(BUILD)/meta_advisory.o
+# phase-79 file-size split: sd_posix.c's worker-safe byte ops moved to
+# sd_posix_io.c; sd_s3.c's SigV4/signing primitives to sd_s3_sign.c and its
+# write/mpu path (incl. sd_s3_abort) to sd_s3_write.c — the driver descriptor /
+# read path here reference those symbols, and the client LD_PRELOAD shim
+# whole-archives libxrdproto.a, so link the split objects too. (sd_posix_ns.c is
+# nginx-coupled and #ifdef'd out under -DXRDPROTO_NO_NGX; sd_s3_write.c is
+# ngx-free and IS needed here for sd_s3_abort et al.)
+BACKEND_OBJS := $(BUILD)/sd_posix.o $(BUILD)/sd_posix_io.o $(BUILD)/sd_block.o \
+                $(BUILD)/sd_s3.o $(BUILD)/sd_s3_sign.o $(BUILD)/sd_s3_write.o $(BUILD)/meta_advisory.o
 # ZIP central-directory parsing kernel (src/protocols/root/zip/zip_kernel.c): the pure-C,
 # callback-driven, bounds-checked EOCD/ZIP64 parser shared with the module's
 # src/protocols/root/zip. No nginx / OpenSSL / fixed I/O source — the client's clean-room ZIP
@@ -142,6 +156,14 @@ $(LIB): $(OBJS)
 $(BUILD)/%.o: $(COMPAT)/%.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
+$(BUILD)/gsi_core_cresp.o: $(GSI)/gsi_core_cresp.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/gsi_core_cresp_util.o: $(GSI)/gsi_core_cresp_util.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/proxy_req_sign.o: $(GSI)/proxy_req_sign.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/proxy_req_assemble.o: $(GSI)/proxy_req_assemble.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
 $(BUILD)/gsi_core.o: $(GSI)/gsi_core.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 $(BUILD)/gsi_buf.o: $(GSI)/gsi_buf.c | $(BUILD)
@@ -167,9 +189,15 @@ $(BUILD)/b64url.o: $(TOKEN)/b64url.c | $(BUILD)
 # out under -DXRDPROTO_NO_NGX).
 $(BUILD)/sd_posix.o: $(BACKEND)/posix/sd_posix.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/sd_posix_io.o: $(BACKEND)/posix/sd_posix_io.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
 $(BUILD)/sd_block.o: $(BACKEND)/block/sd_block.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 $(BUILD)/sd_s3.o: $(BACKEND)/s3/sd_s3.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/sd_s3_sign.o: $(BACKEND)/s3/sd_s3_sign.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/sd_s3_write.o: $(BACKEND)/s3/sd_s3_write.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 $(BUILD)/meta_advisory.o: $(BACKEND)/meta_advisory.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@

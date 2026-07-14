@@ -202,6 +202,7 @@ brix_redir_cache_insert(const char *path,
     }
 
     now    = ngx_current_msec;
+    /* phase79-fp: c NULL-checked above; analyzer loses the guard on c through this path */
     start  = (ngx_uint_t) redir_hash(path) % c->capacity;
     nprobe = (c->capacity < BRIX_REDIR_PROBE_MAX)
              ? c->capacity : BRIX_REDIR_PROBE_MAX;
@@ -220,6 +221,7 @@ brix_redir_cache_insert(const char *path,
     lru_exp   = 0;
 
     for (probe = 0; probe < nprobe; probe++) {
+        /* phase79-fp: c NULL-checked at entry; analyzer drops the guard across ngx_shmtx_lock */
         e = &c->entries[(start + probe) % c->capacity];
 
         if (e->in_use && e->expires > now) {

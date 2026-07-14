@@ -42,6 +42,11 @@ _CINFO_O = os.path.join(_OBJS, "addon", "cache", "cinfo.o")
 # link those objects too or the standalone link fails on brix_xmeta_* refs.
 _CINFO_DEPS = [
     os.path.join(_OBJS, "addon", "meta", "xmeta.o"),
+    # phase-79 file-size split: xmeta.c (was 942 lines) was split; brix_xmeta_encode
+    # moved to xmeta_encode.o and brix_xmeta_decode to xmeta_decode.o — link both or
+    # the standalone link fails on those refs.
+    os.path.join(_OBJS, "addon", "meta", "xmeta_encode.o"),
+    os.path.join(_OBJS, "addon", "meta", "xmeta_decode.o"),
     os.path.join(_OBJS, "addon", "meta", "xmeta_path.o"),
     os.path.join(_OBJS, "addon", "meta", "xmeta_carrier.o"),
     os.path.join(_OBJS, "addon", "compat", "crc32c.o"),

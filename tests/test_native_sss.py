@@ -29,7 +29,7 @@ NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XRDFS = os.path.join(CLIENT_DIR, "bin", "xrdfs")
-XRDSSSADMIN = os.path.join(CLIENT_DIR, "bin", "xrdsssadmin")
+XRDSSSADMIN = os.path.join(CLIENT_DIR, "bin", "xrdsssadmin-brix")
 XRDCP = os.path.join(CLIENT_DIR, "bin", "xrdcp")
 
 
@@ -56,7 +56,7 @@ def sss_server(tmp_path_factory):
     # Build the client tools we need.
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler to build the native client")
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp", "xrdsssadmin"],
+    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp", "xrdsssadmin-brix"],
                           capture_output=True, text=True, timeout=180)
     if proc.returncode != 0 or not os.path.exists(XRDSSSADMIN):
         pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")
@@ -175,3 +175,64 @@ def test_sss_wrong_key_rejected(sss_server, tmp_path):
     assert r.returncode == 0, r.stderr
     p = _xrdfs(sss_server, "stat", "/probe.txt", keytab=kt_bad)
     assert p.returncode != 0, f"wrong key was accepted!\n{p.stdout}"
+
+
+# --------------------------------------------------------------------------
+# Regression: SSS verify-chain deny must be terminal (auth_request.c sss_deny).
+#
+# A deny used to funnel through brix_sss_auth_failed(), which returns NGX_OK
+# after queueing the kXR_error. Callers gate on `rc != NGX_OK`, so an NGX_OK
+# deny fell through to sss_map_identity()/sss_reply():
+#   * unknown key id  -> cred.key == NULL -> key->user NULL deref -> worker crash
+#     (remote, pre-auth DoS: one unauthenticated packet kills the worker)
+#   * wrong key (CRC) -> non-NULL key      -> spurious kXR_ok + registered session
+# The fix routes every deny through sss_deny() (returns NGX_DONE, stashing the
+# wire result in replied_rc), so a deny never reaches identity mapping.
+# --------------------------------------------------------------------------
+
+def _mint_keytab(tmp_path, name, key_id):
+    kt = str(tmp_path / name)
+    r = subprocess.run([XRDSSSADMIN, "-k", kt, "add", "--id", str(key_id),
+                        "--user", "anybody", "--group", "anygroup"],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    return kt
+
+
+def test_sss_unknown_key_id_rejected(sss_server, tmp_path):
+    # Client presents wire id 2; the server keytab only holds id 1, so
+    # brix_sss_find_key() returns NULL. Must be a clean deny, not acceptance.
+    kt_unknown = _mint_keytab(tmp_path, "unknown.keytab", 2)
+    p = _xrdfs(sss_server, "stat", "/probe.txt", keytab=kt_unknown)
+    assert p.returncode != 0, f"unknown key id was accepted!\n{p.stdout}"
+
+
+def test_sss_server_survives_unknown_key(sss_server, tmp_path):
+    # SECURITY-NEGATIVE / DoS regression: the unknown-key-id credential is the
+    # exact input that crashed the worker via the NULL-key dereference. Fire it,
+    # then prove the server is still alive by authenticating a legitimate
+    # request on a fresh connection. Pre-fix, the worker was dead here.
+    kt_unknown = _mint_keytab(tmp_path, "unknown2.keytab", 2)
+    for _ in range(3):
+        bad = _xrdfs(sss_server, "stat", "/probe.txt", keytab=kt_unknown)
+        assert bad.returncode != 0, f"unknown key id was accepted!\n{bad.stdout}"
+
+    good = _xrdfs(sss_server, "stat", "/probe.txt", keytab=sss_server["kt_srv"])
+    assert good.returncode == 0, (
+        "server did not survive an unknown-key SSS credential — "
+        f"legitimate auth afterwards failed:\n{good.stdout}\n{good.stderr}")
+    assert "Size:" in good.stdout, good.stdout
+
+
+def test_sss_wrong_key_no_auth_leak(sss_server, tmp_path):
+    # A wrong-key (non-NULL key, CRC-mismatch) deny must NOT authenticate a
+    # session. Observable proxy: the wrong-key stat is rejected, and the server
+    # keeps behaving correctly for a subsequent legitimate request (a leaked or
+    # crashed session would break the follow-up).
+    kt_bad = _mint_keytab(tmp_path, "bad2.keytab", 1)  # right id, wrong secret
+    bad = _xrdfs(sss_server, "stat", "/probe.txt", keytab=kt_bad)
+    assert bad.returncode != 0, f"wrong key was accepted!\n{bad.stdout}"
+
+    good = _xrdfs(sss_server, "ls", "/", keytab=sss_server["kt_srv"])
+    assert good.returncode == 0, f"{good.stdout}\n{good.stderr}"
+    assert "probe.txt" in good.stdout, good.stdout

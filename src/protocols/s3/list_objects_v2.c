@@ -3,6 +3,116 @@
 #include "core/http/http_query.h"
 #include <string.h>
 
+/* ---- Parse ListObjectsV2 query parameters into caller buffers and flags ----
+ *
+ * WHAT: Reads the ListObjectsV2 query arguments (prefix, delimiter,
+ *   continuation-token, fetch-owner, encoding-type, max-keys) from the request
+ *   and fills the caller-provided prefix and delimiter buffers, the decoded
+ *   start_after cursor, and the max_keys, fetch_owner and url_encode outputs.
+ *   No return value: malformed inputs degrade gracefully (empty start_after,
+ *   flags left disabled).
+ *
+ * WHY: Isolating parameter parsing keeps the response builder focused on
+ *   pagination and XML emission, and confines the raw continuation-token buffer
+ *   to the smallest scope that owns it. Pagination semantics are unchanged: a
+ *   malformed token decodes to an empty start_after, which returns the listing
+ *   from the beginning exactly as before.
+ *
+ * HOW:
+ *   1. Fetch each string argument via brix_http_query_get() into a bounded buffer.
+ *   2. Set fetch_owner and url_encode from their canonical "true" / "url" values.
+ *   3. Resolve max_keys through s3_list_parse_max_keys() (clamped to config).
+ *   4. If a continuation token is present, b64url-decode it into start_after;
+ *      on decode failure leave start_after empty (return from the beginning).
+ */
+static void
+s3_list_decode_params(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    u_char *prefix_buf, size_t prefix_sz,
+    u_char *delimiter_buf, size_t delimiter_sz,
+    char *start_after, size_t start_after_sz,
+    int *max_keys, int *fetch_owner, int *url_encode)
+{
+    u_char  token_buf[S3_MAX_PARAM]  = { 0 };  /* ContinuationToken (b64url) */
+    u_char  fetch_owner_buf[8]       = { 0 };
+    u_char  encoding_type_buf[8]     = { 0 };
+
+    brix_http_query_get(r->args, "prefix",             (char *) prefix_buf,        prefix_sz,                 S3_LIST_QUERY_FLAGS);
+    brix_http_query_get(r->args, "delimiter",          (char *) delimiter_buf,     delimiter_sz,              S3_LIST_QUERY_FLAGS);
+    brix_http_query_get(r->args, "continuation-token", (char *) token_buf,         sizeof(token_buf),         S3_LIST_QUERY_FLAGS);
+    brix_http_query_get(r->args, "fetch-owner",        (char *) fetch_owner_buf,   sizeof(fetch_owner_buf),   S3_LIST_QUERY_FLAGS);
+    brix_http_query_get(r->args, "encoding-type",      (char *) encoding_type_buf, sizeof(encoding_type_buf), S3_LIST_QUERY_FLAGS);
+
+    *fetch_owner = (ngx_strcasecmp(fetch_owner_buf, (u_char *) "true") == 0) ? 1 : 0;
+    *url_encode  = (ngx_strcasecmp(encoding_type_buf, (u_char *) "url") == 0) ? 1 : 0;
+    *max_keys    = s3_list_parse_max_keys(r, (int) cf->max_keys);
+
+    /* Decode continuation token: b64url-encoded last key from the previous page.
+     * On decode failure start_after stays empty and the listing starts over. */
+    if (token_buf[0] != '\0') {
+        ssize_t n = b64url_decode((const char *) token_buf,
+                                  strlen((const char *) token_buf),
+                                  (uint8_t *) start_after, start_after_sz - 1);
+        start_after[n >= 0 ? n : 0] = '\0';
+    }
+}
+
+/* ---- Emit the ListBucketResult opening element and pagination metadata ----
+ *
+ * WHAT: Appends the XML prologue, the ListBucketResult open tag and the
+ *   listing-level elements (Name, Prefix, KeyCount, MaxKeys, optional Delimiter
+ *   and EncodingType, IsTruncated, and NextContinuationToken when truncated)
+ *   into the flat xml buffer. Returns NGX_OK, or NGX_HTTP_INTERNAL_SERVER_ERROR
+ *   on buffer overflow (via the XML_APPEND macros). Advances *xml_len_io by the
+ *   number of bytes written.
+ *
+ * WHY: Splitting the header out of the orchestrator keeps s3_handle_list within
+ *   the complexity budget while leaving the byte-for-byte XML output unchanged —
+ *   the element order, conditional Delimiter/EncodingType/NextContinuationToken
+ *   emission, and the S3 namespace all match the previous inline sequence.
+ *
+ * HOW:
+ *   1. Adopt the caller's current length into a local xml_len the macros drive.
+ *   2. Append the prologue and ListBucketResult open tag with the S3 namespace.
+ *   3. Append Name, Prefix, KeyCount and MaxKeys.
+ *   4. Append Delimiter and EncodingType only when present/requested.
+ *   5. Append IsTruncated, then NextContinuationToken when truncated and set.
+ *   6. Publish the new length back through *xml_len_io and return NGX_OK.
+ */
+static ngx_int_t
+s3_list_emit_header(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    const u_char *prefix_buf, const u_char *delimiter_buf,
+    const char *next_token, int url_encode, int truncated,
+    int max_keys, int key_count,
+    u_char *xml, size_t *xml_len_io, size_t xml_capacity)
+{
+    size_t  xml_len = *xml_len_io;
+
+    XML_APPEND("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    XML_APPEND("<ListBucketResult "
+               "xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">");
+    XML_APPEND_ELEM("Name", cf->bucket.data, cf->bucket.len);
+    XML_APPEND_ELEM("Prefix", prefix_buf, strlen((const char *) prefix_buf));
+    XML_APPEND("<KeyCount>%d</KeyCount>", key_count);
+    XML_APPEND("<MaxKeys>%d</MaxKeys>", max_keys);
+
+    if (delimiter_buf[0] != '\0') {
+        XML_APPEND_ELEM("Delimiter", delimiter_buf,
+                        strlen((const char *) delimiter_buf));
+    }
+    if (url_encode) {
+        XML_APPEND("<EncodingType>url</EncodingType>");
+    }
+    XML_APPEND("<IsTruncated>%s</IsTruncated>", truncated ? "true" : "false");
+
+    if (truncated && next_token[0] != '\0') {
+        XML_APPEND_ELEM("NextContinuationToken", next_token,
+                        strlen(next_token));
+    }
+
+    *xml_len_io = xml_len;
+    return NGX_OK;
+}
+
 /*
  * s3_handle_list — ListObjectsV2 XML response builder
  *
@@ -40,11 +150,8 @@ s3_handle_list(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
 {
     u_char       prefix_buf[S3_MAX_PARAM]    = { 0 };
     u_char       delimiter_buf[S3_MAX_PARAM] = { 0 };
-    u_char       token_buf[S3_MAX_PARAM]     = { 0 };  /* ContinuationToken (b64url) */
-    u_char       fetch_owner_buf[8]          = { 0 };
-    u_char       encoding_type_buf[8]        = { 0 };
     char         start_after[S3_MAX_KEY]     = { 0 };
-    int          max_keys;
+    int          max_keys    = 0;
     int          fetch_owner = 0;
     int          url_encode  = 0;
     s3_entry_t  *items = NULL;
@@ -60,36 +167,10 @@ s3_handle_list(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
     char         next_token[S3_MAX_KEY * 2];
     ngx_int_t    rc;
 
-    /* Parse query parameters (max-keys via the shared helper). */
-    brix_http_query_get(r->args, "prefix",             (char *) prefix_buf,        sizeof(prefix_buf),        S3_LIST_QUERY_FLAGS);
-    brix_http_query_get(r->args, "delimiter",          (char *) delimiter_buf,     sizeof(delimiter_buf),     S3_LIST_QUERY_FLAGS);
-    brix_http_query_get(r->args, "continuation-token", (char *) token_buf,         sizeof(token_buf),         S3_LIST_QUERY_FLAGS);
-    brix_http_query_get(r->args, "fetch-owner",        (char *) fetch_owner_buf,   sizeof(fetch_owner_buf),   S3_LIST_QUERY_FLAGS);
-    brix_http_query_get(r->args, "encoding-type",      (char *) encoding_type_buf, sizeof(encoding_type_buf), S3_LIST_QUERY_FLAGS);
-
-    if (ngx_strcasecmp(fetch_owner_buf, (u_char *) "true") == 0) {
-        fetch_owner = 1;
-    }
-    if (ngx_strcasecmp(encoding_type_buf, (u_char *) "url") == 0) {
-        url_encode = 1;
-    }
-
-    max_keys = s3_list_parse_max_keys(r, (int) cf->max_keys);
-
-    /* Decode continuation token: b64url-encoded last key from the previous page.
-     * On decode failure start_after stays empty — the server returns from the
-     * beginning (graceful degradation for malformed tokens). */
-    if (token_buf[0] != '\0') {
-        ssize_t n = b64url_decode((const char *) token_buf,
-                                  strlen((const char *) token_buf),
-                                  (uint8_t *) start_after,
-                                  sizeof(start_after) - 1);
-        if (n >= 0) {
-            start_after[n] = '\0';
-        } else {
-            start_after[0] = '\0';
-        }
-    }
+    s3_list_decode_params(r, cf, prefix_buf, sizeof(prefix_buf),
+                          delimiter_buf, sizeof(delimiter_buf),
+                          start_after, sizeof(start_after),
+                          &max_keys, &fetch_owner, &url_encode);
 
     if (s3_list_collect_sorted(r, cf, (const char *) prefix_buf,
                                (const char *) delimiter_buf,
@@ -127,26 +208,12 @@ s3_handle_list(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    XML_APPEND("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    XML_APPEND("<ListBucketResult "
-               "xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">");
-    XML_APPEND_ELEM("Name", cf->bucket.data, cf->bucket.len);
-    XML_APPEND_ELEM("Prefix", prefix_buf, strlen((const char *) prefix_buf));
-    XML_APPEND("<KeyCount>%d</KeyCount>", end_idx - start_idx);
-    XML_APPEND("<MaxKeys>%d</MaxKeys>", max_keys);
-
-    if (delimiter_buf[0] != '\0') {
-        XML_APPEND_ELEM("Delimiter", delimiter_buf,
-                        strlen((const char *) delimiter_buf));
-    }
-    if (url_encode) {
-        XML_APPEND("<EncodingType>url</EncodingType>");
-    }
-    XML_APPEND("<IsTruncated>%s</IsTruncated>", truncated ? "true" : "false");
-
-    if (truncated && next_token[0] != '\0') {
-        XML_APPEND_ELEM("NextContinuationToken", next_token,
-                        strlen(next_token));
+    rc = s3_list_emit_header(r, cf, prefix_buf, delimiter_buf, next_token,
+                             url_encode, truncated, max_keys,
+                             end_idx - start_idx,
+                             xml, &xml_len, xml_capacity);
+    if (rc != NGX_OK) {
+        return rc;
     }
 
     rc = s3_list_emit_entries(r, cf, items, start_idx, end_idx,

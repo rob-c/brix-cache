@@ -91,30 +91,66 @@ brix_copy_range_fallback(ngx_log_t *log, int src_fd, off_t src_off,
     return NGX_OK;
 }
 
-ngx_int_t
-brix_copy_range(ngx_log_t *log,
-                  int src_fd, off_t src_off,
-                  int dst_fd, off_t dst_off,
-                  size_t len,
-                  const char *src_path, const char *dst_path)
-{
 #if defined(__linux__) && defined(__NR_copy_file_range)
+
+/* brix_cfr_errno_recoverable — is a copy_file_range errno finishable by fallback
+ * WHAT: Returns 1 when `err` is one of the errnos that mean copy_file_range is
+ * unsupported for this fd pair or range (EXDEV, ENOSYS, EOPNOTSUPP, EINVAL,
+ * EPERM) and the copy can still complete via the portable pread/pwrite path;
+ * returns 0 otherwise (a genuine I/O failure).
+ *
+ * WHY: The recoverable-errno set is the single decision that separates a
+ * fall-back-and-continue from a hard error. Naming it keeps the phase-1 loop's
+ * control flow flat and the exact errno list reviewable in one place.
+ *
+ * HOW: A single boolean over the five sanctioned errnos.
+ */
+static int
+brix_cfr_errno_recoverable(int err)
+{
+    return err == EXDEV || err == ENOSYS || err == EOPNOTSUPP
+           || err == EINVAL || err == EPERM;
+}
+
+/* brix_copy_range_cfr — phase-1 copy_file_range(2) loop over the SD seam
+ * WHAT: Copies the range via the object's own driver copy_range vtable until
+ * `*len` reaches 0. Returns NGX_OK on full copy, NGX_ERROR (errno set + logged)
+ * on unexpected EOF or a genuine failure, or NGX_AGAIN when copy_file_range is
+ * unsupported mid-copy — in which case the src_off, dst_off and len out-params are left pointing
+ * at the remaining bytes for the caller's fallback.
+ *
+ * WHY: Isolating the zero-copy loop keeps brix_copy_range a flat two-line
+ * dispatch and confines the Linux-only, errno-branching logic to one place that
+ * updates the running offsets/length in step so the fallback can resume exactly
+ * where the fast path stopped.
+ *
+ * HOW: 1) Wrap both bare fds as stack POSIX SD objects. 2) Each iteration clamps
+ * `want` to SSIZE_MAX and calls the driver copy_range. 3) n>0 advances the
+ * offsets/length; n==0 is a premature EOF (EIO) and fails; EINTR retries; a
+ * recoverable errno returns NGX_AGAIN with the remaining range; any other errno
+ * is logged and fails.
+ */
+static ngx_int_t
+brix_copy_range_cfr(ngx_log_t *log, int src_fd, off_t *src_off,
+    int dst_fd, off_t *dst_off, size_t *len,
+    const char *src_path, const char *dst_path)
+{
     brix_sd_obj_t src_obj, dst_obj;
 
     /* Route the zero-copy primitive through the Storage Driver seam; dispatch via
      * the object's own driver vtable (backend-agnostic) rather than the hardcoded
-     * POSIX driver. The pread/pwrite fallback below composes the VFS primitives. */
+     * POSIX driver. The pread/pwrite fallback composes the VFS primitives. */
     brix_sd_posix_wrap(&src_obj, src_fd);
     brix_sd_posix_wrap(&dst_obj, dst_fd);
 
-    while (len > 0) {
-        size_t  want = (len > (size_t) SSIZE_MAX) ? (size_t) SSIZE_MAX : len;
-        ssize_t n  = src_obj.driver->copy_range(&src_obj, src_off,
-                                                &dst_obj, dst_off, want);
+    while (*len > 0) {
+        size_t  want = (*len > (size_t) SSIZE_MAX) ? (size_t) SSIZE_MAX : *len;
+        ssize_t n  = src_obj.driver->copy_range(&src_obj, *src_off,
+                                                &dst_obj, *dst_off, want);
         if (n > 0) {
-            src_off += (off_t) n;
-            dst_off += (off_t) n;
-            len     -= (size_t) n;
+            *src_off += (off_t) n;
+            *dst_off += (off_t) n;
+            *len     -= (size_t) n;
             continue;
         }
 
@@ -131,14 +167,10 @@ brix_copy_range(ngx_log_t *log,
             continue;
         }
 
-        if (errno == EXDEV || errno == ENOSYS || errno == EOPNOTSUPP
-            || errno == EINVAL || errno == EPERM)
-        {
-            /* copy_file_range unsupported for this fd pair / range — finish the
-             * remaining bytes with the portable pread/pwrite path. */
-            return brix_copy_range_fallback(log, src_fd, src_off,
-                                              dst_fd, dst_off, len,
-                                              src_path, dst_path);
+        if (brix_cfr_errno_recoverable(errno)) {
+            /* copy_file_range unsupported for this fd pair / range — signal the
+             * caller to finish the remaining bytes with the portable path. */
+            return NGX_AGAIN;
         }
 
         ngx_log_error(NGX_LOG_ERR, log, errno,
@@ -148,9 +180,31 @@ brix_copy_range(ngx_log_t *log,
         return NGX_ERROR;
     }
     return NGX_OK;
+}
+
+#endif /* __linux__ && __NR_copy_file_range */
+
+ngx_int_t
+brix_copy_range(ngx_log_t *log,
+                  int src_fd, off_t src_off,
+                  int dst_fd, off_t dst_off,
+                  size_t len,
+                  const char *src_path, const char *dst_path)
+{
+#if defined(__linux__) && defined(__NR_copy_file_range)
+    /* Fast path first; NGX_AGAIN means copy_file_range gave out mid-copy and
+     * src_off/dst_off/len now mark the remainder to finish via the portable
+     * path (falls through to the shared fallback return below). */
+    ngx_int_t rc = brix_copy_range_cfr(log, src_fd, &src_off,
+                                       dst_fd, &dst_off, &len,
+                                       src_path, dst_path);
+    if (rc != NGX_AGAIN) {
+        return rc;
+    }
 #endif
 
-    /* copy_file_range(2) not available at build time — use the portable path. */
+    /* copy_file_range(2) unavailable at build time, or unsupported for this fd
+     * pair / range at run time — use the portable pread/pwrite path. */
     return brix_copy_range_fallback(log, src_fd, src_off,
                                       dst_fd, dst_off, len,
                                       src_path, dst_path);

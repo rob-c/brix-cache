@@ -220,6 +220,18 @@ def _read(rel):
         return f.read()
 
 
+def _read_gsi_core():
+    """The shared GSI round-2 kernel — read as one blob across its files.
+
+    phase-79 file-size split: gsi_core.c's kXGC_cert build
+    (brix_gsi_build_cert_response and its cipher/md/terminator wire facts) moved
+    into gsi_core_cresp.c (+ gsi_core_cresp_util.c). The wire-contract guards
+    assert against the kernel as a whole, so concatenate the cluster.
+    """
+    return "\n".join(_read(os.path.join("src/auth/gsi", f)) for f in (
+        "gsi_core.c", "gsi_core_cresp.c", "gsi_core_cresp_util.c"))
+
+
 def test_wire_contract_tripwires():
     """Fail loudly if a known interop-critical wire fact is removed from source.
 
@@ -228,9 +240,14 @@ def test_wire_contract_tripwires():
     docs/10-reference/comparison/brix-implementations.md (§5.4).
     """
     client_gsi = _read("client/lib/auth/sec/sec_gsi.c")  # phase-69 client reorg: lib/sec/ -> lib/auth/sec/
-    core = _read("src/auth/gsi/gsi_core.c")
+    core = _read_gsi_core()
     conn = _read("client/lib/net/conn.c")  # phase-69 client reorg: lib/ -> lib/net/
-    server_parse = _read("src/auth/gsi/parse_x509.c")
+    # phase-79 file-size split: parse_x509.c was split into parse_x509.c (shared
+    # helpers) + parse_x509_signed.c (signed-DH path, where the cipher_decrypt call
+    # the use_iv guard below inspects now lives) + parse_x509_unsigned.c. Read the
+    # whole cluster so the negative use_iv=0 guard keeps biting.
+    server_parse = "\n".join(_read(os.path.join("src/auth/gsi", f)) for f in (
+        "parse_x509.c", "parse_x509_signed.c", "parse_x509_unsigned.c"))
 
     # (F4) The XrdSecgsi round-2 (kXGC_cert) now lives in ONE shared kernel,
     # brix_gsi_build_cert_response (src/auth/gsi/gsi_core.c); both the native client
@@ -259,8 +276,10 @@ def test_wire_contract_tripwires():
         "fail to decrypt the client message. Restore the '%s#%d' form when use_iv.")
 
     # (c) the shared round-2 must terminate the inner encrypted bucket list with
-    #     the kXRS_none terminator (brix_gbuf_end).
-    assert "brix_gbuf_end(&x.inner)" in core, (
+    #     the kXRS_none terminator (brix_gbuf_end). Match the inner-buffer call
+    #     tolerant of the accessor form (local `x.inner` or the split's
+    #     `st->res.inner`) — the invariant is that the INNER list is terminated.
+    assert re.search(r"brix_gbuf_end\([^)]*\binner\)", core), (
         "shared GSI kernel no longer appends the kXRS_none terminator to the inner "
         "buffer — dCache will overrun (readerIndex exceeds writerIndex)")
 
@@ -326,7 +345,7 @@ def test_tpc_outbound_uses_shared_core():
     carries the wire-critical facts.
     """
     ex = _read("src/tpc/gsi/gsi_outbound_exchange.c")
-    core = _read("src/auth/gsi/gsi_core.c")
+    core = _read_gsi_core()
     assert "brix_gsi_build_cert_response" in ex, (
         "TPC outbound GSI no longer delegates round-2 to the shared gsi_core kernel "
         "(brix_gsi_build_cert_response) — its DH/cipher math can drift from the "

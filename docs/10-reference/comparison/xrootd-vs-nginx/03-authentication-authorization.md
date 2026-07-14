@@ -630,7 +630,7 @@ Directive sources: stream table `src/protocols/root/stream/module.c`; WebDAV tab
 `src/protocols/webdav/module.c`; per-module `config.c` files. Field conventions:
 `trusted_ca` directory → OpenSSL CApath (grid certs dir); CRLs `*.pem` or hash
 `*.r0..r9`; **JWKS is a local file with mtime reload** (no issuer fetch); SSS
-keytab from `xrdsssadmin` format. See
+keytab in the stock `xrdsssadmin` format (ours ships as `xrdsssadmin-brix`). See
 [`docs/06-authentication/`](../../../06-authentication/auth-overview.md) and
 [`pki-config.md`](../../../06-authentication/pki-config.md) for full file layout.
 
