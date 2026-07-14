@@ -40,6 +40,13 @@ Ceph repo (`ceph-tentacle` by default) for Ceph/RADOS build targets:
     XRD_LAB_OS_TARGET=centos9-stream ./xrd-lab deploy dev
     XRD_LAB_CEPH_SIG_RELEASE=tentacle ./xrd-lab test ceph-rpmbuild
 
+S3 credential-forwarding (MinIO backend + a brix node whose storage plane is
+that MinIO via `brix_storage_backend s3://` + `brix_storage_credential`; the
+in-cluster test attributes failures to `[backend]` vs `[brix-machinery]`):
+
+    ./xrd-lab test s3fwd          # self-contained: charts/s3-forward + test-runner
+    ./xrd-lab deploy s3fwd        # or: keep the topology up for manual poking
+
 ## How it fits together
 
 - `charts/brix-common` — a Helm *library* chart holding every shared helper

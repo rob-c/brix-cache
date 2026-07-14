@@ -1,0 +1,61 @@
+# s3-gsi — root://+GSI gateway whose storage plane is MinIO S3, with
+# PER-VO backend credentials and PER-USER authdb isolation.
+#
+# Provisioned identities (fixed, see templates/pki-bootstrap-job.yaml):
+#   bob, alice   -> VO atlas -> backend cred atlas-svc (prefix atlas/*)
+#   tom, jane    -> VO cms   -> backend cred cms-svc   (prefix cms/*)
+#   mallory      -> valid GSI identity, NO backend credential file
+# The bootstrap job derives the authdb rules and the <x5h-hash>.s3 credential
+# filenames from the ACTUAL minted proxy DNs, so the server-side mapping is
+# correct by construction.  Published object names are release-independent:
+#   Secret    s3gsi-pki          (CA, host cert, per-user proxies, identities.env)
+#   ConfigMap s3gsi-ca-bundle    (hashed CA dir for /etc/grid-security/certificates)
+#   ConfigMap s3gsi-jwks         (jwks.json — only to satisfy client-pki-init)
+#   Secret    s3gsi-server-extra (authdb + per-user .s3 files -> /etc/brix/extra)
+minio:
+  image: minio/minio:latest
+  pullPolicy: IfNotPresent
+  rootUser: minioadmin
+  rootPassword: minioadmin
+  port: 9000
+
+mc:
+  image: minio/mc:latest
+  pullPolicy: IfNotPresent
+
+pki:
+  image: brix-authority:dev
+  pullPolicy: Never
+
+bucket: brixgsi
+
+# Backend (MinIO) users the provision job creates.  atlas/cms are scoped to
+# their VO prefix (atlas additionally DENIED on atlas/wprobe/* — the write
+# attribution probe); svc is the static service credential in the brix conf
+# and has full bucket access.
+backendUsers:
+  atlas: { accessKey: atlas-svc, secretKey: atlas-secret-1 }
+  cms:   { accessKey: cms-svc,   secretKey: cms-secret-1 }
+  svc:   { accessKey: svc,       secretKey: svc-secret-11 }
+
+s3gsi:
+  enabled: true
+  role:
+    name: s3gsi
+    configKey: s3_gsi_multiuser
+    ports:
+      - { name: rootgsi,  port: 1094 }   # storage_credential_fallback allow
+      - { name: rootdeny, port: 1095 }   # storage_credential_fallback deny
+    data: { root: /data/xrootd }
+    auth:
+      caBundle: s3gsi-ca-bundle
+      hostCertSecret: s3gsi-pki
+      extraSecret: s3gsi-server-extra
+    backend:
+      # host defaults to "<release>-minio" in the conf template
+      host: ""
+      port: 9000
+      bucket: brixgsi
+      region: us-east-1
+      accessKey: svc
+      secretKey: svc-secret-11

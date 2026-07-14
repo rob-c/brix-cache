@@ -1,0 +1,96 @@
+{{/*
+Provision MinIO with the per-VO backend users + prefix-scoped policies and
+seed the credential-attribution canary object.  Runs post-install (MinIO
+Deployment must exist); the mc alias loop absorbs MinIO startup time.
+
+Policy design (the attribution mechanism the tests rely on):
+  atlas-rw  Allow object ops on brixgsi/atlas/*  + DENY PutObject on
+            brixgsi/atlas/wprobe/*  (write-attribution probe: a write there
+            succeeding proves the SERVICE cred signed it, not the user's)
+  cms-rw    Allow object ops on brixgsi/cms/*
+  svc-full  s3:* on the whole bucket (static service credential)
+Canary: cms/shared/canary.dat is readable by cms-svc + svc but NOT atlas-svc,
+so bob (atlas keys) being denied there proves his .s3 cred signed the read.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-minio-provision
+  labels:
+    {{- include "brix-common.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "brix-common.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: provision
+          image: {{ .Values.mc.image }}
+          imagePullPolicy: {{ .Values.mc.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          env:
+            - { name: EP,  value: "http://{{ .Release.Name }}-minio:{{ .Values.minio.port }}" }
+            - { name: AK,  value: {{ .Values.minio.rootUser | quote }} }
+            - { name: SK,  value: {{ .Values.minio.rootPassword | quote }} }
+            - { name: BKT, value: {{ .Values.bucket | quote }} }
+          args:
+            - |
+              set -eu
+              i=0
+              until mc alias set m "$EP" "$AK" "$SK"; do
+                i=$((i+1)); [ "$i" -gt 60 ] && { echo "minio never came up"; exit 1; }
+                sleep 2
+              done
+              mc mb -p "m/$BKT" || true
+
+              cat > /tmp/atlas.json <<EOF
+              {"Version":"2012-10-17","Statement":[
+                {"Effect":"Allow",
+                 "Action":["s3:GetObject","s3:PutObject","s3:DeleteObject",
+                           "s3:AbortMultipartUpload","s3:ListMultipartUploadParts"],
+                 "Resource":["arn:aws:s3:::$BKT/atlas/*"]},
+                {"Effect":"Deny","Action":["s3:PutObject"],
+                 "Resource":["arn:aws:s3:::$BKT/atlas/wprobe/*"]},
+                {"Effect":"Allow","Action":["s3:ListBucket"],
+                 "Resource":["arn:aws:s3:::$BKT"],
+                 "Condition":{"StringLike":{"s3:prefix":["atlas/*"]}}}
+              ]}
+              EOF
+              cat > /tmp/cms.json <<EOF
+              {"Version":"2012-10-17","Statement":[
+                {"Effect":"Allow",
+                 "Action":["s3:GetObject","s3:PutObject","s3:DeleteObject",
+                           "s3:AbortMultipartUpload","s3:ListMultipartUploadParts"],
+                 "Resource":["arn:aws:s3:::$BKT/cms/*"]},
+                {"Effect":"Allow","Action":["s3:ListBucket"],
+                 "Resource":["arn:aws:s3:::$BKT"],
+                 "Condition":{"StringLike":{"s3:prefix":["cms/*"]}}}
+              ]}
+              EOF
+              cat > /tmp/svc.json <<EOF
+              {"Version":"2012-10-17","Statement":[
+                {"Effect":"Allow","Action":["s3:*"],
+                 "Resource":["arn:aws:s3:::$BKT","arn:aws:s3:::$BKT/*"]}
+              ]}
+              EOF
+
+              mc admin policy create m atlas-rw /tmp/atlas.json
+              mc admin policy create m cms-rw   /tmp/cms.json
+              mc admin policy create m svc-full /tmp/svc.json
+
+              mc admin user add m {{ .Values.backendUsers.atlas.accessKey }} {{ .Values.backendUsers.atlas.secretKey }} || true
+              mc admin user add m {{ .Values.backendUsers.cms.accessKey }}   {{ .Values.backendUsers.cms.secretKey }}   || true
+              mc admin user add m {{ .Values.backendUsers.svc.accessKey }}   {{ .Values.backendUsers.svc.secretKey }}   || true
+              mc admin policy attach m atlas-rw --user {{ .Values.backendUsers.atlas.accessKey }} || true
+              mc admin policy attach m cms-rw   --user {{ .Values.backendUsers.cms.accessKey }}   || true
+              mc admin policy attach m svc-full --user {{ .Values.backendUsers.svc.accessKey }}   || true
+
+              # Credential-attribution canary: readable by cms-svc/svc only.
+              echo -n "cms-canary-payload-v1" | mc pipe "m/$BKT/cms/shared/canary.dat"
+              echo "minio provisioned"

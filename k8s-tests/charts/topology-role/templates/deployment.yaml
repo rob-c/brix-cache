@@ -20,8 +20,21 @@ spec:
       {{- include "brix-common.nodePinning" . | nindent 6 }}
       {{- $sg := and .Values.role.startGate .Values.role.startGate.enabled }}
       {{- $auth := .Values.role.auth }}
-      {{- if or $sg (and $auth $auth.crlUrl) (and $auth $auth.jwksUrl) }}
+      {{- if or $sg (and $auth $auth.crlUrl) (and $auth $auth.jwksUrl) (and $auth $auth.extraSecret) }}
       initContainers:
+        {{- if and $auth $auth.extraSecret }}
+        # Secret volumes materialize files as symlinks (..data/) which
+        # O_NOFOLLOW consumers (e.g. the per-user credential loader) refuse —
+        # dereference them into a plain emptyDir.
+        - name: extra-init
+          image: "{{ .Values.role.image.repository }}:{{ .Values.role.image.tag }}"
+          imagePullPolicy: {{ .Values.role.image.pullPolicy | default "Never" }}
+          command: ["/bin/sh", "-c"]
+          args: ["cp -rL /etc/brix/extra-src/. /etc/brix/extra/"]
+          volumeMounts:
+            - { name: extra-src, mountPath: /etc/brix/extra-src, readOnly: true }
+            - { name: extra, mountPath: /etc/brix/extra }
+        {{- end }}
         {{- if $sg }}
         - name: start-gate
           image: "{{ .Values.role.image.repository }}:{{ .Values.role.image.tag }}"
@@ -79,6 +92,9 @@ spec:
             {{- if $auth.vomsdir }}
             - { name: vomsdir, mountPath: /etc/grid-security/vomsdir, readOnly: true }
             {{- end }}
+            {{- if $auth.extraSecret }}
+            - { name: extra, mountPath: /etc/brix/extra, readOnly: true }
+            {{- end }}
             {{- end }}
           resources: {{- toYaml .Values.role.resources | nindent 12 }}
         {{- if and $auth $auth.crlUrl }}
@@ -117,5 +133,15 @@ spec:
         - name: vomsdir
           configMap:
             name: {{ $auth.vomsdir }}
+        {{- end }}
+        {{- if $auth.extraSecret }}
+        # Generic per-role extra files (e.g. authdb + per-user backend
+        # credential files).  extra-src is the raw secret (symlink layout);
+        # extra is the dereferenced copy the init container produces.
+        - name: extra-src
+          secret:
+            secretName: {{ $auth.extraSecret }}
+        - name: extra
+          emptyDir: {}
         {{- end }}
         {{- end }}
