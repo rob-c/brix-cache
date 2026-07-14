@@ -54,6 +54,167 @@ holder_url(const brix_opts *o, const char *host, int port, char *out, size_t out
              v6 ? "[" : "", host, v6 ? "]" : "", port);
 }
 
+/* ---- Print best-effort endpoint free/total space line ----
+ *
+ * WHAT: Queries the connected endpoint for kXR_Qspace on `path` and, on a
+ *       non-empty answer, prints the "Space:" line. Silent on any failure or
+ *       empty result (best-effort, redirect-aware) — returns nothing.
+ *
+ * WHY:  Space reporting is advisory: a manager that cannot answer must not abort
+ *       the cluster-map listing, so this is factored out with its own throwaway
+ *       status and never propagates an error.
+ *
+ * HOW:  1. Clear a local status. 2. brix_query(kXR_Qspace). 3. If it succeeds
+ *       and the answer buffer is non-empty, print "Space:   <answer>".
+ */
+static void
+print_space(brix_conn *c, const char *path)
+{
+    char        space[1024];
+    brix_status sst;
+
+    brix_status_clear(&sst);
+    if (brix_query(c, kXR_Qspace, path, space, sizeof(space), &sst) == 0
+        && space[0] != '\0') {
+        printf("Space:   %s\n", space);
+    }
+}
+
+/* ---- Probe one advertised holder and classify it (--verify) ----
+ *
+ * WHAT: Opens a fresh session to <host:port> and stats `path`, printing one of
+ *       PASS (serves, with byte size), GHOST (connects but does not serve), or
+ *       UNREACHABLE (connect fails). Increments g_ghosts for GHOST/UNREACHABLE.
+ *       Returns nothing.
+ *
+ * WHY:  The "ghost replica" failure mode (advertised holder that does not serve)
+ *       is invisible to a plain transfer; --verify surfaces it by contacting
+ *       each holder directly. Isolating the probe keeps the classification and
+ *       its g_ghosts side effect in one small, reviewable place.
+ *
+ * HOW:  1. Build a connectable URL via holder_url(). 2. Parse+connect; on
+ *       failure print UNREACHABLE and bump g_ghosts. 3. Otherwise brix_stat():
+ *       success → PASS with size; failure → GHOST with the kXR name + bump
+ *       g_ghosts. 4. Close the probe session.
+ */
+static void
+probe_holder(const brix_opts *co, const char *path,
+             const char *host, int port, char rw)
+{
+    char        hu[320];
+    brix_url    hurl;
+    brix_conn   hc;
+    brix_status hst;
+
+    holder_url(co, host, port, hu, sizeof(hu));
+    brix_status_clear(&hst);
+    if (brix_endpoint_parse(hu, &hurl, &hst) != 0
+        || brix_connect(&hc, &hurl, co, &hst) != 0) {
+        printf("  %s:%d  [%s]  UNREACHABLE (%s)\n", host, port,
+               rw == 'w' ? "rw" : "ro", hst.msg);
+        g_ghosts++;
+        return;
+    }
+
+    {
+        brix_statinfo si;
+        brix_status   pst;
+        brix_status_clear(&pst);
+        if (brix_stat(&hc, path, &si, &pst) == 0) {
+            printf("  %s:%d  [%s]  PASS (%lld bytes)\n", host, port,
+                   rw == 'w' ? "rw" : "ro", (long long) si.size);
+        } else {
+            printf("  %s:%d  [%s]  GHOST (advertised, %s)\n", host,
+                   port, rw == 'w' ? "rw" : "ro",
+                   brix_kxr_name(pst.kxr));
+            g_ghosts++;
+        }
+        brix_close(&hc);
+    }
+}
+
+/* ---- Handle one locate token: parse, then list or probe ----
+ *
+ * WHAT: Parses a single "S<flag><host>:<port>" locate token and, if valid,
+ *       prints the holder line (plain ro/rw) or, when `verify` is set, probes
+ *       it via probe_holder(). Returns 1 if the token was a valid holder (to be
+ *       counted), 0 if it was malformed and skipped.
+ *
+ * WHY:  Keeps the per-token decision (skip / list / verify) in one place so the
+ *       holder loop stays a flat iteration and the counted-holder semantics
+ *       (only well-formed tokens count) are expressed once.
+ *
+ * HOW:  1. parse_holder(); on failure return 0. 2. If not verifying, print the
+ *       plain holder line and return 1. 3. Otherwise probe_holder() and return 1.
+ */
+static int
+map_holder(const brix_opts *co, const char *path, const char *tok, int verify)
+{
+    char host[256];
+    int  port = 0;
+    char rw = '?';
+
+    if (parse_holder(tok, host, sizeof(host), &port, &rw) != 0) {
+        return 0;
+    }
+    if (!verify) {
+        printf("  %s:%d  [%s]\n", host, port, rw == 'w' ? "rw" : "ro");
+        return 1;
+    }
+    probe_holder(co, path, host, port, rw);
+    return 1;
+}
+
+/* ---- Print the "Holders:" section from a locate answer ----
+ *
+ * WHAT: Tokenizes the locate answer, dispatches each token to map_holder(),
+ *       prints "(none)" when no valid holder was found, and prints the "Total:"
+ *       footer (with ", all serving" only when verifying and no ghosts). Returns
+ *       nothing; ghost/unreachable counts accumulate in g_ghosts via probes.
+ *
+ * WHY:  Separates the listing/aggregation loop from connection setup so do_map
+ *       reads as a short sequence and the token-counting stays adjacent to the
+ *       footer that reports it.
+ *
+ * HOW:  1. Copy the answer (strtok_r mutates). 2. For each whitespace-delimited
+ *       token, add map_holder()'s return to the holder count. 3. Print "(none)"
+ *       if zero. 4. Print the "Total:" line, appending ", all serving" only when
+ *       verifying with no ghosts.
+ */
+static void
+map_holders(const brix_opts *co, const char *loc, const char *path, int verify)
+{
+    char  copy[8192];
+    char *tok, *save;
+    int   n = 0;
+
+    snprintf(copy, sizeof(copy), "%s", loc);
+    for (tok = strtok_r(copy, " \t\r\n", &save); tok != NULL;
+         tok = strtok_r(NULL, " \t\r\n", &save)) {
+        n += map_holder(co, path, tok, verify);
+    }
+    if (n == 0) {
+        printf("  (none)\n");
+    }
+    printf("Total: %d holder(s)%s\n", n,
+           verify ? (g_ghosts ? "" : ", all serving") : "");
+}
+
+/* ---- Query and print the cluster map for one endpoint/path ----
+ *
+ * WHAT: Connects to `url`, locates `path`, and prints the cluster map (header,
+ *       best-effort space, holder list). Returns 50 on URL parse error, the
+ *       brix_shellcode() of a connect/locate failure, 1 if any ghost/unreachable
+ *       holder was seen (--verify), else 0.
+ *
+ * WHY:  Top-level orchestrator: a flat early-return sequence over the connect →
+ *       locate → report steps, with the per-section detail delegated to helpers.
+ *
+ * HOW:  1. Parse the endpoint URL (error → 50). 2. Connect resiliently (error →
+ *       shellcode). 3. Default an empty path to "/". 4. brix_locate() (error →
+ *       close + shellcode). 5. Print header, print_space(), map_holders().
+ *       6. Close and return 1 if g_ghosts else 0.
+ */
 static int
 do_map(const char *url, const brix_opts *co, int verify)
 {
@@ -61,9 +222,7 @@ do_map(const char *url, const brix_opts *co, int verify)
     brix_conn   c;
     brix_status st;
     char        loc[8192];
-    char        space[1024];
     const char *path;
-    char       *tok, *save;
 
     brix_status_clear(&st);
     if (brix_endpoint_parse(url, &u, &st) != 0) {
@@ -83,73 +242,9 @@ do_map(const char *url, const brix_opts *co, int verify)
     }
     printf("Cluster map for %s:%d  path %s\n", u.host, u.port, path);
 
-    /* Endpoint-level free/total space (best-effort; redirect-aware). */
-    {
-        brix_status sst;
-        brix_status_clear(&sst);
-        if (brix_query(&c, kXR_Qspace, path, space, sizeof(space), &sst) == 0
-            && space[0] != '\0') {
-            printf("Space:   %s\n", space);
-        }
-    }
-
+    print_space(&c, path);
     printf("Holders:\n");
-    {
-        char copy[8192];
-        int  n = 0;
-        snprintf(copy, sizeof(copy), "%s", loc);
-        for (tok = strtok_r(copy, " \t\r\n", &save); tok != NULL;
-             tok = strtok_r(NULL, " \t\r\n", &save)) {
-            char host[256];
-            int  port = 0;
-            char rw = '?';
-            if (parse_holder(tok, host, sizeof(host), &port, &rw) != 0) {
-                continue;
-            }
-            n++;
-            if (!verify) {
-                printf("  %s:%d  [%s]\n", host, port,
-                       rw == 'w' ? "rw" : "ro");
-                continue;
-            }
-            /* --verify: probe the advertised holder. */
-            {
-                char        hu[320];
-                brix_url    hurl;
-                brix_conn   hc;
-                brix_status hst;
-                holder_url(co, host, port, hu, sizeof(hu));
-                brix_status_clear(&hst);
-                if (brix_endpoint_parse(hu, &hurl, &hst) != 0
-                    || brix_connect(&hc, &hurl, co, &hst) != 0) {
-                    printf("  %s:%d  [%s]  UNREACHABLE (%s)\n", host, port,
-                           rw == 'w' ? "rw" : "ro", hst.msg);
-                    g_ghosts++;
-                } else {
-                    brix_statinfo si;
-                    brix_status   pst;
-                    int           ok;
-                    brix_status_clear(&pst);
-                    ok = (brix_stat(&hc, path, &si, &pst) == 0);
-                    if (ok) {
-                        printf("  %s:%d  [%s]  PASS (%lld bytes)\n", host, port,
-                               rw == 'w' ? "rw" : "ro", (long long) si.size);
-                    } else {
-                        printf("  %s:%d  [%s]  GHOST (advertised, %s)\n", host,
-                               port, rw == 'w' ? "rw" : "ro",
-                               brix_kxr_name(pst.kxr));
-                        g_ghosts++;
-                    }
-                    brix_close(&hc);
-                }
-            }
-        }
-        if (n == 0) {
-            printf("  (none)\n");
-        }
-        printf("Total: %d holder(s)%s\n", n,
-               verify ? (g_ghosts ? "" : ", all serving") : "");
-    }
+    map_holders(co, loc, path, verify);
 
     brix_close(&c);
     return g_ghosts ? 1 : 0;

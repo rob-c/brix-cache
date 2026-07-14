@@ -206,7 +206,7 @@ complete -F _xrdcksum xrdcksum
 complete -F _xrd xrd
 complete -F _xrdprep xrdprep
 complete -F _xrdgsiproxy xrdgsiproxy
-complete -F _xrdsssadmin xrdsssadmin
+complete -F _xrdsssadmin xrdsssadmin-brix
 complete -F _xrootdfs xrootdfs
 complete -F _brixmount brixMount
 complete -F _xrdstorascan xrdstorascan

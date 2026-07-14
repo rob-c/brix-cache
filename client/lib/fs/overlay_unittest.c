@@ -147,84 +147,165 @@ static mode_t mode_0700(void *ud, const char *rel_dir) {
     return 0700;
 }
 
+/* ---- mkdirs + create + mkdir + opaque + unlink ----
+ *
+ * WHAT: asserts the directory-creating and file-creating mutation primitives —
+ *       brix_overlay_mkdirs (default + mode_fn), brix_overlay_open (O_CREAT and
+ *       missing-parent -ENOENT), brix_overlay_mkdir (mode + -EEXIST on repeat),
+ *       set_opaque masking, and unlink_upper. Populates the fixture upper tree
+ *       (under d1/d2 and m1) that later mutation groups depend on.
+ * WHY:  split out of test_mutations so each named mutation family stays under
+ *       the per-function complexity cap while every assertion and its ordering
+ *       are preserved exactly.
+ * HOW:  (1) mkdirs a deep chain, then one honoring the mode callback; (2) open
+ *       O_CREAT|O_EXCL, write, close, and re-classify the new file; (3) reject a
+ *       missing-parent create; (4) mkdir with an explicit mode, then twice;
+ *       (5) set_opaque and confirm it masks below; (6) unlink_upper the created
+ *       file back to NONE.
+ */
+static void test_mut_mkdirs_create(fix_t *f) {
+    struct stat st;
+    CHECK(brix_overlay_mkdirs(&f->ov, "d1/d2/d3", NULL, NULL) == 0
+          && cls(f, "d1/d2/d3", &st) == BRIX_OV_UPPER && S_ISDIR(st.st_mode),
+          "mkdirs deep chain");
+    CHECK(brix_overlay_mkdirs(&f->ov, "m1/m2", mode_0700, NULL) == 0
+          && cls(f, "m1", &st) == BRIX_OV_UPPER && (st.st_mode & 07777) == 0700,
+          "mkdirs honors mode_fn");
+
+    int fd = brix_overlay_open(&f->ov, "d1/d2/new", O_WRONLY | O_CREAT | O_EXCL, 0644);
+    CHECK(fd >= 0, "open O_CREAT|O_EXCL");
+    CHECK(write(fd, "abc", 3) == 3, "write via returned fd");
+    close(fd);
+    CHECK(cls(f, "d1/d2/new", &st) == BRIX_OV_UPPER && st.st_size == 3,
+          "created file classifies UPPER, size 3");
+    CHECK(brix_overlay_open(&f->ov, "noparent/x", O_WRONLY | O_CREAT, 0644) == -ENOENT,
+          "open with missing parent → -ENOENT");  /* neg */
+
+    CHECK(brix_overlay_mkdir(&f->ov, "d1/sub", 0750) == 0
+          && cls(f, "d1/sub", &st) == BRIX_OV_UPPER && (st.st_mode & 07777) == 0750,
+          "mkdir with mode");
+    CHECK(brix_overlay_mkdir(&f->ov, "d1/sub", 0750) == -EEXIST, "mkdir twice → -EEXIST");
+
+    CHECK(brix_overlay_set_opaque(&f->ov, "d1/sub") == 0, "set_opaque");
+    CHECK(cls(f, "d1/sub/anything", NULL) == BRIX_OV_MASKED, "opaque masks below");
+
+    CHECK(brix_overlay_unlink_upper(&f->ov, "d1/d2/new") == 0
+          && cls(f, "d1/d2/new", NULL) == BRIX_OV_NONE, "unlink_upper");
+}
+
+/* ---- rmdir_upper: marker-only vs real-entry ----
+ *
+ * WHAT: asserts brix_overlay_rmdir_upper removes a dir holding only overlay
+ *       markers (a seeded whiteout) yet refuses one with a real child, returning
+ *       -ENOTEMPTY.
+ * WHY:  rmdir must treat overlay bookkeeping entries as absent while protecting
+ *       user data — the marker-only-succeeds / real-entry-refuses split is the
+ *       load-bearing corner case.
+ * HOW:  (1) seed a whiteout under wd/, rmdir it, confirm NONE; (2) raw-build a
+ *       dir with a real file and confirm rmdir_upper returns -ENOTEMPTY.
+ */
+static void test_mut_rmdir(fix_t *f) {
+    CHECK(brix_overlay_whiteout_set(&f->ov, "wd/x") == 0, "seed marker-only dir");
+    CHECK(brix_overlay_rmdir_upper(&f->ov, "wd") == 0
+          && cls(f, "wd", NULL) == BRIX_OV_NONE, "rmdir_upper removes marker-only dir");
+    raw_mkdir(f, "upper/full");
+    raw_put(f, "upper/full/keep", "k");
+    CHECK(brix_overlay_rmdir_upper(&f->ov, "full") == -ENOTEMPTY,
+          "rmdir_upper with real entry → -ENOTEMPTY");  /* neg */
+}
+
+/* ---- rename + symlink + readlink ----
+ *
+ * WHAT: asserts brix_overlay_rename_upper moves a file across dirs (source →
+ *       NONE, dest → UPPER) and that symlink/readlink round-trip the target
+ *       string unchanged.
+ * WHY:  rename and symlink are the remaining namespace-shaping mutations; kept
+ *       together as one small, nameable group.
+ * HOW:  (1) raw-seed d1/src, rename to d1/d2/dst, check both endpoints;
+ *       (2) create a symlink, read it back, and strcmp the target.
+ */
+static void test_mut_rename_symlink(fix_t *f) {
+    raw_put(f, "upper/d1/src", "mv");
+    CHECK(brix_overlay_rename_upper(&f->ov, "d1/src", "d1/d2/dst") == 0
+          && cls(f, "d1/d2/dst", NULL) == BRIX_OV_UPPER
+          && cls(f, "d1/src", NULL) == BRIX_OV_NONE, "rename_upper across dirs");
+
+    char lbuf[64];
+    CHECK(brix_overlay_symlink(&f->ov, "target/here", "d1/lnk") == 0, "symlink");
+    CHECK(brix_overlay_readlink(&f->ov, "d1/lnk", lbuf, sizeof(lbuf)) == 0
+          && strcmp(lbuf, "target/here") == 0, "readlink round-trip");
+}
+
+/* ---- chmod / truncate / utimens ----
+ *
+ * WHAT: asserts the attribute-mutating primitives — chmod (0640 applied, symlink
+ *       refused with -EOPNOTSUPP), truncate (size 3), and utimens (mtime 12345)
+ *       — each re-classifying the target as UPPER after the change.
+ * WHY:  attribute mutations must land on the upper copy and reject a symlink
+ *       target; grouped so the metadata-mutation family is independently
+ *       reviewable. Depends on d1/lnk seeded by the rename+symlink group.
+ * HOW:  (1) raw-seed d1/attrs; (2) chmod it 0640 and re-stat; (3) chmod the
+ *       symlink and expect -EOPNOTSUPP; (4) truncate to 3 and re-stat;
+ *       (5) utimens and confirm mtime.
+ */
+static void test_mut_attrs(fix_t *f) {
+    struct stat st;
+    raw_put(f, "upper/d1/attrs", "0123456789");
+    CHECK(brix_overlay_chmod(&f->ov, "d1/attrs", 0640) == 0
+          && cls(f, "d1/attrs", &st) == BRIX_OV_UPPER && (st.st_mode & 07777) == 0640,
+          "chmod 0640");
+    CHECK(brix_overlay_chmod(&f->ov, "d1/lnk", 0640) == -EOPNOTSUPP,
+          "chmod on symlink refused");  /* neg */
+    CHECK(brix_overlay_truncate(&f->ov, "d1/attrs", 3) == 0
+          && cls(f, "d1/attrs", &st) == BRIX_OV_UPPER && st.st_size == 3,
+          "truncate to 3");
+    struct timespec tv[2] = { { 12345, 0 }, { 12345, 0 } };
+    CHECK(brix_overlay_utimens(&f->ov, "d1/attrs", tv) == 0
+          && cls(f, "d1/attrs", &st) == BRIX_OV_UPPER && st.st_mtime == 12345,
+          "utimens sets mtime");
+}
+
+/* ---- security-neg: mutation through a planted symlink ----
+ *
+ * WHAT: asserts a symlink planted in upper is never followed by mutations —
+ *       truncate through it fails (and not as -EISDIR, proving the walk
+ *       dead-ended rather than resolving), and truncate of the symlink itself
+ *       returns -ELOOP.
+ * WHY:  the core symlink-escape invariant — the confined walk must not resolve
+ *       outside the overlay root — must hold for the mutation path too.
+ * HOW:  (1) plant an /etc symlink at upper/esc; (2) truncate esc/passwd and
+ *       assert it fails but not with -EISDIR; (3) truncate esc and expect -ELOOP.
+ */
+static void test_mut_symlink_escape(fix_t *f) {
+    char lp[512];
+    snprintf(lp, sizeof(lp), "%s/upper/esc", f->root);
+    CHECK(symlink("/etc", lp) == 0, "plant escape symlink");
+    CHECK(brix_overlay_truncate(&f->ov, "esc/passwd", 0) < 0
+          && brix_overlay_truncate(&f->ov, "esc/passwd", 0) != -EISDIR,
+          "truncate through symlink refused (walk dead-ends)");
+    CHECK(brix_overlay_truncate(&f->ov, "esc", 0) == -ELOOP,
+          "truncate of symlink itself → -ELOOP");
+}
+
+/* ---- section 2 driver: mutation primitives ----
+ *
+ * WHAT: runs the mutation-primitive test groups in order against one fixture.
+ * WHY:  each group is a small single-purpose helper; this driver only owns the
+ *       fixture lifecycle and the fixed execution order the groups depend on
+ *       (create → rmdir → rename/symlink → attrs → symlink-escape).
+ * HOW:  (1) fix_up; (2) call each test_mut_* group in dependency order;
+ *       (3) fix_down.
+ */
 static void test_mutations(void) {
     fix_t f;
     printf("== mutations ==\n");
     CHECK(fix_up(&f) == 0, "overlay init");
 
-    struct stat st;
-    CHECK(brix_overlay_mkdirs(&f.ov, "d1/d2/d3", NULL, NULL) == 0
-          && cls(&f, "d1/d2/d3", &st) == BRIX_OV_UPPER && S_ISDIR(st.st_mode),
-          "mkdirs deep chain");
-    CHECK(brix_overlay_mkdirs(&f.ov, "m1/m2", mode_0700, NULL) == 0
-          && cls(&f, "m1", &st) == BRIX_OV_UPPER && (st.st_mode & 07777) == 0700,
-          "mkdirs honors mode_fn");
-
-    int fd = brix_overlay_open(&f.ov, "d1/d2/new", O_WRONLY | O_CREAT | O_EXCL, 0644);
-    CHECK(fd >= 0, "open O_CREAT|O_EXCL");
-    CHECK(write(fd, "abc", 3) == 3, "write via returned fd");
-    close(fd);
-    CHECK(cls(&f, "d1/d2/new", &st) == BRIX_OV_UPPER && st.st_size == 3,
-          "created file classifies UPPER, size 3");
-    CHECK(brix_overlay_open(&f.ov, "noparent/x", O_WRONLY | O_CREAT, 0644) == -ENOENT,
-          "open with missing parent → -ENOENT");  /* neg */
-
-    CHECK(brix_overlay_mkdir(&f.ov, "d1/sub", 0750) == 0
-          && cls(&f, "d1/sub", &st) == BRIX_OV_UPPER && (st.st_mode & 07777) == 0750,
-          "mkdir with mode");
-    CHECK(brix_overlay_mkdir(&f.ov, "d1/sub", 0750) == -EEXIST, "mkdir twice → -EEXIST");
-
-    CHECK(brix_overlay_set_opaque(&f.ov, "d1/sub") == 0, "set_opaque");
-    CHECK(cls(&f, "d1/sub/anything", NULL) == BRIX_OV_MASKED, "opaque masks below");
-
-    CHECK(brix_overlay_unlink_upper(&f.ov, "d1/d2/new") == 0
-          && cls(&f, "d1/d2/new", NULL) == BRIX_OV_NONE, "unlink_upper");
-
-    /* rmdir_upper: marker-only dir succeeds, real entries refuse */
-    CHECK(brix_overlay_whiteout_set(&f.ov, "wd/x") == 0, "seed marker-only dir");
-    CHECK(brix_overlay_rmdir_upper(&f.ov, "wd") == 0
-          && cls(&f, "wd", NULL) == BRIX_OV_NONE, "rmdir_upper removes marker-only dir");
-    raw_mkdir(&f, "upper/full");
-    raw_put(&f, "upper/full/keep", "k");
-    CHECK(brix_overlay_rmdir_upper(&f.ov, "full") == -ENOTEMPTY,
-          "rmdir_upper with real entry → -ENOTEMPTY");  /* neg */
-
-    /* rename across dirs */
-    raw_put(&f, "upper/d1/src", "mv");
-    CHECK(brix_overlay_rename_upper(&f.ov, "d1/src", "d1/d2/dst") == 0
-          && cls(&f, "d1/d2/dst", NULL) == BRIX_OV_UPPER
-          && cls(&f, "d1/src", NULL) == BRIX_OV_NONE, "rename_upper across dirs");
-
-    /* symlink + readlink round-trip */
-    char lbuf[64];
-    CHECK(brix_overlay_symlink(&f.ov, "target/here", "d1/lnk") == 0, "symlink");
-    CHECK(brix_overlay_readlink(&f.ov, "d1/lnk", lbuf, sizeof(lbuf)) == 0
-          && strcmp(lbuf, "target/here") == 0, "readlink round-trip");
-
-    /* chmod / truncate / utimens */
-    raw_put(&f, "upper/d1/attrs", "0123456789");
-    CHECK(brix_overlay_chmod(&f.ov, "d1/attrs", 0640) == 0
-          && cls(&f, "d1/attrs", &st) == BRIX_OV_UPPER && (st.st_mode & 07777) == 0640,
-          "chmod 0640");
-    CHECK(brix_overlay_chmod(&f.ov, "d1/lnk", 0640) == -EOPNOTSUPP,
-          "chmod on symlink refused");  /* neg */
-    CHECK(brix_overlay_truncate(&f.ov, "d1/attrs", 3) == 0
-          && cls(&f, "d1/attrs", &st) == BRIX_OV_UPPER && st.st_size == 3,
-          "truncate to 3");
-    struct timespec tv[2] = { { 12345, 0 }, { 12345, 0 } };
-    CHECK(brix_overlay_utimens(&f.ov, "d1/attrs", tv) == 0
-          && cls(&f, "d1/attrs", &st) == BRIX_OV_UPPER && st.st_mtime == 12345,
-          "utimens sets mtime");
-
-    /* security-neg: mutation through a planted symlink dead-ends */
-    char lp[512];
-    snprintf(lp, sizeof(lp), "%s/upper/esc", f.root);
-    CHECK(symlink("/etc", lp) == 0, "plant escape symlink");
-    CHECK(brix_overlay_truncate(&f.ov, "esc/passwd", 0) < 0
-          && brix_overlay_truncate(&f.ov, "esc/passwd", 0) != -EISDIR,
-          "truncate through symlink refused (walk dead-ends)");
-    CHECK(brix_overlay_truncate(&f.ov, "esc", 0) == -ELOOP,
-          "truncate of symlink itself → -ELOOP");
+    test_mut_mkdirs_create(&f);
+    test_mut_rmdir(&f);
+    test_mut_rename_symlink(&f);
+    test_mut_attrs(&f);
+    test_mut_symlink_escape(&f);
 
     fix_down(&f);
 }

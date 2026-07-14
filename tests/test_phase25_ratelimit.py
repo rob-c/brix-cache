@@ -77,7 +77,10 @@ def test_ratelimit_module_present():
 def test_stream_gate_and_charge_wired():
     d = _read("src/protocols/root/handshake/dispatch.c")
     assert "brix_rl_stream_gate" in d
-    assert "brix_rl_charge_ctx" in _read("src/protocols/root/read/read.c")
+    # phase-79 file-size split: read.c's zero-copy serve path (which charges the
+    # bandwidth rate-limiter) moved into read_sendfile.c.
+    assert "brix_rl_charge_ctx" in _read(
+        "src/protocols/root/read/read_sendfile.c")
     assert "brix_rl_charge_ctx" in _read("src/protocols/root/write/write.c")
     s = _read("src/net/ratelimit/ratelimit_stream.c")
     assert "brix_send_wait" in s
@@ -108,7 +111,10 @@ def test_metrics_and_dashboard_wired():
     assert "rl_throttled_http_total" in m
     assert "rl_throttled_stream_total" in m
     assert "brix_rate_limit_throttled_total" in _read("src/observability/metrics/ratelimit.c")
-    assert "/brix/api/v1/ratelimit" in _read("src/observability/dashboard/module.c")
+    # phase-79 file-size split: the dashboard route table (incl. the ratelimit
+    # API route) moved from dashboard/module.c into dashboard/module_dispatch.c.
+    assert "/brix/api/v1/ratelimit" in _read(
+        "src/observability/dashboard/module_dispatch.c")
 
 
 # --------------------------------------------------------------------------- #

@@ -30,7 +30,7 @@ import pytest
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 NETTMO = os.path.join(CLIENT_DIR, "bin", "nettmo_test")
-WAIT41 = os.path.join(CLIENT_DIR, "bin", "wait41")
+WAIT41 = os.path.join(CLIENT_DIR, "bin", "wait41-brix")
 
 
 def _run_env():
@@ -59,14 +59,14 @@ def _build():
     out = b""
     if not (os.path.exists(NETTMO) and os.path.exists(WAIT41)):
         r = subprocess.run(
-            ["make", "nettmo", "wait41"],
+            ["make", "nettmo", "wait41-brix"],
             cwd=CLIENT_DIR, env=_run_env(),
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300,
         )
         out = r.stdout
     if not (os.path.exists(NETTMO) and os.path.exists(WAIT41)):
         pytest.skip("client test binaries not built (run `make -C client nettmo "
-                    f"wait41`):\n{out.decode(errors='replace')[-800:]}")
+                    f"wait41-brix`):\n{out.decode(errors='replace')[-800:]}")
 
 
 def test_backoff_and_timeout_units():

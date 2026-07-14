@@ -1,34 +1,46 @@
+/*
+ * auth_sigv4_verify.c — AWS Signature Version 4 verification orchestrator.
+ *
+ * WHAT: Owns the SigV4 verification entry point (s3_verify_sigv4) and the
+ *       decision-side helpers around it: the auth-result metric sink, the
+ *       WLCG bearer-token intercept, the presigned-vs-header credential parse
+ *       fork, the STS session-token gate, and the success-side commit.
+ * WHY:  This file exceeded the ~500-line file-size guard, so the byte-frozen
+ *       timestamp rules and the SigV4 crypto were carved into auth_sigv4_verify_
+ *       time.c and auth_sigv4_verify_crypto.c (phase-79). What remains here is
+ *       the orchestration — a flat early-return sequence over the split steps —
+ *       plus the side-effect-light gates that guard it. INVARIANT §6: SigV4 and
+ *       Bearer are mutually exclusive per request; the intercept keeps that
+ *       arbitration in one auditable place.
+ * HOW:  s3_verify_sigv4 threads the split steps: bearer intercept → anonymous
+ *       short-circuit → parse credentials → deferred constant-time access-key
+ *       match → session-token gate → resolve request time (verify_time.c) →
+ *       compute signature (verify_crypto.c) → single constant-time compare
+ *       (verify_crypto.c) → commit. Byte layout, messages, and result codes are
+ *       preserved 1:1 with the pre-split single-file implementation.
+ */
+
 #include "s3.h"
 #include "auth_bearer.h"
 #include "s3_auth_internal.h"
-#include "core/compat/hex.h"
-#include "core/compat/crypto.h"
-#include "core/compat/uri.h"
-#include "core/compat/sigv4.h"   /* shared SigV4 signing-key derive (libxrdproto) */
+#include "auth_sigv4_verify_internal.h"
 #include "observability/metrics/unified.h"
-#include "core/compat/cstr.h"
 
-#include <ctype.h>
 #include <string.h>
-#include <stdlib.h>
-#include <time.h>
 #include <openssl/crypto.h>
 
-/* Canonical query-string builder — defined in auth_sigv4_canonical.c */
-extern size_t build_canonical_qs(const u_char *qs, size_t qslen,
-    ngx_flag_t skip_signature, u_char *out, size_t outsz);
-
-/* Header parser and authorization extractor — defined in auth_sigv4_parse.c */
-extern ngx_str_t get_header(ngx_http_request_t *r, const char *name);
-extern int parse_authorization(const ngx_str_t *auth, sigv4_components_t *out);
-extern int parse_presigned_authorization(ngx_http_request_t *r,
-    sigv4_components_t *out);
-
-
-#define S3_SIGV4_MAX_HEADER_SKEW_SEC  900
-#define S3_SIGV4_MAX_FUTURE_SKEW_SEC  900
-
-static void
+/*
+ * s3_record_auth_result — record a SigV4 auth outcome into the metric counters.
+ *
+ * WHAT:  Increment the per-result S3 auth counter and the unified auth metric
+ *        for the given BRIX_S3_AUTH_* result code.
+ * WHY:   Every SigV4 verify unit (this file plus verify_time.c / verify_crypto.c)
+ *        records its outcome on both success and rejection edges, so the sink is
+ *        exported here and called across the split.
+ * HOW:   Bump the raw result counter, then map the result to the unified
+ *        authn-method/success pair.
+ */
+void
 s3_record_auth_result(ngx_uint_t result)
 {
     BRIX_S3_METRIC_INC(auth_total[result]);
@@ -49,6 +61,16 @@ s3_record_auth_result(ngx_uint_t result)
     }
 }
 
+/*
+ * s3_signed_headers_contains — test whether a SignedHeaders list names a header.
+ *
+ * WHAT:  Return 1 when the semicolon-separated signed_hdrs list contains name
+ *        (case-insensitive, whole-token match), 0 otherwise.
+ * WHY:   The session-token gate must confirm x-amz-security-token was actually
+ *        covered by the signature; a whole-token scan avoids substring matches.
+ * HOW:   Walk signed_hdrs token by token on ';', comparing each token's length
+ *        and case-insensitive bytes against name.
+ */
 static ngx_flag_t
 s3_signed_headers_contains(const char *signed_hdrs, const char *name)
 {
@@ -85,6 +107,16 @@ s3_signed_headers_contains(const char *signed_hdrs, const char *name)
     return 0;
 }
 
+/*
+ * s3_request_has_session_token — detect an STS session token on the request.
+ *
+ * WHAT:  Return 1 when the request carries an X-Amz-Security-Token (header, or
+ *        the query param on a presigned request), 0 otherwise.
+ * WHY:   The session-token policy gate only engages when a token is actually
+ *        present; this predicate keeps that detection in one place.
+ * HOW:   Check the x-amz-security-token header first; for presigned requests
+ *        also check the X-Amz-Security-Token query argument.
+ */
 static ngx_flag_t
 s3_request_has_session_token(ngx_http_request_t *r, ngx_flag_t presigned)
 {
@@ -105,265 +137,6 @@ s3_request_has_session_token(ngx_http_request_t *r, ngx_flag_t presigned)
 
     return 0;
 }
-
-static int
-s3_digit(u_char c)
-{
-    return (c >= '0' && c <= '9') ? (int) (c - '0') : -1;
-}
-
-static int
-s3_parse_2digits(const char *s)
-{
-    int hi, lo;
-
-    hi = s3_digit((u_char) s[0]);
-    lo = s3_digit((u_char) s[1]);
-    if (hi < 0 || lo < 0) {
-        return -1;
-    }
-    return hi * 10 + lo;
-}
-
-static int
-s3_parse_4digits(const char *s)
-{
-    int a, b, c, d;
-
-    a = s3_digit((u_char) s[0]);
-    b = s3_digit((u_char) s[1]);
-    c = s3_digit((u_char) s[2]);
-    d = s3_digit((u_char) s[3]);
-    if (a < 0 || b < 0 || c < 0 || d < 0) {
-        return -1;
-    }
-    return a * 1000 + b * 100 + c * 10 + d;
-}
-
-static ngx_int_t
-s3_parse_amz_datetime(const char *s, time_t *out)
-{
-    struct tm  tm;
-    int        year, mon, day, hour, min, sec;
-
-    if (strlen(s) != 16 || s[8] != 'T' || s[15] != 'Z') {
-        return NGX_ERROR;
-    }
-
-    year = s3_parse_4digits(s);
-    mon  = s3_parse_2digits(s + 4);
-    day  = s3_parse_2digits(s + 6);
-    hour = s3_parse_2digits(s + 9);
-    min  = s3_parse_2digits(s + 11);
-    sec  = s3_parse_2digits(s + 13);
-
-    if (year < 1970 || mon < 1 || mon > 12 || day < 1 || day > 31
-        || hour < 0 || hour > 23 || min < 0 || min > 59
-        || sec < 0 || sec > 60)
-    {
-        return NGX_ERROR;
-    }
-
-    ngx_memzero(&tm, sizeof(tm));
-    tm.tm_year = year - 1900;
-    tm.tm_mon  = mon  - 1;
-    tm.tm_mday = day;
-    tm.tm_hour = hour;
-    tm.tm_min  = min;
-    tm.tm_sec  = sec;
-    *out = timegm(&tm);
-    return NGX_OK;
-}
-
-static ngx_int_t
-s3_reject_bad_amz_date(ngx_http_request_t *r, const char *message)
-{
-    s3_record_auth_result(BRIX_S3_AUTH_BAD_DATE);
-    return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
-                             "InvalidRequest", message);
-}
-
-static ngx_int_t
-s3_reject_clock_skew(ngx_http_request_t *r)
-{
-    s3_record_auth_result(BRIX_S3_AUTH_BAD_DATE);
-    return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
-                             "RequestTimeTooSkewed",
-                             "The difference between the request time and "
-                             "the server time is too large.");
-}
-
-static ngx_int_t
-s3_check_header_clock_skew(ngx_http_request_t *r, time_t request_time)
-{
-    time_t now;
-
-    now = ngx_time();
-    if (request_time > now) {
-        if (request_time - now > S3_SIGV4_MAX_HEADER_SKEW_SEC) {
-            return s3_reject_clock_skew(r);
-        }
-    } else if (now - request_time > S3_SIGV4_MAX_HEADER_SKEW_SEC) {
-        return s3_reject_clock_skew(r);
-    }
-
-    return NGX_OK;
-}
-
-static ngx_int_t
-s3_check_presigned_future_skew(ngx_http_request_t *r, time_t request_time)
-{
-    time_t now;
-
-    now = ngx_time();
-    if (request_time > now
-        && request_time - now > S3_SIGV4_MAX_FUTURE_SKEW_SEC)
-    {
-        return s3_reject_clock_skew(r);
-    }
-
-    return NGX_OK;
-}
-
-/*
- * SigV4 signing key derivation
- *
- * Four-round HMAC chain:
- *   k1 = HMAC("AWS4" + secret, date)   k2 = HMAC(k1, region)
- *   k3 = HMAC(k2, "s3")               k4 = HMAC(k3, "aws4_request")
- * */
-
-/* Worker-local one-slot cache: signing key is stable for one calendar day per
- * region, so cache the last key and avoid four HMAC rounds on every request. */
-static struct {
-    char   date[9];    /* YYYYMMDD\0, empty string means invalid */
-    char   region[65];
-    u_char key[32];
-} s_signing_key_cache;
-
-int
-s3_sigv4_derive_signing_key_cached(const ngx_str_t *secret_key,
-                                    const char *date, const char *region,
-                                    u_char out[32])
-{
-    if (s_signing_key_cache.date[0] != '\0'
-        && strcmp(s_signing_key_cache.date, date) == 0
-        && strcmp(s_signing_key_cache.region, region) == 0)
-    {
-        ngx_memcpy(out, s_signing_key_cache.key, 32);
-        return 1;
-    }
-
-    /* Shared 4-round HMAC chain (libxrdproto) — byte-identical to the client's
-     * sign path so client-signs == server-verifies by construction. */
-    if (!brix_sigv4_signing_key((const uint8_t *) secret_key->data,
-                                  secret_key->len, date, region, "s3", out)) {
-        return 0;
-    }
-
-    ngx_cpystrn((u_char *) s_signing_key_cache.date,
-                (u_char *) date, sizeof(s_signing_key_cache.date));
-    ngx_cpystrn((u_char *) s_signing_key_cache.region,
-                (u_char *) region, sizeof(s_signing_key_cache.region));
-    ngx_memcpy(s_signing_key_cache.key, out, 32);
-    return 1;
-}
-
-/*
- * Canonical signed headers builder (merged from auth_sigv4_headers.c)
- *
- * Builds the "header-name:value\n" block required by SigV4.  signed_hdrs is
- * a semicolon-separated list, e.g. "host;x-amz-content-sha256;x-amz-date".
- * */
-
-static size_t
-build_canonical_headers(ngx_http_request_t *r,
-                        const char *signed_hdrs,
-                        u_char *out, size_t outsz)
-{
-    char   hdrs[256];
-    size_t oi = 0;
-
-    ngx_cpystrn((u_char *) hdrs, (u_char *) signed_hdrs, sizeof(hdrs));
-
-    char *save = NULL;
-    char *tok  = strtok_r(hdrs, ";", &save);
-
-    while (tok) {
-        ngx_str_t val;
-
-        if (strcmp(tok, "host") == 0) {
-            val = r->headers_in.host ? r->headers_in.host->value
-                                     : (ngx_str_t) ngx_null_string;
-        } else {
-            val = get_header(r, tok);
-        }
-
-        size_t nlen = strlen(tok);
-        size_t vlen = val.len;
-
-        if (oi + nlen + 1 + vlen + 2 >= outsz) {
-            break;
-        }
-
-        for (size_t i = 0; i < nlen; i++) {
-            out[oi++] = (u_char) tolower((unsigned char) tok[i]);
-        }
-        out[oi++] = ':';
-
-        const u_char *vs = val.data;
-        const u_char *ve = val.data + vlen;
-        while (vs < ve && (*vs == ' ' || *vs == '\t')) { vs++; }
-        while (ve > vs && (ve[-1] == ' ' || ve[-1] == '\t')) { ve--; }
-
-        /* A SignedHeaders entry may name a header the client never sent, so
-         * val.data can be NULL with vlen 0 (empty canonical value). Guard the
-         * copy: memcpy's src is 'nonnull', and passing NULL even with length 0
-         * is undefined behaviour. */
-        if (ve > vs) {
-            ngx_memcpy(out + oi, vs, (size_t)(ve - vs));
-            oi += (size_t)(ve - vs);
-        }
-        out[oi++] = '\n';
-
-        tok = strtok_r(NULL, ";", &save);
-    }
-
-    out[oi] = '\0';
-    return oi;
-}
-
-/*
- * s3_amz_date_out_t — resolved SigV4 request timestamp.
- *
- * WHAT:  Carries the amz timestamp resolved by s3_sigv4_resolve_request_time:
- *        an inline storage buffer for the header path plus the (buf, len) view
- *        the string-to-sign consumes.
- * WHY:   Bundles the header-scratch buffer and its two out-params into one
- *        object so the resolver stays under the 5-param gate and the buffer's
- *        lifetime (it must outlive the resolve call) is explicit at the callsite.
- * HOW:   For the header path `date` points into `buf`; for the presigned path it
- *        points into comp's own storage. `len` is the strlen of `date`.
- */
-typedef struct {
-    char        buf[32];   /* header-path scratch; must outlive resolve */
-    const char *date;      /* resolved timestamp (into buf or comp) */
-    size_t      len;       /* strlen(date) */
-} s3_amz_date_out_t;
-
-/*
- * s3_sigv4_sig_out_t — server-computed SigV4 signature material.
- *
- * WHAT:  Outputs of s3_sigv4_compute_signature: the derived signing key (k4)
- *        and the 64-char lowercase-hex server signature.
- * WHY:   Bundles the two crypto outputs so the computer stays under the 5-param
- *        gate; k4 is later needed by s3_sigv4_finish for chunk-sig retention.
- * HOW:   Zero-initialise at declaration; populated only on the NGX_OK return.
- */
-typedef struct {
-    u_char k4[32];             /* derived signing key */
-    char   computed_hex[65];   /* server signature, 64 hex + NUL */
-} s3_sigv4_sig_out_t;
 
 /*
  * WLCG bearer-token intercept (INVARIANT §6: SigV4 and Bearer are mutually
@@ -509,220 +282,6 @@ s3_sigv4_check_session_token(ngx_http_request_t *r,
         return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
                                  "InvalidRequest",
                                  "X-Amz-Security-Token must be signed");
-    }
-
-    return NGX_OK;
-}
-
-/*
- * s3_sigv4_resolve_request_time — resolve and skew/expiry-check the request time.
- *
- * WHAT:  Parse the SigV4 timestamp (presigned X-Amz-Date query param or the
- *        x-amz-date header), enforce clock-skew / presigned-expiry limits, and
- *        return the full amz timestamp string used in the string-to-sign.
- * WHY:   The presigned and header paths compute the same downstream inputs
- *        (amz_date + amz_date_len) via different sources and different skew
- *        rules; folding both into one helper keeps the verifier body linear.
- * HOW:   Presigned path: parse query-supplied timestamp, future-skew + expiry
- *        check.  Header path: parse the header timestamp, symmetric skew check.
- *        out->date is set to a buffer that outlives this call — either comp's
- *        own storage (presigned) or out->buf (the header path).  Frozen error
- *        messages and result codes preserved 1:1.
- *
- * Returns: NGX_OK with out->date/out->len set, otherwise the terminal ngx_int_t
- *   result (response already emitted).
- */
-static ngx_int_t
-s3_sigv4_resolve_request_time(ngx_http_request_t *r,
-    const sigv4_components_t *comp, s3_amz_date_out_t *out)
-{
-    time_t    request_time = 0;
-    ngx_str_t date_hdr;
-    ngx_int_t skew_rc;
-
-    if (comp->presigned) {
-        if (s3_parse_amz_datetime(comp->amz_date, &request_time) != NGX_OK) {
-            return s3_reject_bad_amz_date(r, "Invalid X-Amz-Date");
-        }
-
-        skew_rc = s3_check_presigned_future_skew(r, request_time);
-        if (skew_rc != NGX_OK) {
-            return skew_rc;
-        }
-
-        if (ngx_time() >= request_time
-            && ngx_time() - request_time > (time_t) comp->amz_expires)
-        {
-            s3_record_auth_result(BRIX_S3_AUTH_BAD_DATE);
-            return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
-                                     "AccessDenied",
-                                     "Request has expired");
-        }
-
-        out->date = comp->amz_date;
-        out->len = strlen(comp->amz_date);
-        return NGX_OK;
-    }
-
-    date_hdr = get_header(r, "x-amz-date");
-    if (date_hdr.len == 0) {
-        return s3_reject_bad_amz_date(r, "Missing X-Amz-Date header");
-    }
-
-    if (brix_str_cbuf(out->buf, sizeof(out->buf), &date_hdr) == NULL) {
-        return s3_reject_bad_amz_date(r, "Invalid X-Amz-Date");
-    }
-
-    if (s3_parse_amz_datetime(out->buf, &request_time) != NGX_OK) {
-        return s3_reject_bad_amz_date(r, "Invalid X-Amz-Date");
-    }
-
-    skew_rc = s3_check_header_clock_skew(r, request_time);
-    if (skew_rc != NGX_OK) {
-        return skew_rc;
-    }
-
-    out->date = out->buf;
-    out->len = strlen(out->buf);
-    return NGX_OK;
-}
-
-/*
- * s3_sigv4_compute_signature — build the canonical request and compute the
- * server-side SigV4 signature hex.
- *
- * WHAT:  Produce the 64-char lowercase-hex HMAC-SHA256 signature that the client
- *        signature must equal, following the standard SigV4 steps 1-7.
- * WHY:   Concentrates the byte-frozen canonicalisation + HMAC chain in one pure-
- *        ish computation so the verifier's decision logic reads cleanly.  This is
- *        SigV4-only crypto (INVARIANT §6): it shares no logic with token auth.
- * HOW:   Canonical URI/query/headers → canonical request → string-to-sign →
- *        cached signing-key derive → HMAC-SHA256 → hex.  On the two internal
- *        failure modes (derive/HMAC) it records the result and returns
- *        NGX_ERROR; the caller maps that to HTTP 500.  out->k4 is exported for
- *        chunk-sig retention.  Byte layout of every intermediate is preserved 1:1.
- *
- * Returns: NGX_OK with out->computed_hex[0..63] filled and out->k4 populated;
- *   NGX_ERROR (result already recorded) on an internal crypto failure.
- */
-static ngx_int_t
-s3_sigv4_compute_signature(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
-    const sigv4_components_t *comp, const s3_amz_date_out_t *amz,
-    s3_sigv4_sig_out_t *out)
-{
-    u_char canonical[8192];
-    u_char canon_qs[2048];
-    u_char canon_uri[S3_MAX_KEY];
-    u_char canon_hdrs[2048];
-    u_char string_to_sign[4096];
-    u_char hash_hex[65];
-    u_char cr_hash[32];
-    u_char computed[32];
-    size_t n;
-
-    /* 1. Canonical URI */
-    brix_http_urlencode(r->uri.data, r->uri.len,
-                        (char *) canon_uri, sizeof(canon_uri), "/");
-
-    /* 2. Canonical query string */
-    build_canonical_qs(r->args.data, r->args.len, comp->presigned,
-                       canon_qs, sizeof(canon_qs));
-
-    /* 3. Canonical headers */
-    build_canonical_headers(r, comp->signed_hdrs,
-                            canon_hdrs, sizeof(canon_hdrs));
-
-    /* 4. Canonical request */
-    n = (size_t) snprintf((char *) canonical, sizeof(canonical),
-        "%.*s\n"        /* method   */
-        "%s\n"          /* uri      */
-        "%s\n"          /* qs       */
-        "%s\n"          /* headers  */
-        "%s\n"          /* signed header names */
-        "UNSIGNED-PAYLOAD",
-        (int) r->method_name.len, r->method_name.data,
-        (char *) canon_uri,
-        (char *) canon_qs,
-        (char *) canon_hdrs,
-        comp->signed_hdrs);
-
-    brix_sha256(canonical, n, cr_hash);
-    brix_hex_encode(cr_hash, 32, (char *) hash_hex);
-
-    /* 5. String to sign */
-    n = (size_t) snprintf((char *) string_to_sign, sizeof(string_to_sign),
-        "AWS4-HMAC-SHA256\n"
-        "%.*s\n"
-        "%s/%s/s3/aws4_request\n"
-        "%s",
-        (int) amz->len, amz->date,
-        comp->date,
-        comp->region,
-        (char *) hash_hex);
-
-    /* 6. Derive signing key (cached: stable for one calendar day per region) */
-    if (!s3_sigv4_derive_signing_key_cached(&cf->secret_key,
-                                            comp->date, comp->region, out->k4)) {
-        s3_record_auth_result(BRIX_S3_AUTH_INTERNAL_ERROR);
-        return NGX_ERROR;
-    }
-
-    /* 7. Compute the signature */
-    if (!brix_hmac_sha256(out->k4, 32, string_to_sign, n, computed)) {
-        s3_record_auth_result(BRIX_S3_AUTH_INTERNAL_ERROR);
-        return NGX_ERROR;
-    }
-
-    brix_hex_encode(computed, 32, out->computed_hex);
-    return NGX_OK;
-}
-
-/*
- * s3_sigv4_compare — the single constant-time signature decision (W5).
- *
- * WHAT:  Decide whether the request's access key AND signature are both valid,
- *        emitting the terminal SignatureDoesNotMatch / Signature-length errors.
- * WHY:   An unknown access key and a bad signature MUST take the identical path,
- *        status, message, and HMAC work so no timing or message oracle can
- *        distinguish them.  Consolidating the length check + constant-time
- *        compare here keeps that guarantee obvious and unbroken.
- * HOW:   Reject non-64-char signatures first (prevents CRYPTO_memcmp over pad
- *        bytes).  Then fold key_ok and CRYPTO_memcmp(computed_hex, signature)
- *        into ONE branch — both use constant-time comparison.  Frozen messages,
- *        result codes, and the WARN log line preserved 1:1.
- *
- * Returns: NGX_OK when the signature is authentic, otherwise the terminal
- *   ngx_int_t result (response already emitted).
- */
-static ngx_int_t
-s3_sigv4_compare(ngx_http_request_t *r, const sigv4_components_t *comp,
-    const char computed_hex[65], int key_ok)
-{
-    /* Reject signatures that are not exactly 64 hex chars — prevents a short
-     * client string from causing CRYPTO_memcmp to compare against pad bytes. */
-    if (strlen(comp->signature) != 64) {
-        s3_record_auth_result(BRIX_S3_AUTH_MALFORMED);
-        return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
-                                 "InvalidRequest",
-                                 "Signature must be 64 hex characters");
-    }
-
-    /*
-     * Single constant-time decision (W5): an unknown access key (!key_ok) and a
-     * bad signature take the identical path, status, and message here, having
-     * both run the full HMAC above — no timing or message oracle distinguishes
-     * them.  CRYPTO_memcmp prevents a timing oracle on the HMAC value itself.
-     */
-    if (!key_ok || CRYPTO_memcmp(computed_hex, comp->signature, 64) != 0) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                      "brix_s3: SigV4 auth failed for key=%s (key_ok=%d)",
-                      comp->akid, key_ok);
-        s3_record_auth_result(key_ok ? BRIX_S3_AUTH_SIG_MISMATCH
-                                     : BRIX_S3_AUTH_BAD_KEY);
-        return s3_send_xml_error(r, NGX_HTTP_FORBIDDEN,
-                                 "SignatureDoesNotMatch",
-                                 "The request signature we calculated does "
-                                 "not match the signature you provided");
     }
 
     return NGX_OK;

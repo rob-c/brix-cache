@@ -143,6 +143,54 @@ mpu_rmdir_recursive(ngx_log_t *log, const char *root_canon, const char *path)
            : -1;
 }
 
+/* ---- s3_mpu_reap_one_entry — evaluate one directory entry for staleness ----
+ *
+ * WHAT: given directory-entry name <dname> inside parent <dir>, decide whether it
+ *       is an abandoned MPU staging dir (".<obj>.mpu-<id>") older than
+ *       max_age_secs and, if so, remove it via mpu_rmdir_recursive. Returns 1 when
+ *       the entry was reaped, 0 when it was skipped or removal failed.
+ *
+ * WHY:  extracting the per-entry test keeps s3_mpu_reap_stale's scan loop flat and
+ *       under the cyclomatic-complexity cap; the naming, age, and confinement rules
+ *       live in one named, independently reviewable step with unchanged behavior.
+ *
+ * HOW:  1. reject names that are not ".<...>.mpu-<...>" staging dirs.
+ *       2. compose the confined absolute path; skip if it would truncate.
+ *       3. no-follow VFS probe as the mapped user; skip non-directories.
+ *       4. keep entries whose mtime is within max_age_secs (recently active).
+ *       5. remove the rest under root_canon confinement, reporting success.
+ */
+static int
+s3_mpu_reap_one_entry(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+                      const char *root_canon, ngx_log_t *log,
+                      const char *dir, const char *dname,
+                      time_t now, time_t max_age_secs)
+{
+    char             full[PATH_MAX];
+    brix_vfs_ctx_t   cctx;
+    brix_vfs_stat_t  cst;
+
+    /* Match the staging-dir naming ".<objname>.mpu-<uploadid>" only. */
+    if (dname[0] != '.' || strstr(dname, ".mpu-") == NULL) {
+        return 0;
+    }
+    if (snprintf(full, sizeof(full), "%s/%s", dir, dname)
+        >= (int) sizeof(full)) {
+        return 0;
+    }
+    /* Confined no-follow probe for the dir check + mtime (non-metered). */
+    s3_build_vfs_ctx(r, full, cf, &cctx);
+    if (brix_vfs_probe(&cctx, 1 /* no-follow */, &cst) != NGX_OK
+        || !cst.is_directory)
+    {
+        return 0;
+    }
+    if ((now - cst.mtime) <= max_age_secs) {
+        return 0;   /* recently active — keep */
+    }
+    return mpu_rmdir_recursive(log, root_canon, full) == 0 ? 1 : 0;
+}
+
 /*
  * Phase 39 (WS8/HTTP-2): reap abandoned multipart staging directories.
  *
@@ -202,38 +250,16 @@ s3_mpu_reap_stale(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     now = time(NULL);
 
     for ( ;; ) {
-        ngx_str_t          name;
-        const char        *dname;
-        char               full[PATH_MAX];
-        brix_vfs_ctx_t   cctx;
-        brix_vfs_stat_t  cst;
+        ngx_str_t   name;
+        const char *dname;
 
         if (brix_vfs_readdir_kind(d, &name, NULL) != NGX_OK) {
             break;   /* end of stream or error */
         }
         dname = (const char *) name.data;
 
-        /* Match the staging-dir naming ".<objname>.mpu-<uploadid>" only. */
-        if (dname[0] != '.' || strstr(dname, ".mpu-") == NULL) {
-            continue;
-        }
-        if (snprintf(full, sizeof(full), "%s/%s", dir, dname)
-            >= (int) sizeof(full)) {
-            continue;
-        }
-        /* Confined no-follow probe for the dir check + mtime (non-metered). */
-        s3_build_vfs_ctx(r, full, cf, &cctx);
-        if (brix_vfs_probe(&cctx, 1 /* no-follow */, &cst) != NGX_OK
-            || !cst.is_directory)
-        {
-            continue;
-        }
-        if ((now - cst.mtime) <= max_age_secs) {
-            continue;   /* recently active — keep */
-        }
-        if (mpu_rmdir_recursive(log, root_canon, full) == 0) {
-            reaped++;
-        }
+        reaped += s3_mpu_reap_one_entry(r, cf, root_canon, log, dir, dname,
+                                        now, max_age_secs);
     }
 
     brix_vfs_closedir(d, log);

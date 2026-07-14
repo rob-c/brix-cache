@@ -20,7 +20,7 @@ const families = [
   },
   {
     name: 'Diagnostics & monitoring',
-    tools: 'xrddiag · xrdqstats · mpxstats · xrdmapc · wait41',
+    tools: 'xrddiag · xrdqstats · mpxstats-brix · xrdmapc · wait41-brix',
     d: 'xrddiag turns raw failures into explanations — check, bench, watch, topology, compare, doctor. Query server stats and config, map a redirector’s live cluster, or block until a server accepts connections in your orchestration scripts.',
   },
   {
@@ -30,7 +30,7 @@ const families = [
   },
   {
     name: 'Auth & security',
-    tools: 'xrdgsiproxy · xrdgsitest · xrdsssadmin',
+    tools: 'xrdgsiproxy · xrdgsitest · xrdsssadmin-brix',
     d: 'Create, inspect, and destroy X.509 GSI proxies; self-test a GSI handshake against a live server; manage SSS shared-secret keytabs.',
   },
   {
@@ -82,7 +82,10 @@ const families = [
           <span class="mono">xrdadler32</span>, <span class="mono">xrdckverify</span>, and
           <span class="mono">xrdcinfo</span>; <span class="mono">xrddiag</span> absorbed
           <span class="mono">xrdqstats</span>, <span class="mono">wait41</span>, and
-          <span class="mono">mpxstats</span>. Your scripts don't change.
+          <span class="mono">mpxstats</span> as subcommands. Only the three names the
+          stock <em>server</em> RPMs own are suffixed (<span class="mono">wait41-brix</span>,
+          <span class="mono">mpxstats-brix</span>, <span class="mono">xrdsssadmin-brix</span>)
+          so both stacks co-install.
         </p>
       </Benefit>
       <Benefit marker="self-contained" title="Small, plain C, hardened">

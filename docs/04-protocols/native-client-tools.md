@@ -94,12 +94,12 @@ client runtime into a deployment.
 | `xrdckverify` | Verify a file **on disk** against its recorded checksum | Recomputes a local file and compares it to the value already stored for it — in a storage endpoint's `user.XrdCks.<alg>` xattr (text or stock binary `XrdCksData`) / `<file>.cks` sidecar (`--storage`), or a proxy cache's `<file>.cinfo` / `<file>.meta` digest (`--cache`); `--auto` (default) tries both. `--algo <name>` narrows the algorithm. Exit 0 = match, 1 = mismatch (corruption), 2 = no recorded checksum, 3 = error. |
 | `xrdqstats` | Query server config, space, or stats | Uses `kXR_query` with default `QStats`, `-c` for `Qconfig`, or `-s` for `Qspace`. |
 | `xrdprep` | Submit prepare/stage/evict/cancel/fresh requests | Thin CLI over `kXR_prepare`. |
-| `wait41` | Wait for a server readiness condition | Older utility-style tool; treats its positional argument as `host[:port]` and waits up to its timeout. |
-| `mpxstats` | Summarize Prometheus `/metrics` output | Reads from a host metrics endpoint or from stdin. |
+| `wait41-brix` | Wait for a server readiness condition | Older utility-style tool; treats its positional argument as `host[:port]` and waits up to its timeout. |
+| `mpxstats-brix` | Summarize Prometheus `/metrics` output | Reads from a host metrics endpoint or from stdin. |
 | `xrdmapc` | Map/verify path holders in a cluster | Uses locate/map style queries and can probe advertised holders with `--verify`. |
 | `xrdgsitest` | GSI handshake smoke test | Forces GSI auth and reports whether the handshake authenticated. |
 | `xrdgsiproxy` | Create, inspect, destroy RFC 3820 X.509 proxies | Local OpenSSL implementation: `init`, `info`, and `destroy`. |
-| `xrdsssadmin` | Manage SSS keytabs | Creates/lists/deletes shared-secret entries with mode-0600 keytab writes. |
+| `xrdsssadmin-brix` | Manage SSS keytabs | Creates/lists/deletes shared-secret entries with mode-0600 keytab writes. |
 | `xrootdfs` | Network-resilient FUSE filesystem | Async/pipelined mount over `root://` or http(s)/WebDAV with reconnect, retry, heartbeat, and open-file resumption. A `--legacy` flag selects a simple synchronous fallback mode (root:// only). |
 | `libxrdposix_preload.so` | LD_PRELOAD read path for legacy POSIX tools | Maps paths under `$BRIX_VMP` to a `root://` export through `libxrdc`; first cut is read-oriented. |
 
@@ -253,7 +253,7 @@ The native client library supports these auth paths in source:
 | Anonymous | No credential required when the server allows it. |
 | Token / `ztn` | Discovered from `BEARER_TOKEN`, `BEARER_TOKEN_FILE`, `$XDG_RUNTIME_DIR`, or `/tmp/bt_u<uid>`; `xrdcp` also accepts `--token` for WebDAV/HTTP. |
 | GSI | Uses X.509 proxy/cert material and `$X509_USER_PROXY` / `$X509_CERT_DIR`; `xrdgsiproxy` can create and inspect proxies. |
-| SSS | Uses SSS keytabs managed by `xrdsssadmin`. |
+| SSS | Uses SSS keytabs managed by `xrdsssadmin-brix`. |
 | Kerberos | Optional compile-time support when Kerberos development libraries are present. |
 
 The client library also includes credential diagnostics. It can explain JWT
@@ -264,7 +264,7 @@ error.
 ## IPv6 To IPv4 Auto-Downgrade
 
 Every native tool that connects through `libxrdc` (`xrdcp`, `xrdfs`, `xrddiag`,
-`wait41`, the `xrootdfs` mount, the preload shim — all of them)
+`wait41-brix`, the `xrootdfs` mount, the preload shim — all of them)
 automatically downgrades to IPv4 on a dual-stack host whose IPv6 path is broken
 but whose IPv4 backend works. This keeps a FUSE mount serving silently through a
 busted IPv6 network instead of stalling on dead v6 addresses.

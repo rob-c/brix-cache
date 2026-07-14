@@ -138,7 +138,124 @@ test_single_put(const char *url)
     printf("  single-PUT OK (%zu bytes)\n", payload_len);
 }
 
-/* Test 2: multipart upload round-trip */
+/* Test 2: multipart upload round-trip — decomposed into per-step helpers */
+
+/*
+ * mpu_part_size — resolve the MPU part size from the environment.
+ *
+ * WHAT: returns S3_PART_MAX_OVERRIDE (parsed as a decimal byte count) when the
+ *       env var is set and non-empty, else the 512-byte standalone fallback.
+ * WHY:  the pytest fixture sets S3_PART_MAX_OVERRIDE=512 so three small pwrite
+ *       calls each generate a distinct part upload; the fallback lets the driver
+ *       run standalone without the fixture.
+ * HOW:  1. read S3_PART_MAX_OVERRIDE; 2. if set and non-empty, strtoll it;
+ *       3. otherwise return 512.
+ */
+static size_t
+mpu_part_size(void)
+{
+    const char *override_env = getenv("S3_PART_MAX_OVERRIDE");
+    return (override_env && override_env[0])
+           ? (size_t) strtoll(override_env, NULL, 10)
+           : 512;   /* default for standalone test */
+}
+
+/*
+ * mpu_fill_pattern — fill a buffer with the recognisable smoke pattern.
+ *
+ * WHAT: writes total bytes into wbuf, byte j = (j & 0xff) ^ 0xa5.
+ * WHY:  a deterministic per-offset pattern lets the read-back comparison catch
+ *       part-ordering or offset corruption, not just length mismatches.
+ * HOW:  1. loop j over [0, total); 2. store the XOR-masked low byte.
+ */
+static void
+mpu_fill_pattern(char *wbuf, size_t total)
+{
+    for (size_t j = 0; j < total; j++) {
+        wbuf[j] = (char) ((j & 0xff) ^ 0xa5);
+    }
+}
+
+/*
+ * mpu_write_parts — sequentially pwrite n_parts full parts to a write handle.
+ *
+ * WHAT: issues n_parts pwrite calls of part_sz bytes each at contiguous
+ *       offsets; calls die() (which exits) on the first failure.
+ * WHY:  writing exactly part_sz per call forces the backend to flush one full
+ *       part per call, exercising PutPart × N.
+ * HOW:  1. loop i over [0, n_parts); 2. compute the contiguous offset;
+ *       3. pwrite part_sz bytes from wbuf+off; 4. die on non-zero rc.
+ */
+static void
+mpu_write_parts(brix_vfs_file *wf, const char *wbuf,
+                size_t part_sz, int n_parts, brix_status *st)
+{
+    int i;
+
+    /* Write part_sz bytes at a time so each call fills one part */
+    for (i = 0; i < n_parts; i++) {
+        int64_t off = (int64_t) ((size_t) i * part_sz);
+        int     rc  = brix_vfs_pwrite(wf, off, wbuf + (size_t) off,
+                                      part_sz, st);
+        if (rc != 0) { die("multipart pwrite", st); }
+    }
+}
+
+/*
+ * mpu_read_back — read the whole object into rbuf, coping with short preads.
+ *
+ * WHAT: reads until total bytes have been consumed or EOF; returns the number
+ *       of bytes actually read; calls die() (which exits) on a read error.
+ * WHY:  brix_vfs_pread may return fewer bytes than requested (e.g. if
+ *       S3_PREAD_MAX is small), so the caller must loop rather than assume one
+ *       call fills the buffer.
+ * HOW:  1. loop while fewer than total bytes read; 2. pread the remaining span;
+ *       3. die on nr<0; 4. break on nr==0 (EOF); 5. advance by nr.
+ */
+static size_t
+mpu_read_back(brix_vfs_file *rf, char *rbuf, size_t total, brix_status *st)
+{
+    size_t  total_read = 0;
+
+    /* pread all bytes (possibly in multiple calls if S3_PREAD_MAX is small) */
+    while (total_read < total) {
+        size_t  want = total - total_read;
+        ssize_t nr   = brix_vfs_pread(rf, (int64_t) total_read,
+                                      rbuf + total_read, want, st);
+        if (nr < 0) { die("multipart pread", st); }
+        if (nr == 0) { break; }   /* EOF */
+        total_read += (size_t) nr;
+    }
+    return total_read;
+}
+
+/*
+ * mpu_verify — assert the read-back matches the written buffer, or exit(1).
+ *
+ * WHAT: fails (prints to stderr, frees both buffers, exits 1) if total_read
+ *       differs from total or the byte contents differ; returns normally on a
+ *       clean match.
+ * WHY:  a multipart round-trip is only correct when every part comes back in
+ *       order and byte-exact; the frees mirror the original error-path cleanup.
+ * HOW:  1. compare lengths; 2. compare bytes with memcmp; 3. on either
+ *       mismatch, free wbuf/rbuf and exit(1).
+ */
+static void
+mpu_verify(char *wbuf, char *rbuf, size_t total_read, size_t total)
+{
+    if (total_read != total) {
+        fprintf(stderr, "FAIL multipart: read %zu bytes, expected %zu\n",
+                total_read, total);
+        free(wbuf); free(rbuf);
+        exit(1);
+    }
+    if (memcmp(wbuf, rbuf, total) != 0) {
+        fprintf(stderr, "FAIL multipart: byte mismatch\n");
+        free(wbuf); free(rbuf);
+        exit(1);
+    }
+}
+
 /*
  * test_multipart — write a multi-part object and read it back.
  *
@@ -148,17 +265,13 @@ test_single_put(const char *url)
  *       backend flushes each full part; commit completes the upload; read back
  *       and compare.
  * WHY:  confirms CreateMultipartUpload → PutPart × N → CompleteMultipartUpload.
- * HOW:  uses S3_PART_MAX_OVERRIDE=512 (set by the pytest fixture) so that 3
- *       small pwrite calls each generate a distinct part upload.  Falls back to
- *       512 if the env is unset (allowing the driver to run standalone).
+ * HOW:  orchestrates the per-step helpers: mpu_part_size / mpu_fill_pattern /
+ *       open / mpu_write_parts / commit / open / mpu_read_back / mpu_verify.
  */
 static void
 test_multipart(const char *url)
 {
-    const char       *override_env = getenv("S3_PART_MAX_OVERRIDE");
-    size_t            part_sz  = (override_env && override_env[0])
-                                 ? (size_t) strtoll(override_env, NULL, 10)
-                                 : 512;   /* default for standalone test */
+    size_t            part_sz  = mpu_part_size();
     int               n_parts  = 3;
     size_t            total    = part_sz * (size_t) n_parts;
     char             *wbuf     = malloc(total);
@@ -168,20 +281,15 @@ test_multipart(const char *url)
     brix_vfs_file    *wf = NULL;
     brix_vfs_file    *rf = NULL;
     char              url_key[2048];
-    int               i;
-    ssize_t           nr;
-    int               rc;
     size_t            total_read;
+    int               rc;
 
     if (wbuf == NULL || rbuf == NULL) {
         fprintf(stderr, "FAIL multipart: OOM\n");
         exit(1);
     }
 
-    /* Fill write buffer with a recognisable pattern */
-    for (size_t j = 0; j < total; j++) {
-        wbuf[j] = (char) ((j & 0xff) ^ 0xa5);
-    }
+    mpu_fill_pattern(wbuf, total);
 
     make_key_url(url, "smoke_mpu.bin", url_key, sizeof(url_key));
     printf("  test_multipart: %s (part_sz=%zu, n_parts=%d, total=%zu)\n",
@@ -197,12 +305,7 @@ test_multipart(const char *url)
                        &opts, &wf, &st);
     if (rc != 0) { die("multipart open write", &st); }
 
-    /* Write part_sz bytes at a time so each call fills one part */
-    for (i = 0; i < n_parts; i++) {
-        int64_t off = (int64_t) ((size_t) i * part_sz);
-        rc = brix_vfs_pwrite(wf, off, wbuf + (size_t) off, part_sz, &st);
-        if (rc != 0) { die("multipart pwrite", &st); }
-    }
+    mpu_write_parts(wf, wbuf, part_sz, n_parts, &st);
 
     /* commit — flushes remaining part buffer + CompleteMultipartUpload */
     rc = brix_vfs_commit(wf, &st);
@@ -215,30 +318,12 @@ test_multipart(const char *url)
     rc = brix_vfs_open(url_key, XRDC_VFS_READ, &opts, &rf, &st);
     if (rc != 0) { die("multipart open read", &st); }
 
-    /* pread all bytes (possibly in multiple calls if S3_PREAD_MAX is small) */
-    total_read = 0;
-    while (total_read < total) {
-        size_t want = total - total_read;
-        nr = brix_vfs_pread(rf, (int64_t) total_read,
-                            rbuf + total_read, want, &st);
-        if (nr < 0) { die("multipart pread", &st); }
-        if (nr == 0) { break; }   /* EOF */
-        total_read += (size_t) nr;
-    }
+    total_read = mpu_read_back(rf, rbuf, total, &st);
     brix_vfs_close(rf);
     rf = NULL;
 
-    if (total_read != total) {
-        fprintf(stderr, "FAIL multipart: read %zu bytes, expected %zu\n",
-                total_read, total);
-        free(wbuf); free(rbuf);
-        exit(1);
-    }
-    if (memcmp(wbuf, rbuf, total) != 0) {
-        fprintf(stderr, "FAIL multipart: byte mismatch\n");
-        free(wbuf); free(rbuf);
-        exit(1);
-    }
+    mpu_verify(wbuf, rbuf, total_read, total);
+
     printf("  multipart OK (%zu bytes, %d parts)\n", total, n_parts);
     free(wbuf);
     free(rbuf);

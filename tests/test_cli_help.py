@@ -11,7 +11,7 @@ Tests every client binary for three properties (spec §C1–C5):
      inside the version token itself).
 
 C1 invariant — existing -h semantics are NOT tested here because they
-are tool-specific (e.g. `xrdfs ls -h` humanises; `mpxstats -h` is a
+are tool-specific (e.g. `xrdfs ls -h` humanises; `mpxstats-brix -h` is a
 legacy stderr alias). Only NEW spellings (--help / --version) are
 covered.
 """
@@ -41,11 +41,11 @@ TOOLS = [
     "brixMount",
     "xrootdfs",
     "xrdprep",
-    "xrdsssadmin",
+    "xrdsssadmin-brix",
     "xrdgsiproxy",
     "xrdgsitest",
-    "wait41",
-    "mpxstats",
+    "wait41-brix",
+    "mpxstats-brix",
     "xrdqstats",
 ]
 
@@ -109,7 +109,7 @@ def test_version_no_sensitive_data(tool):
         )
 
 
-@pytest.mark.parametrize("tool", ["xrdcp", "xrdfs", "xrddiag", "wait41"])
+@pytest.mark.parametrize("tool", ["xrdcp", "xrdfs", "xrddiag", "wait41-brix"])
 def test_help_extra_arg_exits_0(tool):
     """--help with a trailing extra arg exits 0 (help fires before remaining
     args are parsed) and writes non-empty text to stdout.  Confirmed against

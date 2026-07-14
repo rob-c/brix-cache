@@ -157,70 +157,91 @@ dirent_push(brix_dirent **ents, size_t *count, size_t *cap, const brix_dirent *e
     return 0;
 }
 
-/* One full listing pass (a kXR_dirlist roundtrip plus the kXR_oksofar chunk
- * accumulation) on the current connection. On any failure it leaves *ents_out
- * NULL and frees its working buffers, so a resilient retry starts clean. */
+/* ---- Accumulate every dirlist response chunk into one heap buffer ----
+ *
+ * WHAT: Sends the prepared kXR_dirlist request on c and drains the response,
+ *       concatenating the first frame and every subsequent kXR_oksofar chunk
+ *       into a single freshly-allocated buffer returned via the acc_out and acclen_out out-params.
+ *       Returns 0 on success; -1 on any transport or OOM error, having freed all
+ *       working buffers so nothing leaks and the caller starts clean.
+ *
+ * WHY:  A directory listing arrives split across an arbitrary number of
+ *       kXR_oksofar frames terminated by a final kXR_ok. Isolating the
+ *       receive-and-concatenate loop keeps dirlist_once a flat orchestrator and
+ *       lets the parse step work over one contiguous buffer.
+ *
+ * HOW:  1. Send the first frame via brix_roundtrip (which follows a cluster
+ *          redirect to the data server); read every later chunk from that same
+ *          post-redirect connection with brix_recv.
+ *       2. Append each non-empty body to acc via buf_append; free each per-frame
+ *          body immediately after copying.
+ *       3. Stop once a frame's status is no longer kXR_oksofar.
+ */
 static int
-dirlist_once(brix_conn *c, const char *path, int want_stat,
-             brix_dirent **ents_out, size_t *count_out, brix_status *st)
+dirlist_accumulate(brix_conn *c, ClientDirlistRequest *req, const char *path,
+                   uint8_t **acc_out, size_t *acclen_out, brix_status *st)
 {
-    ClientDirlistRequest req;
-    uint16_t             status;
-    uint8_t             *acc = NULL;
-    size_t               acclen = 0, acccap = 0;
-    brix_dirent         *ents = NULL;
-    size_t               count = 0, entcap = 0;
-    size_t               i;
+    uint16_t      status;
+    uint8_t      *acc = NULL;
+    size_t        acclen = 0, acccap = 0;
+    uint8_t      *body = NULL;
+    uint32_t      blen = 0;
+    int           first = 1;
+    brix_payload  pl  = { path, (uint32_t) strlen(path) };
+    brix_resp_out out = { &status, &body, &blen };
 
-    *ents_out = NULL;
-    *count_out = 0;
-
-    memset(&req, 0, sizeof(req));
-    req.requestid = htons(kXR_dirlist);
-    {
-        xrdw_dirlist_req_t b = { .options = (uint8_t) (want_stat ? kXR_dstat : 0) };
-        xrdw_dirlist_req_pack(&b, ((ClientRequestHdr *) &req)->body);
-    }
-
-    /* First frame via roundtrip (follows a cluster redirect to the data server);
-     * subsequent kXR_oksofar chunks come from that same post-redirect connection. */
-    {
-        uint8_t      *body = NULL;
-        uint32_t      blen = 0;
-        int           first = 1;
-        brix_payload  pl  = { path, (uint32_t) strlen(path) };
-        brix_resp_out out = { &status, &body, &blen };
-
-        for (;;) {
-            if (first) {
-                if (brix_roundtrip(c, &req, &pl, &out, st) != 0) {
-                    free(acc);
-                    return -1;
-                }
-                first = 0;
-            } else if (brix_recv(c, 0xffff, &out, st) != 0) {
+    for (;;) {
+        if (first) {
+            if (brix_roundtrip(c, req, &pl, &out, st) != 0) {
                 free(acc);
                 return -1;
             }
-            if (blen > 0
-                && buf_append(&acc, &acclen, &acccap, body, blen) != 0) {
-                free(body);
-                free(acc);
-                brix_status_set(st, XRDC_EPROTO, 0, "out of memory in dirlist");
-                return -1;
-            }
+            first = 0;
+        } else if (brix_recv(c, 0xffff, &out, st) != 0) {
+            free(acc);
+            return -1;
+        }
+        if (blen > 0
+            && buf_append(&acc, &acclen, &acccap, body, blen) != 0) {
             free(body);
-            body = NULL;
-            blen = 0;
-            if (status != kXR_oksofar) {
-                break;
-            }
+            free(acc);
+            brix_status_set(st, XRDC_EPROTO, 0, "out of memory in dirlist");
+            return -1;
+        }
+        free(body);
+        body = NULL;
+        blen = 0;
+        if (status != kXR_oksofar) {
+            break;
         }
     }
 
-    /* Skip the dstat lead-in prefix ".\n0 0 0 0" up to and including its '\n'.
-     * The sentinel + match length are shared with the server (dirlist_fmt.h). */
-    i = 0;
+    *acc_out = acc;
+    *acclen_out = acclen;
+    return 0;
+}
+
+/* ---- Skip the dstat lead-in prefix, returning the first entry offset ----
+ *
+ * WHAT: Returns the byte offset within acc at which directory entries begin. For
+ *       a kXR_dstat listing that starts with the ".\n0 0 0 0" sentinel, that is
+ *       the offset just past the sentinel's terminating '\n'; otherwise 0.
+ *
+ * WHY:  With kXR_dstat the body opens with a fixed ".\n0 0 0 0\n" lead-in (the
+ *       "." pseudo-entry plus its zeroed stat line) that must be consumed before
+ *       real name/stat pairs. The sentinel and its match length are shared with
+ *       the server via dirlist_fmt.h so both sides agree byte-for-byte.
+ *
+ * HOW:  1. Return 0 unless want_stat is set and acc begins with the shared
+ *          BRIX_DSTAT_LEADIN sentinel of BRIX_DSTAT_PREFIX_LEN bytes.
+ *       2. Advance past the first '\n' (end of "."), then past the second '\n'
+ *          (end of the "0 0 0 0" stat line), guarding each step against acclen.
+ */
+static size_t
+dirlist_skip_dstat_leadin(const uint8_t *acc, size_t acclen, int want_stat)
+{
+    size_t i = 0;
+
     if (want_stat && acclen >= BRIX_DSTAT_PREFIX_LEN
         && memcmp(acc, BRIX_DSTAT_LEADIN, BRIX_DSTAT_PREFIX_LEN) == 0) {
         while (i < acclen && acc[i] != '\n') { i++; }   /* ".\n..." first \n */
@@ -228,6 +249,33 @@ dirlist_once(brix_conn *c, const char *path, int want_stat,
         while (i < acclen && acc[i] != '\n') { i++; }   /* end of "0 0 0 0" */
         if (i < acclen) { i++; }
     }
+    return i;
+}
+
+/* ---- Parse name (and optional per-entry stat) lines into a dirent array ----
+ *
+ * WHAT: Walks acc from offset i, building a heap array of brix_dirent handed off
+ *       via the ents_out and count_out out-params. Returns 0 on success (ownership transferred);
+ *       -1 on OOM, having freed its partial array and set a status on st.
+ *
+ * WHY:  The entry region is a sequence of name lines, each optionally followed
+ *       (under kXR_dstat) by a stat line, terminated by an empty line or a '\0'.
+ *       Keeping the parse pure over the already-accumulated buffer makes the
+ *       grammar auditable and independent of the transport loop.
+ *
+ * HOW:  1. For each line via next_line: stop on an empty name (trailing line).
+ *       2. Copy the name into the fixed dirent field, truncating to capacity.
+ *       3. When want_stat and the name line was not itself terminated, read the
+ *          following stat line and decode it with parse_statinfo (set have_stat
+ *          only on a clean parse).
+ *       4. Push the entry with dirent_push; stop when a '\0' terminator was seen.
+ */
+static int
+dirlist_parse_entries(const uint8_t *acc, size_t acclen, size_t i, int want_stat,
+                      brix_dirent **ents_out, size_t *count_out, brix_status *st)
+{
+    brix_dirent *ents = NULL;
+    size_t       count = 0, entcap = 0;
 
     while (i < acclen) {
         size_t      ns, nl, ss, sl;
@@ -260,8 +308,6 @@ dirlist_once(brix_conn *c, const char *path, int want_stat,
 
         if (dirent_push(&ents, &count, &entcap, &e) != 0) {
             brix_status_set(st, XRDC_EPROTO, 0, "out of memory in dirlist");
-            /* Error exit: both buffers still owned here; free both, return -1. */
-            free(acc);
             free(ents);
             return -1;
         }
@@ -270,12 +316,46 @@ dirlist_once(brix_conn *c, const char *path, int want_stat,
         }
     }
 
-    /* Success: transfer entry ownership to the caller, then free only the
-     * accumulation buffer we still own (ents has been handed off). */
     *ents_out = ents;
     *count_out = count;
-    free(acc);
     return 0;
+}
+
+/* One full listing pass (a kXR_dirlist roundtrip plus the kXR_oksofar chunk
+ * accumulation) on the current connection. On any failure it leaves *ents_out
+ * NULL and frees its working buffers, so a resilient retry starts clean. */
+static int
+dirlist_once(brix_conn *c, const char *path, int want_stat,
+             brix_dirent **ents_out, size_t *count_out, brix_status *st)
+{
+    ClientDirlistRequest req;
+    uint8_t             *acc = NULL;
+    size_t               acclen = 0;
+    size_t               i;
+    int                  rc;
+
+    *ents_out = NULL;
+    *count_out = 0;
+
+    memset(&req, 0, sizeof(req));
+    req.requestid = htons(kXR_dirlist);
+    {
+        xrdw_dirlist_req_t b = { .options = (uint8_t) (want_stat ? kXR_dstat : 0) };
+        xrdw_dirlist_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
+
+    /* Drain the whole listing into one buffer (helper frees acc on failure). */
+    if (dirlist_accumulate(c, &req, path, &acc, &acclen, st) != 0) {
+        return -1;
+    }
+
+    /* Skip the dstat lead-in, then parse the name/stat pairs. On a parse OOM the
+     * parse helper frees its partial array; the accumulation buffer we still own
+     * is freed once below, on both the success and error paths. */
+    i = dirlist_skip_dstat_leadin(acc, acclen, want_stat);
+    rc = dirlist_parse_entries(acc, acclen, i, want_stat, ents_out, count_out, st);
+    free(acc);
+    return rc;
 }
 
 /* Args for the resilient wrapper below. */

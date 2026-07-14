@@ -125,6 +125,119 @@ token_needs_refresh(void)
 }
 
 /*
+ * Refresh the bearer token via oidc-agent when it is stale, best-effort.
+ *
+ * WHAT: If an oidc account is configured AND the current bearer token is
+ *       absent/expired/near-expiry, mint a fresh one with oidc-token and install
+ *       it into $BEARER_TOKEN. Returns 1 when a fresh token was installed, else 0
+ *       (no account, token still healthy, oidc-token failed, or setenv failed).
+ * WHY:  isolates the token half of brix_cred_autorefresh so the orchestrator
+ *       stays a flat two-step sequence; preserves the exact "only act on a
+ *       configured account and a genuinely stale token" gate the caller relied on.
+ * HOW:  1. bail out (return 0) unless account is non-empty and token_needs_refresh().
+ *       2. run oidc-token; on failure narrate (verbose) and return 0 — soft-fail.
+ *       3. setenv $BEARER_TOKEN; on failure return 0 without narrating.
+ *       4. narrate success (verbose) and return 1.
+ */
+static int
+refresh_bearer_token(const char *account, int verbose, FILE *out)
+{
+    char        tok[16384];
+    brix_status st;
+
+    if (account == NULL || account[0] == '\0' || !token_needs_refresh()) {
+        return 0;
+    }
+    brix_status_clear(&st);
+    if (run_oidc_token(account, tok, sizeof(tok), &st) != 0) {
+        if (verbose && out != NULL) {
+            fprintf(out, "xrdcp: token auto-refresh skipped: %s\n", st.msg);
+        }
+        return 0;
+    }
+    if (setenv("BEARER_TOKEN", tok, 1) != 0) {
+        return 0;
+    }
+    if (verbose && out != NULL) {
+        fprintf(out, "xrdcp: refreshed bearer token via oidc-agent "
+                     "(account %s)\n", account);
+    }
+    return 1;
+}
+
+/*
+ * Is the GSI proxy at pxp stale (missing / unparseable / expiring soon)?
+ *
+ * WHAT: Returns 1 when a fresh proxy should be minted — the file is unreadable,
+ *       its remaining validity cannot be parsed, or fewer than
+ *       XRDC_CRED_MARGIN_SECS of validity remain; 0 when the existing proxy is
+ *       healthy enough to keep.
+ * WHY:  pulls the three-way staleness decision out of the refresh path so the
+ *       expiry-margin policy lives in one named predicate, unchanged from the
+ *       original inline have/parse/margin ladder.
+ * HOW:  1. no readable file → stale.
+ *       2. brix_proxy_remaining() cannot parse it → stale.
+ *       3. otherwise stale iff remaining seconds < XRDC_CRED_MARGIN_SECS.
+ */
+static int
+proxy_is_stale(const char *pxp)
+{
+    long left = 0;
+
+    if (access(pxp, R_OK) != 0) {
+        return 1;                               /* none → mint one */
+    }
+    if (brix_proxy_remaining(pxp, &left) != 0) {
+        return 1;                               /* present but unparseable → renew */
+    }
+    return left < XRDC_CRED_MARGIN_SECS;        /* expiring soon → renew */
+}
+
+/*
+ * Refresh the GSI proxy via brix_proxy_create when it is stale, best-effort.
+ *
+ * WHAT: If a long-lived user cert is discoverable AND the default-path proxy is
+ *       stale (proxy_is_stale), mint a fresh proxy from the cert. Returns 1 when a
+ *       fresh proxy was created, else 0 (no cert, proxy still healthy, or
+ *       brix_proxy_create failed).
+ * WHY:  isolates the proxy half of brix_cred_autorefresh; preserves the
+ *       "only attempt a mint when a cert exists and the proxy is stale" gate so
+ *       token-only users are never troubled by proxy creation.
+ * HOW:  1. bail out (return 0) unless gsi_cert_available().
+ *       2. resolve the default proxy path; bail out unless proxy_is_stale().
+ *       3. brix_proxy_create with default opts; on failure narrate (verbose) and
+ *          return 0 — soft-fail.
+ *       4. narrate success (verbose) and return 1.
+ */
+static int
+refresh_gsi_proxy(int verbose, FILE *out)
+{
+    char            pxp[1024];
+    brix_proxy_opts po;
+    brix_status     st;
+
+    if (!gsi_cert_available()) {
+        return 0;
+    }
+    brix_proxy_default_path(pxp, sizeof(pxp));
+    if (!proxy_is_stale(pxp)) {
+        return 0;
+    }
+    memset(&po, 0, sizeof(po));   /* defaults: ~/.globus cert/key, 12h, 2048 */
+    brix_status_clear(&st);
+    if (brix_proxy_create(&po, &st) != 0) {
+        if (verbose && out != NULL) {
+            fprintf(out, "xrdcp: proxy auto-refresh skipped: %s\n", st.msg);
+        }
+        return 0;
+    }
+    if (verbose && out != NULL) {
+        fprintf(out, "xrdcp: refreshed GSI proxy (%s)\n", pxp);
+    }
+    return 1;
+}
+
+/*
  * Refresh whatever local credential is stale, best-effort.
  *
  * want_write       — reserved for future scope-aware refresh (unused today).
@@ -139,8 +252,8 @@ int
 brix_cred_autorefresh(int want_write, const char *oidc_account, int verbose,
                       FILE *out)
 {
-    int         refreshed = 0;
     const char *account = oidc_account;
+    int         refreshed = 0;
 
     (void) want_write;
     if (account == NULL || account[0] == '\0') {
@@ -148,52 +261,10 @@ brix_cred_autorefresh(int want_write, const char *oidc_account, int verbose,
     }
 
     /* Bearer token via oidc-agent — only when an account is configured. */
-    if (account != NULL && account[0] != '\0' && token_needs_refresh()) {
-        char        tok[16384];
-        brix_status st;
-        brix_status_clear(&st);
-        if (run_oidc_token(account, tok, sizeof(tok), &st) == 0) {
-            if (setenv("BEARER_TOKEN", tok, 1) == 0) {
-                refreshed++;
-                if (verbose && out != NULL) {
-                    fprintf(out, "xrdcp: refreshed bearer token via oidc-agent "
-                                 "(account %s)\n", account);
-                }
-            }
-        } else if (verbose && out != NULL) {
-            fprintf(out, "xrdcp: token auto-refresh skipped: %s\n", st.msg);
-        }
-    }
+    refreshed += refresh_bearer_token(account, verbose, out);
 
     /* GSI proxy via brix_proxy_create — only when a user cert exists. */
-    if (gsi_cert_available()) {
-        char pxp[1024];
-        long left = 0;
-        int  have, stale;
-        brix_proxy_default_path(pxp, sizeof(pxp));
-        have = (access(pxp, R_OK) == 0);
-        if (!have) {
-            stale = 1;                                  /* none → mint one */
-        } else if (brix_proxy_remaining(pxp, &left) != 0) {
-            stale = 1;                                  /* present but unparseable → renew */
-        } else {
-            stale = (left < XRDC_CRED_MARGIN_SECS);     /* expiring soon → renew */
-        }
-        if (stale) {
-            brix_proxy_opts po;
-            brix_status     st;
-            memset(&po, 0, sizeof(po));   /* defaults: ~/.globus cert/key, 12h, 2048 */
-            brix_status_clear(&st);
-            if (brix_proxy_create(&po, &st) == 0) {
-                refreshed++;
-                if (verbose && out != NULL) {
-                    fprintf(out, "xrdcp: refreshed GSI proxy (%s)\n", pxp);
-                }
-            } else if (verbose && out != NULL) {
-                fprintf(out, "xrdcp: proxy auto-refresh skipped: %s\n", st.msg);
-            }
-        }
-    }
+    refreshed += refresh_gsi_proxy(verbose, out);
 
     return refreshed;
 }

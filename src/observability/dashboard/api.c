@@ -177,6 +177,57 @@ dashboard_endpoint_is_anon_allowed(brix_dashboard_api_endpoint_e e)
 }
 
 
+/*
+ * WHAT: Route a resolved dashboard endpoint to its JSON builder and return the
+ *       built root object (or NULL on OOM/truncation from the builder). Sets
+ *       *status for the two endpoints that override the default 200: the
+ *       transfer-detail builder writes its own status through the pointer, and
+ *       the not-found endpoint forces 404. All other endpoints leave *status
+ *       untouched (the caller pre-seeds it to 200).
+ * WHY:  Isolating the per-endpoint dispatch keeps the api_handler orchestrator
+ *       flat and under the complexity cap while preserving the exact builder
+ *       call, argument set, and status semantics for every endpoint.
+ * HOW:  1. Switch on the endpoint enum. 2. Invoke the matching builder with the
+ *       same arguments each formerly received (some take r, some take totals,
+ *       transfer-detail takes &status, cache/ratelimit/cvmfs omit r/totals).
+ *       3. For the not-found/default arm, set *status to 404 before building.
+ *       4. Return the builder result unchanged.
+ */
+static json_t *
+dashboard_dispatch_builder(ngx_http_request_t *r,
+    brix_dashboard_api_endpoint_e endpoint, int64_t now_ms,
+    ngx_http_brix_dashboard_loc_conf_t *conf,
+    brix_dashboard_totals_t *totals, ngx_uint_t redact, ngx_int_t *status)
+{
+    switch (endpoint) {
+    case BRIX_DASHBOARD_API_COMPAT_TRANSFERS:
+        return dashboard_build_compat_transfers(now_ms, conf, totals, redact);
+    case BRIX_DASHBOARD_API_V1_TRANSFERS:
+        return dashboard_build_v1_transfers(r, now_ms, conf, totals, redact);
+    case BRIX_DASHBOARD_API_V1_TRANSFER_DETAIL:
+        return dashboard_build_v1_transfer_detail(r, now_ms, conf, status);
+    case BRIX_DASHBOARD_API_V1_SNAPSHOT:
+        return dashboard_build_v1_snapshot(r, now_ms, conf, totals, redact);
+    case BRIX_DASHBOARD_API_V1_EVENTS:
+        return dashboard_build_v1_events(r, now_ms, conf, redact);
+    case BRIX_DASHBOARD_API_V1_HISTORY:
+        return dashboard_build_v1_history(r, now_ms, conf, redact);
+    case BRIX_DASHBOARD_API_V1_CLUSTER:
+        return dashboard_build_v1_cluster(r, now_ms, conf, redact);
+    case BRIX_DASHBOARD_API_V1_CACHE:
+        return dashboard_build_v1_cache(now_ms, conf, redact);
+    case BRIX_DASHBOARD_API_V1_RATELIMIT:
+        return dashboard_build_v1_ratelimit(now_ms, conf, redact);
+    case BRIX_DASHBOARD_API_V1_CVMFS:
+        return dashboard_build_v1_cvmfs(now_ms, conf, redact);
+    case BRIX_DASHBOARD_API_V1_NOT_FOUND:
+    default:
+        *status = NGX_HTTP_NOT_FOUND;
+        return dashboard_build_v1_not_found(now_ms, conf, redact);
+    }
+}
+
+
 ngx_int_t
 ngx_http_brix_dashboard_api_handler(ngx_http_request_t *r,
     brix_dashboard_api_endpoint_e endpoint)
@@ -216,43 +267,8 @@ ngx_http_brix_dashboard_api_handler(ngx_http_request_t *r,
     brix_dashboard_history_sample(now_ms);
     dashboard_collect_totals(&totals);
 
-    switch (endpoint) {
-    case BRIX_DASHBOARD_API_COMPAT_TRANSFERS:
-        root = dashboard_build_compat_transfers(now_ms, conf, &totals, redact);
-        break;
-    case BRIX_DASHBOARD_API_V1_TRANSFERS:
-        root = dashboard_build_v1_transfers(r, now_ms, conf, &totals, redact);
-        break;
-    case BRIX_DASHBOARD_API_V1_TRANSFER_DETAIL:
-        root = dashboard_build_v1_transfer_detail(r, now_ms, conf, &status);
-        break;
-    case BRIX_DASHBOARD_API_V1_SNAPSHOT:
-        root = dashboard_build_v1_snapshot(r, now_ms, conf, &totals, redact);
-        break;
-    case BRIX_DASHBOARD_API_V1_EVENTS:
-        root = dashboard_build_v1_events(r, now_ms, conf, redact);
-        break;
-    case BRIX_DASHBOARD_API_V1_HISTORY:
-        root = dashboard_build_v1_history(r, now_ms, conf, redact);
-        break;
-    case BRIX_DASHBOARD_API_V1_CLUSTER:
-        root = dashboard_build_v1_cluster(r, now_ms, conf, redact);
-        break;
-    case BRIX_DASHBOARD_API_V1_CACHE:
-        root = dashboard_build_v1_cache(now_ms, conf, redact);
-        break;
-    case BRIX_DASHBOARD_API_V1_RATELIMIT:
-        root = dashboard_build_v1_ratelimit(now_ms, conf, redact);
-        break;
-    case BRIX_DASHBOARD_API_V1_CVMFS:
-        root = dashboard_build_v1_cvmfs(now_ms, conf, redact);
-        break;
-    case BRIX_DASHBOARD_API_V1_NOT_FOUND:
-    default:
-        status = NGX_HTTP_NOT_FOUND;
-        root = dashboard_build_v1_not_found(now_ms, conf, redact);
-        break;
-    }
+    root = dashboard_dispatch_builder(r, endpoint, now_ms, conf, &totals,
+                                       redact, &status);
 
     if (root == NULL) {
         brix_dashboard_event_add(BRIX_DASH_EVENT_DASHBOARD, 0, 507,

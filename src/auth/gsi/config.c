@@ -124,18 +124,29 @@ brix_gsi_compute_ca_hashes(ngx_stream_brix_srv_conf_t *xcf)
     }
 }
 
-/*
- * WHAT: Full GSI authentication configuration loader — validates auth method (GSI or BOTH), checks all three trust inputs (certificate, private key, trusted CA) are present and path-valid, loads server certificate via PEM_read_X509(), serializes it into cached PEM buffer for kXGS_cert responses on every GSI login, loads private key via PEM_read_PrivateKey(), builds X509_STORE with trusted CA + CRLs via brix_rebuild_gsi_store() (with proxy cert flag and CRL_CHECK_ALL), runs PKI/CRL consistency check, computes CA hash via X509_subject_name_hash() for kXRS_issuer_hash advertisement during GSI bootstrap.
- * WHY: All three trust inputs must be present simultaneously — missing any one makes GSI auth meaningless. Cert serialization caching avoids per-request PEM encoding overhead on every client login. CRL checking enables revocation detection across the full certificate chain. CA hash allows clients to confirm which CA the server trusts before initiating DH exchange.
+/* ---- Validate that all GSI trust inputs are present and path-usable ----
+ *
+ * WHAT: Returns NGX_OK when the certificate, private key, trusted CA and
+ * (optional) CRL directives all point at readable filesystem paths of the
+ * expected kind; returns NGX_ERROR after logging an NGX_LOG_EMERG line when a
+ * mandatory directive is absent or any path fails validation.
+ *
+ * WHY: GSI mode is only meaningful when the certificate, private key and
+ * trusted CA are all present simultaneously — missing any one makes GSI auth
+ * meaningless, so the presence check must reject the config before any file is
+ * touched.  Path validation is grouped here so the loader body stays a flat
+ * sequence of load steps.
+ *
+ * HOW:
+ *   1. Reject the config when any of certificate/certificate_key/trusted_ca is
+ *      empty, with the combined "requires ..." emergency message.
+ *   2. Validate certificate and certificate_key as readable regular files.
+ *   3. Validate trusted_ca and crl as readable file-or-directory paths (crl may
+ *      be empty; brix_validate_path treats an unset directive as a pass).
  */
-ngx_int_t
-brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
+static ngx_int_t
+brix_gsi_require_trust_inputs(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
-    if (xcf->auth != BRIX_AUTH_GSI && xcf->auth != BRIX_AUTH_BOTH) {
-        return NGX_OK;
-    }
-
-    /* GSI mode is only meaningful when all three trust inputs are present. */
     if (xcf->certificate.len == 0 || xcf->certificate_key.len == 0
         || xcf->trusted_ca.len == 0)
     {
@@ -158,97 +169,217 @@ brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
         return NGX_ERROR;
     }
 
-    /* Load server certificate */
-    {
-        FILE *fp = fopen((char *) xcf->certificate.data, "r");
-        if (fp == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                "brix: cannot open certificate \"%s\"",
-                xcf->certificate.data);
-            return NGX_ERROR;
-        }
-        fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);
-        xcf->gsi_cert = PEM_read_X509(fp, NULL, NULL, NULL);
-        (void) fclose(fp); /* phase74-fp: read-only stream, close failure cannot lose data */
-        if (xcf->gsi_cert == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix: cannot parse certificate \"%s\"",
-                xcf->certificate.data);
-            return NGX_ERROR;
-        }
+    return NGX_OK;
+}
+
+/* ---- Load the server certificate PEM into xcf->gsi_cert ----
+ *
+ * WHAT: Opens xcf->certificate, parses the first X509 with PEM_read_X509() and
+ * stores it in xcf->gsi_cert; returns NGX_OK on success or NGX_ERROR after an
+ * NGX_LOG_EMERG line when the file cannot be opened or parsed.
+ *
+ * WHY: The parsed certificate is needed both to answer kXGS_cert and to build
+ * the CA-hash advertisement, so it is loaded once at config time and kept.
+ *
+ * HOW:
+ *   1. fopen the certificate path; on failure log with ngx_errno and return.
+ *   2. Mark the descriptor FD_CLOEXEC so it does not leak across exec.
+ *   3. PEM_read_X509 into xcf->gsi_cert and close the read-only stream.
+ *   4. Reject when parsing yields no certificate.
+ */
+static ngx_int_t
+brix_gsi_load_certificate(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
+{
+    FILE *fp = fopen((char *) xcf->certificate.data, "r");
+    if (fp == NULL) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+            "brix: cannot open certificate \"%s\"",
+            xcf->certificate.data);
+        return NGX_ERROR;
+    }
+    fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);
+    xcf->gsi_cert = PEM_read_X509(fp, NULL, NULL, NULL);
+    (void) fclose(fp); /* phase74-fp: read-only stream, close failure cannot lose data */
+    if (xcf->gsi_cert == NULL) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix: cannot parse certificate \"%s\"",
+            xcf->certificate.data);
+        return NGX_ERROR;
     }
 
-    /* Cache the PEM serialization once; kXGS_cert sends it on every GSI login. */
-    {
-        BIO     *bio;
-        BUF_MEM *bptr;
+    return NGX_OK;
+}
 
-        bio = BIO_new(BIO_s_mem());
-        if (bio == NULL) {
-            return NGX_ERROR;
-        }
+/* ---- Cache the certificate PEM serialization for kXGS_cert replies ----
+ *
+ * WHAT: Serializes xcf->gsi_cert back to PEM into a pool-allocated buffer at
+ * xcf->gsi_cert_pem (length xcf->gsi_cert_pem_len); returns NGX_OK on success,
+ * NGX_ERROR on any OpenSSL/allocation failure (with an NGX_LOG_EMERG line for a
+ * serialization failure).
+ *
+ * WHY: kXGS_cert sends the certificate on every GSI login, so encoding it once
+ * at config time avoids per-request PEM encoding overhead on the hot path.
+ *
+ * HOW:
+ *   1. Allocate a memory BIO; bail on allocation failure.
+ *   2. PEM_write_bio_X509 the loaded certificate into it.
+ *   3. Copy the BIO's bytes into a pool buffer and record the length.
+ *   4. Free the BIO on every exit so no OpenSSL memory leaks.
+ */
+static ngx_int_t
+brix_gsi_cache_cert_pem(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
+{
+    BIO     *bio;
+    BUF_MEM *bptr;
 
-        if (!PEM_write_bio_X509(bio, xcf->gsi_cert)) {
-            BIO_free(bio);
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix: cannot serialize certificate \"%s\"",
-                xcf->certificate.data);
-            return NGX_ERROR;
-        }
+    bio = BIO_new(BIO_s_mem());
+    if (bio == NULL) {
+        return NGX_ERROR;
+    }
 
-        BIO_get_mem_ptr(bio, &bptr);
-        xcf->gsi_cert_pem = ngx_pnalloc(cf->pool, bptr->length);
-        if (xcf->gsi_cert_pem == NULL) {
-            BIO_free(bio);
-            return NGX_ERROR;
-        }
-
-        ngx_memcpy(xcf->gsi_cert_pem, bptr->data, bptr->length);
-        xcf->gsi_cert_pem_len = bptr->length;
+    if (!PEM_write_bio_X509(bio, xcf->gsi_cert)) {
         BIO_free(bio);
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix: cannot serialize certificate \"%s\"",
+            xcf->certificate.data);
+        return NGX_ERROR;
     }
 
-    /* Load server private key */
-    {
-        FILE *fp = fopen((char *) xcf->certificate_key.data, "r");
-        if (fp == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                "brix: cannot open private key \"%s\"",
-                xcf->certificate_key.data);
-            return NGX_ERROR;
-        }
-        fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);
-        xcf->gsi_key = PEM_read_PrivateKey(fp, NULL, NULL, NULL);
-        (void) fclose(fp); /* phase74-fp: read-only stream, close failure cannot lose data */
-        if (xcf->gsi_key == NULL) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix: cannot parse private key \"%s\"",
-                xcf->certificate_key.data);
-            return NGX_ERROR;
-        }
+    BIO_get_mem_ptr(bio, &bptr);
+    xcf->gsi_cert_pem = ngx_pnalloc(cf->pool, bptr->length);
+    if (xcf->gsi_cert_pem == NULL) {
+        BIO_free(bio);
+        return NGX_ERROR;
     }
 
-    /* Build trusted CA X509_STORE.  This parses every CA (and CRL) under the
-     * trusted-CA path, so its cost scales with the bundle size — on a full grid
-     * CA distribution (hundreds of CAs + CRLs) it dominates GSI config time.
-     * Time it independently so a slow startup is attributable at a glance. */
-    {
-        uint64_t t0 = brix_phase_now_ns();
+    ngx_memcpy(xcf->gsi_cert_pem, bptr->data, bptr->length);
+    xcf->gsi_cert_pem_len = bptr->length;
+    BIO_free(bio);
 
-        /* cf->cycle scopes the CA/CRL-store memo to THIS config parse, so
-         * multiple GSI server blocks (root://, davs://, …) sharing the same
-         * trusted_ca/CRL dir load the IGTF CRLs once, not once per block. */
-        if (brix_rebuild_gsi_store(xcf, cf->log, cf->cycle) != NGX_OK) {
-            return NGX_ERROR;
-        }
+    return NGX_OK;
+}
 
-        /* Run a lightweight PKI/CRL consistency check and log any problems. */
-        (void) brix_check_pki_consistency_stream(cf->log, xcf);
+/* ---- Load the server private key PEM into xcf->gsi_key ----
+ *
+ * WHAT: Opens xcf->certificate_key, parses it with PEM_read_PrivateKey() and
+ * stores it in xcf->gsi_key; returns NGX_OK on success or NGX_ERROR after an
+ * NGX_LOG_EMERG line when the file cannot be opened or parsed.
+ *
+ * WHY: The private key backs every GSI DH exchange, so like the certificate it
+ * is loaded once at config time and cached on the server conf.
+ *
+ * HOW:
+ *   1. fopen the key path; on failure log with ngx_errno and return.
+ *   2. Mark the descriptor FD_CLOEXEC.
+ *   3. PEM_read_PrivateKey into xcf->gsi_key and close the read-only stream.
+ *   4. Reject when parsing yields no key.
+ */
+static ngx_int_t
+brix_gsi_load_private_key(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
+{
+    FILE *fp = fopen((char *) xcf->certificate_key.data, "r");
+    if (fp == NULL) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+            "brix: cannot open private key \"%s\"",
+            xcf->certificate_key.data);
+        return NGX_ERROR;
+    }
+    fcntl(fileno(fp), F_SETFD, FD_CLOEXEC);
+    xcf->gsi_key = PEM_read_PrivateKey(fp, NULL, NULL, NULL);
+    (void) fclose(fp); /* phase74-fp: read-only stream, close failure cannot lose data */
+    if (xcf->gsi_key == NULL) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix: cannot parse private key \"%s\"",
+            xcf->certificate_key.data);
+        return NGX_ERROR;
+    }
 
-        ngx_log_error(NGX_LOG_NOTICE, cf->log, 0,
-                      "brix: GSI trust store built from \"%V\" in %uLus",
-                      &xcf->trusted_ca,
-                      (brix_phase_now_ns() - t0) / 1000ull);
+    return NGX_OK;
+}
+
+/* ---- Build the trusted-CA X509_STORE and run the PKI consistency check ----
+ *
+ * WHAT: Builds xcf->gsi_store from trusted_ca + CRLs via brix_rebuild_gsi_store,
+ * runs the lightweight PKI/CRL consistency check, and logs the build duration;
+ * returns NGX_OK, or NGX_ERROR when the store cannot be built.
+ *
+ * WHY: The store parse walks every CA (and CRL) under the trusted-CA path, so
+ * its cost scales with the bundle size — on a full grid CA distribution
+ * (hundreds of CAs + CRLs) it dominates GSI config time.  It is timed
+ * independently so a slow startup is attributable at a glance.
+ *
+ * HOW:
+ *   1. Snapshot a start timestamp.
+ *   2. Rebuild the store scoped to cf->cycle so sibling GSI server blocks
+ *      sharing the same trusted_ca/CRL dir load the IGTF CRLs once, not per
+ *      block; bail on failure.
+ *   3. Run brix_check_pki_consistency_stream to surface CRL gaps as warnings.
+ *   4. Log the elapsed build time in microseconds.
+ */
+static ngx_int_t
+brix_gsi_build_trust_store(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
+{
+    uint64_t t0 = brix_phase_now_ns();
+
+    if (brix_rebuild_gsi_store(xcf, cf->log, cf->cycle) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    (void) brix_check_pki_consistency_stream(cf->log, xcf);
+
+    ngx_log_error(NGX_LOG_NOTICE, cf->log, 0,
+                  "brix: GSI trust store built from \"%V\" in %uLus",
+                  &xcf->trusted_ca,
+                  (brix_phase_now_ns() - t0) / 1000ull);
+
+    return NGX_OK;
+}
+
+/* ---- Full GSI authentication configuration loader ----
+ *
+ * WHAT: When the auth mode selects GSI (or BOTH), validates the trust inputs,
+ * loads and caches the server certificate + private key, builds the trusted-CA
+ * store, and computes the advertised CA hashes; returns NGX_OK (also for a
+ * non-GSI auth mode, a no-op) or NGX_ERROR on any validation/load failure.
+ *
+ * WHY: All three trust inputs must be present simultaneously — missing any one
+ * makes GSI auth meaningless.  Cert serialization caching avoids per-request
+ * PEM encoding on every client login, CRL checking enables revocation detection
+ * across the full chain, and the CA hash lets clients confirm which CA the
+ * server trusts before initiating the DH exchange.
+ *
+ * HOW:
+ *   1. Return early when auth is neither GSI nor BOTH.
+ *   2. Validate that all trust-input directives are present and path-usable.
+ *   3. Load the certificate, cache its PEM, and load the private key.
+ *   4. Build the trusted-CA store (with the PKI consistency check).
+ *   5. Compute the CA-hash advertisement and log the configured summary.
+ */
+ngx_int_t
+brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
+{
+    if (xcf->auth != BRIX_AUTH_GSI && xcf->auth != BRIX_AUTH_BOTH) {
+        return NGX_OK;
+    }
+
+    if (brix_gsi_require_trust_inputs(cf, xcf) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    if (brix_gsi_load_certificate(cf, xcf) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    if (brix_gsi_cache_cert_pem(cf, xcf) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    if (brix_gsi_load_private_key(cf, xcf) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    if (brix_gsi_build_trust_store(cf, xcf) != NGX_OK) {
+        return NGX_ERROR;
     }
 
     brix_gsi_compute_ca_hashes(xcf);

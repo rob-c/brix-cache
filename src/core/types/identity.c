@@ -1,4 +1,5 @@
 #include "identity.h"
+#include "identity_internal.h"   /* brix_identity_derive_attrs (identity_attrs.c) */
 #include "auth/token/issuer_registry.h"   /* phase-59 W1: per-path issuer gate */
 
 #include <string.h>
@@ -258,88 +259,6 @@ brix_identity_set_subject(brix_identity_t *id, ngx_pool_t *pool,
 
     id->auth_method |= auth_method;
     id->is_authenticated = 1;
-    return NGX_OK;
-}
-
-/*
- * brix_identity_derive_attrs — split each comma-separated VOMS FQAN / token
- * group into (vorg, role, group) and store them as three index-aligned CSVs for
- * the xrdacc engine.  An FQAN like "/cms/Role=production/Capability=NULL" yields
- * vorg="cms", role="production", group="/cms"; "Role=NULL" and a plain group
- * name ("cms") yield an empty role.  Each output is a prefix/substring of the
- * input, so an strlen(vo_csv)-sized buffer always suffices.
- */
-static ngx_int_t
-brix_identity_derive_attrs(brix_identity_t *id, ngx_pool_t *pool,
-    const char *vo_csv)
-{
-    size_t   inlen = (vo_csv != NULL) ? ngx_strlen(vo_csv) : 0;
-    u_char  *vb, *rb, *gb;
-    size_t   vl = 0, rl = 0, gl = 0;
-    const char *p, *toks;
-    int      first = 1;
-
-    ngx_str_null(&id->acc_vorg_csv);
-    ngx_str_null(&id->acc_role_csv);
-    ngx_str_null(&id->acc_group_csv);
-    if (inlen == 0) {
-        return NGX_OK;
-    }
-
-    vb = ngx_pnalloc(pool, inlen + 1);
-    rb = ngx_pnalloc(pool, inlen + 1);
-    gb = ngx_pnalloc(pool, inlen + 1);
-    if (vb == NULL || rb == NULL || gb == NULL) {
-        return NGX_ERROR;
-    }
-
-    p = toks = vo_csv;
-    for (;;) {
-        if (*p == ',' || *p == '\0') {
-            const char *tok = toks;
-            size_t      tl = (size_t) (p - toks);
-            const char *role = NULL, *grp, *rp, *cp, *vstart, *vend;
-            size_t      rlen = 0, glen, vlen;
-
-            while (tl > 0 && (*tok == ' ' || *tok == '\t')) { tok++; tl--; }
-            while (tl > 0 && (tok[tl - 1] == ' ' || tok[tl - 1] == '\t')) { tl--; }
-
-            grp = tok;
-            glen = tl;
-            rp = memmem(tok, tl, "/Role=", 6);
-            if (rp != NULL) {
-                const char *rs = rp + 6, *re;
-                glen = (size_t) (rp - tok);                /* group = before /Role= */
-                re = memchr(rs, '/', (size_t) ((tok + tl) - rs));
-                if (re == NULL) { re = tok + tl; }
-                role = rs;
-                rlen = (size_t) (re - rs);
-                if (rlen == 4 && ngx_strncmp(role, "NULL", 4) == 0) { rlen = 0; }
-            } else if ((cp = memmem(tok, tl, "/Capability=", 12)) != NULL) {
-                glen = (size_t) (cp - tok);                /* strip trailing capability */
-            }
-
-            vstart = grp;
-            vlen = glen;
-            if (vlen > 0 && *vstart == '/') { vstart++; vlen--; }
-            vend = memchr(vstart, '/', vlen);
-            if (vend != NULL) { vlen = (size_t) (vend - vstart); }
-
-            if (!first) { vb[vl++] = ','; rb[rl++] = ','; gb[gl++] = ','; }
-            first = 0;
-            if (vlen) { ngx_memcpy(vb + vl, vstart, vlen); vl += vlen; }
-            if (rlen) { ngx_memcpy(rb + rl, role, rlen);   rl += rlen; }
-            if (glen) { ngx_memcpy(gb + gl, grp, glen);    gl += glen; }
-
-            if (*p == '\0') { break; }
-            toks = p + 1;
-        }
-        p++;
-    }
-    vb[vl] = '\0'; rb[rl] = '\0'; gb[gl] = '\0';
-    id->acc_vorg_csv.data  = vb; id->acc_vorg_csv.len  = vl;
-    id->acc_role_csv.data  = rb; id->acc_role_csv.len  = rl;
-    id->acc_group_csv.data = gb; id->acc_group_csv.len = gl;
     return NGX_OK;
 }
 

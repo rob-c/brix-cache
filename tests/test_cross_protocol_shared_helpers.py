@@ -192,7 +192,9 @@ def test_phase5_tpc_common_layer_is_shared():
     )
     for relpath in ("src/tpc/engine/launch.c", "src/protocols/webdav/tpc_thread.c", "src/protocols/webdav/tpc.c"):
         _assert_markers(relpath, ["brix_tpc_registry_add("])
-    for relpath in ("src/tpc/outbound/source.c", "src/protocols/webdav/tpc_curl_pmark.c", "src/protocols/webdav/tpc_marker.c"):
+    # phase-79 file-size split: source.c's Phase-2/3 stream loop (which emits the
+    # progress samples) moved into source_stream.c.
+    for relpath in ("src/tpc/outbound/source_stream.c", "src/protocols/webdav/tpc_curl_pmark.c", "src/protocols/webdav/tpc_marker.c"):
         _assert_markers(relpath, ["brix_tpc_progress_emit("])
     for relpath in ("src/tpc/outbound/tpc_token.c", "src/protocols/webdav/tpc_cred.c"):
         _assert_markers(relpath, ["brix_tpc_credential_parse("])
@@ -343,7 +345,9 @@ def test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared():
     # (brix_vfs_staged_open, phase-62 VFS closure) rather than the raw
     # brix_staged_open; webdav/tpc.c still carries the raw open directly.
     _assert_markers("src/protocols/s3/s3_put_internal.h", ["core/compat/staged_file.h"])
-    _assert_markers("src/protocols/s3/put.c", ["brix_vfs_staged_open("])
+    # phase-79 file-size split: put.c's PUT precondition/open phase (which routes
+    # the staged-write open through the VFS seam) moved into put_inner.c.
+    _assert_markers("src/protocols/s3/put_inner.c", ["brix_vfs_staged_open("])
     _assert_markers("src/protocols/webdav/tpc.c",
                     ["core/compat/staged_file.h", "brix_staged_open("])
 

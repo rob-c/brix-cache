@@ -105,12 +105,101 @@ run_module(brix_conn *c, const brix_sec_module *m, const char *parms,
     return -1;
 }
 
+/*
+ * build_module_list — fill mods[] with every sec module, in preference order.
+ *
+ * WHAT: Populate the caller's fixed 7-slot array with the sec modules in the
+ *       fixed preference order gsi > ztn > krb5 > sss > unix > host > pwd and
+ *       return how many slots were written.
+ * WHY:  Both the driver (brix_authenticate) and the read-only explainer
+ *       (brix_auth_explain) must walk the SAME modules in the SAME order for
+ *       "why skipped" to match the real choice; sharing one builder keeps them
+ *       from drifting apart.
+ * HOW:  gsi is only listed when its module is linked in (brix_sec_gsi may be
+ *       NULL); the rest are appended unconditionally — a NULL slot there is
+ *       filtered later at try-time, never here.
+ */
+static int
+build_module_list(const brix_sec_module *mods[7])
+{
+    int nmods = 0;
+
+    if (brix_sec_gsi() != NULL) {
+        mods[nmods++] = brix_sec_gsi();
+    }
+    mods[nmods++] = brix_sec_token();
+    mods[nmods++] = brix_sec_krb5();
+    mods[nmods++] = brix_sec_sss();
+    mods[nmods++] = brix_sec_unix();
+    mods[nmods++] = brix_sec_host();
+    mods[nmods++] = brix_sec_pwd();
+    return nmods;
+}
+
+/*
+ * module_candidate — decide whether one sec module is usable right now.
+ *
+ * WHAT: Return 1 (and fill parms with the server's advertised parameters for
+ *       this protocol) when the module m should be driven, 0 when it must be
+ *       skipped.
+ * WHY:  Factors the four skip conditions of the try-loop out of the driver so
+ *       the driver stays within complexity budget; the decision itself is
+ *       unchanged and load-bearing — each branch guards a distinct reason a
+ *       credential must NOT be presented.
+ * HOW:  Skip a NULL slot; skip anything the --auth override filtered out; skip
+ *       a protocol the server did not advertise (this call also fills parms as
+ *       a side effect, so it must run for the surviving module); skip a module
+ *       that reports no local credentials. Checks run in this exact order to
+ *       preserve short-circuit behavior and the parms side effect.
+ */
+static int
+module_candidate(brix_conn *c, const brix_sec_module *m, const brix_opts *o,
+                 const char *seclist, char *parms, size_t parmslen)
+{
+    if (m == NULL) {
+        return 0;
+    }
+    if (o != NULL && o->auth_force != NULL
+        && strcmp(o->auth_force, m->name) != 0) {
+        return 0;
+    }
+    if (!brix_sec_proto_advertised(seclist, m->name, parms, parmslen)) {
+        return 0;
+    }
+    if (m->have_creds != NULL && !m->have_creds(c)) {
+        return 0;
+    }
+    return 1;
+}
+
+/*
+ * auth_warn_fallback — tell the user a credentialed protocol failed.
+ *
+ * WHAT: Emit a one-line stderr warning naming the protocol that failed and the
+ *       reason captured in st, then let the caller fall back to the next module.
+ * WHY:  A protocol we HAD credentials for failed. Without this, the driver
+ *       silently falls back (classically gsi to unix) and the user sees only a
+ *       confusing downstream authorization error from the server (e.g. EOS
+ *       "unauthorized identity used") instead of the real cause (e.g. the GSI
+ *       handshake the server rejected). stderr keeps data output (stdout) clean.
+ * HOW:  Print m->name and st->msg, substituting "no detail" when st carries no
+ *       message text.
+ */
+static void
+auth_warn_fallback(const brix_sec_module *m, const brix_status *st)
+{
+    fprintf(stderr,
+            "brix: warning: '%s' authentication failed (%s); "
+            "falling back to the next offered protocol\n",
+            m->name, st->msg[0] ? st->msg : "no detail");
+}
+
 int
 brix_authenticate(brix_conn *c, const char *seclist, const brix_opts *o,
                   brix_status *st)
 {
     const brix_sec_module *mods[7];
-    int                    nmods = 0;
+    int                    nmods;
     int                    i;
     int                    tried = 0;
 
@@ -121,33 +210,13 @@ brix_authenticate(brix_conn *c, const char *seclist, const brix_opts *o,
         return 0;
     }
 
-    /* Preference order: gsi > ztn > krb5 > sss > unix > host > pwd.
-     * (NULL skipped; each is tried only if the server advertised it.) */
-    if (brix_sec_gsi() != NULL) {
-        mods[nmods++] = brix_sec_gsi();
-    }
-    mods[nmods++] = brix_sec_token();
-    mods[nmods++] = brix_sec_krb5();
-    mods[nmods++] = brix_sec_sss();
-    mods[nmods++] = brix_sec_unix();
-    mods[nmods++] = brix_sec_host();
-    mods[nmods++] = brix_sec_pwd();
+    nmods = build_module_list(mods);
 
     for (i = 0; i < nmods; i++) {
         const brix_sec_module *m = mods[i];
         char                   parms[256];
 
-        if (m == NULL) {
-            continue;
-        }
-        if (o != NULL && o->auth_force != NULL
-            && strcmp(o->auth_force, m->name) != 0) {
-            continue;
-        }
-        if (!brix_sec_proto_advertised(seclist, m->name, parms, sizeof(parms))) {
-            continue;
-        }
-        if (m->have_creds != NULL && !m->have_creds(c)) {
+        if (!module_candidate(c, m, o, seclist, parms, sizeof(parms))) {
             continue;
         }
 
@@ -156,18 +225,7 @@ brix_authenticate(brix_conn *c, const char *seclist, const brix_opts *o,
             c->diag.chosen_auth = m->name;   /* §15 explain */
             return 0;
         }
-        /*
-         * A protocol we HAD credentials for failed.  Surface it on stderr:
-         * otherwise the driver silently falls back (classically gsi → unix) and
-         * the user sees only a confusing downstream authorization error from the
-         * server (e.g. EOS "unauthorized identity used") instead of the real
-         * cause (e.g. the GSI handshake the server rejected).  stderr keeps data
-         * output (stdout) clean.
-         */
-        fprintf(stderr,
-                "brix: warning: '%s' authentication failed (%s); "
-                "falling back to the next offered protocol\n",
-                m->name, st->msg[0] ? st->msg : "no detail");
+        auth_warn_fallback(m, st);
     }
 
     if (!tried) {
@@ -183,18 +241,10 @@ void
 brix_auth_explain(brix_conn *c, const brix_opts *o, FILE *out)
 {
     const brix_sec_module *mods[7];
-    int                    nmods = 0, i, picked = 0;
+    int                    nmods, i, picked = 0;
     char                   parms[256];
 
-    if (brix_sec_gsi() != NULL) {
-        mods[nmods++] = brix_sec_gsi();
-    }
-    mods[nmods++] = brix_sec_token();
-    mods[nmods++] = brix_sec_krb5();
-    mods[nmods++] = brix_sec_sss();
-    mods[nmods++] = brix_sec_unix();
-    mods[nmods++] = brix_sec_host();
-    mods[nmods++] = brix_sec_pwd();
+    nmods = build_module_list(mods);
 
     fprintf(out, "  sec list: %s\n",
             c->sec_list[0] ? c->sec_list : "(none — anonymous)");

@@ -25,6 +25,78 @@
 
 #define BRIX_CK_BUFSZ (64 * 1024)
 
+/* ---- Is a normalized u32 checksum kind supported by the u32 kernel? ----
+ *
+ * WHAT: Returns non-zero when kind is one of the three u32 checksum families
+ *       this kernel computes (Adler-32, CRC-32, CRC-32c), zero otherwise.
+ *
+ * WHY:  Keeps the argument-validation predicate in brix_cksum_u32_obj() a single
+ *       named call instead of an inline chain of inequalities, so the orchestrator
+ *       reads as one guard and the accepted-kind set lives in exactly one place.
+ *
+ * HOW:  1. Compare kind against each accepted constant and OR the results.
+ *       Callers must fold BRIX_CK_ZCRC32 to BRIX_CK_CRC32 before calling.
+ */
+static int
+u32_kind_ok(int kind)
+{
+    return kind == BRIX_CK_ADLER32 || kind == BRIX_CK_CRC32
+        || kind == BRIX_CK_CRC32C;
+}
+
+/* ---- Initial running value (seed) for a u32 checksum kind ----
+ *
+ * WHAT: Returns the identity seed for the running accumulator: the zlib
+ *       adler32/crc32 identity for those kinds, or 0 for the CRC-32c path.
+ *
+ * WHY:  The zlib CRC-32 and Adler-32 identities are obtained by calling the
+ *       library with a NULL buffer (their canonical init); folding that choice
+ *       into a helper keeps brix_cksum_u32_obj() flat while preserving the exact
+ *       seeds. CRC-32c is seeded to 0 because brix_crc32c_extend() owns its init.
+ *
+ * HOW:  1. Adler-32 -> adler32(0L, Z_NULL, 0).
+ *       2. CRC-32    -> crc32(0L, Z_NULL, 0).
+ *       3. otherwise (CRC-32c) -> 0.
+ */
+static uLong
+u32_seed(int kind)
+{
+    if (kind == BRIX_CK_ADLER32) {
+        return adler32(0L, Z_NULL, 0);
+    }
+    if (kind == BRIX_CK_CRC32) {
+        return crc32(0L, Z_NULL, 0);
+    }
+    return 0;
+}
+
+/* ---- Fold one chunk into the running u32 checksum for the selected kind ----
+ *
+ * WHAT: Extends the running accumulator over n bytes of buf. Adler-32 and CRC-32
+ *       update the zlib accumulator via *zcrc; CRC-32c updates *crc32c. No return.
+ *
+ * WHY:  Isolates the per-kind arithmetic (the one place bit-exactness matters)
+ *       from the read/EINTR loop, so the loop stays a plain drain and the
+ *       accumulation is a single-responsibility, independently reviewable step.
+ *
+ * HOW:  1. Adler-32 -> zcrc = adler32(zcrc, buf, (uInt) n).
+ *       2. CRC-32    -> zcrc = crc32(zcrc, buf, (uInt) n).
+ *       3. otherwise (CRC-32c) -> crc32c = brix_crc32c_extend(crc32c, buf, n).
+ *       Casts match the by-value original exactly so the folded bytes are identical.
+ */
+static void
+u32_update(int kind, const unsigned char *buf, size_t n,
+           uLong *zcrc, uint32_t *crc32c)
+{
+    if (kind == BRIX_CK_ADLER32) {
+        *zcrc = adler32(*zcrc, buf, (uInt) n);
+    } else if (kind == BRIX_CK_CRC32) {
+        *zcrc = crc32(*zcrc, buf, (uInt) n);
+    } else {
+        *crc32c = brix_crc32c_extend(*crc32c, buf, n);
+    }
+}
+
 int
 brix_cksum_u32_obj(int kind, brix_sd_obj_t *obj, uint32_t *out)
 {
@@ -40,14 +112,11 @@ brix_cksum_u32_obj(int kind, brix_sd_obj_t *obj, uint32_t *out)
     }
 
     if (out == NULL || obj == NULL || obj->driver == NULL
-        || (kind != BRIX_CK_ADLER32 && kind != BRIX_CK_CRC32
-            && kind != BRIX_CK_CRC32C)) {
+        || !u32_kind_ok(kind)) {
         return -1;
     }
 
-    zcrc = (kind == BRIX_CK_ADLER32) ? adler32(0L, Z_NULL, 0)
-         : (kind == BRIX_CK_CRC32)   ? crc32(0L, Z_NULL, 0)
-                                       : 0;
+    zcrc = u32_seed(kind);
 
     for (;;) {
         ssize_t n = obj->driver->pread(obj, buf, sizeof(buf), offset);
@@ -61,13 +130,7 @@ brix_cksum_u32_obj(int kind, brix_sd_obj_t *obj, uint32_t *out)
             break;
         }
         offset += (off_t) n;
-        if (kind == BRIX_CK_ADLER32) {
-            zcrc = adler32(zcrc, buf, (uInt) n);
-        } else if (kind == BRIX_CK_CRC32) {
-            zcrc = crc32(zcrc, buf, (uInt) n);
-        } else {
-            crc32c = brix_crc32c_extend(crc32c, buf, (size_t) n);
-        }
+        u32_update(kind, buf, (size_t) n, &zcrc, &crc32c);
     }
 
     *out = (kind == BRIX_CK_CRC32C) ? crc32c : (uint32_t) zcrc;

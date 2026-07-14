@@ -123,6 +123,7 @@ brix_stage_waiter_add(const char *reqid, uint16_t options,
     }
     ngx_shmtx_lock(&stage_waiter_mtx);
 
+    /* phase79-fp: tbl NULL-checked at entry; analyzer drops the guard across ngx_shmtx_lock */
     free_slot = tbl->capacity;
     for (i = 0; i < tbl->capacity; i++) {
         stage_waiter_t *s = &tbl->slots[i];
@@ -268,6 +269,7 @@ brix_stage_waiter_deliver(const char *reqid, int code)
     /* Mark every matching waiter ready; this worker's are then drained below,
      * other workers' rows are drained by their own poll. */
     ngx_shmtx_lock(&stage_waiter_mtx);
+    /* phase79-fp: tbl NULL-checked at entry; analyzer drops the guard across ngx_shmtx_lock */
     for (i = 0; i < tbl->capacity; i++) {
         stage_waiter_t *s = &tbl->slots[i];
         if (s->in_use && ngx_strcmp(s->reqid, reqid) == 0) {

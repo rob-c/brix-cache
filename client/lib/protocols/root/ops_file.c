@@ -57,6 +57,76 @@ brix_file_close(brix_conn *c, brix_file *f, brix_status *st)
 }
 
 
+/* ---- Apply the server's inline-compression negotiation to an open handle ----
+ *
+ * WHAT: Inspects the ServerOpenBody compression fields (cpsize[4] cptype[4] at
+ * body offsets 4..11) and, when the server confirmed inline compression, records
+ * the negotiated codec on the handle's read_codec or write_codec. Always clears
+ * both codecs first, so a plaintext reply leaves the handle in plaintext mode.
+ * Returns 0 on success (including the plaintext case); returns -1 and sets st
+ * when the server negotiated a codec this client build cannot decode. Never
+ * frees body — ownership stays with the caller.
+ *
+ * WHY: phase-42 W4/W5 inline compression. The dual-check contract in
+ * codec_core.h requires BOTH cpsize == BRIX_INLINE_CMP_MAGIC AND a valid
+ * cptype[0] codec ordinal before trusting the field: cptype is a legacy XRootD
+ * field, so a stock or non-cooperating server may leave an arbitrary small byte
+ * there; adopting it without the magic would make us inflate PLAINTEXT bytes and
+ * corrupt the transfer. If the magic confirms a codec this build lacks, the open
+ * MUST fail — silently falling back to plaintext would copy still-compressed
+ * bytes verbatim (asymmetric build) and corrupt the transfer.
+ *
+ * HOW:
+ *   1. Reset read_codec/write_codec to 0 (plaintext default).
+ *   2. If the body is shorter than 12 bytes, there is no compression tuple —
+ *      return 0 (plaintext).
+ *   3. Decode the big-endian cpsize and cptype[0] codec id.
+ *   4. Require cpsize == magic AND 1 <= cid < BRIX_CODEC_MAX; otherwise plaintext.
+ *   5. Fail (-1, st set) if the confirmed codec is unavailable in this build.
+ *   6. Record the codec on write_codec (W5 write opens) or read_codec (W4 read
+ *      opens) — at most one direction is negotiated.
+ */
+static int
+brix_open_apply_inline_codec(const uint8_t *body, uint32_t blen, int write,
+                             brix_file *f, brix_status *st)
+{
+    uint32_t cpsize;
+    uint8_t  cid;
+
+    f->read_codec = 0;
+    f->write_codec = 0;
+    if (blen < 12) {
+        return 0;
+    }
+
+    cpsize = ((uint32_t) body[4] << 24) | ((uint32_t) body[5] << 16)
+           | ((uint32_t) body[6] << 8)  |  (uint32_t) body[7];
+    cid    = body[8];   /* cptype[0] */
+    if (cpsize != BRIX_INLINE_CMP_MAGIC || cid < 1 || cid >= BRIX_CODEC_MAX) {
+        return 0;
+    }
+
+    /* The server CONFIRMED inline compression with codec `cid` and WILL send
+     * compressed frames (read) or expect them (write). If this client build
+     * cannot handle that codec we must FAIL the open (see WHY). */
+    if (!brix_codec_available(cid)) {
+        brix_status_set(st, XRDC_EUNSUPPORTED, 0,
+            "server negotiated inline-compression codec %u that this "
+            "client build cannot decode", (unsigned) cid);
+        return -1;
+    }
+
+    /* W4 read opens compress responses; W5 write opens compress the payloads
+     * this client sends. At most one direction is negotiated. */
+    if (write) {
+        f->write_codec = cid;
+    } else {
+        f->read_codec = cid;
+    }
+    return 0;
+}
+
+
 /* TPC helpers (M8): open-with-opaque + sync (arm/trigger) */
 int
 brix_file_open_opaque(brix_conn *c, const char *path, const char *opaque,
@@ -129,43 +199,12 @@ brix_file_open_opaque(brix_conn *c, const char *path, const char *opaque,
     }
     memcpy(f->fhandle, body, XRD_FHANDLE_LEN);
 
-    /*
-     * phase-42 W4/W5 — inline read/write compression.  The ServerOpenBody is
-     * fhandle[4] cpsize[4] cptype[4]; a server that confirmed compression sets
-     * BOTH cpsize = BRIX_INLINE_CMP_MAGIC (big-endian) AND cptype[0] = codec
-     * ordinal (the dual-check contract in codec_core.h).  Require the cpsize magic
-     * before trusting cptype[0]: cptype is a legacy XRootD field, so a stock or
-     * non-cooperating server may place an arbitrary small byte there — adopting it
-     * without the magic would make us inflate PLAINTEXT responses and corrupt the
-     * transfer.  Both halves must agree, else fall back to plaintext.
-     */
-    f->read_codec = 0;
-    f->write_codec = 0;
-    if (blen >= 12) {
-        uint32_t cpsize = ((uint32_t) body[4] << 24) | ((uint32_t) body[5] << 16)
-                        | ((uint32_t) body[6] << 8)  |  (uint32_t) body[7];
-        uint8_t  cid    = body[8];   /* cptype[0] */
-        if (cpsize == BRIX_INLINE_CMP_MAGIC && cid >= 1 && cid < BRIX_CODEC_MAX) {
-            /* The server CONFIRMED inline compression with codec `cid` and WILL
-             * send compressed frames (read) or expect them (write).  If this
-             * client build cannot handle that codec we must FAIL the open: silently
-             * falling back to the plaintext branch would copy the still-compressed
-             * bytes verbatim and corrupt the transfer (asymmetric build). */
-            if (!brix_codec_available(cid)) {
-                brix_status_set(st, XRDC_EUNSUPPORTED, 0,
-                    "server negotiated inline-compression codec %u that this "
-                    "client build cannot decode", (unsigned) cid);
-                free(body);
-                return -1;
-            }
-            /* W4 read opens compress responses; W5 write opens compress the
-             * payloads this client sends.  At most one direction is negotiated. */
-            if (write) {
-                f->write_codec = cid;
-            } else {
-                f->read_codec = cid;
-            }
-        }
+    /* phase-42 W4/W5 — inline read/write compression. The ServerOpenBody is
+     * fhandle[4] cpsize[4] cptype[4]; the codec-negotiation decode + dual-check
+     * contract live in brix_open_apply_inline_codec (body ownership stays here). */
+    if (brix_open_apply_inline_codec(body, blen, write, f, st) != 0) {
+        free(body);
+        return -1;
     }
 
     free(body);

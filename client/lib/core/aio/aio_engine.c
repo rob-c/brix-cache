@@ -224,6 +224,141 @@ io_engine_del(brix_loop *l, brix_aconn *ac)
 }
 
 
+#if (BRIX_HAVE_LIBURING)
+
+/* ---- Translate one slot-poll CQE into a readiness event ----
+ *
+ * WHAT: Given a poll CQE whose user_data is `ud` (slot-generation in the high
+ * 32 bits, slot index in the low 32), validate it against the live slot table
+ * and, if current, fill *ev with the aconn pointer + EPOLL* mask and re-arm the
+ * multishot poll if it auto-disarmed.  Returns 1 if *ev was written, 0 if the
+ * CQE was stale/cancelled and dropped.  Does NOT mark the CQE seen (caller does).
+ *
+ * WHY: Preserves the UAF discipline shared with the server ring — a poll that
+ * completes after its aconn was reconnected or freed carries an outdated
+ * generation and must be dropped.  Isolating the guard + translation keeps the
+ * wait loop within complexity limits without altering the drop semantics.
+ *
+ * HOW:
+ *   1. Split `ud` into slot index and generation.
+ *   2. Drop (return 0) unless the slot is in range, in use, generation-matched,
+ *      still bound to an aconn, and the CQE result is non-negative.
+ *   3. Map poll bits to EPOLL* bits: POLLIN|POLLHUP|POLLERR -> EPOLLIN,
+ *      POLLOUT -> EPOLLOUT; write aconn pointer + mask into *ev.
+ *   4. If the multishot auto-disarmed (no IORING_CQE_F_MORE), re-arm it.
+ *   5. Return 1.
+ */
+static int
+uring_translate_slot_cqe(brix_loop *l, struct io_uring_cqe *cqe,
+    struct epoll_event *ev, uint64_t ud)
+{
+    uint32_t    slot = (uint32_t) (ud & 0xffffffffULL);
+    uint32_t    gen  = (uint32_t) (ud >> 32);
+    brix_aconn *ac;
+    uint32_t    ev_mask = 0;
+
+    if (!(slot < AIO_URING_SLOTS && l->uslots[slot].in_use
+          && l->uslots[slot].gen == gen
+          && l->uslots[slot].ac != NULL && cqe->res >= 0)) {
+        return 0;   /* stale/cancelled CQE for a recycled slot — dropped. */
+    }
+
+    ac = l->uslots[slot].ac;
+    if (cqe->res & (POLLIN | POLLHUP | POLLERR)) { ev_mask |= EPOLLIN; }
+    if (cqe->res & POLLOUT)                      { ev_mask |= EPOLLOUT; }
+    ev->data.ptr = ac;
+    ev->events   = ev_mask;
+    /* Re-arm if the multishot auto-disarmed (no F_MORE). */
+    if (!(cqe->flags & IORING_CQE_F_MORE)) {
+        (void) uring_poll_submit(l, ac, ac->epoll_events);
+    }
+    return 1;
+}
+
+
+/* ---- Translate one CQE into at most one readiness event ----
+ *
+ * WHAT: Classify a single CQE by its user_data and, for the evfd wake and live
+ * slot polls, fill *ev with the corresponding readiness event.  Returns 1 if
+ * *ev was written, 0 otherwise.  Always marks the CQE seen before returning.
+ *
+ * WHY: Factors the three-way user_data classification (ignore / evfd / slot)
+ * out of the wait loop so each case is a single linear path; the loop then just
+ * accumulates the return count.  The seen-marking is centralised here so every
+ * consumed CQE is retired exactly once regardless of classification.
+ *
+ * HOW:
+ *   1. Read the CQE's user_data.
+ *   2. AIO_URING_IGNORE_UD (a cancel echo): mark seen, return 0.
+ *   3. AIO_URING_EVFD_UD (cross-thread wake): write a loop-tagged EPOLLIN event,
+ *      mark seen, return 1.
+ *   4. Otherwise treat it as a slot poll via uring_translate_slot_cqe, mark
+ *      seen, and return its result.
+ */
+static int
+uring_translate_cqe(brix_loop *l, struct io_uring_cqe *cqe,
+    struct epoll_event *ev)
+{
+    uint64_t ud = io_uring_cqe_get_data64(cqe);
+    int      produced;
+
+    if (ud == AIO_URING_IGNORE_UD) {
+        io_uring_cqe_seen(&l->uring, cqe);
+        return 0;
+    }
+    if (ud == AIO_URING_EVFD_UD) {
+        ev->data.ptr = l;
+        ev->events   = EPOLLIN;
+        io_uring_cqe_seen(&l->uring, cqe);
+        return 1;
+    }
+
+    produced = uring_translate_slot_cqe(l, cqe, ev, ud);
+    io_uring_cqe_seen(&l->uring, cqe);
+    return produced;
+}
+
+
+/* ---- Drain ready io_uring poll CQEs into evs[] ----
+ *
+ * WHAT: Block up to `timeout_ms` for at least one CQE, then peek and translate
+ * up to `max` CQEs into evs[], returning the number of readiness events written
+ * (never negative — a timeout yields 0).
+ *
+ * WHY: Mirrors epoll_wait's contract for the io_uring engine so io_engine_wait
+ * can select an engine and return, staying a flat two-branch function.
+ *
+ * HOW:
+ *   1. Convert timeout_ms to a __kernel_timespec and wait for one CQE; on any
+ *      wait error (timeout / -ETIME / -EINTR) return 0.
+ *   2. While there is room (n < max) and a CQE can be peeked, translate it and
+ *      add its 0/1 event contribution to n.
+ *   3. Return n.
+ */
+static int
+uring_drain_cqes(brix_loop *l, struct epoll_event *evs, int max, int timeout_ms)
+{
+    struct io_uring_cqe     *cqe;
+    struct __kernel_timespec ts;
+    int                      n = 0;
+
+    ts.tv_sec  = timeout_ms / 1000;
+    ts.tv_nsec = (long) (timeout_ms % 1000) * 1000000L;
+
+    /* Block until at least one CQE or the timeout. */
+    if (io_uring_wait_cqe_timeout(&l->uring, &cqe, &ts) < 0) {
+        return 0;   /* timeout / -ETIME / -EINTR: no events this tick */
+    }
+
+    while (n < max && io_uring_peek_cqe(&l->uring, &cqe) == 0) {
+        n += uring_translate_cqe(l, cqe, &evs[n]);
+    }
+    return n;
+}
+
+#endif /* BRIX_HAVE_LIBURING */
+
+
 /* Fill evs[] with up to `max` readiness events (data.ptr + EPOLL* mask) and
  * return the count, or -1 on a hard wait error.  For io_uring, translate poll
  * CQEs (generation-guarded) and re-arm any multishot that auto-disarmed. */
@@ -232,57 +367,7 @@ io_engine_wait(brix_loop *l, struct epoll_event *evs, int max, int timeout_ms)
 {
 #if (BRIX_HAVE_LIBURING)
     if (l->use_uring) {
-        struct io_uring_cqe *cqe;
-        struct __kernel_timespec ts;
-        int n = 0;
-
-        ts.tv_sec  = timeout_ms / 1000;
-        ts.tv_nsec = (long) (timeout_ms % 1000) * 1000000L;
-
-        /* Block until at least one CQE or the timeout. */
-        if (io_uring_wait_cqe_timeout(&l->uring, &cqe, &ts) < 0) {
-            return 0;   /* timeout / -ETIME / -EINTR: no events this tick */
-        }
-
-        while (n < max && io_uring_peek_cqe(&l->uring, &cqe) == 0) {
-            uint64_t ud = io_uring_cqe_get_data64(cqe);
-
-            if (ud == AIO_URING_IGNORE_UD) {
-                io_uring_cqe_seen(&l->uring, cqe);
-                continue;
-            }
-            if (ud == AIO_URING_EVFD_UD) {
-                evs[n].data.ptr = l;
-                evs[n].events   = EPOLLIN;
-                n++;
-                io_uring_cqe_seen(&l->uring, cqe);
-                continue;
-            }
-            {
-                uint32_t slot = (uint32_t) (ud & 0xffffffffULL);
-                uint32_t gen  = (uint32_t) (ud >> 32);
-
-                if (slot < AIO_URING_SLOTS && l->uslots[slot].in_use
-                    && l->uslots[slot].gen == gen
-                    && l->uslots[slot].ac != NULL && cqe->res >= 0)
-                {
-                    brix_aconn *ac = l->uslots[slot].ac;
-                    uint32_t    ev = 0;
-                    if (cqe->res & (POLLIN | POLLHUP | POLLERR)) { ev |= EPOLLIN; }
-                    if (cqe->res & POLLOUT)                      { ev |= EPOLLOUT; }
-                    evs[n].data.ptr = ac;
-                    evs[n].events   = ev;
-                    n++;
-                    /* Re-arm if the multishot auto-disarmed (no F_MORE). */
-                    if (!(cqe->flags & IORING_CQE_F_MORE)) {
-                        (void) uring_poll_submit(l, ac, ac->epoll_events);
-                    }
-                }
-                /* else: stale/cancelled CQE for a recycled slot — dropped. */
-                io_uring_cqe_seen(&l->uring, cqe);
-            }
-        }
-        return n;
+        return uring_drain_cqes(l, evs, max, timeout_ms);
     }
 #endif
     return epoll_wait(l->epfd, evs, max, timeout_ms);

@@ -11,16 +11,13 @@
  */
 
 #include "namespace_ops.h"
+#include "namespace_ops_internal.h"   /* cross-file: ns_rel / ns_set_err (namespace_ops_copy.c) */
 #include "fs/path/path.h"
 #include "fs/path/beneath.h"
-#include "protocols/root/fattr/ngx_brix_fattr.h"
 #include "fs_walk.h"
-#include "copy_range.h"
-#include "staged_file.h"
 #include <errno.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/xattr.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -32,20 +29,13 @@
  * each function opens a kernel-confinement rootfd on root_canon and routes ALL
  * filesystem touches (stat, open, unlink, mkdir, rename) through the beneath
  * API, so escape is blocked atomically by the kernel even if the caller passed
- * a non-canonicalised path.  ns_open_rel() centralises the rootfd-open +
+ * a non-canonicalised path.  ns_rel() centralises the rootfd-open +
  * within-root strip; a NULL rel means the path is not under root_canon and the
  * operation is refused (EXDEV) rather than falling through to a raw syscall.
  *
- * Where beneath is deliberately NOT used (see the inline notes below):
- *   - brix_copy_range(): operates on already-open file descriptors, not paths.
- *     Confinement happened when those fds were obtained via brix_open_beneath;
- *     a path-anchored RESOLVE_BENEATH check is meaningless on an fd.
- *   - brix_ns_copy_fattrs()/listxattr/getxattr/setxattr: the xattr syscalls are
- *     name+path based and have no openat2/RESOLVE_BENEATH-equivalent that takes a
- *     dirfd.  They run on src/dst paths that the immediately-preceding beneath
- *     open already proved resident under the root, so no new escape surface is
- *     introduced; switching them to an fd-based fsetxattr/fgetxattr is a possible
- *     future hardening but is not a confinement gap today.
+ * The single-file local-copy path (which additionally reasons about fd-based and
+ * xattr-based confinement) lives in namespace_ops_copy.c; it reuses ns_rel() and
+ * ns_set_err() from this file through namespace_ops_internal.h.
  */
 
 /*
@@ -54,7 +44,7 @@
  * returns NULL with *rootfd_out=-1 and errno set when the rootfd cannot be
  * opened or abspath escapes root_canon.
  */
-static const char *
+const char *
 ns_rel(const char *root_canon, const char *abspath, int *rootfd_out)
 {
     const char *rel;
@@ -98,78 +88,42 @@ errno_to_ns_status(int err)
     }
 }
 
+/*
+ * ns_set_err — record a failed syscall's errno on the result.
+ *
+ * WHAT: Stores err in res->sys_errno and the mapped BRIX_NS_* code in
+ *       res->status.  Returns nothing.
+ * WHY: Every error path in these orchestrators sets exactly this pair; one
+ *      helper keeps the mapping in a single place and shortens each error return
+ *      to one call while preserving the original two-field assignment behavior.
+ * HOW: 1. Copy err into sys_errno.  2. Translate err via errno_to_ns_status().
+ */
 void
-brix_xattr_copy_by_prefix(ngx_log_t *log,
-    const char *src, const char *dst,
-    const char *prefix, size_t prefix_len,
-    size_t value_max)
+ns_set_err(brix_ns_result_t *res, int err)
 {
-    ssize_t  list_len, vlen;
-    char    *list;
-    char    *p;
-    u_char  *value;
-
-    list_len = listxattr(src, NULL, 0);
-    if (list_len <= 0) {
-        return;
-    }
-
-    list = ngx_alloc((size_t) list_len, log);
-    if (list == NULL) {
-        return;
-    }
-
-    list_len = listxattr(src, list, (size_t) list_len);
-    if (list_len <= 0) {
-        ngx_free(list);
-        return;
-    }
-
-    value = ngx_alloc(value_max, log);
-    if (value == NULL) {
-        ngx_free(list);
-        return;
-    }
-
-    for (p = list; p < list + list_len; p += strlen(p) + 1) {
-        if (strncmp(p, prefix, prefix_len) != 0) {
-            continue;
-        }
-        vlen = getxattr(src, p, value, value_max);
-        if (vlen >= 0) {
-            (void) setxattr(dst, p, value, (size_t) vlen, 0);
-        }
-    }
-
-    ngx_free(value);
-    ngx_free(list);
+    res->sys_errno = err;
+    res->status    = errno_to_ns_status(err);
 }
 
-void
-brix_ns_copy_fattrs(ngx_log_t *log, const char *src, const char *dst)
+/*
+ * ns_delete_probe — lstat the delete target and classify it.
+ *
+ * WHAT: Confines an lstat on rel beneath rootfd, sets res->existed/was_dir on
+ *       success, and enforces the require_directory gate.  Returns 1 when the
+ *       caller must return res immediately (missing-idempotent success, stat
+ *       error, or ENOTDIR rejection), 0 when removal should proceed.
+ * WHY: Splits the classify/reject decision out of the delete orchestrator so the
+ *      orchestrator stays a flat sequence and each half stays under the
+ *      complexity cap, without changing any syscall or errno mapping.
+ * HOW: 1. lstat_beneath; on failure honor idempotent_missing for ENOENT else
+ *      record the errno.  2. Mark existed and derive was_dir from the mode.
+ *      3. Reject a non-directory when require_directory is set (ENOTDIR).
+ */
+static ngx_flag_t
+ns_delete_probe(int rootfd, const char *rel,
+    const brix_ns_delete_opts_t *opts, brix_ns_result_t *res)
 {
-    brix_xattr_copy_by_prefix(log, src, dst,
-        BRIX_FATTR_XKEY_PFX, BRIX_FATTR_XKEY_PFX_LEN,
-        BRIX_FATTR_MAX_VBUF);
-}
-
-brix_ns_result_t
-brix_ns_delete(ngx_log_t *log, const char *root_canon, const char *path,
-    const brix_ns_delete_opts_t *opts)
-{
-    brix_ns_result_t res;
-    struct stat        sb;
-    int                rootfd;
-    const char        *rel;
-
-    ngx_memzero(&res, sizeof(res));
-
-    rel = ns_rel(root_canon, path, &rootfd);
-    if (rel == NULL) {
-        res.sys_errno = errno;
-        res.status    = errno_to_ns_status(errno);
-        return res;
-    }
+    struct stat  sb;
 
     /* LSTAT, not stat: delete must operate on the final component itself and must
      * never dereference a trailing symlink (POSIX unlink/rm semantics). Following it
@@ -179,57 +133,93 @@ brix_ns_delete(ngx_log_t *log, const char *root_canon, const char *path,
      * the name in its parent without following it, so the two agree. */
     if (brix_lstat_beneath(rootfd, rel, &sb) != 0) {
         if (errno == ENOENT && opts->idempotent_missing) {
-            res.status = BRIX_NS_OK;
-            close(rootfd);
-            return res;
+            res->status = BRIX_NS_OK;
+            return 1;
         }
-        res.sys_errno = errno;
-        res.status    = errno_to_ns_status(errno);
-        close(rootfd);
-        return res;
+        ns_set_err(res, errno);
+        return 1;
     }
 
-    res.existed = 1;
-    res.was_dir = S_ISDIR(sb.st_mode) ? 1 : 0;   /* a symlink is never a dir → unlink */
+    res->existed = 1;
+    res->was_dir = S_ISDIR(sb.st_mode) ? 1 : 0;   /* a symlink is never a dir → unlink */
 
     /* kXR_rmdir is directory-only: reject regular files with ENOTDIR rather
      * than silently unlinking them (matches rmdir(2) semantics). */
-    if (opts->require_directory && !res.was_dir) {
-        res.sys_errno = ENOTDIR;
-        res.status    = errno_to_ns_status(ENOTDIR);
-        close(rootfd);
-        return res;
+    if (opts->require_directory && !res->was_dir) {
+        ns_set_err(res, ENOTDIR);
+        return 1;
     }
 
-    if (res.was_dir && opts->require_empty_dir) {
+    return 0;
+}
+
+/*
+ * ns_delete_remove — enforce the emptiness gate and perform the removal.
+ *
+ * WHAT: For an already-classified target, optionally rejects a non-empty
+ *       directory (require_empty_dir), then removes it via a confined recursive
+ *       tree walk (recursive dir) or a single confined unlink, filling res.
+ * WHY: Isolates the removal decision tree from the orchestrator so both stay
+ *      simple; the confinement primitives and their ordering are unchanged.
+ * HOW: 1. If a directory must be empty, probe emptiness and stop with
+ *      BRIX_NS_NOT_EMPTY when it is not.  2. Recursive directory → confined
+ *      remove_tree; otherwise → confined unlink.  3. Map any errno onto res.
+ */
+static void
+ns_delete_remove(ngx_log_t *log, const char *root_canon, const char *path,
+    int rootfd, const char *rel, const brix_ns_delete_opts_t *opts,
+    brix_ns_result_t *res)
+{
+    if (res->was_dir && opts->require_empty_dir) {
         /* dir_is_empty() opens `path` directly; it is reached only after the
          * stat_beneath above proved the target resident under the root, so the
          * emptiness probe cannot itself be steered out of the export tree. */
         ngx_flag_t is_empty;
         if (brix_fs_dir_is_empty(path, &is_empty) == NGX_OK && !is_empty) {
-            res.status = BRIX_NS_NOT_EMPTY;
-            close(rootfd);
-            return res;
+            res->status = BRIX_NS_NOT_EMPTY;
+            return;
         }
     }
 
-    if (opts->recursive && res.was_dir) {
+    if (opts->recursive && res->was_dir) {
         /* Recursive tree removal is confined internally by fs_walk (it descends
          * with O_NOFOLLOW dir fds and unlinks via the beneath/confined API). */
         if (brix_fs_remove_tree_confined(log, root_canon, path) == NGX_OK) {
-            res.status = BRIX_NS_OK;
+            res->status = BRIX_NS_OK;
         } else {
-            res.sys_errno = errno;
-            res.status    = errno_to_ns_status(errno);
+            ns_set_err(res, errno);
         }
     } else {
-        if (brix_unlink_beneath(rootfd, rel, res.was_dir) == 0) {
-            res.status = BRIX_NS_OK;
+        if (brix_unlink_beneath(rootfd, rel, res->was_dir) == 0) {
+            res->status = BRIX_NS_OK;
         } else {
-            res.sys_errno = errno;
-            res.status    = errno_to_ns_status(errno);
+            ns_set_err(res, errno);
         }
     }
+}
+
+brix_ns_result_t
+brix_ns_delete(ngx_log_t *log, const char *root_canon, const char *path,
+    const brix_ns_delete_opts_t *opts)
+{
+    brix_ns_result_t  res;
+    int               rootfd;
+    const char       *rel;
+
+    ngx_memzero(&res, sizeof(res));
+
+    rel = ns_rel(root_canon, path, &rootfd);
+    if (rel == NULL) {
+        ns_set_err(&res, errno);
+        return res;
+    }
+
+    if (ns_delete_probe(rootfd, rel, opts, &res)) {
+        close(rootfd);
+        return res;
+    }
+
+    ns_delete_remove(log, root_canon, path, rootfd, rel, opts, &res);
 
     close(rootfd);
     return res;
@@ -334,157 +324,5 @@ brix_ns_rename(ngx_log_t *log, const char *root_canon, const char *src,
     }
 
     close(rootfd);
-    return res;
-}
-
-brix_ns_result_t
-brix_ns_local_copy(ngx_log_t *log, const char *root_canon, const char *src,
-    const char *dst, const brix_ns_copy_opts_t *opts)
-{
-    brix_ns_result_t   res;
-    struct stat          ssb, dsb;
-    int                  src_fd = -1, dst_fd = -1;
-    int                  rootfd;
-    const char          *src_rel, *dst_rel;
-    brix_staged_file_t staged;
-    ngx_flag_t           use_staging = 0;
-
-    ngx_memzero(&res, sizeof(res));
-
-    src_rel = ns_rel(root_canon, src, &rootfd);
-    if (src_rel == NULL) {
-        res.sys_errno = errno;
-        res.status    = errno_to_ns_status(errno);
-        return res;
-    }
-    dst_rel = brix_beneath_strip_root(root_canon, dst);
-    if (dst_rel == NULL) {
-        close(rootfd);
-        res.sys_errno = EXDEV;
-        res.status    = errno_to_ns_status(EXDEV);
-        return res;
-    }
-
-    if (brix_stat_beneath(rootfd, src_rel, &ssb) != 0) {
-        res.sys_errno = errno;
-        res.status    = errno_to_ns_status(errno);
-        close(rootfd);
-        return res;
-    }
-
-    if (S_ISDIR(ssb.st_mode)) {
-        res.status = BRIX_NS_CONFLICT; /* COPY on collection not yet shared */
-        close(rootfd);
-        return res;
-    }
-
-    if (brix_stat_beneath(rootfd, dst_rel, &dsb) == 0) {
-        res.existed = 1;
-        if (!opts->overwrite) {
-            res.status = BRIX_NS_EXISTS;
-            close(rootfd);
-            return res;
-        }
-        if (S_ISDIR(dsb.st_mode)) {
-            res.was_dir = 1;
-            if (!opts->overwrite_dirs) {
-                res.status = BRIX_NS_EXISTS;
-                close(rootfd);
-                return res;
-            }
-        }
-    }
-
-    src_fd = brix_open_beneath(rootfd, src_rel, O_RDONLY, 0);
-    if (src_fd < 0) {
-        res.sys_errno = errno;
-        res.status    = errno_to_ns_status(errno);
-        close(rootfd);
-        return res;
-    }
-
-    if (opts->staged_commit) {
-        /* staged_file confines its own temp open/rename internally. */
-        brix_staged_open_req_t staged_req = {
-            .root_canon = root_canon,
-            .final_path = dst,
-            .mode       = ssb.st_mode,
-            .open_flags = O_WRONLY | O_CREAT | O_TRUNC,
-            .attempts   = 16,
-        };
-        if (brix_staged_open(log, &staged_req, &staged) != NGX_OK)
-        {
-            close(src_fd);
-            close(rootfd);
-            res.sys_errno = errno;
-            res.status    = errno_to_ns_status(errno);
-            return res;
-        }
-        dst_fd = staged.fd;
-        use_staging = 1;
-    } else {
-        dst_fd = brix_open_beneath(rootfd, dst_rel,
-                                     O_WRONLY | O_CREAT | O_TRUNC,
-                                     ssb.st_mode);
-        if (dst_fd < 0) {
-            close(src_fd);
-            close(rootfd);
-            res.sys_errno = errno;
-            res.status    = errno_to_ns_status(errno);
-            return res;
-        }
-    }
-
-    /*
-     * NOT a beneath site: brix_copy_range operates on the two file
-     * descriptors obtained above (src_fd, dst_fd).  Both fds were opened
-     * through brix_open_beneath / staged_file, so confinement is already
-     * established; copy_file_range(2)/pread/pwrite act on fds, not paths, and
-     * have no RESOLVE_BENEATH concept.  Re-confining here is neither possible
-     * nor meaningful.
-     */
-    if (brix_copy_range(log, src_fd, 0, dst_fd, 0, ssb.st_size, src,
-                          use_staging ? staged.tmp_path : dst) != NGX_OK)
-    {
-        res.sys_errno = errno;
-        res.status    = errno_to_ns_status(errno);
-        close(src_fd);
-        if (use_staging) {
-            brix_staged_abort(log, root_canon, &staged, 1);
-        } else {
-            close(dst_fd);
-        }
-        close(rootfd);
-        return res;
-    }
-
-    close(src_fd);
-
-    if (use_staging) {
-        if (brix_staged_commit(log, root_canon, &staged, dst) != NGX_OK) {
-            res.sys_errno = errno;
-            res.status    = errno_to_ns_status(errno);
-            close(rootfd);
-            return res;
-        }
-    } else {
-        close(dst_fd);
-    }
-
-    /*
-     * NOT a beneath site: xattr copy is name+path based (listxattr/getxattr/
-     * setxattr on src/dst).  There is no openat2/RESOLVE_BENEATH-equivalent for
-     * extended attributes that takes a dirfd, and src/dst were just proven
-     * resident under the root by the beneath opens above, so this introduces no
-     * new escape surface.  (A future hardening could switch to fd-based
-     * fgetxattr/fsetxattr; tracked, not a confinement gap.)
-     */
-    if (opts->preserve_xattrs) {
-        brix_ns_copy_fattrs(log, src, dst);
-    }
-
-    close(rootfd);
-    res.status  = BRIX_NS_OK;
-    res.created = 1;
     return res;
 }

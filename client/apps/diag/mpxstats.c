@@ -1,7 +1,7 @@
 /*
  * mpxstats.c — aggregate + pretty-print an XRootD server's summary statistics.
  *
- * WHAT: `mpxstats [host[:port]] [--metrics-port N]` pulls the server's Prometheus
+ * WHAT: `mpxstats-brix [host[:port]] [--metrics-port N]` pulls the server's Prometheus
  *       /metrics and prints a compact per-metric summary (series count + summed
  *       value), collapsing the label dimensions. With no host (or "-") it reads a
  *       metrics blob from stdin instead.
@@ -95,7 +95,7 @@ report(const char *source)
 {
     int  i;
     long total = 0;
-    printf("mpxstats: %s\n", source);
+    printf("mpxstats-brix: %s\n", source);
     printf("%-48s %8s %14s\n", "metric", "series", "sum");
     for (i = 0; i < g_n; i++) {
         printf("%-48s %8ld %14.0f\n", g_tab[i].name, g_tab[i].series, g_tab[i].sum);
@@ -114,9 +114,9 @@ static int
 usage_fp(FILE *out, int rc)
 {
     fprintf(out,
-        "usage: mpxstats [host | -] [--metrics-port N]\n"
+        "usage: mpxstats-brix [host | -] [--metrics-port N]\n"
         "  no host (or '-') reads a /metrics blob from stdin\n"
-        BRIX_USAGE_FOOTER("mpxstats"));
+        BRIX_USAGE_FOOTER("mpxstats-brix"));
     return rc;
 }
 
@@ -160,7 +160,7 @@ brix_mpxstats_main(int argc, char **argv)
         size_t cap = 1u << 20, len = 0, r;
         buf = (char *) malloc(cap);
         if (buf == NULL) {
-            fprintf(stderr, "mpxstats: out of memory\n");
+            fprintf(stderr, "mpxstats-brix: out of memory\n");
             return 51;
         }
         while ((r = fread(buf + len, 1, cap - 1 - len, stdin)) > 0) {
@@ -191,13 +191,13 @@ brix_mpxstats_main(int argc, char **argv)
         }
         body = (char *) malloc(1u << 20);
         if (body == NULL) {
-            fprintf(stderr, "mpxstats: out of memory\n");
+            fprintf(stderr, "mpxstats-brix: out of memory\n");
             return 51;
         }
         brix_status_clear(&st);
         if (brix_http_get(h, metrics_port, "/metrics", 5000, &http, body,
                           1u << 20, NULL, &st) != 0) {
-            fprintf(stderr, "mpxstats: GET %s:%d/metrics: %s\n", h, metrics_port,
+            fprintf(stderr, "mpxstats-brix: GET %s:%d/metrics: %s\n", h, metrics_port,
                     st.msg);
             free(body);
             return 51;

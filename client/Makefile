@@ -156,14 +156,16 @@ BINDIR := bin
 # Every binary is a thin front-end: apps/<family>/<name>.o + the client lib + libxrdproto.
 BINS := xrd xrdfs xrdcp xrdcksum xrdprep xrdgsiproxy xrddiag \
         xrdmapc xrdgsitest \
-        xrdsssadmin xrdstorascan
+        xrdsssadmin-brix xrdstorascan
 BIN_EXES := $(addprefix $(BINDIR)/,$(BINS))
 
-# Multi-call personalities: the stock tool names stay invocable as symlinks to
+# Multi-call personalities: the micro-tools stay invocable as symlinks to
 # their multi-call binary (xrdcksum dispatches on argv[0]/subcommand; xrddiag
-# likewise absorbed the qstats/wait41/mpxstats micro-tools).
+# likewise absorbed the qstats/wait41/mpxstats micro-tools). wait41 and
+# mpxstats carry a -brix suffix so the brix client RPM co-installs with the
+# stock xrootd server RPMs (which own /usr/bin/wait41 and /usr/bin/mpxstats).
 CKSUM_LINKS := xrdcrc32c xrdcrc64 xrdadler32 xrdckverify xrdcinfo
-DIAG_LINKS  := xrdqstats wait41 mpxstats
+DIAG_LINKS  := xrdqstats wait41-brix mpxstats-brix
 LINK_EXES   := $(addprefix $(BINDIR)/,$(CKSUM_LINKS) $(DIAG_LINKS))
 
 # §14.4: the FUSE mount + the LD_PRELOAD POSIX shim are built only when libfuse3
@@ -220,7 +222,7 @@ xrdstorascan_LDLIBS := -lm
 xrdcksum_OBJS     := apps/cksum/xrdcksum.o apps/cksum/xrdckverify.o apps/cksum/xrdcinfo.o apps/cksum/xrdcktree.o
 xrdgsiproxy_OBJS  := apps/auth/xrdgsiproxy.o
 xrdgsitest_OBJS   := apps/auth/xrdgsitest.o
-xrdsssadmin_OBJS  := apps/auth/xrdsssadmin.o
+xrdsssadmin-brix_OBJS := apps/auth/xrdsssadmin.o
 xrdmapc_OBJS      := apps/diag/xrdmapc.o
 xrdprep_OBJS      := apps/prep/xrdprep.o
 
@@ -543,7 +545,7 @@ install-man:
 install-completions:
 	install -d $(DESTDIR)$(PREFIX)/share/bash-completion/completions \
 	           $(DESTDIR)$(PREFIX)/share/zsh/site-functions
-	for n in xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin brixMount xrdstorascan xrootdfs \
+	for n in xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin-brix brixMount xrdstorascan xrootdfs \
 	         xrdceph_striper_migrate xrdceph_cephfs_to_striper xrdrados_rescue xrdcephfs_rescue xrdceph_migrate; do \
 		install -m644 completions/brix-tools.bash \
 			$(DESTDIR)$(PREFIX)/share/bash-completion/completions/$$n; \

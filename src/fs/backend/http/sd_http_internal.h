@@ -69,8 +69,80 @@ typedef struct {
                                     concurrent-fill race is acceptable. */
 } sd_http_inst_state;
 
+/* Per-request state threaded through the failover helpers so each stays under
+ * the parameter cap and reads as one nameable step. Carries the immutable
+ * request identity (method/key/headers/cert) plus the resp out-slot; the
+ * mutable selection state (current/first endpoint) rides in locals. Defined
+ * here because both the selection/failover path (sd_http_select.c) and the read
+ * path (sd_http_read.c) construct it. */
+typedef struct {
+    sd_http_inst_state *is;
+    const char         *method;
+    const char         *key;
+    const char         *extra_hdrs;
+    const char         *cert_pem;
+    brix_s3_resp_t     *resp;
+    int                 force_primary;
+} sd_http_req_t;
+
 /* 1 iff `inst` is an sd_http instance (defined in sd_http.c, beside the driver
  * struct it checks); guards the introspection accessors in sd_http_introspect.c. */
 int sd_http_instance_is(const brix_sd_instance_t *inst);
+
+/* ---- Cross-file entry points (phase-79 file-size split) -------------------
+ *
+ * The driver was split into four translation units around one concept each:
+ *   sd_http.c          — driver vtable + instance create/destroy
+ *   sd_http_select.c   — endpoint selection, health scoring, read failover
+ *   sd_http_read.c     — HEAD/GET read path + credential resolution
+ *   sd_http_write.c    — staged whole-object PUT + DELETE write path
+ * The symbols below are the seams between them (defined in one, called from
+ * another); everything else stays file-private. */
+
+/* Process-global force-primary read toggle (defined in sd_http_select.c beside
+ * its setter; read by the read path when composing a request). See
+ * sd_http_force_primary_set() in sd_http.h. */
+extern int g_sd_http_force_primary;
+
+/* Selection + one-alternate read failover (sd_http_select.c). sd_http_write_path
+ * composes the endpoint-0 write-target URL path (writes never fail over). */
+void sd_http_write_path(const sd_http_inst_state *is, const char *key,
+    char *dst, size_t cap);
+int  sd_http_request_fo(const sd_http_req_t *rq, sd_http_endpoint **used);
+
+/* Per-open credential resolution shared by the read and write legs — cred_gate
+ * refuses a proxy-only cred the transport cannot present in deny mode;
+ * resolve_open_cred turns a cred into a bearer header line + x509 cert path
+ * (defined in sd_http_read.c, also called from sd_http_write.c). */
+int         sd_http_cred_gate(sd_http_inst_state *is,
+    const brix_sd_cred_t *cred);
+const char *sd_http_resolve_open_cred(sd_http_inst_state *is,
+    const brix_sd_cred_t *cred, char *open_auth, size_t auth_cap);
+
+/* Read-path vtable slots (sd_http_read.c), referenced by the driver struct. */
+brix_sd_obj_t *sd_http_open(brix_sd_instance_t *inst, const char *path,
+    int sd_flags, mode_t mode, int *err_out);
+brix_sd_obj_t *sd_http_open_cred(brix_sd_instance_t *inst, const char *path,
+    int sd_flags, mode_t mode, const brix_sd_cred_t *cred, int *err_out);
+ngx_int_t sd_http_close(brix_sd_obj_t *obj);
+ssize_t   sd_http_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off);
+ngx_int_t sd_http_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out);
+ngx_int_t sd_http_stat(brix_sd_instance_t *inst, const char *path,
+    brix_sd_stat_t *out);
+ngx_int_t sd_http_stat_cred(brix_sd_instance_t *inst, const char *path,
+    brix_sd_stat_t *out, const brix_sd_cred_t *cred);
+
+/* Write-path vtable slots (sd_http_write.c), referenced by the driver struct. */
+brix_sd_staged_t *sd_http_staged_open(brix_sd_instance_t *inst,
+    const char *final_path, mode_t mode, int *err_out);
+brix_sd_staged_t *sd_http_staged_open_cred(brix_sd_instance_t *inst,
+    const char *final_path, mode_t mode, const brix_sd_cred_t *cred,
+    int *err_out);
+ssize_t   sd_http_staged_write(brix_sd_staged_t *h, const void *buf,
+    size_t len, off_t off);
+ngx_int_t sd_http_staged_commit(brix_sd_staged_t *h, int noreplace);
+void      sd_http_staged_abort(brix_sd_staged_t *h);
+ngx_int_t sd_http_unlink(brix_sd_instance_t *inst, const char *path,
+    int is_dir);
 
 #endif /* BRIX_FS_BACKEND_HTTP_SD_HTTP_INTERNAL_H */

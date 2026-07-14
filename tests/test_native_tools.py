@@ -25,7 +25,7 @@ _CLEAN_ENV = {k: v for k, v in os.environ.items()}
 _CLEAN_ENV.pop("X509_USER_PROXY", None)
 _CLEAN_ENV.pop("X509_CERT_DIR", None)
 
-TOOLS = ["xrdcrc32c", "xrdadler32", "xrdqstats", "wait41", "xrdprep"]
+TOOLS = ["xrdcrc32c", "xrdadler32", "xrdqstats", "wait41-brix", "xrdprep"]
 
 # Standard reflected CRC32c (Castagnoli, init/xorout 0xFFFFFFFF) — matches the
 # client's libxrdproto routine (see test_native_xrdcp_xrdfs.py).
@@ -115,14 +115,14 @@ def test_xrdqstats_config(tools):
 # ---- wait41 ----
 
 def test_wait41_ready(tools):
-    r = _run(tools["wait41"], "--timeout", "5", f"{SERVER_HOST}:{NGINX_ANON_PORT}")
+    r = _run(tools["wait41-brix"], "--timeout", "5", f"{SERVER_HOST}:{NGINX_ANON_PORT}")
     assert r.returncode == 0, r.stderr
     assert "ready" in r.stdout
 
 
 def test_wait41_timeout(tools):
     # A port with nothing listening → non-zero within ~2s.
-    r = _run(tools["wait41"], "--timeout", "2", f"{SERVER_HOST}:12977", timeout=10)
+    r = _run(tools["wait41-brix"], "--timeout", "2", f"{SERVER_HOST}:12977", timeout=10)
     assert r.returncode != 0, "wait41 reported ready on a closed port"
 
 
@@ -154,14 +154,14 @@ def test_tool_no_libbrixl(tools, tool):
 # Self-contained — builds the specific target + feeds a canned blob on stdin.
 # --------------------------------------------------------------------------
 
-MPXSTATS = os.path.join(REPO, "client", "bin", "mpxstats")
+MPXSTATS = os.path.join(REPO, "client", "bin", "mpxstats-brix")
 
 
 @pytest.fixture(scope="module")
 def mpxstats_bin():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler")
-    proc = subprocess.run(["make", "-C", os.path.join(REPO, "client"), "mpxstats"],
+    proc = subprocess.run(["make", "-C", os.path.join(REPO, "client"), "mpxstats-brix"],
                           capture_output=True, text=True, timeout=180)
     if proc.returncode != 0 or not os.path.exists(MPXSTATS):
         pytest.skip(f"mpxstats build failed:\n{proc.stdout}\n{proc.stderr}")

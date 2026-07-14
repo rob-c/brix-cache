@@ -100,25 +100,24 @@ brix_checksum_is_u32(brix_checksum_alg_t alg)
 }
 
 /*
- * brix_checksum_parse — parse algorithm name string into enum value.
+ * brix_checksum_normalize_name — validate and lowercase an algorithm name.
  *
- * WHAT: Converts a checksum algorithm name (e.g. "crc32c", "sha256") from config or wire
- *      protocol into the corresponding enum value, with optional normalized lowercase output.
- * WHY: Config directives and fattr responses carry algorithm names as strings; callers need
- *      the enum to dispatch to the right code path (u32 vs digest). HOW: 1) Validate name
- *      length < 32 bytes → 2) Reject non-alphanumeric chars → 3) Lowercase into buf → 4)
- *      strcmp against canonical names → 5) Set *alg if not NULL → 6) Copy normalized buf
- *      to output buffer → 7) Return NGX_OK/NGX_ERROR/NGX_DECLINED. */
+ * WHAT: Copies name[0..len) into buf as a NUL-terminated lowercase string,
+ *      rejecting an empty name, one that overflows buf, or one containing a
+ *      non-alphanumeric byte. Returns NGX_OK on success, NGX_ERROR on any
+ *      rejection. WHY: brix_checksum_parse must sanitize wire/config input to
+ *      the exact same rules regardless of which algorithm it later matches;
+ *      isolating the byte handling keeps the parser flat and testable. HOW:
+ *      1) Reject NULL/empty/oversized → 2) Loop each byte, reject non-alnum,
+ *      tolower into buf → 3) NUL-terminate at len. */
 
-ngx_int_t
-brix_checksum_parse(const char *name, size_t len, brix_checksum_alg_t *alg,
-    char *normalized, size_t normalized_sz)
+static ngx_int_t
+brix_checksum_normalize_name(const char *name, size_t len,
+    char *buf, size_t bufsz)
 {
-    char   buf[32];
     size_t i;
-    brix_checksum_alg_t parsed;
 
-    if (name == NULL || len == 0 || len >= sizeof(buf)) {
+    if (name == NULL || len == 0 || len >= bufsz) {
         return NGX_ERROR;
     }
 
@@ -130,25 +129,72 @@ brix_checksum_parse(const char *name, size_t len, brix_checksum_alg_t *alg,
     }
     buf[len] = '\0';
 
-    if (strcmp(buf, "adler32") == 0) {
-        parsed = BRIX_CHECKSUM_ADLER32;
-    } else if (strcmp(buf, "crc32") == 0) {
-        parsed = BRIX_CHECKSUM_CRC32;
-    } else if (strcmp(buf, "crc32c") == 0) {
-        parsed = BRIX_CHECKSUM_CRC32C;
-    } else if (strcmp(buf, "md5") == 0) {
-        parsed = BRIX_CHECKSUM_MD5;
-    } else if (strcmp(buf, "sha1") == 0) {
-        parsed = BRIX_CHECKSUM_SHA1;
-    } else if (strcmp(buf, "sha256") == 0) {
-        parsed = BRIX_CHECKSUM_SHA256;
-    } else if (strcmp(buf, "crc64") == 0 || strcmp(buf, "crc64xz") == 0) {
-        parsed = BRIX_CHECKSUM_CRC64;
-    } else if (strcmp(buf, "crc64nvme") == 0) {
-        parsed = BRIX_CHECKSUM_CRC64NVME;
-    } else if (strcmp(buf, "zcrc32") == 0) {
-        parsed = BRIX_CHECKSUM_ZCRC32;   /* XRootD zlib-CRC32 name */
-    } else {
+    return NGX_OK;
+}
+
+/*
+ * brix_checksum_lookup_alg — map a normalized name to its algorithm enum.
+ *
+ * WHAT: Matches an already-lowercased name against the canonical algorithm
+ *      names (plus the "crc64xz" alias for CRC-64/XZ), writing the enum to
+ *      *out and returning NGX_OK; returns NGX_DECLINED for an unknown name.
+ * WHY: expressing the name→enum mapping as a table instead of a strcmp ladder
+ *      keeps brix_checksum_parse's complexity low and makes the accepted set
+ *      obvious in one place. HOW: linear strcmp scan over the name/enum table;
+ *      first match wins, matching the prior if-else ordering exactly. */
+
+static ngx_int_t
+brix_checksum_lookup_alg(const char *lname, brix_checksum_alg_t *out)
+{
+    static const struct {
+        const char          *name;
+        brix_checksum_alg_t  alg;
+    } table[] = {
+        { "adler32",   BRIX_CHECKSUM_ADLER32 },
+        { "crc32",     BRIX_CHECKSUM_CRC32 },
+        { "crc32c",    BRIX_CHECKSUM_CRC32C },
+        { "md5",       BRIX_CHECKSUM_MD5 },
+        { "sha1",      BRIX_CHECKSUM_SHA1 },
+        { "sha256",    BRIX_CHECKSUM_SHA256 },
+        { "crc64",     BRIX_CHECKSUM_CRC64 },
+        { "crc64xz",   BRIX_CHECKSUM_CRC64 },      /* alias of crc64 (CRC-64/XZ) */
+        { "crc64nvme", BRIX_CHECKSUM_CRC64NVME },
+        { "zcrc32",    BRIX_CHECKSUM_ZCRC32 },     /* XRootD zlib-CRC32 name */
+    };
+    size_t i;
+
+    for (i = 0; i < sizeof(table) / sizeof(table[0]); i++) {
+        if (strcmp(lname, table[i].name) == 0) {
+            *out = table[i].alg;
+            return NGX_OK;
+        }
+    }
+
+    return NGX_DECLINED;
+}
+
+/*
+ * brix_checksum_parse — parse algorithm name string into enum value.
+ *
+ * WHAT: Converts a checksum algorithm name (e.g. "crc32c", "sha256") from config or wire
+ *      protocol into the corresponding enum value, with optional normalized lowercase output.
+ * WHY: Config directives and fattr responses carry algorithm names as strings; callers need
+ *      the enum to dispatch to the right code path (u32 vs digest). HOW: 1) Normalize name
+ *      (validate + lowercase) into buf → 2) Table-lookup buf → enum → 3) Set *alg if not NULL
+ *      → 4) Copy normalized buf to output buffer → 5) Return NGX_OK/NGX_ERROR/NGX_DECLINED. */
+
+ngx_int_t
+brix_checksum_parse(const char *name, size_t len, brix_checksum_alg_t *alg,
+    char *normalized, size_t normalized_sz)
+{
+    char   buf[32];
+    brix_checksum_alg_t parsed;
+
+    if (brix_checksum_normalize_name(name, len, buf, sizeof(buf)) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    if (brix_checksum_lookup_alg(buf, &parsed) != NGX_OK) {
         return NGX_DECLINED;
     }
 

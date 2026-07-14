@@ -2,7 +2,7 @@
 # Regenerate with: tools/ci/run_fanalyzer.sh --regen   (review the diff!)
 src/core/shm/kv.c │ dereference of NULL ‘0’ [CWE-476]  │ -Wanalyzer-null-dereference
 src/event/ngx_event_timer.h │ use after ‘free’ of ‘q’ [CWE-416]  │ -Wanalyzer-use-after-free
-src/fs/backend/pblock/sd_pblock_catalog.c │ leak of ‘dup’ [CWE-401]  │ -Wanalyzer-malloc-leak
+src/fs/backend/pblock/sd_pblock_catalog_ns.c │ leak of ‘dup’ [CWE-401]  │ -Wanalyzer-malloc-leak
 src/fs/cache/evict_candidates.c │ leak of ‘copy’ [CWE-401]  │ -Wanalyzer-malloc-leak
 src/fs/xfer/stage_waiter.c │ dereference of NULL ‘0’ [CWE-476]  │ -Wanalyzer-null-dereference
 src/net/manager/redir_cache.c │ dereference of NULL ‘0’ [CWE-476]  │ -Wanalyzer-null-dereference

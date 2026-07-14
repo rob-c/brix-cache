@@ -57,59 +57,71 @@ brix_proxy_tap_init(brix_proxy_ctx_t *proxy, ngx_connection_t *c)
 /* public API: brix_proxy_dispatch() — main proxy entry point (lazy-connect) * WHAT: Main dispatch entry point for all post-login opcodes — lazy-initializes upstream connection on first call, queues requests during bootstrap, forwards when ready.
  * WHY: Transparent XRootD proxy must connect lazily to avoid unnecessary overhead; requests arriving before bootstrap are saved and deferred until bootstrap completes via events.c callback. */
 
-ngx_int_t
-brix_proxy_dispatch_pending(brix_proxy_ctx_t *proxy)
+/* ---- Detect a bound-secondary read that needs a synthetic upstream open ----
+ *
+ * WHAT: Returns the local file handle carried by a queued read-family request
+ *      (kXR_read / kXR_pgread / kXR_readv) that currently has no upstream
+ *      mapping, or -1 when no lazy open is required. A non-negative result means
+ *      the caller must issue brix_proxy_lazy_open before forwarding.
+ *
+ * WHY: A kXR_bind secondary channel can carry read requests for handles that
+ *      were opened on the primary channel and never mapped upstream on this
+ *      channel; those must trigger a synthetic kXR_open first. Isolating this
+ *      wire-shape probe as a pure query keeps the dispatch decision explicit and
+ *      keeps the orchestrator's cyclomatic complexity within cap.
+ *
+ * HOW: 1. Non-bound channels never lazy-open — return -1 immediately.
+ *      2. Extract the file-handle byte by opcode: read/pgread at byte 4,
+ *         readv at the first byte past the request header, honoring the same
+ *         minimum-length guards as the original inline check.
+ *      3. Return the handle only when it is in range and its fh_map slot is
+ *         still BRIX_PROXY_FH_FREE (no upstream mapping); otherwise -1.
+ */
+static int
+brix_proxy_pending_lazy_fh(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
+    const u_char *req, size_t len, uint16_t reqid)
 {
-    brix_ctx_t     *ctx = proxy->client_ctx;
-    ngx_connection_t *c   = proxy->client_conn;
-    u_char           *req = proxy->saved_req;
-    size_t            len = proxy->saved_req_len;
-    int               saved_lfh = proxy->saved_local_fh;
-    uint16_t          reqid;
-    ClientRequestHdr *hdr;
+    int check_fh = -1;
 
-    if (req == NULL) {
-        return NGX_OK;
+    if (!ctx->is_bound) {
+        return -1;
     }
 
-    hdr   = (ClientRequestHdr *)(void *) req;
-    reqid = ntohs(hdr->requestid);
-
-    /* Bound secondary lazy-open check: kXR_read / kXR_pgread / kXR_readv */
-    if (ctx->is_bound) {
-        int check_fh = -1;
-        if ((reqid == kXR_read || reqid == kXR_pgread) && len >= 5) {
-            check_fh = (int)(unsigned char) req[4];
-        } else if (reqid == kXR_readv && len > XRD_REQUEST_HDR_LEN + 4) {
-            check_fh = (int)(unsigned char) req[XRD_REQUEST_HDR_LEN];
-        }
-        if (check_fh >= 0 && check_fh < BRIX_MAX_FILES
-            && proxy->fh_map[check_fh].upstream_fh == BRIX_PROXY_FH_FREE)
-        {
-            proxy->saved_req = NULL; /* ownership to lazy_open */
-            return brix_proxy_lazy_open(proxy, ctx, c, check_fh, req, len);
-        }
+    if ((reqid == kXR_read || reqid == kXR_pgread) && len >= 5) {
+        check_fh = (int)(unsigned char) req[4];
+    } else if (reqid == kXR_readv && len > XRD_REQUEST_HDR_LEN + 4) {
+        check_fh = (int)(unsigned char) req[XRD_REQUEST_HDR_LEN];
     }
 
-    /* Normal deferred dispatch (e.g. kXR_open queued during bootstrap) */
-    proxy->fwd_reqid       = reqid;
-    proxy->fwd_streamid[0] = hdr->streamid[0];
-    proxy->fwd_streamid[1] = hdr->streamid[1];
-    proxy->fwd_local_fh    = saved_lfh;
-    proxy->fwd_streaming   = 0;
-    proxy->fwd_payload_len = len > XRD_REQUEST_HDR_LEN
-                             ? len - XRD_REQUEST_HDR_LEN : 0;
-    proxy->saved_req       = NULL;  /* ownership transferred to wbuf */
-
-    /* Tap: this is the first post-bootstrap request (e.g. the kXR_open), queued
-     * directly here rather than through brix_proxy_forward_request — emit it. */
+    if (check_fh >= 0 && check_fh < BRIX_MAX_FILES
+        && proxy->fh_map[check_fh].upstream_fh == BRIX_PROXY_FH_FREE)
     {
-        brix_tap_frame_t tf;
-        if (brix_tap_decode_request(req, len, &tf) > 0) {
-            brix_tap_emit(&proxy->tap, &tf, BRIX_TAP_C2U, NULL, 0);
-        }
+        return check_fh;
     }
+    return -1;
+}
 
+/* ---- Install the queued request as the write buffer and flush it upstream ----
+ *
+ * WHAT: Points the proxy write buffer at the saved request, resets the response
+ *      accumulator, and flushes to the upstream connection. Returns NGX_OK on a
+ *      full or partial send (the write handler completes a partial one) and
+ *      NGX_ERROR after aborting the proxy on send or read-arm failure.
+ *
+ * WHY: The forward tail (buffer install, flush, read arm) is a single-purpose
+ *      side-effecting step; extracting it keeps brix_proxy_dispatch_pending a
+ *      flat sequence and its complexity within the per-function cap without
+ *      altering the send ordering.
+ *
+ * HOW: 1. Set wbuf to the request bytes and mark the proxy XRD_PX_FORWARDING.
+ *      2. Zero the response-parse cursors for the reply that will follow.
+ *      3. Flush; on error abort and return NGX_ERROR.
+ *      4. If the send is partial, return NGX_OK (write handler resumes it).
+ *      5. Otherwise arm the read event; on failure abort and return NGX_ERROR.
+ */
+static ngx_int_t
+brix_proxy_pending_flush(brix_proxy_ctx_t *proxy, u_char *req, size_t len)
+{
     proxy->wbuf     = req;
     proxy->wbuf_len = len;
     proxy->wbuf_pos = 0;
@@ -132,6 +144,54 @@ brix_proxy_dispatch_pending(brix_proxy_ctx_t *proxy)
         return NGX_ERROR;
     }
     return NGX_OK;
+}
+
+ngx_int_t
+brix_proxy_dispatch_pending(brix_proxy_ctx_t *proxy)
+{
+    brix_ctx_t     *ctx = proxy->client_ctx;
+    ngx_connection_t *c   = proxy->client_conn;
+    u_char           *req = proxy->saved_req;
+    size_t            len = proxy->saved_req_len;
+    int               saved_lfh = proxy->saved_local_fh;
+    uint16_t          reqid;
+    int               lazy_fh;
+    ClientRequestHdr *hdr;
+
+    if (req == NULL) {
+        return NGX_OK;
+    }
+
+    hdr   = (ClientRequestHdr *)(void *) req;
+    reqid = ntohs(hdr->requestid);
+
+    /* Bound secondary lazy-open check: kXR_read / kXR_pgread / kXR_readv */
+    lazy_fh = brix_proxy_pending_lazy_fh(proxy, ctx, req, len, reqid);
+    if (lazy_fh >= 0) {
+        proxy->saved_req = NULL; /* ownership to lazy_open */
+        return brix_proxy_lazy_open(proxy, ctx, c, lazy_fh, req, len);
+    }
+
+    /* Normal deferred dispatch (e.g. kXR_open queued during bootstrap) */
+    proxy->fwd_reqid       = reqid;
+    proxy->fwd_streamid[0] = hdr->streamid[0];
+    proxy->fwd_streamid[1] = hdr->streamid[1];
+    proxy->fwd_local_fh    = saved_lfh;
+    proxy->fwd_streaming   = 0;
+    proxy->fwd_payload_len = len > XRD_REQUEST_HDR_LEN
+                             ? len - XRD_REQUEST_HDR_LEN : 0;
+    proxy->saved_req       = NULL;  /* ownership transferred to wbuf */
+
+    /* Tap: this is the first post-bootstrap request (e.g. the kXR_open), queued
+     * directly here rather than through brix_proxy_forward_request — emit it. */
+    {
+        brix_tap_frame_t tf;
+        if (brix_tap_decode_request(req, len, &tf) > 0) {
+            brix_tap_emit(&proxy->tap, &tf, BRIX_TAP_C2U, NULL, 0);
+        }
+    }
+
+    return brix_proxy_pending_flush(proxy, req, len);
 }
 
 /* main dispatch entry point */

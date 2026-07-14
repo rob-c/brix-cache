@@ -182,7 +182,7 @@ if [ -f "$ZSH_COMP" ]; then
 fi
 
 # 5. Flag-drift check: each tool's --help flags must appear in at least one file
-_tools="xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin brixMount xrdstorascan xrootdfs"
+_tools="xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin-brix brixMount xrdstorascan xrootdfs"
 for _tool in $_tools; do
     check_flag_coverage "$_tool" "$BINDIR/$_tool" "$BASH_COMP" "$ZSH_COMP"
 done

@@ -316,7 +316,7 @@ def cfg_manager(data_port, cms_port):
     )
 
 
-XRDSSSADMIN_BIN = shutil.which("xrdsssadmin")
+XRDSSSADMIN_BIN = shutil.which("xrdsssadmin-brix")
 
 
 def gen_sss_keytab(path):

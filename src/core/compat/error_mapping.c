@@ -17,6 +17,7 @@
 
 #include "error_mapping.h"
 #include <errno.h>
+#include <stddef.h>
 
 /*
  * Section 1: errno → kXR (XRootD wire protocol error codes)
@@ -84,38 +85,60 @@ brix_kxr_from_errno(int err)
  *   a server kXR_error; keeping this beside errno→kXR prevents the two directions
  *   drifting out of sync as error codes are added.
  */
+/*
+ * WHAT: static kXR-code -> POSIX-errno lookup table backing brix_errno_from_kxr().
+ *
+ * WHY: a flat data table keeps the canonical reverse mapping in one auditable
+ *   place and collapses what was a long branch ladder into a trivial scan — the
+ *   pairs (and the "unrecognised => 0" fallback) are the ONLY behavioural
+ *   contract, unchanged from the former switch.
+ */
+typedef struct {
+    uint16_t kxr;   /* XRootD wire error code */
+    int      err;   /* positive POSIX errno */
+} brix_kxr_errno_entry_t;
+
+static const brix_kxr_errno_entry_t brix_kxr_errno_table[] = {
+    { kXR_NotFound,       ENOENT },
+    { kXR_NotAuthorized,  EACCES },
+    { kXR_AuthFailed,     EACCES },
+    { kXR_isDirectory,    EISDIR },
+    { kXR_NotFile,        EISDIR },
+    { kXR_FSError,        EEXIST },
+    { kXR_ItExists,       EEXIST },
+    { kXR_Conflict,       EEXIST },
+    { kXR_NoSpace,        ENOSPC },
+    { kXR_overQuota,      EDQUOT },
+    { kXR_Unsupported,    ENOSYS },
+    { kXR_fsReadOnly,     EROFS },
+    { kXR_FileLocked,     EAGAIN },
+    { kXR_inProgress,     EINPROGRESS },
+    { kXR_ArgInvalid,     EINVAL },
+    { kXR_ArgMissing,     EINVAL },
+    { kXR_ArgTooLong,     ENAMETOOLONG },
+    { kXR_InvalidRequest, EINVAL },
+    { kXR_FileNotOpen,    EBADF },
+    { kXR_NoMemory,       ENOMEM },
+    { kXR_ChkSumErr,      EIO },
+    { kXR_IOError,        EIO },
+    { kXR_AttrNotFound,   ENODATA },
+    { kXR_TLSRequired,    EACCES },
+    { kXR_Overloaded,     EBUSY },
+    { kXR_noserver,       EHOSTUNREACH },
+};
+
 int
 brix_errno_from_kxr(uint16_t kxr)
 {
-    switch (kxr) {
-    case kXR_NotFound:       return ENOENT;
-    case kXR_NotAuthorized:  return EACCES;
-    case kXR_AuthFailed:     return EACCES;
-    case kXR_isDirectory:    return EISDIR;
-    case kXR_NotFile:        return EISDIR;
-    case kXR_FSError:        return EEXIST;
-    case kXR_ItExists:       return EEXIST;
-    case kXR_Conflict:       return EEXIST;
-    case kXR_NoSpace:        return ENOSPC;
-    case kXR_overQuota:      return EDQUOT;
-    case kXR_Unsupported:    return ENOSYS;
-    case kXR_fsReadOnly:     return EROFS;
-    case kXR_FileLocked:     return EAGAIN;
-    case kXR_inProgress:     return EINPROGRESS;
-    case kXR_ArgInvalid:     return EINVAL;
-    case kXR_ArgMissing:     return EINVAL;
-    case kXR_ArgTooLong:     return ENAMETOOLONG;
-    case kXR_InvalidRequest: return EINVAL;
-    case kXR_FileNotOpen:    return EBADF;
-    case kXR_NoMemory:       return ENOMEM;
-    case kXR_ChkSumErr:      return EIO;
-    case kXR_IOError:        return EIO;
-    case kXR_AttrNotFound:   return ENODATA;
-    case kXR_TLSRequired:    return EACCES;
-    case kXR_Overloaded:     return EBUSY;
-    case kXR_noserver:       return EHOSTUNREACH;
-    default:                 return 0;   /* not a recognised kXR error code */
+    size_t i;
+
+    for (i = 0; i < sizeof(brix_kxr_errno_table) / sizeof(brix_kxr_errno_table[0]); i++) {
+        if (brix_kxr_errno_table[i].kxr == kxr) {
+            return brix_kxr_errno_table[i].err;
+        }
     }
+
+    return 0;   /* not a recognised kXR error code */
 }
 
 /*

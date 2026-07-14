@@ -197,11 +197,14 @@ brix_proxy_pool_shutdown(void)
         brix_proxy_pooled_conn_t *pc =
             ngx_queue_data(q, brix_proxy_pooled_conn_t, queue);
 
+        /* phase79-fp: gcc-fanalyzer + clangsa alias this iteration's pc with the
+         * node freed last iteration; unlink-before-free makes that unreachable */
         if (pc->ping_ev.timer_set) {
             ngx_del_timer(&pc->ping_ev);
         }
         ngx_queue_remove(&pc->queue);
         proxy_pool_count--;
+        /* phase79-fp: same conflated-iterations trace as above — pc was unlinked, not freed */
         if (pc->conn != NULL) {
             ngx_close_connection(pc->conn);
         }

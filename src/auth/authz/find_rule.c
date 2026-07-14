@@ -1,5 +1,6 @@
 #include "core/ngx_brix_module.h"
 
+#include <stddef.h>
 #include <string.h>
 
 /*
@@ -9,8 +10,9 @@
  *      This is critical for VO membership checks where broader groups inherit from narrower ones. INVARIANT:
  *      all paths passed here must be canonical (normalized via normalize.c) before matching.
  * HOW: Static helper brix_path_prefix_match validates prefix containment (must match up to prefix_len AND either end-of-string or next slash).
- *      Three public functions iterate their respective rule arrays using this helper, tracking best_len to select longest-matching rule.
- *      Returns NULL if no match found or input is invalid.
+ *      brix_find_longest_rule holds the shared longest-prefix scan (parameterized by element size + offset of the resolved-prefix field),
+ *      with brix_find_vo_rule / brix_find_group_rule as thin per-type wrappers; brix_find_manager_map runs the same scan inline because
+ *      its prefix is an ngx_str_t (length known, no strlen). Returns NULL if no match found or input is invalid.
  */
 
 /* brix_path_prefix_match — boundary-aware prefix test: path starts with prefix
@@ -44,35 +46,49 @@ brix_path_prefix_match(const char *prefix, size_t prefix_len, const char *path)
     return path[prefix_len] == '\0' || path[prefix_len] == '/';
 }
 
-/* brix_find_vo_rule — longest-prefix-match the VO (Virtual Organization) rule for
- * a resolved path (a more specific `/data/atlas/run3` rule wins over `/data/atlas`):
- * scan the vo_rule_t array via brix_path_prefix_match tracking best_len. NULL if
- * none match. */
-
-const brix_vo_rule_t *
-brix_find_vo_rule(const char *resolved_path, ngx_array_t *rules)
+/* ---- brix_find_longest_rule — generic longest-prefix rule scan ----
+ *
+ * WHAT: Scans an ngx_array_t of fixed-size rule elements, each holding a
+ * NUL-terminated resolved-path prefix at byte offset `resolved_off`, and
+ * returns a pointer to the element whose prefix is the longest
+ * boundary-aware match for `resolved_path` (ties: last matching element
+ * wins, via >=). Returns NULL when input is NULL or nothing matches.
+ *
+ * WHY: brix_find_vo_rule and brix_find_group_rule were byte-identical scans
+ * differing only in the element type; one core parameterized by element size
+ * and the offset of the `resolved` char array keeps the longest-prefix
+ * semantics (and the tie-break) defined once.
+ *
+ * HOW: 1. NULL-guard path and array; 2. walk the elements as a byte array in
+ * steps of `elt_size`; 3. strlen the prefix at `resolved_off`, filter through
+ * brix_path_prefix_match; 4. track best/best_len with >= so a later
+ * equal-length rule wins, exactly as the original loops did.
+ */
+static const void *
+brix_find_longest_rule(const char *resolved_path, const ngx_array_t *rules,
+                         size_t elt_size, size_t resolved_off)
 {
-    const brix_vo_rule_t *best = NULL;
-    brix_vo_rule_t       *rule;
-    size_t                  best_len = 0;
-    ngx_uint_t              i;
+    const u_char *elts;
+    const void   *best = NULL;
+    size_t        best_len = 0;
+    ngx_uint_t    i;
 
     if (resolved_path == NULL || rules == NULL) {
         return NULL;
     }
 
-    rule = rules->elts;
+    elts = rules->elts;
     for (i = 0; i < rules->nelts; i++) {
-        size_t rule_len = strlen(rule[i].resolved);
+        const char *prefix = (const char *) (elts + i * elt_size
+                                             + resolved_off);
+        size_t      rule_len = strlen(prefix);
 
-        if (!brix_path_prefix_match(rule[i].resolved, rule_len,
-                                      resolved_path))
-        {
+        if (!brix_path_prefix_match(prefix, rule_len, resolved_path)) {
             continue;
         }
 
         if (rule_len >= best_len) {
-            best = &rule[i];
+            best = elts + i * elt_size;
             best_len = rule_len;
         }
     }
@@ -80,39 +96,30 @@ brix_find_vo_rule(const char *resolved_path, ngx_array_t *rules)
     return best;
 }
 
+/* brix_find_vo_rule — longest-prefix-match the VO (Virtual Organization) rule for
+ * a resolved path (a more specific `/data/atlas/run3` rule wins over `/data/atlas`):
+ * thin wrapper over brix_find_longest_rule for the vo_rule_t layout. NULL if
+ * none match. */
+
+const brix_vo_rule_t *
+brix_find_vo_rule(const char *resolved_path, ngx_array_t *rules)
+{
+    return brix_find_longest_rule(resolved_path, rules,
+                                    sizeof(brix_vo_rule_t),
+                                    offsetof(brix_vo_rule_t, resolved));
+}
+
 /* brix_find_group_rule — longest-prefix-match the group policy rule for a resolved
  * path (enabling parent-group inheritance: a `/data/cms/group1` rule wins over a
- * generic cms-level one); same scan as brix_find_vo_rule over group_rule_t. */
+ * generic cms-level one); thin wrapper over brix_find_longest_rule for the
+ * group_rule_t layout. */
 
 const brix_group_rule_t *
 brix_find_group_rule(const char *resolved_path, ngx_array_t *rules)
 {
-    const brix_group_rule_t *best = NULL;
-    brix_group_rule_t       *rule;
-    size_t                     best_len = 0;
-    ngx_uint_t                 i;
-
-    if (resolved_path == NULL || rules == NULL) {
-        return NULL;
-    }
-
-    rule = rules->elts;
-    for (i = 0; i < rules->nelts; i++) {
-        size_t rule_len = strlen(rule[i].resolved);
-
-        if (!brix_path_prefix_match(rule[i].resolved, rule_len,
-                                      resolved_path))
-        {
-            continue;
-        }
-
-        if (rule_len >= best_len) {
-            best = &rule[i];
-            best_len = rule_len;
-        }
-    }
-
-    return best;
+    return brix_find_longest_rule(resolved_path, rules,
+                                    sizeof(brix_group_rule_t),
+                                    offsetof(brix_group_rule_t, resolved));
 }
 
 /* brix_find_manager_map — longest-prefix-match the manager-map entry routing a

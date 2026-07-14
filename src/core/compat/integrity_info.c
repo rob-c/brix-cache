@@ -15,8 +15,8 @@
  */
 
 #include "integrity_info.h"
+#include "integrity_info_internal.h"   /* INTEGRITY_XATTR_VAL_MAX + record-fallback decls */
 #include "fs/vfs/vfs.h"   /* fd-based xattr via the VFS seam */
-#include "fs/meta/xmeta_path.h"   /* record-DIGEST fallback carrier (§8.2) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,8 +27,9 @@
 #include <sys/stat.h>
 #include <openssl/evp.h>
 
-/* Format: "<hexval> <mtime_sec> <mtime_nsec> <size>" — 64 hex + " " + 3×20 + 3 seps + NUL */
-#define INTEGRITY_XATTR_VAL_MAX  160
+/* INTEGRITY_XATTR_VAL_MAX (the shared xattr/record value-buffer size) now lives
+ * in integrity_info_internal.h so both this file and integrity_info_record.c use
+ * one definition. */
 
 /* Supported algorithm names used for bulk xattr invalidation. */
 static const char *const s_algorithms[] = {
@@ -265,138 +266,9 @@ integrity_xattr_write_rc(int fd, const char *algo, const char *hexval)
     return 0;
 }
 
-/* Record-DIGEST fallback (§8.2, xmeta P4) — for exports without user xattrs.
- * Instead of the retired "<path>.cks" sidecar, the checksum rides as a DIGEST
- * entry in the file's unified xmeta record (which itself falls back to the
- * stock-readable "<path>.cinfo" sidecar on such filesystems — ONE metadata
- * form). Entry value = "<hex> <mtime_sec> <mtime_nsec> <size>", keyed and
- * validated on the live file's mtime+size, mirroring the xattr policy. Stock
- * interop is untouched: xattr-capable exports keep user.XrdCks.<alg>. */
-
-static uint16_t
-integrity_alg_id(const char *algo)
-{
-    static const struct { const char *name; uint16_t id; } map[] = {
-        { "adler32",   BRIX_XMETA_ALG_ADLER32   },
-        { "crc32",     BRIX_XMETA_ALG_CRC32     },
-        { "crc32c",    BRIX_XMETA_ALG_CRC32C    },
-        { "md5",       BRIX_XMETA_ALG_MD5       },
-        { "sha1",      BRIX_XMETA_ALG_SHA1      },
-        { "sha256",    BRIX_XMETA_ALG_SHA256    },
-        { "crc64",     BRIX_XMETA_ALG_CRC64XZ   },
-        { "crc64nvme", BRIX_XMETA_ALG_CRC64NVME },
-        { "zcrc32",    BRIX_XMETA_ALG_ZCRC32    },
-        { NULL, 0 },
-    };
-    int i;
-
-    for (i = 0; map[i].name != NULL; i++) {
-        if (strcmp(map[i].name, algo) == 0) {
-            return map[i].id;
-        }
-    }
-    return 0;                       /* unmapped: no record caching */
-}
-
-static int
-integrity_record_read(const char *path, const char *algo,
-    brix_integrity_info_t *out)
-{
-    brix_xmeta_t xm;
-    struct stat    st;
-    uint16_t       want = integrity_alg_id(algo);
-    uint32_t       idx;
-    int            found = 0;
-
-    if (path == NULL || want == 0 || stat(path, &st) != 0
-        || brix_xmeta_path_load(path, &xm) != BRIX_XMETA_OK)
-    {
-        return 0;
-    }
-    for (idx = 0; ; idx++) {
-        uint16_t       alg = 0, vlen = 0;
-        const uint8_t *val = NULL;
-        char           rec[INTEGRITY_XATTR_VAL_MAX + 64];
-        char           rhex[INTEGRITY_XATTR_VAL_MAX];
-        long           ms, mn;
-        long long      sz;
-
-        if (brix_xmeta_digest_get(&xm, idx, &alg, &val, &vlen)
-            != BRIX_XMETA_OK)
-        {
-            break;
-        }
-        if (alg != want || vlen == 0 || vlen >= sizeof(rec)) {
-            continue;
-        }
-        memcpy(rec, val, vlen);
-        rec[vlen] = 0;
-        if (sscanf(rec, "%159s %ld %ld %lld", rhex, &ms, &mn, &sz) != 4) {
-            continue;
-        }
-        if ((long) st.st_mtim.tv_sec == ms
-            && (long) st.st_mtim.tv_nsec == mn
-            && (long long) st.st_size == sz)
-        {
-            ngx_cpystrn((u_char *) out->hex, (u_char *) rhex,
-                        sizeof(out->hex));
-            out->from_cache = 1;
-            found = 1;
-        }
-        break;                      /* entry found (fresh or stale) */
-    }
-    brix_xmeta_free(&xm);
-    return found;
-}
-
-static void
-integrity_record_write(const char *path, const char *algo, const char *hexval)
-{
-    brix_xmeta_t xm;
-    struct stat    st;
-    char           rec[INTEGRITY_XATTR_VAL_MAX + 64];
-    uint16_t       id = integrity_alg_id(algo);
-    int            n, rc, lockfd;
-
-    if (path == NULL || id == 0 || stat(path, &st) != 0) {
-        return;
-    }
-    n = snprintf(rec, sizeof(rec), "%s %ld %ld %lld", hexval,
-                 (long) st.st_mtim.tv_sec, (long) st.st_mtim.tv_nsec,
-                 (long long) st.st_size);
-    if (n <= 0 || (size_t) n >= sizeof(rec)) {
-        return;
-    }
-
-    lockfd = brix_xmeta_path_lock(path);
-    if (lockfd < 0) {
-        return;
-    }
-    rc = brix_xmeta_path_load(path, &xm);
-    if (rc == BRIX_XMETA_ERR
-        || (rc == BRIX_XMETA_FOREIGN
-            && brix_xmeta_init(&xm, st.st_size, 1024 * 1024)
-               != BRIX_XMETA_OK))
-    {
-        brix_xmeta_path_unlock(lockfd);
-        return;
-    }
-    if (rc == BRIX_XMETA_FOREIGN) {
-        /* fresh record for a live export file: fully present, no CRC table */
-        xm.origin_mtime = (uint64_t) st.st_mtime;
-        if (xm.nblocks > 0) {
-            memset(xm.bitmap, 0xFF, (size_t) ((xm.nblocks + 7) / 8));
-        }
-        xm.have_blockcrc = 0;
-    }
-    if (brix_xmeta_digest_set(&xm, id, rec, (uint16_t) n)
-        == BRIX_XMETA_OK)
-    {
-        (void) brix_xmeta_path_save(path, &xm);   /* best-effort cache */
-    }
-    brix_xmeta_free(&xm);
-    brix_xmeta_path_unlock(lockfd);
-}
+/* The §8.2 record-DIGEST fallback (integrity_alg_id / integrity_record_read /
+ * integrity_record_write) lives in integrity_info_record.c; the read/write
+ * entry points are declared in integrity_info_internal.h. */
 
 /* Default policy when opts is NULL. */
 static const brix_integrity_opts_t s_default_opts = {
@@ -404,6 +276,84 @@ static const brix_integrity_opts_t s_default_opts = {
     .update_xattr_cache   = 1,
     .require_regular_file = 0,
 };
+
+/*
+ * WHAT: Reports whether the target is NOT a regular file.
+ * WHY:  Checksum callers that set require_regular_file must decline on
+ *       directories/devices, but the file type lives in different places for
+ *       the two object kinds.
+ * HOW:  A driver-backed object carries its type in the open snapshot (its bare
+ *       fd is only block 0); a plain fd is queried via fstat().
+ */
+static int
+integrity_is_nonregular(int fd, const brix_sd_obj_t *obj, int driver_backed)
+{
+    struct stat st;
+
+    if (driver_backed) {
+        return !obj->snap.is_reg;
+    }
+    return (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode));
+}
+
+/*
+ * WHAT: Looks up a still-current cached checksum for out->alg_name.
+ * WHY:  Two cache layers must be tried in a fixed order so a hit in either
+ *       short-circuits the (expensive) full-file recompute.
+ * HOW:  Tries the xattr cache first, then the record-DIGEST fallback (§8.2) for
+ *       exports without user xattrs; either populates out and returns 1 on hit.
+ */
+static int
+integrity_cache_lookup(int fd, const char *path, brix_integrity_info_t *out)
+{
+    if (integrity_xattr_read(fd, out->alg_name, out)) {
+        return 1;
+    }
+    if (integrity_record_read(path, out->alg_name, out)) {
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * WHAT: Computes the checksum hex for the target object.
+ * WHY:  A backend-bound object must be read through its driver (every block),
+ *       whereas a plain fd uses the default POSIX-fd kernel.
+ * HOW:  Dispatches on driver_backed and returns the underlying helper's status
+ *       (NGX_OK on success) verbatim.
+ */
+static ngx_int_t
+integrity_compute_hex(ngx_log_t *log, int fd, brix_sd_obj_t *obj,
+    const char *path, int driver_backed, const brix_integrity_info_t *out,
+    char *hex, size_t hexsz)
+{
+    if (driver_backed) {
+        return brix_checksum_hex_obj(out->alg, obj, path, log, hex, hexsz);
+    }
+    return brix_checksum_hex_fd(out->alg, fd, path, log, hex, hexsz);
+}
+
+/*
+ * WHAT: Persists a freshly computed checksum back to the cache.
+ * WHY:  The xattr cache is preferred, but filesystems without user xattrs must
+ *       still cache the value so future reads avoid a recompute.
+ * HOW:  Writes the xattr first; on ENOTSUP/EOPNOTSUPP/EPERM falls back to a
+ *       DIGEST entry in the file's unified xmeta record (§8.2, xmeta P4).
+ */
+static void
+integrity_persist_computed(int fd, const char *path, const char *alg_name,
+    const char *hex)
+{
+    int wrc = integrity_xattr_write_rc(fd, alg_name, hex);
+
+    if (wrc == ENOTSUP
+#ifdef EOPNOTSUPP
+        || wrc == EOPNOTSUPP
+#endif
+        || wrc == EPERM) {
+        integrity_record_write(path, alg_name, hex);
+    }
+}
 
 ngx_int_t
 brix_integrity_get_fd(ngx_log_t *log, int fd,
@@ -419,20 +369,11 @@ brix_integrity_get_fd(ngx_log_t *log, int fd,
 
     ngx_memzero(out, sizeof(*out));
 
-    /* Reject non-regular files early when required. A driver-backed object knows
-     * its own type from the open snapshot (its bare fd is only block 0). */
-    if (o->require_regular_file) {
-        if (driver_backed) {
-            if (!obj->snap.is_reg) {
-                return NGX_DECLINED;
-            }
-        } else {
-            struct stat st;
-
-            if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
-                return NGX_DECLINED;
-            }
-        }
+    /* Reject non-regular files early when required. */
+    if (o->require_regular_file
+        && integrity_is_nonregular(fd, obj, driver_backed))
+    {
+        return NGX_DECLINED;
     }
 
     /* Parse and canonicalize the algorithm name once. */
@@ -445,13 +386,8 @@ brix_integrity_get_fd(ngx_log_t *log, int fd,
 
     /* Check the xattr cache first when allowed, then the record-DIGEST
      * fallback (§8.2) for exports without user xattrs. */
-    if (o->allow_xattr_cache) {
-        if (integrity_xattr_read(fd, out->alg_name, out)) {
-            return NGX_OK;
-        }
-        if (integrity_record_read(path, out->alg_name, out)) {
-            return NGX_OK;
-        }
+    if (o->allow_xattr_cache && integrity_cache_lookup(fd, path, out)) {
+        return NGX_OK;
     }
 
     /* Cache-only callers (e.g. S3 GET/HEAD echo) decline on a miss rather than
@@ -460,16 +396,8 @@ brix_integrity_get_fd(ngx_log_t *log, int fd,
         return NGX_DECLINED;
     }
 
-    /* Compute the checksum — through the driver for a backend-bound object (reads
-     * every block), else the default POSIX-fd kernel. */
-    if (driver_backed) {
-        if (brix_checksum_hex_obj(out->alg, obj, path, log,
-                                    hex, sizeof(hex)) != NGX_OK)
-        {
-            return NGX_ERROR;
-        }
-    } else if (brix_checksum_hex_fd(out->alg, fd, path, log,
-                                      hex, sizeof(hex)) != NGX_OK)
+    if (integrity_compute_hex(log, fd, obj, path, driver_backed, out,
+                              hex, sizeof(hex)) != NGX_OK)
     {
         return NGX_ERROR;
     }
@@ -477,18 +405,9 @@ brix_integrity_get_fd(ngx_log_t *log, int fd,
     ngx_cpystrn((u_char *) out->hex, (u_char *) hex, sizeof(out->hex));
     out->from_cache = 0;
 
-    /* Persist the computed value: xattr first; if the filesystem lacks user
-     * xattrs (ENOTSUP/EOPNOTSUPP/EPERM) fall back to a DIGEST entry in the
-     * file's unified xmeta record (§8.2, xmeta P4). */
+    /* Persist the computed value: xattr first, xmeta-record fallback (§8.2). */
     if (o->allow_xattr_cache && o->update_xattr_cache) {
-        int wrc = integrity_xattr_write_rc(fd, out->alg_name, hex);
-        if (wrc == ENOTSUP
-#ifdef EOPNOTSUPP
-            || wrc == EOPNOTSUPP
-#endif
-            || wrc == EPERM) {
-            integrity_record_write(path, out->alg_name, hex);
-        }
+        integrity_persist_computed(fd, path, out->alg_name, hex);
     }
 
     return NGX_OK;

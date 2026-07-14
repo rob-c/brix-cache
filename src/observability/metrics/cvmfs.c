@@ -164,6 +164,7 @@ cvmfs_upstream_slot(const char *host)
             return &ups[i];
         }
     }
+    /* phase79-fp: other = &ups[SLOTS-1], derived from m which is NULL-checked at entry — cannot be NULL */
     if (other->state != BRIX_CVMFS_REPO_READY
         && ngx_atomic_cmp_set(&other->state, BRIX_CVMFS_REPO_EMPTY,
                               BRIX_CVMFS_REPO_CLAIMED))

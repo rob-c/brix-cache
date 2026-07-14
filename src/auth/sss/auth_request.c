@@ -22,7 +22,7 @@ typedef struct {
     brix_sss_identity_t   id;
     u_char               *clear;      /* decrypted credential buffer */
     size_t                clear_span; /* bytes to OPENSSL_cleanse (== cipher_len) */
-    ngx_int_t             replied_rc; /* wire result when recv returns NGX_DECLINED */
+    ngx_int_t             replied_rc; /* wire result when recv returns NGX_DECLINED/NGX_DONE */
     const u_char         *cipher;     /* ciphertext start (past the outer header) */
     size_t                cipher_len; /* ciphertext length */
     size_t                hdr_len;    /* outer-header length (== cipher offset) */
@@ -69,6 +69,29 @@ sss_header_framing_ok(const u_char *payload, size_t dlen, size_t *hdr_len)
 }
 
 /*
+ * sss_deny — funnel every SSS verify-chain rejection through one exit.
+ *
+ * WHAT: queues the kXR_error (via brix_sss_auth_failed) and returns NGX_DONE,
+ * stashing the actual wire-send result in out->replied_rc.
+ * WHY: brix_sss_auth_failed returns NGX_OK on a successful send (the error was
+ * queued), which is indistinguishable from "credential verified" to a caller
+ * that gates on `rc != NGX_OK`. A deny that reports NGX_OK falls through to
+ * sss_map_identity/sss_reply — a NULL-key dereference for an unknown key id and,
+ * for a non-NULL key that fails the CRC/lifetime check, a spurious kXR_ok with a
+ * registered session (auth bypass). Returning a dedicated stop sentinel keeps a
+ * deny terminal while preserving the exact wire result the handler reports back.
+ * HOW: NGX_DONE is caught by every `rc != NGX_OK` guard in the chain; the handler
+ * maps NGX_DONE (and the existing NGX_DECLINED challenge sentinel) back to
+ * out->replied_rc so the top-level return value is unchanged.
+ */
+static ngx_int_t
+sss_deny(brix_ctx_t *ctx, ngx_connection_t *c, sss_cred_t *out)
+{
+    out->replied_rc = brix_sss_auth_failed(ctx, c);
+    return NGX_DONE;
+}
+
+/*
  * sss_parse_header — validate the SSS outer header and locate the key+cipher.
  *
  * WHAT: checks the "sss\0"+BF32 magic, the key-name-size field, the header
@@ -78,7 +101,7 @@ sss_header_framing_ok(const u_char *payload, size_t dlen, size_t *hdr_len)
  * all pass before any decryption; keeping them together makes the deny surface
  * auditable in one place.
  * HOW: on success sets out->key/cipher/cipher_len/hdr_len and returns NGX_OK.
- * Any malformed field or unknown key returns brix_sss_auth_failed() (deny).
+ * Any malformed field or unknown key returns sss_deny() (NGX_DONE, error queued).
  */
 static ngx_int_t
 sss_parse_header(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -89,19 +112,19 @@ sss_parse_header(brix_ctx_t *ctx, ngx_connection_t *c,
     int64_t       key_id;
 
     if (!sss_header_framing_ok(payload, ctx->recv.cur_dlen, &hdr_len)) {
-        return brix_sss_auth_failed(ctx, c);
+        return sss_deny(ctx, c, out);
     }
 
     key_id = (int64_t) brix_sss_read_be64(payload + 8);
     out->key = brix_sss_find_key(conf, key_id);
     if (out->key == NULL) {
-        return brix_sss_auth_failed(ctx, c);
+        return sss_deny(ctx, c, out);
     }
 
     out->cipher = payload + hdr_len;
     out->cipher_len = ctx->recv.cur_dlen - hdr_len;
     if (out->cipher_len <= 4) {
-        return brix_sss_auth_failed(ctx, c);
+        return sss_deny(ctx, c, out);
     }
 
     out->hdr_len = hdr_len;
@@ -119,8 +142,8 @@ sss_parse_header(brix_ctx_t *ctx, ngx_connection_t *c,
  * verification semantics as one reviewable unit.
  * HOW: allocates and fills out->clear/out->clear_span/out->id. Returns NGX_OK
  * when a self-contained credential verifies; NGX_DECLINED for SNDLID with the
- * authmore result in out->replied_rc; brix_sss_auth_failed() on any
- * wrong-key/expired/malformed credential (deny).
+ * authmore result in out->replied_rc; sss_deny() (NGX_DONE, error queued) on any
+ * wrong-key/expired/malformed credential.
  */
 static ngx_int_t
 sss_verify_keytab(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -133,9 +156,11 @@ sss_verify_keytab(brix_ctx_t *ctx, ngx_connection_t *c,
 
     /* out->key is set non-NULL by sss_parse_header (which denies on a key miss)
      * and sss_recv_cred only reaches here on its NGX_OK; guard defensively so a
-     * future caller reordering cannot turn a NULL key into a crash. */
+     * future caller reordering cannot turn a NULL key into a crash. sss_deny
+     * returns NGX_DONE, so this genuinely stops the chain (an earlier NGX_OK
+     * deny return here did not — CVE-class NULL deref in sss_map_identity). */
     if (out->key == NULL) {
-        return brix_sss_auth_failed(ctx, c);
+        return sss_deny(ctx, c, out);
     }
 
     BRIX_PALLOC_OR_RETURN(out->clear, c->pool, out->cipher_len, NGX_ERROR);
@@ -146,11 +171,11 @@ sss_verify_keytab(brix_ctx_t *ctx, ngx_connection_t *c,
                               out->clear, out->cipher_len, &out_len)
         != NGX_OK)
     {
-        return brix_sss_auth_failed(ctx, c);
+        return sss_deny(ctx, c, out);
     }
 
     if (out_len <= 4) {
-        return brix_sss_auth_failed(ctx, c);
+        return sss_deny(ctx, c, out);
     }
 
     clear_len = out_len - 4;
@@ -159,14 +184,14 @@ sss_verify_keytab(brix_ctx_t *ctx, ngx_connection_t *c,
     /* Wrong-key detection: a CRC mismatch means either the wrong key was
      * used for decryption or the ciphertext was tampered with. */
     if (got_crc != want_crc || clear_len < BRIX_SSS_DATA_HDR_LEN) {
-        return brix_sss_auth_failed(ctx, c);
+        return sss_deny(ctx, c, out);
     }
 
     gen_time = brix_sss_read_be32(out->clear + 32);
     now = (uint32_t) (ngx_time() - BRIX_SSS_BASE_TIME);
     /* Credential replay prevention: reject tokens older than sss_lifetime. */
     if (gen_time + (uint32_t) conf->sss_lifetime <= now) {
-        return brix_sss_auth_failed(ctx, c);
+        return sss_deny(ctx, c, out);
     }
 
     options = out->clear[39];
@@ -181,7 +206,7 @@ sss_verify_keytab(brix_ctx_t *ctx, ngx_connection_t *c,
                                   &out->id)
         != NGX_OK)
     {
-        return brix_sss_auth_failed(ctx, c);
+        return sss_deny(ctx, c, out);
     }
 
     return NGX_OK;
@@ -194,7 +219,8 @@ sss_verify_keytab(brix_ctx_t *ctx, ngx_connection_t *c,
  * WHY: keeps the two-stage verification chain as one linear call the handler
  * consumes; the security decisions live in the two step helpers.
  * HOW: returns NGX_OK with *out filled, NGX_DECLINED for a sent SNDLID
- * challenge (out->replied_rc), or the deny/error result of a step.
+ * challenge (out->replied_rc), NGX_DONE for a deny (error already queued,
+ * out->replied_rc), or the raw error result of a step.
  */
 static ngx_int_t
 sss_recv_cred(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -338,10 +364,11 @@ brix_handle_sss_auth(brix_ctx_t *ctx, ngx_connection_t *c,
 
     rc = sss_recv_cred(ctx, c, conf, &cred);
     if (rc != NGX_OK) {
-        /* NGX_DECLINED: SNDLID authmore already sent — propagate its exact
-         * result. Otherwise a deny/error response was already emitted by the
-         * verify chain and rc is that result. */
-        return rc == NGX_DECLINED ? cred.replied_rc : rc;
+        /* NGX_DECLINED: SNDLID authmore already sent. NGX_DONE: the verify chain
+         * denied and already queued the kXR_error. Both stash the wire-send
+         * result in cred.replied_rc; report it so a deny never reaches
+         * sss_map_identity/sss_reply. Any other rc is a raw error to propagate. */
+        return (rc == NGX_DECLINED || rc == NGX_DONE) ? cred.replied_rc : rc;
     }
 
     sss_map_identity(cred.key, &cred.id, &user, &group);

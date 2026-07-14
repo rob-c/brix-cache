@@ -105,96 +105,112 @@ brix_compress_frame(brix_ctx_t *ctx, ngx_connection_t *c,
     return out_pos;
 }
 
-ngx_int_t
-brix_read_compressed(brix_ctx_t *ctx, ngx_connection_t *c,
-                       ngx_stream_brix_srv_conf_t *rconf,
-                       int idx, off_t offset, size_t rlen)
+/* ---- Compute the readable extent and clamped inline window for this request ----
+ *
+ * WHAT: Resolves the handle's current file size into *file_size and the number
+ *       of plaintext bytes to stage this request into *data_total (0 at/after
+ *       EOF).  Returns NGX_OK, or NGX_ERROR with *io_err set to the fstat errno
+ *       when a writable handle cannot be re-stat'd.
+ *
+ * WHY:  Read-only handles use the size cached at open (stable); writable handles
+ *       re-stat so same-session writes are visible.  Isolating this branch keeps
+ *       the orchestrator flat and the size/clamp policy in one testable place.
+ *
+ * HOW:  1. Pick cached_size for read-only handles, else fstat the fd (errno out
+ *          on failure).  2. Clamp the window to bytes present past offset — a
+ *          short read is a legal XRootD response, the client re-reads the next
+ *          offset.  3. Cap to a single inline window (BRIX_READ_CHUNK_MAX).
+ */
+static ngx_int_t
+brix_compressed_extent(brix_ctx_t *ctx, int idx, off_t offset, size_t rlen,
+                        off_t *file_size, size_t *data_total, int *io_err)
 {
-    int           fd = ctx->files[idx].fd;
-    uint8_t       codec_id = ctx->files[idx].read_codec;
-    off_t         file_size;
-    size_t        data_total, clen;
-    u_char       *plain;
-    ssize_t       nread;
-    ngx_chain_t  *rsp_chain;
-    ngx_int_t     rc;
+    off_t   size;
+    size_t  total;
 
-    /*
-     * Determine readable extent.  Read-only handles use the size cached at open
-     * (stable); writable handles re-stat so same-session writes are visible.
-     */
     if (!ctx->files[idx].writable) {
-        file_size = ctx->files[idx].cached_size;
+        size = ctx->files[idx].cached_size;
     } else {
         struct stat st;
-        if (fstat(fd, &st) != 0) {
-            BRIX_RETURN_ERR(ctx, c, BRIX_OP_READ, "READ",
-                              ctx->files[idx].path, "-",
-                              kXR_IOError, strerror(errno));
+        if (fstat(ctx->files[idx].fd, &st) != 0) {
+            *io_err = errno;
+            return NGX_ERROR;
         }
-        file_size = st.st_size;
+        size = st.st_size;
     }
 
-    /* Clamp to bytes present and to a single inline window (short reads are a
-     * legal XRootD response — the client re-reads from the next offset). */
-    if (offset >= file_size) {
-        data_total = 0;
+    if (offset >= size) {
+        total = 0;
     } else {
-        off_t avail = file_size - offset;
-        data_total = (avail < (off_t) rlen) ? (size_t) avail : rlen;
+        off_t avail = size - offset;
+        total = (avail < (off_t) rlen) ? (size_t) avail : rlen;
     }
-    if (data_total > BRIX_READ_CHUNK_MAX) {
-        data_total = BRIX_READ_CHUNK_MAX;
-    }
-
-    if (data_total == 0) {
-        /* EOF / empty range: an empty frame inflates to zero bytes. */
-        BRIX_OP_OK(ctx, BRIX_OP_READ);
-        return brix_send_ok(ctx, c, NULL, 0);
+    if (total > BRIX_READ_CHUNK_MAX) {
+        total = BRIX_READ_CHUNK_MAX;
     }
 
-    /* Stage the plaintext window. */
-    plain = BRIX_GET_SCRATCH(ctx, c, rd.read_scratch, rd.read_scratch_size,
-                               data_total);
-    if (plain == NULL) {
+    *file_size = size;
+    *data_total = total;
+    return NGX_OK;
+}
+
+/* ---- Read the plaintext window synchronously through the VFS core ----
+ *
+ * WHAT: Reads up to data_total bytes at offset from the handle into plain via a
+ *       VFS read job, storing the byte count in *nread_out.  Returns NGX_OK, or
+ *       NGX_ERROR with *io_err set (io_errno, or EIO for a bare short/negative
+ *       return) on failure.
+ *
+ * WHY:  All file-data byte I/O must flow through the VFS core seam; extracting
+ *       the job dance keeps the orchestrator free of raw job-struct plumbing and
+ *       preserves the exact errno→message mapping of the inline version.
+ *
+ * HOW:  1. Init a read job for the handle fd.  2. Execute it synchronously.
+ *          3. On io_errno or a negative return, surface an errno (EIO fallback).
+ *          4. Otherwise publish the non-negative byte count.
+ */
+static ngx_int_t
+brix_compressed_read_window(brix_ctx_t *ctx, int idx, off_t offset,
+                            u_char *plain, size_t data_total,
+                            size_t *nread_out, int *io_err)
+{
+    brix_vfs_job_t  job;
+    ssize_t         nread;
+
+    brix_vfs_job_read_init(&job, ctx->files[idx].fd, offset, data_total, plain,
+                              data_total, 0);
+    brix_vfs_io_execute(&job);
+    nread = job.nio;
+    if (job.io_errno != 0 || nread < 0) {
+        *io_err = job.io_errno != 0 ? job.io_errno : EIO;
         return NGX_ERROR;
     }
 
-    brix_prefetch_read_file(c->log, &ctx->files[idx], offset, data_total,
-                              file_size);
+    *nread_out = (size_t) nread;
+    return NGX_OK;
+}
 
-    {
-        brix_vfs_job_t job;
-
-        brix_vfs_job_read_init(&job, fd, offset, data_total, plain,
-                                  data_total, 0);
-        brix_vfs_io_execute(&job);
-        nread = job.nio;
-        if (job.io_errno != 0 || nread < 0) {
-            int err = job.io_errno != 0 ? job.io_errno : EIO;
-
-            BRIX_RETURN_ERR(ctx, c, BRIX_OP_READ, "READ",
-                              ctx->files[idx].path, "-",
-                              kXR_IOError, strerror(err));
-        }
-    }
-    data_total = (size_t) nread;
-
-    if (data_total == 0) {
-        BRIX_OP_OK(ctx, BRIX_OP_READ);
-        return brix_send_ok(ctx, c, NULL, 0);
-    }
-
-    /* Compress the window into rd.cmp_scratch as one self-contained frame. */
-    clen = brix_compress_frame(ctx, c, codec_id, plain, data_total);
-    if (clen == (size_t) -1) {
-        BRIX_RETURN_ERR(ctx, c, BRIX_OP_READ, "READ",
-                          ctx->files[idx].path, "-",
-                          kXR_IOError, "inline read compression failed");
-    }
-
-    /* Accounting mirrors the plaintext read path: counters reflect PLAINTEXT
-     * bytes served (what the client receives after inflate), not wire bytes. */
+/* ---- Record metrics, dashboard, and access-log side effects for a served frame ----
+ *
+ * WHAT: Advances the per-handle and per-session byte counters, charges the
+ *       rate-limiter, updates the dashboard slot, writes the access-log line,
+ *       and marks the READ op OK.  No return value.
+ *
+ * WHY:  Accounting mirrors the plaintext read path — counters reflect PLAINTEXT
+ *       bytes served (what the client receives after inflate), while the
+ *       rate-limiter is charged the actual compressed wire bytes.  Grouping the
+ *       side effects at one edge keeps the orchestrator a pure control flow.
+ *
+ * HOW:  1. Add plaintext bytes to handle + session totals, charge wire bytes to
+ *          the limiter.  2. If a dashboard slot is active, publish bytes and a
+ *          read op.  3. When an access-log fd is configured, emit the framed
+ *          detail line.  4. Increment the READ ok metric.
+ */
+static void
+brix_compressed_account(brix_ctx_t *ctx, ngx_connection_t *c,
+                        ngx_stream_brix_srv_conf_t *rconf, int idx,
+                        off_t offset, size_t data_total, size_t clen)
+{
     ctx->files[idx].bytes_read += data_total;
     ctx->totals.bytes += data_total;
     brix_rl_charge_ctx(ctx, clen);   /* bandwidth: charge actual wire bytes */
@@ -219,6 +235,83 @@ brix_read_compressed(brix_ctx_t *ctx, ngx_connection_t *c,
                           read_detail, 1, 0, NULL, data_total);
     }
     BRIX_OP_OK(ctx, BRIX_OP_READ);
+}
+
+/* ---- Serve a kXR_read for a compress-negotiated handle as one codec frame ----
+ *
+ * WHAT: Reads a bounded plaintext window, compresses it into one self-contained
+ *       codec frame over rd.cmp_scratch, and queues it as a single kXR_read
+ *       response.  Returns the queue rc, NGX_ERROR on scratch/chain failure, or
+ *       a sent-error rc for stat/IO/compression failures.
+ *
+ * WHY:  Keeps the compressed read path a short linear orchestration: extent,
+ *       stage, read, compress, account, frame — each step a named helper — so
+ *       the byte-exact framing and codec selection are easy to audit.
+ *
+ * HOW:  1. Resolve the readable window (short-circuit an empty frame at EOF).
+ *          2. Stage plaintext into rd.read_scratch and prefetch.  3. Read the
+ *          window through the VFS core (empty read → empty frame).  4. Compress
+ *          into rd.cmp_scratch.  5. Record side effects.  6. Frame and queue the
+ *          compressed bytes, releasing the keep-slot if it was not handed off.
+ */
+ngx_int_t
+brix_read_compressed(brix_ctx_t *ctx, ngx_connection_t *c,
+                       ngx_stream_brix_srv_conf_t *rconf,
+                       int idx, off_t offset, size_t rlen)
+{
+    uint8_t       codec_id = ctx->files[idx].read_codec;
+    off_t         file_size;
+    size_t        data_total, clen, nread;
+    u_char       *plain;
+    ngx_chain_t  *rsp_chain;
+    ngx_int_t     rc;
+    int           io_err = 0;
+
+    if (brix_compressed_extent(ctx, idx, offset, rlen, &file_size,
+                               &data_total, &io_err) != NGX_OK) {
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_READ, "READ",
+                          ctx->files[idx].path, "-",
+                          kXR_IOError, strerror(io_err));
+    }
+
+    if (data_total == 0) {
+        /* EOF / empty range: an empty frame inflates to zero bytes. */
+        BRIX_OP_OK(ctx, BRIX_OP_READ);
+        return brix_send_ok(ctx, c, NULL, 0);
+    }
+
+    /* Stage the plaintext window. */
+    plain = BRIX_GET_SCRATCH(ctx, c, rd.read_scratch, rd.read_scratch_size,
+                               data_total);
+    if (plain == NULL) {
+        return NGX_ERROR;
+    }
+
+    brix_prefetch_read_file(c->log, &ctx->files[idx], offset, data_total,
+                              file_size);
+
+    if (brix_compressed_read_window(ctx, idx, offset, plain, data_total,
+                                    &nread, &io_err) != NGX_OK) {
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_READ, "READ",
+                          ctx->files[idx].path, "-",
+                          kXR_IOError, strerror(io_err));
+    }
+    data_total = nread;
+
+    if (data_total == 0) {
+        BRIX_OP_OK(ctx, BRIX_OP_READ);
+        return brix_send_ok(ctx, c, NULL, 0);
+    }
+
+    /* Compress the window into rd.cmp_scratch as one self-contained frame. */
+    clen = brix_compress_frame(ctx, c, codec_id, plain, data_total);
+    if (clen == (size_t) -1) {
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_READ, "READ",
+                          ctx->files[idx].path, "-",
+                          kXR_IOError, "inline read compression failed");
+    }
+
+    brix_compressed_account(ctx, c, rconf, idx, offset, data_total, clen);
 
     /* Frame the compressed bytes as a single kXR_read response over rd.cmp_scratch
      * (a keep-slot, so brix_release_read_buffer leaves it for reuse). */

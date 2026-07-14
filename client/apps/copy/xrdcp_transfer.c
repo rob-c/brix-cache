@@ -184,6 +184,87 @@ sync_cksum_equal(const char *src, const char *dst, const char *algo,
 }
 
 
+/* ---- Filter guard for transfer_one (returns 1 = filtered/skip, 0 = proceed) ----
+ *
+ * WHAT: decide whether `src` is excluded by the name filters. Returns 1 when the
+ *       item is filtered (the caller treats that like a skip), 0 to proceed.
+ *       Caches the source classification in *src_meta / *src_sz / *src_mt for the
+ *       recursive path so the sync block never re-stats the same source.
+ *
+ * WHY:  the filter is applied to the BASENAME, covering the single-file and
+ *       batch-copy paths. When o->recursive is set the walkers apply the filter
+ *       per-file internally, so a directory source must NOT be filtered here
+ *       (that would wrongly test the top-level dir name against, e.g., *.log). A
+ *       plain regular file supplied with -r never reaches a walker, so it must
+ *       still be filtered here; entry_meta() returns 0 only for regular files,
+ *       which distinguishes that case precisely.
+ *
+ * HOW:  1. recursive: classify src via entry_meta (cached in *src_meta); filter
+ *          only when it is a regular file (src_meta == 0) whose basename fails
+ *          the match.
+ *       2. non-recursive: always apply the basename filter.
+ *       3. return 1 when filtered, 0 otherwise. */
+static int
+transfer_filter_check(const char *src, const char *base, const brix_copy_opts *o,
+                      const brix_opts *co, int *src_meta,
+                      long long *src_sz, long long *src_mt)
+{
+    if (o->recursive) {
+        *src_meta = entry_meta(src, co, src_sz, src_mt);
+        if (*src_meta == 0 && !brix_copy_filter_match(o, base)) {
+            return 1;                               /* filtered - like a skip */
+        }
+        return 0;
+    }
+    if (!brix_copy_filter_match(o, base)) {
+        return 1;                                   /* filtered - like a skip */
+    }
+    return 0;
+}
+
+
+/* ---- Sync up-to-date check for transfer_one (returns 1 = skip, 0 = copy) ----
+ *
+ * WHAT: decide whether src and dst are already in sync and the copy can be
+ *       skipped. Returns 1 to skip (up-to-date), 0 to fall through to the copy.
+ *       Fetches src meta on demand (caching it in *src_meta / *src_sz / *src_mt)
+ *       when the filter guard did not already classify it.
+ *
+ * WHY:  a sync must skip ONLY when both endpoints stat as regular files AND the
+ *       configured comparison (size / mtime / cksum via o->sync_cmp) agrees. Any
+ *       undeterminable side (web, missing, error) must fall through to the copy -
+ *       the data-loss rule: a sync that silently skips on error loses updates.
+ *
+ * HOW:  1. lazily populate src meta if still unfetched (src_meta == -2).
+ *       2. require src regular, dst statable regular, and brix_sync_should_skip.
+ *       3. for the cksum comparison, additionally require both digests equal.
+ *       4. return 1 only when every condition holds; otherwise 0. */
+static int
+transfer_sync_check(const char *src, const char *dst, const brix_copy_opts *o,
+                    const brix_opts *co, int *src_meta,
+                    long long *src_sz, long long *src_mt)
+{
+    long long dsz = 0, dmt = 0;
+
+    /* Fetch src meta on demand for the non-recursive path (not yet classified by
+     * the filter guard); reuse the cached result for the recursive path. Any
+     * failure leaves src_meta != 0 -> falls through to the copy. */
+    if (*src_meta == -2) {
+        *src_meta = entry_meta(src, co, src_sz, src_mt);
+    }
+    if (*src_meta == 0
+        && entry_meta(dst, co, &dsz, &dmt) == 0
+        && brix_sync_should_skip(o->sync_cmp, *src_sz, *src_mt, dsz, dmt)) {
+        if (o->sync_cmp != XRDC_SYNC_CKSUM
+            || sync_cksum_equal(src, dst,
+                   o->sync_cksum_algo ? o->sync_cksum_algo : "adler32", co)) {
+            return 1;   /* up-to-date - skip */
+        }
+    }
+    return 0;
+}
+
+
 /* Transfer src -> dst honoring filters, --sync and --dry-run.
  * Returns 0 (copied), 1 (skipped), or -1 (failed, st set).
  *
@@ -217,38 +298,14 @@ transfer_one(const char *src, const char *dst, const brix_copy_opts *o,
     int       src_meta = -2;   /* -2 = not yet fetched; -1 = not a reg file; 0 = reg file */
 
     path_basename(src, base, sizeof(base));
-    /* Filter guard: for non-recursive, always apply the basename filter; for
-     * recursive, entry_meta classifies the source (regular file vs. directory
-     * or web URL).  Cache the result in src_meta so the sync block below can
-     * reuse it without a second round-trip to the server. */
-    if (o->recursive) {
-        src_meta = entry_meta(src, co, &src_sz, &src_mt);
-        if (src_meta == 0 && !brix_copy_filter_match(o, base)) {
-            return 1;                               /* filtered — like a skip */
-        }
-    } else {
-        if (!brix_copy_filter_match(o, base)) {
-            return 1;                               /* filtered — like a skip */
-        }
+    /* Filter guard: classifies the source (recursive path) into src_meta so the
+     * sync block below can reuse it without a second round-trip to the server. */
+    if (transfer_filter_check(src, base, o, co, &src_meta, &src_sz, &src_mt)) {
+        return 1;                                   /* filtered — like a skip */
     }
-    if (sync_mode || o->sync) {
-        long long dsz = 0, dmt = 0;
-        /* Fetch src meta on demand for the non-recursive path (not yet
-         * classified by the filter guard above); reuse the cached result
-         * for the recursive path.  Any failure returns -1 → falls through
-         * to the copy (data-loss rule: never skip on an undeterminable side). */
-        if (src_meta == -2) {
-            src_meta = entry_meta(src, co, &src_sz, &src_mt);
-        }
-        if (src_meta == 0
-            && entry_meta(dst, co, &dsz, &dmt) == 0
-            && brix_sync_should_skip(o->sync_cmp, src_sz, src_mt, dsz, dmt)) {
-            if (o->sync_cmp != XRDC_SYNC_CKSUM
-                || sync_cksum_equal(src, dst,
-                       o->sync_cksum_algo ? o->sync_cksum_algo : "adler32", co)) {
-                return 1;   /* up-to-date — skip */
-            }
-        }
+    if ((sync_mode || o->sync)
+        && transfer_sync_check(src, dst, o, co, &src_meta, &src_sz, &src_mt)) {
+        return 1;                                   /* up-to-date — skip */
     }
     /* When --delete is active the walker must run even in dry-run mode: it
      * needs to list both sides to report which extras would be removed.  Skip

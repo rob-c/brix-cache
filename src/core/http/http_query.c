@@ -60,6 +60,70 @@ brix_http_query_hex(u_char c, u_char *out)
 }
 
 /*
+ * brix_http_query_pct - try to decode a %XX percent-escape at position si.
+ *
+ * WHAT: If src[si] begins a well-formed "%HH" escape wholly inside src_len (a '%'
+ *       followed by two valid hex digits), writes the decoded byte to *out and
+ *      returns 1. Otherwise leaves *out untouched and returns 0.
+ *
+ * WHY: The truncating decode loop needs a single-responsibility test for the
+ *      percent-escape case so the main loop stays flat (one branch instead of the
+ *      nested '%'/bounds/hex/hex ladder), keeping its complexity within budget.
+ *
+ * HOW: require src[si]=='%' and si+2<src_len, then brix_http_query_hex on the two
+ *      following digits; on success out = (hi << 4) | lo. Any miss → return 0.
+ */
+
+static int
+brix_http_query_pct(const u_char *src, size_t src_len, size_t si, u_char *out)
+{
+    u_char hi, lo;
+
+    if (src[si] != '%' || si + 2 >= src_len) {
+        return 0;
+    }
+
+    if (!brix_http_query_hex(src[si + 1], &hi)
+        || !brix_http_query_hex(src[si + 2], &lo))
+    {
+        return 0;
+    }
+
+    *out = (u_char) ((hi << 4) | lo);
+    return 1;
+}
+
+/*
+ * brix_http_query_emit - append one decoded byte to dst with NUL-reject and bounds.
+ *
+ * WHAT: Rejects byte c when it is NUL and REJECT_NUL is set (returns -1); otherwise
+ *       writes c into dst at *di and advances *di only while it fits in dst_sz-1,
+ *      silently dropping bytes past the buffer (truncation). Returns 1 on success.
+ *
+ * WHY: Both the percent-decoded and literal paths of the truncating decoder emit a
+ *      byte under identical NUL and bounds policy; centralising that here removes the
+ *      duplicated checks from the main loop and holds its complexity within budget.
+ *
+ * HOW: if c==NUL && REJECT_NUL → -1; else if *di+1 < dst_sz → dst[(*di)++] = c;
+ *      return 1.
+ */
+
+static int
+brix_http_query_emit(char *dst, size_t dst_sz, size_t *di, u_char c,
+    unsigned flags)
+{
+    if (c == '\0' && (flags & BRIX_HTTP_QUERY_REJECT_NUL)) {
+        return -1;
+    }
+
+    if (*di + 1 < dst_sz) {
+        dst[(*di)++] = (char) c;
+    }
+
+    return 1;
+}
+
+/*
  * brix_http_query_decode_trunc - percent-decode src into dst with truncation and NUL rejection.
  *
  * WHAT: Scans src[0..src_len], decoding %XX sequences to bytes, converting '+' to
@@ -71,8 +135,9 @@ brix_http_query_hex(u_char c, u_char *out)
  *      decoder handles the bounded buffer case where decoded output may exceed dst_sz,
  *      ensuring safe null-termination without overflow.
  *
- * HOW: loop si=0..src_len: '%' + 2 hex digits → decode byte; '+' → 'space';
- *      check NUL reject, di+1<dst_sz before write. Null-terminate at di.
+ * HOW: loop si=0..src_len: brix_http_query_pct decodes a %XX escape (advance 3);
+ *      else take the literal byte, '+' → space; both paths emit via
+ *      brix_http_query_emit. Null-terminate at di.
  */
 
 static int
@@ -91,33 +156,20 @@ brix_http_query_decode_trunc(const u_char *src, size_t src_len,
     while (si < src_len) {
         u_char c;
 
-        if (src[si] == '%' && si + 2 < src_len) {
-            u_char hi, lo;
-
-            if (brix_http_query_hex(src[si + 1], &hi)
-                && brix_http_query_hex(src[si + 2], &lo))
-            {
-                c = (u_char) ((hi << 4) | lo);
-                if (c == '\0' && (flags & BRIX_HTTP_QUERY_REJECT_NUL)) {
-                    return -1;
-                }
-                if (di + 1 < dst_sz) {
-                    dst[di++] = (char) c;
-                }
-                si += 3;
-                continue;
+        if (brix_http_query_pct(src, src_len, si, &c)) {
+            if (brix_http_query_emit(dst, dst_sz, &di, c, flags) < 0) {
+                return -1;
             }
+            si += 3;
+            continue;
         }
 
         c = src[si++];
         if (c == '+' && (flags & BRIX_HTTP_QUERY_PLUS_TO_SPACE)) {
             c = ' ';
         }
-        if (c == '\0' && (flags & BRIX_HTTP_QUERY_REJECT_NUL)) {
+        if (brix_http_query_emit(dst, dst_sz, &di, c, flags) < 0) {
             return -1;
-        }
-        if (di + 1 < dst_sz) {
-            dst[di++] = (char) c;
         }
     }
 

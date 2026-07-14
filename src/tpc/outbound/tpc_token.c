@@ -16,6 +16,7 @@
  */
 
 #include "tpc/engine/tpc_internal.h"
+#include "tpc/outbound/tpc_token_internal.h"   /* cross-file: rfc8693 path (tpc_token_exchange.c) */
 #include "auth/token/file.h"
 #include "auth/token/oauth2.h"
 #include "core/compat/subprocess.h"   /* shared SIGCHLD-safe fork/exec capture */
@@ -58,7 +59,7 @@ tpc_trim_trailing(char *s)
  * caller can copy it into t->err_msg (out doubles as the error scratch buffer).
  * HOW: Delegate to brix_oauth2_parse_access_token; on non-NGX_OK copy `err`
  * into `out` and return -1, else return 0 with the token in `out`. */
-static int
+int
 tpc_token_parse_access_token(const char *json, char *out, size_t out_sz)
 {
     char err[256];
@@ -139,19 +140,160 @@ resolve_oidc_token_binary(void)
     return NULL;
 }
 
-/* WHAT: Fetches OAuth2/OIDC access token via fork/exec to local oidc-agent daemon using UNIX-socket JSON IPC. Creates pipe → forks child → dup2 STDOUT → execve dedicated helper binary (nginx-xrootd-tpc-token) with OIDC_SOCK env or fallback /run/user/1000/oidc/oidc_agent.sock → if execve fails falls back to execve resolved oidc-token binary with sanitized env → parent reads pipe stdout into buffer → waitpid checks WIFEXITED+WEXITSTATUS==0 → tpc_trim_trailing(buf) → if buf[0]=='{' parses JSON via brix_oauth2_parse_access_token else copies plain token with size guard. Returns 0 on success, -1 with err_msg/xrd_error=kXR_AuthFailed on failure.
- * WHY: CMS/Fermilab environments use oidc-agent daemons for OIDC token management. This function provides a robust fallback chain (dedicated helper binary → generic oidc-token CLI) ensuring token fetch works even when the custom binary is absent. JSON parsing handles agent daemon's structured output; plain-token paths handle oidc-token CLI's raw output. Pipe-based IPC avoids TOCTOU race on executable path (execve without access() pre-check).
- * HOW: pipe() → fork() → child close(pipefd[0]) dup2(pipefd[1],STDOUT) execve helper binary or resolve_oidc_token_binary → execve with controlled envp → parent close(pipefd[1]) read loop into buffer null-terminate waitpid check trim trailing whitespace if JSON parse access_token else memcpy plain token. */
+/* WHAT: In the forked child, resolve the generic oidc-token CLI to an absolute
+ * path and execve it with a minimal controlled environment; returns only if the
+ * binary is unresolved or execve fails (caller then _exit(127)).
+ * WHY: The dedicated helper binary may be absent, so oidc-token is the fallback
+ * token source. It must run with an absolute path (no $PATH substitution — the
+ * daemon's PATH is untrusted) and a curated environment: PATH + HOME + OIDC_SOCK
+ * + XDG_RUNTIME_DIR (the latter two let oidc-token locate its config and agent
+ * socket); the full environ is deliberately NOT inherited.
+ * HOW: resolve_oidc_token_binary(); if found, read HOME/XDG_RUNTIME_DIR, build a
+ * fixed argv (-c default) and a curated envp (PATH always, HOME/OIDC_SOCK/
+ * XDG_RUNTIME_DIR only when set), then execve. */
+static void
+tpc_oidc_exec_fallback(const char *sock_env)
+{
+    const char *fb_bin = resolve_oidc_token_binary();
+
+    if (fb_bin != NULL) {
+        const char *home_val = getenv("HOME");
+        const char *xdg_val  = getenv("XDG_RUNTIME_DIR");
+        char  home_buf[280], oidc_buf[280], xdg_buf[280];
+        char *fb_argv[4] = { (char *) fb_bin, "-c", "default", NULL };
+        char *fb_envp[5];
+        int   ei = 0;
+
+        fb_envp[ei++] = "PATH=/usr/bin:/bin";
+        if (home_val != NULL) {
+            snprintf(home_buf, sizeof(home_buf), "HOME=%s", home_val);
+            fb_envp[ei++] = home_buf;
+        }
+        if (sock_env != NULL) {
+            snprintf(oidc_buf, sizeof(oidc_buf), "OIDC_SOCK=%s", sock_env);
+            fb_envp[ei++] = oidc_buf;
+        }
+        if (xdg_val != NULL) {
+            snprintf(xdg_buf, sizeof(xdg_buf), "XDG_RUNTIME_DIR=%s", xdg_val);
+            fb_envp[ei++] = xdg_buf;
+        }
+        fb_envp[ei] = NULL;
+        execve(fb_bin, fb_argv, fb_envp);
+    }
+}
+
+/* WHAT: Child-process body of the oidc-agent fetch — redirects stdout to the
+ * pipe write end and execs the token helper chain; never returns (ends in
+ * _exit(127) if both execs fail).
+ * WHY: Isolating the post-fork child path keeps the orchestrator flat and puts
+ * the exec fallback chain (dedicated helper → generic oidc-token) in one place.
+ * The dedicated helper is tried first via execve with an absolute path (avoiding
+ * a TOCTOU access()-before-exec race), then the CLI fallback.
+ * HOW: close read end; dup2 write end onto STDOUT; close write end; read
+ * OIDC_SOCK (default the standard user socket path); execve the dedicated helper
+ * with a two-arg argv; on return call tpc_oidc_exec_fallback(); _exit(127). */
+static void
+tpc_oidc_child_run(int *pipefd)
+{
+    const char *sock_env;
+    char *argv[3];
+
+    /* redirect stdout into the write end of the pipe so the parent can read the
+     * helper's token output, then close both raw fds. */
+    close(pipefd[0]);
+    dup2(pipefd[1], STDOUT_FILENO);
+    close(pipefd[1]);
+
+    /* Try the dedicated helper first; fall through to oidc-token if execve fails
+     * (binary absent / not executable). Avoid access() before execve — that is a
+     * TOCTOU race on the executable path. */
+    sock_env = getenv("OIDC_SOCK");
+    argv[0] = (char *) TPC_TOKEN_HELPER_PATH;
+    argv[1] = sock_env ? (char *) sock_env
+                       : (char *) "/run/user/1000/oidc/oidc_agent.sock";
+    argv[2] = NULL;
+    execve(argv[0], argv, NULL);
+    /* execve returned — helper not found or not executable; try the fallback. */
+
+    tpc_oidc_exec_fallback(sock_env);
+    _exit(127);  /* both execs failed: 127 == "command not found" */
+}
+
+/* WHAT: Parent-side drain of the child's stdout — reads up to bufsz-1 bytes from
+ * fd into buf and NUL-terminates it. Returns the byte count read.
+ * WHY: A single read() may return short, so the token output must be drained in
+ * a loop until EOF/error or the buffer is full (minus the NUL slot). Factoring
+ * this out keeps the orchestrator's control flow linear.
+ * HOW: loop read()ing into buf at the running offset while space remains; stop on
+ * EOF/error (nr <= 0); NUL-terminate at the accumulated length. */
+static ssize_t
+tpc_oidc_read_all(int fd, char *buf, size_t bufsz)
+{
+    ssize_t nread = 0;
+
+    while ((size_t) nread < bufsz - 1) {
+        ssize_t nr = read(fd, buf + nread, bufsz - 1 - nread);
+        if (nr <= 0) {
+            break;
+        }
+        nread += nr;
+    }
+    buf[nread] = '\0';
+    return nread;
+}
+
+/* WHAT: Extracts the usable token from the (already whitespace-trimmed) helper
+ * output buf into token_out. Returns 0 on success, -1 (with err_msg/xrd_error
+ * set) on parse failure or oversize plain token.
+ * WHY: The two token producers differ in shape — the oidc-agent daemon emits a
+ * JSON object, the oidc-token CLI emits a bare token — and this discrimination
+ * belongs in one pure helper so the orchestrator does not branch on output form.
+ * HOW: a leading '{' means JSON → tpc_token_parse_access_token(); otherwise a
+ * bare token → length-guard against token_out_sz and ngx_memcpy verbatim. */
+static int
+tpc_oidc_extract_token(brix_tpc_pull_t *t, const char *buf,
+                       char *token_out, size_t token_out_sz)
+{
+    if (buf[0] == '{') {
+        if (tpc_token_parse_access_token(buf, token_out, token_out_sz) != 0) {
+            t->xrd_error = kXR_AuthFailed;
+            return -1;
+        }
+        return 0;
+    }
+
+    {
+        size_t tok_len = strlen(buf);
+        if (tok_len >= token_out_sz) {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC token: token too long");
+            t->xrd_error = kXR_AuthFailed;
+            return -1;
+        }
+        ngx_memcpy(token_out, buf, tok_len + 1);
+    }
+
+    return 0;
+}
+
+/* WHAT: Fetches an OAuth2/OIDC access token via fork/exec to a local oidc-agent
+ * (dedicated helper binary, falling back to the oidc-token CLI) using pipe IPC.
+ * Returns 0 on success (token in token_out), -1 with err_msg/xrd_error set on
+ * pipe/fork failure, non-zero child exit, parse failure, or oversize token.
+ * WHY: CMS/Fermilab environments use oidc-agent daemons for OIDC token
+ * management. The fallback chain (dedicated helper → generic oidc-token CLI)
+ * ensures token fetch works even when the custom binary is absent. Pipe-based
+ * IPC with execve (no access() pre-check) avoids a TOCTOU race on the exec path.
+ * HOW: pipe() then fork(); child runs tpc_oidc_child_run(); parent closes the
+ * write end, drains stdout via tpc_oidc_read_all(), waitpid()s and checks the
+ * exit status, trims trailing whitespace, then tpc_oidc_extract_token(). */
 static int
 tpc_token_oidc_agent(brix_tpc_pull_t *t, char *token_out, size_t token_out_sz)
 {
     int pipefd[2];
     pid_t pid;
     char buf[TPC_TOKEN_MAX_LEN + 256];
-    ssize_t nread;
     int wstatus;
-    const char *sock_env;
-    char *argv[3];
 
     pipefd[0] = -1;
     pipefd[1] = -1;
@@ -174,72 +316,13 @@ tpc_token_oidc_agent(brix_tpc_pull_t *t, char *token_out, size_t token_out_sz)
     }
 
     if (pid == 0) {
-        /* child --- : redirect stdout into the write end of the pipe so the
-         * parent can read the helper's token output, then close both raw fds. */
-        close(pipefd[0]);
-        dup2(pipefd[1], STDOUT_FILENO);
-        close(pipefd[1]);
-
-        /* Try the dedicated helper first; fall through to oidc-token if
-         * execve fails (binary absent / not executable). Avoid access()
-         * before execve — that is a TOCTOU race on the executable path. */
-        sock_env = getenv("OIDC_SOCK");
-        argv[0] = (char *) TPC_TOKEN_HELPER_PATH;
-        argv[1] = sock_env ? (char *) sock_env
-                           : (char *) "/run/user/1000/oidc/oidc_agent.sock";
-        argv[2] = NULL;
-        execve(argv[0], argv, NULL);
-        /* execve returned — helper not found or not executable; continue */
-
-        /* Fallback: the generic oidc-token CLI, resolved to an absolute path.
-         * Avoids $PATH substitution — the daemon's PATH is untrusted.
-         * Build a minimal controlled environment: PATH + HOME + OIDC_SOCK +
-         * XDG_RUNTIME_DIR (the latter two are needed by oidc-token to locate its
-         * config and agent socket); do not inherit the full environ. */
-        {
-            const char *fb_bin = resolve_oidc_token_binary();
-            if (fb_bin != NULL) {
-                const char *home_val = getenv("HOME");
-                const char *xdg_val  = getenv("XDG_RUNTIME_DIR");
-                char  home_buf[280], oidc_buf[280], xdg_buf[280];
-                char *fb_argv[4] = { (char *) fb_bin, "-c", "default", NULL };
-                char *fb_envp[5];
-                int   ei = 0;
-
-                fb_envp[ei++] = "PATH=/usr/bin:/bin";
-                if (home_val != NULL) {
-                    snprintf(home_buf, sizeof(home_buf), "HOME=%s", home_val);
-                    fb_envp[ei++] = home_buf;
-                }
-                if (sock_env != NULL) {
-                    snprintf(oidc_buf, sizeof(oidc_buf), "OIDC_SOCK=%s", sock_env);
-                    fb_envp[ei++] = oidc_buf;
-                }
-                if (xdg_val != NULL) {
-                    snprintf(xdg_buf, sizeof(xdg_buf), "XDG_RUNTIME_DIR=%s", xdg_val);
-                    fb_envp[ei++] = xdg_buf;
-                }
-                fb_envp[ei] = NULL;
-                execve(fb_bin, fb_argv, fb_envp);
-            }
-        }
-        _exit(127);  /* both execs failed: 127 == "command not found" */
+        tpc_oidc_child_run(pipefd);
     }
 
-    /* parent --- : close the write end so read() sees EOF when the child
-     * exits, then drain all stdout into buf (loop because a single read() may
-     * return short; stop on EOF/error or when buf is full minus the NUL slot). */
+    /* parent --- : close the write end so read() sees EOF when the child exits,
+     * then drain all stdout into buf. */
     close(pipefd[1]);
-
-    nread = 0;
-    while ((ssize_t) nread < (ssize_t) sizeof(buf) - 1) {
-        ssize_t nr = read(pipefd[0], buf + nread, sizeof(buf) - 1 - nread);
-        if (nr <= 0) {
-            break;
-        }
-        nread += nr;
-    }
-    buf[nread] = '\0';
+    tpc_oidc_read_all(pipefd[0], buf, sizeof(buf));
     close(pipefd[0]);
 
     waitpid(pid, &wstatus, 0);
@@ -253,184 +336,8 @@ tpc_token_oidc_agent(brix_tpc_pull_t *t, char *token_out, size_t token_out_sz)
 
     tpc_trim_trailing(buf);
 
-    /*
-     * Output discrimination: a leading '{' means the helper returned a JSON
-     * object (oidc-agent daemon style) → parse out access_token. Anything else
-     * is treated as a bare token string (oidc-token CLI style) and copied
-     * verbatim, with a length guard against the destination buffer.
-     */
-    if (buf[0] == '{') {
-        if (tpc_token_parse_access_token(buf, token_out, token_out_sz) != 0) {
-            t->xrd_error = kXR_AuthFailed;
-            return -1;
-        }
-    } else {
-        size_t tok_len = strlen(buf);
-        if (tok_len >= token_out_sz) {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC token: token too long");
-            t->xrd_error = kXR_AuthFailed;
-            return -1;
-        }
-        ngx_memcpy(token_out, buf, tok_len + 1);
-    }
-
-    return 0;
+    return tpc_oidc_extract_token(t, buf, token_out, token_out_sz);
 }
-
-/* WHAT: Fetches delegated OAuth2/OIDC access token via RFC 8693 token-exchange POST to external OAuth2 endpoint using fork/exec curl. Reads subject_token from tpc_outbound_bearer_file → builds POST body with grant_type=urn:ietf:params:oauth:grant-type:token-exchange + subject_token/resource/audience/scope params into mkstemp temp file → constructs curl argv (-s -S -f -X POST -H Content-Type application/x-www-form-urlencoded optional -u client_id/client_secret -d body_file token_endpoint) → pipe fork execvp curl → parent reads pipe stdout → waitpid checks exit status 0 → unlink temp file → parses JSON access_token via brix_oauth2_parse_access_token. Returns 0 on success, -1 with err_msg/xrd_error set on failure.
- * WHY: When TPC source requires a delegated token (different identity from client), RFC 8693 token-exchange converts the destination's bearer file subject token into an access token scoped for the remote origin. curl subprocess handles HTTP POST with form-urlencoded body; temp file avoids shell quoting issues with long tokens; unlink ensures cleanup on both success and failure paths. Optional client_id/client_secret basic auth supports OAuth2 client credential requirements.
- * HOW: read bearer file → snprintf POST body (grant_type+subject_token+resource+audience+scope) → mkstemp temp write body_buf → close body_fd → curl_argv build (-s -S -f -X POST -H Content-Type optional -u client_id/client_secret -d body_file token_endpoint) → pipe fork dup2 STDOUT execvp curl → parent read loop null-terminate waitpid check unlink → parse JSON access_token. */
-static int
-tpc_token_rfc8693(brix_tpc_pull_t *t, char *token_out, size_t token_out_sz)
-{
-    char buf[TPC_TOKEN_MAX_LEN + 256];
-    char *curl_argv[20];
-    int argc = 0;
-    char body_buf[4096];
-    char body_file[NGX_MAX_PATH];
-    int body_fd;
-    char subject_token[TPC_TOKEN_MAX_LEN];
-
-    if (brix_token_read_file(&t->conf->tpc_outbound_bearer_file,
-                               (u_char *) subject_token, sizeof(subject_token),
-                               NULL, NULL, "TPC token")
-        != NGX_OK)
-    {
-        if (errno == EINVAL) {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC token: bearer file not configured or empty");
-            t->xrd_error = kXR_ArgInvalid;
-        } else {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC token: cannot read bearer file: %s", strerror(errno));
-            t->xrd_error = kXR_IOError;
-        }
-        return -1;
-    }
-
-    /*
-     * RFC 8693 token-exchange request body (form-urlencoded). The subject_token
-     * is our local bearer (the identity we already hold); resource+audience are
-     * both set to the remote origin host so the issued token is scoped to it;
-     * scope carries the configured outbound scope. NOTE: subject_token is not
-     * URL-encoded here — it is a JWT (URL-safe base64, no reserved chars), so
-     * it is form-safe as-is.
-     */
-    ngx_snprintf((u_char *) body_buf, sizeof(body_buf),
-                 "grant_type=urn:ietf:params:oauth:grant-type:"
-                 "token-exchange"
-                 "&subject_token=%s"
-                 "&resource=%s"
-                 "&audience=%s"
-                 "&scope=%s",
-                 subject_token,
-                 t->src_host,
-                 t->src_host,
-                 t->token_scope);
-
-    /*
-     * Stage the form body in a private temp file (mkstemp => unpredictable
-     * name, exclusive create) instead of building it on curl's command line,
-     * keeping the bearer/subject token out of /proc/PID/cmdline and the
-     * process listing. The path is captured in body_file and unlinked on every
-     * exit path below (success and all error returns).
-     */
-    {
-        char tmpl[NGX_MAX_PATH];
-        ngx_snprintf((u_char *) tmpl, sizeof(tmpl),
-                     "/tmp/tpc_token_body_XXXXXX");
-        body_fd = mkstemp(tmpl);
-        if (body_fd == -1) {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC token: temp file creation failed: %s", strerror(errno));
-            t->xrd_error = kXR_IOError;
-            return -1;
-        }
-        ngx_memcpy(body_file, tmpl, strlen(tmpl) + 1);
-    }
-
-    {
-        ssize_t nw = write(body_fd, body_buf, strlen(body_buf));
-        (void) nw;
-    }
-    close(body_fd);
-
-    /*
-     * Build curl argv (execvp, no shell — so no quoting/injection risk).
-     *   -s -S : silent but still print errors;  -f : fail (non-zero exit) on
-     *   HTTP >= 400 so the waitpid status check below catches auth failures.
-     */
-    curl_argv[argc++] = "curl";
-    curl_argv[argc++] = "-s";
-    curl_argv[argc++] = "-S";
-    curl_argv[argc++] = "-f";
-    curl_argv[argc++] = "-X";
-    curl_argv[argc++] = "POST";
-    curl_argv[argc++] = "-H";
-    curl_argv[argc++] = "Content-Type: application/x-www-form-urlencoded";
-
-    /* Optional OAuth2 client basic auth: curl -u "id:secret" — only added when
-     * both halves are configured. NOTE: -u takes a single "id:secret" arg, so
-     * these two array slots become two separate argv entries that curl joins
-     * via the -u/value convention. */
-    if (t->conf->tpc_outbound_client_id.len > 0
-        && t->conf->tpc_outbound_client_secret.len > 0) {
-        curl_argv[argc++] = "-u";
-        curl_argv[argc++] = (char *) t->conf->tpc_outbound_client_id.data;
-        curl_argv[argc++] = (char *) t->conf->tpc_outbound_client_secret.data;
-    }
-
-    /* -d data: the form body, sourced from the staged temp file path. */
-    curl_argv[argc++] = "-d";
-    curl_argv[argc++] = body_file;
-    /* W3 — end-of-options terminator so the endpoint URL can never be parsed
-     * as a curl option even if a misconfigured endpoint begins with '-'. */
-    curl_argv[argc++] = "--";
-    curl_argv[argc++] = (char *) t->conf->tpc_outbound_token_endpoint.data;
-    curl_argv[argc++] = NULL;
-
-    /*
-     * Run curl synchronously and capture its stdout (the token JSON) via the
-     * shared SIGCHLD-safe fork/exec helper (src/compat/subprocess.c) — the same
-     * pipe->fork->dup2->drain->waitpid skeleton used by the native client and
-     * the oidc-agent path. A non-zero rc means pipe/fork failed or curl was
-     * signal-killed; a non-zero child exit (including curl -f on HTTP >= 400) is
-     * an auth failure. The staged body file is unlinked on every exit path.
-     */
-    {
-        int ec = -1;
-
-        if (brix_subprocess_capture(curl_argv, buf, sizeof(buf), NULL, &ec)
-            != 0)
-        {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC token: token-exchange subprocess failed "
-                     "(pipe/fork or signal)");
-            unlink(body_file);  /* vfs-seam-allow: /tmp credential temp, not export storage */
-            t->xrd_error = kXR_ServerError;
-            return -1;
-        }
-        if (ec != 0) {
-            snprintf(t->err_msg, sizeof(t->err_msg),
-                     "TPC token: token exchange failed (curl exit %d)", ec);
-            unlink(body_file);  /* vfs-seam-allow: /tmp credential temp, not export storage */
-            t->xrd_error = kXR_AuthFailed;
-            return -1;
-        }
-    }
-
-    /* Success: body file no longer needed; remove before parsing the reply. */
-    unlink(body_file);  /* vfs-seam-allow: /tmp credential temp, not export storage */
-
-    if (tpc_token_parse_access_token(buf, token_out, token_out_sz) != 0) {
-        t->xrd_error = kXR_AuthFailed;
-        return -1;
-    }
-
-    return 0;
-}
-
 
 /* WHAT: Public entry point that dispatches delegated token fetching based on t->token_mode. Returns 0 immediately for "none" or empty mode; for "passthrough" (explicit/strict) validates the client's inbound bearer JWT already snapshotted into t->delegated_token (empty → kXR_AuthFailed); for "passthrough-opt" (default/opportunistic) validates the inbound JWT when present but returns 0 with no token when absent (fall back to bearer-file/GSI/anon); delegates to tpc_token_oidc_agent() for "oidc-agent" mode (UNIX-socket JSON IPC); delegates to tpc_token_rfc8693() for "token-exchange" mode (RFC 8693 POST, validates token_endpoint configured first). Returns -1 with err_msg/xrd_error set on unknown mode or dispatch failure.
  * WHY: TPC source authentication requires delegated tokens when the destination server authenticates as a different identity to the remote origin. This dispatcher centralizes mode selection — callers pass t->token_mode and receive the fetched token in t->delegated_token without knowing which backend mechanism was used. Prevents callers from duplicating mode-switch logic across launch.c/thread.c. The passthrough modes differ: no fetch happens here — the token was captured on the event loop (launch.c) — so they only inspect the snapshot. "passthrough" (client asked for it) fails closed when it is empty; "passthrough-opt" (server default) instead returns 0 so the outbound auth path can fall back, so making passthrough the default never denies a previously-anonymous/GSI-only pull.

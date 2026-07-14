@@ -96,27 +96,209 @@ lz4_drain(lz4_state *st, uint8_t *out, size_t out_size, size_t *out_pos)
     return 1;
 }
 
+/* ---- Decompress one step of an .lz4 frame into the caller's out buffer ----
+ *
+ * WHAT: Feeds in[*in_pos..in_len) through LZ4F_decompress into
+ *       out[*out_pos..out_size), advancing both cursors by the amount
+ *       consumed/produced. Returns BRIX_CODEC_END when the frame end marker is
+ *       reached, BRIX_CODEC_OK when more input/output is expected, or
+ *       BRIX_CODEC_ERR_DATA on malformed/hostile input.
+ *
+ * WHY:  LZ4F_decompress already streams to any output size, so the decompress
+ *       side of step() is a thin cursor-advancing wrapper. Splitting it out of
+ *       lz4_step keeps the compress staging logic and the decompress logic each
+ *       independently reviewable.
+ *
+ * HOW:  1. Compute remaining src/dst spans from the cursors.
+ *       2. Call LZ4F_decompress, which updates src_n/dst_n in place to the
+ *          amounts actually consumed/produced.
+ *       3. Advance *in_pos and *out_pos by those amounts (unconditionally — the
+ *          library reports partial progress even alongside an error hint).
+ *       4. Map the return: LZ4F_isError to ERR_DATA, a zero hint (frame end) to
+ *          END, otherwise OK.
+ */
+static brix_codec_rc_t
+lz4_step_decompress(lz4_state *st, const uint8_t *in, size_t in_len,
+                    size_t *in_pos, uint8_t *out, size_t out_size,
+                    size_t *out_pos)
+{
+    size_t  src_n = in_len - *in_pos;
+    size_t  dst_n = out_size - *out_pos;
+    size_t  hint  = LZ4F_decompress(st->dctx, out + *out_pos, &dst_n,
+                                    in + *in_pos, &src_n, NULL);
+
+    *in_pos  += src_n;
+    *out_pos += dst_n;
+    if (LZ4F_isError(hint)) {
+        return BRIX_CODEC_ERR_DATA;
+    }
+    /* hint == 0 means a frame end was reached. */
+    return (hint == 0) ? BRIX_CODEC_END : BRIX_CODEC_OK;
+}
+
+/* ---- Emit the frame header into the stage if not yet begun ----
+ *
+ * WHAT: On the first compress step, writes the .lz4 frame header (magic +
+ *       frame descriptor) into st->stage via LZ4F_compressBegin and adds its
+ *       byte count to *produced. Returns BRIX_CODEC_OK (including the no-op case
+ *       where the header was already emitted) or BRIX_CODEC_ERR_INTERNAL if the
+ *       backend reports an error.
+ *
+ * WHY:  The header must be emitted exactly once, before any body chunk, and its
+ *       length folds into the same staging cursor the body writes advance.
+ *       Isolating it keeps lz4_emit_frame_piece a flat two-step sequence.
+ *
+ * HOW:  1. If st->begun is already set, return OK without touching the stage.
+ *       2. Otherwise call LZ4F_compressBegin over the full staging capacity.
+ *       3. On error return ERR_INTERNAL; on success add the byte count to
+ *          *produced and set st->begun.
+ */
+static brix_codec_rc_t
+lz4_stage_header(lz4_state *st, size_t *produced)
+{
+    size_t  r;
+
+    if (st->begun) {
+        return BRIX_CODEC_OK;
+    }
+    r = LZ4F_compressBegin(st->cctx, st->stage, st->stage_cap, &st->prefs);
+    if (LZ4F_isError(r)) {
+        return BRIX_CODEC_ERR_INTERNAL;
+    }
+    *produced += r;
+    st->begun = 1;
+    return BRIX_CODEC_OK;
+}
+
+/* ---- Emit one body chunk, or the frame footer, into the stage ----
+ *
+ * WHAT: After the header, appends compressed output to st->stage at offset
+ *       *produced: one input chunk (up to LZ4_CHUNK) via LZ4F_compressUpdate
+ *       while input remains, or — once input is exhausted and finish is set —
+ *       the frame footer via LZ4F_compressEnd. Advances *in_pos and *produced by
+ *       the amounts consumed/produced and sets st->ended on footer emission.
+ *       Returns BRIX_CODEC_OK or BRIX_CODEC_ERR_INTERNAL.
+ *
+ * WHY:  A single compress step either advances the body or finalises the frame,
+ *       never both; keeping them one helper preserves the mutually-exclusive
+ *       ordering (body drains fully before the footer) that the LZ4 frame format
+ *       requires for byte-exact output.
+ *
+ * HOW:  1. If input remains, clamp the chunk to LZ4_CHUNK, compressUpdate into
+ *          the stage past *produced (capacity st->stage_cap - *produced), and on
+ *          success advance *in_pos and *produced; return.
+ *       2. Else if finish is requested and the footer has not been emitted,
+ *          compressEnd into the stage, add its bytes to *produced, and mark
+ *          st->ended.
+ *       3. Any backend error yields ERR_INTERNAL; otherwise OK.
+ */
+static brix_codec_rc_t
+lz4_stage_body(lz4_state *st, const uint8_t *in, size_t in_len, size_t *in_pos,
+               int finish, size_t *produced)
+{
+    size_t  r;
+
+    if (*in_pos < in_len) {
+        size_t chunk = in_len - *in_pos;
+        if (chunk > LZ4_CHUNK) {
+            chunk = LZ4_CHUNK;
+        }
+        r = LZ4F_compressUpdate(st->cctx, st->stage + *produced,
+                                st->stage_cap - *produced, in + *in_pos, chunk,
+                                NULL);
+        if (LZ4F_isError(r)) {
+            return BRIX_CODEC_ERR_INTERNAL;
+        }
+        *in_pos   += chunk;
+        *produced += r;
+        return BRIX_CODEC_OK;
+    }
+    if (finish && !st->ended) {
+        r = LZ4F_compressEnd(st->cctx, st->stage + *produced,
+                             st->stage_cap - *produced, NULL);
+        if (LZ4F_isError(r)) {
+            return BRIX_CODEC_ERR_INTERNAL;
+        }
+        *produced += r;
+        st->ended = 1;
+    }
+    return BRIX_CODEC_OK;
+}
+
+/* ---- Stage the next frame piece (header + body/footer) for draining ----
+ *
+ * WHAT: Composes lz4_stage_header and lz4_stage_body into st->stage and
+ *       publishes the result via st->stage_len / st->stage_pos so lz4_drain can
+ *       copy it to the caller. Returns BRIX_CODEC_OK or a BRIX_CODEC_ERR_INTERNAL
+ *       propagated from either sub-step.
+ *
+ * WHY:  lz4_step calls this only when the stage is empty and the out buffer has
+ *       room, so a single fixed-capacity staging buffer can back a step()
+ *       contract that honours ANY caller out size. Centralising the stage-cursor
+ *       reset here keeps the orchestrator free of frame-format bookkeeping.
+ *
+ * HOW:  1. Emit the header (no-op after the first call), propagating errors.
+ *       2. Emit one body chunk or the footer, propagating errors.
+ *       3. Publish the produced byte count as stage_len with stage_pos reset to
+ *          0 (produced may be 0 — e.g. header already sent, no input, not
+ *          finishing — which stages nothing, exactly as before).
+ */
+static brix_codec_rc_t
+lz4_emit_frame_piece(lz4_state *st, const uint8_t *in, size_t in_len,
+                     size_t *in_pos, int finish)
+{
+    size_t           produced = 0;
+    brix_codec_rc_t  rc;
+
+    rc = lz4_stage_header(st, &produced);
+    if (rc != BRIX_CODEC_OK) {
+        return rc;
+    }
+    rc = lz4_stage_body(st, in, in_len, in_pos, finish, &produced);
+    if (rc != BRIX_CODEC_OK) {
+        return rc;
+    }
+    st->stage_len = produced;
+    st->stage_pos = 0;
+    return BRIX_CODEC_OK;
+}
+
+/* ---- One streaming (de)compression step for the LZ4 backend ----
+ *
+ * WHAT: The brix_codec_backend_t step() entry point. For DECOMPRESS delegates to
+ *       lz4_step_decompress. For COMPRESS drains any previously staged output,
+ *       then (if the out buffer has room) stages and drains the next frame
+ *       piece. Returns BRIX_CODEC_END when a frame is complete, BRIX_CODEC_OK
+ *       when more calls are needed, or a BRIX_CODEC_ERR_* from a sub-step.
+ *
+ * WHY:  LZ4F compress emits whole chunks that must fit their destination, so the
+ *       backend interposes a staging buffer and honours the step() contract for
+ *       any out size by producing at most one piece per call and draining it
+ *       incrementally across calls.
+ *
+ * HOW:  1. Decompress direction: delegate wholesale.
+ *       2. Compress: if the stage holds undrained bytes, drain them; if the out
+ *          buffer fills first, return OK (more staged).
+ *       3. If out has no room and the stage is empty, report END once everything
+ *          is flushed, else OK.
+ *       4. Otherwise stage the next frame piece (propagating errors) and drain
+ *          it into out.
+ *       5. Report END only when the footer has been emitted AND fully drained;
+ *          otherwise OK.
+ */
 static brix_codec_rc_t
 lz4_step(void *state, const uint8_t *in, size_t in_len, size_t *in_pos,
          uint8_t *out, size_t out_size, size_t *out_pos, int finish)
 {
-    lz4_state *st = state;
+    lz4_state       *st = state;
+    brix_codec_rc_t  rc;
 
     if (st->dir == BRIX_CODEC_DIR_DECOMPRESS) {
-        size_t  src_n = in_len - *in_pos;
-        size_t  dst_n = out_size - *out_pos;
-        size_t  hint  = LZ4F_decompress(st->dctx, out + *out_pos, &dst_n,
-                                        in + *in_pos, &src_n, NULL);
-        *in_pos  += src_n;
-        *out_pos += dst_n;
-        if (LZ4F_isError(hint)) {
-            return BRIX_CODEC_ERR_DATA;
-        }
-        /* hint == 0 means a frame end was reached. */
-        return (hint == 0) ? BRIX_CODEC_END : BRIX_CODEC_OK;
+        return lz4_step_decompress(st, in, in_len, in_pos, out, out_size,
+                                   out_pos);
     }
 
-    /* compress */    /* 1) Drain any output staged from a previous refill first. */
+    /* compress: drain any output staged from a previous refill first. */
     if (st->stage_len > st->stage_pos) {
         if (lz4_drain(st, out, out_size, out_pos)) {
             return BRIX_CODEC_OK;          /* out full; more staged */
@@ -128,45 +310,12 @@ lz4_step(void *state, const uint8_t *in, size_t in_len, size_t *in_pos,
         return (st->ended) ? BRIX_CODEC_END : BRIX_CODEC_OK;
     }
 
-    /* 2) Stage empty + out has room: emit the next frame piece. */
-    {
-        size_t  cap = st->stage_cap;
-        size_t  produced = 0;
-        size_t  r;
-
-        if (!st->begun) {
-            r = LZ4F_compressBegin(st->cctx, st->stage, cap, &st->prefs);
-            if (LZ4F_isError(r)) {
-                return BRIX_CODEC_ERR_INTERNAL;
-            }
-            produced += r;
-            st->begun = 1;
-        }
-        if (*in_pos < in_len) {
-            size_t chunk = in_len - *in_pos;
-            if (chunk > LZ4_CHUNK) {
-                chunk = LZ4_CHUNK;
-            }
-            r = LZ4F_compressUpdate(st->cctx, st->stage + produced, cap - produced,
-                                    in + *in_pos, chunk, NULL);
-            if (LZ4F_isError(r)) {
-                return BRIX_CODEC_ERR_INTERNAL;
-            }
-            *in_pos  += chunk;
-            produced += r;
-        } else if (finish && !st->ended) {
-            r = LZ4F_compressEnd(st->cctx, st->stage + produced, cap - produced, NULL);
-            if (LZ4F_isError(r)) {
-                return BRIX_CODEC_ERR_INTERNAL;
-            }
-            produced += r;
-            st->ended = 1;
-        }
-
-        st->stage_len = produced;
-        st->stage_pos = 0;
-        (void) lz4_drain(st, out, out_size, out_pos);
+    /* Stage empty + out has room: emit and drain the next frame piece. */
+    rc = lz4_emit_frame_piece(st, in, in_len, in_pos, finish);
+    if (rc != BRIX_CODEC_OK) {
+        return rc;
     }
+    (void) lz4_drain(st, out, out_size, out_pos);
 
     /* END only when finished AND the final bytes are fully drained. */
     if (st->ended && st->stage_len == st->stage_pos) {

@@ -49,9 +49,40 @@ typedef struct {
 } s3_chunk_aio_t;
 
 
+/*
+ * s3put_state_t — file-local scratch threaded across the s3_put_body_inner
+ * phase helpers (defined here so the phases can live in sibling files).
+ *
+ * WHAT: carries the per-request PUT state (config, ctx, resolved path, staged
+ *   handle, body classification) that the precondition / open / stream / commit
+ *   phases each read and refine, instead of a single 197-NLOC procedure holding
+ *   it all as locals.
+ * WHY: the four phases have a strict data dependency (path then staged then
+ *   body_mode then committed object) but each has several early-return finalize
+ *   paths; a shared struct lets every phase signal "done, caller must return"
+ *   without a goto and without re-deriving state.  No new globals — one stack
+ *   instance per request, passed by pointer.
+ * HOW: s3_put_body_inner zero-inits one instance, runs the phases in order, and
+ *   returns as soon as any phase reports it already finalized the request.
+ */
+typedef struct {
+    ngx_http_request_t       *r;
+    ngx_http_s3_loc_conf_t   *cf;
+    const u_char             *fs_path;
+    brix_vfs_staged_t        *staged;
+    brix_codec_id_t           put_codec;
+    size_t                    body_bytes;
+    ngx_uint_t                body_mode;
+    brix_http_body_summary_t  body_summary;
+} s3put_state_t;
+
 /* put.c */
 const char * s3_dashboard_put_op(ngx_http_request_t *r);
 void s3_dashboard_identity(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf, char *out, size_t outsz);
+
+/* put_stream.c */
+ngx_int_t s3put_stream_body(s3put_state_t *st);
+void s3put_commit_and_headers(s3put_state_t *st);
 
 /* put_finalize.c */
 ngx_int_t s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon, brix_vfs_staged_t *staged, const char *final_path);

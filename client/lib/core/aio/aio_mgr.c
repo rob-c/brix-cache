@@ -116,22 +116,25 @@ mgr_free(brix_mgr *m)
     free(m);
 }
 
-brix_mgr *
-brix_mgr_create(const brix_url *u, const brix_opts *o, int nconns, int eager,
-                int max_stall_ms, int keepalive_ms, int max_retries,
-                brix_status *st)
+/* Allocate the manager shell and bring the async loop up.
+ *
+ * WHAT: calloc the brix_mgr plus its per-slot conns[nconns]/acs[nconns] arrays,
+ *       copy the retained url/opts + resilience knobs, init lazy_lock, and create
+ *       the shared loop. Returns the ready (but streamless) manager, or NULL with
+ *       *st populated on any allocation/loop-create failure.
+ * WHY:  brix_mgr_create's own complexity comes from the eager connect/attach
+ *       phases; pulling the fixed setup out keeps that orchestration flat and
+ *       keeps every early-return cleanup local to the resource it owns.
+ * HOW:  1) calloc the shell (out-of-memory → status, return NULL).
+ *       2) calloc conns + acs; on either failure free both + shell, return NULL.
+ *       3) copy scalar fields + url; copy opts only when the caller passed some.
+ *       4) init lazy_lock, then create the loop; loop failure → mgr_free (acs all
+ *          NULL ⇒ it frees loop+arrays) and return NULL. */
+static brix_mgr *
+mgr_alloc_and_init(const brix_url *u, const brix_opts *o, int nconns,
+                   int max_stall_ms, int keepalive_ms, int max_retries,
+                   brix_status *st)
 {
-    mgr_connect_job *jobs;
-    int              i;
-
-    if (nconns < 1) {
-        nconns = 1;
-    }
-    /* At least one stream connects up front so a bad endpoint / auth fails the
-     * mount immediately; the remainder may be eager or lazy per the caller. */
-    if (eager < 1)      { eager = 1; }
-    if (eager > nconns) { eager = nconns; }
-
     brix_mgr *m = (brix_mgr *) calloc(1, sizeof(*m));
     if (m == NULL) {
         brix_status_set(st, XRDC_EPROTO, 0, "out of memory (mgr)");
@@ -159,14 +162,35 @@ brix_mgr_create(const brix_url *u, const brix_opts *o, int nconns, int eager,
         mgr_free(m);
         return NULL;
     }
+    return m;
+}
 
-    /* Connect the eager streams concurrently, then attach them to the loop
-     * serially (attach touches the shared loop and is not the slow part). */
-    jobs = (mgr_connect_job *) calloc((size_t) eager, sizeof(*jobs));
+/* Connect the first `eager` streams concurrently and require all to succeed.
+ *
+ * WHAT: Runs `eager` parallel connect jobs against slots 0..eager-1; returns 0
+ *       with every conns[i] connected, or -1 with *st set to the first failure
+ *       and any slot that DID connect already closed. The acs[] entries stay NULL
+ *       (attach happens later).
+ * WHY:  Overlapping the connect+TLS+login+auth round-trips collapses mount-time
+ *       wall from eager×RTT to ~1×RTT; failing the whole mount if any eager stream
+ *       cannot connect gives a bad endpoint/auth an immediate, clean failure.
+ * HOW:  1) calloc the job array (OOM → status, return -1).
+ *       2) point each job at the retained url/opts and its slot, prime rc=-1.
+ *       3) mgr_connect_parallel spawns+joins the workers.
+ *       4) scan results; on the first rc!=0 copy its status, close the OTHER
+ *          successfully-connected conns (this one isn't open), free jobs, -1.
+ *       5) all connected → free jobs, return 0. Caller closes conns via mgr_free
+ *          only after acs are populated, so failed-phase conns are closed here. */
+static int
+mgr_connect_eager(brix_mgr *m, int eager, brix_status *st)
+{
+    mgr_connect_job *jobs = (mgr_connect_job *) calloc((size_t) eager,
+                                                       sizeof(*jobs));
+    int i;
+
     if (jobs == NULL) {
         brix_status_set(st, XRDC_EPROTO, 0, "out of memory (mgr jobs)");
-        mgr_free(m);
-        return NULL;
+        return -1;
     }
     for (i = 0; i < eager; i++) {
         jobs[i].u = &m->url; jobs[i].o = m->have_opts ? &m->opts : NULL;
@@ -181,22 +205,72 @@ brix_mgr_create(const brix_url *u, const brix_opts *o, int nconns, int eager,
                 if (k != i && jobs[k].rc == 0) { brix_close(&m->conns[k]); }
             }
             free(jobs);
-            mgr_free(m);                       /* acs all NULL ⇒ frees loop+arrays */
-            return NULL;
+            return -1;
         }
     }
     free(jobs);
+    return 0;
+}
 
+/* Attach the eager (already-connected) streams to the loop and arm resilience.
+ *
+ * WHAT: For slots 0..eager-1, attach conns[i] to the loop into acs[i] and set its
+ *       stall/keepalive/retry policy. Returns 0 on full success, or -1 with the
+ *       just-failed conn and every still-unattached higher conn closed (their acs
+ *       stay NULL, so a following mgr_free frees the rest).
+ * WHY:  Attach touches the shared loop and is cheap, so it runs serially after the
+ *       parallel connect; keeping it separate keeps brix_mgr_create flat.
+ * HOW:  1) walk i in [0, eager): brix_aconn_attach conns[i] → acs[i].
+ *       2) on NULL, close conns[i] (its attach failed) and every conns[i+1..]
+ *          (never attached, so mgr_free won't reach them) and return -1.
+ *       3) otherwise arm resilience and continue; return 0 when all attached. */
+static int
+mgr_attach_eager(brix_mgr *m, int eager, brix_status *st)
+{
+    int i;
     for (i = 0; i < eager; i++) {
         m->acs[i] = brix_aconn_attach(m->loop, &m->conns[i], st);
         if (m->acs[i] == NULL) {
             brix_close(&m->conns[i]);          /* this one attached failed */
             for (int k = i + 1; k < eager; k++) { brix_close(&m->conns[k]); }
-            mgr_free(m);
-            return NULL;
+            return -1;
         }
-        brix_aconn_set_resilience(m->acs[i], max_stall_ms, keepalive_ms,
-                                  max_retries);
+        brix_aconn_set_resilience(m->acs[i], m->max_stall_ms, m->keepalive_ms,
+                                  m->max_retries);
+    }
+    return 0;
+}
+
+brix_mgr *
+brix_mgr_create(const brix_url *u, const brix_opts *o, int nconns, int eager,
+                int max_stall_ms, int keepalive_ms, int max_retries,
+                brix_status *st)
+{
+    brix_mgr *m;
+
+    if (nconns < 1) {
+        nconns = 1;
+    }
+    /* At least one stream connects up front so a bad endpoint / auth fails the
+     * mount immediately; the remainder may be eager or lazy per the caller. */
+    if (eager < 1)      { eager = 1; }
+    if (eager > nconns) { eager = nconns; }
+
+    m = mgr_alloc_and_init(u, o, nconns, max_stall_ms, keepalive_ms, max_retries,
+                           st);
+    if (m == NULL) {
+        return NULL;
+    }
+
+    /* Connect the eager streams concurrently, then attach them to the loop
+     * serially (attach touches the shared loop and is not the slow part). */
+    if (mgr_connect_eager(m, eager, st) != 0) {
+        mgr_free(m);                       /* acs all NULL ⇒ frees loop+arrays */
+        return NULL;
+    }
+    if (mgr_attach_eager(m, eager, st) != 0) {
+        mgr_free(m);
+        return NULL;
     }
     return m;
 }
@@ -310,33 +384,100 @@ now_ns(void)
     return brix_mono_ns();
 }
 
+/* Compute the kXR_open options word for a (re)open with the given force tri-state.
+ *
+ * WHAT: Returns the wire options bitmask — kXR_open_read for a read handle, or
+ *       kXR_open_updt|kXR_mkpath plus (force==1) kXR_delete / (force==0) kXR_new /
+ *       (force==2) nothing, plus kXR_posc when POSC is set — for a write handle.
+ * WHY:  The force tri-state (truncate vs create-excl vs update-in-place) is exactly
+ *       what makes reopen NON-destructive: reopen passes force==2 so recovery never
+ *       re-truncates or re-creates. Isolating it keeps mfile_do_open flat.
+ * HOW:  1) read handle → kXR_open_read, done.
+ *       2) write handle → base updt|mkpath; OR in delete/new per force (force==2
+ *          adds neither = update in place); OR in posc when requested. */
+static uint16_t
+mfile_open_options(const brix_mfile *mf, int force)
+{
+    uint16_t options;
+
+    if (!mf->writable) {
+        return kXR_open_read;
+    }
+    options = kXR_open_updt | kXR_mkpath;
+    if (force == 1) {
+        options |= kXR_delete;       /* truncate/overwrite */
+    } else if (force == 0) {
+        options |= kXR_new;          /* create-excl */
+    }                                /* force == 2: update in place */
+    if (mf->posc) {
+        options |= kXR_posc;
+    }
+    return options;
+}
+
+/* Learn the inline-compression codec from a kXR_open reply body.
+ *
+ * WHAT: Resets mf->read_codec/write_codec to 0, then (write handle → write_codec,
+ *       read handle → read_codec) adopts the server's codec id when the reply
+ *       confirms it. Returns 0 on success (including "no codec"), or -1 with *st
+ *       set when the server negotiated a codec this build cannot decode.
+ * WHY:  phase-42 W4/W5. Per the dual-check contract (codec_core.h) cptype is a
+ *       legacy field a non-cooperating server may reuse; trusting it alone would
+ *       inflate plaintext and corrupt data, so it is adopted ONLY alongside the
+ *       cpsize magic. Failing an un-decodable codec avoids asymmetric-build
+ *       corruption (copying compressed bytes through as plaintext). Re-learned on
+ *       every (re)open, so a fault mid-transfer transparently re-negotiates.
+ * HOW:  1) clear both codecs (stock servers leave cpsize 0 → stays plaintext).
+ *       2) ServerOpenBody is fhandle[4] cpsize[4] cptype[4]; a body under 12 bytes
+ *          carries no codec fields → return 0.
+ *       3) parse big-endian cpsize and cptype[0]; unless cpsize == the magic and
+ *          the id is in [1, BRIX_CODEC_MAX) → return 0 (plaintext).
+ *       4) if this build cannot decode the id → status + return -1.
+ *       5) store it in the write- or read-side codec per mf->writable, return 0. */
+static int
+mfile_learn_codec(brix_mfile *mf, const uint8_t *body, uint32_t blen,
+                  brix_status *st)
+{
+    mf->read_codec = 0;
+    mf->write_codec = 0;
+    if (blen < 12) {
+        return 0;
+    }
+    uint32_t cpsize = ((uint32_t) body[4] << 24) | ((uint32_t) body[5] << 16)
+                    | ((uint32_t) body[6] << 8)  |  (uint32_t) body[7];
+    uint8_t  cid    = body[8];   /* cptype[0] */
+    if (cpsize != BRIX_INLINE_CMP_MAGIC || cid < 1 || cid >= BRIX_CODEC_MAX) {
+        return 0;
+    }
+    /* Server confirmed codec `cid`; if this build cannot handle it, fail the open
+     * rather than silently copying compressed bytes as plaintext. */
+    if (!brix_codec_available(cid)) {
+        brix_status_set(st, XRDC_EUNSUPPORTED, 0,
+            "server negotiated inline-compression codec %u that this "
+            "client build cannot decode", (unsigned) cid);
+        return -1;
+    }
+    if (mf->writable) {
+        mf->write_codec = cid;
+    } else {
+        mf->read_codec = cid;
+    }
+    return 0;
+}
+
 /* Build + send a kXR_open with the given force tri-state (see brix_file_open_opaque).
  * On success copies the fresh handle into mf->fhandle. Caller holds no lock. */
 static int
 mfile_do_open(brix_mfile *mf, int force, brix_status *st)
 {
     ClientOpenRequest req;
-    uint16_t          options;
+    uint16_t          options = mfile_open_options(mf, force);
     uint16_t          kxr = 0;
     uint8_t          *body = NULL;
     uint32_t          blen = 0;
     char             *payload;
     size_t            need;
     int               plen;
-
-    if (mf->writable) {
-        options = kXR_open_updt | kXR_mkpath;
-        if (force == 1) {
-            options |= kXR_delete;       /* truncate/overwrite */
-        } else if (force == 0) {
-            options |= kXR_new;          /* create-excl */
-        }                                /* force == 2: update in place */
-        if (mf->posc) {
-            options |= kXR_posc;
-        }
-    } else {
-        options = kXR_open_read;
-    }
 
     need = strlen(mf->path) + 1 + (mf->have_opaque ? strlen(mf->opaque) + 1 : 0);
     payload = (char *) malloc(need);
@@ -370,41 +511,11 @@ mfile_do_open(brix_mfile *mf, int force, brix_status *st)
     }
     memcpy(mf->fhandle, body, XRD_FHANDLE_LEN);
 
-    /* phase-42 W4/W5: learn the inline-compression codec from the open reply
-     * (ServerOpenBody = fhandle[4] cpsize[4] cptype[4]).  Per the dual-check
-     * contract (codec_core.h) adopt cptype[0] ONLY when cpsize == the big-endian
-     * BRIX_INLINE_CMP_MAGIC: cptype is a legacy field a non-cooperating server
-     * may reuse, and trusting it alone would inflate plaintext and corrupt data.
-     * Read opens inflate responses (W4); write opens compress payloads (W5).
-     * Stock servers leave cpsize 0 → plaintext.  Re-learned on every (re)open, so
-     * a fault mid-transfer transparently re-negotiates. */
-    mf->read_codec = 0;
-    mf->write_codec = 0;
-    if (blen >= 12) {
-        uint32_t cpsize = ((uint32_t) body[4] << 24) | ((uint32_t) body[5] << 16)
-                        | ((uint32_t) body[6] << 8)  |  (uint32_t) body[7];
-        uint8_t  cid    = body[8];   /* cptype[0] */
-        if (cpsize == BRIX_INLINE_CMP_MAGIC && cid >= 1 && cid < BRIX_CODEC_MAX) {
-            /* Server confirmed codec `cid`; if this build cannot handle it, fail
-             * the open rather than silently copying compressed bytes as plaintext
-             * (asymmetric-build corruption). */
-            if (!brix_codec_available(cid)) {
-                brix_status_set(st, XRDC_EUNSUPPORTED, 0,
-                    "server negotiated inline-compression codec %u that this "
-                    "client build cannot decode", (unsigned) cid);
-                free(body);
-                return -1;
-            }
-            if (mf->writable) {
-                mf->write_codec = cid;
-            } else {
-                mf->read_codec = cid;
-            }
-        }
-    }
-
+    /* phase-42 W4/W5: learn the inline-compression codec from the open reply.
+     * Re-learned on every (re)open, so a fault mid-transfer re-negotiates. */
+    rc = mfile_learn_codec(mf, body, blen, st);
     free(body);
-    return 0;
+    return rc;
 }
 
 brix_mfile *

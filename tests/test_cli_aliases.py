@@ -102,7 +102,7 @@ _XRDPREP_BOOL_ALIASES = [
     ("xrdgsiproxy", "--out"),
     ("xrdgsiproxy", "--bits"),
     ("xrdgsiproxy", "--file"),
-    ("xrdsssadmin", "--keytab"),
+    ("xrdsssadmin-brix", "--keytab"),
 ])
 def test_alias_in_help(tool, alias):
     """Every new long alias must appear in --help output."""
@@ -149,10 +149,10 @@ def test_xrdprep_priority_alias_same_exit():
 def test_xrdsssadmin_keytab_alias_same_exit(tmp_path):
     """-k and --keytab produce the same exit code on 'list' with a non-existent keytab."""
     fake = str(tmp_path / "fake.keytab")
-    rc_s, _, _ = _run("xrdsssadmin", "-k", fake, "list")
-    rc_l, _, _ = _run("xrdsssadmin", "--keytab", fake, "list")
+    rc_s, _, _ = _run("xrdsssadmin-brix", "-k", fake, "list")
+    rc_l, _, _ = _run("xrdsssadmin-brix", "--keytab", fake, "list")
     assert rc_s == rc_l, (
-        f"xrdsssadmin -k exited {rc_s} but --keytab exited {rc_l}"
+        f"xrdsssadmin-brix -k exited {rc_s} but --keytab exited {rc_l}"
     )
 
 
@@ -292,7 +292,7 @@ _UNKNOWN_OPT_RC = {
     "xrdcp":       50,
     "xrdprep":     50,
     "xrdgsiproxy": 50,
-    "xrdsssadmin": 2,   # xrdsssadmin uses exit 2 for bad args
+    "xrdsssadmin-brix": 2,   # xrdsssadmin uses exit 2 for bad args
 }
 
 
@@ -366,8 +366,8 @@ def test_xrdsssadmin_keytab_not_writable(tmp_path):
     rodir = tmp_path / "readonly"
     rodir.mkdir(mode=0o555)
     fake = str(rodir / "sss.keytab")
-    rc_s, _, _ = _run("xrdsssadmin", "-k", fake, "add")
-    rc_l, _, _ = _run("xrdsssadmin", "--keytab", fake, "add")
+    rc_s, _, _ = _run("xrdsssadmin-brix", "-k", fake, "add")
+    rc_l, _, _ = _run("xrdsssadmin-brix", "--keytab", fake, "add")
     assert rc_s == rc_l, (
-        f"xrdsssadmin -k on ro path exited {rc_s} but --keytab exited {rc_l}"
+        f"xrdsssadmin-brix -k on ro path exited {rc_s} but --keytab exited {rc_l}"
     )

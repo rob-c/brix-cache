@@ -30,6 +30,85 @@ web_build_path(const char *base, const char *cwd, const char *arg,
 }
 
 
+/* ---- Print one directory entry in xrdfs ls format ----
+ *
+ * WHAT: Emits a single line for one PROPFIND-derived dirent to stdout. In long
+ *       mode (want_long) with stat data present, prints the drwx-style flag
+ *       triplet, a right-justified size (human-readable when human is set), and
+ *       the full "prefix + name" path; otherwise prints just "prefix + name".
+ *       No return value; output-only.
+ *
+ * WHY:  Factored out of web_ls_print_dir so the per-entry formatting (with its
+ *       flag/size ternaries) is a single-purpose helper, keeping the directory
+ *       walker's cyclomatic complexity within the project cap and matching the
+ *       exact one-line-per-entry format of the root:// ls_print_dir().
+ *
+ * HOW:  1. If long output is requested and the entry carries stat data, derive
+ *          the dir/readable/writable flag characters and format the size.
+ *       2. Print the long-form line with flags, size, prefix, and name.
+ *       3. Otherwise print the short form: prefix followed by name.
+ */
+static void
+web_print_one_entry(const brix_dirent *ent, const char *prefix,
+                    int want_long, int human)
+{
+    if (want_long && ent->have_stat) {
+        int  f  = ent->st.flags;
+        char td = (f & kXR_isDir)    ? 'd' : '-';
+        char r  = (f & kXR_readable) ? 'r' : '-';
+        char wc = (f & kXR_writable) ? 'w' : '-';
+        char szs[32];
+        fmt_size(ent->st.size, szs, sizeof(szs), human);
+        printf("%c%c%c %12s %s%s\n", td, r, wc, szs, prefix, ent->name);
+    } else {
+        printf("%s%s\n", prefix, ent->name);
+    }
+}
+
+
+/* ---- Recurse into subdirectories for xrdfs ls -R over WebDAV ----
+ *
+ * WHAT: For each subdirectory in a directory listing, prints the "full:" header
+ *       and recursively lists its contents via web_ls_print_dir(). Returns 0 on
+ *       success, -1 if any recursive listing fails (with st describing the
+ *       failure). Skips "." / ".." entries, non-directories, and any child whose
+ *       joined path would overflow.
+ *
+ * WHY:  Separated from web_ls_print_dir so the recursion loop is an independent,
+ *       single-purpose step. This keeps the walker's complexity within the cap
+ *       while preserving the exact skip rules and recursive descent order.
+ *
+ * HOW:  1. Iterate the entries; skip dot entries and anything that is not a
+ *          stat-bearing directory.
+ *       2. Build the child's full path; skip entries that do not fit.
+ *       3. Print the "\nfull:\n" section header, then recurse; on the first
+ *          recursion failure return -1, otherwise return 0.
+ */
+static int
+web_ls_recurse_children(const web_ctx *w, const char *path,
+                        const brix_dirent *ents, size_t n,
+                        int want_long, int human, brix_status *st)
+{
+    size_t k;
+
+    for (k = 0; k < n; k++) {
+        char full[XRDC_PATH_MAX];
+        if (is_dot(ents[k].name)
+            || !(ents[k].have_stat && (ents[k].st.flags & kXR_isDir))) {
+            continue;
+        }
+        if (join_path(path, ents[k].name, full, sizeof(full)) != 0) {
+            continue;
+        }
+        printf("\n%s:\n", full);
+        if (web_ls_print_dir(w, full, want_long, 1, human, st) != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+
 /* WebDAV equivalent of ls_print_dir() — same output format, PROPFIND source. */
 int
 web_ls_print_dir(const web_ctx *w, const char *path, int want_long,
@@ -49,34 +128,12 @@ web_ls_print_dir(const web_ctx *w, const char *path, int want_long,
     snprintf(prefix, sizeof(prefix), "%s%s", path, sep);
 
     for (k = 0; k < n; k++) {
-        if (want_long && ents[k].have_stat) {
-            int  f  = ents[k].st.flags;
-            char td = (f & kXR_isDir)    ? 'd' : '-';
-            char r  = (f & kXR_readable) ? 'r' : '-';
-            char wc = (f & kXR_writable) ? 'w' : '-';
-            char szs[32];
-            fmt_size(ents[k].st.size, szs, sizeof(szs), human);
-            printf("%c%c%c %12s %s%s\n", td, r, wc, szs, prefix, ents[k].name);
-        } else {
-            printf("%s%s\n", prefix, ents[k].name);
-        }
+        web_print_one_entry(&ents[k], prefix, want_long, human);
     }
-    if (recursive) {
-        for (k = 0; k < n; k++) {
-            char full[XRDC_PATH_MAX];
-            if (is_dot(ents[k].name)
-                || !(ents[k].have_stat && (ents[k].st.flags & kXR_isDir))) {
-                continue;
-            }
-            if (join_path(path, ents[k].name, full, sizeof(full)) != 0) {
-                continue;
-            }
-            printf("\n%s:\n", full);
-            if (web_ls_print_dir(w, full, want_long, 1, human, st) != 0) {
-                free(ents);
-                return -1;
-            }
-        }
+    if (recursive
+        && web_ls_recurse_children(w, path, ents, n, want_long, human, st) != 0) {
+        free(ents);
+        return -1;
     }
     free(ents);
     return 0;

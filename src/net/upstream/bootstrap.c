@@ -99,111 +99,172 @@ brix_upstream_continue_auth(brix_upstream_t *up)
     }
 }
 
-void
-brix_upstream_handle_bootstrap_response(brix_upstream_t *up)
+/*
+ * Per-phase step contract: a phase handler returns NGX_OK when it has advanced
+ * up->bs_phase and the shared tail (brix_upstream_bootstrap_advance) should run,
+ * or NGX_DONE when it has already terminated the cycle itself — either by
+ * aborting the connection or by deferring to a callback (TLS handshake, token
+ * auth write/read) — in which case the caller must return without touching the
+ * response buffers or read event.
+ */
+
+/*
+ * brix_upstream_bs_handshake — phase 1, consume the server's fixed handshake
+ * response.
+ *
+ * WHAT: fail the connection unless resp_status is kXR_ok, else advance to the
+ *   protocol-negotiation phase.
+ * WHY: no request payload is interpreted until the upstream confirms the
+ *   handshake, so a bad status here is fatal.
+ * HOW: status gate → set XRD_UP_BS_PROTOCOL → NGX_OK.
+ */
+static ngx_int_t
+brix_upstream_bs_handshake(brix_upstream_t *up)
 {
-    switch (up->bs_phase) {
+    if (up->resp_status != kXR_ok) {
+        brix_upstream_abort(up, "upstream: bad handshake response");
+        return NGX_DONE;
+    }
+    up->bs_phase = XRD_UP_BS_PROTOCOL;
+    return NGX_OK;
+}
 
-    case XRD_UP_BS_HANDSHAKE:
-        /*
-         * Phase 1 consumes the server's fixed handshake response.  No request
-         * payload is interpreted until the upstream confirms the handshake.
-         */
-        if (up->resp_status != kXR_ok) {
-            brix_upstream_abort(up, "upstream: bad handshake response");
-            return;
-        }
-        up->bs_phase = XRD_UP_BS_PROTOCOL;
-        break;
+/*
+ * brix_upstream_bs_goto_tls — handle a kXR_gotoTLS flag seen in the protocol
+ * response by upgrading the plaintext connection to TLS.
+ *
+ * WHAT: resolve the srv conf, then (when built with SSL) require an upstream TLS
+ *   context and drive brix_upstream_start_tls; without SSL support the request
+ *   is fatal.
+ * WHY: TLS is server-driven (kXR_gotoTLS), not client-requested; the kXR_login
+ *   frame already pre-sent in the socket buffer is discarded by the server and
+ *   is resent over TLS from the handshake callback.
+ * HOW: get conf → SSL-gated capability check → start_tls; always returns
+ *   NGX_DONE because the cycle either aborts or resumes in the TLS callback.
+ */
+static ngx_int_t
+brix_upstream_bs_goto_tls(brix_upstream_t *up)
+{
+    ngx_stream_brix_srv_conf_t *conf;
 
-    case XRD_UP_BS_PROTOCOL: {
-        ngx_stream_brix_srv_conf_t *conf;
-
-        if (up->resp_status != kXR_ok) {
-            brix_upstream_abort(up, "upstream: protocol response not ok");
-            return;
-        }
-        if (up->resp_dlen >= 8) {
-            uint32_t flags_be;
-
-            ngx_memcpy(&flags_be, up->resp_body + 4, sizeof(flags_be));
-
-            if (ntohl(flags_be) & kXR_gotoTLS) {
-                conf = ngx_stream_get_module_srv_conf(
-                    up->client_ctx->session, ngx_stream_brix_module);
+    conf = ngx_stream_get_module_srv_conf(
+        up->client_ctx->session, ngx_stream_brix_module);
 
 #if (NGX_SSL)
-                if (!conf->upstream_tls || conf->upstream_tls_ctx == NULL) {
-                    brix_upstream_abort(up,
-                        "upstream requires TLS; set brix_upstream_tls on");
-                    return;
-                }
-                /*
-                 * Upgrade the existing plaintext connection to TLS.
-                 * The kXR_login frame already in the socket buffer is
-                 * discarded by the server upon receiving gotoTLS; we resend
-                 * it over TLS from the handshake callback.
-                 */
-                if (brix_upstream_start_tls(up, conf) != NGX_OK) {
-                    brix_upstream_abort(up,
-                        "upstream: TLS upgrade failed");
-                }
+    if (!conf->upstream_tls || conf->upstream_tls_ctx == NULL) {
+        brix_upstream_abort(up,
+            "upstream requires TLS; set brix_upstream_tls on");
+        return NGX_DONE;
+    }
+    if (brix_upstream_start_tls(up, conf) != NGX_OK) {
+        brix_upstream_abort(up, "upstream: TLS upgrade failed");
+    }
 #else
-                (void) conf;
-                brix_upstream_abort(up,
-                    "upstream requires TLS but nginx was built without SSL");
+    (void) conf;
+    brix_upstream_abort(up,
+        "upstream requires TLS but nginx was built without SSL");
 #endif
-                return;  /* resume in TLS handshake callback */
-            }
-        }
-        up->bs_phase = XRD_UP_BS_LOGIN;
-        break;
+    return NGX_DONE;  /* resume in TLS handshake callback (or aborted) */
+}
+
+/*
+ * brix_upstream_bs_protocol — phase 2, protocol negotiation and TLS-upgrade
+ * detection.
+ *
+ * WHAT: fail unless resp_status is kXR_ok; if the response carries the flags
+ *   word (dlen >= 8) and it sets kXR_gotoTLS, hand off to the TLS upgrade path,
+ *   otherwise advance to the login phase.
+ * WHY: the server signals a mandatory TLS upgrade via a flag in the protocol
+ *   response; only after ruling that out is a plaintext login valid.
+ * HOW: status gate → extract big-endian flags at offset 4 → gotoTLS branch →
+ *   else set XRD_UP_BS_LOGIN → NGX_OK.
+ */
+static ngx_int_t
+brix_upstream_bs_protocol(brix_upstream_t *up)
+{
+    if (up->resp_status != kXR_ok) {
+        brix_upstream_abort(up, "upstream: protocol response not ok");
+        return NGX_DONE;
     }
+    if (up->resp_dlen >= 8) {
+        uint32_t flags_be;
 
-    case XRD_UP_BS_TLS:
-        /*
-         * Should not arrive here: the TLS handshake callback transitions
-         * directly to XRD_UP_BS_LOGIN before arming the read event.
-         */
-        brix_upstream_abort(up, "upstream: unexpected read in TLS phase");
-        return;
+        ngx_memcpy(&flags_be, up->resp_body + 4, sizeof(flags_be));
 
-    case XRD_UP_BS_LOGIN:
-        if (up->resp_status == kXR_authmore) {
-            brix_upstream_continue_auth(up);
-            return;  /* resume after write + read cycle */
+        if (ntohl(flags_be) & kXR_gotoTLS) {
+            return brix_upstream_bs_goto_tls(up);
         }
-        if (up->resp_status != kXR_ok) {
-            brix_upstream_abort(up, "upstream: login failed");
-            return;
-        }
-        up->bs_phase = XRD_UP_BS_DONE;
-        break;
-
-    case XRD_UP_BS_AUTH:
-        /*
-         * kXR_auth response after we sent a ztn token credential.
-         *   kXR_ok       → authenticated, proceed to send the request.
-         *   kXR_authmore → the origin wants another round; continue the bounded
-         *                  exchange (XRD_OBA_MAX_ROUNDS) rather than fail outright.
-         *   anything else → reject.
-         */
-        if (up->resp_status == kXR_authmore) {
-            brix_upstream_continue_auth(up);
-            return;
-        }
-        if (up->resp_status != kXR_ok) {
-            brix_upstream_abort(up, "upstream: token auth rejected by server");
-            return;
-        }
-        up->bs_phase = XRD_UP_BS_DONE;
-        break;
-
-    default:
-        brix_upstream_abort(up, "upstream: invalid bootstrap phase");
-        return;
     }
+    up->bs_phase = XRD_UP_BS_LOGIN;
+    return NGX_OK;
+}
 
+/*
+ * brix_upstream_bs_login — phase 3, evaluate the login response.
+ *
+ * WHAT: a kXR_authmore status continues the bounded credential exchange; a
+ *   non-ok status is fatal; kXR_ok advances to the done phase.
+ * WHY: the origin's sec layer may demand a token round before granting login;
+ *   only a clean kXR_ok means the session is ready to carry client requests.
+ * HOW: authmore → brix_upstream_continue_auth (defer) → status gate → set
+ *   XRD_UP_BS_DONE → NGX_OK.
+ */
+static ngx_int_t
+brix_upstream_bs_login(brix_upstream_t *up)
+{
+    if (up->resp_status == kXR_authmore) {
+        brix_upstream_continue_auth(up);
+        return NGX_DONE;  /* resume after write + read cycle */
+    }
+    if (up->resp_status != kXR_ok) {
+        brix_upstream_abort(up, "upstream: login failed");
+        return NGX_DONE;
+    }
+    up->bs_phase = XRD_UP_BS_DONE;
+    return NGX_OK;
+}
+
+/*
+ * brix_upstream_bs_auth — phase 4, evaluate the kXR_auth response after a ztn
+ * token credential was sent.
+ *
+ * WHAT: kXR_ok → authenticated, advance to done; kXR_authmore → the origin wants
+ *   another bounded round (XRD_OBA_MAX_ROUNDS) rather than an outright failure;
+ *   anything else → reject.
+ * WHY: multi-round token exchanges are legitimate but must stay bounded so a
+ *   hostile/misconfigured origin cannot loop us forever.
+ * HOW: authmore → brix_upstream_continue_auth (defer) → status gate → set
+ *   XRD_UP_BS_DONE → NGX_OK.
+ */
+static ngx_int_t
+brix_upstream_bs_auth(brix_upstream_t *up)
+{
+    if (up->resp_status == kXR_authmore) {
+        brix_upstream_continue_auth(up);
+        return NGX_DONE;
+    }
+    if (up->resp_status != kXR_ok) {
+        brix_upstream_abort(up, "upstream: token auth rejected by server");
+        return NGX_DONE;
+    }
+    up->bs_phase = XRD_UP_BS_DONE;
+    return NGX_OK;
+}
+
+/*
+ * brix_upstream_bootstrap_advance — shared tail after a phase advances.
+ *
+ * WHAT: reset the response-frame cursors, then either send the saved client
+ *   request (bootstrap complete) or re-arm the read event for the next phase.
+ * WHY: every successful phase transition needs a fresh frame buffer, and epoll
+ *   ET mode can leave already-buffered bytes without a new EPOLLIN — a synthetic
+ *   posted read event drains them in the current loop cycle.
+ * HOW: zero the cursors → XRD_UP_BS_DONE branch sends the request → else arm the
+ *   read event and post a synthetic read.
+ */
+static void
+brix_upstream_bootstrap_advance(brix_upstream_t *up)
+{
     up->rhdr_pos = 0;
     up->resp_dlen = 0;
     up->resp_body = NULL;
@@ -227,4 +288,58 @@ brix_upstream_handle_bootstrap_response(brix_upstream_t *up)
      * EPOLLIN.  Post a synthetic read event so the next phase is processed
      * in the current event-loop cycle rather than waiting for new data. */
     ngx_post_event(up->conn->read, &ngx_posted_events);
+}
+
+/*
+ * brix_upstream_handle_bootstrap_response — bootstrap state-machine dispatcher.
+ *
+ * WHAT: route the current bs_phase to its handler; on a clean advance run the
+ *   shared tail, otherwise let the handler's own termination stand.
+ * WHY: keeps the four wire phases (handshake → protocol/TLS → login → auth) as
+ *   independent, testable stages while preserving the exact original transitions
+ *   and error paths.
+ * HOW: switch on bs_phase → per-phase helper returns NGX_OK (advanced) or
+ *   NGX_DONE (already terminated) → NGX_OK runs brix_upstream_bootstrap_advance.
+ */
+void
+brix_upstream_handle_bootstrap_response(brix_upstream_t *up)
+{
+    ngx_int_t rc;
+
+    switch (up->bs_phase) {
+
+    case XRD_UP_BS_HANDSHAKE:
+        rc = brix_upstream_bs_handshake(up);
+        break;
+
+    case XRD_UP_BS_PROTOCOL:
+        rc = brix_upstream_bs_protocol(up);
+        break;
+
+    case XRD_UP_BS_TLS:
+        /*
+         * Should not arrive here: the TLS handshake callback transitions
+         * directly to XRD_UP_BS_LOGIN before arming the read event.
+         */
+        brix_upstream_abort(up, "upstream: unexpected read in TLS phase");
+        return;
+
+    case XRD_UP_BS_LOGIN:
+        rc = brix_upstream_bs_login(up);
+        break;
+
+    case XRD_UP_BS_AUTH:
+        rc = brix_upstream_bs_auth(up);
+        break;
+
+    default:
+        brix_upstream_abort(up, "upstream: invalid bootstrap phase");
+        return;
+    }
+
+    if (rc != NGX_OK) {
+        return;  /* handler aborted or deferred to a callback */
+    }
+
+    brix_upstream_bootstrap_advance(up);
 }

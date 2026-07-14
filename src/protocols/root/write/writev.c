@@ -1,6 +1,7 @@
 #include "core/ngx_brix_module.h"
 #include "fs/cache/writethrough_metrics.h"
 #include "wrts_journal.h"
+#include "writev_internal.h"   /* writev_run_t + writev_try_aio (writev_aio.c) */
 
 /* brix_writev_body_extra — trailing segment-data length for kXR_writev
  * WHAT: Validates a dlen-framed write_list descriptor block under the stock
@@ -46,25 +47,6 @@ brix_writev_body_extra(const u_char *desc, uint32_t dlen, uint32_t *extra)
 	*extra = (uint32_t) total;
 	return NGX_OK;
 }
-
-/* writev_run_t — the invariant vector context shared by the execute helpers.
- * WHAT: Bundles the per-connection state (ctx, c), the validated descriptor
- * block (wl), its segment count (n_segs), and the start of the contiguous
- * per-segment data blocks (data_ptr) that both the AIO and synchronous execute
- * paths consume identically.
- * WHY: These five values travel together through every write path; carrying
- * them in one struct keeps each helper under the parameter gate without
- * splitting a single logical argument into a loose list.
- * HOW: Populated once in brix_handle_writev after framing + handle admission,
- * then passed by const pointer to the execute helpers (which never mutate it —
- * their own mutable outputs are separate out-params). */
-typedef struct {
-	brix_ctx_t        *ctx;
-	ngx_connection_t  *c;
-	const write_list  *wl;
-	size_t             n_segs;
-	const u_char      *data_ptr;
-} writev_run_t;
 
 /* writev_validate_framing — enforce the stock do_WriteV framing contract.
  * WHAT: Validates the descriptor block that recv left in ctx->recv.payload —
@@ -186,123 +168,6 @@ writev_validate_handles(brix_ctx_t *ctx, ngx_connection_t *c,
 	return NGX_OK;
 }
 
-/* writev_try_aio — offload the whole vector to a worker thread if configured.
- * WHAT: When a thread pool is configured, flattens the wire descriptors into a
- * self-contained decoded array, builds the writev AIO task, and posts it.
- * WHY: Keeps the per-segment big-endian decode + replay neutralisation on the
- * event-loop thread (before the worker can race ctx) and hands buffer ownership
- * to the task so the main thread can advance to the next request.
- * HOW: data_ptr is the start of the contiguous per-segment data blocks.  On a
- * successful post it detaches payload_buf from ctx (the done callback frees it
- * and replies) and reports posted via *posted (NGX_OK).  It returns NGX_ERROR
- * on allocation failure (caller drops the link).  When no pool is configured or
- * the post fails it leaves *posted 0 and returns NGX_OK so the caller falls
- * through to the synchronous path with payload_buf still owned by ctx. */
-static ngx_int_t
-writev_try_aio(const writev_run_t *run, int do_sync, ngx_flag_t *posted)
-{
-	brix_ctx_t                 *ctx = run->ctx;
-	ngx_connection_t           *c = run->c;
-	const write_list           *wl = run->wl;
-	size_t                      n_segs = run->n_segs;
-	ngx_stream_brix_srv_conf_t *conf;
-	ngx_thread_task_t          *task;
-	brix_writev_aio_t          *t;
-	brix_writev_seg_desc_t     *seg_descs;
-	const u_char               *dp = run->data_ptr;
-	size_t                      i;
-
-	*posted = 0;
-
-	conf = ngx_stream_get_module_srv_conf(
-	    (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
-
-	if (conf->common.thread_pool == NULL) {
-		return NGX_OK;
-	}
-
-	/* Flatten the wire descriptors into a self-contained array the worker
-	 * thread can consume without touching ctx (which the main thread may mutate
-	 * once we return). Decode all big-endian fields now, while we are still on
-	 * the event-loop thread. */
-	seg_descs = ngx_palloc(c->pool,
-	                       n_segs * sizeof(brix_writev_seg_desc_t));
-	if (seg_descs == NULL) {
-		return NGX_ERROR;
-	}
-
-	for (i = 0; i < n_segs; i++) {
-		uint32_t wlen = (uint32_t) ntohl((uint32_t) wl[i].wlen);
-		/* phase77-fp: hidx (0..255) was already bounds-checked against
-		 * BRIX_MAX_FILES for every segment by writev_validate_handles above,
-		 * which the caller made all-or-nothing; the analyzer cannot correlate
-		 * the two same-index loops. */
-		int      hidx = (int)(unsigned char) wl[i].fhandle[0];
-		int64_t  off  = (int64_t) be64toh((uint64_t) wl[i].offset);
-
-		seg_descs[i].fd         = ctx->files[hidx].fd;  /* NOLINT(clang-analyzer-security.ArrayBound) */
-		seg_descs[i].obj        = ctx->files[hidx].sd_obj; /* Layer 3 */
-		seg_descs[i].handle_idx = hidx;
-		seg_descs[i].offset     = (off_t) off;
-		seg_descs[i].data       = dp;   /* points into payload_buf */
-		seg_descs[i].wlen       = wlen;
-
-		/* write-recovery (kXR_recoverWrts): if this byte range was already
-		 * durably written before the connection dropped, it is a client replay.
-		 * Neutralise it to a no-op by zeroing wlen; the worker thread treats
-		 * wlen == 0 as "skip" so the bytes are neither rewritten nor
-		 * double-counted. */
-		if (ctx->files[hidx].wrts_enabled &&
-		    brix_wrts_is_replay(&ctx->files[hidx], off, wlen))
-		{
-			ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-			    "brix: writev AIO recovery replay skip"
-			    " offset=%lld len=%u", (long long) off, wlen);
-			seg_descs[i].wlen = 0;
-		}
-
-		/* Advance over the (original, un-zeroed) data block so dp stays aligned
-		 * with the wire layout regardless of replay skipping. */
-		dp += wlen;
-	}
-
-	task = ngx_thread_task_alloc(c->pool, sizeof(brix_writev_aio_t));
-	if (task == NULL) {
-		return NGX_ERROR;
-	}
-
-	t = task->ctx;
-	t->c           = c;
-	t->ctx         = ctx;
-	t->n_segs      = n_segs;
-	t->segs        = seg_descs;
-	t->payload_buf = ctx->recv.payload_buf;  /* transfer ownership */
-	t->do_sync     = do_sync;
-	t->bytes_total = 0;
-	t->io_error    = 0;
-	t->streamid[0] = ctx->recv.cur_streamid[0];
-	t->streamid[1] = ctx->recv.cur_streamid[1];
-
-	brix_task_bind(task, brix_writev_write_aio_thread, brix_writev_write_aio_done);
-
-	(void) brix_aio_post_task(ctx, c, conf->common.thread_pool, task,
-	    "brix: thread_task_post failed, falling back to sync writev",
-	    posted);
-	/* *posted == 1: ownership of payload_buf now lives on the task and the done
-	 * callback will free it and send the reply. Detach it from ctx so the main
-	 * thread can start the next request without racing the worker or
-	 * double-freeing the buffer. *posted == 0: posting failed; payload_buf is
-	 * still ours and the caller falls through to the synchronous path using the
-	 * original data_ptr. */
-	if (*posted) {
-		ctx->recv.payload         = NULL;
-		ctx->recv.payload_buf     = NULL;
-		ctx->recv.payload_buf_size = 0;
-	}
-
-	return NGX_OK;
-}
-
 /* writev_write_segment — write one segment through the VFS on this thread.
  * WHAT: Handles a single (fd, offset, data, wlen) segment on the event-loop
  * thread: replay neutralisation, the VFS write, dirty-extent marking, and the
@@ -336,6 +201,9 @@ writev_write_segment(brix_ctx_t *ctx, ngx_connection_t *c,
 	 * disk. data_ptr must still skip this segment's bytes to stay aligned, and
 	 * we count the bytes toward the client-visible total so the reply matches
 	 * what the client thinks it sent. */
+	/* phase79-fp: security.ArrayBound — idx (0..255 from fhandle[0]) was already
+	 * bounds-checked against BRIX_MAX_FILES by writev_validate_handles before the
+	 * sync path runs; the analyzer cannot correlate the separate validation loop. */
 	if (ctx->files[idx].wrts_enabled &&
 	    brix_wrts_is_replay(&ctx->files[idx], offset, wlen))
 	{

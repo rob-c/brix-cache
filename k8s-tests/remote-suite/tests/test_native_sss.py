@@ -29,7 +29,7 @@ NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XRDFS = os.path.join(CLIENT_DIR, "bin", "xrdfs")
-XRDSSSADMIN = os.path.join(CLIENT_DIR, "bin", "xrdsssadmin")
+XRDSSSADMIN = os.path.join(CLIENT_DIR, "bin", "xrdsssadmin-brix")
 XRDCP = os.path.join(CLIENT_DIR, "bin", "xrdcp")
 
 
@@ -56,7 +56,7 @@ def sss_server(tmp_path_factory):
     # Build the client tools we need.
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler to build the native client")
-    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp", "xrdsssadmin"],
+    proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp", "xrdsssadmin-brix"],
                           capture_output=True, text=True, timeout=180)
     if proc.returncode != 0 or not os.path.exists(XRDSSSADMIN):
         pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")

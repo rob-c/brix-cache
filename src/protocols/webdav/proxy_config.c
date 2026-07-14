@@ -15,24 +15,26 @@
 #include "core/compat/host_format.h"  /* brix_format_host[_port] — IPv6 bracketing */
 #include "core/compat/log_diag.h"
 
-/*
- * Resolve one upstream URL and append one backend per resolved address.
- * All addresses of a single URL share that URL's host/url_base/ssl.
+/* ---- Split "http://"/"https://" scheme off an upstream URL ----
+ *
+ * WHAT: Inspects url's scheme prefix and sets *ssl (1 for https, 0 for http),
+ * *scheme_len (8 or 7), and *default_port (443 or 80).  Returns NGX_OK on a
+ * recognised scheme, or NGX_ERROR (after logging) for an empty URL or an
+ * unrecognised scheme.
+ *
+ * WHY: Isolates the scheme-classification branch ladder so the resolver's
+ * control flow stays flat and the accepted-scheme table lives in one place.
+ *
+ * HOW:
+ *   1. Reject a zero-length URL with the "no upstream URL given" diagnostic.
+ *   2. Case-insensitively match "https://" → ssl=1, len=8, port=443.
+ *   3. Otherwise match "http://" → ssl=0, len=7, port=80.
+ *   4. Otherwise log the "must start with http:// or https://" error and fail.
  */
 static ngx_int_t
-webdav_proxy_add_url(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *conf,
-    ngx_str_t *url)
+webdav_proxy_split_scheme(ngx_conf_t *cf, ngx_str_t *url, ngx_flag_t *ssl,
+    size_t *scheme_len, in_port_t *default_port)
 {
-    ngx_url_t                u;
-    u_char                  *p;
-    in_port_t                default_port;
-    size_t                   scheme_len;
-    ngx_flag_t               ssl;
-    ngx_str_t                host;
-    ngx_str_t                url_base;
-    ngx_uint_t               a;
-    brix_webdav_backend_t *be;
-
     if (url->len == 0) {
         BRIX_DIAG_CONF(NGX_LOG_EMERG, cf, 0,
             "brix_webdav_proxy: no upstream URL given",
@@ -42,75 +44,155 @@ webdav_proxy_add_url(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *conf,
     }
 
     if (ngx_strncasecmp(url->data, (u_char *) "https://", 8) == 0) {
-        ssl = 1; scheme_len = 8; default_port = 443;
-    } else if (ngx_strncasecmp(url->data, (u_char *) "http://", 7) == 0) {
-        ssl = 0; scheme_len = 7; default_port = 80;
-    } else {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_webdav_proxy: upstream URL \"%V\" must start with"
-            " http:// or https://", url);
-        return NGX_ERROR;
+        *ssl = 1; *scheme_len = 8; *default_port = 443;
+        return NGX_OK;
+    }
+    if (ngx_strncasecmp(url->data, (u_char *) "http://", 7) == 0) {
+        *ssl = 0; *scheme_len = 7; *default_port = 80;
+        return NGX_OK;
     }
 
-    ngx_memzero(&u, sizeof(ngx_url_t));
-    u.url.data     = url->data + scheme_len;
-    u.url.len      = url->len  - scheme_len;
-    u.uri_part     = 1;
-    u.default_port = default_port;
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        "brix_webdav_proxy: upstream URL \"%V\" must start with"
+        " http:// or https://", url);
+    return NGX_ERROR;
+}
 
-    if (ngx_parse_url(cf->pool, &u) != NGX_OK) {
-        if (u.err) {
+/* ---- Parse the authority of an upstream URL into an ngx_url_t ----
+ *
+ * WHAT: Runs ngx_parse_url over the post-scheme portion of url with the given
+ * default_port and fills *u.  Returns NGX_OK when at least one address is
+ * resolved, otherwise NGX_ERROR (after logging the parse error or the
+ * zero-address condition).
+ *
+ * WHY: Keeps the ngx_parse_url invocation plus its two failure diagnostics
+ * together, out of the main resolver body.
+ *
+ * HOW:
+ *   1. Zero *u and point it at url->data+scheme_len for uri_part parsing.
+ *   2. On ngx_parse_url failure, emit u->err (if any) and fail.
+ *   3. On zero resolved addresses, emit the "zero addresses" error and fail.
+ */
+static ngx_int_t
+webdav_proxy_parse_authority(ngx_conf_t *cf, ngx_str_t *url, size_t scheme_len,
+    in_port_t default_port, ngx_url_t *u)
+{
+    ngx_memzero(u, sizeof(ngx_url_t));
+    u->url.data     = url->data + scheme_len;
+    u->url.len      = url->len  - scheme_len;
+    u->uri_part     = 1;
+    u->default_port = default_port;
+
+    if (ngx_parse_url(cf->pool, u) != NGX_OK) {
+        if (u->err) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                 "brix_webdav_proxy: \"%V\" in upstream URL \"%V\"",
-                &u.err, url);
+                &u->err, url);
         }
         return NGX_ERROR;
     }
-    if (u.naddrs == 0) {
+    if (u->naddrs == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_webdav_proxy: upstream URL \"%V\" resolved to zero"
             " addresses", url);
         return NGX_ERROR;
     }
+    return NGX_OK;
+}
 
-    /* Host: header value — "host" or "host:port", with IPv6 literals bracketed.
-     * ngx_parse_url strips the brackets off "[::1]", so u.host arrives bare and
-     * must be re-bracketed ("[::1]") before it is re-emitted in a Host header. */
-    {
-        char   hostz[256], fmt[288];
-        size_t hn, fn;
+/* ---- Build the pool-owned Host: header value for a resolved upstream ----
+ *
+ * WHAT: Formats "host" or "host:port" (IPv6 literals re-bracketed) into a
+ * fresh cf->pool allocation and stores it in *host.  Returns NGX_OK, or
+ * NGX_ERROR on allocation failure.
+ *
+ * WHY: ngx_parse_url strips the brackets off "[::1]", so u->host arrives bare
+ * and must be re-bracketed before it is re-emitted in a Host header; the port
+ * is elided when it equals the scheme default.
+ *
+ * HOW:
+ *   1. NUL-terminate a bounded copy of u->host into a stack buffer.
+ *   2. Format host-only when u->port == default_port, else host:port.
+ *   3. Copy the formatted bytes into a cf->pool allocation and record .len.
+ */
+static ngx_int_t
+webdav_proxy_build_host(ngx_conf_t *cf, ngx_url_t *u, in_port_t default_port,
+    ngx_str_t *host)
+{
+    char    hostz[256], fmt[288];
+    size_t  hn, fn;
+    u_char *p;
 
-        hn = ngx_min(u.host.len, sizeof(hostz) - 1);
-        ngx_memcpy(hostz, u.host.data, hn);
-        hostz[hn] = '\0';
+    hn = ngx_min(u->host.len, sizeof(hostz) - 1);
+    ngx_memcpy(hostz, u->host.data, hn);
+    hostz[hn] = '\0';
 
-        if (u.port == default_port) {
-            fn = brix_format_host(hostz, fmt, sizeof(fmt));
-        } else {
-            fn = brix_format_host_port(hostz, (uint16_t) u.port,
-                                         fmt, sizeof(fmt));
-        }
-
-        p = ngx_pnalloc(cf->pool, fn + 1);
-        if (p == NULL) return NGX_ERROR;
-        ngx_memcpy(p, fmt, fn);
-        p[fn] = '\0';
-        host.data = p;
-        host.len  = fn;
+    if (u->port == default_port) {
+        fn = brix_format_host(hostz, fmt, sizeof(fmt));
+    } else {
+        fn = brix_format_host_port(hostz, (uint16_t) u->port,
+                                     fmt, sizeof(fmt));
     }
 
-    /* Request-line base — "scheme://host[:port]". */
-    {
-        size_t base_len = scheme_len + host.len;
-        p = ngx_pnalloc(cf->pool, base_len + 1);
-        if (p == NULL) return NGX_ERROR;
-        ngx_memcpy(p, url->data, scheme_len);
-        ngx_memcpy(p + scheme_len, host.data, host.len);
-        p[base_len] = '\0';
-        url_base.data = p;
-        url_base.len  = base_len;
-    }
+    p = ngx_pnalloc(cf->pool, fn + 1);
+    if (p == NULL) return NGX_ERROR;
+    ngx_memcpy(p, fmt, fn);
+    p[fn] = '\0';
+    host->data = p;
+    host->len  = fn;
+    return NGX_OK;
+}
 
+/* ---- Build the pool-owned request-line base "scheme://host[:port]" ----
+ *
+ * WHAT: Concatenates url's scheme prefix with the already-formatted host into
+ * a fresh cf->pool allocation and stores it in *url_base.  Returns NGX_OK, or
+ * NGX_ERROR on allocation failure.
+ *
+ * WHY: Backends emit absolute request-line URLs; the scheme+authority base is
+ * computed once here and reused for every address of this URL.
+ *
+ * HOW:
+ *   1. Allocate scheme_len + host->len + 1 bytes from cf->pool.
+ *   2. Copy the scheme prefix, then the formatted host, then NUL-terminate.
+ */
+static ngx_int_t
+webdav_proxy_build_url_base(ngx_conf_t *cf, ngx_str_t *url, size_t scheme_len,
+    ngx_str_t *host, ngx_str_t *url_base)
+{
+    u_char *p;
+    size_t  base_len = scheme_len + host->len;
+
+    p = ngx_pnalloc(cf->pool, base_len + 1);
+    if (p == NULL) return NGX_ERROR;
+    ngx_memcpy(p, url->data, scheme_len);
+    ngx_memcpy(p + scheme_len, host->data, host->len);
+    p[base_len] = '\0';
+    url_base->data = p;
+    url_base->len  = base_len;
+    return NGX_OK;
+}
+
+/* ---- Lazily create the TLS context shared by all https backends ----
+ *
+ * WHAT: When ssl is set and conf has no upstream_ssl_ctx yet, creates one
+ * cf->pool ngx_ssl_t covering TLSv1 through TLSv1.3 and stores it on conf.
+ * Returns
+ * NGX_OK (including the no-op non-ssl / already-present cases), or NGX_ERROR
+ * on allocation or ngx_ssl_create failure.
+ *
+ * WHY: One shared client TLS context serves every https backend; creating it
+ * once keeps the resolver flat and avoids per-backend contexts.  On builds
+ * without NGX_HTTP_SSL this is a no-op.
+ *
+ * HOW:
+ *   1. Do nothing unless ssl is set and no context exists yet.
+ *   2. Allocate and initialise an ngx_ssl_t, then publish it on conf.
+ */
+static ngx_int_t
+webdav_proxy_ensure_ssl_ctx(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf, ngx_flag_t ssl)
+{
 #if (NGX_HTTP_SSL)
     if (ssl && conf->upstream_ssl_ctx == NULL) {
         ngx_ssl_t *s = ngx_pcalloc(cf->pool, sizeof(ngx_ssl_t));
@@ -124,20 +206,45 @@ webdav_proxy_add_url(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *conf,
         }
         conf->upstream_ssl_ctx = s;        /* shared across https backends */
     }
+#else
+    (void) cf; (void) conf; (void) ssl;
 #endif
+    return NGX_OK;
+}
 
-    for (a = 0; a < u.naddrs; a++) {
+/* ---- Append one backend per resolved address of a single URL ----
+ *
+ * WHAT: Pushes u->naddrs entries onto conf->upstream_backends, each carrying
+ * one resolved address plus the shared host/url_base/ssl (and ssl_ctx).
+ * Returns NGX_OK, or NGX_ERROR if ngx_array_push fails.
+ *
+ * WHY: All addresses of a single URL share that URL's host/url_base/ssl; this
+ * loop materialises one round-robin-able backend per address.
+ *
+ * HOW:
+ *   1. For each address, push and zero a backend slot.
+ *   2. Copy the address into a single-address resolved view.
+ *   3. Alias the shared host/url_base/ssl (and, when built with TLS, ssl_ctx).
+ */
+static ngx_int_t
+webdav_proxy_push_backends(ngx_http_brix_webdav_loc_conf_t *conf,
+    ngx_url_t *u, ngx_str_t *host, ngx_str_t *url_base, ngx_flag_t ssl)
+{
+    ngx_uint_t              a;
+    brix_webdav_backend_t  *be;
+
+    for (a = 0; a < u->naddrs; a++) {
         be = ngx_array_push(conf->upstream_backends);
         if (be == NULL) return NGX_ERROR;
         ngx_memzero(be, sizeof(*be));
 
-        be->resolved.sockaddr = u.addrs[a].sockaddr;
-        be->resolved.socklen  = u.addrs[a].socklen;
+        be->resolved.sockaddr = u->addrs[a].sockaddr;
+        be->resolved.socklen  = u->addrs[a].socklen;
         be->resolved.naddrs   = 1;
-        be->resolved.host     = u.host;
-        be->resolved.port     = u.port;
-        be->host              = host;
-        be->url_base          = url_base;
+        be->resolved.host     = u->host;
+        be->resolved.port     = u->port;
+        be->host              = *host;
+        be->url_base          = *url_base;
         be->ssl               = ssl;
 #if (NGX_HTTP_SSL)
         be->ssl_ctx           = ssl ? conf->upstream_ssl_ctx : NULL;
@@ -145,6 +252,64 @@ webdav_proxy_add_url(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *conf,
     }
 
     return NGX_OK;
+}
+
+/* ---- Resolve one upstream URL and append its backends ----
+ *
+ * WHAT: Parses url (scheme + authority), formats its Host header and
+ * request-line base, ensures the shared https TLS context exists, and appends
+ * one brix_webdav_backend_t per resolved address.  Returns NGX_OK, or
+ * NGX_ERROR (after logging) on any parse or allocation failure.
+ *
+ * WHY: All addresses of a single URL share that URL's host/url_base/ssl; this
+ * orchestrator runs the resolution steps in order, keeping each concern in its
+ * own testable helper.
+ *
+ * HOW:
+ *   1. Split the http/https scheme.
+ *   2. Parse the authority into an ngx_url_t (>=1 address).
+ *   3. Build the Host header value and the request-line base.
+ *   4. Ensure the shared TLS context for https backends.
+ *   5. Push one backend per resolved address.
+ */
+static ngx_int_t
+webdav_proxy_add_url(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *conf,
+    ngx_str_t *url)
+{
+    ngx_url_t   u;
+    in_port_t   default_port = 0;
+    size_t      scheme_len = 0;
+    ngx_flag_t  ssl = 0;
+    ngx_str_t   host;
+    ngx_str_t   url_base;
+
+    if (webdav_proxy_split_scheme(cf, url, &ssl, &scheme_len,
+            &default_port) != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    if (webdav_proxy_parse_authority(cf, url, scheme_len, default_port, &u)
+            != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    if (webdav_proxy_build_host(cf, &u, default_port, &host) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    if (webdav_proxy_build_url_base(cf, url, scheme_len, &host, &url_base)
+            != NGX_OK)
+    {
+        return NGX_ERROR;
+    }
+
+    if (webdav_proxy_ensure_ssl_ctx(cf, conf, ssl) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    return webdav_proxy_push_backends(conf, &u, &host, &url_base, ssl);
 }
 
 ngx_int_t

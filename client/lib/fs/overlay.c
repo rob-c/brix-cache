@@ -64,6 +64,35 @@ static int ov_marker_at(int dirfd, const char *marker) {
 
 /* ---- the O_NOFOLLOW walk ------------------------------------------------- */
 
+/* ---- Open (optionally create) one directory component of the walk ----
+ *
+ * WHAT: Opens child `name` under `dirfd` with O_NOFOLLOW|O_DIRECTORY. When
+ *       `mk` is set and the child is missing, it is created — mode_fn(ud,
+ *       prefix) supplies the mode, or 0755 when mode_fn is NULL — then
+ *       reopened. Returns the child dirfd (caller closes) or -errno. `dirfd`
+ *       is left open for the caller to close in every case.
+ *
+ * WHY:  Factoring the create-if-missing-then-reopen step keeps ov_walk_parent_mk
+ *       a flat descent loop and confines the mkdir race handling (a racing
+ *       creator yielding EEXIST is benign) to one place.
+ *
+ * HOW:  1. Try an O_NOFOLLOW openat of the child directory.
+ *       2. On ENOENT with `mk`, mkdirat with the computed mode (EEXIST is
+ *          tolerated) and reopen.
+ *       3. Map any residual failure to -errno; errno reflects the last syscall.
+ */
+static int ov_descend_dir(int dirfd, const char *name, int mk,
+                          mode_t (*mode_fn)(void *ud, const char *rel_dir),
+                          void *ud, const char *prefix) {
+    int next = openat(dirfd, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (next < 0 && mk && errno == ENOENT) {
+        mode_t m = mode_fn ? mode_fn(ud, prefix) : 0755;
+        if (mkdirat(dirfd, name, m) != 0 && errno != EEXIST) return -errno;
+        next = openat(dirfd, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    }
+    return next < 0 ? -errno : next;
+}
+
 /* Open the parent directory of `rel`'s leaf, descending from upper_fd one
  * component at a time with O_NOFOLLOW|O_DIRECTORY (symlinks dead-end). With
  * `mk`, missing intermediate dirs are created (mode_fn(ud, prefix) or 0755).
@@ -95,18 +124,9 @@ static int ov_walk_parent_mk(const brix_overlay *ov, const char *rel,
             plen += ll;
         }
 
-        int next = openat(cur, leaf, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
-        if (next < 0 && mk && errno == ENOENT) {
-            mode_t m = mode_fn ? mode_fn(ud, prefix) : 0755;
-            if (mkdirat(cur, leaf, m) != 0 && errno != EEXIST) {
-                int e = errno;
-                close(cur);
-                return -e;
-            }
-            next = openat(cur, leaf, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
-        }
-        if (next < 0) { int e = errno; close(cur); return -e; }
+        int next = ov_descend_dir(cur, leaf, mk, mode_fn, ud, prefix);
         close(cur);
+        if (next < 0) return next;
         cur = next;
     }
 }
@@ -135,6 +155,47 @@ void brix_overlay_close(brix_overlay *ov) {
 
 /* ---- classification ------------------------------------------------------ */
 
+/* ---- Classify the repo root (empty rel) as the upper directory ----
+ *
+ * WHAT: Reports the union root as BRIX_OV_UPPER, filling *st from the upper
+ *       dirfd when st is non-NULL. Returns 0, or -errno if the fstat fails.
+ *
+ * WHY:  The empty relative path names the union root, which is always the
+ *       upper directory itself; handling it separately keeps the component
+ *       walk in brix_overlay_classify free of the root special case.
+ *
+ * HOW:  1. fstat the upper dirfd into *st when a stat buffer was supplied.
+ *       2. Set *state to BRIX_OV_UPPER and return success.
+ */
+static int ov_classify_root(const brix_overlay *ov, struct stat *st,
+                            brix_ov_state *state) {
+    if (st != NULL && fstat(ov->upper_fd, st) != 0) return -errno;
+    *state = BRIX_OV_UPPER;
+    return 0;
+}
+
+/* ---- Descend into an upper subdirectory during classification ----
+ *
+ * WHAT: Opens directory component `name` under `cur` with O_NOFOLLOW and
+ *       closes `cur` unconditionally. Sets *opaque when the child carries the
+ *       opaque marker. Returns the child dirfd (caller closes) or -errno.
+ *
+ * WHY:  The classify walk must note an opaque directory the moment it enters
+ *       one and must never follow a planted symlink; isolating the descend
+ *       keeps that ordering explicit and the walk loop flat.
+ *
+ * HOW:  1. O_NOFOLLOW openat of the child directory, then close the parent.
+ *       2. On failure return -errno.
+ *       3. Probe for the opaque marker in the child and record it in *opaque.
+ */
+static int ov_descend_child(int cur, const char *name, int *opaque) {
+    int next = openat(cur, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    close(cur);
+    if (next < 0) return -errno;
+    if (ov_marker_at(next, BRIX_OV_OPQ_NAME)) *opaque = 1;
+    return next;
+}
+
 /* Walk `rel` from the upper root and decide how the union sees it: a whiteout
  * on any component, an opaque ancestor, or a non-dir upper component shadowing
  * the remainder all mask the lower layer; a leaf found in upper wins; anything
@@ -144,11 +205,8 @@ int brix_overlay_classify(const brix_overlay *ov, const char *rel,
     *state = BRIX_OV_NONE;
     if (rel == NULL) return -EINVAL;
 
-    if (rel[0] == '\0') {                       /* the repo root is upper/ */
-        if (st != NULL && fstat(ov->upper_fd, st) != 0) return -errno;
-        *state = BRIX_OV_UPPER;
-        return 0;
-    }
+    if (rel[0] == '\0')                         /* the repo root is upper/ */
+        return ov_classify_root(ov, st, state);
 
     int cur = openat(ov->upper_fd, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if (cur < 0) return -errno;
@@ -188,11 +246,8 @@ int brix_overlay_classify(const brix_overlay *ov, const char *rel,
             return 0;
         }
 
-        int next = openat(cur, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
-        close(cur);
-        if (next < 0) return -errno;
-        cur = next;
-        if (ov_marker_at(cur, BRIX_OV_OPQ_NAME)) opaque = 1;
+        cur = ov_descend_child(cur, name, &opaque);
+        if (cur < 0) return cur;
     }
 }
 
@@ -573,6 +628,12 @@ static void ov_cli_kind(const char *mountdir, const char *rel,
     else       snprintf(kind, cap, "upper");
 }
 
+/* Forward decl: ov_cli_list_dir and ov_cli_list_entry recurse into each other
+ * (a subdirectory entry descends via ov_cli_list_dir). */
+static int ov_cli_list_entry(const char *mountdir, const char *upper_root,
+                             const char *rel, const char *dirp,
+                             const char *name, FILE *out);
+
 static int ov_cli_list_dir(const char *mountdir, const char *upper_root,
                            const char *rel, FILE *out) {
     char *dirp = NULL;
@@ -583,38 +644,62 @@ static int ov_cli_list_dir(const char *mountdir, const char *upper_root,
     int            rc = 0;
     struct dirent *e;
     while (rc == 0 && (e = readdir(d)) != NULL) {
-        const char *n = e->d_name;
-        if (strcmp(n, ".") == 0 || strcmp(n, "..") == 0) continue;
-        if (strcmp(n, BRIX_OV_OPQ_NAME) == 0) continue;
-        if (strncmp(n, BRIX_OV_TMP_PREFIX, sizeof(BRIX_OV_TMP_PREFIX) - 1) == 0) continue;
-
-        if (strncmp(n, BRIX_OV_WH_PREFIX, sizeof(BRIX_OV_WH_PREFIX) - 1) == 0) {
-            fprintf(out, "deleted %s%s%s\n", rel, rel[0] ? "/" : "",
-                    n + sizeof(BRIX_OV_WH_PREFIX) - 1);
-            continue;
-        }
-
-        char *crel = NULL, *full = NULL;
-        if (asprintf(&crel, "%s%s%s", rel, rel[0] ? "/" : "", n) < 0
-            || asprintf(&full, "%s/%s", dirp, n) < 0) {
-            free(crel);
-            rc = 1;
-            continue;
-        }
-        struct stat st;
-        if (lstat(full, &st) == 0 && S_ISDIR(st.st_mode)) {
-            fprintf(out, "dir %s\n", crel);
-            rc = ov_cli_list_dir(mountdir, upper_root, crel, out);
-        } else {
-            char kind[64];
-            ov_cli_kind(mountdir, crel, kind, sizeof(kind));
-            fprintf(out, "%s %s\n", kind, crel);
-        }
-        free(crel);
-        free(full);
+        rc = ov_cli_list_entry(mountdir, upper_root, rel, dirp, e->d_name, out);
     }
     closedir(d);
     free(dirp);
+    return rc;
+}
+
+/* ---- Emit one upper-tree entry during --overlay-list ----
+ *
+ * WHAT: Classifies dirent `name` in the upper directory `dirp` (union path
+ *       `rel`): "." "..", the opaque marker and tmp files are skipped; a
+ *       whiteout prints a "deleted" line; a subdirectory prints "dir" and
+ *       recurses; any other entry prints its change kind. Returns 0, or 1 on
+ *       an allocation failure (which stops the enclosing scan).
+ *
+ * WHY:  Splitting the per-entry decision ladder out of ov_cli_list_dir keeps
+ *       each function small and single-purpose while preserving the exact
+ *       skip/whiteout/recurse ordering the listing relies on.
+ *
+ * HOW:  1. Return early for reserved/skipped names.
+ *       2. Print and return for a whiteout marker.
+ *       3. Build the child union path and absolute path; on OOM free and fail.
+ *       4. Recurse into a subdirectory, else print the file's change kind.
+ */
+static int ov_cli_list_entry(const char *mountdir, const char *upper_root,
+                             const char *rel, const char *dirp,
+                             const char *name, FILE *out) {
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) return 0;
+    if (strcmp(name, BRIX_OV_OPQ_NAME) == 0) return 0;
+    if (strncmp(name, BRIX_OV_TMP_PREFIX, sizeof(BRIX_OV_TMP_PREFIX) - 1) == 0) return 0;
+
+    if (strncmp(name, BRIX_OV_WH_PREFIX, sizeof(BRIX_OV_WH_PREFIX) - 1) == 0) {
+        fprintf(out, "deleted %s%s%s\n", rel, rel[0] ? "/" : "",
+                name + sizeof(BRIX_OV_WH_PREFIX) - 1);
+        return 0;
+    }
+
+    char *crel = NULL, *full = NULL;
+    if (asprintf(&crel, "%s%s%s", rel, rel[0] ? "/" : "", name) < 0
+        || asprintf(&full, "%s/%s", dirp, name) < 0) {
+        free(crel);
+        return 1;
+    }
+
+    int         rc = 0;
+    struct stat st;
+    if (lstat(full, &st) == 0 && S_ISDIR(st.st_mode)) {
+        fprintf(out, "dir %s\n", crel);
+        rc = ov_cli_list_dir(mountdir, upper_root, crel, out);
+    } else {
+        char kind[64];
+        ov_cli_kind(mountdir, crel, kind, sizeof(kind));
+        fprintf(out, "%s %s\n", kind, crel);
+    }
+    free(crel);
+    free(full);
     return rc;
 }
 

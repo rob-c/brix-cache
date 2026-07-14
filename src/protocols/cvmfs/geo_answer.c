@@ -94,14 +94,118 @@ cvmfs_geo_port_allowed(int port)
     return port == 80 || port == 443 || port == 8000;
 }
 
-/* Parse one "host" or "host:port" token into `e`. A token with a non-host
- * character (a coordinate literal, IPv6, garbage) or a disallowed port is left
- * !valid — it keeps its response slot but lands in the unprobed bucket. */
+/* ---- Scan the leading host run of a server-list token ----
+ *
+ * WHAT: copies the leading [a-zA-Z0-9.-] run of `tok` (up to `len` bytes) into
+ *       `host` (capacity `host_size`), NUL-terminating on success and returning
+ *       the host length in bytes; returns 0 to reject the token (empty host, or
+ *       a host that would overflow `host`).
+ *
+ * WHY:  isolates the character-class host scan so cvmfs_geo_parse_entry stays a
+ *       flat orchestrator under the complexity cap. The returned length doubles
+ *       as the index where the optional ":<port>" suffix begins: every scanned
+ *       byte before the stopping point is a host byte that is copied, so the
+ *       source cursor and the host length advance in lockstep and are equal at
+ *       the stop — exactly the position the caller passes to the port scan.
+ *
+ * HOW:  1. walk `tok` byte by byte while each byte is in the host class;
+ *       2. reject (return 0) if the next byte would not fit in `host`;
+ *       3. stop at the first non-host byte or at `len`;
+ *       4. reject (return 0) if no host byte was collected;
+ *       5. NUL-terminate and return the collected length.
+ */
+static size_t
+cvmfs_geo_scan_host(const u_char *tok, size_t len, char *host, size_t host_size)
+{
+    size_t i, hlen = 0;
+
+    for (i = 0; i < len; i++) {
+        u_char c = tok[i];
+
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+            || (c >= '0' && c <= '9') || c == '.' || c == '-')
+        {
+            if (hlen + 1 >= host_size) {
+                return 0;                      /* host too long → reject      */
+            }
+            host[hlen++] = (char) c;
+            continue;
+        }
+        break;
+    }
+    if (hlen == 0) {
+        return 0;                              /* no host → reject            */
+    }
+    host[hlen] = '\0';
+    return hlen;
+}
+
+/* ---- Scan the optional ":<port>" suffix of a server-list token ----
+ *
+ * WHAT: parses an optional ":<digits>" suffix of `tok` beginning at byte `pos`;
+ *       returns the port (1..65535), the default 80 when there is no suffix, or
+ *       0 to reject the token (non-colon separator, non-digit, out-of-range, or
+ *       an explicit port 0).
+ *
+ * WHY:  keeps the numeric-suffix parse out of the orchestrator. 0 is a safe
+ *       reject sentinel because a literal ":0" is itself rejected, so a returned
+ *       0 never denotes a legitimate port.
+ *
+ * HOW:  1. with no suffix (pos == len) return the default port 80;
+ *       2. require ':' as the separator, else reject;
+ *       3. accumulate decimal digits, rejecting any non-digit or value > 65535;
+ *       4. reject an explicit zero port;
+ *       5. return the accumulated port.
+ */
+static int
+cvmfs_geo_scan_port(const u_char *tok, size_t len, size_t pos)
+{
+    int port = 80;
+
+    if (pos < len) {
+        /* the only accepted separator is ":<digits>" to end-of-token */
+        if (tok[pos] != ':') {
+            return 0;
+        }
+        port = 0;
+        for (pos++; pos < len; pos++) {
+            if (tok[pos] < '0' || tok[pos] > '9') {
+                return 0;                      /* junk after host → reject    */
+            }
+            port = port * 10 + (tok[pos] - '0');
+            if (port > 65535) {
+                return 0;
+            }
+        }
+        if (port == 0) {
+            return 0;
+        }
+    }
+    return port;
+}
+
+/* ---- Parse one "host" or "host:port" token into an entry ----
+ *
+ * WHAT: fills `e` from `tok` (length `len`); a well-formed token with an allowed
+ *       CVMFS server port is marked valid, everything else is left !valid but
+ *       still keeps its response slot (it lands in the unprobed bucket).
+ *
+ * WHY:  a token with a non-host character (a coordinate literal, IPv6, garbage)
+ *       or a disallowed port must never be probed, but must never be dropped
+ *       either — the client expects a complete permutation.
+ *
+ * HOW:  1. reset `e` to the !valid / unprobed default;
+ *       2. reject an empty token;
+ *       3. scan the host run (cvmfs_geo_scan_host); reject on failure;
+ *       4. scan the optional port suffix (cvmfs_geo_scan_port) starting right
+ *          after the host; reject on failure;
+ *       5. record the port and set valid only for allowed CVMFS server ports.
+ */
 static void
 cvmfs_geo_parse_entry(const u_char *tok, size_t len, cvmfs_geo_entry_t *e)
 {
-    size_t i, hlen = 0;
-    int    port = 80;
+    size_t hlen;
+    int    port;
 
     e->valid = 0;
     e->need_probe = 0;
@@ -113,47 +217,16 @@ cvmfs_geo_parse_entry(const u_char *tok, size_t len, cvmfs_geo_entry_t *e)
     if (len == 0) {
         return;
     }
-    /* host run: [a-zA-Z0-9.-] */
-    for (i = 0; i < len; i++) {
-        u_char c = tok[i];
-
-        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-            || (c >= '0' && c <= '9') || c == '.' || c == '-')
-        {
-            if (hlen + 1 >= sizeof(e->host)) {
-                return;                        /* host too long → unprobed    */
-            }
-            e->host[hlen++] = (char) c;
-            continue;
-        }
-        break;
-    }
+    hlen = cvmfs_geo_scan_host(tok, len, e->host, sizeof(e->host));
     if (hlen == 0) {
-        return;                                /* no host → unprobed          */
+        return;                                /* no/oversized host → unprobed */
     }
-    e->host[hlen] = '\0';
-
-    if (i < len) {
-        /* the only accepted separator is ":<digits>" to end-of-token */
-        if (tok[i] != ':') {
-            return;
-        }
-        port = 0;
-        for (i++; i < len; i++) {
-            if (tok[i] < '0' || tok[i] > '9') {
-                return;                        /* junk after host → unprobed  */
-            }
-            port = port * 10 + (tok[i] - '0');
-            if (port > 65535) {
-                return;
-            }
-        }
-        if (port == 0) {
-            return;
-        }
+    port = cvmfs_geo_scan_port(tok, len, hlen);
+    if (port == 0) {
+        return;                                /* bad port suffix → unprobed   */
     }
     e->port = port;
-    e->valid = cvmfs_geo_port_allowed(port);   /* guard: CVMFS server ports   */
+    e->valid = cvmfs_geo_port_allowed(port);   /* guard: CVMFS server ports    */
 }
 
 /* Split the server list (last '/'-segment of the geo URI) into entries. Returns

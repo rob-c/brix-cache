@@ -1,7 +1,7 @@
 /*
  * wait41.c — block until an XRootD server accepts connections.
  *
- * WHAT: `wait41 [--timeout S] [--full] host[:port]` — poll until the server is
+ * WHAT: `wait41-brix [--timeout S] [--full] host[:port]` — poll until the server is
  *       reachable (TCP connect; with --full, a complete handshake+login). Exits 0
  *       when ready, non-zero on timeout. The readiness helper the harness wants.
  * WHY:  A tiny front-end over the client transport/session layer. libXrdCl-free.
@@ -36,7 +36,7 @@ brix_wait41_main(int argc, char **argv)
         }
         if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
             printf("usage: %s [--timeout S] [--full] host[:port]\n"
-                   BRIX_USAGE_FOOTER("wait41"),
+                   BRIX_USAGE_FOOTER("wait41-brix"),
                    argv[0]);
             return 0;
         }
@@ -50,7 +50,7 @@ brix_wait41_main(int argc, char **argv)
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             /* Recognise -h/--help at any position (not just argv[1]). */
             printf("usage: %s [--timeout S] [--full] host[:port]\n"
-                   BRIX_USAGE_FOOTER("wait41"),
+                   BRIX_USAGE_FOOTER("wait41-brix"),
                    argv[0]);
             return 0;
         } else {

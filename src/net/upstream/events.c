@@ -118,6 +118,115 @@ brix_upstream_write_handler(ngx_event_t *wev)
 }
 
 /*
+ * WHAT: Perform a single non-blocking recv into buf[*pos..total), advancing *pos on
+ *      success, and translate the three possible outcomes into a caller-return signal.
+ * WHY: Both accumulation stages of the read handler (header and body) share identical
+ *      recv/NGX_AGAIN/peer-closed handling — only the destination buffer and the abort
+ *      messages differ. Centralising it keeps the offsets (rhdr_pos/resp_body_pos)
+ *      resumable across re-entries and removes a duplicated branch ladder.
+ * HOW: recv `total - *pos` bytes at buf + *pos. On NGX_AGAIN re-arm the read event
+ *      (abort with again_msg if arming fails) and return NGX_DONE — the caller must
+ *      return so re-entry resumes at the same offset. On <=0 abort with closed_msg and
+ *      return NGX_DONE. On a real read advance *pos and return NGX_OK; the caller then
+ *      decides (via the offset) whether the stage is complete or must loop for more.
+ */
+static ngx_int_t
+brix_upstream_recv_chunk(brix_upstream_t *up, ngx_connection_t *uconn,
+    ngx_event_t *rev, u_char *buf, size_t *pos, size_t total,
+    const char *again_msg, const char *closed_msg)
+{
+    size_t  need = total - *pos;
+    ssize_t n = uconn->recv(uconn, buf + *pos, need);
+
+    if (n == NGX_AGAIN) {
+        if (ngx_handle_read_event(rev, 0) != NGX_OK) {
+            brix_upstream_abort(up, again_msg);
+        }
+        return NGX_DONE;
+    }
+    if (n <= 0) {
+        brix_upstream_abort(up, closed_msg);
+        return NGX_DONE;
+    }
+
+    *pos += (size_t) n;
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Decode the just-completed response header and, when a body follows, allocate a
+ *      size-capped body buffer for stage 2.
+ * WHY: The 8-byte ServerResponseHdr carries the wire status and the body length that
+ *      governs stage-2 accumulation. Untrusted `dlen` must be bounded before it drives
+ *      an allocation, and the buffer needs a spare NUL so downstream parsers can treat
+ *      the body as a C string.
+ * HOW: Read status (ntohs) and dlen (ntohl) from the header in host order. With dlen==0
+ *      there is no body — return NGX_OK immediately. Otherwise reject a dlen above
+ *      BRIX_MAX_PATH+256 (abort, NGX_ERROR), then ngx_palloc dlen+1 from the connection
+ *      pool (abort on failure), NUL-terminate at [dlen], and reset resp_body_pos.
+ */
+static ngx_int_t
+brix_upstream_parse_header_and_alloc(brix_upstream_t *up,
+    ngx_connection_t *uconn)
+{
+    ServerResponseHdr *hdr = (ServerResponseHdr *) (void *) up->rhdr;
+
+    up->resp_status = ntohs(hdr->status);
+    up->resp_dlen = ntohl(hdr->dlen);
+
+    if (up->resp_dlen == 0) {
+        return NGX_OK;
+    }
+
+    /* Cap untrusted body size to bound allocation — the largest legitimate
+     * upstream payload here is a path plus protocol slack. */
+    if (up->resp_dlen > BRIX_MAX_PATH + 256) {
+        brix_upstream_abort(up, "upstream response body too large");
+        return NGX_ERROR;
+    }
+
+    /* +1 byte for a NUL terminator so the body can be treated as a C string by
+     * downstream parsers; allocated from the connection pool. */
+    up->resp_body = ngx_palloc(uconn->pool, up->resp_dlen + 1);
+    if (up->resp_body == NULL) {
+        brix_upstream_abort(up, "upstream pool alloc failed");
+        return NGX_ERROR;
+    }
+    up->resp_body[up->resp_dlen] = '\0';
+    up->resp_body_pos = 0;
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Hand a fully-buffered header+body response to the correct consumer for the
+ *      current connection state.
+ * WHY: Bootstrap and live-request phases consume responses differently: bootstrap replies
+ *      drive the login FSM, while request/async replies are relayed verbatim. Any other
+ *      state reaching a complete frame is a logic error worth aborting on.
+ * HOW: BOOTSTRAP → handle_bootstrap_response(); REQUEST/ASYNC → forward_response();
+ *      anything else → abort. The handler returns unconditionally after this call.
+ */
+static void
+brix_upstream_dispatch_response(brix_upstream_t *up)
+{
+    /* Bootstrap replies (handshake/protocol/TLS/login) drive the login FSM, which
+     * advances bs_phase and, when DONE, replays the saved client request. */
+    if (up->state == XRD_UP_BOOTSTRAP) {
+        brix_upstream_handle_bootstrap_response(up);
+        return;
+    }
+
+    /* Live request/async replies are relayed verbatim to the client connection. */
+    if (up->state == XRD_UP_REQUEST || up->state == XRD_UP_ASYNC) {
+        brix_upstream_forward_response(up);
+        return;
+    }
+
+    /* No other state should ever reach the read handler with a complete frame. */
+    brix_upstream_abort(up, "upstream: unexpected state in read handler");
+}
+
+/*
  * WHAT: Readable-event callback that accumulates one complete upstream response
  *      (fixed-size header + variable body) and dispatches it by connection state.
  * WHY: XRootD replies are framed as an 8-byte ServerResponseHdr followed by `dlen`
@@ -125,11 +234,11 @@ brix_upstream_write_handler(ngx_event_t *wev)
  *      (rhdr_pos / resp_body_pos) across re-entries to this handler. A single response
  *      is consumed per invocation, after which we hand off and return.
  * HOW: Two-stage accumulation inside one loop. Stage 1 fills rhdr to XRD_RESPONSE_HDR_LEN
- *      then parses status/dlen and (if dlen>0) allocates a capped body buffer. Stage 2
- *      fills the body. Each recv may yield NGX_AGAIN (re-arm and return — re-entry resumes
- *      at the same offset) or <=0 (peer closed — abort). Once both stages are complete,
- *      dispatch: BOOTSTRAP responses drive the login state machine; REQUEST/ASYNC
- *      responses are forwarded to the client; any other state is a logic error.
+ *      via recv_chunk() then parses status/dlen and allocates the body. Stage 2 fills the
+ *      body via recv_chunk(). recv_chunk() returns NGX_DONE on NGX_AGAIN (re-armed) or
+ *      peer-close (aborted) — in both cases we return so re-entry resumes at the same
+ *      offset; on NGX_OK a short read loops to pull the remainder. Once both stages are
+ *      complete, dispatch_response() routes the frame by connection state.
  */
 void
 brix_upstream_read_handler(ngx_event_t *rev)
@@ -137,7 +246,6 @@ brix_upstream_read_handler(ngx_event_t *rev)
     ngx_connection_t  *uconn = rev->data;
     brix_upstream_t *up = uconn->data;
     brix_ctx_t      *ctx = up->client_ctx;
-    ssize_t            n;
 
     /* Stale event after the client session was destroyed: just clean up. */
     if (ctx == NULL || ctx->destroyed) {
@@ -151,99 +259,41 @@ brix_upstream_read_handler(ngx_event_t *rev)
     }
 
     for (;;) {
-        /* Stage 1: accumulate the fixed-length response header */        if (up->rhdr_pos < XRD_RESPONSE_HDR_LEN) {
-            size_t need = XRD_RESPONSE_HDR_LEN - up->rhdr_pos;
-
-            n = uconn->recv(uconn, up->rhdr + up->rhdr_pos, need);
-            if (n == NGX_AGAIN) {
-                /* Socket drained mid-header; re-arm and resume here next event. */
-                if (ngx_handle_read_event(rev, 0) != NGX_OK) {
-                    brix_upstream_abort(up, "upstream read arm failed (hdr)");
-                }
+        /* Stage 1: accumulate the fixed-length response header. */
+        if (up->rhdr_pos < XRD_RESPONSE_HDR_LEN) {
+            if (brix_upstream_recv_chunk(up, uconn, rev, up->rhdr,
+                    &up->rhdr_pos, XRD_RESPONSE_HDR_LEN,
+                    "upstream read arm failed (hdr)",
+                    "upstream connection closed") != NGX_OK)
+            {
                 return;
             }
-            if (n <= 0) {
-                brix_upstream_abort(up, "upstream connection closed");
-                return;
-            }
-
-            up->rhdr_pos += (size_t) n;
             if (up->rhdr_pos < XRD_RESPONSE_HDR_LEN) {
                 /* Short read — loop to pull the rest of the header. */
                 continue;
             }
-
-            /* Header complete: decode wire fields (network byte order) into host
-             * order. status is uint16 at the start of the header; dlen is the uint32
-             * body length that determines how many more bytes to read in stage 2. */
-            {
-                ServerResponseHdr *hdr;
-
-                hdr = (ServerResponseHdr *) (void *) up->rhdr;
-                up->resp_status = ntohs(hdr->status);
-                up->resp_dlen = ntohl(hdr->dlen);
-            }
-
-            if (up->resp_dlen > 0) {
-                /* Cap untrusted body size to bound allocation — the largest legitimate
-                 * upstream payload here is a path plus protocol slack. */
-                if (up->resp_dlen > BRIX_MAX_PATH + 256) {
-                    brix_upstream_abort(up,
-                                          "upstream response body too large");
-                    return;
-                }
-                /* +1 byte for a NUL terminator so the body can be treated as a C
-                 * string by downstream parsers; allocated from the connection pool. */
-                up->resp_body = ngx_palloc(uconn->pool, up->resp_dlen + 1);
-                if (up->resp_body == NULL) {
-                    brix_upstream_abort(up, "upstream pool alloc failed");
-                    return;
-                }
-                up->resp_body[up->resp_dlen] = '\0';
-                up->resp_body_pos = 0;
+            if (brix_upstream_parse_header_and_alloc(up, uconn) != NGX_OK) {
+                return;
             }
         }
 
-        /* Stage 2: accumulate the variable-length body (skipped when dlen==0) */        if (up->resp_body_pos < up->resp_dlen) {
-            size_t need = up->resp_dlen - up->resp_body_pos;
-
-            n = uconn->recv(uconn, up->resp_body + up->resp_body_pos, need);
-            if (n == NGX_AGAIN) {
-                /* Body fragmented across reads; re-arm and resume at this offset. */
-                if (ngx_handle_read_event(rev, 0) != NGX_OK) {
-                    brix_upstream_abort(up,
-                                          "upstream read arm failed (body)");
-                }
+        /* Stage 2: accumulate the variable-length body (skipped when dlen==0). */
+        if (up->resp_body_pos < up->resp_dlen) {
+            if (brix_upstream_recv_chunk(up, uconn, rev, up->resp_body,
+                    &up->resp_body_pos, up->resp_dlen,
+                    "upstream read arm failed (body)",
+                    "upstream connection closed (body)") != NGX_OK)
+            {
                 return;
             }
-            if (n <= 0) {
-                brix_upstream_abort(up, "upstream connection closed (body)");
-                return;
-            }
-
-            up->resp_body_pos += (size_t) n;
             if (up->resp_body_pos < up->resp_dlen) {
                 /* More body to come — loop. */
                 continue;
             }
         }
 
-        /* Dispatch: a full header+body is now buffered */
-        /* Bootstrap replies (handshake/protocol/TLS/login) drive the login FSM, which
-         * advances bs_phase and, when DONE, replays the saved client request. */
-        if (up->state == XRD_UP_BOOTSTRAP) {
-            brix_upstream_handle_bootstrap_response(up);
-            return;
-        }
-
-        /* Live request/async replies are relayed verbatim to the client connection. */
-        if (up->state == XRD_UP_REQUEST || up->state == XRD_UP_ASYNC) {
-            brix_upstream_forward_response(up);
-            return;
-        }
-
-        /* No other state should ever reach the read handler with a complete frame. */
-        brix_upstream_abort(up, "upstream: unexpected state in read handler");
+        /* Dispatch: a full header+body is now buffered. */
+        brix_upstream_dispatch_response(up);
         return;
     }
 }

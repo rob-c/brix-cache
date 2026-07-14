@@ -280,6 +280,9 @@ brix_cache_add_candidate(brix_cache_evict_list_t *list, const char *path,
         /* Phase 27 F9/W1: bound the candidate set and use overflow-checked size
          * math so a pathological scan cannot wrap new_cap*sizeof into a tiny
          * allocation that the loop then overruns. */
+        /* phase79-fp: "leak of copy" — copy's ownership transfers into
+         * list->elts[].path below and is released by brix_cache_free_candidates;
+         * analyzer does not track ownership through the realloc'd container */
         if (new_cap > BRIX_EVICT_MAX_CANDIDATES
             || brix_size_mul(new_cap, sizeof(list->elts[0]), &elts_sz)
                != NGX_OK)

@@ -209,74 +209,127 @@ acc_resolve_unix(const char *user, char ***namesp)
     return out;
 }
 
-/* Public resolver (installed into the engine): user -> request-pool array of
- * group-name strings, using the TTL cache. */
-static ngx_array_t *
-brix_acc_unix_groups(ngx_pool_t *pool, const char *user)
+/* ---- Record one NSS resolve latency into the circuit breaker ----
+ *
+ * WHAT: given the wall time of a completed NSS group resolve and the current
+ *   time, updates the shared breaker state. A resolve at or over ACC_NSS_SLOW_MS
+ *   increments the consecutive-slow counter and, on the ACC_NSS_TRIP_COUNT-th
+ *   consecutive slow resolve, opens the breaker for ACC_NSS_COOLDOWN_SECS (and
+ *   emits the resiliency metric + a WARN). A fast resolve resets the counter.
+ *
+ * WHY: extracted from brix_acc_unix_groups so the resolver orchestrator stays
+ *   within the complexity cap; isolating the breaker-trip decision here keeps
+ *   the slow/fast accounting in one nameable place with no behaviour change.
+ *
+ * HOW:
+ *   1. If elapsed >= ACC_NSS_SLOW_MS, pre-increment consecutive_slow.
+ *   2. When that count reaches ACC_NSS_TRIP_COUNT, set open_until = now +
+ *      cooldown, reset the counter, bump the breaker-open metric, and log WARN.
+ *   3. Otherwise (fast resolve) reset consecutive_slow to 0.
+ */
+static void
+acc_nss_note_latency(int64_t elapsed, time_t now)
 {
-    acc_grp_cache_t *e;
-    ngx_array_t     *out;
-    time_t           now;
-    int              i;
-
-    if (user == NULL || *user == '\0' || ngx_strlen(user) >= ACC_GRP_USER_MAX) {
-        return NULL;
-    }
-    now = time(NULL);
-    e = &acc_grp_cache[acc_user_hash(user)];
-
-    /* Cache hit on the same user and not expired? */
-    if (!(e->user[0] != '\0' && e->expiry > now && ngx_strcmp(e->user, user) == 0)) {
-        char  **names;
-        int     cnt;
-        int64_t t0, elapsed;
-
-        /* E3: circuit breaker open → fail fast to "no groups", don't touch NSS. */
-        if (acc_nss_breaker.open_until > now) {
-            return NULL;
-        }
-
-        t0  = acc_monotonic_ms();
-        cnt = acc_resolve_unix(user, &names);
-        elapsed = acc_monotonic_ms() - t0;
-
-        /* E3: trip the breaker on sustained slow resolutions. */
-        if (elapsed >= ACC_NSS_SLOW_MS) {
-            if (++acc_nss_breaker.consecutive_slow >= ACC_NSS_TRIP_COUNT) {
-                acc_nss_breaker.open_until = now + ACC_NSS_COOLDOWN_SECS;
-                acc_nss_breaker.consecutive_slow = 0;
-                BRIX_RESIL_METRIC_INC(acc_nss_breaker_open_total);
-                ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
-                              "brix_acc: NSS group lookup slow (%L ms) — "
-                              "opening circuit breaker for %ds (failing to "
-                              "no-supplementary-groups)",
-                              (long long) elapsed, ACC_NSS_COOLDOWN_SECS);
-            }
-        } else {
+    /* E3: trip the breaker on sustained slow resolutions. */
+    if (elapsed >= ACC_NSS_SLOW_MS) {
+        if (++acc_nss_breaker.consecutive_slow >= ACC_NSS_TRIP_COUNT) {
+            acc_nss_breaker.open_until = now + ACC_NSS_COOLDOWN_SECS;
             acc_nss_breaker.consecutive_slow = 0;
+            BRIX_RESIL_METRIC_INC(acc_nss_breaker_open_total);
+            ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, 0,
+                          "brix_acc: NSS group lookup slow (%L ms) — "
+                          "opening circuit breaker for %ds (failing to "
+                          "no-supplementary-groups)",
+                          (long long) elapsed, ACC_NSS_COOLDOWN_SECS);
         }
+    } else {
+        acc_nss_breaker.consecutive_slow = 0;
+    }
+}
 
-        acc_cache_free(e);
+/* ---- Refresh one expired/absent cache entry from NSS ----
+ *
+ * WHAT: (re)populates cache entry e for user via a fresh NSS resolve, subject to
+ *   the circuit breaker. Returns NGX_OK when e now holds a real group-name list
+ *   (cnt > 0) that the caller should render; returns NGX_DECLINED when the caller
+ *   must yield "no supplementary groups" — either because the breaker is open
+ *   (NSS untouched, e left as-is) or because the user resolved to zero groups
+ *   (negatively cached with a short TTL). e is always left in a self-consistent
+ *   state on the NGX_DECLINED no-group path (count 0).
+ *
+ * WHY: extracted from brix_acc_unix_groups to keep that resolver under the
+ *   complexity cap. The NGX_DECLINED/NGX_OK split preserves the original invariant
+ *   that a breaker-open miss returns immediately WITHOUT rendering any stale entry.
+ *
+ * HOW:
+ *   1. If the breaker is open (open_until > now), return NGX_DECLINED without
+ *      touching NSS or e (matches the original early return).
+ *   2. Time the acc_resolve_unix() call with the monotonic clock and feed the
+ *      elapsed time to acc_nss_note_latency() to maintain the breaker.
+ *   3. Free the old entry contents via acc_cache_free().
+ *   4. On cnt <= 0, negatively cache the username with a short TTL and return
+ *      NGX_DECLINED.
+ *   5. Otherwise store the resolved name vector with the full gidlifetime TTL and
+ *      return NGX_OK.
+ */
+static ngx_int_t
+acc_cache_refresh(acc_grp_cache_t *e, const char *user, time_t now)
+{
+    char  **names;
+    int     cnt;
+    int64_t t0, elapsed;
 
-        /* E3: negative-cache an unknown / no-group user (short TTL) so a flood of
-         * distinct misses cannot re-block NSS on every request. */
-        if (cnt <= 0) {
-            ngx_memcpy(e->user, user, ngx_strlen(user) + 1);
-            e->names  = NULL;
-            e->count  = 0;
-            e->expiry = now + ngx_min(ACC_NSS_NEG_TTL_SECS, acc_gidlifetime);
-            return NULL;
-        }
+    /* E3: circuit breaker open → fail fast to "no groups", don't touch NSS. */
+    if (acc_nss_breaker.open_until > now) {
+        return NGX_DECLINED;
+    }
 
+    t0  = acc_monotonic_ms();
+    cnt = acc_resolve_unix(user, &names);
+    elapsed = acc_monotonic_ms() - t0;
+
+    acc_nss_note_latency(elapsed, now);
+
+    acc_cache_free(e);
+
+    /* E3: negative-cache an unknown / no-group user (short TTL) so a flood of
+     * distinct misses cannot re-block NSS on every request. */
+    if (cnt <= 0) {
         ngx_memcpy(e->user, user, ngx_strlen(user) + 1);
-        e->names = names;
-        e->count = cnt;
-        e->expiry = now + acc_gidlifetime;
+        e->names  = NULL;
+        e->count  = 0;
+        e->expiry = now + ngx_min(ACC_NSS_NEG_TTL_SECS, acc_gidlifetime);
+        return NGX_DECLINED;
     }
 
-    if (e->count == 0) {
-        return NULL;
-    }
+    ngx_memcpy(e->user, user, ngx_strlen(user) + 1);
+    e->names = names;
+    e->count = cnt;
+    e->expiry = now + acc_gidlifetime;
+    return NGX_OK;
+}
+
+/* ---- Copy a cache entry's group names into a request-pool array ----
+ *
+ * WHAT: builds an ngx_array_t of char* in pool, each element a pool-owned
+ *   null-terminated copy of one cached group name. Returns the array, or NULL on
+ *   any allocation failure.
+ *
+ * WHY: the cached name vector is malloc'd and per-worker-persistent; callers need
+ *   request-lifetime copies. Isolating the copy loop keeps the resolver flat and
+ *   under the complexity cap.
+ *
+ * HOW:
+ *   1. Create the array sized to e->count.
+ *   2. For each cached name, push a slot and pnalloc a len+1 copy in pool.
+ *   3. memcpy the name (including its terminator) and store the copy.
+ *   4. Return NULL on any allocation failure encountered along the way.
+ */
+static ngx_array_t *
+acc_cache_to_array(ngx_pool_t *pool, acc_grp_cache_t *e)
+{
+    ngx_array_t *out;
+    int          i;
 
     out = ngx_array_create(pool, (ngx_uint_t) e->count, sizeof(char *));
     if (out == NULL) {
@@ -293,6 +346,35 @@ brix_acc_unix_groups(ngx_pool_t *pool, const char *user)
         *slot = copy;
     }
     return out;
+}
+
+/* Public resolver (installed into the engine): user -> request-pool array of
+ * group-name strings, using the TTL cache. */
+static ngx_array_t *
+brix_acc_unix_groups(ngx_pool_t *pool, const char *user)
+{
+    acc_grp_cache_t *e;
+    time_t           now;
+
+    if (user == NULL || *user == '\0' || ngx_strlen(user) >= ACC_GRP_USER_MAX) {
+        return NULL;
+    }
+    now = time(NULL);
+    e = &acc_grp_cache[acc_user_hash(user)];
+
+    /* Cache miss (absent, expired, or different user) → refresh from NSS. A
+     * breaker-open or no-group refresh yields "no supplementary groups" now,
+     * without rendering any stale entry. */
+    if (!(e->user[0] != '\0' && e->expiry > now && ngx_strcmp(e->user, user) == 0)) {
+        if (acc_cache_refresh(e, user, now) != NGX_OK) {
+            return NULL;
+        }
+    }
+
+    if (e->count == 0) {
+        return NULL;
+    }
+    return acc_cache_to_array(pool, e);
 }
 
 /* NIS netgroup membership test (innetgr): is (user, host) in <netgroup>? */

@@ -1,25 +1,27 @@
 /*
- * http_headers.c - shared HTTP request/response header helpers.
+ * http_headers.c - shared HTTP request-header read/parse helpers.
  *
- * WHAT: Finds, reads, sets, and compares HTTP headers in nginx requests (headers_in)
- *       and responses (headers_out). Supports case-insensitive name lookup,
- *       control-character validation, whitespace-trimmed value comparison,
- *      and safe header insertion with pool allocation.
+ * WHAT: Finds and reads HTTP request headers (headers_in), validates and
+ *       compares their values (case-insensitive name lookup, control-character
+ *       rejection, whitespace-trimmed value comparison, Bearer extraction), and
+ *       reads/redacts query-string arguments. The write side — response/request
+ *       header construction and handler-rc→status mapping — lives in the sibling
+ *       http_headers_set.c.
  *
- * WHY: WebDAV and S3 modules both read request headers (If-None-Match, Range,
- *      Overwrite) and write response headers (ETag, Content-Range). Shared
- *      implementation prevents duplicated list traversal, alloc patterns,
- *      and comparison logic across the two HTTP protocols.
+ * WHY: WebDAV and S3 modules both inspect request headers (If-None-Match, Range,
+ *      Overwrite, Authorization) and query args (?authz=). A shared
+ *      implementation prevents duplicated list traversal, whitespace-trim, and
+ *      comparison logic across the two HTTP protocols.
  *
  * HOW: find_header walks r->headers_in.headers.part chain with ngx_strncasecmp;
- *      set_header pushes to r->headers_out.headers via ngx_list_push; value_equals
- *      trims whitespace then case-insensitive compares. ctl check rejects bytes <0x20/0x7F.
+ *      value_equals trims whitespace then case-insensitive compares; the ctl
+ *      check rejects bytes <0x20/0x7F; the query helpers scan/decode/redact
+ *      r->args in place.
 */
 
 #include "http_headers.h"
 #include "core/compat/cstr.h"
 
-#include <stdio.h>
 #include <string.h>
 
 /*
@@ -101,6 +103,54 @@ brix_http_get_header(ngx_http_request_t *r, const char *name)
 }
 
 /*
+ * brix_http_skip_ws - advance a cursor past leading HTTP whitespace.
+ *
+ * WHAT: Returns the first pointer at or after p that is neither space (0x20) nor
+ *       HTAB (0x09), never advancing beyond end.
+ *
+ * WHY: RFC 7230 section 3.2 permits optional whitespace around header tokens, so
+ *      several parsers (Bearer scheme, token value, value comparison) must strip
+ *      leading OWS. Factoring the forward scan into one pure helper keeps those
+ *      callers flat and low in cyclomatic complexity.
+ *
+ * HOW: 1. Walk forward while p is below end and points at a space or tab byte.
+ *      2. Return the resulting cursor.
+ */
+static u_char *
+brix_http_skip_ws(u_char *p, const u_char *end)
+{
+    while (p < end && (*p == ' ' || *p == '\t')) {
+        p++;
+    }
+
+    return p;
+}
+
+/*
+ * brix_http_trim_trailing_ws - retract an end pointer past trailing whitespace.
+ *
+ * WHAT: Returns the largest pointer no greater than end and no less than start
+ *       whose immediately preceding byte is neither space (0x20) nor HTAB (0x09).
+ *
+ * WHY: The same RFC 7230 section 3.2 optional-whitespace rule applies to the tail
+ *      of a header value; a shared reverse-scan helper avoids repeating the loop
+ *      and keeps the trimming semantics identical across callers.
+ *
+ * HOW: 1. Walk end backward while it is above start and the preceding byte is a
+ *         space or tab.
+ *      2. Return the resulting end.
+ */
+static u_char *
+brix_http_trim_trailing_ws(const u_char *start, u_char *end)
+{
+    while (end > start && (end[-1] == ' ' || end[-1] == '\t')) {
+        end--;
+    }
+
+    return end;
+}
+
+/*
  * brix_http_extract_bearer - parse "Authorization: Bearer <token>".
  *
  * WHAT: Returns a no-copy token slice when the auth scheme is Bearer,
@@ -133,9 +183,7 @@ brix_http_extract_bearer(const ngx_str_t *auth_header, ngx_str_t *token_out)
     p = auth_header->data;
     end = auth_header->data + auth_header->len;
 
-    while (p < end && (*p == ' ' || *p == '\t')) {
-        p++;
-    }
+    p = brix_http_skip_ws(p, end);
 
     if ((size_t) (end - p) < bearer_len
         || ngx_strncasecmp(p, (u_char *) bearer, bearer_len) != 0)
@@ -148,12 +196,8 @@ brix_http_extract_bearer(const ngx_str_t *auth_header, ngx_str_t *token_out)
         return NGX_DECLINED;
     }
 
-    while (p < end && (*p == ' ' || *p == '\t')) {
-        p++;
-    }
-    while (end > p && (end[-1] == ' ' || end[-1] == '\t')) {
-        end--;
-    }
+    p = brix_http_skip_ws(p, end);
+    end = brix_http_trim_trailing_ws(p, end);
 
     if (p >= end) {
         return NGX_ERROR;
@@ -226,202 +270,14 @@ brix_http_header_value_equals(const ngx_str_t *value, const char *literal)
     start = value->data;
     end = value->data + value->len;
 
-    while (start < end && (*start == ' ' || *start == '\t')) {
-        start++;
-    }
-    while (end > start && (end[-1] == ' ' || end[-1] == '\t')) {
-        end--;
-    }
+    start = brix_http_skip_ws(start, end);
+    end = brix_http_trim_trailing_ws(start, end);
 
     len = (size_t) (end - start);
     literal_len = strlen(literal);
 
     return len == literal_len
            && ngx_strncasecmp(start, (u_char *) literal, literal_len) == 0;
-}
-
-/*
- * brix_http_effective_status - convert an nginx handler rc to an HTTP status.
- *
- * WHAT: Applies the project-wide response-metric status policy: NGX_ERROR is
- *       recorded as 500, explicit NGX_HTTP_* returns win, headers_out.status is
- *       used when a handler set it before returning NGX_OK, and the default is
- *       200 OK.
- *
- * WHY: WebDAV and S3 response metrics both need the same handler-return-code
- *      interpretation.  Keeping it here prevents 2xx/4xx/5xx bucket drift.
- */
-ngx_uint_t
-brix_http_effective_status(ngx_http_request_t *r, ngx_int_t rc)
-{
-    if (rc == NGX_ERROR) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (rc >= NGX_HTTP_SPECIAL_RESPONSE) {
-        return (ngx_uint_t) rc;
-    }
-
-    if (r != NULL && r->headers_out.status != 0) {
-        return r->headers_out.status;
-    }
-
-    return NGX_HTTP_OK;
-}
-
-/*
- * brix_http_set_header_str - insert header into headers_out with optional value copy and pointer return.
- *
- * WHAT: Pushes a new ngx_table_elt_t onto r->headers_out.headers list. Sets
- *       key from const char (hash=1), value either copied via ngx_pstrdup or
- *      set directly from value struct. Optionally returns h pointer via out.
- *
- * WHY: WebDAV and S3 both need to construct response headers dynamically (ETag,
- *      Content-Range, CORS). This function handles pool allocation, key/value
- *      setup, and optional caller-pointer return in one call.
- *
- * HOW: ngx_list_push(&r->headers_out.headers) → set hash=1, key from strlen(key),
- *      value: if copy_value → ngx_pstrdup(r->pool, value); else h->value=*value.
- *      If out != NULL → *out = h. Return NGX_OK or NGX_HTTP_INTERNAL_SERVER_ERROR.
- */
-
-ngx_int_t
-brix_http_set_header_str(ngx_http_request_t *r, const char *key,
-    const ngx_str_t *value, ngx_flag_t copy_value, ngx_table_elt_t **out)
-{
-    ngx_table_elt_t *h;
-
-    if (out != NULL) {
-        *out = NULL;
-    }
-
-    if (r == NULL || key == NULL || value == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    h = ngx_list_push(&r->headers_out.headers);
-    if (h == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    h->hash = 1;
-    h->key.len = ngx_strlen(key);
-    h->key.data = (u_char *) key;
-
-    if (copy_value) {
-        h->value.data = ngx_pstrdup(r->pool, (ngx_str_t *) value);
-        if (h->value.data == NULL) {
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-        h->value.len = value->len;
-
-    } else {
-        h->value = *value;
-    }
-
-    if (out != NULL) {
-        *out = h;
-    }
-
-    return NGX_OK;
-}
-
-/*
- * brix_http_set_header - convenience wrapper: set header from const char value with copy.
- *
- * WHAT: Converts value to ngx_str_t (strlen + cast), then calls
- *       brix_http_set_header_str(r, key, &v, 1, out) — always copies value,
- *      optionally returns pointer via out.
- *
- * WHY: Most callers have a const char* ETag string or similar and want it set
- *      as a header with pool copy. This wrapper avoids constructing the ngx_str_t
- *      manually before calling set_header_str.
- *
- * HOW: v.len = strlen(value); v.data = (u_char*)value → set_header_str(r, key, &v, 1, out).
- */
-
-ngx_int_t
-brix_http_set_header(ngx_http_request_t *r, const char *key,
-    const char *value, ngx_table_elt_t **out)
-{
-    ngx_str_t v;
-
-    if (value == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    v.len = ngx_strlen(value);
-    v.data = (u_char *) value;
-
-    return brix_http_set_header_str(r, key, &v, 1, out);
-}
-
-ngx_int_t
-brix_http_set_header_num(ngx_http_request_t *r, const char *key, long value)
-{
-    char      buf[32];
-    int       n;
-    ngx_str_t v;
-
-    n = snprintf(buf, sizeof(buf), "%ld", value);
-    if (n < 0 || (size_t) n >= sizeof(buf)) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    v.len = (size_t) n;
-    v.data = (u_char *) buf;
-
-    return brix_http_set_header_str(r, key, &v, 1, NULL);
-}
-
-void
-brix_http_source_offer(ngx_http_request_t *r)
-{
-    /* AGPL-3.0 sec.13: prominently offer remote users the Corresponding Source.
-     * Best-effort — a header allocation failure must never fail the request. */
-    static const ngx_str_t  src =
-        ngx_string(BRIX_SOURCE_URL " (nginx-xrootd, AGPL-3.0)");
-
-    (void) brix_http_set_header_str(r, "X-Source", &src, 0, NULL);
-}
-
-ngx_int_t
-brix_http_request_header_add(ngx_http_request_t *r, const char *key,
-    const char *value, ngx_table_elt_t **out)
-{
-    ngx_table_elt_t *h;
-    ngx_str_t        v;
-
-    if (out != NULL) {
-        *out = NULL;
-    }
-
-    if (r == NULL || key == NULL || value == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    h = ngx_list_push(&r->headers_in.headers);
-    if (h == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    h->hash = ngx_hash_key_lc((u_char *) key, ngx_strlen(key));
-    h->key.len = ngx_strlen(key);
-    h->key.data = (u_char *) key;
-
-    v.len = ngx_strlen(value);
-    v.data = (u_char *) value;
-    h->value.data = ngx_pstrdup(r->pool, &v);
-    if (h->value.data == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    h->value.len = v.len;
-
-    if (out != NULL) {
-        *out = h;
-    }
-
-    return NGX_OK;
 }
 
 /* query-string token helpers (shared by §1 ?authz= and form decoding) */

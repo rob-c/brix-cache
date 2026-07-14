@@ -109,7 +109,7 @@ the project's own wire vocabulary.
   `http/https/dav/davs` read-only via `webfile.c`.
 - **A family of single-purpose tools** under `client/apps/`, fronted by a
   git-style dispatcher `xrd` (`client/apps/xrd.c`): `xrddiag`, `xrdmapc`,
-  `xrdprep`, `xrdqstats`, `xrdgsiproxy`, `xrdsssadmin`, `mpxstats`, `wait41`,
+  `xrdprep`, `xrdqstats`, `xrdgsiproxy`, `xrdsssadmin-brix`, `mpxstats-brix`, `wait41-brix`,
   `xrdadler32`, `xrdcrc32c`, `xrdcrc64`, `xrdgsitest`.
 
 **Why a from-scratch client?** To get a `libXrdCl`-free toolchain that the test

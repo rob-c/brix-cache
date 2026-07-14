@@ -84,22 +84,180 @@ ngx_brix_dashboard_history_shm_init(ngx_shm_zone_t *shm_zone, void *data)
     return NGX_OK;
 }
 
+/*
+ * dashboard_history_zero_fill_gap — clear buckets skipped since the last sample.
+ *
+ * WHAT: When bucket_start has advanced past hist->last_bucket_start_ms, walks
+ *       every interval boundary strictly between the two, zero-fills that ring
+ *       slot and stamps its bucket_start_ms, then advances
+ *       last_bucket_start_ms to bucket_start.
+ * WHY:  Idle gaps (no sampling for several intervals) must leave the wrapped
+ *       ring slots reading as empty-but-current rather than stale data from a
+ *       prior lap, so the snapshot reader plots zeros for the quiet window.
+ * HOW:  Iterates from last_bucket_start_ms + INTERVAL up to and including
+ *       bucket_start, mapping each boundary to its ring index. No-op when
+ *       bucket_start has not advanced. Caller holds the history mutex.
+ */
+static void
+dashboard_history_zero_fill_gap(brix_dashboard_history_t *hist,
+    int64_t bucket_start)
+{
+    int64_t     clear_start;
+    ngx_uint_t  j;
+
+    if (bucket_start <= hist->last_bucket_start_ms) {
+        return;
+    }
+
+    clear_start = hist->last_bucket_start_ms
+                  + BRIX_DASHBOARD_HISTORY_INTERVAL_MS;
+    for (; clear_start <= bucket_start;
+         clear_start += BRIX_DASHBOARD_HISTORY_INTERVAL_MS)
+    {
+        j = dashboard_history_bucket_index(clear_start);
+        ngx_memzero(&hist->buckets[j], sizeof(hist->buckets[j]));
+        hist->buckets[j].bucket_start_ms = clear_start;
+    }
+    hist->last_bucket_start_ms = bucket_start;
+}
+
+/*
+ * dashboard_history_select_bucket — resolve and prepare the current ring slot.
+ *
+ * WHAT: Returns the ring slot for bucket_start, resetting it (memzero + stamp)
+ *       when the slot still carries a stale wrapped bucket_start_ms.
+ * WHY:  Re-sampling the same bucket must accumulate into a live slot, but a
+ *       slot inherited from an earlier lap of the ring must start clean so its
+ *       counters reflect only the current bucket.
+ * HOW:  Maps bucket_start to its ring index; if the stored bucket_start_ms
+ *       differs, zeroes the slot and stamps it. Caller holds the history mutex.
+ */
+static brix_dashboard_history_bucket_t *
+dashboard_history_select_bucket(brix_dashboard_history_t *hist,
+    int64_t bucket_start)
+{
+    brix_dashboard_history_bucket_t *bucket;
+
+    bucket = &hist->buckets[dashboard_history_bucket_index(bucket_start)];
+    if (bucket->bucket_start_ms != bucket_start) {
+        ngx_memzero(bucket, sizeof(*bucket));
+        bucket->bucket_start_ms = bucket_start;
+    }
+    return bucket;
+}
+
+/*
+ * dashboard_history_count_active — tally in-flight transfers per protocol.
+ *
+ * WHAT: Scans the dashboard transfer table and fills active[] (per protocol
+ *       row) plus *active_tpc (count of third-party-copy direction slots).
+ * WHY:  The history series records concurrency, which is derived from the live
+ *       transfer table rather than a parallel counter so it cannot drift.
+ * HOW:  Skips unused slots; TPC-direction slots bump *active_tpc; a slot's
+ *       proto in [1, NPROTOS] indexes active[proto-1], and untracked/legacy
+ *       slots fall back to the historic root bucket. No-op (leaves outputs at
+ *       their caller-zeroed state) when the dashboard zone is absent.
+ */
+static void
+dashboard_history_count_active(ngx_uint_t active[BRIX_XFER_NPROTOS],
+    ngx_uint_t *active_tpc)
+{
+    brix_transfer_table_t *tbl;
+    ngx_uint_t             i;
+
+    if (ngx_brix_dashboard_shm_zone == NULL
+        || ngx_brix_dashboard_shm_zone->data == NULL
+        || ngx_brix_dashboard_shm_zone->data == (void *) 1)
+    {
+        return;
+    }
+
+    tbl = ngx_brix_dashboard_shm_zone->data;
+    for (i = 0; i < BRIX_DASHBOARD_MAX_TRANSFERS; i++) {
+        brix_transfer_slot_t *slot = &tbl->slots[i];
+
+        if (slot->in_use == 0) {
+            continue;
+        }
+
+        if (slot->direction == BRIX_XFER_DIR_TPC) {
+            (*active_tpc)++;
+        }
+
+        /* per-proto counts index by list row (id-1); untracked/legacy
+         * slots keep the historic root bucket */
+        if (slot->proto >= 1 && slot->proto <= BRIX_XFER_NPROTOS) {
+            active[slot->proto - 1]++;
+        } else {
+            active[BRIX_XFER_PROTO_ROOT - 1]++;
+        }
+    }
+}
+
+/*
+ * dashboard_history_sum_totals — accumulate cumulative byte/error/auth totals.
+ *
+ * WHAT: Sums bytes rx/tx, error counts and auth-failure counts across the
+ *       per-server metrics array plus the WebDAV and S3 aggregate metrics.
+ * WHY:  The dashboard plots cumulative totals sourced from the live metrics
+ *       SHM zone so the series stays consistent with /metrics.
+ * HOW:  Per server: adds bytes rx/tx, the AUTH-op error count into auth
+ *       failures, and every op_err[] entry into errors. Then folds in WebDAV
+ *       and S3 bytes and their protocol-specific auth-rejection buckets. No-op
+ *       (leaves outputs at their caller-zeroed state) when the metrics zone is
+ *       absent.
+ */
+static void
+dashboard_history_sum_totals(uint64_t *bytes_rx, uint64_t *bytes_tx,
+    uint64_t *errors, uint64_t *auth_failures)
+{
+    ngx_brix_metrics_t *met;
+    ngx_uint_t          i, j;
+
+    if (ngx_brix_shm_zone == NULL
+        || ngx_brix_shm_zone->data == NULL
+        || ngx_brix_shm_zone->data == (void *) 1)
+    {
+        return;
+    }
+
+    met = ngx_brix_shm_zone->data;
+    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
+        ngx_brix_srv_metrics_t *srv = &met->servers[i];
+
+        *bytes_rx += (uint64_t) srv->bytes_rx_total;
+        *bytes_tx += (uint64_t) srv->bytes_tx_total;
+        *auth_failures += (uint64_t) srv->op_err[BRIX_OP_AUTH];
+        for (j = 0; j < BRIX_NOPS; j++) {
+            *errors += (uint64_t) srv->op_err[j];
+        }
+    }
+
+    *bytes_rx += (uint64_t) met->webdav.bytes_rx_total;
+    *bytes_tx += (uint64_t) met->webdav.bytes_tx_total;
+    *bytes_rx += (uint64_t) met->s3.bytes_rx_total;
+    *bytes_tx += (uint64_t) met->s3.bytes_tx_total;
+    *auth_failures +=
+        (uint64_t) met->webdav.auth_total[BRIX_WEBDAV_AUTH_RESULT_REJECTED];
+    *auth_failures +=
+        (uint64_t) met->s3.auth_total[BRIX_S3_AUTH_SIG_MISMATCH]
+        + (uint64_t) met->s3.auth_total[BRIX_S3_AUTH_MALFORMED]
+        + (uint64_t) met->s3.auth_total[BRIX_S3_AUTH_BAD_KEY];
+}
+
 void
 brix_dashboard_history_sample(int64_t now_ms)
 {
     brix_dashboard_history_t        *hist;
     brix_dashboard_history_bucket_t *bucket;
-    ngx_brix_metrics_t              *met;
-    brix_transfer_table_t           *tbl;
     int64_t                            bucket_start;
-    int64_t                            clear_start;
     uint64_t                           bytes_rx = 0;
     uint64_t                           bytes_tx = 0;
     uint64_t                           errors = 0;
     uint64_t                           auth_failures = 0;
     ngx_uint_t                         active[BRIX_XFER_NPROTOS] = { 0 };
     ngx_uint_t                         active_tpc = 0;
-    ngx_uint_t                         i, j;
+    ngx_uint_t                         p;
 
     hist = dashboard_history_table();
     if (hist == NULL) {
@@ -115,86 +273,15 @@ brix_dashboard_history_sample(int64_t now_ms)
         hist->last_bucket_start_ms = bucket_start;
     }
 
-    if (bucket_start > hist->last_bucket_start_ms) {
-        clear_start = hist->last_bucket_start_ms
-                      + BRIX_DASHBOARD_HISTORY_INTERVAL_MS;
-        for (; clear_start <= bucket_start;
-             clear_start += BRIX_DASHBOARD_HISTORY_INTERVAL_MS)
-        {
-            j = dashboard_history_bucket_index(clear_start);
-            ngx_memzero(&hist->buckets[j], sizeof(hist->buckets[j]));
-            hist->buckets[j].bucket_start_ms = clear_start;
-        }
-        hist->last_bucket_start_ms = bucket_start;
-    }
+    dashboard_history_zero_fill_gap(hist, bucket_start);
+    bucket = dashboard_history_select_bucket(hist, bucket_start);
 
-    j = dashboard_history_bucket_index(bucket_start);
-    bucket = &hist->buckets[j];
-    if (bucket->bucket_start_ms != bucket_start) {
-        ngx_memzero(bucket, sizeof(*bucket));
-        bucket->bucket_start_ms = bucket_start;
-    }
+    dashboard_history_count_active(active, &active_tpc);
+    dashboard_history_sum_totals(&bytes_rx, &bytes_tx, &errors,
+                                 &auth_failures);
 
-    if (ngx_brix_dashboard_shm_zone != NULL
-        && ngx_brix_dashboard_shm_zone->data != NULL
-        && ngx_brix_dashboard_shm_zone->data != (void *) 1)
-    {
-        tbl = ngx_brix_dashboard_shm_zone->data;
-        for (i = 0; i < BRIX_DASHBOARD_MAX_TRANSFERS; i++) {
-            brix_transfer_slot_t *slot = &tbl->slots[i];
-
-            if (slot->in_use == 0) {
-                continue;
-            }
-
-            if (slot->direction == BRIX_XFER_DIR_TPC) {
-                active_tpc++;
-            }
-
-            /* per-proto counts index by list row (id-1); untracked/legacy
-             * slots keep the historic root bucket */
-            if (slot->proto >= 1 && slot->proto <= BRIX_XFER_NPROTOS) {
-                active[slot->proto - 1]++;
-            } else {
-                active[BRIX_XFER_PROTO_ROOT - 1]++;
-            }
-        }
-    }
-
-    if (ngx_brix_shm_zone != NULL
-        && ngx_brix_shm_zone->data != NULL
-        && ngx_brix_shm_zone->data != (void *) 1)
-    {
-        met = ngx_brix_shm_zone->data;
-        for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-            ngx_brix_srv_metrics_t *srv = &met->servers[i];
-
-            bytes_rx += (uint64_t) srv->bytes_rx_total;
-            bytes_tx += (uint64_t) srv->bytes_tx_total;
-            auth_failures += (uint64_t) srv->op_err[BRIX_OP_AUTH];
-            for (j = 0; j < BRIX_NOPS; j++) {
-                errors += (uint64_t) srv->op_err[j];
-            }
-        }
-
-        bytes_rx += (uint64_t) met->webdav.bytes_rx_total;
-        bytes_tx += (uint64_t) met->webdav.bytes_tx_total;
-        bytes_rx += (uint64_t) met->s3.bytes_rx_total;
-        bytes_tx += (uint64_t) met->s3.bytes_tx_total;
-        auth_failures +=
-            (uint64_t) met->webdav.auth_total[BRIX_WEBDAV_AUTH_RESULT_REJECTED];
-        auth_failures +=
-            (uint64_t) met->s3.auth_total[BRIX_S3_AUTH_SIG_MISMATCH]
-            + (uint64_t) met->s3.auth_total[BRIX_S3_AUTH_MALFORMED]
-            + (uint64_t) met->s3.auth_total[BRIX_S3_AUTH_BAD_KEY];
-    }
-
-    {
-        ngx_uint_t p;
-
-        for (p = 0; p < BRIX_XFER_NPROTOS; p++) {
-            bucket->active[p] = active[p];
-        }
+    for (p = 0; p < BRIX_XFER_NPROTOS; p++) {
+        bucket->active[p] = active[p];
     }
     bucket->active_tpc = active_tpc;
     bucket->bytes_rx = (ngx_atomic_t) bytes_rx;

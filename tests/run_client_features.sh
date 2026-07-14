@@ -38,7 +38,7 @@ bad()  { FAIL=$((FAIL+1)); echo "  FAIL: $1"; }
 # immediately-preceding statement and the pattern is safe — leave those alone.
 #
 check(){ if eval "$2"; then ok "$1"; else bad "$1"; fi; }
-have_fleet() { "$BIN/wait41" "$URL" 2>/dev/null >/dev/null; }
+have_fleet() { "$BIN/wait41-brix" "$URL" 2>/dev/null >/dev/null; }
 
 section_dryrun_filters() {
   echo "== dry-run (local) =="

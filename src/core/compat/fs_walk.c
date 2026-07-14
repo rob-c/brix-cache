@@ -1,22 +1,20 @@
 /*
  * fs_walk.c - shared directory traversal helpers.
  *
- * WHAT: Provides dot-entry detection, path joining, empty-directory check, recursive
- *       directory walk with callback, and confined tree removal. All functions share
- *       a common pattern of opendir/readdir/lstat with dot-filtering.
+ * WHAT: Provides dot-entry detection, path joining, empty-directory check, and
+ *       recursive directory walk with callback. All functions share a common
+ *       pattern of opendir/readdir/lstat with dot-filtering. Confined tree
+ *       removal lives in the companion file fs_walk_remove.c.
  *
  * WHY: XRootD dirlist, WebDAV PROPFIND on collections, S3 ListObjects all need
- *      directory traversal. remove-tree is used by DEL/MOVE/COPY on collections.
- *      Single shared implementation avoids duplication between modules.
+ *      directory traversal. Single shared implementation avoids duplication
+ *      between modules.
  *
  * HOW: opendir → readdir loop skipping "." and "..", lstat for each entry,
- *      recursive callback walk with depth limit, confined unlink via
- *      brix_unlink_confined_canon() for tree removal.
+ *      recursive callback walk with depth limit.
  */
 
 #include "fs_walk.h"
-#include "fs/path/path.h"
-#include "fs/path/beneath.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -110,20 +108,195 @@ brix_fs_dir_is_empty(const char *path, ngx_flag_t *is_empty)
 }
 
 /*
+ * brix_fs_walk_action_e - per-entry disposition returned to the walk loop.
+ *
+ * WHAT: Encodes the three outcomes the walk loop must act on after processing a
+ *       single directory entry: keep going cleanly, keep going but remember that
+ *       an error occurred, or stop the loop and remember the error.
+ *
+ * WHY: Extracting the per-entry body into a helper (to cut cyclomatic complexity)
+ *       means the helper cannot itself set the loop's rc or break; it returns an
+ *       action code and the loop performs the control flow. This preserves the
+ *       original behaviour exactly — a bad join/lstat marks rc but continues, a
+ *       failed callback marks rc and breaks.
+ *
+ * HOW: The loop maps CONTINUE→next iteration, MARK_ERROR→rc=NGX_ERROR + continue,
+ *       STOP→rc=NGX_ERROR + break.
+ */
+
+typedef enum {
+    BRIX_FS_WALK_CONTINUE = 0,   /* skip this entry, no error */
+    BRIX_FS_WALK_MARK_ERROR,     /* record error, keep walking */
+    BRIX_FS_WALK_STOP            /* record error, stop the loop */
+} brix_fs_walk_action_e;
+
+/* Forward declaration: the per-entry handler recurses back into the walk. */
+static ngx_int_t brix_fs_walk_dir(ngx_log_t *log, const char *dir,
+    const brix_fs_walk_options_t *opts, brix_fs_walk_pt cb, void *data,
+    ngx_uint_t depth);
+
+/*
+ * brix_fs_walk_skip_name - decide whether an entry name is filtered out.
+ *
+ * WHAT: Returns true when the entry must be skipped before any syscall: it is a
+ *       dot entry ("." / ".."), or it is a hidden entry (leading '.') and opts
+ *       requests skip_hidden. Returns false otherwise.
+ *
+ * WHY: The walk loop applies the same name filter every iteration; isolating it
+ *      keeps the per-entry handler small and keeps the dot/hidden rule in one
+ *      place. Matches the original inline checks byte for byte.
+ *
+ * HOW: brix_fs_is_dot_entry() first, then (opts && opts->skip_hidden &&
+ *      name[0] == '.'). Pure, no side effects.
+ */
+
+static ngx_flag_t
+brix_fs_walk_skip_name(const brix_fs_walk_options_t *opts, const char *name)
+{
+    if (brix_fs_is_dot_entry(name)) {
+        return 1;
+    }
+
+    return opts != NULL && opts->skip_hidden && name[0] == '.';
+}
+
+/*
+ * brix_fs_walk_cb_wants - decide whether the callback should fire for an entry.
+ *
+ * WHAT: Returns true when the entry's type matches the include filters: a
+ *       directory when opts is NULL or include_dirs is set, a non-directory when
+ *       opts is NULL or include_files is set.
+ *
+ * WHY: The include_files/include_dirs predicate is the densest boolean in the
+ *      original loop. Naming it removes a compound condition from the handler and
+ *      documents the intent (NULL opts means "emit everything").
+ *
+ * HOW: Branch on is_dir, then test the matching include flag (NULL opts ⇒ true).
+ *      Equivalent to the original
+ *      (is_dir && (opts==NULL||include_dirs)) || (!is_dir && (opts==NULL||include_files)).
+ */
+
+static ngx_flag_t
+brix_fs_walk_cb_wants(const brix_fs_walk_options_t *opts, ngx_flag_t is_dir)
+{
+    if (is_dir) {
+        return opts == NULL || opts->include_dirs;
+    }
+
+    return opts == NULL || opts->include_files;
+}
+
+/*
+ * brix_fs_walk_should_recurse - decide whether to descend into an entry.
+ *
+ * WHAT: Returns true only for directories that are still within the depth budget:
+ *       opts is NULL, or max_depth is 0 (unlimited), or the current depth is below
+ *       max_depth. Non-directories never recurse.
+ *
+ * WHY: Keeps the depth-limit rule out of the handler body and documents that a
+ *      max_depth of 0 means unlimited. Matches the original recurse guard exactly.
+ *
+ * HOW: Early-return false for non-dirs, then evaluate the depth predicate.
+ */
+
+static ngx_flag_t
+brix_fs_walk_should_recurse(const brix_fs_walk_options_t *opts,
+    ngx_flag_t is_dir, ngx_uint_t depth)
+{
+    if (!is_dir) {
+        return 0;
+    }
+
+    return opts == NULL || opts->max_depth == 0 || depth < opts->max_depth;
+}
+
+/*
+ * brix_fs_walk_handle_entry - process one directory entry for the walk.
+ *
+ * WHAT: Applies the name filter, joins the child path, lstats it, applies the
+ *       stay_on_device filter, fires the callback for matching entries, and
+ *       recurses into subdirectories within the depth budget. Returns a
+ *       brix_fs_walk_action_e telling the loop what to do next.
+ *
+ * WHY: This is the body extracted from brix_fs_walk_dir()'s readdir loop so the
+ *      loop stays trivial and each concern (filter, syscall, callback, recursion)
+ *      is a single early-return step. Behaviour is identical to the original:
+ *      dot/hidden/cross-device/ENOENT entries are skipped silently; a truncated
+ *      join or a non-ENOENT lstat marks an error and continues; a callback that
+ *      rejects the entry stops the walk; a failed recursion marks an error and
+ *      continues.
+ *
+ * HOW: Sequence of guarded early returns. child[PATH_MAX] and st live on this
+ *      frame; entry borrows pointers to them and to de->d_name for the callback.
+ */
+
+static brix_fs_walk_action_e
+brix_fs_walk_handle_entry(ngx_log_t *log, const char *dir,
+    const brix_fs_walk_options_t *opts, brix_fs_walk_pt cb, void *data,
+    ngx_uint_t depth, const struct dirent *de)
+{
+    char                  child[PATH_MAX];
+    struct stat           st;
+    brix_fs_walk_entry_t  entry;
+    ngx_flag_t            is_dir;
+
+    if (brix_fs_walk_skip_name(opts, de->d_name)) {
+        return BRIX_FS_WALK_CONTINUE;
+    }
+
+    if (brix_fs_join_path(dir, de->d_name, child, sizeof(child)) != NGX_OK) {
+        return BRIX_FS_WALK_MARK_ERROR;
+    }
+
+    if (lstat(child, &st) != 0) {
+        if (errno != ENOENT) {
+            ngx_log_error(NGX_LOG_WARN, log, errno,
+                          "brix: lstat failed \"%s\"", child);
+            return BRIX_FS_WALK_MARK_ERROR;
+        }
+        return BRIX_FS_WALK_CONTINUE;
+    }
+
+    if (opts != NULL && opts->stay_on_device && st.st_dev != opts->root_dev) {
+        return BRIX_FS_WALK_CONTINUE;
+    }
+
+    is_dir = S_ISDIR(st.st_mode);
+
+    if (cb != NULL && brix_fs_walk_cb_wants(opts, is_dir)) {
+        entry.path = child;
+        entry.name = de->d_name;
+        entry.st = &st;
+        entry.depth = depth;
+
+        if (cb(&entry, data) != NGX_OK) {
+            return BRIX_FS_WALK_STOP;
+        }
+    }
+
+    if (brix_fs_walk_should_recurse(opts, is_dir, depth)
+        && brix_fs_walk_dir(log, child, opts, cb, data, depth + 1) != NGX_OK)
+    {
+        return BRIX_FS_WALK_MARK_ERROR;
+    }
+
+    return BRIX_FS_WALK_CONTINUE;
+}
+
+/*
  * brix_fs_walk_dir - recursive directory walk with callback, depth tracking.
  *
- * WHAT: Opens dir via opendir(), iterates entries (skip dots, skip hidden if opts),
- *       lstat each child, builds entry struct (path/name/st/depth), calls cb(entry,
- *       data). Recursively descends into subdirectories respecting max_depth and
- *       stay_on_device options.
+ * WHAT: Opens dir via opendir(), iterates entries, and dispatches each to
+ *       brix_fs_walk_handle_entry() which does the filtering, lstat, callback and
+ *       recursion. Aggregates the per-entry action into the return code.
  *
- * WHY: The recursive engine behind brix_fs_walk(). Used by dirlist handlers, PROPFIND
- *      collection walks, and tree removal. Options control filtering (hidden dirs,
- *      files vs dirs only, depth limit, cross-device skip).
+ * WHY: The recursive engine behind brix_fs_walk(). Used by dirlist handlers,
+ *      PROPFIND collection walks, and tree removal. Options control filtering
+ *      (hidden dirs, files vs dirs only, depth limit, cross-device skip).
  *
- * HOW: opendir → readdir loop per entry: join path via brix_fs_join_path(), lstat,
- *      apply opts filters, build entry struct, call cb(). If is_dir and within max_depth,
- *      recurse with depth+1. closedir on exit.
+ * HOW: opendir → readdir loop; the handler returns CONTINUE/MARK_ERROR/STOP and
+ *      this function maps those to rc and loop control, then closedir on exit.
+ *      Traversal order is readdir order, identical to the original.
  */
 
 static ngx_int_t
@@ -145,64 +318,17 @@ brix_fs_walk_dir(ngx_log_t *log, const char *dir,
     rc = NGX_OK;
 
     while ((de = readdir(dp)) != NULL) {
-        char                     child[PATH_MAX];
-        struct stat              st;
-        brix_fs_walk_entry_t   entry;
-        ngx_flag_t               is_dir;
+        brix_fs_walk_action_e action;
 
-        if (brix_fs_is_dot_entry(de->d_name)) {
-            continue;
-        }
+        action = brix_fs_walk_handle_entry(log, dir, opts, cb, data, depth, de);
 
-        if (opts != NULL && opts->skip_hidden && de->d_name[0] == '.') {
-            continue;
-        }
-
-        if (brix_fs_join_path(dir, de->d_name, child, sizeof(child))
-            != NGX_OK)
-        {
+        if (action == BRIX_FS_WALK_STOP) {
             rc = NGX_ERROR;
-            continue;
+            break;
         }
 
-        if (lstat(child, &st) != 0) {
-            if (errno != ENOENT) {
-                ngx_log_error(NGX_LOG_WARN, log, errno,
-                              "brix: lstat failed \"%s\"", child);
-                rc = NGX_ERROR;
-            }
-            continue;
-        }
-
-        if (opts != NULL && opts->stay_on_device && st.st_dev != opts->root_dev) {
-            continue;
-        }
-
-        is_dir = S_ISDIR(st.st_mode);
-        if (cb != NULL
-            && ((is_dir && (opts == NULL || opts->include_dirs))
-                || (!is_dir && (opts == NULL || opts->include_files))))
-        {
-            entry.path = child;
-            entry.name = de->d_name;
-            entry.st = &st;
-            entry.depth = depth;
-
-            if (cb(&entry, data) != NGX_OK) {
-                rc = NGX_ERROR;
-                break;
-            }
-        }
-
-        if (is_dir
-            && (opts == NULL || opts->max_depth == 0
-                || depth < opts->max_depth))
-        {
-            if (brix_fs_walk_dir(log, child, opts, cb, data, depth + 1)
-                != NGX_OK)
-            {
-                rc = NGX_ERROR;
-            }
+        if (action == BRIX_FS_WALK_MARK_ERROR) {
+            rc = NGX_ERROR;
         }
     }
 
@@ -232,139 +358,4 @@ brix_fs_walk(ngx_log_t *log, const char *start_path,
     }
 
     return brix_fs_walk_dir(log, start_path, opts, cb, data, 1);
-}
-
-/*
- * brix_fs_remove_tree_confined - recursively delete directory tree confined to root_canon.
- *
- * WHAT: Opens path via opendir(), iterates entries (skip dots), lstat each child,
- *       recurses into subdirectories, unlinks files via brix_unlink_confined_canon().
- *       After processing children, rmdir the directory itself. Returns NGX_OK on
- *       full removal or NGX_ERROR on any failure.
- *
- * WHY: XRootD DEL/MOVE/COPY on collections requires recursive child deletion. The
- *      confined check (root_canon) ensures no entry escapes the root path boundary,
- *      preventing ../ traversal attacks.
- *
- * HOW: opendir → readdir loop per entry: join path, lstat. If dir → recurse.
- *      If file → brix_unlink_confined_canon(root_canon, child, 0). After all
- *      children processed → brix_unlink_confined_canon(root_canon, path, 1) (rmdir).
- */
-
-ngx_int_t
-brix_fs_remove_tree_confined(ngx_log_t *log, const char *root_canon,
-    const char *path)
-{
-    DIR           *dp;
-    struct dirent *de;
-    ngx_int_t      rc;
-    int            rootfd;
-    const char    *path_rel;
-
-    /*
-     * The opendir/readdir/lstat iteration below is NOT a beneath site: it walks
-     * by absolute child path built from single, kernel-supplied dirent names
-     * (no client `..`), and lstat does not follow the final component, so a
-     * dangling/outward symlink entry is seen as a symlink and unlinked as one
-     * (its target is never opened or followed).  The actual mutations — every
-     * unlink and the final rmdir — DO go through the beneath API, which is where
-     * the export-root boundary is enforced.  A readdir-relative
-     * openat(dirfd,...) walk would be a defence-in-depth refinement but is not a
-     * confinement gap here.
-     */
-    rootfd = brix_beneath_open_root(root_canon);
-    if (rootfd < 0) {
-        ngx_log_error(NGX_LOG_ERR, log, errno,
-                      "brix: remove-tree cannot open root for \"%s\"", path);
-        return NGX_ERROR;
-    }
-    path_rel = brix_beneath_strip_root(root_canon, path);
-    if (path_rel == NULL) {
-        close(rootfd);
-        errno = EXDEV;
-        return NGX_ERROR;
-    }
-
-    /* Open the dir AS THE MAPPED USER under impersonation (broker fd + fdopendir):
-     * a multipart staging dir is owned 0700 by the mapped user, so a raw worker
-     * opendir() here fails EACCES and breaks AbortMultipartUpload / the cleanup.
-     * Off impersonation this is a plain opendir(). */
-    dp = brix_opendir_confined_canon(log, root_canon, path);
-    if (dp == NULL) {
-        close(rootfd);
-        if (errno == ENOENT) {
-            return NGX_OK;
-        }
-        ngx_log_error(NGX_LOG_ERR, log, errno,
-                      "brix: remove-tree opendir failed \"%s\"", path);
-        return NGX_ERROR;
-    }
-
-    rc = NGX_OK;
-
-    while ((de = readdir(dp)) != NULL) {
-        char        child[PATH_MAX];
-        struct stat st;
-        const char *child_rel;
-
-        if (brix_fs_is_dot_entry(de->d_name)) {
-            continue;
-        }
-
-        if (brix_fs_join_path(path, de->d_name, child, sizeof(child))
-            != NGX_OK)
-        {
-            rc = NGX_ERROR;
-            break;
-        }
-
-        child_rel = brix_beneath_strip_root(root_canon, child);
-        if (child_rel == NULL) {
-            errno = EXDEV;
-            rc = NGX_ERROR;
-            break;
-        }
-
-        /* lstat via the beneath helper so it runs AS THE MAPPED USER under
-         * impersonation (the raw lstat would fail EACCES inside a 0700 user-owned
-         * staging dir); off impersonation it is the same local lstat. */
-        if (brix_lstat_beneath(rootfd, child_rel, &st) != 0) {
-            if (errno == ENOENT) {
-                continue;
-            }
-            ngx_log_error(NGX_LOG_ERR, log, errno,
-                          "brix: remove-tree lstat failed \"%s\"", child);
-            rc = NGX_ERROR;
-            break;
-        }
-
-        if (S_ISDIR(st.st_mode)) {
-            if (brix_fs_remove_tree_confined(log, root_canon, child)
-                != NGX_OK)
-            {
-                rc = NGX_ERROR;
-                break;
-            }
-        } else {
-            if (brix_unlink_beneath(rootfd, child_rel, 0) != 0) {
-                ngx_log_error(NGX_LOG_ERR, log, errno,
-                              "brix: remove-tree unlink failed \"%s\"", child);
-                rc = NGX_ERROR;
-                break;
-            }
-        }
-    }
-
-    closedir(dp);
-
-    if (rc == NGX_OK
-        && brix_unlink_beneath(rootfd, path_rel, 1) != 0)
-    {
-        ngx_log_error(NGX_LOG_ERR, log, errno,
-                      "brix: remove-tree rmdir failed \"%s\"", path);
-        rc = NGX_ERROR;
-    }
-
-    close(rootfd);
-    return rc;
 }

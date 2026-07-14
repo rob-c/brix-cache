@@ -1,28 +1,28 @@
-.TH XRDSSSADMIN 1 "2026-07-06" "brix client" "User Commands"
+.TH XRDSSSADMIN-BRIX 1 "2026-07-06" "brix client" "User Commands"
 .SH NAME
-xrdsssadmin \- manage XRootD SSS (Simple Shared Secret) keytabs
+xrdsssadmin-brix \- manage XRootD SSS (Simple Shared Secret) keytabs
 .SH SYNOPSIS
-.B xrdsssadmin
+.B xrdsssadmin-brix
 [\fB\-k\fR|\fB\-\-keytab\fR \fIKEYTAB\fR]
 .B add
 [\fIOPTS\fR]
 .br
-.B xrdsssadmin
+.B xrdsssadmin-brix
 [\fB\-k\fR|\fB\-\-keytab\fR \fIKEYTAB\fR]
 .B install
 [\fIOPTS\fR]
 .br
-.B xrdsssadmin
+.B xrdsssadmin-brix
 [\fB\-k\fR|\fB\-\-keytab\fR \fIKEYTAB\fR]
 .B list
 .br
-.B xrdsssadmin
+.B xrdsssadmin-brix
 [\fB\-k\fR|\fB\-\-keytab\fR \fIKEYTAB\fR]
 .B del
 .B \-\-id
 \fIN\fR
 .SH DESCRIPTION
-.B xrdsssadmin
+.B xrdsssadmin-brix
 manages SSS keytabs used by the XRootD \fBsss\fR authentication protocol.
 Each keytab entry contains a random shared secret plus metadata (user, group, name,
 lifetime) that the server uses to authorise connections presenting that key.
@@ -71,13 +71,13 @@ Random key length in bytes (default: 32).
 .SH EXAMPLES
 .nf
 # Create a new keytab and add a key bound to a specific user
-xrdsssadmin -k /etc/xrd/sss.keytab install --user atlas --group atlas
+xrdsssadmin-brix -k /etc/xrd/sss.keytab install --user atlas --group atlas
 
 # List all entries
-xrdsssadmin -k /etc/xrd/sss.keytab list
+xrdsssadmin-brix -k /etc/xrd/sss.keytab list
 
 # Delete entry 3
-xrdsssadmin -k /etc/xrd/sss.keytab del --id 3
+xrdsssadmin-brix -k /etc/xrd/sss.keytab del --id 3
 .fi
 .SH ENVIRONMENT
 .TP

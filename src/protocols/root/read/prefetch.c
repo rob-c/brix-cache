@@ -29,24 +29,39 @@ brix_prefetch_fd_range(ngx_log_t *log, int fd, off_t offset, size_t length)
 #endif
 }
 
-/* Sequential-aware prefetch for a read handle: detect sequential access from the
- * handle's read_last_end / read-ahead window and issue a windowed WILLNEED hint
- * ahead of the current read.  No-op for random access. */
-void
-brix_prefetch_read_file(ngx_log_t *log, brix_file_t *file, off_t offset,
-    size_t length, off_t file_size)
+/* ---- Validate a read-file prefetch request and compute its clamped end ----
+ *
+ * WHAT: Applies the argument guards for brix_prefetch_read_file() and, when the
+ * request is prefetchable, writes the clamped end offset [offset, end) to
+ * *end_out and returns 1.  Returns 0 (with *end_out untouched) when the handle
+ * is invalid, the read is too small, the offset+length would overflow off_t, or
+ * the range collapses to nothing after clamping to file_size.
+ *
+ * WHY: Isolating the guard/clamp arithmetic keeps the offset/length math (an
+ * overflow-safe hot-path calculation) in one small, reviewable place and lets
+ * the orchestrator read as a flat sequence of steps without a nested guard
+ * ladder.
+ *
+ * HOW:
+ *   1. Reject a null handle, closed fd, negative offset, or sub-threshold read.
+ *   2. Reject when offset + length would overflow NGX_MAX_OFF_T_VALUE.
+ *   3. Compute end = offset + length, clamping down to file_size when known.
+ *   4. Reject a range that clamped away to <= offset; otherwise publish end.
+ */
+static ngx_flag_t
+brix_prefetch_read_end(brix_file_t *file, off_t offset, size_t length,
+    off_t file_size, off_t *end_out)
 {
-    off_t      end, hint_start, hint_end, low_water_end;
-    ngx_flag_t sequential;
+    off_t end;
 
     if (file == NULL || file->fd < 0 || offset < 0
         || length < BRIX_READ_PREFETCH_MIN)
     {
-        return;
+        return 0;
     }
 
     if ((off_t) length > NGX_MAX_OFF_T_VALUE - offset) {
-        return;
+        return 0;
     }
 
     end = offset + (off_t) length;
@@ -54,41 +69,90 @@ brix_prefetch_read_file(ngx_log_t *log, brix_file_t *file, off_t offset,
         end = file_size;
     }
     if (end <= offset) {
+        return 0;
+    }
+
+    *end_out = end;
+    return 1;
+}
+
+/* ---- Compute the windowed WILLNEED hint range for a sequential read ----
+ *
+ * WHAT: For a read that continues the handle's sequential stream, writes the
+ * read-ahead hint range [*hint_start, *hint_end) that should be issued ahead of
+ * end.  When the handle's existing read_ahead_end already extends past the
+ * low-water mark (end + LOW_WATER), no new hint is needed and both outputs are
+ * set equal (an empty range the caller skips).
+ *
+ * WHY: The sequential windowing — low-water suppression, start clamped to the
+ * already-prefetched frontier, and end extended by the read-ahead window and
+ * clamped to file_size — is the subtle part of the prefetch policy.  Extracting
+ * it as a pure computation (state read from file, results returned by pointer,
+ * no I/O) keeps the arithmetic exact and independently reviewable.
+ *
+ * HOW:
+ *   1. Compute the low-water mark end + LOW_WATER (saturating at off_t max).
+ *   2. If read_ahead_end is already past low-water, emit an empty range (skip).
+ *   3. Start the hint at the further of read_ahead_end (the prefetched frontier)
+ *      and offset.
+ *   4. End the hint at end + WINDOW (saturating), clamped down to file_size.
+ */
+static void
+brix_prefetch_seq_window(brix_file_t *file, off_t offset, off_t end,
+    off_t file_size, off_t *hint_start, off_t *hint_end)
+{
+    off_t low_water_end;
+
+    if (end > NGX_MAX_OFF_T_VALUE - BRIX_READ_PREFETCH_LOW_WATER) {
+        low_water_end = NGX_MAX_OFF_T_VALUE;
+    } else {
+        low_water_end = end + BRIX_READ_PREFETCH_LOW_WATER;
+    }
+
+    if (file->read_ahead_end > low_water_end) {
+        /* Already prefetched past the low-water mark; issue no new hint. */
+        *hint_start = 0;
+        *hint_end = 0;
+        return;
+    }
+
+    *hint_start = (file->read_ahead_end > offset)
+                  ? file->read_ahead_end : offset;
+
+    if (end > NGX_MAX_OFF_T_VALUE - BRIX_READ_PREFETCH_WINDOW) {
+        *hint_end = NGX_MAX_OFF_T_VALUE;
+    } else {
+        *hint_end = end + BRIX_READ_PREFETCH_WINDOW;
+    }
+    if (file_size > 0 && *hint_end > file_size) {
+        *hint_end = file_size;
+    }
+}
+
+/* Sequential-aware prefetch for a read handle: detect sequential access from the
+ * handle's read_last_end / read-ahead window and issue a windowed WILLNEED hint
+ * ahead of the current read.  No-op for random access. */
+void
+brix_prefetch_read_file(ngx_log_t *log, brix_file_t *file, off_t offset,
+    size_t length, off_t file_size)
+{
+    off_t      end = 0, hint_start = 0, hint_end = 0;
+    ngx_flag_t sequential;
+
+    if (!brix_prefetch_read_end(file, offset, length, file_size, &end)) {
         return;
     }
 
     sequential = (file->read_last_end < 0 || offset == file->read_last_end);
     if (!sequential) {
+        /* Random access resets the read-ahead frontier and hints exactly the
+         * requested range. */
         file->read_ahead_end = 0;
-    }
-
-    if (sequential) {
-        if (end > NGX_MAX_OFF_T_VALUE - BRIX_READ_PREFETCH_LOW_WATER) {
-            low_water_end = NGX_MAX_OFF_T_VALUE;
-        } else {
-            low_water_end = end + BRIX_READ_PREFETCH_LOW_WATER;
-        }
-
-        if (file->read_ahead_end > low_water_end) {
-            file->read_last_end = end;
-            return;
-        }
-
-        hint_start = (file->read_ahead_end > offset)
-                     ? file->read_ahead_end : offset;
-
-        if (end > NGX_MAX_OFF_T_VALUE - BRIX_READ_PREFETCH_WINDOW) {
-            hint_end = NGX_MAX_OFF_T_VALUE;
-        } else {
-            hint_end = end + BRIX_READ_PREFETCH_WINDOW;
-        }
-        if (file_size > 0 && hint_end > file_size) {
-            hint_end = file_size;
-        }
-
-    } else {
         hint_start = offset;
         hint_end = end;
+    } else {
+        brix_prefetch_seq_window(file, offset, end, file_size,
+                                 &hint_start, &hint_end);
     }
 
     if (hint_end > hint_start) {

@@ -117,14 +117,20 @@ def test_phase3_vfs_preserves_io_invariants():
 
 
 def test_phase3_http_read_metadata_uses_vfs():
+    # phase-79 file-size split: object.c's HEAD/HeadBucket cluster (which does the
+    # metadata brix_vfs_stat) moved to object_meta.c; the GET range-serve path
+    # (brix_vfs_open / brix_vfs_file_stat) stayed in object.c.
     _assert_markers(
         "src/protocols/s3/object.c",
         [
             "fs/vfs.h",
             "brix_vfs_open(",
             "brix_vfs_file_stat(",
-            "brix_vfs_stat(",
         ],
+    )
+    _assert_markers(
+        "src/protocols/s3/object_meta.c",
+        ["brix_vfs_stat("],
     )
     _assert_markers(
         "src/protocols/webdav/resource.c",
@@ -323,21 +329,37 @@ def test_phase6_unified_metrics_observability_is_wired():
         "src/observability/metrics/metrics.h",
         ["ngx_brix_unified_metrics_t", "ngx_brix_unified_metrics_t unified"],
     )
+    # phase-79 file-size split: stream.c's per-server-slot family emitters (which
+    # carry the DEPRECATED-family markers) moved into stream_family.c; the
+    # exposition driver (brix_export_unified_metrics) stayed in stream.c.
     _assert_markers(
         "src/observability/metrics/stream.c",
-        ["brix_export_unified_metrics(mw, shm)", "DEPRECATED"],
+        ["brix_export_unified_metrics(mw, shm)"],
     )
     _assert_markers(
-        "src/observability/metrics/unified.c",
+        "src/observability/metrics/stream_family.c",
+        ["DEPRECATED"],
+    )
+    # phase-79 file-size split: unified.c (was 1076 lines) was split into
+    # unified_record.c (record-side mutators), unified_export_io.c (io exporters),
+    # and unified_export.c (cred/cache/auth/tpc exporters). The wiring is unchanged;
+    # the markers now live in their respective split files.
+    _assert_markers(
+        "src/observability/metrics/unified_record.c",
         [
             "brix_metric_op_done(",
             "brix_metric_cache_result(",
             "brix_metric_auth(",
             "brix_metric_tpc(",
-            "brix_io_ops_total",
-            "brix_auth_total",
-            "brix_tpc_transfers_total",
         ],
+    )
+    _assert_markers(
+        "src/observability/metrics/unified_export_io.c",
+        ["brix_io_ops_total"],
+    )
+    _assert_markers(
+        "src/observability/metrics/unified_export.c",
+        ["brix_auth_total", "brix_tpc_transfers_total"],
     )
     _assert_markers(
         "src/fs/vfs/vfs_internal.h",

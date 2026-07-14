@@ -200,6 +200,31 @@ pump_sink_local_vfs(void *ctx, const uint8_t *buf, int64_t off, size_t n,
 }
 
 
+/* ---- Fire the optional progress callback for one tick ----
+ *
+ * WHAT: If a progress sink is configured (o non-NULL AND o->progress set), calls
+ * it once with (cur, total); otherwise a no-op. No return value.
+ *
+ * WHY: transfer_pump reports progress from two sites — after each drained chunk
+ * (cur=off, total=progress_total) and once at clean EOF (cur=off, total=off to
+ * mirror the historical "100%" tick). Both share the identical NULL-guard; hoisting
+ * it here keeps that guard in one place and keeps the pump loop under its
+ * complexity cap without changing when or with what arguments progress fires.
+ *
+ * HOW:
+ *   1. Return immediately when o is NULL or o->progress is unset.
+ *   2. Otherwise invoke o->progress with o->progress_arg and the two counters,
+ *      widened to long long exactly as the original inline call sites did.
+ */
+static void
+pump_emit_progress(const brix_copy_opts *o, int64_t cur, int64_t total)
+{
+    if (o != NULL && o->progress != NULL) {
+        o->progress(o->progress_arg, (long long) cur, (long long) total);
+    }
+}
+
+
 /*
  * The loop. expected >= 0 = known length (stop at expected; a 0-read before it
  * is a short-read error); expected < 0 = EOF-driven (a 0-read is the clean end).
@@ -259,19 +284,14 @@ transfer_pump(pump_src_fn src, void *sctx, pump_sink_fn sink, void *kctx,
                 break;
             }
             rc = 0;   /* EOF — full body streamed */
-            if (o != NULL && o->progress != NULL) {
-                o->progress(o->progress_arg, (long long) off, (long long) off);
-            }
+            pump_emit_progress(o, off, off);
             break;
         }
         if (sink(kctx, buf, off, (size_t) n, st) != 0) {
             break;
         }
         off += n;
-        if (o != NULL && o->progress != NULL) {
-            o->progress(o->progress_arg, (long long) off,
-                        (long long) progress_total);
-        }
+        pump_emit_progress(o, off, progress_total);
     }
 
     free(buf);

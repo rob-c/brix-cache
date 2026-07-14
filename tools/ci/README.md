@@ -13,6 +13,7 @@ no arguments; exit 0 = clean.
 | `check_http_helper_reimpl.sh` | protocols must not regrow private copies of the shared HTTP helpers (header scan, preconditions, ETag) | inline allowlist | edit allowlist |
 | `check_sd_driver_conformance.sh` | every `fs_list.h` storage driver ships a conforming `brix_sd_driver_t` (+ prints the op-coverage matrix) | — | — |
 | `check_file_size.sh` | no `src/` file crosses the ~500-line soft cap; frozen offenders may only shrink | `file_size_backlog.txt` | `--regen` |
+| `check_duplication.sh` | no NEW copy-pasted code block (lizard `-Eduplicate`) across `src/`+`client/`+`shared/`; frozen blocks may only be fixed out | `duplication_backlog.txt` | `--regen` |
 | `check_doc_paths.sh` | CLAUDE.md / README.md / docs/index.md reference only paths that exist AND are git-tracked | `<!-- doc-paths:off/on -->` markers for deliberate dead refs | — |
 | `check_doc_links.sh` | every relative markdown link in docs/ + src READMEs resolves to a git-tracked target | `doc_links_backlog.txt` (currently empty — keep it that way) | `--regen` |
 | `check_readme_coverage.sh` | any depth≤2 `src/` dir with ≥2 C sources carries a README.md | — | — |
@@ -48,6 +49,19 @@ only on NEW ones. Rules:
 A file under the 800 wall can still fail the 500 ratchet. The soft cap is
 where files should live; the hard wall is where growth stops being a
 review-taste question and becomes a CI failure.
+
+## Code duplication ratchet
+
+`check_duplication.sh` runs lizard's copy-paste detector (`-Eduplicate`)
+over `src/`, `client/` and `shared/` (per-tree — one combined invocation
+produces no duplicate output) and fails on any duplicated block whose key
+is not frozen in `duplication_backlog.txt`. Keys are the sorted member
+spans of a block (`path:start-end+path:start-end`), so they are stable
+against reordering but NOT against line-number churn: an unrelated edit
+that shifts a grandfathered block re-surfaces it as "new". Treat that as
+a prompt to either extract the shared helper (the right fix) or `--regen`
+after review. Duplicates that disappear are always OK; `--regen` ratchets
+them out of the backlog.
 
 ## Static analysis
 

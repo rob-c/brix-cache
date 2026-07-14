@@ -14,7 +14,12 @@ import subprocess
 import pytest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(REPO, "src", "auth", "gsi", "proxy_req.c")
+# phase-79 file-size split: proxy_req.c (was oversized) was split — the request
+# signing primitive (brix_gsi_sign_pxyreq) moved to proxy_req_sign.c and the
+# proxy assembly primitive (brix_gsi_assemble_proxy) to proxy_req_assemble.c.
+# The standalone unittest links all three or the link fails on those refs.
+SRC = [os.path.join(REPO, "src", "auth", "gsi", f)
+       for f in ("proxy_req.c", "proxy_req_sign.c", "proxy_req_assemble.c")]
 TEST = os.path.join(REPO, "src", "auth", "gsi", "proxy_req_unittest.c")
 
 
@@ -23,14 +28,14 @@ def crypto_bin(tmp_path_factory):
     cc = shutil.which("gcc") or shutil.which("cc")
     if cc is None:
         pytest.skip("no C compiler")
-    if not (os.path.exists(SRC) and os.path.exists(TEST)):
+    if not (all(os.path.exists(s) for s in SRC) and os.path.exists(TEST)):
         pytest.skip("proxy_req sources missing")
     out = str(tmp_path_factory.mktemp("gsixp") / "pxr")
     r = subprocess.run(
         [cc, "-Wall", "-Wextra", "-Werror",
          "-DBRIX_SAFE_SIZE_STANDALONE",   # shim nginx types for safe_size.h
          "-I", os.path.join(REPO, "src"),
-         SRC, TEST, "-lcrypto", "-o", out],
+         *SRC, TEST, "-lcrypto", "-o", out],
         capture_output=True, text=True)
     if r.returncode != 0:
         if "openssl" in r.stderr.lower() or "x509v3.h" in r.stderr.lower():

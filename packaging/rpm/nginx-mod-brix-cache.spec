@@ -26,7 +26,7 @@
 
 Name:           nginx-mod-brix-cache
 Version:        %{upstream_version}
-Release:        20%{?dist}
+Release:        21%{?dist}
 Summary:        BriX-Cache — XRootD, WebDAV, S3, CMS, and metrics dynamic modules for nginx
 
 # Rebrand (gnuBall -> BriX-Cache, 0.1.0-5): same modules, new product name.
@@ -120,8 +120,8 @@ Requires:       fuse3
 Native command-line XRootD clients built clean-room on the in-tree protocol
 core (libbrix + libxrdproto) with NO libXrdCl / libXrdSec dependency:
 xrdcp, xrdfs, xrd, xrdcksum and checksum personalities, xrdqstats, xrdprep,
-xrdgsiproxy, xrddiag, xrdmapc, xrdgsitest, xrdstorascan, mpxstats,
-xrdsssadmin and wait41, plus xrootdfs, brixMount, and the
+xrdgsiproxy, xrddiag, xrdmapc, xrdgsitest, xrdstorascan, mpxstats-brix,
+xrdsssadmin-brix and wait41-brix, plus xrootdfs, brixMount, and the
 libbrixposix_preload.so LD_PRELOAD POSIX shim.
 
 # ---------------------------------------------------------------------------
@@ -303,21 +303,21 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/brix/requirements.txt
 %{_bindir}/xrdckverify
 %{_bindir}/xrdcinfo
 %{_bindir}/xrdqstats
-%{_bindir}/wait41
+%{_bindir}/wait41-brix
 %{_bindir}/xrdprep
 %{_bindir}/xrdgsiproxy
 %{_bindir}/xrddiag
 %{_bindir}/xrdmapc
 %{_bindir}/xrdgsitest
-%{_bindir}/mpxstats
-%{_bindir}/xrdsssadmin
+%{_bindir}/mpxstats-brix
+%{_bindir}/xrdsssadmin-brix
 %{_bindir}/xrdstorascan
 %{_bindir}/xrootdfs
 %{_bindir}/brixMount
 %{_libdir}/libbrixposix_preload.so
 %{_mandir}/man1/brixMount.1*
-%{_mandir}/man1/mpxstats.1*
-%{_mandir}/man1/wait41.1*
+%{_mandir}/man1/mpxstats-brix.1*
+%{_mandir}/man1/wait41-brix.1*
 %{_mandir}/man1/xrd.1*
 %{_mandir}/man1/xrdadler32.1*
 %{_mandir}/man1/xrdcinfo.1*
@@ -333,7 +333,7 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/brix/requirements.txt
 %{_mandir}/man1/xrdmapc.1*
 %{_mandir}/man1/xrdprep.1*
 %{_mandir}/man1/xrdqstats.1*
-%{_mandir}/man1/xrdsssadmin.1*
+%{_mandir}/man1/xrdsssadmin-brix.1*
 %{_mandir}/man1/xrdstorascan.1*
 %{_mandir}/man1/xrootdfs.1*
 %{_mandir}/man7/brix-env.7*
@@ -344,7 +344,7 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/brix/requirements.txt
 %{_datadir}/bash-completion/completions/xrdcksum
 %{_datadir}/bash-completion/completions/xrdprep
 %{_datadir}/bash-completion/completions/xrdgsiproxy
-%{_datadir}/bash-completion/completions/xrdsssadmin
+%{_datadir}/bash-completion/completions/xrdsssadmin-brix
 %{_datadir}/bash-completion/completions/brixMount
 %{_datadir}/bash-completion/completions/xrdstorascan
 %{_datadir}/bash-completion/completions/xrootdfs
@@ -393,6 +393,16 @@ install -Dpm0644 requirements.txt %{buildroot}%{_datadir}/brix/requirements.txt
 %{_datadir}/bash-completion/completions/xrdceph_migrate
 
 %changelog
+* Mon Jul 13 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-21
+- Co-installability with stock XRootD server RPMs: rename the three client
+  binaries whose names collide with files owned by the xrootd packages —
+  mpxstats -> mpxstats-brix, wait41 -> wait41-brix and
+  xrdsssadmin -> xrdsssadmin-brix (binaries, man pages and bash completion).
+  The bare spellings stay available as xrddiag subcommands
+  (`xrddiag wait41`, `xrddiag mpxstats`). The remaining client/FUSE tools
+  keep their stock names by design: they are drop-in replacements and are
+  intentionally NOT co-installable with the official xrootd client tooling.
+
 * Thu Jul 09 2026 Rob Currie <rob.currie@ed.ac.uk> - 1.1.1-20
 - Fast `systemctl restart`: mark every per-worker BriX maintenance timer
   cancelable (CRL reload, stage scheduler, cache stale-dirty + watermark reapers,

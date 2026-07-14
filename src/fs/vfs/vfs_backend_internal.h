@@ -90,4 +90,10 @@ brix_vfs_backend_entry_t *brix_vfs_backend_entry_find(const char *root_canon);
 brix_vfs_backend_entry_t *brix_vfs_backend_entry_get_or_create(
     const char *root_canon);
 
+/* Build the entry's RAW source driver instance (no decorators, no memoization),
+ * defined in vfs_backend_registry_source.c and called by the decorator-composition
+ * orchestrator in vfs_backend_registry.c. Returns NULL (logged) on init failure. */
+brix_sd_instance_t *brix_vfs_backend_build_source(
+    brix_vfs_backend_entry_t *e, ngx_log_t *log);
+
 #endif /* BRIX_VFS_BACKEND_INTERNAL_H */

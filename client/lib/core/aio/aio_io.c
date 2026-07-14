@@ -289,6 +289,116 @@ aconn_parse(brix_aconn *ac)
 }
 
 
+/* Outcome of one read-loop iteration, shared by the TLS and plaintext read
+ * helpers so aconn_do_read can drive both through the same three-way branch
+ * without duplicating the loop or the terminal-parse logic. */
+#define AIO_RD_CONTINUE 0   /* bytes appended (or benign EINTR): keep pulling */
+#define AIO_RD_BREAK    1   /* would-block: stop the loop and parse what we have */
+#define AIO_RD_RETURN   2   /* terminal (peer close / error): fully handled, return */
+
+
+/* ---- Attempt one TLS read into rbuf ----
+ *
+ * WHAT: Performs a single non-blocking SSL_read of up to `room` bytes into
+ * `dst` (which must be ac->rbuf.buf + ac->rbuf.len). On success advances
+ * ac->rbuf.len and returns AIO_RD_CONTINUE. On WANT_READ/WANT_WRITE returns
+ * AIO_RD_BREAK (setting tls_want_write_on_read for the WANT_WRITE case). On a
+ * hard error or peer close it delivers any already-buffered frames, fails the
+ * connection unless it died during that delivery, and returns AIO_RD_RETURN.
+ *
+ * WHY: Isolates the OpenSSL error ladder so the read loop stays under the
+ * complexity cap while preserving the exact "parse first, then fail" ordering
+ * (a clean close may still carry a final complete frame in rbuf).
+ *
+ * HOW:
+ *   1. Clear the OpenSSL error queue and read at most INT32_MAX bytes.
+ *   2. ret > 0: grow rbuf.len by ret and signal CONTINUE.
+ *   3. WANT_READ: signal BREAK; WANT_WRITE: arm EPOLLOUT retry, signal BREAK.
+ *   4. Otherwise build a status (ZERO_RETURN vs generic), parse buffered frames,
+ *      fail the connection if still alive, and signal RETURN.
+ */
+static int
+aconn_read_tls(brix_aconn *ac, uint8_t *dst, size_t room)
+{
+    ERR_clear_error();
+    int ret = SSL_read(ac->ssl, dst, (int) (room > INT32_MAX ? INT32_MAX : room));
+    if (ret > 0) {
+        ac->rbuf.len += (size_t) ret;
+        return AIO_RD_CONTINUE;
+    }
+    int err = SSL_get_error(ac->ssl, ret);
+    if (err == SSL_ERROR_WANT_READ) {
+        return AIO_RD_BREAK;
+    }
+    if (err == SSL_ERROR_WANT_WRITE) {
+        ac->tls_want_write_on_read = 1;      /* retry on EPOLLOUT */
+        return AIO_RD_BREAK;
+    }
+
+    brix_status st;
+    if (err == SSL_ERROR_ZERO_RETURN) {
+        brix_status_set(&st, XRDC_ESOCK, 0, "connection closed by peer (TLS)");
+    } else {
+        brix_status_set(&st, XRDC_ESOCK, 0, "TLS read failed (ssl err %d)", err);
+    }
+    aconn_parse(ac);                         /* deliver any complete frames first */
+    if (!ac->dead) {
+        aconn_on_transport_error(ac, &st);
+    }
+    return AIO_RD_RETURN;
+}
+
+
+/* ---- Attempt one plaintext read into rbuf ----
+ *
+ * WHAT: Performs a single non-blocking read(2) of up to `room` bytes into
+ * `dst` (which must be ac->rbuf.buf + ac->rbuf.len). On success advances
+ * ac->rbuf.len and returns AIO_RD_CONTINUE (also for a benign EINTR). On
+ * EAGAIN/EWOULDBLOCK returns AIO_RD_BREAK. On EOF (r == 0) or a hard errno it
+ * delivers any already-buffered frames (EOF path), fails the connection unless
+ * it died during that delivery, and returns AIO_RD_RETURN.
+ *
+ * WHY: Isolates the read(2)/errno ladder so the read loop stays under the
+ * complexity cap while preserving the exact EOF "parse first, then fail"
+ * ordering (a peer close may still carry a final complete frame in rbuf).
+ *
+ * HOW:
+ *   1. read() into dst; r > 0: grow rbuf.len by r and signal CONTINUE.
+ *   2. r == 0 (EOF): parse buffered frames, fail if still alive, signal RETURN.
+ *   3. EINTR: signal CONTINUE; EAGAIN/EWOULDBLOCK: signal BREAK.
+ *   4. Any other errno: fail the connection and signal RETURN.
+ */
+static int
+aconn_read_plain(brix_aconn *ac, uint8_t *dst, size_t room)
+{
+    ssize_t r = read(ac->fd, dst, room);
+    if (r > 0) {
+        ac->rbuf.len += (size_t) r;
+        return AIO_RD_CONTINUE;
+    }
+    if (r == 0) {
+        brix_status st;
+        brix_status_set(&st, XRDC_ESOCK, 0, "connection closed by peer");
+        aconn_parse(ac);
+        if (!ac->dead) {
+            aconn_on_transport_error(ac, &st);
+        }
+        return AIO_RD_RETURN;
+    }
+    if (errno == EINTR) {
+        return AIO_RD_CONTINUE;
+    }
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        return AIO_RD_BREAK;
+    }
+
+    brix_status st;
+    brix_status_set(&st, XRDC_ESOCK, errno, "read: %s", strerror(errno));
+    aconn_on_transport_error(ac, &st);
+    return AIO_RD_RETURN;
+}
+
+
 /* Read everything available into rbuf, then parse. Non-blocking; tolerates TLS. */
 void
 aconn_do_read(brix_aconn *ac)
@@ -305,62 +415,15 @@ aconn_do_read(brix_aconn *ac)
         uint8_t *dst = ac->rbuf.buf + ac->rbuf.len;
         size_t   room = ac->rbuf.cap - ac->rbuf.len;
 
-        if (ac->ssl != NULL) {
-            ERR_clear_error();
-            int ret = SSL_read(ac->ssl, dst, (int) (room > INT32_MAX ? INT32_MAX : room));
-            if (ret > 0) {
-                ac->rbuf.len += (size_t) ret;
-                continue;
-            }
-            int err = SSL_get_error(ac->ssl, ret);
-            if (err == SSL_ERROR_WANT_READ) {
-                break;
-            }
-            if (err == SSL_ERROR_WANT_WRITE) {
-                ac->tls_want_write_on_read = 1;  /* retry on EPOLLOUT */
-                break;
-            }
-            {
-                brix_status st;
-                if (err == SSL_ERROR_ZERO_RETURN) {
-                    brix_status_set(&st, XRDC_ESOCK, 0, "connection closed by peer (TLS)");
-                } else {
-                    brix_status_set(&st, XRDC_ESOCK, 0, "TLS read failed (ssl err %d)", err);
-                }
-                aconn_parse(ac);             /* deliver any complete frames first */
-                if (!ac->dead) {
-                    aconn_on_transport_error(ac, &st);
-                }
-            }
-            return;
-        }
-
-        ssize_t r = read(ac->fd, dst, room);
-        if (r > 0) {
-            ac->rbuf.len += (size_t) r;
+        int step = (ac->ssl != NULL) ? aconn_read_tls(ac, dst, room)
+                                     : aconn_read_plain(ac, dst, room);
+        if (step == AIO_RD_CONTINUE) {
             continue;
         }
-        if (r == 0) {
-            brix_status st;
-            brix_status_set(&st, XRDC_ESOCK, 0, "connection closed by peer");
-            aconn_parse(ac);
-            if (!ac->dead) {
-                aconn_on_transport_error(ac, &st);
-            }
+        if (step == AIO_RD_RETURN) {
             return;
         }
-        if (errno == EINTR) {
-            continue;
-        }
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            break;
-        }
-        {
-            brix_status st;
-            brix_status_set(&st, XRDC_ESOCK, errno, "read: %s", strerror(errno));
-            aconn_on_transport_error(ac, &st);
-        }
-        return;
+        break;                               /* AIO_RD_BREAK: socket would block */
     }
 
     aconn_parse(ac);

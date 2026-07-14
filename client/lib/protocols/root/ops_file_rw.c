@@ -272,49 +272,32 @@ brix_file_write(brix_conn *c, brix_file *f, int64_t offset, const void *buf,
 }
 
 
-/*
- * kXR_readv (3025) — scatter-gather read. The request payload is nseg readahead_list
- * entries (fhandle[4] + rlen[4 BE] + offset[8 BE]); the response interleaves, per
- * segment, a 16-byte header (with the ACTUAL read length) then that many data bytes,
- * possibly split across kXR_oksofar frames. We accumulate the whole reply, then walk
- * the segments in request order into each seg.buf. Returns total bytes read.
+/* ---- Accumulate a kXR_readv reply into one contiguous buffer ----
+ *
+ * WHAT: Reads the kXR_oksofar* then terminal kXR_ok frames of an in-flight
+ * kXR_readv response into a single heap buffer, returning 0 with *out_acc /
+ * *out_len set (caller frees *out_acc) or -1 on recv/allocation/size-cap
+ * failure (buffer freed internally, so the caller must NOT free on -1).
+ *
+ * WHY: The readv reply may be split across many kXR_oksofar frames; segment
+ * scatter needs the whole reply as one linear span. Splitting accumulation out
+ * of brix_file_readv keeps both the receive loop and the segment walk below the
+ * complexity cap without altering the wire behaviour.
+ *
+ * HOW:
+ *   1. Loop receiving frames with brix_recv into a growable buffer `acc`.
+ *   2. Reject any reply that would exceed XRDC_VEC_MAXBYTES.
+ *   3. Grow capacity by doubling (from 65536) when the next frame won't fit,
+ *      preserving already-accumulated bytes via realloc.
+ *   4. Append each frame body, then stop once a kXR_ok status is seen.
  */
-ssize_t
-brix_file_readv(brix_conn *c, brix_file *f, brix_readv_seg *segs,
-                size_t nseg, brix_status *st)
+static int
+brix_readv_accumulate(brix_conn *c, uint16_t sid, uint8_t **out_acc,
+                      size_t *out_len, brix_status *st)
 {
-    ClientRequestHdr req;
-    uint8_t         *payload;
-    uint16_t         sid, status;
-    uint8_t         *acc = NULL;
-    size_t           acc_len = 0, acc_cap = 0, i, cursor;
-    ssize_t          total = 0;
-
-    if (nseg == 0 || nseg > XRDC_VEC_MAXSEGS) {
-        brix_status_set(st, XRDC_EUSAGE, 0, "readv: bad segment count");
-        return -1;
-    }
-    payload = (uint8_t *) malloc(nseg * BRIX_READV_SEGSIZE);
-    if (payload == NULL) {
-        brix_status_set(st, XRDC_EPROTO, 0, "readv: out of memory");
-        return -1;
-    }
-    for (i = 0; i < nseg; i++) {
-        /* Shared segment-header codec — same layout the server packs/parses. */
-        brix_readv_seg_pack(payload + i * BRIX_READV_SEGSIZE, f->fhandle,
-                              (uint32_t) segs[i].len, (uint64_t) segs[i].offset);
-    }
-    memset(&req, 0, sizeof(req));
-    req.requestid = htons(kXR_readv);
-    xrdw_empty_req_pack(((ClientRequestHdr *) &req)->body);
-    {
-        brix_payload pl = { payload, (uint32_t) (nseg * BRIX_READV_SEGSIZE) };
-        if (brix_send(c, &req, &pl, &sid, st) != 0) {
-            free(payload);
-            return -1;
-        }
-    }
-    free(payload);
+    uint8_t *acc = NULL;
+    size_t   acc_len = 0, acc_cap = 0;
+    uint16_t status;
 
     for (;;) {                          /* accumulate kXR_oksofar* then kXR_ok */
         uint8_t *body = NULL;
@@ -350,20 +333,48 @@ brix_file_readv(brix_conn *c, brix_file *f, brix_readv_seg *segs,
             break;
         }
     }
+    *out_acc = acc;
+    *out_len = acc_len;
+    return 0;
+}
 
-    cursor = 0;
+
+/* ---- Scatter an accumulated kXR_readv reply into caller segment buffers ----
+ *
+ * WHAT: Walks the accumulated reply `acc` (length acc_len) in request order,
+ * copying each segment's data into segs[i].buf and recording the actual byte
+ * count in segs[i].got. Returns the total bytes scattered, or -1 on a truncated
+ * segment header or body. Does not free `acc` (the caller owns it).
+ *
+ * WHY: The reply interleaves, per segment, a 16-byte readahead_list header
+ * carrying the ACTUAL read length followed by that many data bytes; segments
+ * must be recovered in request order. Isolating this walk from the receive loop
+ * keeps brix_file_readv under the complexity cap with no behaviour change.
+ *
+ * HOW:
+ *   1. For each of the nseg segments, verify a full 16-byte header remains.
+ *   2. Decode the per-segment length rl via the shared segment codec.
+ *   3. Verify rl data bytes remain, then copy min(rl, segs[i].len) into the
+ *      segment buffer and set segs[i].got.
+ *   4. Advance the cursor past the data and sum the copied bytes.
+ */
+static ssize_t
+brix_readv_scatter(const uint8_t *acc, size_t acc_len,
+                   brix_readv_seg *segs, size_t nseg, brix_status *st)
+{
+    size_t  i, cursor = 0;
+    ssize_t total = 0;
+
     for (i = 0; i < nseg; i++) {         /* [readahead_list 16B][data rlen] per seg */
         uint32_t rl;
         size_t   cp;
         if (cursor + BRIX_READV_SEGSIZE > acc_len) {
-            free(acc);
             brix_status_set(st, XRDC_EPROTO, 0, "readv: truncated segment header");
             return -1;
         }
         rl = brix_readv_seg_rlen(acc + cursor);   /* shared segment codec */
         cursor += BRIX_READV_SEGSIZE;
         if (cursor + rl > acc_len) {
-            free(acc);
             brix_status_set(st, XRDC_EPROTO, 0, "readv: truncated segment data");
             return -1;
         }
@@ -373,6 +384,59 @@ brix_file_readv(brix_conn *c, brix_file *f, brix_readv_seg *segs,
         total += (ssize_t) cp;
         cursor += rl;
     }
+    return total;
+}
+
+
+/*
+ * kXR_readv (3025) — scatter-gather read. The request payload is nseg readahead_list
+ * entries (fhandle[4] + rlen[4 BE] + offset[8 BE]); the response interleaves, per
+ * segment, a 16-byte header (with the ACTUAL read length) then that many data bytes,
+ * possibly split across kXR_oksofar frames. We accumulate the whole reply, then walk
+ * the segments in request order into each seg.buf. Returns total bytes read.
+ */
+ssize_t
+brix_file_readv(brix_conn *c, brix_file *f, brix_readv_seg *segs,
+                size_t nseg, brix_status *st)
+{
+    ClientRequestHdr req;
+    uint8_t         *payload;
+    uint16_t         sid;
+    uint8_t         *acc = NULL;
+    size_t           acc_len = 0, i;
+    ssize_t          total;
+
+    if (nseg == 0 || nseg > XRDC_VEC_MAXSEGS) {
+        brix_status_set(st, XRDC_EUSAGE, 0, "readv: bad segment count");
+        return -1;
+    }
+    payload = (uint8_t *) malloc(nseg * BRIX_READV_SEGSIZE);
+    if (payload == NULL) {
+        brix_status_set(st, XRDC_EPROTO, 0, "readv: out of memory");
+        return -1;
+    }
+    for (i = 0; i < nseg; i++) {
+        /* Shared segment-header codec — same layout the server packs/parses. */
+        brix_readv_seg_pack(payload + i * BRIX_READV_SEGSIZE, f->fhandle,
+                              (uint32_t) segs[i].len, (uint64_t) segs[i].offset);
+    }
+    memset(&req, 0, sizeof(req));
+    req.requestid = htons(kXR_readv);
+    xrdw_empty_req_pack(((ClientRequestHdr *) &req)->body);
+    {
+        brix_payload pl = { payload, (uint32_t) (nseg * BRIX_READV_SEGSIZE) };
+        if (brix_send(c, &req, &pl, &sid, st) != 0) {
+            free(payload);
+            return -1;
+        }
+    }
+    free(payload);
+
+    if (brix_readv_accumulate(c, sid, &acc, &acc_len, st) != 0) {
+        return -1;
+    }
+
+    total = brix_readv_scatter(acc, acc_len, segs, nseg, st);
     free(acc);
     return total;
 }
