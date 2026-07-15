@@ -268,10 +268,11 @@ def test_aux_filter_module_registered():
     cfg = _read("config")
     assert "ngx_module_type=HTTP_AUX_FILTER" in cfg
     assert "ngx_http_brix_xrdhttp_filter_module" in cfg
-    # The body filter / Want-Digest wiring is present.
-    xh = _read("src/protocols/webdav/xrdhttp.c")
-    assert "xrdhttp_digest_body_filter" in xh
-    assert "Want-Digest" in xh
+    # The body filter / Want-Digest wiring is present.  phase-79 split: the
+    # digest body filter moved into xrdhttp_filter.c; the Want-Digest request
+    # parsing stays in xrdhttp.c.
+    assert "xrdhttp_digest_body_filter" in _read("src/protocols/webdav/xrdhttp_filter.c")
+    assert "Want-Digest" in _read("src/protocols/webdav/xrdhttp.c")
 
 
 def _headers(port, path, extra=""):

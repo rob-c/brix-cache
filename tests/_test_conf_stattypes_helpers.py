@@ -40,6 +40,7 @@ module skips without the stock xrootd toolchain.
 """
 
 import os
+import shutil
 import socket
 import struct
 
@@ -88,6 +89,22 @@ def _build_matrix(root):
     (relpath, expect_kind) describing what was actually created (the caller
     skips probes for nodes the OS refused to make)."""
     created = []
+
+    # Idempotence: the matrix lands in a FIXED data root shared by the A/B
+    # module split (and surviving an aborted prior run).  It deliberately
+    # contains read-only files (0400/0000) and dirs (0500), so a non-root
+    # rebuild over the leftovers dies with EACCES on the open("wb") below —
+    # root (the remote CI user) ignores file modes and never sees this.
+    # Re-own the stale tree rw and remove it before rebuilding.
+    types_dir = root + "/types"
+    if os.path.isdir(types_dir):
+        for dirpath, _dirnames, filenames in os.walk(types_dir):
+            os.chmod(dirpath, 0o755)
+            for fn in filenames:
+                fp = os.path.join(dirpath, fn)
+                if not os.path.islink(fp):
+                    os.chmod(fp, 0o644)
+        shutil.rmtree(types_dir)
 
     # Regular files at a spread of modes (owner perms govern the flags).
     for mode in REG_MODES:

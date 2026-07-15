@@ -494,16 +494,13 @@ class TestSourceContracts:
     def test_relay_guard_classifies_chkpoint_as_write(self):
         """kXR_chkpoint mutates files; the guard must classify it in the
         WRITE group, not fall through to the INFO housekeeping default.
-        Ordering check: the case label sits inside the group that returns
-        GUARD_OP_WRITE."""
+        phase-79: the branch ladder became the designated-initializer table
+        opcode_op_class[], so the classification is now a single table row."""
         guard = _src("src/protocols/root/relay/relay_guard.c")
-        chk = guard.find("case kXR_chkpoint:")
-        assert chk != -1, "relay_guard.c lost the kXR_chkpoint classification"
-        write_ret = guard.find("return GUARD_OP_WRITE;")
-        group_start = guard.find("case kXR_write:")
-        assert group_start != -1 and write_ret != -1
-        assert group_start < chk < write_ret, \
-            "kXR_chkpoint is no longer classified in the GUARD_OP_WRITE group"
+        assert "[kXR_chkpoint - kXR_auth] = GUARD_OP_WRITE," in guard, \
+            "relay_guard.c lost the kXR_chkpoint -> GUARD_OP_WRITE classification"
+        # Sanity: the write archetype row is classified the same way.
+        assert "[kXR_write    - kXR_auth] = GUARD_OP_WRITE," in guard
 
     def test_proxy_translates_the_embedded_fhandle(self):
         """The terminating proxy rewrites file handles between the client and

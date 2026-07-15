@@ -116,11 +116,11 @@ webdav_move_probe(ngx_http_request_t *r, const char *path, struct stat *sb)
  *       thread-pool worker (webdav_move_collection_thread); the ctx is built
  *       fresh here each call using `r`'s pool/connection/identity, which stay
  *       valid for either caller's lifetime (the collection-offload caller
- *       took r->main->count++ before posting the task). brix_vfs_rename has
- *       no `overwrite` knob (unlike brix_vfs_rename_path) — it always
- *       replaces a non-directory dst, matching the semantics the caller
- *       already enforced (Overwrite:F was checked as 412 before either path
- *       reaches this function).
+ *       took r->main->count++ before posting the task). req->overwrite is
+ *       threaded into brix_vfs_rename as overwrite_dirs so Overwrite:T can
+ *       replace an existing DIRECTORY destination (RFC 4918 §9.9.4 — the
+ *       target tree is removed before the rename); Overwrite:F was already
+ *       rejected as 412 before either path reaches this function.
  *
  * The 7 scalar arguments this once took are now carried on a file-local
  * webdav_move_req_t (see above) — no behavior change, only the calling
@@ -151,7 +151,8 @@ webdav_move_execute_cred(const webdav_move_req_t *req, int *sys_errno)
     dst_result.resolved.data = (u_char *) req->dst_path;
     dst_result.resolved.len = ngx_strlen(req->dst_path);
 
-    if (brix_vfs_rename(&vctx, &dst_result) == NGX_OK) {
+    if (brix_vfs_rename(&vctx, &dst_result,
+                          req->overwrite ? 1 : 0) == NGX_OK) {
         if (sys_errno != NULL) {
             *sys_errno = 0;
         }

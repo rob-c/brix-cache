@@ -15,8 +15,19 @@ security/negative (rejected method).
 """
 
 import json
+import pathlib
+import re
 
 import requests
+
+# The version /healthz reports is BRIX_SERVER_VERSION (src/core/ident.h) — read
+# it from the source of truth so a release bump cannot silently stale this test.
+_IDENT_H = pathlib.Path(__file__).parent.parent / "src" / "core" / "ident.h"
+_VERSION_MATCH = re.search(
+    r'#define BRIX_SERVER_VERSION_BARE\s+"([^"]+)"', _IDENT_H.read_text()
+)
+assert _VERSION_MATCH is not None, "BRIX_SERVER_VERSION_BARE not found in src/core/ident.h"
+_SERVER_VERSION = "v" + _VERSION_MATCH.group(1)
 
 
 def _health_url(test_env):
@@ -32,7 +43,7 @@ def test_healthz_liveness_ok(test_env):
     body = json.loads(r.text)
     assert body["status"] == "ok"
     assert body["service"] == "BriX-Cache"
-    assert body["version"] == "v1.0.8"
+    assert body["version"] == _SERVER_VERSION
 
 
 def test_healthz_verbose_readiness(test_env):

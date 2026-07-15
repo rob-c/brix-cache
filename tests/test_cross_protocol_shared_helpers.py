@@ -114,8 +114,11 @@ def test_iso8601_and_hex_helpers_are_shared():
         "src/core/compat/checksum.c",
         ['#include "hex.h"', "brix_hex_encode("],
     )
+    # phase-79 file-size split: the SigV4 crypto core (which hex-encodes the
+    # digest/signature) moved from auth_sigv4_verify.c into
+    # auth_sigv4_verify_crypto.c.
     _assert_markers(
-        "src/protocols/s3/auth_sigv4_verify.c",
+        "src/protocols/s3/auth_sigv4_verify_crypto.c",
         ["core/compat/hex.h", "brix_hex_encode("],
     )
     _assert_absent("src/fs/path/helpers.c", ["brix_hex_digit("])
@@ -127,10 +130,12 @@ def test_iso8601_and_hex_helpers_are_shared():
 
 
 def test_token_fs_usage_and_shm_slot_helpers_are_shared():
+    # phase-79 file-size split: tpc_token.c's token-file/exchange machinery
+    # (the brix_token_read_file caller) moved into tpc_token_exchange.c.
     for relpath in (
         "src/net/upstream/auth.c",
         "src/tpc/gsi/gsi_outbound_common.c",
-        "src/tpc/outbound/tpc_token.c",
+        "src/tpc/outbound/tpc_token_exchange.c",
     ):
         _assert_markers(relpath, ["brix_token_read_file("])
 
@@ -241,11 +246,16 @@ def test_http_header_body_and_condition_helpers_are_shared():
     )
 
     # s3/put was split: the http_body include lives in s3_put_internal.h while the
-    # writer call stays in put.c; webdav/put.c still carries both directly.
-    _assert_markers("src/protocols/webdav/put.c",
+    # writer call stays in put.c.  phase-79 file-size split: webdav/put.c's body
+    # streaming (the brix_http_body_write_to_fd callers) moved into put_body.c;
+    # the include remains in put.c.
+    _assert_markers("src/protocols/webdav/put.c", ["core/http/http_body.h"])
+    _assert_markers("src/protocols/webdav/put_body.c",
                     ["core/http/http_body.h", "brix_http_body_write_to_fd("])
     _assert_markers("src/protocols/s3/s3_put_internal.h", ["core/http/http_body.h"])
-    _assert_markers("src/protocols/s3/put.c", ["brix_http_body_write_to_fd("])
+    # phase-79 split: the buffered/streaming writer call sites moved from
+    # put.c into put_stream.c (and put_aio.c for the aio path).
+    _assert_markers("src/protocols/s3/put_stream.c", ["brix_http_body_write_to_fd("])
 
     # propfind was split: the include is in propfind_internal.h, the reader in
     # propfind.c; delete_objects.c still carries both directly.
@@ -254,9 +264,15 @@ def test_http_header_body_and_condition_helpers_are_shared():
     _assert_markers("src/protocols/s3/delete_objects.c",
                     ["core/http/http_body.h", "brix_http_body_read_all("])
 
+    # phase-79 split: put.c's precondition/setup phase moved into put_setup.c
+    # (put.c keeps the http_conditionals include).
     _assert_markers(
         "src/protocols/webdav/put.c",
-        ["core/http/http_conditionals.h", "brix_http_check_etag_preconditions("],
+        ["core/http/http_conditionals.h"],
+    )
+    _assert_markers(
+        "src/protocols/webdav/put_setup.c",
+        ["brix_http_check_etag_preconditions("],
     )
     _assert_markers(
         "src/protocols/webdav/methods/copy_conditionals.c",
@@ -285,14 +301,24 @@ def test_phase1_http_status_header_and_query_helpers_are_shared():
             ["core/http/http_headers.h", "brix_http_effective_status("],
         )
 
+    # phase-79 file-size split: xrdhttp.c's response/header emission (the
+    # brix_http_set_header* / request_header_add callers) moved into
+    # xrdhttp_response.c; xrdhttp.c keeps the http_headers include.
     _assert_markers(
         "src/protocols/webdav/xrdhttp.c",
+        ["core/http/http_headers.h"],
+    )
+    _assert_markers(
+        "src/protocols/webdav/xrdhttp_response.c",
         [
-            "core/http/http_headers.h",
             "brix_http_set_header(",
             "brix_http_set_header_num(",
-            "brix_http_request_header_add(",
         ],
+    )
+    # ... while the outbound-request header add lives in the TPC half.
+    _assert_markers(
+        "src/protocols/webdav/xrdhttp_tpc.c",
+        ["brix_http_request_header_add("],
     )
     _assert_absent(
         "src/protocols/webdav/xrdhttp.c",
@@ -348,8 +374,10 @@ def test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared():
     # phase-79 file-size split: put.c's PUT precondition/open phase (which routes
     # the staged-write open through the VFS seam) moved into put_inner.c.
     _assert_markers("src/protocols/s3/put_inner.c", ["brix_vfs_staged_open("])
-    _assert_markers("src/protocols/webdav/tpc.c",
-                    ["core/compat/staged_file.h", "brix_staged_open("])
+    # phase-79 file-size split: tpc.c's pull-side staged-write open moved into
+    # tpc_pull.c; tpc.c keeps the staged_file include.
+    _assert_markers("src/protocols/webdav/tpc.c", ["core/compat/staged_file.h"])
+    _assert_markers("src/protocols/webdav/tpc_pull.c", ["brix_staged_open("])
 
     # Phase 55: both the S3 CopyObject and WebDAV COPY handlers delegate the
     # local-object copy to the shared VFS copy seam (brix_vfs_copy), which is

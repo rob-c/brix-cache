@@ -29,13 +29,18 @@ def test_phase2_policy_consumes_identity():
     # Files with unconverted call-sites still call the VO ACL helper directly.
     # (write/common.c was since converted — its write ops now authorise through
     # the op-descriptor table / brix_auth_gate(), so it no longer calls the VO
-    # ACL helper directly and is no longer listed here.)
+    # ACL helper directly and is no longer listed here.  open_request.c was
+    # converted in phase-79: its open path now authorises through
+    # brix_auth_gate()/brix_auth_gate_op() instead of calling the helper.)
     for relpath in (
-        "src/protocols/root/read/open_request.c",
         "src/protocols/root/query/prepare.c",
     ):
         _assert_markers(relpath, ["brix_check_vo_acl_identity("])
         _assert_absent(relpath, ["ctx->vo_list) != NGX_OK"])
+    _assert_markers("src/protocols/root/read/open_request.c",
+                    ["brix_auth_gate("])
+    _assert_absent("src/protocols/root/read/open_request.c",
+                   ["ctx->vo_list) != NGX_OK", "brix_check_vo_acl_identity("])
     # dirlist was fully converted to auth_gate; confirm it no longer duplicates
     # the triad and instead delegates to the gate.
     _assert_markers("src/protocols/root/dirlist/handler.c", ["brix_auth_gate("])
@@ -182,7 +187,9 @@ def test_phase4_vfs_cache_hooks_are_present():
         "src/fs/vfs/vfs_open.c",
         [
             "fs/cache/open.h",
-            "brix_cache_open(ctx, flags, &fh)",
+            # phase-79 split: the cache-probe helper takes the caller's fh
+            # pointer directly (was a local &fh at the old inline call site).
+            "brix_cache_open(ctx, flags, fh)",
             "brix_vfs_adopt_fd(",
             "from_cache",
         ],
@@ -210,7 +217,9 @@ def test_phase4_http_protocols_use_vfs_cache_path():
         [
             "fs/cache/open.h",
             "fs/vfs.h",
-            "brix_vfs_open(&vctx, BRIX_VFS_O_READ",
+            # phase-79 split: get.c now works with a vctx pointer (vfs ctx is
+            # heap/ctx-held rather than a stack local, so no & at the call).
+            "brix_vfs_open(vctx, BRIX_VFS_O_READ",
             "brix_vfs_ctx_init(",
             "conf->cache_root_canon",
             "brix_cache_record_access(",
@@ -229,9 +238,10 @@ def test_phase4_http_protocols_use_vfs_cache_path():
         ],
     )
     # The single wiring point: brix_vfs_ctx_init() sets cache_root_canon (and
-    # derives cache_enabled) for every HTTP caller.
+    # derives cache_enabled) for every HTTP caller.  phase-79 file-size split:
+    # brix_vfs_ctx_init/adopt moved from vfs_open.c into vfs_open_adopt.c.
     _assert_markers(
-        "src/fs/vfs/vfs_open.c",
+        "src/fs/vfs/vfs_open_adopt.c",
         ["vctx->cache_root_canon = cache_root_canon"],
     )
     # Phase 12: the cache-hit detection and access-record calls moved out of the
@@ -245,9 +255,15 @@ def test_phase4_http_protocols_use_vfs_cache_path():
             "brix_cache_record_access(",
         ],
     )
+    # phase-79 split: the merge half (which canonicalises cache_root into
+    # cache_root_canon) moved from module.c into module_merge.c.
     _assert_markers(
         "src/protocols/s3/module.c",
-        ["brix_s3_cache_root", "cache_root_canon"],
+        ["brix_s3_cache_root"],
+    )
+    _assert_markers(
+        "src/protocols/s3/module_merge.c",
+        ["cache_root_canon"],
     )
 
 
@@ -407,12 +423,15 @@ def test_implementation_plan_feature_gaps_are_closed():
             "brix_handle_clone",
         ],
     )
+    # phase-79: dispatch_write.c replaced its switch ladder with the
+    # table-driven brix_wr_routes[] descriptor array; the opcodes appear as
+    # table rows rather than case labels.
     _assert_markers(
         "src/protocols/root/handshake/dispatch_write.c",
         [
-            "case kXR_pgwrite:",
+            "{ kXR_pgwrite,",
             "brix_handle_pgwrite",
-            "case kXR_chkpoint:",
+            "{ kXR_chkpoint,",
             "brix_handle_chkpoint",
         ],
     )
@@ -434,12 +453,15 @@ def test_implementation_plan_feature_gaps_are_closed():
             "brix_send_pgwrite_status(",
         ],
     )
+    # phase-79 split: the journal-recovery half of chkpoint.c moved into
+    # chkpoint_recover.c.
     _assert_markers(
         "src/protocols/root/write/chkpoint.c",
-        [
-            "brix_handle_chkpoint(",
-            "brix_chkpoint_recover_root(",
-        ],
+        ["brix_handle_chkpoint("],
+    )
+    _assert_markers(
+        "src/protocols/root/write/chkpoint_recover.c",
+        ["brix_chkpoint_recover_root("],
     )
 
     _assert_markers(
@@ -477,16 +499,26 @@ def test_implementation_plan_feature_gaps_are_closed():
         ],
     )
 
+    # phase-79 split: handler.c kept the auth gate; the bucket-level routing
+    # (ListMultipartUploads) moved into handler_dispatch.c and the per-object
+    # multipart routing into handler_object_route.c (where the body read is
+    # wired through the s3_read_body_metric wrapper).
     _assert_markers(
         "src/protocols/s3/handler.c",
+        ["s3_verify_sigv4(r, cf, s3ctx->identity)"],
+    )
+    _assert_markers(
+        "src/protocols/s3/handler_dispatch.c",
+        ["s3_handle_list_multipart_uploads(r, cf)"],
+    )
+    _assert_markers(
+        "src/protocols/s3/handler_object_route.c",
         [
-            "s3_verify_sigv4(r, cf, s3ctx->identity)",
-            "s3_handle_list_multipart_uploads(r, cf)",
             "s3_handle_list_parts(r, fs_path, cf",
             "s3_handle_upload_part_copy(r, fs_path, cf",
             "s3_handle_multipart_abort(r, fs_path, cf, upload_id)",
             "s3_handle_multipart_initiate(r, fs_path, cf",
-            "brix_http_read_body(r, s3_multipart_complete_body_handler)",
+            "s3_multipart_complete_body_handler",
         ],
     )
     _assert_markers(
@@ -548,13 +580,16 @@ def test_stream_missing_auth_plugins_are_wired():
             "brix_unix_trust_remote",
         ],
     )
+    # phase-79: protocol.c's sec-entry emission was refactored — the want_*
+    # locals became fields of a want struct and the byte-by-byte entry writes
+    # became the protocol_sec_entry_write() helper.
     _assert_markers(
         "src/protocols/root/session/protocol.c",
         [
-            "want_unix",
-            "want_krb5",
-            "pe[0] = 'u'; pe[1] = 'n'; pe[2] = 'i'; pe[3] = 'x'",
-            "pe[0] = 'k'; pe[1] = 'r'; pe[2] = 'b'; pe[3] = '5'",
+            "want->unx",
+            "want->krb5",
+            'protocol_sec_entry_write(pe, "unix")',
+            'protocol_sec_entry_write(pe, "krb5")',
         ],
     )
     _assert_markers(
@@ -565,11 +600,14 @@ def test_stream_missing_auth_plugins_are_wired():
             "auth parameter block too long",
         ],
     )
+    # phase-79: the kXR_auth protocol dispatch in gsi/auth.c became a
+    # descriptor table, so the handlers appear as table entries rather than
+    # direct (ctx, c, conf) calls.
     _assert_markers(
         "src/auth/gsi/auth.c",
         [
-            "brix_handle_unix_auth(ctx, c, conf)",
-            "brix_handle_krb5_auth(ctx, c, conf)",
+            "brix_handle_unix_auth",
+            "brix_handle_krb5_auth",
         ],
     )
     _assert_markers(

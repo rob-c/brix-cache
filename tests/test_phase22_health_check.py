@@ -68,8 +68,9 @@ def test_probe_state_machine_and_timer_present():
     assert "kXR_ping" in hc
     assert "brix_hc_timer_handler" in hc
     assert "brix_srv_hc_claim" in hc
-    # Manager start hooked into init_process.
-    assert "brix_hc_manager_start" in _read("src/core/config/process.c")
+    # Manager start hooked into init_process.  phase-79 split: the per-server
+    # init half of process.c moved into process_server_init.c.
+    assert "brix_hc_manager_start" in _read("src/core/config/process_server_init.c")
 
 
 def test_metrics_present():
